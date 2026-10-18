@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 
 import { id } from '../scalars/id.js';
 
@@ -27,16 +28,14 @@ export const employeeImportErrorCode = z
     'IMPORT_CONTRACT_END_BEFORE_HIRE',
   ])
   .meta({ id: 'EmployeeImportErrorCode' });
-export const employeeImportRowError = z
-  .strictObject({
+export const employeeImportRowError = responseObject({
     row: z.number().int().min(2),
     column: employeeImportColumn,
     code: employeeImportErrorCode,
   })
   .meta({ id: 'EmployeeImportRowError' });
 
-export const employeeImportTemplate = z
-  .strictObject({
+export const employeeImportTemplate = responseObject({
     file_name: z.string().min(1).max(255),
     content_type: z.literal('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
     content_base64: z.string().min(1),
@@ -47,8 +46,7 @@ export const previewEmployeeImportInput = z
   .strictObject({ file_id: id })
   .meta({ id: 'PreviewEmployeeImportInput' });
 
-export const employeeImportPreview = z
-  .strictObject({
+export const employeeImportPreview = responseObject({
     preview_id: id,
     row_count: z.number().int().min(0).max(500),
     error_count: z.number().int().min(0),
@@ -69,11 +67,9 @@ export const employeeImportCommit = z
   .meta({ id: 'EmployeeImportCommit' });
 
 // الطلب يقبل مرة واحدة؛ النتيجة النهائية تقرأ من حالة المعاينة بعد تنفيذ الوظيفة.
-export const employeeImportCommitAccepted = z
-  .strictObject({ preview_id: id })
+export const employeeImportCommitAccepted = responseObject({ preview_id: id })
   .meta({ id: 'EmployeeImportCommitAccepted' });
-export const employeeImportStatus = z
-  .strictObject({
+export const employeeImportStatus = responseObject({
     preview_id: id,
     status: z.enum(['ready', 'commit_requested', 'committed', 'failed']),
     created_count: z.number().int().min(0).max(500),

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 
@@ -17,8 +18,7 @@ export const setEmployeeIbanInput = z
   )
   .meta({ id: 'SetEmployeeIbanInput' });
 
-export const employeeIbanView = z
-  .strictObject({
+export const employeeIbanView = responseObject({
     status: z.enum(['SET', 'NOT_SET']),
     iban_last4: z.string().length(4).nullable(),
     iban: z.string().nullable(),
@@ -39,8 +39,7 @@ export const employeeIbanHistoryQuery = z
   })
   .meta({ id: 'EmployeeIbanHistoryQuery' });
 
-export const employeeIbanHistoryEntry = z
-  .strictObject({
+export const employeeIbanHistoryEntry = responseObject({
     revision: z.number().int().positive(),
     iban: z.string().nullable(),
     bank_id: z.string().nullable(),
@@ -52,8 +51,7 @@ export const employeeIbanHistoryEntry = z
   })
   .meta({ id: 'EmployeeIbanHistoryEntry' });
 
-export const employeeIbanHistoryPage = z
-  .strictObject({
+export const employeeIbanHistoryPage = responseObject({
     items: z.array(employeeIbanHistoryEntry),
     next_cursor: z.number().int().positive().nullable(),
   })

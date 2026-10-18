@@ -35,6 +35,7 @@ export {
 } from './catalog/service.js';
 export { errorEnvelope, type ErrorEnvelope } from './errors/envelope.js';
 export { page, pageQuery, type PageQuery, type PageQueryRequest } from './pagination/cursor.js';
+export { responseObject } from './response-object.js';
 export { currency } from './reference/currency.js';
 export { timeZone } from './reference/time-zone.js';
 export { id } from './scalars/id.js';
@@ -156,6 +157,7 @@ export {
   inAppNotification,
   inAppNotificationQuery,
   inAppNotificationPage,
+  readInAppNotificationPage,
   notificationUnreadCount,
   notificationReadResult,
   type InAppRecipient,

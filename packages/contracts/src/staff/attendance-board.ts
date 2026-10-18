@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { employeeDate } from './employee.js';
@@ -32,15 +33,14 @@ const employeeFields = {
 };
 const source = z.enum(['QR', 'BARCODE', 'MANUAL']);
 const geo = z.enum(['OK', 'NONE', 'OUT_OF_RANGE']);
-export const attendanceBoard = z
-  .strictObject({
+export const attendanceBoard = responseObject({
     branch_id: id,
     date: employeeDate,
     timezone: z.string(),
     generated_at: timestamp,
     owner: z.boolean(),
     in_now: z.array(
-      z.strictObject({
+      responseObject({
         ...employeeFields,
         clock_in: timestamp,
         source,
@@ -48,7 +48,7 @@ export const attendanceBoard = z
       }),
     ),
     sessions: z.array(
-      z.strictObject({
+      responseObject({
         id,
         ...employeeFields,
         own: z.boolean(),
@@ -64,10 +64,9 @@ export const attendanceBoard = z
         corrected: z.boolean(),
         revision: z.number().int().nonnegative(),
         open_exceptions: z.array(
-          z.strictObject({ id, kind: z.enum(['NONE', 'OUT_OF_RANGE', 'SUSPECTED_MISSED_OUT']) }),
+          responseObject({ id, kind: z.enum(['NONE', 'OUT_OF_RANGE', 'SUSPECTED_MISSED_OUT']) }),
         ),
-        manual: z
-          .strictObject({
+        manual: responseObject({
             change_request_id: id,
             requested_by: id,
             requested_by_name: attendanceActorName,

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { nameAr, nameEn } from '../bilingual/names.js';
 import { employee, employeeInputId } from './employee.js';
 
@@ -18,8 +19,7 @@ export const employeeNameMatch = employee.pick({
   role_code: true,
 });
 
-export const employeeNameMatches = z
-  .object({
+export const employeeNameMatches = responseObject({
     matches: z.array(employeeNameMatch).max(10),
     visible_total: z.number().int().nonnegative(),
     hidden_exists: z.boolean(),

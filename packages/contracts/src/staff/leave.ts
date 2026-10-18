@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { employeeDate, employeeInputId } from './employee.js';
 import { timeZone } from '../reference/time-zone.js';
@@ -45,8 +46,7 @@ export const requestEmployeeLeaveInput = z
 export const cancelLeaveInput = z
   .strictObject({ expected_revision: z.number().int().positive().max(2147483646) })
   .meta({ id: 'CancelLeaveInput' });
-export const leaveRequest = z
-  .object({
+export const leaveRequest = responseObject({
     id,
     business_id: id,
     branch_id: id,
@@ -93,8 +93,7 @@ export const leaveListItem = leaveRequest
     can_revoke: z.boolean(),
   })
   .meta({ id: 'LeaveListItem' });
-export const leavePage = z
-  .object({
+export const leavePage = responseObject({
     items: z.array(leaveListItem),
     next_cursor: id.nullable(),
     request_branch_ids: z.array(id),

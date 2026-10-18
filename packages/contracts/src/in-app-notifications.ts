@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from './response-object.js';
 
 import { id } from './scalars/id.js';
 import { timestamp } from './scalars/timestamp.js';
@@ -186,51 +187,51 @@ const inAppNotificationBase = {
 };
 export const inAppNotification = z
   .discriminatedUnion('template_key', [
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase, template_key: z.literal('late_service_session'),
       safe_parameters: lateServiceSessionParameters,
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('service_line_price_edited'),
       safe_parameters: serviceLinePriceEditedParameters,
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('service_line_cancelled'),
       safe_parameters: serviceLineCancelledParameters,
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('service_line_performers_changed'),
       safe_parameters: serviceLinePerformersChangedParameters,
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('break_returned_other_branch'),
       safe_parameters: breakReturnedOtherBranchParameters,
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('attendance_change_requested'),
       safe_parameters: attendanceChangeRequestedParameters,
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('attendance_change_decided'),
       safe_parameters: attendanceChangeDecidedParameters,
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('generic_notice'),
       safe_parameters: inAppParameters,
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('shift_not_clocked_in'),
       safe_parameters: shiftNotClockedInParameters,
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('break_not_returned'),
       safe_parameters: breakNotReturnedParameters,
@@ -238,22 +239,52 @@ export const inAppNotification = z
   ])
   .meta({ id: 'InAppNotification' });
 export const inAppNotificationQuery = pageQuery.meta({ id: 'InAppNotificationQuery' });
-export const inAppNotificationPage = z
-  .strictObject({
-    items: z.array(inAppNotification),
-    next_cursor: z.string().nullable(),
-  })
-  .meta({ id: 'InAppNotificationPage' });
-export const notificationUnreadCount = z
-  .strictObject({
-    count: z.number().int().nonnegative(),
-  })
-  .meta({ id: 'NotificationUnreadCount' });
-export const notificationReadResult = z
-  .strictObject({
-    ok: z.literal(true),
-  })
-  .meta({ id: 'NotificationReadResult' });
+export const inAppNotificationPage = responseObject({
+  items: z.array(inAppNotification),
+  next_cursor: z.string().nullable(),
+}).meta({ id: 'InAppNotificationPage' });
+const inAppNotificationEnvelope = responseObject({
+  items: z.array(z.unknown()),
+  next_cursor: z.string().nullable(),
+});
+// المراجعة المعروفة لكل قالب بتتقرأ من الـ literal بتاعه، فرفع مراجعة قالب واحد في السكيما كفاية وما فيش ثابت تاني ينسيه حد.
+// القارئ بيفترض مراجعة واحدة مقروءة لكل قالب؛ رفع مراجعة أي قالب أو قراءة مراجعتين (صفوف قديمة مخزنة) لازم يعدّل القارئ ده في نفس الـ PR؛ اختبار response-object.spec بيفشل أول ما أي قالب يبطّل يعلن مراجعة 1.
+const supportedRevisions = new Map<string, number>(
+  inAppNotification.options.map((option) => [
+    option.shape.template_key.value,
+    option.shape.template_revision.value,
+  ]),
+);
+const isFutureVersion = (item: unknown): boolean => {
+  if (typeof item !== 'object' || item === null) return false;
+  const { template_key: key, template_revision: revision } = item as Record<string, unknown>;
+  if (typeof key !== 'string') return false;
+  const supported = supportedRevisions.get(key);
+  if (supported === undefined) return true;
+  return typeof revision === 'number' && Number.isInteger(revision) && revision > supported;
+};
+/**
+ * بيقرأ صفحة إشعارات الجرس ويتخطى الإشعار اللي قالبه أو مراجعته لسه نازلة بعد الحزمة دي.
+ * حزمة متصفح مفتوحة ممكن توصلها صفحة فيها `template_key` جديد نزل مع نشر السيرفر؛ لو فشل عنصر واحد كانت الصفحة كلها بتفشل والجرس يقف لحد إعادة التحميل.
+ * التخطي مقصور على قالب مش معروف أو مراجعة (template_revision) أحدث من اللي الحزمة بتفهمها؛ عنصر بقالب ومراجعة معروفين ومعاملاته غلط بيرمي خطأ ظاهر زي ما كان، عشان عيب السيرفر ما يستخباش.
+ * العنصر المتخطي يظهر بعد ما الحزمة الجديدة تتحمل، وعداد غير المقروء بيفضل من السيرفر.
+ *
+ * @param data جسم الرد كما جاء من السيرفر
+ * @returns الصفحة بالعناصر اللي الحزمة دي تفهمها، ومؤشر الصفحة التالية
+ */
+export function readInAppNotificationPage(data: unknown): InAppNotificationPage {
+  const envelope = inAppNotificationEnvelope.parse(data);
+  const items = envelope.items
+    .filter((item) => !isFutureVersion(item))
+    .map((item) => inAppNotification.parse(item));
+  return { items, next_cursor: envelope.next_cursor };
+}
+export const notificationUnreadCount = responseObject({
+  count: z.number().int().nonnegative(),
+}).meta({ id: 'NotificationUnreadCount' });
+export const notificationReadResult = responseObject({
+  ok: z.literal(true),
+}).meta({ id: 'NotificationReadResult' });
 export type InAppRecipient = z.infer<typeof inAppRecipient>;
 export type InAppNotification = z.infer<typeof inAppNotification>;
 export type InAppNotificationQuery = z.infer<typeof inAppNotificationQuery>;

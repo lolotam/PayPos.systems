@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 
@@ -14,7 +15,7 @@ export const correctAttendanceInput = z
     message: 'At least one time is required',
   })
   .meta({ id: 'CorrectAttendanceInput' });
-const correctedSession = z.strictObject({
+const correctedSession = responseObject({
   id,
   employee_id: id,
   branch_id: id,
@@ -26,7 +27,7 @@ const correctedSession = z.strictObject({
   late_minutes: z.number().int().min(0),
   revision: z.number().int().min(0),
 });
-const correctionRow = z.strictObject({
+const correctionRow = responseObject({
   id,
   field: z.enum(['CLOCK_IN', 'CLOCK_OUT']),
   before: timestamp,
@@ -35,8 +36,7 @@ const correctionRow = z.strictObject({
   corrected_by: id,
   corrected_at: timestamp,
 });
-export const correctAttendanceResult = z
-  .strictObject({
+export const correctAttendanceResult = responseObject({
     session: correctedSession,
     corrections: z.array(correctionRow),
   })

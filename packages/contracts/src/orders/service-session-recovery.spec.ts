@@ -25,7 +25,11 @@ it('parses an open page with or without outcome and rejects a hidden null', () =
   expect(serviceSessionRecoveryPage.parse({ items: [visit], next_cursor: null, attempt: { ...attempt, outcome: 'COMMITTED' } }).items).toHaveLength(1);
   expect(serviceSessionRecoveryPage.parse({ items: [visit], next_cursor: null, attempt: { ...attempt, outcome: 'NOT_COMMITTED' } }).attempt.outcome).toBe('NOT_COMMITTED');
   expect(serviceSessionRecoveryPage.safeParse({ items: [], next_cursor: null, attempt: { ...attempt, outcome: null } }).success).toBe(false);
-  expect(serviceSessionRecoveryPage.safeParse({ items: [], next_cursor: null, attempt, key: 'secret' }).success).toBe(false);
+  expect(serviceSessionRecoveryPage.parse({ items: [], next_cursor: null, attempt, key: 'secret' })).toEqual({
+    items: [],
+    next_cursor: null,
+    attempt,
+  });
 });
 
 it('accepts only the two confirm outcomes', () => {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 
 import { nameAr, nameEn } from '../bilingual/names.js';
 
@@ -17,14 +18,25 @@ const servicePrice = z
   .meta({ id: 'ServicePrice' });
 
 // نسبة العمولة بوحدات bps (0–10000) مش وحدات Percentage (0–100 بمقياس)؛ والمبلغ الثابت بالفلس كنص.
+const followPlan = { kind: z.literal('FOLLOW_PLAN') };
+const zeroRule = { kind: z.literal('ZERO') };
+const pctRule = { kind: z.literal('PCT'), value: z.number().int().min(0).max(10_000) };
+const fixedRule = { kind: z.literal('FIXED'), value: servicePrice };
 export const serviceCommissionRule = z
   .discriminatedUnion('kind', [
-    z.strictObject({ kind: z.literal('FOLLOW_PLAN') }),
-    z.strictObject({ kind: z.literal('ZERO') }),
-    z.strictObject({ kind: z.literal('PCT'), value: z.number().int().min(0).max(10_000) }),
-    z.strictObject({ kind: z.literal('FIXED'), value: servicePrice }),
+    z.strictObject(followPlan),
+    z.strictObject(zeroRule),
+    z.strictObject(pctRule),
+    z.strictObject(fixedRule),
   ])
   .meta({ id: 'ServiceCommissionRule' });
+// نسخة الرد بتتشال منها المفاتيح الزيادة؛ إنشاء الخدمة وتعديلها لسه بيرفضوا المفتاح الزيادة (ADR-0047).
+export const serviceCommissionRuleView = z.discriminatedUnion('kind', [
+  responseObject(followPlan),
+  responseObject(zeroRule),
+  responseObject(pctRule),
+  responseObject(fixedRule),
+]);
 
 const serviceFields = {
   name_en: serviceNameEn,
@@ -48,14 +60,13 @@ export const updateServiceInput = z
   })
   .meta({ id: 'UpdateServiceInput' });
 
-export const service = z
-  .object({
+export const service = responseObject({
     id,
     business_id: id,
     name_en: serviceNameEn,
     name_ar: serviceNameAr.nullable(),
     price: servicePrice,
-    commission_rule: serviceCommissionRule,
+    commission_rule: serviceCommissionRuleView,
     counts_toward_threshold: z.boolean(),
     revision,
     created_at: timestamp,
