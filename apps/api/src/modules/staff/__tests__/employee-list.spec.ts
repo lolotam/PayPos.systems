@@ -27,10 +27,13 @@ afterAll(async () => {
   await f?.h.close();
 });
 // الاختبار بيحوّل سجل كامل لشكل عنصر القائمة بالمفاتيح اللي السكيما بتعرفها، لأن عقود الرد strict في اختبارات الـ API (ADR-0047) ومش بتشيل مفتاح زيادة.
-const listItem = (record: Record<string, unknown>) =>
-  employeeListItem.parse(
-    Object.fromEntries(Object.keys(employeeListItem.shape).map((key) => [key, record[key]])),
+const listItem = (record: object | undefined) => {
+  if (!record) throw new Error('Missing synthetic fixture');
+  const source = record as Record<string, unknown>;
+  return employeeListItem.parse(
+    Object.fromEntries(Object.keys(employeeListItem.shape).map((key) => [key, source[key]])),
   );
+};
 const list = (
   limit: number,
   cursor?: string,
