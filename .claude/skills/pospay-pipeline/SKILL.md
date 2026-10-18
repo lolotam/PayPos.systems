@@ -28,7 +28,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 | **Implementer** — code, tests **and migrations** | **Grok CLI, `grok-4.7`, reasoning effort high** — owner's choice 2026-10-14 (replaces Codex Sol 6.1; switched from `grok-4.7-build-fast` the same evening) | yes, in its own worktree |
 | **Database reviewer** | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) | no |
 | Review layer 1 | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) — owner's choice 2026-10-11 | no |
-| Review layer 2 | **one** fresh Claude reviewer, **Sonnet 5.5 at medium effort** (`claude-sonnet-5-5`), given the diff and the spec only, never the session history; **high** effort for money, tenant isolation (RLS), auth and migrations; none for a docs-only PR (§8 rule 5) | no |
+| Review layer 2 | **one** fresh Claude reviewer, **Sonnet 5.5 at medium effort** (`claude-sonnet-5-5`), given the diff, the spec and the governing documents (§8 rule 5), never the session history; **high** effort for money, tenant isolation (RLS), auth and migrations; none for a docs-only PR (§8 rule 5) | no |
 | Review layer 3 — **four bots** | the Codex GitHub bot (`chatgpt-codex-connector[bot]`, `@codex review` after every push; Codex CLI when out of quota) **and** the MergePilot panel (`mergepilot-review[bot]`): MergePilot (`gpt-6.1-sol`), waleed_bot (`claude-sonnet-5-5`), mohamed_bot (`grok-4.7`), which reviews every pushed commit on its own | no |
 | Draft writer (§8 rule 6) | Codex or a free model (GLM) writes first drafts of specs, ADRs, journey docs and the HANDOVER; the orchestrator edits and owns the result | yes |
 | Fixer | the implementer, resuming **its own Grok session** with only the findings (§4); the orchestrator (or a doc-writing session) for a one-line fix, for any fix on a docs-only PR (no Grok session exists), and after two Grok failures (§8 rule 4) | yes |
@@ -236,8 +236,8 @@ typing do not.
    a docs-only PR has no Grok session, so the orchestrator (or a doc-writing session) fixes its findings; and after two
    Grok failures on one brief the orchestrator implements (§1 fallback).
 5. **One cheaper review layer 2.** One fresh Sonnet 5.5 reviewer at medium effort replaces the two Opus-class reviewers
-   (review and confirm round). It gets the diff and the spec, not the session history, so its context stays small. Use high
-   effort when the PR touches money, tenant isolation, auth or migrations, and add a reviewer from another vendor on top (never instead of the Sonnet reviewer). A docs-only
+   (review and confirm round). It gets the diff, the spec and the governing documents (`CLAUDE.md`, `CLAUDE.architecture.md`, `docs/06_Tech_Stack_Architecture_EN.md`, `docs/module-map.md`, the ADRs the slice cites), never the session history, so its context stays small. Use high
+   effort when the PR touches money, tenant isolation, auth or migrations, (the other-vendor reviewer is review layer 1, Codex astra 6, which already runs on every PR in §3 step 7). A docs-only
    PR gets no Claude reviewer. The confirm round is dropped: the four bots re-review the head SHA after every push.
 6. **Drafts are written by cheaper models.** (Draft writer role, listed in §1.) First drafts of specs, ADRs, journey docs and the HANDOVER go to Codex or a
    free model (GLM) and Claude edits them. Claude writes a document from scratch only when it records a decision it
