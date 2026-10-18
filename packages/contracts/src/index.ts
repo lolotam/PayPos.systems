@@ -322,6 +322,12 @@ export {
   type EmployeeDefaultShifts,
   type ScheduleShift,
 } from './staff/employee-default-shifts.js';
+export {
+  setEmployeeNumberInput,
+  employeeNumberView,
+  type SetEmployeeNumberInput,
+  type EmployeeNumberView,
+} from './staff/employee-number.js';
 export * from './staff/attendance-actions-read.js';
 export {
   attendanceEmployeeCursor,

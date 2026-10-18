@@ -5,6 +5,7 @@ import { attendanceActionsReadPaths } from './attendance-actions-read-openapi.js
 import { attendanceEmployeesPaths } from './attendance-employees-openapi.js';
 import { schedulesPaths } from './schedules-openapi.js';
 import { employeeDefaultShiftsPaths } from './employee-default-shifts-openapi.js';
+import { employeeNumberPaths } from './employee-number-openapi.js';
 import { z } from 'zod';
 import { employeeNameMatches, employeeNameMatchesInput } from './employee-name-matches.js';
 const nameMatchesJson = (schema: typeof employeeNameMatches | typeof employeeNameMatchesInput) => ({
@@ -31,6 +32,7 @@ export const staffPaths = {
   ...attendanceActionsReadPaths,
   ...attendanceEmployeesPaths,
   ...employeeDefaultShiftsPaths,
+  ...employeeNumberPaths,
   ...schedulesPaths,
   ...scheduleSettingsPaths,
   '/v1/businesses/{businessId}/employees/name-matches': {

@@ -26,6 +26,7 @@ it.each(['ar', 'en'] as const)(
       'read:settings:business',
       'manage:settings:business',
       'manage:business-identity:business',
+      'manage:employee-number:company',
       'read:package-types:business',
       'manage:package-types:business',
       'correct:attendance:branch',
@@ -48,6 +49,8 @@ it.each(['ar', 'en'] as const)(
     expect(permissionName('en', 'manage:business-identity:business')).toBe(
       'Manage business identity',
     );
+    expect(permissionName('ar', 'manage:employee-number:company')).toBe('إدارة الرقم الوظيفي');
+    expect(permissionName('en', 'manage:employee-number:company')).toBe('Manage employee numbers');
     expect(permissionName(locale, 'read:future:business')).toBe('read:future:business');
   },
 );

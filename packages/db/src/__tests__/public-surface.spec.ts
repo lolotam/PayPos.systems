@@ -33,6 +33,7 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'currentAttachment',
       'employeeDefaultShiftsStatement',
       'grantPlatformPermission',
+      'lockEmployeeNumberCounter',
       'markEventConsumed',
       'revokePlatformPermission',
       'runIdempotent',

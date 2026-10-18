@@ -19,6 +19,7 @@ import { catalogServicesAr, serviceErrorsAr } from './catalog-services.js';
 import { employeeIbanAr, employeeIbanErrorsAr } from './employee-iban-catalog.js';
 import { scheduleShellAr } from './schedule-shell-catalog.js';
 import { employeeDefaultHoursAr } from './employee-default-hours-catalog.js';
+import { employeeNumberErrorsAr } from './employee-number-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
@@ -217,8 +218,7 @@ export const ar: Catalog = {
     EMPLOYEE_USER_LINK_UNAVAILABLE: 'تعذر ربط المستخدم الموجود.',
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'يجب أن تكون نهاية العقد في تاريخ التعيين أو بعده.',
     EMPLOYEE_USER_ALREADY_LINKED: 'هذا المستخدم مرتبط بالفعل بموظف نشط في هذا النشاط.',
-    EMPLOYEE_NUMBER_EXHAUSTED:
-      'نفدت الأرقام الوظيفية المتاحة في الشركة، فلا يمكن إسناد رقم تلقائي جديد.',
+    ...employeeNumberErrorsAr,
     EMPLOYEE_CARD_CODE_UNAVAILABLE: 'لا يمكن استخدام كود الكارت هذا. اختر كودًا آخر.',
     ...employeeImportErrorsAr,
     ...serviceErrorsAr,
