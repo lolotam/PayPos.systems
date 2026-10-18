@@ -1,7 +1,12 @@
 import { createdEmployee, employeeNumberCapability } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { employeeNumberCapabilityAccess } from '../persistence/employee-context.adapter.ts';
 import { typedEmployeeNumberTaken } from '../persistence/set-employee-number.adapter.ts';
+import {
+  employeeNumberCapabilityBranchStatement,
+  readEmployeeNumberCapability,
+} from '../queries/employee-number-capability.query.ts';
 import { readCounter, setCounter, insertHeldNumbers, employeeNumberIds, grantEmployeeCreation, type EmployeeFixture } from './employee-number-assign.fixture.ts';
 import {
   clearNumberGrants,
@@ -337,3 +342,46 @@ it('a typed create racing a hand edit stores the number once', async () => {
   expect(failed.body['code']).toBe('EMPLOYEE_NUMBER_TAKEN');
   expect(await readCounter(f)).toBe(40_000);
 });
+
+it('returns the capability contract for a manager who cannot type a number', async () => {
+  await clearNumberGrants(f);
+  const result = await f.db.withTenant(
+    f.company,
+    (tx) =>
+      readEmployeeNumberCapability(
+        tx,
+        f.company,
+        f.userId,
+        f.business,
+        f.branch,
+        employeeNumberCapabilityAccess(),
+      ),
+    { userId: f.userId },
+  );
+  expect(employeeNumberCapability.parse(result)).toEqual({ can_type_number: false });
+});
+
+it('plans the branch lookup without a sequential scan of employees or branches', async () => {
+  await f.db.withTenant(f.company, async (tx) => {
+    await tx.execute(sql`SET LOCAL enable_seqscan=off`);
+    const [row] = await tx.execute<{ 'QUERY PLAN': { Plan: ExplainNode }[] }>(
+      sql`EXPLAIN (ANALYZE,FORMAT JSON) ${employeeNumberCapabilityBranchStatement(f.company, f.business, f.branch)}`,
+    );
+    const nodes = planNodes(row?.['QUERY PLAN'][0]?.Plan);
+    const scanned = nodes.filter(
+      (node) => node['Relation Name'] === 'employees' || node['Relation Name'] === 'branches',
+    );
+    expect(scanned.some((node) => node['Relation Name'] === 'branches')).toBe(true);
+    expect(scanned.every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
+  });
+});
+
+interface ExplainNode {
+  'Node Type': string;
+  'Relation Name'?: string;
+  Plans?: ExplainNode[];
+}
+
+function planNodes(node: ExplainNode | undefined): ExplainNode[] {
+  return node ? [node, ...(node.Plans ?? []).flatMap(planNodes)] : [];
+}

@@ -16,7 +16,6 @@ import {
   canLinkEmployeeUser,
   employeeContext,
   employeeBranchAccess,
-  readEmployeeCreationAccess,
 } from './employee-context.adapter.ts';
 import {
   refuseTypedEmployeeNumber,
@@ -62,19 +61,6 @@ async function insertTypedEmployee(
     if (numberKeyViolation(error)) throw new EmployeeCreationError('EMPLOYEE_NUMBER_TAKEN');
     throw error;
   }
-}
-
-async function allowCreationRead(
-  tx: Tx,
-  companyId: string,
-  userId: string,
-  businessId: string,
-  branchId: string,
-): Promise<boolean> {
-  const decision = await readEmployeeCreationAccess(tx, companyId, userId, businessId, branchId);
-  if (!decision.allowedBranchIds.includes(branchId)) return false;
-  if (!decision.featureEnabled) throw new EmployeeCreationError('FEATURE_DISABLED');
-  return true;
 }
 
 function cleanEmployeeError(error: unknown): never {
@@ -141,8 +127,6 @@ export function createEmployeeTransactions(
                 if (!decision.featureEnabled) throw new EmployeeCreationError('FEATURE_DISABLED');
                 return true;
               },
-              readCreationAccess: (businessId, branchId) =>
-                allowCreationRead(tx, companyId, userId, businessId, branchId),
               context: (record) => employeeContext(tx, companyId, record),
               canLinkUser: (linkedUserId) => canLinkEmployeeUser(tx, companyId, linkedUserId),
               assignEmployeeNumber: () => assignEmployeeNumber(tx, companyId),
