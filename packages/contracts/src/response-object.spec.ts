@@ -211,6 +211,12 @@ it('readInAppNotificationPage skips a known template at a newer revision', () =>
   expect(page.items).toHaveLength(1);
 });
 
+it.each([0, -1, 1.5, 'two'])('readInAppNotificationPage still fails on a known template with revision %s', (revision) => {
+  const clean = validSample(inAppNotificationPage) as { items: Record<string, unknown>[]; next_cursor: string | null };
+  const broken = { ...clean.items[0], template_revision: revision };
+  expect(() => readInAppNotificationPage({ ...clean, items: [broken] })).toThrow();
+});
+
 it('readInAppNotificationPage still fails on a known template with bad parameters', () => {
   const clean = validSample(inAppNotificationPage) as { items: Record<string, unknown>[]; next_cursor: string | null };
   const broken = { ...clean.items[0], safe_parameters: [] };

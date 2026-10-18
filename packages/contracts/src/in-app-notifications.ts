@@ -247,15 +247,20 @@ const inAppNotificationEnvelope = responseObject({
   items: z.array(z.unknown()),
   next_cursor: z.string().nullable(),
 });
-const knownTemplates = new Set<string>(
-  inAppNotification.options.map((option) => option.shape.template_key.value),
+// المراجعة المعروفة لكل قالب بتتقرأ من الـ literal بتاعه، فرفع مراجعة قالب واحد في السكيما كفاية وما فيش ثابت تاني ينسيه حد.
+const supportedRevisions = new Map<string, number>(
+  inAppNotification.options.map((option) => [
+    option.shape.template_key.value,
+    option.shape.template_revision.value,
+  ]),
 );
-const supportedRevision = 1;
 const isFutureVersion = (item: unknown): boolean => {
   if (typeof item !== 'object' || item === null) return false;
   const { template_key: key, template_revision: revision } = item as Record<string, unknown>;
-  if (typeof key === 'string' && !knownTemplates.has(key)) return true;
-  return typeof revision === 'number' && revision !== supportedRevision;
+  if (typeof key !== 'string') return false;
+  const supported = supportedRevisions.get(key);
+  if (supported === undefined) return true;
+  return typeof revision === 'number' && Number.isInteger(revision) && revision > supported;
 };
 /**
  * بيقرأ صفحة إشعارات الجرس ويتخطى الإشعار اللي قالبه أو مراجعته لسه نازلة بعد الحزمة دي.
