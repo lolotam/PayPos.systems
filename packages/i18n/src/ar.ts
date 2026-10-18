@@ -21,6 +21,7 @@ import { employeeIbanAr, employeeIbanErrorsAr } from './employee-iban-catalog.js
 import { scheduleShellAr } from './schedule-shell-catalog.js';
 import { employeeDefaultHoursAr } from './employee-default-hours-catalog.js';
 import { employeeNumberErrorsAr } from './employee-number-catalog.js';
+import { employeeNumberAdminAr } from './employee-number-admin-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
@@ -265,7 +266,7 @@ export const ar: Catalog = {
     INTERNAL_ERROR: 'حدث خطأ غير متوقع',
   },
   staff: {
-    ...staffDuplicateNameAr,
+    ...staffDuplicateNameAr, ...employeeNumberAdminAr,
     listTitle: 'الموظفون',
     listLead: 'أدر بيانات الموظفين وفروع العمل.',
     empty: 'لا يوجد موظفون في هذه الصفحة.',

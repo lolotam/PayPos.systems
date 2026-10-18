@@ -8,6 +8,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployees } from '../api/use-employees';
 import { useEmployeeListControls } from '../model/use-employee-list-controls';
 import { EmployeeListPanel } from '../ui/employee-list-panel';
+import { EmployeeNumberStartDialog } from '../ui/employee-number-start-dialog';
 import { EmployeeEditPanel } from '../ui/employee-edit-panel';
 import { PasskeyEmployeesPanel } from '../ui/passkey-employees-panel';
 
@@ -44,6 +45,7 @@ export function EmployeesPage({
           </div>
         }
       />
+      <EmployeeNumberStartDialog companyId={companyId} userId={userId} />
       <EmployeeListPanel
         list={list}
         branches={business.branches}

@@ -8,6 +8,9 @@ vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale
 vi.mock('../api/use-employee-name-matches', () => ({
   useEmployeeNameMatches: () => ({ mutateAsync: state.check }),
 }));
+vi.mock('../api/use-employee-number-capability', () => ({
+  useEmployeeNumberCapability: () => ({ data: undefined }),
+}));
 const empty = { matches: [], visible_total: 0, hidden_exists: false };
 const duplicate = { matches: [], visible_total: 0, hidden_exists: true };
 beforeEach(() => {
@@ -30,6 +33,7 @@ it.each(['ar', 'en'] as const)(
       <CreateEmployeeForm
         companyId={branch.id}
         businessId={branch.id}
+        userId={branch.id}
         branches={[branch]}
         pending={false}
         onSave={save}
@@ -64,6 +68,7 @@ it('disables submission during the pending request', () => {
     <CreateEmployeeForm
       companyId={branch.id}
       businessId={branch.id}
+      userId={branch.id}
       branches={[branch]}
       pending={true}
       onSave={vi.fn()}
@@ -87,7 +92,13 @@ function fillAndSubmit() {
   });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.create') }));
 }
-const props = { companyId: branch.id, businessId: branch.id, branches: [branch], pending: false };
+const props = {
+  companyId: branch.id,
+  businessId: branch.id,
+  userId: branch.id,
+  branches: [branch],
+  pending: false,
+};
 
 it('DN-02 waits for confirmation, then saves the original terms exactly once without a second check', async () => {
   state.check.mockResolvedValue(duplicate);

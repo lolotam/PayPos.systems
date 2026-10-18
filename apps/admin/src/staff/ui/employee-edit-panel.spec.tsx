@@ -35,6 +35,7 @@ vi.mock('../api/use-employees', () => ({
 vi.mock('../api/use-employee-name-matches', () => ({
   useEmployeeNameMatches: () => ({ mutateAsync: vi.fn() }),
 }));
+vi.mock('./employee-number-edit', () => ({ EmployeeNumberEdit: () => null }));
 vi.mock('./employee-record-sections', () => ({ EmployeeRecordSections: () => null }));
 vi.mock('./employee-leave-section', () => ({ EmployeeLeaveSection: () => null }));
 const business = {

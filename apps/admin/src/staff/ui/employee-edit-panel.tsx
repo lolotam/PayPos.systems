@@ -28,7 +28,7 @@ export function EmployeeEditPanel({
   const { record, save } = useEmployeeEdit(companyId, business.id, userId, employeeId);
   return (
     <Card className="flex max-w-xl flex-col gap-4 p-6">
-      <EmployeeProfileHeading employee={record.data && !record.isError ? record.data : undefined} />
+      <EmployeeProfileHeading companyId={companyId} businessId={business.id} userId={userId} employee={record.data && !record.isError ? record.data : undefined} />
       {record.isPending ? (
         <EmptyState icon={<LoaderCircle />} role="status" title={t(locale, 'admin.loading')} />
       ) : null}
