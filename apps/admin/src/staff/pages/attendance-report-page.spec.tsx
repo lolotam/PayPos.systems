@@ -323,3 +323,15 @@ it.each(['ar', 'en'] as const)(
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:synthetic');
   },
 );
+it('sorts by employee number and keeps a missing number last in both directions', async () => {
+  const view = setup();
+  const table = await screen.findByRole('table');
+  const header = within(table).getByRole('button', { name: t('en', 'attendanceReport.employeeNumber') });
+  fireEvent.click(header);
+  expect(within(table).getAllByRole('row')[1]?.textContent).toContain('15');
+  expect(within(table).getAllByRole('row').at(-1)?.textContent).toContain('—');
+  fireEvent.click(header);
+  expect(within(table).getAllByRole('row')[1]?.textContent).toContain('15');
+  expect(within(table).getAllByRole('row').at(-1)?.textContent).toContain('—');
+  view.close();
+});

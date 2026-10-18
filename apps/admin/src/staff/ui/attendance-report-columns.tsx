@@ -31,15 +31,9 @@ export function attendanceReportColumns(locale: Locale): ColumnDef<AttendanceMon
     {
       id: 'employee_number',
       header: t(locale, 'attendanceReport.employeeNumber'),
-      accessorFn: (row) => row.employee_number,
-      sortingFn: (left, right) => {
-        const a = left.original.employee_number;
-        const b = right.original.employee_number;
-        if (a === b) return 0;
-        if (a === null) return 1;
-        if (b === null) return -1;
-        return a - b;
-      },
+      accessorFn: (row) => row.employee_number ?? undefined,
+      sortingFn: 'basic',
+      sortUndefined: 'last',
       cell: ({ row }) => displayEmployeeNumber(row.original.employee_number),
     },
     {
