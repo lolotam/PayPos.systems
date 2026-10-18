@@ -1,4 +1,4 @@
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 
 import { applyUpdates } from './set-status.mjs';
 
@@ -15,7 +15,17 @@ const roadmap = applyUpdates(
   today,
 );
 const indent = source.trimEnd().includes('\n') ? 2 : 0;
-const temporaryPath = `${roadmapPath}.tmp`;
-writeFileSync(temporaryPath, `${JSON.stringify(roadmap, null, indent)}\n`);
-renameSync(temporaryPath, roadmapPath);
+const temporaryPath = `${roadmapPath}.${process.pid}.${Date.now()}.tmp`;
+try {
+  writeFileSync(
+    temporaryPath,
+    `${JSON.stringify(roadmap, null, indent)}
+`,
+    { flag: 'wx' },
+  );
+  renameSync(temporaryPath, roadmapPath);
+} catch (error) {
+  rmSync(temporaryPath, { force: true });
+  throw error;
+}
 console.log(`roadmap updated (${today})`);
