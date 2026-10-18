@@ -16,13 +16,9 @@ const roadmap = applyUpdates(
 );
 const indent = source.trimEnd().includes('\n') ? 2 : 0;
 const temporaryPath = `${roadmapPath}.${process.pid}.${Date.now()}.tmp`;
+const output = JSON.stringify(roadmap, null, indent) + '\n';
+writeFileSync(temporaryPath, output, { flag: 'wx' });
 try {
-  writeFileSync(
-    temporaryPath,
-    `${JSON.stringify(roadmap, null, indent)}
-`,
-    { flag: 'wx' },
-  );
   renameSync(temporaryPath, roadmapPath);
 } catch (error) {
   rmSync(temporaryPath, { force: true });
