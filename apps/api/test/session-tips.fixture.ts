@@ -199,19 +199,50 @@ export async function holdVisit(f: TipFixture, sessionId: string) {
   const released = new Promise<void>((resolve) => {
     release = resolve;
   });
-  let locked!: () => void;
-  const acquired = new Promise<void>((resolve) => {
+  let locked!: (pid: number) => void;
+  const acquired = new Promise<number>((resolve) => {
     locked = resolve;
   });
   const holder = f.h.owner.begin(async (tx) => {
+    const [me] = await tx`SELECT pg_backend_pid() AS pid`;
     await tx`SELECT pg_advisory_xact_lock(hashtextextended(${f.company}::uuid::text || ':service_session:' || ${sessionId}::uuid::text,0))`;
-    locked();
+    locked(Number(me?.['pid']));
     await released;
   });
-  await acquired;
+  const pid = await acquired;
   let done = false;
   return {
+    pid,
     release: async () => {
+      if (done) return;
+      done = true;
+      release();
+      await holder;
+    },
+  };
+}
+
+export async function holdEmployeeUpdate(f: TipFixture, employeeId: string, userId: string) {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let locked!: (pid: number) => void;
+  const acquired = new Promise<number>((resolve) => {
+    locked = resolve;
+  });
+  const holder = f.h.owner.begin(async (tx) => {
+    const [me] = await tx`SELECT pg_backend_pid() AS pid`;
+    await tx`SELECT id FROM employees WHERE company_id=${f.company} AND id=${employeeId} FOR UPDATE`;
+    locked(Number(me?.['pid']));
+    await released;
+    await tx`UPDATE employees SET user_id=${userId} WHERE company_id=${f.company} AND id=${employeeId}`;
+  });
+  const pid = await acquired;
+  let done = false;
+  return {
+    pid,
+    commit: async () => {
       if (done) return;
       done = true;
       release();
@@ -224,22 +255,31 @@ export function separateOwner(f: TipFixture) {
   return postgres(f.h.ownerUrl, { max: 1, onnotice: () => undefined });
 }
 
-export async function waitForAdvisory(f: TipFixture, needed: number) {
+export async function waitForBlocked(
+  f: TipFixture,
+  holderPid: number,
+  needed: number,
+  waitEvent?: string,
+) {
   const observer = postgres(f.h.ownerUrl, { max: 1, onnotice: () => undefined });
   const start = Date.now();
-  let waiting = 0;
   try {
     while (Date.now() - start < 2000) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      const [row] =
-        await observer`SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory'`;
-      waiting = Number(row?.['waiting'] ?? 0);
-      if (waiting >= needed && Date.now() - start >= 300) return waiting;
+      const rows = await observer`SELECT pid,wait_event,query FROM pg_stat_activity
+        WHERE datname=current_database() AND wait_event_type='Lock' AND ${holderPid}=ANY(pg_blocking_pids(pid))`;
+      const matched =
+        waitEvent === undefined ? rows : rows.filter((row) => row['wait_event'] === waitEvent);
+      if (matched.length >= needed) return matched;
+      await new Promise((resolve) => setTimeout(resolve, 20));
     }
-    return waiting;
+    return [];
   } finally {
     await observer.end();
   }
+}
+
+export async function waitForAdvisory(f: TipFixture, holderPid: number, needed: number) {
+  return (await waitForBlocked(f, holderPid, needed, 'advisory')).length;
 }
 
 export function payloadOf(value: unknown): unknown {

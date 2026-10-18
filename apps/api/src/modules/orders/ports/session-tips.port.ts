@@ -1,7 +1,11 @@
 import type { TipPerformerRow } from '../domain/tip-people-links.ts';
 import type { TipRevisionSession } from '../domain/tip-records.ts';
 import type { TipEntry } from '../domain/tip-set.ts';
-import type { PerformerCheckPort, SessionRecordAccessPort } from './session-readers.port.ts';
+import type {
+  PerformerCheckPort,
+  SessionPlacePort,
+  SessionRecordAccessPort,
+} from './session-readers.port.ts';
 import type { SessionWriteContext } from './service-session-transactions.port.ts';
 
 /** المجموعة الحالية؛ المراجعة صفر والسطور فاضية تعني أنه لا بقشيش محفوظ بعد. */
@@ -76,13 +80,16 @@ export interface SessionTipsRepository {
 }
 
 /**
- * ترتيب D-T6: مطالبة idempotent ثم access.lock ثم lockVisit ثم loadSession و loadPeople و loadCurrent،
- * ثم performers.lock لاتحاد هويات الناس والحالية والمطلوبة تصاعدياً ودفعات لا تزيد عن 80 لأن قارئ الموارد البشرية يرفض الأكثر،
- * ثم performers.read ثم withCurrentLinks لهويات الناس والحالية فقط ثم access.read الطازج ثم القواعد ثم insertRevision ثم audit ثم emit.
+ * ترتيب D-T6: فحص المكان والصلاحية قبل المطالبة، ثم idempotent، ثم access.lock ثم lockVisit ثم loadSession و loadPeople و loadCurrent،
+ * ثم performers.lock لاتحاد هويات الناس والحالية والمطلوبة تصاعدياً ودفعات في حد قارئ الموارد البشرية ثم performers.read،
+ * ثم إعادة فحص الصلاحية و place.read ثم نسخة المراجعة ثم withCurrentLinks لهويات الناس والحالية فقط ثم النافذة والسبب والمجموعة ورفض عدم التغيير،
+ * ثم insertRevision ثم audit ثم emit.
  */
 export interface SessionTipsTransaction {
   access: SessionTipsAccessPort;
   performers: PerformerCheckPort;
+  /** مكان الزيارة؛ غيابه رفض موحّد عن الزيارة أو سلطة المتصلة الحية. */
+  place: SessionPlacePort;
   tips: SessionTipsRepository;
   /**
    * يحفظ جسم الرد تحت عملية تسجيل البقشيش أو يعيد الجسم المخزون.

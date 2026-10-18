@@ -135,7 +135,7 @@ it('D-T5 an unknown session and a session outside the branch, business or compan
   expect(await sessionRevisionCount(f, unknownId)).toBe(0);
 });
 
-it('a disabled orders feature is refused and a closed company is forbidden', async () => {
+it('a disabled orders feature is refused and a closed company is not found', async () => {
   const visit = await recordVisit(f);
   await f.h
     .owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by) VALUES(${f.company},'orders',false,'Synthetic feature off',${f.ownerId})`;
@@ -153,7 +153,7 @@ it('a disabled orders feature is refused and a closed company is forbidden', asy
     expect(
       errorShape(await caught(runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CARD', '1.000')]))))
         .code,
-    ).toBe('FORBIDDEN');
+    ).toBe('SESSION_NOT_FOUND');
     expect(await sessionRevisionCount(f, visit.sessionId)).toBe(0);
   } finally {
     await f.h.owner`UPDATE companies SET deleted_at=NULL WHERE id=${f.company}`;
@@ -168,7 +168,7 @@ it('a permission revoked while the visit lock is held becomes SESSION_NOT_FOUND 
   const pending = runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '1.000')]), { key });
   const owner = separateOwner(f);
   try {
-    expect(await waitForAdvisory(f, 1)).toBeGreaterThanOrEqual(1);
+    expect(await waitForAdvisory(f, held.pid, 1)).toBeGreaterThanOrEqual(1);
     await owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
       VALUES(${f.company},${deny},${f.membership},'record:service-sessions:branch','DENY','BRANCH',${f.branch},'Synthetic tip wait deny',${f.ownerId})`;
     await held.release();

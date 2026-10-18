@@ -39,29 +39,33 @@ it('TP-11 two concurrent replacements leave one winner and a continuous chain', 
     ),
   ]);
   try {
-    expect(await waitForAdvisory(f, 2)).toBeGreaterThanOrEqual(2);
+    expect(await waitForAdvisory(f, held.pid, 2)).toBeGreaterThanOrEqual(2);
   } finally {
     await held.release();
   }
   const outcomes = await pending;
   const rejected = outcomes.find((item) => item.status === 'rejected');
   expect(outcomes.filter((item) => item.status === 'fulfilled')).toHaveLength(1);
-  expect(errorShape(rejected?.status === 'rejected' ? rejected.reason : null).code).toBe(
-    'TIP_REVISION_CONFLICT',
-  );
+  expect(errorShape(rejected?.status === 'rejected' ? rejected.reason : null)).toEqual({
+    code: 'TIP_REVISION_CONFLICT',
+    message: 'TIP_REVISION_CONFLICT',
+    details: { current_revision: 2 },
+  });
   const rows = await tipRows(f, visit.sessionId);
   expect(rows.revisions.map((row) => [row['revision'], row['previous_revision']])).toEqual([
     [1, null],
     [2, 1],
   ]);
+  expect(rows.audits).toHaveLength(2);
+  expect(rows.events).toHaveLength(2);
 });
 
-it('a tip write waits on the same visit lock a cancellation would hold', async () => {
+it('a tip write waits while another transaction holds the visit lock key', async () => {
   const visit = await recordVisit(f);
   const held = await holdVisit(f, visit.sessionId);
   const pending = runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '1.000')]));
   try {
-    expect(await waitForAdvisory(f, 1)).toBeGreaterThanOrEqual(1);
+    expect(await waitForAdvisory(f, held.pid, 1)).toBeGreaterThanOrEqual(1);
     await held.release();
     expect((await pending).revision).toBe(1);
   } finally {

@@ -92,6 +92,7 @@ async function claimSessionTips<T>(
 
 function mapSessionTipsError(error: unknown): never {
   if (error instanceof IdempotencyKeyReusedError) throw new SessionError('IDEMPOTENCY_KEY_REUSED');
+  // التعارض 23505 يصل بعد إجهاض المعاملة، فقراءة current_revision غير ممكنة ويبقى الرفض بلا تفاصيل.
   if (isRevisionConflict(error)) throw new SessionError('TIP_REVISION_CONFLICT');
   cleanSessionWrite(error);
 }

@@ -1,6 +1,6 @@
 import type { RecordSessionTipsInput, SessionTips } from '@pospay/contracts';
 import { parseMoney } from '@pospay/domain';
-import { compareEmployeeId } from '../../domain/employee-order.ts';
+import { ascendingEmployeeIds, employeeIdBatches } from '../../domain/employee-order.ts';
 import { resolveSessionRecorder, type SessionAccess } from '../../domain/session-authority.ts';
 import { SessionError } from '../../domain/session-error.ts';
 import { withCurrentLinks, type TipPerformerRow } from '../../domain/tip-people-links.ts';
@@ -14,7 +14,6 @@ import { assertTipChange, assertTipRevision, nextTipRevision } from '../../domai
 import { validateTipSet, type TipEntry } from '../../domain/tip-set.ts';
 import { assertTipWindowOpen } from '../../domain/tip-window.ts';
 import { tipReasonFor } from '../../domain/written-reason.ts';
-import type { SessionPlacePort } from '../../ports/session-readers.port.ts';
 import type {
   SessionTipsCurrent,
   SessionTipsTransaction,
@@ -26,16 +25,17 @@ import type {
   SessionWriteContext,
 } from '../../ports/service-session-transactions.port.ts';
 
+/** حد قارئ الموارد البشرية؛ أي دفعة أكبر يرفضها قبل القراءة. */
 const PERFORMER_BATCH = 80;
 
 type TipContext = SessionWriteContext & { sessionId: string; input: RecordSessionTipsInput };
-type TipTx = SessionTipsTransaction & { place: SessionPlacePort };
-type LinkedPeople = ReturnType<typeof withCurrentLinks>;
+type LoadedEmployees = Awaited<ReturnType<SessionTipsTransaction['performers']['read']>>;
 
 interface LoadedTips {
   session: TipRevisionSession;
   current: SessionTipsCurrent;
-  people: LinkedPeople;
+  rows: readonly TipPerformerRow[];
+  employees: LoadedEmployees;
 }
 
 interface TipDecision {
@@ -54,18 +54,18 @@ export class RecordSessionTipsUseCase {
   ) {}
 
   async execute(context: TipContext): Promise<SessionTips> {
-    return this.transactions.run(context, (tx) => this.open(tx as TipTx, context));
+    return this.transactions.run(context, (tx) => this.open(tx, context));
   }
 
-  private async open(tx: TipTx, context: TipContext): Promise<SessionTips> {
+  private async open(tx: SessionTipsTransaction, context: TipContext): Promise<SessionTips> {
     await this.authorize(tx, context);
     const result = await tx.idempotent(() => this.record(tx, context));
     if (result.replayed) await this.authorize(tx, context);
     return result.body;
   }
 
-  private async authorize(tx: TipTx, context: TipContext): Promise<void> {
-    if ((await tx.place.read()) === null) throw new SessionError('FORBIDDEN');
+  private async authorize(tx: SessionTipsTransaction, context: TipContext): Promise<void> {
+    if ((await tx.place.read()) === null) throw new SessionError('SESSION_NOT_FOUND');
     acceptRecorder(
       await tx.access.read(this.clock.now()),
       context.input.recorder_membership_id,
@@ -73,7 +73,7 @@ export class RecordSessionTipsUseCase {
     );
   }
 
-  private async record(tx: TipTx, context: TipContext): Promise<SessionTips> {
+  private async record(tx: SessionTipsTransaction, context: TipContext): Promise<SessionTips> {
     const requested = requestedEntries(context.input.tips);
     const loaded = await this.load(tx, context, requested);
     const at = this.clock.now();
@@ -89,7 +89,7 @@ export class RecordSessionTipsUseCase {
   }
 
   private async load(
-    tx: TipTx,
+    tx: SessionTipsTransaction,
     context: TipContext,
     requested: readonly TipEntry[],
   ): Promise<LoadedTips> {
@@ -104,25 +104,25 @@ export class RecordSessionTipsUseCase {
       performerIds(rows, current.entries, requested),
       session.occurred_at,
     );
-    return {
-      session,
-      current,
-      people: withCurrentLinks(rows, employees, linkIds(rows, current.entries)),
-    };
+    return { session, current, rows, employees };
   }
 
-  private async recheck(tx: TipTx, context: TipContext, at: Date): Promise<string> {
+  private async recheck(
+    tx: SessionTipsTransaction,
+    context: TipContext,
+    at: Date,
+  ): Promise<string> {
     const membershipId = acceptRecorder(
       await tx.access.read(at),
       context.input.recorder_membership_id,
       context.userId,
     );
-    if ((await tx.place.read()) === null) throw new SessionError('FORBIDDEN');
+    if ((await tx.place.read()) === null) throw new SessionError('SESSION_NOT_FOUND');
     return membershipId;
   }
 
   private async commit(
-    tx: TipTx,
+    tx: SessionTipsTransaction,
     context: TipContext,
     loaded: LoadedTips,
     decision: TipDecision,
@@ -174,13 +174,18 @@ function decideTips(
   at: Date,
 ): TipDecision {
   assertTipRevision(loaded.current.revision, context.input.expected_revision);
+  const people = withCurrentLinks(
+    loaded.rows,
+    loaded.employees,
+    linkIds(loaded.rows, loaded.current.entries),
+  );
   assertTipWindowOpen(loaded.session.business_date, at, loaded.session.business_timezone);
   const reason = tipReasonFor(loaded.current.revision, context.input.reason);
   const result = validateTipSet({
     actor_user_id: context.userId,
     current: loaded.current.entries,
     requested,
-    people: loaded.people,
+    people,
   });
   assertTipChange(result.changed_anything);
   const next = nextTipRevision(loaded.current.revision);
@@ -191,8 +196,19 @@ function requestedEntries(tips: RecordSessionTipsInput['tips']): TipEntry[] {
   return tips.map((tip) => ({
     employee_id: tip.employee_id,
     method: tip.method,
-    amount: parseMoney(tip.amount),
+    amount: parsedAmount(tip.amount),
   }));
+}
+
+function parsedAmount(amount: string): bigint {
+  try {
+    return parseMoney(amount);
+  } catch (error) {
+    if (error instanceof RangeError || error instanceof TypeError) {
+      throw new SessionError('VALIDATION_FAILED');
+    }
+    throw error;
+  }
 }
 
 function performerIds(
@@ -200,32 +216,28 @@ function performerIds(
   current: readonly TipEntry[],
   requested: readonly TipEntry[],
 ): string[] {
-  const ids = new Map<string, string>();
-  for (const id of [
-    ...rows.map((row) => row.employee_id),
-    ...current.map((entry) => entry.employee_id),
-    ...requested.map((entry) => entry.employee_id),
-  ]) {
-    ids.set(id.toLowerCase(), id.toLowerCase());
-  }
-  return [...ids.values()].sort(compareEmployeeId);
+  return ascendingEmployeeIds(
+    rows.map((row) => row.employee_id),
+    current.map((entry) => entry.employee_id),
+    requested.map((entry) => entry.employee_id),
+  );
 }
 
 function linkIds(rows: readonly TipPerformerRow[], current: readonly TipEntry[]): string[] {
-  return performerIds(rows, current, []);
+  return ascendingEmployeeIds(
+    rows.map((row) => row.employee_id),
+    current.map((entry) => entry.employee_id),
+  );
 }
 
-async function readPerformers(tx: TipTx, employeeIds: readonly string[], at: Date) {
-  const batches = batchesOf(employeeIds);
+async function readPerformers(
+  tx: SessionTipsTransaction,
+  employeeIds: readonly string[],
+  at: Date,
+): Promise<LoadedEmployees> {
+  const batches = employeeIdBatches(employeeIds, PERFORMER_BATCH);
+  const employees: LoadedEmployees = [];
   for (const batch of batches) await tx.performers.lock(batch);
-  const employees: Awaited<ReturnType<TipTx['performers']['read']>> = [];
   for (const batch of batches) employees.push(...(await tx.performers.read(batch, at)));
   return employees;
-}
-
-function batchesOf(employeeIds: readonly string[]): string[][] {
-  const batches: string[][] = [];
-  for (let index = 0; index < employeeIds.length; index += PERFORMER_BATCH)
-    batches.push(employeeIds.slice(index, index + PERFORMER_BATCH));
-  return batches;
 }
