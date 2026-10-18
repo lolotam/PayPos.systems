@@ -90,12 +90,24 @@ function readAccess(
   return db.withTenant(companyId, (tx) => readAccessTransaction(tx, companyId, userId), { userId });
 }
 
+/**
+ * عضويات المستخدم السارية ومنحه جوه transaction الشركة.
+ * مستأجر اتعمله soft-delete مش قابل للوصول حتى لأعضائه: RLS بيقارن company_id بس،
+ * فلو الصف مش ظاهر أو deleted_at متعبّى بنرجّع صفر عضويات وصفر منح والـ guard بيرفض بالفحص الموجود.
+ *
+ * @param tx         معاملة withTenant للشركة
+ * @param companyId  الشركة
+ * @param userId     المستخدم
+ * @param decisionAt لحظة التقييم لو مختلفة عن وقت المعاملة
+ * @returns العضويات والمنح، أو الاتنين فاضيين لما الشركة محذوفة أو مش ظاهرة
+ */
 export async function readAccessTransaction(
   tx: Tx,
   companyId: string,
   userId: string,
   decisionAt?: Date,
 ): ReturnType<AccessReader['accessIn']> {
+  if ((await tx.execute(sql`SELECT id FROM companies WHERE id=${companyId} AND deleted_at IS NULL`)).length === 0) return { memberships: [], grants: [] };
   const at = decisionAt === undefined ? sql`now()` : sql`${decisionAt.toISOString()}::timestamptz`;
   const active = sql`m.starts_at <= ${at} AND (m.ends_at IS NULL OR m.ends_at > ${at})`;
   const memberships = await tx.execute<{

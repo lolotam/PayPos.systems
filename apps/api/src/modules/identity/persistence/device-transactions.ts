@@ -21,10 +21,18 @@ const COLUMNS: Record<keyof DeviceChange, string> = {
   lastSeenAt: 'last_seen_at',
 };
 
+async function companyIsOpen(tx: Tx, companyId: string): Promise<boolean> {
+  const rows = await tx.execute(
+    sql`SELECT id FROM companies WHERE id=${companyId} AND deleted_at IS NULL`,
+  );
+  return rows.length === 1;
+}
+
 function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): DeviceScope {
   return {
     companyId,
     ...transactionWriters(tx, ids),
+    companyOpen: () => companyIsOpen(tx, companyId),
     findForUpdate: async (deviceId) => {
       const [row] = await tx.execute<{
         id: string;

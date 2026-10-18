@@ -27,6 +27,8 @@ export interface DeviceScope {
    * @param deviceId الجهاز
    */
   findForUpdate(deviceId: string): Promise<DeviceRecord | null>;
+  /** الشركة ظاهرة وdeleted_at فاضي. التسجيل وإصدار توكن جديد بيتوقفوا لو الشركة اتحذفت. */
+  companyOpen(): Promise<boolean>;
   /**
    * بيضيف جهاز جديد PENDING ومعاه hash سر الاستلام.
    *

@@ -32,6 +32,8 @@ export class ClaimDeviceToken {
     claimSecret: string;
   }): Promise<ClaimOutcome> {
     return this.#transactions.run(command.companyId, null, async (scope) => {
+      // إصدار التوكن لشركة اتحذفت نفس رفض السر الغلط، من غير ما نمسح سر الاستلام.
+      if (!(await scope.companyOpen())) return { kind: 'refused' };
       const device = await scope.findForUpdate(command.deviceId);
       if (device === null || !this.#secrets.verify(command.claimSecret, device.claimHash)) {
         return { kind: 'refused' };

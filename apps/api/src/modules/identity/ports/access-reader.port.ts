@@ -41,6 +41,7 @@ export interface AccessReader {
   /**
    * العضويات السارية والصلاحيات (role + overrides بالـ DENY) للمستخدم بعد تأكيد الشركة.
    * DENY الإداري التاريخي لا يقلل سلطة المالك النشط؛ دخول الموظفين يبقى مستقلاً حسب ADR-0019.
+   * مستأجر اتعمله soft-delete بيرجّع صفر عضويات وصفر منح حتى لأعضائه.
    *
    * @param companyId الشركة اللي عضويته فيها اتأكدت
    * @param userId    المستخدم
@@ -75,6 +76,7 @@ export interface AccessReader {
   businessInCompany(companyId: string, businessId: string): Promise<boolean>;
   /**
    * هل الـ feature مفعّلة للشركة: override ساري لو موجود، وإلا flag الـ plan، وإلا مقفولة.
+   * شركة اتعملها soft-delete أو صفها مش ظاهر بتبقى مقفولة حتى لو فيها override.
    *
    * @param companyId الشركة المتأكد منها
    * @param flag      اسم الـ feature flag

@@ -37,6 +37,9 @@ export class VerifyCashierPin {
     pin: string;
   }): Promise<PinOutcome> {
     const { companyId, employeeId } = command;
+    // شركة اتحذفت مش بتثبت مين على الكاشير، والرفض زي PIN غلط عشان مفيش oracle جديد.
+    const open = await this.#transactions.run(companyId, null, (scope) => scope.companyOpen());
+    if (!open) return { kind: 'refused' };
     const target = { companyId, employeeId };
     const reserved = await this.#attempts.reserve(target);
     if (reserved.kind !== 'ok') return { kind: reserved.kind };
