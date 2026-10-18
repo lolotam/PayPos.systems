@@ -34,11 +34,22 @@ it('never reads or writes another tenant counter', async () => {
     tx.execute(sql`UPDATE employee_number_sequences SET next_number=88 WHERE company_id=${f.otherCompany} RETURNING company_id`),
   );
   expect(updated).toHaveLength(0);
-  await expect(
-    f.db.withTenant(f.company, (tx) =>
-      tx.execute(sql`INSERT INTO employee_number_sequences(company_id) VALUES (${f.otherCompany})`),
-    ),
-  ).rejects.toThrow();
+  const empty = await provisionEmployer(f, 'EN-11 empty counter');
+  const [missing] = await f.h.owner`SELECT company_id FROM employee_number_sequences WHERE company_id=${empty.companyId}`;
+  expect(missing).toBeUndefined();
+  const caught = await f.db
+    .withTenant(f.company, (tx) =>
+      tx.execute(sql`INSERT INTO employee_number_sequences(company_id) VALUES (${empty.companyId})`),
+    )
+    .then(
+      () => null,
+      (error: unknown) => error,
+    );
+  const refused = databaseRefusal(caught);
+  expect(refused.code).toBe('42501');
+  expect(refused.message).toMatch(/row-level security/);
+  const [created] = await f.h.owner`SELECT company_id FROM employee_number_sequences WHERE company_id=${empty.companyId}`;
+  expect(created).toBeUndefined();
   const [still] = await f.h.owner`SELECT next_number, start_number FROM employee_number_sequences WHERE company_id=${f.otherCompany}`;
   expect(Number(still?.['next_number'])).toBe(77);
   expect(Number(still?.['start_number'])).toBe(50);
@@ -88,6 +99,23 @@ it('parses the numbering shape and does not seq-scan the counter', async () => {
   expect(explainNodes(plan).some((node) => node['Relation Name'] === 'employee_number_sequences')).toBe(true);
   expect(scansSequences(plan)).toBe(false);
 });
+
+function databaseRefusal(error: unknown): { code: string; message: string } {
+  const seen = new Set<unknown>();
+  let code = '';
+  const messages: string[] = [];
+  for (
+    let current: unknown = error;
+    typeof current === 'object' && current !== null && !seen.has(current);
+    current = (current as { cause?: unknown }).cause
+  ) {
+    seen.add(current);
+    const node = current as { code?: unknown; message?: unknown };
+    if (code === '' && node.code !== undefined) code = String(node.code);
+    if (typeof node.message === 'string') messages.push(node.message);
+  }
+  return { code, message: messages.join('\n') };
+}
 
 interface ExplainNode {
   'Node Type'?: string;

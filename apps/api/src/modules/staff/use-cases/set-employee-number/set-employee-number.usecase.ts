@@ -24,7 +24,7 @@ export class SetEmployeeNumberUseCase {
 }
 
 async function change(command: SetEmployeeNumberCommand, scope: SetEmployeeNumberScope) {
-  await scope.lockAccess();
+  if (!(await scope.lockAccess())) throw new SetEmployeeNumberError('FORBIDDEN');
   const row = await scope.readEmployee(command.businessId, command.employeeId);
   if (row === null || row.business_id !== command.businessId) throw new SetEmployeeNumberError('NOT_FOUND');
   const refusal = await scope.recheck(row.business_id, branchTargets(row));

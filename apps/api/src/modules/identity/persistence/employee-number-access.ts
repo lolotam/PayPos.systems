@@ -7,15 +7,20 @@ import { readFeatureEnabled } from './feature-reader.ts';
 const PERMISSION = 'manage:employee-number:company';
 
 /**
- * يقفل الشركة ثم كل العضويات بترتيب المعرف حتى لا يُسحب الإذن أثناء تعديل الرقم.
+ * يقفل الشركة النشطة ثم كل العضويات بترتيب المعرف حتى لا يُسحب الإذن أثناء تعديل الرقم.
+ * الشركة المحذوفة لا تُكمل القفل، لأن الكتابة بعدها كانت بتتم على مستأجر لا يُرى.
  *
  * @param tx معاملة تعديل الرقم
  * @param companyId الشركة المتحقق منها
- * @returns اكتمال الأقفال
+ * @returns true بعد قفل صف الشركة النشطة، وfalse دون قفل العضويات إن غاب
  */
-export async function lockEmployeeNumberAccess(tx: Tx, companyId: string): Promise<void> {
-  await tx.execute(sql`SELECT id FROM companies WHERE id=${companyId} AND deleted_at IS NULL FOR NO KEY UPDATE`);
+export async function lockEmployeeNumberAccess(tx: Tx, companyId: string): Promise<boolean> {
+  const rows = await tx.execute(
+    sql`SELECT id FROM companies WHERE id=${companyId} AND deleted_at IS NULL FOR NO KEY UPDATE`,
+  );
+  if (rows.length !== 1) return false;
   await tx.execute(sql`SELECT id FROM memberships WHERE company_id=${companyId} ORDER BY id FOR UPDATE`);
+  return true;
 }
 
 /**

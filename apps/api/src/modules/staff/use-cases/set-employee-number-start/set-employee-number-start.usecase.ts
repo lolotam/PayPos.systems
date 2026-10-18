@@ -30,7 +30,7 @@ async function applyStart(
   scope: EmployeeNumberStartScope,
   clock: EmployeeNumberStartClock,
 ) {
-  await scope.lockAccess();
+  if (!(await scope.lockAccess())) throw new SetEmployeeNumberStartError('FORBIDDEN');
   const refusal = await scope.recheck();
   if (refusal !== null) throw new SetEmployeeNumberStartError(refusal);
   const row = await scope.lockCounter();

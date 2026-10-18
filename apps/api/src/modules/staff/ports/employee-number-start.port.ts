@@ -26,8 +26,8 @@ export interface EmployeeNumberStartClock {
  * خطوات ضبط البداية داخل معاملة واحدة: الشركة والعضويات، ثم إعادة الفحص، ثم صف العدّاد، ثم التدقيق.
  */
 export interface EmployeeNumberStartScope {
-  /** يقفل الشركة ثم العضويات قبل صف العدّاد حتى يبقى ترتيب TD-4. */
-  lockAccess(): Promise<void>;
+  /** يقفل الشركة النشطة ثم العضويات قبل صف العدّاد؛ false شركة محذوفة فتُرفض قبل إعادة الفحص. */
+  lockAccess(): Promise<boolean>;
   /** يعيد فحص الصلاحية على الشركة وميزة الموظفين؛ الجهاز لا يمر حتى لا يُنشأ صف العدّاد لمن لا يملك. */
   recheck(): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null>;
   /** ينشئ صف العدّاد إن غاب ثم يقفل next_number و start_number قبل الكتابة. */

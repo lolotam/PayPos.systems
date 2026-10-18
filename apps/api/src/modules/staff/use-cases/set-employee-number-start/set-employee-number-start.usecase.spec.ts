@@ -9,13 +9,18 @@ import { SetEmployeeNumberStartUseCase } from './set-employee-number-start.useca
 const at = new Date('2026-10-18T12:00:00.000Z');
 const command = { companyId: 'company', userId: 'user', startNumber: 1000 };
 
-function harness(row: EmployeeNumberSequenceRow, refusal: 'FORBIDDEN' | 'FEATURE_DISABLED' | null = null) {
+function harness(
+  row: EmployeeNumberSequenceRow,
+  refusal: 'FORBIDDEN' | 'FEATURE_DISABLED' | null = null,
+  companyFound = true,
+) {
   const steps: string[] = [];
   let saved: EmployeeNumberStartAudit | undefined;
   let clockCalls = 0;
   const scope: EmployeeNumberStartScope = {
     lockAccess: async () => {
       steps.push('lockAccess');
+      return companyFound;
     },
     recheck: async () => {
       steps.push('recheck');
@@ -66,6 +71,13 @@ it('does not lower a counter that is already ahead of the start', async () => {
     can_manage: false,
   });
   expect(run.saved()?.after).toEqual({ start_number: 2, next_number: 4 });
+});
+
+it('refuses a missing company before the recheck and the counter', async () => {
+  const run = harness({ nextNumber: 1, startNumber: null }, null, false);
+  await expect(run.useCase.execute(command)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  expect(run.steps).toEqual(['lockAccess']);
+  expect(run.clockCalls()).toBe(0);
 });
 
 it('does not lock the counter when the recheck refuses', async () => {
