@@ -40,6 +40,7 @@ const list = (
   company = f.company,
   business = f.business,
   employeeNumber?: number,
+  q?: string,
 ) =>
   f.db.withTenant(company, (tx) =>
     listEmployees(
@@ -51,10 +52,24 @@ const list = (
         limit,
         ...(cursor ? { cursor } : {}),
         ...(employeeNumber === undefined ? {} : { employee_number: employeeNumber }),
+        ...(q === undefined ? {} : { q }),
       },
       createEmployeeDetailAccess(),
     ),
   );
+const search = (q: string, limit = 20, cursor?: string, employeeNumber?: number) =>
+  list(limit, cursor, f.company, f.business, employeeNumber, q);
+async function insertListed(nameEn: string, employeeNumber: number, nameAr: string | null = null) {
+  const id = ids.newId();
+  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.company},${id},${f.business},${f.branch},${nameAr},${nameEn},${nameEn.toLowerCase()},'staff','2026-01-01',${employeeNumber})`;
+  await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+    VALUES(${f.company},${ids.newId()},${f.business},${id},${f.branch},'2026-01-01')`;
+  return id;
+}
+async function releaseListed(id: string) {
+  await f.h.owner`UPDATE employees SET deleted_at=now(),employee_number=NULL WHERE company_id=${f.company} AND id=${id}`;
+}
 it('UE-08 returns exact projections and stable cursor pages with no duplicate rows', async () => {
   const first = employeePage.parse(await list(2));
   expect(first.items).toEqual(records.slice(0, 2).map((record) => listItem(record)));
@@ -218,4 +233,95 @@ it('EXPLAIN uses employees_company_employee_number_key for the exact list filter
     );
   });
   expect(JSON.stringify(plan)).toContain('employees_company_employee_number_key');
+});
+const idsOf = async (q: string, limit = 20, cursor?: string, employeeNumber?: number) =>
+  employeePage.parse(await search(q, limit, cursor, employeeNumber)).items.map((row) => row.id);
+it('EN-Q16 digit q matches the exact number and a name containing those digits', async () => {
+  const numbered = await insertListed('Plain digit', 880001);
+  const named = await insertListed('Desk 880001', 880002);
+  const padded = await insertListed('Padded digit', 880007);
+  try {
+    expect((await idsOf('880001')).sort()).toEqual([named, numbered].sort());
+    expect(await idsOf('0880007')).toEqual([padded]);
+    expect(await search('880009')).toEqual({ items: [], next_cursor: null });
+    await f.h.owner`UPDATE employees SET deleted_at=now() WHERE company_id=${f.company} AND id=${numbered}`;
+    expect(await idsOf('880001')).toEqual([named]);
+  } finally {
+    await releaseListed(numbered);
+    await releaseListed(named);
+    await releaseListed(padded);
+  }
+});
+it('EN-Q16 letter q matches Arabic and English names and does not treat letters as a number', async () => {
+  const english = await insertListed('Heba Lister', 880011);
+  const arabic = await insertListed('Other Person', 880012, 'هبة القايمة');
+  const percent = await insertListed('100% pure', 880013);
+  const underscore = await insertListed('A_B token', 880014);
+  const plain = await insertListed('Plain mixed', 880041);
+  const mixed = await insertListed('Note 880041x', 880042);
+  try {
+    expect(await idsOf('heba')).toEqual([english]);
+    expect(await idsOf('هبة')).toEqual([arabic]);
+    expect(await idsOf('%')).toEqual([percent]);
+    expect(await idsOf('_')).toEqual([underscore]);
+    expect(await idsOf('880041x')).toEqual([mixed]);
+    expect(await search('zzzz-no-such')).toEqual({ items: [], next_cursor: null });
+  } finally {
+    for (const id of [english, arabic, percent, underscore, plain, mixed]) await releaseListed(id);
+  }
+});
+it('EN-Q16 q combines with the exact number filter and with paging', async () => {
+  const alpha = await insertListed('Alpha 880021', 880021);
+  const beta = await insertListed('Beta 880021', 880022);
+  try {
+    expect(await idsOf('880021', 20, undefined, 880022)).toEqual([beta]);
+    expect(await idsOf('880021', 20, undefined, 880021)).toEqual([alpha]);
+    const first = employeePage.parse(await search('880021', 1));
+    expect(first.items).toHaveLength(1);
+    expect(first.next_cursor).toBe(first.items[0]?.id);
+    const second = employeePage.parse(await search('880021', 1, first.next_cursor ?? undefined));
+    expect(second.next_cursor).toBeNull();
+    expect([first.items[0]?.id, second.items[0]?.id].sort()).toEqual([alpha, beta].sort());
+  } finally {
+    await releaseListed(alpha);
+    await releaseListed(beta);
+  }
+});
+it('EN-Q16 q never returns an employee hidden by a branch DENY', async () => {
+  const hidden = await insertListed('Hidden 880031', 880031);
+  try {
+    expect(await idsOf('880031')).toEqual([hidden]);
+    await employeeGrants(f, [
+      ['ALLOW', 'BUSINESS', f.business],
+      ['DENY', 'BRANCH', f.branch],
+    ]);
+    expect(await search('880031')).toEqual({ items: [], next_cursor: null });
+  } finally {
+    await employeeGrants(f, [['ALLOW', 'BUSINESS', f.business]]);
+    await releaseListed(hidden);
+  }
+});
+it('HTTP rejects an empty or overlong q and accepts a short one', async () => {
+  const path = `/v1/businesses/${f.business}/employees`;
+  const send = (query: string) => f.h.send('GET', `${path}?${query}`, { cookie: f.cookie, company: f.company });
+  expect((await send('q=')).status).toBe(400);
+  expect((await send(`q=${'a'.repeat(101)}`)).status).toBe(400);
+  expect((await send('q=a')).status).toBe(200);
+});
+it('EXPLAIN uses the number key for a digit q and the existing list index for a name q', async () => {
+  const planFor = async (q: string) => {
+    const plan = await f.db.withTenant(f.company, async (tx) => {
+      await tx.execute(sql`SET LOCAL enable_seqscan=off`);
+      return tx.execute(
+        sql`EXPLAIN (ANALYZE,FORMAT JSON) ${listEmployeesStatement(f.company, f.business, { limit: 20, q }, [f.branch, f.sibling])}`,
+      );
+    });
+    return JSON.stringify(plan);
+  };
+  const digit = await planFor('0880007');
+  expect(digit).toContain('employees_company_employee_number_key');
+  const letters = await planFor('Synthetic');
+  expect(letters).toMatch(/employees_company_business_id_(idx|key)/);
+  expect(digit).not.toContain('Seq Scan on employees');
+  expect(letters).not.toContain('Seq Scan on employees');
 });

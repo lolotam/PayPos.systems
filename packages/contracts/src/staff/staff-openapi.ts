@@ -111,7 +111,7 @@ export const staffPaths = {
     get: {
       operationId: 'listEmployees',
       description:
-        'Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. Optional employee_number is an exact match combined with that scope.',
+        'Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. Optional employee_number is an exact match combined with that scope. Optional q searches with it: digits match that exact number or the name, and other text searches Arabic and English names the same way as the reception picker.',
       parameters: [
         ...parameters,
         { in: 'query', name: 'cursor', schema: { type: 'string', format: 'uuid' } },
@@ -125,6 +125,13 @@ export const staffPaths = {
           name: 'employee_number',
           description: 'Exact employee number: digits only, leading zeros ignored, 1..999999; anything else is 400.',
           schema: { type: 'string', pattern: '^[0-9]+$', minLength: 1, maxLength: 50 },
+        },
+        {
+          in: 'query',
+          name: 'q',
+          description:
+            'Optional search, trimmed, 1..100 characters. Digits match the exact employee number or the name; other text searches Arabic and English names.',
+          schema: { type: 'string', minLength: 1, maxLength: 100 },
         },
       ],
       responses: {

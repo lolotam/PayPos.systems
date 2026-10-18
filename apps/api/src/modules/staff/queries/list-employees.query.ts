@@ -1,9 +1,22 @@
 import { currentAttachment, type Tx } from '@pospay/db';
 import { employeePage, type EmployeeListQuery, type EmployeePage } from '@pospay/contracts';
+import { parseEmployeeNumber } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 import type { EmployeeDetailAccess } from './employee-detail.query.ts';
 
-// قائمة الموظفين تقسم الصفحات بعد النطاق؛ فلتر الرقم بحث بالمفتاح الفريد حتى لا يطابق 2 الرقم 12.
+// نص الأرقام يطابق الرقم بالمفتاح الفريد أو الاسم؛ الحروف الاسم فقط. الطي والهروب هما نفس منتقي الاستقبال حتى لا يطابق 2 الرقم 12 ولا تتحول % إلى بدل.
+function listSearchClause(companyId: string, q: string | undefined) {
+  if (q === undefined) return sql``;
+  const escaped = q.trim().replace(/[\\%_]/g, '\\$&');
+  const nameMatch = sql`(lower(e.name_ar COLLATE "und-x-icu") LIKE '%' || lower(${escaped}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'}
+    OR lower(e.name_en COLLATE "und-x-icu") LIKE '%' || lower(${escaped}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'})`;
+  const employeeNumber = parseEmployeeNumber(q.trim());
+  return employeeNumber === null
+    ? sql`AND ${nameMatch}`
+    : sql`AND (${nameMatch} OR e.id IN (SELECT numbered.id FROM employees numbered WHERE numbered.company_id=${companyId} AND numbered.employee_number=${employeeNumber}))`;
+}
+
+// قائمة الموظفين تقسم الصفحات بعد نطاق الفروع؛ خانة البحث والفلتر الرقمي يبقيان داخل هذا النطاق حتى لا يظهر صف ممنوع.
 export function listEmployeesStatement(
   companyId: string,
   businessId: string,
@@ -16,6 +29,7 @@ export function listEmployeesStatement(
     AND e.primary_branch_id IN (SELECT id FROM allowed_branches)
     AND NOT EXISTS (SELECT 1 FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND ${currentAttachment()} AND eb.branch_id NOT IN (SELECT id FROM allowed_branches))
     ${query.employee_number === undefined ? sql`` : sql`AND e.id=(SELECT numbered.id FROM employees numbered WHERE numbered.company_id=${companyId} AND numbered.employee_number=${query.employee_number})`}
+    ${listSearchClause(companyId, query.q)}
     ${query.cursor === undefined ? sql`` : sql`AND e.id > ${query.cursor}`} ORDER BY e.id LIMIT ${query.limit + 1}`;
 }
 
