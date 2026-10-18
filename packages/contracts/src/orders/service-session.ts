@@ -45,6 +45,8 @@ export const savedServiceLine = responseObject({
   recorded_by: id, recorded_by_membership_id: id, recorded_at: timestamp, late: z.boolean(),
   // الغياب يعني «لم يُعدَّل» من غير .default، حتى يُعاد جسم التسجيل القديم بايتاً ببايت.
   edited: z.boolean().optional(),
+  // الغياب يعني أن السطر لم يُلغَ؛ جسم التسجيل القديم يبقى بلا المفتاح ومن غير .default.
+  cancelled_at: timestamp.optional(),
 }).meta({ id: 'SavedServiceLine' });
 export const serviceSession = responseObject({
   id, business_id: id, branch_id: id, customer: responseObject({ id, name: z.string(), phone_masked: z.string() }),
@@ -82,6 +84,25 @@ export const editServiceLineResponseNarrow = responseObject({
 }).meta({ id: 'EditServiceLineResponseNarrow' });
 export const editServiceLineResponse = z.union([editServiceLineResponseFull, editServiceLineResponseNarrow])
   .meta({ id: 'EditServiceLineResponse' });
+export const cancelServiceLineInput = z.strictObject({
+  // السبب الغائب يصل للنطاق ليرد 422، لا 400 من التحقق الشكلي.
+  reason: z.string().optional(),
+  expected_revision: z.number().int().min(1),
+  canceller_membership_id: id.optional(),
+}).meta({ id: 'CancelServiceLineInput' });
+const cancelledServiceLine = savedServiceLine.safeExtend({
+  status: z.literal('CANCELLED'),
+  cancelled_at: timestamp,
+});
+export const cancelServiceLineResponseFull = responseObject({
+  line: cancelledServiceLine,
+  session: responseObject({ id, total_net: sessionMoney }),
+}).meta({ id: 'CancelServiceLineResponseFull' });
+export const cancelServiceLineResponseNarrow = responseObject({
+  cancelled: z.literal(true),
+}).meta({ id: 'CancelServiceLineResponseNarrow' });
+export const cancelServiceLineResponse = z.union([cancelServiceLineResponseFull, cancelServiceLineResponseNarrow])
+  .meta({ id: 'CancelServiceLineResponse' });
 const serviceLineChangeFields = {
   changed_at: timestamp,
   changed_by: id,
@@ -144,7 +165,8 @@ export const serviceSessionLinesAdded = z.strictObject(eventFields).meta({ id: '
 export const serviceSessionSchemas = [sessionMoney, sessionPerformerInput, sessionLineInput, recordServiceSessionInput,
   appendServiceSessionLinesInput, sessionPerformer, savedServiceLine, serviceSession, rejectedServiceLine,
   recordServiceSessionResponse, appendServiceSessionLinesResponse, editServiceLineInput, editServiceLineResponseFull,
-  editServiceLineResponseNarrow, editServiceLineResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded, lateServiceSessionNoticeRequested, serviceLineEditNoticeRequested, serviceLineCancelNoticeRequested, serviceLinePerformersNoticeRequested];
+  editServiceLineResponseNarrow, editServiceLineResponse, cancelServiceLineInput, cancelServiceLineResponseFull,
+  cancelServiceLineResponseNarrow, cancelServiceLineResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded, lateServiceSessionNoticeRequested, serviceLineEditNoticeRequested, serviceLineCancelNoticeRequested, serviceLinePerformersNoticeRequested];
 export type RecordServiceSessionInput = z.infer<typeof recordServiceSessionInput>;
 export type AppendServiceSessionLinesInput = z.infer<typeof appendServiceSessionLinesInput>;
 export type RecordServiceSessionResponse = z.infer<typeof recordServiceSessionResponse>;
@@ -159,3 +181,7 @@ export type EditServiceLineInput = z.infer<typeof editServiceLineInput>;
 export type EditServiceLineResponseFull = z.infer<typeof editServiceLineResponseFull>;
 export type EditServiceLineResponseNarrow = z.infer<typeof editServiceLineResponseNarrow>;
 export type EditServiceLineResponse = z.infer<typeof editServiceLineResponse>;
+export type CancelServiceLineInput = z.infer<typeof cancelServiceLineInput>;
+export type CancelServiceLineResponseFull = z.infer<typeof cancelServiceLineResponseFull>;
+export type CancelServiceLineResponseNarrow = z.infer<typeof cancelServiceLineResponseNarrow>;
+export type CancelServiceLineResponse = z.infer<typeof cancelServiceLineResponse>;

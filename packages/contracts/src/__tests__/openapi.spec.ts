@@ -10,6 +10,7 @@ const expectedSchemas = [
   'SessionMoney', 'SessionPerformerInput', 'SessionLineInput', 'RecordServiceSessionInput',
   'AppendServiceSessionLinesInput', 'SessionPerformer', 'SavedServiceLine', 'ServiceSession',
   'EditServiceLineInput', 'EditServiceLineResponseFull', 'EditServiceLineResponseNarrow', 'EditServiceLineResponse',
+  'CancelServiceLineInput', 'CancelServiceLineResponseFull', 'CancelServiceLineResponseNarrow', 'CancelServiceLineResponse',
   'RejectedServiceLine', 'RecordServiceSessionResponse', 'AppendServiceSessionLinesResponse',
   'ServiceLineChanged', 'RecordedServiceLine', 'ServiceSessionRecorded', 'ServiceSessionLinesAdded', 'LateServiceSessionNoticeRequested', 'ServiceLineEditNoticeRequested', 'ServiceLineCancelNoticeRequested', 'ServiceLinePerformersNoticeRequested',
   'SessionTipEntry', 'RecordSessionTipsInput', 'SessionTips', 'SessionTipsChanged',

@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
-  appendServiceSessionLinesInput, appendServiceSessionLinesResponse, editServiceLineInput, editServiceLineResponse,
+  appendServiceSessionLinesInput, appendServiceSessionLinesResponse, cancelServiceLineInput, cancelServiceLineResponse,
+  cancelServiceLineResponseFull, cancelServiceLineResponseNarrow, editServiceLineInput, editServiceLineResponse,
   editServiceLineResponseFull, editServiceLineResponseNarrow, recordServiceSessionInput, recordServiceSessionResponse,
   recordedServiceLine, savedServiceLine, serviceLineChanged, serviceSession, serviceSessionLinesAdded, serviceSessionRecorded, sessionMoney,
 } from './service-session.js';
@@ -153,6 +154,40 @@ it('requires edited true on the full edit response', () => {
   expect(parsed.line.edited).toBe(true);
   expect(editServiceLineResponseFull.parse({ line: { ...persistedLine, edited: true, extra: true }, session })).toEqual(parsed);
   expect(editServiceLineResponseFull.parse({ ...full, price: '1.000' })).toEqual(parsed);
+});
+it('keeps cancelled_at off a line that was never cancelled', () => {
+  expect(Object.hasOwn(savedServiceLine.parse(persistedLine), 'cancelled_at')).toBe(false);
+  expect(savedServiceLine.parse({ ...persistedLine, cancelled_at: '2026-10-17T12:00:00.000Z' }).cancelled_at).toBe('2026-10-17T12:00:00.000Z');
+  expect(savedServiceLine.safeParse({ ...persistedLine, cancelled_at: '2026-10-17' }).success).toBe(false);
+});
+const cancelInput = { expected_revision: 1 };
+it('rejects unknown cancel-input keys and still accepts a missing reason', () => {
+  expect(cancelServiceLineInput.safeParse({ ...cancelInput, status: 'CANCELLED' }).success).toBe(false);
+  expect(cancelServiceLineInput.safeParse({ ...cancelInput, price: '20.000' }).success).toBe(false);
+  const parsed = cancelServiceLineInput.parse(cancelInput);
+  expect(parsed).not.toHaveProperty('reason');
+  expect(cancelServiceLineInput.parse({ ...cancelInput, reason: '', canceller_membership_id: id.toUpperCase() }).canceller_membership_id).toBe(id);
+  expect(cancelServiceLineInput.safeParse({ ...cancelInput, expected_revision: 0 }).success).toBe(false);
+  expect(cancelServiceLineInput.safeParse({ ...cancelInput, expected_revision: 1.5 }).success).toBe(false);
+});
+it('requires a cancelled line with cancelled_at on the full cancel response', () => {
+  const session = { id, total_net: '60.000' };
+  const cancelled = { ...persistedLine, status: 'CANCELLED' as const, revision: 2, cancelled_at: '2026-10-17T12:00:00.000Z' };
+  expect(cancelServiceLineResponseFull.safeParse({ line: persistedLine, session }).success).toBe(false);
+  expect(cancelServiceLineResponseFull.safeParse({ line: { ...cancelled, status: 'ACTIVE' }, session }).success).toBe(false);
+  expect(cancelServiceLineResponseFull.safeParse({ line: { ...persistedLine, status: 'CANCELLED', revision: 2 }, session }).success).toBe(false);
+  expect(cancelServiceLineResponseFull.parse({ line: cancelled, session }).line.status).toBe('CANCELLED');
+  const cleaned = JSON.stringify(cancelServiceLineResponseFull.parse({ line: { ...cancelled, reason: 'سر' }, session, canceller_membership_id: id }));
+  expect(cleaned).not.toContain('سر');
+  expect(cleaned).not.toContain('canceller_membership_id');
+});
+it('drops any extra key on the narrow cancel response', () => {
+  const narrow = { cancelled: true };
+  expect(cancelServiceLineResponse.parse(narrow)).toEqual(narrow);
+  for (const extra of [{ reason: 'سر' }, { canceller_membership_id: id }, { session: { id, total_net: '60.000' } }, { line: persistedLine }]) {
+    expect(cancelServiceLineResponseNarrow.parse({ ...narrow, ...extra })).toEqual(narrow);
+    expect(cancelServiceLineResponse.parse({ ...narrow, ...extra })).toEqual(narrow);
+  }
 });
 it('drops unknown keys on the narrow edit response', () => {
   const narrow = { saved: true, edited: true };
