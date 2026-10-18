@@ -2,7 +2,7 @@
 import type { EmployeeNumberListItem } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { displayEmployeeNumber } from '../../model/employee-number-display';
 import { companyEmployeeNumberLabel } from '../model/company-employee-number-label';
@@ -14,13 +14,22 @@ function editButtonName(locale: Locale, name: string) {
 
 function useEditButtonFocus(employeeId: string, editingId: string | undefined) {
   const editButton = useRef<HTMLButtonElement>(null);
+  const editorNode = useRef<HTMLFormElement | null>(null);
   const owned = useRef(false);
+  const rootRef = useCallback((node: HTMLFormElement | null) => {
+    if (node) editorNode.current = node;
+  }, []);
   useEffect(() => {
-    // الرجوع للزر بس لما المحرّر يتقفل من غير فتح صف تاني، عشان التركيز يفضل في خانة الصف الجديد.
-    if (owned.current && editingId === undefined) editButton.current?.focus();
+    const active = document.activeElement;
+    const insideEditor = editorNode.current?.contains(active) === true;
+    // البحث والصفحة بياخدوا التركيز قبل الإغلاق؛ الرجوع للزر بس لو التركيز وقع مع إزالة المحرّر.
+    if (owned.current && editingId === undefined && (active === document.body || insideEditor)) {
+      editButton.current?.focus();
+    }
     owned.current = editingId === employeeId;
+    if (editingId !== employeeId) editorNode.current = null;
   }, [editingId, employeeId]);
-  return editButton;
+  return { editButton, rootRef };
 }
 
 export function CompanyEmployeeNumberRow({
@@ -42,7 +51,7 @@ export function CompanyEmployeeNumberRow({
 }) {
   const locale = useLocale();
   const editing = editingId === item.employee_id;
-  const editButton = useEditButtonFocus(item.employee_id, editingId);
+  const { editButton, rootRef } = useEditButtonFocus(item.employee_id, editingId);
   const person = companyEmployeeNumberLabel(item, locale);
   const business = companyEmployeeNumberLabel(
     { name_ar: item.business_name_ar, name_en: item.business_name_en },
@@ -62,6 +71,7 @@ export function CompanyEmployeeNumberRow({
               message={message}
               onSubmit={onSubmit}
               onClose={onClose}
+              rootRef={rootRef}
             />
           ) : (
             <Button

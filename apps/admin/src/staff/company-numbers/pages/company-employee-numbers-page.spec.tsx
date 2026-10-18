@@ -107,6 +107,18 @@ it('does not send an invalid number', async () => {
   expect(within(screen.getByRole('row', { name: /Noura/ })).getByText('4')).toBeTruthy();
 });
 
+it('describes the number field with the validation message only while it shows', async () => {
+  renderPage();
+  await openNoura('en');
+  const field = screen.getByRole('textbox');
+  fireEvent.change(field, { target: { value: '007a' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.save') }));
+  const alert = await screen.findByRole('alert');
+  expect(field.getAttribute('aria-describedby')).toBe(alert.id);
+  fireEvent.change(field, { target: { value: '12' } });
+  expect(field.getAttribute('aria-describedby')).toBeNull();
+});
+
 it.each(['en', 'ar'] as const)('keeps the old number and shows the taken message in %s', async (lang) => {
   locale.value = lang;
   api.PUT.mockResolvedValue({
@@ -276,12 +288,12 @@ it('disables every edit button while a save is pending', async () => {
   expect(screen.getAllByRole('textbox')).toHaveLength(1);
 });
 
-it('closes the open editor when the search settles', async () => {
+it('keeps search focus when a settled search closes the editor', async () => {
   renderPage();
   await openNoura('en');
-  fireEvent.change(screen.getByRole('searchbox', { name: t('en', 'staff.search') }), {
-    target: { value: '  2  ' },
-  });
+  const search = screen.getByRole('searchbox', { name: t('en', 'staff.search') });
+  search.focus();
+  fireEvent.change(search, { target: { value: '  2  ' } });
   await waitFor(() => {
     expect(api.GET.mock.calls.at(-1)?.[1].params.query).toEqual({ limit: 20, q: '2' });
   });
@@ -289,6 +301,7 @@ it('closes the open editor when the search settles', async () => {
     name: editName('en', 'Noura'),
   });
   expect(screen.queryByRole('textbox')).toBeNull();
+  expect(document.activeElement).toBe(search);
 });
 
 it('shows the retry envelope instead of the taken message', async () => {

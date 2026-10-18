@@ -44,12 +44,14 @@ export function CompanyEmployeeNumberEditor({
   message,
   onSubmit,
   onClose,
+  rootRef,
 }: {
   current: number | null;
   pending: boolean;
   message: string | null;
   onSubmit: (employeeNumber: number) => void;
   onClose: () => void;
+  rootRef: (node: HTMLFormElement | null) => void;
 }) {
   const locale = useLocale();
   const fieldId = useId();
@@ -63,6 +65,7 @@ export function CompanyEmployeeNumberEditor({
   const invalidText = employeeNumberFieldText(form.formState.errors.employee_number, invalid);
   return (
     <form
+      ref={rootRef}
       onSubmit={form.handleSubmit((body) => onSubmit(body.employee_number))}
       onKeyDown={(event) => closeOnEscape(pending, onClose, event)}
       className="flex max-w-xs flex-col gap-2"
@@ -77,9 +80,10 @@ export function CompanyEmployeeNumberEditor({
           {...registered}
           ref={bindNumberField(field, registered)}
           onChange={(event) => clearOnChange(form, registered, event)}
+          aria-describedby={invalidText ? `${fieldId}-error` : undefined}
           defaultValue={current === null ? '' : String(current)}
         />
-        {invalidText ? <p role="alert">{invalidText}</p> : null}
+        {invalidText ? <p id={`${fieldId}-error`} role="alert">{invalidText}</p> : null}
         {message ? <p role="alert">{message}</p> : null}
         <div className="flex gap-2">
           <Button type="submit" size="sm">
