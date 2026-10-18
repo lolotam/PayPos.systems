@@ -771,6 +771,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/employee-numbers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description A human holder of manage:employee-number:company and the staff feature. Company employee-numbers screen. Each row is only employee_id, name_ar, name_en, business_id, business_name_ar, business_name_en, and employee_number. Soft-deleted employees are omitted. A DENY on the employee's business, primary branch, or any current attachment (a future start still counts) hides the row; an ended attachment does not. */
+        get: operations["listEmployeeNumbers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/employee-number": {
         parameters: {
             query?: never;
@@ -779,7 +796,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** @description Human manage:employee-number:company. Sets one employee number in the company. A DENY on her business, primary branch, or any current attachment blocks. The same number is a no-op. A hand edit does not move the company counter. No Idempotency-Key. */
+        /** @description A human holder of manage:employee-number:company. Sets one employee number in the company. A DENY on the employee's business, primary branch, or any current attachment blocks. The same number is a no-op. A hand edit does not move the company counter. No Idempotency-Key. */
         put: operations["setEmployeeNumber"];
         post?: never;
         delete?: never;
@@ -7850,6 +7867,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listEmployeeNumbers: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                /** @description Same rule as the staff list: digits only match that exact employee number (leading zeros ignored) or a name containing them; any other text matches Arabic or English names. */
+                q?: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Employee number page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            /** Format: uuid */
+                            business_id: string;
+                            business_name_ar: string | null;
+                            business_name_en: string;
+                            employee_number: number | null;
+                        }[];
+                        next_cursor: string | null;
+                    };
                 };
             };
             /** @description Bilingual refusal */
