@@ -27,10 +27,13 @@ async function confirmedUpload(
   });
   if (ticket.error) throw ticket.error;
   const upload = fileUploadTicket.parse(ticket.data);
-  // المتصفح يحسب content-length بنفسه؛ نرسل نوع المحتوى الموقّع فقط.
+  // الهيدرز الموقّعة لازم توصل للتخزين كلها (ADR-0047)؛ المتصفح يحسب content-length بنفسه فبنستبعده.
+  const signedHeaders = Object.entries(upload.headers).filter(
+    (entry): entry is [string, string] => entry[0] !== 'content-length' && typeof entry[1] === 'string',
+  );
   const put = await fetch(upload.upload_url, {
     method: 'PUT',
-    headers: { 'content-type': upload.headers['content-type'] },
+    headers: Object.fromEntries(signedHeaders),
     body: file,
   });
   if (!put.ok) throw failure('STORAGE_UNAVAILABLE');

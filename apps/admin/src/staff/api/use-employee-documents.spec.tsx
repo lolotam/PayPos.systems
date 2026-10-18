@@ -81,7 +81,11 @@ it('uploads through files, waits for READY, then records by file id with an idem
           id: fileId,
           upload_url: 'https://storage.test/upload',
           expires_in: 120,
-          headers: { 'content-type': 'application/pdf', 'content-length': '3' },
+          headers: {
+            'content-type': 'application/pdf',
+            'content-length': '3',
+            'x-amz-meta-added-later': 'signed',
+          },
         },
       };
     if (path === '/v1/files/{id}/confirm') return { data: { id: fileId, status: 'QUEUED' } };
@@ -117,7 +121,10 @@ it('uploads through files, waits for READY, then records by file id with an idem
   expect(recorded.params.header['Idempotency-Key']).toEqual(expect.any(String));
   expect(put).toHaveBeenCalledWith(
     'https://storage.test/upload',
-    expect.objectContaining({ method: 'PUT' }),
+    expect.objectContaining({
+      method: 'PUT',
+      headers: { 'content-type': 'application/pdf', 'x-amz-meta-added-later': 'signed' },
+    }),
   );
 });
 
