@@ -34,6 +34,7 @@ export const employeeNumberPaths = {
         '403': errors,
         '404': errors,
         '409': errors,
+        default: errors,
       },
     },
   },
