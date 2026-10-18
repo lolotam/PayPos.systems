@@ -12,11 +12,13 @@ Read these files fully, in this order, before any task or any review:
 
 The names say "CLAUDE", but the rules apply to every agent equally.
 
-**Owner decisions page.** Every business question for the owner is answered there and is never guessed (`CLAUDE.md` §1 step 5b, §11). Its page is
-https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF. New questions go there as a new numbered batch, and each slice's
-`owner-questions.ar.md` mirrors them. Only the Claude Code orchestrator can publish to that page. Codex, Grok and other
-agents write the question into `owner-questions.ar.md` with its answer marked `PENDING`, mark the rule `TODO(spec)`, and
-stop. The orchestrator posts the batch and writes the answer back.
+**Owner questions.** An owner question is never guessed (`CLAUDE.md` §1 step 5b, §11). Every question and its answer
+are recorded verbatim in the slice's `owner-questions.ar.md`, which is the audit record. Only charges/money questions
+also go to the decisions page https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF as a new numbered batch; permission,
+technical and other product questions go to Waleed through his super agent. Only the Claude Code orchestrator routes a
+question. Codex, Grok and other agents write the question into the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md`
+when it belongs to no slice) with its answer marked `PENDING`,
+mark the rule `TODO(spec)`, and stop. The orchestrator routes it and writes the answer back.
 
 ## Review guidelines
 
