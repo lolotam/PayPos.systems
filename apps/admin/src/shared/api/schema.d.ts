@@ -4435,12 +4435,7 @@ export interface components {
             effective_timezone: components["schemas"]["TimeZone"];
         };
         AttendanceQrIssue: {
-            token: {
-                /** Format: uuid */
-                branch_id: string;
-                window: number;
-                sig: string;
-            };
+            token: components["schemas"]["AttendanceQrToken"];
             branch: components["schemas"]["AttendanceQrBranch"];
             /** Format: date-time */
             server_time: string;

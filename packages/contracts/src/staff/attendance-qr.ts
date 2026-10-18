@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { timeZone } from '../reference/time-zone.js';
@@ -16,23 +15,25 @@ export const attendanceQrToken = z
   .strict()
   .meta({ id: 'AttendanceQrToken' });
 
-// نسخة الرد بتتشال منها المفاتيح الزيادة؛ مسح الـ QR لسه بيرفض المفتاح الزيادة (ADR-0047).
-const attendanceQrTokenView = responseObject(attendanceQrTokenFields);
+// رد إصدار الـ QR بيشيل توقيع الحضور، فبيفضل strict عن قصد (استثناء ADR-0047): مفتاح زيادة فيه يتحسب رد مش متوقع ويتحجب.
+export const attendanceQrBranch = z
+  .strictObject({
+    id,
+    name_ar: z.string().nullable(),
+    name_en: z.string(),
+    effective_timezone: timeZone,
+  })
+  .meta({ id: 'AttendanceQrBranch' });
 
-export const attendanceQrBranch = responseObject({
-  id,
-  name_ar: z.string().nullable(),
-  name_en: z.string(),
-  effective_timezone: timeZone,
-}).meta({ id: 'AttendanceQrBranch' });
-
-export const attendanceQrIssue = responseObject({
-  token: attendanceQrTokenView,
-  branch: attendanceQrBranch,
-  server_time: timestamp,
-  refresh_at: timestamp,
-  expires_at: timestamp,
-}).meta({ id: 'AttendanceQrIssue' });
+export const attendanceQrIssue = z
+  .strictObject({
+    token: attendanceQrToken,
+    branch: attendanceQrBranch,
+    server_time: timestamp,
+    refresh_at: timestamp,
+    expires_at: timestamp,
+  })
+  .meta({ id: 'AttendanceQrIssue' });
 
 export type AttendanceQrToken = z.infer<typeof attendanceQrToken>;
 export type AttendanceQrBranch = z.infer<typeof attendanceQrBranch>;

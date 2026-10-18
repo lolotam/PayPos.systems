@@ -21734,34 +21734,14 @@
           "name_ar",
           "name_en",
           "effective_timezone"
-        ]
+        ],
+        "additionalProperties": false
       },
       "AttendanceQrIssue": {
         "type": "object",
         "properties": {
           "token": {
-            "type": "object",
-            "properties": {
-              "branch_id": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-              },
-              "window": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
-              "sig": {
-                "type": "string",
-                "pattern": "^[a-f0-9]{64}$"
-              }
-            },
-            "required": [
-              "branch_id",
-              "window",
-              "sig"
-            ]
+            "$ref": "#/components/schemas/AttendanceQrToken"
           },
           "branch": {
             "$ref": "#/components/schemas/AttendanceQrBranch"
@@ -21788,7 +21768,8 @@
           "server_time",
           "refresh_at",
           "expires_at"
-        ]
+        ],
+        "additionalProperties": false
       },
       "StaffPinInput": {
         "type": "object",
