@@ -33,6 +33,8 @@ export function SessionSavedVisit({ result, scope, online, editBusy = false, onR
   const [open, setOpen] = useState<OpenLine | null>(null);
   const [refusal, setRefusal] = useState<Refusal | null>(null);
   const [denial, setDenial] = useState<Denial | null>(null);
+  // المحرر المعلّق اللي اتبقّى بعد استبدال السناب شوت يتثبّت على الجديد، فرفض معروف بعد القفل يفضل ظاهر مش بيختفي.
+  if (editBusy && session && open && open.snapshot.id === session.id && open.snapshot !== session) setOpen({ snapshot: session, lineId: open.lineId });
   if (!session) return null;
   // 401 وإيقاف الميزة بيقفلوا الأرقام؛ الإلحاق نفس id فما يرجعهاش، وزيارة بـ id جديد تبدأ من غير الرفض.
   const denied = denial?.sessionId === session.id ? denial.message : null;
@@ -51,7 +53,7 @@ export function SessionSavedVisit({ result, scope, online, editBusy = false, onR
         : reconcileSavedVisit(current?.visit ?? emptySavedVisit(session.id, session.total_net), session);
       return { snapshot: session, visit: applySavedLineEdit(base, session.id, lineId, edit.response, edit.revisionUsed) };
     });
-    setOpen((current) => current?.lineId === lineId && current.snapshot === session ? null : current);
+    setOpen((current) => current?.lineId === lineId ? null : current);
   };
   return <>
     {visit.total === 'UNKNOWN' ? null : <p>{t(locale, 'serviceSessions.savedTotal')} <bdi>{kwd(visit.total === 'FROM_RESPONSE' ? visit.totalNet : session.total_net)}</bdi></p>}

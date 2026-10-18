@@ -45,6 +45,9 @@ export function reconcileSavedVisit(visit: SavedVisitEdit, session: SavedVisitSn
 }
 
 export function applySavedLineEdit(visit: SavedVisitEdit, sessionId: string, lineId: string, response: EditServiceLineResponse, revisionUsed: number): SavedVisitEdit {
+  // رد إعادة محاولة متأخر ما يكتبش فوق سناب شوت أحدث مراجعة منه.
+  const known = visit.lines[lineId];
+  if (known && known.revision > ('line' in response ? response.line.revision : revisionUsed + 1)) return visit;
   if ('line' in response) {
     const line = response.line;
     return {

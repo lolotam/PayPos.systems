@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { emptySavedVisit, reconcileSavedVisit, savedLineFigures, type SavedVisitEdit } from './session-saved-edit';
+import { applySavedLineEdit, emptySavedVisit, reconcileSavedVisit, savedLineFigures, type SavedVisitEdit } from './session-saved-edit';
 
 const fresh = { price: '4.250', discount: '0.250', net: '4.000' };
 
@@ -15,6 +15,16 @@ function editedVisit(): SavedVisitEdit {
 }
 
 const snapshot = (lines: { id: string; revision: number }[], total = '6.250') => ({ id: 's1', total_net: total, lines });
+
+it('does not let a late replay response overwrite figures of a newer snapshot revision', () => {
+  const newer: SavedVisitEdit = { sessionId: 's1', total: 'SNAPSHOT', totalNet: '9.000', lines: { l1: { edited: true, revision: 4, figures: 'SNAPSHOT' } } };
+  const wide = applySavedLineEdit(newer, 's1', 'l1', { saved: true, edited: true } as never, 1);
+  expect(wide).toBe(newer);
+  const old = { line: { revision: 2, price: '1.000', discount: '0.000', net: '1.000' }, session: { total_net: '1.000' } } as never;
+  expect(applySavedLineEdit(newer, 's1', 'l1', old, 1)).toBe(newer);
+  const current = { line: { revision: 5, price: '2.000', discount: '0.000', net: '2.000' }, session: { total_net: '2.000' } } as never;
+  expect(applySavedLineEdit(newer, 's1', 'l1', current, 4).lines.l1).toMatchObject({ revision: 5, figures: 'FROM_RESPONSE', net: '2.000' });
+});
 
 it('keeps the hidden figures when the snapshot revision is older than the confirmed edit', () => {
   const next = reconcileSavedVisit(editedVisit(), snapshot([{ id: 'l1', revision: 4 }, { id: 'l2', revision: 1 }]));

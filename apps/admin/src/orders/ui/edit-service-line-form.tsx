@@ -109,6 +109,8 @@ async function saveLineEdit(input: {
     input.setRefreshing(true);
     try {
       await adoptRefetchedRevision(input.props.onStale, input.form.getValues('expected_revision'), (revision) => { input.form.setValue('expected_revision', revision); });
+    } catch {
+      // فشل جلب المراجعة بعد تعارض معروف ما يسيبش القفل ولا الحقول متجمدة؛ رسالة التعارض اتعرضت فوق.
     } finally { input.setRefreshing(false); }
     return { release: true, retain: null };
   }

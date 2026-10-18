@@ -89,6 +89,17 @@ it('shows a stale revision, refetches once, and waits for a second save', async 
   expect(bodyOf(0).expected_revision).toBe(1); expect(bodyOf(1).expected_revision).toBe(2); expect(keyOf(0)).not.toBe(keyOf(1));
 });
 
+it('releases the visit lock and unfreezes the fields when the stale refresh rejects', async () => {
+  state.patch.mockReset(); state.patch.mockResolvedValue(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 2 }));
+  const onRequestStart = vi.fn(); const onRequestEnd = vi.fn();
+  const view = shown(dayLine(), true, undefined, { onRequestStart, onRequestEnd });
+  view.onStale.mockRejectedValue(new Error('refresh failed')); fill('because', '12.000', '1.000'); save();
+  await waitFor(() => expect(view.onStale).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(onRequestEnd).toHaveBeenCalledTimes(1));
+  expect(onRequestStart).toHaveBeenCalledTimes(1);
+  expect((screen.getByLabelText(t('en', 'serviceSessions.price')) as HTMLInputElement).disabled).toBe(false);
+});
+
 it('adopts one refreshed revision after a stale save and ignores the next background change', async () => {
   state.patch.mockReset();
   state.patch.mockResolvedValueOnce(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 2 })).mockResolvedValue(saved);
