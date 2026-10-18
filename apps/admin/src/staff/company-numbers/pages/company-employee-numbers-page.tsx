@@ -22,7 +22,7 @@ export function CompanyEmployeeNumbersPage({
         description={t(locale, 'companyEmployeeNumbers.lead')}
       />
       {screen.denied ? null : (
-        <EmployeeListSearch value={screen.text} onChange={screen.onSearch} />
+        <EmployeeListSearch value={screen.text} onChange={screen.onSearch} disabled={screen.pending} />
       )}
       <CompanyEmployeeNumbersPanel
         list={screen.list}

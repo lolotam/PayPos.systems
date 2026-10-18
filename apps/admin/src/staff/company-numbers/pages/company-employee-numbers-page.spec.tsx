@@ -1,45 +1,25 @@
 import { t, type Locale } from '@pospay/i18n';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { CompanyEmployeeNumbersPage } from './company-employee-numbers-page';
+import {
+  clinicId,
+  companyId,
+  editName,
+  hangAfterFirstPage,
+  listedPage,
+  nextCursor,
+  noura,
+  nouraId,
+  openNoura,
+  renderPage,
+  salonId,
+  userId,
+} from './fixtures/company-employee-numbers-page.fixture';
 
 const api = vi.hoisted(() => ({ GET: vi.fn(), PUT: vi.fn() }));
 const locale = vi.hoisted(() => ({ value: 'en' as Locale }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => locale.value }));
-
-const companyId = '01920000-0000-7000-8000-0000000000a1';
-const userId = '01920000-0000-7000-8000-0000000000a2';
-const salonId = '01920000-0000-7000-8000-0000000000b1';
-const clinicId = '01920000-0000-7000-8000-0000000000b2';
-const hebaId = '01920000-0000-7000-8000-0000000000c1';
-const nouraId = '01920000-0000-7000-8000-0000000000c2';
-const nextCursor = '01920000-0000-7000-8000-0000000000d1';
-const heba = {
-  employee_id: hebaId,
-  name_ar: null,
-  name_en: 'Heba',
-  business_id: salonId,
-  business_name_ar: null,
-  business_name_en: 'Synthetic salon',
-  employee_number: null as number | null,
-  salary_mills: 'synthetic-salary',
-  phone: 'synthetic-phone',
-};
-const noura = {
-  employee_id: nouraId,
-  name_ar: null,
-  name_en: 'Noura',
-  business_id: clinicId,
-  business_name_ar: null,
-  business_name_en: 'Synthetic clinic',
-  employee_number: 4 as number | null,
-};
-
-function listedPage() {
-  return { items: [{ ...heba }, { ...noura }], next_cursor: nextCursor };
-}
 
 beforeEach(() => {
   locale.value = 'en';
@@ -47,39 +27,6 @@ beforeEach(() => {
   api.GET.mockReset().mockImplementation(() => Promise.resolve({ data: listedPage() }));
   api.PUT.mockReset();
 });
-
-function renderPage() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return {
-    client,
-    ...render(
-      <QueryClientProvider client={client}>
-        <CompanyEmployeeNumbersPage companyId={companyId} userId={userId} />
-      </QueryClientProvider>,
-    ),
-  };
-}
-
-function editName(lang: Locale, name: string) {
-  return t(lang, 'companyEmployeeNumbers.editName').replace('{name}', name);
-}
-
-async function openNoura(lang: Locale) {
-  const row = await screen.findByRole('row', { name: /Noura/ });
-  fireEvent.click(within(row).getByRole('button', { name: editName(lang, 'Noura') }));
-}
-
-function hangAfterFirstPage() {
-  let reads = 0;
-  api.GET.mockImplementation(() => {
-    reads += 1;
-    if (reads === 1) return Promise.resolve({ data: listedPage() });
-    return new Promise(() => undefined);
-  });
-  return () => reads;
-}
 
 it('renders only the rows the server returns', async () => {
   renderPage();
@@ -120,7 +67,7 @@ it('names each edit button with the employee name', async () => {
 });
 
 it('shows the saved number from the cache while the list refetch is still pending', async () => {
-  const reads = hangAfterFirstPage();
+  const reads = hangAfterFirstPage(api.GET);
   api.PUT.mockResolvedValue({ data: { employee_id: nouraId, employee_number: 7 } });
   renderPage();
   await openNoura('en');
@@ -288,6 +235,17 @@ it('closes the editor on escape and returns focus to that row edit button', asyn
   expect(edit).toBe(document.activeElement);
 });
 
+it('focuses the earlier row input and returns to its edit button on escape', async () => {
+  renderPage();
+  await screen.findByText('Heba');
+  fireEvent.click(screen.getByRole('button', { name: editName('en', 'Noura') }));
+  fireEvent.click(screen.getByRole('button', { name: editName('en', 'Heba') }));
+  const row = screen.getByRole('row', { name: /Heba/ });
+  expect(within(row).getByRole('textbox')).toBe(document.activeElement);
+  fireEvent.keyDown(within(row).getByRole('textbox'), { key: 'Escape' });
+  expect(within(row).getByRole('button', { name: editName('en', 'Heba') })).toBe(document.activeElement);
+});
+
 it('returns focus to that row edit button after the number is saved', async () => {
   api.PUT.mockResolvedValue({ data: { employee_id: nouraId, employee_number: 6 } });
   renderPage();
@@ -367,6 +325,31 @@ it('shows the feature envelope instead of no access', async () => {
   expect(screen.queryByRole('table')).toBeNull();
 });
 
+it('keeps the editor and its failure when paging and search are tried during a save', async () => {
+  let finish: (value: unknown) => void = () => undefined;
+  api.PUT.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  renderPage();
+  await openNoura('en');
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '9' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.save') }));
+  await waitFor(() => expect(api.PUT).toHaveBeenCalledTimes(1));
+  const next = screen.getByRole('button', { name: t('en', 'staff.next') });
+  const first = screen.getByRole('button', { name: t('en', 'staff.first') });
+  const search = screen.getByRole('searchbox', { name: t('en', 'staff.search') });
+  expect([next, first, search].every((node) => (node as HTMLInputElement).disabled)).toBe(true);
+  fireEvent.click(next);
+  fireEvent.click(first);
+  fireEvent.change(search, { target: { value: '2' } });
+  expect(within(screen.getByRole('row', { name: /Noura/ })).getByRole('textbox')).toBeTruthy();
+  expect(api.GET.mock.calls.at(-1)?.[1].params.query).toEqual({ limit: 20 });
+  finish({
+    error: { code: 'EMPLOYEE_NUMBER_TAKEN', message_en: 'Synthetic taken', message_ar: 'Synthetic taken ar' },
+    response: { status: 409 },
+  });
+  const row = screen.getByRole('row', { name: /Noura/ });
+  expect((await within(row).findByRole('alert')).textContent).toContain(t('en', 'errors.EMPLOYEE_NUMBER_TAKEN'));
+});
+
 it('keeps a pending failure on the row that submitted it', async () => {
   let finish: (value: unknown) => void = () => undefined;
   api.PUT.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
@@ -392,7 +375,7 @@ it('keeps a pending failure on the row that submitted it', async () => {
 });
 
 it('keeps a pending success on the row that submitted it', async () => {
-  hangAfterFirstPage();
+  hangAfterFirstPage(api.GET);
   let finish: (value: unknown) => void = () => undefined;
   api.PUT.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
   renderPage();

@@ -71,7 +71,12 @@ export function CompanyEmployeeNumbersPanel({
       ) : (
         <EmptyState icon={<UserRound />} title={t(locale, 'companyEmployeeNumbers.empty')} />
       )}
-      <EmployeePageNavigation cursor={cursor} next={list.data.next_cursor} onChange={onPage} />
+      <EmployeePageNavigation
+        cursor={cursor}
+        next={list.data.next_cursor}
+        onChange={onPage}
+        disabled={pending}
+      />
     </div>
   );
 }

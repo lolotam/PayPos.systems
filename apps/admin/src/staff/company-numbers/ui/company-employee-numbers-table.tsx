@@ -64,7 +64,7 @@ export function CompanyEmployeeNumbersTable({
             <CompanyEmployeeNumberRow
               key={original.employee_id}
               item={original}
-              editing={editingId === original.employee_id}
+              editingId={editingId}
               pending={pending}
               message={editingId === original.employee_id ? message : null}
               onEdit={onEdit}

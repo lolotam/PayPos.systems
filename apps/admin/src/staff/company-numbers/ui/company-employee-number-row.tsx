@@ -12,20 +12,20 @@ function editButtonName(locale: Locale, name: string) {
   return t(locale, 'companyEmployeeNumbers.editName').replace('{name}', name);
 }
 
-function useEditButtonFocus(editing: boolean) {
+function useEditButtonFocus(employeeId: string, editingId: string | undefined) {
   const editButton = useRef<HTMLButtonElement>(null);
-  const wasEditing = useRef(false);
+  const owned = useRef(false);
   useEffect(() => {
-    // الزر مش موجود وهو مفتوح، فالتركيز يرجع له بعد الإغلاق عشان الكيبورد يكمّل من نفس الصف.
-    if (wasEditing.current && !editing) editButton.current?.focus();
-    wasEditing.current = editing;
-  }, [editing]);
+    // الرجوع للزر بس لما المحرّر يتقفل من غير فتح صف تاني، عشان التركيز يفضل في خانة الصف الجديد.
+    if (owned.current && editingId === undefined) editButton.current?.focus();
+    owned.current = editingId === employeeId;
+  }, [editingId, employeeId]);
   return editButton;
 }
 
 export function CompanyEmployeeNumberRow({
   item,
-  editing,
+  editingId,
   pending,
   message,
   onEdit,
@@ -33,7 +33,7 @@ export function CompanyEmployeeNumberRow({
   onSubmit,
 }: {
   item: EmployeeNumberListItem;
-  editing: boolean;
+  editingId: string | undefined;
   pending: boolean;
   message: string | null;
   onEdit: (employeeId: string) => void;
@@ -41,7 +41,8 @@ export function CompanyEmployeeNumberRow({
   onSubmit: (employeeNumber: number) => void;
 }) {
   const locale = useLocale();
-  const editButton = useEditButtonFocus(editing);
+  const editing = editingId === item.employee_id;
+  const editButton = useEditButtonFocus(item.employee_id, editingId);
   const person = companyEmployeeNumberLabel(item, locale);
   const business = companyEmployeeNumberLabel(
     { name_ar: item.business_name_ar, name_en: item.business_name_en },
