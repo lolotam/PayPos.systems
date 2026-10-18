@@ -50,8 +50,9 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
 `.claude/skills/pospay-pipeline/SKILL.md`. In short:
 
 1. One row of the phase plan per branch, worktree and PR (`feat/…`, `fix/…`, `docs/…`). **Never push to `main`.**
-2. Spec first (`/speckit-specify`); owner questions go to the slice's `owner-questions.ar.md` **and** to a new numbered
-   batch on the decisions page (`CLAUDE.md` §1 5b). When Waleed and his partner (Abu Salem) differ, the partner's pick binds.
+2. Spec first (`/speckit-specify`); owner questions go to the slice's `owner-questions.ar.md`, then by kind (`CLAUDE.md` §1 5b): charges/money
+   questions to a new numbered batch on the decisions page, every other question to Waleed through his super agent. On
+   the page, when Waleed and his partner (Abu Salem) differ, the partner's pick binds.
    Ask the questions of a whole feature in one batch before its first sub-PR, with a mockup when the answer is a screen.
 3. The implementer is the **Grok CLI, `grok-4.7`, effort high** (owner, 2026-10-14), one resumed session per
    task to keep its cache warm. Claude Code orchestrates, judges the diff and runs `pnpm check`.
