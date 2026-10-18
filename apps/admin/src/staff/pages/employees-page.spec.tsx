@@ -194,31 +194,3 @@ it('closes the open employee editor when a search settles', () => {
     vi.useRealTimers();
   }
 });
-it('disables paging while the previous search result is still shown', () => {
-  state.useEmployees.mockReturnValue({
-    isPending: false,
-    isError: false,
-    isPlaceholderData: true,
-    data: {
-      items: [
-        {
-          id,
-          name_en: 'Synthetic employee',
-          name_ar: null,
-          role_code: 'staff',
-          hire_date: '2026-01-01',
-          primary_branch_id: id,
-          employee_number: 2,
-        },
-      ],
-      next_cursor: next,
-    },
-  });
-  render(<EmployeesPage companyId={id} business={business} userId={id} />);
-  expect(
-    (screen.getByRole('button', { name: t('en', 'staff.next') }) as HTMLButtonElement).disabled,
-  ).toBe(true);
-  expect(
-    (screen.getByRole('button', { name: t('en', 'staff.first') }) as HTMLButtonElement).disabled,
-  ).toBe(true);
-});

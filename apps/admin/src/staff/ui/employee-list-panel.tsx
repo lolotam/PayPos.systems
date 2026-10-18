@@ -55,12 +55,7 @@ export function EmployeeListPanel({
           ) : (
             <EmptyState icon={<UserRound />} title={t(locale, 'staff.empty')} />
           )}
-          <EmployeePageNavigation
-            cursor={cursor}
-            next={list.data.next_cursor}
-            stale={list.isPlaceholderData}
-            onChange={onPage}
-          />
+          <EmployeePageNavigation cursor={cursor} next={list.data.next_cursor} onChange={onPage} />
         </>
       ) : null}
     </div>

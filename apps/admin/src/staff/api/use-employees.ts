@@ -1,6 +1,6 @@
 'use client';
 import { employeePage, employeeDetailRecord, type UpdateEmployeeInput } from '@pospay/contracts';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 
 const key = (companyId: string, businessId: string, userId: string) =>
@@ -64,7 +64,6 @@ export function useEmployees(
   return useQuery({
     queryKey: [...key(companyId, businessId, userId), 'list', cursor, ...(q ? [q] : [])],
     queryFn: ({ signal }) => list(companyId, businessId, cursor, q, signal),
-    placeholderData: keepPreviousData,
     refetchInterval: 30_000,
   });
 }

@@ -117,7 +117,7 @@ it('includes q in the list request and cache key only when a search is set', asy
     }),
   );
 });
-it('keeps the previous rows while the next q is pending', async () => {
+it('does not show the previous rows while the next q is pending', async () => {
   const listed = {
     id,
     name_en: 'Synthetic',
@@ -144,8 +144,8 @@ it('keeps the previous rows while the next q is pending', async () => {
   await waitFor(() => expect(hook.result.current.data?.items[0]?.name_en).toBe('Synthetic'));
   hold = true;
   hook.rerender({ q: 'Sara' });
-  await waitFor(() => expect(hook.result.current.isPlaceholderData).toBe(true));
-  expect(hook.result.current.data?.items[0]?.employee_number).toBe(15);
+  await waitFor(() => expect(hook.result.current.isPending).toBe(true));
+  expect(hook.result.current.data).toBeUndefined();
   resolveNext({ data: { items: [], next_cursor: null } });
   await waitFor(() => expect(hook.result.current.data?.items).toEqual([]));
 });

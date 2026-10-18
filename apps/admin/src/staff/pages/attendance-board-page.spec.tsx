@@ -87,9 +87,9 @@ it.each(['ar', 'en'] as const)(
       within(daily).getByRole('columnheader', { name: t(locale, 'attendanceBoard.employeeNumber') }),
     ).toBeTruthy();
     expect(within(daily).getByText('15')).toBeTruthy();
-    expect(within(inNow).getByText('15').getAttribute('aria-label')).toBe(
-      `${t(locale, 'staff.employeeNumber')} 15`,
-    );
+    const label = within(inNow).getByText(t(locale, 'staff.employeeNumber'), { exact: false });
+    expect(label.className).toContain('sr-only');
+    expect(label.parentElement?.textContent).toBe(`${t(locale, 'staff.employeeNumber')} 15`);
     expect(
       (screen.getByLabelText(t(locale, 'attendanceBoard.date')) as HTMLInputElement).value,
     ).toBe('2026-10-11');
