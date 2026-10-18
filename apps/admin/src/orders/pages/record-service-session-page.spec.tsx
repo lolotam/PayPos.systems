@@ -47,7 +47,7 @@ async function chooseService() {
 }
 async function choosePerformer() {
   const label = t('en', 'serviceSessions.performerNumber').replace('{n}', '1');
-  await screen.findByRole('option', { name: 'Synthetic performer' });
+  await screen.findByRole('option', { name: 'Synthetic performer —' });
   fireEvent.change(screen.getByLabelText(label), { target: { value: id(6) } });
 }
 function contextReads() {

@@ -286,6 +286,8 @@ export const ar: Catalog = {
     next: 'الصفحة التالية',
     first: 'الصفحة الأولى',
     name: 'الاسم',
+    employeeNumber: 'رقم الموظف',
+    search: 'بحث بالاسم أو الرقم',
     title: 'إضافة موظف',
     nameEn: 'الاسم بالإنجليزية',
     nameAr: 'الاسم بالعربية (اختياري)',

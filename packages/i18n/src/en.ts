@@ -293,6 +293,8 @@ export const en = {
     next: 'Next page',
     first: 'First page',
     name: 'Name',
+    employeeNumber: 'Employee number',
+    search: 'Search by name or number',
     title: 'Create employee',
     nameEn: 'English name',
     nameAr: 'Arabic name (optional)',

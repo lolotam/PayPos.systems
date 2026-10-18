@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployees } from '../api/use-employees';
+import { useEmployeeListControls } from '../model/use-employee-list-controls';
 import { EmployeeListPanel } from '../ui/employee-list-panel';
 import { EmployeeEditPanel } from '../ui/employee-edit-panel';
 import { PasskeyEmployeesPanel } from '../ui/passkey-employees-panel';
@@ -20,11 +21,11 @@ export function EmployeesPage({
   userId: string;
 }) {
   const locale = useLocale();
-  const [cursor, setCursor] = useState<string>();
+  const search = useEmployeeListControls();
   const [employeeId, setEmployeeId] = useState('');
-  const list = useEmployees(companyId, business.id, userId, cursor);
+  const list = useEmployees(companyId, business.id, userId, search.cursor, search.q);
   const page = (next: string | undefined) => {
-    setCursor(next);
+    search.onPage(next);
     setEmployeeId('');
   };
   return (
@@ -47,7 +48,9 @@ export function EmployeesPage({
         list={list}
         branches={business.branches}
         selectedId={employeeId}
-        cursor={cursor}
+        cursor={search.cursor}
+        search={search.text}
+        onSearch={search.onSearch}
         onSelect={setEmployeeId}
         onPage={page}
       />

@@ -4,6 +4,7 @@ import { Button, Input, Label, NativeSelect } from '@pospay/ui';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { useEffect } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
+import { displayEmployeeNumber } from '@/staff/model/employee-number-display';
 import { normalizeSessionPercent, sessionSharePercentage, type SessionDraftForm, type SessionPerformerSelection } from '../model/session-drafts';
 
 export function SessionPerformerRow({ index, ordinal, items, selectedFacts, instant, timeZone, factsKey, remove }: {
@@ -20,7 +21,7 @@ export function SessionPerformerRow({ index, ordinal, items, selectedFacts, inst
   if (!row) return null;
   const id = `${line.local_id}-performer-${ordinal}`;
   const label = (key: 'performerNumber' | 'share' | 'removePerformer') => t(locale, `serviceSessions.${key}`).replace('{n}', String(ordinal + 1));
-  const name = (item: SessionPerformerSelection) => locale === 'ar' ? item.name_ar ?? item.name_en : item.name_en;
+  const name = (item: SessionPerformerSelection) => `${locale === 'ar' ? item.name_ar ?? item.name_en : item.name_en} ${displayEmployeeNumber(item.employee_number)}`;
   const facts = current ?? (row.facts_key === factsKey && row.selection?.id === row.employee_id ? row.selection : null);
   const choices = items.filter((item) => item.id === row.employee_id || !line.performers.some((other) => other.employee_id === item.id));
   return <div className="grid gap-2">

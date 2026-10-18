@@ -121,6 +121,10 @@ it.each(['ar', 'en'] as const)(
     const table = await screen.findByRole('table', { name: t(locale, 'attendanceReport.title') });
     const row = within(table).getByText('Synthetic employee').closest('tr');
     if (!row) throw new Error('Missing report row');
+    expect(
+      within(table).getByRole('columnheader', { name: t(locale, 'attendanceReport.employeeNumber') }),
+    ).toBeTruthy();
+    expect(within(row).getByText('\u2014')).toBeTruthy();
     for (const value of ['20', '160:05', '168:00', '170:00', '-9:55', '27'])
       expect(within(row).getByText(value)).toBeTruthy();
     expect(within(row).getByText('-9:55').getAttribute('dir')).toBe('ltr');

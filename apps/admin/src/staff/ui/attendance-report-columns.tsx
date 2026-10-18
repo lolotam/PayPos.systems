@@ -3,6 +3,7 @@ import { attendanceHoursMinutes } from '@pospay/domain';
 import { t, type Locale, type MessageKey } from '@pospay/i18n';
 import { Badge } from '@pospay/ui';
 import type { ColumnDef } from '@tanstack/react-table';
+import { displayEmployeeNumber } from '../model/employee-number-display';
 import { signedAttendanceHours } from '../model/attendance-report-display';
 import { AttendanceReportLeave } from './attendance-report-leave';
 
@@ -27,6 +28,11 @@ function countColumn(
 }
 export function attendanceReportColumns(locale: Locale): ColumnDef<AttendanceMonthlyReportRow>[] {
   return [
+    {
+      id: 'employee_number',
+      header: t(locale, 'attendanceReport.employeeNumber'),
+      accessorFn: (row) => displayEmployeeNumber(row.employee_number),
+    },
     {
       id: 'employee',
       header: t(locale, 'attendanceReport.employeeName'),

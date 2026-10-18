@@ -82,6 +82,41 @@ it('server cursor and selected workspace/user remain part of paginated query req
       .map((query) => query.queryKey),
   ).toContainEqual(['employees', other, id, other, 'list', other]);
 });
+it('includes q in the list request and cache key only when a search is set', async () => {
+  api.GET.mockResolvedValue({ data: { items: [], next_cursor: null } });
+  const { wrapper, client } = setup();
+  const hook = renderHook(() => useEmployees(id, id, other, undefined, '2'), { wrapper });
+  await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+  expect(api.GET).toHaveBeenCalledWith(
+    '/v1/businesses/{businessId}/employees',
+    expect.objectContaining({
+      params: {
+        header: { 'x-company-id': id },
+        path: { businessId: id },
+        query: { limit: 20, q: '2' },
+      },
+    }),
+  );
+  expect(
+    client
+      .getQueryCache()
+      .getAll()
+      .map((query) => query.queryKey),
+  ).toContainEqual(['employees', id, id, other, 'list', undefined, '2']);
+  api.GET.mockClear();
+  const empty = renderHook(() => useEmployees(id, other, other, undefined, ''), { wrapper });
+  await waitFor(() => expect(empty.result.current.isSuccess).toBe(true));
+  expect(api.GET).toHaveBeenCalledWith(
+    '/v1/businesses/{businessId}/employees',
+    expect.objectContaining({
+      params: {
+        header: { 'x-company-id': id },
+        path: { businessId: other },
+        query: { limit: 20 },
+      },
+    }),
+  );
+});
 it('sends the expected revision through generated PATCH and updates only the original detail cache', async () => {
   api.GET.mockResolvedValue({ data: record });
   api.PATCH.mockResolvedValueOnce({ data: { ...record, revision: 4, name_en: 'Changed' } });

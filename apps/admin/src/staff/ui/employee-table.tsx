@@ -23,6 +23,7 @@ export function EmployeeTable({
   const data = useMemo(() => [...items], [items]);
   const columns = useMemo(
     () => [
+      { id: 'number', header: t(locale, 'staff.employeeNumber') },
       { id: 'name', header: t(locale, 'staff.name') },
       { id: 'role', header: t(locale, 'staff.role') },
       { id: 'branch', header: t(locale, 'staff.primaryBranch') },

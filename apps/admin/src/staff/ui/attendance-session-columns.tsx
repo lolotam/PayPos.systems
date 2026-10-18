@@ -3,6 +3,7 @@ import { t, type Locale } from '@pospay/i18n';
 import { Badge } from '@pospay/ui';
 import type { ColumnDef } from '@tanstack/react-table';
 import { boardTime } from '../model/attendance-board-display';
+import { displayEmployeeNumber } from '../model/employee-number-display';
 import { AttendanceSessionBadges } from './attendance-session-badges';
 import { AttendanceSourceBadge } from './attendance-source-badge';
 import { AttendanceSessionActions, type SessionAction } from './attendance-session-actions';
@@ -15,6 +16,11 @@ export function attendanceSessionColumns(
   owner = false,
 ): ColumnDef<Row>[] {
   return [
+    {
+      id: 'number',
+      header: t(locale, 'attendanceBoard.employeeNumber'),
+      cell: ({ row }) => displayEmployeeNumber(row.original.employee_number),
+    },
     {
       id: 'employee',
       header: t(locale, 'attendanceBoard.employee'),
