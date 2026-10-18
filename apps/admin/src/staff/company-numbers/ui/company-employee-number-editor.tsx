@@ -1,7 +1,7 @@
 'use client';
 import type { SetEmployeeNumberInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button, Input, Label } from '@pospay/ui';
+import { Input, Label } from '@pospay/ui';
 import { useEffect, useId, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { useForm, type UseFormRegisterReturn, type UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -10,6 +10,7 @@ import {
   employeeNumberFieldText,
   employeeNumberResolver,
 } from '../../model/employee-number-form-schema';
+import { CompanyEmployeeNumberEditorActions } from './company-employee-number-editor-actions';
 
 type NumberForm = UseFormReturn<SetEmployeeNumberInput>;
 
@@ -100,14 +101,7 @@ export function CompanyEmployeeNumberEditor({
           </p>
         ) : null}
         {message && !edited ? <p role="alert">{message}</p> : null}
-        <div className="flex gap-2">
-          <Button type="submit" size="sm">
-            {t(locale, 'companyEmployeeNumbers.save')}
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={onClose}>
-            {t(locale, 'companyEmployeeNumbers.close')}
-          </Button>
-        </div>
+        <CompanyEmployeeNumberEditorActions onClose={onClose} />
       </fieldset>
     </form>
   );
