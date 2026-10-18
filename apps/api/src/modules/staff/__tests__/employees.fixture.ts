@@ -49,6 +49,7 @@ export async function employeesFixture(options: Parameters<typeof startHarness>[
   return {
     h,
     cookie,
+    ownerCookie,
     company,
     otherCompany,
     userId,

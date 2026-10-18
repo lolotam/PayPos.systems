@@ -34,6 +34,7 @@ const deviceForbidden = [
   'read:settings:business',
   'manage:settings:business',
   'manage:business-identity:business',
+  'manage:employee-number:company',
   'view:notifications:business',
   'create:companies:platform',
   'read:files:business',

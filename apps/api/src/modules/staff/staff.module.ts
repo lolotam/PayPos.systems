@@ -5,6 +5,7 @@ import {
 } from './staff-attendance.providers.ts';
 import { scheduleProviders } from './staff-schedule.providers.ts';
 import { defaultShiftsProviders } from './staff-default-shifts.providers.ts';
+import { employeeNumberProviders } from './staff-employee-number.providers.ts';
 import { attendanceReportProviders } from './staff-report.providers.ts';
 import { AttendanceMonthlyReportController } from './http/attendance-monthly-report.controller.ts';
 import {
@@ -13,6 +14,7 @@ import {
   salaryProviders,
 } from './staff-records.providers.ts';
 import { EmployeeDefaultShiftsController } from './http/employee-default-shifts.controller.ts';
+import { EmployeeNumberController } from './http/employee-number.controller.ts';
 import { EmployeeIbanController } from './http/employee-iban.controller.ts';
 import { MyScheduleController } from './http/my-schedule.controller.ts';
 import {
@@ -102,6 +104,7 @@ export const staffControllers = [
   AttendanceBoardController,
   AttendanceChangeRequestsController,
   EmployeeDefaultShiftsController,
+  EmployeeNumberController,
   EmployeeIbanController,
   ClockAttendanceController,
   ClockByCardController,
@@ -218,6 +221,7 @@ export function staffProviders(
     ...enrolProviders(database, ids, passkeys, logger),
     ...scheduleProviders(database, ids),
     ...defaultShiftsProviders(database, ids),
+    ...employeeNumberProviders(database, ids),
     ...attendanceReportProviders(database, ids),
     ...leaveProviders(database, ids),
     ...attendanceExceptionProviders(database, ids),

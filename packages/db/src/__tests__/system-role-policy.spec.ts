@@ -168,3 +168,10 @@ it('business identity is grantable to every human role and never a device', () =
       ),
     ).toBe(entry.code !== 'device');
 });
+
+it('employee number is grantable to every human role and never a device', () => {
+  for (const entry of SYSTEM_ROLES)
+    expect(
+      systemRolePolicy(entry.id, 'global')?.permissions.includes('manage:employee-number:company'),
+    ).toBe(entry.code !== 'device');
+});

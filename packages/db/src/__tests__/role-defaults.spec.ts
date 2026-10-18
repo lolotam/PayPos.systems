@@ -157,6 +157,11 @@ it('BI-Q1 business identity defaults to the owner and stays owner-granted', () =
   expect(OWNER_GRANTED_PERMISSIONS).toContain('manage:business-identity:business');
 });
 
+it('EN-Q11 employee number defaults to the owner and stays owner-granted', () => {
+  expect(ROLE_DEFAULTS['manage:employee-number:company']).toEqual(['owner']);
+  expect(OWNER_GRANTED_PERMISSIONS).toContain('manage:employee-number:company');
+});
+
 it('cancel:service-lines:branch defaults to the four managers and a device cannot hold it', () => {
   const defaults = ['owner', 'general_manager', 'business_manager', 'branch_manager'];
   const holders: readonly string[] = ROLE_DEFAULTS['cancel:service-lines:branch'];
