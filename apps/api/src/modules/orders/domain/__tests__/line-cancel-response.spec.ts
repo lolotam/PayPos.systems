@@ -129,3 +129,8 @@ function visitRecord(lines: SessionLine[]): SessionRecord {
     lines,
   };
 }
+
+it('refuses to build a cancel response from a line that is still ACTIVE', () => {
+  const active = visitLine(20000n, 'ACTIVE');
+  expect(() => savedLineCancelResponse(visitRecord([active]), active.id, cancelledAt)).toThrow(/not CANCELLED/);
+});
