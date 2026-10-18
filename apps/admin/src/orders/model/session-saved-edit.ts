@@ -20,7 +20,7 @@ export function savedLineFigures(line: { price: string; discount: string; net: s
   return { price: line.price, discount: line.discount, net: line.net };
 }
 
-// رد الإلحاق ممكن يكون اتظبط قبل ما التعديل يتسجل. مراجعة أقل من المؤكدة ما ترجعش أرقام اتأكدت أو اتخبت، والإجمالي يفضل مخبي طول ما فيه سطر مخبي لسه أقدم.
+// رد الإلحاق ممكن يكون اتظبط قبل ما التعديل يتسجل. مراجعة أقل من المؤكدة ما ترجعش أرقام اتأكدت أو اتخبت، والإجمالي القديم بيسقط السطور الملحقة فيفضل مجهول.
 export function reconcileSavedVisit(visit: SavedVisitEdit, session: SavedVisitSnapshot): SavedVisitEdit {
   if (visit.sessionId !== session.id) return emptySavedVisit(session.id, session.total_net);
   const lines: Record<string, SavedLineEdit> = {};
@@ -40,8 +40,7 @@ export function reconcileSavedVisit(visit: SavedVisitEdit, session: SavedVisitSn
     const incoming = session.lines.find((line) => line.id === lineId);
     return !incoming || incoming.revision < edit.revision;
   });
-  if (uncoveredUnknown) return { sessionId: session.id, total: 'UNKNOWN', totalNet: visit.totalNet, lines };
-  if (keptOlder) return { sessionId: session.id, total: visit.total, totalNet: visit.totalNet, lines };
+  if (uncoveredUnknown || keptOlder) return { sessionId: session.id, total: 'UNKNOWN', totalNet: visit.totalNet, lines };
   return { sessionId: session.id, total: 'SNAPSHOT', totalNet: session.total_net, lines };
 }
 

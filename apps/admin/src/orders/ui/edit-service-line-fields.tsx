@@ -12,9 +12,9 @@ function fieldText(message: string | undefined, locale: Locale) {
   return message;
 }
 
-export function EditServiceLineFields({ form, locale, memberships, online, pending, onClose }: {
+export function EditServiceLineFields({ form, locale, memberships, online, pending, closeDisabled, onClose }: {
   form: UseFormReturn<EditLineFormInput, unknown, EditServiceLineInput>;
-  locale: Locale; memberships: string[]; online: boolean; pending: boolean; onClose: () => void;
+  locale: Locale; memberships: string[]; online: boolean; pending: boolean; closeDisabled: boolean; onClose: () => void;
 }) {
   const { register, formState, setValue, control } = form;
   const kind = useWatch({ control, name: 'discount_kind' });
@@ -44,7 +44,7 @@ export function EditServiceLineFields({ form, locale, memberships, online, pendi
     </NativeSelect> : null}
     <div className="flex flex-wrap gap-2">
       <Button type="submit" disabled={!online || pending}>{pending ? t(locale, 'serviceLineEdit.saving') : t(locale, 'serviceLineEdit.save')}</Button>
-      <Button type="button" variant="outline" onClick={onClose}>{t(locale, 'serviceLineEdit.close')}</Button>
+      <Button type="button" variant="outline" disabled={closeDisabled} onClick={() => { if (!closeDisabled) onClose(); }}>{t(locale, 'serviceLineEdit.close')}</Button>
     </div>
   </>;
 }

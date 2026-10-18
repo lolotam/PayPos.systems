@@ -28,7 +28,7 @@ it('keeps the hidden figures when the snapshot revision is older than the confir
     lines: { l2: { edited: true, revision: 2, figures: 'FROM_RESPONSE', price: '9.500', discount: '1.000', net: '8.500' } },
   }, snapshot([{ id: 'l2', revision: 1 }], '1.000'));
   expect(priced.lines.l2?.figures).toBe('FROM_RESPONSE');
-  expect(priced.total).toBe('FROM_RESPONSE');
+  expect(priced.total).toBe('UNKNOWN');
   expect(priced.totalNet).toBe('8.500');
 });
 

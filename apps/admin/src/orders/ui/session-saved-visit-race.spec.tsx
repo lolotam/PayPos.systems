@@ -1,6 +1,6 @@
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { id, initial, recordAttempt, response, savedLine, scope } from '../model/session-recording-result.fixture';
 import { transitionSessionRecordingResult as transition } from '../model/session-recording-result';
@@ -18,21 +18,43 @@ const full = {
   },
   response: { status: 200 },
 };
-type PatchResult = typeof full | typeof narrow;
+type Gate = { resolve: (value: unknown) => void; reject: (error: unknown) => void };
+type FailureKind = 'network' | 'stale' | 'invalid';
 
-function renderTwoLines() {
+function refused(status: number, code: string, details?: unknown) {
+  return { error: { code, message_ar: `${code} AR`, message_en: `${code} EN`, ...(details === undefined ? {} : { details }) }, response: { status } };
+}
+function twoLineSession() {
   const second = { ...savedLine, id: id(19), name_en: 'Second service', ordinal: 2 };
-  const session = { ...response.session, lines: [savedLine, second] };
+  return { ...response.session, lines: [savedLine, second] };
+}
+function tree(client: QueryClient, session: ReturnType<typeof twoLineSession>) {
   const result = transition(initial, { type: 'RECORDED', attempt: recordAttempt, response: { outcome: 'COMPLETE', session, rejected_lines: [] } });
-  const client = new QueryClient({ defaultOptions: { mutations: { retry: false }, queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}>
+  return <QueryClientProvider client={client}>
     <SessionSavedResult result={result} journal={{ leaveVisit: vi.fn() }} onNewVisit={vi.fn()} scope={scope} online />
-  </QueryClientProvider>);
+  </QueryClientProvider>;
+}
+function queuePatches() {
+  const pending: Gate[] = [];
+  state.patch.mockReset();
+  state.get.mockReset();
+  state.patch.mockImplementation(() => new Promise((resolve, reject) => { pending.push({ resolve, reject }); }));
+  return pending;
+}
+function editButtons() {
+  return screen.getAllByRole('button', { name: t('en', 'serviceLineEdit.edit') });
 }
 function editAt(index: number) {
-  const button = screen.getAllByRole('button', { name: t('en', 'serviceLineEdit.edit') })[index];
+  const button = editButtons()[index];
   if (!button) throw new Error(`missing edit ${index}`);
   fireEvent.click(button);
+}
+function buttonDisabled(name: string, index?: number) {
+  const found = index === undefined ? screen.queryByRole('button', { name }) : editButtons()[index];
+  return found instanceof HTMLButtonElement && found.disabled;
+}
+function controlsLocked() {
+  return buttonDisabled(t('en', 'serviceLineEdit.edit'), 1) && buttonDisabled(t('en', 'serviceLineEdit.close'));
 }
 function fill(price: string, discount: string) {
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.price')), { target: { value: price } });
@@ -42,60 +64,85 @@ function fill(price: string, discount: string) {
 const save = () => fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
 const reason = () => screen.queryByLabelText(t('en', 'serviceLineEdit.reason'));
 
-async function submitBoth() {
-  const resolvers: Array<(value: PatchResult) => void> = [];
-  state.patch.mockReset();
-  state.get.mockReset();
-  state.patch.mockImplementation(() => new Promise((resolve) => { resolvers.push(resolve); }));
-  const view = renderTwoLines();
+async function openAndSaveFirst() {
+  const pending = queuePatches();
+  const client = new QueryClient({ defaultOptions: { mutations: { retry: false }, queries: { retry: false } } });
+  const view = render(tree(client, twoLineSession()));
   editAt(0);
   fill('8.000', '1.000');
   save();
-  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(1));
-  editAt(1);
-  fill('9.500', '0.500');
-  save();
-  await waitFor(() => expect(resolvers).toHaveLength(2));
-  return { view, resolvers };
+  await waitFor(() => expect(pending).toHaveLength(1));
+  await waitFor(() => expect(controlsLocked()).toBe(true));
+  return { view, client, pending };
 }
-function settle(resolvers: Array<(value: PatchResult) => void>, index: number, value: PatchResult) {
-  const resolve = resolvers[index];
-  if (!resolve) throw new Error(`missing response ${index}`);
-  resolve(value);
+async function settleFailure(kind: FailureKind, pending: Gate[]) {
+  const first = pending[0];
+  if (!first) throw new Error('missing response');
+  if (kind === 'network') {
+    await act(async () => { first.reject(new Error('offline')); });
+    return t('en', 'admin.unexpected');
+  }
+  if (kind === 'invalid') {
+    await act(async () => { first.resolve(refused(422, 'SESSION_EDIT_NO_CHANGE')); });
+    return 'SESSION_EDIT_NO_CHANGE EN';
+  }
+  await act(async () => { first.resolve(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 4 })); });
+  await waitFor(() => expect(pending).toHaveLength(2));
+  expect(controlsLocked()).toBe(true);
+  const second = pending[1];
+  if (!second) throw new Error('missing retry');
+  await act(async () => { second.resolve(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 5 })); });
+  return 'SESSION_LINE_REVISION_STALE EN';
 }
 
-it('keeps the open editor and both line outcomes when the earlier full edit finishes first', async () => {
-  const { view, resolvers } = await submitBoth();
-  settle(resolvers, 0, full);
+it('disables the other edit and close while a save is pending and enables edits after it succeeds', async () => {
+  const { pending } = await openAndSaveFirst();
+  const first = pending[0];
+  if (!first) throw new Error('missing response');
+  await act(async () => { first.resolve(full); });
   expect(await screen.findByText('4.250')).toBeTruthy();
-  expect(reason()).toBeTruthy();
-  expect(screen.queryByText(t('en', 'serviceLineEdit.figuresHidden'))).toBeNull();
-  expect(screen.getAllByText(t('en', 'serviceLineEdit.edited'))).toHaveLength(1);
-  settle(resolvers, 1, narrow);
-  expect(await screen.findByText(t('en', 'serviceLineEdit.figuresHidden'))).toBeTruthy();
-  expect(reason()).toBeNull();
-  expect(view.container.textContent).toContain('4.250');
-  expect(screen.getAllByText(t('en', 'serviceLineEdit.edited'))).toHaveLength(2);
-  expect(view.container.textContent).not.toContain('7.125');
-  expect(screen.queryByText(t('en', 'serviceSessions.savedTotal'))).toBeNull();
-  expect(state.patch).toHaveBeenCalledTimes(2);
+  expect(screen.queryByRole('button', { name: t('en', 'serviceLineEdit.close') })).toBeNull();
+  for (const button of editButtons()) expect((button as HTMLButtonElement).disabled).toBe(false);
+  expect(state.patch).toHaveBeenCalledTimes(1);
   expect(state.get).not.toHaveBeenCalled();
 });
 
-it('keeps both line outcomes when the later narrow edit finishes before the earlier full edit', async () => {
-  const { view, resolvers } = await submitBoth();
-  settle(resolvers, 1, narrow);
+it.each([
+  ['network', 'network'],
+  ['409 after the retry', 'stale'],
+  ['422', 'invalid'],
+] as const)('shows the %s error in the still-open editor', async (_label, kind) => {
+  const { pending } = await openAndSaveFirst();
+  const message = await settleFailure(kind, pending);
+  expect((await screen.findByRole('alert')).textContent).toContain(message);
+  expect(reason()).toBeTruthy();
+  await waitFor(() => expect(controlsLocked()).toBe(false));
+  expect(state.get).not.toHaveBeenCalled();
+});
+
+it('does not close or open another line while a save is pending', async () => {
+  const { pending } = await openAndSaveFirst();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.close') }));
+  editAt(1);
+  expect(screen.getAllByLabelText(t('en', 'serviceLineEdit.reason'))).toHaveLength(1);
+  expect(state.patch).toHaveBeenCalledTimes(1);
+  const first = pending[0];
+  if (!first) throw new Error('missing response');
+  await act(async () => { first.resolve(narrow); });
   expect(await screen.findByText(t('en', 'serviceLineEdit.figuresHidden'))).toBeTruthy();
   expect(reason()).toBeNull();
-  expect(view.container.textContent).toContain('7.125');
-  expect(screen.getAllByText(t('en', 'serviceLineEdit.edited'))).toHaveLength(1);
-  settle(resolvers, 0, full);
-  expect(await screen.findByText('4.250')).toBeTruthy();
-  expect(screen.getByText(t('en', 'serviceLineEdit.figuresHidden'))).toBeTruthy();
+});
+
+it('keeps a later editor open when an earlier save completes after the snapshot changes', async () => {
+  const { view, client, pending } = await openAndSaveFirst();
+  view.rerender(tree(client, { ...twoLineSession(), total_net: '9.000' }));
   expect(reason()).toBeNull();
-  expect(screen.getAllByText(t('en', 'serviceLineEdit.edited'))).toHaveLength(2);
-  expect(screen.getByText(t('en', 'serviceSessions.savedTotal')).textContent).toContain('4.000');
-  expect(view.container.textContent).not.toContain('7.125');
-  expect(state.patch).toHaveBeenCalledTimes(2);
-  expect(state.get).not.toHaveBeenCalled();
+  await waitFor(() => expect(buttonDisabled(t('en', 'serviceLineEdit.edit'), 1)).toBe(false));
+  editAt(1);
+  const first = pending[0];
+  if (!first) throw new Error('missing response');
+  await act(async () => { first.resolve(narrow); });
+  expect(await screen.findByText(t('en', 'serviceLineEdit.edited'))).toBeTruthy();
+  expect(reason()).toBeTruthy();
+  expect(state.patch).toHaveBeenCalledTimes(1);
 });

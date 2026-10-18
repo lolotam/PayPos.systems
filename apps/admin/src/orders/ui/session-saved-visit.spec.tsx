@@ -98,7 +98,8 @@ it('shows a second stale response as an error and stops after two requests', asy
   expect(state.patch).toHaveBeenCalledTimes(2);
   expect(bodyOf(1).expected_revision).toBe(3);
   expect(keyOf(0)).not.toBe(keyOf(1));
-  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(2));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(state.patch).toHaveBeenCalledTimes(2);
   noHistoryRead();
 });
 

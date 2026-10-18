@@ -1,8 +1,7 @@
 'use client';
 import type { EditServiceLineInput } from '@pospay/contracts';
 import type { Locale } from '@pospay/i18n';
-import type { KeyboardEvent } from 'react';
-import { useState } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useForm, useWatch, type UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { revisionAfterFailedRetry, useEditServiceLine, type EditServiceLineResult } from '../api/use-edit-service-line';
@@ -16,7 +15,7 @@ export type EditServiceLineFormProps = {
   scope: SessionServiceScope; sessionId: string; line: EditableServiceLine; online: boolean;
   figuresKnown?: boolean; retryStaleOnce?: boolean;
   onSaved: (result: EditServiceLineResult) => void; onStale: () => Promise<number | null> | undefined; onForbidden: (message: string) => void;
-  onAccessDenied?: (message: string) => void; onClose: () => void;
+  onAccessDenied?: (message: string) => void; onBusyChange?: (busy: boolean) => void; closeDisabled?: boolean; onClose: () => void;
 };
 
 function submitOnEnter(online: boolean, pending: boolean) {
@@ -63,6 +62,12 @@ export function EditServiceLineForm(props: EditServiceLineFormProps) {
   const [refreshing, setRefreshing] = useState(false);
   const pending = mutation.isPending;
   const blocked = pending || refreshing;
+  const onBusyChange = props.onBusyChange;
+  // الأب بيقفل باقي السطور طول ما الطلب شغال. التنظيف بيرجع الإشارة لما الفورم يتفك عشان الزيارة ما تفضلش مقفولة.
+  useEffect(() => {
+    onBusyChange?.(blocked);
+    return () => { onBusyChange?.(false); };
+  }, [blocked, onBusyChange]);
   const submit = form.handleSubmit(async (body) => {
     if (!props.online || pending || refreshing) return;
     setRoot(null);
@@ -85,7 +90,7 @@ export function EditServiceLineForm(props: EditServiceLineFormProps) {
   });
   return <form className="grid gap-3 text-start" onSubmit={(event) => { void submit(event); }} onKeyDown={submitOnEnter(props.online, blocked)}>
     {root ? <p role="alert">{root}</p> : null}
-    <EditServiceLineFields form={form} locale={locale} memberships={memberships} online={props.online} pending={blocked} onClose={props.onClose} />
+    <EditServiceLineFields form={form} locale={locale} memberships={memberships} online={props.online} pending={blocked} closeDisabled={props.closeDisabled === true} onClose={props.onClose} />
     <EditServiceLinePreview locale={locale} line={props.line} price={watched.price ?? ''} kind={watched.discount_kind ?? 'AMOUNT'} discount={watched.discount_value ?? ''} limit={limit} figuresKnown={known} />
   </form>;
 }

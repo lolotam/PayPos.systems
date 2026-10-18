@@ -25,6 +25,7 @@ export function SessionSavedVisit({ result, scope, online }: {
   const [open, setOpen] = useState<OpenLine | null>(null);
   const [refusal, setRefusal] = useState<Refusal | null>(null);
   const [denial, setDenial] = useState<Denial | null>(null);
+  const [busy, setBusy] = useState(false);
   if (!session) return null;
   // 401 وإيقاف الميزة بيقفلوا الأرقام؛ الإلحاق نفس id فما يرجعهاش، وزيارة بـ id جديد تبدأ من غير الرفض.
   const denied = denial?.sessionId === session.id ? denial.message : null;
@@ -37,7 +38,7 @@ export function SessionSavedVisit({ result, scope, online }: {
   const refusalText = refusal?.snapshot === session ? refusal.message : null;
   const when = formatInstant(new Date(session.occurred_at), locale, session.business_timezone);
   const saved = (lineId: string, edit: EditServiceLineResult) => {
-    // إكمال سطر تاني ممكن يوصل الأول. الدمج على الحالة الحالية، والمحرر يتقفل بس لو لسه مفتوح لنفس المحاولة.
+    // الطلبات بتتسلسل، والدمج على الحالة الحالية عشان رد متأخر ما يقفلش محرر غير محرره.
     setHeld((current) => {
       const base = current?.snapshot === session ? current.visit
         : reconcileSavedVisit(current?.visit ?? emptySavedVisit(session.id, session.total_net), session);
@@ -51,9 +52,9 @@ export function SessionSavedVisit({ result, scope, online }: {
     <ul className="grid gap-3">{session.lines.map((line) => {
       const edit = visit.lines[line.id];
       return <SessionSavedLine key={line.id} line={line} locale={locale} when={when} sessionId={session.id} online={online}
-        open={editingId === line.id} canEdit={canEdit} added={result.addedLineIds.includes(line.id)}
+        open={editingId === line.id} canEdit={canEdit} added={result.addedLineIds.includes(line.id)} busy={busy} onBusyChange={setBusy}
         {...(edit ? { edit } : {})} {...(scope ? { scope } : {})}
-        onOpen={() => { setRefusal(null); setOpen({ snapshot: session, lineId: line.id }); }} onClose={() => setOpen(null)}
+        onOpen={() => { if (busy) return; setRefusal(null); setOpen({ snapshot: session, lineId: line.id }); }} onClose={() => setOpen(null)}
         onSaved={(savedEdit) => saved(line.id, savedEdit)} onForbidden={(message) => { setRefusal({ snapshot: session, message }); setOpen(null); }}
         onAccessDenied={(message) => { setDenial({ sessionId: session.id, message }); setOpen(null); }} />;
     })}</ul>
