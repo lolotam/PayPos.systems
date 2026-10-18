@@ -1,4 +1,5 @@
-const STATUSES = new Set(['done', 'in_progress', 'not_started']);
+// The three values the decisions page's roadmap.json uses (counted on the live file 2026-10-18: done, wip, todo).
+const STATUSES = new Set(['done', 'wip', 'todo']);
 
 /**
  * Walks the whole roadmap and returns every object that carries `code` and a string `status`

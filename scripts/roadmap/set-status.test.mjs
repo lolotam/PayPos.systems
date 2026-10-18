@@ -8,12 +8,12 @@ const sample = () => ({
   phases: [
     {
       code: 'P1',
-      status: 'in_progress',
-      gates: [{ code: 'P1-G1', status: 'not_started', ref: '' }],
+      status: 'wip',
+      gates: [{ code: 'P1-G1', status: 'todo', ref: '' }],
     },
   ],
-  tracks: [{ code: 'POS', items: [{ code: 'POS-1', status: 'not_started', ref: '' }] }],
-  partner: [{ code: 'AS-01', status: 'not_started', ref: '' }],
+  tracks: [{ code: 'POS', items: [{ code: 'POS-1', status: 'todo', ref: '' }] }],
+  partner: [{ code: 'AS-01', status: 'todo', ref: '' }],
 });
 
 test('collects rows at every depth', () => {
@@ -47,6 +47,6 @@ test('an unknown code or status changes nothing', () => {
     ),
   );
   assert.throws(() => applyUpdates(roadmap, [{ code: 'POS-1', status: 'finished' }], 'x'));
-  assert.equal(roadmap.tracks[0].items[0].status, 'not_started');
+  assert.equal(roadmap.tracks[0].items[0].status, 'todo');
   assert.equal(roadmap.updated, '2026-10-01');
 });
