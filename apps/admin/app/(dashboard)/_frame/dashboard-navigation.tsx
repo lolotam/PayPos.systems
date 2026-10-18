@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale } from '@/shared/locale/locale-context';
 import { CatalogNavItem } from './catalog-nav-item';
+import { SessionDayNavItem } from './session-day-nav-item';
 import { SessionNavItem } from './session-nav-item';
 import { StaffNavigation } from './staff-navigation';
 
@@ -47,6 +48,7 @@ export function DashboardNavigation() {
       </AppSidebarItem>
       <CatalogNavItem />
       <SessionNavItem />
+      <SessionDayNavItem />
       <StaffNavigation />
     </AppSidebarGroup>
   );
