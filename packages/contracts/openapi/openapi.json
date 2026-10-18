@@ -4600,6 +4600,138 @@
         }
       }
     },
+    "/v1/employee-numbers": {
+      "get": {
+        "operationId": "listEmployeeNumbers",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "description": "Same rule as the staff list: digits only match that exact employee number (leading zeros ignored) or a name containing them; any other text matches Arabic or English names.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "description": "Human manage:employee-number:company and the staff feature. Company employee-numbers screen. Each row is only employee_id, name_ar, name_en, business_id, business_name_ar, business_name_en, and employee_number. Soft-deleted employees are omitted. A DENY on her business, primary branch, or any current attachment (a future start still counts) hides the row; an ended attachment does not.",
+        "responses": {
+          "200": {
+            "description": "Employee number page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "employee_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "name_ar": {
+                            "nullable": true,
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                          },
+                          "name_en": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                          },
+                          "business_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "business_name_ar": {
+                            "nullable": true,
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                          },
+                          "business_name_en": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255
+                          },
+                          "employee_number": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 999999
+                          }
+                        },
+                        "required": [
+                          "employee_id",
+                          "name_ar",
+                          "name_en",
+                          "business_id",
+                          "business_name_ar",
+                          "business_name_en",
+                          "employee_number"
+                        ]
+                      }
+                    },
+                    "next_cursor": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/employees/{employeeId}/employee-number": {
       "put": {
         "operationId": "setEmployeeNumber",
