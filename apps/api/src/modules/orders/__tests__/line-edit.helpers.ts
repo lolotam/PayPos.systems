@@ -1,5 +1,5 @@
 import { SYSTEM_ROLES } from '@pospay/db';
-import { ids, must, type EditFixture } from './session.fixture.ts';
+import { ids, must, type EditFixture, type SessionFixture } from './session.fixture.ts';
 
 export const EDIT_REASON = 'Synthetic edit reason';
 const managerRole = must(SYSTEM_ROLES.find((role) => role.code === 'branch_manager')).id;
@@ -47,6 +47,28 @@ export async function quietCounts(f: EditFixture, sessionId: string, lineId: str
   const events = await f.h.owner`SELECT 1 FROM outbox WHERE company_id=${f.company} AND aggregate_id=${sessionId} AND event_type='ServiceLineChanged'`;
   const keys = await f.h.owner`SELECT 1 FROM idempotency_keys WHERE company_id=${f.company} AND key=${key}`;
   return { edits: edits.length, audits: audits.length, events: events.length, keys: keys.length };
+}
+
+type MoneyTriple = readonly [string, string, string];
+type PriceEditSeed = { lineId: string; revision?: number; previous?: MoneyTriple; next?: MoneyTriple; reason?: string;
+  changedAt?: string; nameAr?: string | null; nameEn?: string | null; role?: string | null; roleNameEn?: string | null };
+
+/** صف تاريخ يُزرع باتصال المالك حتى تبقى اختبارات القراءة مستقلة عن كاتب التعديل. */
+export async function seedPriceEdit(f: SessionFixture, seed: PriceEditSeed) {
+  const revision = seed.revision ?? 2;
+  const role = seed.role === undefined ? 'owner' : seed.role;
+  const [pp, pd, pn] = seed.previous ?? ['25.000', '0.000', '25.000'];
+  const [np, nd, nn] = seed.next ?? ['22.000', '2.000', '20.000'];
+  await f.h.owner`INSERT INTO service_line_edits(company_id,id,business_id,line_id,revision,previous_revision,
+    previous_price,previous_discount,previous_net,new_price,new_discount,new_net,
+    previous_effective_discount_bps,previous_limit_bps_applied,previous_limit_source,
+    new_effective_discount_bps,new_limit_bps_applied,new_limit_source,reason,changed_at,changed_by,changed_by_membership_id,
+    editor_name_ar,editor_name_en,editor_role,editor_role_is_system,editor_role_name_ar,editor_role_name_en)
+    VALUES(${f.company},${ids.newId()},${f.business},${seed.lineId},${revision},${revision - 1},
+      ${pp},${pd},${pn},${np},${nd},${nn},0,NULL,'OWNER',0,NULL,'OWNER',
+      ${seed.reason ?? EDIT_REASON},${seed.changedAt ?? '2026-10-14T08:00:00.000000Z'}::timestamptz,${f.userId},${f.membership},
+      ${seed.nameAr ?? null},${seed.nameEn ?? null},${role},${role === null ? null : true},${null},
+      ${role === null ? null : (seed.roleNameEn ?? 'Owner')})`;
 }
 
 export async function branchManager(f: EditFixture, email: string) {

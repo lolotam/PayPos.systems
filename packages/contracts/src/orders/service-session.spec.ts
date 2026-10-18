@@ -149,9 +149,11 @@ it('requires edited true on the full edit response', () => {
   const session = { id, total_net: '20.000' };
   expect(editServiceLineResponseFull.safeParse({ line: persistedLine, session }).success).toBe(false);
   expect(editServiceLineResponseFull.safeParse({ line: { ...persistedLine, edited: false }, session }).success).toBe(false);
-  expect(editServiceLineResponseFull.parse({ line: { ...persistedLine, edited: true }, session }).line.edited).toBe(true);
-  expect(editServiceLineResponseFull.safeParse({ line: { ...persistedLine, edited: true, extra: true }, session }).success).toBe(false);
-  expect(editServiceLineResponseFull.safeParse({ line: { ...persistedLine, edited: true }, session, price: '1.000' }).success).toBe(false);
+  const full = { line: { ...persistedLine, edited: true }, session };
+  const parsed = editServiceLineResponseFull.parse(full);
+  expect(parsed.line.edited).toBe(true);
+  expect(editServiceLineResponseFull.parse({ line: { ...persistedLine, edited: true, extra: true }, session })).toEqual(parsed);
+  expect(editServiceLineResponseFull.parse({ ...full, price: '1.000' })).toEqual(parsed);
 });
 it('keeps cancelled_at off a line that was never cancelled', () => {
   expect(Object.hasOwn(savedServiceLine.parse(persistedLine), 'cancelled_at')).toBe(false);
@@ -175,22 +177,23 @@ it('requires a cancelled line with cancelled_at on the full cancel response', ()
   expect(cancelServiceLineResponseFull.safeParse({ line: { ...cancelled, status: 'ACTIVE' }, session }).success).toBe(false);
   expect(cancelServiceLineResponseFull.safeParse({ line: { ...persistedLine, status: 'CANCELLED', revision: 2 }, session }).success).toBe(false);
   expect(cancelServiceLineResponseFull.parse({ line: cancelled, session }).line.status).toBe('CANCELLED');
-  expect(cancelServiceLineResponseFull.safeParse({ line: { ...cancelled, reason: 'سر' }, session }).success).toBe(false);
-  expect(cancelServiceLineResponseFull.safeParse({ line: cancelled, session, canceller_membership_id: id }).success).toBe(false);
+  const cleaned = JSON.stringify(cancelServiceLineResponseFull.parse({ line: { ...cancelled, reason: 'سر' }, session, canceller_membership_id: id }));
+  expect(cleaned).not.toContain('سر');
+  expect(cleaned).not.toContain('canceller_membership_id');
 });
-it('rejects any extra key on the narrow cancel response', () => {
+it('drops any extra key on the narrow cancel response', () => {
   const narrow = { cancelled: true };
   expect(cancelServiceLineResponse.parse(narrow)).toEqual(narrow);
   for (const extra of [{ reason: 'سر' }, { canceller_membership_id: id }, { session: { id, total_net: '60.000' } }, { line: persistedLine }]) {
-    expect(cancelServiceLineResponseNarrow.safeParse({ ...narrow, ...extra }).success).toBe(false);
-    expect(cancelServiceLineResponse.safeParse({ ...narrow, ...extra }).success).toBe(false);
+    expect(cancelServiceLineResponseNarrow.parse({ ...narrow, ...extra })).toEqual(narrow);
+    expect(cancelServiceLineResponse.parse({ ...narrow, ...extra })).toEqual(narrow);
   }
 });
-it('rejects any extra key on the narrow edit response', () => {
+it('drops unknown keys on the narrow edit response', () => {
   const narrow = { saved: true, edited: true };
   expect(editServiceLineResponse.parse(narrow)).toEqual(narrow);
   for (const extra of [{ price: '20.000' }, { revision: 2 }, { session: { id, total_net: '20.000' } }, { line: persistedLine }]) {
-    expect(editServiceLineResponseNarrow.safeParse({ ...narrow, ...extra }).success).toBe(false);
-    expect(editServiceLineResponse.safeParse({ ...narrow, ...extra }).success).toBe(false);
+    expect(editServiceLineResponseNarrow.parse({ ...narrow, ...extra })).toEqual(narrow);
+    expect(editServiceLineResponse.parse({ ...narrow, ...extra })).toEqual(narrow);
   }
 });

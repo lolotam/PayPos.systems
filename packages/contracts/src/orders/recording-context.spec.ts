@@ -17,5 +17,6 @@ it('strictly distinguishes ambiguity, unlimited, explicit zero and unconfigured 
     { source: 'NOT_CONFIGURED', bps: 1 }, { source: 'BUSINESS', bps: 10001 }, { source: 'PERSON', bps: 0.5 }])
     expect(recordingDiscountLimit.safeParse(invalid).success).toBe(false);
   expect(recordingContext.safeParse({ ...base, recorder_membership_id: null, discount_limit: null }).success).toBe(false);
-  expect(recordingContext.safeParse({ ...base, recorder_membership_id: first, discount_limit: { source: 'PERSON', bps: 0 }, user_id: first }).success).toBe(false);
+  const clean = { ...base, recorder_membership_id: first, discount_limit: { source: 'PERSON' as const, bps: 0 } };
+  expect(recordingContext.parse({ ...clean, user_id: first })).toEqual(clean);
 });

@@ -43,7 +43,7 @@ it('bounds descending revision cursors and page sizes', () => {
   for (const query of [{ cursor: 0 }, { cursor: 1.2 }, { limit: 0 }, { limit: 101 }])
     expect(employeeIbanHistoryQuery.safeParse(query).success).toBe(false);
 });
-it('requires the complete masked view shape and refuses extra fields', () => {
+it('requires the complete masked view shape and drops unknown fields', () => {
   const view = {
     status: 'SET',
     iban_last4: '0101',
@@ -58,5 +58,5 @@ it('requires the complete masked view shape and refuses extra fields', () => {
   };
   expect(employeeIbanView.parse(view)).toEqual(view);
   expect(employeeIbanView.safeParse({ ...view, iban_last4: '12345' }).success).toBe(false);
-  expect(employeeIbanView.safeParse({ ...view, reason: input.iban }).success).toBe(false);
+  expect(employeeIbanView.parse({ ...view, reason: input.iban })).toEqual(view);
 });

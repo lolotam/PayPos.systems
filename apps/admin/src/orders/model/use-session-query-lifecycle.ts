@@ -5,6 +5,7 @@ import type { SessionServiceScope } from '../api/use-session-services';
 
 const SESSION_QUERY_PREFIXES = new Set([
   'session-recording-context', 'session-performer-context', 'session-performer-facts', 'session-performers', 'session-services', 'own-recordings',
+  'branch-day-sessions', 'service-line-edits',
 ]);
 
 function sessionQueriesOf({ companyId, businessId, branchId, userId }: SessionServiceScope) {

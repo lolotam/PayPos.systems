@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 
 export const discountLimitBps = z.number().int().min(0).max(10000);
 export const discountLimitInput = z
@@ -7,8 +8,7 @@ export const discountLimitInput = z
     reason: z.string().trim().min(1).max(500),
   })
   .meta({ id: 'DiscountLimitInput' });
-export const discountLimit = z
-  .object({ limit_bps: discountLimitBps.nullable() })
+export const discountLimit = responseObject({ limit_bps: discountLimitBps.nullable() })
   .meta({ id: 'DiscountLimit' });
 export type DiscountLimitInput = z.infer<typeof discountLimitInput>;
 export type DiscountLimit = z.infer<typeof discountLimit>;

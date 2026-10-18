@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 
@@ -13,8 +14,7 @@ export const issueEmployeeCardInput = z
   .strictObject({ card_code: employeeCardCode })
   .meta({ id: 'IssueEmployeeCardInput' });
 // اللاحقة فارغة للكود الأقصر من ثمانية أحرف؛ لا يُعاد أي جزء منه.
-export const employeeCard = z
-  .strictObject({
+export const employeeCard = responseObject({
     id,
     employee_id: id,
     card_code_suffix: z
@@ -25,8 +25,7 @@ export const employeeCard = z
     revoked_at: timestamp.nullable(),
   })
   .meta({ id: 'EmployeeCard' });
-export const employeeCardsView = z
-  .strictObject({
+export const employeeCardsView = responseObject({
     active: employeeCard.nullable(),
     can_manage: z.boolean(),
   })

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 
 import { nameAr, nameEn } from '../bilingual/names.js';
 import { id } from '../scalars/id.js';
@@ -38,8 +39,7 @@ export const createEmployeeInput = z
   .meta({ id: 'CreateEmployeeInput' });
 // الرقم أرقام صحيحة بلا فواصل (D-2)؛ NULL يبقى null والشرطة شأن الشاشة (TD-10).
 const employeeNumber = z.number().int().min(1).max(999999).nullable();
-export const employee = z
-  .object({
+export const employee = responseObject({
     id,
     business_id: id,
     primary_branch_id: id,

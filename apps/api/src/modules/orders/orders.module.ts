@@ -22,6 +22,7 @@ import { sessionBranchBelongs, sessionPlace } from './persistence/session-place.
 import { sessionRecordAccess } from './persistence/session-record-access.adapter.ts';
 import { sessionReadAccess } from './persistence/session-read-access.adapter.ts';
 import { BranchDayServiceSessionsQuery } from './queries/branch-day-service-sessions.query.ts';
+import { ServiceLineEditHistoryQuery } from './queries/service-line-edits.query.ts';
 import { createServiceSessionTransactions } from './persistence/service-session-transactions.ts';
 import { bindLineEditReaders, createLineEditTransactions } from './persistence/line-edit-transactions.ts';
 import { createSessionRecovery, recoveryKeyHash } from './persistence/session-recovery.adapter.ts';
@@ -73,6 +74,12 @@ export function ordersDayQuery(database: TenantWrappers) {
     read: (tx, scope) => sessionReadAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
   });
 }
+export function ordersLineEditHistory(database: TenantWrappers) {
+  return new ServiceLineEditHistoryQuery(database, {
+    place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
+    read: (tx, scope) => sessionReadAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
+  });
+}
 export function ordersLineEdits(database: TenantWrappers) {
   return createLineEditTransactions(database, bindLineEditReaders);
 }
@@ -94,6 +101,7 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
     { provide: SessionServiceOptionsQueryHandler, useValue: database === undefined ? null : ordersServiceOptionsQuery(database, clock) },
     { provide: RecordingContextQueryHandler, useValue: database === undefined ? null : ordersRecordingContextQuery(database, clock) },
     { provide: BranchDayServiceSessionsQuery, useValue: database === undefined ? null : ordersDayQuery(database) },
+    { provide: ServiceLineEditHistoryQuery, useValue: database === undefined ? null : ordersLineEditHistory(database) },
     { provide: SessionRecoveryQuery, useValue: database === undefined ? null : ordersRecoveryQuery(database, clock) },
     { provide: ConfirmSessionRecoveryUseCase, useValue: database === undefined ? null : ordersRecoveryConfirm(database, ids, clock) },
     { provide: RecordServiceSessionUseCase, useValue: writes === null ? null : new RecordServiceSessionUseCase(writes.transactions, writes.recovery, ids, clock) },

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { employeeDate } from './employee.js';
 
@@ -21,11 +22,9 @@ export const attendanceEmployeesQuery = z
     limit: z.coerce.number().int().min(1).max(100).default(50),
   })
   .meta({ id: 'AttendanceEmployeesQuery' });
-export const attendanceEmployee = z
-  .strictObject({ id, name_ar: z.string().nullable(), name_en: z.string() })
+export const attendanceEmployee = responseObject({ id, name_ar: z.string().nullable(), name_en: z.string() })
   .meta({ id: 'AttendanceEmployee' });
-export const attendanceEmployeePage = z
-  .strictObject({ items: z.array(attendanceEmployee), next_cursor: cursor.nullable() })
+export const attendanceEmployeePage = responseObject({ items: z.array(attendanceEmployee), next_cursor: cursor.nullable() })
   .meta({ id: 'AttendanceEmployeePage' });
 export type AttendanceEmployeesQuery = z.infer<typeof attendanceEmployeesQuery>;
 export type AttendanceEmployeePage = z.infer<typeof attendanceEmployeePage>;

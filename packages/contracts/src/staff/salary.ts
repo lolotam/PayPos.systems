@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 
 // PostgreSQL لا يملك سنة صفر؛ نفس القيد يشمل تاريخ الكتابة ومؤشر القراءة.
@@ -11,8 +12,7 @@ export const setSalaryInput = z
     reason: z.string().trim().min(1).max(500),
   })
   .meta({ id: 'SetSalaryInput' });
-export const employeeSalary = z
-  .strictObject({
+export const employeeSalary = responseObject({
     id,
     employee_id: id,
     effective_from: salaryDate,
@@ -28,8 +28,7 @@ export const salaryHistoryQuery = z
     limit: z.coerce.number().int().min(1).max(100).default(20),
   })
   .meta({ id: 'SalaryHistoryQuery' });
-export const salaryHistoryPage = z
-  .object({
+export const salaryHistoryPage = responseObject({
     items: z.array(employeeSalary),
     next_cursor: salaryDate.nullable(),
     can_manage: z.boolean(),

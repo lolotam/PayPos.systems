@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    env: { POSPAY_STRICT_RESPONSES: '1' },
     globalSetup: ['../../packages/db/test/global-setup.ts'],
     include: ['test/production-otp-smoke.spec.ts'],
     testTimeout: 60_000,

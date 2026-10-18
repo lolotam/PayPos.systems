@@ -38,6 +38,7 @@ const lateLines = sql`EXISTS(SELECT 1 FROM service_lines late_line
 const occurred = sql`to_char(s.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 
 // شاشة جلسات يوم الفرع تقسم الزيارات أولاً ثم تجمع البنود والمؤديات المحفوظات دون هاتف أو قراءة سياق آخر.
+// edited من وجود صف service_line_edits لا من revision، حتى لا تُقرأ مراجعة التسجيل كتعديل سعر.
 export function branchDayServiceSessionsStatement(scope: SessionDayScope, query: ServiceSessionDayQuery) {
   const cursor = decode(scope, query);
   const where = sql`s.company_id=${scope.companyId} AND s.business_id=${scope.businessId}
@@ -58,6 +59,7 @@ export function branchDayServiceSessionsStatement(scope: SessionDayScope, query:
     FROM visits s LEFT JOIN LATERAL (
       SELECT jsonb_agg(jsonb_build_object('id',l.id,'service_id',l.service_id,'ordinal',l.ordinal,
         'name_ar',l.name_ar,'name_en',l.name_en,'status',l.status,'revision',l.revision,
+        'edited',EXISTS(SELECT 1 FROM service_line_edits e WHERE e.company_id=l.company_id AND e.business_id=l.business_id AND e.line_id=l.id),
         'list_price',l.list_price::text,'price',l.price::text,'discount',l.discount::text,'net',l.net::text,
         'effective_discount_bps',l.effective_discount_bps,'recorded_by',l.recorded_by,
         'recorded_at',to_char(l.recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
