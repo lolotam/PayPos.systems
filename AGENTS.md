@@ -16,7 +16,8 @@ The names say "CLAUDE", but the rules apply to every agent equally.
 are recorded verbatim in the slice's `owner-questions.ar.md`, which is the audit record. Only charges/money questions
 also go to the decisions page https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF as a new numbered batch; permission,
 technical and other product questions go to Waleed through his super agent. Only the Claude Code orchestrator routes a
-question. Codex, Grok and other agents write the question into `owner-questions.ar.md` with its answer marked `PENDING`,
+question. Codex, Grok and other agents write the question into the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md`
+when it belongs to no slice) with its answer marked `PENDING`,
 mark the rule `TODO(spec)`, and stop. The orchestrator routes it and writes the answer back.
 
 ## Review guidelines

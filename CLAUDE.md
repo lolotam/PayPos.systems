@@ -58,7 +58,8 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
       merged).
     - Never create a second page. Publish to that same URL.
     - **Who writes where:** only the Claude Code orchestrator session can publish to that page. Any other agent (Codex,
-      Grok, a subagent) writes the question into the slice's `owner-questions.ar.md` with the answer marked
+      Grok, a subagent) writes the question into the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md` for a
+      question that belongs to no slice) with the answer marked
       `PENDING`, marks the rule `TODO(spec)`, and stops. The orchestrator then routes it by kind (the page for a
       charges/money question, Waleed's super agent for every other question) and writes the owner's answer back into
       the file.
