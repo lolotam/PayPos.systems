@@ -237,7 +237,7 @@ typing do not.
    Grok failures on one brief the orchestrator implements (§1 fallback).
 5. **One cheaper review layer 2.** One fresh Sonnet 5.5 reviewer at medium effort replaces the two Opus-class reviewers
    (review and confirm round). It gets the diff and the spec, not the session history, so its context stays small. Use high
-   effort, or a reviewer from another vendor, when the PR touches money, tenant isolation, auth or migrations. A docs-only
+   effort when the PR touches money, tenant isolation, auth or migrations, and add a reviewer from another vendor on top (never instead of the Sonnet reviewer). A docs-only
    PR gets no Claude reviewer. The confirm round is dropped: the four bots re-review the head SHA after every push.
 6. **Drafts are written by cheaper models.** (Draft writer role, listed in §1.) First drafts of specs, ADRs, journey docs and the HANDOVER go to Codex or a
    free model (GLM) and Claude edits them. Claude writes a document from scratch only when it records a decision it
