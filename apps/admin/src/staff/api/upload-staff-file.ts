@@ -5,6 +5,7 @@ import { apiClient } from '@/shared/api/client';
 export type UploadPhase = 'idle' | 'uploading' | 'verifying' | 'recording';
 
 const failure = (code: ErrorMessageCode) => ({ code, ...errorMessages(code) });
+const storageHeader = /^(content-type|content-md5|cache-control|content-disposition|content-encoding|x-amz-.+)$/i;
 const pause = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 async function confirmedUpload(
@@ -27,9 +28,9 @@ async function confirmedUpload(
   });
   if (ticket.error) throw ticket.error;
   const upload = fileUploadTicket.parse(ticket.data);
-  // الهيدرز الموقّعة لازم توصل للتخزين كلها (ADR-0047)؛ المتصفح يحسب content-length بنفسه فبنستبعده.
+  // الهيدرز الموقّعة اللي المتصفح بيسمح بيها بس بتروح للتخزين (ADR-0047)؛ content-length المتصفح بيحسبه، وأسماء زي host ممنوعة في fetch.
   const signedHeaders = Object.entries(upload.headers).filter(
-    (entry): entry is [string, string] => entry[0] !== 'content-length' && typeof entry[1] === 'string',
+    (entry): entry is [string, string] => typeof entry[1] === 'string' && storageHeader.test(entry[0]),
   );
   const put = await fetch(upload.upload_url, {
     method: 'PUT',

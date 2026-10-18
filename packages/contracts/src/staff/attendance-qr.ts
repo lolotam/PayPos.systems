@@ -12,8 +12,7 @@ const attendanceQrTokenFields = {
 };
 
 export const attendanceQrToken = z
-  .object(attendanceQrTokenFields)
-  .strict()
+  .strictObject(attendanceQrTokenFields)
   .meta({ id: 'AttendanceQrToken' });
 
 // بيانات عرض الفرع بتشيل المفتاح الزيادة زي أي رد؛ الاستثناء بس لغلاف الإصدار اللي شايل التوقيع.
