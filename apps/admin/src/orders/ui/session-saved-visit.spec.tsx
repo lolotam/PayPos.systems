@@ -102,6 +102,41 @@ it('shows a second stale response as an error and stops after two requests', asy
   noHistoryRead();
 });
 
+it('replays the retried idempotency key after the second attempt loses its response', async () => {
+  state.patch.mockReset(); state.get.mockReset();
+  state.patch.mockResolvedValueOnce(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 4 }))
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValue({ data: { saved: true, edited: true }, response: { status: 200 } });
+  renderVisit(visit());
+  editButton(); fill(); save();
+  expect((await screen.findByRole('alert')).textContent).toContain(t('en', 'admin.unexpected'));
+  expect(state.patch).toHaveBeenCalledTimes(2);
+  expect(bodyOf(1).expected_revision).toBe(4);
+  expect(keyOf(0)).not.toBe(keyOf(1));
+  save();
+  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(3));
+  expect(bodyOf(2).expected_revision).toBe(4);
+  expect(keyOf(2)).toBe(keyOf(1));
+  expect(screen.queryByLabelText(t('en', 'serviceLineEdit.reason'))).toBeNull();
+});
+
+it('sends the second conflict revision on a manual save without another automatic attempt', async () => {
+  state.patch.mockReset(); state.get.mockReset();
+  state.patch.mockResolvedValueOnce(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 4 }))
+    .mockResolvedValueOnce(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 7 }))
+    .mockResolvedValue({ data: { saved: true, edited: true }, response: { status: 200 } });
+  renderVisit(visit());
+  editButton(); fill(); save();
+  expect((await screen.findByRole('alert')).textContent).toContain('SESSION_LINE_REVISION_STALE EN');
+  await waitFor(() => expect((screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }) as HTMLButtonElement).disabled).toBe(false));
+  expect(state.patch).toHaveBeenCalledTimes(2);
+  expect(bodyOf(1).expected_revision).toBe(4);
+  save();
+  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(3));
+  expect(bodyOf(2).expected_revision).toBe(7);
+  expect(screen.queryByLabelText(t('en', 'serviceLineEdit.reason'))).toBeNull();
+});
+
 it('does not mark a line from its revision and offers no edit on a cancelled line', () => {
   state.get.mockReset(); state.patch.mockReset();
   const unmarked = renderVisit(visit({ ...savedLine, revision: 5 }));

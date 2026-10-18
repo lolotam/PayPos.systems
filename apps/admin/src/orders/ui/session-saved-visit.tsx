@@ -37,8 +37,13 @@ export function SessionSavedVisit({ result, scope, online }: {
   const refusalText = refusal?.snapshot === session ? refusal.message : null;
   const when = formatInstant(new Date(session.occurred_at), locale, session.business_timezone);
   const saved = (lineId: string, edit: EditServiceLineResult) => {
-    setHeld({ snapshot: session, visit: applySavedLineEdit(visit, session.id, lineId, edit.response, edit.revisionUsed) });
-    setOpen(null);
+    // إكمال سطر تاني ممكن يوصل الأول. الدمج على الحالة الحالية، والمحرر يتقفل بس لو لسه مفتوح لنفس المحاولة.
+    setHeld((current) => {
+      const base = current?.snapshot === session ? current.visit
+        : reconcileSavedVisit(current?.visit ?? emptySavedVisit(session.id, session.total_net), session);
+      return { snapshot: session, visit: applySavedLineEdit(base, session.id, lineId, edit.response, edit.revisionUsed) };
+    });
+    setOpen((current) => current?.lineId === lineId && current.snapshot === session ? null : current);
   };
   return <>
     {visit.total === 'UNKNOWN' ? null : <p>{t(locale, 'serviceSessions.savedTotal')} <bdi>{kwd(visit.total === 'FROM_RESPONSE' ? visit.totalNet : session.total_net)}</bdi></p>}

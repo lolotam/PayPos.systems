@@ -20,15 +20,28 @@ export function savedLineFigures(line: { price: string; discount: string; net: s
   return { price: line.price, discount: line.discount, net: line.net };
 }
 
-// الإلحاق بيستبدل كائن الجلسة ونفس id. العلامة مش من revision، وأرقام الرد القديم مش تفضل مخبّية السناب شوت الجديد.
+// رد الإلحاق ممكن يكون اتظبط قبل ما التعديل يتسجل. مراجعة أقل من المؤكدة ما ترجعش أرقام اتأكدت أو اتخبت، والإجمالي يفضل مخبي طول ما فيه سطر مخبي لسه أقدم.
 export function reconcileSavedVisit(visit: SavedVisitEdit, session: SavedVisitSnapshot): SavedVisitEdit {
   if (visit.sessionId !== session.id) return emptySavedVisit(session.id, session.total_net);
   const lines: Record<string, SavedLineEdit> = {};
+  let keptOlder = false;
   for (const line of session.lines) {
     const edit = visit.lines[line.id];
     if (!edit) continue;
-    lines[line.id] = { edited: true, revision: Math.max(edit.revision, line.revision), figures: 'SNAPSHOT' };
+    if (line.revision < edit.revision) {
+      lines[line.id] = edit;
+      keptOlder = true;
+      continue;
+    }
+    lines[line.id] = { edited: true, revision: line.revision, figures: 'SNAPSHOT' };
   }
+  const uncoveredUnknown = Object.entries(visit.lines).some(([lineId, edit]) => {
+    if (edit.figures !== 'UNKNOWN') return false;
+    const incoming = session.lines.find((line) => line.id === lineId);
+    return !incoming || incoming.revision < edit.revision;
+  });
+  if (uncoveredUnknown) return { sessionId: session.id, total: 'UNKNOWN', totalNet: visit.totalNet, lines };
+  if (keptOlder) return { sessionId: session.id, total: visit.total, totalNet: visit.totalNet, lines };
   return { sessionId: session.id, total: 'SNAPSHOT', totalNet: session.total_net, lines };
 }
 

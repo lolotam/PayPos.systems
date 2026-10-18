@@ -5,7 +5,7 @@ import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 import { useForm, useWatch, type UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import { useEditServiceLine, type EditServiceLineResult } from '../api/use-edit-service-line';
+import { revisionAfterFailedRetry, useEditServiceLine, type EditServiceLineResult } from '../api/use-edit-service-line';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { classifyEditError, resolveEditLine, type EditLimitDetails, type EditLineFormInput } from '../model/edit-service-line-values';
 import { EditServiceLineFields } from './edit-service-line-fields';
@@ -70,6 +70,9 @@ export function EditServiceLineForm(props: EditServiceLineFormProps) {
     try {
       props.onSaved(await mutation.mutateAsync({ sessionId: props.sessionId, lineId: props.line.id, body }));
     } catch (error) {
+      // رد المحاولة التانية لو ضاع، المراجعة دي هي اللي تخلي الحفظ اليدوي يعيد نفس المفتاح.
+      const adopted = revisionAfterFailedRetry(error);
+      if (adopted !== null) form.setValue('expected_revision', adopted);
       const stale = applyEditError(error, locale, form, setRoot, setLimit, setMemberships, props);
       if (!stale) return;
       setRefreshing(true);

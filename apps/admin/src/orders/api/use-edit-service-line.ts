@@ -44,15 +44,33 @@ async function patchLine(scope: SessionServiceScope, sessionId: string, lineId: 
   return { ok: true, value: { response: parsed.data, revisionUsed: body.expected_revision } };
 }
 
-// محاولة واحدة زيادة لما المراجعة تتحرك؛ المفتاح بيتجدد لأن الجسم اتغير، ومفيش محاولة تالتة.
+function attachRetriedRevision(error: unknown, revision: number): unknown {
+  if (error !== null && typeof error === 'object') return Object.assign(error, { retriedRevision: revision });
+  return Object.assign(new Error('edit retry failed'), { retriedRevision: revision });
+}
+
+// لو الـ 409 التاني أعلن مراجعة أعلى، الحفظ اليدوي يستخدمها. غير كده المراجعة اللي اتبعت تحافظ على نفس المفتاح.
+export function revisionAfterFailedRetry(error: unknown): number | null {
+  if (error === null || typeof error !== 'object') return null;
+  const retried = (error as { retriedRevision?: unknown }).retriedRevision;
+  if (typeof retried !== 'number' || !Number.isInteger(retried)) return null;
+  return staleRevision(error, retried) ?? retried;
+}
+
+// محاولة واحدة زيادة لما المراجعة تتحرك؛ المفتاح بيتجدد لأن الجسم اتغير. فشل المحاولة التانية يرجع المراجعة اللي اتبعت، من غير محاولة تالتة.
 async function submitEdit(scope: SessionServiceScope, attempt: EditAttempt, held: { current: Held | null }, retryStaleOnce: boolean): Promise<EditServiceLineResult> {
   const first = await patchLine(scope, attempt.sessionId, attempt.lineId, attempt.body, held);
   if (first.ok) return first.value;
   const next = retryStaleOnce ? staleRevision(first.error, attempt.body.expected_revision) : null;
   if (next === null) throw first.error;
-  const second = await patchLine(scope, attempt.sessionId, attempt.lineId, { ...attempt.body, expected_revision: next }, held);
+  let second: PatchSuccess | PatchFailure;
+  try {
+    second = await patchLine(scope, attempt.sessionId, attempt.lineId, { ...attempt.body, expected_revision: next }, held);
+  } catch (error) {
+    throw attachRetriedRevision(error, next);
+  }
   if (second.ok) return second.value;
-  throw second.error;
+  throw attachRetriedRevision(second.error, next);
 }
 
 export function useEditServiceLine(scope: SessionServiceScope, retryStaleOnce = false) {
