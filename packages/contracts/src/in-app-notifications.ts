@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from './response-object.js';
 
 import { id } from './scalars/id.js';
 import { timestamp } from './scalars/timestamp.js';
@@ -173,6 +174,13 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
     safe_parameters: breakNotReturnedParameters,
   }),
 ]);
+// قوالب الجرس والواتساب لسه strict؛ الإشعار اللي الشاشة بتقراه بيشيل مفتاح زيادة جوه المعاملات (ADR-0047).
+function responseParameters(parameters: z.ZodTuple<readonly [z.ZodType, ...z.ZodType[]]>) {
+  const items = parameters.def.items.map((item) =>
+    item instanceof z.ZodObject ? responseObject(item.shape) : item,
+  );
+  return z.tuple(items as unknown as [z.ZodType, ...z.ZodType[]]);
+}
 const inAppNotificationBase = {
   id,
   company_id: id,
@@ -186,71 +194,68 @@ const inAppNotificationBase = {
 };
 export const inAppNotification = z
   .discriminatedUnion('template_key', [
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase, template_key: z.literal('late_service_session'),
-      safe_parameters: lateServiceSessionParameters,
+      safe_parameters: responseParameters(lateServiceSessionParameters),
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('service_line_price_edited'),
-      safe_parameters: serviceLinePriceEditedParameters,
+      safe_parameters: responseParameters(serviceLinePriceEditedParameters),
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('service_line_cancelled'),
-      safe_parameters: serviceLineCancelledParameters,
+      safe_parameters: responseParameters(serviceLineCancelledParameters),
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('service_line_performers_changed'),
-      safe_parameters: serviceLinePerformersChangedParameters,
+      safe_parameters: responseParameters(serviceLinePerformersChangedParameters),
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('break_returned_other_branch'),
-      safe_parameters: breakReturnedOtherBranchParameters,
+      safe_parameters: responseParameters(breakReturnedOtherBranchParameters),
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('attendance_change_requested'),
-      safe_parameters: attendanceChangeRequestedParameters,
+      safe_parameters: responseParameters(attendanceChangeRequestedParameters),
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('attendance_change_decided'),
-      safe_parameters: attendanceChangeDecidedParameters,
+      safe_parameters: responseParameters(attendanceChangeDecidedParameters),
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('generic_notice'),
-      safe_parameters: inAppParameters,
+      safe_parameters: responseParameters(inAppParameters),
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('shift_not_clocked_in'),
-      safe_parameters: shiftNotClockedInParameters,
+      safe_parameters: responseParameters(shiftNotClockedInParameters),
     }),
-    z.strictObject({
+    responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('break_not_returned'),
-      safe_parameters: breakNotReturnedParameters,
+      safe_parameters: responseParameters(breakNotReturnedParameters),
     }),
   ])
   .meta({ id: 'InAppNotification' });
 export const inAppNotificationQuery = pageQuery.meta({ id: 'InAppNotificationQuery' });
-export const inAppNotificationPage = z
-  .strictObject({
+export const inAppNotificationPage = responseObject({
     items: z.array(inAppNotification),
     next_cursor: z.string().nullable(),
   })
   .meta({ id: 'InAppNotificationPage' });
-export const notificationUnreadCount = z
-  .strictObject({
+export const notificationUnreadCount = responseObject({
     count: z.number().int().nonnegative(),
   })
   .meta({ id: 'NotificationUnreadCount' });
-export const notificationReadResult = z
-  .strictObject({
+export const notificationReadResult = responseObject({
     ok: z.literal(true),
   })
   .meta({ id: 'NotificationReadResult' });

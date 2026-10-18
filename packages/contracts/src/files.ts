@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from './response-object.js';
 import { id } from './scalars/id.js';
 
 export const requestFileUpload = z
@@ -21,17 +22,15 @@ export const requestFileUpload = z
   })
   .meta({ id: 'RequestFileUpload' });
 
-export const fileUploadTicket = z
-  .strictObject({
+export const fileUploadTicket = responseObject({
     id,
     upload_url: z.url(),
     expires_in: z.literal(120),
-    headers: z.strictObject({ 'content-type': z.string(), 'content-length': z.string() }),
+    headers: responseObject({ 'content-type': z.string(), 'content-length': z.string() }),
   })
   .meta({ id: 'FileUploadTicket' });
 
-export const fileStatus = z
-  .strictObject({
+export const fileStatus = responseObject({
     id,
     status: z.enum(['PENDING', 'VERIFYING', 'READY', 'REJECTED']),
     content_type: z.string(),
@@ -45,8 +44,7 @@ export const fileStatus = z
 export const fileConfirmation = z
   .strictObject({ id, status: z.literal('QUEUED') })
   .meta({ id: 'FileConfirmation' });
-export const fileDownload = z
-  .strictObject({ download_url: z.url(), expires_in: z.literal(60) })
+export const fileDownload = responseObject({ download_url: z.url(), expires_in: z.literal(60) })
   .meta({ id: 'FileDownload' });
 export const fileVerificationJob = z.strictObject({ companyId: id, fileId: id });
 export type RequestFileUpload = z.infer<typeof requestFileUpload>;

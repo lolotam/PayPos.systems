@@ -8,9 +8,12 @@ it('requires a real calendar date, bounds pagination and accepts only the late l
     { date: '2026-10-14', limit: 0 }, { date: '2026-10-14', limit: 101 }, { date: '2026-10-14', cursor: '*' },
     { date: '2026-10-14', employee_id: 'client-filter' }]) expect(serviceSessionDayQuery.safeParse(bad).success).toBe(false);
 });
-it('allows an empty strict page', () => {
+it('allows an empty page and drops an unknown key', () => {
   expect(serviceSessionDayPage.parse({ items: [], next_cursor: null })).toEqual({ items: [], next_cursor: null });
-  expect(serviceSessionDayPage.safeParse({ items: [], next_cursor: null, phone: 'private' }).success).toBe(false);
+  expect(serviceSessionDayPage.parse({ items: [], next_cursor: null, phone: 'private' })).toEqual({
+    items: [],
+    next_cursor: null,
+  });
 });
 
 it('bounds cursor timestamps to real UTC dates in PostgreSQL range with microsecond precision', () => {

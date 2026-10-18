@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 
 import { page } from '../pagination/cursor.js';
 import { id } from '../scalars/id.js';
@@ -50,15 +51,14 @@ export const updatePackageTypeInput = z
     expected_revision: revision,
   })
   .meta({ id: 'UpdatePackageTypeInput' });
-export const packageTypeComponent = packageTypeComponentInput
-  .extend({
-    name_en: packageNameEn,
-    name_ar: packageNameAr.nullable(),
-    price,
-  })
-  .meta({ id: 'PackageTypeComponent' });
-export const packageTypeDetail = z
-  .object({
+// نسخة الرد بتتشال منها المفاتيح الزيادة؛ طلب المكوّن لسه بيرفضها (ADR-0047).
+export const packageTypeComponent = responseObject({
+  ...packageTypeComponentInput.shape,
+  name_en: packageNameEn,
+  name_ar: packageNameAr.nullable(),
+  price,
+}).meta({ id: 'PackageTypeComponent' });
+export const packageTypeDetail = responseObject({
     id,
     business_id: id,
     name_en: packageNameEn,

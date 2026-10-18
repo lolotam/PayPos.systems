@@ -9,9 +9,12 @@ it('caps history pages at 200 and rejects a cursor outside the opaque alphabet',
   }
 });
 
-it('keeps a history page strict and accepts microsecond money rows', () => {
+it('drops an unknown key on a history page and accepts microsecond money rows', () => {
   expect(serviceLineEditsPage.parse({ items: [], next_cursor: null })).toEqual({ items: [], next_cursor: null });
-  expect(serviceLineEditsPage.safeParse({ items: [], next_cursor: null, reason: 'hidden' }).success).toBe(false);
+  expect(serviceLineEditsPage.parse({ items: [], next_cursor: null, reason: 'hidden' })).toEqual({
+    items: [],
+    next_cursor: null,
+  });
   const money = { price: '25.000', discount: '1.000', net: '24.000' };
   const item = { revision: 2, previous: money, new: { price: '22.000', discount: '2.000', net: '20.000' },
     changed_at: '2026-10-14T08:00:06.000000Z', editor_label_ar: 'Layla', editor_label_en: 'Layla', reason: 'Corrected the price' };

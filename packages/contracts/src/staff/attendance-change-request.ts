@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { attendanceActorName } from './attendance-actor-name.js';
@@ -57,18 +58,16 @@ export const attendanceChangeListQuery = z
     limit: z.coerce.number().int().min(1).max(100).default(50),
   })
   .meta({ id: 'AttendanceChangeListQuery' });
-export const attendanceChangeRequest = z
-  .strictObject({
+export const attendanceChangeRequest = responseObject({
     id,
     kind: attendanceChangeKind,
     status: attendanceChangeStatus,
     business_id: id,
     branch_id: id,
-    employee: z.strictObject({ id, name_ar: z.string().nullable(), name_en: z.string() }),
+    employee: responseObject({ id, name_ar: z.string().nullable(), name_en: z.string() }),
     session_id: id.nullable(),
     session_revision: revision.nullable(),
-    requested: z
-      .strictObject({
+    requested: responseObject({
         working_date: z.iso.date(),
         clock_in: timestamp,
         clock_out: timestamp.nullable(),
@@ -90,9 +89,8 @@ export const attendanceChangeRequest = z
   .meta({ id: 'AttendanceChangeRequest' });
 export const attendanceChangeDecisionResult = attendanceChangeRequest
   .extend({
-    effect: z
-      .strictObject({
-        session: z.strictObject({
+    effect: responseObject({
+        session: responseObject({
           id,
           working_date: z.iso.date(),
           clock_in: timestamp,
@@ -110,16 +108,14 @@ export const attendanceChangeDecisionResult = attendanceChangeRequest
 export const attendanceChangeListItem = attendanceChangeRequest.extend({
   requested_by_name: attendanceActorName,
   decided_by_name: attendanceActorName,
-  session_state: z
-    .strictObject({
+  session_state: responseObject({
       voided: z.boolean(),
       void_request_id: id.nullable(),
       restore_pending: z.boolean(),
     })
     .nullable(),
 });
-export const attendanceChangeRequestPage = z
-  .strictObject({
+export const attendanceChangeRequestPage = responseObject({
     can_decide_any: z.boolean(),
     can_request: z.boolean(),
     items: z.array(attendanceChangeListItem),

@@ -2911,7 +2911,13 @@ export interface components {
             name_en: string;
             name_ar: string | null;
             schedule: components["schemas"]["StaffSchedule"] | null;
-            default_shifts: components["schemas"]["ScheduleShift"][];
+            default_shifts: {
+                day: number;
+                start: string;
+                end: string;
+                break_start?: string | null;
+                break_end?: string | null;
+            }[];
         };
         ScheduleGrid: {
             week_start: components["schemas"]["EmployeeDate"];
@@ -3348,7 +3354,21 @@ export interface components {
             name_en: string;
             name_ar: string | null;
             price: components["schemas"]["ServicePrice"];
-            commission_rule: components["schemas"]["ServiceCommissionRule"];
+            commission_rule: {
+                /** @enum {string} */
+                kind: "FOLLOW_PLAN";
+            } | {
+                /** @enum {string} */
+                kind: "ZERO";
+            } | {
+                /** @enum {string} */
+                kind: "PCT";
+                value: number;
+            } | {
+                /** @enum {string} */
+                kind: "FIXED";
+                value: components["schemas"]["ServicePrice"];
+            };
             counts_toward_threshold: boolean;
             revision: number;
             /** Format: date-time */
@@ -3362,7 +3382,21 @@ export interface components {
             name_en: string;
             name_ar: string | null;
             price: components["schemas"]["ServicePrice"];
-            commission_rule: components["schemas"]["ServiceCommissionRule"];
+            commission_rule: {
+                /** @enum {string} */
+                kind: "FOLLOW_PLAN";
+            } | {
+                /** @enum {string} */
+                kind: "ZERO";
+            } | {
+                /** @enum {string} */
+                kind: "PCT";
+                value: number;
+            } | {
+                /** @enum {string} */
+                kind: "FIXED";
+                value: components["schemas"]["ServicePrice"];
+            };
             counts_toward_threshold: boolean;
             revision: number;
         };
@@ -3521,7 +3555,21 @@ export interface components {
             /** @enum {string} */
             status: "ACTIVE" | "CANCELLED";
             revision: number;
-            rule_snapshot: components["schemas"]["ServiceCommissionRule"];
+            rule_snapshot: {
+                /** @enum {string} */
+                kind: "FOLLOW_PLAN";
+            } | {
+                /** @enum {string} */
+                kind: "ZERO";
+            } | {
+                /** @enum {string} */
+                kind: "PCT";
+                value: number;
+            } | {
+                /** @enum {string} */
+                kind: "FIXED";
+                value: components["schemas"]["ServicePrice"];
+            };
             counts_snapshot: boolean;
             catalog_revision: number;
             has_performer_warning: boolean;
@@ -3635,7 +3683,21 @@ export interface components {
                 /** @enum {string} */
                 status: "ACTIVE" | "CANCELLED";
                 revision: number;
-                rule_snapshot: components["schemas"]["ServiceCommissionRule"];
+                rule_snapshot: {
+                    /** @enum {string} */
+                    kind: "FOLLOW_PLAN";
+                } | {
+                    /** @enum {string} */
+                    kind: "ZERO";
+                } | {
+                    /** @enum {string} */
+                    kind: "PCT";
+                    value: number;
+                } | {
+                    /** @enum {string} */
+                    kind: "FIXED";
+                    value: components["schemas"]["ServicePrice"];
+                };
                 counts_snapshot: boolean;
                 catalog_revision: number;
                 has_performer_warning: boolean;
@@ -4373,7 +4435,12 @@ export interface components {
             effective_timezone: components["schemas"]["TimeZone"];
         };
         AttendanceQrIssue: {
-            token: components["schemas"]["AttendanceQrToken"];
+            token: {
+                /** Format: uuid */
+                branch_id: string;
+                window: number;
+                sig: string;
+            };
             branch: components["schemas"]["AttendanceQrBranch"];
             /** Format: date-time */
             server_time: string;

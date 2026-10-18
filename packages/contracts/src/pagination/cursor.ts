@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 
 // Cursor pagination (CLAUDE.md §6). الـ limit بييجي من الـ query string كنص، فبيتعمله coerce.
 export const pageQuery = z
@@ -19,7 +20,7 @@ export type PageQuery = z.output<typeof pageQuery>;
  * @returns schema الصفحة
  */
 export function page<T extends z.ZodType>(item: T) {
-  return z.object({
+  return responseObject({
     items: z.array(item),
     next_cursor: z.string().nullable(),
   });

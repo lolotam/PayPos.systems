@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 
 export const setScheduleSettingsInput = z
@@ -7,14 +8,13 @@ export const setScheduleSettingsInput = z
   })
   .meta({ id: 'SetScheduleSettingsInput' });
 export const scheduleSettingsSourceSchema = z.enum(['branch', 'business', 'default']);
-export const branchScheduleSettings = z.object({
+export const branchScheduleSettings = responseObject({
   branch_id: id,
   max_shifts_per_day: z.number().int().min(1).max(4),
   source: scheduleSettingsSourceSchema,
   updated_at: z.iso.datetime().nullable(),
 });
-export const scheduleSettings = z
-  .object({
+export const scheduleSettings = responseObject({
     business_id: id,
     max_shifts_per_day: z.number().int().min(1).max(4),
     is_default: z.boolean(),

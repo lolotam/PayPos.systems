@@ -151,8 +151,7 @@
                                 "type",
                                 "days",
                                 "partial_minutes"
-                              ],
-                              "additionalProperties": false
+                              ]
                             }
                           },
                           "difference_minutes": {
@@ -196,8 +195,7 @@
                           "late_minutes",
                           "missing_clock_out",
                           "manual_days"
-                        ],
-                        "additionalProperties": false
+                        ]
                       }
                     }
                   },
@@ -206,8 +204,7 @@
                     "branch_id",
                     "month",
                     "rows"
-                  ],
-                  "additionalProperties": false
+                  ]
                 }
               }
             }
@@ -428,8 +425,7 @@
                                 "type",
                                 "days",
                                 "partial_minutes"
-                              ],
-                              "additionalProperties": false
+                              ]
                             }
                           },
                           "difference_minutes": {
@@ -473,8 +469,7 @@
                           "late_minutes",
                           "missing_clock_out",
                           "manual_days"
-                        ],
-                        "additionalProperties": false
+                        ]
                       }
                     }
                   },
@@ -483,8 +478,7 @@
                     "branch_id",
                     "month",
                     "rows"
-                  ],
-                  "additionalProperties": false
+                  ]
                 }
               }
             }
@@ -2918,8 +2912,7 @@
                     "resolve",
                     "request_change",
                     "decide"
-                  ],
-                  "additionalProperties": false
+                  ]
                 }
               }
             }
@@ -3088,8 +3081,7 @@
                           "clock_in",
                           "source",
                           "scheduled_end"
-                        ],
-                        "additionalProperties": false
+                        ]
                       }
                     },
                     "sessions": {
@@ -3214,8 +3206,7 @@
                               "required": [
                                 "id",
                                 "kind"
-                              ],
-                              "additionalProperties": false
+                              ]
                             }
                           },
                           "manual": {
@@ -3247,8 +3238,7 @@
                                 "required": [
                                   "ar",
                                   "en"
-                                ],
-                                "additionalProperties": false
+                                ]
                               },
                               "approved_by": {
                                 "type": "string",
@@ -3270,8 +3260,7 @@
                                 "required": [
                                   "ar",
                                   "en"
-                                ],
-                                "additionalProperties": false
+                                ]
                               }
                             },
                             "required": [
@@ -3280,8 +3269,7 @@
                               "requested_by_name",
                               "approved_by",
                               "approved_by_name"
-                            ],
-                            "additionalProperties": false
+                            ]
                           }
                         },
                         "required": [
@@ -3304,8 +3292,7 @@
                           "revision",
                           "open_exceptions",
                           "manual"
-                        ],
-                        "additionalProperties": false
+                        ]
                       }
                     }
                   },
@@ -3317,8 +3304,7 @@
                     "owner",
                     "in_now",
                     "sessions"
-                  ],
-                  "additionalProperties": false
+                  ]
                 }
               }
             }
@@ -3466,8 +3452,7 @@
                               "id",
                               "name_ar",
                               "name_en"
-                            ],
-                            "additionalProperties": false
+                            ]
                           },
                           "holder": {
                             "nullable": true,
@@ -3490,8 +3475,7 @@
                               "id",
                               "name_ar",
                               "name_en"
-                            ],
-                            "additionalProperties": false
+                            ]
                           },
                           "branch_id": {
                             "type": "string",
@@ -3531,8 +3515,7 @@
                           "step",
                           "reason",
                           "attempted_at"
-                        ],
-                        "additionalProperties": false
+                        ]
                       }
                     },
                     "next_cursor": {
@@ -3543,8 +3526,7 @@
                   "required": [
                     "items",
                     "next_cursor"
-                  ],
-                  "additionalProperties": false
+                  ]
                 }
               }
             }
@@ -3775,8 +3757,7 @@
                               "clock_in",
                               "clock_out",
                               "status"
-                            ],
-                            "additionalProperties": false
+                            ]
                           },
                           "employee": {
                             "type": "object",
@@ -3798,8 +3779,7 @@
                               "id",
                               "name_ar",
                               "name_en"
-                            ],
-                            "additionalProperties": false
+                            ]
                           }
                         },
                         "required": [
@@ -3817,8 +3797,7 @@
                           "can_resolve",
                           "session",
                           "employee"
-                        ],
-                        "additionalProperties": false
+                        ]
                       }
                     },
                     "next_cursor": {
@@ -3830,8 +3809,7 @@
                   "required": [
                     "items",
                     "next_cursor"
-                  ],
-                  "additionalProperties": false
+                  ]
                 }
               }
             }
@@ -3982,15 +3960,13 @@
                                 "required": [
                                   "ar",
                                   "en"
-                                ],
-                                "additionalProperties": false
+                                ]
                               }
                             },
                             "required": [
                               "id",
                               "name"
-                            ],
-                            "additionalProperties": false
+                            ]
                           },
                           "corrected_at": {
                             "type": "string",
@@ -4006,15 +3982,13 @@
                           "reason",
                           "corrected_by",
                           "corrected_at"
-                        ],
-                        "additionalProperties": false
+                        ]
                       }
                     }
                   },
                   "required": [
                     "items"
-                  ],
-                  "additionalProperties": false
+                  ]
                 }
               }
             }
@@ -4161,8 +4135,7 @@
                           "id",
                           "name_ar",
                           "name_en"
-                        ],
-                        "additionalProperties": false
+                        ]
                       }
                     },
                     "next_cursor": {
@@ -4174,8 +4147,7 @@
                   "required": [
                     "items",
                     "next_cursor"
-                  ],
-                  "additionalProperties": false
+                  ]
                 }
               }
             }
@@ -4322,8 +4294,7 @@
                                 "day",
                                 "start",
                                 "end"
-                              ],
-                              "additionalProperties": false
+                              ]
                             }
                           },
                           "updated_at": {
@@ -4537,8 +4508,7 @@
                                 "day",
                                 "start",
                                 "end"
-                              ],
-                              "additionalProperties": false
+                              ]
                             }
                           },
                           "updated_at": {
@@ -11302,8 +11272,7 @@
           "set_by",
           "can_read_full",
           "can_manage"
-        ],
-        "additionalProperties": false
+        ]
       },
       "EmployeeIbanHistoryQuery": {
         "type": "object",
@@ -11370,8 +11339,7 @@
           "set_at",
           "set_by",
           "reason"
-        ],
-        "additionalProperties": false
+        ]
       },
       "EmployeeIbanHistoryPage": {
         "type": "object",
@@ -11393,8 +11361,7 @@
         "required": [
           "items",
           "next_cursor"
-        ],
-        "additionalProperties": false
+        ]
       },
       "EmployeeDocumentStatus": {
         "type": "string",
@@ -11533,8 +11500,7 @@
           "requires_expiry",
           "active",
           "revision"
-        ],
-        "additionalProperties": false
+        ]
       },
       "DocumentTypeList": {
         "type": "object",
@@ -11548,8 +11514,7 @@
         },
         "required": [
           "items"
-        ],
-        "additionalProperties": false
+        ]
       },
       "RecordEmployeeDocumentInput": {
         "type": "object",
@@ -11651,8 +11616,7 @@
           "uploaded_by",
           "recorded_at",
           "status"
-        ],
-        "additionalProperties": false
+        ]
       },
       "EmployeeDocumentsView": {
         "type": "object",
@@ -11691,8 +11655,7 @@
           "items",
           "types",
           "can_manage"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ClockChallengeInput": {
         "type": "object",
@@ -11987,8 +11950,7 @@
           "exceptions",
           "late_minutes",
           "missed_session_id"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ClockByCardInput": {
         "type": "object",
@@ -12056,8 +12018,7 @@
           "card_code_suffix",
           "issued_at",
           "revoked_at"
-        ],
-        "additionalProperties": false
+        ]
       },
       "EmployeeCardsView": {
         "type": "object",
@@ -12077,8 +12038,7 @@
         "required": [
           "active",
           "can_manage"
-        ],
-        "additionalProperties": false
+        ]
       },
       "RequestLeaveInput": {
         "oneOf": [
@@ -12969,8 +12929,7 @@
           "reason",
           "raised_at",
           "revision"
-        ],
-        "additionalProperties": false
+        ]
       },
       "CorrectAttendanceInput": {
         "type": "object",
@@ -13074,8 +13033,7 @@
               "closed_by",
               "late_minutes",
               "revision"
-            ],
-            "additionalProperties": false
+            ]
           },
           "corrections": {
             "type": "array",
@@ -13126,16 +13084,14 @@
                 "reason",
                 "corrected_by",
                 "corrected_at"
-              ],
-              "additionalProperties": false
+              ]
             }
           }
         },
         "required": [
           "session",
           "corrections"
-        ],
-        "additionalProperties": false
+        ]
       },
       "AttendanceChangeRequestInput": {
         "oneOf": [
@@ -13433,8 +13389,7 @@
               "id",
               "name_ar",
               "name_en"
-            ],
-            "additionalProperties": false
+            ]
           },
           "session_id": {
             "nullable": true,
@@ -13477,8 +13432,7 @@
               "clock_in",
               "clock_out",
               "timezone"
-            ],
-            "additionalProperties": false
+            ]
           },
           "reason": {
             "type": "string"
@@ -13554,8 +13508,7 @@
           "revision",
           "can_decide",
           "can_cancel"
-        ],
-        "additionalProperties": false
+        ]
       },
       "AttendanceChangeDecisionResult": {
         "type": "object",
@@ -13612,8 +13565,7 @@
               "id",
               "name_ar",
               "name_en"
-            ],
-            "additionalProperties": false
+            ]
           },
           "session_id": {
             "nullable": true,
@@ -13656,8 +13608,7 @@
               "clock_in",
               "clock_out",
               "timezone"
-            ],
-            "additionalProperties": false
+            ]
           },
           "reason": {
             "type": "string"
@@ -13781,14 +13732,12 @@
                   "voided_at",
                   "voided_by",
                   "void_request_id"
-                ],
-                "additionalProperties": false
+                ]
               }
             },
             "required": [
               "session"
-            ],
-            "additionalProperties": false
+            ]
           }
         },
         "required": [
@@ -13813,8 +13762,7 @@
           "can_decide",
           "can_cancel",
           "effect"
-        ],
-        "additionalProperties": false
+        ]
       },
       "AttendanceChangeRequestPage": {
         "type": "object",
@@ -13882,8 +13830,7 @@
                     "id",
                     "name_ar",
                     "name_en"
-                  ],
-                  "additionalProperties": false
+                  ]
                 },
                 "session_id": {
                   "nullable": true,
@@ -13926,8 +13873,7 @@
                     "clock_in",
                     "clock_out",
                     "timezone"
-                  ],
-                  "additionalProperties": false
+                  ]
                 },
                 "reason": {
                   "type": "string"
@@ -13996,8 +13942,7 @@
                   "required": [
                     "ar",
                     "en"
-                  ],
-                  "additionalProperties": false
+                  ]
                 },
                 "decided_by_name": {
                   "nullable": true,
@@ -14014,8 +13959,7 @@
                   "required": [
                     "ar",
                     "en"
-                  ],
-                  "additionalProperties": false
+                  ]
                 },
                 "session_state": {
                   "nullable": true,
@@ -14038,8 +13982,7 @@
                     "voided",
                     "void_request_id",
                     "restore_pending"
-                  ],
-                  "additionalProperties": false
+                  ]
                 }
               },
               "required": [
@@ -14066,8 +14009,7 @@
                 "requested_by_name",
                 "decided_by_name",
                 "session_state"
-              ],
-              "additionalProperties": false
+              ]
             }
           },
           "next_cursor": {
@@ -14080,8 +14022,7 @@
           "can_request",
           "items",
           "next_cursor"
-        ],
-        "additionalProperties": false
+        ]
       },
       "PasskeyOptionsInput": {
         "default": {},
@@ -14621,8 +14562,7 @@
               "id",
               "name_ar",
               "name_en"
-            ],
-            "additionalProperties": false
+            ]
           },
           "holder": {
             "nullable": true,
@@ -14645,8 +14585,7 @@
               "id",
               "name_ar",
               "name_en"
-            ],
-            "additionalProperties": false
+            ]
           },
           "branch_id": {
             "type": "string",
@@ -14686,8 +14625,7 @@
           "step",
           "reason",
           "attempted_at"
-        ],
-        "additionalProperties": false
+        ]
       },
       "AttendanceDeviceRefusalPage": {
         "type": "object",
@@ -14706,8 +14644,7 @@
         "required": [
           "items",
           "next_cursor"
-        ],
-        "additionalProperties": false
+        ]
       },
       "UnbindPasskeyInput": {
         "type": "object",
@@ -14760,8 +14697,7 @@
           "binding_id",
           "revision",
           "unbound_at"
-        ],
-        "additionalProperties": false
+        ]
       },
       "PasskeyHistoryQuery": {
         "type": "object",
@@ -14811,8 +14747,7 @@
           "revision",
           "bound_at",
           "unbound_at"
-        ],
-        "additionalProperties": false
+        ]
       },
       "EmployeePasskeyHistory": {
         "type": "object",
@@ -14859,8 +14794,7 @@
               "bound_at",
               "phone_locked",
               "phone_locked_since"
-            ],
-            "additionalProperties": false
+            ]
           },
           "can_unbind": {
             "type": "boolean"
@@ -14883,8 +14817,7 @@
           "can_unbind",
           "items",
           "next_cursor"
-        ],
-        "additionalProperties": false
+        ]
       },
       "PasskeyEmployee": {
         "type": "object",
@@ -14912,8 +14845,7 @@
           "name_en",
           "name_ar",
           "primary_branch_id"
-        ],
-        "additionalProperties": false
+        ]
       },
       "PasskeyEmployeePage": {
         "type": "object",
@@ -14934,8 +14866,7 @@
         "required": [
           "items",
           "next_cursor"
-        ],
-        "additionalProperties": false
+        ]
       },
       "AttendanceInstallationSignal": {
         "type": "object",
@@ -15181,8 +15112,7 @@
           "ends_at",
           "break_starts_at",
           "break_ends_at"
-        ],
-        "additionalProperties": false
+        ]
       },
       "StaffSchedule": {
         "type": "object",
@@ -15320,7 +15250,37 @@
             "maxItems": 7,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ScheduleShift"
+              "type": "object",
+              "properties": {
+                "day": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 6
+                },
+                "start": {
+                  "type": "string",
+                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                },
+                "end": {
+                  "type": "string",
+                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                },
+                "break_start": {
+                  "nullable": true,
+                  "type": "string",
+                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                },
+                "break_end": {
+                  "nullable": true,
+                  "type": "string",
+                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                }
+              },
+              "required": [
+                "day",
+                "start",
+                "end"
+              ]
             }
           }
         },
@@ -15666,8 +15626,7 @@
           "set_by",
           "revision",
           "reason"
-        ],
-        "additionalProperties": false
+        ]
       },
       "SalaryHistoryQuery": {
         "type": "object",
@@ -16175,8 +16134,7 @@
           "id",
           "granted_by",
           "granted_at"
-        ],
-        "additionalProperties": false
+        ]
       },
       "PermissionMembership": {
         "type": "object",
@@ -16406,8 +16364,7 @@
             "required": [
               "content-type",
               "content-length"
-            ],
-            "additionalProperties": false
+            ]
           }
         },
         "required": [
@@ -16415,8 +16372,7 @@
           "upload_url",
           "expires_in",
           "headers"
-        ],
-        "additionalProperties": false
+        ]
       },
       "FileStatus": {
         "type": "object",
@@ -16461,8 +16417,7 @@
           "status",
           "content_type",
           "size_bytes"
-        ],
-        "additionalProperties": false
+        ]
       },
       "FileConfirmation": {
         "type": "object",
@@ -16502,8 +16457,7 @@
         "required": [
           "download_url",
           "expires_in"
-        ],
-        "additionalProperties": false
+        ]
       },
       "FileDownloadByKey": {
         "type": "object",
@@ -16784,8 +16738,7 @@
           "row",
           "column",
           "code"
-        ],
-        "additionalProperties": false
+        ]
       },
       "EmployeeImportTemplate": {
         "type": "object",
@@ -16810,8 +16763,7 @@
           "file_name",
           "content_type",
           "content_base64"
-        ],
-        "additionalProperties": false
+        ]
       },
       "PreviewEmployeeImportInput": {
         "type": "object",
@@ -16858,8 +16810,7 @@
           "row_count",
           "error_count",
           "errors"
-        ],
-        "additionalProperties": false
+        ]
       },
       "CommitEmployeeImportInput": {
         "type": "object",
@@ -16916,8 +16867,7 @@
         },
         "required": [
           "preview_id"
-        ],
-        "additionalProperties": false
+        ]
       },
       "EmployeeImportStatus": {
         "type": "object",
@@ -16958,8 +16908,7 @@
           "status",
           "created_count",
           "error_code"
-        ],
-        "additionalProperties": false
+        ]
       },
       "Customer": {
         "type": "object",
@@ -16995,8 +16944,7 @@
           "locale",
           "opted_out",
           "phone"
-        ],
-        "additionalProperties": false
+        ]
       },
       "FindOrCreateCustomerInput": {
         "type": "object",
@@ -17224,7 +17172,74 @@
             "$ref": "#/components/schemas/ServicePrice"
           },
           "commission_rule": {
-            "$ref": "#/components/schemas/ServiceCommissionRule"
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "FOLLOW_PLAN"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "ZERO"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "PCT"
+                    ]
+                  },
+                  "value": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "FIXED"
+                    ]
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/ServicePrice"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ]
+              }
+            ]
           },
           "counts_toward_threshold": {
             "type": "boolean"
@@ -17283,7 +17298,74 @@
             "$ref": "#/components/schemas/ServicePrice"
           },
           "commission_rule": {
-            "$ref": "#/components/schemas/ServiceCommissionRule"
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "FOLLOW_PLAN"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "ZERO"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "PCT"
+                    ]
+                  },
+                  "value": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "FIXED"
+                    ]
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/ServicePrice"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ]
+              }
+            ]
           },
           "counts_toward_threshold": {
             "type": "boolean"
@@ -17488,8 +17570,7 @@
           "name_en",
           "name_ar",
           "price"
-        ],
-        "additionalProperties": false
+        ]
       },
       "PackageTypeDetail": {
         "type": "object",
@@ -17897,8 +17978,7 @@
           "name_ar",
           "not_clocked_in_warning",
           "approved_leave_warning"
-        ],
-        "additionalProperties": false
+        ]
       },
       "SavedServiceLine": {
         "type": "object",
@@ -17981,7 +18061,74 @@
             "maximum": 9007199254740991
           },
           "rule_snapshot": {
-            "$ref": "#/components/schemas/ServiceCommissionRule"
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "FOLLOW_PLAN"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "ZERO"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "PCT"
+                    ]
+                  },
+                  "value": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "FIXED"
+                    ]
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/ServicePrice"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ]
+              }
+            ]
           },
           "counts_snapshot": {
             "type": "boolean"
@@ -18051,8 +18198,7 @@
           "recorded_by_membership_id",
           "recorded_at",
           "late"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ServiceSession": {
         "type": "object",
@@ -18091,8 +18237,7 @@
               "id",
               "name",
               "phone_masked"
-            ],
-            "additionalProperties": false
+            ]
           },
           "recorded_by": {
             "type": "string",
@@ -18150,8 +18295,7 @@
           "late",
           "total_net",
           "lines"
-        ],
-        "additionalProperties": false
+        ]
       },
       "RejectedServiceLine": {
         "type": "object",
@@ -18239,8 +18383,7 @@
           "limit_source",
           "minimum_net",
           "max_discount_amount"
-        ],
-        "additionalProperties": false
+        ]
       },
       "RecordServiceSessionResponse": {
         "type": "object",
@@ -18267,8 +18410,7 @@
           "outcome",
           "session",
           "rejected_lines"
-        ],
-        "additionalProperties": false
+        ]
       },
       "AppendServiceSessionLinesResponse": {
         "type": "object",
@@ -18304,8 +18446,7 @@
           "session",
           "rejected_lines",
           "added_lines"
-        ],
-        "additionalProperties": false
+        ]
       },
       "EditServiceLineInput": {
         "type": "object",
@@ -18462,7 +18603,74 @@
                 "maximum": 9007199254740991
               },
               "rule_snapshot": {
-                "$ref": "#/components/schemas/ServiceCommissionRule"
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "FOLLOW_PLAN"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "ZERO"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "PCT"
+                        ]
+                      },
+                      "value": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "value"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "FIXED"
+                        ]
+                      },
+                      "value": {
+                        "$ref": "#/components/schemas/ServicePrice"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "value"
+                    ]
+                  }
+                ]
               },
               "counts_snapshot": {
                 "type": "boolean"
@@ -18536,8 +18744,7 @@
               "recorded_at",
               "late",
               "edited"
-            ],
-            "additionalProperties": false
+            ]
           },
           "session": {
             "type": "object",
@@ -18554,15 +18761,13 @@
             "required": [
               "id",
               "total_net"
-            ],
-            "additionalProperties": false
+            ]
           }
         },
         "required": [
           "line",
           "session"
-        ],
-        "additionalProperties": false
+        ]
       },
       "EditServiceLineResponseNarrow": {
         "type": "object",
@@ -18583,8 +18788,7 @@
         "required": [
           "saved",
           "edited"
-        ],
-        "additionalProperties": false
+        ]
       },
       "EditServiceLineResponse": {
         "anyOf": [
@@ -20607,8 +20811,7 @@
           "share_bps",
           "not_clocked_in_warning",
           "approved_leave_warning"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ServiceSessionDayLine": {
         "type": "object",
@@ -20712,8 +20915,7 @@
           "late",
           "has_performer_warning",
           "performers"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ServiceSessionDayItem": {
         "type": "object",
@@ -20748,8 +20950,7 @@
             "required": [
               "id",
               "name"
-            ],
-            "additionalProperties": false
+            ]
           },
           "occurred_at": {
             "type": "string",
@@ -20806,8 +21007,7 @@
           "recorded_by",
           "late",
           "lines"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ServiceSessionDayPage": {
         "type": "object",
@@ -20828,8 +21028,7 @@
         "required": [
           "items",
           "next_cursor"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ServiceLineEditsQuery": {
         "type": "object",
@@ -20875,8 +21074,7 @@
               "price",
               "discount",
               "net"
-            ],
-            "additionalProperties": false
+            ]
           },
           "new": {
             "type": "object",
@@ -20895,8 +21093,7 @@
               "price",
               "discount",
               "net"
-            ],
-            "additionalProperties": false
+            ]
           },
           "changed_at": {
             "type": "string",
@@ -20924,8 +21121,7 @@
           "editor_label_ar",
           "editor_label_en",
           "reason"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ServiceLineEditsPage": {
         "type": "object",
@@ -20946,8 +21142,7 @@
         "required": [
           "items",
           "next_cursor"
-        ],
-        "additionalProperties": false
+        ]
       },
       "RecordingContextQuery": {
         "type": "object",
@@ -20982,8 +21177,7 @@
             "required": [
               "source",
               "bps"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -21004,8 +21198,7 @@
             "required": [
               "source",
               "bps"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -21026,8 +21219,7 @@
             "required": [
               "source",
               "bps"
-            ],
-            "additionalProperties": false
+            ]
           }
         ]
       },
@@ -21069,8 +21261,7 @@
               "recorder_membership_ids",
               "recorder_membership_id",
               "discount_limit"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -21114,8 +21305,7 @@
               "recorder_membership_ids",
               "recorder_membership_id",
               "discount_limit"
-            ],
-            "additionalProperties": false
+            ]
           }
         ]
       },
@@ -21188,8 +21378,7 @@
           "name_en",
           "price",
           "revision"
-        ],
-        "additionalProperties": false
+        ]
       },
       "SessionServiceOptionPage": {
         "type": "object",
@@ -21212,8 +21401,7 @@
         "required": [
           "items",
           "next_cursor"
-        ],
-        "additionalProperties": false
+        ]
       },
       "SessionPerformerOptionsQuery": {
         "type": "object",
@@ -21294,8 +21482,7 @@
           "employee_number",
           "not_clocked_in_warning",
           "approved_leave_warning"
-        ],
-        "additionalProperties": false
+        ]
       },
       "SessionPerformerOptionPage": {
         "type": "object",
@@ -21318,8 +21505,7 @@
         "required": [
           "items",
           "next_cursor"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ServiceSessionRecoveryOperation": {
         "type": "string",
@@ -21372,8 +21558,7 @@
           "ordinal",
           "name_ar",
           "name_en"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ServiceSessionRecoveryVisit": {
         "type": "object",
@@ -21409,8 +21594,7 @@
           "customer_name",
           "customer_phone_masked",
           "lines"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ServiceSessionRecoveryAttempt": {
         "type": "object",
@@ -21454,8 +21638,7 @@
           "business_timezone",
           "issued_at",
           "expires_at"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ServiceSessionRecoveryPage": {
         "type": "object",
@@ -21480,8 +21663,7 @@
           "items",
           "next_cursor",
           "attempt"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ConfirmSessionRecoveryBody": {
         "type": "object",
@@ -21552,14 +21734,34 @@
           "name_ar",
           "name_en",
           "effective_timezone"
-        ],
-        "additionalProperties": false
+        ]
       },
       "AttendanceQrIssue": {
         "type": "object",
         "properties": {
           "token": {
-            "$ref": "#/components/schemas/AttendanceQrToken"
+            "type": "object",
+            "properties": {
+              "branch_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "window": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "sig": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "branch_id",
+              "window",
+              "sig"
+            ]
           },
           "branch": {
             "$ref": "#/components/schemas/AttendanceQrBranch"
@@ -21586,8 +21788,7 @@
           "server_time",
           "refresh_at",
           "expires_at"
-        ],
-        "additionalProperties": false
+        ]
       },
       "StaffPinInput": {
         "type": "object",
@@ -21902,8 +22103,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -21930,8 +22130,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -21958,8 +22157,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ]
                 },
@@ -21979,8 +22177,7 @@
               "read_at",
               "template_key",
               "safe_parameters"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -22071,8 +22268,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22099,8 +22295,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22127,8 +22322,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22155,8 +22349,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22183,8 +22376,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22210,8 +22402,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22237,8 +22428,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22265,8 +22455,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22293,8 +22482,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ]
                 },
@@ -22314,8 +22502,7 @@
               "read_at",
               "template_key",
               "safe_parameters"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -22406,8 +22593,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22434,8 +22620,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22462,8 +22647,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22490,8 +22674,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22518,8 +22701,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22545,8 +22727,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ]
                 },
@@ -22566,8 +22747,7 @@
               "read_at",
               "template_key",
               "safe_parameters"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -22658,8 +22838,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22686,8 +22865,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22714,8 +22892,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22742,8 +22919,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22770,8 +22946,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22797,8 +22972,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ]
                 },
@@ -22818,8 +22992,7 @@
               "read_at",
               "template_key",
               "safe_parameters"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -22910,8 +23083,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22938,8 +23110,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22966,8 +23137,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -22994,8 +23164,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ]
                 },
@@ -23015,8 +23184,7 @@
               "read_at",
               "template_key",
               "safe_parameters"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -23107,8 +23275,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23135,8 +23302,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23166,8 +23332,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ]
                 },
@@ -23187,8 +23352,7 @@
               "read_at",
               "template_key",
               "safe_parameters"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -23279,8 +23443,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23307,8 +23470,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23338,8 +23500,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23368,8 +23529,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23396,8 +23556,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ]
                 },
@@ -23417,8 +23576,7 @@
               "read_at",
               "template_key",
               "safe_parameters"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -23509,8 +23667,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ]
                 },
@@ -23530,8 +23687,7 @@
               "read_at",
               "template_key",
               "safe_parameters"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -23622,8 +23778,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23650,8 +23805,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23678,8 +23832,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23706,8 +23859,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23733,8 +23885,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ]
                 },
@@ -23754,8 +23905,7 @@
               "read_at",
               "template_key",
               "safe_parameters"
-            ],
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -23846,8 +23996,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23874,8 +24023,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23902,8 +24050,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23930,8 +24077,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     },
                     {
                       "type": "object",
@@ -23957,8 +24103,7 @@
                         "name",
                         "type",
                         "value"
-                      ],
-                      "additionalProperties": false
+                      ]
                     }
                   ]
                 },
@@ -23978,8 +24123,7 @@
               "read_at",
               "template_key",
               "safe_parameters"
-            ],
-            "additionalProperties": false
+            ]
           }
         ]
       },
@@ -24000,8 +24144,7 @@
         "required": [
           "items",
           "next_cursor"
-        ],
-        "additionalProperties": false
+        ]
       },
       "InAppNotificationQuery": {
         "allOf": [
@@ -24021,8 +24164,7 @@
         },
         "required": [
           "count"
-        ],
-        "additionalProperties": false
+        ]
       },
       "NotificationReadResult": {
         "type": "object",
@@ -24036,8 +24178,7 @@
         },
         "required": [
           "ok"
-        ],
-        "additionalProperties": false
+        ]
       },
       "DeliveryLogItem": {
         "type": "object",
