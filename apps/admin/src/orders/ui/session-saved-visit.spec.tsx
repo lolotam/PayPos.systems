@@ -167,6 +167,71 @@ it('drops the edited mark when the session id changes', async () => {
   expect(view.container.textContent).not.toContain('7.125');
 });
 
+const moneyLabels = ['price', 'discountAmount', 'savedNet', 'savedTotal'] as const;
+function expectAccessErrorOnly(view: { container: HTMLElement }) {
+  expect(screen.getAllByRole('alert')).toHaveLength(1);
+  for (const key of moneyLabels) expect(screen.queryByText(t('en', `serviceSessions.${key}`))).toBeNull();
+  for (const figure of previousFigures) expect(view.container.textContent).not.toContain(figure);
+  expect(screen.queryByRole('button', { name: t('en', 'serviceLineEdit.edit') })).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'serviceLineEdit.retry') })).toBeNull();
+  expect(screen.getByText('Synthetic customer')).toBeTruthy();
+}
+async function denyEdit(status: number, code: string) {
+  state.patch.mockReset(); state.get.mockReset();
+  state.patch.mockResolvedValue(refused(status, code));
+  const view = renderVisit(visit());
+  editButton(); fill(); save();
+  expect((await screen.findByRole('alert')).textContent).toContain(`${code} EN`);
+  return view;
+}
+
+it.each([
+  [401, 'UNAUTHENTICATED'],
+  [403, 'FEATURE_DISABLED'],
+] as const)('replaces the saved visit with only the access error when the edit patch returns %s %s', async (status, code) => {
+  const view = await denyEdit(status, code);
+  expectAccessErrorOnly(view);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.newVisit') }));
+  expectAccessErrorOnly(view);
+  expect(screen.getByRole('button', { name: t('en', 'serviceSessions.newVisitSameCustomer') })).toBeTruthy();
+});
+
+it('keeps the saved figures when the edit patch returns 403 FORBIDDEN', async () => {
+  state.patch.mockReset(); state.get.mockReset();
+  state.patch.mockResolvedValue(refused(403, 'FORBIDDEN'));
+  const view = renderVisit(visit());
+  editButton(); fill(); save();
+  expect((await screen.findByRole('alert')).textContent).toContain('FORBIDDEN EN');
+  expect(screen.getByText(t('en', 'serviceSessions.savedTotal')).textContent).toContain('6.412');
+  expect(view.container.textContent).toContain('7.125');
+  expect(screen.getByText(t('en', 'serviceSessions.discountAmount'))).toBeTruthy();
+  expect(screen.getByText(t('en', 'serviceSessions.savedNet'))).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'serviceLineEdit.edit') })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: t('en', 'serviceLineEdit.retry') })).toBeNull();
+});
+
+it('keeps the saved visit hidden when an append replaces the session object after a denial', async () => {
+  const view = await denyEdit(401, 'UNAUTHENTICATED');
+  const refreshed = { ...savedLine, price: '4.250', discount: '0.250', net: '4.000', revision: 3 };
+  const appended = { ...savedLine, id: id(19), name_en: 'Appended service', ordinal: 2, price: '2.000', discount: '0.000', net: '2.000', revision: 1 };
+  view.rerender(shell(visitSession({ ...response.session, total_net: '6.250', lines: [refreshed, appended] })));
+  expect((screen.getByRole('alert')).textContent).toContain('UNAUTHENTICATED EN');
+  expectAccessErrorOnly(view);
+  expect(view.container.textContent).not.toContain('Appended service');
+  expect(view.container.textContent).not.toContain('4.250');
+});
+
+it('shows the lines again when the session id changes after a denial', async () => {
+  const view = await denyEdit(403, 'FEATURE_DISABLED');
+  const session = { ...response.session, id: id(30), total_net: '1.400', lines: [{ ...savedLine, price: '1.500', discount: '0.100', net: '1.400' }] };
+  view.rerender(shell(visitSession(session)));
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.getByText(t('en', 'serviceSessions.savedTotal')).textContent).toContain('1.400');
+  expect(view.container.textContent).toContain('1.500');
+  expect(screen.getByRole('button', { name: t('en', 'serviceLineEdit.edit') })).toBeTruthy();
+  expect(view.container.textContent).not.toContain('7.125');
+});
+
 it('does not offer an edit while the saved visit is frozen', () => {
   const result = visit();
   renderVisit({ ...result, feedback: { kind: 'UNRESOLVED' } });

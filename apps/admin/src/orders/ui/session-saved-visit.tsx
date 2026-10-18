@@ -14,6 +14,7 @@ const kwd = (value: string) => formatKwd(parseMoney(value));
 type Held = { snapshot: ServiceSession; visit: SavedVisitEdit };
 type OpenLine = { snapshot: ServiceSession; lineId: string };
 type Refusal = { snapshot: ServiceSession; message: string };
+type Denial = { sessionId: string; message: string };
 
 export function SessionSavedVisit({ result, scope, online }: {
   result: SessionRecordingResult; scope?: SessionServiceScope; online: boolean;
@@ -23,7 +24,11 @@ export function SessionSavedVisit({ result, scope, online }: {
   const [held, setHeld] = useState<Held | null>(null);
   const [open, setOpen] = useState<OpenLine | null>(null);
   const [refusal, setRefusal] = useState<Refusal | null>(null);
+  const [denial, setDenial] = useState<Denial | null>(null);
   if (!session) return null;
+  // 401 وإيقاف الميزة بيقفلوا الأرقام؛ الإلحاق نفس id فما يرجعهاش، وزيارة بـ id جديد تبدأ من غير الرفض.
+  const denied = denial?.sessionId === session.id ? denial.message : null;
+  if (denied) return <p role="alert">{denied}</p>;
   // نفس id بعد الإلحاق يحتفظ بالعلامة. الفورم المفتوح يتقفل لأن مراجعته اتكتبت على السناب شوت السابق.
   const baseline = held?.visit ?? emptySavedVisit(session.id, session.total_net);
   const visit = held?.snapshot === session ? held.visit : reconcileSavedVisit(baseline, session);
@@ -44,7 +49,8 @@ export function SessionSavedVisit({ result, scope, online }: {
         open={editingId === line.id} canEdit={canEdit} added={result.addedLineIds.includes(line.id)}
         {...(edit ? { edit } : {})} {...(scope ? { scope } : {})}
         onOpen={() => { setRefusal(null); setOpen({ snapshot: session, lineId: line.id }); }} onClose={() => setOpen(null)}
-        onSaved={(savedEdit) => saved(line.id, savedEdit)} onForbidden={(message) => { setRefusal({ snapshot: session, message }); setOpen(null); }} />;
+        onSaved={(savedEdit) => saved(line.id, savedEdit)} onForbidden={(message) => { setRefusal({ snapshot: session, message }); setOpen(null); }}
+        onAccessDenied={(message) => { setDenial({ sessionId: session.id, message }); setOpen(null); }} />;
     })}</ul>
   </>;
 }
