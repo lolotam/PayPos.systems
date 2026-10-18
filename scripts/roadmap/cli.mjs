@@ -1,4 +1,4 @@
-import { closeSync, openSync, readFileSync, renameSync, rmSync, writeSync } from 'node:fs';
+import { closeSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 
 import { applyUpdates } from './set-status.mjs';
 
@@ -27,7 +27,7 @@ const temporaryPath = `${roadmapPath}.${process.pid}.${Date.now()}.tmp`;
 const output = JSON.stringify(roadmap, null, indent) + '\n';
 const descriptor = openSync(temporaryPath, 'wx');
 try {
-  writeSync(descriptor, output);
+  writeFileSync(descriptor, output);
   closeSync(descriptor);
   renameSync(temporaryPath, roadmapPath);
 } catch (error) {
