@@ -21734,8 +21734,7 @@
           "name_ar",
           "name_en",
           "effective_timezone"
-        ],
-        "additionalProperties": false
+        ]
       },
       "AttendanceQrIssue": {
         "type": "object",

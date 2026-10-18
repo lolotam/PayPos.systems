@@ -31,7 +31,7 @@ import { attendanceEmployeePage, attendanceEmployeesQuery } from './staff/attend
 import { attendanceExceptionDecisionInput, attendanceExceptionRecord } from './staff/attendance-exception.js';
 import { attendanceCorrectionHistory, attendanceExceptionPage, attendanceExceptionsListQuery } from './staff/attendance-actions-read.js';
 import { attendanceMonthlyReport, attendanceMonthlyReportQuery } from './staff/attendance-monthly-report.js';
-import { attendanceQrIssue, attendanceQrToken } from './staff/attendance-qr.js';
+import { attendanceQrBranch, attendanceQrIssue, attendanceQrToken } from './staff/attendance-qr.js';
 import { clockAttendanceInput, clockAttendanceResult } from './staff/clock-attendance.js';
 import { createEmployeeInput, employee } from './staff/employee.js';
 import { employeeCard, employeeCardsView, issueEmployeeCardInput } from './staff/employee-cards.js';
@@ -89,6 +89,7 @@ const responses = [
   { name: 'fileDownload', schema: fileDownload },
   { name: 'fileStatus', schema: fileStatus },
   { name: 'fileConfirmation', schema: fileConfirmation },
+  { name: 'attendanceQrBranch', schema: attendanceQrBranch },
   { name: 'leavePage', schema: leavePage },
   { name: 'leaveRequest', schema: leaveRequest },
   { name: 'membershipPermissions', schema: membershipPermissions },
