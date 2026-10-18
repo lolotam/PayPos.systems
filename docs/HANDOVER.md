@@ -218,7 +218,8 @@ Closed since 2026-10-14 (25): #57, #112, #115, #138, #141, #145, #199, #202, #20
 
 ### 5.2 Open product decisions
 
-`docs/PRD.md` §11 lists D-01…; the decisions page holds every answered batch. D-11 (the new server) blocks the PITR
+`docs/PRD.md` §11 lists D-01…; the decisions page holds every answered charges/money batch, and each slice's
+`owner-questions.ar.md` is the complete audit record of every owner decision (CLAUDE.md §1 5b). D-11 (the new server) blocks the PITR
 drill, production sizing and the salon pilot (row 63, partner request AS-17).
 
 ## 6. Deployment
