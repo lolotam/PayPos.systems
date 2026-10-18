@@ -201,6 +201,7 @@ it('closes the editor when the server forbids the edit', async () => {
 it.each([
   [401, 'UNAUTHENTICATED'],
   [403, 'FEATURE_DISABLED'],
+  [409, 'FEATURE_DISABLED'],
 ] as const)('closes through onAccessDenied when the edit patch returns %s %s', async (status, code) => {
   state.patch.mockReset(); state.patch.mockResolvedValue(refused(status, code));
   const onAccessDenied = vi.fn();

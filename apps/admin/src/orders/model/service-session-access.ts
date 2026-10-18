@@ -5,9 +5,9 @@ export function serviceSessionAccessRevoked(error: unknown): boolean {
   return body.status === 401 || body.status === 403 || body.code === 'FEATURE_DISABLED';
 }
 
-// رفض التعديل العادي (403) بيسيب قائمة اليوم ظاهرة؛ 401 أو إيقاف الميزة بيقفل الوصول نفسه.
+// رفض التعديل العادي (403) بيسيب قائمة اليوم ظاهرة؛ 401 أو إيقاف الميزة (بأي status) بيقفل الوصول نفسه زي قراءة اليوم.
 export function editAccessRevoked(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const body = error as { status?: unknown; code?: unknown };
-  return body.status === 401 || (body.status === 403 && body.code === 'FEATURE_DISABLED');
+  return body.status === 401 || body.code === 'FEATURE_DISABLED';
 }

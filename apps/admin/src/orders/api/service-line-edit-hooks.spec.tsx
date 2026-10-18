@@ -88,6 +88,8 @@ it.each([
   [true, 'an unauthorized refusal', { status: 401 }],
   [true, 'a forbidden refusal', { status: 403, code: 'FORBIDDEN' }],
   [true, 'a stale revision', { status: 409, code: 'SESSION_LINE_REVISION_STALE' }],
+  [true, 'a conflict status carrying FEATURE_DISABLED', { status: 409, code: 'FEATURE_DISABLED' }],
+  [true, 'a server error status carrying FEATURE_DISABLED', { status: 500, code: 'FEATURE_DISABLED' }],
   [true, 'the lowest client error', { status: 400 }],
   [true, 'the highest client error', { status: 499 }],
 ])('editOutcomeKnown is %s for %s', (known, _label, error) => {
