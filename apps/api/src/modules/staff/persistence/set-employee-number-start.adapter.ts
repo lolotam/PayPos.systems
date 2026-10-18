@@ -1,5 +1,6 @@
 import { appendAuditLog, lockEmployeeNumberCounter, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+import { lockEmployeeNumberAccess, readEmployeeNumberCompanyAccess } from '../../identity/index.ts';
 import { SetEmployeeNumberStartError } from '../domain/errors.ts';
 import type {
   EmployeeNumberStartActor,
@@ -8,7 +9,7 @@ import type {
   EmployeeNumberStartTransactions,
   EmployeeNumberSequenceRow,
 } from '../ports/employee-number-start.port.ts';
-import { lockEmployeeNumberCompany, recheckEmployeeNumberCompany } from './set-employee-number.adapter.ts';
+import { retryableDatabaseCode, storedNumber } from './employee-number-row.ts';
 
 export function createSetEmployeeNumberStartTransactions(
   database: TenantWrappers,
@@ -26,22 +27,19 @@ export function createSetEmployeeNumberStartTransactions(
 
 function startScope(tx: Tx, actor: EmployeeNumberStartActor, ids: IdGenerator): EmployeeNumberStartScope {
   return {
-    lockAccess: () => lockEmployeeNumberCompany(tx, actor.companyId),
-    recheck: () => recheckEmployeeNumberCompany(tx, actor.companyId, actor.userId),
+    lockAccess: () => lockEmployeeNumberAccess(tx, actor.companyId),
+    recheck: () => readEmployeeNumberCompanyAccess(tx, actor.companyId, actor.userId),
     lockCounter: () => lockedSequence(tx, actor.companyId),
     save: (at, change) => saveStart(tx, actor.companyId, actor.userId, ids, at, change),
   };
 }
 
 async function lockedSequence(tx: Tx, companyId: string): Promise<EmployeeNumberSequenceRow> {
-  await lockEmployeeNumberCounter(tx, companyId);
-  const [row] = await tx.execute<{ next_number: number | string; start_number: number | string | null }>(sql`
-    SELECT next_number, start_number FROM employee_number_sequences WHERE company_id=${companyId}`);
+  const nextNumber = await lockEmployeeNumberCounter(tx, companyId);
+  const [row] = await tx.execute<{ start_number: number | string | null }>(sql`
+    SELECT start_number FROM employee_number_sequences WHERE company_id=${companyId}`);
   if (row === undefined) throw new Error('EMPLOYEE_PERSISTENCE_FAILED');
-  return {
-    nextNumber: Number(row.next_number),
-    startNumber: row.start_number === null ? null : Number(row.start_number),
-  };
+  return { nextNumber: Number(nextNumber), startNumber: storedNumber(row.start_number) };
 }
 
 async function saveStart(
@@ -53,7 +51,6 @@ async function saveStart(
   change: EmployeeNumberStartAudit,
 ) {
   const instant = at.toISOString();
-  // الشرط يعيد الرفض قبل التدقيق حتى لا يُكتب صف ثانٍ لو سُبقت البداية تحت نفس القفل.
   const updated = await tx.execute<{ company_id: string }>(sql`
     UPDATE employee_number_sequences
     SET start_number=${change.after.start_number}, start_set_by=${userId},
@@ -73,7 +70,6 @@ async function saveStart(
 
 function mappedStart(error: unknown): never {
   const seen = new Set<unknown>();
-  let code: string | undefined;
   for (
     let current: unknown = error;
     typeof current === 'object' && current !== null && !seen.has(current);
@@ -81,10 +77,7 @@ function mappedStart(error: unknown): never {
   ) {
     seen.add(current);
     if (current instanceof SetEmployeeNumberStartError) throw current;
-    const node = current as { code?: unknown };
-    if (code === undefined && node.code !== undefined) code = String(node.code);
   }
-  if (code === '40001' || code === '40P01' || code === '55P03')
-    throw new SetEmployeeNumberStartError('TRANSACTION_RETRY_REQUIRED');
+  if (retryableDatabaseCode(error)) throw new SetEmployeeNumberStartError('TRANSACTION_RETRY_REQUIRED');
   throw error;
 }

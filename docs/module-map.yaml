@@ -95,6 +95,8 @@ reads:
   - { from: staff, to: identity, symbol: readEmployeeHoursAccess, file: apps/api/src/modules/staff/persistence/employee-default-shifts.adapter.ts }
   - { from: staff, to: identity, symbol: lockEmployeeNumberAccess, file: apps/api/src/modules/staff/persistence/set-employee-number.adapter.ts }
   - { from: staff, to: identity, symbol: readEmployeeNumberAccess, file: apps/api/src/modules/staff/persistence/set-employee-number.adapter.ts }
+  - { from: staff, to: identity, symbol: lockEmployeeNumberAccess, file: apps/api/src/modules/staff/persistence/set-employee-number-start.adapter.ts }
+  - { from: staff, to: identity, symbol: readEmployeeNumberCompanyAccess, file: apps/api/src/modules/staff/persistence/set-employee-number-start.adapter.ts }
   - { from: settings, to: identity, symbol: lockBusinessDiscountAccess, file: apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts }
   - { from: settings, to: identity, symbol: readBusinessDiscountAccess, file: apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts }
   - { from: settings, to: identity, symbol: lockMembershipDiscountSubject, file: apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts }

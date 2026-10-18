@@ -349,6 +349,8 @@ reads:
   - staff -> identity.readEmployeeHoursAccess @ apps/api/src/modules/staff/persistence/employee-default-shifts.adapter.ts
   - staff -> identity.lockEmployeeNumberAccess @ apps/api/src/modules/staff/persistence/set-employee-number.adapter.ts
   - staff -> identity.readEmployeeNumberAccess @ apps/api/src/modules/staff/persistence/set-employee-number.adapter.ts
+  - staff -> identity.lockEmployeeNumberAccess @ apps/api/src/modules/staff/persistence/set-employee-number-start.adapter.ts
+  - staff -> identity.readEmployeeNumberCompanyAccess @ apps/api/src/modules/staff/persistence/set-employee-number-start.adapter.ts
   - settings -> identity.lockBusinessDiscountAccess @ apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts
   - settings -> identity.readBusinessDiscountAccess @ apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts
   - settings -> identity.lockMembershipDiscountSubject @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts
