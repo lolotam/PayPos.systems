@@ -35,6 +35,8 @@ export const createEmployeeInput = z
     hire_date: employeeDate,
     contract_end: employeeDate.nullable().optional(),
     user_id: employeeInputId.nullable().optional(),
+    // غيابه يبقي الإسناد التلقائي؛ null مرفوض حتى لا يُفهم كمسح للرقم (FR-006).
+    employee_number: z.number().int().min(1).max(999999).optional(),
   })
   .meta({ id: 'CreateEmployeeInput' });
 // الرقم أرقام صحيحة بلا فواصل (D-2)؛ NULL يبقى null والشرطة شأن الشاشة (TD-10).

@@ -34,6 +34,7 @@ it.each([
   { company_id: id },
   { business_id: id },
   { salary: '100.000' },
+  { employee_number: 1050 },
 ])('rejects invalid or unsupported update fields %j', (change) => {
   expect(updateEmployeeInput.safeParse({ ...terms, ...change }).success).toBe(false);
 });

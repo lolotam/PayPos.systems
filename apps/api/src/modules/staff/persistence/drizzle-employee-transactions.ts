@@ -2,6 +2,7 @@ import {
   appendAuditLog,
   assignEmployeeNumber,
   EmployeeNumberExhaustedError,
+  lockEmployeeNumberCounter,
   type IdGenerator,
   type TenantWrappers,
   type Tx,
@@ -16,6 +17,10 @@ import {
   employeeContext,
   employeeBranchAccess,
 } from './employee-context.adapter.ts';
+import {
+  refuseTypedEmployeeNumber,
+  typedEmployeeNumberTaken,
+} from './set-employee-number.adapter.ts';
 
 async function insertEmployee(
   tx: Tx,
@@ -27,6 +32,35 @@ async function insertEmployee(
     VALUES (${companyId},${r.id},${r.business_id},${r.primary_branch_id},${r.user_id},${r.name_ar},${r.name_en},${r.name_ar_key},${r.name_en_key},${r.role_code},${r.hire_date},${r.contract_end},${r.created_at},${r.employee_number})`);
   await tx.execute(sql`INSERT INTO employee_branches (company_id,id,business_id,employee_id,branch_id,"from")
     VALUES (${companyId},${attachmentId},${r.business_id},${r.id},${r.primary_branch_id},${r.hire_date})`);
+}
+
+function numberKeyViolation(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  for (
+    let current: unknown = error;
+    typeof current === 'object' && current !== null && !seen.has(current);
+    current = (current as { cause?: unknown }).cause
+  ) {
+    seen.add(current);
+    const node = current as { code?: unknown; constraint_name?: unknown; constraint?: unknown };
+    const name = node.constraint_name ?? node.constraint;
+    if (node.code === '23505' && name === 'employees_company_employee_number_key') return true;
+  }
+  return false;
+}
+
+async function insertTypedEmployee(
+  tx: Tx,
+  companyId: string,
+  record: EmployeeInsertRecord,
+  attachmentId: string,
+) {
+  try {
+    await insertEmployee(tx, companyId, record, attachmentId);
+  } catch (error) {
+    if (numberKeyViolation(error)) throw new EmployeeCreationError('EMPLOYEE_NUMBER_TAKEN');
+    throw error;
+  }
 }
 
 function cleanEmployeeError(error: unknown): never {
@@ -96,7 +130,17 @@ export function createEmployeeTransactions(
               context: (record) => employeeContext(tx, companyId, record),
               canLinkUser: (linkedUserId) => canLinkEmployeeUser(tx, companyId, linkedUserId),
               assignEmployeeNumber: () => assignEmployeeNumber(tx, companyId),
+              recheckTypedNumber: (businessId, primaryBranchId) =>
+                refuseTypedEmployeeNumber(tx, companyId, userId, businessId, primaryBranchId),
+              lockCounter: async () => {
+                // الرقم المكتوب يتسلسل مع الإسناد والتعديل، ولا يحرّك العدّاد (FR-003).
+                await lockEmployeeNumberCounter(tx, companyId);
+              },
+              typedNumberTaken: (employeeNumber) =>
+                typedEmployeeNumberTaken(tx, companyId, employeeNumber),
               insert: (record, attachmentId) => insertEmployee(tx, companyId, record, attachmentId),
+              insertTyped: (record, attachmentId) =>
+                insertTypedEmployee(tx, companyId, record, attachmentId),
               audit: (record) =>
                 appendAuditLog(tx, ids.newId(), {
                   entity: 'employee',
