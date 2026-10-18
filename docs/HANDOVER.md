@@ -50,9 +50,11 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
 `.claude/skills/pospay-pipeline/SKILL.md`. In short:
 
 1. One row of the phase plan per branch, worktree and PR (`feat/…`, `fix/…`, `docs/…`). **Never push to `main`.**
-2. Spec first (`/speckit-specify`); owner questions go to the slice's `owner-questions.ar.md` **and** to a new numbered
-   batch on the decisions page (`CLAUDE.md` §1 5b). When Waleed and his partner (Abu Salem) differ, the partner's pick binds.
-   Ask the questions of a whole feature in one batch before its first sub-PR, with a mockup when the answer is a screen.
+2. Spec first (`/speckit-specify`); owner questions go to the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md` when no slice exists: pipeline, docs or process rules), then by kind (`CLAUDE.md` §1 5b): charges/money
+   questions to a new numbered batch on the decisions page, every other question to Waleed through his super agent. On
+   the page, when Waleed and his partner (Abu Salem) differ, the partner's pick binds.
+   Ask the questions of a whole feature before its first sub-PR, with a mockup when the answer is a screen: one batch per
+   destination (the money questions on the page, the rest to Waleed), never a mixed batch.
 3. The implementer is the **Grok CLI, `grok-4.7`, effort high** (owner, 2026-10-14), one resumed session per
    task to keep its cache warm. Claude Code orchestrates, judges the diff and runs `pnpm check`.
 4. Guard pass (`clean-code-guard`, `test-guard`, `docs-guard`), then up to **5 review rounds**: Codex astra 6 →
@@ -216,7 +218,9 @@ Closed since 2026-10-14 (25): #57, #112, #115, #138, #141, #145, #199, #202, #20
 
 ### 5.2 Open product decisions
 
-`docs/PRD.md` §11 lists D-01…; the decisions page holds every answered batch. D-11 (the new server) blocks the PITR
+`docs/PRD.md` §11 lists D-01…; the decisions page holds every answered charges/money batch, the slices'
+`owner-questions.ar.md` files plus `docs/owner-decisions.ar.md` (decisions that belong to no slice, with the PP batch index)
+are the complete audit record of every owner decision (CLAUDE.md §1 5b). D-11 (the new server) blocks the PITR
 drill, production sizing and the salon pilot (row 63, partner request AS-17).
 
 ## 6. Deployment
