@@ -178,6 +178,16 @@ it('shows the newer snapshot figures after a late replay response for a line wit
   expect(screen.getAllByText('7.000', { exact: false }).length).toBeGreaterThan(0);
 });
 
+it('ignores a late save response that belongs to a previous visit', async () => {
+  const { view, client, pending } = await openAndSaveFirst();
+  view.rerender(tree(client, { ...twoLineSession(), id: id(99), total_net: '9.000' }));
+  const first = pending[0];
+  if (!first) throw new Error('missing response');
+  await act(async () => { first.resolve(full); });
+  expect(screen.queryByText('4.250', { exact: false })).toBeNull();
+  expect(screen.queryByText('4.000', { exact: false })).toBeNull();
+});
+
 it('keeps the uncertain editor and its idempotency key when the same visit snapshot is replaced', async () => {
   const { view, client, pending } = await openAndSaveFirst();
   const gate = pending[0];

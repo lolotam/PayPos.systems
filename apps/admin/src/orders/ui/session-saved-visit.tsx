@@ -51,6 +51,8 @@ export function SessionSavedVisit({ result, scope, online, editBusy = false, onR
   const saved = (lineId: string, edit: EditServiceLineResult) => {
     // السناب شوت اللي وصل بعد بدء الطلب هو المرجع. رد إعادة محاولة بمراجعة أقل من أو تساوي مراجعة السطر فيه ما يكتبش فوق أرقامه ولا إجماليه، ونسيب علامة «اتعدّل».
     const latest = sessionRef.current ?? session;
+    // رد طلب بدأ على زيارة تانية ما يتحسبش على الزيارة الحالية.
+    if (latest.id !== session.id) return;
     const answered = 'line' in edit.response ? edit.response.line.revision : edit.revisionUsed + 1;
     const snapshotRevision = latest.lines.find((line) => line.id === lineId)?.revision ?? 0;
     if (snapshotRevision >= answered) {
