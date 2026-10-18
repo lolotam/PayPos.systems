@@ -173,6 +173,27 @@ it('shows no cached names when the date or late filter changes while denied', as
   expect(reads(false)).toBe(before);
   expectGone('Denied EN');
 });
+it('does not rebuild the day query when a pending edit answers 409 stale after a denial removed it', async () => {
+  prepare();
+  let denied = false;
+  let answerPatch: (value: unknown) => void = () => undefined;
+  state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits') ? openHistory : denied ? denial(403, 'Denied EN') : listed));
+  state.patch.mockImplementation(() => new Promise((resolve) => { answerPatch = resolve; }));
+  const view = await shown();
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'because' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
+  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(1));
+  denied = true;
+  await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Denied EN'));
+  const dayReads = reads(false);
+  await act(async () => {
+    answerPatch({ error: { code: 'SESSION_LINE_REVISION_STALE', message_ar: 'Stale AR', message_en: 'Stale EN', details: { current_revision: 4 } }, response: { status: 409 } });
+    await Promise.resolve();
+  });
+  expect(reads(false)).toBe(dayReads);
+  expectGone('Denied EN');
+});
 it('ignores a late day refetch success after a denial until Retry', async () => {
   prepare();
   let releaseLate: (value: unknown) => void = () => undefined;

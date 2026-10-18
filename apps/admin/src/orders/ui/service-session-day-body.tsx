@@ -47,8 +47,14 @@ export function ServiceSessionDayBody({ scope, date, lateOnly, online, timezone,
   const [editing, setEditing] = useState<OpenEditor | null>(null);
   const [history, setHistory] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const mounted = useRef(true);
   const query = useBranchDaySessions(scope, date, lateOnly, online);
   const revoked = serviceSessionAccessRevoked(query.error);
+  // رد 409 متأخر بعد ما الجسم اتفك (رفض وصول) ممنوع يعيد بناء استعلام اتمسح قبل ما الـ Retry ينجح.
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   // الكاش بيفضل موجود مع الخطأ؛ الرجوع فاضي في نفس الرندر يمنع لمعان الأسماء قبل ما الصفحة الأم تتشال.
   useEffect(() => {
     if (revoked) onAccessDenied(envelopeMessage(query.error, locale));
@@ -69,7 +75,7 @@ export function ServiceSessionDayBody({ scope, date, lateOnly, online, timezone,
         onToggleHistory={(lineId) => setHistory((current) => current === `${visit.id}:${lineId}` ? null : `${visit.id}:${lineId}`)}
         editor={lineKey && target && openToken !== undefined ? <EditServiceLineForm key={target.line.id} scope={scope} sessionId={visit.id} line={target.line} online={online}
           onSaved={() => { setEditing(releaseEditor(lineKey, openToken)); setNotice(t(locale, 'serviceLineEdit.saved')); }}
-          onStale={async () => { const fresh = await query.refetch(); return fresh.isSuccess ? lineRevision(fresh.data.pages, visit.id, target.line.id) : null; }}
+          onStale={async () => { if (!mounted.current) return null; const fresh = await query.refetch(); return fresh.isSuccess ? lineRevision(fresh.data.pages, visit.id, target.line.id) : null; }}
           onForbidden={(message) => { setEditing(releaseEditor(lineKey, openToken)); setNotice(message); }}
           onAccessDenied={onAccessDenied} onClose={() => { setEditing(releaseEditor(lineKey, openToken)); }} /> : null}
         historyPanel={historyLineId ? <ServiceLineEditHistory scope={scope} sessionId={visit.id} lineId={historyLineId} timezone={visit.business_timezone || timezone} onAccessDenied={onAccessDenied} /> : null} />;
