@@ -1030,6 +1030,13 @@
       "when": 1792277623622,
       "tag": "0148_2026-10-17_business-identity-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1792325893982,
+      "tag": "0149_2026-10-18_employee-number-permission",
+      "breakpoints": true
     }
   ]
 }

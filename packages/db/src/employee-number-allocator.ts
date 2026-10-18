@@ -19,15 +19,14 @@ export class EmployeeNumberExhaustedError extends Error {
 }
 
 /**
- * يسند أول رقم وظيفي حر عند العدّاد أو بعده، ويقفل صف العدّاد قبل أي صف موظف.
- * api والـ worker يستدعيان هذه الدالة حتى يبقى الإنشاء اليدوي واستيراد الملف على تنفيذ واحد.
+ * يقفل صف عدّاد الرقم الوظيفي حتى لا يتسابق الإسناد التلقائي مع تعديل يدوي لنفس الشركة.
+ * التعديل اليدوي يستعير هذا القفل ولا يحرّك العدّاد؛ الإسناد وحده يحدّثه بعد التعيين.
  *
  * @param tx معاملة الشركة المفتوحة
- * @param companyId الشركة التي يُحجز رقمها
- * @returns الرقم المسنَد
+ * @param companyId الشركة التي يُقفل عدّادها
+ * @returns الرقم التالي المخزّن كما هو
  */
-export async function assignEmployeeNumber(tx: Tx, companyId: string): Promise<number> {
-  // ترتيب الأقفال: الشركة، ثم العضويات بالمعرف، ثم أقفال معاينة الاستيراد ومفتاح التكرار (مسارات الاستيراد فقط)، ثم صف العدّاد، ثم صفوف الموظفين، ثم المرفقات والتدقيق.
+export async function lockEmployeeNumberCounter(tx: Tx, companyId: string): Promise<number> {
   await tx.execute(
     sql`INSERT INTO employee_number_sequences(company_id) VALUES (${companyId}) ON CONFLICT DO NOTHING`,
   );
@@ -35,7 +34,22 @@ export async function assignEmployeeNumber(tx: Tx, companyId: string): Promise<n
     sql`SELECT next_number FROM employee_number_sequences WHERE company_id = ${companyId} FOR UPDATE`,
   );
   if (sequence === undefined) throw new Error('EMPLOYEE_PERSISTENCE_FAILED');
-  const assigned = await firstUnused(tx, companyId, sequence.next_number);
+  return sequence.next_number;
+}
+
+/**
+ * يسند أول رقم وظيفي حر عند العدّاد أو بعده، ويقفل صف العدّاد قبل أي صف موظف.
+ * api والـ worker يستدعيان هذه الدالة حتى يبقى الإنشاء اليدوي واستيراد الملف على تنفيذ واحد.
+ * القفل مشترك مع التعديل اليدوي؛ هذا المسار وحده يحرّك العدّاد بعد الإسناد.
+ *
+ * @param tx معاملة الشركة المفتوحة
+ * @param companyId الشركة التي يُحجز رقمها
+ * @returns الرقم المسنَد
+ */
+export async function assignEmployeeNumber(tx: Tx, companyId: string): Promise<number> {
+  // ترتيب الأقفال: الشركة، ثم العضويات بالمعرف، ثم أقفال معاينة الاستيراد ومفتاح التكرار (مسارات الاستيراد فقط)، ثم صف العدّاد، ثم صفوف الموظفين، ثم المرفقات والتدقيق.
+  const nextNumber = await lockEmployeeNumberCounter(tx, companyId);
+  const assigned = await firstUnused(tx, companyId, nextNumber);
   if (assigned === null) throw new EmployeeNumberExhaustedError();
   await tx.execute(sql`
     UPDATE employee_number_sequences

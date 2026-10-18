@@ -35,7 +35,7 @@ export const OWNER_DERIVED_PERMISSIONS = [
   'manage:salaries:business',
 ] as const satisfies readonly Permission[];
 
-/** صلاحيات الوثائق والدوام ولوحة الحضور وطلبات تعديله وهوية النشاط متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
+/** صلاحيات الوثائق والدوام ولوحة الحضور وطلبات تعديله وهوية النشاط والرقم الوظيفي متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
 export const OWNER_GRANTED_PERMISSIONS = [
   'read:attendance:branch',
   'read:files:business',
@@ -46,6 +46,7 @@ export const OWNER_GRANTED_PERMISSIONS = [
   'decide:attendance-change:company',
   'manage:employee-hours:business',
   'manage:business-identity:business',
+  'manage:employee-number:company',
 ] as const satisfies readonly Permission[];
 
 /** التفويض الشخصي للجدول والقوالب يخص الأدوار البشرية؛ دور الجهاز محظور في كل خانة. */
@@ -87,6 +88,8 @@ export const ROLE_DEFAULTS = {
   'manage:schedule-settings:business': ['owner'],
   // قرار المالك DH-Q5 بتاريخ 2026-10-10: إدارة الدوام الافتراضي للمالك وحده افتراضياً.
   'manage:employee-hours:business': ['owner'],
+  // قرار المالك EN-Q11 بتاريخ 2026-10-17 (الدفعة 27): إدارة الرقم الوظيفي للمالك وحده افتراضياً، ويمنحها لأي دور بشري.
+  'manage:employee-number:company': ['owner'],
   'read:memberships:company': ['owner'],
   'manage:memberships:company': ['owner'],
   'read:memberships:business': ['owner'],

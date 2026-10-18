@@ -220,7 +220,7 @@ export const en = {
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'The contract end must be on or after the hire date.',
     EMPLOYEE_USER_ALREADY_LINKED:
       'This user already has an active employee record in this business.',
-    EMPLOYEE_NUMBER_EXHAUSTED: 'The company has no free employee numbers left, so none can be assigned automatically.',
+    EMPLOYEE_NUMBER_EXHAUSTED: 'The company has no free employee numbers left, so none can be assigned automatically.', EMPLOYEE_NUMBER_TAKEN: 'This employee number is already used by another employee in the company.',
     EMPLOYEE_CARD_CODE_UNAVAILABLE: "This card code can't be used. Choose another code.",
     ...employeeImportErrorsEn,
     ...serviceErrorsEn,

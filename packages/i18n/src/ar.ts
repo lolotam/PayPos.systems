@@ -219,6 +219,7 @@ export const ar: Catalog = {
     EMPLOYEE_USER_ALREADY_LINKED: 'هذا المستخدم مرتبط بالفعل بموظف نشط في هذا النشاط.',
     EMPLOYEE_NUMBER_EXHAUSTED:
       'نفدت الأرقام الوظيفية المتاحة في الشركة، فلا يمكن إسناد رقم تلقائي جديد.',
+    EMPLOYEE_NUMBER_TAKEN: 'الرقم الوظيفي مستخدم بالفعل لموظف آخر في الشركة.',
     EMPLOYEE_CARD_CODE_UNAVAILABLE: 'لا يمكن استخدام كود الكارت هذا. اختر كودًا آخر.',
     ...employeeImportErrorsAr,
     ...serviceErrorsAr,
