@@ -1,4 +1,5 @@
 import { sessionPerformerCursorData, type SessionPerformerOptionPage, type SessionPerformerOptionsQuery } from '@pospay/contracts';
+import { parseEmployeeNumber } from '@pospay/domain';
 import type { Tx } from '@pospay/db';
 import type { SQL } from 'drizzle-orm';
 import { searchHash, cursorScope, encodeCursor, decodeCursor } from '../../../shared/persistence/name-options-cursor.ts';
@@ -32,7 +33,8 @@ export const sessionPerformerCursorCodec = {
 
 export function createSessionReaders(reads: {
   page(tx: Tx, companyId: string, businessId: string, branchId: string, day: string, query: SessionPerformerOptionsQuery,
-    codec: typeof sessionPerformerCursorCodec, requestedAt: string, scopeHash: string): Promise<SessionPerformerOptionPage>;
+    codec: typeof sessionPerformerCursorCodec, requestedAt: string, scopeHash: string,
+    employeeNumber: number | null): Promise<SessionPerformerOptionPage>;
   warningColumns(branchId: string, day: string, occurredAt: Date): SQL;
 }) {
   return {
@@ -51,7 +53,8 @@ export function createSessionReaders(reads: {
       // تثبيت لحظة الصفحة الأولى يمنع تبدّل الإجازة الجزئية؛ نتيجة تطبيع الساعة الجديدة لا تُستخدم بعد فحص النافذة.
       if (cursor !== null) normalizeTime(effectiveAt);
       const day = attendanceWorkingDate(new Date(effectiveAt), place.timezone);
-      return reads.page(tx, companyId, businessId, branchId, day, { ...query, occurred_at: effectiveAt }, sessionPerformerCursorCodec, requestedAt, scopeHash);
+      return reads.page(tx, companyId, businessId, branchId, day, { ...query, occurred_at: effectiveAt },
+        sessionPerformerCursorCodec, requestedAt, scopeHash, (query.q === undefined ? null : parseEmployeeNumber(query.q.trim())));
     },
   };
 }

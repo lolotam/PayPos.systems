@@ -87,7 +87,7 @@ it('supports a disabled editor without fresh reads', () => {
 it('feeds edited UTC to performer options without replacing the chosen performer', async () => {
   mount(); const previous = get.getMockImplementation();
   get.mockImplementation((path, options) => path.endsWith('/performer-options') ? Promise.resolve({ data: {
-    items: [{ id: service.id, name_ar: null, name_en: 'Synthetic performer', not_clocked_in_warning: false, approved_leave_warning: false }], next_cursor: null,
+    items: [{ id: service.id, name_ar: null, name_en: 'Synthetic performer', employee_number: null, not_clocked_in_warning: false, approved_leave_warning: false }], next_cursor: null,
   } }) : previous?.(path, options));
   const time = screen.getByLabelText(t('en', 'serviceSessions.occurredAt'));
   fireEvent.change(time, { target: { value: '2026-10-12T17:00' } });

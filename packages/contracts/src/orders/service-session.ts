@@ -1,11 +1,12 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id as sharedId } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { lateServiceSessionNoticeRequested } from './late-service-session-notice.js';
 import { serviceLineCancelNoticeRequested } from './service-line-cancel-notice.js';
 import { serviceLineEditNoticeRequested } from './service-line-edit-notice.js';
 import { serviceLinePerformersNoticeRequested } from './service-line-performers-notice.js';
-import { serviceCommissionRule } from '../catalog/service.js';
+import { serviceCommissionRule, serviceCommissionRuleView } from '../catalog/service.js';
 const id = sharedId.toLowerCase();
 
 export const sessionMoney = z.string().regex(/^(0|[1-9]\d{0,10})\.\d{3}$/).meta({ id: 'SessionMoney' });
@@ -28,30 +29,30 @@ export const recordServiceSessionInput = z.strictObject({
   customer_id: id, occurred_at: timestamp.optional(), ...writeFields,
 }).meta({ id: 'RecordServiceSessionInput' });
 export const appendServiceSessionLinesInput = z.strictObject(writeFields).meta({ id: 'AppendServiceSessionLinesInput' });
-export const sessionPerformer = z.strictObject({
+export const sessionPerformer = responseObject({
   id, employee_id: id, performer_ordinal: z.number().int().min(1).max(4), share_bps: bps.min(1), ...names,
   not_clocked_in_warning: z.boolean(), approved_leave_warning: z.boolean(),
 }).meta({ id: 'SessionPerformer' });
-export const savedServiceLine = z.strictObject({
+export const savedServiceLine = responseObject({
   id, session_id: id, service_id: id, input_index: z.number().int().min(0).max(19),
   ordinal: z.number().int().min(1).max(20), ...names,
   list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney,
   effective_discount_bps: bps, limit_bps_applied: bps.nullable(),
   limit_source: z.enum(['OWNER', 'PERSON', 'BUSINESS', 'NOT_CONFIGURED']),
   status: z.enum(['ACTIVE', 'CANCELLED']), revision: z.number().int().positive(),
-  rule_snapshot: serviceCommissionRule, counts_snapshot: z.boolean(), catalog_revision: z.number().int().positive(),
+  rule_snapshot: serviceCommissionRuleView, counts_snapshot: z.boolean(), catalog_revision: z.number().int().positive(),
   has_performer_warning: z.boolean(), performers: z.array(sessionPerformer).min(1).max(4),
   recorded_by: id, recorded_by_membership_id: id, recorded_at: timestamp, late: z.boolean(),
   // الغياب يعني «لم يُعدَّل» من غير .default، حتى يُعاد جسم التسجيل القديم بايتاً ببايت.
   edited: z.boolean().optional(),
 }).meta({ id: 'SavedServiceLine' });
-export const serviceSession = z.strictObject({
-  id, business_id: id, branch_id: id, customer: z.strictObject({ id, name: z.string(), phone_masked: z.string() }),
+export const serviceSession = responseObject({
+  id, business_id: id, branch_id: id, customer: responseObject({ id, name: z.string(), phone_masked: z.string() }),
   recorded_by: id, recorded_by_membership_id: id, occurred_at: timestamp, recorded_at: timestamp,
   business_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), business_timezone: z.string(), late: z.boolean(),
   total_net: sessionMoney, lines: z.array(savedServiceLine).min(1).max(20),
 }).meta({ id: 'ServiceSession' });
-export const rejectedServiceLine = z.strictObject({
+export const rejectedServiceLine = responseObject({
   input_index: z.number().int().min(0).max(19), service_id: id, ...names,
   code: z.literal('SESSION_DISCOUNT_ABOVE_LIMIT'), message_ar: z.string(), message_en: z.string(),
   list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney,
@@ -59,8 +60,8 @@ export const rejectedServiceLine = z.strictObject({
   minimum_net: sessionMoney, max_discount_amount: sessionMoney,
 }).meta({ id: 'RejectedServiceLine' });
 const responseFields = { outcome: z.enum(['COMPLETE', 'PARTIAL']), session: serviceSession, rejected_lines: z.array(rejectedServiceLine).max(20) };
-export const recordServiceSessionResponse = z.strictObject(responseFields).meta({ id: 'RecordServiceSessionResponse' });
-export const appendServiceSessionLinesResponse = z.strictObject({ ...responseFields, added_lines: z.array(savedServiceLine).min(1).max(20) })
+export const recordServiceSessionResponse = responseObject(responseFields).meta({ id: 'RecordServiceSessionResponse' });
+export const appendServiceSessionLinesResponse = responseObject({ ...responseFields, added_lines: z.array(savedServiceLine).min(1).max(20) })
   .meta({ id: 'AppendServiceSessionLinesResponse' });
 export const editServiceLineInput = z.strictObject({
   price: sessionMoney,
@@ -71,11 +72,11 @@ export const editServiceLineInput = z.strictObject({
   editor_membership_id: id.optional(),
 }).meta({ id: 'EditServiceLineInput' });
 const editedServiceLine = savedServiceLine.safeExtend({ edited: z.literal(true) });
-export const editServiceLineResponseFull = z.strictObject({
+export const editServiceLineResponseFull = responseObject({
   line: editedServiceLine,
-  session: z.strictObject({ id, total_net: sessionMoney }),
+  session: responseObject({ id, total_net: sessionMoney }),
 }).meta({ id: 'EditServiceLineResponseFull' });
-export const editServiceLineResponseNarrow = z.strictObject({
+export const editServiceLineResponseNarrow = responseObject({
   saved: z.literal(true),
   edited: z.literal(true),
 }).meta({ id: 'EditServiceLineResponseNarrow' });

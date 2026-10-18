@@ -148,15 +148,17 @@ it('requires edited true on the full edit response', () => {
   const session = { id, total_net: '20.000' };
   expect(editServiceLineResponseFull.safeParse({ line: persistedLine, session }).success).toBe(false);
   expect(editServiceLineResponseFull.safeParse({ line: { ...persistedLine, edited: false }, session }).success).toBe(false);
-  expect(editServiceLineResponseFull.parse({ line: { ...persistedLine, edited: true }, session }).line.edited).toBe(true);
-  expect(editServiceLineResponseFull.safeParse({ line: { ...persistedLine, edited: true, extra: true }, session }).success).toBe(false);
-  expect(editServiceLineResponseFull.safeParse({ line: { ...persistedLine, edited: true }, session, price: '1.000' }).success).toBe(false);
+  const full = { line: { ...persistedLine, edited: true }, session };
+  const parsed = editServiceLineResponseFull.parse(full);
+  expect(parsed.line.edited).toBe(true);
+  expect(editServiceLineResponseFull.parse({ line: { ...persistedLine, edited: true, extra: true }, session })).toEqual(parsed);
+  expect(editServiceLineResponseFull.parse({ ...full, price: '1.000' })).toEqual(parsed);
 });
-it('rejects any extra key on the narrow edit response', () => {
+it('drops unknown keys on the narrow edit response', () => {
   const narrow = { saved: true, edited: true };
   expect(editServiceLineResponse.parse(narrow)).toEqual(narrow);
   for (const extra of [{ price: '20.000' }, { revision: 2 }, { session: { id, total_net: '20.000' } }, { line: persistedLine }]) {
-    expect(editServiceLineResponseNarrow.safeParse({ ...narrow, ...extra }).success).toBe(false);
-    expect(editServiceLineResponse.safeParse({ ...narrow, ...extra }).success).toBe(false);
+    expect(editServiceLineResponseNarrow.parse({ ...narrow, ...extra })).toEqual(narrow);
+    expect(editServiceLineResponse.parse({ ...narrow, ...extra })).toEqual(narrow);
   }
 });

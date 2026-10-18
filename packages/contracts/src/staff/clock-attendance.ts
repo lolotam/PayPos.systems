@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { attendanceQrToken } from './attendance-qr.js';
@@ -55,8 +56,7 @@ export const clockChallenge = z
     }),
   })
   .meta({ id: 'ClockChallenge' });
-export const clockAttendanceResult = z
-  .strictObject({
+export const clockAttendanceResult = responseObject({
     session_id: id,
     operation: z.enum(['CLOCK_IN', 'CLOCK_OUT']),
     working_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id as sharedId } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 
@@ -17,18 +18,18 @@ export const serviceSessionRecoveryCursor = z.strictObject({
   v: z.literal(1), company: id, business: id, branch: id, operation: serviceSessionRecoveryOperation, proof: id,
   at: instant, id,
 });
-export const serviceSessionRecoveryLine = z.strictObject({
+export const serviceSessionRecoveryLine = responseObject({
   id, ordinal: z.number().int().min(1).max(20), name_ar: z.string().nullable(), name_en: z.string(),
 }).meta({ id: 'ServiceSessionRecoveryLine' });
-export const serviceSessionRecoveryVisit = z.strictObject({
+export const serviceSessionRecoveryVisit = responseObject({
   id, occurred_at: timestamp, customer_name: z.string(), customer_phone_masked: z.string(),
   lines: z.array(serviceSessionRecoveryLine).min(1).max(20),
 }).meta({ id: 'ServiceSessionRecoveryVisit' });
-export const serviceSessionRecoveryAttempt = z.strictObject({
+export const serviceSessionRecoveryAttempt = responseObject({
   business_date: date, business_timezone: z.string(), issued_at: timestamp, expires_at: timestamp,
   outcome: z.enum(['COMMITTED', 'NOT_COMMITTED']).optional(),
 }).meta({ id: 'ServiceSessionRecoveryAttempt' });
-export const serviceSessionRecoveryPage = z.strictObject({
+export const serviceSessionRecoveryPage = responseObject({
   items: z.array(serviceSessionRecoveryVisit).max(50), next_cursor: z.string().max(512).nullable(),
   attempt: serviceSessionRecoveryAttempt,
 }).meta({ id: 'ServiceSessionRecoveryPage' });

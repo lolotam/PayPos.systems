@@ -1,9 +1,13 @@
-import type { CreateEmployeeInput, CreatedEmployee, Employee } from '@pospay/contracts';
+import type { CreateEmployeeInput, CreatedEmployee } from '@pospay/contracts';
 import { employeeNameMatchKey } from '@pospay/domain';
 
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
-import { EmployeeCreationError, validateEmployeeCreation } from '../../domain/create-employee.ts';
+import {
+  EmployeeCreationError,
+  validateEmployeeCreation,
+  type EmployeeRecord,
+} from '../../domain/create-employee.ts';
 import type { EmployeeTransactions } from '../../ports/employee-transactions.port.ts';
 
 export { EmployeeCreationError } from '../../domain/create-employee.ts';
@@ -26,7 +30,7 @@ export class CreateEmployeeUseCase {
       if (!(await scope.authorize(command.businessId, command.input.primary_branch_id)))
         throw new EmployeeCreationError('FORBIDDEN');
       const at = this.clock.now();
-      const record: Employee = {
+      const record: EmployeeRecord = {
         ...command.input,
         id: this.ids.newId(),
         business_id: command.businessId,

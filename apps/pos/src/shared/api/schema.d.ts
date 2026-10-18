@@ -945,7 +945,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. */
+        /** @description Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. Optional employee_number is an exact match combined with that scope. */
         get: operations["listEmployees"];
         put?: never;
         /** @description Requires manage:employees:business at the primary branch and staff feature. Missing, other-business and other-company primary branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature or employee diagnostics. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). The response is CreatedEmployee; employee_number is the automatic number or null. No free number left returns EMPLOYEE_NUMBER_EXHAUSTED (422) and writes nothing. */
@@ -1519,6 +1519,23 @@ export interface paths {
         patch: operations["editServiceLine"];
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/edits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Newest-first price-edit history for one saved line. Requires read:service-sessions:branch and the orders feature. edit:service-line-prices:branch does not grant this read. A line, session, branch or company mismatch is a uniform 403. The reason is returned only here. The scoped cursor carries the last revision. */
+        get: operations["listServiceLineEdits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/performer-options": {
         parameters: {
             query?: never;
@@ -1526,7 +1543,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. Uses the POST time window and future-tolerance normalization. Required UI lang orders globally by the displayed name (selected language with fallback to the other name) COLLATE "und-x-icu", then id. Opaque base64url cursor contains the exact displayed name, id, lang, hash of normalized q, canonical requested_at, first-page effective_at and hash of company/business/branch scope. Later pages keep the requested instant unchanged and reuse effective_at after rechecking the recording window; malformed or mismatched cursors return 400. Case-insensitive search matches either name. No private HR fields or wider staff permission. */
+        /** @description Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. Uses the POST time window and future-tolerance normalization. Required UI lang orders globally by the displayed name (selected language with fallback to the other name) COLLATE "und-x-icu", then id. Opaque base64url cursor contains the exact displayed name, id, lang, hash of normalized q, canonical requested_at, first-page effective_at and hash of company/business/branch scope. Later pages keep the requested instant unchanged and reuse effective_at after rechecking the recording window; malformed or mismatched cursors return 400. Case-insensitive search matches either name. A digits-only q also matches the employee number exactly (number OR name). No private HR fields or wider staff permission. */
         get: operations["getServiceSessionPerformerOptions"];
         put?: never;
         post?: never;
@@ -2894,7 +2911,13 @@ export interface components {
             name_en: string;
             name_ar: string | null;
             schedule: components["schemas"]["StaffSchedule"] | null;
-            default_shifts: components["schemas"]["ScheduleShift"][];
+            default_shifts: {
+                day: number;
+                start: string;
+                end: string;
+                break_start?: string | null;
+                break_end?: string | null;
+            }[];
         };
         ScheduleGrid: {
             week_start: components["schemas"]["EmployeeDate"];
@@ -3007,6 +3030,7 @@ export interface components {
             user_id: string | null;
             /** Format: date-time */
             created_at: string;
+            employee_number: number | null;
             revision: number;
             branch_ids: string[];
         };
@@ -3019,6 +3043,7 @@ export interface components {
             /** Format: uuid */
             primary_branch_id: string;
             hire_date: components["schemas"]["EmployeeDate"];
+            employee_number: number | null;
         };
         EmployeePage: {
             items: components["schemas"]["EmployeeListItem"][];
@@ -3029,6 +3054,7 @@ export interface components {
             cursor?: string;
             /** @default 20 */
             limit: number;
+            employee_number?: string;
         };
         DiscountLimit: {
             limit_bps: number | null;
@@ -3143,6 +3169,8 @@ export interface components {
             headers: {
                 "content-type": string;
                 "content-length": string;
+            } & {
+                [key: string]: unknown;
             };
         };
         FileStatus: {
@@ -3187,6 +3215,7 @@ export interface components {
             user_id: string | null;
             /** Format: date-time */
             created_at: string;
+            employee_number: number | null;
         };
         CreatedEmployee: {
             /** Format: uuid */
@@ -3327,7 +3356,21 @@ export interface components {
             name_en: string;
             name_ar: string | null;
             price: components["schemas"]["ServicePrice"];
-            commission_rule: components["schemas"]["ServiceCommissionRule"];
+            commission_rule: {
+                /** @enum {string} */
+                kind: "FOLLOW_PLAN";
+            } | {
+                /** @enum {string} */
+                kind: "ZERO";
+            } | {
+                /** @enum {string} */
+                kind: "PCT";
+                value: number;
+            } | {
+                /** @enum {string} */
+                kind: "FIXED";
+                value: components["schemas"]["ServicePrice"];
+            };
             counts_toward_threshold: boolean;
             revision: number;
             /** Format: date-time */
@@ -3341,7 +3384,21 @@ export interface components {
             name_en: string;
             name_ar: string | null;
             price: components["schemas"]["ServicePrice"];
-            commission_rule: components["schemas"]["ServiceCommissionRule"];
+            commission_rule: {
+                /** @enum {string} */
+                kind: "FOLLOW_PLAN";
+            } | {
+                /** @enum {string} */
+                kind: "ZERO";
+            } | {
+                /** @enum {string} */
+                kind: "PCT";
+                value: number;
+            } | {
+                /** @enum {string} */
+                kind: "FIXED";
+                value: components["schemas"]["ServicePrice"];
+            };
             counts_toward_threshold: boolean;
             revision: number;
         };
@@ -3500,7 +3557,21 @@ export interface components {
             /** @enum {string} */
             status: "ACTIVE" | "CANCELLED";
             revision: number;
-            rule_snapshot: components["schemas"]["ServiceCommissionRule"];
+            rule_snapshot: {
+                /** @enum {string} */
+                kind: "FOLLOW_PLAN";
+            } | {
+                /** @enum {string} */
+                kind: "ZERO";
+            } | {
+                /** @enum {string} */
+                kind: "PCT";
+                value: number;
+            } | {
+                /** @enum {string} */
+                kind: "FIXED";
+                value: components["schemas"]["ServicePrice"];
+            };
             counts_snapshot: boolean;
             catalog_revision: number;
             has_performer_warning: boolean;
@@ -3614,7 +3685,21 @@ export interface components {
                 /** @enum {string} */
                 status: "ACTIVE" | "CANCELLED";
                 revision: number;
-                rule_snapshot: components["schemas"]["ServiceCommissionRule"];
+                rule_snapshot: {
+                    /** @enum {string} */
+                    kind: "FOLLOW_PLAN";
+                } | {
+                    /** @enum {string} */
+                    kind: "ZERO";
+                } | {
+                    /** @enum {string} */
+                    kind: "PCT";
+                    value: number;
+                } | {
+                    /** @enum {string} */
+                    kind: "FIXED";
+                    value: components["schemas"]["ServicePrice"];
+                };
                 counts_snapshot: boolean;
                 catalog_revision: number;
                 has_performer_warning: boolean;
@@ -4145,6 +4230,7 @@ export interface components {
             /** @enum {string} */
             status: "ACTIVE" | "CANCELLED";
             revision: number;
+            edited: boolean;
             list_price: components["schemas"]["SessionMoney"];
             price: components["schemas"]["SessionMoney"];
             discount: components["schemas"]["SessionMoney"];
@@ -4183,6 +4269,33 @@ export interface components {
         };
         ServiceSessionDayPage: {
             items: components["schemas"]["ServiceSessionDayItem"][];
+            next_cursor: string | null;
+        };
+        ServiceLineEditsQuery: {
+            /** @default 50 */
+            limit: number;
+            cursor?: string;
+        };
+        ServiceLineEditItem: {
+            revision: number;
+            previous: {
+                price: components["schemas"]["SessionMoney"];
+                discount: components["schemas"]["SessionMoney"];
+                net: components["schemas"]["SessionMoney"];
+            };
+            new: {
+                price: components["schemas"]["SessionMoney"];
+                discount: components["schemas"]["SessionMoney"];
+                net: components["schemas"]["SessionMoney"];
+            };
+            /** Format: date-time */
+            changed_at: string;
+            editor_label_ar: string;
+            editor_label_en: string;
+            reason: string;
+        };
+        ServiceLineEditsPage: {
+            items: components["schemas"]["ServiceLineEditItem"][];
             next_cursor: string | null;
         };
         RecordingContextQuery: {
@@ -4260,6 +4373,7 @@ export interface components {
             id: string;
             name_ar: string | null;
             name_en: string;
+            employee_number: number | null;
             not_clocked_in_warning: boolean;
             approved_leave_warning: boolean;
         };
@@ -8438,6 +8552,8 @@ export interface operations {
             query?: {
                 cursor?: string;
                 limit?: number;
+                /** @description Exact employee number: digits only, leading zeros ignored, 1..999999; anything else is 400. */
+                employee_number?: string;
             };
             header: {
                 "x-company-id": string;
@@ -10553,13 +10669,70 @@ export interface operations {
             };
         };
     };
+    listServiceLineEdits: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+                lineId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Edit history newest first. Money is canonical three-decimal text. next_cursor is null on the last page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceLineEditsPage"];
+                };
+            };
+            /** @description Invalid query or a cursor for another company, business, branch, session or line. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform scope/authority refusal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication/readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getServiceSessionPerformerOptions: {
         parameters: {
             query: {
                 /** @description From the first of the previous month in business timezone through injected server now + 120 seconds. Tolerated future values normalize to server now. */
                 occurred_at: string;
                 lang: "ar" | "en";
-                /** @description Trimmed, literal substring of name_ar or name_en, case-folded with ICU; percent and underscore are literal; NUL is rejected with 400. */
+                /** @description Trimmed, literal substring of name_ar or name_en, case-folded with ICU; percent and underscore are literal; NUL is rejected with 400. A digits-only q also matches the employee number exactly (number OR name). */
                 q?: string;
                 /** @description Opaque base64url cursor from the previous page; keep lang, q and requested occurred_at unchanged. The first-page effective instant remains fixed. */
                 cursor?: string;

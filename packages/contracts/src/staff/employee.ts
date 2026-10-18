@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 
 import { nameAr, nameEn } from '../bilingual/names.js';
 import { id } from '../scalars/id.js';
@@ -36,8 +37,9 @@ export const createEmployeeInput = z
     user_id: employeeInputId.nullable().optional(),
   })
   .meta({ id: 'CreateEmployeeInput' });
-export const employee = z
-  .object({
+// الرقم أرقام صحيحة بلا فواصل (D-2)؛ NULL يبقى null والشرطة شأن الشاشة (TD-10).
+const employeeNumber = z.number().int().min(1).max(999999).nullable();
+export const employee = responseObject({
     id,
     business_id: id,
     primary_branch_id: id,
@@ -48,11 +50,12 @@ export const employee = z
     contract_end: employeeDate.nullable(),
     user_id: id.nullable(),
     created_at: timestamp,
+    employee_number: employeeNumber,
   })
   .meta({ id: 'Employee' });
-// الرد وحده يحمل الرقم في 8c-2؛ مخطط الموظف وتفاصيله يبقيان بلا الحقل حتى يضيفه منتجو القراءة في 8c-4.
+// نفس تعريف الرقم على الموظف الموسّع حتى يبقى مخطط CreatedEmployee المنشور من 8c-2 كما هو.
 export const createdEmployee = employee
-  .extend({ employee_number: z.number().int().min(1).max(999999).nullable() })
+  .extend({ employee_number: employeeNumber })
   .meta({ id: 'CreatedEmployee' });
 export type CreateEmployeeInput = z.infer<typeof createEmployeeInput>;
 export type Employee = z.infer<typeof employee>;

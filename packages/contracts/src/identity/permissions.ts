@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { discountLimit } from './discount-limit.js';
 
 import { page, pageQuery } from '../pagination/cursor.js';
@@ -25,15 +26,14 @@ export const permissionOverrideInput = z
     expires_at: timestamp.nullable(),
   })
   .meta({ id: 'PermissionOverrideInput' });
-export const permissionOverride = permissionOverrideInput
-  .extend({
-    id,
-    granted_by: id,
-    granted_at: timestamp,
-  })
-  .meta({ id: 'PermissionOverride' });
-export const permissionMembership = z
-  .object({
+// نسخة الرد بتتشال منها المفاتيح الزيادة؛ طلب المنح لسه بيرفضها (ADR-0047).
+export const permissionOverride = responseObject({
+  ...permissionOverrideInput.shape,
+  id,
+  granted_by: id,
+  granted_at: timestamp,
+}).meta({ id: 'PermissionOverride' });
+export const permissionMembership = responseObject({
     id,
     user_id: id.nullable(),
     employee_id: id.nullable(),
@@ -52,8 +52,7 @@ export const permissionMembershipPage = page(permissionMembership).meta({
 export const permissionOverridePage = page(permissionOverride).meta({
   id: 'PermissionOverridePage',
 });
-export const membershipPermissions = z
-  .object({
+export const membershipPermissions = responseObject({
     membership: permissionMembership,
     role_defaults: z.array(z.string()),
     permission_catalog: z.array(z.string()),

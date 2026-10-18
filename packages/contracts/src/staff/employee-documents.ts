@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { nameAr, nameEn } from '../bilingual/names.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
@@ -26,8 +27,7 @@ export const updateDocumentTypeInput = z
 export const documentTypeRevisionInput = z
   .strictObject({ expected_revision: revision })
   .meta({ id: 'DocumentTypeRevisionInput' });
-export const documentType = z
-  .strictObject({
+export const documentType = responseObject({
     id,
     code: documentTypeCode,
     name_en: z.string(),
@@ -38,8 +38,7 @@ export const documentType = z
     revision,
   })
   .meta({ id: 'DocumentType' });
-export const documentTypeList = z
-  .strictObject({ items: z.array(documentType) })
+export const documentTypeList = responseObject({ items: z.array(documentType) })
   .meta({ id: 'DocumentTypeList' });
 
 export const recordEmployeeDocumentInput = z
@@ -49,8 +48,7 @@ export const recordEmployeeDocumentInput = z
     expires_on: documentDate.nullable(),
   })
   .meta({ id: 'RecordEmployeeDocumentInput' });
-export const employeeDocument = z
-  .strictObject({
+export const employeeDocument = responseObject({
     id,
     employee_id: id,
     type_code: documentTypeCode,
@@ -63,8 +61,7 @@ export const employeeDocument = z
     status: documentStatus,
   })
   .meta({ id: 'EmployeeDocument' });
-export const employeeDocumentsView = z
-  .strictObject({
+export const employeeDocumentsView = responseObject({
     today: documentDate,
     items: z.array(employeeDocument),
     types: z.array(documentType),

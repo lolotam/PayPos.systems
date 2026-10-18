@@ -12,7 +12,7 @@ vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale
 const scope = { companyId: 'company', businessId: 'business', branchId: 'branch', userId: 'actor' };
 const instant = '2026-10-13T08:00:00.000Z';
 const items = [1, 2, 3, 4].map((n) => ({ id: `01920000-0000-7000-8000-0000000000a${n}`, name_ar: String.fromCharCode(0x645, 0x648, 0x638, 0x641, 0x629) + ' ' + n, name_en: `Synthetic ${n}`,
-  not_clocked_in_warning: n === 1, approved_leave_warning: n === 2 }));
+  employee_number: null, not_clocked_in_warning: n === 1, approved_leave_warning: n === 2 }));
 let form: ReturnType<typeof useForm<SessionDraftForm>>;
 function Harness({ at, place = scope, disabled = false, submit = vi.fn() }: { at?: string; place?: typeof scope; disabled?: boolean; submit?: (data: unknown) => void }) {
   const methods = useForm<SessionDraftForm>({ defaultValues: { lines: [createSessionDraft('line')] } });

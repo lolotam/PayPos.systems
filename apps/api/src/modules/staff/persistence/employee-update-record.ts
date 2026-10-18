@@ -10,7 +10,7 @@ export async function lockedEmployee(
   employeeId: string,
 ): Promise<{ record: EmployeeDetail; history: readonly BranchAttachment[] } | null> {
   const [row] =
-    await tx.execute(sql`SELECT id,business_id,primary_branch_id,name_ar,name_en,role_code,user_id,
+    await tx.execute(sql`SELECT id,business_id,primary_branch_id,name_ar,name_en,role_code,user_id,employee_number,
     to_char(hire_date,'YYYY-MM-DD') AS hire_date,to_char(contract_end,'YYYY-MM-DD') AS contract_end,
     to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,revision
     FROM employees WHERE company_id=${companyId} AND business_id=${businessId} AND id=${employeeId} AND deleted_at IS NULL FOR UPDATE`);

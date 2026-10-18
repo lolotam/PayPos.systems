@@ -18,32 +18,35 @@ export function sessionPerformerWarningColumns(branchId: string, day: string, oc
           AND l.ends_at>${occurredAt.toISOString()}::timestamptz))) AS approved_leave`;
 }
 
-// منتقي الموظفات يعرض الأهلية التاريخية والأسماء والتنبيهين فقط؛ فلاتر الأهلية تسبق حد الصفحة.
+// منتقي الاستقبال: نص أرقام يطابق الرقم عبر المفتاح الفريد أو الاسم كما هو؛ الأهلية تسبق حد الصفحة.
 export function sessionPerformerOptionsStatement(companyId: string, businessId: string, branchId: string,
-  day: string, query: SessionPerformerOptionsQuery, cursor: { key: string; id: string } | null) {
+  day: string, query: SessionPerformerOptionsQuery, cursor: { key: string; id: string } | null,
+  employeeNumber: number | null = null) {
   const name = query.lang === 'ar'
     ? sql`coalesce(e.name_ar,e.name_en) COLLATE "und-x-icu"`
     : sql`coalesce(e.name_en,e.name_ar) COLLATE "und-x-icu"`;
   const escapedQ = query.q?.trim().replace(/[\\%_]/g, '\\$&');
+  const nameMatch = escapedQ === undefined ? sql`` : sql`(lower(e.name_ar COLLATE "und-x-icu") LIKE '%' || lower(${escapedQ}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'}
+    OR lower(e.name_en COLLATE "und-x-icu") LIKE '%' || lower(${escapedQ}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'})`;
   const after = cursor === null ? sql``
     : sql`AND (${name},e.id)>(${cursor.key}::text COLLATE "und-x-icu",${cursor.id}::uuid)`;
-  return sql`SELECT e.id,e.name_ar,e.name_en,${name} AS sort_key,${sessionPerformerWarningColumns(branchId, day, new Date(query.occurred_at))}
+  return sql`SELECT e.id,e.name_ar,e.name_en,e.employee_number,${name} AS sort_key,${sessionPerformerWarningColumns(branchId, day, new Date(query.occurred_at))}
     FROM employees e WHERE e.company_id=${companyId} AND e.business_id=${businessId}
       AND e.deleted_at IS NULL AND e.hire_date<=${day}::date AND (e.contract_end IS NULL OR e.contract_end>=${day}::date)
       AND EXISTS(SELECT 1 FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.business_id=e.business_id
         AND eb.employee_id=e.id AND eb.branch_id=${branchId} AND eb."from"<=${day}::date AND (eb."to" IS NULL OR eb."to">${day}::date))
       ${after}
-      ${escapedQ === undefined ? sql`` : sql`AND (lower(e.name_ar COLLATE "und-x-icu") LIKE '%' || lower(${escapedQ}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'}
-        OR lower(e.name_en COLLATE "und-x-icu") LIKE '%' || lower(${escapedQ}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'})`}
+      ${escapedQ === undefined ? sql`` : employeeNumber === null ? sql`AND ${nameMatch}` : sql`AND (${nameMatch} OR e.id IN (SELECT numbered.id FROM employees numbered WHERE numbered.company_id=${companyId} AND numbered.employee_number=${employeeNumber}))`}
     ORDER BY ${name} ASC,e.id ASC LIMIT ${query.limit + 1}`;
 }
 export async function sessionPerformerOptionsPage(tx: Tx, companyId: string, businessId: string, branchId: string,
-  day: string, query: SessionPerformerOptionsQuery, codec: CursorCodec, requestedAt: string, scopeHash: string) {
+  day: string, query: SessionPerformerOptionsQuery, codec: CursorCodec, requestedAt: string, scopeHash: string,
+  employeeNumber: number | null) {
   const normalizedQ = await normalizeSearch(tx, query);
-  const rows = await tx.execute<{ id: string; name_ar: string | null; name_en: string; sort_key: string; clocked_in: boolean; approved_leave: boolean }>(
-    sessionPerformerOptionsStatement(companyId, businessId, branchId, day, query, codec.decode(query, normalizedQ, requestedAt, scopeHash)));
+  const rows = await tx.execute<{ id: string; name_ar: string | null; name_en: string; employee_number: number | null; sort_key: string; clocked_in: boolean; approved_leave: boolean }>(
+    sessionPerformerOptionsStatement(companyId, businessId, branchId, day, query, codec.decode(query, normalizedQ, requestedAt, scopeHash), employeeNumber));
   const items = rows.slice(0, query.limit).map((r) => ({ id: r.id, name_ar: r.name_ar, name_en: r.name_en,
-    not_clocked_in_warning: !r.clocked_in, approved_leave_warning: r.approved_leave }));
+    employee_number: r.employee_number, not_clocked_in_warning: !r.clocked_in, approved_leave_warning: r.approved_leave }));
   const last = rows[items.length - 1];
   return sessionPerformerOptionPage.parse({ items, next_cursor: rows.length > query.limit && last !== undefined
     ? codec.encode(last.sort_key, last.id, query, normalizedQ, requestedAt, scopeHash) : null });

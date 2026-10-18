@@ -81,6 +81,11 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const savedAt = result.session?.occurred_at;
   const [seed] = useState(() => shownVisitTime(result.drafts, savedAt));
   const [leaveFailure, setLeaveFailure] = useState<{ source: SessionRecordingResult; feedback: SessionFeedback } | null>(null);
+  // العداد هنا عشان فك المحرر ما يفكّش القفل والـ PATCH لسه ما خلصش. النهاية بتيجي من finally حتى بعد الفك.
+  const [editsInFlight, setEditsInFlight] = useState(0);
+  const editBusy = editsInFlight > 0;
+  const beginLineEdit = () => { setEditsInFlight((count) => count + 1); };
+  const endLineEdit = () => { setEditsInFlight((count) => count - 1); };
   const form = useForm<SessionDraftForm>({ defaultValues: seed });
   const draftedAt = useWatch({ control: form.control, name: 'occurred_at' });
   const occurredAt = savedAt ?? draftedAt;
@@ -89,25 +94,26 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const unknownLeave = leaveFailure?.source === result ? leaveFailure.feedback : null;
   return <FormProvider {...form}>
     <form className="grid gap-4 text-start" noValidate onSubmit={form.handleSubmit(async (drafts) => {
+      if (editBusy) return;
       try { await recording.submit(drafts); } catch (error) { reportSessionSubmitError(form.setError, error, locale); }
     })}>
       <SessionCustomerField companyId={scope.companyId} branchId={scope.branchId} userId={scope.userId}
         value={result.customer} onChange={recording.selectCustomer} disabled={!online || locked} />
       {timeUnknown ? <div className="grid gap-2">
         <p role="alert">{t(locale, 'serviceSessions.unknownVisitTime')}</p>
-        <Button type="button" variant="outline" disabled={!journal} onClick={() => leaveUnknownTimeVisit(result, journal, recording.replaceResult, (feedback) => setLeaveFailure({ source: result, feedback }))}>{t(locale, 'serviceSessions.newVisitSameCustomer')}</Button>
+        <Button type="button" variant="outline" disabled={!journal || editBusy} onClick={() => { if (editBusy) return; leaveUnknownTimeVisit(result, journal, recording.replaceResult, (feedback) => setLeaveFailure({ source: result, feedback })); }}>{t(locale, 'serviceSessions.newVisitSameCustomer')}</Button>
         {unknownLeave ? <SessionWriteFeedback result={{ ...result, feedback: unknownLeave, attempt: null }} /> : null}
       </div> : <SessionTimeField context={context} disabled={locked} />}
       <SessionRecordingHeader scope={scope} disabled={!online || frozen} readOnly={membershipFixed} />
       <SessionDraftLines scope={scope} {...(occurredAt !== undefined ? { occurredAt } : {})} disabled={!online || frozen || timeUnknown} />
       <SessionRejectedLines result={result} onEdit={focusDraftPrice} />
       {rootError ? <p role="alert">{rootError}</p> : null}
-      <SessionWriteFeedback result={result} onRefreshScope={onRefreshScope} {...(online ? { onReplay: () => { void recording.retry(); } } : {})}
-        {...(journal && result.expiredAttempt ? { scope, timeZone: context.business_timezone, onConfirm: bindExpiredConfirm(recording, (proof) => revoke.mutateAsync(proof)) } : {})} />
-      <Button type="submit" disabled={!online || frozen || timeUnknown || !journal || (!result.sessionId && !result.customer)}>
+      <SessionWriteFeedback result={result} onRefreshScope={onRefreshScope} {...(online && !editBusy ? { onReplay: () => { void recording.retry(); } } : {})}
+        {...(journal && result.expiredAttempt && !editBusy ? { scope, timeZone: context.business_timezone, onConfirm: bindExpiredConfirm(recording, (proof) => revoke.mutateAsync(proof)) } : {})} />
+      <Button type="submit" disabled={!online || frozen || timeUnknown || editBusy || !journal || (!result.sessionId && !result.customer)} onClick={(event) => { if (editBusy) event.preventDefault(); }}>
         {t(locale, result.sessionId ? 'serviceSessions.correctAndAppend' : 'serviceSessions.save')}
       </Button>
     </form>
-    {journal ? <SessionSavedResult result={result} journal={journal} onNewVisit={recording.replaceResult} /> : null}
+    {journal ? <SessionSavedResult result={result} journal={journal} onNewVisit={recording.replaceResult} scope={scope} online={online} editBusy={editBusy} onRequestStart={beginLineEdit} onRequestEnd={endLineEdit} /> : null}
   </FormProvider>;
 }

@@ -303,6 +303,9 @@ reads:
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/performers-change-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/performers-change-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/performers-change-place.adapter.ts
+  - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts
+  - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts
+  - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/line-cancel-place.adapter.ts
   - orders -> staff.employeeNamesByUser @ apps/api/src/modules/orders/persistence/editor-name.adapter.ts
   - orders -> identity.lockServiceSessionEditAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> identity.readServiceSessionEditAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts

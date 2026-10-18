@@ -18,6 +18,7 @@ const before: EditableEmployee = {
   created_at: '2026-10-03T00:00:00Z',
   revision: 1,
   branch_ids: ['A'],
+  employee_number: null,
 };
 const active = [{ id: 'attachment-A', branchId: 'A', from: '2026-01-01', to: null }];
 const terms: EmployeeUpdateTerms = {

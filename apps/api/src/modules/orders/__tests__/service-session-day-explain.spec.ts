@@ -16,13 +16,13 @@ beforeAll(async () => {
   for (const branch of branches.slice(1)) await f.h.owner`INSERT INTO branches(company_id,id,business_id,name_en)
     VALUES(${f.company},${branch},${f.business},'Synthetic explain branch')`;
   const data = JSON.stringify(Array.from({ length: 8000 }, (_, n) => ({
-    id: ids.newId(), line: ids.newId(), performer: ids.newId(), branch: branches[n % 4],
+    id: ids.newId(), line: ids.newId(), performer: ids.newId(), edit: ids.newId(), branch: branches[n % 4],
     day: `2026-10-${String(5 + Math.floor(n / 4) % 10).padStart(2, '0')}`,
     at: `2026-10-${String(5 + Math.floor(n / 4) % 10).padStart(2, '0')}T08:${String(Math.floor(n / 40) % 60).padStart(2, '0')}:00.123456Z`,
     late: n % 23 === 0, append_late: n % 29 === 0,
   })));
   await seed(data, sample.session.id, must(sample.session.lines[0]).id);
-  for (const table of ['service_sessions', 'service_lines', 'line_performers']) await f.h.owner.unsafe(`ANALYZE ${table}`);
+  for (const table of ['service_sessions', 'service_lines', 'line_performers', 'service_line_edits']) await f.h.owner.unsafe(`ANALYZE ${table}`);
 });
 afterAll(async () => { await f?.close(); });
 
@@ -46,6 +46,16 @@ async function seed(data: string, session: string, line: string) {
       SELECT p.company_id,r.performer,p.business_id,r.line,p.employee_id,p.performer_ordinal,p.share_bps,p.name_en,p.name_ar,p.not_clocked_in_warning,p.approved_leave_warning
       FROM jsonb_to_recordset(${data}::text::jsonb) r(line uuid,performer uuid)
       CROSS JOIN line_performers p WHERE p.company_id=${f.company} AND p.line_id=${line}`;
+    await tx`INSERT INTO service_line_edits(company_id,id,business_id,line_id,revision,previous_revision,
+      previous_price,previous_discount,previous_net,new_price,new_discount,new_net,
+      previous_effective_discount_bps,previous_limit_bps_applied,previous_limit_source,
+      new_effective_discount_bps,new_limit_bps_applied,new_limit_source,reason,changed_at,changed_by,changed_by_membership_id,
+      editor_name_ar,editor_name_en,editor_role,editor_role_is_system,editor_role_name_ar,editor_role_name_en)
+      SELECT l.company_id,r.edit,l.business_id,l.id,2,1,l.price,l.discount,l.net,l.price,l.discount,l.net,
+        l.effective_discount_bps,l.limit_bps_applied,l.limit_source,l.effective_discount_bps,l.limit_bps_applied,l.limit_source,
+        'Synthetic edit reason',l.recorded_at,l.recorded_by,l.recorded_by_membership_id,NULL,'Synthetic editor','owner',true,NULL,'Owner'
+      FROM jsonb_to_recordset(${data}::text::jsonb) r(line uuid,edit uuid)
+      JOIN service_lines l ON l.company_id=${f.company} AND l.id=r.line`;
   });
 }
 
@@ -69,7 +79,8 @@ it.each([false, true])('normal planner uses tenant day and child indexes, late=%
       expect(indexes).toContain('service_lines_late_session_idx');
       expect(indexes).toContain('service_lines_session_ordinal_key');
       expect(indexes).toContain('line_performers_ordinal_key');
-      for (const table of ['service_sessions', 'service_lines', 'line_performers']) {
+      expect(indexes).toContain('service_line_edits_line_fk_idx');
+      for (const table of ['service_sessions', 'service_lines', 'line_performers', 'service_line_edits']) {
         expect(plan.filter((node) => node['Relation Name'] === table).every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
       }
       const pageLimit = plan.find((node) => node['Node Type'] === 'Limit');

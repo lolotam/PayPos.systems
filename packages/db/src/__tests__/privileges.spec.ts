@@ -127,6 +127,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'roles:INSERT',
     'roles:SELECT',
     'roles:UPDATE',
+    'service_line_cancel_notices:INSERT',
+    'service_line_cancel_notices:SELECT',
     'service_line_cancellations:INSERT',
     'service_line_cancellations:SELECT',
     'service_line_edit_notices:INSERT',

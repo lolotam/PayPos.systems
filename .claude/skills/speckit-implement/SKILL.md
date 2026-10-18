@@ -228,15 +228,19 @@ Check if `.specify/extensions.yml` exists in the project root.
     To execute: `/{command}`
     ```
 
+**Re-run the final gate after the hooks.** The `pnpm check` run in the validation step describes the worktree as it was *before* the hooks, and a hook can change source, generated or untracked files, or commit. Do not try to detect what a hook changed: a status or diff snapshot misses untracked and ignored files and hook-made commits.
+- If no hook ran (none registered, all disabled or skipped for a `condition`, or only optional hooks the user did not run), the earlier `pnpm check` result stands. If you cannot tell whether a hook ran, including an optional hook the user may have run elsewhere, treat it as having run
+- If any hook ran, run `pnpm check` again from the repo root after the last hook has finished, under the same rules as the final gate above (fix causes within the slice's tasks, never skip or weaken a check, stop and report the slice as NOT complete when it cannot run or fails outside the slice), and record that run's command, exit status and date. If a hook changes files again while you fix a failure, repeat this step
+
 ## Completion Report
 
-Report final status with summary of completed work, including the `pnpm check` result (exit status). If `pnpm check` did not exit 0, report the slice as not complete.
+Report final status with summary of completed work, including the result (exit status) of the last `pnpm check` run, which is the one made after the hooks when any hook ran. If that run did not exit 0, report the slice as not complete.
 
 ## Done When
 
 - [ ] All tasks in tasks.md completed and marked `[X]`
 - [ ] No business-rule checklist item was open when implementation started (the gate was not overridden)
 - [ ] Implementation validated against specification, plan, and test coverage
-- [ ] `pnpm check` ran from the repo root and exited 0
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
+- [ ] `pnpm check` ran from the repo root on the final worktree (again after the hooks if any hook ran) and exited 0
 - [ ] Completion reported to user with summary of completed work

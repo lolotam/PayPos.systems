@@ -5,6 +5,8 @@ import { apiClient } from '@/shared/api/client';
 export type UploadPhase = 'idle' | 'uploading' | 'verifying' | 'recording';
 
 const failure = (code: ErrorMessageCode) => ({ code, ...errorMessages(code) });
+const browserManagedHeader =
+  /^(accept-charset|accept-encoding|access-control-request-.+|connection|content-length|cookie|date|dnt|expect|host|keep-alive|origin|referer|set-cookie|te|trailer|transfer-encoding|upgrade|via|proxy-.+|sec-.+)$/i;
 const pause = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 async function confirmedUpload(
@@ -27,10 +29,13 @@ async function confirmedUpload(
   });
   if (ticket.error) throw ticket.error;
   const upload = fileUploadTicket.parse(ticket.data);
-  // المتصفح يحسب content-length بنفسه؛ نرسل نوع المحتوى الموقّع فقط.
+  // كل هيدر موقّع لازم يوصل للتخزين (ADR-0047)؛ بنستبعد بس الهيدرز اللي المتصفح بيحسبها أو ممنوعة في fetch (content-length وhost وغيرهم).
+  const signedHeaders = Object.entries(upload.headers).filter(
+    (entry): entry is [string, string] => typeof entry[1] === 'string' && !browserManagedHeader.test(entry[0]),
+  );
   const put = await fetch(upload.upload_url, {
     method: 'PUT',
-    headers: { 'content-type': upload.headers['content-type'] },
+    headers: Object.fromEntries(signedHeaders),
     body: file,
   });
   if (!put.ok) throw failure('STORAGE_UNAVAILABLE');

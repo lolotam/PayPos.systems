@@ -32,10 +32,16 @@ it('requires occurred time, trims bounded search and rejects private performer f
     { occurred_at, lang: 'en', user_id: id }, { occurred_at }, { occurred_at, lang: 'AR' },
     { occurred_at, lang: 'en', q: '\u0000' }, { occurred_at, lang: 'en', q: 'élè\u0000' }])
     expect(sessionPerformerOptionsQuery.safeParse(query).success).toBe(false);
-  const item = { id, name_ar: null, name_en: 'Synthetic employee', not_clocked_in_warning: true, approved_leave_warning: false };
+  const item = { id, name_ar: null, name_en: 'Synthetic employee', employee_number: null, not_clocked_in_warning: true, approved_leave_warning: false };
   expect(sessionPerformerOptionPage.parse({ items: [item], next_cursor: null }).items).toEqual([item]);
-  for (const field of ['salary', 'phone', 'leave_reason', 'attendance_history', 'user_id'])
-    expect(sessionPerformerOptionPage.safeParse({ items: [{ ...item, [field]: 'private' }], next_cursor: null }).success).toBe(false);
+  expect(sessionPerformerOptionPage.parse({ items: [{ ...item, employee_number: 7 }], next_cursor: null }).items[0]?.employee_number).toBe(7);
+  expect(sessionPerformerOptionPage.safeParse({ items: [{ ...item, employee_number: 0 }], next_cursor: null }).success).toBe(false);
+  expect(sessionPerformerOptionPage.safeParse({ items: [{ ...item, employee_number: 1_000_000 }], next_cursor: null }).success).toBe(false);
+  for (const field of ['salary', 'phone', 'leave_reason', 'attendance_history', 'user_id']) {
+    const parsed = sessionPerformerOptionPage.parse({ items: [{ ...item, [field]: 'private' }], next_cursor: null });
+    expect(parsed.items).toEqual([item]);
+    expect(parsed.items[0]).not.toHaveProperty(field);
+  }
 });
 it('documents the guarded limited GET, language/search cursor, page bounds and response schema', () => {
   const route = serviceSessionFormPaths['/v1/businesses/{businessId}/branches/{branchId}/service-sessions/service-options'].get;
@@ -54,13 +60,14 @@ it('requires language and validates trimmed literal search and opaque cursor bou
     { limit: '0' }, { limit: '101' }, { limit: '1.5' }, { business_id: id }])
     expect(sessionServiceOptionsQuery.safeParse({ lang: 'en', ...query }).success).toBe(false);
 });
-it('keeps exact canonical prices and rejects wider/private fields and malformed pages', () => {
+it('keeps exact canonical prices, drops unknown fields and rejects malformed pages', () => {
   for (const price of ['0.000', '7.125', '99999999999.999'])
     expect(sessionServiceOption.parse({ ...option, price }).price).toBe(price);
-  for (const fields of [{ price: 7.125 }, { price: '7.12' }, { price: '-1.000' }, { revision: 0 },
-    { commission_rule: { kind: 'ZERO' } }, { counts_toward_threshold: true }, { business_id: id }])
+  for (const fields of [{ price: 7.125 }, { price: '7.12' }, { price: '-1.000' }, { revision: 0 }])
     expect(sessionServiceOption.safeParse({ ...option, ...fields }).success).toBe(false);
+  for (const fields of [{ commission_rule: { kind: 'ZERO' } }, { counts_toward_threshold: true }, { business_id: id }])
+    expect(sessionServiceOption.parse({ ...option, ...fields })).toEqual(option);
   expect(sessionServiceOptionPage.parse({ items: [option], next_cursor: null })).toEqual({ items: [option], next_cursor: null });
   expect(sessionServiceOptionPage.safeParse({ items: [], next_cursor: 'bad=' }).success).toBe(false);
-  expect(sessionServiceOptionPage.safeParse({ items: [], next_cursor: null, total: 0 }).success).toBe(false);
+  expect(sessionServiceOptionPage.parse({ items: [], next_cursor: null, total: 0 })).toEqual({ items: [], next_cursor: null });
 });

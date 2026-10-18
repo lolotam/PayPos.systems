@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  inAppNotificationPage,
+  readInAppNotificationPage,
   notificationReadResult,
   notificationUnreadCount,
 } from '@pospay/contracts';
@@ -26,7 +26,7 @@ async function fetchNotifications(companyId: string | undefined, signal: AbortSi
     signal,
   });
   if (error) throw error;
-  return inAppNotificationPage.parse(data);
+  return readInAppNotificationPage(data);
 }
 
 async function markRead(companyId: string | undefined, id: string | undefined) {

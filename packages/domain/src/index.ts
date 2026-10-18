@@ -33,4 +33,5 @@ export {
   EMPLOYEE_NUMBER_MAX,
   firstFreeEmployeeNumber,
   nextEmployeeNumberCounter,
+  parseEmployeeNumber,
 } from './employee-number.js';

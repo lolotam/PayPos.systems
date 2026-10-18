@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id as sharedId } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 
@@ -7,11 +8,11 @@ export const recordingContextQuery = z.strictObject({ recorder_membership_id: id
   .meta({ id: 'RecordingContextQuery' });
 const bps = z.number().int().min(0).max(10000);
 export const recordingDiscountLimit = z.union([
-  z.strictObject({ source: z.literal('OWNER'), bps: z.null() }),
-  z.strictObject({ source: z.enum(['PERSON', 'BUSINESS']), bps }),
-  z.strictObject({ source: z.literal('NOT_CONFIGURED'), bps: z.literal(0) }),
+  responseObject({ source: z.literal('OWNER'), bps: z.null() }),
+  responseObject({ source: z.enum(['PERSON', 'BUSINESS']), bps }),
+  responseObject({ source: z.literal('NOT_CONFIGURED'), bps: z.literal(0) }),
 ]).meta({ id: 'RecordingDiscountLimit' });
-const context = z.strictObject({ generated_at: timestamp, business_timezone: z.string().min(1),
+const context = responseObject({ generated_at: timestamp, business_timezone: z.string().min(1),
   recorder_membership_ids: z.array(id).min(1) });
 export const recordingContext = z.union([
   context.extend({ recorder_membership_id: id, discount_limit: recordingDiscountLimit }),

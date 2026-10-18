@@ -1,10 +1,10 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 
-const employee = z.strictObject({ id, name_ar: z.string().nullable(), name_en: z.string() });
-export const attendanceDeviceRefusal = z
-  .strictObject({
+const employee = responseObject({ id, name_ar: z.string().nullable(), name_en: z.string() });
+export const attendanceDeviceRefusal = responseObject({
     id,
     employee_id: id,
     holder_employee_id: id.nullable(),
@@ -16,8 +16,7 @@ export const attendanceDeviceRefusal = z
     attempted_at: timestamp,
   })
   .meta({ id: 'AttendanceDeviceRefusal' });
-export const attendanceDeviceRefusalPage = z
-  .strictObject({
+export const attendanceDeviceRefusalPage = responseObject({
     items: z.array(attendanceDeviceRefusal),
     next_cursor: z.string().nullable(),
   })
