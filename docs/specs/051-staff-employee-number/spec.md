@@ -186,7 +186,7 @@ the numbers back.
   gets there, and the owner may type it by hand for anyone (BR-3). EN-Q4 covers deletion only.
 - **FR-006** (EN-Q11): typing a number when adding an employee, changing a number, and setting the
   starting number MUST require `manage:employee-number:company`; the owner holds it by default and can grant it to any
-  human role, never a device (pattern of DH-Q5, spec 048). EN-Q15 (partner Abu Salem, batch 32, 2026-10-17): the permission is company-wide, so a holder may change the number of an employee in any business of the company, unless a DENY covers that employee's business or branch; the use case rechecks the permission inside the transaction on the employee's business/branch target so a narrower DENY wins. PP-3.1 (Waleed, 2026-10-18): the recheck covers the employee's business, her primary branch and every branch she is currently attached to; a DENY on any of them blocks the change (same rule as the IBAN screen). "Currently attached" means the attachment has `from <= today` and (`to IS NULL` or `to > today`; `to` is exclusive, as in the shared `currentAttachment` predicate), where today is the date in the branch's business day, the same as the IBAN screen: a finite attachment that is still current today counts; one that ended before today or starts after today does not. PP-4.2 (Waleed, 2026-10-18): the same recheck applies to a number typed when adding an employee. When a create request carries `employee_number`, the use case rechecks `manage:employee-number:company` inside the transaction on the NEW employee's business and on the branches she is being created into (her primary branch plus any branches in the request); a DENY on any of them refuses the request with `403 FORBIDDEN` and creates nothing (D-8: never silently ignored). For this creation check the targets are the business and the branches selected in the request regardless of the attachment start date: `create-employee` allows a future `hire_date`, so a new attachment may start later, and it still counts; the "currently attached" date rule above applies only to hand edits of existing employees. The add screen does not offer the number field for that business/branch, so the employee is created without the field and takes the automatic number.
+  human role, never a device (pattern of DH-Q5, spec 048). EN-Q15 (partner Abu Salem, batch 32, 2026-10-17): the permission is company-wide, so a holder may change the number of an employee in any business of the company, unless a DENY covers that employee's business or branch; the use case rechecks the permission inside the transaction on the employee's business/branch target so a narrower DENY wins. PP-3.1 (Waleed, 2026-10-18): the recheck covers the employee's business, her primary branch and every branch she is currently attached to; a DENY on any of them blocks the change (same rule as the IBAN screen). "Currently attached" means the attachment has `from <= today` and (`to IS NULL` or `to > today`; `to` is exclusive, as in the shared `currentAttachment` predicate), where today is the date in the branch's business day, the same as the IBAN screen: a finite attachment that is still current today counts; one that ended before today or starts after today does not. PP-4.2 (Waleed, 2026-10-18): the same recheck applies to a number typed when adding an employee. When a create request carries `employee_number`, the use case rechecks `manage:employee-number:company` inside the transaction on the NEW employee's business and her primary branch (`primary_branch_id`, the only branch a create request carries); a DENY on either refuses the request with `403 FORBIDDEN` and creates nothing (D-8: never silently ignored). For this creation check the targets are that business and primary branch regardless of the attachment start date: `create-employee` allows a future `hire_date`, so the new attachment may start later, and it still counts; the "currently attached" date rule above applies only to hand edits of existing employees. The add screen does not offer the number field for that business/branch, so the employee is created without the field and takes the automatic number.
 - **FR-007** (EN-Q10): the owner MUST be able to set the starting number once; it moves the counter
   forward only and never changes an existing employee's number (BR-6).
 - **FR-008**: The number MUST appear in the employee detail, the staff list, the attendance board, the monthly report
@@ -315,12 +315,18 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 
 - `POST /v1/businesses/{businessId}/employees` (existing) — `CreateEmployeeInput` gains optional
   `employee_number` (integer 1…999999, **8c-7**, EN-Q11; when a create request carries it, the use case rechecks
-  `manage:employee-number:company` inside the transaction on the NEW employee's business and the branches she is being
-  created into (primary branch plus any branches in the request), and a DENY on any of them refuses it with
+  `manage:employee-number:company` inside the transaction on the NEW employee's business and her primary branch
+  (`primary_branch_id`, the only branch a create request carries), and a DENY on either refuses it with
   `403 FORBIDDEN` and creates nothing, regardless of the attachment start date, FR-006, PP-4.2, D-8);
   the `POST` response is the new
   `CreatedEmployee` (`Employee` plus `employee_number: integer | null`, 8c-2, automatic number returned); `Employee` and
   `EmployeeDetail` stay unchanged until 8c-4 adds the field to the read producers.
+- `GET /v1/businesses/{businessId}/employee-number-capability?primary_branch_id=…` · `@Require('manage:employees:business')`
+  (the add-employee permission, since only someone who may add an employee asks) · feature flag `staff`, standard
+  error envelope (8c-7, PP-4.2) · `primary_branch_id` must belong to `businessId` in the caller's company, else
+  `404 NOT_FOUND` · returns `{ can_type_number: boolean }`: true only when the caller holds
+  `manage:employee-number:company` AND no DENY covers the business or that primary branch (the same FR-006 recheck);
+  a caller without the number permission gets `false`, not `403`. `Idempotency-Key`: not required (read).
 - `GET /v1/businesses/{businessId}/employees/{employeeId}` and the list items (existing) gain
   `employee_number: integer | null` (8c-4).
 - `GET /v1/businesses/{businessId}/employees?q=…` — optional search box (8c-4b, EN-Q16): digits only match the exact
@@ -371,7 +377,7 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
   shows «—» (TD-10).
 - Reception performer picker: the number next to each name; typing digits finds the employee (EN-Q9).
 - Attendance board and monthly report screens: a number column; the CSV button is unchanged.
-- Only for a holder of `manage:employee-number:company` (the owner by default, or a person the owner granted it to): an "Employee number" field on the add-employee form (blank = automatic; not offered at all when a DENY covers the chosen business/branch — the form asks the server-side capability read `GET /v1/businesses/{businessId}/employee-number-capability?branch_ids=…` (8c-7) for the selected business and branches, PP-4.2), an edit
+- Only for a holder of `manage:employee-number:company` (the owner by default, or a person the owner granted it to): an "Employee number" field on the add-employee form (blank = automatic; not offered at all when a DENY covers the chosen business/branch — the form asks the server-side capability read `GET /v1/businesses/{businessId}/employee-number-capability?primary_branch_id=…` (8c-7) for the selected business and primary branch, PP-4.2), an edit
   action on the profile, and a one-time "Start numbering from" dialog on the staff list. A typed «007» is turned into
   7 by `parseEmployeeNumber` before it is sent (EN-Q8).
 - All strings from `packages/i18n`; logical CSS only; no closing comments in JSX.
@@ -399,11 +405,11 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
   primary branch → refused; DENY on another branch she is currently attached to → refused; the same holder editing an
   employee in another business with no DENY → allowed (the recheck runs inside the transaction) ·
   `EN-09c` typed number at creation under a DENY (PP-4.2, D-8): a create request carrying `employee_number` under a DENY on
-  `manage:employee-number:company` for the new employee's business or branch → `403 FORBIDDEN` and nothing created (no
+  `manage:employee-number:company` for the new employee's business or primary branch → `403 FORBIDDEN` and nothing created (no
   employee row, counter unmoved); the same request without the field → `201` with the automatic number; a future-dated
-  hire (`hire_date` after today) into a branch carrying a DENY with a typed number → `403 FORBIDDEN` and nothing created
+  hire (`hire_date` after today) into a primary branch carrying a DENY with a typed number → `403 FORBIDDEN` and nothing created
   (the creation check ignores the attachment start date) ·
-  `EN-09e` capability read `GET /v1/businesses/{businessId}/employee-number-capability?branch_ids=…` for a company-level holder: a DENY on the business → `can_type_number: false`; a DENY on the selected primary branch → false; a DENY on another selected branch → false; no DENY on the business and the selected branches → true; a non-holder → false (8c-7) ·
+  `EN-09e` capability read `GET /v1/businesses/{businessId}/employee-number-capability?primary_branch_id=…` for a company-level holder: a DENY on the business → `can_type_number: false`; a DENY on the primary branch → false; no DENY on the business and the primary branch → true; a non-holder of the number permission → false (not 403); a `primary_branch_id` of another business or another company → `404 NOT_FOUND`; a caller without `manage:employees:business` → `403 FORBIDDEN` (8c-7) ·
   `EN-09d` temporal boundary of attachments (FR-006; hand edit of an existing employee only, not creation): a DENY on a branch whose attachment
   is finite but current today (`from <= today < to`; `to` is exclusive) → refused; a DENY on a branch whose attachment ended before today
   (`to < today`) or starts after today (`from > today`) → allowed; `to IS NULL` counts as current; today is the date in the
@@ -423,6 +429,11 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
   private-field list) and `attendance-monthly-report-csv.spec.ts` (its forbidden-words pattern includes `employee_number` and the Arabic label for it) — both change in 8c-5: the number is now allowed; phone, salary, IBAN and documents stay forbidden.
 - **Admin**: profile, list search, picker digit search, create-form field visible only with the permission, «007»
   normalisation, `NULL` shows «—», edit and start dialogs.
+- **Admin, company screen «الأرقام الوظيفية»** (8c-10b, PP-4.1), screen tests `EN-17`: a holder of
+  `manage:employee-number:company` alone (no staff-screen permission) reaches the screen and sees name, business and
+  number only · an employee in another business of the company is listed and editable · an employee hidden by a DENY
+  (`GET /v1/employee-numbers` filtered) is not listed · editing calls the 8c-6 `PUT` route and the row shows the new
+  number · a `409 EMPLOYEE_NUMBER_TAKEN` shows the taken message and leaves the old number.
 
 ## Success Criteria _(mandatory)_
 
@@ -457,11 +468,11 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 | 8c-5  | Reads: attendance board, monthly report, CSV                                                               | (1) board contract and query (2) report contract, query and CSV first column (3) update the two "number is absent" tests, `EN-15`      | 8c-1             | ready                  |
 | 8c-6  | `set-employee-number` (hand edit)                                                                          | (1) reuse `parseEmployeeNumber` (added in 8c-4 with its unit tests) (2) permission migration and use case with audit (3) route, contract, `EN-06`…`EN-10`, including `EN-09b` (company-level holder with DENY on the business, primary branch or another attached branch, EN-Q15, PP-3.1) and `EN-09d` (attachment dates)           | 8c-2             | ready |
 | 8c-6b | Company employee-numbers list (PP-4.1)                                                                     | (1) query + contract + route `GET /v1/employee-numbers` (2) DENY-filter, result-shape and `EXPLAIN` tests, `EN-16` (3) OpenAPI and clients | 8c-6             | ready |
-| 8c-7  | `create-employee` accepts a typed number                                                                   | (1) input field, a capability read `GET /v1/businesses/{businessId}/employee-number-capability?branch_ids=…` → `{ can_type_number: boolean }` (same FR-006 recheck, so the add form hides the field under a DENY), permission check and DENY recheck on the new employee's business and selected branches (FR-006, PP-4.2: `403 FORBIDDEN`, nothing created) (2) `EN-06` for create, `EN-07`, `EN-09`, `EN-09c`, `EN-09e`, `EN-09d`                                                           | 8c-2, 8c-6       | ready |
+| 8c-7  | `create-employee` accepts a typed number                                                                   | (1) input field, a capability read `GET /v1/businesses/{businessId}/employee-number-capability?primary_branch_id=…` → `{ can_type_number: boolean }` (same FR-006 recheck, so the add form hides the field under a DENY), permission check and DENY recheck on the new employee's business and primary branch (FR-006, PP-4.2: `403 FORBIDDEN`, nothing created) (2) `EN-06` for create, `EN-07`, `EN-09`, `EN-09c`, `EN-09e`                                                           | 8c-2, 8c-6       | ready |
 | 8c-8  | `set-employee-number-start`                                                                                | (1) use case, `GET`/`PUT /v1/employee-numbering` (2) audit and once-only rule (3) `EN-11`                                               | 8c-2, 8c-6       | ready |
 | 8c-9  | Admin: show and search the number                                                                          | (1) profile and staff list with search (2) reception performer picker (3) board and report screens                                     | 8c-4, 8c-4b, 8c-5 | ready |
 | 8c-10 | Admin: type, edit and start                                                                                | (1) add-employee field (hidden when a DENY covers the business/branch, PP-4.2) (2) edit action on the profile (3) "Start numbering from" dialog | 8c-7, 8c-8, 8c-9 | ready |
-| 8c-10b | Admin: company employee-numbers screen (PP-4.1)                                                           | (1) screen «الأرقام الوظيفية»: name, business, number, search box `q` (2) edit action calling the 8c-6 `PUT` (3) DENY-filtered list from `GET /v1/employee-numbers` | 8c-6b, 8c-9 | ready |
+| 8c-10b | Admin: company employee-numbers screen (PP-4.1)                                                           | (1) screen «الأرقام الوظيفية»: name, business, number, search box `q` (2) edit action calling the 8c-6 `PUT` (3) DENY-filtered list from `GET /v1/employee-numbers` (4) screen tests `EN-17` (Test plan: number-only holder, other-business employee, DENY-filtered row, edit via the 8c-6 `PUT`, 409 message) | 8c-6b, 8c-9 | ready |
 | 8c-11 | Contract: numbers for stragglers, then `NOT NULL`                                                          | (1) straggler backfill migration (2) `CHECK … NOT VALID` then `VALIDATE`; readers drop the `NULL` branch                               | 8c-2, 8c-3 in a released image | later release |
 
 Parallel work follows the pipeline's file-disjoint rule: 8c-4 and 8c-5 touch different queries and can run together;
