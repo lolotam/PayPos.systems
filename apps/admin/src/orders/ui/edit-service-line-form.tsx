@@ -1,7 +1,7 @@
 'use client';
 import type { EditServiceLineInput } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
-import { useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useForm, useWatch, type UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { editOutcomeKnown, revisionAfterFailedRetry, useEditServiceLine, type EditServiceLineResult } from '../api/use-edit-service-line';
@@ -58,30 +58,95 @@ function dropVisitLock(lock: { held: boolean }, onRequestEnd: (() => void) | und
   onRequestEnd?.();
 }
 
-// الإغلاق وقت النتيجة المجهولة بيضيّع مفتاح المحاولة والمراجعة. القفل يفضل لحد ما الحفظ يخلّص بنتيجة معروفة.
+// إعادة المحاولة التلقائية بتبدّل المراجعة، والمفتاح اتحجز على الجسم ده مش على قيم النموذج.
+function replayBody(body: EditServiceLineInput, error: unknown): EditServiceLineInput {
+  const adopted = revisionAfterFailedRetry(error);
+  return adopted === null ? body : { ...body, expected_revision: adopted };
+}
+
+type VisitLock = { held: boolean };
+type LockRefs = { lock: { current: VisitLock }; mounted: { current: boolean }; endRef: { current: (() => void) | undefined } };
+
+function useEditLock(onRequestEnd: (() => void) | undefined, uncertain: boolean, pending: boolean): LockRefs {
+  const lock = useRef<VisitLock>({ held: false });
+  const endRef = useRef(onRequestEnd);
+  const mounted = useRef(true);
+  const gate = useRef({ uncertain, pending });
+  useEffect(() => {
+    endRef.current = onRequestEnd;
+    gate.current = { uncertain, pending };
+  }, [onRequestEnd, uncertain, pending]);
+  useEffect(() => {
+    const held = lock.current;
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      // طلب معلّق له finally. النتيجة المجهولة المستقرّة مالهاش نهاية غير الفك ده.
+      if (gate.current.uncertain && !gate.current.pending) dropVisitLock(held, endRef.current);
+    };
+  }, []);
+  return { lock, mounted, endRef };
+}
+
+type EditSaveOutcome = { release: boolean; retain: EditServiceLineInput | null };
+
 async function saveLineEdit(input: {
   body: EditServiceLineInput; props: EditServiceLineFormProps; locale: Locale;
   form: UseFormReturn<EditLineFormInput, unknown, EditServiceLineInput>;
   mutate: (attempt: { sessionId: string; lineId: string; body: EditServiceLineInput }) => Promise<EditServiceLineResult>;
   setRoot: (message: string | null) => void; setLimit: (details: EditLimitDetails | null) => void;
-  setMemberships: (ids: string[]) => void; setRefreshing: (value: boolean) => void; setUncertain: (value: boolean) => void;
-}): Promise<boolean> {
+  setMemberships: (ids: string[]) => void; setRefreshing: (value: boolean) => void;
+}): Promise<EditSaveOutcome> {
   try {
     input.props.onSaved(await input.mutate({ sessionId: input.props.sessionId, lineId: input.props.line.id, body: input.body }));
-    return true;
+    return { release: true, retain: null };
   } catch (error) {
-    const adopted = revisionAfterFailedRetry(error);
-    if (adopted !== null) input.form.setValue('expected_revision', adopted);
+    const retainedBody = replayBody(input.body, error);
+    if (retainedBody !== input.body) input.form.setValue('expected_revision', retainedBody.expected_revision);
     const known = editOutcomeKnown(error);
-    if (!known) input.setUncertain(true);
     const stale = applyEditError(error, input.locale, input.form, input.setRoot, input.setLimit, input.setMemberships, input.props);
-    if (!known || !stale) return known;
+    if (!known || !stale) return { release: known, retain: known ? null : retainedBody };
     input.setRefreshing(true);
     try {
       await adoptRefetchedRevision(input.props.onStale, input.form.getValues('expected_revision'), (revision) => { input.form.setValue('expected_revision', revision); });
     } finally { input.setRefreshing(false); }
-    return true;
+    return { release: true, retain: null };
   }
+}
+
+type CommitControls = LockRefs & {
+  props: EditServiceLineFormProps; retain: { current: EditServiceLineInput | null };
+  setRoot: (message: string | null) => void; setLimit: (details: EditLimitDetails | null) => void;
+  setFrozen: (value: boolean) => void; setUncertain: (value: boolean) => void;
+};
+
+async function commitLineEdit(controls: CommitControls, attempt: {
+  body: EditServiceLineInput; locale: Locale; form: UseFormReturn<EditLineFormInput, unknown, EditServiceLineInput>;
+  mutate: (next: { sessionId: string; lineId: string; body: EditServiceLineInput }) => Promise<EditServiceLineResult>;
+  setMemberships: (ids: string[]) => void; setRefreshing: (value: boolean) => void;
+}): Promise<void> {
+  raiseVisitLock(controls.lock.current, controls.props.onRequestStart);
+  controls.setRoot(null);
+  controls.setLimit(null);
+  controls.setFrozen(true);
+  const outcome = await saveLineEdit({
+    body: attempt.body, props: controls.props, locale: attempt.locale, form: attempt.form, mutate: attempt.mutate,
+    setRoot: controls.setRoot, setLimit: controls.setLimit, setMemberships: attempt.setMemberships, setRefreshing: attempt.setRefreshing,
+  });
+  if (outcome.release || !controls.mounted.current) {
+    controls.retain.current = null;
+    if (controls.mounted.current) { controls.setFrozen(false); controls.setUncertain(false); }
+    dropVisitLock(controls.lock.current, controls.endRef.current);
+    return;
+  }
+  controls.retain.current = outcome.retain;
+  controls.setUncertain(true);
+}
+
+function submitReplay(event: FormEvent<HTMLFormElement>, replay: EditServiceLineInput | null, send: (body: EditServiceLineInput) => void, submit: (event: FormEvent<HTMLFormElement>) => void) {
+  if (!replay) { void submit(event); return; }
+  event.preventDefault();
+  send(replay);
 }
 
 export function EditServiceLineForm(props: EditServiceLineFormProps) {
@@ -91,38 +156,29 @@ export function EditServiceLineForm(props: EditServiceLineFormProps) {
   const [root, setRoot] = useState<string | null>(null);
   const [limit, setLimit] = useState<EditLimitDetails | null>(null);
   const [memberships, setMemberships] = useState<string[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
+  const [frozen, setFrozen] = useState(false);
+  const retain = useRef<EditServiceLineInput | null>(null);
+  const { lock, mounted, endRef } = useEditLock(props.onRequestEnd, uncertain, mutation.isPending);
   const form = useForm<EditLineFormInput, unknown, EditServiceLineInput>({
     resolver: resolveEditLine,
     defaultValues: { price: known ? props.line.price : '', discount_kind: 'AMOUNT', discount_value: known ? props.line.discount : '', reason: '', expected_revision: props.line.revision, editor_membership_id: '' },
   });
-  const { control } = form;
-  const watched = useWatch({ control });
-  const [refreshing, setRefreshing] = useState(false);
-  const [uncertain, setUncertain] = useState(false);
-  const [visitLock] = useState(() => ({ held: false }));
+  const watched = useWatch({ control: form.control });
   const pending = mutation.isPending;
   const blocked = pending || refreshing;
-  const submit = form.handleSubmit(async (body) => {
+  const send = (body: EditServiceLineInput) => {
     if (!props.online || pending || refreshing) return;
-    // إعادة الحفظ بعد نتيجة مجهولة ما بترفعش العداد تاني. finally بينزّله لما النتيجة تبقى معروفة حتى لو المحرر اتفك.
-    raiseVisitLock(visitLock, props.onRequestStart);
-    setRoot(null);
-    setLimit(null);
-    setUncertain(false);
-    let release = true;
-    try {
-      release = await saveLineEdit({
-        body, props, locale, form, mutate: (attempt) => mutation.mutateAsync(attempt),
-        setRoot, setLimit, setMemberships, setRefreshing, setUncertain,
-      });
-    } finally {
-      if (release) dropVisitLock(visitLock, props.onRequestEnd);
-    }
-  });
-  return <form className="grid gap-3 text-start" onSubmit={(event) => { void submit(event); }} onKeyDown={submitOnEnter(props.online, blocked)}>
+    void commitLineEdit(
+      { lock, mounted, endRef, props, retain, setRoot, setLimit, setFrozen, setUncertain },
+      { body, locale, form, mutate: (attempt) => mutation.mutateAsync(attempt), setMemberships, setRefreshing },
+    );
+  };
+  return <form className="grid gap-3 text-start" onSubmit={(event) => { submitReplay(event, retain.current, send, (next) => form.handleSubmit(send)(next)); }} onKeyDown={submitOnEnter(props.online, blocked)}>
     {root ? <p role="alert">{root}</p> : null}
     {uncertain ? <p>{t(locale, 'serviceLineEdit.outcomeUnknown')}</p> : null}
-    <EditServiceLineFields form={form} locale={locale} memberships={memberships} online={props.online} pending={blocked} closeDisabled={props.closeDisabled === true} onClose={props.onClose} />
+    <EditServiceLineFields form={form} locale={locale} memberships={memberships} online={props.online} pending={blocked} frozen={frozen} closeDisabled={props.closeDisabled === true} onClose={props.onClose} />
     <EditServiceLinePreview locale={locale} line={props.line} price={watched.price ?? ''} kind={watched.discount_kind ?? 'AMOUNT'} discount={watched.discount_value ?? ''} limit={limit} figuresKnown={known} />
   </form>;
 }

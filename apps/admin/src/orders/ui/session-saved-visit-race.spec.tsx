@@ -69,6 +69,7 @@ function fill(price: string, discount: string) {
 }
 const save = () => fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
 const reason = () => screen.queryByLabelText(t('en', 'serviceLineEdit.reason'));
+const keyOf = (index: number) => state.patch.mock.calls[index]?.[1].params.header['Idempotency-Key'] as string;
 
 async function openAndSaveFirst() {
   const pending = queuePatches();
@@ -152,14 +153,37 @@ it('does not close or open another line while a save is pending', async () => {
 it('keeps a later editor open when an earlier save completes after the snapshot changes', async () => {
   const { view, client, pending } = await openAndSaveFirst();
   view.rerender(tree(client, { ...twoLineSession(), total_net: '9.000' }));
-  expect(reason()).toBeNull();
+  expect(reason()).toBeTruthy();
   await waitFor(() => expect(buttonDisabled(t('en', 'serviceLineEdit.edit'), 1)).toBe(true));
   const first = pending[0];
   if (!first) throw new Error('missing response');
   await act(async () => { first.resolve(narrow); });
+  await waitFor(() => expect(reason()).toBeNull());
   await waitFor(() => expect(buttonDisabled(t('en', 'serviceLineEdit.edit'), 1)).toBe(false));
   editAt(1);
   expect(await screen.findByText(t('en', 'serviceLineEdit.edited'))).toBeTruthy();
   expect(reason()).toBeTruthy();
   expect(state.patch).toHaveBeenCalledTimes(1);
+});
+
+it('keeps the uncertain editor and its idempotency key when the same visit snapshot is replaced', async () => {
+  const { view, client, pending } = await openAndSaveFirst();
+  const gate = pending[0];
+  if (!gate) throw new Error('missing response');
+  await act(async () => { gate.reject(new Error('offline')); });
+  expect(await screen.findByText(t('en', 'serviceLineEdit.outcomeUnknown'))).toBeTruthy();
+  view.rerender(tree(client, { ...twoLineSession(), total_net: '9.000' }));
+  expect(reason()).toBeTruthy();
+  expect(screen.getByText(t('en', 'serviceLineEdit.outcomeUnknown'))).toBeTruthy();
+  expect(controlsLocked()).toBe(true);
+  const price = screen.getByLabelText(t('en', 'serviceSessions.price'));
+  expect((price as HTMLInputElement).disabled).toBe(true);
+  fireEvent.change(price, { target: { value: '1.000' } });
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'changed' } });
+  const sent = state.patch.mock.calls[0]?.[1].body;
+  save();
+  await waitFor(() => expect(pending).toHaveLength(2));
+  expect(keyOf(1)).toBe(keyOf(0));
+  expect(state.patch.mock.calls[1]?.[1].body).toEqual(sent);
+  expect(controlsLocked()).toBe(true);
 });
