@@ -5,6 +5,7 @@ import { apiClient } from '@/shared/api/client';
 
 const listKey = (companyId: string, userId: string) =>
   ['employee-numbers', companyId, userId, 'list'] as const;
+const listKeyLength = 4;
 
 async function readPage(
   companyId: string,
@@ -63,6 +64,10 @@ export function useCompanyEmployeeNumbers(
   });
 }
 
+function unfilteredPage(query: { queryKey: readonly unknown[] }) {
+  return query.queryKey[listKeyLength + 1] === null;
+}
+
 export function useSetCompanyEmployeeNumber(companyId: string, userId: string) {
   const client = useQueryClient();
   const key = listKey(companyId, userId);
@@ -71,8 +76,10 @@ export function useSetCompanyEmployeeNumber(companyId: string, userId: string) {
     mutationFn: (input: { businessId: string; employeeId: string; employeeNumber: number }) =>
       writeNumber(companyId, input.businessId, input.employeeId, input.employeeNumber),
     onSuccess: (saved) => {
-      client.setQueriesData<EmployeeNumberPage>({ queryKey: [...key] }, (page) =>
-        page ? withSavedNumber(page, saved.employee_id, saved.employee_number) : page,
+      // صفحات البحث بتستنى الـ refetch: الرقم الجديد ممكن ما يطابقش البحث (q=4 والرقم بقى 7).
+      client.setQueriesData<EmployeeNumberPage>(
+        { queryKey: [...key], predicate: unfilteredPage },
+        (page) => (page ? withSavedNumber(page, saved.employee_id, saved.employee_number) : page),
       );
       // انتظار الـ refetch كان بيخلّي الحفظ معلّق والمحرّر مفتوح لو القائمة اتعلّقت.
       void client.invalidateQueries({ queryKey: [...key] });
