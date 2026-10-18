@@ -176,7 +176,7 @@ the numbers back.
   gets there, and the owner may type it by hand for anyone (BR-3). EN-Q4 covers deletion only.
 - **FR-006** (EN-Q11): typing a number when adding an employee, changing a number, and setting the
   starting number MUST require `manage:employee-number:company`; the owner holds it by default and can grant it to any
-  human role, never a device (pattern of DH-Q5, spec 048). EN-Q15 (partner Abu Salem, batch 32, 2026-10-17): the permission is company-wide, so a holder may change the number of an employee in any business of the company, unless a DENY covers that employee's business or branch; the use case rechecks the permission inside the transaction on the employee's business/branch target so a narrower DENY wins.
+  human role, never a device (pattern of DH-Q5, spec 048). EN-Q15 (partner Abu Salem, batch 32, 2026-10-17): the permission is company-wide, so a holder may change the number of an employee in any business of the company, unless a DENY covers that employee's business or branch; the use case rechecks the permission inside the transaction on the employee's business/branch target so a narrower DENY wins. PP-3.1 (Waleed, 2026-10-18): the recheck covers the employee's business, her primary branch and every branch she is currently attached to; a DENY on any of them blocks the change (same rule as the IBAN screen).
 - **FR-007** (EN-Q10): the owner MUST be able to set the starting number once; it moves the counter
   forward only and never changes an existing employee's number (BR-6).
 - **FR-008**: The number MUST appear in the employee detail, the staff list, the attendance board, the monthly report
