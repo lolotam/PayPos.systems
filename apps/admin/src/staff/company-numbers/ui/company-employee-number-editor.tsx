@@ -2,7 +2,7 @@
 import type { SetEmployeeNumberInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
-import { useEffect, useId, useRef, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { useForm, type UseFormRegisterReturn, type UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import {
@@ -13,7 +13,11 @@ import {
 
 type NumberForm = UseFormReturn<SetEmployeeNumberInput>;
 
-function closeOnEscape(pending: boolean, onClose: () => void, event: KeyboardEvent<HTMLFormElement>) {
+function closeOnEscape(
+  pending: boolean,
+  onClose: () => void,
+  event: KeyboardEvent<HTMLFormElement>,
+) {
   if (event.key !== 'Escape' || pending) return;
   event.preventDefault();
   onClose();
@@ -23,9 +27,11 @@ function clearOnChange(
   form: NumberForm,
   registered: UseFormRegisterReturn<'employee_number'>,
   event: ChangeEvent<HTMLInputElement>,
+  markEdited: () => void,
 ) {
   void registered.onChange(event);
   form.clearErrors('employee_number');
+  markEdited();
 }
 
 function bindNumberField(
@@ -59,6 +65,8 @@ export function CompanyEmployeeNumberEditor({
   const form = useForm<SetEmployeeNumberInput>({ resolver: employeeNumberResolver });
   const registered = form.register('employee_number', employeeNumberFieldOptions);
   const field = useRef<HTMLInputElement>(null);
+  // رسالة السيرفر بتوصف الرقم اللي اتبعت؛ أول ما الكتابة تتغيّر ماتبقاش صح للرقم الجديد.
+  const [edited, setEdited] = useState(false);
   useEffect(() => {
     field.current?.focus();
   }, []);
@@ -66,7 +74,10 @@ export function CompanyEmployeeNumberEditor({
   return (
     <form
       ref={rootRef}
-      onSubmit={form.handleSubmit((body) => onSubmit(body.employee_number))}
+      onSubmit={form.handleSubmit((body) => {
+        setEdited(false);
+        onSubmit(body.employee_number);
+      })}
       onKeyDown={(event) => closeOnEscape(pending, onClose, event)}
       className="flex max-w-xs flex-col gap-2"
     >
@@ -79,12 +90,16 @@ export function CompanyEmployeeNumberEditor({
           aria-invalid={invalidText !== null}
           {...registered}
           ref={bindNumberField(field, registered)}
-          onChange={(event) => clearOnChange(form, registered, event)}
+          onChange={(event) => clearOnChange(form, registered, event, () => setEdited(true))}
           aria-describedby={invalidText ? `${fieldId}-error` : undefined}
           defaultValue={current === null ? '' : String(current)}
         />
-        {invalidText ? <p id={`${fieldId}-error`} role="alert">{invalidText}</p> : null}
-        {message ? <p role="alert">{message}</p> : null}
+        {invalidText ? (
+          <p id={`${fieldId}-error`} role="alert">
+            {invalidText}
+          </p>
+        ) : null}
+        {message && !edited ? <p role="alert">{message}</p> : null}
         <div className="flex gap-2">
           <Button type="submit" size="sm">
             {t(locale, 'companyEmployeeNumbers.save')}
