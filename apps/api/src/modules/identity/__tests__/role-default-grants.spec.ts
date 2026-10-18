@@ -85,6 +85,7 @@ async function applyReferenceMigrations() {
     '0096_2026-10-09_documents-owner-default.sql',
     '0105_2026-10-10_schedule-settings-permission.sql',
     '0128_2026-10-11_employee-hours-permission.sql',
+    '0148_2026-10-17_business-identity-permission.sql',
   ].map((name) =>
     readFileSync(
       new URL(`../../../../../../packages/db/migrations/${name}`, import.meta.url),

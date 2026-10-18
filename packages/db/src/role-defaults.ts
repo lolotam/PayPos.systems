@@ -35,7 +35,7 @@ export const OWNER_DERIVED_PERMISSIONS = [
   'manage:salaries:business',
 ] as const satisfies readonly Permission[];
 
-/** صلاحيات الوثائق والدوام ولوحة الحضور وطلبات تعديله متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
+/** صلاحيات الوثائق والدوام ولوحة الحضور وطلبات تعديله وهوية النشاط متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
 export const OWNER_GRANTED_PERMISSIONS = [
   'read:attendance:branch',
   'read:files:business',
@@ -45,6 +45,7 @@ export const OWNER_GRANTED_PERMISSIONS = [
   'request:attendance-change:branch',
   'decide:attendance-change:company',
   'manage:employee-hours:business',
+  'manage:business-identity:business',
 ] as const satisfies readonly Permission[];
 
 /** التفويض الشخصي للجدول والقوالب يخص الأدوار البشرية؛ دور الجهاز محظور في كل خانة. */
@@ -107,6 +108,8 @@ export const ROLE_DEFAULTS = {
   'manage:devices:branch': [...managers, 'branch_manager'],
   'read:settings:business': settings,
   'manage:settings:business': settings,
+  // قرار المالك BI-Q1 بتاريخ 2026-10-17: إدارة هوية النشاط للمالك وحده افتراضياً، ويمنحها لأي دور بشري.
+  'manage:business-identity:business': ['owner'],
   'view:notifications:business': managers,
   'manage:employees:business': managers,
   'read:services:business': managers,
