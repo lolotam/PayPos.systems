@@ -1,9 +1,10 @@
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { expect, it, vi } from 'vitest';
 import { id, initial, recordAttempt, response, savedLine, scope } from '../model/session-recording-result.fixture';
-import { transitionSessionRecordingResult as transition } from '../model/session-recording-result';
+import { transitionSessionRecordingResult as transition, type SessionRecordingResult } from '../model/session-recording-result';
 import { SessionSavedResult } from './session-saved-result';
 
 const state = vi.hoisted(() => ({ patch: vi.fn(), get: vi.fn() }));
@@ -28,11 +29,16 @@ function twoLineSession() {
   const second = { ...savedLine, id: id(19), name_en: 'Second service', ordinal: 2 };
   return { ...response.session, lines: [savedLine, second] };
 }
+function FlightLock({ result }: { result: SessionRecordingResult }) {
+  const [editsInFlight, setEditsInFlight] = useState(0);
+  return <SessionSavedResult result={result} journal={{ leaveVisit: vi.fn() }} onNewVisit={vi.fn()} scope={scope} online
+    editBusy={editsInFlight > 0}
+    onRequestStart={() => { setEditsInFlight((count) => count + 1); }}
+    onRequestEnd={() => { setEditsInFlight((count) => count - 1); }} />;
+}
 function tree(client: QueryClient, session: ReturnType<typeof twoLineSession>) {
   const result = transition(initial, { type: 'RECORDED', attempt: recordAttempt, response: { outcome: 'COMPLETE', session, rejected_lines: [] } });
-  return <QueryClientProvider client={client}>
-    <SessionSavedResult result={result} journal={{ leaveVisit: vi.fn() }} onNewVisit={vi.fn()} scope={scope} online />
-  </QueryClientProvider>;
+  return <QueryClientProvider client={client}><FlightLock result={result} /></QueryClientProvider>;
 }
 function queuePatches() {
   const pending: Gate[] = [];
@@ -108,15 +114,25 @@ it('disables the other edit and close while a save is pending and enables edits 
 });
 
 it.each([
-  ['network', 'network'],
   ['409 after the retry', 'stale'],
   ['422', 'invalid'],
-] as const)('shows the %s error in the still-open editor', async (_label, kind) => {
+] as const)('shows the %s error in the still-open editor and releases the lock', async (_label, kind) => {
   const { pending } = await openAndSaveFirst();
   const message = await settleFailure(kind, pending);
   expect((await screen.findByRole('alert')).textContent).toContain(message);
+  expect(screen.queryByText(t('en', 'serviceLineEdit.outcomeUnknown'))).toBeNull();
   expect(reason()).toBeTruthy();
   await waitFor(() => expect(controlsLocked()).toBe(false));
+  expect(state.get).not.toHaveBeenCalled();
+});
+
+it('shows a network error in the still-open editor and keeps the visit locked', async () => {
+  const { pending } = await openAndSaveFirst();
+  const message = await settleFailure('network', pending);
+  expect((await screen.findByRole('alert')).textContent).toContain(message);
+  expect(screen.getByText(t('en', 'serviceLineEdit.outcomeUnknown'))).toBeTruthy();
+  expect(reason()).toBeTruthy();
+  expect(controlsLocked()).toBe(true);
   expect(state.get).not.toHaveBeenCalled();
 });
 
@@ -137,11 +153,12 @@ it('keeps a later editor open when an earlier save completes after the snapshot 
   const { view, client, pending } = await openAndSaveFirst();
   view.rerender(tree(client, { ...twoLineSession(), total_net: '9.000' }));
   expect(reason()).toBeNull();
-  await waitFor(() => expect(buttonDisabled(t('en', 'serviceLineEdit.edit'), 1)).toBe(false));
-  editAt(1);
+  await waitFor(() => expect(buttonDisabled(t('en', 'serviceLineEdit.edit'), 1)).toBe(true));
   const first = pending[0];
   if (!first) throw new Error('missing response');
   await act(async () => { first.resolve(narrow); });
+  await waitFor(() => expect(buttonDisabled(t('en', 'serviceLineEdit.edit'), 1)).toBe(false));
+  editAt(1);
   expect(await screen.findByText(t('en', 'serviceLineEdit.edited'))).toBeTruthy();
   expect(reason()).toBeTruthy();
   expect(state.patch).toHaveBeenCalledTimes(1);

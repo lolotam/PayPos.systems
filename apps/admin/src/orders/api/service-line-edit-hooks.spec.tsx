@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { id, scope } from '../model/session-recording-result.fixture';
 import { useBranchDaySessions } from './use-branch-day-sessions';
-import { useEditServiceLine } from './use-edit-service-line';
+import { editOutcomeKnown, useEditServiceLine } from './use-edit-service-line';
 import { useLineEditHistory } from './use-line-edit-history';
 
 const state = vi.hoisted(() => ({ get: vi.fn(), patch: vi.fn() }));
@@ -71,4 +71,25 @@ it('reuses one idempotency key after a network failure and renews it after succe
   expect(invalidate).toHaveBeenCalledWith({ queryKey: ['branch-day-sessions', scope.companyId, scope.businessId, scope.branchId, scope.userId] });
   expect(invalidate).toHaveBeenCalledWith({ queryKey: ['service-line-edits', scope.companyId, scope.businessId, scope.branchId, scope.userId, id(12), id(11)] });
   keys.mockRestore();
+});
+
+it.each([
+  [false, 'a network error', new Error('offline')],
+  [false, 'null', null],
+  [false, 'a status below the client range', { status: 399 }],
+  [false, 'a missing status', { code: 'SESSION_EDIT_NO_CHANGE' }],
+  [false, 'a string status', { status: '422' }],
+  [false, 'a parsed 2xx body', { status: 200 }],
+  [false, 'a server error', { status: 500 }],
+  [false, 'a non-integer status', { status: 422.5 }],
+  [false, 'a conflict without the stale code', { status: 409, code: 'SESSION_EDIT_IN_PROGRESS' }],
+  [false, 'a conflict with no code', { status: 409 }],
+  [true, 'a validation refusal', { status: 422, code: 'SESSION_EDIT_NO_CHANGE' }],
+  [true, 'an unauthorized refusal', { status: 401 }],
+  [true, 'a forbidden refusal', { status: 403, code: 'FORBIDDEN' }],
+  [true, 'a stale revision', { status: 409, code: 'SESSION_LINE_REVISION_STALE' }],
+  [true, 'the lowest client error', { status: 400 }],
+  [true, 'the highest client error', { status: 499 }],
+])('editOutcomeKnown is %s for %s', (known, _label, error) => {
+  expect(editOutcomeKnown(error)).toBe(known);
 });

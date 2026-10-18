@@ -13,14 +13,14 @@ const kwd = (value: string) => formatKwd(parseMoney(value));
 const shown = (locale: Locale, row: { name_ar: string | null; name_en: string }) => (locale === 'ar' ? row.name_ar ?? row.name_en : row.name_en);
 const warningFlags = [['not_clocked_in_warning', 'notClockedIn'], ['approved_leave_warning', 'approvedLeave']] as const;
 
-export function SessionSavedLine({ line, edit, locale, when, sessionId, scope, online, open, canEdit, added, busy, onBusyChange, onOpen, onClose, onSaved, onForbidden, onAccessDenied }: {
+export function SessionSavedLine({ line, edit, locale, when, sessionId, scope, online, open, canEdit, added, editBusy, onRequestStart, onRequestEnd, onOpen, onClose, onSaved, onForbidden, onAccessDenied }: {
   line: SavedServiceLine; edit?: SavedLineEdit; locale: Locale; when: string; sessionId: string;
-  scope?: SessionServiceScope; online: boolean; open: boolean; canEdit: boolean; added: boolean; busy: boolean;
-  onBusyChange: (busy: boolean) => void;
+  scope?: SessionServiceScope; online: boolean; open: boolean; canEdit: boolean; added: boolean; editBusy: boolean;
+  onRequestStart?: () => void; onRequestEnd?: () => void;
   onOpen: () => void; onClose: () => void; onSaved: (result: EditServiceLineResult) => void; onForbidden: (message: string) => void;
   onAccessDenied: (message: string) => void;
 }) {
-  const editLocked = busy && !open;
+  const editLocked = editBusy && !open;
   const figures = savedLineFigures(line, edit);
   const revision = edit?.revision ?? line.revision;
   return <li className="grid gap-2">
@@ -43,7 +43,8 @@ export function SessionSavedLine({ line, edit, locale, when, sessionId, scope, o
     })}
     {canEdit && line.status === 'ACTIVE' ? <Button type="button" variant="outline" disabled={editLocked} onClick={() => { if (!editLocked) onOpen(); }}>{t(locale, 'serviceLineEdit.edit')}</Button> : null}
     {/* إعادة المحاولة مرة واحدة بتحصل في الهوك، ومفيش جلب على شاشة الاستقبال يرجّع مراجعة أحدث. */}
-    {open && scope ? <EditServiceLineForm scope={scope} sessionId={sessionId} online={online} retryStaleOnce figuresKnown={figures !== null} closeDisabled={busy} onBusyChange={onBusyChange}
+    {open && scope ? <EditServiceLineForm scope={scope} sessionId={sessionId} online={online} retryStaleOnce figuresKnown={figures !== null} closeDisabled={editBusy}
+      {...(onRequestStart ? { onRequestStart } : {})} {...(onRequestEnd ? { onRequestEnd } : {})}
       line={{ id: line.id, price: figures?.price ?? '', discount: figures?.discount ?? '', net: figures?.net ?? '', revision }}
       onSaved={onSaved} onStale={() => undefined} onForbidden={onForbidden} onAccessDenied={onAccessDenied} onClose={onClose} /> : null}
   </li>;

@@ -9,15 +9,16 @@ import { newSessionVisit, sessionLeaveFeedback, sessionResultFrozen, sessionResu
 import { SessionSavedVisit } from './session-saved-visit';
 import { SessionWriteFeedback } from './session-write-feedback';
 
-export function SessionSavedResult({ result, journal, onNewVisit, scope, online = true }: {
+export function SessionSavedResult({ result, journal, onNewVisit, scope, online = true, editBusy = false, onRequestStart, onRequestEnd }: {
   result: SessionRecordingResult; journal: Pick<SessionAttemptJournal, 'leaveVisit'>; onNewVisit: (result: SessionRecordingResult) => void;
-  scope?: SessionServiceScope; online?: boolean;
+  scope?: SessionServiceScope; online?: boolean; editBusy?: boolean; onRequestStart?: () => void; onRequestEnd?: () => void;
 }) {
   const locale = useLocale(), session = result.session;
   const [failure, setFailure] = useState<{ source: SessionRecordingResult; feedback: SessionFeedback } | null>(null);
   if (!session) return null;
   const leaveFeedback = failure?.source === result ? failure.feedback : null;
   const leave = (sameCustomer: boolean) => {
+    if (editBusy) return;
     try { onNewVisit(newSessionVisit(result, journal, sameCustomer)); }
     catch (error) { setFailure({ source: result, feedback: sessionLeaveFeedback(error) }); }
   };
@@ -29,11 +30,12 @@ export function SessionSavedResult({ result, journal, onNewVisit, scope, online 
     <p>{t(locale, 'serviceSessions.occurredAt')} <bdi>{when}</bdi></p>
     <p>{t(locale, 'serviceSessions.timezone')} <bdi>{session.business_timezone}</bdi></p>
     {sessionResultLate(session) ? <Badge variant="warning">{t(locale, 'serviceSessions.late')}</Badge> : null}
-    <SessionSavedVisit result={result} online={online} {...(scope ? { scope } : {})} />
+    <SessionSavedVisit result={result} online={online} editBusy={editBusy} {...(scope ? { scope } : {})}
+      {...(onRequestStart ? { onRequestStart } : {})} {...(onRequestEnd ? { onRequestEnd } : {})} />
     {leaveFeedback ? <SessionWriteFeedback result={{ ...result, feedback: leaveFeedback, attempt: null }} /> : null}
     {complete ? <div className="flex flex-wrap gap-2">
-      <Button type="button" onClick={() => leave(false)}>{t(locale, 'serviceSessions.newVisit')}</Button>
-      <Button type="button" variant="outline" onClick={() => leave(true)}>{t(locale, 'serviceSessions.newVisitSameCustomer')}</Button>
+      <Button type="button" disabled={editBusy} onClick={() => leave(false)}>{t(locale, 'serviceSessions.newVisit')}</Button>
+      <Button type="button" variant="outline" disabled={editBusy} onClick={() => leave(true)}>{t(locale, 'serviceSessions.newVisitSameCustomer')}</Button>
     </div> : null}
   </Card>;
 }
