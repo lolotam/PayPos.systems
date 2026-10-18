@@ -88,6 +88,9 @@ describe('business-settings.query', () => {
       default_language: 'ar',
       calendar: 'gregorian',
       tax_rule: null,
+      official_name_ar: null,
+      official_name_en: null,
+      logo_file_id: null,
       overridden: [],
       updated_at: null,
     });
@@ -96,6 +99,28 @@ describe('business-settings.query', () => {
   it("another company's settings are invisible: its business reads as the template", async () => {
     const read = await businessSettingsQuery(db, noCache, TEMPLATE, access, B.business);
     expect(read).toMatchObject({ calendar: 'gregorian', overridden: [] });
+  });
+
+  it('an old cached entry without logo_file_id is not served', async () => {
+    const stale: SettingsReadCache = {
+      read: async () => ({
+        generation: '1',
+        json: JSON.stringify({
+          business_id: A.business,
+          limit_bps: 1,
+          default_language: 'en',
+          calendar: 'hijri',
+          tax_rule: null,
+          overridden: ['limit_bps'],
+          updated_at: null,
+        }),
+      }),
+      fill: async () => undefined,
+    };
+    const read = await businessSettingsQuery(db, stale, TEMPLATE, access, A.business);
+    expect(read.default_language).toBe('ar');
+    expect(read.logo_file_id).toBeNull();
+    expect(settingsSchema.parse(read).official_name_en).toBeNull();
   });
 
   it('EXPLAIN ANALYZE: one primary-key lookup, never a sequential scan', async () => {

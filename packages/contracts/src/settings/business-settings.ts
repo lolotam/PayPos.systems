@@ -26,6 +26,10 @@ export const businessSettings = responseObject({
     limit_bps: discountLimitBps.nullable(),
     // null = مفيش ضريبة (الكويت النهارده).
     tax_rule: taxRule.nullable(),
+    // قيم مخزنة مش fallback: null = لسه ما اتكتبش، ومش جزء من overridden.
+    official_name_ar: z.string().nullable(),
+    official_name_en: z.string().nullable(),
+    logo_file_id: id.nullable(),
     // اللي النشاط غيّره بنفسه — الباقي جاي من الـ template.
     overridden: z.array(z.enum(['default_language', 'calendar', 'limit_bps'])),
     // null لو النشاط لسه ما غيّرش أي حاجة.
@@ -43,5 +47,31 @@ export const updateBusinessSettingsInput = z
   .refine((input) => Object.keys(input).length > 0, { message: 'Nothing to update' })
   .meta({ id: 'UpdateBusinessSettingsInput' });
 
+// مفتاح بقيمة = الاسم بعد القص؛ null = امسحه؛ مفتاح مش موجود = سيبه. الطول بعدد حروف Postgres.
+const officialNameText = z
+  .string()
+  .transform((value) => value.trim())
+  .refine((value) => {
+    const length = [...value].length;
+    return length >= 1 && length <= 255;
+  });
+
+export const updateBusinessIdentityNamesInput = z
+  .object({
+    official_name_ar: officialNameText.nullable().optional(),
+    official_name_en: officialNameText.nullable().optional(),
+  })
+  .strict()
+  .refine((input) => Object.keys(input).length > 0, { message: 'Nothing to update' })
+  .meta({ id: 'UpdateBusinessIdentityNamesInput' });
+
+export const businessIdentityNames = responseObject({
+  official_name_ar: z.string().nullable(),
+  official_name_en: z.string().nullable(),
+})
+  .meta({ id: 'BusinessIdentityNames' });
+
 export type BusinessSettings = z.infer<typeof businessSettings>;
 export type UpdateBusinessSettingsInput = z.infer<typeof updateBusinessSettingsInput>;
+export type UpdateBusinessIdentityNamesInput = z.infer<typeof updateBusinessIdentityNamesInput>;
+export type BusinessIdentityNames = z.infer<typeof businessIdentityNames>;

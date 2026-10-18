@@ -7,6 +7,7 @@ import { SETTINGS_WIRING, SettingsController } from './http/settings.controller.
 import { createRedisSettingsCache } from './persistence/redis-settings-cache.ts';
 import { createSettingsTransactions } from './persistence/settings-transactions.ts';
 import { UpdateBusinessSettings } from './use-cases/update-business-settings/update-business-settings.ts';
+import { UpdateBusinessIdentityNames } from './use-cases/update-business-identity-names/update-business-identity-names.ts';
 import { SetBusinessDiscountDefault } from './use-cases/set-business-discount-default/set-business-discount-default.ts';
 import {
   resolveEffectiveDiscountLimit,
@@ -42,10 +43,11 @@ export function settingsProviders(
     SETTINGS_TEMPLATE,
   );
   const discount = new SetBusinessDiscountDefault(createSettingsTransactions(database, ids), cache);
+  const identity = new UpdateBusinessIdentityNames(createSettingsTransactions(database, ids), cache);
   return [
     {
       provide: SETTINGS_WIRING,
-      useValue: { update, discount, cache, template: SETTINGS_TEMPLATE },
+      useValue: { update, discount, identity, cache, template: SETTINGS_TEMPLATE },
     },
   ];
 }

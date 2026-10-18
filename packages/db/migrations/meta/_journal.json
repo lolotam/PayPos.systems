@@ -1037,6 +1037,20 @@
       "when": 1792325893982,
       "tag": "0149_2026-10-18_employee-number-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1792366057838,
+      "tag": "0150_2026-10-18_business-identity-names",
+      "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1792366090376,
+      "tag": "0151_2026-10-18_business-identity-logo-file-index",
+      "breakpoints": true
     }
   ]
 }

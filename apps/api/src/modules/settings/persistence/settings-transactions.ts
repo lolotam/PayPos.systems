@@ -2,34 +2,44 @@ import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
-import { createBusinessDiscountAccess } from './business-discount-access.adapter.ts';
+import { OfficialNameRejected } from '../domain/official-name.ts';
 import type {
+  IdentityNamesChange,
   SettingsChange,
   SettingsScope,
   SettingsTransactions,
   StoredSettings,
 } from '../ports/settings.port.ts';
+import { createBusinessDiscountAccess } from './business-discount-access.adapter.ts';
+import { createBusinessIdentityAccess } from './business-identity-access.adapter.ts';
 
 type Row = {
   limit_bps: number | null;
   default_language: StoredSettings['defaultLanguage'];
   calendar: StoredSettings['calendar'];
   tax_rule: unknown;
+  official_name_ar: string | null;
+  official_name_en: string | null;
+  logo_file_id: string | null;
   updated_at: string;
 };
 
-const COLUMNS = sql`default_language, calendar, limit_bps, tax_rule, to_json(updated_at) #>> '{}' AS updated_at`;
+const COLUMNS = sql`default_language, calendar, limit_bps, tax_rule, official_name_ar, official_name_en, logo_file_id, to_json(updated_at) #>> '{}' AS updated_at`;
 const toStored = (row: Row): StoredSettings => ({
   limitBps: row.limit_bps,
   defaultLanguage: row.default_language,
   calendar: row.calendar,
   taxRule: row.tax_rule,
+  officialNameAr: row.official_name_ar,
+  officialNameEn: row.official_name_en,
+  logoFileId: row.logo_file_id,
   updatedAt: row.updated_at,
 });
 
 function scopeFor(tx: Tx, companyId: string, userId: string, ids: IdGenerator): SettingsScope {
   return {
     discountAccess: createBusinessDiscountAccess(tx, companyId, userId),
+    identityAccess: createBusinessIdentityAccess(tx, companyId, userId),
     audit: transactionWriters(tx, ids).audit,
     findForUpdate: async (businessId) => {
       // A row that does not exist cannot be locked: two first writes would both read "nothing yet" and audit a wrong
@@ -61,7 +71,44 @@ function scopeFor(tx: Tx, companyId: string, userId: string, ids: IdGenerator): 
       if (row === undefined) throw new Error('upsert returned no row');
       return toStored(row);
     },
+    saveIdentity: (businessId, change, updatedBy) =>
+      saveIdentityNames(tx, companyId, businessId, change, updatedBy),
   };
+}
+
+async function saveIdentityNames(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  change: IdentityNamesChange,
+  updatedBy: string,
+): Promise<StoredSettings> {
+  const updates: SQL[] = [
+    ...('officialNameAr' in change ? [sql`official_name_ar = ${change.officialNameAr ?? null}`] : []),
+    ...('officialNameEn' in change ? [sql`official_name_en = ${change.officialNameEn ?? null}`] : []),
+    sql`updated_by = ${updatedBy}`,
+    sql`updated_at = now()`,
+  ];
+  try {
+    const [row] = await tx.execute<Row>(sql`
+      UPDATE business_settings
+      SET ${sql.join(updates, sql`, `)}
+      WHERE company_id = ${companyId} AND business_id = ${businessId}
+      RETURNING ${COLUMNS}`);
+    if (row === undefined) throw new Error('identity update returned no row');
+    return toStored(row);
+  } catch (error) {
+    const cause = error instanceof Error && 'cause' in error ? error.cause : error;
+    const code = typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : undefined;
+    const constraint =
+      typeof cause === 'object' && cause !== null && 'constraint_name' in cause
+        ? String(cause.constraint_name)
+        : '';
+    if (code === '23514' && constraint.startsWith('business_settings_official_name_')) {
+      throw new OfficialNameRejected();
+    }
+    throw error;
+  }
 }
 
 /**

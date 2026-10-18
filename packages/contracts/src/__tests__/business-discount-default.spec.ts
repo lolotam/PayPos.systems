@@ -1,5 +1,10 @@
 import { expect, it } from 'vitest';
-import { businessSettings, updateBusinessSettingsInput } from '../settings/business-settings.js';
+import {
+  businessIdentityNames,
+  businessSettings,
+  updateBusinessIdentityNamesInput,
+  updateBusinessSettingsInput,
+} from '../settings/business-settings.js';
 import { discountLimitInput } from '../identity/discount-limit.js';
 import { buildOpenApiDocument } from '../openapi.js';
 
@@ -24,6 +29,21 @@ it('refuses invalid limits/reasons, unknown keys and the generic PATCH bypass', 
   expect(businessSettings.shape.limit_bps.parse(0)).toBe(0);
   expect(businessSettings.shape.overridden.parse(['limit_bps'])).toEqual(['limit_bps']);
 });
+it('trims an official name, clears with null, and refuses a blank or oversized name', () => {
+  expect(updateBusinessIdentityNamesInput.parse({ official_name_ar: '  صالون  ', official_name_en: null })).toEqual({
+    official_name_ar: 'صالون',
+    official_name_en: null,
+  });
+  expect(updateBusinessIdentityNamesInput.safeParse({}).success).toBe(false);
+  expect(updateBusinessIdentityNamesInput.safeParse({ official_name_en: ' ' }).success).toBe(false);
+  expect(updateBusinessIdentityNamesInput.safeParse({ official_name_en: 'a'.repeat(256) }).success).toBe(false);
+  expect(updateBusinessIdentityNamesInput.safeParse({ official_name_en: '😀'.repeat(255) }).success).toBe(true);
+  expect(updateBusinessIdentityNamesInput.safeParse({ theme: 'dark' }).success).toBe(false);
+  expect(businessIdentityNames.parse({ official_name_ar: null, official_name_en: 'Salon' })).toEqual({
+    official_name_ar: null,
+    official_name_en: 'Salon',
+  });
+});
 it('publishes settings read and audited discount command with exact 200 status and company/business target', () => {
   expect(buildOpenApiDocument()).toMatchObject({
     paths: {
@@ -46,6 +66,28 @@ it('publishes settings read and audited discount command with exact 200 status a
         },
       },
       '/v1/businesses/{businessId}/settings': { get: { operationId: 'getBusinessSettings' } },
+      '/v1/businesses/{businessId}/settings/identity': {
+        patch: {
+          operationId: 'updateBusinessIdentityNames',
+          responses: {
+            '200': {
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/BusinessIdentityNames' },
+                },
+              },
+            },
+          },
+          requestBody: {
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/UpdateBusinessIdentityNamesInput' },
+              },
+            },
+          },
+          parameters: [{ name: 'x-company-id' }, { name: 'businessId' }],
+        },
+      },
     },
   });
 });
