@@ -272,3 +272,27 @@ it('closes the open editor when the page changes', async () => {
   ).toBeTruthy();
   expect(screen.queryByRole('textbox')).toBeNull();
 });
+
+it('lets the search run again after paging away from a failed save', async () => {
+  api.PUT.mockResolvedValue({
+    error: {
+      code: 'EMPLOYEE_NUMBER_TAKEN',
+      message_en: 'Synthetic taken',
+      message_ar: 'Synthetic taken ar',
+    },
+    response: { status: 409 },
+  });
+  renderPage();
+  await openNoura('en');
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '9' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.save') }));
+  await screen.findByRole('alert');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.next') }));
+  await screen.findByRole('button', { name: t('en', 'staff.first') });
+  fireEvent.change(screen.getByRole('searchbox', { name: t('en', 'staff.search') }), {
+    target: { value: 'Noura' },
+  });
+  await waitFor(() =>
+    expect(api.GET.mock.calls.at(-1)?.[1].params.query).toEqual({ limit: 20, q: 'Noura' }),
+  );
+});

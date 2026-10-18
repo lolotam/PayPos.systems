@@ -29,6 +29,8 @@ export function useCompanyNumbersScreen(companyId: string, userId: string) {
   const editing = list.data?.items.find((item) => item.employee_id === editingId);
   const onPage = (cursor: string | undefined) => {
     if (save.isPending) return;
+    // الصفحة بتقفل المحرّر، فنتيجة الحفظ الفاشل ماتفضلش توقف البحث.
+    save.reset();
     controls.onPage(cursor);
     setEditingId(undefined);
   };

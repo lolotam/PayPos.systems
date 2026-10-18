@@ -101,7 +101,9 @@ export async function keepTakenFailureFromEarlySearch(api: NumbersApi) {
   await new Promise((resolve) => setTimeout(resolve, 350));
   expect(api.GET.mock.calls.some((call) => call[1].params.query.q === '2')).toBe(false);
   fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.close') }));
-  await waitFor(() => expect(api.GET.mock.calls.at(-1)?.[1].params.query).toEqual({ limit: 20, q: '2' }));
+  await waitFor(() =>
+    expect(api.GET.mock.calls.at(-1)?.[1].params.query).toEqual({ limit: 20, q: '2' }),
+  );
 }
 
 export function hangAfterFirstPage(get: ListReader) {
