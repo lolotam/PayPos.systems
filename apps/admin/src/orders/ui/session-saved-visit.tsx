@@ -2,7 +2,7 @@
 import type { ServiceSession } from '@pospay/contracts';
 import { parseMoney } from '@pospay/domain';
 import { formatInstant, formatKwd, t } from '@pospay/i18n';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { EditServiceLineResult } from '../api/use-edit-service-line';
 import type { SessionServiceScope } from '../api/use-session-services';
@@ -20,7 +20,7 @@ function openLineId(open: OpenLine | null, session: ServiceSession, canEdit: boo
   if (editBusy) return open.lineId;
   return canEdit && open.snapshot === session ? open.lineId : null;
 }
-type Refusal = { snapshot: ServiceSession; message: string };
+type Refusal = { sessionId: string; message: string };
 type Denial = { sessionId: string; message: string };
 
 export function SessionSavedVisit({ result, scope, online, editBusy = false, onRequestStart, onRequestEnd }: {
@@ -33,6 +33,8 @@ export function SessionSavedVisit({ result, scope, online, editBusy = false, onR
   const [open, setOpen] = useState<OpenLine | null>(null);
   const [refusal, setRefusal] = useState<Refusal | null>(null);
   const [denial, setDenial] = useState<Denial | null>(null);
+  const sessionRef = useRef(session);
+  useEffect(() => { sessionRef.current = session; }, [session]);
   // المحرر المعلّق اللي اتبقّى بعد استبدال السناب شوت يتثبّت على الجديد، فرفض معروف بعد القفل يفضل ظاهر مش بيختفي.
   if (editBusy && session && open && open.snapshot.id === session.id && open.snapshot !== session) setOpen({ snapshot: session, lineId: open.lineId });
   if (!session) return null;
@@ -44,12 +46,18 @@ export function SessionSavedVisit({ result, scope, online, editBusy = false, onR
   const visit = held?.snapshot === session ? held.visit : reconcileSavedVisit(baseline, session);
   const canEdit = !!scope && !sessionResultFrozen(result);
   const editingId = openLineId(open, session, canEdit, editBusy);
-  const refusalText = refusal?.snapshot === session ? refusal.message : null;
+  const refusalText = refusal?.sessionId === session.id ? refusal.message : null;
   const when = formatInstant(new Date(session.occurred_at), locale, session.business_timezone);
   const saved = (lineId: string, edit: EditServiceLineResult) => {
-    // رد إعادة محاولة أقدم من مراجعة السطر في السناب شوت الحالي ما يكتبش فوقه حتى لو مفيش تعديل محلي متتبَّع.
+    // السناب شوت اللي وصل بعد بدء الطلب هو المرجع. رد إعادة محاولة بمراجعة أقل من أو تساوي مراجعة السطر فيه ما يكتبش فوق أرقامه ولا إجماليه، ونسيب علامة «اتعدّل».
+    const latest = sessionRef.current ?? session;
     const answered = 'line' in edit.response ? edit.response.line.revision : edit.revisionUsed + 1;
-    if ((session.lines.find((line) => line.id === lineId)?.revision ?? 0) > answered) {
+    const snapshotRevision = latest.lines.find((line) => line.id === lineId)?.revision ?? 0;
+    if (snapshotRevision >= answered) {
+      setHeld((current) => {
+        const base = reconcileSavedVisit(current?.visit ?? emptySavedVisit(latest.id, latest.total_net), latest);
+        return { snapshot: latest, visit: { ...base, lines: { ...base.lines, [lineId]: { edited: true, revision: snapshotRevision, figures: 'SNAPSHOT' } } } };
+      });
       setOpen((current) => current?.lineId === lineId ? null : current);
       return;
     }
@@ -70,7 +78,7 @@ export function SessionSavedVisit({ result, scope, online, editBusy = false, onR
         open={editingId === line.id} canEdit={canEdit} added={result.addedLineIds.includes(line.id)} editBusy={editBusy}
         {...(edit ? { edit } : {})} {...(scope ? { scope } : {})} {...(onRequestStart ? { onRequestStart } : {})} {...(onRequestEnd ? { onRequestEnd } : {})}
         onOpen={() => { if (editBusy) return; setRefusal(null); setOpen({ snapshot: session, lineId: line.id }); }} onClose={() => setOpen(null)}
-        onSaved={(savedEdit) => saved(line.id, savedEdit)} onForbidden={(message) => { setRefusal({ snapshot: session, message }); setOpen(null); }}
+        onSaved={(savedEdit) => saved(line.id, savedEdit)} onForbidden={(message) => { setRefusal({ sessionId: session.id, message }); setOpen(null); }}
         onAccessDenied={(message) => { setDenial({ sessionId: session.id, message }); setOpen(null); }} />;
     })}</ul>
   </>;

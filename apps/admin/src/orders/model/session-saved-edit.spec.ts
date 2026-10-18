@@ -22,6 +22,8 @@ it('does not let a late replay response overwrite figures of a newer snapshot re
   expect(wide).toBe(newer);
   const old = { line: { revision: 2, price: '1.000', discount: '0.000', net: '1.000' }, session: { total_net: '1.000' } } as never;
   expect(applySavedLineEdit(newer, 's1', 'l1', old, 1)).toBe(newer);
+  const equal = { line: { revision: 4, price: '3.000', discount: '0.000', net: '3.000' }, session: { total_net: '3.000' } } as never;
+  expect(applySavedLineEdit(newer, 's1', 'l1', equal, 3)).toBe(newer);
   const current = { line: { revision: 5, price: '2.000', discount: '0.000', net: '2.000' }, session: { total_net: '2.000' } } as never;
   expect(applySavedLineEdit(newer, 's1', 'l1', current, 4).lines.l1).toMatchObject({ revision: 5, figures: 'FROM_RESPONSE', net: '2.000' });
 });
