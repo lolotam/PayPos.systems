@@ -2,8 +2,31 @@
 import { parseEmployeeNumber } from '@pospay/domain';
 import { t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
+
+function submitNumber(
+  event: FormEvent<HTMLFormElement>,
+  text: string,
+  onSubmit: (employeeNumber: number) => void,
+  setInvalid: (invalid: boolean) => void,
+) {
+  event.preventDefault();
+  // parseEmployeeNumber يرفض المسافة؛ القص هنا عشان « 007 » يبقى 7 قبل الإرسال (EN-Q8).
+  const parsed = parseEmployeeNumber(text.trim());
+  if (parsed === null) {
+    setInvalid(true);
+    return;
+  }
+  setInvalid(false);
+  onSubmit(parsed);
+}
+
+function closeOnEscape(pending: boolean, onClose: () => void, event: KeyboardEvent<HTMLFormElement>) {
+  if (event.key !== 'Escape' || pending) return;
+  event.preventDefault();
+  onClose();
+}
 
 export function CompanyEmployeeNumberEditor({
   current,
@@ -20,30 +43,31 @@ export function CompanyEmployeeNumberEditor({
 }) {
   const locale = useLocale();
   const fieldId = useId();
+  const field = useRef<HTMLInputElement>(null);
   const [text, setText] = useState(current === null ? '' : String(current));
   const [invalid, setInvalid] = useState(false);
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    // parseEmployeeNumber يرفض المسافة؛ القص هنا عشان « 007 » يبقى 7 قبل الإرسال (EN-Q8).
-    const parsed = parseEmployeeNumber(text.trim());
-    if (parsed === null) {
-      setInvalid(true);
-      return;
-    }
-    setInvalid(false);
-    onSubmit(parsed);
-  };
+  useEffect(() => {
+    field.current?.focus();
+  }, []);
   return (
-    <form onSubmit={submit} className="flex max-w-xs flex-col gap-2">
+    <form
+      onSubmit={(event) => submitNumber(event, text, onSubmit, setInvalid)}
+      onKeyDown={(event) => closeOnEscape(pending, onClose, event)}
+      className="flex max-w-xs flex-col gap-2"
+    >
       <Label htmlFor={fieldId}>{t(locale, 'companyEmployeeNumbers.number')}</Label>
       <Input
+        ref={field}
         id={fieldId}
         inputMode="numeric"
         autoComplete="off"
         value={text}
         disabled={pending}
         aria-invalid={invalid}
-        onChange={(event) => setText(event.target.value)}
+        onChange={(event) => {
+          setText(event.target.value);
+          setInvalid(false);
+        }}
       />
       {invalid ? <p role="alert">{t(locale, 'companyEmployeeNumbers.invalid')}</p> : null}
       {message ? <p role="alert">{message}</p> : null}

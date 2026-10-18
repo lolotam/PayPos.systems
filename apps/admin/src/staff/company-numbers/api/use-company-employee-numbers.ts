@@ -74,7 +74,10 @@ export function useSetCompanyEmployeeNumber(companyId: string, userId: string) {
       client.setQueriesData<EmployeeNumberPage>({ queryKey: [...key] }, (page) =>
         page ? withSavedNumber(page, saved.employee_id, saved.employee_number) : page,
       );
-      await client.invalidateQueries({ queryKey: [...key] });
+      await Promise.all([
+        client.invalidateQueries({ queryKey: [...key] }),
+        client.invalidateQueries({ queryKey: ['employees', companyId] }),
+      ]);
     },
   });
 }

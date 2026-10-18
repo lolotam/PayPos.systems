@@ -17,7 +17,9 @@ import { salaryEn } from './salary-catalog.js';
 import { staffLoginEn } from './staff-login-catalog.js';
 import { catalogServicesEn, serviceErrorsEn } from './catalog-services.js';
 import { employeeIbanEn, employeeIbanErrorsEn } from './employee-iban-catalog.js';
-import { scheduleShellEn } from './schedule-shell-catalog.js'; import { employeeDefaultHoursEn } from './employee-default-hours-catalog.js'; import { employeeNumberErrorsEn } from './employee-number-catalog.js'; import { companyEmployeeNumbersEn } from './company-employee-numbers-catalog.js';
+import { scheduleShellEn } from './schedule-shell-catalog.js'; import { employeeDefaultHoursEn } from './employee-default-hours-catalog.js'; import { employeeNumberErrorsEn } from './employee-number-catalog.js';
+import { companyEmployeeNumbersEn } from './company-employee-numbers-catalog.js';
+import { roleNamesEn } from './role-names-catalog.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
   attendanceActions: attendanceActionsEn,
@@ -79,21 +81,7 @@ export const en = {
     workspaceLead: 'Your company, business and branch at a glance.',
     permissionsLead: 'Review role defaults and manage personal access decisions.',
   },
-  roles: {
-    owner: 'Owner',
-    general_manager: 'General Manager',
-    accountant: 'Accountant',
-    business_manager: 'Business Manager',
-    branch_manager: 'Branch Manager',
-    shift_supervisor: 'Shift Supervisor',
-    cashier: 'Cashier',
-    waiter: 'Waiter',
-    kitchen: 'Kitchen',
-    storekeeper: 'Storekeeper',
-    staff: 'Staff',
-    marketing: 'Marketing',
-    viewer: 'Viewer',
-  },
+  roles: roleNamesEn,
   permissions: {
     discountLimit: 'Discount limit (%)',
     businessDiscountTitle: 'Default discount limit',
