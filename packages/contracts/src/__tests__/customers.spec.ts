@@ -65,12 +65,12 @@ describe('customer contracts', () => {
     expect(findOrCreateCustomerInput.safeParse(body).success).toBe(false);
   });
 
-  it('response accepts only masked phone and no internal or extra fields', () => {
+  it('response accepts only masked phone and drops unknown fields', () => {
     expect(customer.parse(response)).toEqual(response);
     for (const phone of ['+12025550123', input.phone, '12025550123', '***123\n']) {
       expect(customer.safeParse({ ...response, phone }).success).toBe(false);
     }
-    expect(customer.safeParse({ ...response, opted_out_at: null }).success).toBe(false);
+    expect(customer.parse({ ...response, opted_out_at: null })).toEqual(response);
     expect(customer.safeParse({ ...response, phone: '***12' }).success).toBe(true);
   });
 

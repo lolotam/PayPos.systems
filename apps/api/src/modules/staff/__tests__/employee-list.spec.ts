@@ -26,6 +26,14 @@ afterAll(async () => {
   await f?.db.close();
   await f?.h.close();
 });
+// الاختبار بيحوّل سجل كامل لشكل عنصر القائمة بالمفاتيح اللي السكيما بتعرفها، لأن عقود الرد strict في اختبارات الـ API (ADR-0047) ومش بتشيل مفتاح زيادة.
+const listItem = (record: object | undefined) => {
+  if (!record) throw new Error('Missing synthetic fixture');
+  const source = record as Record<string, unknown>;
+  return employeeListItem.parse(
+    Object.fromEntries(Object.keys(employeeListItem.shape).map((key) => [key, source[key]])),
+  );
+};
 const list = (
   limit: number,
   cursor?: string,
@@ -49,10 +57,10 @@ const list = (
   );
 it('UE-08 returns exact projections and stable cursor pages with no duplicate rows', async () => {
   const first = employeePage.parse(await list(2));
-  expect(first.items).toEqual(records.slice(0, 2).map((record) => employeeListItem.parse(record)));
+  expect(first.items).toEqual(records.slice(0, 2).map((record) => listItem(record)));
   expect(first.next_cursor).toBe(records[1]?.id);
   const last = employeePage.parse(await list(2, first.next_cursor ?? undefined));
-  expect(last).toEqual({ items: [employeeListItem.parse(records[2])], next_cursor: null });
+  expect(last).toEqual({ items: [listItem(records[2])], next_cursor: null });
   expect(await list(2, ids.newId())).toEqual({ items: [], next_cursor: null });
 });
 it('details include sorted active branches and revision; list query uses both scope and attachment indexes', async () => {
@@ -80,11 +88,11 @@ it('DENY on any active branch filters before paging; cursors reference visible r
   ]);
   const first = await list(1);
   expect(first).toEqual({
-    items: [employeeListItem.parse(records[1])],
+    items: [listItem(records[1])],
     next_cursor: records[1]?.id,
   });
   const second = employeePage.parse(await list(1, records[1]?.id));
-  expect(second).toEqual({ items: [employeeListItem.parse(records[2])], next_cursor: null });
+  expect(second).toEqual({ items: [listItem(records[2])], next_cursor: null });
   await employeeGrants(f, [['ALLOW', 'BRANCH', f.branch]]);
   expect(employeePage.parse(await list(20)).items.map((r) => r.id)).toEqual(
     records.slice(1).map((r) => r.id),

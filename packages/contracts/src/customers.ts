@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from './response-object.js';
 
 import { id } from './scalars/id.js';
 
@@ -22,8 +23,7 @@ export const findOrCreateCustomerInput = z
   })
   .meta({ id: 'FindOrCreateCustomerInput' });
 
-export const customer = z
-  .strictObject({
+export const customer = responseObject({
     id,
     name: z.string().min(1).max(200),
     locale: z.enum(['ar', 'en']),

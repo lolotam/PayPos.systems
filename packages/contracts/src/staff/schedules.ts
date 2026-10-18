@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { scheduleSettings, setScheduleSettingsInput } from './schedule-settings.js';
 import { id } from '../scalars/id.js';
 import { nameAr, nameEn } from '../bilingual/names.js';
@@ -17,15 +18,22 @@ export const shiftBreakFields = {
     .nullable()
     .optional(),
 };
+const scheduleShiftFields = {
+  day: z.number().int().min(0).max(6),
+  start: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
+  end: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
+  ...shiftBreakFields,
+};
+const breakPair = (shift: {
+  break_start?: string | null | undefined;
+  break_end?: string | null | undefined;
+}) => (shift.break_start != null) === (shift.break_end != null);
 export const scheduleShift = z
-  .strictObject({
-    day: z.number().int().min(0).max(6),
-    start: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
-    end: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
-    ...shiftBreakFields,
-  })
-  .refine((shift) => (shift.break_start != null) === (shift.break_end != null))
+  .strictObject(scheduleShiftFields)
+  .refine(breakPair)
   .meta({ id: 'ScheduleShift' });
+// نسخة الرد بتتشال منها المفاتيح الزيادة؛ طلب الجدول لسه بيرفضها (ADR-0047).
+export const scheduleShiftView = responseObject(scheduleShiftFields).refine(breakPair);
 export const schedulePattern = z.array(scheduleShift).max(28).meta({ id: 'SchedulePattern' });
 export const scheduleReason = z.string().trim().min(1).max(500);
 export const setScheduleInput = z
@@ -36,7 +44,7 @@ export const setScheduleInput = z
     reason: scheduleReason.optional(),
   })
   .meta({ id: 'SetScheduleInput' });
-export const concreteShift = scheduleShift
+export const concreteShift = scheduleShiftView
   .safeExtend({
     working_date: employeeDate,
     starts_at: z.iso.datetime(),
@@ -47,8 +55,7 @@ export const concreteShift = scheduleShift
     break_ends_at: z.iso.datetime().nullable(),
   })
   .meta({ id: 'ConcreteShift' });
-export const staffSchedule = z
-  .object({
+export const staffSchedule = responseObject({
     id,
     business_id: id,
     branch_id: id,
@@ -71,17 +78,15 @@ export const scheduleListQuery = scheduleWeekQuery
 export const scheduleWeekResult = z
   .object({ schedule: staffSchedule.nullable() })
   .meta({ id: 'ScheduleWeekResult' });
-export const scheduleGridRow = z
-  .object({
+export const scheduleGridRow = responseObject({
     employee_id: id,
     name_en: nameEn,
     name_ar: nameAr.nullable(),
     schedule: staffSchedule.nullable(),
-    default_shifts: z.array(scheduleShift).max(7),
+    default_shifts: z.array(scheduleShiftView).max(7),
   })
   .meta({ id: 'ScheduleGridRow' });
-export const scheduleGrid = z
-  .object({
+export const scheduleGrid = responseObject({
     week_start: employeeDate,
     days: z.array(employeeDate).length(7),
     timezone: timeZone,

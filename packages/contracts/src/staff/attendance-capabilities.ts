@@ -1,7 +1,7 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 
-export const attendanceCapabilities = z
-  .strictObject({
+export const attendanceCapabilities = responseObject({
     correct: z.boolean(),
     resolve: z.boolean(),
     request_change: z.boolean(),

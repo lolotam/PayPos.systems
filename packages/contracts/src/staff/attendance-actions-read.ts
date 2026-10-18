@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { attendanceActorName } from './attendance-actor-name.js';
@@ -25,29 +26,27 @@ export const attendanceExceptionListItem = attendanceExceptionRecord
   .extend({
     own: z.boolean(),
     can_resolve: z.boolean(),
-    session: z.strictObject({
+    session: responseObject({
       id,
       working_date: z.iso.date(),
       clock_in: timestamp,
       clock_out: timestamp.nullable(),
       status: z.enum(['OPEN', 'CLOSED', 'MISSED_OUT']),
     }),
-    employee: z.strictObject({ id, name_ar: z.string().nullable(), name_en: z.string() }),
+    employee: responseObject({ id, name_ar: z.string().nullable(), name_en: z.string() }),
   })
   .meta({ id: 'AttendanceExceptionListItem' });
-export const attendanceExceptionPage = z
-  .strictObject({ items: z.array(attendanceExceptionListItem), next_cursor: cursor.nullable() })
+export const attendanceExceptionPage = responseObject({ items: z.array(attendanceExceptionListItem), next_cursor: cursor.nullable() })
   .meta({ id: 'AttendanceExceptionPage' });
-export const attendanceCorrectionHistory = z
-  .strictObject({
+export const attendanceCorrectionHistory = responseObject({
     items: z.array(
-      z.strictObject({
+      responseObject({
         id,
         field: z.enum(['CLOCK_IN', 'CLOCK_OUT']),
         before_at: timestamp,
         after_at: timestamp,
         reason: z.string(),
-        corrected_by: z.strictObject({ id, name: attendanceActorName }),
+        corrected_by: responseObject({ id, name: attendanceActorName }),
         corrected_at: timestamp,
       }),
     ),

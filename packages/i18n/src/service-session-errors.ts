@@ -3,7 +3,7 @@ export const serviceSessionErrors = {
   SESSION_CUSTOMER_NOT_FOUND: { message_ar: 'العميلة غير موجودة.', message_en: 'Customer not found.' },
   SESSION_SERVICE_NOT_FOUND: { message_ar: 'الخدمة غير موجودة في النشاط.', message_en: 'Service not found in this business.' },
   SESSION_PERFORMER_NOT_ELIGIBLE: { message_ar: 'الموظفة غير مؤهلة لهذا الفرع في يوم الجلسة.', message_en: 'Performer is not eligible at this branch on the session date.' },
-  SESSION_PERFORMER_SELF_FORBIDDEN: { message_ar: 'لا يمكنك تسجيل خدمة قمت بها بنفسك.', message_en: 'You cannot record your own performance.' },
+  SESSION_PERFORMER_SELF_FORBIDDEN: { message_ar: 'لا يمكنك تنفيذ هذا الإجراء على خدمة قمت بها بنفسك.', message_en: 'You cannot perform this action on a service you performed yourself.' },
   SESSION_PERFORMER_SHARES_INVALID: { message_ar: 'نسب الموظفات غير صحيحة.', message_en: 'Performer shares are invalid.' },
   SESSION_DISCOUNT_INVALID: { message_ar: 'الخصم يجب أن يكون بين صفر والسعر.', message_en: 'Discount must be between zero and the price.' },
   SESSION_DISCOUNT_ABOVE_LIMIT: { message_ar: 'الخصم الفعلي أعلى من حدك. عدّلي هذا البند.', message_en: 'Effective discount exceeds your limit. Edit this line.' },
@@ -22,6 +22,14 @@ export const serviceSessionErrors = {
   SESSION_EDIT_REASON_INVALID: { message_ar: 'اكتب سبب التعديل (لحد 500 حرف).', message_en: 'Enter the reason for the edit (up to 500 characters).' },
   SESSION_EDITOR_MEMBERSHIP_REQUIRED: { message_ar: 'اختاري العضوية اللي بتعدّلي بيها.', message_en: 'Select the membership you are editing under.' },
   SESSION_EDIT_IDENTITY_UNKNOWN: { message_ar: 'مينفعش نتأكد مين نفّذ الخدمة دي (سطر قديم)، فمينفعش تتعدّل.', message_en: 'This older line has no performer identity record and cannot be edited.' },
+  SESSION_LINE_ALREADY_CANCELLED: { message_ar: 'السطر ده ملغي بالفعل.', message_en: 'This line is already cancelled.' },
+  SESSION_CANCEL_REASON_INVALID: { message_ar: 'اكتب سبب الإلغاء (لحد 500 حرف).', message_en: 'Enter the reason for the cancellation (up to 500 characters).' },
+  SESSION_CANCEL_BLOCKED_BY_TIP: { message_ar: 'فيه بقشيش مسجّل لموظفة ملهاش خدمة تانية في الزيارة. امسحي البقشيش الأول وبعدين الغي.', message_en: 'A tip is recorded for a performer who has no other service on this visit. Remove the tip first, then cancel.' },
+  SESSION_LINE_IDENTITY_UNKNOWN: { message_ar: 'مينفعش نتأكد مين نفّذ الخدمة دي (سطر قديم)، فمينفعش تتلغي.', message_en: 'This older line has no performer identity record and cannot be cancelled.' },
+  // TODO(spec): المواصفة تسمّي الرمز وتفاصيل canceller_membership_ids ولا تعطي الجملة؛ النص مرآة لعضوية التعديل.
+  SESSION_CANCELLER_MEMBERSHIP_REQUIRED: { message_ar: 'اختاري العضوية اللي بتلغّي بيها.', message_en: 'Select the membership you are cancelling under.' },
+  // الجملة محايدة لأن المواصفة تؤجّل النص حتى صفوف 42/43، وفهرس الفلتر يطلب مفتاحاً لكل رمز.
+  SESSION_LINE_NOT_CANCELLABLE: { message_ar: 'السطر ده مش قابل للإلغاء.', message_en: 'This line cannot be cancelled.' },
   VALIDATION_FAILED: { message_ar: 'البيانات المرسلة غير صحيحة', message_en: 'The request is not valid' },
   TIP_WINDOW_CLOSED: { message_ar: 'فات وقت تسجيل البقشيش للزيارة دي.', message_en: 'The time to record a tip for this visit has passed.' },
   TIP_SELF_FORBIDDEN: { message_ar: 'ماينفعش تسجّلي أو تغيّري بقشيشك إنتِ.', message_en: 'You cannot record or change your own tip.' },

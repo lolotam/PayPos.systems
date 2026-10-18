@@ -67,7 +67,7 @@ the wording of the two labels it names; a company role's name is whatever its ow
 ## Consequences
 
 - A storage sub-PR **35d-3b** (~250–350 lines) lands before the writer; a small **35d-2b** (~120–200) widens the bell consumer's
-  label use. 35d-4 starts only after both. Sizes and gates are in spec-35d §5.
+  label use. 35d-4 starts only after ED-Q14 is answered and 35d-3b and 35d-2b have landed. Sizes and gates are in spec-35d §5.
 - Migration numbering follows merge order (after 35d-2's).
 - The `TODO(spec)` comment on `editorRole` in `packages/db/schema/orders.ts` is removed by 35d-3b.
 - 37b decided, in its own spec ([spec 055](../specs/055-orders-change-line-performers/spec.md) D-3): a performer it removes keeps blocking (her snapshot moves to the change history, never deleted); it also writes `linked_user_id` and `linked_user_snapshotted = true` for performers it adds (a non-null `linked_user_id` with the default `false` is rejected by the CHECK; an unlinked performer left at `false` would make the line permanently non-editable).

@@ -35,6 +35,7 @@ const keys: Readonly<Record<string, MessageKey>> = {
   'manage:devices:branch': 'permissionCodes.manageDevicesBranch',
   'read:settings:business': 'permissionCodes.readSettingsBusiness',
   'manage:settings:business': 'permissionCodes.manageSettingsBusiness',
+  'manage:business-identity:business': 'permissionCodes.manageBusinessIdentityBusiness',
   'view:notifications:business': 'permissionCodes.viewNotificationsBusiness',
   'manage:files:business': 'permissionCodes.manageFilesBusiness',
   'read:files:business': 'permissionCodes.readFilesBusiness',

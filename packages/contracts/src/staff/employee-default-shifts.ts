@@ -1,15 +1,16 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
-import { scheduleShift } from './schedules.js';
+import { scheduleShift, scheduleShiftView } from './schedules.js';
 export const setEmployeeDefaultShiftsInput = z.strictObject({ shifts: z.array(scheduleShift).max(7) }).meta({ id: 'SetEmployeeDefaultShiftsInput' });
-export const employeeDefaultShifts = z.object({
+export const employeeDefaultShifts = responseObject({
   employee_id: id,
   can_manage: z.boolean().describe('True when the reader may manage at least one listed branch.'),
-  branches: z.array(z.object({
+  branches: z.array(responseObject({
     branch_id: id,
     linked: z.boolean(),
     can_manage: z.boolean().describe('manage:employee-hours evaluated on this branch; a branch DENY wins.'),
-    shifts: z.array(scheduleShift).max(7),
+    shifts: z.array(scheduleShiftView).max(7),
     updated_at: z.iso.datetime().nullable(),
   })),
 }).meta({ id: 'EmployeeDefaultShifts' });
