@@ -11,7 +11,7 @@ import { sql } from 'drizzle-orm';
 import type { ScopeType } from '../domain/access.ts';
 import { protectOwnerAccess } from '../domain/owner-access.ts';
 import type { AccessReader, ActiveMembership, SourcedGrant } from '../ports/access-reader.port.ts';
-import { lockActiveCompany } from './company-active-lock.ts';
+import { companyIsActive } from './company-active-lock.ts';
 import { readFeatureEnabled } from './feature-reader.ts';
 import { readScopeTargets } from './permission-scope-targets.ts';
 
@@ -93,8 +93,10 @@ function readAccess(
 
 /**
  * عضويات المستخدم السارية ومنحه جوه transaction الشركة.
- * صف الشركة النشطة بيتقفل FOR KEY SHARE قبل العضويات والمنح، ويفضل ماسك لحد ما معاملة القرار تتسجل.
- * القفل مش بيستنى كتابات FOR NO KEY UPDATE؛ الحذف الناعم لازم يمسك FOR UPDATE الأول عشان يستنى القرار.
+ * الفحص SELECT من غير قفل صف: مسار القراءة ممنوع يستنى أي قفل.
+ * الكتابة متسلسلة لأن كل إعادة فحص بتمسك صف الشركة FOR NO KEY UPDATE في نفس المعاملة
+ * عن طريق lock*Access، والقفل ده بيتعارض مع أي UPDATE للصف بما فيه الحذف الناعم،
+ * فالحذف مش يقدر يتسجل بين الفحص والكتابة.
  * صف مش ظاهر أو deleted_at متعبّى بيرجّع صفر عضويات وصفر منح والـ guard بيرفض بالفحص الموجود.
  *
  * @param tx         معاملة withTenant للشركة
@@ -109,7 +111,7 @@ export async function readAccessTransaction(
   userId: string,
   decisionAt?: Date,
 ): ReturnType<AccessReader['accessIn']> {
-  if (!(await lockActiveCompany(tx, companyId))) return { memberships: [], grants: [] };
+  if (!(await companyIsActive(tx, companyId))) return { memberships: [], grants: [] };
   const at = decisionAt === undefined ? sql`now()` : sql`${decisionAt.toISOString()}::timestamptz`;
   const active = sql`m.starts_at <= ${at} AND (m.ends_at IS NULL OR m.ends_at > ${at})`;
   const memberships = await tx.execute<{

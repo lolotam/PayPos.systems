@@ -8,7 +8,10 @@ import { startHarness, type Harness } from '../../../../test/harness.ts';
 import { seedEmployee } from '../../../../../../packages/db/test/staff-fixtures.ts';
 import { CASHIER_PIN_USE_CASES, type CashierPinUseCases } from '../http/cashier-pins.controller.ts';
 import { readAccessTransaction } from '../persistence/access-reader.ts';
-import { lockEmployeeNumberAccess } from '../persistence/employee-number-access.ts';
+import {
+  lockEmployeeNumberAccess,
+  readEmployeeNumberAccess,
+} from '../persistence/employee-number-access.ts';
 
 const EMAIL = 'deleted-lock-race@example.test';
 const PIN = '7391';
@@ -20,6 +23,7 @@ let db: Database;
 let cookie: string;
 let userId: string;
 let company: string;
+let business: string;
 let branch: string;
 let deviceToken: string;
 let pendingClaim: { company_id: string; device_id: string; claim_secret: string };
@@ -60,6 +64,44 @@ async function duringDeletion<T>(start: () => Promise<T>): Promise<T> {
   const observer = postgres(h.ownerUrl, { max: 1, onnotice: () => undefined });
   try {
     await untilKeyShareWait(observer);
+  } finally {
+    release.release();
+    try {
+      await deletion;
+    } finally {
+      await observer.end();
+    }
+  }
+  return subject;
+}
+
+async function untilNoKeyUpdateWait(observer: ReturnType<typeof postgres>): Promise<void> {
+  await vi.waitFor(
+    async () => {
+      const waiting = await observer`SELECT 1 FROM pg_stat_activity
+        WHERE datname=current_database() AND wait_event_type='Lock'
+          AND query LIKE '%companies%deleted_at IS NULL FOR NO KEY UPDATE%'
+          AND pid<>pg_backend_pid()`;
+      expect(waiting.length).toBeGreaterThan(0);
+    },
+    { timeout: 5_000, interval: 20 },
+  );
+}
+
+async function duringOpenUpdate<T>(start: () => Promise<T>): Promise<T> {
+  const locked = barrier();
+  const release = barrier();
+  // UPDATE لوحده بياخد FOR NO KEY UPDATE، وده اللي lock*Access بيستناه قبل إعادة الفحص.
+  const deletion = h.owner.begin(async (tx) => {
+    await tx`UPDATE companies SET deleted_at=now() WHERE id=${company}`;
+    locked.release();
+    await release.promise;
+  });
+  await locked.promise;
+  const subject = start();
+  const observer = postgres(h.ownerUrl, { max: 1, onnotice: () => undefined });
+  try {
+    await untilNoKeyUpdateWait(observer);
   } finally {
     release.release();
     try {
@@ -112,7 +154,7 @@ beforeAll(async () => {
   const [user] = await h.owner`SELECT id FROM "user" WHERE email=${EMAIL}`;
   userId = user?.['id'] as string;
   company = await h.onboard(cookie, 'Lock Race Co');
-  const business = await createdId('/v1/businesses', 'lock-race-business', {
+  business = await createdId('/v1/businesses', 'lock-race-business', {
     vertical_type: 'salon',
     name_en: 'Lock Race',
   });
@@ -144,11 +186,36 @@ afterAll(async () => {
   await h?.close();
 });
 
-it('waits on the company key-share lock and then returns no access after the deletion commits', async () => {
-  const access = await duringDeletion(() =>
-    db.withTenant(company, (tx) => readAccessTransaction(tx, company, userId), { userId }),
-  );
-  expect(access).toEqual({ memberships: [], grants: [] });
+it('an access read does not wait behind FOR UPDATE and refuses after the deletion commits', async () => {
+  const release = barrier();
+  const held = barrier();
+  const holder = h.owner.begin(async (tx) => {
+    await tx`SELECT id FROM companies WHERE id=${company} FOR UPDATE`;
+    await tx`UPDATE companies SET deleted_at=now() WHERE id=${company}`;
+    held.release();
+    await release.promise;
+  });
+  await held.promise;
+  const read = () =>
+    db.withTenant(company, (tx) => readAccessTransaction(tx, company, userId), { userId });
+  const during = read();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const access = await Promise.race([
+      during,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Access read waited for FOR UPDATE')), 1_000);
+      }),
+    ]);
+    expect(access.memberships.length).toBeGreaterThan(0);
+    expect(access.grants.length).toBeGreaterThan(0);
+  } finally {
+    clearTimeout(timer);
+    release.release();
+    await holder;
+    await during.catch(() => undefined);
+  }
+  expect(await read()).toEqual({ memberships: [], grants: [] });
 });
 
 it('waits on registration and then refuses without inserting the device', async () => {
@@ -196,39 +263,19 @@ it('waits on PIN verification and then counts the failure like a wrong PIN', asy
   expect(await h.redis.get(`pin:${company}:${EMPLOYEE}:failures`)).toBe('1');
 });
 
-it('a guarded read does not wait behind a writer holding FOR NO KEY UPDATE', async () => {
-  const release = barrier();
-  const held = barrier();
-  const holder = h.owner.begin(async (tx) => {
-    await tx`SELECT id FROM companies WHERE id=${company} FOR NO KEY UPDATE`;
-    held.release();
-    await release.promise;
-  });
-  await held.promise;
-  const read = db.withTenant(
-    company,
-    (tx) => readAccessTransaction(tx, company, userId),
-    { userId },
+it('a number recheck waits for an open company update and refuses after it commits', async () => {
+  const decision = await duringOpenUpdate(() =>
+    db.withTenant(
+      company,
+      async (tx) => {
+        const locked = await lockEmployeeNumberAccess(tx, company);
+        const access = await readEmployeeNumberAccess(tx, company, userId, business, [branch]);
+        return { locked, access };
+      },
+      { userId },
+    ),
   );
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const access = await Promise.race([
-      read,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error('Guarded read waited for FOR NO KEY UPDATE')),
-          1_000,
-        );
-      }),
-    ]);
-    expect(access.memberships.length).toBeGreaterThan(0);
-    expect(access.grants.length).toBeGreaterThan(0);
-  } finally {
-    clearTimeout(timer);
-    release.release();
-    await holder;
-    await read.catch(() => undefined);
-  }
+  expect(decision).toEqual({ locked: false, access: 'FORBIDDEN' });
 });
 
 it('reads grants after a stronger company lock in the same transaction', async () => {

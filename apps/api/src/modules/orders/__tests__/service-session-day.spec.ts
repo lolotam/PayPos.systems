@@ -103,7 +103,7 @@ it('has fixed authorization reads and one list statement regardless of page size
   await query.execute(scope(), { date: '2026-10-17', limit: 100 });
   expect(statements).toEqual(first);
   expect(first.filter((statement) => statement.startsWith('WITH candidates'))).toHaveLength(1);
-  // قفل الشركة FOR KEY SHARE جوه readAccessTransaction ضمن قراءات الإذن الثابتة.
+  // فحص الشركة من غير قفل جوه readAccessTransaction ضمن قراءات الإذن الثابتة.
   expect(first).toHaveLength(8);
 });
 
