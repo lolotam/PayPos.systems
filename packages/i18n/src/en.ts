@@ -396,5 +396,5 @@ export const en = {
     networkError: 'The server could not be reached. Try again.',
   },
   employeeImport: employeeImportEn,
-  companyEmployeeNumbers: { ...companyEmployeeNumbersEn },
+  companyEmployeeNumbers: companyEmployeeNumbersEn,
 } as const;

@@ -389,5 +389,5 @@ export const ar: Catalog = {
     networkError: 'تعذّر الوصول إلى الخادم. حاول مرة أخرى.',
   },
   employeeImport: employeeImportAr,
-  companyEmployeeNumbers: { ...companyEmployeeNumbersAr },
+  companyEmployeeNumbers: companyEmployeeNumbersAr,
 };
