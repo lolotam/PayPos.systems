@@ -1,7 +1,3 @@
-import { readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 const STATUSES = new Set(['done', 'in_progress', 'not_started']);
 
 /**
@@ -39,25 +35,3 @@ export function applyUpdates(roadmap, updates, today) {
   roadmap.updated = today;
   return roadmap;
 }
-
-function main(argv) {
-  const [roadmapPath, updatesPath, today = new Date().toISOString().slice(0, 10)] = argv;
-  if (!roadmapPath || !updatesPath) {
-    console.error(
-      'usage: node scripts/roadmap/set-status.mjs <roadmap.json> <updates.json> [YYYY-MM-DD]',
-    );
-    process.exit(2);
-  }
-  const source = readFileSync(roadmapPath, 'utf8');
-  const roadmap = applyUpdates(
-    JSON.parse(source),
-    JSON.parse(readFileSync(updatesPath, 'utf8')),
-    today,
-  );
-  const indent = source.trimEnd().includes('\n') ? 2 : 0;
-  writeFileSync(roadmapPath, `${JSON.stringify(roadmap, null, indent)}\n`);
-  console.log(`roadmap updated (${today})`);
-}
-
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
-  main(process.argv.slice(2));

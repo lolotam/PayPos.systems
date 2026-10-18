@@ -30,6 +30,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 | Review layer 1 | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) — owner's choice 2026-10-11 | no |
 | Review layer 2 | **one** fresh Claude reviewer, **Sonnet 5.5 at medium effort** (`claude-sonnet-5-5`), given the diff and the spec only, never the session history; **high** effort for money, tenant isolation (RLS), auth and migrations; none for a docs-only PR (§8 rule 5) | no |
 | Review layer 3 — **four bots** | the Codex GitHub bot (`chatgpt-codex-connector[bot]`, `@codex review` after every push; Codex CLI when out of quota) **and** the MergePilot panel (`mergepilot-review[bot]`): MergePilot (`gpt-6.1-sol`), waleed_bot (`claude-sonnet-5-5`), mohamed_bot (`grok-4.7`), which reviews every pushed commit on its own | no |
+| Draft writer (§8 rule 6) | Codex or a free model (GLM) writes first drafts of specs, ADRs, journey docs and the HANDOVER; the orchestrator edits and owns the result | yes |
 | Fixer | the implementer, resuming **its own Grok session** with only the findings (§4); the orchestrator only for one-line fixes | yes |
 | Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
 
@@ -55,7 +56,7 @@ moment it happens, in the owner report. Never switch to a metered provider witho
   slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
 - **One use case per PR** (`CLAUDE.md` §1). A task that needs two use cases is two PRs.
 - **Docs-only lane** (owner, 2026-10-17). A PR whose files are all under `docs/**`, `*.md`, `.claude/skills/**` or
-  `.specify/**` (no code, no migration, no generated file) skips §3 steps 2, 5 (except `docs-guard`), 6, 7, 8 and 14, needs no implementer dispatch (§3 step 3; specs and ADRs are written by the orchestrator) and no spec (§3 step 1) unless the PR is itself a spec, judges §3 step 4 by `pnpm format:check` (`prettier --check .`, which covers Markdown) instead of the full `pnpm check`, and skips the
+  `.specify/**` (no code, no migration, no generated file) skips §3 steps 2, 5 (except `docs-guard`), 6, 7, 8 and 14, needs no implementer dispatch (§3 step 3; specs and ADRs are drafted by a cheaper model and edited and owned by the orchestrator, §8 rule 6) and no spec (§3 step 1) unless the PR is itself a spec, judges §3 step 4 by `pnpm format:check` (`prettier --check .`, which covers Markdown) instead of the full `pnpm check`, and skips the
   5-round cap. It merges when `ci-gate` is green on the exact head, the Codex bot and the MergePilot panel have
   completed on that head, and no P0/P1 is open. A P1 here means a wrong or contradictory rule in any governing or operational document (a spec, an ADR, `CLAUDE.md`, a skill, `docs/security.md`, a runbook); the bar
   for it does not move. P2/P3 findings on prose are fixed in one batch commit at most; the rest become linked issues.
@@ -231,19 +232,22 @@ typing do not.
    and P0/P1 judgement only.
 4. **Fix rounds go to Grok.** When a bot finds something, the findings go to the implementer's resumed Grok session
    (§4 rule 2, `file:line — what is wrong — what done looks like`). Claude judges whether the fix is right; it does not
-   retype it. A Claude session fixes a finding itself only when it is a one-line change.
+   retype it. A Claude session fixes a finding itself only when it is a one-line change. Two exceptions stay as written:
+   a docs-only PR has no Grok session, so the orchestrator (or a doc-writing session) fixes its findings; and after two
+   Grok failures on one brief the orchestrator implements (§1 fallback).
 5. **One cheaper review layer 2.** One fresh Sonnet 5.5 reviewer at medium effort replaces the two Opus-class reviewers
    (review and confirm round). It gets the diff and the spec, not the session history, so its context stays small. Use high
    effort, or a reviewer from another vendor, when the PR touches money, tenant isolation, auth or migrations. A docs-only
    PR gets no Claude reviewer. The confirm round is dropped: the four bots re-review the head SHA after every push.
-6. **Drafts are written by cheaper models.** First drafts of specs, ADRs, journey docs and the HANDOVER go to Codex or a
+6. **Drafts are written by cheaper models.** (Draft writer role, listed in §1.) First drafts of specs, ADRs, journey docs and the HANDOVER go to Codex or a
    free model (GLM) and Claude edits them. Claude writes a document from scratch only when it records a decision it
    alone has the context for.
 7. **The roadmap is edited by a script.** After a merge, write the changed rows as `[{ "code": "…", "status": "done",
-   "ref": "PR #n" }]` and run `node scripts/roadmap/set-status.mjs roadmap.json updates.json`. It sets status and ref by
+   "ref": "PR #n" }]` and run `node scripts/roadmap/cli.mjs roadmap.json updates.json`. It sets status and ref by
    code anywhere in the file (phases, gates, track items, partner requests), bumps `updated`, and refuses an unknown
-   code or status before changing anything. Read the live page, run the script on a copy of `roadmap.json`, republish.
-   Do not write a new script each time.
+   code or status before changing anything. It cannot add a row: add a new row by hand in the right group of
+   `roadmap.json` first, then run the script for the statuses. Read the live page, run the script on a copy of
+   `roadmap.json`, republish. Do not write a new script each time.
 8. **Report the draw.** When the owner asks about quota, answer from the context sizes of the sessions and the number of
    wake-ups, not from guesses; the app does not expose per-session numbers.
 
