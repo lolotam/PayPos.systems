@@ -77,6 +77,8 @@ export function executeCreate(
     branchId?: string;
     primary_branch_id?: string;
     user_id?: string;
+    employee_number?: number;
+    hire_date?: string;
   } = {},
 ) {
   return f.useCase.execute({
@@ -87,8 +89,9 @@ export function executeCreate(
       primary_branch_id: extra.primary_branch_id ?? extra.branchId ?? f.branch,
       name_en: name,
       role_code: 'staff',
-      hire_date: '2026-01-01',
+      hire_date: extra.hire_date ?? '2026-01-01',
       ...(extra.user_id === undefined ? {} : { user_id: extra.user_id }),
+      ...(extra.employee_number === undefined ? {} : { employee_number: extra.employee_number }),
     },
   });
 }

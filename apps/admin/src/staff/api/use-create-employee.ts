@@ -4,13 +4,15 @@ import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 
 async function create(companyId: string, businessId: string, body: CreateEmployeeInput) {
+  const { employee_number: employeeNumber, ...terms } = body;
   const response = await apiClient().POST('/v1/businesses/{businessId}/employees', {
     params: { header: { 'x-company-id': companyId }, path: { businessId } },
     body: {
-      ...body,
-      name_ar: body.name_ar ?? null,
-      contract_end: body.contract_end ?? null,
-      user_id: body.user_id ?? null,
+      ...terms,
+      name_ar: terms.name_ar ?? null,
+      contract_end: terms.contract_end ?? null,
+      user_id: terms.user_id ?? null,
+      ...(employeeNumber === undefined ? {} : { employee_number: employeeNumber }),
     },
   });
   if (response.error) throw response.error;

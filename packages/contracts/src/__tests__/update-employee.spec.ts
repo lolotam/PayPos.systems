@@ -34,6 +34,7 @@ it.each([
   { company_id: id },
   { business_id: id },
   { salary: '100.000' },
+  { employee_number: 1050 },
 ])('rejects invalid or unsupported update fields %j', (change) => {
   expect(updateEmployeeInput.safeParse({ ...terms, ...change }).success).toBe(false);
 });
@@ -49,6 +50,15 @@ it('bounds cursor pages and requires current branch metadata on edit details', (
   for (const employee_number of [0, 7, 1_000_000, '0', '1000000', '1.5', 'abc', '-1', '0x7', '1e3', ' 7', '+7', ''])
     expect(employeeListQuery.safeParse({ employee_number }).success).toBe(false);
   expect(employeeDetailRecord.safeParse(terms).success).toBe(false);
+  expect(employeeListQuery.parse({ q: '  Heba  ' })).toEqual({ limit: 20, q: 'Heba' });
+  expect(employeeListQuery.parse({ q: 'a'.repeat(100), employee_number: '7' })).toEqual({
+    limit: 20,
+    q: 'a'.repeat(100),
+    employee_number: 7,
+  });
+  for (const q of ['', ' ', 'a'.repeat(101), 'a\u0000'])
+    expect(employeeListQuery.safeParse({ q }).success).toBe(false);
+  expect(employeeListQuery.safeParse({ q: 'Heba', extra: true }).success).toBe(false);
 });
 it('publishes list/detail/update paths and named conflict HTTP status', () => {
   const paths = buildOpenApiDocument()['paths'] as Record<
@@ -59,6 +69,7 @@ it('publishes list/detail/update paths and named conflict HTTP status', () => {
   expect(JSON.stringify(paths['/v1/businesses/{businessId}/employees']?.get)).toContain(
     'employee_number',
   );
+  expect(JSON.stringify(paths['/v1/businesses/{businessId}/employees']?.get)).toContain('"name":"q"');
   expect(
     paths['/v1/businesses/{businessId}/employees/{employeeId}']?.patch?.responses,
   ).toHaveProperty('409');

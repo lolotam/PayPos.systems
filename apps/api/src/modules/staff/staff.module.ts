@@ -5,6 +5,7 @@ import {
 } from './staff-attendance.providers.ts';
 import { scheduleProviders } from './staff-schedule.providers.ts';
 import { defaultShiftsProviders } from './staff-default-shifts.providers.ts';
+import { employeeNumberProviders } from './staff-employee-number.providers.ts';
 import { attendanceReportProviders } from './staff-report.providers.ts';
 import { AttendanceMonthlyReportController } from './http/attendance-monthly-report.controller.ts';
 import {
@@ -13,6 +14,10 @@ import {
   salaryProviders,
 } from './staff-records.providers.ts';
 import { EmployeeDefaultShiftsController } from './http/employee-default-shifts.controller.ts';
+import { EmployeeNumberCapabilityController } from './http/employee-number-capability.controller.ts';
+import { EmployeeNumberController } from './http/employee-number.controller.ts';
+import { EmployeeNumbersController, EMPLOYEE_NUMBERS_SEARCH } from './http/employee-numbers.controller.ts';
+import { employeeListSearch } from './persistence/employee-list-search.ts';
 import { EmployeeIbanController } from './http/employee-iban.controller.ts';
 import { MyScheduleController } from './http/my-schedule.controller.ts';
 import {
@@ -63,7 +68,7 @@ import type { Redis } from 'ioredis';
 
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { AttendanceQrController } from './http/attendance-qr.controller.ts';
-import { EmployeesController } from './http/employees.controller.ts';
+import { EMPLOYEE_LIST_SEARCH, EmployeesController } from './http/employees.controller.ts';
 import { EmployeeImportController } from './http/employee-import.controller.ts';
 import { EmployeeDetailGuard } from './http/employee-detail.guard.ts';
 import { createEmployeeDetailAccess } from './persistence/employee-detail-access.adapter.ts';
@@ -101,6 +106,9 @@ export const staffControllers = [
   AttendanceBoardController,
   AttendanceChangeRequestsController,
   EmployeeDefaultShiftsController,
+  EmployeeNumberController,
+  EmployeeNumberCapabilityController,
+  EmployeeNumbersController,
   EmployeeIbanController,
   ClockAttendanceController,
   ClockByCardController,
@@ -217,6 +225,8 @@ export function staffProviders(
     ...enrolProviders(database, ids, passkeys, logger),
     ...scheduleProviders(database, ids),
     ...defaultShiftsProviders(database, ids),
+    ...employeeNumberProviders(database, ids),
+    { provide: EMPLOYEE_NUMBERS_SEARCH, useValue: employeeListSearch },
     ...attendanceReportProviders(database, ids),
     ...leaveProviders(database, ids),
     ...attendanceExceptionProviders(database, ids),
@@ -237,6 +247,7 @@ export function staffProviders(
       provide: EMPLOYEE_DETAIL_ACCESS,
       useValue: database === undefined ? null : createEmployeeDetailAccess(),
     },
+    { provide: EMPLOYEE_LIST_SEARCH, useValue: employeeListSearch },
     {
       provide: CreateEmployeeUseCase,
       useValue:

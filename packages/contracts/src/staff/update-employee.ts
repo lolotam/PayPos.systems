@@ -10,7 +10,9 @@ const branches = z
   .min(1)
   .max(100)
   .refine((values) => new Set(values).size === values.length);
+// الرقم الوظيفي بيتغيّر من مساره الخاص (8c-6) بس، فالتعديل العام يرفضه بدل ما يقبله ويتجاهله.
 export const updateEmployeeInput = createEmployeeInput
+  .omit({ employee_number: true })
   .extend({
     expected_revision: revision,
     branch_ids: branches,
@@ -38,6 +40,8 @@ export const employeeListQuery = z
     limit: z.coerce.number().int().min(1).max(100).default(20),
     // أرقام فقط قبل التحويل حتى لا يُقبل 0x7 أو 1e3 أو مسافة؛ الأصفار البادئة تُشال (TD-3).
     employee_number: z.string().max(50).regex(/^[0-9]+$/).transform(Number).pipe(z.number().int().min(1).max(999999)).optional(),
+    // خانة واحدة: القص يمنع فراغاً، والطول سقف خانة القائمة (EN-Q16). المحرف الفارغ يرفضه Postgres كنص.
+    q: z.string().trim().min(1).max(100).refine((value) => !value.includes('\u0000')).optional(),
   })
   .meta({ id: 'EmployeeListQuery' });
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeInput>;

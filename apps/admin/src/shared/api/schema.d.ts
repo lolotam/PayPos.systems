@@ -771,6 +771,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/employee-numbers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description A human holder of manage:employee-number:company and the staff feature. Company employee-numbers screen. Each row is only employee_id, name_ar, name_en, business_id, business_name_ar, business_name_en, and employee_number. Soft-deleted employees are omitted. A DENY on the employee's business, primary branch, or any current attachment (a future start still counts) hides the row; an ended attachment does not. */
+        get: operations["listEmployeeNumbers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/employee-number": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description A human holder of manage:employee-number:company. Sets one employee number in the company. A DENY on the employee's business, primary branch, or any current attachment blocks. The same number is a no-op. A hand edit does not move the company counter. No Idempotency-Key. */
+        put: operations["setEmployeeNumber"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employee-number-capability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Authorized exactly like create-employee: manage:employees:business on the business and primary_branch_id, plus the staff feature, read without taking the creation locks. A primary branch outside that business is EMPLOYEE_BRANCH_NOT_FOUND (404) before permission. can_type_number is true only when the caller holds manage:employee-number:company with no DENY on that business or primary branch. Missing the number permission or any DENY returns false, not 403. No Idempotency-Key. */
+        get: operations["employeeNumberCapability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/schedules": {
         parameters: {
             query?: never;
@@ -945,10 +996,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. Optional employee_number is an exact match combined with that scope. */
+        /** @description Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. Optional employee_number is an exact match combined with that scope. Optional q searches with it: digits match that exact number or the name, and other text searches Arabic and English names the same way as the reception picker. */
         get: operations["listEmployees"];
         put?: never;
-        /** @description Requires manage:employees:business at the primary branch and staff feature. Missing, other-business and other-company primary branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature or employee diagnostics. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). The response is CreatedEmployee; employee_number is the automatic number or null. No free number left returns EMPLOYEE_NUMBER_EXHAUSTED (422) and writes nothing. */
+        /** @description Requires manage:employees:business at the primary branch and staff feature. Missing, other-business and other-company primary branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature or employee diagnostics. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). Optional employee_number stores that integer and does not move the company counter. Without the field, employee_number is the automatic number or null. A typed number without manage:employee-number:company, or under a DENY on the new employee business or primary_branch_id, returns FORBIDDEN (403) and writes nothing. A typed number already used in the company, including by a soft-deleted employee, returns EMPLOYEE_NUMBER_TAKEN (409) and writes nothing. No free number left returns EMPLOYEE_NUMBER_EXHAUSTED (422) and writes nothing. */
         post: operations["createEmployee"];
         delete?: never;
         options?: never;
@@ -3055,6 +3106,7 @@ export interface components {
             /** @default 20 */
             limit: number;
             employee_number?: string;
+            q?: string;
         };
         DiscountLimit: {
             limit_bps: number | null;
@@ -3245,6 +3297,7 @@ export interface components {
             contract_end?: components["schemas"]["EmployeeDate"] | null;
             /** Format: uuid */
             user_id?: string | null;
+            employee_number?: number;
         };
         /** @enum {string} */
         EmployeeRoleCode: "owner" | "general_manager" | "accountant" | "business_manager" | "branch_manager" | "shift_supervisor" | "cashier" | "waiter" | "kitchen" | "storekeeper" | "staff" | "marketing" | "viewer";
@@ -7845,6 +7898,199 @@ export interface operations {
             };
         };
     };
+    listEmployeeNumbers: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                /** @description Same rule as the staff list: digits only match that exact employee number (leading zeros ignored) or a name containing them; any other text matches Arabic or English names. */
+                q?: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Employee number page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            /** Format: uuid */
+                            business_id: string;
+                            business_name_ar: string | null;
+                            business_name_en: string;
+                            employee_number: number | null;
+                        }[];
+                        next_cursor: string | null;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setEmployeeNumber: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    employee_number: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The stored employee number */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        employee_id: string;
+                        employee_number: number;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeNumberCapability: {
+        parameters: {
+            query: {
+                primary_branch_id: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether this caller may type a number for that primary branch */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        can_type_number: boolean;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     branchScheduleWeek: {
         parameters: {
             query: {
@@ -8628,6 +8874,8 @@ export interface operations {
                 limit?: number;
                 /** @description Exact employee number: digits only, leading zeros ignored, 1..999999; anything else is 400. */
                 employee_number?: string;
+                /** @description Optional search, trimmed, 1..100 characters. Digits match the exact employee number or the name; other text searches Arabic and English names. */
+                q?: string;
             };
             header: {
                 "x-company-id": string;
