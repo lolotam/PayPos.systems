@@ -64,6 +64,17 @@ it('drops cached staff list and detail data so a later visit shows the saved num
     next_cursor: null,
   });
   client.setQueryData(staffDetail, { id: employee, employee_number: 4 });
+  const performers = [
+    'session-performers',
+    company,
+    business,
+    'branch',
+    user,
+    'en',
+    'settled',
+    'instant',
+  ];
+  client.setQueryData(performers, { items: [{ id: employee, employee_number: 4 }] });
   api.PUT.mockResolvedValue({
     data: { employee_id: employee, employee_number: 7 },
     response: { status: 200 },
@@ -82,6 +93,7 @@ it('drops cached staff list and detail data so a later visit shows the saved num
   });
   expect(client.getQueryData(staffList)).toBeUndefined();
   expect(client.getQueryData(staffDetail)).toBeUndefined();
+  expect(client.getQueryData(performers)).toBeUndefined();
 });
 
 it('drops a cached digit search for the new number that did not hold the row', async () => {
