@@ -66,7 +66,9 @@ export function useSetCompanyEmployeeNumber(companyId: string, userId: string) {
     onError: (error) => {
       // الرفض بالصلاحية معناه إن الصف ممكن مابقاش مسموح يظهر؛ القائمة بتتجاب تاني من السيرفر.
       const status = (error as { status?: unknown }).status;
-      if (status === 403 || status === 404) void client.invalidateQueries({ queryKey: [...key] });
+      if (status !== 403 && status !== 404) return;
+      client.removeQueries({ queryKey: [...key], type: 'inactive' });
+      void client.invalidateQueries({ queryKey: [...key] });
     },
     onSuccess: (saved) => {
       // كل صفحة بتتحدّث بالبحث بتاعها: صفحة البحث بالرقم بتطلّع الصف لو الرقم الجديد مابقاش مطابق.

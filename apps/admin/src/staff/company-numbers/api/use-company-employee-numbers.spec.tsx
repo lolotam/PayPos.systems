@@ -109,7 +109,7 @@ it('drops a cached digit search for the new number that did not hold the row', a
   expect(client.getQueryData(bySeven)).toBeUndefined();
 });
 
-it('refetches the list when a save is refused for access, so a row the user may no longer see goes away', async () => {
+it('drops cached company-number pages when a save is refused for access', async () => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -132,6 +132,6 @@ it('refetches the list when a save is refused for access, so a row the user may 
       .mutateAsync({ businessId: business, employeeId: employee, employeeNumber: 7 })
       .catch(() => undefined);
   });
-  expect(client.getQueryState(all)?.isInvalidated).toBe(true);
-  expect(client.getQueryData<typeof page>(all)?.items[0]?.employee_number).toBe(4);
+  // الصفحة دي مش مفتوحة في الاختبار، فبتتشال بدل ما تفضل تعرض صف ممكن مابقاش مسموح.
+  expect(client.getQueryData(all)).toBeUndefined();
 });

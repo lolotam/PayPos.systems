@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployeeListControls } from '../../model/use-employee-list-controls';
 import {
@@ -27,6 +27,13 @@ export function useCompanyNumbersScreen(companyId: string, userId: string) {
   const controls = useEmployeeListControls(closeIfIdle, save.isPending || save.isError);
   const list = useCompanyEmployeeNumbers(companyId, userId, controls.cursor, controls.q);
   const editing = list.data?.items.find((item) => item.employee_id === editingId);
+  const editingGone = editingId !== undefined && list.isSuccess && editing === undefined;
+  useEffect(() => {
+    // الموظفة اختفت من القائمة بعد رفض بالصلاحية: المحرّر بيتقفل والفشل بيتشال عشان البحث مايفضلش واقف.
+    if (!editingGone || save.isPending) return;
+    save.reset();
+    setEditingId(undefined);
+  }, [editingGone, save]);
   const onPage = (cursor: string | undefined) => {
     if (save.isPending) return;
     // الصفحة بتقفل المحرّر، فنتيجة الحفظ الفاشل ماتفضلش توقف البحث.

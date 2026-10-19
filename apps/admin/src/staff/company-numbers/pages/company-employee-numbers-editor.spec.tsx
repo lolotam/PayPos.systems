@@ -318,3 +318,26 @@ it('a search typed after a failed save runs instead of staying paused', async ()
     expect(api.GET.mock.calls.at(-1)?.[1].params.query).toEqual({ limit: 20, q: 'Noura' }),
   );
 });
+
+it('closes the editor and resumes a queued search when a refused save makes the row disappear', async () => {
+  api.PUT.mockResolvedValue({
+    error: {
+      code: 'FORBIDDEN',
+      message_en: 'Synthetic refusal',
+      message_ar: 'Synthetic refusal ar',
+    },
+    response: { status: 403 },
+  });
+  renderPage();
+  await openNoura('en');
+  api.GET.mockResolvedValue({ data: { items: [], next_cursor: null } });
+  fireEvent.change(screen.getByRole('searchbox', { name: t('en', 'staff.search') }), {
+    target: { value: 'Sara' },
+  });
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '9' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.save') }));
+  await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
+  await waitFor(() =>
+    expect(api.GET.mock.calls.at(-1)?.[1].params.query).toEqual({ limit: 20, q: 'Sara' }),
+  );
+});
