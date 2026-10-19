@@ -202,7 +202,8 @@ the `.env` next to itself, so it must always run from `/opt/pospay-staging/`, ne
 8. Update the decisions page's «المشروع أول بأول» tab (`CLAUDE.md` §1 5c) at https://plan.pospay.systems
    (`docs/decisions-site.md` §B): `git pull` the `lolotam/plan` clone, set the merged rows, sub-tasks and any partner
    requests they close to done with the PR number in `public/roadmap.json`, add any new rows, bump `updated`, push to
-   `main`, and confirm the live `roadmap.json` shows the change. Then read the answers back (§C of the same doc). A
+   `main`, and confirm the live `roadmap.json` shows the change. Then read the answers back (§C of the same doc) and
+   send the merge notification to Waleed's phone (§D). A
    docs-only merge updates the tab too. A release is not reported to the owner until this is done.
 
 The server is shared: never touch another project's containers, databases or files.
