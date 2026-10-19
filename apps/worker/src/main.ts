@@ -29,7 +29,11 @@ import {
   createPriceEditNoticeConsumer,
 } from './modules/orders/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
-import { startDocumentRendering, type DocumentRendering } from './documents/start-documents.ts';
+import {
+  beginDocumentRendering,
+  startCoreBeforeDocuments,
+  type DocumentRendering,
+} from './documents/start-documents.ts';
 
 const config = readConfig(process.env);
 const logger = createLogger(config.LOG_LEVEL, { events: WORKER_LOG_EVENTS });
@@ -143,21 +147,7 @@ const release = async (): Promise<void> => {
   redis.disconnect();
 };
 
-try {
-  try {
-    documents = await startDocumentRendering({
-      redis,
-      redisUrl: config.REDIS_URL,
-      logger,
-      clock: { now: () => Date.now() },
-    });
-  } catch {
-    documents = undefined;
-    logger.warn(
-      { capability: { name: 'DOCUMENTS', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
-      'document renderer unavailable',
-    );
-  }
+async function startWorkerCore(): Promise<void> {
   const started = await startOptionalCapabilities({
     env: process.env,
     logger,
@@ -204,6 +194,22 @@ try {
   worker.enableShutdownHooks();
   await worker.listen({ host: config.WORKER_HOST, port: config.WORKER_PORT });
   loop.start();
+}
+
+try {
+  documents = await startCoreBeforeDocuments({
+    startCore: startWorkerCore,
+    beginDocuments: () =>
+      beginDocumentRendering({
+        redis,
+        redisUrl: config.REDIS_URL,
+        logger,
+        clock: { now: () => Date.now() },
+        isStopping: () => stopping,
+      }),
+    isStopping: () => stopping,
+  });
+  void documents.started.catch(() => undefined);
 } catch (error) {
   // Only the sanitised diagnostic is logged — the error's message can carry a connection string.
   logger.fatal({ err: error }, 'worker failed to start');

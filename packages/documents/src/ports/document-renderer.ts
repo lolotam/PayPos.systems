@@ -1,5 +1,12 @@
 export interface RenderOptions {
   readonly signal?: AbortSignal;
+  /**
+   * بيتنادى لكل طلب الشبكة اللي الصفحة حاولته في الرندر ده بس.
+   * القائمة مش على المحوّل، عشان رندرين متزامنين ما يخلطوش بعض.
+   *
+   * @param url عنوان الطلب اللي اتلغى
+   */
+  onAbortedRequest?: (url: string) => void;
 }
 
 /**
@@ -46,10 +53,10 @@ export interface DocumentRenderer {
 
   /**
    * بيحوّل HTML جاهز لبايتات PDF.
-   * الصفحة من غير جافاسكربت ومن غير شبكة، والسياق بيتقفل حتى لو الرندر فشل.
+   * الصفحة من غير جافاسكربت ومن غير شبكة، والمهلة بتغطي فتح السياق كمان.
    *
    * @param html المستند الكامل بعد القالب
-   * @param options إشارة الإلغاء الاختيارية
+   * @param options إشارة الإلغاء ومراقب الطلبات الملغاة لهذا الرندر
    * @returns بايتات PDF
    */
   render(html: string, options?: RenderOptions): Promise<Uint8Array>;

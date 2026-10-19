@@ -130,6 +130,15 @@ export async function statusOf(opened: Opened, companyId: string, id: string): P
   return opened.redis.hgetall(documentStatusKey(companyId, id));
 }
 
+/** الحالة اللي الـ API بيكتبها قبل ما الوظيفة تتاخد. من غيرها الانتقال بيتقفل والوظيفة بتتخطى. */
+export async function seedQueued(opened: Opened, companyId: string, id: string): Promise<void> {
+  await opened.redis.hset(documentStatusKey(companyId, id), {
+    state: 'QUEUED',
+    requested_by: 'user-1',
+    filename: 'a.pdf',
+  });
+}
+
 export async function useRender(
   run: (opened: Opened) => Promise<void>,
   options?: { readonly renderer?: DocumentRenderer; readonly intervalMs?: number },

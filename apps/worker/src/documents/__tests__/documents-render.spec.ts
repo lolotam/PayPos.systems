@@ -5,6 +5,7 @@ import {
   DOCUMENT_RENDERER_ALIVE_KEY,
   DOCUMENT_STATUS_TTL_SECONDS,
   documentBytesKey,
+  documentRenderJobOptions,
   documentStatusKey,
 } from '@pospay/contracts';
 import {
@@ -16,12 +17,13 @@ import {
 import { expect, it } from 'vitest';
 
 import { DocumentKindUnknownError } from '../kind-error.ts';
+import { probeChromium } from './chromium-gate.ts';
 import {
   closeRender,
   finishJob,
   openRender,
-  redisUrl,
   renderId,
+  seedQueued,
   statusOf,
   useRender,
   type FakeRenderer,
@@ -34,30 +36,7 @@ function job(companyId: string, id: string, kind: string) {
   return { company_id: companyId, render_id: id, kind };
 }
 
-async function chromiumInstalled(): Promise<boolean> {
-  let missing = false;
-  const renderer = new PlaywrightDocumentRenderer({
-    backoffMs: [60_000],
-    onLaunchError: (error: unknown) => {
-      const message = error instanceof Error ? error.message : '';
-      if (/Executable doesn't exist|Failed to launch|browserType\.launch/.test(message)) {
-        missing = true;
-        return;
-      }
-      throw error;
-    },
-  });
-  try {
-    await renderer.start();
-    if (renderer.isAvailable()) return true;
-    if (missing) return false;
-    throw new Error('DOCUMENT_RENDER_FAILED');
-  } finally {
-    await renderer.close();
-  }
-}
-
-const chromiumReady = await chromiumInstalled();
+const chromiumReady = await probeChromium();
 
 it('stores one PDF, keeps API fields, and logs no document body', async () => {
   await useRender(async (opened) => {
@@ -105,6 +84,7 @@ it('writes FAILED only on the final attempt', async () => {
       return renderer.pdf;
     };
     opened.registry.register('fixture', { load: async () => '<p>ok</p>' });
+    await seedQueued(opened, companyId, id);
     await finishJob(opened, job(companyId, id, 'fixture'), id);
     expect(calls).toBe(2);
     expect((await statusOf(opened, companyId, id))['state']).toBe('READY');
@@ -115,6 +95,7 @@ it('fails an unknown kind without storing bytes', async () => {
   await useRender(async (opened) => {
     const companyId = renderId();
     const id = renderId();
+    await seedQueued(opened, companyId, id);
     await expect(finishJob(opened, job(companyId, id, 'missing'), id)).rejects.toThrow(
       'DOCUMENT_KIND_UNKNOWN',
     );
@@ -142,6 +123,7 @@ it('rejects oversized HTML without rendering', async () => {
     const companyId = renderId();
     const id = renderId();
     opened.registry.register('fixture', { load: async () => 'x'.repeat(5 * 1024 * 1024) });
+    await seedQueued(opened, companyId, id);
     await expect(finishJob(opened, job(companyId, id, 'fixture'), id)).rejects.toThrow('DOCUMENT_TOO_LARGE');
     expect(renderer.seen).toEqual([]);
     expect(await opened.redis.exists(documentBytesKey(companyId, id))).toBe(0);
@@ -156,6 +138,7 @@ it('maps a renderer timeout', async () => {
     const companyId = renderId();
     const id = renderId();
     opened.registry.register('fixture', { load: async () => `<p>${SECRET}</p>` });
+    await seedQueued(opened, companyId, id);
     await expect(finishJob(opened, job(companyId, id, 'fixture'), id)).rejects.toThrow(
       'DOCUMENT_RENDER_TIMEOUT',
     );
@@ -169,6 +152,7 @@ it('does not overwrite bytes already stored', async () => {
     const companyId = renderId();
     const id = renderId();
     const key = documentBytesKey(companyId, id);
+    await seedQueued(opened, companyId, id);
     await opened.redis.set(key, 'KEEP', 'EX', 30);
     opened.registry.register('fixture', { load: async () => '<p>ok</p>' });
     await finishJob(opened, job(companyId, id, 'fixture'), id);
@@ -257,19 +241,59 @@ function droppingFactory(): NonNullable<RendererOptions['factory']> {
   };
 }
 
+it('does not publish a second PDF after READY bytes were downloaded', async () => {
+  await useRender(async (opened) => {
+    const renderer = opened.renderer as FakeRenderer;
+    const companyId = renderId();
+    const id = renderId();
+    const key = documentBytesKey(companyId, id);
+    await opened.redis.hset(documentStatusKey(companyId, id), {
+      state: 'READY',
+      requested_by: 'user-1',
+      filename: 'a.pdf',
+    });
+    await opened.redis.set(key, Buffer.from('%PDF-OLD'), 'EX', 30);
+    await opened.redis.call('GETDEL', key);
+    opened.registry.register('fixture', { load: async () => '<p>again</p>' });
+    await finishJob(opened, job(companyId, id, 'fixture'), id);
+    expect(renderer.seen).toEqual([]);
+    expect(await opened.redis.exists(key)).toBe(0);
+    expect((await statusOf(opened, companyId, id))['state']).toBe('READY');
+    expect(opened.lines.join('\n')).toContain('"state":"SKIPPED"');
+  });
+});
+
+it('does not render when the status key is missing', async () => {
+  await useRender(async (opened) => {
+    const renderer = opened.renderer as FakeRenderer;
+    const companyId = renderId();
+    const id = renderId();
+    opened.registry.register('fixture', { load: async () => '<p>missing</p>' });
+    await finishJob(opened, job(companyId, id, 'fixture'), id);
+    expect(renderer.seen).toEqual([]);
+    expect(await opened.redis.exists(documentBytesKey(companyId, id))).toBe(0);
+    expect(await opened.redis.exists(documentStatusKey(companyId, id))).toBe(0);
+    expect(opened.lines.join('\n')).toContain('"state":"SKIPPED"');
+  });
+});
+
 it('AC-08 retries once the renderer relaunches after a disconnect', async () => {
-  const options: RendererOptions = { factory: droppingFactory(), backoffMs: [0], browserCloseGraceMs: 0 };
-  const renderer = new PlaywrightDocumentRenderer(options);
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: droppingFactory(),
+    browserCloseGraceMs: 0,
+  });
   await useRender(async (opened) => {
     const companyId = renderId();
     const id = renderId();
+    expect(documentRenderJobOptions(id).backoff).toEqual({ type: 'fixed', delay: 5000 });
     opened.registry.register('fixture', { load: async () => '<p>again</p>' });
+    await seedQueued(opened, companyId, id);
     await finishJob(opened, job(companyId, id, 'fixture'), id);
     const bytes = await opened.redis.getBuffer(documentBytesKey(companyId, id));
     expect(bytes?.subarray(0, 5).toString('latin1')).toBe('%PDF-');
     expect((await statusOf(opened, companyId, id))['state']).toBe('READY');
   }, { renderer });
-});
+}, 15_000);
 
 it.skipIf(!chromiumReady)('AC-01 renders a fixture source through the real browser', async () => {
   const renderer = new PlaywrightDocumentRenderer();
@@ -279,6 +303,7 @@ it.skipIf(!chromiumReady)('AC-01 renders a fixture source through the real brows
     opened.registry.register('fixture', {
       load: async () => fixtureDocument({ language: 'ar', lines: ['worker-e2e'] }),
     });
+    await seedQueued(opened, companyId, id);
     await finishJob(opened, job(companyId, id, 'fixture'), id);
     const bytes = await opened.redis.getBuffer(documentBytesKey(companyId, id));
     expect(bytes?.subarray(0, 5).toString('latin1')).toBe('%PDF-');
@@ -310,6 +335,7 @@ it('AC-07 hands the PDF to one GETDEL and nothing on the next', async () => {
     const id = renderId();
     const key = documentBytesKey(companyId, id);
     opened.registry.register('fixture', { load: async () => '<p>once</p>' });
+    await seedQueued(opened, companyId, id);
     await finishJob(opened, job(companyId, id, 'fixture'), id);
     const ttl = await opened.redis.ttl(key);
     expect(ttl).toBeGreaterThan(0);
@@ -319,5 +345,3 @@ it('AC-07 hands the PDF to one GETDEL and nothing on the next', async () => {
     expect(await opened.redis.call('GETDEL', key)).toBeNull();
   });
 });
-
-void redisUrl;

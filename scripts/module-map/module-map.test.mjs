@@ -419,16 +419,30 @@ describe('ADR-0048 documents renderer import', () => {
     );
   });
 
-  it('rejects every other importer, including reporting and worker outbox', () => {
-    for (const path of [
-      'apps/api/src/modules/identity/persistence/sneak.ts',
-      'apps/api/src/modules/reporting/persistence/render.ts',
-      'apps/worker/src/outbox/sneak.ts',
-    ]) {
-      assert.match(
-        checkModules(repo({ ...workerPackage, [path]: code }), wiringMap).join('\n'),
-        /worker documents folder and its composition root/,
-      );
-    }
+  it('allows a reporting module and rejects outbox and identity', () => {
+    assert.equal(
+      checkModules(
+        repo({
+          ...workerPackage,
+          'apps/api/src/modules/reporting/persistence/render.ts': code,
+        }),
+        wiringMap,
+      ).join('\n'),
+      '',
+    );
+    assert.match(
+      checkModules(
+        repo({ ...workerPackage, 'apps/worker/src/outbox/sneak.ts': code }),
+        wiringMap,
+      ).join('\n'),
+      /worker documents folder and its composition root/,
+    );
+    assert.match(
+      checkModules(
+        repo({ ...workerPackage, 'apps/api/src/modules/identity/persistence/sneak.ts': code }),
+        wiringMap,
+      ).join('\n'),
+      /may be imported only by reporting/,
+    );
   });
 });

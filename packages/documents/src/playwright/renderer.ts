@@ -80,7 +80,6 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   #relaunching: Promise<void> | null = null;
   #unavailable: Array<() => void> = [];
   #availableListeners: Array<() => void> = [];
-  #aborted: string[] = [];
 
   constructor(options: RendererOptions = {}) {
     this.#factory = options.factory ?? playwrightFactory();
@@ -92,11 +91,6 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#browserCloseGraceMs = options.browserCloseGraceMs ?? 1_000;
     this.#onLaunchError = options.onLaunchError;
     this.#onDocumentHtml = options.onDocumentHtml;
-  }
-
-  /** طلبات آخر رندر اللي الـ route لغاها. مش بتتسجل. */
-  takeAbortedRequests(): readonly string[] {
-    return [...this.#aborted];
   }
 
   isAvailable(): boolean {
@@ -128,13 +122,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     assertHtmlWithinLimit(html);
     const browser = this.#browser;
     if (!this.#available || browser === null) throw new DocumentRendererUnavailableError();
-    const context = await browser.newContext(CONTEXT);
-    this.#aborted = [];
-    try {
-      return await this.#renderBounded(context, browser, html, options?.signal);
-    } finally {
-      await context.close().catch(() => undefined);
-    }
+    return this.#renderOnce(browser, html, options);
   }
 
   async #launchOnce(): Promise<void> {
@@ -191,40 +179,48 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     }
   }
 
-  async #renderBounded(
-    context: PdfContext,
-    browser: PdfBrowser,
-    html: string,
-    signal: AbortSignal | undefined,
-  ): Promise<Uint8Array> {
-    try {
-      const pdf = await this.#deadline(context, html, signal);
-      return assertPdfWithinLimit(pdf);
-    } catch (error) {
-      const mapped = asRendererError(error);
-      if (mapped instanceof DocumentRenderTimeoutError) {
-        await closeHungContext(context, browser, this.#browserCloseGraceMs, this.#sleep);
+  async #renderOnce(browser: PdfBrowser, html: string, options: RenderOptions | undefined): Promise<Uint8Array> {
+    let context: PdfContext | undefined;
+    let abandoned = false;
+    const work = browser.newContext(CONTEXT).then(async (opened) => {
+      if (abandoned) {
+        await opened.close().catch(() => undefined);
+        throw new DocumentRenderTimeoutError();
       }
+      context = opened;
+      try {
+        const pdf = await renderPage(
+          opened,
+          html,
+          { contentMs: this.#contentTimeoutMs, pdfMs: this.#pdfTimeoutMs },
+          this.#hooks(options?.onAbortedRequest),
+        );
+        return assertPdfWithinLimit(pdf);
+      } finally {
+        await opened.close().catch(() => undefined);
+      }
+    });
+    try {
+      return await raceDeadline(work, this.#overallTimeoutMs, options?.signal);
+    } catch (error) {
+      abandoned = true;
+      const mapped = asRendererError(error);
+      if (mapped instanceof DocumentRenderTimeoutError) await this.#closeAfterTimeout(context, browser);
       throw mapped;
     }
   }
 
-  #deadline(context: PdfContext, html: string, signal: AbortSignal | undefined): Promise<Uint8Array> {
-    const hooks = this.#hooks();
-    const work = renderPage(
-      context,
-      html,
-      { contentMs: this.#contentTimeoutMs, pdfMs: this.#pdfTimeoutMs },
-      hooks,
-    );
-    return raceDeadline(work, this.#overallTimeoutMs, signal);
+  async #closeAfterTimeout(context: PdfContext | undefined, browser: PdfBrowser): Promise<void> {
+    if (context === undefined) {
+      await browser.close().catch(() => undefined);
+      return;
+    }
+    await closeHungContext(context, browser, this.#browserCloseGraceMs, this.#sleep);
   }
 
-  #hooks(): RenderPageHooks {
+  #hooks(onAborted: RenderOptions['onAbortedRequest']): RenderPageHooks {
     return {
-      onAbort: (url) => {
-        this.#aborted.push(url);
-      },
+      onAbort: (url) => onAborted?.(url),
       ...(this.#onDocumentHtml === undefined ? {} : { onDocumentHtml: this.#onDocumentHtml }),
     };
   }

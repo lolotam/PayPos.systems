@@ -61,12 +61,23 @@ export function documentBytesKey(companyId: string, renderId: string): string {
   return `documents:bytes:${companyId}:${renderId}`;
 }
 
-/** Producer options. jobId is the render id, so a double enqueue is one job. */
+/**
+ * Producer options. jobId is the render id, so a double enqueue is one job.
+ * The fixed 5s delay is longer than the renderer's relaunch backoff, so the
+ * second attempt does not land while Chromium is still down.
+ */
 export function documentRenderJobOptions(renderId: string): {
   readonly jobId: string;
   readonly attempts: 2;
+  readonly backoff: { readonly type: 'fixed'; readonly delay: 5000 };
   readonly removeOnComplete: true;
   readonly removeOnFail: true;
 } {
-  return { jobId: renderId, attempts: 2, removeOnComplete: true, removeOnFail: true };
+  return {
+    jobId: renderId,
+    attempts: 2,
+    backoff: { type: 'fixed', delay: 5000 },
+    removeOnComplete: true,
+    removeOnFail: true,
+  };
 }

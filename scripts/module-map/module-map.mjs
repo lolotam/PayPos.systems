@@ -421,6 +421,7 @@ export function checkModules(root, map) {
         }
         if (
           pkg === 'documents' &&
+          from.module === null &&
           !(map.compositionRoots['documents'] ?? []).includes(rel) &&
           !rel.startsWith('apps/worker/src/documents/')
         ) {

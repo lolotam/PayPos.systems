@@ -103,8 +103,70 @@ it('records urls aborted by the route handler', async () => {
       }),
   };
   const renderer = new PlaywrightDocumentRenderer({ factory });
+  const aborted: string[] = [];
   await renderer.start();
-  await renderer.render('<p>x</p>');
-  expect(renderer.takeAbortedRequests()).toEqual(['https://example.invalid/pixel.png']);
+  await renderer.render('<p>x</p>', {
+    onAbortedRequest: (url) => {
+      aborted.push(url);
+    },
+  });
+  expect(aborted).toEqual(['https://example.invalid/pixel.png']);
+  await renderer.close();
+});
+
+it('times out a hanging newContext inside the deadline', async () => {
+  let browserClosed = false;
+  const factory: PdfBrowserFactory = {
+    launch: async () => ({
+      newContext: () => new Promise(() => undefined),
+      close: async () => {
+        browserClosed = true;
+      },
+      on: () => undefined,
+    }),
+  };
+  const renderer = new PlaywrightDocumentRenderer({
+    factory,
+    overallTimeoutMs: 30,
+    browserCloseGraceMs: 5,
+  });
+  await renderer.start();
+  const started = Date.now();
+  await expect(renderer.render('<p>x</p>')).rejects.toBeInstanceOf(DocumentRenderTimeoutError);
+  expect(Date.now() - started).toBeLessThan(1_000);
+  expect(browserClosed).toBe(true);
+  await renderer.close();
+});
+
+it('times out a hanging setContent inside the deadline', async () => {
+  let contextClosed = false;
+  const factory: PdfBrowserFactory = {
+    launch: async () => ({
+      newContext: async () => ({
+        route: async () => undefined,
+        newPage: async () => ({
+          setContent: () => new Promise<void>(() => undefined),
+          evaluate: async () => undefined,
+          pdf: async () => Uint8Array.from([1]),
+          close: async () => undefined,
+        }),
+        close: async () => {
+          contextClosed = true;
+        },
+      }),
+      close: async () => undefined,
+      on: () => undefined,
+    }),
+  };
+  const renderer = new PlaywrightDocumentRenderer({
+    factory,
+    overallTimeoutMs: 30,
+    browserCloseGraceMs: 5,
+  });
+  await renderer.start();
+  const started = Date.now();
+  await expect(renderer.render('<p>x</p>')).rejects.toBeInstanceOf(DocumentRenderTimeoutError);
+  expect(Date.now() - started).toBeLessThan(1_000);
+  expect(contextClosed).toBe(true);
   await renderer.close();
 });

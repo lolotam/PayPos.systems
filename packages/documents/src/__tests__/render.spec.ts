@@ -4,6 +4,7 @@ import { expect, it } from 'vitest';
 
 import { fixtureDocument } from '../html/fixture.ts';
 import { PlaywrightDocumentRenderer } from '../playwright/renderer.ts';
+import { realChromiumUnavailable } from './chromium-gate.ts';
 import { pdfText } from './pdf-text.ts';
 
 const QUIET_BODY = 'QUIET_BODY_7c1';
@@ -27,12 +28,7 @@ async function chromiumInstalled(): Promise<boolean> {
     await browser.close();
     return true;
   } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    if (/Executable doesn't exist|Failed to launch|browserType\.launch/.test(message)) {
-      console.info('Chromium headless shell is not installed; real PDF render skipped');
-      return false;
-    }
-    throw error;
+    return realChromiumUnavailable(error);
   }
 }
 
@@ -72,17 +68,20 @@ it.skipIf(!chromiumReady)('C2 keeps an inline script from changing the document'
   expect(outer).not.toContain(`<p id="quiet">${RAN}</p>`);
   const text = pdfText(pdf);
   expect(text).toContain(QUIET_BODY);
-  expect(text).not.toContain(`<title>${RAN}</title>`);
-  expect(text).not.toContain(`<p id="quiet">${RAN}</p>`);
+  expect(text).not.toContain(RAN);
 });
 
 it.skipIf(!chromiumReady)('C3 aborts the external image, stylesheet and font', async () => {
   const renderer = new PlaywrightDocumentRenderer();
   await renderer.start();
   try {
-    const pdf = await renderer.render(HOSTILE_NETWORK);
+    const aborted: string[] = [];
+    const pdf = await renderer.render(HOSTILE_NETWORK, {
+      onAbortedRequest: (url) => {
+        aborted.push(url);
+      },
+    });
     expect(Buffer.from(pdf.subarray(0, 5)).toString('latin1')).toBe('%PDF-');
-    const aborted = renderer.takeAbortedRequests();
     expect(aborted).toContain('https://example.invalid/sheet.css');
     expect(aborted).toContain('https://example.invalid/font.woff2');
     expect(aborted).toContain('https://example.invalid/pixel.png');
