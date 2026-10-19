@@ -20,7 +20,7 @@ host="$(grep '^STAGING_HOST=' "$env_file" | cut -d= -f2)"
 for attempt in $(seq 1 30); do
   # Every probe is bounded, so a stalled answer counts as a failed attempt instead of holding the loop.
   if timeout 10 docker compose -f "$here/docker-compose.staging-shared.yml" --env-file "$env_file" \
-      exec -T worker wget -T 5 -qO- http://127.0.0.1:3001/ready >/dev/null 2>&1 \
+      exec -T worker node -e "fetch('http://127.0.0.1:3001/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" \
     && curl -fsS --connect-timeout 5 --max-time 10 "https://$host/ready" >/dev/null 2>&1; then
     echo "staging $tag ready: worker and https://$host"
     exit 0

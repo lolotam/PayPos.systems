@@ -393,3 +393,42 @@ describe('ADR-0019 private auth OTP database facade', () => {
     );
   });
 });
+
+describe('ADR-0048 documents renderer import', () => {
+  const wiringMap = {
+    ...MAP,
+    packagesRestricted: { ...MAP.packagesRestricted, documents: ['reporting'] },
+    compositionRoots: { ...MAP.compositionRoots, documents: ['apps/worker/src/main.ts'] },
+  };
+  const code = "import { render } from '@pospay/documents'; void render;\n";
+  const workerPackage = {
+    'apps/worker/package.json': '{"name":"@pospay/worker","dependencies":{}}',
+  };
+
+  it('allows the worker documents folder and its composition root', () => {
+    assert.equal(
+      checkModules(
+        repo({
+          ...workerPackage,
+          'apps/worker/src/main.ts': code,
+          'apps/worker/src/documents/processor.ts': code,
+        }),
+        wiringMap,
+      ).join('\n'),
+      '',
+    );
+  });
+
+  it('rejects every other importer, including reporting and worker outbox', () => {
+    for (const path of [
+      'apps/api/src/modules/identity/persistence/sneak.ts',
+      'apps/api/src/modules/reporting/persistence/render.ts',
+      'apps/worker/src/outbox/sneak.ts',
+    ]) {
+      assert.match(
+        checkModules(repo({ ...workerPackage, [path]: code }), wiringMap).join('\n'),
+        /worker documents folder and its composition root/,
+      );
+    }
+  });
+});

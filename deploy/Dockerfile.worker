@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
-# apps/worker — multi-stage on node:24-alpine (ADR-0002), production dependencies only. No Chromium and no Arabic
-# fonts yet: document rendering arrives in Phase 5 with packages/documents (plan T13).
+# apps/worker — multi-stage on node:24-bookworm-slim (ADR-0048). The API image stays on Alpine.
+# Chromium headless shell is installed here for packages/documents (playwright-core 1.63.0).
+# Nothing is downloaded at runtime. The final process is USER node, never root.
 
-FROM node:24-alpine AS build
+FROM node:24-bookworm-slim AS build
 RUN npm install -g pnpm@12.5.1
 WORKDIR /repo
 COPY . .
@@ -10,14 +11,21 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm turbo run build --filter=@pospay/worker...
 RUN pnpm --filter @pospay/worker deploy --prod --legacy /out/worker
 
-FROM node:24-alpine AS worker
-ENV NODE_ENV=production WORKER_HOST=0.0.0.0 WORKER_PORT=3001
+FROM node:24-bookworm-slim AS worker
+ENV NODE_ENV=production \
+    WORKER_HOST=0.0.0.0 \
+    WORKER_PORT=3001 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 WORKDIR /app
 COPY --from=build --chown=node:node /out/worker .
+RUN node node_modules/@pospay/documents/scripts/install-headless-shell.mjs --with-deps \
+    && rm -rf /var/lib/apt/lists/* \
+    && chown -R node:node /ms-playwright
 USER node
-# ADR-0022: نفس فحص sharp يعمل في CI على صورة الإنتاج وmusl، دون تشغيل خدمة.
+# ADR-0022 / ADR-0048: sharp smoke on the glibc image, then the PDF smoke which refuses uid 0.
 RUN node node_modules/@pospay/storage/scripts/native-smoke.mjs
+RUN node node_modules/@pospay/documents/scripts/pdf-smoke.mjs
 EXPOSE 3001
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
-  CMD wget -qO- "http://127.0.0.1:${WORKER_PORT}/health" >/dev/null || exit 1
+  CMD ["node", "-e", "fetch('http://127.0.0.1:'+process.env.WORKER_PORT+'/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 CMD ["node", "dist/main.js"]

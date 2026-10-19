@@ -118,7 +118,7 @@ services:
       migrate:
         condition: service_completed_successfully
     networks: [dokploy-network]
-    mem_limit: 384m
+    mem_limit: 1g
 
 networks:
   dokploy-network:

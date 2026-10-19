@@ -28,6 +28,7 @@ import {
   createPriceEditNoticeConsumer,
 } from './modules/orders/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
+import { startDocumentRendering, type DocumentRendering } from './documents/start-documents.ts';
 
 const config = readConfig(process.env);
 const logger = createLogger(config.LOG_LEVEL, { events: WORKER_LOG_EVENTS });
@@ -105,6 +106,7 @@ const businessDeliver = createDeliverer(
   { knownEventTypes: knownEventTypes(staff, notifications, inApp) },
 );
 let queue: OptionalCapabilities['queue'];
+let documents: DocumentRendering | undefined;
 const deliver: typeof businessDeliver = (event) =>
   deliverFilesEvent(event, {
     register: (claimed) => files.deliver(claimed),
@@ -119,6 +121,7 @@ const release = async (): Promise<void> => {
   // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
   await files.close();
   await staff.close();
+  await documents?.close();
   await optionalWithin(
     () =>
       Promise.allSettled([
@@ -139,6 +142,20 @@ const release = async (): Promise<void> => {
 };
 
 try {
+  try {
+    documents = await startDocumentRendering({
+      redis,
+      redisUrl: config.REDIS_URL,
+      logger,
+      clock: { now: () => Date.now() },
+    });
+  } catch {
+    documents = undefined;
+    logger.warn(
+      { capability: { name: 'DOCUMENTS', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
+      'document renderer unavailable',
+    );
+  }
   const started = await startOptionalCapabilities({
     env: process.env,
     logger,
@@ -174,7 +191,7 @@ try {
         email.stop();
         maintenance?.stop();
         await loop.stop();
-        await closeOptional([() => queue?.stop(), () => inbound?.stop()]);
+        await closeOptional([() => queue?.stop(), () => inbound?.stop(), () => documents?.stop()]);
         clearInterval(capabilityTimer);
         await closeOptional([() => otp?.stop()]);
       },

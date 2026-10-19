@@ -51,7 +51,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `reporting`     | —                     | **Imports nothing.** Read-only SQL across contexts (§5).                       |
 
 **Every module may import:** `packages/domain`, `packages/contracts`, `packages/db` (from `persistence/` and `queries/` only), `packages/observability`.
-**Only the owning module may import:** `packages/auth` (→ `identity`), `packages/payments` (→ `payments`), `packages/storage` (→ `files`), `packages/notifications` (→ `notifications`), `packages/documents` (→ `reporting`, `worker` jobs).
+**Only the owning module may import:** `packages/auth` (→ `identity`), `packages/payments` (→ `payments`), `packages/storage` (→ `files`), `packages/notifications` (→ `notifications`), `packages/documents` (→ `reporting`; the worker composition root `apps/worker/src/main.ts` wires it, and only `apps/worker/src/documents/` uses it).
 
 Application composition roots (`apps/api/src/{app,main}.ts`, `apps/worker/src/{main,worker}.ts`) may wire
 notifications and restricted auth facades for ADR-0019 staff OTP. This is wiring
@@ -289,6 +289,7 @@ composition_roots:
   staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts]
   platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
   notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
+  documents: [apps/worker/src/main.ts]
 
 # Every VALUE a module imports from another module's index.ts is one of these (type-only imports need only the
 # arrow above). §3.1: the one synchronous write. A read port's adapter calling another module's exported read is
