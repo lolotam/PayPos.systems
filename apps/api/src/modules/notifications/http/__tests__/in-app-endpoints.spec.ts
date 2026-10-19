@@ -44,7 +44,7 @@ beforeAll(async () => {
 });
 
 it.each(['future', 'expired'] as const)(
-  "refuses %s memberships with only the guard's own tenant transaction",
+  'refuses %s memberships before every tenant query',
   async (state) => {
     await h.owner`UPDATE memberships SET starts_at =
     ${state === 'future' ? '2100-01-01T00:00:00Z' : '2000-01-01T00:00:00Z'},
@@ -63,7 +63,7 @@ it.each(['future', 'expired'] as const)(
             .status,
         ).toBe(403);
       }
-      expect(h.calls.tenant).toEqual([company, company, company, company]);
+      expect(h.calls.tenant).toHaveLength(0);
     } finally {
       await h.owner`UPDATE memberships SET starts_at = '2000-01-01T00:00:00Z',ends_at = NULL
       WHERE company_id = ${company} AND user_id = ${otherUser}`;
@@ -222,7 +222,7 @@ it('requires session, valid selected company, active membership and valid ids/cu
   expect(
     (await h.send('GET', '/v1/me/notifications', { cookie, company: otherCompany })).status,
   ).toBe(403);
-  expect(h.calls.tenant).toEqual([otherCompany]);
+  expect(h.calls.tenant).not.toContain(otherCompany);
   expect((await h.send('GET', '/v1/me/notifications', { cookie: '', company })).status).toBe(401);
   expect((await h.send('GET', '/v1/me/notifications', { cookie })).status).toBe(400);
   expect(

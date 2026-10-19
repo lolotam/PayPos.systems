@@ -111,6 +111,11 @@ function spied(database: Database, calls: Harness['calls']): TenantWrappers {
       calls.tenant.push(companyId);
       return database.withTenant(companyId, (tx) => fn(recording(tx, 'tenant', calls)), options);
     },
+    withMember: (userId, companyId, fn) =>
+      database.withMember(userId, companyId, (tx) => {
+        calls.tenant.push(companyId);
+        return fn(recording(tx, 'tenant', calls));
+      }),
   };
 }
 

@@ -44,7 +44,10 @@ function requestContext(principal: Principal): ExecutionContext {
   } as unknown as ExecutionContext;
 }
 
-function countingDatabase(scope: AsyncLocalStorage<number>, gate: CountingGate): {
+function countingDatabase(
+  scope: AsyncLocalStorage<number>,
+  gate: CountingGate,
+): {
   database: TenantWrappers;
   total: () => number;
   nested: () => number;
@@ -56,13 +59,16 @@ function countingDatabase(scope: AsyncLocalStorage<number>, gate: CountingGate):
     withUser: (): Promise<unknown> => {
       throw new Error('withUser must not be called');
     },
-    withTenant: async (
+    withTenant: (): Promise<unknown> => {
+      throw new Error('withTenant must not be called');
+    },
+    withMember: async (
+      userId: string,
       companyId: string,
       callback: (tx: { execute: () => Promise<unknown[]> }) => Promise<unknown>,
-      options?: { userId?: string },
     ) => {
+      if (userId !== USER_ID) throw new Error('userId missing');
       if (companyId !== COMPANY) throw new Error('company id was not lower-cased');
-      if (options?.userId !== USER_ID) throw new Error('userId missing');
       const requestId = scope.getStore();
       if (requestId === undefined) throw new Error('missing request scope');
       const held = depth.get(requestId) ?? 0;

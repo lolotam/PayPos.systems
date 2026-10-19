@@ -9,8 +9,8 @@ import { DATABASE } from './database.token.ts';
 import { ApiError } from './errors.ts';
 
 /**
- * Session-only resources need an active membership and an open company, read together in one
- * withTenant so the guard checks out a single pool connection.
+ * Session-only resources need an active membership and an open company, proved in one transaction:
+ * membership first as the user, then the company, so a refusal never sets app.company_id.
  */
 @Injectable()
 export class SelectedCompanyGuard implements CanActivate {
@@ -25,21 +25,12 @@ export class SelectedCompanyGuard implements CanActivate {
     if (!parsed.success) throw new ApiError('BAD_REQUEST');
     const companyId = parsed.data.toLowerCase();
     const userId = principal.userId;
-    const open = await this.database.withTenant(
-      companyId,
-      async (tx) => {
-        const membership = await tx.execute(
-          sql`SELECT id FROM memberships WHERE user_id = ${userId} AND company_id = ${companyId}
-        AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now()) LIMIT 1`,
-        );
-        if (membership.length === 0) return false;
-        const company = await tx.execute(
-          sql`SELECT id FROM companies WHERE id = ${companyId} AND deleted_at IS NULL`,
-        );
-        return company.length > 0;
-      },
-      { userId },
-    );
+    const open = await this.database.withMember(userId, companyId, async (tx) => {
+      const company = await tx.execute(
+        sql`SELECT id FROM companies WHERE id = ${companyId} AND deleted_at IS NULL`,
+      );
+      return company.length > 0;
+    });
     if (!open) throw new ApiError('FORBIDDEN');
     request.principal = { ...principal, companyId };
     updateRequestContext({ companyId });

@@ -386,6 +386,8 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 
 ## 6a. Revisions
 
+**2026-10-20, PP-7.1:** flow A may run as one transaction — membership proof in user context, then the company GUC is set in the same transaction only after the proof; refusal never sets `app.company_id`.
+
 **2026-10-09, ADR-0038 (Accepted):** §3 bootstrap-owner exception amended — migration data steps read only `companies.id` as the owner; tenant effects run under `withTenant` on `pospay_app`.
 
 **2026-10-02, PR 6 / ADR-0019:** the two OTP tables are global identity, owned by pospay_owner. pospay_auth has SELECT, column INSERT, DELETE for bounded 30-day retention and only challenge UPDATE(status,failed_attempts,code_mac,consumed_at,finished_at,updated_at) and attempt UPDATE(status,authorized_at,execution_id,sending_at,finished_at,failure_code,outcome_known,provider_message_digest,updated_at). No other runtime/PUBLIC grants, TRUNCATE, REFERENCES, TRIGGER, CREATE, membership or BYPASSRLS. Auth additionally receives only EXECUTE on platform_whatsapp_is_suppressed(bytea), never a global messaging table grant. This supersedes the pre-PR-6 auth function denial in §§2.5/3.

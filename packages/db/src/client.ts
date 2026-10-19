@@ -16,7 +16,7 @@ export interface DatabaseOptions {
 }
 
 /**
- * اللي الـ app بتاخده من الداتابيز: الـ wrappers التلاتة و ping و close — مفيش client خام.
+ * اللي الـ app بتاخده من الداتابيز: الـ wrappers و ping و close — مفيش client خام.
  */
 export interface Database extends TenantWrappers {
   /** بيتأكد إن الداتابيز بترد وإن الاتصال بـ pospay_app بالظبط — لـ /ready، ومبيقراش أي بيانات شركة. */
@@ -26,10 +26,10 @@ export interface Database extends TenantWrappers {
 
 /**
  * بيفتح pool على pospay_app ويرجّع الـ wrappers بس. الـ client الخام بيفضل جوه الـ closure،
- * فمفيش module يقدر يعمل query من غير ما يعدّي على withTenant أو withUser (CLAUDE.md §5).
+ * فمفيش module يقدر يعمل query من غير ما يعدّي على wrapper (CLAUDE.md §5).
  *
  * @param options الـ url ومولّد الـ ids وحجم الـ pool
- * @returns الـ wrappers التلاتة و ping و close
+ * @returns الـ wrappers و ping و close
  */
 export function createDatabase(options: DatabaseOptions): Database {
   const client = postgres(options.url, {
