@@ -276,3 +276,38 @@ it('a cached settings read is replaced by the names written in the next patch', 
   expect(patched.statusCode).toBe(200);
   expect(businessSettings.parse((await read()).body).official_name_en).toBe(next);
 });
+
+it('the owner creates the settings row when the business has none yet', async () => {
+  const business = f.otherBusiness;
+  await f.h.owner`DELETE FROM business_settings
+    WHERE company_id = ${f.company} AND business_id = ${business}`;
+  const missing = await f.h.owner`SELECT 1 FROM business_settings
+    WHERE company_id = ${f.company} AND business_id = ${business}`;
+  expect(missing).toHaveLength(0);
+  const res = await f.h.app.inject({
+    method: 'PATCH',
+    url: `/v1/businesses/${business}/settings/identity`,
+    headers: { cookie: f.cookie, 'x-company-id': f.company },
+    payload: { official_name_ar: '  صالون جديد  ', official_name_en: ' New Salon ' },
+  });
+  expect(res.statusCode).toBe(200);
+  expect(businessIdentityNames.parse(res.json())).toEqual({
+    official_name_ar: 'صالون جديد',
+    official_name_en: 'New Salon',
+  });
+  const [row] = await f.h.owner`SELECT official_name_ar, official_name_en, logo_file_id
+    FROM business_settings WHERE company_id = ${f.company} AND business_id = ${business}`;
+  expect(row).toEqual({
+    official_name_ar: 'صالون جديد',
+    official_name_en: 'New Salon',
+    logo_file_id: null,
+  });
+  const [audit] = await f.h.owner`SELECT actor_user_id, before, after FROM audit_log
+    WHERE company_id = ${f.company} AND entity = 'business_settings'
+      AND entity_id = ${business} AND action = 'settings.identity_changed'`;
+  expect(audit).toEqual({
+    actor_user_id: f.userId,
+    before: { official_name_ar: null, official_name_en: null, logo_file_id: null },
+    after: { official_name_ar: 'صالون جديد', official_name_en: 'New Salon', logo_file_id: null },
+  });
+});
