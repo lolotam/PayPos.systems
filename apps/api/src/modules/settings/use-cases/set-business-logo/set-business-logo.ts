@@ -1,7 +1,7 @@
 import type { BusinessLogo, SetBusinessLogoInput } from '@pospay/contracts';
 
 import { ApiError } from '../../../../shared/errors.ts';
-import { LogoFileRejected } from '../../domain/logo-file.ts';
+import { LogoFileRejected } from '../../domain/errors.ts';
 import type { BusinessLogoChanged } from '../../events/published.ts';
 import type { LockedBusinessLogo } from '../../ports/logo-file.port.ts';
 import type {
@@ -78,15 +78,14 @@ async function writeLogo(
   businessId: string,
   userId: string,
   fileId: string | null,
-): Promise<{ logoFileId: string | null; changed: boolean }> {
+): Promise<string | null> {
   if ((await scope.identityAccess.check(businessId)) !== null) throw new ApiError('FORBIDDEN');
   const locked = await scope.logoFiles.lockSettings(businessId, fileId);
   if ((await scope.identityAccess.recheck(businessId)) !== null) throw new ApiError('FORBIDDEN');
   // إعادة ربط الملف الحالي، أو إزالة شعار مش موجود، لا حدث ولا تدقيق: المقارنة بعد قفل الإعدادات.
-  if (locked.previousFileId === fileId) return { logoFileId: fileId, changed: false };
+  if (locked.previousFileId === fileId) return fileId;
   if (fileId !== null) await requireReadyLogo(scope, businessId, userId, fileId);
-  const saved = await recordLogoChange(scope, businessId, userId, fileId, locked);
-  return { logoFileId: saved.logoFileId, changed: true };
+  return (await recordLogoChange(scope, businessId, userId, fileId, locked)).logoFileId;
 }
 
 // المالك أو حامل صلاحية هوية النشاط بيربط شعار جاهز أو يشيله، والحدث والتدقيق في نفس المعاملة لما الإشارة تتغير.
@@ -104,13 +103,11 @@ export class SetBusinessLogo {
     const fileId = input.file_id === null ? null : input.file_id.toLowerCase();
     const companyId = actor.companyId.toLowerCase();
     const userId = actor.userId.toLowerCase();
-    let changed = false;
-    const logoFileId = await this.transactions.run(companyId, userId, async (scope) => {
-      const written = await writeLogo(scope, businessId.toLowerCase(), userId, fileId);
-      changed = written.changed;
-      return written.logoFileId;
-    });
-    if (changed) await this.cache.invalidate(companyId, businessId.toLowerCase());
+    const logoFileId = await this.transactions.run(companyId, userId, (scope) =>
+      writeLogo(scope, businessId.toLowerCase(), userId, fileId),
+    );
+    // الإبطال بعد كل طلب نجح، حتى لو الإشارة ما تغيّرتش: إعادة المحاولة بعد سقوط Redis لازم تمسح الجيل القديم.
+    await this.cache.invalidate(companyId, businessId.toLowerCase());
     return { logo_file_id: logoFileId };
   }
 }

@@ -2,7 +2,7 @@ import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
-import { LogoFileRejected } from '../domain/logo-file.ts';
+import { LogoFileRejected } from '../domain/errors.ts';
 import { OfficialNameRejected } from '../domain/official-name.ts';
 import type {
   IdentityNamesChange,

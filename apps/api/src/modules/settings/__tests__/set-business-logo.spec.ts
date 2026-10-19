@@ -371,3 +371,47 @@ it('revoked authority during the settings lock wait writes nothing', async () =>
     WHERE company_id = ${f.company} AND business_id = ${f.business}`;
   expect(row?.['logo_file_id']).toBeNull();
 });
+
+it('binds a ready logo when the business has no settings row', async () => {
+  await f.h.owner`DELETE FROM business_settings
+    WHERE company_id = ${f.company} AND business_id = ${f.business}`;
+  const audits = (await logoAudits(f)).length;
+  const events = (await logoEvents(f)).length;
+  const id = await insertLogoFile(f);
+  const res = await put({ file_id: id });
+  expect(res.statusCode).toBe(200);
+  expect(businessLogo.parse(res.json())).toEqual({ logo_file_id: id });
+  const [row] = await f.h.owner`SELECT logo_file_id FROM business_settings
+    WHERE company_id = ${f.company} AND business_id = ${f.business}`;
+  expect(row).toEqual({ logo_file_id: id });
+  expect(await logoAudits(f)).toHaveLength(audits + 1);
+  const eventsAfter = await logoEvents(f);
+  expect(eventsAfter).toHaveLength(events + 1);
+  expect(eventsAfter.at(-1)?.['payload']).toEqual({
+    business_id: f.business,
+    previous_file_id: null,
+    file_id: id,
+  });
+});
+
+it('invalidates a committed bind again when the first cache write throws', async () => {
+  const id = await insertLogoFile(f);
+  let calls = 0;
+  const useCase = new SetBusinessLogo(createSettingsTransactions(f.db, f.ids), {
+    invalidate: async () => {
+      calls += 1;
+      if (calls === 1) throw new Error('redis down');
+    },
+  });
+  const actor = { companyId: f.company, userId: f.userId };
+  await expect(useCase.execute(actor, f.business, { file_id: id })).rejects.toThrow('redis down');
+  const [row] = await f.h.owner`SELECT logo_file_id FROM business_settings
+    WHERE company_id = ${f.company} AND business_id = ${f.business}`;
+  expect(row).toEqual({ logo_file_id: id });
+  const audits = (await logoAudits(f)).length;
+  const events = (await logoEvents(f)).length;
+  await useCase.execute(actor, f.business, { file_id: id });
+  expect(calls).toBe(2);
+  expect(await logoAudits(f)).toHaveLength(audits);
+  expect(await logoEvents(f)).toHaveLength(events);
+});

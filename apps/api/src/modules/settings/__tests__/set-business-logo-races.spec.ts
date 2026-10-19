@@ -45,10 +45,11 @@ const put = (body: object) =>
   });
 
 async function lockSettingsRow(blocker: postgres.Sql): Promise<void> {
-  await blocker`BEGIN`;
+  // الصف بيتسجل قبل القفل: الربط ما بيعملش INSERT لو الصف ظاهر، والانتظار يفضل جوه قفل المرجع.
   await blocker`INSERT INTO business_settings (company_id, business_id)
     VALUES (${f.company}, ${f.business})
     ON CONFLICT (company_id, business_id) DO NOTHING`;
+  await blocker`BEGIN`;
   await blocker`SELECT business_id FROM business_settings
     WHERE company_id = ${f.company} AND business_id = ${f.business} FOR UPDATE`;
 }

@@ -2,7 +2,8 @@ import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import { documentFileFacts, type DocumentFileFacts } from '../../files/index.ts';
-import { LogoFileRejected, validateLogoFile, type LogoFileFacts } from '../domain/logo-file.ts';
+import { LogoFileRejected } from '../domain/errors.ts';
+import { validateLogoFile, type LogoFileFacts } from '../domain/logo-file.ts';
 import type { LockedBusinessLogo, LogoFileReader } from '../ports/logo-file.port.ts';
 import { lockBusinessLogoReference } from './logo-reference.ts';
 
@@ -69,6 +70,16 @@ async function lockRemoval(
   return row === undefined ? NO_LOGO : lockedFrom(row);
 }
 
+async function ensureSettingsRow(tx: Tx, companyId: string, businessId: string): Promise<void> {
+  // صف ظاهر: منعملش INSERT، عشان الانتظار على صف متقفل يسبق قفل المستهلك. أول ربط بس بينشئ الصف الفاضي.
+  if ((await readSettings(tx, companyId, businessId)) !== undefined) return;
+  await tx.execute<{ business_id: string }>(sql`
+    INSERT INTO business_settings (company_id, business_id)
+    VALUES (${companyId}, ${businessId})
+    ON CONFLICT (company_id, business_id) DO NOTHING
+    RETURNING business_id`);
+}
+
 async function lockSettings(
   tx: Tx,
   companyId: string,
@@ -76,6 +87,7 @@ async function lockSettings(
   fileId: string | null,
 ): Promise<LockedBusinessLogo> {
   if (fileId === null) return lockRemoval(tx, companyId, businessId);
+  await ensureSettingsRow(tx, companyId, businessId);
   // الربط بيقفل الإعدادات قبل الملف: مستهلك الحذف بياخد نفس الترتيب، والعكس deadlock.
   await lockBusinessLogoReference(tx, companyId, businessId, fileId);
   return (await readSettings(tx, companyId, businessId)) ?? NO_LOGO;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { LogoFileRejected, validateLogoFile, type LogoFileFacts } from '../logo-file.ts';
+import { LogoFileRejected } from '../errors.ts';
+import { validateLogoFile, type LogoFileFacts } from '../logo-file.ts';
 
 const BUSINESS = '01920000-0000-7000-8000-000000000001';
 const ACTOR = '01920000-0000-7000-8000-000000000002';
