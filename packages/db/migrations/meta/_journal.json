@@ -1051,6 +1051,13 @@
       "when": 1792366090376,
       "tag": "0151_2026-10-18_business-identity-logo-file-index",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1792386896016,
+      "tag": "0152_2026-10-19_file-objects-retention-retired-index",
+      "breakpoints": true
     }
   ]
 }

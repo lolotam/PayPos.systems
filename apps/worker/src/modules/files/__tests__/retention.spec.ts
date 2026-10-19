@@ -245,3 +245,28 @@ it('a crash after S3 deletion retries missing-object deletion before committing 
   expect(await useCase.execute(tenant.company, 'abandoned')).toBe(0);
   expect(await auditCount(f.id)).toBe(1);
 });
+
+it('retired scan uses the partial index and does not seq-scan the other READY uploads', async () => {
+  await owner`INSERT INTO file_objects(
+      company_id, id, business_id, owner_module, owner_entity_id, staging_key, storage_key,
+      content_type, size_bytes, required_permission, created_by, created_at, status, purge_started_at)
+    SELECT ${tenant.company}, gen_random_uuid(), ${tenant.business}, 'staff', gen_random_uuid(),
+      'retired-scan-' || g, 'retired-store-' || g, 'application/pdf', 10, 'read:files:business',
+      ${USER}, ${now}, 'READY', CASE WHEN g <= 3 THEN ${new Date('2026-10-01T00:00:00Z')} ELSE NULL END
+    FROM generate_series(1, 500) AS g`;
+  await owner`ANALYZE file_objects`;
+  const rows = await db.withTenant(tenant.company, (tx) =>
+    tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON)
+      SELECT id FROM file_objects
+      WHERE company_id = ${tenant.company}
+        AND status = 'READY' AND purge_started_at IS NOT NULL
+        AND purge_started_at <= ${now.toISOString()}::timestamptz
+        AND purged_at IS NULL
+        AND (lease_until IS NULL OR lease_until <= ${now.toISOString()}::timestamptz)
+      ORDER BY purge_started_at, id
+      LIMIT 50`),
+  );
+  const plan = JSON.stringify(rows);
+  expect(plan).toContain('file_objects_retention_retired_idx');
+  expect(plan).not.toContain('Seq Scan');
+});

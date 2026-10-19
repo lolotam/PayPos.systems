@@ -73,6 +73,13 @@ export const fileObjects = pgTable(
     index('file_objects_retention_rejected_idx')
       .on(t.companyId, t.rejectedAt)
       .where(sql`${t.status} = 'REJECTED' AND ${t.purgedAt} IS NULL`),
+    // المسح الساعي لـ retired يطابق READY الذي بدأ حذفه؛ من غيره يكبر مع كل رفع جاهز.
+    index('file_objects_retention_retired_idx')
+      .on(t.companyId, t.purgeStartedAt)
+      .concurrently()
+      .where(
+        sql`${t.status} = 'READY' AND ${t.purgeStartedAt} IS NOT NULL AND ${t.purgedAt} IS NULL`,
+      ),
     index('file_objects_permission_idx').on(t.requiredPermission),
     check('file_objects_size', sql`${t.sizeBytes} BETWEEN 1 AND 10485760`),
     check(
