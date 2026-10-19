@@ -13,8 +13,7 @@ export interface SessionTipsScope {
 
 /** الزيارة مش موجودة في نطاق الفرع؛ الـ HTTP يوحّد الجسم مع كتابة البقشيش. */
 export class SessionTipsReadError extends Error {
-  readonly code = 'SESSION_NOT_FOUND' as const;
-  constructor() { super('SESSION_NOT_FOUND'); }
+  constructor(readonly code: 'SESSION_NOT_FOUND' | 'FEATURE_DISABLED' = 'SESSION_NOT_FOUND') { super(code); }
 }
 
 export interface SessionTipsCurrentReads {
@@ -75,6 +74,8 @@ export class SessionTipsCurrentQuery {
       const access = await this.reads.access(tx, scope, this.clock.now());
       // فقدان record أو DENY أو انتهاء العضوية بعد الحارس يطلع نفس رفض الزيارة المجهولة، بلا قفل وبلا معلومة زيادة
       if (access.denied || !access.record || access.membership_ids.length === 0) throw new SessionTipsReadError();
+      // بعد ما الصلاحية تثبت، الميزة المقفولة بترفض زي باقي قراءات الطلبات؛ قفلها للشركة كلها فمابيكشفش الزيارة.
+      if (!access.feature) throw new SessionTipsReadError('FEATURE_DISABLED');
       return currentSet(rows);
     }, { userId: scope.userId });
   }

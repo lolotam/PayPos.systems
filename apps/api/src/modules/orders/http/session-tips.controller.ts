@@ -59,6 +59,7 @@ export class SessionTipsController {
       return await this.current.execute({ ...actorOf(request), businessId, branchId, sessionId });
     } catch (error) {
       // القراءة ترفض زي الكتابة: زيارة مجهولة أو خارج الفرع جسم واحد، بلا تمييز.
+      if (error instanceof SessionTipsReadError && error.code === 'FEATURE_DISABLED') throw new ApiError('FEATURE_DISABLED');
       if (error instanceof SessionTipsReadError) throw new SessionError('SESSION_NOT_FOUND');
       throw error;
     }

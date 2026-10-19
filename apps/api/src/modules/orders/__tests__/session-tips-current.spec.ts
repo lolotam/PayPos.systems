@@ -99,3 +99,13 @@ it('a revoked grant or a DENY between the guard and the read matches an unknown 
     await f.h.owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.membership}`;
   }
 });
+
+it('a feature switched off between the guard and the read refuses with FEATURE_DISABLED', async () => {
+  const visit = await recordVisit(f, [pairLine(f)]);
+  await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by) VALUES(${f.company},'orders',false,'Synthetic tip read feature',${f.ownerId})`;
+  try {
+    expect(refusalOf(await catchRefusal(tipsQuery(), visit.sessionId)).code).toBe('FEATURE_DISABLED');
+  } finally {
+    await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='orders'`;
+  }
+});
