@@ -60,6 +60,30 @@ export function effectiveReadPermission(ownerModule: string, storedPermission: s
   return ownerModule === 'settings' ? uploadAuthority(ownerModule) : storedPermission;
 }
 
+/** حقائق طلب الرفع اللي بتحدد شكل ملف الإعدادات. */
+export interface SettingsUploadFacts {
+  ownerModule: string;
+  ownerEntityId: string;
+  branchId: string | null;
+  contentType: string;
+}
+
+/**
+ * ملف الإعدادات الوحيد هو شعار النشاط، فطلب رفعه لازم يكون على شكل الشعار.
+ * من غير الفحص ده صلاحية هوية النشاط لوحدها كانت هتخزّن أي ملف أو PDF على فرع أو كيان تاني (BI-Q5).
+ *
+ * @param input وحدة المالك وكيانه والفرع ونوع المحتوى في طلب الرفع
+ * @param businessId النشاط في المسار
+ * @returns لا شيء؛ FORBIDDEN لو الكيان مش النشاط أو فيه فرع، وFILE_TYPE_INVALID لو النوع مش PNG أو JPEG
+ */
+export function validateSettingsUpload(input: SettingsUploadFacts, businessId: string): void {
+  if (input.ownerModule !== 'settings') return;
+  if (input.branchId !== null || input.ownerEntityId.toLowerCase() !== businessId.toLowerCase())
+    throw new FileError('FORBIDDEN');
+  if (input.contentType !== 'image/png' && input.contentType !== 'image/jpeg')
+    throw new FileError('FILE_TYPE_INVALID');
+}
+
 /**
  * يثبت الصلاحية المحفوظة على الملف حتى لا يخزّن نوع معروف بصلاحية غير صلاحيته.
  * وثائق الموظفين تبقى على read:files:business (PR 7a)، وملفات الإعدادات على manage:business-identity:business (BI-Q5).

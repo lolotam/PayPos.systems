@@ -1,5 +1,10 @@
 import type { RequestFileUpload } from '@pospay/contracts';
-import { FileError, uploadAuthority, validateStoredPermission } from '../../domain/file.ts';
+import {
+  FileError,
+  uploadAuthority,
+  validateSettingsUpload,
+  validateStoredPermission,
+} from '../../domain/file.ts';
 import type {
   Actor,
   FilePermissions,
@@ -22,6 +27,15 @@ export class RequestUpload {
     const branchId = input.branch_id ?? null;
     if (!(await this.permitted(actor, businessId, branchId, input)))
       throw new FileError('FORBIDDEN');
+    validateSettingsUpload(
+      {
+        ownerModule: input.owner_module,
+        ownerEntityId: input.owner_entity_id,
+        branchId,
+        contentType: input.content_type,
+      },
+      businessId,
+    );
     validateStoredPermission(input.owner_module, input.required_permission);
     const id = this.ids.newId();
     const ticket = await this.storage.upload(

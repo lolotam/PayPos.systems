@@ -3,6 +3,7 @@ import {
   effectiveReadPermission,
   readyKey,
   uploadAuthority,
+  validateSettingsUpload,
   validateStoredPermission,
   type FileRecord,
 } from '../file.ts';
@@ -58,4 +59,32 @@ it('derives a settings read from the owner module and leaves a staff document on
     'manage:business-identity:business',
   );
   expect(effectiveReadPermission('staff', 'read:files:business')).toBe('read:files:business');
+});
+
+it('limits a settings upload to an unbranched PNG or JPEG owned by the route business', () => {
+  const logo = {
+    ownerModule: 'settings',
+    ownerEntityId: 'BUSINESS',
+    branchId: null,
+    contentType: 'image/png',
+  };
+  expect(() => validateSettingsUpload(logo, 'business')).not.toThrow();
+  expect(() =>
+    validateSettingsUpload({ ...logo, contentType: 'image/jpeg' }, 'business'),
+  ).not.toThrow();
+  expect(() =>
+    validateSettingsUpload({ ...logo, contentType: 'application/pdf' }, 'business'),
+  ).toThrow('FILE_TYPE_INVALID');
+  expect(() => validateSettingsUpload({ ...logo, ownerEntityId: 'other' }, 'business')).toThrow(
+    'FORBIDDEN',
+  );
+  expect(() => validateSettingsUpload({ ...logo, branchId: 'branch' }, 'business')).toThrow(
+    'FORBIDDEN',
+  );
+  expect(() =>
+    validateSettingsUpload(
+      { ...logo, ownerModule: 'staff', ownerEntityId: 'employee', contentType: 'application/pdf' },
+      'business',
+    ),
+  ).not.toThrow();
 });

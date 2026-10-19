@@ -212,6 +212,8 @@ Contracts in `packages/contracts` (Zod, strict, snake_case, listed in `openapi.t
   never a device. A migration (27h-1a, pattern of 0128) inserts it into `permissions` and into the owner role default.
   `manage:settings:business` no longer lets anyone change the identity.
 - Uploading, confirming, polling and previewing the logo file need `manage:business-identity:business` alone (BI-Q5).
+  A `settings` upload request must be logo-shaped: no branch, `owner_entity_id` equal to the route business, and
+  `image/png` or `image/jpeg`; otherwise `FORBIDDEN` (branch or owner) or `FILE_TYPE_INVALID` (type), and nothing is stored.
   That permission replaces both the 27h-2 stored pin `read:settings:business` and the `manage:files:business` upload gate
   for `owner_module='settings'` only (§5.1 item 2). A holder of `manage:files:business` without the identity permission
   is refused. `read:settings:business` stays the permission of `GET …/settings` and is not required to manage the logo.

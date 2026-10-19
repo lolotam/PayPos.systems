@@ -53,7 +53,8 @@ export function OfficialNamesForm({
 }) {
   const locale = useLocale();
   const [notice, setNotice] = useState<'invalid' | 'unchanged' | null>(null);
-  const appliedSave = useRef<OfficialNames | null>(null);
+  // الحفظ اللي سبق التركيب اتطبّق قبل كده؛ إعادته بعد رجوع الصلاحية كانت هتمسح اسم أدمن تاني من الخط الأساسي الجديد.
+  const appliedSave = useRef<OfficialNames | null>(saved);
   const form = useForm<NameDraft>({
     defaultValues: {
       official_name_ar: baseline?.official_name_ar ?? '',

@@ -24,7 +24,9 @@ and `identity` today. ADR-0031 already solved "a module stores a file reference"
    `manage:business-identity:business`, and `request-upload` authorizes a `settings` upload with that permission instead
    of `manage:files:business` (BI-Q5; first shipped as `read:settings:business` in 27h-2 and amended in 27h-5).
    The effective read permission of a settings-owned file is derived from `owner_module`, so rows stored before 27h-5 need no migration.
-   There is no logo-specific size cap (BI-Q3 = 10 MiB, the generic policy), so `request-upload` and verification are
+   Because the identity permission alone opens a `settings` upload, `request-upload` accepts only a logo-shaped
+   request there (`validateSettingsUpload`: no branch, owner = route business, PNG or JPEG).
+   There is no logo-specific size cap (BI-Q3 = 10 MiB, the generic policy), so the size checks in `request-upload` and verification are
    unchanged and every READY logo can be bound. The generic policy and the DB checks stay.
 4. **Replacement and removal** emit `BusinessLogoChanged` through the outbox in the binding transaction. A `files`-owned
    outbox consumer (database only, as ADR-0018 requires) takes the same business lock as binding, then re-checks the current reference through a reverse read port
