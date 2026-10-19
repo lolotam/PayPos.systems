@@ -21,6 +21,7 @@ import { employeeIbanAr, employeeIbanErrorsAr } from './employee-iban-catalog.js
 import { scheduleShellAr } from './schedule-shell-catalog.js';
 import { employeeDefaultHoursAr } from './employee-default-hours-catalog.js';
 import { employeeNumberErrorsAr } from './employee-number-catalog.js';
+import { employeeNumberAdminAr } from './employee-number-admin-catalog.js';
 import { companyEmployeeNumbersAr } from './company-employee-numbers-catalog.js';
 import { roleNamesAr } from './role-names-catalog.js';
 
@@ -254,6 +255,7 @@ export const ar: Catalog = {
   },
   staff: {
     ...staffDuplicateNameAr,
+    ...employeeNumberAdminAr,
     listTitle: 'الموظفون',
     listLead: 'أدر بيانات الموظفين وفروع العمل.',
     empty: 'لا يوجد موظفون في هذه الصفحة.',

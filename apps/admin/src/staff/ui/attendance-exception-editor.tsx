@@ -3,7 +3,7 @@ import { t } from '@pospay/i18n';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { useAttendanceActions } from '../api/use-attendance-actions';
-import { AttendanceActionDialog } from './attendance-action-dialog';
+import { ModalDialog } from '@/shared/ui/modal-dialog';
 import { AttendanceActionFeedback } from './attendance-action-feedback';
 import { AttendanceReasonForm } from './attendance-reason-form';
 import type { ExceptionRow } from './attendance-exception-columns';
@@ -20,7 +20,7 @@ export function AttendanceExceptionEditor({
   const { exception } = useAttendanceActions(scope);
   const action = row.status === 'OPEN' ? 'resolve' : 'reopen';
   return (
-    <AttendanceActionDialog
+    <ModalDialog
       title={t(locale, `attendanceActions.${action}`)}
       pending={exception.isPending}
       onClose={onClose}
@@ -40,6 +40,6 @@ export function AttendanceExceptionEditor({
         onSave={(input) => exception.mutate({ id: row.id, action, input }, { onSuccess: onClose })}
       />
       <AttendanceActionFeedback error={exception.error} write />
-    </AttendanceActionDialog>
+    </ModalDialog>
   );
 }

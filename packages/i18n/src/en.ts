@@ -18,6 +18,7 @@ import { staffLoginEn } from './staff-login-catalog.js';
 import { catalogServicesEn, serviceErrorsEn } from './catalog-services.js';
 import { employeeIbanEn, employeeIbanErrorsEn } from './employee-iban-catalog.js';
 import { scheduleShellEn } from './schedule-shell-catalog.js'; import { employeeDefaultHoursEn } from './employee-default-hours-catalog.js'; import { employeeNumberErrorsEn } from './employee-number-catalog.js';
+import { employeeNumberAdminEn } from './employee-number-admin-catalog.js';
 import { companyEmployeeNumbersEn } from './company-employee-numbers-catalog.js';
 import { roleNamesEn } from './role-names-catalog.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
@@ -261,6 +262,7 @@ export const en = {
   },
   staff: {
     ...staffDuplicateNameEn,
+    ...employeeNumberAdminEn,
     listTitle: 'Employees',
     listLead: 'Manage employee records and working branches.',
     empty: 'No employees on this page.',

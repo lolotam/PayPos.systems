@@ -89,6 +89,19 @@ async function currentBranchIds(tx: Tx, companyId: string, employeeId: string) {
   return attached.map((link) => link.branch_id);
 }
 
+/** نفس قراءة FR-006 التي يعيد بها التعديل الفحص داخل المعاملة، بلا قفل الشركة. */
+export function employeeNumberEditCapabilityAccess() {
+  return {
+    recheck: (
+      tx: Tx,
+      companyId: string,
+      userId: string,
+      businessId: string,
+      branchIds: readonly string[],
+    ) => readEmployeeNumberAccess(tx, companyId, userId, businessId, branchIds),
+  };
+}
+
 export function refuseTypedEmployeeNumber(
   tx: Tx,
   companyId: string,

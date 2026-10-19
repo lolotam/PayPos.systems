@@ -12,6 +12,18 @@ export const employeeNumberFieldOptions = {
   },
 };
 
+/** فاضي بعد القص يعني ترقيم تلقائي؛ النص غير الصالح يبقى NaN حتى يرفضه عقد الإنشاء. */
+export const createEmployeeNumberFieldOptions = {
+  setValueAs(typed: unknown): number | undefined {
+    // إعادة التركيب بعد تغيير الفرع بتمرّر الرقم المخزّن مش النص؛ تحويله لـ NaN كان بيمسح المكتوب.
+    const text = typeof typed === 'number' ? String(typed) : typed;
+    if (typeof text !== 'string') return Number.NaN;
+    const trimmed = text.trim();
+    if (trimmed.length === 0) return undefined;
+    return parseEmployeeNumber(trimmed) ?? Number.NaN;
+  },
+};
+
 export function employeeNumberFieldText(error: unknown, message: string): string | null {
   return error == null ? null : message;
 }

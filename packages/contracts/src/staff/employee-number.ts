@@ -23,6 +23,10 @@ export const employeeNumberCapability = responseObject({
   can_type_number: z.boolean(),
 }).meta({ id: 'EmployeeNumberCapability' });
 
+export const employeeNumberEditCapability = responseObject({
+  can_edit_number: z.boolean(),
+}).meta({ id: 'EmployeeNumberEditCapability' });
+
 const listedNumber = z.number().int().min(1).max(999999).nullable();
 export const employeeNumberListItem = responseObject({
   employee_id: id,
@@ -63,6 +67,7 @@ export type SetEmployeeNumberInput = z.infer<typeof setEmployeeNumberInput>;
 export type EmployeeNumberView = z.infer<typeof employeeNumberView>;
 export type EmployeeNumberCapabilityQuery = z.infer<typeof employeeNumberCapabilityQuery>;
 export type EmployeeNumberCapability = z.infer<typeof employeeNumberCapability>;
+export type EmployeeNumberEditCapability = z.infer<typeof employeeNumberEditCapability>;
 export type EmployeeNumberListItem = z.infer<typeof employeeNumberListItem>;
 export type EmployeeNumberPage = z.infer<typeof employeeNumberPage>;
 export type EmployeeNumberListQuery = z.infer<typeof employeeNumberListQuery>;

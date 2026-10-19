@@ -5213,6 +5213,101 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/employees/{employeeId}/employee-number-capability": {
+      "get": {
+        "operationId": "employeeNumberEditCapability",
+        "description": "Lock-free FR-006 read of one employee. can_edit_number is true only when readEmployeeNumberAccess would return null for that employee business and every current attachment: the primary branch, even after its attachment has ended, plus each attachment that is still current, including one whose end date is in the future. Missing manage:employee-number:company, any DENY, and an unknown, foreign, soft-deleted, or wrong-business employee all return the same 200 body with can_edit_number false. FEATURE_DISABLED stays its own bilingual error. No Idempotency-Key.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether this caller may edit that employee number",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "can_edit_number": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "can_edit_number"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/schedules": {
       "get": {
         "operationId": "branchScheduleWeek",

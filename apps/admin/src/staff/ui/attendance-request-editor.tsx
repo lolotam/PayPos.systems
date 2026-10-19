@@ -4,7 +4,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { useAttendanceActions } from '../api/use-attendance-actions';
 import type { AttendanceRequestRow } from '../model/attendance-action-display';
-import { AttendanceActionDialog } from './attendance-action-dialog';
+import { ModalDialog } from '@/shared/ui/modal-dialog';
 import { AttendanceActionFeedback } from './attendance-action-feedback';
 import { AttendanceRequestEditorForm } from './attendance-request-editor-form';
 import type { RequestAction } from './attendance-request-row-actions';
@@ -34,7 +34,7 @@ export function AttendanceRequestEditor({
   )
     return null;
   return (
-    <AttendanceActionDialog
+    <ModalDialog
       title={t(locale, `attendanceActions.${action}`)}
       pending={mutation.isPending}
       onClose={onClose}
@@ -50,6 +50,6 @@ export function AttendanceRequestEditor({
         onClose={onClose}
       />
       <AttendanceActionFeedback error={mutation.error} write />
-    </AttendanceActionDialog>
+    </ModalDialog>
   );
 }
