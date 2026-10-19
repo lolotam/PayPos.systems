@@ -33,4 +33,4 @@ When reviewing a pull request, report only real defects, ranked by severity. Che
 - a secret, token or real customer phone number anywhere in the diff
 - a guard that nests transactions, runs two at once, or opens a second transaction for a read that could share its `withTenant` (`CLAUDE.md` §6)
 - `packages/db` throwing a plain `Error` for an outcome a caller can cause in normal use, instead of a typed error the API maps to a known code (`CLAUDE.md` §5)
-- a frontend test that only checks a mock was called, with no assertion on what the user sees (`CLAUDE.md` §9)
+- a UI test (one that renders a screen or component) that only checks a mock was called, with no assertion on what the user sees (`CLAUDE.md` §9)
