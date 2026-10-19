@@ -1,11 +1,24 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useBranchDaySessions } from '../api/use-branch-day-sessions';
+import type { UnresolvedTip } from '../api/use-record-session-tips';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { serviceSessionAccessRevoked } from '../model/service-session-access';
 import { ServiceSessionDayList } from './service-session-day-list';
+
+type ServiceSessionDayBodyProps = {
+  scope: SessionServiceScope;
+  date: string;
+  lateOnly: boolean;
+  online: boolean;
+  timezone: string;
+  canCancel: boolean;
+  canRecord: boolean;
+  onAccessDenied: (message: string) => void;
+  tipAttempts: RefObject<Map<string, UnresolvedTip>>;
+};
 
 export function ServiceSessionDayBody({
   scope,
@@ -14,16 +27,10 @@ export function ServiceSessionDayBody({
   online,
   timezone,
   canCancel,
+  canRecord,
   onAccessDenied,
-}: {
-  scope: SessionServiceScope;
-  date: string;
-  lateOnly: boolean;
-  online: boolean;
-  timezone: string;
-  canCancel: boolean;
-  onAccessDenied: (message: string) => void;
-}) {
+  tipAttempts,
+}: ServiceSessionDayBodyProps) {
   const locale = useLocale();
   const mounted = useRef(true);
   const query = useBranchDaySessions(scope, date, lateOnly, online);
@@ -49,6 +56,7 @@ export function ServiceSessionDayBody({
       online={online}
       timezone={timezone}
       canCancel={canCancel}
+      canRecord={canRecord}
       loadError={query.isError ? envelopeMessage(query.error, locale) : null}
       empty={query.isSuccess && visits.length === 0}
       hasNext={query.hasNextPage === true}
@@ -64,6 +72,7 @@ export function ServiceSessionDayBody({
       }}
       mounted={mounted}
       onAccessDenied={onAccessDenied}
+      tipAttempts={tipAttempts}
     />
   );
 }

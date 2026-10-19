@@ -127,7 +127,8 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 ## 4. Status — 2026-10-16
 
 **Source of truth:** the «المشروع أول بأول» tab of the decisions page
-https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF (published file `roadmap.json`), updated after every merge.
+https://plan.pospay.systems (`public/roadmap.json` in the `lolotam/plan` repo, see `docs/decisions-site.md`),
+updated after every merge. Until 2026-10-19 the page was a claude.ai artifact, now retired.
 
 | Phase | Name | Status |
 |---|---|---|

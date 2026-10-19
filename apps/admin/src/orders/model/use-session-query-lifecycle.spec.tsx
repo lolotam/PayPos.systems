@@ -45,3 +45,26 @@ it('drops the cached day list and line history when the operator or scope change
   hook.unmount();
   expect(client.getQueryData(otherDayKey)).toBeUndefined();
 });
+
+it('drops cached session tips when the operator or scope changes', () => {
+  const client = new QueryClient();
+  const other = { ...scope, userId: id(91) };
+  const parts = (current: typeof scope) =>
+    [current.companyId, current.businessId, current.branchId, current.userId] as const;
+  const tipsKey = ['session-tips', ...parts(scope), id(12)] as const;
+  const otherKey = ['session-tips', ...parts(other), id(12)] as const;
+  client.setQueryData(tipsKey, { revision: 0 });
+  client.setQueryData(otherKey, { revision: 0 });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const hook = renderHook(({ value }) => useSessionQueryLifecycle(value, true), {
+    wrapper,
+    initialProps: { value: scope },
+  });
+  hook.rerender({ value: other });
+  expect(client.getQueryData(tipsKey)).toBeUndefined();
+  expect(client.getQueryData(otherKey)).toEqual({ revision: 0 });
+  hook.unmount();
+  expect(client.getQueryData(otherKey)).toBeUndefined();
+});
