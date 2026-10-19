@@ -29,6 +29,8 @@ export interface DeviceScope {
   findForUpdate(deviceId: string): Promise<DeviceRecord | null>;
   /** بيقفل صف الشركة FOR SHARE من أول الفحص لحد ما معاملة التسجيل أو إصدار التوكن تخلص؛ القفل بيتعارض مع أي UPDATE للصف، وشركة اتحذفت بترفض الاتنين. */
   companyOpen(): Promise<boolean>;
+  /** بيفحص إن الشركة ظاهرة وdeleted_at فاضي من غير قفل، عشان مصادقة توكن موجود متستناش الحذف الناعم وماتجدّدش التوكن لو الشركة اتقفلت. */
+  companyActive(): Promise<boolean>;
   /**
    * بيضيف جهاز جديد PENDING ومعاه hash سر الاستلام.
    *

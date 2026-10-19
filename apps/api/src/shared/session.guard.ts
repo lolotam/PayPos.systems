@@ -1,4 +1,10 @@
-import { Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  SetMetadata,
+  type CanActivate,
+  type ExecutionContext,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { resolveUserPrincipal, type AuthService, type Principal } from '@pospay/auth';
 import { updateRequestContext } from '@pospay/observability';
@@ -21,6 +27,13 @@ import {
 } from './staff-authentication.ts';
 
 export const AUTH_SERVICE = Symbol('AUTH_SERVICE');
+
+// ADR-0019: only the staff OTP request may proceed when the device token is real and its company is
+// soft-deleted. Every other device route refuses it exactly like an unknown token. The allow-list is
+// this metadata, set by AllowClosedCompanyDeviceOtp, never a match on the URL.
+export const CLOSED_COMPANY_DEVICE_OTP = Symbol('CLOSED_COMPANY_DEVICE_OTP');
+export const AllowClosedCompanyDeviceOtp = (): MethodDecorator =>
+  SetMetadata(CLOSED_COMPANY_DEVICE_OTP, true);
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -77,9 +90,13 @@ export class SessionGuard implements CanActivate {
       STAFF_ROUTE,
       context.getHandler(),
     );
-    if (policy !== undefined) return this.#staff(request, authorization, policy);
+    const allowClosedCompany =
+      this.#reflector.get<true | undefined>(CLOSED_COMPANY_DEVICE_OTP, context.getHandler()) ===
+      true;
+    if (policy !== undefined)
+      return this.#staff(request, authorization, policy, allowClosedCompany);
     if (/^device(\s|$)/i.test(authorization)) {
-      return this.#device(request, authorization.slice('device'.length).trim());
+      return this.#device(request, authorization.slice('device'.length).trim(), allowClosedCompany);
     }
     // No auth configured (a test app without it) means no session can exist — refused like any other.
     const resolved =
@@ -100,9 +117,10 @@ export class SessionGuard implements CanActivate {
     request: FastifyRequest,
     authorization: string,
     policy: 'device' | 'staff',
+    allowClosedCompany: boolean,
   ): Promise<boolean> {
     if (!/^device\s/i.test(authorization)) throw new ApiError('UNAUTHENTICATED');
-    await this.#device(request, authorization.slice('device'.length).trim());
+    await this.#device(request, authorization.slice('device'.length).trim(), allowClosedCompany);
     const principal = request.principal;
     const branchId = principal?.memberships[0]?.scopeId;
     if (
@@ -139,9 +157,16 @@ export class SessionGuard implements CanActivate {
 
   // ADR-0003 §4 path B: the token names its company and is proven inside it. A device principal carries no user and
   // no company role — only its branch; @Require routes, which need a user's membership, refuse it.
-  async #device(request: FastifyRequest, token: string): Promise<boolean> {
+  async #device(
+    request: FastifyRequest,
+    token: string,
+    allowClosedCompany: boolean,
+  ): Promise<boolean> {
     const device = this.#devices === null ? null : await this.#devices.authenticate(token);
-    if (device === null) throw new ApiError('UNAUTHENTICATED');
+    // شركة مقفولة مش سر يتكشف: نفس رفض التوكن المجهول، إلا طلب OTP اللي ADR-0019 ثبّت ردّه 202.
+    if (device === null || (device.companyActive === false && !allowClosedCompany)) {
+      throw new ApiError('UNAUTHENTICATED');
+    }
     request.principal = {
       kind: 'device',
       userId: null,

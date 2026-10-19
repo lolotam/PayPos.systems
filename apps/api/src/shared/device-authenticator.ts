@@ -5,11 +5,15 @@
 export interface DeviceAuthenticator {
   /**
    * @param token the token after "Device " in the Authorization header
-   * @returns the device's company, id and branch, or null when the token proves nothing
+   * @returns the device's company, id and branch, or null when the token proves nothing.
+   *          companyActive is false when the token is real and its company is soft-deleted.
    */
-  authenticate(
-    token: string,
-  ): Promise<{ companyId: string; deviceId: string; branchId: string } | null>;
+  authenticate(token: string): Promise<{
+    companyId: string;
+    deviceId: string;
+    branchId: string;
+    companyActive: boolean;
+  } | null>;
 }
 
 export const DEVICE_AUTHENTICATOR = Symbol('DEVICE_AUTHENTICATOR');

@@ -2,7 +2,7 @@ import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
-import { lockCredentialCompany } from './company-active-lock.ts';
+import { companyIsActive, lockCredentialCompany } from './company-active-lock.ts';
 import type {
   DeviceChange,
   DeviceRecord,
@@ -27,6 +27,7 @@ function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): DeviceScope {
     companyId,
     ...transactionWriters(tx, ids),
     companyOpen: () => lockCredentialCompany(tx, companyId),
+    companyActive: () => companyIsActive(tx, companyId),
     findForUpdate: async (deviceId) => {
       const [row] = await tx.execute<{
         id: string;

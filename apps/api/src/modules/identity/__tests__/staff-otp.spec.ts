@@ -1,7 +1,11 @@
 import { present } from '../../../../../../packages/db/test/present.ts';
+import { Reflector } from '@nestjs/core';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createDatabase } from '@pospay/db';
+import { CLOSED_COMPANY_DEVICE_OTP } from '../../../shared/session.guard.ts';
+import { PersonalOtpController } from '../http/personal-otp.controller.ts';
+import { StaffOtpController } from '../http/staff-otp.controller.ts';
 import { createStaffEligibility } from '../persistence/staff-eligibility.ts';
 import {
   identity,
@@ -18,6 +22,7 @@ let f: Awaited<ReturnType<typeof staffHarness>>,
   userId: string,
   member: string;
 let device: Awaited<ReturnType<typeof paired>>;
+let ineligibleOtp: { challenge_id: string };
 const request = (phoneNumber = phone, headers: Record<string, string> = {}) =>
   f.h.app.inject({
     method: 'POST',
@@ -111,6 +116,7 @@ it('unknown and valid phones have the same 202 envelope, headers and common wind
   expect(absent.statusCode).toBe(202);
   const a = eligible.json(),
     b = absent.json();
+  ineligibleOtp = b;
   expect({ ...a, challenge_id: '' }).toEqual({ ...b, challenge_id: '' });
   expect(a).toMatchObject({
     status: 'ACCEPTED',
@@ -277,10 +283,36 @@ it('cashier reception login is a default; DENY and company closure preserve refu
       closed = await request();
     expect(closed.statusCode).toBe(202);
     expect(f.jobs).toHaveLength(before);
-    expect(closed.json()).toMatchObject({ status: 'ACCEPTED', recovery: 'ASK_MANAGER' });
+    expect({ ...closed.json(), challenge_id: '' }).toEqual({ ...ineligibleOtp, challenge_id: '' });
     expect(closed.headers['retry-after']).toBeUndefined();
+    const payload = { challenge_id: closed.json().challenge_id as string, code: '000000' };
+    const closedVerify = await f.h.app.inject({
+      method: 'POST',
+      url: '/v1/devices/me/staff-otp/verify',
+      headers: { authorization: `Device ${device.token}`, origin },
+      payload,
+    });
+    const malformedVerify = await f.h.app.inject({
+      method: 'POST',
+      url: '/v1/devices/me/staff-otp/verify',
+      headers: { authorization: 'Device malformed', origin },
+      payload,
+    });
+    expect(closedVerify.body).toBe(malformedVerify.body);
+    expect(f.jobs).toHaveLength(before);
   } finally {
     await f.h.owner`UPDATE companies SET deleted_at=NULL WHERE id=${company}`;
     await db.close();
   }
+});
+
+it('allows a closed-company device only on the staff OTP request', () => {
+  const reflector = f.h.app.get(Reflector);
+  const mark = (method: (...args: never[]) => unknown) =>
+    reflector.get(CLOSED_COMPANY_DEVICE_OTP, method);
+  expect(mark(StaffOtpController.prototype.request)).toBe(true);
+  expect(mark(StaffOtpController.prototype.verify)).toBeUndefined();
+  expect(mark(StaffOtpController.prototype.session)).toBeUndefined();
+  expect(mark(StaffOtpController.prototype.signOut)).toBeUndefined();
+  expect(mark(PersonalOtpController.prototype.request)).toBeUndefined();
 });
