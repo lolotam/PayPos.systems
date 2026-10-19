@@ -36,6 +36,8 @@ export function useCompanyNumbersScreen(companyId: string, userId: string) {
   };
   const onSearch = (value: string) => {
     if (save.isPending) return;
+    // كتابة بحث جديد بتشيل الحفظ الفاشل، فالبحث مايفضلش واقف على نتيجة اتقفلت.
+    if (save.isError) save.reset();
     controls.onSearch(value);
   };
   const onSubmit = (employeeNumber: number) => {

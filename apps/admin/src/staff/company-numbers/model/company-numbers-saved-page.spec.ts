@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { withSavedNumber } from './company-numbers-saved-page';
+import { newlyMatches, withSavedNumber } from './company-numbers-saved-page';
 
 const heba = {
   employee_id: '01920000-0000-7000-8000-0000000000d1',
@@ -34,4 +34,14 @@ it('keeps the row on a digit search that still matches the new number or the nam
 
 it('drops the row from a digit search it no longer matches and leaves other rows alone', () => {
   expect(withSavedNumber(page, '4', heba.employee_id, 7).items).toEqual([sara]);
+});
+
+it('flags a digit search for the new number that does not hold the row yet', () => {
+  const other = { items: [sara], next_cursor: null };
+  expect(newlyMatches(other, '7', heba.employee_id, 7)).toBe(true);
+  expect(newlyMatches(other, '007', heba.employee_id, 7)).toBe(true);
+  expect(newlyMatches(page, '7', heba.employee_id, 7)).toBe(false);
+  expect(newlyMatches(other, '8', heba.employee_id, 7)).toBe(false);
+  expect(newlyMatches(other, 'Heba', heba.employee_id, 7)).toBe(false);
+  expect(newlyMatches(other, null, heba.employee_id, 7)).toBe(false);
 });

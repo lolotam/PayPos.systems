@@ -2,7 +2,7 @@
 import { employeeNumberPage, employeeNumberView, type EmployeeNumberPage } from '@pospay/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
-import { withSavedNumber } from '../model/company-numbers-saved-page';
+import { newlyMatches, withSavedNumber } from '../model/company-numbers-saved-page';
 
 const listKey = (companyId: string, userId: string) =>
   ['employee-numbers', companyId, userId, 'list'] as const;
@@ -74,6 +74,10 @@ export function useSetCompanyEmployeeNumber(companyId: string, userId: string) {
           queryKey,
           withSavedNumber(page, q, saved.employee_id, saved.employee_number),
         );
+        // بحث بالرقم الجديد مكانش فيه الصف؛ النسخة دي بتتشال عشان أول فتح يجيبه.
+        if (newlyMatches(page, q, saved.employee_id, saved.employee_number)) {
+          client.removeQueries({ queryKey, exact: true, type: 'inactive' });
+        }
       }
       // انتظار الـ refetch كان بيخلّي الحفظ معلّق والمحرّر مفتوح لو القائمة اتعلّقت.
       void client.invalidateQueries({ queryKey: [...key] });

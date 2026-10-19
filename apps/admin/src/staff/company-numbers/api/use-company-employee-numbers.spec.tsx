@@ -83,3 +83,28 @@ it('drops cached staff list and detail data so a later visit shows the saved num
   expect(client.getQueryData(staffList)).toBeUndefined();
   expect(client.getQueryData(staffDetail)).toBeUndefined();
 });
+
+it('drops a cached digit search for the new number that did not hold the row', async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const bySeven = ['employee-numbers', company, user, 'list', null, '7'];
+  client.setQueryData(bySeven, { items: [], next_cursor: null });
+  api.PUT.mockResolvedValue({
+    data: { employee_id: employee, employee_number: 7 },
+    response: { status: 200 },
+  });
+  api.GET.mockReturnValue(new Promise(() => undefined));
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const hook = renderHook(() => useSetCompanyEmployeeNumber(company, user), { wrapper });
+  await act(async () => {
+    await hook.result.current.mutateAsync({
+      businessId: business,
+      employeeId: employee,
+      employeeNumber: 7,
+    });
+  });
+  expect(client.getQueryData(bySeven)).toBeUndefined();
+});

@@ -27,3 +27,14 @@ export function withSavedNumber(
   }
   return { ...page, items };
 }
+
+/** بحث بالأرقام بيطابق الرقم الجديد والصف مش فيه، فالنسخة المحفوظة بقت ناقصة. */
+export function newlyMatches(
+  page: EmployeeNumberPage,
+  q: string | null,
+  employeeId: string,
+  employeeNumber: number,
+): boolean {
+  if (q === null || !/^[0-9]+$/.test(q) || Number(q) !== employeeNumber) return false;
+  return !page.items.some((item) => item.employee_id === employeeId);
+}
