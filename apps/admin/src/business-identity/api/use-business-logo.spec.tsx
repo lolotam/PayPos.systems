@@ -156,3 +156,55 @@ it('removes the logo by putting a null file id', async () => {
     logo_file_id: null,
   });
 });
+
+const fileB = '01920000-0000-7000-8000-0000000000f2';
+
+it('does not bind an upload that was left behind when a newer one finishes', async () => {
+  let releaseA = () => {};
+  const gateA = new Promise<void>((resolve) => {
+    releaseA = resolve;
+  });
+  const uploads: string[] = [];
+  api.POST.mockImplementation(async (path: string) => {
+    if (path !== '/v1/businesses/{businessId}/files/uploads') {
+      return { data: { id: fileId, status: 'QUEUED' } };
+    }
+    const file = uploads.length === 0 ? fileId : fileB;
+    uploads.push(file);
+    return { data: { ...ticket, id: file } };
+  });
+  api.GET.mockImplementation(async (_path: string, init: { params: { path: { id: string } } }) => {
+    if (init.params.path.id === fileId) {
+      await gateA;
+      return { data: ready };
+    }
+    return { data: { ...ready, id: fileB } };
+  });
+  api.PUT.mockImplementation(async (_path: string, init: { body: { file_id: string } }) => ({
+    data: { logo_file_id: init.body.file_id },
+  }));
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const first = renderHook(() => useBusinessLogo(id, id, id), { wrapper });
+  const pendingA = first.result.current.upload.mutateAsync(png()).catch(() => undefined);
+  await waitFor(() => expect(first.result.current.phase).toBe('verifying'));
+  first.unmount();
+  await pendingA;
+  const second = renderHook(() => useBusinessLogo(id, id, id), { wrapper });
+  await act(async () => {
+    await second.result.current.upload.mutateAsync(png());
+  });
+  expect(api.PUT).toHaveBeenCalledTimes(1);
+  expect(api.PUT.mock.calls[0]?.[1].body).toEqual({ file_id: fileB });
+  expect(second.result.current.writtenId).toBe(fileB);
+  releaseA();
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(api.PUT).toHaveBeenCalledTimes(1);
+  expect(second.result.current.writtenId).toBe(fileB);
+});

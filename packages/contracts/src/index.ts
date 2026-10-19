@@ -127,6 +127,7 @@ export {
   type WorkspaceCompanyNames,
 } from './identity/workspaces.js';
 export {
+  businessIdentity,
   businessIdentityNames,
   businessLogo,
   businessSettings,
@@ -137,6 +138,7 @@ export {
   taxRule,
   updateBusinessIdentityNamesInput,
   updateBusinessSettingsInput,
+  type BusinessIdentity,
   type BusinessIdentityNames,
   type BusinessLogo,
   type BusinessSettings,

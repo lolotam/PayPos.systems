@@ -68,6 +68,7 @@ const expectedSchemas = [
   'AttendanceQrToken',
   'Branch',
   'Business',
+  'BusinessIdentity',
   'BusinessIdentityNames',
   'BusinessLogo',
   'BusinessSettings',

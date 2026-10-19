@@ -9,6 +9,24 @@ import { LogoPreview } from './logo-preview';
 import { LogoStatus } from './logo-status';
 import { RemoveLogoDialog } from './remove-logo-dialog';
 
+function canConfirmRemoval(logoId: string | null | undefined, removed: boolean) {
+  return !removed && (typeof logoId === 'string' || logoId === undefined);
+}
+
+type LogoPanelProps = {
+  companyId: string;
+  logoId: string | null | undefined;
+  alt: string;
+  phase: LogoPhase;
+  pending: boolean;
+  removing: boolean;
+  failure: unknown;
+  removeFailure: unknown;
+  removed: boolean;
+  onUpload: (file: File) => void;
+  onRemove: () => void;
+};
+
 export function LogoPanel({
   companyId,
   logoId,
@@ -17,24 +35,16 @@ export function LogoPanel({
   pending,
   removing,
   failure,
+  removeFailure,
   removed,
   onUpload,
   onRemove,
-}: {
-  companyId: string;
-  logoId: string | null;
-  alt: string;
-  phase: LogoPhase;
-  pending: boolean;
-  removing: boolean;
-  failure: unknown;
-  removed: boolean;
-  onUpload: (file: File) => void;
-  onRemove: () => void;
-}) {
+}: LogoPanelProps) {
   const locale = useLocale();
-  const [openedFor, setOpenedFor] = useState<string | null>(null);
-  const confirming = openedFor !== null && openedFor === logoId && !removed;
+  const [confirming, setConfirming] = useState(false);
+  const dialogOpen = confirming && canConfirmRemoval(logoId, removed);
+  const previewId = typeof logoId === 'string' ? logoId : null;
+  const shownFailure = dialogOpen ? failure : (failure ?? removeFailure);
   return (
     <section
       className="flex flex-col gap-3 text-start"
@@ -43,9 +53,9 @@ export function LogoPanel({
       <h2 className="text-lg font-semibold">{t(locale, 'businessIdentity.logoTitle')}</h2>
       <p className="text-sm text-muted-foreground">{t(locale, 'businessIdentity.logoHint')}</p>
       <LogoPreview
-        key={`${companyId}:${logoId ?? ''}`}
+        key={`${companyId}:${previewId ?? ''}`}
         companyId={companyId}
-        fileId={logoId}
+        fileId={previewId}
         alt={alt}
       />
       <LogoFileForm
@@ -53,15 +63,16 @@ export function LogoPanel({
         pending={pending || removing}
         onUpload={onUpload}
         onAskRemove={() => {
-          if (logoId) setOpenedFor(logoId);
+          if (canConfirmRemoval(logoId, removed)) setConfirming(true);
         }}
       />
-      <LogoStatus phase={phase} failure={failure} />
+      <LogoStatus phase={phase} failure={shownFailure} />
       {removed ? <p role="status">{t(locale, 'businessIdentity.removed')}</p> : null}
-      {confirming ? (
+      {dialogOpen ? (
         <RemoveLogoDialog
           pending={removing}
-          onClose={() => setOpenedFor(null)}
+          failure={removeFailure}
+          onClose={() => setConfirming(false)}
           onConfirm={onRemove}
         />
       ) : null}

@@ -546,7 +546,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** @description Business-identity screen. Lock-free read of the stored official names and logo file id. Requires manage:business-identity:business on that business; read:settings:business alone is not enough. Unset fields and a missing settings row are null, and the read never creates a row. A settings-only holder, a device principal, and an unknown or foreign business are the same 403 FORBIDDEN. No Idempotency-Key. */
+        get: operations["getBusinessIdentity"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5505,6 +5506,12 @@ export interface components {
             /** @enum {string} */
             scope: "COMPANY" | "BUSINESS" | "BRANCH";
         };
+        BusinessIdentity: {
+            official_name_ar: string | null;
+            official_name_en: string | null;
+            /** Format: uuid */
+            logo_file_id: string | null;
+        };
         BusinessIdentityNames: {
             official_name_ar: string | null;
             official_name_en: string | null;
@@ -7100,6 +7107,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BusinessSettings"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getBusinessIdentity: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stored official names and logo file id */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessIdentity"];
                 };
             };
             /** @description The API error envelope */

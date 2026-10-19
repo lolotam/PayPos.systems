@@ -1,9 +1,11 @@
 import {
+  businessIdentity,
   businessIdentityNames,
   businessLogo,
   businessSettings,
   fileDownload,
   identityCapability,
+  type BusinessIdentity,
   type BusinessIdentityNames,
   type BusinessLogo,
   type BusinessSettings,
@@ -18,6 +20,10 @@ export function businessSettingsKey(companyId: string, userId: string, businessI
 
 export function businessIdentityAccessKey(companyId: string, userId: string, businessId: string) {
   return ['business-identity-access', companyId, userId, businessId] as const;
+}
+
+export function businessIdentityKey(companyId: string, userId: string, businessId: string) {
+  return ['business-identity', companyId, userId, businessId] as const;
 }
 
 function header(companyId: string) {
@@ -85,6 +91,17 @@ export async function issueLogoDownload(companyId: string, fileId: string) {
   return fileDownload.parse(response.data);
 }
 
+export async function readBusinessIdentityView(
+  companyId: string,
+  businessId: string,
+): Promise<BusinessIdentity> {
+  const response = await apiClient().GET('/v1/businesses/{businessId}/settings/identity', {
+    params: { header: header(companyId), path: { businessId } },
+  });
+  if (response.error) fail(response.error, response.response.status);
+  return businessIdentity.parse(response.data);
+}
+
 export async function readIdentityCapability(
   companyId: string,
   businessId: string,
@@ -113,4 +130,35 @@ export function mergeBusinessSettings(
   const current = client.getQueryData<BusinessSettings>(key);
   if (!current) return;
   client.setQueryData<BusinessSettings>(key, { ...current, ...patch });
+}
+
+type IdentityPatch = Partial<
+  Pick<BusinessIdentity, 'official_name_ar' | 'official_name_en' | 'logo_file_id'>
+>;
+
+/**
+ * بيلغي قراءة الهوية وقراءة الإعدادات اللي لسه في الطريق قبل كتابة الحفظ.
+ * الرد القديم لو وصل بعد كده ما يحقّلوش يغطّي الأسماء أو الشعار، وبعدين القراءة تتطلب من جديد.
+ */
+export async function refreshBusinessIdentity(
+  client: QueryClient,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  patch: IdentityPatch,
+) {
+  const identityKey = businessIdentityKey(companyId, userId, businessId);
+  const settingsKey = businessSettingsKey(companyId, userId, businessId);
+  await Promise.all([
+    client.cancelQueries({ queryKey: identityKey }),
+    client.cancelQueries({ queryKey: settingsKey }),
+  ]);
+  client.setQueryData<BusinessIdentity>(identityKey, (current) =>
+    current ? { ...current, ...patch } : current,
+  );
+  mergeBusinessSettings(client, companyId, userId, businessId, patch);
+  await Promise.all([
+    client.invalidateQueries({ queryKey: identityKey }),
+    client.invalidateQueries({ queryKey: settingsKey }),
+  ]);
 }

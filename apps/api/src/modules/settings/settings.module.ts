@@ -8,7 +8,9 @@ import { IdentityCapabilityCompanyGuard } from './http/identity-capability-compa
 import { IdentityCapabilityController } from './http/identity-capability.controller.ts';
 import { SETTINGS_WIRING, SettingsController } from './http/settings.controller.ts';
 import { identityCapabilityAccess } from './persistence/business-identity-access.adapter.ts';
+import { BUSINESS_IDENTITY_READER } from './queries/business-identity.query.ts';
 import { IDENTITY_CAPABILITY_ACCESS } from './queries/identity-capability.query.ts';
+import { readBusinessIdentity } from './persistence/read-business-identity.ts';
 import { createRedisSettingsCache } from './persistence/redis-settings-cache.ts';
 import { createSettingsTransactions } from './persistence/settings-transactions.ts';
 import { UpdateBusinessSettings } from './use-cases/update-business-settings/update-business-settings.ts';
@@ -39,7 +41,20 @@ export function settingsProviders(
   ids: IdGenerator,
   redis?: Redis,
 ): Provider[] {
-  return [...settingsWiring(database, ids, redis), ...identityCapabilityProviders(database)];
+  return [
+    ...settingsWiring(database, ids, redis),
+    ...identityCapabilityProviders(database),
+    ...businessIdentityProviders(database),
+  ];
+}
+
+function businessIdentityProviders(database: TenantWrappers | undefined): Provider[] {
+  return [
+    {
+      provide: BUSINESS_IDENTITY_READER,
+      useValue: database === undefined ? null : { read: readBusinessIdentity },
+    },
+  ];
 }
 
 function identityCapabilityProviders(database: TenantWrappers | undefined): Provider[] {

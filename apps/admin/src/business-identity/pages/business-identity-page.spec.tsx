@@ -60,12 +60,13 @@ beforeEach(() => {
   };
 });
 
-it('saves only the changed official name and updates the cached settings', async () => {
+it('saves only the changed official name and refreshes the identity read', async () => {
   api.GET.mockResolvedValue({ data: settings() });
   api.PATCH.mockResolvedValue({
     data: { official_name_ar: 'Alpha', official_name_en: 'New shop' },
   });
   const { client } = renderPage();
+  client.setQueryData(['business-settings', id, id, id], settings());
   fireEvent.change(await screen.findByLabelText(t('en', 'businessIdentity.nameEn')), {
     target: { value: 'New shop' },
   });
@@ -76,6 +77,15 @@ it('saves only the changed official name and updates the cached settings', async
     official_name_en: 'New shop',
     official_name_ar: 'Alpha',
   });
+  await waitFor(() => {
+    const reads = api.GET.mock.calls.filter(
+      (call) => call[0] === '/v1/businesses/{businessId}/settings/identity',
+    );
+    expect(reads.length).toBeGreaterThan(1);
+  });
+  expect(api.GET.mock.calls.map((call) => call[0])).not.toContain(
+    '/v1/businesses/{businessId}/settings',
+  );
 });
 
 it('sends null when a saved name is cleared', async () => {
@@ -101,16 +111,63 @@ it('does not patch a name that was edited back to the saved value', async () => 
   expect(api.PATCH).not.toHaveBeenCalled();
 });
 
-it('does not clear unseen names when settings are forbidden', async () => {
+it('hides the editor when the identity read is refused', async () => {
   api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
-  api.PATCH.mockResolvedValue({ data: { official_name_ar: null, official_name_en: 'Typed' } });
   renderPage();
-  const field = await screen.findByLabelText(t('en', 'businessIdentity.nameEn'));
-  expect(screen.queryByRole('alert')).toBeNull();
-  fireEvent.change(field, { target: { value: 'Typed' } });
-  fireEvent.click(screen.getByRole('button', { name: save }));
-  await screen.findByText(t('en', 'businessIdentity.saved'));
-  expect(api.PATCH.mock.calls[0]?.[1].body).toEqual({ official_name_en: 'Typed' });
+  expect((await screen.findByRole('alert')).textContent).toContain(t('en', 'errors.FORBIDDEN'));
+  expect(screen.queryByLabelText(t('en', 'businessIdentity.nameEn'))).toBeNull();
+  expect(api.PATCH).not.toHaveBeenCalled();
+});
+
+it('shows stored names and the logo when settings read is refused', async () => {
+  let logo: string | null = fileId;
+  api.GET.mockImplementation(async (path: string) => {
+    if (path === '/v1/businesses/{businessId}/settings') {
+      return { error: { code: 'FORBIDDEN' }, response: { status: 403 } };
+    }
+    if (path === '/v1/files/{id}') {
+      return { data: { id: nextId, status: 'READY', content_type: 'image/png', size_bytes: 3 } };
+    }
+    return { data: settings(logo) };
+  });
+  api.POST.mockImplementation(async (path: string) => {
+    if (path === '/v1/files/{id}/download') {
+      return { data: { download_url: 'https://files.test/logo', expires_in: 60 } };
+    }
+    if (path === '/v1/files/{id}/confirm') return { data: { id: nextId, status: 'QUEUED' } };
+    return { data: ticket(nextId) };
+  });
+  api.PUT.mockImplementation(async (_path: string, init: { body: { file_id: string | null } }) => {
+    logo = init.body.file_id;
+    return { data: { logo_file_id: logo } };
+  });
+  renderPage();
+  const english = (await screen.findByLabelText(
+    t('en', 'businessIdentity.nameEn'),
+  )) as HTMLInputElement;
+  expect(english.value).toBe('Shop');
+  expect(
+    (screen.getByLabelText(t('en', 'businessIdentity.nameAr')) as HTMLInputElement).value,
+  ).toBe('Alpha');
+  expect((await screen.findByRole('img', { name: 'Shop' })).getAttribute('src')).toBe(
+    'https://files.test/logo',
+  );
+  expect(screen.getByRole('button', { name: t('en', 'businessIdentity.replace') })).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'businessIdentity.remove') })).toBeTruthy();
+  expect(api.GET.mock.calls.map((call) => call[0])).not.toContain(
+    '/v1/businesses/{businessId}/settings',
+  );
+  fireEvent.change(screen.getByLabelText(t('en', 'businessIdentity.logoFile')), {
+    target: { files: [new File(['png'], 'next.png', { type: 'image/png' })] },
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'businessIdentity.replace') }));
+  await screen.findByText(t('en', 'businessIdentity.ready'));
+  expect(api.PUT.mock.calls.at(-1)?.[1].body).toEqual({ file_id: nextId });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'businessIdentity.remove') }));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'businessIdentity.removeConfirm') }));
+  await screen.findByText(t('en', 'businessIdentity.removed'));
+  expect(api.PUT.mock.calls.at(-1)?.[1].body).toEqual({ file_id: null });
+  expect(screen.queryByRole('img')).toBeNull();
 });
 
 it('shows the forbidden message when saving names is refused', async () => {

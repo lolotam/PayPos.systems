@@ -7,8 +7,64 @@ export type LogoPhase = 'idle' | 'uploading' | 'verifying' | 'ready' | 'rejected
 
 const browserManagedHeader =
   /^(accept-charset|accept-encoding|access-control-request-.+|connection|content-length|cookie|date|dnt|expect|host|keep-alive|origin|referer|set-cookie|te|trailer|transfer-encoding|upgrade|via|proxy-.+|sec-.+)$/i;
-const pause = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+const ATTEMPTS = 60;
 const failure = (code: ErrorMessageCode) => ({ code, ...errorMessages(code) });
+
+export function cancelledLogoUpload(): Error {
+  const error = new Error('logo upload cancelled');
+  error.name = 'AbortError';
+  return error;
+}
+
+export function isCancelledUpload(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
+}
+
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) throw cancelledLogoUpload();
+}
+
+function raceAbort<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return work;
+  throwIfAborted(signal);
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort);
+      reject(cancelledLogoUpload());
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    work.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
+function pause(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(cancelledLogoUpload());
+    };
+    if (!signal) return;
+    if (signal.aborted) {
+      clearTimeout(timer);
+      reject(cancelledLogoUpload());
+      return;
+    }
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
 
 async function confirmedUpload(
   companyId: string,
@@ -47,6 +103,33 @@ async function confirmedUpload(
   return upload.id;
 }
 
+async function readLogoStatus(companyId: string, id: string) {
+  const status = await apiClient().GET('/v1/files/{id}', {
+    params: { header: { 'x-company-id': companyId }, path: { id } },
+  });
+  if (status.error) throw withHttpStatus(status.error, status.response.status);
+  return fileStatus.parse(status.data);
+}
+
+async function pollReady(
+  companyId: string,
+  id: string,
+  signal: AbortSignal | undefined,
+  wait: (ms: number) => Promise<void>,
+) {
+  for (let attempt = 0; attempt < ATTEMPTS; attempt += 1) {
+    throwIfAborted(signal);
+    const current = await raceAbort(readLogoStatus(companyId, id), signal);
+    throwIfAborted(signal);
+    if (current.status === 'READY') return id;
+    if (current.status === 'REJECTED') {
+      throw failure(current.rejection_code ?? 'FILE_CONTENT_INVALID');
+    }
+    await raceAbort(wait(1000), signal);
+  }
+  throw failure('FILE_NOT_READY');
+}
+
 export async function uploadBusinessLogo(options: {
   companyId: string;
   businessId: string;
@@ -54,21 +137,14 @@ export async function uploadBusinessLogo(options: {
   file: File;
   onPhase?: (phase: LogoPhase) => void;
   wait?: (ms: number) => Promise<void>;
+  signal?: AbortSignal;
 }): Promise<string> {
-  const { companyId, businessId, contentType, file, onPhase } = options;
+  const { companyId, businessId, contentType, file, onPhase, signal } = options;
+  const wait = options.wait ?? ((ms: number) => pause(ms, signal));
+  throwIfAborted(signal);
   onPhase?.('uploading');
-  const id = await confirmedUpload(companyId, businessId, file, contentType);
+  const id = await raceAbort(confirmedUpload(companyId, businessId, file, contentType), signal);
+  throwIfAborted(signal);
   onPhase?.('verifying');
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    const status = await apiClient().GET('/v1/files/{id}', {
-      params: { header: { 'x-company-id': companyId }, path: { id } },
-    });
-    if (status.error) throw withHttpStatus(status.error, status.response.status);
-    const current = fileStatus.parse(status.data);
-    if (current.status === 'READY') return id;
-    if (current.status === 'REJECTED')
-      throw failure(current.rejection_code ?? 'FILE_CONTENT_INVALID');
-    await (options.wait ?? pause)(1000);
-  }
-  throw failure('FILE_NOT_READY');
+  return pollReady(companyId, id, signal, wait);
 }

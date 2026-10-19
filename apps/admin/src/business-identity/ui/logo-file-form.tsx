@@ -12,7 +12,7 @@ export function LogoFileForm({
   onUpload,
   onAskRemove,
 }: {
-  logoId: string | null;
+  logoId: string | null | undefined;
   pending: boolean;
   onUpload: (file: File) => void;
   onAskRemove: () => void;
@@ -20,6 +20,9 @@ export function LogoFileForm({
   const locale = useLocale();
   const [file, setFile] = useState<File | null>(null);
   const [invalid, setInvalid] = useState(false);
+  // undefined يعني معرف الشعار لسه مجهول، وده غير null اللي معناه مفيش شعار
+  const hasLogo = typeof logoId === 'string';
+  const canRemove = hasLogo || logoId === undefined;
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!file || !acceptableLogoFile(file)) {
@@ -41,9 +44,9 @@ export function LogoFileForm({
       />
       <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={pending}>
-          {t(locale, logoId ? 'businessIdentity.replace' : 'businessIdentity.upload')}
+          {t(locale, hasLogo ? 'businessIdentity.replace' : 'businessIdentity.upload')}
         </Button>
-        {logoId ? (
+        {canRemove ? (
           <Button type="button" variant="outline" disabled={pending} onClick={onAskRemove}>
             {t(locale, 'businessIdentity.remove')}
           </Button>

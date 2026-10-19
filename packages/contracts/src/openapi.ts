@@ -100,7 +100,7 @@ import {
   notificationReadResult,
 } from './in-app-notifications.js';
 import {
-  businessIdentityNames, businessLogo, businessSettings, identityCapability,
+  businessIdentity, businessIdentityNames, businessLogo, businessSettings, identityCapability,
   calendar,
   language,
   setBusinessLogoInput,
@@ -204,7 +204,7 @@ const SCHEMAS = [
   workspaceBranch,
   workspaceBusiness,
   workspaceCompany,
-  businessIdentityNames, businessLogo, businessSettings, identityCapability,
+  businessIdentity, businessIdentityNames, businessLogo, businessSettings, identityCapability,
   setBusinessLogoInput, updateBusinessIdentityNamesInput, updateBusinessSettingsInput,
   // المكوّنات المتداخلة لازم تتسجل هي كمان، وإلا Zod بيحطها تحت __shared بدل components.
   verticalType,

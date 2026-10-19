@@ -1,7 +1,7 @@
 'use client';
 
-import { t } from '@pospay/i18n';
 import type { UpdateBusinessIdentityNamesInput } from '@pospay/contracts';
+import { t } from '@pospay/i18n';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { LogoPhase } from '../api/upload-business-logo';
 import type { OfficialNames } from '../model/changed-official-names';
@@ -11,8 +11,10 @@ import { OfficialNamesForm } from '../ui/official-names-form';
 
 export function IdentityEditor(props: {
   companyId: string;
+  showNames: boolean;
   baseline: OfficialNames | null;
-  logoId: string | null;
+  saved: OfficialNames | null;
+  logoId: string | null | undefined;
   alt: string;
   namesPending: boolean;
   namesSaved: boolean;
@@ -21,26 +23,28 @@ export function IdentityEditor(props: {
   uploadPending: boolean;
   removing: boolean;
   failure: unknown;
+  removeFailure: unknown;
   removed: boolean;
   onSave: (body: UpdateBusinessIdentityNamesInput) => void;
   onUpload: (file: File) => void;
   onRemove: () => void;
 }) {
   const locale = useLocale();
-  const namesKey = props.baseline
-    ? `${props.baseline.official_name_ar ?? ''}\n${props.baseline.official_name_en ?? ''}`
-    : 'unknown';
   return (
     <>
-      <OfficialNamesForm
-        key={namesKey}
-        baseline={props.baseline}
-        pending={props.namesPending}
-        onSave={props.onSave}
-      />
-      {props.namesSaved ? <p role="status">{t(locale, 'businessIdentity.saved')}</p> : null}
-      {props.namesError ? (
-        <p role="alert">{identityFailureMessage(props.namesError, locale)}</p>
+      {props.showNames ? (
+        <>
+          <OfficialNamesForm
+            baseline={props.baseline}
+            saved={props.saved}
+            pending={props.namesPending}
+            onSave={props.onSave}
+          />
+          {props.namesSaved ? <p role="status">{t(locale, 'businessIdentity.saved')}</p> : null}
+          {props.namesError ? (
+            <p role="alert">{identityFailureMessage(props.namesError, locale)}</p>
+          ) : null}
+        </>
       ) : null}
       <LogoPanel
         companyId={props.companyId}
@@ -50,6 +54,7 @@ export function IdentityEditor(props: {
         pending={props.uploadPending}
         removing={props.removing}
         failure={props.failure}
+        removeFailure={props.removeFailure}
         removed={props.removed}
         onUpload={props.onUpload}
         onRemove={props.onRemove}

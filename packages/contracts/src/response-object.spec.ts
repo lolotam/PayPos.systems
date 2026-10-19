@@ -22,6 +22,7 @@ import { sessionPerformerOptionPage, sessionServiceOptionPage, sessionServiceOpt
 import { confirmSessionRecoveryBody, serviceSessionRecoveryPage } from './orders/service-session-recovery.js';
 import { recordingContext, recordingContextQuery } from './orders/recording-context.js';
 import {
+  businessIdentity,
   businessIdentityNames,
   businessLogo,
   businessSettings,
@@ -67,6 +68,7 @@ const responses = [
   { name: 'attendanceExceptionRecord', schema: attendanceExceptionRecord },
   { name: 'attendanceMonthlyReport', schema: attendanceMonthlyReport },
   { name: 'branchScheduleSettings', schema: branchScheduleSettings },
+  { name: 'businessIdentity', schema: businessIdentity },
   { name: 'businessIdentityNames', schema: businessIdentityNames },
   { name: 'businessLogo', schema: businessLogo },
   { name: 'businessSettings', schema: businessSettings },

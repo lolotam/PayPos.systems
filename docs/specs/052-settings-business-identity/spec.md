@@ -189,6 +189,13 @@ Contracts in `packages/contracts` (Zod, strict, snake_case, listed in `openapi.t
 - `PUT /v1/businesses/:businessId/settings/logo` (27h-4) · `@Require('manage:business-identity:business')` · body
   `{ file_id: uuid|null }`; `null` removes. 200 returns `{ logo_file_id }`. No Idempotency-Key (rebinding the current file
   is a no-op).
+- `GET /v1/businesses/:businessId/settings/identity` (27h-5) · `manage:business-identity:business` (BI-Q5: no
+  `read:settings:business` needed) · `{ official_name_ar, official_name_en, logo_file_id }`, all `null` when unset or when
+  the business has no settings row (the read never creates one). Lock-free. The admin screen loads names and the current
+  logo from this read, not from `GET …/settings`.
+- `GET /v1/businesses/:businessId/settings/identity-capability` (27h-5) · `@Authenticated` · `{ can_manage_identity }`
+  from the same check the writes recheck in their transaction, lock-free. Every "no" (non-holder, DENY, device, unknown or
+  foreign business) is the same `200 { can_manage_identity: false }`. The admin navigation and route gate on it.
 - Errors reuse the envelope `{ code, message_ar, message_en }`: `VALIDATION_FAILED`, `FORBIDDEN`, `FILE_NOT_READY`,
   `FILE_NOT_FOUND`, `NOT_READY`, `TRANSACTION_RETRY_REQUIRED`. New codes only if the existing ones do not fit.
 - Preview of the logo in admin uses the existing audited `POST files/:id/download`.

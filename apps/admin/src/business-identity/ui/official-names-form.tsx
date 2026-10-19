@@ -1,35 +1,75 @@
 'use client';
 
+import type { UpdateBusinessIdentityNamesInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useEffect, useRef, useState } from 'react';
+import { useForm, type UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import type { UpdateBusinessIdentityNamesInput } from '@pospay/contracts';
 import {
   changedOfficialNames,
   type NameDraft,
   type OfficialNames,
 } from '../model/changed-official-names';
 
+const NAME_FIELDS = ['official_name_ar', 'official_name_en'] as const;
+
+function syncOfficialNames(
+  form: UseFormReturn<NameDraft>,
+  baseline: OfficialNames,
+  saved: OfficialNames | null,
+  appliedSave: { current: OfficialNames | null },
+) {
+  if (saved && saved !== appliedSave.current) {
+    appliedSave.current = saved;
+    form.reset({
+      official_name_ar: saved.official_name_ar ?? '',
+      official_name_en: saved.official_name_en ?? '',
+    });
+    return;
+  }
+  const next: NameDraft = {
+    official_name_ar: baseline.official_name_ar ?? '',
+    official_name_en: baseline.official_name_en ?? '',
+  };
+  for (const key of NAME_FIELDS) {
+    if (form.getFieldState(key).isDirty) continue;
+    if (form.getValues(key) === next[key]) continue;
+    form.resetField(key, { defaultValue: next[key] });
+  }
+}
+
 export function OfficialNamesForm({
   baseline,
+  saved,
   pending,
   onSave,
 }: {
   baseline: OfficialNames | null;
+  saved: OfficialNames | null;
   pending: boolean;
   onSave: (body: UpdateBusinessIdentityNamesInput) => void;
 }) {
   const locale = useLocale();
   const [notice, setNotice] = useState<'invalid' | 'unchanged' | null>(null);
+  const appliedSave = useRef<OfficialNames | null>(null);
   const form = useForm<NameDraft>({
     defaultValues: {
       official_name_ar: baseline?.official_name_ar ?? '',
       official_name_en: baseline?.official_name_en ?? '',
     },
   });
+  const baselineAr = baseline?.official_name_ar ?? null;
+  const baselineEn = baseline?.official_name_en ?? null;
   const dirty = form.formState.dirtyFields;
+  useEffect(() => {
+    syncOfficialNames(
+      form,
+      { official_name_ar: baselineAr, official_name_en: baselineEn },
+      saved,
+      appliedSave,
+    );
+  }, [form, baselineAr, baselineEn, saved]);
   const submit = form.handleSubmit((draft) => {
     const change = changedOfficialNames(draft, baseline, dirty);
     if (!change.ok) {
