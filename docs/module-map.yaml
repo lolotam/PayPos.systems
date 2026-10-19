@@ -18,7 +18,7 @@ imports:
   platform: [tenancy]
   realtime: [identity]
   reporting: []
-  settings: [tenancy, identity]
+  settings: [tenancy, identity, files]
   staff: [tenancy, identity, files]
   tenancy: []
 packages_restricted:
@@ -119,6 +119,7 @@ reads:
   - { from: staff, to: identity, symbol: readDocumentAccess, file: apps/api/src/modules/staff/persistence/document-access.adapter.ts }
   - { from: staff, to: tenancy, symbol: businessTimeZone, file: apps/api/src/modules/staff/persistence/document-access.adapter.ts }
   - { from: staff, to: files, symbol: documentFileFacts, file: apps/api/src/modules/staff/persistence/document-files.adapter.ts }
+  - { from: settings, to: files, symbol: documentFileFacts, file: apps/api/src/modules/settings/persistence/logo-file.adapter.ts }
   - { from: staff, to: files, symbol: documentFileFacts, file: apps/api/src/modules/staff/persistence/drizzle-employee-import.ts }
   - { from: staff, to: identity, symbol: readEmployeeManagementAccess, file: apps/api/src/modules/staff/persistence/drizzle-employee-import.ts }
   - { from: staff, to: identity, symbol: lockEmployeeManagementAccess, file: apps/api/src/modules/staff/persistence/drizzle-employee-import.ts }

@@ -2607,6 +2607,63 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/settings/logo": {
+      "put": {
+        "operationId": "setBusinessLogo",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business settings result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BusinessLogo"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetBusinessLogoInput"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/settings/discount-limit": {
       "post": {
         "operationId": "setBusinessDiscountDefault",
@@ -26403,6 +26460,20 @@
           "official_name_en"
         ]
       },
+      "BusinessLogo": {
+        "type": "object",
+        "properties": {
+          "logo_file_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "logo_file_id"
+        ]
+      },
       "BusinessSettings": {
         "type": "object",
         "properties": {
@@ -26475,6 +26546,21 @@
           "overridden",
           "updated_at"
         ]
+      },
+      "SetBusinessLogoInput": {
+        "type": "object",
+        "properties": {
+          "file_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "file_id"
+        ],
+        "additionalProperties": false
       },
       "UpdateBusinessIdentityNamesInput": {
         "type": "object",
