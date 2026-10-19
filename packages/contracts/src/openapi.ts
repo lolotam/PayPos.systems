@@ -100,11 +100,11 @@ import {
   notificationReadResult,
 } from './in-app-notifications.js';
 import {
-  businessSettings,
+  businessIdentityNames, businessSettings,
   calendar,
   language,
   taxRule,
-  updateBusinessSettingsInput,
+  updateBusinessIdentityNamesInput, updateBusinessSettingsInput,
 } from './settings/business-settings.js';
 import { currency } from './reference/currency.js';
 import { timeZone } from './reference/time-zone.js';
@@ -203,8 +203,8 @@ const SCHEMAS = [
   workspaceBranch,
   workspaceBusiness,
   workspaceCompany,
-  businessSettings,
-  updateBusinessSettingsInput,
+  businessIdentityNames, businessSettings,
+  updateBusinessIdentityNamesInput, updateBusinessSettingsInput,
   // المكوّنات المتداخلة لازم تتسجل هي كمان، وإلا Zod بيحطها تحت __shared بدل components.
   verticalType,
   currency,

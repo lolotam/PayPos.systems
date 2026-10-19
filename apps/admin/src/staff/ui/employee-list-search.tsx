@@ -7,9 +7,11 @@ import { useLocale } from '@/shared/locale/locale-context';
 export function EmployeeListSearch({
   value,
   onChange,
+  disabled = false,
 }: {
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   const locale = useLocale();
   const id = useId();
@@ -21,6 +23,7 @@ export function EmployeeListSearch({
         type="search"
         maxLength={100}
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
     </div>

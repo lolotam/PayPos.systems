@@ -103,6 +103,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | attendance-change authority and `AttendanceChangeReadAccess` | `identity`, `tenancy` | branch request permission, active canonical owners and recipients; company/membership locks after AttendanceState (ADR-0040) |
 | `staff` | `EmployeeCreationScope` | `identity` | locked employee-management access and active company membership eligibility for user links (ADR-0021, PR #79) |
 | `settings` | `BusinessDiscountAccess`, `DiscountSubjectReader` | `identity` | locked discount-management authority and scoped personal limit/active owner metadata (ADR-0023) |
+| `settings` | `BusinessIdentityAccess` | `identity` | locked recheck of `manage:business-identity:business` at the business after the settings row lock (spec 052, 27h-1) |
 | `settings` | `DiscountSubjectReader` | `tenancy` | business and branch scope confirmed before identity membership read (ADR-0023) |
 | `staff` | `EmployeeDetailAccess` (read-side interface beside the query) | `identity` | effective grants at the persisted business/primary branch and staff feature; never global user existence (ADR-0021, PR #79) |
 | `staff` | `ScheduleScope`, `ScheduleReadAccess` | `identity` | schedule permissions and staff feature; writes retain company and ordered membership locks (ADR-0024) |
@@ -355,6 +356,8 @@ reads:
   - staff -> identity.readEmployeeNumberCompanyAccess @ apps/api/src/modules/staff/persistence/set-employee-number-start.adapter.ts
   - settings -> identity.lockBusinessDiscountAccess @ apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts
   - settings -> identity.readBusinessDiscountAccess @ apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts
+  - settings -> identity.lockBusinessIdentityAccess @ apps/api/src/modules/settings/persistence/business-identity-access.adapter.ts
+  - settings -> identity.readBusinessIdentityAccess @ apps/api/src/modules/settings/persistence/business-identity-access.adapter.ts
   - settings -> identity.lockMembershipDiscountSubject @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts
   - settings -> identity.readMembershipDiscountSubject @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts
   - settings -> tenancy.businessDiscountScope @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts

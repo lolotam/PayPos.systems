@@ -76,4 +76,36 @@ export const serviceSessionPaths = {
       },
     },
   },
+  '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/tips': {
+    put: {
+      operationId: 'recordSessionTips',
+      description: 'Records or replaces the current tip set of one visit. Requires record:service-sessions:branch on the route branch, the orders feature, an individual admin login, and an actor-bound Idempotency-Key. One transaction writes the revision, its entries and the outbox event. A foreign, unknown or out-of-branch session is SESSION_NOT_FOUND.',
+      parameters: [...parameters, { in: 'path', name: 'sessionId', required: true, schema: { type: 'string', format: 'uuid' } }],
+      requestBody: { required: true, content: json('RecordSessionTipsInput') },
+      responses: {
+        '200': { description: 'Current revision and set. Money is canonical three-decimal text. Replay of the same key and body returns this result and writes nothing.', content: json('SessionTips') },
+        '400': { description: 'Shape error, a missing Idempotency-Key, or SESSION_RECORDER_MEMBERSHIP_REQUIRED.', content: json('ErrorEnvelope') },
+        '403': { description: 'Missing record permission, a device principal, or the orders feature disabled.', content: json('ErrorEnvelope') },
+        '404': { description: 'SESSION_NOT_FOUND. An unknown session, another company, another business or another branch is the same body.', content: json('ErrorEnvelope') },
+        '409': { description: 'TIP_REVISION_CONFLICT carries current_revision only. Also a transaction retry or an idempotent request still in progress.', content: json('ErrorEnvelope') },
+        '422': { description: 'Domain refusal, including a closed window, a self tip, an unknown identity, a non-performer, a total past the column maximum, a missing replacement reason, an unchanged set, or the same Idempotency-Key reused with another body.', content: json('ErrorEnvelope') },
+        default: { description: 'Bilingual authentication or readiness refusal.', content: json('ErrorEnvelope') },
+      },
+    },
+    get: {
+      operationId: 'readSessionTips',
+      description: 'Current tip revision and set for the reception screen that records the visit. Same record:service-sessions:branch permission as recording, so a cashier can reload the revision a replacement needs. No customer, phone, reason or history.',
+      parameters: [
+        ...parameters.filter((parameter) => parameter.name !== 'Idempotency-Key'),
+        { in: 'path', name: 'sessionId', required: true, schema: { type: 'string', format: 'uuid' } },
+      ],
+      responses: {
+        '200': { description: 'Current revision and set only. A visit with no saved tips returns revision 0, an empty set and zero totals.', content: json('SessionTips') },
+        '400': { description: 'Invalid path.', content: json('ErrorEnvelope') },
+        '403': { description: 'Missing record permission, a device principal, or the orders feature disabled.', content: json('ErrorEnvelope') },
+        '404': { description: 'SESSION_NOT_FOUND. An unknown session, another company, another business or another branch is the same body as PUT.', content: json('ErrorEnvelope') },
+        default: { description: 'Bilingual authentication or readiness refusal.', content: json('ErrorEnvelope') },
+      },
+    },
+  },
 };

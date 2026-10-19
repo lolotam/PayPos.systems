@@ -10,13 +10,18 @@ const EDIT_UNPROCESSABLE = new Set<string>([
   'SESSION_EDIT_NO_CHANGE', 'SESSION_LINE_NOT_EDITABLE', 'SESSION_EDIT_REASON_INVALID',
   'SESSION_EDITOR_MEMBERSHIP_REQUIRED', 'SESSION_EDIT_IDENTITY_UNKNOWN',
 ]);
+const TIP_UNPROCESSABLE = new Set<string>([
+  'TIP_WINDOW_CLOSED', 'TIP_SELF_FORBIDDEN', 'TIP_IDENTITY_UNKNOWN', 'TIP_EMPLOYEE_NOT_PERFORMER',
+  'TIP_TOTAL_TOO_LARGE', 'TIP_REASON_REQUIRED', 'TIP_NO_CHANGE',
+]);
 
 function sessionErrorHttpStatus(code: string, invalidStatus: number): number {
   if (code === 'SESSION_PERFORMER_SELF_FORBIDDEN') return 403;
   if (code === 'SESSION_RECORDER_MEMBERSHIP_REQUIRED') return 400;
-  if (code === 'SESSION_RECOVERY_NOT_FOUND') return 404;
-  if (code === 'SESSION_RECOVERY_NOT_YET' || code === 'SESSION_RECOVERY_CLOSED' || code === 'SESSION_LINE_REVISION_STALE') return 409;
-  if (EDIT_UNPROCESSABLE.has(code)) return 422;
+  // جلسة مجهولة أو خارج الفرع 404 بلا تمييز، وتعارض مراجعة البقشيش 409 مثل تعارض سطر.
+  if (code === 'SESSION_RECOVERY_NOT_FOUND' || code === 'SESSION_NOT_FOUND') return 404;
+  if (code === 'SESSION_RECOVERY_NOT_YET' || code === 'SESSION_RECOVERY_CLOSED' || code === 'SESSION_LINE_REVISION_STALE' || code === 'TIP_REVISION_CONFLICT') return 409;
+  if (EDIT_UNPROCESSABLE.has(code) || TIP_UNPROCESSABLE.has(code)) return 422;
   return invalidStatus;
 }
 

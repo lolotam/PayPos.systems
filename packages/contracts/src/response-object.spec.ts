@@ -21,7 +21,12 @@ import { serviceLineEditsPage, serviceLineEditsQuery } from './orders/service-se
 import { sessionPerformerOptionPage, sessionServiceOptionPage, sessionServiceOptionsQuery } from './orders/service-session-options.js';
 import { confirmSessionRecoveryBody, serviceSessionRecoveryPage } from './orders/service-session-recovery.js';
 import { recordingContext, recordingContextQuery } from './orders/recording-context.js';
-import { businessSettings, updateBusinessSettingsInput } from './settings/business-settings.js';
+import {
+  businessIdentityNames,
+  businessSettings,
+  updateBusinessIdentityNamesInput,
+  updateBusinessSettingsInput,
+} from './settings/business-settings.js';
 import { attendanceBoard, attendanceBoardQuery } from './staff/attendance-board.js';
 import { attendanceCapabilities } from './staff/attendance-capabilities.js';
 import { attendanceChangeDecisionResult, attendanceChangeRequest, attendanceChangeRequestInput, attendanceChangeRequestPage } from './staff/attendance-change-request.js';
@@ -60,6 +65,7 @@ const responses = [
   { name: 'attendanceExceptionRecord', schema: attendanceExceptionRecord },
   { name: 'attendanceMonthlyReport', schema: attendanceMonthlyReport },
   { name: 'branchScheduleSettings', schema: branchScheduleSettings },
+  { name: 'businessIdentityNames', schema: businessIdentityNames },
   { name: 'businessSettings', schema: businessSettings },
   { name: 'clockAttendanceResult', schema: clockAttendanceResult },
   { name: 'correctAttendanceResult', schema: correctAttendanceResult },
@@ -143,6 +149,7 @@ const requests = [
   { name: 'createEmployeeInput', schema: createEmployeeInput },
   { name: 'setEmployeeDefaultShiftsInput', schema: setEmployeeDefaultShiftsInput },
   { name: 'permissionOverrideInput', schema: permissionOverrideInput },
+  { name: 'updateBusinessIdentityNamesInput', schema: updateBusinessIdentityNamesInput },
   { name: 'updateBusinessSettingsInput', schema: updateBusinessSettingsInput },
   { name: 'setSalaryInput', schema: setSalaryInput },
   { name: 'setScheduleSettingsInput', schema: setScheduleSettingsInput },

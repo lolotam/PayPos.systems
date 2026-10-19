@@ -127,12 +127,16 @@ export {
   type WorkspaceCompanyNames,
 } from './identity/workspaces.js';
 export {
+  businessIdentityNames,
   businessSettings,
   calendar,
   language,
   taxRule,
+  updateBusinessIdentityNamesInput,
   updateBusinessSettingsInput,
+  type BusinessIdentityNames,
   type BusinessSettings,
+  type UpdateBusinessIdentityNamesInput,
   type UpdateBusinessSettingsInput,
 } from './settings/business-settings.js';
 export {

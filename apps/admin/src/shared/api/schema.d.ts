@@ -539,6 +539,22 @@ export interface paths {
         patch: operations["updateBusinessSettings"];
         trace?: never;
     };
+    "/v1/businesses/{businessId}/settings/identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateBusinessIdentityNames"];
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/settings/discount-limit": {
         parameters: {
             query?: never;
@@ -1614,6 +1630,24 @@ export interface paths {
         /** @description Newest-first price-edit history for one saved line. Requires read:service-sessions:branch and the orders feature. edit:service-line-prices:branch does not grant this read. A line, session, branch or company mismatch is a uniform 403. The reason is returned only here. The scoped cursor carries the last revision. */
         get: operations["listServiceLineEdits"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/tips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Current tip revision and set for the reception screen that records the visit. Same record:service-sessions:branch permission as recording, so a cashier can reload the revision a replacement needs. No customer, phone, reason or history. */
+        get: operations["readSessionTips"];
+        /** @description Records or replaces the current tip set of one visit. Requires record:service-sessions:branch on the route branch, the orders feature, an individual admin login, and an actor-bound Idempotency-Key. One transaction writes the revision, its entries and the outbox event. A foreign, unknown or out-of-branch session is SESSION_NOT_FOUND. */
+        put: operations["recordSessionTips"];
         post?: never;
         delete?: never;
         options?: never;
@@ -5402,6 +5436,10 @@ export interface components {
             /** @enum {string} */
             scope: "COMPANY" | "BUSINESS" | "BRANCH";
         };
+        BusinessIdentityNames: {
+            official_name_ar: string | null;
+            official_name_en: string | null;
+        };
         BusinessSettings: {
             /** Format: uuid */
             business_id: string;
@@ -5409,9 +5447,17 @@ export interface components {
             calendar: components["schemas"]["Calendar"];
             limit_bps: number | null;
             tax_rule: components["schemas"]["TaxRule"] | null;
+            official_name_ar: string | null;
+            official_name_en: string | null;
+            /** Format: uuid */
+            logo_file_id: string | null;
             overridden: ("default_language" | "calendar" | "limit_bps")[];
             /** Format: date-time */
             updated_at: string | null;
+        };
+        UpdateBusinessIdentityNamesInput: {
+            official_name_ar?: string | null;
+            official_name_en?: string | null;
         };
         UpdateBusinessSettingsInput: {
             default_language?: components["schemas"]["Language"] | null;
@@ -6974,6 +7020,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BusinessSettings"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateBusinessIdentityNames: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBusinessIdentityNamesInput"];
+            };
+        };
+        responses: {
+            /** @description Business settings result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessIdentityNames"];
                 };
             };
             /** @description The API error envelope */
@@ -11188,6 +11271,153 @@ export interface operations {
                 };
             };
             /** @description Bilingual authentication/readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    readSessionTips: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current revision and set only. A visit with no saved tips returns revision 0, an empty set and zero totals. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionTips"];
+                };
+            };
+            /** @description Invalid path. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing record permission, a device principal, or the orders feature disabled. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description SESSION_NOT_FOUND. An unknown session, another company, another business or another branch is the same body as PUT. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    recordSessionTips: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordSessionTipsInput"];
+            };
+        };
+        responses: {
+            /** @description Current revision and set. Money is canonical three-decimal text. Replay of the same key and body returns this result and writes nothing. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionTips"];
+                };
+            };
+            /** @description Shape error, a missing Idempotency-Key, or SESSION_RECORDER_MEMBERSHIP_REQUIRED. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing record permission, a device principal, or the orders feature disabled. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description SESSION_NOT_FOUND. An unknown session, another company, another business or another branch is the same body. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description TIP_REVISION_CONFLICT carries current_revision only. Also a transaction retry or an idempotent request still in progress. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Domain refusal, including a closed window, a self tip, an unknown identity, a non-performer, a total past the column maximum, a missing replacement reason, an unchanged set, or the same Idempotency-Key reused with another body. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
             default: {
                 headers: {
                     [name: string]: unknown;

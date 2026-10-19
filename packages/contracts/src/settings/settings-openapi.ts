@@ -28,6 +28,14 @@ export const settingsPaths = {
       requestBody: { required: true, content: json('UpdateBusinessSettingsInput') },
     },
   },
+  '/v1/businesses/{businessId}/settings/identity': {
+    patch: {
+      operationId: 'updateBusinessIdentityNames',
+      parameters,
+      responses: response('BusinessIdentityNames'),
+      requestBody: { required: true, content: json('UpdateBusinessIdentityNamesInput') },
+    },
+  },
   '/v1/businesses/{businessId}/settings/discount-limit': {
     post: {
       operationId: 'setBusinessDiscountDefault',

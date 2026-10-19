@@ -21,6 +21,8 @@ import { employeeIbanAr, employeeIbanErrorsAr } from './employee-iban-catalog.js
 import { scheduleShellAr } from './schedule-shell-catalog.js';
 import { employeeDefaultHoursAr } from './employee-default-hours-catalog.js';
 import { employeeNumberErrorsAr } from './employee-number-catalog.js';
+import { companyEmployeeNumbersAr } from './company-employee-numbers-catalog.js';
+import { roleNamesAr } from './role-names-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
@@ -84,21 +86,7 @@ export const ar: Catalog = {
     workspaceLead: 'نظرة على شركتك ونشاطك وفرعك.',
     permissionsLead: 'راجع صلاحيات الدور وأدر قرارات الوصول لكل شخص.',
   },
-  roles: {
-    owner: 'صاحب الشركة',
-    general_manager: 'مدير عام',
-    accountant: 'محاسب',
-    business_manager: 'مدير نشاط',
-    branch_manager: 'مدير فرع',
-    shift_supervisor: 'مشرف وردية',
-    cashier: 'كاشير',
-    waiter: 'ويتر',
-    kitchen: 'مطبخ',
-    storekeeper: 'أمين مخزن',
-    staff: 'موظف',
-    marketing: 'تسويق',
-    viewer: 'مشاهد',
-  },
+  roles: roleNamesAr,
   permissions: {
     discountLimit: 'حد الخصم (%)',
     businessDiscountTitle: 'حد الخصم الافتراضي',
@@ -388,4 +376,5 @@ export const ar: Catalog = {
     networkError: 'تعذّر الوصول إلى الخادم. حاول مرة أخرى.',
   },
   employeeImport: employeeImportAr,
+  companyEmployeeNumbers: companyEmployeeNumbersAr,
 };

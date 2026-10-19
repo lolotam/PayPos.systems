@@ -1,6 +1,7 @@
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 import type { SettingsOverrides } from '../domain/business-settings.ts';
 import type { BusinessDiscountAccess } from './business-discount-access.port.ts';
+import type { BusinessIdentityAccess } from './business-identity-access.port.ts';
 
 /**
  * صف إعدادات النشاط زي ما اتخزن — التعديلات بس، مش القيم الفعلية.
@@ -9,8 +10,22 @@ export interface StoredSettings extends SettingsOverrides {
   readonly limitBps: number | null;
   /** قاعدة الضريبة زي ما اتخزنت (شكل الـ contract)، أو null = مفيش ضريبة. */
   readonly taxRule: unknown;
+  /** الاسم الرسمي العربي المخزن، أو null لو لسه ما اتكتبش. */
+  readonly officialNameAr: string | null;
+  /** الاسم الرسمي الإنجليزي المخزن، أو null لو لسه ما اتكتبش. */
+  readonly officialNameEn: string | null;
+  /** ملف الشعار المخزن، أو null لو مفيش شعار. */
+  readonly logoFileId: string | null;
   /** آخر تعديل، ISO زي ما Postgres كتبه. */
   readonly updatedAt: string;
+}
+
+/**
+ * الأسماء الرسمية الحاضرة في الطلب: null يمسح، والمفتاح الغايب مش موجود هنا.
+ */
+export interface IdentityNamesChange {
+  readonly officialNameAr?: string | null;
+  readonly officialNameEn?: string | null;
 }
 
 /**
@@ -27,6 +42,7 @@ export interface SettingsChange {
  */
 export interface SettingsScope {
   readonly discountAccess: BusinessDiscountAccess;
+  readonly identityAccess: BusinessIdentityAccess;
   readonly audit: AuditTrail;
   /**
    * صف الإعدادات مقفول لحد آخر الـ transaction، أو null لو النشاط لسه ما غيّرش حاجة — عشان الـ audit يسجل قبل وبعد صح.
@@ -42,6 +58,18 @@ export interface SettingsScope {
    * @param updatedBy  المستخدم اللي غيّر
    */
   save(businessId: string, change: SettingsChange, updatedBy: string): Promise<StoredSettings>;
+  /**
+   * بيكتب الأسماء الرسمية الحاضرة بس؛ null يمسح والمفتاح الغايب يفضل زي ما هو.
+   *
+   * @param businessId النشاط
+   * @param change     المفاتيح الحاضرة في الطلب
+   * @param updatedBy  المستخدم اللي غيّر
+   */
+  saveIdentity(
+    businessId: string,
+    change: IdentityNamesChange,
+    updatedBy: string,
+  ): Promise<StoredSettings>;
 }
 
 /**

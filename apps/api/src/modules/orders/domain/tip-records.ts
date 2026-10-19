@@ -1,4 +1,4 @@
-import { moneyToString, sumMoney } from '@pospay/domain';
+import { moneyToString, sumTipTotalsByMethod } from '@pospay/domain';
 import { compareTipEntries, type TipEntry } from './tip-set.ts';
 
 /** رأس الزيارة الذي تُبنى منه حمولة الحدث؛ المنطقة الزمنية للنافذة ولا تخرج في الحدث. */
@@ -29,15 +29,6 @@ function wireEntry(entry: TipEntry) {
   };
 }
 
-function totalsByMethod(entries: readonly TipEntry[]) {
-  const amounts = (method: TipEntry['method']) =>
-    entries.filter((entry) => entry.method === method).map((entry) => entry.amount);
-  return {
-    total_cash: moneyToString(sumMoney(amounts('CASH'))),
-    total_card: moneyToString(sumMoney(amounts('CARD'))),
-  };
-}
-
 /**
  * يبني جسم SessionTips من المراجعة والسطور، بالمال نصاً من ثلاث خانات.
  * الترتيب بالهوية ثم الطريقة حتى يتطابق الرد مع الحدث، وCARD تسبق CASH لأن المقارنة نصية مثل تصنيف 36-2.
@@ -48,7 +39,7 @@ function totalsByMethod(entries: readonly TipEntry[]) {
  * @returns جسم الرد: المراجعة والسطور المرتبة وإجمالي النقد والبطاقة
  */
 export function tipSetResponse(revision: number, entries: readonly TipEntry[]) {
-  return { revision, tips: sortEntries(entries).map(wireEntry), ...totalsByMethod(entries) };
+  return { revision, tips: sortEntries(entries).map(wireEntry), ...sumTipTotalsByMethod(entries) };
 }
 
 /**

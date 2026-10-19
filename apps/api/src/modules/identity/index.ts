@@ -10,6 +10,10 @@ export {
   lockBusinessDiscountAccess,
   readBusinessDiscountAccess,
 } from './persistence/business-discount-access.ts';
+export {
+  lockBusinessIdentityAccess,
+  readBusinessIdentityAccess,
+} from './persistence/business-identity-access.ts';
 export { lockMembershipDiscountSubject } from './persistence/membership-discount-read-lock.ts';
 export { lockEmployeeCreationAccess } from './persistence/employee-creation-access.ts';
 export { lockEmployeeManagementAccess } from './persistence/employee-creation-access.ts';
