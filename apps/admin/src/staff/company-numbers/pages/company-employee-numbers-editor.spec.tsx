@@ -42,11 +42,11 @@ it('sends the shown number when the field is not retyped', async () => {
   expect(options.body).toEqual({ employee_number: 4 });
 });
 
-it('opens a blank field when the employee has no number', async () => {
+it('opens the saved number when the editor opens', async () => {
   renderPage();
   const row = await screen.findByRole('row', { name: /Heba/ });
   fireEvent.click(within(row).getByRole('button', { name: editName('en', 'Heba') }));
-  expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('');
+  expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('8');
 });
 
 it('returns focus to that row edit button when the editor closes', async () => {

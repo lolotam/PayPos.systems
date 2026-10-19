@@ -63,9 +63,11 @@ afterAll(async () => {
   await testDb?.drop();
 });
 
+let nextEmployeeNumber = 0;
 async function insertEmployee(tenant: (typeof TENANT)['A' | 'B'], row: (typeof fixtures)[number]) {
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_ar,name_en_key,name_ar_key,role_code,hire_date,deleted_at)
-    VALUES(${tenant.company},${row.id},${tenant.business},${tenant.branch},${row.en},${row.ar},${row.enKey},${row.arKey},'staff','2026-01-01',${row.deleted ? '2026-09-01T00:00:00Z' : null})`;
+  nextEmployeeNumber += 1;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_ar,name_en_key,name_ar_key,role_code,hire_date,deleted_at,employee_number)
+    VALUES(${tenant.company},${row.id},${tenant.business},${tenant.branch},${row.en},${row.ar},${row.enKey},${row.arKey},'staff','2026-01-01',${row.deleted ? '2026-09-01T00:00:00Z' : null},${nextEmployeeNumber})`;
 }
 
 async function rowsWithVersions() {
@@ -266,8 +268,8 @@ it('rejects a NULL English key through the app on the normal migrated template',
     await expect(
       database.withTenant(company, (tx) =>
         tx.execute(sql`
-      INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-      VALUES(${company},${systemUuidV7().newId()},${business},${branch},'Synthetic missing key',NULL,'staff','2026-01-01')`),
+      INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+      VALUES(${company},${systemUuidV7().newId()},${business},${branch},'Synthetic missing key',NULL,'staff','2026-01-01',1)`),
       ),
     ).rejects.toMatchObject({
       cause: { code: '23514', constraint_name: 'employees_name_en_key_present' },

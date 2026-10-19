@@ -4,6 +4,7 @@ import { serviceSessionErrors } from '@pospay/i18n';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { origin, paired } from '../../../../test/staff-otp-harness.ts';
 import { ids, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 
 let f: SessionFixture;
 beforeAll(async () => { f = await sessionFixture(); });
@@ -165,8 +166,8 @@ it('TP-14 another company cannot read or write, and a foreign employee writes no
   expect(write.body['code']).toBe('FORBIDDEN');
   expect(read.body['code']).toBe('FORBIDDEN');
   const employee = ids.newId();
-  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${f.otherCompany},${employee},${f.foreignBusiness},${f.foreignBranch},'Synthetic foreign employee','synthetic foreign employee','staff','2026-01-01')`;
+  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.otherCompany},${employee},${f.foreignBusiness},${f.foreignBranch},'Synthetic foreign employee','synthetic foreign employee','staff','2026-01-01',${takeTestEmployeeNumber(f.otherCompany)})`;
   const rejected = await put(url, { expected_revision: 0, tips: [{ employee_id: employee, method: 'CASH', amount: '1.000' }] });
   expect(rejected.status).toBe(422);
   expect(rejected.body).toMatchObject({ code: 'TIP_EMPLOYEE_NOT_PERFORMER', ...serviceSessionErrors.TIP_EMPLOYEE_NOT_PERFORMER });

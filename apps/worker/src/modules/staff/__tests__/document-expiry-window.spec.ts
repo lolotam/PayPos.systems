@@ -3,6 +3,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { businessToday, documentExpiryCandidate } from '../domain/document-expiry.ts';
 import { documentExpiryFixture, type DocumentExpiryFixture } from './document-expiry.fixture.ts';
+import { takeTestEmployeeNumbers } from './test-employee-number.ts';
 
 let f: DocumentExpiryFixture;
 beforeAll(async () => {
@@ -70,8 +71,9 @@ it('business discovery uses bounded keyset pages across more than 100 businesses
   await f.owner`INSERT INTO branches(company_id,id,business_id,name_en)
     SELECT company_id,gen_random_uuid(),id,'Synthetic paged branch' FROM businesses
     WHERE company_id=${tenant.company} AND name_en='Synthetic paged business'`;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    SELECT company_id,gen_random_uuid(),business_id,id,'Synthetic paged employee',${employeeNameMatchKey('Synthetic paged employee')},'staff','2026-01-01'
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    SELECT company_id,gen_random_uuid(),business_id,id,'Synthetic paged employee',${employeeNameMatchKey('Synthetic paged employee')},'staff','2026-01-01',
+      row_number() OVER () + ${takeTestEmployeeNumbers(tenant.company, 105) - 1}
     FROM branches WHERE company_id=${tenant.company} AND name_en='Synthetic paged branch'`;
   await f.owner`INSERT INTO employee_documents(company_id,id,business_id,employee_id,type_code,object_key,expires_on,uploaded_by,recorded_at)
     SELECT company_id,gen_random_uuid(),business_id,id,'passport','synthetic/paged-'||id||'.pdf','2026-10-20',${f.userId},now()

@@ -15,8 +15,9 @@ beforeAll(async () => {
   await f.h.owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${f.company},${sibling},${f.business},'Synthetic sibling')`;
   for (const [company, business, branch] of [[f.company, f.secondBusiness, f.secondBranch], [f.otherCompany, f.foreignBusiness, f.foreignBranch]]) {
     const employee = ids.newId();
-    await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-      VALUES(${must(company)},${employee},${must(business)},${must(branch)},'Outside','outside','staff','2026-01-01')`;
+    const employeeNumber = company === f.company ? 201 : 1;
+    await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+      VALUES(${must(company)},${employee},${must(business)},${must(branch)},'Outside','outside','staff','2026-01-01',${employeeNumber})`;
     await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
       VALUES(${must(company)},${ids.newId()},${must(business)},${employee},${must(branch)},'2026-01-01')`;
   }
@@ -37,7 +38,7 @@ it('record-only access yields exact private-field-free pages, stable cursors wit
   f.h.calls.statements.length = 0;
   const first = await get('lang=ar&limit=2&q=zulu'); expect(first.status).toBe(200);
   const page = sessionPerformerOptionPage.parse(first.body);
-  expect(page).toEqual({ items: f.employees.slice(0, 2).map((id) => ({ id, name_ar: 'باء', name_en: 'ZULU', employee_number: null,
+  expect(page).toEqual({ items: f.employees.slice(0, 2).map((id, index) => ({ id, name_ar: 'باء', name_en: 'ZULU', employee_number: 101 + index,
     not_clocked_in_warning: true, approved_leave_warning: false })), next_cursor: null });
   const last = sessionPerformerOptionPage.parse((await get(`lang=ar&limit=2&cursor=${cursor('باء', must(f.employees[1]), 'ar')}`)).body);
   expect(last.items.map((r) => r.id)).toEqual([f.employees[2]]); expect(last.next_cursor).toBeNull();

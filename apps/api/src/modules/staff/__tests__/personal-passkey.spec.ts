@@ -4,6 +4,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { personalFixture, personalOrigin } from '../../../../test/personal-staff.fixture.ts';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 import { phone } from '../../../../test/staff-otp-harness.ts';
 import { testAuthenticator } from '../../../../../../packages/auth/src/__tests__/webauthn.fixture.ts';
 import { present } from '../../../../../../packages/db/test/present.ts';
@@ -267,8 +268,8 @@ async function seedEmployee(label: string) {
   const userId = f.ids.newId(),
     employeeId = f.ids.newId();
   await f.owner`INSERT INTO "user"(id,name,email) VALUES(${userId},'Synthetic race',${label + '@example.test'})`;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${f.companyId},${employeeId},${f.businessId},${f.branchId},${userId},'Synthetic race',${employeeNameMatchKey('Synthetic race')},'staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.companyId},${employeeId},${f.businessId},${f.branchId},${userId},'Synthetic race',${employeeNameMatchKey('Synthetic race')},'staff','2026-01-01',${takeTestEmployeeNumber(f.companyId)})`;
   await f.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
     SELECT ${f.companyId},${f.ids.newId()},${userId},id,'global','BRANCH',${f.branchId} FROM roles WHERE code='staff' AND company_id IS NULL`;
   return { userId, employeeId };

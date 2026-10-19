@@ -10,6 +10,7 @@ const hash = createEmployeeCardHash(
 );
 
 import { personalFixture } from '../../../../test/personal-staff.fixture.ts';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 
 let f: Awaited<ReturnType<typeof personalFixture>>;
 let cardId: string;
@@ -95,8 +96,8 @@ it('holds one active card per employee and one active code per company', async (
     f.database.withTenant(f.companyId, (tx) => tx.execute(insert(f.companyId))),
   ).rejects.toThrow();
   const secondEmployee = f.ids.newId();
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${f.companyId},${secondEmployee},${f.businessId},${f.branchId},'Synthetic second',${employeeNameMatchKey('Synthetic second')},'staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.companyId},${secondEmployee},${f.businessId},${f.branchId},'Synthetic second',${employeeNameMatchKey('Synthetic second')},'staff','2026-01-01',${takeTestEmployeeNumber(f.companyId)})`;
   await expect(
     f.database.withTenant(f.companyId, (tx) =>
       tx.execute(sql`INSERT INTO employee_cards(company_id,id,business_id,employee_id,card_code_hash,card_code_suffix,issued_at,issued_by)

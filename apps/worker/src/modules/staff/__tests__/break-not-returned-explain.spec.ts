@@ -1,4 +1,5 @@
 import { employeeNameMatchKey } from '@pospay/domain';
+import { takeTestEmployeeNumbers } from './test-employee-number.ts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import {
@@ -96,9 +97,10 @@ async function plan(company: string, statement: ReturnType<typeof dueBreaksState
 
 async function seedPage(tenant: Tenant) {
   const { company, business, branch } = tenant;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    SELECT ${company}, gen_random_uuid(), ${business}, ${branch}, 'Synthetic bulk', ${employeeNameMatchKey('Synthetic bulk')}, 'staff', '2026-01-01'
-    FROM generate_series(1, ${BREAK_NOT_RETURNED_PAGE_SIZE + 1})`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    SELECT ${company}, gen_random_uuid(), ${business}, ${branch}, 'Synthetic bulk', ${employeeNameMatchKey('Synthetic bulk')}, 'staff', '2026-01-01',
+      gs.n + ${takeTestEmployeeNumbers(company, BREAK_NOT_RETURNED_PAGE_SIZE + 1) - 1}
+    FROM generate_series(1, ${BREAK_NOT_RETURNED_PAGE_SIZE + 1}) AS gs(n)`;
   await f.owner`INSERT INTO staff_schedules(company_id,id,business_id,branch_id,employee_id,week_start,timezone,revision)
     SELECT ${company}, gen_random_uuid(), ${business}, ${branch}, e.id, ${WEEK}, 'Asia/Kuwait', 1
     FROM employees e WHERE e.company_id=${company} AND e.name_en='Synthetic bulk'`;
@@ -119,9 +121,10 @@ async function seedPage(tenant: Tenant) {
 }
 
 async function seedHistory(tenant: Tenant) {
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    SELECT ${tenant.company}, gen_random_uuid(), ${tenant.business}, ${tenant.branch}, 'Synthetic history', ${employeeNameMatchKey('Synthetic history')}, 'staff', '2026-01-01'
-    FROM generate_series(1, 3000)`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    SELECT ${tenant.company}, gen_random_uuid(), ${tenant.business}, ${tenant.branch}, 'Synthetic history', ${employeeNameMatchKey('Synthetic history')}, 'staff', '2026-01-01',
+      gs.n + ${takeTestEmployeeNumbers(tenant.company, 3000) - 1}
+    FROM generate_series(1, 3000) AS gs(n)`;
   await f.owner`INSERT INTO staff_schedules(company_id,id,business_id,branch_id,employee_id,week_start,timezone,revision)
     SELECT ${tenant.company}, gen_random_uuid(), ${tenant.business}, ${tenant.branch}, e.id, '2026-08-29', 'Asia/Kuwait', 1
     FROM employees e WHERE e.company_id=${tenant.company} AND e.name_en='Synthetic history'`;

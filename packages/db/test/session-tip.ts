@@ -77,14 +77,14 @@ export async function seedSessionTipStaff(owner: postgres.Sql) {
   const a = tenantA();
   const b = tenantB();
   await openSession(owner, b, TIP.foreignSession);
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${b.company},${TIP.foreignEmployee},${b.business},${b.branch},'Synthetic foreign','synthetic foreign tip','staff','2026-01-01')`;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${b.company},${TIP.foreignEmployee},${b.business},${b.branch},'Synthetic foreign','synthetic foreign tip','staff','2026-01-01',2)`;
   await owner`INSERT INTO businesses(company_id,id,name_en,vertical_type)
     VALUES(${a.company},${TIP.otherBusiness},'Synthetic other tip salon','salon')`;
   await owner`INSERT INTO branches(company_id,id,business_id,name_en)
     VALUES(${a.company},${TIP.otherBranch},${TIP.otherBusiness},'Synthetic other tip branch')`;
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${a.company},${TIP.otherEmployee},${TIP.otherBusiness},${TIP.otherBranch},'Synthetic other tip','synthetic other tip','staff','2026-01-01')`;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${a.company},${TIP.otherEmployee},${TIP.otherBusiness},${TIP.otherBranch},'Synthetic other tip','synthetic other tip','staff','2026-01-01',2)`;
   await openSession(owner, a, TIP.otherSession);
 }
 

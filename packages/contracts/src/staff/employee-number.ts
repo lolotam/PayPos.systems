@@ -27,7 +27,7 @@ export const employeeNumberEditCapability = responseObject({
   can_edit_number: z.boolean(),
 }).meta({ id: 'EmployeeNumberEditCapability' });
 
-const listedNumber = z.number().int().min(1).max(999999).nullable();
+const listedNumber = z.number().int().min(1).max(999999);
 export const employeeNumberListItem = responseObject({
   employee_id: id,
   name_ar: nameAr.nullable(),

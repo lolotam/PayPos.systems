@@ -17,7 +17,7 @@ const get = vi.hoisted(() => vi.fn());
 const put = vi.hoisted(() => vi.fn());
 const patch = vi.hoisted(() => vi.fn());
 const state = vi.hoisted(() => ({
-  number: 15 as number | null,
+  number: 15,
   canType: true,
   canEdit: true,
   refuse: null as { code: string; message_en: string; message_ar: string } | null,

@@ -9,6 +9,7 @@ import {
 } from './attendance-board.fixture.ts';
 import { actorEmployee } from './attendance-actions-read.fixture.ts';
 import { leaveIds } from './leave.fixture.ts';
+import { takeTestEmployeeNumbers } from '../../../../test/test-employee-number.ts';
 
 let f: BoardFixture;
 beforeAll(async () => {
@@ -79,8 +80,9 @@ it('prefers a non-deleted row when there is no employee in the scoped business, 
 it('EXPLAIN ANALYZE uses the employee company/user lookup index', async () => {
   const ids = Array.from({ length: 2000 }, () => leaveIds.newId());
   await f.h
-    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    SELECT ${f.company},id,${f.business},${f.branch},'Synthetic filler','synthetic filler','staff','2026-01-01'
+    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    SELECT ${f.company},id,${f.business},${f.branch},'Synthetic filler','synthetic filler','staff','2026-01-01',
+      row_number() OVER () + ${takeTestEmployeeNumbers(f.company, ids.length) - 1}
     FROM unnest(${ids}::uuid[]) AS id`;
   await f.h.owner`ANALYZE employees`;
   await f.db.withTenant(f.company, async (tx) => {

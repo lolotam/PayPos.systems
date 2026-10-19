@@ -169,8 +169,8 @@ async function seedOtherBusiness() {
     VALUES(${A.company},${OTHER.branch},${OTHER.business},'Synthetic second branch')`;
   await owner`INSERT INTO services(company_id,id,business_id,name_en,price,commission_rule_kind)
     VALUES(${A.company},${OTHER.service},${OTHER.business},'Synthetic second service',1.000,'ZERO')`;
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${A.company},${OTHER.employee},${OTHER.business},${OTHER.branch},'Synthetic second performer','synthetic second performer','staff','2026-01-01')`;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${A.company},${OTHER.employee},${OTHER.business},${OTHER.branch},'Synthetic second performer','synthetic second performer','staff','2026-01-01',2)`;
   await owner.begin(async (tx) => {
     await tx`INSERT INTO service_sessions(company_id,id,business_id,branch_id,customer_id,customer_name,customer_phone_masked,
       recorded_by,recorded_by_membership_id,occurred_at,recorded_at,business_date,business_timezone,late)

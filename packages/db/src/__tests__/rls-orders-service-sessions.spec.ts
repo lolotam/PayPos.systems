@@ -17,8 +17,8 @@ beforeAll(async () => {
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   await seedOrders(owner);
   await owner`INSERT INTO businesses(company_id,id,name_en,vertical_type) VALUES(${A.company},${otherBusiness},'Synthetic second business','salon')`;
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${A.company},${otherEmployee},${A.business},${A.branch},'Synthetic second employee','synthetic second employee','staff','2026-01-01')`;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${A.company},${otherEmployee},${A.business},${A.branch},'Synthetic second employee','synthetic second employee','staff','2026-01-01',2)`;
   db = createDatabase({ url: testDb.appUrl, ids: { newId: () => fresh } });
 });
 afterAll(async () => { await db?.close(); await owner?.end(); await testDb?.drop(); });

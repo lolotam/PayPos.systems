@@ -14,7 +14,7 @@ vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get, POST
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 
 const service = { id: id(5), name_ar: null, name_en: 'Synthetic service', price: '7.125', revision: 1 };
-const performer = { id: id(6), name_ar: null, name_en: 'Synthetic performer', employee_number: null, not_clocked_in_warning: false, approved_leave_warning: false };
+const performer = { id: id(6), name_ar: null, name_en: 'Synthetic performer', employee_number: 7, not_clocked_in_warning: false, approved_leave_warning: false };
 const context = {
   generated_at: instant, business_timezone: 'Asia/Kuwait', recorder_membership_ids: [id(8)],
   recorder_membership_id: id(8), discount_limit: { source: 'PERSON' as const, bps: 1000 },
@@ -47,7 +47,7 @@ async function chooseService() {
 }
 async function choosePerformer() {
   const label = t('en', 'serviceSessions.performerNumber').replace('{n}', '1');
-  await screen.findByRole('option', { name: 'Synthetic performer' });
+  await screen.findByRole('option', { name: 'Synthetic performer (7)' });
   fireEvent.change(screen.getByLabelText(label), { target: { value: id(6) } });
 }
 function contextReads() {

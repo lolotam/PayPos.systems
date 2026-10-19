@@ -29,7 +29,7 @@ const employeeFields = {
   employee_id: id,
   name_ar: z.string().nullable(),
   name_en: z.string(),
-  employee_number: z.number().int().min(1).max(999999).nullable(),
+  employee_number: z.number().int().min(1).max(999999),
 };
 const source = z.enum(['QR', 'BARCODE', 'MANUAL']);
 const geo = z.enum(['OK', 'NONE', 'OUT_OF_RANGE']);

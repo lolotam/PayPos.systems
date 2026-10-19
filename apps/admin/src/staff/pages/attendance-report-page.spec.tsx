@@ -127,7 +127,7 @@ it.each(['ar', 'en'] as const)(
     expect(within(row).getByText('15')).toBeTruthy();
     const unnumbered = within(table).getByText('Other synthetic employee').closest('tr');
     if (!unnumbered) throw new Error('Missing report row');
-    expect(within(unnumbered).getByText('\u2014')).toBeTruthy();
+    expect(within(unnumbered).getByText('16')).toBeTruthy();
     for (const value of ['20', '160:05', '168:00', '170:00', '-9:55', '27'])
       expect(within(row).getByText(value)).toBeTruthy();
     expect(within(row).getByText('-9:55').getAttribute('dir')).toBe('ltr');
@@ -323,15 +323,15 @@ it.each(['ar', 'en'] as const)(
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:synthetic');
   },
 );
-it('sorts by employee number and keeps a missing number last in both directions', async () => {
+it('sorts by employee number in both directions', async () => {
   const view = setup();
   const table = await screen.findByRole('table');
   const header = within(table).getByRole('button', { name: t('en', 'attendanceReport.employeeNumber') });
   fireEvent.click(header);
-  expect(within(table).getAllByRole('row')[1]?.textContent).toContain('15');
-  expect(within(table).getAllByRole('row').at(-1)?.textContent).toContain('—');
+  expect(within(table).getAllByRole('row')[1]?.textContent).toContain('Synthetic employee');
+  expect(within(table).getAllByRole('row').at(-1)?.textContent).toContain('Other synthetic employee');
   fireEvent.click(header);
-  expect(within(table).getAllByRole('row')[1]?.textContent).toContain('15');
-  expect(within(table).getAllByRole('row').at(-1)?.textContent).toContain('—');
+  expect(within(table).getAllByRole('row')[1]?.textContent).toContain('Other synthetic employee');
+  expect(within(table).getAllByRole('row').at(-1)?.textContent).not.toContain('Other synthetic employee');
   view.close();
 });

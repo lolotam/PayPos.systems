@@ -32,7 +32,7 @@ export const reportFixture: AttendanceMonthlyReport = {
       employee_id: otherBoardId,
       name_ar: null,
       name_en: 'Other synthetic employee',
-      employee_number: null,
+      employee_number: 16,
       days_present: 21,
       worked_minutes: 9700,
       scheduled_minutes: 9600,

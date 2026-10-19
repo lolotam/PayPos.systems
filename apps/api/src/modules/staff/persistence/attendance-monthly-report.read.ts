@@ -10,7 +10,7 @@ type ReportAudit = (tx: Tx) => AuditTrail;
 type ReportAccess = (tx: Tx, companyId: string, userId: string, businessId: string, branchId: string, month: string) =>
   Promise<Scope | 'NOT_FOUND' | 'FEATURE_DISABLED'>;
 type ReportInputs = (tx: Tx, companyId: string, scope: Scope, from: string, to: string) => Promise<readonly {
-  employee_id: string; name_ar: string | null; name_en: string; employee_number: number | null;
+  employee_id: string; name_ar: string | null; name_en: string; employee_number: number;
   branches: AttendanceReportBranchInputs[];
 }[]>;
 
