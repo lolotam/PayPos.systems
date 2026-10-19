@@ -237,6 +237,15 @@ async function anonymousAndMissingHeader(): Promise<void> {
   expect((await h.send('GET', '/v1/me/memberships', { cookie: managerCookie })).status).toBe(400);
 }
 
+async function uppercaseHeaderMatches(): Promise<void> {
+  const lower = await list(managerCookie, companyA);
+  const upper = await list(managerCookie, companyA.toUpperCase());
+  expect(upper.items.map((membership) => membership.id).sort()).toEqual(
+    lower.items.map((membership) => membership.id).sort(),
+  );
+  expect(upper.items.length).toBeGreaterThan(0);
+}
+
 describe('GET /v1/me/memberships', () => {
   it('gives a manager without read:memberships:company their own role and scope names', () =>
     managerSeesOwnNames());
@@ -246,4 +255,6 @@ describe('GET /v1/me/memberships', () => {
   it('refuses a device principal the same way workspaces does', () => deviceIsForbidden());
 
   it('refuses a missing session and a missing company header', () => anonymousAndMissingHeader());
+
+  it('accepts an uppercase company header', () => uppercaseHeaderMatches());
 });

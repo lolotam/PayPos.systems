@@ -48,5 +48,5 @@ export class MeController {
 function companyHeader(request: FastifyRequest): string {
   const parsed = id.safeParse(request.headers['x-company-id']);
   if (!parsed.success) throw new ApiError('BAD_REQUEST');
-  return parsed.data;
+  return parsed.data.toLowerCase();
 }
