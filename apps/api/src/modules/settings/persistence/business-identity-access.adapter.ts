@@ -13,3 +13,10 @@ export function createBusinessIdentityAccess(
     recheck: (businessId) => readBusinessIdentityAccess(tx, companyId, userId, businessId),
   };
 }
+
+export function identityCapabilityAccess() {
+  return {
+    recheck: (tx: Tx, companyId: string, userId: string, businessId: string) =>
+      readBusinessIdentityAccess(tx, companyId, userId, businessId),
+  };
+}

@@ -317,7 +317,7 @@ it('binds a ready file while storage is not configured', async () => {
       owner_entity_id: f.business,
       content_type: 'image/png',
       size_bytes: 10,
-      required_permission: 'read:settings:business',
+      required_permission: 'manage:business-identity:business',
     },
   });
   expect([upload.statusCode, errorEnvelope.parse(upload.json()).code]).toEqual([

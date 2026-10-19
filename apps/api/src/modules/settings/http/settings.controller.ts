@@ -17,6 +17,7 @@ import {
   discountLimitInput,
   type DiscountLimitInput,
   type DiscountLimit,
+  type BusinessIdentity,
   type BusinessIdentityNames,
   type BusinessLogo,
   type BusinessSettings,
@@ -32,6 +33,11 @@ import { actorOf } from '../../../shared/actor.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
+import {
+  BUSINESS_IDENTITY_READER,
+  businessIdentityQuery,
+  type BusinessIdentityReader,
+} from '../queries/business-identity.query.ts';
 import {
   businessSettingsQuery,
   type SettingsReadCache,
@@ -56,13 +62,16 @@ export const SETTINGS_WIRING = Symbol('SETTINGS_WIRING');
 export class SettingsController {
   readonly #wiring: SettingsWiring | null;
   readonly #db: TenantWrappers | null;
+  readonly #identity: BusinessIdentityReader | null;
 
   constructor(
     @Inject(SETTINGS_WIRING) wiring: SettingsWiring | null,
     @Inject(DATABASE) db: TenantWrappers | null,
+    @Inject(BUSINESS_IDENTITY_READER) identity: BusinessIdentityReader | null,
   ) {
     this.#wiring = wiring;
     this.#db = db;
+    this.#identity = identity;
   }
 
   @Post('businesses/:businessId/settings/discount-limit')
@@ -109,6 +118,22 @@ export class SettingsController {
         ...('calendar' in input ? { calendar: input.calendar ?? null } : {}),
       },
     });
+  }
+
+  @Get('businesses/:businessId/settings/identity')
+  @Require('manage:business-identity:business', { business: 'businessId' })
+  async readIdentity(
+    @Param('businessId') businessId: string,
+    @Req() request: FastifyRequest,
+  ): Promise<BusinessIdentity> {
+    if (this.#db === null || this.#identity === null) throw new ApiError('NOT_READY');
+    const actor = actorOf(request);
+    const reader = this.#identity;
+    return this.#db.withTenant(
+      actor.companyId,
+      (tx) => businessIdentityQuery(tx, actor.companyId, businessId.toLowerCase(), reader),
+      { userId: actor.userId },
+    );
   }
 
   @Patch('businesses/:businessId/settings/identity')

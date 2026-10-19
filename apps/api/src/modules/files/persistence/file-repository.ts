@@ -14,6 +14,7 @@ export type FileRow = {
   business_id: string;
   branch_id: string | null;
   created_by: string;
+  owner_module: string;
   required_permission: string;
   staging_key: string;
   storage_key: string | null;
@@ -41,6 +42,7 @@ function map(row: FileRow): FileRecord {
     businessId: row.business_id,
     branchId: row.branch_id,
     createdBy: row.created_by,
+    ownerModule: row.owner_module,
     requiredPermission: row.required_permission,
     stagingKey: row.staging_key,
     storageKey: row.storage_key,
@@ -104,7 +106,7 @@ async function findRecord(
   value: string,
 ): Promise<FileRecord | null> {
   const [row] =
-    await tx.execute<FileRow>(sql`SELECT id, business_id, branch_id, created_by, required_permission,
+    await tx.execute<FileRow>(sql`SELECT id, business_id, branch_id, created_by, owner_module, required_permission,
     staging_key, storage_key, content_type, size_bytes, status FROM file_objects
     WHERE company_id = ${companyId} AND ${sql.identifier(column)} = ${value} AND purge_started_at IS NULL`);
   return row === undefined ? null : map(row);
