@@ -1621,6 +1621,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/tips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Current tip revision and set for the reception screen that records the visit. Same record:service-sessions:branch permission as recording, so a cashier can reload the revision a replacement needs. No customer, phone, reason or history. */
+        get: operations["readSessionTips"];
+        /** @description Records or replaces the current tip set of one visit. Requires record:service-sessions:branch on the route branch, the orders feature, an individual admin login, and an actor-bound Idempotency-Key. One transaction writes the revision, its entries and the outbox event. A foreign, unknown or out-of-branch session is SESSION_NOT_FOUND. */
+        put: operations["recordSessionTips"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/performer-options": {
         parameters: {
             query?: never;
@@ -11188,6 +11206,153 @@ export interface operations {
                 };
             };
             /** @description Bilingual authentication/readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    readSessionTips: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current revision and set only. A visit with no saved tips returns revision 0, an empty set and zero totals. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionTips"];
+                };
+            };
+            /** @description Invalid path. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing record permission, a device principal, or the orders feature disabled. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description SESSION_NOT_FOUND. An unknown session, another company, another business or another branch is the same body as PUT. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    recordSessionTips: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordSessionTipsInput"];
+            };
+        };
+        responses: {
+            /** @description Current revision and set. Money is canonical three-decimal text. Replay of the same key and body returns this result and writes nothing. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionTips"];
+                };
+            };
+            /** @description Shape error, a missing Idempotency-Key, or SESSION_RECORDER_MEMBERSHIP_REQUIRED. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Missing record permission, a device principal, or the orders feature disabled. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description SESSION_NOT_FOUND. An unknown session, another company, another business or another branch is the same body. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description TIP_REVISION_CONFLICT carries current_revision only. Also a transaction retry or an idempotent request still in progress. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Domain refusal, including a closed window, a self tip, an unknown identity, a non-performer, a total past the column maximum, a missing replacement reason, an unchanged set, or the same Idempotency-Key reused with another body. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
             default: {
                 headers: {
                     [name: string]: unknown;

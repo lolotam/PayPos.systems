@@ -8,6 +8,7 @@ export {
   sumMoney,
   type Money,
 } from './money.js';
+export { sumTipTotalsByMethod, type TipMethodAmount } from './tip-totals.js';
 export { roundKwd } from './rounding.js';
 export { lineNet, discountFromPercent } from './discount-money.js';
 export {
