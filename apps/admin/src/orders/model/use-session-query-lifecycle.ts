@@ -4,13 +4,25 @@ import { useEffect, useRef } from 'react';
 import type { SessionServiceScope } from '../api/use-session-services';
 
 const SESSION_QUERY_PREFIXES = new Set([
-  'session-recording-context', 'session-performer-context', 'session-performer-facts', 'session-performers', 'session-services', 'own-recordings',
-  'branch-day-sessions', 'service-line-edits',
+  'session-recording-context',
+  'session-performer-context',
+  'session-performer-facts',
+  'session-performers',
+  'session-services',
+  'own-recordings',
+  'branch-day-sessions',
+  'service-line-edits',
+  'service-session-capabilities',
+  'service-line-cancellations',
 ]);
 
 function sessionQueriesOf({ companyId, businessId, branchId, userId }: SessionServiceScope) {
-  return ({ queryKey: [prefix, company, business, branch, user] }: Query) => SESSION_QUERY_PREFIXES.has(String(prefix))
-    && company === companyId && business === businessId && branch === branchId && user === userId;
+  return ({ queryKey: [prefix, company, business, branch, user] }: Query) =>
+    SESSION_QUERY_PREFIXES.has(String(prefix)) &&
+    company === companyId &&
+    business === businessId &&
+    branch === branchId &&
+    user === userId;
 }
 
 // قراءات الشاشة (الصلاحية والحد والأسعار وحقائق المؤديات) بتتخزن 30 ثانية، والسياق المؤرخ للأبد.
@@ -20,12 +32,20 @@ export function useSessionQueryLifecycle(scope: SessionServiceScope, connectivit
   const client = useQueryClient();
   const { companyId, businessId, branchId, userId } = scope;
   const previous = useRef(connectivity);
-  useEffect(() => () => {
-    client.removeQueries({ predicate: sessionQueriesOf({ companyId, businessId, branchId, userId }) });
-  }, [client, companyId, businessId, branchId, userId]);
+  useEffect(
+    () => () => {
+      client.removeQueries({
+        predicate: sessionQueriesOf({ companyId, businessId, branchId, userId }),
+      });
+    },
+    [client, companyId, businessId, branchId, userId],
+  );
   useEffect(() => {
     const reconnected = previous.current === false && connectivity === true;
     previous.current = connectivity;
-    if (reconnected) void client.invalidateQueries({ predicate: sessionQueriesOf({ companyId, businessId, branchId, userId }) });
+    if (reconnected)
+      void client.invalidateQueries({
+        predicate: sessionQueriesOf({ companyId, businessId, branchId, userId }),
+      });
   }, [client, connectivity, companyId, businessId, branchId, userId]);
 }

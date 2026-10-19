@@ -39,3 +39,15 @@ export function sessionCancelAccess(
     (at) => readServiceSessionCancelAccess(tx, companyId, userId, businessId, branchId, at),
   );
 }
+
+// قراءة القدرة بلا FOR SHARE؛ قفل الشركة هنا كان هيعلّق قائمة اليوم.
+export function sessionCancelCapability(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  branchId: string,
+  at: Date,
+): Promise<{ denied: boolean; feature: boolean; eligible: readonly unknown[] }> {
+  return readServiceSessionCancelAccess(tx, companyId, userId, businessId, branchId, at);
+}

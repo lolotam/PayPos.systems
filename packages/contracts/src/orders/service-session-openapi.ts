@@ -36,6 +36,18 @@ export const serviceSessionPaths = {
     },
     post: write('recordServiceSession', 'RecordServiceSessionInput', 'RecordServiceSessionResponse', false),
   },
+  '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/capabilities': {
+    get: {
+      operationId: 'readServiceSessionCapabilities',
+      description: 'Lock-free branch capability for the manager day list. Requires read:service-sessions:branch and the orders feature. can_cancel_lines is the effective cancel:service-lines:branch on this branch: ALLOW, no DENY, and an active membership. Missing cancel permission, a DENY, or another branch is 200 false. Missing read is the route 403. A disabled orders feature stays FEATURE_DISABLED. No Idempotency-Key.',
+      parameters: parameters.filter((p) => p.name !== 'Idempotency-Key'),
+      responses: {
+        '200': { description: 'Whether the day list may offer Cancel on this branch.', content: json('ServiceSessionCapabilities') },
+        '403': { description: 'Uniform scope/authority refusal or disabled orders feature.', content: json('ErrorEnvelope') },
+        default: { description: 'Bilingual authentication/readiness refusal.', content: json('ErrorEnvelope') },
+      },
+    },
+  },
   '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines': {
     post: write('appendServiceSessionLines', 'AppendServiceSessionLinesInput', 'AppendServiceSessionLinesResponse', true),
   },
@@ -72,6 +84,20 @@ export const serviceSessionPaths = {
         '409': { description: 'Stale expected_revision (SESSION_LINE_REVISION_STALE): details carry current_revision only and no money. Also an idempotent request still in progress or a transaction retry, which carry no details.', content: json('ErrorEnvelope') },
         '422': { description: 'Domain refusal: an invalid reason, an already cancelled line, a tip that blocks the cancel, an unknown performer identity, a missing canceller membership, a line that cannot be cancelled, a session outside the window, or the same Idempotency-Key reused with another request (IDEMPOTENCY_KEY_REUSED).', content: json('ErrorEnvelope') },
         default: { description: 'Bilingual authentication or readiness refusal.', content: json('ErrorEnvelope') },
+      },
+    },
+    get: {
+      operationId: 'readServiceLineCancellation',
+      description: 'The one cancellation of a saved line for the manager day list. Requires read:service-sessions:branch and the orders feature. cancel:service-lines:branch does not grant this read. A line, session, branch or company mismatch, and an in-scope line with no cancellation, are the same uniform 403. The reason and the canceller label are returned only here.',
+      parameters: [
+        ...parameters.filter((p) => p.name !== 'Idempotency-Key'),
+        { in: 'path', name: 'sessionId', required: true, schema: { type: 'string', format: 'uuid' } },
+        { in: 'path', name: 'lineId', required: true, schema: { type: 'string', format: 'uuid' } },
+      ],
+      responses: {
+        '200': { description: 'The cancellation. Money is canonical three-decimal text. Labels are names first, then the role.', content: json('ServiceLineCancellation') },
+        '403': { description: 'Uniform scope/authority refusal or disabled orders feature.', content: json('ErrorEnvelope') },
+        default: { description: 'Bilingual authentication/readiness refusal.', content: json('ErrorEnvelope') },
       },
     },
   },
