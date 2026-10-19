@@ -1,13 +1,15 @@
 'use client';
 
 import { t } from '@pospay/i18n';
-import { Button, PageHeader } from '@pospay/ui';
+import { PageHeader } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useBusinessIdentity } from '../api/use-business-identity';
 import { useBusinessLogo } from '../api/use-business-logo';
 import { useOfficialNames } from '../api/use-official-names';
+import { useRecheckIdentityAccess } from '../api/use-recheck-identity-access';
 import { identityFailureMessage, isAuthorizationRefusal } from '../model/identity-failure';
 import { logoAltText } from '../model/logo-alt';
+import { IdentityReadFailure } from '../ui/identity-read-failure';
 import { IdentityEditor } from './identity-editor';
 
 type Scope = { companyId: string; userId: string; businessId: string };
@@ -25,8 +27,10 @@ export function BusinessIdentityPage(scope: Scope) {
     : (names.data ?? null);
   // خطأ القراءة من غير صف يسيب المعرف مجهولًا؛ null وحده يعني مفيش شعار
   const logoId = identity.data === undefined ? undefined : identity.data.logo_file_id;
-  const showEditor = identity.isSuccess || identity.isError;
-  const namesVisible = identity.data !== undefined && !isAuthorizationRefusal(identity.error);
+  const refused = isAuthorizationRefusal(identity.error);
+  const showEditor = (identity.isSuccess || identity.isError) && !refused;
+  const namesVisible = identity.data !== undefined;
+  useRecheckIdentityAccess(refused, scope.companyId, scope.userId, scope.businessId);
   return (
     <section className="flex min-w-0 flex-col gap-8 text-start">
       <PageHeader
@@ -35,14 +39,11 @@ export function BusinessIdentityPage(scope: Scope) {
       />
       {identity.isPending ? <p role="status">{t(locale, 'admin.loading')}</p> : null}
       {identity.isError ? (
-        <div className="flex flex-col items-start gap-2">
-          <p role="alert">{identityFailureMessage(identity.error, locale)}</p>
-          {isAuthorizationRefusal(identity.error) ? null : (
-            <Button type="button" variant="outline" onClick={() => void identity.refetch()}>
-              {t(locale, 'pos.retry')}
-            </Button>
-          )}
-        </div>
+        <IdentityReadFailure
+          message={identityFailureMessage(identity.error, locale)}
+          canRetry={!refused}
+          onRetry={() => void identity.refetch()}
+        />
       ) : null}
       {showEditor ? (
         <IdentityEditor

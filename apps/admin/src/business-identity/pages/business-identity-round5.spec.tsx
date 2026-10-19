@@ -172,3 +172,30 @@ it('offers no retry when the identity read is refused', async () => {
   await screen.findByRole('alert');
   expect(screen.queryByRole('button', { name: t('en', 'pos.retry') })).toBeNull();
 });
+
+it('hides the saved notice as soon as the names are edited again', async () => {
+  api.GET.mockResolvedValue({ data: settings(null) });
+  api.PATCH.mockResolvedValue({
+    data: { official_name_ar: 'Alpha', official_name_en: 'New shop' },
+  });
+  renderPage();
+  const english = await screen.findByLabelText(t('en', 'businessIdentity.nameEn'));
+  fireEvent.change(english, { target: { value: 'New shop' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'businessIdentity.save') }));
+  await screen.findByText(t('en', 'businessIdentity.saved'));
+  fireEvent.change(english, { target: { value: 'Newer shop' } });
+  await waitFor(() => expect(screen.queryByText(t('en', 'businessIdentity.saved'))).toBeNull());
+});
+
+it('closes the whole editor and rechecks access when the identity read is refused', async () => {
+  api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+  const { client } = renderPage();
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  await screen.findByRole('alert');
+  expect(screen.queryByLabelText(t('en', 'businessIdentity.logoFile'))).toBeNull();
+  await waitFor(() =>
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ['business-identity-access', id, id, id],
+    }),
+  );
+});

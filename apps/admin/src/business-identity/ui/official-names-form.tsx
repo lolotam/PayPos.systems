@@ -39,31 +39,20 @@ function syncOfficialNames(
   }
 }
 
-export function OfficialNamesForm({
-  baseline,
-  saved,
-  pending,
-  onSave,
-}: {
-  baseline: OfficialNames | null;
-  /** صف الهوية بعد refreshBusinessIdentity، مش جسم الـ PATCH، عشان اسم أدمن تاني ما يترجعش. */
-  saved: OfficialNames | null;
-  pending: boolean;
-  onSave: (body: UpdateBusinessIdentityNamesInput) => void;
-}) {
-  const locale = useLocale();
-  const [notice, setNotice] = useState<'invalid' | 'unchanged' | null>(null);
+function useNamesSync(
+  form: UseFormReturn<NameDraft>,
+  baseline: OfficialNames | null,
+  saved: OfficialNames | null,
+  onDirtyChange: ((dirty: boolean) => void) | undefined,
+) {
   // الحفظ اللي سبق التركيب اتطبّق قبل كده؛ إعادته بعد رجوع الصلاحية كانت هتمسح اسم أدمن تاني من الخط الأساسي الجديد.
   const appliedSave = useRef<OfficialNames | null>(saved);
-  const form = useForm<NameDraft>({
-    defaultValues: {
-      official_name_ar: baseline?.official_name_ar ?? '',
-      official_name_en: baseline?.official_name_en ?? '',
-    },
-  });
   const baselineAr = baseline?.official_name_ar ?? null;
   const baselineEn = baseline?.official_name_en ?? null;
-  const dirty = form.formState.dirtyFields;
+  const isDirty = form.formState.isDirty;
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
   useEffect(() => {
     syncOfficialNames(
       form,
@@ -72,6 +61,33 @@ export function OfficialNamesForm({
       appliedSave,
     );
   }, [form, baselineAr, baselineEn, saved]);
+}
+
+export function OfficialNamesForm({
+  baseline,
+  saved,
+  pending,
+  onSave,
+  onDirtyChange,
+}: {
+  baseline: OfficialNames | null;
+  /** صف الهوية بعد refreshBusinessIdentity، مش جسم الـ PATCH، عشان اسم أدمن تاني ما يترجعش. */
+  saved: OfficialNames | null;
+  pending: boolean;
+  onSave: (body: UpdateBusinessIdentityNamesInput) => void;
+  /** مسودة لسه ما اتحفظتش بتخبّي «اتحفظ» حتى ما يفتكرش المستخدم إن آخر تعديل اتسجّل. */
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
+  const locale = useLocale();
+  const [notice, setNotice] = useState<'invalid' | 'unchanged' | null>(null);
+  const form = useForm<NameDraft>({
+    defaultValues: {
+      official_name_ar: baseline?.official_name_ar ?? '',
+      official_name_en: baseline?.official_name_en ?? '',
+    },
+  });
+  const dirty = form.formState.dirtyFields;
+  useNamesSync(form, baseline, saved, onDirtyChange);
   const submit = form.handleSubmit((draft) => {
     const change = changedOfficialNames(draft, baseline, dirty);
     if (!change.ok) {

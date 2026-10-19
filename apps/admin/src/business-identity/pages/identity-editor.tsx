@@ -2,6 +2,7 @@
 
 import type { UpdateBusinessIdentityNamesInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
+import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { LogoPhase } from '../api/upload-business-logo';
 import type { OfficialNames } from '../model/changed-official-names';
@@ -31,6 +32,7 @@ export function IdentityEditor(props: {
   onRemove: () => Promise<unknown>;
 }) {
   const locale = useLocale();
+  const [draftDirty, setDraftDirty] = useState(false);
   return (
     <>
       {props.showNames ? (
@@ -40,8 +42,11 @@ export function IdentityEditor(props: {
             saved={props.saved}
             pending={props.namesPending}
             onSave={props.onSave}
+            onDirtyChange={setDraftDirty}
           />
-          {props.namesSaved ? <p role="status">{t(locale, 'businessIdentity.saved')}</p> : null}
+          {props.namesSaved && !draftDirty ? (
+            <p role="status">{t(locale, 'businessIdentity.saved')}</p>
+          ) : null}
           {props.namesError ? (
             <p role="alert">{identityFailureMessage(props.namesError, locale)}</p>
           ) : null}
