@@ -108,3 +108,30 @@ it('drops a cached digit search for the new number that did not hold the row', a
   });
   expect(client.getQueryData(bySeven)).toBeUndefined();
 });
+
+it('refetches the list when a save is refused for access, so a row the user may no longer see goes away', async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const all = ['employee-numbers', company, user, 'list', null, null];
+  client.setQueryData(all, page);
+  api.PUT.mockResolvedValue({
+    error: {
+      code: 'FORBIDDEN',
+      message_en: 'Synthetic refusal',
+      message_ar: 'Synthetic refusal ar',
+    },
+    response: { status: 403 },
+  });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const hook = renderHook(() => useSetCompanyEmployeeNumber(company, user), { wrapper });
+  await act(async () => {
+    await hook.result.current
+      .mutateAsync({ businessId: business, employeeId: employee, employeeNumber: 7 })
+      .catch(() => undefined);
+  });
+  expect(client.getQueryState(all)?.isInvalidated).toBe(true);
+  expect(client.getQueryData<typeof page>(all)?.items[0]?.employee_number).toBe(4);
+});
