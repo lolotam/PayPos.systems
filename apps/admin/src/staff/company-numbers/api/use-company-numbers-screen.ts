@@ -11,6 +11,19 @@ import {
   useSetCompanyEmployeeNumber,
 } from './use-company-employee-numbers';
 
+// الموظفة اختفت من القائمة بعد رفض بالصلاحية: المحرّر بيتقفل والفشل بيتشال عشان البحث مايفضلش واقف.
+function useCloseVanishedEditor(
+  gone: boolean,
+  save: { isPending: boolean; reset: () => void },
+  close: (id: undefined) => void,
+) {
+  useEffect(() => {
+    if (!gone || save.isPending) return;
+    save.reset();
+    close(undefined);
+  }, [gone, save, close]);
+}
+
 export function useCompanyNumbersScreen(companyId: string, userId: string) {
   const locale = useLocale();
   const [editingId, setEditingId] = useState<string>();
@@ -27,13 +40,11 @@ export function useCompanyNumbersScreen(companyId: string, userId: string) {
   const controls = useEmployeeListControls(closeIfIdle, save.isPending || save.isError);
   const list = useCompanyEmployeeNumbers(companyId, userId, controls.cursor, controls.q);
   const editing = list.data?.items.find((item) => item.employee_id === editingId);
-  const editingGone = editingId !== undefined && list.isSuccess && editing === undefined;
-  useEffect(() => {
-    // الموظفة اختفت من القائمة بعد رفض بالصلاحية: المحرّر بيتقفل والفشل بيتشال عشان البحث مايفضلش واقف.
-    if (!editingGone || save.isPending) return;
-    save.reset();
-    setEditingId(undefined);
-  }, [editingGone, save]);
+  useCloseVanishedEditor(
+    editingId !== undefined && list.isSuccess && editing === undefined,
+    save,
+    setEditingId,
+  );
   const onPage = (cursor: string | undefined) => {
     if (save.isPending) return;
     // الصفحة بتقفل المحرّر، فنتيجة الحفظ الفاشل ماتفضلش توقف البحث.
@@ -46,6 +57,12 @@ export function useCompanyNumbersScreen(companyId: string, userId: string) {
     // كتابة بحث جديد بتشيل الحفظ الفاشل، فالبحث مايفضلش واقف على نتيجة اتقفلت.
     if (save.isError) save.reset();
     controls.onSearch(value);
+  };
+  const select = (employeeId: string | undefined) => {
+    // الحفظ الشغال ما يتسابش؛ reset بيمسح نتيجة الصف اللي اتبعت.
+    if (save.isPending) return;
+    save.reset();
+    setEditingId(employeeId);
   };
   const onSubmit = (employeeNumber: number) => {
     if (!editing) return;
@@ -63,17 +80,8 @@ export function useCompanyNumbersScreen(companyId: string, userId: string) {
     editingId,
     pending: save.isPending,
     message: save.isError ? companyNumbersEditMessage(save.error, locale) : null,
-    onEdit: (employeeId: string) => {
-      // الحفظ الشغال ما يتسابش؛ reset بيمسح نتيجة الصف اللي اتبعت.
-      if (save.isPending) return;
-      save.reset();
-      setEditingId(employeeId);
-    },
-    onClose: () => {
-      if (save.isPending) return;
-      save.reset();
-      setEditingId(undefined);
-    },
+    onEdit: (employeeId: string) => select(employeeId),
+    onClose: () => select(undefined),
     onPage,
     onSubmit,
   };
