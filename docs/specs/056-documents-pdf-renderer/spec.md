@@ -5,9 +5,9 @@
 > Fable 5.1, 2026-10-19).
 > **Needed by:** row 27g (the official attendance statement PDF, Abu Salem's pick AB-Q10).
 > **Depends on:** row 27 and 27h-4 (merged).
-> **Owner questions:** batch PP-6 (technical, to Waleed through the super agent), [owner-questions.ar.md](owner-questions.ar.md):
-> PP-6.1 Redis transport buffer, PP-6.2 logo reader moves to 27g, PP-6.3 sandbox off. **PENDING: this PR does not merge
-> before they are answered.** No money question.
+> **Owner questions:** batch PP-6 (technical, to Waleed), [owner-questions.ar.md](owner-questions.ar.md): all three
+> answered on 2026-10-20 with the recommended option (Redis transport buffer, logo reader in 27g, sandbox off with
+> controls C1–C4). No money question.
 
 ## 1. What and why
 

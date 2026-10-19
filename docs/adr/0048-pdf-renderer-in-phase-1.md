@@ -1,8 +1,7 @@
 # ADR-0048 — The PDF renderer comes into Phase 1
 
-- **Status:** Proposed — the PR merges only after Waleed answers PP-6.1…PP-6.3
-  ([owner questions](../specs/056-documents-pdf-renderer/owner-questions.ar.md)); §1.7, §3.3 and §6 follow the
-  recommended options until then
+- **Status:** Accepted — Waleed answered PP-6.1…PP-6.3 with the recommended options on 2026-10-20
+  ([owner questions](../specs/056-documents-pdf-renderer/owner-questions.ar.md))
 - **Date:** 2026-10-19
 - **Slice:** Phase 1 row 27i ([spec 056](../specs/056-documents-pdf-renderer/spec.md)), for row 27g (the official attendance
   statement)
