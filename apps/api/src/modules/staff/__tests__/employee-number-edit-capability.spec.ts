@@ -181,16 +181,63 @@ it('returns false for a DENY on an attachment whose end date is still in the fut
   );
 });
 
-it('hides a foreign-company employee as NOT_FOUND', async () => {
+it('returns one false body for unknown, denied, and a caller with no staff permission', async () => {
+  const employee = await executeCreate(f, 'edit capability identical no');
+  const elsewhere = await executeCreate(f, 'edit capability wrong business', {
+    businessId: f.secondBusiness,
+    primary_branch_id: f.otherBranch,
+  });
+  const removed = await executeCreate(f, 'edit capability removed');
+  await f.h.owner`UPDATE employees SET deleted_at=now()
+    WHERE company_id=${f.company} AND id=${removed.id}`;
+  const foreignId = await insertForeignEmployee();
+  const stranger = await stafflessCookie();
+  await withHolderGrants(
+    async () => {
+      await grantNumber(f, 'ALLOW', 'COMPANY', f.company);
+      await grantNumber(f, 'DENY', 'BRANCH', f.branch);
+    },
+    async () => {
+      const denied = await readEdit(f.cookie, employee.id);
+      const responses = [
+        await readEdit(f.cookie, employeeNumberIds.newId()),
+        await readEdit(stranger, employee.id),
+        await readEdit(f.cookie, removed.id),
+        await readEdit(f.cookie, elsewhere.id),
+        await readEdit(f.cookie, foreignId),
+      ];
+      expect(denied.status).toBe(200);
+      expect(JSON.parse(denied.text)).toEqual({ can_edit_number: false });
+      for (const response of responses) {
+        expect(response.status).toBe(denied.status);
+        expect(response.text).toBe(denied.text);
+      }
+    },
+  );
+});
+
+async function stafflessCookie() {
+  const email = 'edit-capability-staffless@example.test';
+  const cookie = await f.h.signedInOperator(email);
+  const [user] = await f.h.owner`SELECT id FROM "user" WHERE email=${email}`;
+  const roleId = employeeNumberIds.newId();
+  const memberId = employeeNumberIds.newId();
+  await f.h.owner`INSERT INTO roles(id,company_id,code,name_en)
+    VALUES (${roleId},${f.company},'synthetic_no_staff','Synthetic no staff')`;
+  await f.h
+    .owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+    VALUES (${f.company},${memberId},${user?.['id']},${roleId},${f.company},'COMPANY',${f.company})`;
+  return cookie;
+}
+
+async function insertForeignEmployee() {
   const employeeId = employeeNumberIds.newId();
   await f.h.owner`INSERT INTO employees(
       company_id, id, business_id, primary_branch_id, name_en, name_en_key, role_code, hire_date)
     VALUES (${f.otherCompany}, ${employeeId}, ${f.foreignBusiness}, ${f.foreignBranch},
       'Foreign number', 'foreign-number-edit', 'staff', '2026-01-01')`;
-  const response = await readEdit(f.ownerCookie, employeeId);
-  expect(response.status).toBe(404);
-  expect(response.body['code']).toBe('NOT_FOUND');
-});
+  return employeeId;
+}
 
 interface ExplainNode {
   'Node Type': string;

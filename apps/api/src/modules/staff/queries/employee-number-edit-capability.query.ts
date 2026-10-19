@@ -18,8 +18,7 @@ export interface EmployeeNumberEditCapabilityAccess {
   ): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null>;
 }
 
-export type EmployeeNumberEditCapabilityResult =
-  EmployeeNumberEditCapability | 'NOT_FOUND' | 'FEATURE_DISABLED';
+export type EmployeeNumberEditCapabilityResult = EmployeeNumberEditCapability | 'FEATURE_DISABLED';
 
 export function employeeNumberEditEmployeeStatement(
   companyId: string,
@@ -56,7 +55,8 @@ export async function readEmployeeNumberEditCapability(
   const [row] = await tx.execute<{ business_id: string; primary_branch_id: string }>(
     employeeNumberEditEmployeeStatement(companyId, businessId, employeeId),
   );
-  if (row === undefined) return 'NOT_FOUND';
+  // 404 كان يفرّق الموظف المجهول عن الممنوع؛ الغياب نفس رفض FR-006.
+  if (row === undefined) return employeeNumberEditCapability.parse({ can_edit_number: false });
   const attached = await tx.execute<{ branch_id: string }>(
     employeeNumberEditAttachmentStatement(companyId, employeeId),
   );

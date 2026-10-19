@@ -1,7 +1,13 @@
 'use client';
-import { employeePage, employeeDetailRecord, type UpdateEmployeeInput } from '@pospay/contracts';
+import {
+  employeePage,
+  employeeDetailRecord,
+  type EmployeeDetail,
+  type UpdateEmployeeInput,
+} from '@pospay/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
+import { employeeNumberEditCapabilityKey } from './use-employee-number-edit-capability';
 
 const key = (companyId: string, businessId: string, userId: string) =>
   ['employees', companyId, businessId, userId] as const;
@@ -86,8 +92,22 @@ export function useEmployeeEdit(
     mutationFn: (body: UpdateEmployeeInput) => update(companyId, businessId, employeeId, body),
     onMutate: () => ({ queryKey, listKey: key(companyId, businessId, userId) }),
     onSuccess: (saved, _terms, context) => {
+      const previous = client.getQueryData<EmployeeDetail>(context.queryKey);
       client.setQueryData(context.queryKey, saved);
-      return client.invalidateQueries({ queryKey: [...context.listKey, 'list'] });
+      const tasks = [
+        client.invalidateQueries({ queryKey: [...context.listKey, 'list'] }),
+        client.invalidateQueries({
+          queryKey: employeeNumberEditCapabilityKey(companyId, userId, businessId, employeeId),
+        }),
+      ];
+      if (previous !== undefined && previous.primary_branch_id !== saved.primary_branch_id) {
+        tasks.push(
+          client.invalidateQueries({
+            queryKey: ['employee-number-capability', companyId, businessId],
+          }),
+        );
+      }
+      return Promise.all(tasks);
     },
   });
   return { record, save };

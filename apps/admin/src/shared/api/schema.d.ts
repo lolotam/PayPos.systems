@@ -879,7 +879,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Lock-free FR-006 read of one employee. can_edit_number is true only when readEmployeeNumberAccess would return null for that employee business and every current attachment: the primary branch, even after its attachment has ended, plus each attachment that is still current, including one whose end date is in the future. Missing manage:employee-number:company or any DENY returns false, not 403. An unknown, foreign, soft-deleted, or wrong-business employee is NOT_FOUND. FEATURE_DISABLED is an error. No Idempotency-Key. */
+        /** @description Lock-free FR-006 read of one employee. can_edit_number is true only when readEmployeeNumberAccess would return null for that employee business and every current attachment: the primary branch, even after its attachment has ended, plus each attachment that is still current, including one whose end date is in the future. Missing manage:employee-number:company, any DENY, and an unknown, foreign, soft-deleted, or wrong-business employee all return the same 200 body with can_edit_number false. FEATURE_DISABLED stays its own bilingual error. No Idempotency-Key. */
         get: operations["employeeNumberEditCapability"];
         put?: never;
         post?: never;

@@ -117,10 +117,7 @@ it('holds submit until an uncached allowed branch resolves and then sends 1005',
   });
   await chooseBranch('Second allowed');
   await waitFor(() => expect(createButton().disabled).toBe(true));
-  const kept = screen.getByRole('textbox', {
-    name: t('en', 'staff.employeeNumber'),
-    hidden: true,
-  }) as HTMLInputElement;
+  const kept = document.querySelector('#employee-number') as HTMLInputElement;
   expect(kept.value).toBe('1005');
   expect(kept.disabled).toBe(false);
   expect(kept.closest('[hidden]')).toBeTruthy();

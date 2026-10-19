@@ -8,15 +8,21 @@ import { useCompanyEmployeeNumbers } from '../company-numbers/api/use-company-em
 import { EmployeeEditPanel } from './employee-edit-panel';
 import { EmployeeListPanel } from './employee-list-panel';
 
+window.HTMLElement.prototype.scrollIntoView = () => undefined;
+window.HTMLElement.prototype.hasPointerCapture = () => false;
+window.HTMLElement.prototype.setPointerCapture = () => undefined;
+window.HTMLElement.prototype.releasePointerCapture = () => undefined;
+
 const get = vi.hoisted(() => vi.fn());
 const put = vi.hoisted(() => vi.fn());
+const patch = vi.hoisted(() => vi.fn());
 const state = vi.hoisted(() => ({
   number: 15 as number | null,
   canType: true,
   canEdit: true,
   refuse: null as { code: string; message_en: string; message_ar: string } | null,
 }));
-vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get, PUT: put }) }));
+vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get, PUT: put, PATCH: patch }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' as const }));
 vi.mock('../api/use-employee-name-matches', () => ({
   useEmployeeNameMatches: () => ({ mutateAsync: vi.fn() }),
@@ -136,6 +142,7 @@ beforeEach(() => {
       response: { status: 404 },
     });
   });
+  patch.mockReset();
   put.mockImplementation((_path: string, init: { body: { employee_number: number } }) => {
     if (state.refuse) return Promise.resolve({ error: state.refuse });
     state.number = init.body.employee_number;
@@ -344,6 +351,45 @@ it('keeps the refusal dialog open after the capability becomes false', async () 
   fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.closeNumber') }));
   await waitFor(() => {
     expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('button', { name: t('en', 'staff.editNumber') })).toBeNull();
+  });
+});
+
+it('hides edit number after the employee moves to a branch the capability denies', async () => {
+  const denied = '01920000-0000-7000-8000-0000000000b2';
+  const branch = {
+    id: denied,
+    name_ar: null,
+    name_en: 'Denied branch',
+    effective_timezone: 'Asia/Kuwait',
+    is_active: true,
+  };
+  patch.mockImplementation(() => {
+    state.canEdit = false;
+    return Promise.resolve({ data: { ...detail(), primary_branch_id: denied, revision: 4 } });
+  });
+  const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={query}>
+      <EmployeeEditPanel
+        companyId={id}
+        business={{ ...business, branches: [...business.branches, branch] }}
+        userId={id}
+        employeeId={id}
+        onClose={() => undefined}
+      />
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByRole('button', { name: t('en', 'staff.editNumber') })).toBeTruthy();
+  fireEvent.keyDown(screen.getByRole('combobox', { name: t('en', 'staff.primaryBranch') }), {
+    key: 'ArrowDown',
+  });
+  fireEvent.click(await screen.findByRole('option', { name: 'Denied branch' }));
+  fireEvent.change(screen.getByLabelText(t('en', 'staff.effectiveDate')), {
+    target: { value: '2026-10-04' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.save') }));
+  await waitFor(() => {
     expect(screen.queryByRole('button', { name: t('en', 'staff.editNumber') })).toBeNull();
   });
 });
