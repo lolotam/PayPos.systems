@@ -15,6 +15,7 @@
 | PP-2 | 2026-10-18 | PP-2.1 تصحيح سعر سطر موظفته سابت (#325)؛ PP-2.2 صلاحية هوية النشاط (#331) | PP-2.1: `docs/specs/050-orders-record-service-session/owner-questions.ar.md` بند 35 (ED-Q15)، وسؤال فلوس فاتنشر كمان على صفحة القرارات في الدفعة 33 لأبو سالم؛ PP-2.2: `docs/specs/052-settings-business-identity/owner-questions.ar.md` بند 5 (BI-Q5) |
 | PP-3 | 2026-10-18 | PP-3.1 المنع على كل فروع الموظفة | `docs/specs/051-staff-employee-number/owner-questions.ar.md` بند 22 |
 | PP-4 | 2026-10-18 | PP-4.1 شاشة «الأرقام الوظيفية»؛ PP-4.2 الرقم وقت الإضافة؛ PP-4.3 توجيه الأسئلة | مواصفة 051 بنود 23 و24؛ وهنا (البند 1) |
+| PP-6 | 2026-10-19 | PP-6.1 مكان الـ PDF المؤقت (Redis)؛ PP-6.2 قارئ اللوجو ينتقل لـ 27g؛ PP-6.3 sandbox بتاع Chromium | `docs/specs/056-documents-pdf-renderer/owner-questions.ar.md` البنود 1 و2 و3 |
 
 ### 1. أسئلة المالك تروح فين؟ (PP-4.3)
 

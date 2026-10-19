@@ -5,8 +5,9 @@
 > Fable 5.1, 2026-10-19).
 > **Needed by:** row 27g (the official attendance statement PDF, Abu Salem's pick AB-Q10).
 > **Depends on:** row 27 and 27h-4 (merged).
-> **Owner questions:** none. This slice moves no money and sets no business rule; its technical choices are routed to
-> Waleed through the PosPay manager (`CLAUDE.md` §1 5b) and recorded in ADR-0048.
+> **Owner questions:** batch PP-6 (technical, to Waleed through the super agent), [owner-questions.ar.md](owner-questions.ar.md):
+> PP-6.1 Redis transport buffer, PP-6.2 logo reader moves to 27g, PP-6.3 sandbox off. **PENDING: this PR does not merge
+> before they are answered.** No money question.
 
 ## 1. What and why
 
@@ -55,6 +56,8 @@ document. 27g then adds the first real document.
   `/ready` does not depend on the renderer.
 - **FR-013** The worker image renders an Arabic fixture to a valid PDF at build time (the `%PDF-` header), next to the
   existing sharp smoke.
+- **FR-014** The four sandbox compensating controls of ADR-0048 §3.3 (C1 escaped HTML, C2 JavaScript off, C3 every
+  request aborted, C4 non-root) each have a test that runs with no server.
 
 ## 4. Acceptance criteria
 

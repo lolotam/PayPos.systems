@@ -1,6 +1,8 @@
 # ADR-0048 — The PDF renderer comes into Phase 1
 
-- **Status:** Accepted
+- **Status:** Proposed — the PR merges only after Waleed answers PP-6.1…PP-6.3
+  ([owner questions](../specs/056-documents-pdf-renderer/owner-questions.ar.md)); §1.7, §3.3 and §6 follow the
+  recommended options until then
 - **Date:** 2026-10-19
 - **Slice:** Phase 1 row 27i ([spec 056](../specs/056-documents-pdf-renderer/spec.md)), for row 27g (the official attendance
   statement)
@@ -51,10 +53,20 @@ enforces) names only `reporting`.
    id all answer the same `404`; permissions are checked again on status and on collect.
 6. Bytes that vanished before collection (TTL or Redis eviction) read as `EXPIRED`, never a 500. A broken connection
    during collection needs a new request; nothing is retried from a consumed key.
-7. **What "not stored" means here.** No PDF byte is written to Postgres, R2, the BullMQ job (`returnvalue` included),
-   a log line or any cache. Redis holds the bytes only as a **transport buffer**: at most 120 s, deleted on the first
-   collection, behind the existing Redis password. Storing a copy for later remains a separate decision that needs a
-   `files`-owned handoff and its own ADR (plan row 27i).
+7. **What "not stored" means here (PP-6.1).** No PDF byte is written to Postgres, R2, the BullMQ job (`returnvalue`
+   included), a log line or any cache. Redis holds the bytes only as a **transport buffer**, in exactly this keyspace:
+
+   | Key | Holds | TTL | Removed |
+   |---|---|---|---|
+   | `documents:bytes:{company_id}:{render_id}` | the PDF | 120 s from `READY` (`SET … EX 120 NX`) | on the first collection (`GETDEL`) or at expiry |
+   | `documents:status:{company_id}:{render_id}` | `state`, `requested_by`, `error_code`, `filename`; no document data | 900 s | at expiry |
+   | `documents:renderer-alive` | `1` | 3 s, refreshed while Chromium is up | at expiry |
+
+   **Residual risk accepted:** the shared Redis may run AOF or RDB persistence. If it does, a PDF can reach that Redis's
+   disk for up to its snapshot or fsync interval (and stay in an RDB file until the next snapshot overwrites it), behind
+   the Redis password. A separate memory-only Redis would close this, at the cost of a new container on the shared
+   server. Storing a copy for later remains a separate decision that needs a `files`-owned handoff and its own ADR
+   (plan row 27i).
 
 Rejected: holding the request open with `waitUntilFinished` (a synchronous wait in the API, one extra Redis connection
 per request); an SSE "ready" signal (realtime is outside Phase 1, and polling is enough); returning the PDF through
@@ -82,10 +94,19 @@ BullMQ's `returnvalue` (it stays in the job hash after the download, and `remove
 2. Each context runs with `javaScriptEnabled: false`, `offline: true`, service workers blocked and every route aborted.
    All CSS, fonts and images are inline. Timeouts: `setContent` 10 s, `pdf` 20 s, 30 s for the whole job; a timeout
    closes the context (and the browser if it hangs), it does not just stop waiting.
-3. **Sandbox off** (`chromiumSandbox: false`, Playwright's default): the HTML is our own and escaped, JavaScript is off,
-   every request is blocked, and the process runs as the non-root `node` user. Turning the sandbox on needs seccomp or
-   user-namespace changes on the shared server. Codex preferred the sandbox on; this is the recorded trade-off, to be
-   revisited if a template ever renders HTML it did not build.
+3. **Sandbox off (PP-6.3)** (`chromiumSandbox: false`, Playwright's default). Turning the sandbox on needs seccomp or
+   user-namespace changes on the shared server; Codex preferred it on, and this is the recorded trade-off, to be revisited
+   if a template ever renders HTML it did not build. Four compensating controls replace it, each a test that runs with no
+   server:
+   - **C1 escaped HTML:** every value interpolated by the `html` template is escaped; a payload with `<script>`, quotes,
+     `&` and `</style>` comes out inert, and `raw()` cannot be built from request text.
+   - **C2 JavaScript off:** a fixture page with an inline script that would change the document renders a PDF without
+     that change.
+   - **C3 every request aborted:** a fixture page that references an external image, stylesheet and font produces a PDF,
+     and the route handler records each request as aborted; nothing reaches the network.
+   - **C4 non-root:** the worker image's final `USER` is `node` (a test reads `deploy/Dockerfile.worker`), and the image
+     build's smoke prints a non-zero uid.
+
 4. `--disable-dev-shm-usage` (Docker's 64 MB `/dev/shm`) and `--disable-gpu`. No traces, HAR files or downloads.
 5. The renderer is an **optional capability**: `/ready` does not wait for Chromium, so the outbox dispatcher, files and
    notifications keep running if it fails. While the browser is up, the worker refreshes a 3-second liveness key in
@@ -115,7 +136,7 @@ The map declares `composition_roots: documents: [apps/worker/src/main.ts]` and k
 [reporting]`. The API side of a render (enqueue, status, collect) is a port in the consuming module with a BullMQ/Redis
 adapter in its `persistence/`, built with that module's first use (27g). No new business import arrow.
 
-### 6. The logo bytes reader moves to 27g
+### 6. The logo bytes reader moves to 27g (PP-6.2)
 
 ADR-0046 §5 put the `files`-owned logo bytes reader in 27i. It writes a `file_access_audit` row for the statement's
 requester, and its first caller is 27g's statement source. It is built with 27g, beside the `staff → settings` and
