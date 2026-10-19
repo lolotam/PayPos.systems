@@ -7,6 +7,17 @@ import type { SessionServiceScope } from '../api/use-session-services';
 import { serviceSessionAccessRevoked } from '../model/service-session-access';
 import { ServiceSessionDayList } from './service-session-day-list';
 
+type ServiceSessionDayBodyProps = {
+  scope: SessionServiceScope;
+  date: string;
+  lateOnly: boolean;
+  online: boolean;
+  timezone: string;
+  canCancel: boolean;
+  canRecord: boolean;
+  onAccessDenied: (message: string) => void;
+};
+
 export function ServiceSessionDayBody({
   scope,
   date,
@@ -14,16 +25,9 @@ export function ServiceSessionDayBody({
   online,
   timezone,
   canCancel,
+  canRecord,
   onAccessDenied,
-}: {
-  scope: SessionServiceScope;
-  date: string;
-  lateOnly: boolean;
-  online: boolean;
-  timezone: string;
-  canCancel: boolean;
-  onAccessDenied: (message: string) => void;
-}) {
+}: ServiceSessionDayBodyProps) {
   const locale = useLocale();
   const mounted = useRef(true);
   const query = useBranchDaySessions(scope, date, lateOnly, online);
@@ -49,6 +53,7 @@ export function ServiceSessionDayBody({
       online={online}
       timezone={timezone}
       canCancel={canCancel}
+      canRecord={canRecord}
       loadError={query.isError ? envelopeMessage(query.error, locale) : null}
       empty={query.isSuccess && visits.length === 0}
       hasNext={query.hasNextPage === true}

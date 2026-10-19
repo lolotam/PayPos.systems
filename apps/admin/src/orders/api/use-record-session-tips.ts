@@ -1,6 +1,6 @@
 'use client';
 import { sessionTips, type RecordSessionTipsInput, type SessionTips } from '@pospay/contracts';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useRef, type RefObject } from 'react';
 import { apiClient } from '@/shared/api/client';
 import { tipOutcomeKnown } from '../model/session-tip-outcome';
@@ -100,6 +100,21 @@ async function sendTips(
   return parsed.data;
 }
 
+function publishSavedTips(
+  client: QueryClient,
+  scope: SessionServiceScope,
+  sessionId: string,
+  data: SessionTips,
+) {
+  const key = sessionTipsKey(scope, sessionId);
+  // الرد المتأخر بعد مسح الكاش ممنوع يرجّع مجموعة الإكرامية اللي الشاشة شالتها.
+  if (!client.getQueryCache().find({ queryKey: key, exact: true })) return;
+  const current = client.getQueryData<SessionTips>(key);
+  // إعادة المفتاح القديم بترجع المراجعة الأصلية؛ مراجعة أحدث من كاشير تاني بتفضل.
+  if (current && current.revision > data.revision) return;
+  client.setQueryData(key, data);
+}
+
 export function useRecordSessionTips(scope: SessionServiceScope, memory?: AttemptMemory) {
   const client = useQueryClient();
   const held = useRef<Held | null>(null);
@@ -110,7 +125,7 @@ export function useRecordSessionTips(scope: SessionServiceScope, memory?: Attemp
     networkMode: 'always',
     mutationFn: (attempt: Attempt) => putTips(scope, attempt, held, memory),
     onSuccess: (data, { sessionId }) => {
-      client.setQueryData(sessionTipsKey(scope, sessionId), data);
+      publishSavedTips(client, scope, sessionId, data);
     },
   });
 }

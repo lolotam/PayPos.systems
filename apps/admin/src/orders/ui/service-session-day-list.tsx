@@ -23,6 +23,7 @@ export type ServiceSessionDayListProps = {
   online: boolean;
   timezone: string;
   canCancel: boolean;
+  canRecord: boolean;
   loadError: string | null;
   empty: boolean;
   hasNext: boolean;
@@ -92,6 +93,7 @@ function cancellationPanel(list: ServiceSessionDayListProps, visit: Visit, lineI
 }
 
 function visitTips(list: ServiceSessionDayListProps, visit: Visit) {
+  if (!list.canRecord) return null;
   return (
     <SessionTipsLauncher
       scope={list.scope}

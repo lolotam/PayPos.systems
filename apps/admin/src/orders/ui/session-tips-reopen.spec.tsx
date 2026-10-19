@@ -158,6 +158,70 @@ it('restores the unresolved save when the dialog opens again', async () => {
   expect(replay.recorder_membership_id).toBe(member);
 });
 
+it('keeps a newer revision when a replay returns the original save', async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  installReads(tipped(2, '1.000'));
+  api.put.mockResolvedValueOnce(
+    refused(400, 'SESSION_RECORDER_MEMBERSHIP_REQUIRED', {
+      recorder_membership_ids: [id(30), member],
+    }),
+  );
+  api.put.mockRejectedValueOnce(new Error('offline'));
+  renderTips(client);
+  await loseTheSave();
+  client.setQueryData(sessionTipsKey(scope, id(12)), tipped(3, '9.000'));
+  installReads(tipped(3, '9.000'));
+  api.put.mockResolvedValueOnce(ok(tipped(2, '4.000')));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.retrySame') }));
+  await waitFor(() => expect(cashBox().value).toBe('9.000'));
+  expect(client.getQueryData<SessionTips>(sessionTipsKey(scope, id(12)))?.revision).toBe(3);
+  expect(screen.queryByDisplayValue('4.000')).toBeNull();
+});
+
+it('does not show a performer added after an unresolved tip was retained', async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const visit = (performers: TipSourceLine['performers']) => (
+    <QueryClientProvider client={client}>
+      <SessionTipsLauncher
+        scope={scope}
+        sessionId={id(12)}
+        lines={[{ status: 'ACTIVE', net: '8.000', performers }]}
+        online
+        onAccessDenied={() => undefined}
+      />
+    </QueryClientProvider>
+  );
+  installReads(tipped(2, '1.000'));
+  api.put.mockResolvedValueOnce(
+    refused(400, 'SESSION_RECORDER_MEMBERSHIP_REQUIRED', {
+      recorder_membership_ids: [id(30), member],
+    }),
+  );
+  api.put.mockRejectedValueOnce(new Error('offline'));
+  const view = render(visit(lines[0]?.performers ?? []));
+  await loseTheSave();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.close') }));
+  await waitFor(() => expect(screen.queryByLabelText(t('en', 'sessionTips.total'))).toBeNull());
+  const ada = lines[0]?.performers[0];
+  if (!ada) throw new Error('missing performer');
+  view.rerender(
+    visit([
+      { ...ada, share_bps: 5000 },
+      { employee_id: id(7), share_bps: 5000, name_ar: null, name_en: 'Bea' },
+    ]),
+  );
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.open') }));
+  const cash = (await screen.findByLabelText(
+    `${'Ada'} ${t('en', 'sessionTips.cashAmount')}`,
+  )) as HTMLInputElement;
+  expect(cash.value).toBe('4.000');
+  expect(screen.queryByLabelText(`${'Bea'} ${t('en', 'sessionTips.cashAmount')}`)).toBeNull();
+});
+
 it('ignores the cached tip set until the read for this opening finishes', async () => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

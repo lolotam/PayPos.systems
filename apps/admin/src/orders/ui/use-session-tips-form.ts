@@ -74,11 +74,29 @@ function finishKnownSave(
   if (result.memberships) controls.setMemberships(result.memberships);
 }
 
+async function adoptReplayedTips(
+  controls: SaveControls,
+  replayed: SessionTips,
+  reload: () => Promise<SessionTips | null>,
+): Promise<boolean> {
+  controls.setRefreshing(true);
+  try {
+    const current = await reload();
+    // إعادة المفتاح بترجع المراجعة الأصلية؛ لو القراءة أحدث نعرضها قبل ما الفورم يتصفّر.
+    if (!current || current.revision < replayed.revision) return false;
+    applySaveResult(controls, { kind: 'saved', tips: current });
+    return true;
+  } finally {
+    controls.setRefreshing(false);
+  }
+}
+
 async function runSave(
   controls: SaveControls,
   body: RecordSessionTipsInput,
   mutate: (body: RecordSessionTipsInput) => Promise<SessionTips>,
   reload: () => Promise<SessionTips | null>,
+  replaying: boolean,
 ) {
   controls.setNotice(null);
   controls.setFrozen(true);
@@ -95,6 +113,13 @@ async function runSave(
       }
     },
   });
+  if (
+    result.kind === 'saved' &&
+    replaying &&
+    (await adoptReplayedTips(controls, result.tips, reload))
+  ) {
+    return;
+  }
   applySaveResult(controls, result);
 }
 
@@ -181,18 +206,20 @@ function submitTips(
   mutate: (body: RecordSessionTipsInput) => Promise<SessionTips>,
   reload: () => Promise<SessionTips | null>,
 ) {
-  const send = (body: RecordSessionTipsInput) => {
+  const send = (body: RecordSessionTipsInput, replaying: boolean) => {
     if (!online || blocked) return;
-    void runSave(controls, body, mutate, reload);
+    void runSave(controls, body, mutate, reload, replaying);
   };
   return (event: FormEvent<HTMLFormElement>) => {
     const replay = controls.retain.current;
     if (replay && uncertain) {
       event.preventDefault();
-      send(replay);
+      send(replay, true);
       return;
     }
-    void controls.form.handleSubmit(send)(event);
+    void controls.form.handleSubmit((body) => {
+      send(body, false);
+    })(event);
   };
 }
 
@@ -205,7 +232,7 @@ function replayHeld(
 ) {
   const body = controls.retain.current;
   if (!body || !online || blocked) return;
-  void runSave(controls, body, mutate, reload);
+  void runSave(controls, body, mutate, reload, true);
 }
 
 async function retryTips(
@@ -236,7 +263,7 @@ export function useSessionTipsForm(props: SessionTipsFormProps) {
   const form = useForm<SessionTipFormInput, unknown, RecordSessionTipsInput>({
     resolver: resolveSessionTips,
     defaultValues: restored
-      ? tipFormFromBody(restored.body, props.lines)
+      ? tipFormFromBody(restored.body)
       : tipFormValues(props.loaded, props.lines),
   });
   const pending = mutation.isPending;

@@ -26,12 +26,14 @@ export function SessionTipsSuggestion({
   locale,
   lines,
   locked,
+  exact,
   netsKnown,
 }: {
   form: UseFormReturn<SessionTipFormInput, unknown, RecordSessionTipsInput>;
   locale: Locale;
   lines: readonly TipSourceLine[];
   locked: boolean;
+  exact: boolean;
   netsKnown: boolean;
 }) {
   const total = useWatch({ control: form.control, name: 'total' }) ?? '';
@@ -43,7 +45,9 @@ export function SessionTipsSuggestion({
   const methodField = form.register('suggestion_method');
   const apply = () => {
     if (locked || suggestion.length === 0) return;
-    form.setValue('rows', rowsUsingSuggestion(rows, suggestion, method), { shouldDirty: true });
+    form.setValue('rows', rowsUsingSuggestion(rows, suggestion, method, exact), {
+      shouldDirty: true,
+    });
   };
   return (
     <div className="grid gap-2">

@@ -187,33 +187,60 @@ export function tipFormValues(
   };
 }
 
-export function tipFormFromBody(
-  body: RecordSessionTipsInput,
-  lines: readonly TipSourceLine[],
-): SessionTipFormInput {
+function employeesIn(tips: readonly SessionTipEntry[]): { employee_id: string }[] {
+  const ids = new Set<string>();
+  for (const tip of tips) ids.add(tip.employee_id.toLowerCase());
+  return [...ids].sort(byEmployeeId).map((employee_id) => ({ employee_id }));
+}
+
+export function tipFormFromBody(body: RecordSessionTipsInput): SessionTipFormInput {
   return {
     total: '',
     suggestion_method: 'CASH',
-    rows: rowsFrom(tipPeople(lines, body.tips), body.tips),
+    // الجسم المحجوز بيتفتح كما أُرسل. منفّذة وصلت بعد الحفظ لو اتضافت هنا بتغيّر المجموعة عن المحاولة اللي لسه مستنّين نتيجتها.
+    rows: rowsFrom(employeesIn(body.tips), body.tips),
     reason: body.reason ?? '',
     expected_revision: body.expected_revision,
     recorder_membership_id: body.recorder_membership_id ?? '',
   };
 }
 
+function amountOn(method: 'CASH' | 'CARD', text: string, row: TipAmountRow): TipAmountRow {
+  if (method === 'CARD') return { ...row, cash: '', card: text };
+  return { ...row, cash: text, card: '' };
+}
+
 export function rowsUsingSuggestion(
   rows: readonly TipAmountRow[],
   suggestions: readonly { employee_id: string; amount: bigint }[],
   method: 'CASH' | 'CARD',
+  exact = false,
 ): TipAmountRow[] {
+  // جسم محاولة معلّقة بيتبعت كما هو؛ توسيعه بيغيّر المفتاح اللي لسه مستنّين نتيجته.
+  if (exact) return rows.map((row) => ({ ...row }));
   const amounts = new Map(
     suggestions.map((row) => [row.employee_id.toLowerCase(), moneyToString(row.amount)]),
   );
-  return rows.map((row) => {
-    const text = amounts.get(row.employee_id.toLowerCase()) ?? '';
-    if (method === 'CARD') return { ...row, cash: '', card: text };
-    return { ...row, cash: text, card: '' };
+  const seen = new Set<string>();
+  const next = rows.map((row) => {
+    const employeeId = row.employee_id.toLowerCase();
+    seen.add(employeeId);
+    return amountOn(method, amounts.get(employeeId) ?? '', row);
   });
+  // منفّذة اتضافت للزيارة بعد فتح الحوار مش في صفوف الفورم، والاقتراح لازم يضيفها عشان المجموع مينقصش.
+  for (const row of suggestions) {
+    const employeeId = row.employee_id.toLowerCase();
+    if (seen.has(employeeId)) continue;
+    seen.add(employeeId);
+    next.push(
+      amountOn(method, moneyToString(row.amount), {
+        employee_id: employeeId,
+        cash: '',
+        card: '',
+      }),
+    );
+  }
+  return next;
 }
 
 function reasonProblem(value: SessionTipFormInput): boolean {
@@ -249,6 +276,8 @@ export const resolveSessionTips: Resolver<SessionTipFormInput, unknown, RecordSe
   if (tipExceedsVisit(value.rows, []) === 'too-large') errors.root = issue('too-large');
   else if (!tipEntries(value.rows)) errors.root = issue('amount');
   const body = recordTipsBody(value);
+  // فشل العقد من غير خطأ ظاهر بيعدّي كنجاح في react-hook-form ويبعّت جسم فاضي.
+  if (!body && !errors.reason && !errors.root) errors.root = issue('rejected');
   if (!body || errors.reason || errors.root) return { values: {}, errors };
   return { values: body, errors: {} };
 };

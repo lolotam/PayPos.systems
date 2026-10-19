@@ -2,7 +2,7 @@
 import type { SessionTips } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
-import { useEffect, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { ModalDialog } from '@/shared/ui/modal-dialog';
 import type { UnresolvedTip } from '../api/use-record-session-tips';
@@ -60,10 +60,12 @@ export function SessionTipsDialog(props: {
     deniedRef.current(tipRefusalMessage(query.error, locale));
     closeRef.current();
   }, [denied, query.error, locale]);
+  const [busy, setBusy] = useState(false);
+  const onBusy = useCallback((value: boolean) => setBusy(value), []);
   const reload = () =>
     reloadSessionTips(props.scope, props.sessionId, locale, { denied: deniedRef, close: closeRef });
   return (
-    <ModalDialog title={t(locale, 'sessionTips.title')} onClose={props.onClose}>
+    <ModalDialog title={t(locale, 'sessionTips.title')} pending={busy} onClose={props.onClose}>
       {!loaded && !query.isError ? <p>{t(locale, 'admin.loading')}</p> : null}
       {query.isError && !denied ? (
         <p role="alert">
@@ -83,6 +85,7 @@ export function SessionTipsDialog(props: {
           memory={props.memory}
           reload={reload}
           netsKnown={props.netsKnown ?? true}
+          onBusy={onBusy}
           onAccessDenied={props.onAccessDenied}
           onClose={props.onClose}
         />

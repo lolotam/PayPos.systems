@@ -1,5 +1,11 @@
 import type { RecordSessionTipsInput, SessionTips } from '@pospay/contracts';
-import { moneyToString, parseMoney, performerNetWeights, suggestTipSplit } from '@pospay/domain';
+import {
+  moneyToString,
+  parseMoney,
+  performerNetWeights,
+  suggestTipSplit,
+  sumMoney,
+} from '@pospay/domain';
 import { formatKwd, t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -8,6 +14,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { id, scope } from '../model/session-recording-result.fixture';
 import type { TipSourceLine } from '../model/session-tip-source';
 import { sessionTipsPath } from '../api/use-session-tips';
+import { rowsUsingSuggestion } from '../model/session-tip-body';
 import { ServiceSessionDayList } from './service-session-day-list';
 import { SessionTipsLauncher } from './session-tips-launcher';
 
@@ -186,6 +193,7 @@ it('does not read tips until the visit button opens the dialog', () => {
       online
       timezone="Asia/Kuwait"
       canCancel={false}
+      canRecord={false}
       loadError={null}
       empty
       hasNext={false}
@@ -199,4 +207,77 @@ it('does not read tips until the visit button opens the dialog', () => {
   );
   expect(screen.queryByRole('button', { name: t('en', 'sessionTips.open') })).toBeNull();
   expect(api.get).not.toHaveBeenCalled();
+});
+
+it('adds a performer who joined the visit after the dialog opened', async () => {
+  const solo: readonly TipSourceLine[] = [
+    {
+      status: 'ACTIVE',
+      net: '8.000',
+      performers: [{ employee_id: id(6), share_bps: 10000, name_ar: null, name_en: 'Ada' }],
+    },
+  ];
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const tree = (visit: readonly TipSourceLine[]) => (
+    <QueryClientProvider client={client}>
+      <SessionTipsLauncher
+        scope={scope}
+        sessionId={id(12)}
+        lines={visit}
+        online
+        onAccessDenied={() => undefined}
+      />
+    </QueryClientProvider>
+  );
+  api.put.mockResolvedValue(ok(emptyTips(1)));
+  const view = render(tree(solo));
+  await openTips();
+  view.rerender(tree(lines));
+  applySuggestion();
+  const suggestion = sharedSplit();
+  expect(cashBox('Ada').value).toBe(moneyToString(suggestion[0]?.amount ?? 0n));
+  expect(cashBox('Bea').value).toBe(moneyToString(suggestion[1]?.amount ?? 0n));
+  saveTips();
+  await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1));
+  const amounts = bodyOf(0).tips.map((tip) => parseMoney(tip.amount));
+  expect(sumMoney(amounts)).toBe(parseMoney('8.000'));
+});
+
+it('leaves a retained body unchanged when the suggestion is applied exactly', () => {
+  const kept = [{ employee_id: id(6), cash: '1.000', card: '' }];
+  const extra = [
+    { employee_id: id(6), amount: 6000n },
+    { employee_id: id(7), amount: 2000n },
+  ];
+  expect(rowsUsingSuggestion(kept, extra, 'CASH', true)).toEqual(kept);
+});
+
+it('does not send a body the tip contract rejects', async () => {
+  const bad: readonly TipSourceLine[] = [
+    {
+      status: 'ACTIVE',
+      net: '8.000',
+      performers: [{ employee_id: 'not-a-uuid', share_bps: 10000, name_ar: null, name_en: 'Ada' }],
+    },
+  ];
+  api.put.mockResolvedValue(ok(emptyTips(1)));
+  renderTips(true, bad);
+  await openTips();
+  fireEvent.change(cashBox('Ada'), { target: { value: '1.000' } });
+  saveTips();
+  expect(await screen.findByText(t('en', 'sessionTips.amountInvalid'))).toBeTruthy();
+  expect(api.put).not.toHaveBeenCalled();
+});
+
+it('keeps the dialog open when Escape is pressed during a save', async () => {
+  api.put.mockReturnValue(new Promise(() => undefined));
+  renderTips();
+  await openTips();
+  fireEvent.change(cashBox('Ada'), { target: { value: '1.000' } });
+  saveTips();
+  expect(await screen.findByRole('button', { name: t('en', 'sessionTips.saving') })).toBeTruthy();
+  fireEvent(screen.getByRole('dialog'), new Event('cancel', { bubbles: true, cancelable: true }));
+  expect(screen.getByLabelText(t('en', 'sessionTips.total'))).toBeTruthy();
 });
