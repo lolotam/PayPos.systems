@@ -37,6 +37,7 @@ export function ServiceSessionDayPage({ scope, timezone, canCancel }: { scope: S
     client.removeQueries({ queryKey: ['branch-day-sessions', companyId, businessId, branchId, userId] });
     client.removeQueries({ queryKey: ['service-line-edits', companyId, businessId, branchId, userId] });
     client.removeQueries({ queryKey: ['service-line-cancellations', companyId, businessId, branchId, userId] });
+    client.removeQueries({ queryKey: ['session-tips', companyId, businessId, branchId, userId] });
   }, [isBlocked, client, companyId, businessId, branchId, userId]);
   return <section className="grid gap-4 text-start" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
     <PageHeader title={t(locale, 'serviceLineEdit.title')} />

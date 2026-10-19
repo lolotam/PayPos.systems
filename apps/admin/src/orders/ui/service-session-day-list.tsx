@@ -10,6 +10,7 @@ import { ServiceLineCancellationDetails } from './service-line-cancellation-deta
 import { ServiceLineEditHistory } from './service-line-edit-history';
 import { ServiceSessionDayEditor } from './service-session-day-editor';
 import { ServiceSessionDayVisit } from './service-session-day-visit';
+import { SessionTipsLauncher } from './session-tips-launcher';
 import { useDayLineActions } from './use-day-line-actions';
 
 type Visit = DayPage['items'][number];
@@ -90,6 +91,18 @@ function cancellationPanel(list: ServiceSessionDayListProps, visit: Visit, lineI
   );
 }
 
+function visitTips(list: ServiceSessionDayListProps, visit: Visit) {
+  return (
+    <SessionTipsLauncher
+      scope={list.scope}
+      sessionId={visit.id}
+      lines={visit.lines}
+      online={list.online}
+      onAccessDenied={list.onAccessDenied}
+    />
+  );
+}
+
 function ServiceSessionDayVisitSlot({
   visit,
   list,
@@ -136,6 +149,7 @@ function ServiceSessionDayVisitSlot({
         actions.toggleDetails(visit.id, lineId);
       }}
       editor={editor}
+      tipAction={visitTips(list, visit)}
       historyPanel={historyLineId ? historyPanel(list, visit, historyLineId) : null}
       detailsPanel={detailsLineId ? cancellationPanel(list, visit, detailsLineId) : null}
     />
