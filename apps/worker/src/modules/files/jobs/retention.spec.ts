@@ -5,7 +5,7 @@ import { systemUuidV7 } from '@pospay/ids';
 import { startRetentionProcessors } from './retention.processor.ts';
 import type { CleanupFiles } from '../use-cases/cleanup-files/cleanup-files.ts';
 
-it('outbox delivery idempotently registers two id-only worker schedules and retries scheduling errors', async () => {
+it('outbox delivery idempotently registers three id-only worker schedules and retries scheduling errors', async () => {
   const ids = systemUuidV7(),
     prefix = `files-retention-test-${ids.newId()}`;
   const redisUrl =
@@ -17,7 +17,7 @@ it('outbox delivery idempotently registers two id-only worker schedules and retr
     redisUrl,
     prefix,
   );
-  const queues = ['abandoned', 'rejected'].map(
+  const queues = ['abandoned', 'rejected', 'retired'].map(
     (kind) => new Queue(`files-cleanup-${kind}`, { connection: { url: redisUrl }, prefix }),
   );
   const event: ClaimedEvent = {
@@ -41,8 +41,8 @@ it('outbox delivery idempotently registers two id-only worker schedules and retr
     }
     await vi.waitFor(
       () => {
-        expect(execute).toHaveBeenCalledWith(event.companyId, 'abandoned');
-        expect(execute).toHaveBeenCalledWith(event.companyId, 'rejected');
+        for (const kind of ['abandoned', 'rejected', 'retired'] as const)
+          expect(execute).toHaveBeenCalledWith(event.companyId, kind);
       },
       { timeout: 10000 },
     );

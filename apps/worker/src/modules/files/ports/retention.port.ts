@@ -1,8 +1,9 @@
 import type { RetentionKind } from '../domain/retention.ts';
-/** هوية الجسم المؤقت المملوك للشركة؛ لا تعبر إلى Redis. */
+/** هوية الجسم المملوك للشركة؛ لا تعبر إلى Redis. storageKey للنسخة الموثقة ويُحذف في retired فقط. */
 export interface RetentionFile {
   id: string;
   stagingKey: string;
+  storageKey: string | null;
 }
 /** حد الاحتفاظ المعاملاتي؛ IO التخزين خارج هذا الحد. */
 export interface RetentionRepository {
@@ -14,7 +15,7 @@ export interface RetentionRepository {
    * @param at وقت المطالبة
    * @param cutoff وقت أهلية الحذف
    * @param until انتهاء المطالبة
-   * @returns هويات وأجسام الدفعة المحدودة
+   * @returns هويات الدفعة ومفتاح staging ومعه storageKey لنوع retired
    */
   claim(
     companyId: string,

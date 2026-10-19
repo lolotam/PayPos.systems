@@ -8,7 +8,7 @@ export default [
     ...allowDatabaseFacade(['createOutboxDispatcherDatabase', 'createPlatformWhatsappDatabase']),
   },
   {
-    files: ['src/main.ts'],
+    files: ['src/start-optional-capabilities.ts'],
     ...allowDatabaseFacade(['createOutboxDispatcherDatabase', 'createPlatformWhatsappDatabase']),
   },
 ];

@@ -70,6 +70,14 @@ vi.mock('../modules/notifications/index.ts', async (original) => ({
   },
 }));
 // جدول الخروج المفقود يحتاج Redis حقيقياً؛ هنا يُعزل كي يبقى الاختبار عن جاهزية OTP فقط.
+// معالجات الاحتفاظ تفتح Redis؛ هذا الاختبار يعزل جاهزية OTP فقط.
+vi.mock('../modules/files/index.ts', () => ({
+  startFilesWorker: () => ({
+    consumer: { eventTypes: [] },
+    deliver: vi.fn(),
+    close: vi.fn(async () => undefined),
+  }),
+}));
 vi.mock('../modules/staff/index.ts', async (original) => ({
   ...(await original<typeof StaffModule>()),
   startStaffWorker: () => ({

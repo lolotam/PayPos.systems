@@ -78,6 +78,8 @@ eligibility, persisted user links and attendance/leave warning facts. CatalogRea
 service rule kinds, list price, names, revision and threshold participation. These are ADR-0041's bounded reads.
 The reverse customers → orders DaySessionsPort is bound by an injected callback at the application root;
 customers must not import orders and introduce a compile-time cycle (ADR-0041).
+Worker `files` reads whether a file is still the business logo through `lockBusinessLogoReference` in
+`@pospay/db`, the same function the settings adapter calls. `files` does not import `settings` (ADR-0046, 27h-3).
 
 ADR-0020 attendance QR reads the paired branch name and effective timezone through the existing tenancy
 `describeWorkspaces` surface; staff owns the read port. It adds no attendance write or clocking endpoint.
@@ -104,6 +106,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `EmployeeCreationScope` | `identity` | locked employee-management access and active company membership eligibility for user links (ADR-0021, PR #79) |
 | `settings` | `BusinessDiscountAccess`, `DiscountSubjectReader` | `identity` | locked discount-management authority and scoped personal limit/active owner metadata (ADR-0023) |
 | `settings` | `BusinessIdentityAccess` | `identity` | locked recheck of `manage:business-identity:business` at the business after the settings row lock (spec 052, 27h-1) |
+| worker `files` | `LogoReference` | `@pospay/db` | locks `business_settings` through `lockBusinessLogoReference` and reports whether the file is still the logo; the settings adapter calls the same function, and `files` does not import `settings` (ADR-0046, 27h-3) |
 | `settings` | `DiscountSubjectReader` | `tenancy` | business and branch scope confirmed before identity membership read (ADR-0023) |
 | `staff` | `EmployeeDetailAccess` (read-side interface beside the query) | `identity` | effective grants at the persisted business/primary branch and staff feature; never global user existence (ADR-0021, PR #79) |
 | `staff` | `ScheduleScope`, `ScheduleReadAccess` | `identity` | schedule permissions and staff feature; writes retain company and ordered membership locks (ADR-0024) |
@@ -199,6 +202,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `EmployeeImportCommitRequested` | `staff` | `staff` worker registers per-company employee-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports employee-import-commit after outbox claim commits (ADR-0034, ADR-0018) |
 | `ImportCommitted` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
+| `BusinessLogoChanged` | `settings` (producer is 27h-4; this row registers the type only) | worker `files` retire consumer (27h-3, ADR-0046) |
 | `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031, and registers the not-clocked-in schedule, ADR-0037) |
 | `ServiceLineChanged`                                                        | `orders`        | `commissions`, `customers`; worker `orders` (35d price/discount-edit bell — only when the optional `change.kind` is `PRICE_DISCOUNT_EDIT`; ADR-0044); worker `orders` also consumes `change.kind` `LINE_CANCELLED` (row 37 cancel bell; ADR-0044 addendum); worker `orders` also consumes `change.kind` `PERFORMERS_CHANGE` (row 37b bell; ADR-0044 addendum) |
 | `LateServiceSessionNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, permanent session ledger; no realtime until Phase 2 (ADR-0041 35b-2) |
@@ -279,10 +283,10 @@ packages_restricted:
 
 # Application composition roots may wire restricted packages (ADR-0018); never a business-module permission.
 composition_roots:
-  auth: [apps/api/src/app.ts, apps/api/src/main.ts, apps/worker/src/main.ts, apps/worker/src/worker.ts]
+  auth: [apps/api/src/app.ts, apps/api/src/main.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
   staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts]
-  platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/main.ts]
-  notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/worker/src/main.ts, apps/worker/src/worker.ts]
+  platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
+  notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
 
 # Every VALUE a module imports from another module's index.ts is one of these (type-only imports need only the
 # arrow above). §3.1: the one synchronous write. A read port's adapter calling another module's exported read is

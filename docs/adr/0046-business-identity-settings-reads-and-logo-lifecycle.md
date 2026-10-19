@@ -24,7 +24,7 @@ and `identity` today. ADR-0031 already solved "a module stores a file reference"
    unchanged and every READY logo can be bound. The generic policy and the DB checks stay.
 4. **Replacement and removal** emit `BusinessLogoChanged` through the outbox in the binding transaction. A `files`-owned
    outbox consumer (database only, as ADR-0018 requires) takes the same business lock as binding, then re-checks the current reference through a reverse read port
-   (`files → settings`, wired at the composition root, declared in the module map), then sets `purge_started_at`; that commit is the durable
+   (`lockBusinessLogoReference` in `@pospay/db`, called by the settings adapter and the files `LogoReference` adapter, with no `files → settings` import), then sets `purge_started_at`; that commit is the durable
    handoff (a later bind is refused). The existing hourly retention worker then gets a third kind, `retired`, and deletes
    the object outside any DB transaction with the tombstone and a system audit. Storage IO never runs in a request, a
    consumer or a transaction. The consumer ships **before** the producer (27h-3 before 27h-4), so an emitted event always has a registered consumer and is never parked or acknowledged unhandled.
@@ -36,8 +36,9 @@ and `identity` today. ADR-0031 already solved "a module stores a file reference"
 
 ## Consequences
 
-- Two new arrows (read `settings → files`, and the reverse read port `files → settings`, wired at the composition root so
-  there is no compile-time cycle) and one new published event; no new dependency, runtime role, grant, or RLS exception.
+- The `settings → files` read arrow and one new published event. The logo reference lock lives once in `@pospay/db`
+  (`lockBusinessLogoReference`), called by the settings adapter and the files `LogoReference` adapter, so there is no
+  compile-time `files → settings` cycle and no `files → settings` reads arrow. No new dependency, runtime role, grant, or RLS exception.
 - The settings read cache must treat entries without the new keys as stale (guard change in `businessSettingsQuery`).
 - A READY logo that was uploaded but never bound is an orphan until a later cleanup (deferred issue); a replaced logo
   waits for the retire consumer.

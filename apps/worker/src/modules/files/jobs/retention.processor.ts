@@ -10,7 +10,7 @@ export function startRetentionProcessors(useCase: CleanupFiles, redisUrl: string
   // تسجيل الجدول منتج bounded؛ اتصال العامل وحده يستمر في انتظار Redis.
   const producer = connection.duplicate({ maxRetriesPerRequest: 1, commandTimeout: 5000 });
   producer.on('error', () => undefined);
-  const queues = (['abandoned', 'rejected'] as const).map((kind) => {
+  const queues = (['abandoned', 'rejected', 'retired'] as const).map((kind) => {
     const name = `files-cleanup-${kind}`,
       queue = new Queue(name, { connection: producer, prefix });
     queue.on('error', () => undefined);

@@ -1,21 +1,5 @@
-import {
-  createDatabase,
-  createOutboxDispatcherDatabase,
-  createPlatformWhatsappDatabase,
-} from '@pospay/db';
+import { createDatabase, createOutboxDispatcherDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
-import {
-  createStaffOtpExecution,
-  createStaffOtpMaintenance,
-  readStaffOtpConfiguration,
-  type StaffOtpExecution,
-} from '@pospay/auth';
-import {
-  createPhoneIdentity,
-  phoneLockKey,
-  readOtpTemplateApproval,
-  readWhatsappWebhookConfiguration,
-} from '@pospay/notifications';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
 
@@ -24,10 +8,7 @@ import { knownEventTypes } from './outbox/known-event-types.ts';
 import {
   createNotificationModule,
   createInAppNotificationModule,
-  startWhatsappInbound,
   readNotificationConfiguration,
-  startNotificationQueue,
-  startStaffOtpWorker,
   startEmailCapability,
 } from './modules/notifications/index.ts';
 import { createDispatchLoop } from './outbox/dispatch-loop.ts';
@@ -35,6 +16,11 @@ import { readConfig } from './shared/config.ts';
 import { WORKER_LOG_EVENTS } from './shared/log-events.ts';
 import { createWorker } from './worker.ts';
 import { startFilesWorker } from './modules/files/index.ts';
+import { deliverFilesEvent } from './outbox/files-deliver.ts';
+import {
+  startOptionalCapabilities,
+  type OptionalCapabilities,
+} from './start-optional-capabilities.ts';
 import { createStaffDocumentDefaults, startStaffWorker } from './modules/staff/index.ts';
 import {
   createLateServiceSessionNoticeConsumer,
@@ -94,19 +80,17 @@ if (production)
     { capability: { name: 'TENANT_WHATSAPP', state: 'DISABLED', reason: 'LIVE_NOT_AUTHORIZED' } },
     'staff OTP capability',
   );
-const intakeUrl = config.PLATFORM_NOTIFICATIONS_DATABASE_URL;
-let globalDatabase: ReturnType<typeof createPlatformWhatsappDatabase> | undefined;
-let inbound: ReturnType<typeof startWhatsappInbound> | undefined;
-let otp: ReturnType<typeof startStaffOtpWorker> | undefined;
-let otpAuth: StaffOtpExecution | undefined;
-let capabilityTimer: NodeJS.Timeout | undefined;
+let globalDatabase: OptionalCapabilities['database'];
+let inbound: OptionalCapabilities['inbound'];
+let otp: OptionalCapabilities['otp'];
+let otpAuth: OptionalCapabilities['auth'];
+let capabilityTimer: OptionalCapabilities['timer'];
 let stopping = false;
-let maintenance: ReturnType<typeof createStaffOtpMaintenance> | undefined;
-const otpConfiguration = () =>
-  readStaffOtpConfiguration(process.env, 'worker', readOtpTemplateApproval(process.env));
+let maintenance: OptionalCapabilities['maintenance'];
 const businessDeliver = createDeliverer(
   app,
   [
+    files.consumer,
     ...(notifications === null
       ? inApp === null
         ? []
@@ -120,19 +104,20 @@ const businessDeliver = createDeliverer(
   logger,
   { knownEventTypes: knownEventTypes(staff, notifications, inApp) },
 );
-let queue: ReturnType<typeof startNotificationQueue> | undefined;
+let queue: OptionalCapabilities['queue'];
 const deliver: typeof businessDeliver = (event) =>
-  event.eventType === 'FileUploadRequested'
-    ? (files?.deliver(event) ??
-      Promise.resolve({ delivered: false, error: 'STORAGE_NOT_CONFIGURED', retryInMs: 60_000 }))
-    : staff.deliver(event, queue?.deliver ?? businessDeliver);
+  deliverFilesEvent(event, {
+    register: (claimed) => files.deliver(claimed),
+    staff: (claimed, next) => staff.deliver(claimed, next),
+    core: (claimed) => (queue?.deliver ?? businessDeliver)(claimed),
+  });
 const loop = createDispatchLoop({ dispatcher, deliver, logger });
 
 const release = async (): Promise<void> => {
   stopping = true;
   clearInterval(capabilityTimer);
   // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
-  await files?.close();
+  await files.close();
   await staff.close();
   await optionalWithin(
     () =>
@@ -154,219 +139,23 @@ const release = async (): Promise<void> => {
 };
 
 try {
-  if (process.env['AUTH_DATABASE_URL']) {
-    try {
-      const retention = createStaffOtpMaintenance({
-        databaseUrl: process.env['AUTH_DATABASE_URL'],
-        phoneLockKey,
-        onFailure: () =>
-          logger.warn(
-            { capability: { name: 'STAFF_LOGIN', outcome: 'RETENTION_FAILED' } },
-            'staff OTP retention unavailable',
-          ),
-      });
-      maintenance = retention;
-      await optionalWithin(() => retention.readiness());
-      logger.info(
-        { capability: { name: 'STAFF_MAINTENANCE', state: 'READY' } },
-        'staff OTP capability',
-      );
-    } catch {
-      logger.warn(
-        { capability: { name: 'STAFF_MAINTENANCE', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
-        'staff OTP capability',
-      );
-      maintenance?.stop();
-      await closeOptional([() => maintenance?.close()]);
-      maintenance = undefined;
-    }
-  } else {
-    logger.info(
-      { capability: { name: 'STAFF_MAINTENANCE', state: 'DISABLED' } },
-      'staff OTP capability',
-    );
-  }
-  if (notifications !== null) {
-    try {
-      const transport = startNotificationQueue(
-        notifications,
-        config.REDIS_URL,
-        businessDeliver,
-        logger,
-      );
-      queue = transport;
-      await optionalWithin(() => transport.ready());
-    } catch {
-      logger.warn(
-        { capability: { name: 'TENANT_WHATSAPP', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
-        'staff OTP capability',
-      );
-      await closeOptional([() => queue?.close(true)]);
-      queue = undefined;
-    }
-  }
-  if (intakeUrl) {
-    try {
-      readWhatsappWebhookConfiguration(process.env);
-      const intakeDatabase = createPlatformWhatsappDatabase({ url: intakeUrl });
-      globalDatabase = intakeDatabase;
-      await optionalWithin(() => intakeDatabase.ping());
-      const intake = startWhatsappInbound(intakeDatabase, config.REDIS_URL, logger);
-      inbound = intake;
-      await optionalWithin(() => intake.ready());
-      logger.info(
-        { capability: { name: 'WHATSAPP_INTAKE', state: 'READY' } },
-        'staff OTP capability',
-      );
-    } catch {
-      logger.warn(
-        { capability: { name: 'WHATSAPP_INTAKE', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
-        'staff OTP capability',
-      );
-      await closeOptional([() => inbound?.close(true), () => globalDatabase?.close(true)]);
-      inbound = undefined;
-      globalDatabase = undefined;
-    }
-  } else {
-    logger.info(
-      {
-        capability: {
-          name: 'WHATSAPP_INTAKE',
-          state: process.env['PLATFORM_NOTIFICATIONS_DATABASE_URL'] ? 'UNAVAILABLE' : 'DISABLED',
-          reason: process.env['PLATFORM_NOTIFICATIONS_DATABASE_URL']
-            ? 'INVALID_CONFIGURATION'
-            : 'NOT_CONFIGURED',
-        },
-      },
-      'staff OTP capability',
-    );
-  }
-  const initialOtp = otpConfiguration();
-  if (initialOtp.state === 'READY' && inbound !== undefined) {
-    try {
-      const identity = createPhoneIdentity(
-        process.env['NOTIFICATION_PHONE_HASH_KEY'] ?? '',
-        process.env['NOTIFICATION_PHONE_HASH_KEY_ID'] ?? '',
-      );
-      let wasReady: boolean | undefined;
-      let healthy = false;
-      const configured = () => {
-        const current = otpConfiguration();
-        return (
-          current.state === 'READY' &&
-          current.fingerprint === initialOtp.fingerprint &&
-          inbound !== undefined &&
-          otpAuth !== undefined &&
-          !stopping
-        );
-      };
-      const reportCapability = (ready: boolean) => {
-        if (ready !== wasReady)
-          logger.info(
-            { capability: { name: 'STAFF_LOGIN', state: ready ? 'READY' : 'UNAVAILABLE' } },
-            'staff OTP capability',
-          );
-        wasReady = ready;
-        return ready;
-      };
-      const capability = {
-        available: () => reportCapability(healthy && configured()),
-        ready: async () => {
-          try {
-            if (!configured() || inbound === undefined) {
-              healthy = false;
-              return reportCapability(false);
-            }
-            const intake = inbound;
-            await optionalWithin(async () => {
-              await intake.ready();
-              await otpAuth?.readiness();
-              await redis.ping();
-            });
-            healthy = configured();
-            return reportCapability(healthy);
-          } catch {
-            healthy = false;
-            return reportCapability(false);
-          }
-        },
-      };
-      otpAuth = createStaffOtpExecution({
-        databaseUrl: process.env['AUTH_DATABASE_URL'] ?? '',
-        configuration: otpConfiguration,
-        capability,
-        strategies: { identify: identity.identify, phoneLockKey },
-      });
-      if (!(await capability.ready())) throw new Error('OPTIONAL_CAPABILITY_UNAVAILABLE');
-      const transport = startStaffOtpWorker({
-        env: process.env,
-        auth: otpAuth,
-        capability,
-        redis,
-        redisUrl: config.REDIS_URL,
-        clock: { now: () => new Date() },
-        ids: systemUuidV7(),
-        diagnostics: {
-          record: (outcome) =>
-            logger.info(
-              { capability: { name: 'STAFF_LOGIN', outcome } },
-              'staff OTP execution outcome',
-            ),
-        },
-      });
-      otp = transport;
-      await optionalWithin(() => transport.ready());
-      const publish = async () => {
-        const ready = await capability.ready();
-        await optionalWithin(async () => {
-          if (ready && configured())
-            await redis.set('staff-otp:worker-capability', initialOtp.fingerprint, 'PX', 3000);
-          else await redis.del('staff-otp:worker-capability');
-        });
-        return ready && configured();
-      };
-      if (!(await publish())) throw new Error('OPTIONAL_CAPABILITY_UNAVAILABLE');
-      capabilityTimer = setInterval(() => {
-        void publish().catch(() =>
-          logger.warn(
-            {
-              capability: {
-                name: 'STAFF_LOGIN',
-                state: 'UNAVAILABLE',
-                reason: 'PUBLISH_FAILED',
-              },
-            },
-            'staff OTP capability',
-          ),
-        );
-      }, 1000);
-    } catch {
-      logger.warn(
-        { capability: { name: 'STAFF_LOGIN', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
-        'staff OTP capability',
-      );
-      clearInterval(capabilityTimer);
-      const failedWorker = otp,
-        failedAuth = otpAuth;
-      otp = undefined;
-      otpAuth = undefined;
-      await closeOptional([() => failedWorker?.close(true), () => failedAuth?.close()]);
-    }
-  }
-  logger.info(
-    {
-      capability: {
-        name: 'STAFF_LOGIN',
-        state:
-          initialOtp.state === 'DISABLED'
-            ? 'DISABLED'
-            : otp === undefined
-              ? 'UNAVAILABLE'
-              : 'READY',
-      },
-    },
-    'staff OTP capability',
-  );
+  const started = await startOptionalCapabilities({
+    env: process.env,
+    logger,
+    notifications,
+    redisUrl: config.REDIS_URL,
+    businessDeliver,
+    intakeUrl: config.PLATFORM_NOTIFICATIONS_DATABASE_URL,
+    redis,
+    stopping: () => stopping,
+  });
+  maintenance = started.maintenance;
+  queue = started.queue;
+  globalDatabase = started.database;
+  inbound = started.inbound;
+  otp = started.otp;
+  otpAuth = started.auth;
+  capabilityTimer = started.timer;
   const worker = await createWorker(
     {
       readiness: [
