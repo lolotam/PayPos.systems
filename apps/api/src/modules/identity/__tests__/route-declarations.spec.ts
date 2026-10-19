@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Controller, Get, Post, RequestMapping, RequestMethod } from '@nestjs/common';
 import { createLogger } from '@pospay/observability';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 import { API_CONTROLLERS, createApp } from '../../../app.ts';
@@ -106,30 +107,60 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../../../../../.
 const PERSONAL_GUARD = 'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest';
 const STAFF_GUARD = 'apps/api/src/shared/session.guard.ts##staff';
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function bindingText(name: ts.Node): string | undefined {
+  if (ts.isIdentifier(name) || ts.isPrivateIdentifier(name)) return name.text;
+  return undefined;
 }
 
-function codeWithoutComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .map((line) => line.replace(/(^|[^:'"`])\/\/.*$/, '$1'))
-    .join('\n');
+function isConstOrLet(node: ts.VariableDeclaration): boolean {
+  return (
+    ts.isVariableDeclarationList(node.parent) &&
+    (node.parent.flags & (ts.NodeFlags.Const | ts.NodeFlags.Let)) !== 0
+  );
 }
 
-// A bare substring would accept a comment or a longer name (`verify` inside `verifyCashierPin`).
+function isPrivateAccessor(node: ts.Node): node is ts.AccessorDeclaration {
+  return (
+    (ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node)) &&
+    ts.isPrivateIdentifier(node.name)
+  );
+}
+
+// A line-start call is an expression. Only a declaration whose name is the symbol counts.
+function declaredName(node: ts.Node): string | undefined {
+  if (
+    ts.isFunctionDeclaration(node) ||
+    ts.isClassDeclaration(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isPropertyDeclaration(node)
+  ) {
+    return node.name === undefined ? undefined : bindingText(node.name);
+  }
+  if (ts.isVariableDeclaration(node) && isConstOrLet(node)) return bindingText(node.name);
+  if (isPrivateAccessor(node)) return bindingText(node.name);
+  return undefined;
+}
+
 function symbolIsDeclared(source: string, symbol: string): boolean {
   if (symbol.length === 0) return false;
-  const code = codeWithoutComments(source);
-  const name = escapeRegExp(symbol);
-  return new RegExp(`^\\s*(?:async\\s+)?${name}\\s*\\(`, 'm').test(code)
-    ? true
-    : [
-        new RegExp(`(?:^|\\s)function\\s+${name}\\b`, 'm'),
-        new RegExp(`(?:^|\\s)class\\s+${name}\\b`, 'm'),
-        new RegExp(`(?:^|\\s)const\\s+${name}\\b`, 'm'),
-      ].some((pattern) => pattern.test(code));
+  const file = ts.createSourceFile(
+    'checked-in.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  let found = false;
+  const visit = (node: ts.Node): void => {
+    if (found) return;
+    if (declaredName(node) === symbol) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return found;
 }
 
 function mountedHandler(key: string): object {
@@ -262,6 +293,12 @@ describe('checkedIn symbol declarations', () => {
   it('refuses a symbol that is only a substring of a longer identifier', () => {
     const source = 'export function verifyCashierPinInput() {}\n  async verifyCashierPin() {}\n';
     expect(symbolIsDeclared(source, 'verify')).toBe(false);
+  });
+
+  it('refuses a file that only calls the symbol at line start', () => {
+    expect(
+      symbolIsDeclared('readAttendanceChangeAccess(input);\n', 'readAttendanceChangeAccess'),
+    ).toBe(false);
   });
 });
 
