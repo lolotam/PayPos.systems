@@ -9,6 +9,13 @@ export {
   type Money,
 } from './money.js';
 export { sumTipTotalsByMethod, type TipMethodAmount } from './tip-totals.js';
+export {
+  performerNetWeights,
+  suggestTipSplit,
+  type TipSuggestion,
+  type TipWeight,
+  type TipWeightLine,
+} from './tip-split.js';
 export { roundKwd } from './rounding.js';
 export { lineNet, discountFromPercent } from './discount-money.js';
 export {

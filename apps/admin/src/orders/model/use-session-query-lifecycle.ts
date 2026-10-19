@@ -14,6 +14,7 @@ const SESSION_QUERY_PREFIXES = new Set([
   'service-line-edits',
   'service-session-capabilities',
   'service-line-cancellations',
+  'session-tips',
 ]);
 
 function sessionQueriesOf({ companyId, businessId, branchId, userId }: SessionServiceScope) {

@@ -60,6 +60,8 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
 4. Guard pass (`clean-code-guard`, `test-guard`, `docs-guard`), then up to **5 review rounds**: Codex astra 6 →
    fresh Claude reviewers → the four PR bots: the Codex GitHub bot (`@codex review` after every push) and the
    MergePilot panel (MergePilot, waleed_bot, mohamed_bot). Every bot's result on the head SHA is read before a merge.
+   While waleed_Bot fails on every review (since 2026-10-19), the other bots completing is enough and the merge
+   report names its failure (PP-5.2, skill §2). This covers waleed_Bot only. Any other failing bot blocks the merge.
 5. Fix every security or correctness finding before merge; P2/P3 left after the cap become linked GitHub issues.
    **Docs-only PRs** (docs, skills, spec-kit files; no code or migration) use the lighter lane of the skill's section 2:
    no round cap and no layer 1/2 reviews, merged on a green ci-gate with both bot groups completed on the head and no
@@ -125,7 +127,8 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 ## 4. Status — 2026-10-16
 
 **Source of truth:** the «المشروع أول بأول» tab of the decisions page
-https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF (published file `roadmap.json`), updated after every merge.
+https://plan.pospay.systems (`public/roadmap.json` in the `lolotam/plan` repo, see `docs/decisions-site.md`),
+updated after every merge. Until 2026-10-19 the page was a claude.ai artifact, now retired.
 
 | Phase | Name | Status |
 |---|---|---|
@@ -229,6 +232,8 @@ drill, production sizing and the salon pilot (row 63, partner request AS-17).
   **temporary**, until D-11), DNS-only.
 - Dokploy with Traefik + Let's Encrypt on that server; the reverse proxy is Dokploy's shared Traefik, never a container
   of ours (`CLAUDE.md` §10).
+- **On hold since 2026-10-19 (PP-5.1):** the staging host key changed. There is no SSH and no deploy until Waleed
+  confirms the fingerprint (skill §6).
 - Staging lives in `/opt/pospay-staging`, reached over the `abdulaziz` SSH profile; images come from GHCR tagged by
   commit SHA; `staging-deploy.sh <sha>` migrates, starts and proves `/ready`; `known-good/<sha>/` keeps every ready
   pair for one-step rollback; a nightly backup runs from `pospay-backup:<sha>`. Steps: pipeline skill §6.

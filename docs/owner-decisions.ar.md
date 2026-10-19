@@ -15,6 +15,7 @@
 | PP-2 | 2026-10-18 | PP-2.1 تصحيح سعر سطر موظفته سابت (#325)؛ PP-2.2 صلاحية هوية النشاط (#331) | PP-2.1: `docs/specs/050-orders-record-service-session/owner-questions.ar.md` بند 35 (ED-Q15)، وسؤال فلوس فاتنشر كمان على صفحة القرارات في الدفعة 33 لأبو سالم؛ PP-2.2: `docs/specs/052-settings-business-identity/owner-questions.ar.md` بند 5 (BI-Q5) |
 | PP-3 | 2026-10-18 | PP-3.1 المنع على كل فروع الموظفة | `docs/specs/051-staff-employee-number/owner-questions.ar.md` بند 22 |
 | PP-4 | 2026-10-18 | PP-4.1 شاشة «الأرقام الوظيفية»؛ PP-4.2 الرقم وقت الإضافة؛ PP-4.3 توجيه الأسئلة | مواصفة 051 بنود 23 و24؛ وهنا (البند 1) |
+| PP-5 | 2026-10-19 | PP-5.1 مفتاح سيرفر الـ staging اتغيّر؛ PP-5.2 الدمج وwaleed_Bot بيفشل؛ PP-5.3 حد جولات المراجعة | هنا (البنود 5 و6 و7) |
 | PP-6 | 2026-10-19 | PP-6.1 مكان الـ PDF المؤقت (Redis)؛ PP-6.2 قارئ اللوجو ينتقل لـ 27g؛ PP-6.3 sandbox بتاع Chromium | `docs/specs/056-documents-pdf-renderer/owner-questions.ar.md` البنود 1 و2 و3 |
 
 ### 1. أسئلة المالك تروح فين؟ (PP-4.3)
@@ -60,3 +61,56 @@
 **الإجابة (وليد، 18 أكتوبر 2026، عن طريق الـ super agent):** «PP-1.3 = (a). Triage the deferred issues yourself (#292, #293, #309-#311, #318, #324-#326, #331, #332, #342, #343, #338): close what is already fixed, keep the rest deferred, bring back to me only what needs a business decision. #338 stays deferred but must be fixed before any restore-to-new-server plan.»
 
 **الأثر على الشغل:** #318 اتقفل (اتصلّح في PR 362 / ADR-0047)، و#324 كان مقفول أصلاً. الفضلوا متأجلين تقنياً: #292، #293، #309، #310، #311، #326، #332، #338، #342، #343. واتنين محتاجين وليد بقوا الدفعة PP-2، وكل واحد متسجّل في ملف شريحته (شوف الفهرس فوق).
+
+### 5. مفتاح سيرفر الـ staging اتغيّر (PP-5.1)
+
+**الخلفية:** يوم 19 أكتوبر 2026، بعد ما حساب وليد اتغيّر والمديرين اتشغّلوا من جديد، الـ SSH لسيرفر الـ staging رفض يتصل وقال إن مفتاح السيرفر (host key) اتغيّر. البصمة الجديدة `SHA256:WGD/zjAFbrRgDJfzj3Qb0mtpGJ98jZdkqPgHJnXXOiY`. التغيير ده ممكن يكون عادي (السيرفر اتعمله rebuild أو المفتاح اتغيّر)، وممكن يكون حد بيتجسس على الاتصال. المنسّق وقف ومتخطّاش التحذير.
+
+- ⭐ **(أ) وليد يتأكد من البصمة بنفسه من console السيرفر، ولو مطابقة يدي الإذن نبدّل سطر المفتاح القديم في `known_hosts`.**
+- (ب) وليد يصلّح `known_hosts` بنفسه.
+- (ج) الـ staging يفضل واقف لحد ما نعرف السبب.
+
+**الإجابة (وليد، 19 أكتوبر 2026، عن طريق الـ super agent):** «كله زي توصيتك» — يعني (أ).
+
+**الأثر على الشغل:** سطر `known_hosts` مايتغيّرش لحد ما وليد يأكّد إن البصمة مطابقة. أي deploy على الـ staging واقف لحد كده. ولسه مستنيين وليد يقول هل السيرفر اتعمله rebuild: لو أيوه، #338 يبقى شرط قبل أي استرجاع backup على السيرفر.
+
+### 6. ندمج إزاي وwaleed_Bot بيفشل؟ (PP-5.2)
+
+**الخلفية:** في لوحة MergePilot، waleed_Bot بيرجّع failed في كل مراجعة على PR 397 وPR 398. قاعدة الـ pipeline بتطلب إن كل البوتات تخلّص على الـ head قبل الدمج.
+
+- ⭐ **(أ) ندمج لما Codex وباقي بوتات MergePilot يخلّصوا على الـ head ومايبقاش فيه P0/P1 مفتوح، وفشل waleed_Bot يتكتب في تقرير الدمج لحد ما مدير MergePilot يصلّحه.**
+- (ب) نوقف كل الدمج لحد ما waleed_Bot يتصلّح.
+
+**الإجابة (وليد، 19 أكتوبر 2026، عن طريق الـ super agent):** «كله زي توصيتك» — يعني (أ).
+
+**الأثر على الشغل:** PR 397 اتدمج على القاعدة دي، وفشل waleed_Bot اتكتب في تقرير الدمج.
+
+### 7. حد جولات المراجعة كام؟ (PP-5.3)
+
+**الخلفية:** نسخة الـ main المحلية على جهاز المنسّق كان فيها تعديل قديم مش متعمله commit بيخلّي الحد 3 جولات، ومكتوب جنبه «owner, 2026-10-13». النسخة على GitHub بتقول 5، واتأكدت في PR 363 وPR 374.
+
+- ⭐ **(أ) 5 جولات زي GitHub، والتعديل المحلي القديم يتشال.**
+- (ب) 3 جولات، ويتفتح PR يثبّتها.
+
+**الإجابة (وليد، 19 أكتوبر 2026، عن طريق الـ super agent):** «كله زي توصيتك» — يعني (أ).
+
+**الأثر على الشغل:** الحد فضل 5 جولات (`.claude/skills/pospay-pipeline/SKILL.md` §2). التعديل المحلي اتشال، ونسخة الـ main المحلية اتحدّثت.
+
+### 8. صفحة القرارات تتنقل من claude.ai لسيرفرنا
+
+**الخلفية:** صفحة «قرارات PosPay» كانت artifact على claude.ai، وبياناتها متخزنة هناك. وليد طلب ينقلها لسيرفر الـ Dokploy بتاعنا على دومين خاص، وتتحفظ في ملف JSON.
+
+**الإجابة (وليد، في الشات مباشرة، على مرحلتين):**
+
+- **19 أكتوبر 2026، قبل النقل:** طلب النقل نفسه: «Deploy the https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF to … json file … deploy to dokploy … https://plan.pospay.systems». النقل اتعمل بعد الطلب ده بنفس اليوم.
+- **20 أكتوبر 2026، بعد النقل:** تعديل قواعد الشغل: «write prompt for the manager to change the artifact … to this project https://plan.pospay.systems … so after every merge will update this url and any questions to me or abusalem to it also and can retrieve the results» و«also change in the pipeline to update this project instead of https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF».
+
+**الأثر على الشغل:**
+
+- الصفحة بقت https://plan.pospay.systems، والكود في الـ repo الخاص `lolotam/plan`.
+- أسئلة الفلوس وتبويب «المشروع أول بأول» بيتنشروا بـ push على الـ repo ده.
+- الإجابات بتتقري من الـ API بتاع الموقع.
+- القواعد اتعدلت في `CLAUDE.md` (V3.12) و`AGENTS.md` والـ pipeline skill و`docs/HANDOVER.md`.
+- الطريقة بالتفصيل في `docs/decisions-site.md`.
+- الـ artifact القديم اتقفل: مفيش نشر عليه ولا قراية منه تاني.
+- البيانات اتنقلت منه في 19 أكتوبر 2026 حوالي 20:30 UTC: 158 قرار نهائي و690 مراجعة.

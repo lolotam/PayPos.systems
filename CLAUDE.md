@@ -15,6 +15,7 @@
 >
 > **Changelog**
 >
+> - **V3.12 (2026-10-20)** — §1 5b/5c: the decisions page moved off claude.ai to the self-hosted site https://plan.pospay.systems (repo `lolotam/plan`). Question batches and `roadmap.json` are published by a git push to that repo; answers are read and owner decisions written through its HTTP API. The old artifact is retired. How-to: `docs/decisions-site.md` (Waleed, in chat, 2026-10-20).
 > - **V3.11 (2026-10-18)** — §1 5b: owner questions are routed by kind. Charges/money questions go to the decisions page for Abu Salem; permission and technical questions go to Waleed only through his super agent. Every answer is copied verbatim into the slice's `owner-questions.ar.md`, which is the audit record. When Abu Salem has answered, Waleed's own pick is not required (Waleed, PP-1.2, 2026-10-18). Both decisions are recorded in `docs/owner-decisions.ar.md`, with the PP batch index.
 > - **V3.10 (2026-10-11)** — §1 5b: when Waleed and his partner pick differently, the partner's (Abu Salem's) pick is binding; work proceeds on Waleed's pick until the partner answers (Waleed, 2026-10-10). New 5c: the decisions page's «المشروع أول بأول» tab (`roadmap.json`) is updated after every merge, every new row or task, and every new partner request (Waleed, 2026-10-10/11).
 > - **V3.9 (2026-10-09)** — §5: migration data steps (ADR-0038, accepted by Waleed 2026-10-09) are a recorded exception: the migration owner reads only `companies.id`, every tenant effect runs under `withTenant` on `pospay_app`; no runtime role gains `BYPASSRLS`, no new grant (issue #139).
@@ -43,7 +44,7 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
 5. Every architectural decision → `docs/adr/NNNN-title.md` (context, decision, consequences).
 5b. **Every owner question is recorded in the slice, then routed by its kind.**
     - Always first, the slice's `docs/specs/NNN-…/owner-questions.ar.md`. It holds the question, the options, the recommended option, and the owner's answer verbatim, all in Arabic. **This file is the audit record** of every owner decision, whichever channel the answer came through. A question that belongs to no slice (a docs-only PR, a pipeline or process rule) is recorded the same way in `docs/owner-decisions.ar.md`.
-    - **Charges and money** (what a customer pays, what staff earn, how money moves or is recorded: prices, fees, discounts, tips, commissions, refunds, cancellations of paid lines): also the shared decisions page https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF, as a **new numbered batch**. Batch 1 is the decisions made up to 2026-10-08; the next batch number is the highest batch on the page + 1 (one sequence for the whole project, whatever the slice). A money question Waleed already answered through his super agent still goes to the page, so the partner can pick, and work proceeds on Waleed's pick meanwhile.
+    - **Charges and money** (what a customer pays, what staff earn, how money moves or is recorded: prices, fees, discounts, tips, commissions, refunds, cancellations of paid lines): also the shared decisions page https://plan.pospay.systems, as a **new numbered batch** (published and read as `docs/decisions-site.md` describes). Batch 1 is the decisions made up to 2026-10-08; the next batch number is the highest batch on the page + 1 (one sequence for the whole project, whatever the slice). A money question Waleed already answered through his super agent still goes to the page, so the partner can pick, and work proceeds on Waleed's pick meanwhile.
     - **Permissions and technical questions** (roles, who can see or edit what, access scope, screens' reach, design, CI, database, tooling): go to Waleed only, through his super agent (a Claude session that sits above the project managers and relays his answers; the orchestrator reaches it by cross-session message), as a numbered batch `PP-n` with items `PP-n.m`, numbered in order for this project and listed in the index of `docs/owner-decisions.ar.md` (next number = highest there + 1); never to the partner page. His answer is copied verbatim into the slice's `owner-questions.ar.md` with the date and «عن طريق الـ super agent» (Waleed, PP-4.3, 2026-10-18).
     - **Overlap:** a question that is both (for example «may a cashier refund or cancel a paid line?») is a money
       question: it goes to the page, because the answer changes how money moves.
@@ -56,18 +57,22 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
       proceeds on Waleed's pick; if the partner later differs, his pick replaces it (the decision record, the slice's
       `owner-questions.ar.md` with the old answer kept as history, and the spec/code through a follow-up if already
       merged).
-    - Never create a second page. Publish to that same URL.
+    - Never create a second page. Publish to that same site. The old claude.ai artifact is retired: never publish to
+      it or read answers from it.
     - **Who writes where:** only the Claude Code orchestrator session can publish to that page. Any other agent (Codex,
       Grok, a subagent) writes the question into the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md` for a
       question that belongs to no slice) with the answer marked
       `PENDING`, marks the rule `TODO(spec)`, and stops. The orchestrator then routes it by kind (the page for a
       charges/money question, Waleed's super agent for every other question) and writes the owner's answer back into
       the file.
-5c. **The project-status tab is always current.** The same decisions page has a tab «المشروع أول بأول» fed by its
-    published file `roadmap.json`: every phase, gate, task and sub-task by its code, the product tracks, and every
-    partner request, each marked done / in progress / not started. The orchestrator updates it and republishes **after
-    every merge, whenever a row or task is added or renamed, and whenever the partner asks for something new** — read
-    the live page first and edit `roadmap.json` in place (never rebuild it), so a parallel session's edits survive.
+5c. **The project-status tab is always current.** The same decisions page has a tab «المشروع أول بأول» fed by
+    `public/roadmap.json` in the `lolotam/plan` repo: every phase, gate, task and sub-task by its code, the product
+    tracks, and every partner request, each marked done / in progress / not started. The orchestrator updates it and
+    pushes it to `main` (Dokploy redeploys the site) **after every merge, whenever a row or task is added or renamed,
+    and whenever the partner asks for something new** — `git pull` first and edit `roadmap.json` in place (never
+    rebuild it), so a parallel session's edits survive. The orchestrator also reads the answers back from the site
+    (`docs/decisions-site.md` §C) at the start of each session, before starting a slice that waits on a pending
+    question, and after every merge.
 6. **A slice is not done until the checklist in `CLAUDE.architecture.md` §15 passes.**
 
 > **A doc comment is written with its function, not afterwards** (§3.1). "I'll document it later" means it never gets documented, and by then the author has forgotten the _why_ — which is the only part worth writing down.

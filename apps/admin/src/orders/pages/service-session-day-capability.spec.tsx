@@ -158,3 +158,53 @@ it('clears the day when the capability read is refused with 403', async () => {
   await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
   expect(cancel()).toBeNull();
 });
+
+const recorded = {
+  data: {
+    generated_at: instant,
+    business_timezone: 'Asia/Kuwait',
+    recorder_membership_ids: [id(8)],
+    recorder_membership_id: id(8),
+    discount_limit: { source: 'OWNER' as const, bps: null },
+  },
+  response: { status: 200 },
+};
+const tipsButton = () => screen.queryByRole('button', { name: t('en', 'sessionTips.open') });
+
+it('keeps the day and hides Record tip for a reader without record permission', async () => {
+  state.online = true;
+  const gate = deferred();
+  state.get.mockImplementation((path: string) => {
+    const name = String(path);
+    if (name.includes('/capabilities')) {
+      return Promise.resolve({ data: { can_cancel_lines: false }, response: { status: 200 } });
+    }
+    if (name.includes('recording-context')) return gate.promise;
+    return Promise.resolve(day);
+  });
+  renderPage();
+  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
+  expect(tipsButton()).toBeNull();
+  await act(async () => {
+    gate.settle(refused);
+  });
+  expect(screen.getByText('Synthetic customer')).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(tipsButton()).toBeNull();
+  expect(state.get.mock.calls.some((call) => String(call[0]).includes('/tips'))).toBe(false);
+});
+
+it('shows Record tip when the recording context succeeds', async () => {
+  state.online = true;
+  state.get.mockImplementation((path: string) => {
+    const name = String(path);
+    if (name.includes('/capabilities')) {
+      return Promise.resolve({ data: { can_cancel_lines: false }, response: { status: 200 } });
+    }
+    if (name.includes('recording-context')) return Promise.resolve(recorded);
+    return Promise.resolve(day);
+  });
+  renderPage();
+  expect(await screen.findByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();
+  expect(screen.getByText('Synthetic customer')).toBeTruthy();
+});

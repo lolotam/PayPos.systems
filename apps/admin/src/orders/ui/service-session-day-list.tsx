@@ -4,12 +4,14 @@ import { t, type Locale } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useRef, type RefObject } from 'react';
 import type { UnresolvedCancel } from '../api/use-cancel-service-line';
+import type { UnresolvedTip } from '../api/use-record-session-tips';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { CancelServiceLineDialog } from './cancel-service-line-dialog';
 import { ServiceLineCancellationDetails } from './service-line-cancellation-details';
 import { ServiceLineEditHistory } from './service-line-edit-history';
 import { ServiceSessionDayEditor } from './service-session-day-editor';
 import { ServiceSessionDayVisit } from './service-session-day-visit';
+import { SessionTipsLauncher } from './session-tips-launcher';
 import { useDayLineActions } from './use-day-line-actions';
 
 type Visit = DayPage['items'][number];
@@ -22,6 +24,7 @@ export type ServiceSessionDayListProps = {
   online: boolean;
   timezone: string;
   canCancel: boolean;
+  canRecord: boolean;
   loadError: string | null;
   empty: boolean;
   hasNext: boolean;
@@ -30,6 +33,7 @@ export type ServiceSessionDayListProps = {
   refetchPages: () => Promise<Pages | null>;
   mounted: RefObject<boolean>;
   onAccessDenied: (message: string) => void;
+  tipAttempts?: RefObject<Map<string, UnresolvedTip>>;
 };
 
 // حالة السطر بتتاخد من جلب اليوم بعد الرفض؛ لو الجلب فشل أو السطر مش موجود الحوار يفضل على رسالة الرفض.
@@ -90,6 +94,25 @@ function cancellationPanel(list: ServiceSessionDayListProps, visit: Visit, lineI
   );
 }
 
+function visitTips(
+  list: ServiceSessionDayListProps,
+  visit: Visit,
+  onForbidden: (message: string) => void,
+) {
+  if (!list.canRecord) return null;
+  return (
+    <SessionTipsLauncher
+      scope={list.scope}
+      sessionId={visit.id}
+      lines={visit.lines}
+      online={list.online}
+      {...(list.tipAttempts ? { memory: list.tipAttempts } : {})}
+      onForbidden={onForbidden}
+      onAccessDenied={list.onAccessDenied}
+    />
+  );
+}
+
 function ServiceSessionDayVisitSlot({
   visit,
   list,
@@ -136,6 +159,7 @@ function ServiceSessionDayVisitSlot({
         actions.toggleDetails(visit.id, lineId);
       }}
       editor={editor}
+      tipAction={visitTips(list, visit, actions.setNotice)}
       historyPanel={historyLineId ? historyPanel(list, visit, historyLineId) : null}
       detailsPanel={detailsLineId ? cancellationPanel(list, visit, detailsLineId) : null}
     />

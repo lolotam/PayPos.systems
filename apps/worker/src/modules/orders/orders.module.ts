@@ -28,6 +28,15 @@ import {
 } from './persistence/service-line-cancel-notice.repository.ts';
 import { RequestLineCancelNotice } from './use-cases/request-line-cancel-notice/request-line-cancel-notice.ts';
 import { onLineCancelled } from './events/handlers/on-line-cancelled.handler.ts';
+import type { PerformersChangeNameFallback } from './domain/performers-change-notice.ts';
+import { performersChangeRecipients } from './persistence/performers-change-recipients.adapter.ts';
+import { performersChangePlace } from './persistence/performers-change-place.adapter.ts';
+import {
+  performersChangeRepository,
+  performersChangeOutbox,
+} from './persistence/service-line-performer-notice.repository.ts';
+import { RequestPerformersChangeNotice } from './use-cases/request-performers-change-notice/request-performers-change-notice.ts';
+import { onPerformersChanged } from './events/handlers/on-performers-changed.handler.ts';
 
 export function createLateServiceSessionNoticeConsumer(
   ids: IdGenerator,
@@ -89,6 +98,28 @@ export function createLineCancelNoticeConsumer(ids: IdGenerator, clock: Clock): 
     handle: (tx, event) => onLineCancelled(bind(tx), event),
   };
 }
+export function createPerformersChangeNoticeConsumer(
+  ids: IdGenerator,
+  clock: Clock,
+): OutboxConsumer {
+  const bind = (tx: Tx) =>
+    new RequestPerformersChangeNotice(
+      {
+        recipients: performersChangeRecipients(tx),
+        place: performersChangePlace(tx),
+        repository: performersChangeRepository(tx),
+        outbox: performersChangeOutbox(tx),
+      },
+      ids,
+      clock,
+      performersChangeFallback(),
+    );
+  return {
+    id: 'orders.line-performers-notice-v1',
+    eventTypes: ['ServiceLineChanged'],
+    handle: (tx, event) => onPerformersChanged(bind(tx), event),
+  };
+}
 function priceEditFallback(): PriceEditNameFallback {
   return {
     service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
@@ -98,6 +129,13 @@ function priceEditFallback(): PriceEditNameFallback {
   };
 }
 function lineCancelFallback(): LineCancelNameFallback {
+  return {
+    service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
+    branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
+    safeName: safeDisplayName,
+  };
+}
+function performersChangeFallback(): PerformersChangeNameFallback {
   return {
     service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
     branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },

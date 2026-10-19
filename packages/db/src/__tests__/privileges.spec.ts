@@ -139,6 +139,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'service_line_performer_change_rows:SELECT',
     'service_line_performer_changes:INSERT',
     'service_line_performer_changes:SELECT',
+    'service_line_performer_notices:INSERT',
+    'service_line_performer_notices:SELECT',
     'service_lines:INSERT',
     'service_lines:SELECT',
     'service_session_recoveries:INSERT',
@@ -361,12 +363,9 @@ describe('effective privileges match the reviewed allowlist', () => {
 });
 
 // A role the application can SET ROLE to is a way around every check above, even without inheritance.
-const settableRoles = async (role: string): Promise<string[]> => {
-  const rows = await owner<{ name: string }[]>`
-    SELECT rolname AS name FROM pg_roles
-    WHERE rolname <> ${role} AND pg_has_role(${role}, oid, 'SET') ORDER BY 1`;
-  return rows.map((r) => r.name);
-};
+const settableRoles = async (role: string): Promise<string[]> =>
+  (await owner<{ name: string }[]>`SELECT rolname AS name FROM pg_roles
+    WHERE rolname <> ${role} AND pg_has_role(${role}, oid, 'SET') ORDER BY 1`).map((r) => r.name);
 
 describe('no application role can switch to another role', () => {
   it.each(APP_ROLES)('%s can SET ROLE to no other role, directly or indirectly', async (role) => {

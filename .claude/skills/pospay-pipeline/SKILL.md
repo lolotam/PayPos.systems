@@ -61,6 +61,10 @@ moment it happens, in the owner report. Never switch to a metered provider witho
   completed on that head, and no P0/P1 is open. A P1 here means a wrong or contradictory rule in any governing or operational document (a spec, an ADR, `CLAUDE.md`, a skill, `docs/security.md`, a runbook); the bar
   for it does not move. P2/P3 findings on prose are fixed in one batch commit at most; the rest become linked issues.
   The status-page update (§6 step 8) still applies after the merge.
+- **waleed_Bot failing (PP-5.2, owner, 2026-10-19).** While **waleed_Bot** returns `❌ failed` on every review,
+  "the panel completed" means every *other* panel bot completed on the head. The Codex bot must still complete, and
+  no P0/P1 may be open. The merge report names waleed_Bot's failure. The exception covers waleed_Bot only and ends when
+  it completes again. Any other bot that fails blocks the merge until the owner decides.
 
 ---
 
@@ -77,11 +81,11 @@ moment it happens, in the owner report. Never switch to a metered provider witho
 | 6 | Database review — **mandatory** when the PR touches `packages/db/**` (schema, migration, RLS, grants, seed) | Codex astra 6 medium | no open P0/P1 (§5 checklist) |
 | 7 | Review layer 1 | Codex astra 6 medium | findings fixed by Grok in its resumed session, or deferred per §2 |
 | 8 | Review layer 2 — one Sonnet 5.5 reviewer (§8 rule 5); no separate confirm round, the four bots confirm on the head SHA in step 9 | fresh Claude reviewer | its findings fixed by Grok or deferred per §2 |
-| 9 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | **all four bots answered on the head SHA**: Codex summary says Completed for that SHA, the MergePilot review for that SHA shows all three bots completed, and every inline finding is fixed or deferred per §2 |
+| 9 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | **all four bots answered on the head SHA**: Codex summary says Completed for that SHA, the MergePilot review for that SHA shows all three bots completed (a failing waleed_Bot is handled by the PP-5.2 exception in §2), and every inline finding is fixed or deferred per §2 |
 | 10 | CI `ci-gate` green **on the exact head being merged** | GitHub Actions | green |
 | 11 | Merge: `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` — a push after the reviews makes the merge fail instead of landing an unreviewed head | orchestrator | merged |
 | 12 | Deploy to staging (§6) | orchestrator | `/ready` answers ready on the new SHA |
-| 13 | Update the decisions page's «المشروع أول بأول» tab (§6 step 8) | orchestrator | `roadmap.json` republished |
+| 13 | Update the decisions page's «المشروع أول بأول» tab (§6 step 8) | orchestrator | `roadmap.json` pushed to `lolotam/plan` and live |
 | 14 | Journey doc `docs/journey/NN-<name>.md` (Arabic + English) in its own docs PR | orchestrator | merged after Codex review |
 | 15 | Owner report (§7) | orchestrator | sent |
 
@@ -166,6 +170,11 @@ what saves tokens is reusing one session and keeping its prefix stable:
 
 ## 6. Staging deploy — after every merge that changes code
 
+**Hold (PP-5.1, 2026-10-19):** the staging server's SSH host key changed. Until the owner confirms the new
+fingerprint on the server console, make no SSH connection and no deploy. Merged code waits for staging, and the owner
+report lists it. Never bypass or auto-accept a host-key warning. Remove this hold in the PR that records his
+confirmation.
+
 On the `abdulaziz` SSH profile, in `/opt/pospay-staging`:
 
 1. Confirm the main CI run for the merged SHA is green (it pushes the images to GHCR). The server pulled GHCR images
@@ -190,10 +199,12 @@ On the `abdulaziz` SSH profile, in `/opt/pospay-staging`:
 the `.env` next to itself, so it must always run from `/opt/pospay-staging/`, never from inside `known-good/`.
 7. Point `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
    local image is removed by the server's cleanup and the nightly backup then fails silently).
-8. Update the decisions page's «المشروع أول بأول» tab (`CLAUDE.md` §1 5c) at
-   https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF: read the live page, set the merged rows, sub-tasks and any partner
-   requests they close to done with the PR number, add any new rows, bump `updated`, and republish `roadmap.json` to the
-   same URL. A docs-only merge updates the tab too. A release is not reported to the owner until this is done.
+8. Update the decisions page's «المشروع أول بأول» tab (`CLAUDE.md` §1 5c) at https://plan.pospay.systems
+   (`docs/decisions-site.md` §B): `git pull` the `lolotam/plan` clone, set the merged rows, sub-tasks and any partner
+   requests they close to done with the PR number in `public/roadmap.json`, add any new rows, bump `updated`, push to
+   `main`, and confirm the live `roadmap.json` shows the change. Then read the answers back (§C of the same doc) and
+   send the merge notification to Waleed's phone (§D). A
+   docs-only merge updates the tab too. A release is not reported to the owner until this is done.
 
 The server is shared: never touch another project's containers, databases or files.
 
@@ -243,11 +254,12 @@ typing do not.
    free model (GLM) and Claude edits them. Claude writes a document from scratch only when it records a decision it
    alone has the context for.
 7. **The roadmap is edited by a script.** After a merge, write the changed rows as `[{ "code": "…", "status": "done",
-   "ref": "PR #n" }]` and run `node scripts/roadmap/cli.mjs roadmap.json updates.json`. It sets status and ref by
+   "ref": "PR #n" }]` and, from this repo's root, run `node scripts/roadmap/cli.mjs F:/Dev/Projects/plan-pospay/public/roadmap.json updates.json`
+   (the `lolotam/plan` clone's file). It sets status and ref by
    code anywhere in the file (phases, gates, track items, partner requests), bumps `updated`, and refuses an unknown
    code or status before changing anything. It cannot add a row: add a new row by hand in the right group of
-   `roadmap.json` first, then run the script for the statuses. Read the live page, run the script on a copy of
-   `roadmap.json`, republish. Do not write a new script each time.
+   `roadmap.json` first, then run the script for the statuses. `git pull` the `lolotam/plan` clone, run the script on
+   its `public/roadmap.json`, push. Do not write a new script each time.
 8. **Report the draw.** When the owner asks about quota, answer from the context sizes of the sessions and the number of
    wake-ups, not from guesses; the app does not expose per-session numbers.
 
