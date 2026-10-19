@@ -13,7 +13,7 @@ function facts(patch: Partial<LogoFileFacts> = {}): LogoFileFacts {
     branchId: null,
     ownerModule: 'settings',
     ownerEntityId: BUSINESS,
-    requiredPermission: 'read:settings:business',
+    requiredPermission: 'manage:business-identity:business',
     createdBy: ACTOR,
     contentType: 'image/png',
     status: 'READY',
@@ -50,6 +50,7 @@ describe('validateLogoFile', () => {
     expect(codeOf(facts({ branchId: OTHER }))).toBe('FILE_NOT_FOUND');
     expect(codeOf(facts({ createdBy: OTHER }))).toBe('FILE_NOT_FOUND');
     expect(codeOf(facts({ requiredPermission: 'read:files:business' }))).toBe('FILE_NOT_FOUND');
+    expect(codeOf(facts({ requiredPermission: 'read:settings:business' }))).toBe('FILE_NOT_FOUND');
     expect(codeOf(facts({ contentType: 'application/pdf' }))).toBe('FILE_NOT_FOUND');
     expect(codeOf(facts({ contentType: 'image/jpg' }))).toBe('FILE_NOT_FOUND');
     expect(

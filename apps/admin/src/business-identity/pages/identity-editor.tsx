@@ -27,7 +27,7 @@ export function IdentityEditor(props: {
   removed: boolean;
   onSave: (body: UpdateBusinessIdentityNamesInput) => void;
   onUpload: (file: File) => void;
-  onRemove: () => void;
+  onRemove: () => Promise<unknown>;
 }) {
   const locale = useLocale();
   return (

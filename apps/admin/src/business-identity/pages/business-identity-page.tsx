@@ -6,7 +6,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { useBusinessIdentity } from '../api/use-business-identity';
 import { useBusinessLogo } from '../api/use-business-logo';
 import { useOfficialNames } from '../api/use-official-names';
-import { identityFailureMessage } from '../model/identity-failure';
+import { identityFailureMessage, isAuthorizationRefusal } from '../model/identity-failure';
 import { logoAltText } from '../model/logo-alt';
 import { IdentityEditor } from './identity-editor';
 
@@ -23,8 +23,10 @@ export function BusinessIdentityPage(scope: Scope) {
         official_name_en: identity.data.official_name_en,
       }
     : (names.data ?? null);
-  const logoId = visibleLogo(identity.data?.logo_file_id, logo.writtenId, logo.removed);
+  // خطأ القراءة من غير صف يسيب المعرف مجهولًا؛ null وحده يعني مفيش شعار
+  const logoId = identity.data === undefined ? undefined : identity.data.logo_file_id;
   const showEditor = identity.isSuccess || identity.isError;
+  const namesVisible = identity.data !== undefined && !isAuthorizationRefusal(identity.error);
   return (
     <section className="flex min-w-0 flex-col gap-8 text-start">
       <PageHeader
@@ -38,7 +40,7 @@ export function BusinessIdentityPage(scope: Scope) {
       {showEditor ? (
         <IdentityEditor
           companyId={scope.companyId}
-          showNames={identity.isSuccess}
+          showNames={namesVisible}
           baseline={baseline}
           saved={names.data ?? null}
           logoId={logoId}
@@ -51,23 +53,12 @@ export function BusinessIdentityPage(scope: Scope) {
           removing={logo.remove.isPending}
           failure={logo.failure}
           removeFailure={logo.removeFailure}
-          removed={logo.removed}
+          removed={logo.removed && logoId === null}
           onSave={(body) => names.mutate(body)}
           onUpload={(file) => logo.upload.mutate(file)}
-          onRemove={() => logo.remove.mutate()}
+          onRemove={() => logo.remove.mutateAsync()}
         />
       ) : null}
     </section>
   );
-}
-
-function visibleLogo(
-  stored: string | null | undefined,
-  written: string | null | undefined,
-  removed: boolean,
-): string | null | undefined {
-  if (removed) return null;
-  if (written !== undefined) return written;
-  // undefined يعني القراءة ما عرفتش المعرف؛ null بس هو «مفيش شعار»
-  return stored;
 }

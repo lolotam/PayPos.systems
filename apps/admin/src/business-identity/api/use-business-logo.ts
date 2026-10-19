@@ -77,7 +77,6 @@ export function useBusinessLogo(companyId: string, userId: string, businessId: s
   const [phase, setPhase] = useState<LogoPhase>('idle');
   const [failure, setFailure] = useState<unknown>(null);
   const [removeFailure, setRemoveFailure] = useState<unknown>(null);
-  const [writtenId, setWrittenId] = useState<string | null | undefined>(undefined);
   const [removed, setRemoved] = useState(false);
   const scope: Scope = { companyId, userId, businessId };
   const report = (next: LogoPhase) => {
@@ -96,7 +95,7 @@ export function useBusinessLogo(companyId: string, userId: string, businessId: s
       publishLogo(client, scope, saved, () => {
         if (!mounted.current) return;
         setPhase('ready');
-        setWrittenId(saved.logo_file_id);
+        setRemoved(false);
       }),
     onError: (error) => {
       if (!mounted.current || isCancelledUpload(error)) return;
@@ -115,8 +114,7 @@ export function useBusinessLogo(companyId: string, userId: string, businessId: s
       publishLogo(client, scope, saved, () => {
         if (!mounted.current) return;
         setPhase('idle');
-        setRemoved(true);
-        setWrittenId(saved.logo_file_id);
+        setRemoved(saved.logo_file_id === null);
       }),
     onError: (error) => {
       if (!mounted.current) return;
@@ -124,5 +122,5 @@ export function useBusinessLogo(companyId: string, userId: string, businessId: s
       forgetCapability(client, scope, error);
     },
   });
-  return { phase, failure, removeFailure, writtenId, removed, upload, remove };
+  return { phase, failure, removeFailure, removed, upload, remove };
 }

@@ -237,6 +237,7 @@ it('refuses another business, a staff document, and a file the actor does not ow
   await expectLogoRefusal(f, put, { createdBy: f.managerId });
   await expectLogoRefusal(f, put, { branchId: f.branch });
   await expectLogoRefusal(f, put, { requiredPermission: 'read:files:business' });
+  await expectLogoRefusal(f, put, { requiredPermission: 'read:settings:business' });
   await expectLogoRefusal(f, put, { contentType: 'application/pdf' });
   await expectLogoRefusal(f, put, {
     contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -317,7 +318,7 @@ it('binds a ready file while storage is not configured', async () => {
       owner_entity_id: f.business,
       content_type: 'image/png',
       size_bytes: 10,
-      required_permission: 'read:settings:business',
+      required_permission: 'manage:business-identity:business',
     },
   });
   expect([upload.statusCode, errorEnvelope.parse(upload.json()).code]).toEqual([

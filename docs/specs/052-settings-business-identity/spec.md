@@ -32,7 +32,7 @@ the name text.
 | **27h-0** | This spec + ADR-0046 + owner questions (docs-only PR) | spec, ADR, plan row | — |
 | **27h-1a** | permission `manage:business-identity:business` (BI-Q1) | (a) migration that inserts the permission and its owner role default (pattern of migration 0128), added to `ROLE_DEFAULTS`, `OWNER_GRANTED_PERMISSIONS` (db and identity lists), `deviceForbidden` in `packages/db/src/system-role-policy.ts` (a device is otherwise eligible for every catalog permission not listed there) and the owner-only rules of `permission-edit`; (b) the ar/en permission-name catalogs («إدارة هوية النشاط») in `packages/i18n`; (c) tests: default owner-only, only the owner can grant it, never a device (an ALLOW override on a device membership is refused), `privileges.spec.ts` allowlist | 27h-0 |
 | **27h-1** | `update-business-identity-names` | (a) migration: 3 columns + CHECKs + composite FK + partial unique index, `privileges.spec.ts` check, RLS negative test; (b) contract + use case + audit + cache-guard fix; (c) integration + query-shape tests | 27h-1a |
-| **27h-2** | files side (no new endpoint, no logo-specific size cap: BI-Q3 keeps the generic 10 MiB) | (a) `validateStoredPermission`: `settings` ⇒ `read:settings:business`; (b) `purge_started` added to the file facts read + tests | 27h-0 |
+| **27h-2** | files side (no new endpoint, no logo-specific size cap: BI-Q3 keeps the generic 10 MiB) | (a) `validateStoredPermission`: `settings` ⇒ `manage:business-identity:business` (BI-Q5; this replaces the earlier `read:settings:business` pin); (b) `purge_started` added to the file facts read + tests | 27h-0 |
 | **27h-3** | `retire-business-logo` (worker, `files`-owned consumer; ships **before** any producer) | (a) `BusinessLogoChanged` registered as a known event type with a database-only idempotent consumer and the module-map event arrow; (b) lock and re-check through `lockBusinessLogoReference` in `@pospay/db` (one implementation, no `files → settings` reads arrow), `purge_started_at` handoff, the `retired` kind in the retention worker (storage delete outside transactions, tombstone, system audit) and the schedule bootstrap of §5.1 item 5; (c) race, crash-between-steps and replay tests with synthetic events | 27h-1 (needs `business_settings.logo_file_id` for the reference check), 27h-2 (needs the `purge_started` flag) |
 | **27h-4** | `set-business-logo` (bind or remove; the event producer) | (a) domain `validateLogoFile` + port + adapter (`settings → files` read) + module-map line; (b) use case + `PUT /v1/businesses/:businessId/settings/logo` + audit + `BusinessLogoChanged` emit; (c) `readBusinessIdentity` + pure `statementIdentity` exports + tests | 27h-1, 27h-2, 27h-3 |
 | **27h-5** | Admin screen (names, upload with status, preview, replace, remove) | (a) names form; (b) logo upload flow (files endpoints, poll status); (c) preview through the audited download + i18n | 27h-1, 27h-4 |
@@ -84,7 +84,7 @@ Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, a
 | BI-12 | `readBusinessIdentity` returns the three stored fields; `statementIdentity(language, identity, displayNames)` returns the header name per §6 and whether a logo exists. |
 | BI-13 | The settings read (`GET .../settings`) includes the three new fields; a Redis entry cached before this release is never served without them. |
 | BI-14 | The audit and the event never contain a storage key, a signed URL or file bytes. |
-| BI-15 | A person who holds `manage:settings:business` but not `manage:business-identity:business` (a manager) is refused `FORBIDDEN` on the names, the bind and the removal, and nothing is written; the owner, and a person the owner granted the permission to, succeed. A person without `manage:files:business` can still type names and bind a file she uploaded but cannot upload one. |
+| BI-15 | A person who holds `manage:settings:business` but not `manage:business-identity:business` (a manager) is refused `FORBIDDEN` on the names, the bind and the removal, and nothing is written; the owner, and a person the owner granted the permission to, succeed. Uploading, confirming, polling, binding and previewing the logo need `manage:business-identity:business` alone (BI-Q5). `manage:files:business` is not required and is not enough on its own. |
 | BI-16 | A logo whose upload and whose re-encoded output are both within the generic 10 MiB limit is accepted like any file and can be bound; one whose re-encoding grows past the limit is rejected at verification with `FILE_SIZE_INVALID`, like any image. Nothing logo-specific refuses either. |
 
 ### Edge cases
@@ -104,17 +104,19 @@ Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, a
 1. **Storage.** Three nullable columns on the existing `business_settings` (one row per business, already locked, audited
    and cached): `official_name_ar`, `official_name_en`, `logo_file_id`. No new table (a second row, audit entity and
    cache entry for three columns). Both advisors agree.
-2. **Upload.** Reuse the `files` pipeline unchanged: `POST businesses/:businessId/files/uploads` with
-   `owner_module='settings'`, `owner_entity_id=<business id>`, `required_permission='read:settings:business'`, no branch;
-   then confirm, worker verification (type from bytes, size, full sharp re-encode, metadata stripped), poll status. The
-   files endpoints keep their own authority (`manage:files:business`, owner-only by default since 13b); the identity
-   permission does not replace it (§5.4).
+2. **Upload.** Reuse the `files` pipeline: `POST businesses/:businessId/files/uploads` with
+   `owner_module='settings'`, `owner_entity_id=<business id>`, `required_permission='manage:business-identity:business'`
+   (BI-Q5; not `read:settings:business`), no branch; then confirm, worker verification (type from bytes, size, full sharp
+   re-encode, metadata stripped), poll status. A settings upload is authorized with `manage:business-identity:business`
+   on that business instead of `manage:files:business`, and the stored permission must equal that. Confirm and status
+   for a settings file follow the same identity permission, so the delegate can see verification. Staff documents stay
+   on `manage:files:business` and `read:files:business`. Download checks the stored permission (§5.4).
    Binding happens in a **separate settings call** that receives only the file id (ADR-0031 pattern): settings never
    handles bytes, keys, or storage.
 3. **Bind check** inside the settings tenant transaction, after the business settings row lock, through the existing
    `files` read export (`documentFileFacts`, extended additively with `purge_started`): READY, purge neither started nor completed,
    `content_type` in PNG/JPEG, `owner_module='settings'`, `owner_entity_id` and `business_id` both equal the route's business id, no branch,
-   `required_permission='read:settings:business'`, `created_by` = the actor. **Order matters, so that no answer discloses a
+   `required_permission='manage:business-identity:business'` (BI-Q5), `created_by` = the actor. **Order matters, so that no answer discloses a
    file the caller may not know:** (a) first every ownership and identity check above (purge, `owner_module`,
    `owner_entity_id`, `business_id`, branch, `created_by`, `required_permission`, `content_type`); any mismatch answers
    `FILE_NOT_FOUND`, identical to an unknown id; (b) only then the status: PENDING/VERIFYING answers `FILE_NOT_READY`. There is no size check at the bind: a READY
@@ -160,8 +162,8 @@ Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, a
    declared, not built: a `files`-owned export that resolves the currently bound logo of the authorised statement's
    business (never an arbitrary id from the requester), reads at most the generic file cap (10 MiB, BI-Q3), and writes one `file_access_audit` ALLOW
    row for the requester. Built with 27i. This matters because the statement requester holds "view attendance"
-   (`read:attendance:branch`), not necessarily any settings or files permission, so the stored `read:settings:business`
-   gates only the admin preview, not the statement.
+   (`read:attendance:branch`), not necessarily any settings or files permission, so the stored
+   `manage:business-identity:business` (BI-Q5) gates the admin preview and its audited download, not the statement.
 7. **Cache.** `businessSettingsQuery` extends its SELECT and changes its stale-entry guard from `'limit_bps' in value` to
    `'logo_file_id' in value`; otherwise old cached JSON is served without the new keys (BI-13).
 
@@ -208,13 +210,12 @@ Contracts in `packages/contracts` (Zod, strict, snake_case, listed in `openapi.t
   `permission-edit` and the i18n permission-name catalogs (ar «إدارة هوية النشاط»); the owner can grant it to any human role,
   never a device. A migration (27h-1a, pattern of 0128) inserts it into `permissions` and into the owner role default.
   `manage:settings:business` no longer lets anyone change the identity.
-- Uploading the logo file keeps the files rule, unchanged: `manage:files:business`, owner-only by default since 13b
-  (a delegate who should also upload needs both permissions from the owner). Every delegate also needs `read:settings:business`
-  (held by the managers by default): it is the permission of `GET …/settings` and the stored permission of the logo upload
-  (§5.1 item 2), which `request-upload` checks too, so a role without it cannot manage the identity until it is given.
-  The bind still accepts only a file the actor
-  uploaded herself (§5.1 item 3). Removal (`file_id: null`) needs the identity permission only. The 13b files rule is
-  not changed by this slice.
+- Uploading, confirming, polling and previewing the logo file need `manage:business-identity:business` alone (BI-Q5).
+  That permission replaces both the 27h-2 stored pin `read:settings:business` and the `manage:files:business` upload gate
+  for `owner_module='settings'` only (§5.1 item 2). A holder of `manage:files:business` without the identity permission
+  is refused. `read:settings:business` stays the permission of `GET …/settings` and is not required to manage the logo.
+  Staff documents keep the 13b files rule. The bind still accepts only a file the actor uploaded herself (§5.1 item 3).
+  Removal (`file_id: null`) needs the identity permission only.
 - Live recheck of `manage:business-identity:business` inside the transaction after the settings row lock (the
   "revoked authority during the lock wait" test, §5.7).
 

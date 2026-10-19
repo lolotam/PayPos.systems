@@ -16,7 +16,7 @@ export interface LogoFileFacts {
   readonly purgeStarted: boolean;
 }
 
-const LOGO_PERMISSION = 'read:settings:business';
+const LOGO_PERMISSION = 'manage:business-identity:business';
 
 function matchesLogoIdentity(file: LogoFileFacts, businessId: string, actorId: string): boolean {
   return (

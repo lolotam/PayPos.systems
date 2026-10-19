@@ -1,5 +1,5 @@
 import type { RequestFileUpload } from '@pospay/contracts';
-import { FileError, validateStoredPermission } from '../../domain/file.ts';
+import { FileError, uploadAuthority, validateStoredPermission } from '../../domain/file.ts';
 import type {
   Actor,
   FilePermissions,
@@ -9,7 +9,7 @@ import type {
   IdGenerator,
 } from '../../ports/files.port.ts';
 
-// يفتح الرفع بعد فحص صلاحية الإدارة والصلاحية التي ستحمي الملف لاحقاً.
+// يفتح الرفع: شعار النشاط بصلاحية هوية النشاط وحدها (BI-Q5)، وباقي الملفات بإدارة الملفات والصلاحية المحفوظة.
 export class RequestUpload {
   constructor(
     private readonly repository: FileRepository,
@@ -19,20 +19,8 @@ export class RequestUpload {
     private readonly clock: Clock,
   ) {}
   async execute(actor: Actor, businessId: string, input: RequestFileUpload) {
-    if (
-      !(await this.permissions.allowed(
-        actor,
-        'manage:files:business',
-        businessId,
-        input.branch_id ?? null,
-      )) ||
-      !(await this.permissions.allowed(
-        actor,
-        input.required_permission,
-        businessId,
-        input.branch_id ?? null,
-      ))
-    )
+    const branchId = input.branch_id ?? null;
+    if (!(await this.permitted(actor, businessId, branchId, input)))
       throw new FileError('FORBIDDEN');
     validateStoredPermission(input.owner_module, input.required_permission);
     const id = this.ids.newId();
@@ -62,5 +50,18 @@ export class RequestUpload {
       expires_in: 120 as const,
       headers: { 'content-type': input.content_type, 'content-length': String(input.size_bytes) },
     };
+  }
+
+  private async permitted(
+    actor: Actor,
+    businessId: string,
+    branchId: string | null,
+    input: RequestFileUpload,
+  ): Promise<boolean> {
+    const authority = uploadAuthority(input.owner_module);
+    if (!(await this.permissions.allowed(actor, authority, businessId, branchId))) return false;
+    // الصلاحية المحفوظة لملف الإعدادات هي نفس بوابة الرفع؛ فحصها التاني بيتم في validateStoredPermission.
+    if (input.owner_module === 'settings') return true;
+    return this.permissions.allowed(actor, input.required_permission, businessId, branchId);
   }
 }

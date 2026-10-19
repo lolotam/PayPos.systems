@@ -80,7 +80,7 @@ async function confirmedUpload(
       owner_entity_id: businessId,
       content_type: contentType,
       size_bytes: file.size,
-      required_permission: 'read:settings:business',
+      required_permission: 'manage:business-identity:business',
     },
   });
   if (ticket.error) throw withHttpStatus(ticket.error, ticket.response.status);

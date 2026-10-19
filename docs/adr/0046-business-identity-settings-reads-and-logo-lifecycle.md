@@ -14,12 +14,15 @@ and `identity` today. ADR-0031 already solved "a module stores a file reference"
 
 1. **Store on `business_settings`**: `official_name_ar`, `official_name_en`, `logo_file_id`. No new table. A composite FK
    `(company_id, logo_file_id)` to `file_objects` (`ON DELETE RESTRICT`) and a partial unique index per company.
-2. **Upload through the unchanged `files` flow** with `owner_module='settings'`, the business as owner entity, stored
-   permission `read:settings:business`. Settings binds a **file id** in its own transaction and re-reads the file through
+2. **Upload through the `files` flow** with `owner_module='settings'`, the business as owner entity, stored
+   permission `manage:business-identity:business` (BI-Q5: that permission alone is enough to change or remove the logo,
+   so it is also what uploads, previews and downloads a settings file; amended in PR #397, 27h-5). Settings binds a **file id** in its own transaction and re-reads the file through
    the existing `files.documentFileFacts` export (extended additively with a `purge_started` flag). This adds one import
    arrow, `settings → files` (read only), declared in `docs/module-map.md` by the first code PR. `files` imports only
    `tenancy`, so there is no cycle. No write crosses modules.
-3. **`files` gains one small rule**: `validateStoredPermission` pins `settings` files to `read:settings:business`.
+3. **`files` gains one small rule**: `validateStoredPermission` pins `settings` files to
+   `manage:business-identity:business`, and `request-upload` authorizes a `settings` upload with that permission instead
+   of `manage:files:business` (BI-Q5; first shipped as `read:settings:business` in 27h-2 and amended in 27h-5).
    There is no logo-specific size cap (BI-Q3 = 10 MiB, the generic policy), so `request-upload` and verification are
    unchanged and every READY logo can be bound. The generic policy and the DB checks stay.
 4. **Replacement and removal** emit `BusinessLogoChanged` through the outbox in the binding transaction. A `files`-owned

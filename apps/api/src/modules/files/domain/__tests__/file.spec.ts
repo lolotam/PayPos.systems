@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { readyKey, validateStoredPermission, type FileRecord } from '../file.ts';
+import { readyKey, uploadAuthority, validateStoredPermission, type FileRecord } from '../file.ts';
 const file: FileRecord = {
   id: 'file',
   businessId: 'business',
   branchId: null,
   createdBy: 'user',
+  ownerModule: 'staff',
   requiredPermission: 'read:files:business',
   stagingKey: 'staging',
   storageKey: 'verified',
@@ -27,13 +28,16 @@ it('staff documents cannot substitute a broader permission for the PR 7a stored 
   expect(() => validateStoredPermission('staff', 'read:settings:business')).toThrow('FORBIDDEN');
 });
 
-it('settings files store exactly the business settings read permission', () => {
-  expect(() => validateStoredPermission('settings', 'read:settings:business')).not.toThrow();
+it('settings files store the identity permission and open on that permission alone', () => {
+  expect(uploadAuthority('settings')).toBe('manage:business-identity:business');
+  expect(uploadAuthority('staff')).toBe('manage:files:business');
+  expect(() =>
+    validateStoredPermission('settings', 'manage:business-identity:business'),
+  ).not.toThrow();
+  expect(() => validateStoredPermission('settings', 'read:settings:business')).toThrow('FORBIDDEN');
   expect(() => validateStoredPermission('settings', 'read:settings:company')).toThrow('FORBIDDEN');
   expect(() => validateStoredPermission('settings', 'read:files:business')).toThrow('FORBIDDEN');
-  expect(() => validateStoredPermission('settings', 'manage:business-identity:business')).toThrow(
-    'FORBIDDEN',
-  );
+  expect(() => validateStoredPermission('settings', 'manage:files:business')).toThrow('FORBIDDEN');
 });
 
 it('an owner kind without a stored-permission pin is unchanged', () => {

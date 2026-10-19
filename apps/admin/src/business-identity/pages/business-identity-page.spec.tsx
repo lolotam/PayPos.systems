@@ -250,9 +250,13 @@ it('replaces the logo by binding the new ready file', async () => {
 });
 
 it('removes the logo only after confirmation', async () => {
-  api.GET.mockResolvedValue({ data: settings(fileId) });
+  let logo: string | null = fileId;
+  api.GET.mockImplementation(async () => ({ data: settings(logo) }));
   api.POST.mockResolvedValue({ data: { download_url: 'https://files.test/logo', expires_in: 60 } });
-  api.PUT.mockResolvedValue({ data: { logo_file_id: null } });
+  api.PUT.mockImplementation(async () => {
+    logo = null;
+    return { data: { logo_file_id: null } };
+  });
   renderPage();
   await screen.findByRole('img', { name: 'Shop' });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'businessIdentity.remove') }));

@@ -13,6 +13,18 @@ function canConfirmRemoval(logoId: string | null | undefined, removed: boolean) 
   return !removed && (typeof logoId === 'string' || logoId === undefined);
 }
 
+function closeConfirmAfterRemoval(
+  remove: () => Promise<unknown>,
+  setConfirming: (open: boolean) => void,
+) {
+  // isPending ممكن ما يترسمش لو الرد جه قبل الرسم، فبنقفل التأكيد من نجاح الوعد.
+  // الرفض متعالج في onError، والديالوج يفضل مفتوح عشان رسالة الفشل.
+  void remove().then(
+    () => setConfirming(false),
+    () => undefined,
+  );
+}
+
 type LogoPanelProps = {
   companyId: string;
   logoId: string | null | undefined;
@@ -24,7 +36,7 @@ type LogoPanelProps = {
   removeFailure: unknown;
   removed: boolean;
   onUpload: (file: File) => void;
-  onRemove: () => void;
+  onRemove: () => Promise<unknown>;
 };
 
 export function LogoPanel({
@@ -73,7 +85,7 @@ export function LogoPanel({
           pending={removing}
           failure={removeFailure}
           onClose={() => setConfirming(false)}
-          onConfirm={onRemove}
+          onConfirm={() => closeConfirmAfterRemoval(onRemove, setConfirming)}
         />
       ) : null}
     </section>

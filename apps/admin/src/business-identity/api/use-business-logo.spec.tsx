@@ -77,7 +77,7 @@ it('uploads, shows verifying, then binds only after the file is ready', async ()
   expect(api.POST.mock.calls[0]?.[1].body).toMatchObject({
     owner_module: 'settings',
     owner_entity_id: id,
-    required_permission: 'read:settings:business',
+    required_permission: 'manage:business-identity:business',
   });
   expect(api.PUT).toHaveBeenCalledWith(
     '/v1/businesses/{businessId}/settings/logo',
@@ -151,7 +151,6 @@ it('removes the logo by putting a null file id', async () => {
     expect.objectContaining({ body: { file_id: null } }),
   );
   expect(result.current.removed).toBe(true);
-  expect(result.current.writtenId).toBeNull();
   expect(client.getQueryData(['business-settings', id, id, id])).toMatchObject({
     logo_file_id: null,
   });
@@ -200,11 +199,10 @@ it('does not bind an upload that was left behind when a newer one finishes', asy
   });
   expect(api.PUT).toHaveBeenCalledTimes(1);
   expect(api.PUT.mock.calls[0]?.[1].body).toEqual({ file_id: fileB });
-  expect(second.result.current.writtenId).toBe(fileB);
   releaseA();
   await act(async () => {
     await Promise.resolve();
   });
   expect(api.PUT).toHaveBeenCalledTimes(1);
-  expect(second.result.current.writtenId).toBe(fileB);
+  expect(api.PUT.mock.calls[0]?.[1].body).toEqual({ file_id: fileB });
 });

@@ -47,6 +47,12 @@ export function isIdentityReadForbidden(error: unknown): boolean {
   return errorStatus(error) === 403 || errorCode(error) === 'FORBIDDEN';
 }
 
+/** 401 و403 بيقفلوا فورم الأسماء. فشل الشبكة مع صف موجود ما يمسحش المسودة. */
+export function isAuthorizationRefusal(error: unknown): boolean {
+  const status = errorStatus(error);
+  return status === 401 || status === 403 || errorCode(error) === 'FORBIDDEN';
+}
+
 function envelopeText(error: unknown, locale: Locale): string | undefined {
   const body = record(error);
   const arabic = body?.message_ar;
