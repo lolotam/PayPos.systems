@@ -215,8 +215,10 @@ PR 4b decision: `IN_APP` recipients carry `user_id` (global platform identity), 
 template key/revision and safe ordered values. Initially only `generic_notice` revision 1 with safe `subject`
 is supported; sensitive `staff_otp` cannot reach IN_APP. Rendering lives in the i18n `inApp` catalog.
 Company FORCE RLS protects the database-only worker path; all API queries/mutations also filter by session
-user inside `withTenant`. `@Authenticated()` plus SelectedCompanyGuard rechecks active membership via
-`withUser` and requires `x-company-id`; no role permission is needed for a personal inbox or acknowledgment.
+user inside `withTenant`. `@Authenticated()` plus SelectedCompanyGuard reads the active membership
+and the open company in one `withTenant(company, …, { userId })` transaction (PP-7.1, 2026-10-20);
+a refused request opens only that transaction. It requires `x-company-id`; no role permission is
+needed for a personal inbox or acknowledgment.
 The administrative delivery-log permission is unchanged. Device/key principals are refused.
 PR 4b review fixes also verify the selected company is open inside `withTenant` after membership,
 and scope browser inbox caches/invalidation by company and session user. The dashboard frame passes
