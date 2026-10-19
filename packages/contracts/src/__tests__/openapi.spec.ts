@@ -190,6 +190,8 @@ const expectedSchemas = [
   'AttendanceExceptionRecord',
   'CorrectAttendanceInput',
   'CorrectAttendanceResult',
+  'MyMembership',
+  'MyMembershipsResponse',
 ].sort();
 
 describe('openapi/openapi.json', () => {

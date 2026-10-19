@@ -127,6 +127,12 @@ export {
   type WorkspaceCompanyNames,
 } from './identity/workspaces.js';
 export {
+  myMembership,
+  myMembershipsResponse,
+  type MyMembership,
+  type MyMembershipsResponse,
+} from './identity/my-memberships.js';
+export {
   businessIdentityNames,
   businessSettings,
   calendar,

@@ -12302,6 +12302,44 @@
         }
       }
     },
+    "/v1/me/memberships": {
+      "get": {
+        "operationId": "listMyMemberships",
+        "responses": {
+          "200": {
+            "description": "The caller's own active memberships in the selected company",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyMembershipsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
     "/v1/devices/register": {
       "post": {
         "operationId": "registerDevice",
@@ -26567,6 +26605,83 @@
         },
         "required": [
           "employee_id"
+        ]
+      },
+      "MyMembership": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "role_code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z_]{0,63}$"
+          },
+          "role_is_system": {
+            "type": "boolean"
+          },
+          "role_name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "role_name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "scope_type": {
+            "type": "string",
+            "enum": [
+              "COMPANY",
+              "BUSINESS",
+              "BRANCH"
+            ]
+          },
+          "scope_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "scope_name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "scope_name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "id",
+          "role_code",
+          "role_is_system",
+          "role_name_ar",
+          "role_name_en",
+          "scope_type",
+          "scope_id",
+          "scope_name_ar",
+          "scope_name_en"
+        ]
+      },
+      "MyMembershipsResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyMembership"
+            }
+          }
+        },
+        "required": [
+          "items"
         ]
       },
       "MyWorkspacesResponse": {

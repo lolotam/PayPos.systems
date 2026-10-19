@@ -8,6 +8,7 @@ import { errorEnvelope } from './errors/envelope.js';
 import { fileConfirmation, fileDownload, fileStatus, fileUploadTicket, requestFileUpload } from './files.js';
 import { discountLimit, discountLimitInput } from './identity/discount-limit.js';
 import { membershipPermissions, permissionMembershipPage, permissionOverride, permissionOverrideInput } from './identity/permissions.js';
+import { myMembershipsResponse } from './identity/my-memberships.js';
 import { myWorkspacesResponse, workspaceCompany } from './identity/workspaces.js';
 import { inAppNotification, inAppNotificationPage, inAppRecipient, notificationReadResult, notificationUnreadCount, readInAppNotificationPage } from './in-app-notifications.js';
 import {
@@ -101,6 +102,7 @@ const responses = [
   { name: 'leavePage', schema: leavePage },
   { name: 'leaveRequest', schema: leaveRequest },
   { name: 'membershipPermissions', schema: membershipPermissions },
+  { name: 'myMembershipsResponse', schema: myMembershipsResponse },
   { name: 'myWorkspacesResponse', schema: myWorkspacesResponse },
   { name: 'packageServiceOptionPage', schema: packageServiceOptionPage },
   { name: 'packageTypeDetail', schema: packageTypeDetail },

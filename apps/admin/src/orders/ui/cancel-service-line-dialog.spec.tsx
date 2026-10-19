@@ -151,54 +151,32 @@ function callerMembership(
   role: string,
   scopeType: 'BRANCH' | 'COMPANY',
   scopeId: string,
+  scopeName: string,
 ) {
   return {
     id: id(n),
-    user_id: scope.userId,
-    employee_id: null,
     role_code: role,
+    role_is_system: true,
     role_name_ar: null,
     role_name_en: role,
     scope_type: scopeType,
     scope_id: scopeId,
-    starts_at: '2026-10-13T08:00:00.000Z',
-    ends_at: null,
+    scope_name_ar: null,
+    scope_name_en: scopeName,
   };
 }
 
 function mockMembershipDirectory() {
-  const company = {
-    id: id(1),
-    name_en: 'PosPay',
-    name_ar: null,
-    role_code: 'owner',
-    scope: 'COMPANY' as const,
-    businesses: [
-      {
-        id: id(2),
-        name_en: 'Clinic',
-        name_ar: null,
-        branches: [
-          {
-            id: id(3),
-            name_en: 'Salmiya',
-            name_ar: null,
-            effective_timezone: 'Asia/Kuwait',
-            is_active: true,
-          },
-        ],
-      },
-    ],
-  };
   state.get.mockImplementation((path: string) => {
-    if (path === '/v1/me/workspaces') return Promise.resolve({ data: { companies: [company] } });
+    if (path !== '/v1/me/memberships') {
+      return Promise.resolve(refused(403, 'FORBIDDEN'));
+    }
     return Promise.resolve({
       data: {
         items: [
-          callerMembership(30, 'branch_manager', 'BRANCH', id(3)),
-          callerMembership(31, 'owner', 'COMPANY', id(1)),
+          callerMembership(30, 'branch_manager', 'BRANCH', id(3), 'Salmiya'),
+          callerMembership(31, 'owner', 'COMPANY', id(1), 'PosPay'),
         ],
-        next_cursor: null,
       },
     });
   });
@@ -287,56 +265,30 @@ it('replays the same key and body after a network error', async () => {
   await waitFor(() => expect(view.onSaved).toHaveBeenCalledTimes(1));
 });
 
-function mockSecondMembershipPage() {
-  const company = {
-    id: id(1),
-    name_en: 'PosPay',
-    name_ar: null,
-    role_code: 'owner',
-    scope: 'COMPANY' as const,
-    businesses: [
-      {
-        id: id(2),
-        name_en: 'Clinic',
-        name_ar: null,
-        branches: [
-          {
-            id: id(3),
-            name_en: 'Salmiya',
-            name_ar: null,
-            effective_timezone: 'Asia/Kuwait',
-            is_active: true,
-          },
-        ],
-      },
-    ],
-  };
-  state.get.mockImplementation(
-    (path: string, init?: { params?: { query?: { cursor?: string } } }) => {
-      if (path === '/v1/me/workspaces') return Promise.resolve({ data: { companies: [company] } });
-      const cursor = init?.params?.query?.cursor;
-      if (cursor === id(40)) {
-        return Promise.resolve({
-          data: {
-            items: [callerMembership(30, 'branch_manager', 'BRANCH', id(3))],
-            next_cursor: id(99),
-          },
-        });
-      }
-      if (cursor) return Promise.resolve({ data: { items: [], next_cursor: null } });
+it('shows Branch Manager — Salmiya when the permissions route would refuse the caller', async () => {
+  state.get.mockImplementation((path: string) => {
+    if (path === '/v1/permissions/memberships') return Promise.resolve(refused(403, 'FORBIDDEN'));
+    if (path === '/v1/me/memberships') {
       return Promise.resolve({
         data: {
-          items: [callerMembership(40, 'cashier', 'COMPANY', id(1))],
-          next_cursor: id(40),
+          items: [
+            {
+              id: id(30),
+              role_code: 'branch_manager',
+              role_is_system: true,
+              role_name_ar: null,
+              role_name_en: 'Branch Manager',
+              scope_type: 'BRANCH' as const,
+              scope_id: id(3),
+              scope_name_ar: null,
+              scope_name_en: 'Salmiya',
+            },
+          ],
         },
       });
-    },
-  );
-}
-
-it('shows the role label when the eligible membership is only on the second page', async () => {
-  const branchLabel = `${roleName('en', 'branch_manager', 'branch_manager')} — Salmiya`;
-  mockSecondMembershipPage();
+    }
+    return Promise.resolve(refused(403, 'FORBIDDEN'));
+  });
   state.post.mockResolvedValueOnce(
     refused(422, 'SESSION_CANCELLER_MEMBERSHIP_REQUIRED', {
       canceller_membership_ids: [id(30)],
@@ -345,19 +297,16 @@ it('shows the role label when the eligible membership is only on the second page
   shown();
   fireEvent.change(reasonBox(), { target: { value: 'because' } });
   submit();
-  expect(await screen.findByRole('option', { name: branchLabel })).toBeTruthy();
+  expect(await screen.findByRole('option', { name: 'Branch Manager — Salmiya' })).toBeTruthy();
   expect(
     screen.queryByRole('option', {
       name: t('en', 'serviceLineCancel.membershipN').replace('{n}', '1'),
     }),
   ).toBeNull();
-  const cursors = state.get.mock.calls
-    .filter((call) => call[0] === '/v1/permissions/memberships')
-    .map(
-      (call) => (call[1] as { params?: { query?: { cursor?: string } } })?.params?.query?.cursor,
-    );
-  expect(cursors).toContain(id(40));
-  expect(cursors).not.toContain(id(99));
+  expect(state.get.mock.calls.some((call) => call[0] === '/v1/permissions/memberships')).toBe(
+    false,
+  );
+  expect(state.get.mock.calls.some((call) => call[0] === '/v1/me/memberships')).toBe(true);
 });
 
 it('reuses the original key through a busy 409 and releases it after a definitive 422', async () => {

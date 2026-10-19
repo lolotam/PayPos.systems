@@ -2049,6 +2049,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listMyMemberships"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/devices/register": {
         parameters: {
             query?: never;
@@ -5477,6 +5493,23 @@ export interface components {
         CashierPinVerified: {
             /** Format: uuid */
             employee_id: string;
+        };
+        MyMembership: {
+            /** Format: uuid */
+            id: string;
+            role_code: string;
+            role_is_system: boolean;
+            role_name_ar: string | null;
+            role_name_en: string;
+            /** @enum {string} */
+            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+            /** Format: uuid */
+            scope_id: string;
+            scope_name_ar: string | null;
+            scope_name_en: string;
+        };
+        MyMembershipsResponse: {
+            items: components["schemas"]["MyMembership"][];
         };
         MyWorkspacesResponse: {
             companies: components["schemas"]["WorkspaceCompany"][];
@@ -12569,6 +12602,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyWorkspacesResponse"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listMyMemberships: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's own active memberships in the selected company */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyMembershipsResponse"];
                 };
             };
             /** @description The API error envelope */
