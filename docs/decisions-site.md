@@ -62,17 +62,20 @@ curl -s "$B/health"
 
 ## A. Publish a new money/charges question batch
 
-1. Run `git -C F:\Dev\Projects\plan-pospay pull` first, so you never overwrite another session's push.
-2. The next batch number is the highest `batches[].n` in `decisions.en.json` + 1. There is one sequence for the whole project.
-3. Make these changes in **both** `public/decisions.json` and `public/decisions.en.json`:
+1. **Record first** (`CLAUDE.md` §1 5b, "Always first"). Write each question into the slice's
+   `owner-questions.ar.md`, or into `docs/owner-decisions.ar.md` when it belongs to no slice. Mark its answer `PENDING`.
+   This way a session that stops halfway never leaves a live question without its audit entry.
+2. Run `git -C F:\Dev\Projects\plan-pospay pull`, so you never overwrite another session's push.
+3. The next batch number is the highest `batches[].n` in `decisions.en.json` + 1. There is one sequence for the whole
+   project. Add that batch number to the entries you wrote in step 1.
+4. Make these changes in **both** `public/decisions.json` and `public/decisions.en.json`:
    - Append a `batches` entry `{n, date, title_ar}`. In the `.en` file, add `title_en` too.
    - Append one `items` entry per question. Use the fields the existing items use: `id, batch, category, date, pr, spec, status, question_ar, options_ar[], recommended_ar, answer_ar: "", why_ar, source`. In the `.en` file, add the `_en` twins.
    - Update `generated`.
-4. An empty `answer_ar` is what marks a question as pending. Never change the id of a question that is already published.
-5. Check that each file is still valid JSON: `node -e "JSON.parse(require('fs').readFileSync('<file>'))"`.
-6. Commit as `chore(questions): batch <n> — <topic>` and push to `main`.
-7. Confirm the deploy: `curl -s -u "$PLAN_AUTH" $B/decisions.en.json` must contain the new ids.
-8. Record the batch in the slice's `owner-questions.ar.md` with its answer marked `PENDING`.
+5. An empty `answer_ar` is what marks a question as pending. Never change the id of a question that is already published.
+6. Check that each file is still valid JSON: `node -e "JSON.parse(require('fs').readFileSync('<file>'))"`.
+7. Commit as `chore(questions): batch <n> — <topic>` and push to `main`.
+8. Confirm the deploy: `curl -s -u "$PLAN_AUTH" $B/decisions.en.json` must contain the new ids.
 
 Permission and technical questions still go to Waleed's super agent as `PP-n`. They never go to this site.
 
