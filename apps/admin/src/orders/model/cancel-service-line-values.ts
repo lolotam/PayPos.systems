@@ -12,7 +12,7 @@ export type CancelLineFormInput = {
 };
 type CancelFailure =
   | { kind: 'stale'; message: string; revision: number | null }
-  | { kind: 'forbidden' | 'revoked' | 'root'; message: string }
+  | { kind: 'forbidden' | 'revoked' | 'root' | 'already'; message: string }
   | { kind: 'field'; field: 'reason'; message: string }
   | { kind: 'membership'; message: string; ids: string[] };
 
@@ -94,6 +94,8 @@ export function classifyCancelError(error: unknown, locale: Locale): CancelFailu
     const ids = readMemberships(details);
     if (ids) return { kind: 'membership', message, ids };
   }
+  if (status === 422 && code === 'SESSION_LINE_ALREADY_CANCELLED')
+    return { kind: 'already', message };
   return { kind: 'root', message };
 }
 

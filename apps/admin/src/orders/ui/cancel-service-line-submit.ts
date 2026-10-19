@@ -13,6 +13,7 @@ type CancelSubmitProps = {
   onForbidden: (message: string) => void;
   onAccessDenied?: (message: string) => void;
   onClose: () => void;
+  onRefresh?: () => Promise<{ status: string; revision: number } | null>;
 };
 
 export type CancelSubmitInput = {
@@ -32,35 +33,55 @@ export type CancelSubmitInput = {
   mounted: { current: boolean };
 };
 
-function applyCancelFailure(error: unknown, input: CancelSubmitInput) {
+function applyCancelFailure(error: unknown, input: CancelSubmitInput): boolean {
   const failure = classifyCancelError(error, input.locale);
   if (failure.kind === 'stale') {
     input.setRoot(failure.message);
-    const sent = input.form.getValues('expected_revision');
-    if (failure.revision !== null && failure.revision > sent)
-      input.form.setValue('expected_revision', failure.revision);
-    return;
+    return true;
+  }
+  if (failure.kind === 'already') {
+    input.setRoot(failure.message);
+    return true;
   }
   if (failure.kind === 'forbidden') {
     input.props.onForbidden(failure.message);
     input.props.onClose();
-    return;
+    return false;
   }
   if (failure.kind === 'revoked') {
     (input.props.onAccessDenied ?? input.props.onForbidden)(failure.message);
     input.props.onClose();
-    return;
+    return false;
   }
   if (failure.kind === 'field') {
     input.form.setError(failure.field, { message: failure.message });
-    return;
+    return false;
   }
   if (failure.kind === 'membership') {
     input.setMemberships(failure.ids);
     input.setRoot(failure.message);
-    return;
+    return false;
   }
   input.setRoot(failure.message);
+  return false;
+}
+
+// السيرفر بيرد بتعارض المراجعة قبل «اتلغى»، فجلب اليوم هو اللي بيقفل الحوار ويظهر العلامة.
+async function revealCancelledLine(input: CancelSubmitInput) {
+  const load = input.props.onRefresh;
+  if (!load) return;
+  try {
+    const fresh = await load();
+    if (!input.mounted.current || !fresh) return;
+    if (fresh.status === 'CANCELLED') {
+      input.props.onClose();
+      return;
+    }
+    // المراجعة بتيجي من السطر بعد الجلب بس، عشان المدير يشوف السعر الحالي قبل ما يضغط تاني.
+    input.form.setValue('expected_revision', fresh.revision);
+  } catch {
+    // فشل الجلب يسيب رسالة الرفض ظاهرة، والحوار ما يتقفلش على صف لسه ظاهر إنه نشط.
+  }
 }
 
 export async function submitCancellation(input: CancelSubmitInput) {
@@ -83,6 +104,6 @@ export async function submitCancellation(input: CancelSubmitInput) {
     }
     input.retain.current = null;
     input.setFrozen(false);
-    applyCancelFailure(error, input);
+    if (applyCancelFailure(error, input)) await revealCancelledLine(input);
   }
 }

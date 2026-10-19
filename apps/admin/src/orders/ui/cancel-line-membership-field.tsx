@@ -1,37 +1,33 @@
 'use client';
-import { t, type Locale } from '@pospay/i18n';
-import { NativeSelect } from '@pospay/ui';
+import type { Locale } from '@pospay/i18n';
 import type { UseFormRegister } from 'react-hook-form';
 import type { CancelLineFormInput } from '../model/cancel-service-line-values';
+import { CancelLineMembershipSelect } from './cancel-line-membership-select';
 
 export function CancelLineMembershipField({
   locale,
   memberships,
   frozen,
   register,
+  companyId,
+  userId,
 }: {
   locale: Locale;
   memberships: string[];
   frozen: boolean;
   register: UseFormRegister<CancelLineFormInput>;
+  companyId: string;
+  userId: string;
 }) {
   if (memberships.length === 0) return null;
-  const membership = register('canceller_membership_id');
   return (
-    <NativeSelect
-      aria-label={t(locale, 'serviceLineCancel.membership')}
-      disabled={frozen}
-      {...membership}
-      onChange={(event) => {
-        if (!frozen) membership.onChange(event);
-      }}
-    >
-      <option value="">{t(locale, 'serviceLineCancel.membership')}</option>
-      {memberships.map((membershipId, index) => (
-        <option key={membershipId} value={membershipId}>
-          {t(locale, 'serviceLineCancel.membershipN').replace('{n}', String(index + 1))}
-        </option>
-      ))}
-    </NativeSelect>
+    <CancelLineMembershipSelect
+      locale={locale}
+      memberships={memberships}
+      frozen={frozen}
+      register={register}
+      companyId={companyId}
+      userId={userId}
+    />
   );
 }

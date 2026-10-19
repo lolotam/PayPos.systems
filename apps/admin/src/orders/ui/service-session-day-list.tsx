@@ -30,6 +30,27 @@ export type ServiceSessionDayListProps = {
   onAccessDenied: (message: string) => void;
 };
 
+// حالة السطر بتتاخد من جلب اليوم بعد الرفض؛ لو الجلب فشل أو السطر مش موجود الحوار يفضل على رسالة الرفض.
+function refreshedLine(pages: readonly DayPage[], sessionId: string, lineId: string) {
+  for (const page of pages) {
+    const match = page.items
+      .find((item) => item.id === sessionId)
+      ?.lines.find((item) => item.id === lineId);
+    if (match) return { status: match.status, revision: match.revision };
+  }
+  return null;
+}
+
+async function refreshCancelTarget(
+  list: ServiceSessionDayListProps,
+  sessionId: string,
+  lineId: string,
+) {
+  if (!list.mounted.current) return null;
+  const pages = await list.refetchPages();
+  return pages ? refreshedLine(pages, sessionId, lineId) : null;
+}
+
 function findLine(visits: readonly Visit[], key: string | null) {
   if (!key) return null;
   for (const visit of visits) {
@@ -133,6 +154,7 @@ export function ServiceSessionDayList(props: ServiceSessionDayListProps) {
             actions.setNotice(message);
           }}
           onAccessDenied={props.onAccessDenied}
+          onRefresh={() => refreshCancelTarget(props, cancelTarget.visit.id, cancelTarget.line.id)}
           onClose={() => {
             actions.releaseCancel(cancelKey.key, cancelKey.token);
           }}

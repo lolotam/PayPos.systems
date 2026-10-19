@@ -1,12 +1,12 @@
-import { t } from '@pospay/i18n';
+import { roleName, t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { id, savedLine, scope } from '../model/session-recording-result.fixture';
 import { CancelServiceLineDialog } from './cancel-service-line-dialog';
 
-const state = vi.hoisted(() => ({ post: vi.fn() }));
-vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ POST: state.post }) }));
+const state = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
+vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ POST: state.post, GET: state.get }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 const saved = {
   data: {
@@ -67,6 +67,7 @@ beforeEach(() => {
     this.removeAttribute('open');
   });
   state.post.mockReset();
+  state.get.mockReset();
 });
 
 it('rejects an empty, blank, or 501-character reason before posting', async () => {
@@ -145,7 +146,68 @@ it('shows the tip refusal without rendering the employee id', async () => {
   expect(screen.queryByText(id(6))).toBeNull();
 });
 
+function callerMembership(
+  n: number,
+  role: string,
+  scopeType: 'BRANCH' | 'COMPANY',
+  scopeId: string,
+) {
+  return {
+    id: id(n),
+    user_id: scope.userId,
+    employee_id: null,
+    role_code: role,
+    role_name_ar: null,
+    role_name_en: role,
+    scope_type: scopeType,
+    scope_id: scopeId,
+    starts_at: '2026-10-13T08:00:00.000Z',
+    ends_at: null,
+  };
+}
+
+function mockMembershipDirectory() {
+  const company = {
+    id: id(1),
+    name_en: 'PosPay',
+    name_ar: null,
+    role_code: 'owner',
+    scope: 'COMPANY' as const,
+    businesses: [
+      {
+        id: id(2),
+        name_en: 'Clinic',
+        name_ar: null,
+        branches: [
+          {
+            id: id(3),
+            name_en: 'Salmiya',
+            name_ar: null,
+            effective_timezone: 'Asia/Kuwait',
+            is_active: true,
+          },
+        ],
+      },
+    ],
+  };
+  state.get.mockImplementation((path: string) => {
+    if (path === '/v1/me/workspaces') return Promise.resolve({ data: { companies: [company] } });
+    return Promise.resolve({
+      data: {
+        items: [
+          callerMembership(30, 'branch_manager', 'BRANCH', id(3)),
+          callerMembership(31, 'owner', 'COMPANY', id(1)),
+        ],
+        next_cursor: null,
+      },
+    });
+  });
+}
+
 it('shows the membership choices and sends the chosen one next', async () => {
+  const branchLabel = `${roleName('en', 'branch_manager', 'branch_manager')} — Salmiya`;
+  const ownerLabel = `${roleName('en', 'owner', 'owner')} — PosPay`;
+  mockMembershipDirectory();
   state.post
     .mockResolvedValueOnce(
       refused(422, 'SESSION_CANCELLER_MEMBERSHIP_REQUIRED', {
@@ -156,17 +218,25 @@ it('shows the membership choices and sends the chosen one next', async () => {
   shown();
   fireEvent.change(reasonBox(), { target: { value: 'because' } });
   submit();
-  expect(await screen.findByText('SESSION_CANCELLER_MEMBERSHIP_REQUIRED EN')).toBeTruthy();
+  expect(await screen.findByRole('option', { name: branchLabel })).toBeTruthy();
+  expect(screen.getByRole('option', { name: ownerLabel })).toBeTruthy();
+  expect(
+    screen.queryByRole('option', {
+      name: t('en', 'serviceLineCancel.membershipN').replace('{n}', '1'),
+    }),
+  ).toBeNull();
   fireEvent.change(
-    await screen.findByRole('combobox', { name: t('en', 'serviceLineCancel.membership') }),
-    { target: { value: id(31) } },
+    screen.getByRole('combobox', { name: t('en', 'serviceLineCancel.membership') }),
+    {
+      target: { value: id(31) },
+    },
   );
   submit();
   await waitFor(() => expect(state.post).toHaveBeenCalledTimes(2));
   expect(bodyOf(1).canceller_membership_id).toBe(id(31));
 });
 
-it('waits after a stale revision and sends the newer one with a new key', async () => {
+it('keeps the sent revision after a stale 409 and uses a new key on the next press', async () => {
   state.post
     .mockResolvedValueOnce(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 5 }))
     .mockResolvedValue(saved);
@@ -177,7 +247,22 @@ it('waits after a stale revision and sends the newer one with a new key', async 
   expect(state.post).toHaveBeenCalledTimes(1);
   submit();
   await waitFor(() => expect(state.post).toHaveBeenCalledTimes(2));
-  expect(bodyOf(1).expected_revision).toBe(5);
+  expect(bodyOf(1).expected_revision).toBe(3);
+  expect(bodyOf(1).reason).toBe(bodyOf(0).reason);
+  expect(keyOf(1)).not.toBe(keyOf(0));
+});
+
+it('sends a new key after a definitive 422 when the body is unchanged', async () => {
+  state.post
+    .mockResolvedValueOnce(refused(422, 'SESSION_LINE_NOT_CANCELLABLE'))
+    .mockResolvedValue(saved);
+  shown();
+  fireEvent.change(reasonBox(), { target: { value: 'because' } });
+  submit();
+  expect(await screen.findByText('SESSION_LINE_NOT_CANCELLABLE EN')).toBeTruthy();
+  submit();
+  await waitFor(() => expect(state.post).toHaveBeenCalledTimes(2));
+  expect(bodyOf(1)).toEqual(bodyOf(0));
   expect(keyOf(1)).not.toBe(keyOf(0));
 });
 

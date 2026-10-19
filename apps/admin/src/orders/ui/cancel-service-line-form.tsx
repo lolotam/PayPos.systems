@@ -10,6 +10,8 @@ import { submitCancellation, type CancelSubmitInput } from './cancel-service-lin
 export function CancelServiceLineForm({
   form,
   locale,
+  companyId,
+  userId,
   root,
   memberships,
   online,
@@ -21,6 +23,8 @@ export function CancelServiceLineForm({
 }: {
   form: UseFormReturn<CancelLineFormInput, unknown, CancelServiceLineInput>;
   locale: Locale;
+  companyId: string;
+  userId: string;
   root: string | null;
   memberships: string[];
   online: boolean;
@@ -51,6 +55,8 @@ export function CancelServiceLineForm({
       <CancelServiceLineFields
         form={form}
         locale={locale}
+        companyId={companyId}
+        userId={userId}
         memberships={memberships}
         online={online}
         pending={pending}

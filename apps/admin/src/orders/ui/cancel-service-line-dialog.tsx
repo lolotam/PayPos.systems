@@ -9,16 +9,18 @@ import { useCancelServiceLine } from '../api/use-cancel-service-line';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { resolveCancelLine, type CancelLineFormInput } from '../model/cancel-service-line-values';
 import { CancelServiceLineForm } from './cancel-service-line-form';
+import { CancelServiceLinePreview, type CancelDialogLine } from './cancel-service-line-preview';
 
 export type CancelServiceLineDialogProps = {
   scope: SessionServiceScope;
   sessionId: string;
-  line: { id: string; revision: number };
+  line: CancelDialogLine;
   online: boolean;
   onSaved: () => void;
   onForbidden: (message: string) => void;
   onAccessDenied?: (message: string) => void;
   onClose: () => void;
+  onRefresh?: () => Promise<{ status: string; revision: number } | null>;
 };
 export function CancelServiceLineDialog(props: CancelServiceLineDialogProps) {
   const locale = useLocale();
@@ -42,6 +44,9 @@ export function CancelServiceLineDialog(props: CancelServiceLineDialogProps) {
       mounted.current = false;
     };
   }, []);
+  useEffect(() => {
+    form.setValue('expected_revision', props.line.revision);
+  }, [form, props.line.revision]);
   const pending = mutation.isPending;
   return (
     <ModalDialog
@@ -49,9 +54,12 @@ export function CancelServiceLineDialog(props: CancelServiceLineDialogProps) {
       pending={pending}
       onClose={props.onClose}
     >
+      <CancelServiceLinePreview line={props.line} locale={locale} />
       <CancelServiceLineForm
         form={form}
         locale={locale}
+        companyId={props.scope.companyId}
+        userId={props.scope.userId}
         root={root}
         memberships={memberships}
         online={props.online}

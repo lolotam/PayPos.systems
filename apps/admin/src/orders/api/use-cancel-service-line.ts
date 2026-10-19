@@ -8,6 +8,7 @@ import {
 import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { apiClient } from '@/shared/api/client';
+import { applyCancelledLine, type CancelledDaySource } from '../model/cancelled-day-line';
 import type { SessionServiceScope } from './use-session-services';
 
 const cancelPath =
@@ -31,8 +32,7 @@ function patchCancelledLine(
   data: DayData | undefined,
   sessionId: string,
   lineId: string,
-  cancelledAt: string,
-  revision: number,
+  next: CancelledDaySource,
 ): DayData | undefined {
   if (!data) return data;
   return {
@@ -44,9 +44,7 @@ function patchCancelledLine(
           ? {
               ...item,
               lines: item.lines.map((line) =>
-                line.id === lineId
-                  ? { ...line, status: 'CANCELLED' as const, cancelled_at: cancelledAt, revision }
-                  : line,
+                line.id === lineId ? applyCancelledLine(line, next) : line,
               ),
             }
           : item,
@@ -82,7 +80,12 @@ async function postCancellation(
     },
     body: requestBody(attempt.body),
   });
-  if (result.error) throw { ...result.error, status: result.response.status };
+  if (result.error) {
+    const status = result.response.status;
+    // رفض 4xx نتيجته معروفة، فالمحاولة الجاية لازم مفتاح جديد حتى لو الجسم ما اتغيرش.
+    if (typeof status === 'number' && status >= 400 && status <= 499) held.current = null;
+    throw { ...result.error, status };
+  }
   const parsed = cancelServiceLineResponse.safeParse(result.data);
   if (!parsed.success) throw Object.assign(parsed.error, { status: result.response.status });
   held.current = null;
@@ -109,7 +112,7 @@ export function useCancelServiceLine(scope: SessionServiceScope) {
       if ('line' in result.response) {
         const { line } = result.response;
         client.setQueriesData<DayData>({ queryKey: prefix }, (current) =>
-          patchCancelledLine(current, sessionId, lineId, line.cancelled_at, line.revision),
+          patchCancelledLine(current, sessionId, lineId, line),
         );
       }
       void client.invalidateQueries({ queryKey: prefix });

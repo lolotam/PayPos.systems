@@ -13,6 +13,8 @@ function fieldText(message: string | undefined, locale: Locale) {
 export function CancelServiceLineFields({
   form,
   locale,
+  companyId,
+  userId,
   memberships,
   online,
   pending,
@@ -21,6 +23,8 @@ export function CancelServiceLineFields({
 }: {
   form: UseFormReturn<CancelLineFormInput, unknown, CancelServiceLineInput>;
   locale: Locale;
+  companyId: string;
+  userId: string;
   memberships: string[];
   online: boolean;
   pending: boolean;
@@ -52,6 +56,8 @@ export function CancelServiceLineFields({
       {reasonError ? <p role="alert">{reasonError}</p> : null}
       <CancelLineMembershipField
         locale={locale}
+        companyId={companyId}
+        userId={userId}
         memberships={memberships}
         frozen={frozen}
         register={register}
