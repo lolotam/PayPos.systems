@@ -22,6 +22,8 @@ export const KNOWN_EVENT_TYPES = [
   'EmployeeImported',
   'ImportCommitted',
   'FileUploadRequested',
+  // spec 052: يُسجَّل قبل المنتج (27h-4) حتى لا يُوقف حدث شعار بلا مستهلك.
+  'BusinessLogoChanged',
   'CompanyCreated',
   'BusinessCreated',
   'BranchCreated',

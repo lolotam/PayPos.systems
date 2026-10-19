@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "file_objects_retention_retired_idx" ON "file_objects" USING btree ("company_id","purge_started_at") WHERE "file_objects"."status" = 'READY' AND "file_objects"."purge_started_at" IS NOT NULL AND "file_objects"."purged_at" IS NULL;

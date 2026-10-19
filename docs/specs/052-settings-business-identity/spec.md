@@ -33,7 +33,7 @@ the name text.
 | **27h-1a** | permission `manage:business-identity:business` (BI-Q1) | (a) migration that inserts the permission and its owner role default (pattern of migration 0128), added to `ROLE_DEFAULTS`, `OWNER_GRANTED_PERMISSIONS` (db and identity lists), `deviceForbidden` in `packages/db/src/system-role-policy.ts` (a device is otherwise eligible for every catalog permission not listed there) and the owner-only rules of `permission-edit`; (b) the ar/en permission-name catalogs («إدارة هوية النشاط») in `packages/i18n`; (c) tests: default owner-only, only the owner can grant it, never a device (an ALLOW override on a device membership is refused), `privileges.spec.ts` allowlist | 27h-0 |
 | **27h-1** | `update-business-identity-names` | (a) migration: 3 columns + CHECKs + composite FK + partial unique index, `privileges.spec.ts` check, RLS negative test; (b) contract + use case + audit + cache-guard fix; (c) integration + query-shape tests | 27h-1a |
 | **27h-2** | files side (no new endpoint, no logo-specific size cap: BI-Q3 keeps the generic 10 MiB) | (a) `validateStoredPermission`: `settings` ⇒ `read:settings:business`; (b) `purge_started` added to the file facts read + tests | 27h-0 |
-| **27h-3** | `retire-business-logo` (worker, `files`-owned consumer; ships **before** any producer) | (a) `BusinessLogoChanged` registered as a known event type with a database-only idempotent consumer, the module-map event arrow **and the reverse port arrow `files → settings` (logo-reference read)**; (b) lock, re-check through that port, `purge_started_at` handoff, the `retired` kind in the retention worker (storage delete outside transactions, tombstone, system audit) and the schedule bootstrap of §5.1 item 5; (c) race, crash-between-steps and replay tests with synthetic events | 27h-1 (needs `business_settings.logo_file_id` for the reference check), 27h-2 (needs the `purge_started` flag) |
+| **27h-3** | `retire-business-logo` (worker, `files`-owned consumer; ships **before** any producer) | (a) `BusinessLogoChanged` registered as a known event type with a database-only idempotent consumer and the module-map event arrow; (b) lock and re-check through `lockBusinessLogoReference` in `@pospay/db` (one implementation, no `files → settings` reads arrow), `purge_started_at` handoff, the `retired` kind in the retention worker (storage delete outside transactions, tombstone, system audit) and the schedule bootstrap of §5.1 item 5; (c) race, crash-between-steps and replay tests with synthetic events | 27h-1 (needs `business_settings.logo_file_id` for the reference check), 27h-2 (needs the `purge_started` flag) |
 | **27h-4** | `set-business-logo` (bind or remove; the event producer) | (a) domain `validateLogoFile` + port + adapter (`settings → files` read) + module-map line; (b) use case + `PUT /v1/businesses/:businessId/settings/logo` + audit + `BusinessLogoChanged` emit; (c) `readBusinessIdentity` + pure `statementIdentity` exports + tests | 27h-1, 27h-2, 27h-3 |
 | **27h-5** | Admin screen (names, upload with status, preview, replace, remove) | (a) names form; (b) logo upload flow (files endpoints, poll status); (c) preview through the audited download + i18n | 27h-1, 27h-4 |
 
@@ -127,9 +127,10 @@ Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, a
    file_id | null }` to the outbox in the same transaction. The **`files`-owned worker consumer** (27h-3, shipped before this producer so no event is ever emitted without a consumer) retires the
    previous file in **two durable steps**, because an outbox consumer runs inside one tenant transaction together with its
    dedupe write and may do database work only (ADR-0018). Step 1, the consumer (database only): take the same business
-   lock that binding takes, **then** re-check, through a settings-owned port wired at the composition root (no `files → settings`
-   import; the port is a declared arrow, §5.6) whose single operation takes the settings row lock and reports whether the file
+   lock that binding takes, **then** re-check, through `lockBusinessLogoReference` in `@pospay/db` (one implementation, called by the settings adapter and by the files `LogoReference` adapter; no `files → settings`
+   import and no reads arrow, §5.6) whose single operation takes the settings row lock and reports whether the file
    is still the logo, so `files` never queries a settings table itself, that the file is no longer referenced, **then** set `purge_started_at`
+   only when that row is `status='READY'`, `owner_module='settings'` and `owner_entity_id` is that business
    (so a later bind of that file is refused); reference check and marker run under one lock, so a concurrent re-bind
    cannot slip between them. This commit is the durable handoff and is idempotent on replay. Step 2, the existing hourly retention worker
    (ADR-0022: bounded batches, recoverable leases, fencing) gains a third eligibility kind, `retired` (`purge_started_at`
@@ -222,7 +223,7 @@ Contracts in `packages/contracts` (Zod, strict, snake_case, listed in `openapi.t
 Two new arrows, both declared in `docs/module-map.md` by the PR that introduces them (ADR-0046, this PR, is the decision):
 the event arrow `settings ⇒ files` (`BusinessLogoChanged`, consumed by the retire consumer) in 27h-3, and the read arrow
 `settings → files` (`documentFileFacts`, mirroring ADR-0031's `staff → files`) in 27h-4. `files` imports only `tenancy`
-today, so there is no cycle. The retire consumer's reference check is a **reverse read port arrow `files → settings`** (is this file still the business's logo), declared in `docs/module-map.md` in 27h-3 (table and YAML) beside the event arrow and wired at the composition root, so there is no compile-time import and no cycle. The later `staff → settings` arrow belongs to 27g.
+today, so there is no cycle. The retire consumer's reference check calls `lockBusinessLogoReference` in `@pospay/db`, the same function the settings adapter calls. There is no `files → settings` reads arrow and no compile-time import, so there is no cycle. The later `staff → settings` arrow belongs to 27g.
 
 ### 5.7 Test plan
 

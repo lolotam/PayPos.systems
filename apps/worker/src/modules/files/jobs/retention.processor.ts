@@ -4,38 +4,35 @@ import { fileRetentionJob } from '@pospay/contracts';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
 import type { CleanupFiles } from '../use-cases/cleanup-files/cleanup-files.ts';
 
-export function startRetentionProcessors(useCase: CleanupFiles, redisUrl: string, prefix = 'bull') {
+export function startRetentionProcessors(
+  useCase: CleanupFiles,
+  redisUrl: string,
+  prefix = 'bull',
+  consume = true,
+) {
   const connection = new Redis(redisUrl, { maxRetriesPerRequest: null, enableOfflineQueue: false });
   connection.on('error', () => undefined);
   // تسجيل الجدول منتج bounded؛ اتصال العامل وحده يستمر في انتظار Redis.
   const producer = connection.duplicate({ maxRetriesPerRequest: 1, commandTimeout: 5000 });
   producer.on('error', () => undefined);
-  const queues = (['abandoned', 'rejected'] as const).map((kind) => {
+  const queues = (['abandoned', 'rejected', 'retired'] as const).map((kind) => {
     const name = `files-cleanup-${kind}`,
       queue = new Queue(name, { connection: producer, prefix });
     queue.on('error', () => undefined);
-    const worker = new Worker(
-      name,
-      async (job) => {
-        const data = fileRetentionJob.safeParse(job.data);
-        if (!data.success) throw new Error('FILE_JOB_INVALID');
-        await useCase.execute(data.data.companyId, kind);
-      },
-      { connection, concurrency: 1, prefix },
-    );
-    worker.on('error', () => undefined);
+    // نسخة من غير تخزين بتسجّل الجداول بس؛ لو استهلكت المهام هتنجّحها من غير حذف وتفوّت دورة نسخة فيها تخزين.
+    const worker = consume ? retentionWorker(name, kind, useCase, connection, prefix) : null;
     return { kind, queue, worker };
   });
   return {
     // يعاد تسجيل نفس الجدول عند إعادة تسليم outbox؛ الشركة هي الهوية الوحيدة في Redis.
     deliver: (event: ClaimedEvent) => registerSchedules(queues, event),
     ready: async () => {
-      await Promise.all(queues.map(({ worker }) => worker.waitUntilReady()));
+      await Promise.all(queues.map(({ worker }) => worker?.waitUntilReady()));
     },
     close: async () => {
       await Promise.all(
         queues.map(async ({ queue, worker }) => {
-          await worker.close();
+          await worker?.close();
           await queue.close();
         }),
       );
@@ -43,6 +40,26 @@ export function startRetentionProcessors(useCase: CleanupFiles, redisUrl: string
       connection.disconnect();
     },
   };
+}
+
+function retentionWorker(
+  name: string,
+  kind: 'abandoned' | 'rejected' | 'retired',
+  useCase: CleanupFiles,
+  connection: Redis,
+  prefix: string,
+) {
+  const worker = new Worker(
+    name,
+    async (job) => {
+      const data = fileRetentionJob.safeParse(job.data);
+      if (!data.success) throw new Error('FILE_JOB_INVALID');
+      await useCase.execute(data.data.companyId, kind);
+    },
+    { connection, concurrency: 1, prefix },
+  );
+  worker.on('error', () => undefined);
+  return worker;
 }
 
 async function registerSchedules(
