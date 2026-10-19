@@ -29,17 +29,61 @@ function makeContext(
   };
 }
 
-function mockDatabase(memberRows: unknown[]): TenantWrappers {
-  return {
-    withUser: async (
-      _userId: string,
-      callback: (tx: { execute: () => Promise<unknown[]> }) => Promise<unknown>,
-    ) => callback({ execute: async () => memberRows }),
+interface TenantCall {
+  companyId: string;
+  options: unknown;
+  statements: string[];
+}
+
+function statementText(query: unknown): string {
+  if (typeof query !== 'object' || query === null || !('queryChunks' in query)) return '';
+  const chunks = (query as { queryChunks: readonly unknown[] }).queryChunks;
+  return chunks
+    .map((chunk) => {
+      if (typeof chunk !== 'object' || chunk === null || !('value' in chunk)) return '';
+      const value = (chunk as { value: unknown }).value;
+      return Array.isArray(value) ? value.join('') : '';
+    })
+    .join('');
+}
+
+function mockDatabase(
+  memberRows: unknown[],
+  companyRows: unknown[] = [{ id: VALID_COMPANY }],
+): { database: TenantWrappers; calls: TenantCall[] } {
+  const calls: TenantCall[] = [];
+  const database = {
+    withUser: (): Promise<unknown> => {
+      throw new Error('withUser must not be called');
+    },
     withTenant: async (
-      _companyId: string,
-      callback: (tx: { execute: () => Promise<unknown[]> }) => Promise<unknown>,
-    ) => callback({ execute: async () => [{ id: VALID_COMPANY }] }),
-  } as unknown as TenantWrappers;
+      companyId: string,
+      callback: (tx: { execute: (query: unknown) => Promise<unknown[]> }) => Promise<unknown>,
+      options?: unknown,
+    ) => {
+      const statements: string[] = [];
+      calls.push({ companyId, options, statements });
+      return callback({
+        execute: async (query) => {
+          statements.push(statementText(query));
+          return statements.length === 1 ? memberRows : companyRows;
+        },
+      });
+    },
+  };
+  return { database: database as unknown as TenantWrappers, calls };
+}
+
+function userPrincipal(): Principal {
+  return {
+    kind: 'user',
+    userId: USER_ID,
+    companyId: null,
+    deviceId: null,
+    employeeId: null,
+    grants: [],
+    memberships: [],
+  };
 }
 
 it.each(['device', 'api-key'] as const)(
@@ -84,8 +128,12 @@ it.each([
     memberships: [],
   };
   const { context } = makeContext(principal, header);
-  const guard = new SelectedCompanyGuard(mockDatabase(rows));
+  const db = mockDatabase(rows);
+  const guard = new SelectedCompanyGuard(db.database);
   await expect(guard.canActivate(context)).rejects.toMatchObject({ code: error });
+  expect(db.calls).toHaveLength(error === 'BAD_REQUEST' ? 0 : 1);
+  if (error === 'BAD_REQUEST') return;
+  expect(db.calls[0]).toMatchObject({ companyId: VALID_COMPANY, options: { userId: USER_ID } });
 });
 
 it('allows active membership and sets companyId on the principal', async () => {
@@ -98,11 +146,36 @@ it('allows active membership and sets companyId on the principal', async () => {
     grants: [],
     memberships: [],
   };
-  const { context, request } = makeContext(principal, VALID_COMPANY);
-  const guard = new SelectedCompanyGuard(
-    mockDatabase([{ id: '01920000-0000-7000-8000-000000000001' }]),
-  );
+  const { context, request } = makeContext(principal, VALID_COMPANY.toUpperCase());
+  const db = mockDatabase([{ id: '01920000-0000-7000-8000-000000000001' }]);
+  const guard = new SelectedCompanyGuard(db.database);
   const result = await guard.canActivate(context);
   expect(result).toBe(true);
   expect(request.principal.companyId).toBe(VALID_COMPANY);
+  expect(db.calls).toHaveLength(1);
+  expect(db.calls[0]).toMatchObject({ companyId: VALID_COMPANY, options: { userId: USER_ID } });
+  expect(db.calls[0]?.statements[0]).toContain('user_id');
+  expect(db.calls[0]?.statements[0]).toContain('company_id');
+});
+
+it('refuses an expired membership with FORBIDDEN', async () => {
+  const { context, request } = makeContext(userPrincipal(), VALID_COMPANY);
+  const db = mockDatabase([]);
+  await expect(new SelectedCompanyGuard(db.database).canActivate(context)).rejects.toMatchObject({
+    code: 'FORBIDDEN',
+  });
+  expect(request.principal.companyId).toBeNull();
+  expect(db.calls).toHaveLength(1);
+  expect(db.calls[0]).toMatchObject({ companyId: VALID_COMPANY, options: { userId: USER_ID } });
+});
+
+it('refuses a deleted company with FORBIDDEN', async () => {
+  const { context, request } = makeContext(userPrincipal(), VALID_COMPANY);
+  const db = mockDatabase([{ id: '01920000-0000-7000-8000-000000000001' }], []);
+  await expect(new SelectedCompanyGuard(db.database).canActivate(context)).rejects.toMatchObject({
+    code: 'FORBIDDEN',
+  });
+  expect(request.principal.companyId).toBeNull();
+  expect(db.calls).toHaveLength(1);
+  expect(db.calls[0]).toMatchObject({ companyId: VALID_COMPANY, options: { userId: USER_ID } });
 });

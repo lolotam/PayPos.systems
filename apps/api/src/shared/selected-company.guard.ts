@@ -8,7 +8,10 @@ import type { FastifyRequest } from 'fastify';
 import { DATABASE } from './database.token.ts';
 import { ApiError } from './errors.ts';
 
-/** Session-only personal resources require active membership and an open selected company. */
+/**
+ * Session-only resources need an active membership and an open company, read together in one
+ * withTenant so the guard checks out a single pool connection.
+ */
 @Injectable()
 export class SelectedCompanyGuard implements CanActivate {
   constructor(@Inject(DATABASE) readonly database: TenantWrappers | null) {}
@@ -22,18 +25,22 @@ export class SelectedCompanyGuard implements CanActivate {
     if (!parsed.success) throw new ApiError('BAD_REQUEST');
     const companyId = parsed.data.toLowerCase();
     const userId = principal.userId;
-    const member = await this.database.withUser(userId, async (tx) =>
-      tx.execute(sql`SELECT id FROM memberships WHERE user_id = ${userId} AND company_id = ${companyId}
-        AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now()) LIMIT 1`),
-    );
-    if (member.length === 0) throw new ApiError('FORBIDDEN');
-    const company = await this.database.withTenant(
+    const open = await this.database.withTenant(
       companyId,
-      (tx) =>
-        tx.execute(sql`SELECT id FROM companies WHERE id = ${companyId} AND deleted_at IS NULL`),
+      async (tx) => {
+        const membership = await tx.execute(
+          sql`SELECT id FROM memberships WHERE user_id = ${userId} AND company_id = ${companyId}
+        AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now()) LIMIT 1`,
+        );
+        if (membership.length === 0) return false;
+        const company = await tx.execute(
+          sql`SELECT id FROM companies WHERE id = ${companyId} AND deleted_at IS NULL`,
+        );
+        return company.length > 0;
+      },
       { userId },
     );
-    if (company.length === 0) throw new ApiError('FORBIDDEN');
+    if (!open) throw new ApiError('FORBIDDEN');
     request.principal = { ...principal, companyId };
     updateRequestContext({ companyId });
     return true;

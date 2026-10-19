@@ -98,6 +98,22 @@ it('rejects invalid proxy CIDRs without printing input', () => {
   );
 });
 
+it('defaults DATABASE_POOL_MAX to 10, accepts 25, and treats an empty value as unset', () => {
+  expect(readConfig(valid).DATABASE_POOL_MAX).toBe(10);
+  expect(readConfig({ ...valid, DATABASE_POOL_MAX: '25' }).DATABASE_POOL_MAX).toBe(25);
+  expect(readConfig({ ...valid, DATABASE_POOL_MAX: '' }).DATABASE_POOL_MAX).toBe(10);
+});
+
+it.each(['0', '-1', '2.5', 'abc', '101'])('refuses DATABASE_POOL_MAX %s', (value) => {
+  const attempt = () => readConfig({ ...valid, DATABASE_POOL_MAX: value });
+  expect(attempt).toThrow(/DATABASE_POOL_MAX/);
+  try {
+    attempt();
+  } catch (error) {
+    expect(String(error)).not.toContain(value);
+  }
+});
+
 it.each(['true', 'false'])(
   'OTP=%s isolates invalid optional settings from core configuration',
   (enabled) => {
