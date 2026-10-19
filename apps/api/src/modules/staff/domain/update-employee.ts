@@ -12,7 +12,7 @@ export interface EditableEmployee extends EmployeeRecord {
   readonly revision: number;
   readonly branch_ids: readonly string[];
   // الرقم يُقرأ مع الصف ويُعاد كما هو؛ التعديل لا يخصصه ولا يمسحه.
-  readonly employee_number: number | null;
+  readonly employee_number: number;
 }
 /** تواريخ الارتباط الأصلي تبقى مستقلة عن تصحيح تاريخ التعيين. */
 export interface BranchAttachment {

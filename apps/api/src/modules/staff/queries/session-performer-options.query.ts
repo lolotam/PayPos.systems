@@ -42,7 +42,7 @@ export async function sessionPerformerOptionsPage(tx: Tx, companyId: string, bus
   day: string, query: SessionPerformerOptionsQuery, codec: CursorCodec, requestedAt: string, scopeHash: string,
   employeeNumber: number | null) {
   const normalizedQ = await normalizeSearch(tx, query);
-  const rows = await tx.execute<{ id: string; name_ar: string | null; name_en: string; employee_number: number | null; sort_key: string; clocked_in: boolean; approved_leave: boolean }>(
+  const rows = await tx.execute<{ id: string; name_ar: string | null; name_en: string; employee_number: number; sort_key: string; clocked_in: boolean; approved_leave: boolean }>(
     sessionPerformerOptionsStatement(companyId, businessId, branchId, day, query, codec.decode(query, normalizedQ, requestedAt, scopeHash), employeeNumber));
   const items = rows.slice(0, query.limit).map((r) => ({ id: r.id, name_ar: r.name_ar, name_en: r.name_en,
     employee_number: r.employee_number, not_clocked_in_warning: !r.clocked_in, approved_leave_warning: r.approved_leave }));

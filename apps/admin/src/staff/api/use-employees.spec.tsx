@@ -22,7 +22,7 @@ const record = {
   created_at: '2026-10-03T00:00:00Z',
   branch_ids: [id],
   revision: 3,
-  employee_number: null,
+  employee_number: 4,
 };
 const terms = {
   primary_branch_id: id,

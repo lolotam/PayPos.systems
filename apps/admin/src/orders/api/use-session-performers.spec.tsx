@@ -10,7 +10,7 @@ const scope = { companyId: 'company', businessId: 'business', branchId: 'branch'
 const instant = '2026-10-13T08:00:00.000Z';
 it.each([true, false])('reads unfiltered selected facts until found=%s or pages end, and disables when nothing is missing', async (found) => {
   state.locale = 'ar'; state.get.mockReset(); const id = '01920000-0000-7000-8000-0000000000a1';
-  const item = { id, name_ar: null, name_en: 'Synthetic', employee_number: null, not_clocked_in_warning: true, approved_leave_warning: false };
+  const item = { id, name_ar: null, name_en: 'Synthetic', employee_number: 7, not_clocked_in_warning: true, approved_leave_warning: false };
   state.get.mockResolvedValueOnce({ data: { items: [], next_cursor: 'next' } }).mockResolvedValue({ data: { items: found ? [item] : [], next_cursor: found ? 'unused' : null } });
   const client = new QueryClient(), wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const hook = renderHook(({ missing }) => useSessionPerformerFacts(scope, instant, [id], missing), { wrapper, initialProps: { missing: false } });

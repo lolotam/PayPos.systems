@@ -555,6 +555,22 @@ export interface paths {
         patch: operations["updateBusinessIdentityNames"];
         trace?: never;
     };
+    "/v1/businesses/{businessId}/settings/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setBusinessLogo"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/settings/discount-limit": {
         parameters: {
             query?: never;
@@ -1066,7 +1082,7 @@ export interface paths {
         /** @description Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. Optional employee_number is an exact match combined with that scope. Optional q searches with it: digits match that exact number or the name, and other text searches Arabic and English names the same way as the reception picker. */
         get: operations["listEmployees"];
         put?: never;
-        /** @description Requires manage:employees:business at the primary branch and staff feature. Missing, other-business and other-company primary branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature or employee diagnostics. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). Optional employee_number stores that integer and does not move the company counter. Without the field, employee_number is the automatic number or null. A typed number without manage:employee-number:company, or under a DENY on the new employee business or primary_branch_id, returns FORBIDDEN (403) and writes nothing. A typed number already used in the company, including by a soft-deleted employee, returns EMPLOYEE_NUMBER_TAKEN (409) and writes nothing. No free number left returns EMPLOYEE_NUMBER_EXHAUSTED (422) and writes nothing. */
+        /** @description Requires manage:employees:business at the primary branch and staff feature. Missing, other-business and other-company primary branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature or employee diagnostics. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). Optional employee_number stores that integer and does not move the company counter. Without the field, employee_number is the automatic number. A typed number without manage:employee-number:company, or under a DENY on the new employee business or primary_branch_id, returns FORBIDDEN (403) and writes nothing. A typed number already used in the company, including by a soft-deleted employee, returns EMPLOYEE_NUMBER_TAKEN (409) and writes nothing. No free number left returns EMPLOYEE_NUMBER_EXHAUSTED (422) and writes nothing. */
         post: operations["createEmployee"];
         delete?: never;
         options?: never;
@@ -3217,7 +3233,7 @@ export interface components {
             user_id: string | null;
             /** Format: date-time */
             created_at: string;
-            employee_number: number | null;
+            employee_number: number;
             revision: number;
             branch_ids: string[];
         };
@@ -3230,7 +3246,7 @@ export interface components {
             /** Format: uuid */
             primary_branch_id: string;
             hire_date: components["schemas"]["EmployeeDate"];
-            employee_number: number | null;
+            employee_number: number;
         };
         EmployeePage: {
             items: components["schemas"]["EmployeeListItem"][];
@@ -3403,7 +3419,7 @@ export interface components {
             user_id: string | null;
             /** Format: date-time */
             created_at: string;
-            employee_number: number | null;
+            employee_number: number;
         };
         CreatedEmployee: {
             /** Format: uuid */
@@ -3421,7 +3437,7 @@ export interface components {
             user_id: string | null;
             /** Format: date-time */
             created_at: string;
-            employee_number: number | null;
+            employee_number: number;
         };
         CreateEmployeeInput: {
             /** Format: uuid */
@@ -4654,7 +4670,7 @@ export interface components {
             id: string;
             name_ar: string | null;
             name_en: string;
-            employee_number: number | null;
+            employee_number: number;
             not_clocked_in_warning: boolean;
             approved_leave_warning: boolean;
         };
@@ -5543,6 +5559,10 @@ export interface components {
             official_name_ar: string | null;
             official_name_en: string | null;
         };
+        BusinessLogo: {
+            /** Format: uuid */
+            logo_file_id: string | null;
+        };
         BusinessSettings: {
             /** Format: uuid */
             business_id: string;
@@ -5557,6 +5577,10 @@ export interface components {
             overridden: ("default_language" | "calendar" | "limit_bps")[];
             /** Format: date-time */
             updated_at: string | null;
+        };
+        SetBusinessLogoInput: {
+            /** Format: uuid */
+            file_id: string | null;
         };
         UpdateBusinessIdentityNamesInput: {
             official_name_ar?: string | null;
@@ -5636,7 +5660,7 @@ export interface operations {
                             employee_id: string;
                             name_ar: string | null;
                             name_en: string;
-                            employee_number: number | null;
+                            employee_number: number;
                             days_present: number;
                             worked_minutes: number;
                             scheduled_minutes: number;
@@ -5734,7 +5758,7 @@ export interface operations {
                             employee_id: string;
                             name_ar: string | null;
                             name_en: string;
-                            employee_number: number | null;
+                            employee_number: number;
                             days_present: number;
                             worked_minutes: number;
                             scheduled_minutes: number;
@@ -7173,6 +7197,43 @@ export interface operations {
             };
         };
     };
+    setBusinessLogo: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetBusinessLogoInput"];
+            };
+        };
+        responses: {
+            /** @description Business settings result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessLogo"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     setBusinessDiscountDefault: {
         parameters: {
             query?: never;
@@ -7483,7 +7544,7 @@ export interface operations {
                             employee_id: string;
                             name_ar: string | null;
                             name_en: string;
-                            employee_number: number | null;
+                            employee_number: number;
                             /** Format: date-time */
                             clock_in: string;
                             /** @enum {string} */
@@ -7498,7 +7559,7 @@ export interface operations {
                             employee_id: string;
                             name_ar: string | null;
                             name_en: string;
-                            employee_number: number | null;
+                            employee_number: number;
                             own: boolean;
                             /** Format: date-time */
                             clock_in: string;
@@ -8150,7 +8211,7 @@ export interface operations {
                             business_id: string;
                             business_name_ar: string | null;
                             business_name_en: string;
-                            employee_number: number | null;
+                            employee_number: number;
                         }[];
                         next_cursor: string | null;
                     };

@@ -1,4 +1,5 @@
 import { employeeNameMatchKey } from '@pospay/domain';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { IdempotencyKeyReusedError, type TenantWrappers } from '@pospay/db';
 import { sql } from 'drizzle-orm';
@@ -138,6 +139,7 @@ it('projects only the display suffix and uses an employee index for the admin qu
     name_en_key: employeeNameMatchKey(`Synthetic plan employee ${index}`),
     role_code: 'staff',
     hire_date: '2026-01-01',
+    employee_number: takeTestEmployeeNumber(f.companyId),
   }));
   await f.owner`INSERT INTO employees ${f.owner(employees)}`;
   const cards = employees.map((employee, index) => ({

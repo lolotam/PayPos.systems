@@ -8,6 +8,7 @@ import {
 import { asRole } from './attendance-exception.fixture.ts';
 import { seedSession } from './attendance-correction.fixture.ts';
 import { leaveIds } from './leave.fixture.ts';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 
 let f: BoardFixture;
 let manual: Awaited<ReturnType<typeof seedManual>>;
@@ -27,10 +28,10 @@ beforeAll(async () => {
   manual = await seedManual(f);
   for (const employee of [refusedEmployee, holder])
     await f.h
-      .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date)
+      .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date,employee_number)
       VALUES(${f.company},${employee.id},${employee === holder ? f.secondBusiness : f.business},
         ${employee === holder ? f.otherBranch : f.branch},${employee.name_ar},${employee.name_en},
-        ${employee.name_en.toLowerCase()},'staff','2026-01-01')`;
+        ${employee.name_en.toLowerCase()},'staff','2026-01-01',${takeTestEmployeeNumber(f.company)})`;
   await f.h
     .owner`INSERT INTO attendance_device_refusals(company_id,id,business_id,branch_id,employee_id,
     holder_employee_id,installation_hash,step,reason,attempted_at) VALUES(${f.company},${leaveIds.newId()},${f.business},${f.branch},

@@ -7,6 +7,7 @@ import {
 } from '../queries/attendance-device-refusals.query.ts';
 import { attendanceBoardFixture, type BoardFixture } from './attendance-board.fixture.ts';
 import { leaveIds } from './leave.fixture.ts';
+import { takeTestEmployeeNumbers } from '../../../../test/test-employee-number.ts';
 
 let f: BoardFixture;
 beforeAll(async () => {
@@ -14,8 +15,9 @@ beforeAll(async () => {
   const ids = Array.from({ length: 60 }, () => leaveIds.newId());
   const sessionIds = Array.from({ length: 6200 }, () => leaveIds.newId());
   await f.h
-    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    SELECT ${f.company},employee_id,${f.business},${f.branch},'Synthetic board employee','synthetic board employee','staff','2026-01-01'
+    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    SELECT ${f.company},employee_id,${f.business},${f.branch},'Synthetic board employee','synthetic board employee','staff','2026-01-01',
+      row_number() OVER () + ${takeTestEmployeeNumbers(f.company, ids.length) - 1}
     FROM unnest(${ids}::uuid[]) AS employee_id`;
   await f.h
     .owner`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,

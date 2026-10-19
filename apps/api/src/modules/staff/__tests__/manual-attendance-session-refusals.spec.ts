@@ -8,6 +8,7 @@ import {
 } from './attendance-change.fixture.ts';
 import { seedSession } from './attendance-correction.fixture.ts';
 import { leaveIds, leaveTerms, leaveActor } from './leave.fixture.ts';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 import { AttendanceChangeKindRefusal } from '../ports/attendance-change-kinds.port.ts';
 import { paired, origin } from '../../../../test/staff-otp-harness.ts';
 
@@ -173,8 +174,8 @@ it('tenant-qualified immediate FK refuses another company request on insert and 
     requestB = leaveIds.newId(),
     sessionB = leaveIds.newId();
   await f.h
-    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${f.otherCompany},${employeeB},${branchB.business_id},${f.foreignBranch},'Synthetic foreign manual','synthetic foreign manual','staff','2026-01-01')`;
+    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.otherCompany},${employeeB},${branchB.business_id},${f.foreignBranch},'Synthetic foreign manual','synthetic foreign manual','staff','2026-01-01',${takeTestEmployeeNumber(f.otherCompany)})`;
   await f.h
     .owner`INSERT INTO attendance_change_requests(company_id,id,business_id,branch_id,employee_id,kind,status,reason,requested_by,requested_at,clock_in,clock_out,working_date,timezone)
     VALUES(${f.otherCompany},${requestB},${branchB.business_id},${f.foreignBranch},${employeeB},'ADD_SESSION','PENDING','foreign day',${f.userId},now(),'2026-09-26T07:00:00Z','2026-09-26T08:00:00Z','2026-09-26','Asia/Kuwait')`;

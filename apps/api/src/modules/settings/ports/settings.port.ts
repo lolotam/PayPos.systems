@@ -1,7 +1,9 @@
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
+import type { OutboxWriter } from '../../../shared/ports/outbox-writer.port.ts';
 import type { SettingsOverrides } from '../domain/business-settings.ts';
 import type { BusinessDiscountAccess } from './business-discount-access.port.ts';
 import type { BusinessIdentityAccess } from './business-identity-access.port.ts';
+import type { LogoFileReader } from './logo-file.port.ts';
 
 /**
  * صف إعدادات النشاط زي ما اتخزن — التعديلات بس، مش القيم الفعلية.
@@ -44,6 +46,10 @@ export interface SettingsScope {
   readonly discountAccess: BusinessDiscountAccess;
   readonly identityAccess: BusinessIdentityAccess;
   readonly audit: AuditTrail;
+  /** الحدث بيتكتب في نفس المعاملة لما إشارة الشعار تتغير. */
+  readonly outbox: OutboxWriter;
+  /** قفل صف الإعدادات ثم ملف الشعار عند الربط. */
+  readonly logoFiles: LogoFileReader;
   /**
    * صف الإعدادات مقفول لحد آخر الـ transaction، أو null لو النشاط لسه ما غيّرش حاجة — عشان الـ audit يسجل قبل وبعد صح.
    *
@@ -68,6 +74,18 @@ export interface SettingsScope {
   saveIdentity(
     businessId: string,
     change: IdentityNamesChange,
+    updatedBy: string,
+  ): Promise<StoredSettings>;
+  /**
+   * بيكتب ملف الشعار أو يمسحه ويرجّع الصف، والأسماء الرسمية بتفضل زي ما هي.
+   *
+   * @param businessId النشاط
+   * @param logoFileId الملف أو null للإزالة
+   * @param updatedBy المستخدم اللي غيّر
+   */
+  saveLogo(
+    businessId: string,
+    logoFileId: string | null,
     updatedBy: string,
   ): Promise<StoredSettings>;
 }

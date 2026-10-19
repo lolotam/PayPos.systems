@@ -2,6 +2,7 @@ import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { personalFixture } from '../../../../test/personal-staff.fixture.ts';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 import { attendanceInstallationSignal } from '@pospay/contracts';
 import {
   installationHash,
@@ -14,8 +15,8 @@ const installationId = '12345678-1234-4234-8234-123456789abc';
 beforeAll(async () => {
   f = await personalFixture();
   secondEmployee = f.ids.newId();
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${f.companyId},${secondEmployee},${f.businessId},${f.branchId},'Synthetic second staff',${employeeNameMatchKey('Synthetic second staff')},'staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.companyId},${secondEmployee},${f.businessId},${f.branchId},'Synthetic second staff',${employeeNameMatchKey('Synthetic second staff')},'staff','2026-01-01',${takeTestEmployeeNumber(f.companyId)})`;
 });
 afterAll(async () => {
   await f?.close();

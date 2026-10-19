@@ -8,6 +8,7 @@ import { errorMessages } from '@pospay/i18n';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { startHarness, type Harness } from '../../../../test/harness.ts';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 import { createEmployeeCardHash } from '../persistence/employee-card-hash.ts';
 import {
   CARD_SCAN_FAILURES_PER_WINDOW,
@@ -70,8 +71,8 @@ async function seed(): Promise<void> {
   const employee = randomUUID();
   const operatorA = await addOperator('card-limit-a@example.test', branch);
   const operatorB = await addOperator('card-limit-b@example.test', branch);
-  await h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${company},${employee},${business},${branch},'Synthetic limit employee',${employeeNameMatchKey('Synthetic limit employee')},'staff','2026-01-01')`;
+  await h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${company},${employee},${business},${branch},'Synthetic limit employee',${employeeNameMatchKey('Synthetic limit employee')},'staff','2026-01-01',${takeTestEmployeeNumber(company)})`;
   await h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES(${company},${randomUUID()},${business},${employee},${branch},'2026-01-01')`;
   await h.owner`INSERT INTO employee_cards(company_id,id,business_id,employee_id,card_code_hash,card_code_suffix,issued_at,issued_by)

@@ -1,12 +1,26 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Req,
+} from '@nestjs/common';
 import {
   updateBusinessSettingsInput,
   updateBusinessIdentityNamesInput,
+  setBusinessLogoInput,
   discountLimitInput,
   type DiscountLimitInput,
   type DiscountLimit,
   type BusinessIdentityNames,
+  type BusinessLogo,
   type BusinessSettings,
+  type SetBusinessLogoInput,
   type UpdateBusinessIdentityNamesInput,
   type UpdateBusinessSettingsInput,
 } from '@pospay/contracts';
@@ -25,12 +39,14 @@ import {
 } from '../queries/business-settings.query.ts';
 import type { UpdateBusinessSettings } from '../use-cases/update-business-settings/update-business-settings.ts';
 import type { UpdateBusinessIdentityNames } from '../use-cases/update-business-identity-names/update-business-identity-names.ts';
+import type { SetBusinessLogo } from '../use-cases/set-business-logo/set-business-logo.ts';
 import type { SetBusinessDiscountDefault } from '../use-cases/set-business-discount-default/set-business-discount-default.ts';
 
 export interface SettingsWiring {
   readonly discount: SetBusinessDiscountDefault;
   readonly update: UpdateBusinessSettings;
   readonly identity: UpdateBusinessIdentityNames;
+  readonly logo: SetBusinessLogo;
   readonly cache: SettingsReadCache;
   readonly template: SettingsTemplate;
 }
@@ -106,5 +122,17 @@ export class SettingsController {
   ): Promise<BusinessIdentityNames> {
     if (this.#wiring === null) throw new ApiError('NOT_READY');
     return this.#wiring.identity.execute(actorOf(request), businessId.toLowerCase(), input);
+  }
+
+  @Put('businesses/:businessId/settings/logo')
+  @HttpCode(200)
+  @Require('manage:business-identity:business', { business: 'businessId' })
+  async setLogo(
+    @Param('businessId') businessId: string,
+    @Body(new ZodValidationPipe(setBusinessLogoInput)) input: SetBusinessLogoInput,
+    @Req() request: FastifyRequest,
+  ): Promise<BusinessLogo> {
+    if (this.#wiring === null) throw new ApiError('NOT_READY');
+    return this.#wiring.logo.execute(actorOf(request), businessId.toLowerCase(), input);
   }
 }

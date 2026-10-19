@@ -15,8 +15,8 @@ export async function seedOrders(owner: postgres.Sql) {
       VALUES(${t.company},${ORDER_IDS.customer},'Synthetic customer','+999999998123','en',now(),now())`;
     await owner`INSERT INTO services(company_id,id,business_id,name_en,price,commission_rule_kind)
       VALUES(${t.company},${ORDER_IDS.service},${t.business},'Synthetic service',1.000,'ZERO')`;
-    await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-      VALUES(${t.company},${ORDER_IDS.employee},${t.business},${t.branch},'Synthetic performer','synthetic performer','staff','2026-01-01')`;
+    await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+      VALUES(${t.company},${ORDER_IDS.employee},${t.business},${t.branch},'Synthetic performer','synthetic performer','staff','2026-01-01',1)`;
     await owner.begin(async (tx) => {
       await tx`INSERT INTO service_sessions(company_id,id,business_id,branch_id,customer_id,customer_name,customer_phone_masked,
         recorded_by,recorded_by_membership_id,occurred_at,recorded_at,business_date,business_timezone,late)

@@ -4,7 +4,7 @@ import { expect, it, vi } from 'vitest';
 import { EmployeeEditPanel } from './employee-edit-panel';
 
 const id = '01920000-0000-7000-8000-0000000000a2';
-const state = vi.hoisted(() => ({ number: 15 as number | null }));
+const state = vi.hoisted(() => ({ number: 15 }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 vi.mock('../api/use-employees', () => ({
   useEmployeeEdit: () => ({
@@ -73,9 +73,4 @@ it('shows the employee number beside the name', () => {
   const label = screen.getByText(t('en', 'staff.employeeNumber'), { exact: false });
   expect(label.className).toContain('sr-only');
   expect(label.parentElement?.textContent).toBe(`${t('en', 'staff.employeeNumber')} 15`);
-});
-it('shows an em dash beside the name when the employee has no number', () => {
-  state.number = null;
-  renderPanel();
-  expect(screen.getByText('Synthetic employee').parentElement?.textContent).toContain('\u2014');
 });

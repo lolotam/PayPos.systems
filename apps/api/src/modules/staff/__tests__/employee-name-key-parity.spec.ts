@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createDatabase } from '@pospay/db';
 import { employeeNameMatchKey } from '@pospay/domain';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 import { systemUuidV7 } from '@pospay/ids';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -60,8 +61,8 @@ it.each(employeeNameKeyUnicodeCaseVectors)(
   async (name) => {
     const { company, business, branch } = TENANT.A;
     const id = systemUuidV7().newId();
-    await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_ar,role_code,hire_date)
-    VALUES(${company},${id},${business},${branch},${name},${name},'staff','2026-01-01')`;
+    await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_ar,role_code,hire_date,employee_number)
+    VALUES(${company},${id},${business},${branch},${name},${name},'staff','2026-01-01',${takeTestEmployeeNumber(company)})`;
     await owner.unsafe(backfill);
     const app = createDatabase({ url: testDb.appUrl, ids: systemUuidV7(), maxConnections: 1 });
     try {
@@ -81,8 +82,8 @@ it.each([null, 'سَـارة إيمان'])(
     const { company, business, branch } = TENANT.A;
     const id = systemUuidV7().newId();
     const nameEn = 'ＳＡＲＡ  Ahmed';
-    await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_ar,role_code,hire_date)
-    VALUES(${company},${id},${business},${branch},${nameEn},${nameAr},'staff','2026-01-01')`;
+    await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_ar,role_code,hire_date,employee_number)
+    VALUES(${company},${id},${business},${branch},${nameEn},${nameAr},'staff','2026-01-01',${takeTestEmployeeNumber(company)})`;
     expect(await owner`SELECT name_en_key,name_ar_key FROM employees WHERE id=${id}`).toEqual([
       { name_en_key: null, name_ar_key: null },
     ]);

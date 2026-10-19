@@ -134,14 +134,18 @@ export {
 } from './identity/my-memberships.js';
 export {
   businessIdentityNames,
+  businessLogo,
   businessSettings,
   calendar,
   language,
+  setBusinessLogoInput,
   taxRule,
   updateBusinessIdentityNamesInput,
   updateBusinessSettingsInput,
   type BusinessIdentityNames,
+  type BusinessLogo,
   type BusinessSettings,
+  type SetBusinessLogoInput,
   type UpdateBusinessIdentityNamesInput,
   type UpdateBusinessSettingsInput,
 } from './settings/business-settings.js';

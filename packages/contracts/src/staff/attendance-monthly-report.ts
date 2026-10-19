@@ -17,7 +17,7 @@ export const attendanceMonthlyReportRow = responseObject({
   employee_id: id,
   name_ar: z.string().nullable(),
   name_en: z.string(),
-  employee_number: z.number().int().min(1).max(999999).nullable(),
+  employee_number: z.number().int().min(1).max(999999),
   days_present: count,
   worked_minutes: count,
   scheduled_minutes: count,

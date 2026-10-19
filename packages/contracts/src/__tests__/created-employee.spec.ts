@@ -16,21 +16,21 @@ const body = {
 };
 
 describe('createdEmployee', () => {
-  it('accepts a number or null and rejects a missing, zero or million value', () => {
+  it('accepts 7 and 999999 and rejects a missing, null, zero or million value', () => {
     expect(createdEmployee.parse({ ...body, employee_number: 7 }).employee_number).toBe(7);
-    expect(createdEmployee.parse({ ...body, employee_number: null }).employee_number).toBeNull();
     expect(createdEmployee.parse({ ...body, employee_number: 999_999 }).employee_number).toBe(
       999_999,
     );
     expect(createdEmployee.safeParse(body).success).toBe(false);
+    expect(createdEmployee.safeParse({ ...body, employee_number: null }).success).toBe(false);
     expect(createdEmployee.safeParse({ ...body, employee_number: 0 }).success).toBe(false);
     expect(createdEmployee.safeParse({ ...body, employee_number: 1_000_000 }).success).toBe(false);
   });
 
-  it('requires the number on employee and detail, including null', () => {
+  it('requires the number on employee and detail', () => {
     expect(employee.safeParse(body).success).toBe(false);
     expect(employee.parse({ ...body, employee_number: 4 }).employee_number).toBe(4);
-    expect(employee.parse({ ...body, employee_number: null }).employee_number).toBeNull();
+    expect(employee.safeParse({ ...body, employee_number: null }).success).toBe(false);
     expect(employee.safeParse({ ...body, employee_number: 0 }).success).toBe(false);
     expect(
       employeeDetailRecord.safeParse({ ...body, revision: 1, branch_ids: [body.id] }).success,
@@ -38,10 +38,18 @@ describe('createdEmployee', () => {
     expect(
       employeeDetailRecord.parse({
         ...body,
-        employee_number: null,
+        employee_number: 7,
         revision: 1,
         branch_ids: [body.id],
       }).employee_number,
-    ).toBeNull();
+    ).toBe(7);
+    expect(
+      employeeDetailRecord.safeParse({
+        ...body,
+        employee_number: null,
+        revision: 1,
+        branch_ids: [body.id],
+      }).success,
+    ).toBe(false);
   });
 });

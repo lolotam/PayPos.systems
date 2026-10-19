@@ -3,6 +3,7 @@ import { employeeNameMatchKey } from '@pospay/domain';
 import { ordersLineEdits } from '../src/modules/orders/orders.module.ts';
 import { EditServiceLinePriceUseCase } from '../src/modules/orders/use-cases/edit-service-line-price/edit-service-line-price.usecase.ts';
 import { ids, must, sessionFixture, type SessionFixture } from './service-session.fixture.ts';
+import { takeTestEmployeeNumber } from './test-employee-number.ts';
 
 interface PerformerSnapshot {
   employee_id: string;
@@ -65,8 +66,8 @@ async function insertEditor(
 ) {
   await base.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,limit_bps,starts_at)
     VALUES(${base.company},${editorMembership},${editorId},${role},'global','BRANCH',${base.branch},2000,'2026-01-01T00:00:00Z')`;
-  await base.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,name_ar,name_ar_key,role_code,hire_date)
-    VALUES(${base.company},${editorEmployee},${base.business},${base.branch},${editorId},${nameEn},${employeeNameMatchKey(nameEn)},${nameAr},${employeeNameMatchKey(nameAr)},'branch_manager','2026-01-01')`;
+  await base.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,name_ar,name_ar_key,role_code,hire_date,employee_number)
+    VALUES(${base.company},${editorEmployee},${base.business},${base.branch},${editorId},${nameEn},${employeeNameMatchKey(nameEn)},${nameAr},${employeeNameMatchKey(nameAr)},'branch_manager','2026-01-01',${takeTestEmployeeNumber(base.company)})`;
   await base.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES(${base.company},${ids.newId()},${base.business},${editorEmployee},${base.branch},'2026-01-01')`;
 }

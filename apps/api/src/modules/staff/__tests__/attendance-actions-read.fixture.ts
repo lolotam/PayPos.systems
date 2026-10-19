@@ -6,6 +6,7 @@ import {
 import { openException } from './attendance-exception.fixture.ts';
 import { seedSession } from './attendance-correction.fixture.ts';
 import { leaveIds } from './leave.fixture.ts';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 
 export async function actorEmployee(
   f: BoardFixture,
@@ -15,9 +16,9 @@ export async function actorEmployee(
   const id = leaveIds.newId();
   const name = { ar: 'اسم اصطناعي', en: 'Synthetic actor' };
   await f.h
-    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,name_en_key,role_code,hire_date)
+    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,name_en_key,role_code,hire_date,employee_number)
     VALUES(${f.company},${id},${businessId},${businessId === f.business ? f.branch : f.otherBranch},${userId},
-      ${name.ar},${name.en},'synthetic actor','staff','2026-01-01')`;
+      ${name.ar},${name.en},'synthetic actor','staff','2026-01-01',${takeTestEmployeeNumber(f.company)})`;
   return { id, name };
 }
 export async function seedCorrection(
@@ -74,8 +75,8 @@ async function foreignSession(f: BoardFixture) {
   const session = leaveIds.newId();
   const exception = leaveIds.newId();
   await f.h
-    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${f.otherCompany},${employee},${businessId},${f.foreignBranch},${f.approverId},'Foreign actor','foreign actor','staff','2026-01-01')`;
+    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.otherCompany},${employee},${businessId},${f.foreignBranch},${f.approverId},'Foreign actor','foreign actor','staff','2026-01-01',${takeTestEmployeeNumber(f.otherCompany)})`;
   await f.h
     .owner`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,
     clock_in,clock_out,status,source,closed_by,geo,out_geo,late_minutes)

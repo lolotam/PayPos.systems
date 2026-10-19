@@ -4,14 +4,14 @@ import type { EmployeeNumberAudit } from '../domain/employee-number-change.ts';
 export interface EmployeeNumberRow {
   business_id: string;
   primary_branch_id: string;
-  employee_number: number | null;
+  employee_number: number;
   attached_branch_ids: readonly string[];
 }
 
 /** الصف بعد قفل الموظفة. الفروع تُعاد قراءتها لأن القراءة الأولى كانت بلا قفل. */
 export interface EmployeeNumberLock {
   primary_branch_id: string;
-  employee_number: number | null;
+  employee_number: number;
   attached_branch_ids: readonly string[];
 }
 

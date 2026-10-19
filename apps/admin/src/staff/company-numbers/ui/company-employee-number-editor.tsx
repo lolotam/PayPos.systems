@@ -53,7 +53,7 @@ export function CompanyEmployeeNumberEditor({
   onClose,
   rootRef,
 }: {
-  current: number | null;
+  current: number;
   pending: boolean;
   message: string | null;
   onSubmit: (employeeNumber: number) => void;
@@ -93,7 +93,7 @@ export function CompanyEmployeeNumberEditor({
           ref={bindNumberField(field, registered)}
           onChange={(event) => clearOnChange(form, registered, event, () => setEdited(true))}
           aria-describedby={invalidText ? `${fieldId}-error` : undefined}
-          defaultValue={current === null ? '' : String(current)}
+          defaultValue={String(current)}
         />
         {invalidText ? (
           <p id={`${fieldId}-error`} role="alert">

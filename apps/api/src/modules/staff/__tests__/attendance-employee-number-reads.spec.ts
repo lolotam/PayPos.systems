@@ -67,7 +67,7 @@ const setNumber = async (value: 7 | null) => {
 it('EN-15 board, monthly report and CSV carry the employee number and no phone, salary or IBAN', async () => {
   await setNumber(7);
   const shown = await readBoard();
-  const onBoard = (rows: { employee_id: string; employee_number: number | null }[]) =>
+  const onBoard = (rows: { employee_id: string; employee_number: number }[]) =>
     rows.filter((row) => row.employee_id === boardFx.employee.id);
   expect(onBoard(shown.in_now).map((row) => row.employee_number)).toEqual([7]);
   expect(onBoard(shown.sessions).map((row) => row.employee_number)).toEqual([7]);
@@ -79,19 +79,8 @@ it('EN-15 board, monthly report and CSV carry the employee number and no phone, 
   expect(cell(csv, 0)).toBe('"رقم الموظف"');
   expect(cell(csv, 1)).toBe('"7"');
   expect(csv).not.toMatch(/phone|salary|iban|employee_id/i);
-
-  await setNumber(null);
-  const hidden = await readBoard();
-  expect(onBoard(hidden.in_now).map((row) => row.employee_number)).toEqual([null]);
-  expect(onBoard(hidden.sessions).map((row) => row.employee_number)).toEqual([null]);
-  const emptyBranch = await readReport(reportFx.branch);
-  const emptyAll = await readReport('all');
-  expect(emptyBranch.rows).toMatchObject([{ employee_id: reportFx.employee.id, employee_number: null }]);
-  expect(emptyAll.rows).toMatchObject([{ employee_id: reportFx.employee.id, employee_number: null }]);
-  const emptyCsv = await readCsv();
-  expect(cell(emptyCsv, 0)).toBe('"رقم الموظف"');
-  expect(cell(emptyCsv, 1)).toBe('"\u2014"');
-  const bodies = JSON.stringify([shown, branch, all, hidden, emptyBranch, emptyAll]) + csv + emptyCsv;
-  expect(bodies).not.toMatch(/phone|salary|iban/i);
-  expect(emptyCsv).not.toMatch(/phone|salary|iban|employee_id/i);
+  expect(JSON.stringify([shown, branch, all]) + csv).not.toMatch(/phone|salary|iban/i);
+  await expect(
+    boardFx.h.owner`UPDATE employees SET employee_number = NULL WHERE company_id=${boardFx.company} AND id=${boardFx.employee.id}`,
+  ).rejects.toMatchObject({ code: '23502' });
 });

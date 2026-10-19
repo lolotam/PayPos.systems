@@ -4,7 +4,7 @@ import type { QueryClient } from '@tanstack/react-query';
 type NumberedName = {
   name_ar: string | null;
   name_en: string;
-  employee_number: number | null;
+  employee_number: number;
 };
 
 type NumberPage<T extends NumberedName> = {

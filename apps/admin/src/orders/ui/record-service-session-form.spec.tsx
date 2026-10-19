@@ -17,7 +17,7 @@ vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get, POST
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 
 const service = { id: id(5), name_ar: null, name_en: 'Synthetic service', price: '7.125', revision: 1 };
-const performer = { id: id(6), name_ar: null, name_en: 'Synthetic performer', employee_number: null, not_clocked_in_warning: false, approved_leave_warning: false };
+const performer = { id: id(6), name_ar: null, name_en: 'Synthetic performer', employee_number: 7, not_clocked_in_warning: false, approved_leave_warning: false };
 const customer = { id: id(7), name: 'Synthetic customer', phone: '***001' };
 const context = {
   generated_at: instant, business_timezone: 'Asia/Kuwait', recorder_membership_ids: [id(8)],
@@ -113,7 +113,7 @@ it('sends the chosen recorder membership and locks it after the visit is saved',
   const submitted: SessionDraftForm[] = [];
   const view = renderForm(true, emptySessionRecordingResult(customer), openJournal(), async (drafts) => { submitted.push(drafts); });
   await chooseService();
-  await screen.findByRole('option', { name: 'Synthetic performer' });
+  await screen.findByRole('option', { name: 'Synthetic performer (7)' });
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.performerNumber').replace('{n}', '1')), { target: { value: id(6) } });
   await screen.findByRole('option', { name: id(9) });
   fireEvent.change(membership(), { target: { value: id(9) } });
@@ -201,7 +201,7 @@ it('reopens the recorder picker after the saved membership is forbidden and subm
   const savedVisit: SessionRecordingResult = { ...saved, drafts: { lines: [], recorder_membership_id: id(8) } };
   renderForm(true, savedVisit, openJournal(), async (drafts) => { submitted.push(drafts); });
   await chooseService();
-  await screen.findByRole('option', { name: 'Synthetic performer' });
+  await screen.findByRole('option', { name: 'Synthetic performer (7)' });
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.performerNumber').replace('{n}', '1')), { target: { value: id(6) } });
   await screen.findByRole('option', { name: id(9) });
   await waitFor(() => expect(membership().disabled).toBe(false));

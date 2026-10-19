@@ -1,5 +1,6 @@
 import { SYSTEM_ROLES } from '@pospay/db';
 import { employeeNameMatchKey } from '@pospay/domain';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { ordersLineEdits } from '../orders.module.ts';
@@ -161,8 +162,8 @@ it('stores the employee names of the line business and keeps them after a later 
   const other = ids.newId();
   const otherEn = 'Other Business Editor';
   const otherAr = 'أخرى';
-  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,name_ar,name_ar_key,role_code,hire_date)
-    VALUES(${f.company},${other},${f.secondBusiness},${f.secondBranch},${f.editorId},${otherEn},${employeeNameMatchKey(otherEn)},${otherAr},${employeeNameMatchKey(otherAr)},'staff','2026-01-01')`;
+  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,name_ar,name_ar_key,role_code,hire_date,employee_number)
+    VALUES(${f.company},${other},${f.secondBusiness},${f.secondBranch},${f.editorId},${otherEn},${employeeNameMatchKey(otherEn)},${otherAr},${employeeNameMatchKey(otherAr)},'staff','2026-01-01',${takeTestEmployeeNumber(f.company)})`;
   await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from") VALUES(${f.company},${ids.newId()},${f.secondBusiness},${other},${f.secondBranch},'2026-01-01')`;
   const visit = await recorded(f);
   await runEdit(f, visit.sessionId, visit.lineId, editBody());
