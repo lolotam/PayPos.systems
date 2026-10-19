@@ -1,22 +1,14 @@
-import {
-  IdempotencyKeyReusedError,
-  appendAuditLogs,
-  appendOutboxEvent,
-  runIdempotent,
-  type TenantWrappers,
-  type Tx,
-} from '@pospay/db';
-import { SessionError } from '../domain/session-error.ts';
-import type { LineEditAuditEntry, LineEditTransaction, LineEditTransactions } from '../ports/line-edit.port.ts';
+import type { TenantWrappers, Tx } from '@pospay/db';
+import type { LineEditRepository, LineEditTransaction, LineEditTransactions } from '../ports/line-edit.port.ts';
 import type { SessionWriteContext } from '../ports/service-session-transactions.port.ts';
 import { discountLimit } from './discount-limit.adapter.ts';
 import { editorName } from './editor-name.adapter.ts';
 import { activeLineNets, loadEditableSession, loadLineForUpdate, lockLineEditVisit } from './line-edit-records.ts';
 import { insertLineEdit, updateLinePrice } from './line-edit-writes.ts';
+import { createLineWriteTransactions } from './line-write-transactions.ts';
 import { performerCheck } from './performer-check.adapter.ts';
 import { sessionEditAccess } from './session-edit-access.adapter.ts';
 import { sessionPlace } from './session-place.adapter.ts';
-import { cleanSessionWrite } from './session-recovery-proof.ts';
 
 const EDIT_OPERATION = 'edit-service-line-price';
 
@@ -28,11 +20,13 @@ interface LineEditReaders {
   discount: LineEditTransaction['discount'];
 }
 
+type LineEditBody = LineEditReaders & { lines: LineEditRepository };
+
 export function createLineEditTransactions(
   database: TenantWrappers,
   bind: (tx: Tx, context: SessionWriteContext) => LineEditReaders,
 ): LineEditTransactions {
-  return { run: (context, work) => runLineEdit(database, bind, context, work) };
+  return createLineWriteTransactions<LineEditBody>(database, EDIT_OPERATION, (tx, context) => assembleLineEdit(tx, context, bind));
 }
 
 export function bindLineEditReaders(tx: Tx, context: SessionWriteContext): LineEditReaders {
@@ -45,23 +39,14 @@ export function bindLineEditReaders(tx: Tx, context: SessionWriteContext): LineE
   };
 }
 
-async function runLineEdit<T>(
-  database: TenantWrappers,
-  bind: (tx: Tx, context: SessionWriteContext) => LineEditReaders,
+function assembleLineEdit(
+  tx: Tx,
   context: SessionWriteContext,
-  work: (tx: LineEditTransaction) => Promise<T>,
-): Promise<T> {
-  try {
-    return await database.withTenant(context.companyId, (tx) => work(lineEditTransaction(tx, context, bind(tx, context))), { userId: context.userId });
-  } catch (error) {
-    return mapLineEditError(error);
-  }
-}
-
-function lineEditTransaction(tx: Tx, context: SessionWriteContext, readers: LineEditReaders): LineEditTransaction {
+  bind: (tx: Tx, context: SessionWriteContext) => LineEditReaders,
+): LineEditBody {
   const scope = { companyId: context.companyId, businessId: context.businessId, branchId: context.branchId };
   return {
-    ...readers,
+    ...bind(tx, context),
     lines: {
       lockVisit: (sessionId) => lockLineEditVisit(tx, sessionId),
       loadLineForUpdate: (sessionId, lineId) => loadLineForUpdate(tx, scope, sessionId, lineId),
@@ -70,32 +55,5 @@ function lineEditTransaction(tx: Tx, context: SessionWriteContext, readers: Line
       insertEdit: (sessionId, lineId, edit) => insertLineEdit(tx, scope, sessionId, lineId, edit),
       loadSession: (sessionId) => loadEditableSession(tx, scope, sessionId),
     },
-    idempotent: (handler) => claimLineEdit(tx, context, handler),
-    audit: (id, entry) => writeLineEditAudit(tx, id, entry),
-    emit: (id, sessionId, payload) => appendOutboxEvent(tx, id, {
-      aggregateType: 'service_session',
-      aggregateId: sessionId,
-      eventType: 'ServiceLineChanged',
-      payload,
-    }),
   };
-}
-
-async function claimLineEdit<T>(tx: Tx, context: SessionWriteContext, handler: () => Promise<T>) {
-  const result = await runIdempotent(tx, {
-    scope: 'COMPANY',
-    operation: EDIT_OPERATION,
-    key: context.key,
-    fingerprint: context.fingerprint,
-  }, async () => ({ status: 200, body: await handler() }));
-  return { body: result.body as T, replayed: result.replayed };
-}
-
-async function writeLineEditAudit(tx: Tx, id: string, entry: LineEditAuditEntry): Promise<void> {
-  await appendAuditLogs(tx, [{ id, entry }]);
-}
-
-function mapLineEditError(error: unknown): never {
-  if (error instanceof IdempotencyKeyReusedError) throw new SessionError('IDEMPOTENCY_KEY_REUSED');
-  cleanSessionWrite(error);
 }

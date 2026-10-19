@@ -7,6 +7,7 @@ import { readFeatureEnabled } from './feature-reader.ts';
 import { lockServiceSessionAccess } from './service-session-access.ts';
 
 const EDIT_PERMISSION = 'edit:service-line-prices:branch';
+const CANCEL_PERMISSION = 'cancel:service-lines:branch';
 const READ_PERMISSION = 'read:service-sessions:branch';
 
 type CandidateRow = {
@@ -26,18 +27,18 @@ type GrantRow = {
   scopeId: string;
 };
 
-interface EditorRole {
+interface ActorRole {
   code: string;
   is_system: boolean;
   name_ar: string | null;
   name_en: string;
 }
 
-interface EditAccess {
+interface LineAccess {
   denied: boolean;
   feature: boolean;
   can_read: boolean;
-  eligible: readonly { membership_id: string; role: EditorRole }[];
+  eligible: readonly { membership_id: string; role: ActorRole }[];
 }
 
 /**
@@ -48,6 +49,21 @@ interface EditAccess {
  * @returns اكتمال قفل الشركة ثم العضويات بترتيب ثابت
  */
 export async function lockServiceSessionEditAccess(tx: Tx, companyId: string): Promise<void> {
+  await lockLineAccess(tx, companyId);
+}
+
+/**
+ * يحفظ سلطة إلغاء البند بنفس أقفال التسجيل المتوافقة مع الكتالوج.
+ *
+ * @param tx معاملة الشركة المستهلكة
+ * @param companyId الشركة المؤكدة
+ * @returns اكتمال قفل الشركة ثم العضويات بترتيب ثابت
+ */
+export async function lockServiceSessionCancelAccess(tx: Tx, companyId: string): Promise<void> {
+  await lockLineAccess(tx, companyId);
+}
+
+async function lockLineAccess(tx: Tx, companyId: string): Promise<void> {
   await lockServiceSessionAccess(tx, companyId);
 }
 
@@ -70,14 +86,49 @@ export async function readServiceSessionEditAccess(
   businessId: string,
   branchId: string,
   at: Date,
-): Promise<EditAccess> {
+): Promise<LineAccess> {
+  return readLineAccess(tx, EDIT_PERMISSION, companyId, userId, businessId, branchId, at);
+}
+
+/**
+ * يعيد عضويات الإلغاء المؤهلة بذاتها، ومنع الإلغاء، وقراءة الزيارات، وميزة الطلبات عند اللحظة المحقونة.
+ * المنع والقراءة يُحسبان على كل عضوية سارية لأن نطاق الـ override مستقل عن نطاق عضويته، والأهلية تبقى للعضوية التي تغطي الفرع وتمنح الإلغاء بذاتها.
+ *
+ * @param tx معاملة المستهلك نفسها
+ * @param companyId الشركة المؤكدة
+ * @param userId مستخدمة الإلغاء
+ * @param businessId النشاط الذي أثبته النطاق
+ * @param branchId فرع الزيارة
+ * @param at وقت جديد بعد الأقفال لفحص سريان العضوية
+ * @returns المنع والميزة وحق القراءة والعضويات التي يمنح دورها الإلغاء على هذا الفرع
+ */
+export async function readServiceSessionCancelAccess(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  branchId: string,
+  at: Date,
+): Promise<LineAccess> {
+  return readLineAccess(tx, CANCEL_PERMISSION, companyId, userId, businessId, branchId, at);
+}
+
+async function readLineAccess(
+  tx: Tx,
+  permission: string,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  branchId: string,
+  at: Date,
+): Promise<LineAccess> {
   const target = { companyId, businessId, branchId };
   const [candidates, principal, featureOn] = await Promise.all([
     candidateMemberships(tx, companyId, userId, businessId, branchId, at),
-    principalAccess(tx, companyId, userId, at),
+    principalAccess(tx, companyId, userId, at, permission),
     readFeatureEnabled(tx, companyId, 'orders', at),
   ]);
-  return decideEditAccess(candidates, principal, featureOn && candidates.length > 0, target);
+  return decideLineAccess(candidates, principal, featureOn && candidates.length > 0, target, permission);
 }
 
 async function candidateMemberships(
@@ -102,11 +153,11 @@ async function candidateMemberships(
 
 type OwnerRow = { owner: boolean };
 
-async function principalAccess(tx: Tx, companyId: string, userId: string, at: Date) {
+async function principalAccess(tx: Tx, companyId: string, userId: string, at: Date, writePermission: string) {
   const instant = at.toISOString();
   const active = sql`m.company_id=${companyId} AND m.user_id=${userId}
     AND m.starts_at<=${instant}::timestamptz AND (m.ends_at IS NULL OR m.ends_at>${instant}::timestamptz)`;
-  const permissions = sql`${EDIT_PERMISSION}, ${READ_PERMISSION}`;
+  const permissions = sql`${writePermission}, ${READ_PERMISSION}`;
   const [owners, rows] = await Promise.all([
     tx.execute<OwnerRow>(sql`SELECT COALESCE(bool_or((${canonicalOwnerSql('m', companyId)})::boolean), false) AS owner
       FROM memberships m WHERE ${active}`),
@@ -149,22 +200,23 @@ function grantScope(scope: string): ScopeType {
   }
 }
 
-function decideEditAccess(
+function decideLineAccess(
   candidates: readonly CandidateRow[],
   principal: { owner: boolean; grants: readonly (AccessGrant & { membership_id: string })[] },
   feature: boolean,
   target: AccessTarget,
-): EditAccess {
+  writePermission: string,
+): LineAccess {
   const visible = protectOwnerAccess(principal.grants, principal.owner);
   const covers = (scope: string, id: string) =>
     (scope === 'COMPANY' && id === target.companyId) ||
     (scope === 'BUSINESS' && id === target.businessId) ||
     (scope === 'BRANCH' && id === target.branchId);
   return {
-    denied: visible.some((grant) => grant.permission === EDIT_PERMISSION && grant.effect === 'DENY' && covers(grant.scopeType, grant.scopeId)),
+    denied: visible.some((grant) => grant.permission === writePermission && grant.effect === 'DENY' && covers(grant.scopeType, grant.scopeId)),
     feature,
     can_read: evaluateAccess(visible, READ_PERMISSION, target),
-    eligible: candidates.filter((candidate) => evaluateAccess(visible.filter((grant) => grant.membership_id === candidate.id), EDIT_PERMISSION, target)).map((candidate) => ({
+    eligible: candidates.filter((candidate) => evaluateAccess(visible.filter((grant) => grant.membership_id === candidate.id), writePermission, target)).map((candidate) => ({
       membership_id: candidate.id,
       role: { code: candidate.role_code, is_system: candidate.role_is_system, name_ar: candidate.role_name_ar, name_en: candidate.role_name_en },
     })),

@@ -1,12 +1,13 @@
 import type { EditServiceLineInput, EditServiceLineResponse } from '@pospay/contracts';
 import { parseMoney } from '@pospay/domain';
 import { lineEditAudit } from '../../domain/line-edit-audit.ts';
-import { resolveSessionEditor, type SessionEditAccess } from '../../domain/line-edit-editor.ts';
+import { resolveSessionEditor } from '../../domain/line-edit-editor.ts';
 import { lineEditEvent } from '../../domain/line-edit-event.ts';
-import { assertEditorIsNotPerformer, type LineEditPerformer } from '../../domain/line-edit-identity.ts';
+import { assertEditorIsNotPerformer } from '../../domain/line-edit-identity.ts';
 import { assertLineEditable, prepareLineEdit, type PreparedLineEdit } from '../../domain/line-edit-prepare.ts';
 import { normalizeEditReason } from '../../domain/line-edit-reason.ts';
 import { projectEditResponse, savedLineEditResponse } from '../../domain/line-edit-response.ts';
+import { lineActorAccess, linePerformerIdentities, refuseStaleLine, selectedLineMembership } from '../../domain/line-mutation-shared.ts';
 import { SessionError } from '../../domain/session-error.ts';
 import { validateAppendWindow } from '../../domain/session-time.ts';
 import type { SessionEmployee, SessionLine, SessionRecord } from '../../domain/session-types.ts';
@@ -56,13 +57,13 @@ export class EditServiceLinePriceUseCase {
 
   private async authorize(tx: LineEditTransaction, context: EditContext): Promise<void> {
     if ((await tx.place.read()) === null) throw new SessionError('FORBIDDEN');
-    const access = editorAccess(await tx.access.read(this.clock.now()));
+    const access = lineActorAccess(await tx.access.read(this.clock.now()));
     resolveSessionEditor(access, context.input.editor_membership_id ?? access.eligible_membership_ids[0]);
   }
 
   private async recheck(tx: LineEditTransaction, context: EditContext): Promise<boolean> {
     const facts = await tx.access.read(this.clock.now());
-    const access = editorAccess(facts);
+    const access = lineActorAccess(facts);
     resolveSessionEditor(access, context.input.editor_membership_id ?? access.eligible_membership_ids[0]);
     return facts.can_read;
   }
@@ -86,8 +87,8 @@ export class EditServiceLinePriceUseCase {
   private async decide(tx: LineEditTransaction, context: EditContext, line: LockedServiceLine): Promise<EditDecision> {
     const at = this.clock.now();
     const facts = await tx.access.read(at);
-    const membershipId = resolveSessionEditor(editorAccess(facts), context.input.editor_membership_id);
-    const editor = selectedEditor(facts, membershipId);
+    const membershipId = resolveSessionEditor(lineActorAccess(facts), context.input.editor_membership_id);
+    const editor = selectedLineMembership(facts, membershipId);
     // الحد يُقرأ من جديد بعد كل انتظار؛ قفل العضويات FOR SHARE لا يسمح باختبار تغيّره أثناء الانتظار.
     const limit = await tx.discount.read(membershipId);
     if ((await tx.place.read()) === null) throw new SessionError('FORBIDDEN');
@@ -113,7 +114,7 @@ export class EditServiceLinePriceUseCase {
     }
     const current = await tx.performers.read(employeeIds, line.occurred_at);
     if (current.length !== employeeIds.length || missingPerformer(employeeIds, current)) throw new SessionError('FORBIDDEN');
-    assertEditorIsNotPerformer(context.userId, performerIdentity(line, current));
+    assertEditorIsNotPerformer(context.userId, linePerformerIdentities(line.performers, current));
   }
 
   private async commit(tx: LineEditTransaction, context: EditContext, line: LockedServiceLine, decision: EditDecision) {
@@ -151,20 +152,8 @@ export class EditServiceLinePriceUseCase {
   }
 
   private async refuseStale(tx: LineEditTransaction, context: EditContext): Promise<never> {
-    const fresh = await tx.lines.loadLineForUpdate(context.sessionId, context.lineId);
-    if (fresh === null) throw new SessionError('FORBIDDEN');
-    throw new SessionError('SESSION_LINE_REVISION_STALE', { current_revision: fresh.revision });
+    return refuseStaleLine(() => tx.lines.loadLineForUpdate(context.sessionId, context.lineId));
   }
-}
-
-function editorAccess(facts: SessionEditFacts): SessionEditAccess {
-  return { denied: facts.denied, feature: facts.feature, eligible_membership_ids: facts.eligible.map((editor) => editor.membership_id) };
-}
-
-function selectedEditor(facts: SessionEditFacts, membershipId: string): SessionEditorMembership {
-  const editor = facts.eligible.find((candidate) => candidate.membership_id === membershipId);
-  if (editor === undefined) throw new SessionError('FORBIDDEN');
-  return editor;
 }
 
 function requestedDiscount(input: EditServiceLineInput) {
@@ -174,14 +163,6 @@ function requestedDiscount(input: EditServiceLineInput) {
 
 function missingPerformer(employeeIds: readonly string[], current: readonly SessionEmployee[]): boolean {
   return employeeIds.some((id) => !current.some((employee) => employee.id === id));
-}
-
-function performerIdentity(line: LockedServiceLine, current: readonly SessionEmployee[]): LineEditPerformer[] {
-  return line.performers.map((performer) => ({
-    linked_user_id: performer.linked_user_id,
-    linked_user_snapshotted: performer.linked_user_snapshotted,
-    current_user_id: current.find((employee) => employee.id === performer.employee_id)?.user_id ?? null,
-  }));
 }
 
 function editInsert(
