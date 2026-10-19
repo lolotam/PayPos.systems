@@ -10,6 +10,7 @@ import { Button } from '@pospay/ui';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import {
+  submitCreateEmployee,
   submitCreateEmployeeForm,
   useCreateEmployeeNumber,
 } from '../model/use-create-employee-number';
@@ -46,7 +47,6 @@ function emptyEmployee(branches: readonly WorkspaceBranch[]): CreateEmployeeInpu
 
 export function CreateEmployeeForm(props: CreateEmployeeFormProps) {
   const locale = useLocale();
-  const submit = useNameCheckedSubmit(props.companyId, props.businessId, props.onSave);
   const form = useForm<CreateEmployeeInput>({
     resolver: zodResolver(createEmployeeInput),
     defaultValues: emptyEmployee(props.branches),
@@ -62,6 +62,12 @@ export function CreateEmployeeForm(props: CreateEmployeeFormProps) {
     onVisibility: props.onNumberVisibility,
     form,
   });
+  // التأكيد بيبعت القيم المخزنة من أول حفظ؛ الرؤية الحالية هي اللي تقرر هل الرقم يتبعت.
+  const submit = useNameCheckedSubmit(
+    props.companyId,
+    props.businessId,
+    (values: CreateEmployeeInput) => props.onSave(submitCreateEmployee(number.shown, values)),
+  );
   const otherError = Object.keys(form.formState.errors).some((key) => key !== 'employee_number');
   return (
     <FormProvider {...form}>

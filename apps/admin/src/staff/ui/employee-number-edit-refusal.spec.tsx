@@ -96,16 +96,17 @@ it('shows edit again when the employee detail attachments change', async () => {
   await screen.findByRole('alert');
   fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.closeNumber') }));
   await waitFor(() => expect(refused().queryByRole('button', { name: editName() })).toBeNull());
+  const pinnedAt = Date.now() + 1_000;
   query.setQueryData(
     detailKey,
     { employee_number: 15, primary_branch_id: first, branch_ids: [first] },
-    { updatedAt: 2_000 },
+    { updatedAt: pinnedAt },
   );
   expect(refused().queryByRole('button', { name: editName() })).toBeNull();
   query.setQueryData(
     detailKey,
     { employee_number: 15, primary_branch_id: first, branch_ids: [first, second] },
-    { updatedAt: 3_000 },
+    { updatedAt: pinnedAt + 1_000 },
   );
   expect(await refused().findByRole('button', { name: editName() })).toBeTruthy();
 });
@@ -175,21 +176,58 @@ it('keeps the refused edit hidden after the default cache time', async () => {
   }
 });
 
-function StaleDetail({
-  snapshot,
-}: {
-  snapshot: () => {
-    employee_number: number;
-    primary_branch_id: string;
-    branch_ids: readonly string[];
-  };
-}) {
+type DetailSnapshot = {
+  employee_number: number;
+  primary_branch_id: string;
+  branch_ids: readonly string[];
+};
+
+function StaleDetail({ snapshot }: { snapshot: () => DetailSnapshot | Promise<DetailSnapshot> }) {
   useQuery({
     queryKey: ['employees', first, first, first, 'detail', first],
     retry: false,
     queryFn: () => snapshot(),
   });
   return null;
+}
+
+function heldBranchRefetch() {
+  let reads = 0;
+  let release: () => void = () => undefined;
+  const snapshot = (): DetailSnapshot | Promise<DetailSnapshot> => {
+    reads += 1;
+    if (reads === 1) {
+      return { employee_number: 15, primary_branch_id: first, branch_ids: [first] };
+    }
+    return new Promise((resolve) => {
+      release = () =>
+        resolve({
+          employee_number: 15,
+          primary_branch_id: first,
+          branch_ids: [first, second],
+        });
+    });
+  };
+  return { snapshot, reads: () => reads, release: () => release() };
+}
+
+function renderProfile(
+  query: QueryClient,
+  snapshot: () => DetailSnapshot | Promise<DetailSnapshot>,
+) {
+  return render(
+    <QueryClientProvider client={query}>
+      <StaleDetail snapshot={snapshot} />
+      <EmployeeNumberEdit
+        companyId={first}
+        businessId={first}
+        userId={first}
+        employeeId={first}
+        primaryBranchId={first}
+        employeeNumber={15}
+      />
+    </QueryClientProvider>,
+  );
 }
 
 it('keeps edit hidden when a stale detail refetch returns new branches', async () => {
@@ -233,4 +271,31 @@ it('keeps edit hidden when a stale detail refetch returns new branches', async (
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('button', { name: editName() })).toBeNull();
   });
+});
+
+it('pins a remounted refusal only to detail fetched after the refusal', async () => {
+  const held = heldBranchRefetch();
+  const query = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const refusalKey = ['employee-number-edit-refused', first, first, first] as const;
+  const mark = () => query.getQueryData<{ branch_ids: readonly string[] | null }>(refusalKey);
+  const view = renderProfile(query, held.snapshot);
+  await waitFor(() => expect(held.reads()).toBe(1));
+  fireEvent.click(await screen.findByRole('button', { name: editName() }));
+  fireEvent.change(screen.getByLabelText(t('en', 'staff.employeeNumber')), {
+    target: { value: '8' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.saveNumber') }));
+  await screen.findByRole('alert');
+  await waitFor(() => expect(held.reads()).toBeGreaterThanOrEqual(2));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.closeNumber') }));
+  view.unmount();
+  renderProfile(query, held.snapshot);
+  await act(async () => undefined);
+  expect(mark()?.branch_ids).toBeNull();
+  expect(screen.queryByRole('button', { name: editName() })).toBeNull();
+  held.release();
+  await waitFor(() => expect(mark()?.branch_ids).toEqual([first, second]));
+  expect(screen.queryByRole('button', { name: editName() })).toBeNull();
 });

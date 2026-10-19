@@ -10,12 +10,11 @@ window.HTMLElement.prototype.setPointerCapture = () => undefined;
 window.HTMLElement.prototype.releasePointerCapture = () => undefined;
 
 const get = vi.hoisted(() => vi.fn());
+const nameCheck = vi.hoisted(() => vi.fn());
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' as const }));
 vi.mock('../api/use-employee-name-matches', () => ({
-  useEmployeeNameMatches: () => ({
-    mutateAsync: vi.fn().mockResolvedValue({ matches: [], visible_total: 0, hidden_exists: false }),
-  }),
+  useEmployeeNameMatches: () => ({ mutateAsync: nameCheck }),
 }));
 
 const allowed = '01920000-0000-7000-8000-0000000000a2';
@@ -59,7 +58,11 @@ function fillIdentity() {
 function createButton() {
   return screen.getByRole('button', { name: t('en', 'staff.create') }) as HTMLButtonElement;
 }
-beforeEach(() => get.mockReset());
+beforeEach(() => {
+  get.mockReset();
+  nameCheck.mockReset();
+  nameCheck.mockResolvedValue({ matches: [], visible_total: 0, hidden_exists: false });
+});
 
 it('hides the number field when a capability refetch fails and the old success is kept', async () => {
   let reads = 0;
@@ -146,6 +149,37 @@ it('submits without a number when a hidden invalid draft is cleared', async () =
   await waitFor(() => expect(createButton().disabled).toBe(false));
   fillIdentity();
   fireEvent.click(createButton());
+  await waitFor(() => expect(save).toHaveBeenCalled());
+  expect(Object.hasOwn(save.mock.calls[0]?.[0] as object, 'employee_number')).toBe(false);
+});
+
+it('omits employee_number on confirm after the capability refetch blocks the field', async () => {
+  let reads = 0;
+  get.mockImplementation(() => {
+    reads += 1;
+    if (reads === 1) return Promise.resolve({ data: { can_type_number: true } });
+    return Promise.resolve({
+      error: {
+        code: 'FORBIDDEN',
+        message_en: 'Synthetic refusal',
+        message_ar: t('ar', 'errors.FORBIDDEN'),
+      },
+      response: { status: 403 },
+    });
+  });
+  nameCheck.mockResolvedValue({ matches: [], visible_total: 0, hidden_exists: true });
+  const save = vi.fn();
+  const query = client();
+  render(mount(query, save, [branch(allowed, 'Allowed branch')]));
+  fireEvent.change(await screen.findByLabelText(t('en', 'staff.employeeNumber')), {
+    target: { value: '1005' },
+  });
+  fillIdentity();
+  fireEvent.click(createButton());
+  await screen.findByText(t('en', 'staff.duplicateNameLead'));
+  await query.invalidateQueries({ queryKey: ['employee-number-capability', allowed, allowed] });
+  await waitFor(() => expect(screen.queryByLabelText(t('en', 'staff.employeeNumber'))).toBeNull());
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.duplicateNameSaveAnyway') }));
   await waitFor(() => expect(save).toHaveBeenCalled());
   expect(Object.hasOwn(save.mock.calls[0]?.[0] as object, 'employee_number')).toBe(false);
 });

@@ -7,6 +7,7 @@ type NumberEditRefusal = {
   employee_number: number | null;
   primary_branch_id: string | null;
   branch_ids: readonly string[] | null;
+  refusedAt: number;
 };
 
 function employeeNumberEditRefusedKey(companyId: string, userId: string, employeeId: string) {
@@ -33,15 +34,16 @@ function attachmentFingerprint(mark: NumberEditRefusal): string | null {
   return `${mark.employee_number ?? ''}|${mark.primary_branch_id}|${branches}`;
 }
 
-function refusalFromDetail(detail: EmployeeDetail): NumberEditRefusal {
+function refusalFromDetail(detail: EmployeeDetail, refusedAt: number): NumberEditRefusal {
   return {
     employee_number: detail.employee_number,
     primary_branch_id: detail.primary_branch_id,
     branch_ids: [...detail.branch_ids],
+    refusedAt,
   };
 }
 
-/** بيرفض تعديل رقم الموظف ده لحد ما تفاصيله تتغير بعد آخر جلب، أو الصفحة تتحمل من جديد. */
+/** بيرفض تعديل رقم الموظف ده لحد ما تفاصيله تتحدث بعد لحظة الرفض، أو الصفحة تتحمل من جديد. */
 export function rememberEmployeeNumberEditRefusal(
   client: QueryClient,
   companyId: string,
@@ -51,11 +53,12 @@ export function rememberEmployeeNumberEditRefusal(
 ): void {
   // العلامة من غير مشترك، فوقت الجمع الافتراضي (خمس دقايق) كان بيمسحها والزرار يرجع.
   client.setQueryDefaults(['employee-number-edit-refused'], { gcTime: Infinity });
-  // التفاصيل المخزنة وقت الرفض ممكن تكون قديمة؛ المرفق يتثبت لما الجلب الجديد يوصل.
+  // التفاصيل المخزنة وقت الرفض ممكن تكون قديمة؛ المرفق يتثبت على جلب أحدث من اللحظة دي.
   client.setQueryData(employeeNumberEditRefusedKey(companyId, userId, employeeId), {
     employee_number: null,
     primary_branch_id: null,
     branch_ids: null,
+    refusedAt: Date.now(),
   });
   void client.invalidateQueries({
     queryKey: employeeDetailKey(companyId, businessId, userId, employeeId),
@@ -68,17 +71,20 @@ function syncEmployeeNumberEditRefusal(
   userId: string,
   employeeId: string,
   detail: EmployeeDetail,
+  dataUpdatedAt: number,
 ): void {
   const key = employeeNumberEditRefusedKey(companyId, userId, employeeId);
   const mark = client.getQueryData<NumberEditRefusal>(key);
   if (!mark) return;
   const saved = attachmentFingerprint(mark);
-  const current = attachmentFingerprint(refusalFromDetail(detail));
+  const fresh = refusalFromDetail(detail, mark.refusedAt);
+  // جلب أقدم من الرفض لسه في الكاش؛ تثبيته كان بيخلي الفروع الجديدة تشيل العلامة.
   if (saved === null) {
-    client.setQueryData(key, refusalFromDetail(detail));
+    if (dataUpdatedAt <= mark.refusedAt) return;
+    client.setQueryData(key, fresh);
     return;
   }
-  if (saved !== current) client.removeQueries({ queryKey: key, exact: true });
+  if (saved !== attachmentFingerprint(fresh)) client.removeQueries({ queryKey: key, exact: true });
 }
 
 function watchDetailBaseline(
@@ -92,10 +98,17 @@ function watchDetailBaseline(
   let seenAt = -1;
   const publish = () => {
     const state = client.getQueryState<EmployeeDetail>(detailKey);
-    // إبطال التفاصيل بيبعت تحديث قبل ما البيانات تتبدل؛ المرفق يتثبت على الجلب الجديد بس.
+    // إبطال التفاصيل بيبعت تحديث قبل ما البيانات تتبدل؛ والمرفق يتثبت على جلب بعد الرفض بس.
     if (!state?.data || state.dataUpdatedAt === seenAt) return;
     seenAt = state.dataUpdatedAt;
-    syncEmployeeNumberEditRefusal(client, companyId, userId, employeeId, state.data);
+    syncEmployeeNumberEditRefusal(
+      client,
+      companyId,
+      userId,
+      employeeId,
+      state.data,
+      state.dataUpdatedAt,
+    );
   };
   publish();
   return client.getQueryCache().subscribe((event) => {
