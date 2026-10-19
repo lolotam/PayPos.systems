@@ -151,8 +151,9 @@ effects, business timezone, UUID v7, no `Date.now`/`randomUUID` in use cases).
   `FORBIDDEN` of `resolveSessionRecorder` is translated to it). `FEATURE_DISABLED` and `SESSION_RECORDER_MEMBERSHIP_REQUIRED`
   keep their own codes (they describe the caller's company or own memberships, not the session). `TIP_REVISION_CONFLICT`
   (409) carries only `current_revision`.
-- **D-T6 Lock order.** A lock-free pre-check first (the session exists in the caller's company and the caller may record
-  there), as the edit-service-line-price precedent does, so a caller with no access never claims a key → idempotency
+- **D-T6 Lock order.** A lock-free pre-check first (the route's business and branch are active in the caller's company
+  and the caller may record there; the session itself is read later, after the visit lock), as the
+  edit-service-line-price precedent does, so a caller with no access never claims a key → idempotency
   claim (a replay locks the access rows and repeats the check before it returns the stored body) → access lock
   (company, memberships) → the visit advisory lock shared with
   record, append, edit and cancel (spec 054 §3.2) → read the session, lines, performer rows and current revision → the
