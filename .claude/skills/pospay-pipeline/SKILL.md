@@ -61,6 +61,10 @@ moment it happens, in the owner report. Never switch to a metered provider witho
   completed on that head, and no P0/P1 is open. A P1 here means a wrong or contradictory rule in any governing or operational document (a spec, an ADR, `CLAUDE.md`, a skill, `docs/security.md`, a runbook); the bar
   for it does not move. P2/P3 findings on prose are fixed in one batch commit at most; the rest become linked issues.
   The status-page update (§6 step 8) still applies after the merge.
+- **A MergePilot bot that fails (PP-5.2, owner, 2026-10-19).** While a bot of the MergePilot panel returns
+  `❌ failed` on every review (waleed_Bot since 2026-10-19), "the panel completed" means every *other* panel bot
+  completed on the head. The Codex bot must still complete, and no P0/P1 may be open. The merge report names the
+  failed bot. The exception ends when that bot completes again.
 
 ---
 
@@ -77,7 +81,7 @@ moment it happens, in the owner report. Never switch to a metered provider witho
 | 6 | Database review — **mandatory** when the PR touches `packages/db/**` (schema, migration, RLS, grants, seed) | Codex astra 6 medium | no open P0/P1 (§5 checklist) |
 | 7 | Review layer 1 | Codex astra 6 medium | findings fixed by Grok in its resumed session, or deferred per §2 |
 | 8 | Review layer 2 — one Sonnet 5.5 reviewer (§8 rule 5); no separate confirm round, the four bots confirm on the head SHA in step 9 | fresh Claude reviewer | its findings fixed by Grok or deferred per §2 |
-| 9 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | **all four bots answered on the head SHA**: Codex summary says Completed for that SHA, the MergePilot review for that SHA shows all three bots completed, and every inline finding is fixed or deferred per §2 |
+| 9 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | **all four bots answered on the head SHA**: Codex summary says Completed for that SHA, the MergePilot review for that SHA shows all three bots completed (a bot that fails on every review is handled by the PP-5.2 exception in §2), and every inline finding is fixed or deferred per §2 |
 | 10 | CI `ci-gate` green **on the exact head being merged** | GitHub Actions | green |
 | 11 | Merge: `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` — a push after the reviews makes the merge fail instead of landing an unreviewed head | orchestrator | merged |
 | 12 | Deploy to staging (§6) | orchestrator | `/ready` answers ready on the new SHA |

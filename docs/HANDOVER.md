@@ -60,6 +60,8 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
 4. Guard pass (`clean-code-guard`, `test-guard`, `docs-guard`), then up to **5 review rounds**: Codex astra 6 →
    fresh Claude reviewers → the four PR bots: the Codex GitHub bot (`@codex review` after every push) and the
    MergePilot panel (MergePilot, waleed_bot, mohamed_bot). Every bot's result on the head SHA is read before a merge.
+   While a panel bot fails on every review (waleed_Bot since 2026-10-19), the other bots completing is enough and the
+   merge report names the failed bot (PP-5.2, skill §2).
 5. Fix every security or correctness finding before merge; P2/P3 left after the cap become linked GitHub issues.
    **Docs-only PRs** (docs, skills, spec-kit files; no code or migration) use the lighter lane of the skill's section 2:
    no round cap and no layer 1/2 reviews, merged on a green ci-gate with both bot groups completed on the head and no
