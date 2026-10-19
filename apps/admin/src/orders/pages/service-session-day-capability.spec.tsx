@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { ServiceSessionDayPage as DayPage } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { id, instant, scope } from '../model/session-recording-result.fixture';
 import { ServiceSessionDayPage } from './service-session-day-page';
@@ -71,6 +71,11 @@ const refused = {
   response: { status: 403 },
 };
 
+const unavailable = {
+  error: { code: 'INTERNAL_ERROR', message_ar: 'Error AR', message_en: 'Error EN' },
+  response: { status: 500 },
+};
+
 function answer(capability: Promise<unknown> | 'allow') {
   state.get.mockImplementation((path: string) => {
     if (!String(path).includes('/capabilities')) return Promise.resolve(day);
@@ -127,7 +132,20 @@ it('shows Cancel when the branch capability allows it', async () => {
   ).toBeTruthy();
 });
 
-it('hides Cancel when the capability read fails', async () => {
+it('hides Cancel but keeps the day when the capability read fails without an access refusal', async () => {
+  state.online = true;
+  const gate = deferred();
+  answer(gate.promise);
+  renderPage();
+  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
+  await act(async () => {
+    gate.settle(unavailable);
+  });
+  await waitFor(() => expect(screen.getByText('Synthetic customer')).toBeTruthy());
+  expect(cancel()).toBeNull();
+});
+
+it('clears the day when the capability read is refused with 403', async () => {
   state.online = true;
   const gate = deferred();
   answer(gate.promise);
@@ -136,6 +154,7 @@ it('hides Cancel when the capability read fails', async () => {
   await act(async () => {
     gate.settle(refused);
   });
+  expect((await screen.findByRole('alert')).textContent).toContain('Denied EN');
+  await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
   expect(cancel()).toBeNull();
-  expect(screen.getByText('Synthetic customer')).toBeTruthy();
 });
