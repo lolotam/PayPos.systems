@@ -20,13 +20,15 @@ export function SessionTipsForm(props: {
   loaded: SessionTips;
   memory: RefObject<Map<string, UnresolvedTip>>;
   reload: () => Promise<SessionTips | null>;
+  netsKnown?: boolean;
   onAccessDenied: (message: string) => void;
   onClose: () => void;
 }) {
   const state = useSessionTipsForm(props);
-  const amountError = state.form.formState.errors.root
-    ? t(state.locale, 'sessionTips.amountInvalid')
-    : null;
+  const amountError =
+    state.form.formState.errors.root?.message === 'amount'
+      ? t(state.locale, 'sessionTips.amountInvalid')
+      : null;
   const locked = state.frozen || state.blocked;
   return (
     <form className="grid gap-3 text-start" onSubmit={state.onSubmit}>
@@ -38,6 +40,7 @@ export function SessionTipsForm(props: {
         locale={state.locale}
         lines={props.lines}
         locked={locked}
+        netsKnown={props.netsKnown ?? true}
       />
       <SessionTipsRows
         form={state.form}
@@ -60,8 +63,10 @@ export function SessionTipsForm(props: {
         pending={state.pending || (state.blocked && !state.conflictHold)}
         blocked={state.blocked}
         conflictHold={state.conflictHold}
+        uncertain={state.uncertain}
         onClose={props.onClose}
         onRetry={state.retry}
+        onReplay={state.replay}
       />
     </form>
   );

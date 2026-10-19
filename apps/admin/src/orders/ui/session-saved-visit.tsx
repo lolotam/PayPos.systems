@@ -7,6 +7,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import type { EditServiceLineResult } from '../api/use-edit-service-line';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { applySavedLineEdit, emptySavedVisit, reconcileSavedVisit, type SavedVisitEdit } from '../model/session-saved-edit';
+import { savedVisitTipSource } from '../model/session-saved-tip-source';
 import { sessionResultFrozen, type SessionRecordingResult } from '../model/session-recording-result';
 import { SessionSavedLine } from './session-saved-line';
 import { SessionTipsLauncher } from './session-tips-launcher';
@@ -75,7 +76,7 @@ export function SessionSavedVisit({ result, scope, online, editBusy = false, onR
   return <>
     {visit.total === 'UNKNOWN' ? null : <p>{t(locale, 'serviceSessions.savedTotal')} <bdi>{kwd(visit.total === 'FROM_RESPONSE' ? visit.totalNet : session.total_net)}</bdi></p>}
     {refusalText ? <p role="alert">{refusalText}</p> : null}
-    {scope ? <SessionTipsLauncher scope={scope} sessionId={session.id} lines={session.lines} online={online} onAccessDenied={(message) => { setDenial({ sessionId: session.id, message }); setOpen(null); }} /> : null}
+    {scope ? <SessionTipsLauncher scope={scope} sessionId={session.id} {...savedVisitTipSource(session.lines, visit)} online={online} onAccessDenied={(message) => { setDenial({ sessionId: session.id, message }); setOpen(null); }} /> : null}
     <ul className="grid gap-3">{session.lines.map((line) => {
       const edit = visit.lines[line.id];
       return <SessionSavedLine key={line.id} line={line} locale={locale} when={when} sessionId={session.id} online={online}

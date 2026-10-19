@@ -2,7 +2,7 @@ import type { SessionTips } from '@pospay/contracts';
 import type { Locale } from '@pospay/i18n';
 import { serviceSessionAccessRevoked } from './service-session-access';
 import {
-  conflictRevision,
+  isTipRevisionConflict,
   recorderMembershipIds,
   tipOutcomeKnown,
   tipRefusalMessage,
@@ -34,7 +34,7 @@ async function classifyTipSave(
 ): Promise<TipSaveResult> {
   const message = tipRefusalMessage(error, locale);
   if (serviceSessionAccessRevoked(error)) return { kind: 'revoked', message };
-  if (conflictRevision(error) !== null) {
+  if (isTipRevisionConflict(error)) {
     const tips = await reload().catch(() => null);
     return { kind: 'conflict', tips, message };
   }

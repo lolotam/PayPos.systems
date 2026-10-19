@@ -46,18 +46,14 @@ export function recorderMembershipIds(error: unknown): string[] | null {
   return ids;
 }
 
-export function conflictRevision(error: unknown): number | null {
-  if (tipErrorCode(error) !== 'TIP_REVISION_CONFLICT') return null;
+// السباق بيرمي TIP_REVISION_CONFLICT من غير current_revision. الكود وحده كفاية، وباقي 409 لسه شغّال.
+export function isTipRevisionConflict(error: unknown): boolean {
+  if (tipErrorCode(error) !== 'TIP_REVISION_CONFLICT') return false;
   const status = (error as { status?: unknown }).status;
-  if (status !== 409) return null;
-  const details = (error as { details?: unknown }).details;
-  if (!details || typeof details !== 'object') return null;
-  const current = (details as { current_revision?: unknown }).current_revision;
-  if (typeof current !== 'number' || !Number.isInteger(current) || current < 0) return null;
-  return current;
+  return status === 409;
 }
 
-// 401 و403 وFEATURE_DISABLED رفض نهائي زي قائمة اليوم. 409 من غير current_revision ممكن يكون لسه شغّال.
+// 401 و403 وFEATURE_DISABLED رفض نهائي زي قائمة اليوم. تعارض المراجعة معروف حتى من غير التفاصيل.
 export function tipOutcomeKnown(error: unknown): boolean {
   if (serviceSessionAccessRevoked(error)) return true;
   if (!error || typeof error !== 'object') return false;
@@ -65,6 +61,6 @@ export function tipOutcomeKnown(error: unknown): boolean {
   if (typeof status !== 'number' || !Number.isInteger(status) || status < 400 || status > 499) {
     return false;
   }
-  if (status === 409) return conflictRevision(error) !== null;
+  if (status === 409) return isTipRevisionConflict(error);
   return true;
 }

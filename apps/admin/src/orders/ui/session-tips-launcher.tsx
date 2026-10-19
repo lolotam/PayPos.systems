@@ -14,12 +14,14 @@ export function SessionTipsLauncher({
   lines,
   online,
   onAccessDenied,
+  netsKnown = true,
 }: {
   scope: SessionServiceScope;
   sessionId: string;
   lines: readonly TipSourceLine[];
   online: boolean;
   onAccessDenied: (message: string) => void;
+  netsKnown?: boolean;
 }) {
   const locale = useLocale();
   const [open, setOpen] = useState(false);
@@ -35,6 +37,7 @@ export function SessionTipsLauncher({
           sessionId={sessionId}
           lines={lines}
           online={online}
+          netsKnown={netsKnown}
           memory={memory}
           onAccessDenied={onAccessDenied}
           onClose={() => setOpen(false)}

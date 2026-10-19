@@ -80,41 +80,80 @@ function counted(
   return entries.map((entry) => ({ method: entry.method, amount: parseMoney(entry.amount) }));
 }
 
-export function tipMethodTotals(rows: readonly TipAmountRow[]) {
-  const entries = counted(rows);
-  if (!entries) return null;
-  return sumTipTotalsByMethod(entries);
+function withinMoney<T>(compute: () => T): T | 'too-large' {
+  try {
+    return compute();
+  } catch (error) {
+    if (error instanceof RangeError) return 'too-large';
+    throw error;
+  }
 }
+
+function combinedMills(entries: { method: 'CASH' | 'CARD'; amount: Money }[]): bigint {
+  const totals = sumTipTotalsByMethod(entries);
+  return sumMoney([parseMoney(totals.total_cash), parseMoney(totals.total_card)]);
+}
+
+export type TipMethodTotalsResult =
+  | { status: 'invalid' }
+  | { status: 'too-large' }
+  | { status: 'ok'; total_cash: string; total_card: string };
+
+export function tipMethodTotals(rows: readonly TipAmountRow[]): TipMethodTotalsResult {
+  const entries = counted(rows);
+  if (!entries) return { status: 'invalid' };
+  const totals = withinMoney(() => sumTipTotalsByMethod(entries));
+  if (totals === 'too-large') return { status: 'too-large' };
+  return { status: 'ok', total_cash: totals.total_cash, total_card: totals.total_card };
+}
+
+export type VisitTipSize = 'invalid' | 'within' | 'exceeds' | 'too-large';
 
 export function tipExceedsVisit(
   rows: readonly TipAmountRow[],
   lines: readonly TipSourceLine[],
-): boolean {
+): VisitTipSize {
   const entries = counted(rows);
-  if (!entries || entries.length === 0) return false;
-  const totals = sumTipTotalsByMethod(entries);
-  const tip = sumMoney([parseMoney(totals.total_cash), parseMoney(totals.total_card)]);
-  return tip > visitNetMills(lines);
+  if (!entries) return 'invalid';
+  if (entries.length === 0) return 'within';
+  const tip = withinMoney(() => combinedMills(entries));
+  if (tip === 'too-large') return 'too-large';
+  const net = withinMoney(() => visitNetMills(lines));
+  if (net === 'too-large') return 'too-large';
+  return tip > net ? 'exceeds' : 'within';
 }
 
-export function suggestionMills(totalText: string, rows: readonly TipAmountRow[]): bigint | null {
+export type SuggestionMillsResult =
+  { status: 'none' } | { status: 'too-large' } | { status: 'ok'; mills: bigint };
+
+export function suggestionMills(
+  totalText: string,
+  rows: readonly TipAmountRow[],
+): SuggestionMillsResult {
+  if (tipExceedsVisit(rows, []) === 'too-large') return { status: 'too-large' };
   const typed = canonicalAmount(totalText);
-  if (typed === 'invalid') return null;
-  if (typed) return parseMoney(typed);
+  if (typed === 'invalid') return { status: 'none' };
+  if (typed) return { status: 'ok', mills: parseMoney(typed) };
   const entries = counted(rows);
-  if (!entries || entries.length === 0) return null;
-  const totals = sumTipTotalsByMethod(entries);
-  return sumMoney([parseMoney(totals.total_cash), parseMoney(totals.total_card)]);
+  if (!entries || entries.length === 0) return { status: 'none' };
+  const mills = withinMoney(() => combinedMills(entries));
+  if (mills === 'too-large') return { status: 'too-large' };
+  return { status: 'ok', mills };
 }
+
+type SuggestionPreview =
+  | { status: 'too-large' }
+  | { status: 'ready'; rows: NonNullable<ReturnType<typeof suggestedTipSplit>> };
 
 export function previewSuggestion(
   totalText: string,
   rows: readonly TipAmountRow[],
   lines: readonly TipSourceLine[],
-) {
+): SuggestionPreview {
   const tip = suggestionMills(totalText, rows);
-  if (tip === null || tip <= 0n) return [];
-  return suggestedTipSplit(tip, lines);
+  if (tip.status === 'too-large') return { status: 'too-large' };
+  if (tip.status === 'none' || tip.mills <= 0n) return { status: 'ready', rows: [] };
+  return { status: 'ready', rows: suggestedTipSplit(tip.mills, lines) ?? [] };
 }
 
 function rowsFrom(
@@ -148,6 +187,20 @@ export function tipFormValues(
   };
 }
 
+export function tipFormFromBody(
+  body: RecordSessionTipsInput,
+  lines: readonly TipSourceLine[],
+): SessionTipFormInput {
+  return {
+    total: '',
+    suggestion_method: 'CASH',
+    rows: rowsFrom(tipPeople(lines, body.tips), body.tips),
+    reason: body.reason ?? '',
+    expected_revision: body.expected_revision,
+    recorder_membership_id: body.recorder_membership_id ?? '',
+  };
+}
+
 export function rowsUsingSuggestion(
   rows: readonly TipAmountRow[],
   suggestions: readonly { employee_id: string; amount: bigint }[],
@@ -171,7 +224,7 @@ function reasonProblem(value: SessionTipFormInput): boolean {
 
 export function recordTipsBody(value: SessionTipFormInput): RecordSessionTipsInput | null {
   const tips = tipEntries(value.rows);
-  if (!tips || reasonProblem(value)) return null;
+  if (!tips || reasonProblem(value) || tipExceedsVisit(value.rows, []) === 'too-large') return null;
   const reason = tipReason(value.reason);
   const parsed = recordSessionTipsInput.safeParse({
     expected_revision: value.expected_revision,
@@ -193,7 +246,8 @@ export const resolveSessionTips: Resolver<SessionTipFormInput, unknown, RecordSe
 ) => {
   const errors: FieldErrors<SessionTipFormInput> = {};
   if (reasonProblem(value)) errors.reason = issue('reason');
-  if (!tipEntries(value.rows)) errors.root = issue('amount');
+  if (tipExceedsVisit(value.rows, []) === 'too-large') errors.root = issue('too-large');
+  else if (!tipEntries(value.rows)) errors.root = issue('amount');
   const body = recordTipsBody(value);
   if (!body || errors.reason || errors.root) return { values: {}, errors };
   return { values: body, errors: {} };

@@ -8,6 +8,7 @@ import { useRecordSessionTips, type UnresolvedTip } from '../api/use-record-sess
 import type { SessionServiceScope } from '../api/use-session-services';
 import {
   resolveSessionTips,
+  tipFormFromBody,
   tipFormValues,
   type SessionTipFormInput,
 } from '../model/session-tip-body';
@@ -124,13 +125,14 @@ type SessionTipsFormProps = {
   onClose: () => void;
 };
 
-function useTipFlags(): TipFlags {
+function useTipFlags(restored: UnresolvedTip | null): TipFlags {
+  const chosen = restored?.body.recorder_membership_id;
   const [notice, setNotice] = useState<string | null>(null);
-  const [uncertain, setUncertain] = useState(false);
-  const [frozen, setFrozen] = useState(false);
+  const [uncertain, setUncertain] = useState(restored !== null);
+  const [frozen, setFrozen] = useState(restored !== null);
   const [refreshing, setRefreshing] = useState(false);
   const [conflictHold, setConflictHold] = useState(false);
-  const [memberships, setMemberships] = useState<string[]>([]);
+  const [memberships, setMemberships] = useState<string[]>(chosen ? [chosen] : []);
   return {
     notice,
     setNotice,
@@ -194,6 +196,18 @@ function submitTips(
   };
 }
 
+function replayHeld(
+  controls: SaveControls,
+  online: boolean,
+  blocked: boolean,
+  mutate: (body: RecordSessionTipsInput) => Promise<SessionTips>,
+  reload: () => Promise<SessionTips | null>,
+) {
+  const body = controls.retain.current;
+  if (!body || !online || blocked) return;
+  void runSave(controls, body, mutate, reload);
+}
+
 async function retryTips(
   flags: TipFlags,
   pending: boolean,
@@ -216,22 +230,31 @@ async function retryTips(
 export function useSessionTipsForm(props: SessionTipsFormProps) {
   const locale = useLocale();
   const mutation = useRecordSessionTips(props.scope, props.memory);
-  const flags = useTipFlags();
-  const retain = useRef<RecordSessionTipsInput | null>(null);
+  const restored = props.memory.current?.get(props.sessionId) ?? null;
+  const flags = useTipFlags(restored);
+  const retain = useRef<RecordSessionTipsInput | null>(restored?.body ?? null);
   const form = useForm<SessionTipFormInput, unknown, RecordSessionTipsInput>({
     resolver: resolveSessionTips,
-    defaultValues: tipFormValues(props.loaded, props.lines),
+    defaultValues: restored
+      ? tipFormFromBody(restored.body, props.lines)
+      : tipFormValues(props.loaded, props.lines),
   });
   const pending = mutation.isPending;
   const blocked = pending || flags.refreshing || flags.conflictHold;
+  const controls = controlsFor(props, locale, form, retain, flags);
+  const mutate = (body: RecordSessionTipsInput) =>
+    mutation.mutateAsync({ sessionId: props.sessionId, body });
   const onSubmit = submitTips(
-    controlsFor(props, locale, form, retain, flags),
+    controls,
     props.online,
     blocked,
     flags.uncertain,
-    (body) => mutation.mutateAsync({ sessionId: props.sessionId, body }),
+    mutate,
     props.reload,
   );
+  const replay = () => {
+    replayHeld(controls, props.online, blocked, mutate, props.reload);
+  };
   const retry = () => {
     void retryTips(flags, pending, form, props.lines, props.reload);
   };
@@ -247,5 +270,6 @@ export function useSessionTipsForm(props: SessionTipsFormProps) {
     memberships: flags.memberships,
     onSubmit,
     retry,
+    replay,
   };
 }

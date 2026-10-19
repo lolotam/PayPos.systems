@@ -26,16 +26,19 @@ export function SessionTipsSuggestion({
   locale,
   lines,
   locked,
+  netsKnown,
 }: {
   form: UseFormReturn<SessionTipFormInput, unknown, RecordSessionTipsInput>;
   locale: Locale;
   lines: readonly TipSourceLine[];
   locked: boolean;
+  netsKnown: boolean;
 }) {
   const total = useWatch({ control: form.control, name: 'total' }) ?? '';
   const method = useWatch({ control: form.control, name: 'suggestion_method' }) ?? 'CASH';
   const rows = completeRows(useWatch({ control: form.control, name: 'rows' }));
-  const suggestion = previewSuggestion(total, rows, lines) ?? [];
+  const preview = previewSuggestion(total, rows, lines);
+  const suggestion = netsKnown && preview.status === 'ready' ? preview.rows : [];
   const totalField = form.register('total');
   const methodField = form.register('suggestion_method');
   const apply = () => {
@@ -65,7 +68,7 @@ export function SessionTipsSuggestion({
       >
         {t(locale, 'sessionTips.useSuggestion')}
       </Button>
-      <SessionTipsMethodTotals locale={locale} rows={rows} lines={lines} />
+      <SessionTipsMethodTotals locale={locale} rows={rows} lines={lines} netsKnown={netsKnown} />
     </div>
   );
 }

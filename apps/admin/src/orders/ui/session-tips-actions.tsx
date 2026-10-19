@@ -8,22 +8,32 @@ export function SessionTipsActions({
   pending,
   blocked,
   conflictHold,
+  uncertain,
   onClose,
   onRetry,
+  onReplay,
 }: {
   locale: Locale;
   online: boolean;
   pending: boolean;
   blocked: boolean;
   conflictHold: boolean;
+  uncertain: boolean;
   onClose: () => void;
   onRetry: () => void;
+  onReplay: () => void;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
-      <Button type="submit" disabled={!online || blocked}>
-        {pending ? t(locale, 'sessionTips.saving') : t(locale, 'sessionTips.save')}
-      </Button>
+      {uncertain ? (
+        <Button type="button" disabled={!online || blocked} onClick={onReplay}>
+          {t(locale, 'sessionTips.retrySame')}
+        </Button>
+      ) : (
+        <Button type="submit" disabled={!online || blocked}>
+          {pending ? t(locale, 'sessionTips.saving') : t(locale, 'sessionTips.save')}
+        </Button>
+      )}
       {conflictHold ? (
         <Button type="button" variant="outline" disabled={pending} onClick={onRetry}>
           {t(locale, 'sessionTips.retry')}

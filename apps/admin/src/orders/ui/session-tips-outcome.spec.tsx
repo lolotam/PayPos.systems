@@ -166,7 +166,7 @@ it('replays one key after a network error and mints another after a definitive 4
   renderTips();
   await openAndSave();
   expect(await screen.findByText(t('en', 'sessionTips.outcomeUnknown'))).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.save') }));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.retrySame') }));
   expect(await screen.findByText(catalog('TIP_NO_CHANGE'))).toBeTruthy();
   expect(api.put).toHaveBeenCalledTimes(2);
   expect(keyOf(1)).toBe(keyOf(0));
@@ -183,7 +183,7 @@ it('holds the key when the transaction asks for a retry', async () => {
   renderTips();
   await openAndSave();
   expect(await screen.findByText(t('en', 'errors.TRANSACTION_RETRY_REQUIRED'))).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.save') }));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.retrySame') }));
   await waitFor(() => expect(api.put).toHaveBeenCalledTimes(2));
   expect(keyOf(1)).toBe(keyOf(0));
 });

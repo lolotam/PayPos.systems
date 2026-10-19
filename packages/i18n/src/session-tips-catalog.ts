@@ -23,6 +23,7 @@ export const sessionTipsEn = {
   cashTotal: 'Cash total',
   cardTotal: 'Card total',
   membership: 'Membership',
+  retrySame: 'Retry the same save',
 };
 export const sessionTipsAr: Record<keyof typeof sessionTipsEn, string> = {
   open: 'تسجيل البقشيش',
@@ -49,4 +50,5 @@ export const sessionTipsAr: Record<keyof typeof sessionTipsEn, string> = {
   cashTotal: 'إجمالي النقد',
   cardTotal: 'إجمالي البطاقة',
   membership: 'العضوية',
+  retrySame: 'أعيدي نفس الحفظ',
 };
