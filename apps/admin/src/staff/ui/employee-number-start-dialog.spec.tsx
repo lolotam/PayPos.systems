@@ -145,6 +145,17 @@ it('hides the start button after an already-set refusal refetches', async () => 
     const entry = query.getQueryCache().find({ queryKey: ['employee-numbering', id, id] });
     expect(entry?.state.data).toMatchObject({ can_manage: false });
   });
+  expect(screen.getByRole('alert').textContent).toBe('Synthetic already set');
+  expect(
+    (screen.getByLabelText(t('en', 'staff.startNumberField')) as HTMLInputElement).disabled,
+  ).toBe(true);
+  expect(
+    (screen.getByRole('button', { name: t('en', 'staff.saveStartNumber') }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.closeNumber') }));
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.queryByRole('dialog')).toBeNull();
   expect(screen.queryByRole('button', { name: t('en', 'staff.startNumbering') })).toBeNull();
 });
 
@@ -176,8 +187,58 @@ it('hides the start button from the cache before a slow refetch returns', async 
       start_number: null,
     });
   });
-  expect(screen.queryByRole('button', { name: t('en', 'staff.startNumbering') })).toBeNull();
+  expect(screen.getByRole('dialog')).toBeTruthy();
+  expect(screen.getByRole('alert').textContent).toBe('Synthetic already set');
+  expect(
+    (screen.getByRole('button', { name: t('en', 'staff.startNumbering') }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.closeNumber') }));
   expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'staff.startNumbering') })).toBeNull();
+});
+
+it('hides the start button after a forbidden start once the dialog closes', async () => {
+  let reads = 0;
+  get.mockImplementation(() => {
+    reads += 1;
+    if (reads === 1) return Promise.resolve({ data: openCounter });
+    return new Promise(() => undefined);
+  });
+  put.mockResolvedValue({
+    error: {
+      code: 'FORBIDDEN',
+      message_en: 'Synthetic refusal',
+      message_ar: t('ar', 'errors.FORBIDDEN'),
+    },
+  });
+  const query = renderDialog();
+  fireEvent.click(await screen.findByRole('button', { name: t('en', 'staff.startNumbering') }));
+  fireEvent.change(screen.getByLabelText(t('en', 'staff.startNumberField')), {
+    target: { value: '8' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.saveStartNumber') }));
+  expect((await screen.findByRole('alert')).textContent).toBe('Synthetic refusal');
+  await waitFor(() => {
+    expect(reads).toBeGreaterThanOrEqual(2);
+    expect(query.getQueryData<EmployeeNumbering>(['employee-numbering', id, id])).toMatchObject({
+      can_manage: false,
+      next_number: 4,
+      start_number: null,
+    });
+  });
+  expect(screen.getByRole('dialog')).toBeTruthy();
+  expect(
+    (screen.getByLabelText(t('en', 'staff.startNumberField')) as HTMLInputElement).disabled,
+  ).toBe(true);
+  expect(
+    (screen.getByRole('button', { name: t('en', 'staff.saveStartNumber') }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.closeNumber') }));
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'staff.startNumbering') })).toBeNull();
 });
 
 it('hides the start button when a refetch fails and the old success is kept', async () => {
@@ -204,6 +265,54 @@ it('hides the start button when a refetch fails and the old success is kept', as
   });
   expect(screen.queryByRole('button', { name: t('en', 'staff.startNumbering') })).toBeNull();
   expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('keeps a typed start when the open dialog refetch fails', async () => {
+  let fail = false;
+  get.mockImplementation(() => {
+    if (!fail) return Promise.resolve({ data: openCounter });
+    return Promise.resolve({
+      error: {
+        code: 'FORBIDDEN',
+        message_en: 'Synthetic refusal',
+        message_ar: t('ar', 'errors.FORBIDDEN'),
+      },
+      response: { status: 403 },
+    });
+  });
+  const query = renderDialog();
+  fireEvent.click(await screen.findByRole('button', { name: t('en', 'staff.startNumbering') }));
+  fireEvent.change(screen.getByLabelText(t('en', 'staff.startNumberField')), {
+    target: { value: '8' },
+  });
+  fail = true;
+  await query.invalidateQueries({ queryKey: ['employee-numbering', id, id] });
+  await waitFor(() => {
+    const entry = query.getQueryCache().find({ queryKey: ['employee-numbering', id, id] });
+    expect(entry?.state.status).toBe('error');
+    expect(entry?.state.data).toMatchObject({ can_manage: true });
+  });
+  expect(screen.getByRole('dialog')).toBeTruthy();
+  expect((screen.getByLabelText(t('en', 'staff.startNumberField')) as HTMLInputElement).value).toBe(
+    '8',
+  );
+  expect(
+    (screen.getByRole('button', { name: t('en', 'staff.saveStartNumber') }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
+  fail = false;
+  await query.invalidateQueries({ queryKey: ['employee-numbering', id, id] });
+  await waitFor(() => {
+    const entry = query.getQueryCache().find({ queryKey: ['employee-numbering', id, id] });
+    expect(entry?.state.status).toBe('success');
+  });
+  expect(
+    (screen.getByRole('button', { name: t('en', 'staff.saveStartNumber') }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(false);
+  expect((screen.getByLabelText(t('en', 'staff.startNumberField')) as HTMLInputElement).value).toBe(
+    '8',
+  );
 });
 
 it('does not save an invalid start number', async () => {

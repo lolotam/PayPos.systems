@@ -3,6 +3,7 @@ import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useCallback, useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
+import { useEmployeeNumberEditRefused } from '../api/employee-number-edit-refusal';
 import { useEmployeeNumberCapability } from '../api/use-employee-number-capability';
 import { EmployeeNumberEditForm } from './employee-number-edit-form';
 
@@ -23,9 +24,10 @@ export function EmployeeNumberEdit({
 }) {
   const locale = useLocale();
   const capability = useEmployeeNumberCapability(companyId, businessId, userId, primaryBranchId);
+  const refused = useEmployeeNumberEditRefused(companyId, businessId, userId, employeeId);
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
-  const allowed = !capability.isError && capability.data?.can_type_number === true;
+  const allowed = !refused && !capability.isError && capability.data?.can_type_number === true;
   // الحوار المفتوح بعد الرفض بيفضل لحد ما المستخدم يقفله؛ الزرار يختفي بعد القفل بس.
   if (!allowed && !open) return null;
   return (

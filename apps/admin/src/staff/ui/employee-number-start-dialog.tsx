@@ -17,18 +17,20 @@ export function EmployeeNumberStartDialog({
   const query = useEmployeeNumbering(companyId, userId);
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
-  const numbering = query.isError ? undefined : query.data;
-  if (!numbering || numbering.can_manage !== true) return null;
+  const manageable = !query.isError && query.data?.can_manage === true;
+  // الزرار بس بيتقفل من نتيجة الجلب؛ الحوار المفتوح يفضل لحد القفل حتى لو الرفض أو فشل إعادة الجلب.
+  if (!manageable && !open) return null;
   return (
     <div className="flex flex-col gap-2">
-      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
+      <Button type="button" variant="outline" disabled={!manageable} onClick={() => setOpen(true)}>
         {t(locale, 'staff.startNumbering')}
       </Button>
       {open ? (
         <EmployeeNumberStartForm
           companyId={companyId}
           userId={userId}
-          nextNumber={numbering.next_number}
+          nextNumber={query.data?.next_number ?? null}
+          readOnly={!manageable}
           onClose={close}
         />
       ) : null}

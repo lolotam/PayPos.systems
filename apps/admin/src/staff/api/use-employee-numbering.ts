@@ -22,13 +22,9 @@ export function useEmployeeNumbering(companyId: string, userId: string) {
   });
 }
 
-function startAlreadySet(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === 'EMPLOYEE_NUMBER_START_ALREADY_SET'
-  );
+function startClosed(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return false;
+  return error.code === 'EMPLOYEE_NUMBER_START_ALREADY_SET' || error.code === 'FORBIDDEN';
 }
 
 export function useSetEmployeeNumberStart(companyId: string, userId: string) {
@@ -50,8 +46,8 @@ export function useSetEmployeeNumberStart(companyId: string, userId: string) {
       void client.invalidateQueries({ queryKey: key });
     },
     onError: (error) => {
-      if (!startAlreadySet(error)) return;
-      // الرفض معناه إن البداية اتسجلت؛ الزرار يتقفل من الكاش فوراً حتى لو إعادة الجلب اتأخرت.
+      if (!startClosed(error)) return;
+      // بداية متسجلة أو صلاحية مرفوضة: الزرار يتقفل من الكاش فوراً حتى لو إعادة الجلب اتأخرت.
       client.setQueryData<EmployeeNumbering>(key, (current) =>
         current ? { ...current, can_manage: false } : current,
       );
