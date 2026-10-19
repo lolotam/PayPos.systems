@@ -4,4 +4,4 @@ export {
   filesRuntime,
   type FilesRuntime,
 } from './files.module.ts';
-export { documentFileFacts } from './queries/document-file.query.ts';
+export { documentFileFacts, type DocumentFileFacts } from './queries/document-file.query.ts';

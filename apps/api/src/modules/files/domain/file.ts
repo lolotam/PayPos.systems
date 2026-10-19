@@ -36,13 +36,17 @@ export function readyKey(file: FileRecord): string {
   return file.storageKey;
 }
 
-/** قرار المالك: وثائق الموظفين تحمل صلاحية الملفات الممنوحة في PR 7a.
+/**
+ * يثبت صلاحية القراءة المحفوظة على الملف حتى لا يُرفع بهوية أوسع من قراءة مالكه.
+ * وثائق الموظفين تبقى على read:files:business (PR 7a)، وملفات الإعدادات على read:settings:business (spec 052).
  *
  * @param ownerModule الوحدة المالكة
  * @param permission الصلاحية التي سيحفظها الملف
- * @returns ينتهي إذا لم يضعف التصريح حماية وثيقة موظف
+ * @returns لا شيء؛ FORBIDDEN إذا خالفت الصلاحية نوع المالك المعروف
  */
 export function validateStoredPermission(ownerModule: string, permission: string): void {
   if (ownerModule === 'staff' && permission !== 'read:files:business')
+    throw new FileError('FORBIDDEN');
+  if (ownerModule === 'settings' && permission !== 'read:settings:business')
     throw new FileError('FORBIDDEN');
 }

@@ -56,9 +56,11 @@ it('exposes the key only once READY and never across tenants', async () => {
     status: 'READY',
     storage_key: `${ready}/verified`,
     purged: false,
+    purge_started: false,
   });
   const waiting = await db.withTenant(A.company, (tx) => documentFileFacts(tx, A.company, pending));
   expect(waiting?.storage_key).toBeNull();
+  expect(waiting?.purge_started).toBe(false);
   expect(
     await db.withTenant(B.company, (tx) => documentFileFacts(tx, A.company, ready)),
   ).toBeNull();
@@ -69,4 +71,17 @@ it('exposes the key only once READY and never across tenants', async () => {
     );
   });
   expect(JSON.stringify(plan)).toMatch(/Index (Only )?Scan|Bitmap Index Scan/);
+});
+
+it('derives purge_started from purge_started_at before the purge completes', async () => {
+  const { A } = TENANT;
+  const id = await file('READY');
+  await owner`UPDATE file_objects SET purge_started_at = now() WHERE company_id = ${A.company} AND id = ${id}`;
+  const started = await db.withTenant(A.company, (tx) => documentFileFacts(tx, A.company, id));
+  expect(started?.purge_started).toBe(true);
+  expect(started?.purged).toBe(false);
+  await owner`UPDATE file_objects SET purged_at = now() WHERE company_id = ${A.company} AND id = ${id}`;
+  const completed = await db.withTenant(A.company, (tx) => documentFileFacts(tx, A.company, id));
+  expect(completed?.purge_started).toBe(true);
+  expect(completed?.purged).toBe(true);
 });
