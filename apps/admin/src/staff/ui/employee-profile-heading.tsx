@@ -3,8 +3,19 @@ import type { EmployeeDetail } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { useLocale } from '@/shared/locale/locale-context';
 import { displayEmployeeNumber } from '../model/employee-number-display';
+import { EmployeeNumberEdit } from './employee-number-edit';
 
-export function EmployeeProfileHeading({ employee }: { employee: EmployeeDetail | undefined }) {
+export function EmployeeProfileHeading({
+  companyId,
+  businessId,
+  userId,
+  employee,
+}: {
+  companyId: string;
+  businessId: string;
+  userId: string;
+  employee: EmployeeDetail | undefined;
+}) {
   const locale = useLocale();
   return (
     <div className="flex flex-col gap-1 text-start">
@@ -14,6 +25,15 @@ export function EmployeeProfileHeading({ employee }: { employee: EmployeeDetail 
           <span>{locale === 'ar' ? (employee.name_ar ?? employee.name_en) : employee.name_en}</span>
           <span><span className="sr-only">{t(locale, 'staff.employeeNumber')} </span>{displayEmployeeNumber(employee.employee_number)}</span>
         </p>
+      ) : null}
+      {employee ? (
+        <EmployeeNumberEdit
+          companyId={companyId}
+          businessId={businessId}
+          userId={userId}
+          employeeId={employee.id}
+          employeeNumber={employee.employee_number}
+        />
       ) : null}
     </div>
   );

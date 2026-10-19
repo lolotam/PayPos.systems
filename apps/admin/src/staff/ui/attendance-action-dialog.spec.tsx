@@ -3,7 +3,7 @@ import { Button } from '@pospay/ui';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { AttendanceActionDialog } from './attendance-action-dialog';
+import { ModalDialog } from '@/shared/ui/modal-dialog';
 
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
@@ -23,9 +23,9 @@ it.each(['button', 'escape', 'success'] as const)(
     view.rerender(
       <StrictMode>
         {openerElement}
-        <AttendanceActionDialog title={t('en', 'attendanceActions.history')} onClose={onClose}>
+        <ModalDialog title={t('en', 'attendanceActions.history')} onClose={onClose}>
           <Button onClick={onClose}>{t('en', 'attendanceActions.close')}</Button>
-        </AttendanceActionDialog>
+        </ModalDialog>
       </StrictMode>,
     );
     const close = screen.getByRole('button', { name: t('en', 'attendanceActions.close') });
@@ -42,9 +42,9 @@ it.each(['button', 'escape', 'success'] as const)(
 it('keeps focus in a pending dialog when Escape is refused', () => {
   const onClose = vi.fn();
   render(
-    <AttendanceActionDialog title={t('en', 'attendanceActions.correct')} pending onClose={onClose}>
+    <ModalDialog title={t('en', 'attendanceActions.correct')} pending onClose={onClose}>
       <Button>{t('en', 'attendanceActions.save')}</Button>
-    </AttendanceActionDialog>,
+    </ModalDialog>,
   );
   const focused = document.activeElement;
   fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));

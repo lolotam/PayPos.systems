@@ -15,6 +15,7 @@ import {
 } from './staff-records.providers.ts';
 import { EmployeeDefaultShiftsController } from './http/employee-default-shifts.controller.ts';
 import { EmployeeNumberCapabilityController } from './http/employee-number-capability.controller.ts';
+import { EmployeeNumberEditCapabilityController } from './http/employee-number-edit-capability.controller.ts';
 import { EmployeeNumberController } from './http/employee-number.controller.ts';
 import { EmployeeNumbersController, EMPLOYEE_NUMBERS_SEARCH } from './http/employee-numbers.controller.ts';
 import { EmployeeNumberingController } from './http/employee-numbering.controller.ts';
@@ -109,6 +110,7 @@ export const staffControllers = [
   EmployeeDefaultShiftsController,
   EmployeeNumberController,
   EmployeeNumberCapabilityController,
+  EmployeeNumberEditCapabilityController,
   EmployeeNumbersController,
   EmployeeNumberingController,
   EmployeeIbanController,

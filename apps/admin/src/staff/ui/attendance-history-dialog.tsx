@@ -8,7 +8,7 @@ import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { useAttendanceHistory } from '../api/use-attendance-actions-read';
 import { attendanceActor } from '../model/attendance-action-display';
 import { boardAccessLost, boardTime } from '../model/attendance-board-display';
-import { AttendanceActionDialog } from './attendance-action-dialog';
+import { ModalDialog } from '@/shared/ui/modal-dialog';
 import { AttendanceActionFeedback } from './attendance-action-feedback';
 import { AttendanceActionsTable } from './attendance-actions-table';
 export function AttendanceHistoryDialog({
@@ -53,7 +53,7 @@ export function AttendanceHistoryDialog({
     },
   ];
   return (
-    <AttendanceActionDialog title={t(locale, 'attendanceActions.history')} onClose={onClose}>
+    <ModalDialog title={t(locale, 'attendanceActions.history')} onClose={onClose}>
       <AttendanceActionFeedback
         error={query.error}
         loading={query.isPending}
@@ -67,6 +67,6 @@ export function AttendanceHistoryDialog({
       <Button variant="outline" onClick={onClose}>
         {t(locale, 'attendanceActions.close')}
       </Button>
-    </AttendanceActionDialog>
+    </ModalDialog>
   );
 }

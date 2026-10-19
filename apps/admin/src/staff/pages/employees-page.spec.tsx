@@ -12,6 +12,10 @@ vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 vi.mock('../api/use-employees', () => ({
   useEmployees: (...args: unknown[]) => state.useEmployees(...args),
 }));
+vi.mock('../api/use-employee-numbering', () => ({
+  useEmployeeNumbering: () => ({ data: undefined }),
+  useSetEmployeeNumberStart: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+}));
 vi.mock('../api/use-passkeys', () => ({
   usePasskeyEmployees: () => ({
     isFetchedAfterMount: true,
