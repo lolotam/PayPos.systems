@@ -11,7 +11,7 @@ import { useSessionQueryLifecycle } from '../model/use-session-query-lifecycle';
 import { ServiceSessionDayBody } from '../ui/service-session-day-body';
 import { ServiceSessionDayFilters } from '../ui/service-session-day-filters';
 
-export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServiceScope; timezone: string }) {
+export function ServiceSessionDayPage({ scope, timezone, canCancel = true }: { scope: SessionServiceScope; timezone: string; canCancel?: boolean }) {
   const locale = useLocale();
   const connectivity = useBrowserConnectivity();
   const online = connectivity === true;
@@ -33,6 +33,6 @@ export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServi
     {connectivity === false ? <p role="status">{t(locale, 'serviceSessions.offline')}</p> : null}
     <ServiceSessionDayFilters date={date} lateOnly={lateOnly} onDate={setDate} onLate={setLateOnly} />
     {denied ? <p role="alert">{denied.message} <Button type="button" variant="outline" onClick={() => { setDenied(null); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p>
-      : <ServiceSessionDayBody scope={scope} date={date} lateOnly={lateOnly} online={online} timezone={timezone} onAccessDenied={onAccessDenied} />}
+      : <ServiceSessionDayBody scope={scope} date={date} lateOnly={lateOnly} online={online} timezone={timezone} canCancel={canCancel} onAccessDenied={onAccessDenied} />}
   </section>;
 }

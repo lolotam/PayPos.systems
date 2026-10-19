@@ -1644,7 +1644,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** @description The one cancellation of a saved line for the manager day list. Requires read:service-sessions:branch and the orders feature. cancel:service-lines:branch does not grant this read. A line, session, branch or company mismatch, and an in-scope line with no cancellation, are the same uniform 403. The reason and the canceller label are returned only here. */
+        get: operations["readServiceLineCancellation"];
         put?: never;
         /** @description Cancels one saved service line. Requires cancel:service-lines:branch on the route branch, the orders feature, and an individual admin login. Actor-bound Idempotency-Key. Every return, including a replay, is projected by the caller effective read:service-sessions:branch: the saved line with status CANCELLED and cancelled_at plus the visit total, or only cancelled true when that read is absent. The reason is never returned. */
         post: operations["cancelServiceLine"];
@@ -4528,6 +4529,19 @@ export interface components {
         ServiceLineEditsPage: {
             items: components["schemas"]["ServiceLineEditItem"][];
             next_cursor: string | null;
+        };
+        ServiceLineCancellation: {
+            /** Format: date-time */
+            cancelled_at: string;
+            canceller_label_ar: string;
+            canceller_label_en: string;
+            reason: string;
+            previous: {
+                revision: number;
+                price: components["schemas"]["SessionMoney"];
+                discount: components["schemas"]["SessionMoney"];
+                net: components["schemas"]["SessionMoney"];
+            };
         };
         RecordingContextQuery: {
             /** Format: uuid */
@@ -11313,6 +11327,51 @@ export interface operations {
                 };
             };
             /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    readServiceLineCancellation: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+                lineId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The cancellation. Money is canonical three-decimal text. Labels are names first, then the role. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceLineCancellation"];
+                };
+            };
+            /** @description Uniform scope/authority refusal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication/readiness refusal. */
             default: {
                 headers: {
                     [name: string]: unknown;

@@ -10491,6 +10491,89 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "readServiceLineCancellation",
+        "description": "The one cancellation of a saved line for the manager day list. Requires read:service-sessions:branch and the orders feature. cancel:service-lines:branch does not grant this read. A line, session, branch or company mismatch, and an in-scope line with no cancellation, are the same uniform 403. The reason and the canceller label are returned only here.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "lineId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The cancellation. Money is canonical three-decimal text. Labels are names first, then the role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceLineCancellation"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform scope/authority refusal or disabled orders feature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual authentication/readiness refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/edits": {
@@ -22549,6 +22632,61 @@
         "required": [
           "items",
           "next_cursor"
+        ]
+      },
+      "ServiceLineCancellation": {
+        "type": "object",
+        "properties": {
+          "cancelled_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "canceller_label_ar": {
+            "type": "string",
+            "minLength": 1
+          },
+          "canceller_label_en": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "previous": {
+            "type": "object",
+            "properties": {
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true,
+                "maximum": 9007199254740991
+              },
+              "price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "discount": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "net": {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            },
+            "required": [
+              "revision",
+              "price",
+              "discount",
+              "net"
+            ]
+          }
+        },
+        "required": [
+          "cancelled_at",
+          "canceller_label_ar",
+          "canceller_label_en",
+          "reason",
+          "previous"
         ]
       },
       "RecordingContextQuery": {

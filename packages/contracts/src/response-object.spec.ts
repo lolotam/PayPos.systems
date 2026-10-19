@@ -17,6 +17,7 @@ import {
   recordServiceSessionResponse,
 } from './orders/service-session.js';
 import { serviceSessionDayPage, serviceSessionDayQuery } from './orders/service-session-day.js';
+import { serviceLineCancellation } from './orders/service-line-cancellation.js';
 import { serviceLineEditsPage, serviceLineEditsQuery } from './orders/service-session-edits.js';
 import { sessionPerformerOptionPage, sessionServiceOptionPage, sessionServiceOptionsQuery } from './orders/service-session-options.js';
 import { confirmSessionRecoveryBody, serviceSessionRecoveryPage } from './orders/service-session-recovery.js';
@@ -113,6 +114,7 @@ const responses = [
   { name: 'scheduleSettings', schema: scheduleSettings },
   { name: 'service', schema: service },
   { name: 'servicePage', schema: servicePage },
+  { name: 'serviceLineCancellation', schema: serviceLineCancellation },
   { name: 'serviceLineEditsPage', schema: serviceLineEditsPage },
   { name: 'serviceSessionDayPage', schema: serviceSessionDayPage },
   { name: 'serviceSessionRecoveryPage', schema: serviceSessionRecoveryPage },

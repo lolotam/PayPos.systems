@@ -1,5 +1,6 @@
 import { ar } from './ar.js';
 import { en } from './en.js';
+import { serviceLineCancelAr, serviceLineCancelEn } from './service-line-cancel-catalog.js';
 import { serviceLineEditAr, serviceLineEditEn } from './service-line-edit-catalog.js';
 import { serviceSessionsAr, serviceSessionsEn } from './service-session-catalog.js';
 
@@ -12,6 +13,7 @@ export type Catalog = { readonly [S in keyof typeof en]: Record<keyof (typeof en
 type RegisteredCatalog = Catalog & {
   readonly serviceSessions: Record<keyof typeof serviceSessionsEn, string>;
   readonly serviceLineEdit: Record<keyof typeof serviceLineEditEn, string>;
+  readonly serviceLineCancel: Record<keyof typeof serviceLineCancelEn, string>;
 };
 
 /** مفتاح رسالة: <القسم>.<الاسم>، زي errors.NOT_READY. */
@@ -23,8 +25,8 @@ export type MessageKey = {
 export type ErrorMessageCode = keyof typeof en.errors;
 
 const CATALOGS: Record<Locale, RegisteredCatalog> = {
-  ar: { ...ar, serviceSessions: serviceSessionsAr, serviceLineEdit: serviceLineEditAr },
-  en: { ...en, serviceSessions: serviceSessionsEn, serviceLineEdit: serviceLineEditEn },
+  ar: { ...ar, serviceSessions: serviceSessionsAr, serviceLineEdit: serviceLineEditAr, serviceLineCancel: serviceLineCancelAr },
+  en: { ...en, serviceSessions: serviceSessionsEn, serviceLineEdit: serviceLineEditEn, serviceLineCancel: serviceLineCancelEn },
 };
 
 /**
