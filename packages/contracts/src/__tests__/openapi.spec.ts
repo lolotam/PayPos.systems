@@ -191,6 +191,8 @@ const expectedSchemas = [
   'AttendanceExceptionRecord',
   'CorrectAttendanceInput',
   'CorrectAttendanceResult',
+  'MyMembership',
+  'MyMembershipsResponse',
 ].sort();
 
 describe('openapi/openapi.json', () => {
@@ -209,7 +211,7 @@ describe('openapi/openapi.json', () => {
         'ServiceSessionDayLine',
         'ServiceSessionDayItem',
         'ServiceSessionDayPage',
-        'ServiceLineEditsQuery',
+        'ServiceLineCancellation', 'ServiceLineEditsQuery', 'ServiceSessionCapabilities',
         'ServiceLineEditItem',
         'ServiceLineEditsPage',
         'AttendanceChangeDecisionResult',

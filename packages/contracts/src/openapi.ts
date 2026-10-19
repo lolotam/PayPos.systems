@@ -61,6 +61,7 @@ import {
 } from './staff/update-employee.js';
 import { permissionPaths, permissionSchemas } from './identity/permissions-openapi.js';
 import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
+import { mePaths } from './identity/me-openapi.js';
 import { customer, findOrCreateCustomerInput } from './customers.js';
 import { customerPaths } from './customers-openapi.js';
 import { catalogPaths, catalogSchemas } from './catalog/catalog-openapi.js';
@@ -76,6 +77,7 @@ import {
 
 import { errorEnvelope } from './errors/envelope.js';
 import { cashierPinVerified, verifyCashierPinInput } from './identity/cashier-pin.js';
+import { myMembership, myMembershipsResponse } from './identity/my-memberships.js';
 import {
   myWorkspacesResponse,
   workspaceBranch,
@@ -200,6 +202,8 @@ const SCHEMAS = [
   deviceIdentity,
   verifyCashierPinInput,
   cashierPinVerified,
+  myMembership,
+  myMembershipsResponse,
   myWorkspacesResponse,
   workspaceBranch,
   workspaceBusiness,
@@ -327,14 +331,7 @@ const PATHS = {
     },
   },
   ...notificationPaths,
-  '/v1/me/workspaces': {
-    get: operation(
-      'listMyWorkspaces',
-      '200',
-      'The companies, businesses and branches this session can open',
-      'MyWorkspacesResponse',
-    ),
-  },
+  ...mePaths,
   '/v1/devices/register': {
     post: operation(
       'registerDevice',

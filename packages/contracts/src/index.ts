@@ -127,6 +127,12 @@ export {
   type WorkspaceCompanyNames,
 } from './identity/workspaces.js';
 export {
+  myMembership,
+  myMembershipsResponse,
+  type MyMembership,
+  type MyMembershipsResponse,
+} from './identity/my-memberships.js';
+export {
   businessIdentityNames,
   businessLogo,
   businessSettings,
@@ -372,6 +378,8 @@ export * from './orders/recording-context.js';
 export * from './orders/service-session-options.js';
 export * from './orders/service-session-day.js';
 export * from './orders/service-session-edits.js';
+export * from './orders/service-line-cancellation.js';
+export * from './orders/service-session-capabilities.js';
 export * from './orders/service-session-recovery.js';
 export * from './orders/late-service-session-notice.js';
 export * from './orders/service-line-edit-notice.js';

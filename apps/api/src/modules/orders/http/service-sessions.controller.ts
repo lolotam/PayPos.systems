@@ -14,6 +14,8 @@ import { EditServiceLinePriceUseCase } from '../use-cases/edit-service-line-pric
 import { SessionAdminGuard, SessionAppendGuard } from './session-access.guard.ts';
 import { SessionErrorsFilter } from './session-errors.filter.ts';
 import { BranchDayServiceSessionsQuery, SessionDayReadError } from '../queries/branch-day-service-sessions.query.ts';
+import { ServiceLineCancellationQuery } from '../queries/service-line-cancellation.query.ts';
+import { ServiceSessionCapabilitiesQuery } from '../queries/service-session-capabilities.query.ts';
 import { ServiceLineEditHistoryQuery } from '../queries/service-line-edits.query.ts';
 
 function fingerprint(request: FastifyRequest, body: unknown, businessId: string, branchId: string, sessionId?: string, lineId?: string): string {
@@ -32,7 +34,9 @@ export class ServiceSessionsController {
     @Inject(EditServiceLinePriceUseCase) private readonly editLine: EditServiceLinePriceUseCase | null,
     @Inject(CancelServiceLineUseCase) private readonly cancelLine: CancelServiceLineUseCase | null,
     @Inject(BranchDayServiceSessionsQuery) private readonly dayList: BranchDayServiceSessionsQuery | null,
-    @Inject(ServiceLineEditHistoryQuery) private readonly history: ServiceLineEditHistoryQuery | null) {}
+    @Inject(ServiceLineEditHistoryQuery) private readonly history: ServiceLineEditHistoryQuery | null,
+    @Inject(ServiceLineCancellationQuery) private readonly cancellationRead: ServiceLineCancellationQuery | null,
+    @Inject(ServiceSessionCapabilitiesQuery) private readonly capabilitiesRead: ServiceSessionCapabilitiesQuery | null) {}
   @Get()
   @Require('read:service-sessions:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
@@ -43,6 +47,20 @@ export class ServiceSessionsController {
     @Req() request: FastifyRequest) {
     if (this.dayList === null) throw new ApiError('NOT_READY');
     try { return await this.dayList.execute({ ...actorOf(request), businessId, branchId }, query); }
+    catch (error) {
+      if (error instanceof SessionDayReadError) throw new ApiError(error.code);
+      throw error;
+    }
+  }
+  @Get('capabilities')
+  @Require('read:service-sessions:branch', { branch: 'branchId' })
+  @RequiresFeature('orders')
+  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  async capabilities(@Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
+    @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
+    @Req() request: FastifyRequest) {
+    if (this.capabilitiesRead === null) throw new ApiError('NOT_READY');
+    try { return await this.capabilitiesRead.execute({ ...actorOf(request), businessId, branchId }); }
     catch (error) {
       if (error instanceof SessionDayReadError) throw new ApiError(error.code);
       throw error;
@@ -60,6 +78,22 @@ export class ServiceSessionsController {
     @Req() request: FastifyRequest) {
     if (this.history === null) throw new ApiError('NOT_READY');
     try { return await this.history.execute({ ...actorOf(request), businessId, branchId, sessionId, lineId }, query); }
+    catch (error) {
+      if (error instanceof SessionDayReadError) throw new ApiError(error.code);
+      throw error;
+    }
+  }
+  @Get(':sessionId/lines/:lineId/cancellation')
+  @Require('read:service-sessions:branch', { branch: 'branchId' })
+  @RequiresFeature('orders')
+  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  async cancellation(@Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
+    @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
+    @Param('sessionId', new ZodValidationPipe(pathId)) sessionId: string,
+    @Param('lineId', new ZodValidationPipe(pathId)) lineId: string,
+    @Req() request: FastifyRequest) {
+    if (this.cancellationRead === null) throw new ApiError('NOT_READY');
+    try { return await this.cancellationRead.execute({ ...actorOf(request), businessId, branchId, sessionId, lineId }); }
     catch (error) {
       if (error instanceof SessionDayReadError) throw new ApiError(error.code);
       throw error;

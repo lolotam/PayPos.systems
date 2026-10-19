@@ -8,6 +8,7 @@ import { errorEnvelope } from './errors/envelope.js';
 import { fileConfirmation, fileDownload, fileStatus, fileUploadTicket, requestFileUpload } from './files.js';
 import { discountLimit, discountLimitInput } from './identity/discount-limit.js';
 import { membershipPermissions, permissionMembershipPage, permissionOverride, permissionOverrideInput } from './identity/permissions.js';
+import { myMembershipsResponse } from './identity/my-memberships.js';
 import { myWorkspacesResponse, workspaceCompany } from './identity/workspaces.js';
 import { inAppNotification, inAppNotificationPage, inAppRecipient, notificationReadResult, notificationUnreadCount, readInAppNotificationPage } from './in-app-notifications.js';
 import {
@@ -17,6 +18,8 @@ import {
   recordServiceSessionResponse,
 } from './orders/service-session.js';
 import { serviceSessionDayPage, serviceSessionDayQuery } from './orders/service-session-day.js';
+import { serviceLineCancellation } from './orders/service-line-cancellation.js';
+import { serviceSessionCapabilities } from './orders/service-session-capabilities.js';
 import { serviceLineEditsPage, serviceLineEditsQuery } from './orders/service-session-edits.js';
 import { sessionPerformerOptionPage, sessionServiceOptionPage, sessionServiceOptionsQuery } from './orders/service-session-options.js';
 import { confirmSessionRecoveryBody, serviceSessionRecoveryPage } from './orders/service-session-recovery.js';
@@ -101,6 +104,7 @@ const responses = [
   { name: 'leavePage', schema: leavePage },
   { name: 'leaveRequest', schema: leaveRequest },
   { name: 'membershipPermissions', schema: membershipPermissions },
+  { name: 'myMembershipsResponse', schema: myMembershipsResponse },
   { name: 'myWorkspacesResponse', schema: myWorkspacesResponse },
   { name: 'packageServiceOptionPage', schema: packageServiceOptionPage },
   { name: 'packageTypeDetail', schema: packageTypeDetail },
@@ -115,6 +119,8 @@ const responses = [
   { name: 'scheduleSettings', schema: scheduleSettings },
   { name: 'service', schema: service },
   { name: 'servicePage', schema: servicePage },
+  { name: 'serviceLineCancellation', schema: serviceLineCancellation },
+  { name: 'serviceSessionCapabilities', schema: serviceSessionCapabilities },
   { name: 'serviceLineEditsPage', schema: serviceLineEditsPage },
   { name: 'serviceSessionDayPage', schema: serviceSessionDayPage },
   { name: 'serviceSessionRecoveryPage', schema: serviceSessionRecoveryPage },

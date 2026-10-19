@@ -1619,6 +1619,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Lock-free branch capability for the manager day list. Requires read:service-sessions:branch and the orders feature. can_cancel_lines is the effective cancel:service-lines:branch on this branch: ALLOW, no DENY, and an active membership. Missing cancel permission, a DENY, or another branch is 200 false. Missing read is the route 403. A disabled orders feature stays FEATURE_DISABLED. No Idempotency-Key. */
+        get: operations["readServiceSessionCapabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines": {
         parameters: {
             query?: never;
@@ -1660,7 +1677,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** @description The one cancellation of a saved line for the manager day list. Requires read:service-sessions:branch and the orders feature. cancel:service-lines:branch does not grant this read. A line, session, branch or company mismatch, and an in-scope line with no cancellation, are the same uniform 403. The reason and the canceller label are returned only here. */
+        get: operations["readServiceLineCancellation"];
         put?: never;
         /** @description Cancels one saved service line. Requires cancel:service-lines:branch on the route branch, the orders feature, and an individual admin login. Actor-bound Idempotency-Key. Every return, including a replay, is projected by the caller effective read:service-sessions:branch: the saved line with status CANCELLED and cancelled_at plus the visit total, or only cancelled true when that read is absent. The reason is never returned. */
         post: operations["cancelServiceLine"];
@@ -2039,6 +2057,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["listMyWorkspaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listMyMemberships"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4545,6 +4579,22 @@ export interface components {
             items: components["schemas"]["ServiceLineEditItem"][];
             next_cursor: string | null;
         };
+        ServiceLineCancellation: {
+            /** Format: date-time */
+            cancelled_at: string;
+            canceller_label_ar: string;
+            canceller_label_en: string;
+            reason: string;
+            previous: {
+                revision: number;
+                price: components["schemas"]["SessionMoney"];
+                discount: components["schemas"]["SessionMoney"];
+                net: components["schemas"]["SessionMoney"];
+            };
+        };
+        ServiceSessionCapabilities: {
+            can_cancel_lines: boolean;
+        };
         RecordingContextQuery: {
             /** Format: uuid */
             recorder_membership_id?: string;
@@ -5459,6 +5509,23 @@ export interface components {
         CashierPinVerified: {
             /** Format: uuid */
             employee_id: string;
+        };
+        MyMembership: {
+            /** Format: uuid */
+            id: string;
+            role_code: string;
+            role_is_system: boolean;
+            role_name_ar: string | null;
+            role_name_en: string;
+            /** @enum {string} */
+            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+            /** Format: uuid */
+            scope_id: string;
+            scope_name_ar: string | null;
+            scope_name_en: string;
+        };
+        MyMembershipsResponse: {
+            items: components["schemas"]["MyMembership"][];
         };
         MyWorkspacesResponse: {
             companies: components["schemas"]["WorkspaceCompany"][];
@@ -11231,6 +11298,49 @@ export interface operations {
             };
         };
     };
+    readServiceSessionCapabilities: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether the day list may offer Cancel on this branch. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceSessionCapabilities"];
+                };
+            };
+            /** @description Uniform scope/authority refusal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication/readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     appendServiceSessionLines: {
         parameters: {
             query?: never;
@@ -11374,6 +11484,51 @@ export interface operations {
                 };
             };
             /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    readServiceLineCancellation: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+                lineId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The cancellation. Money is canonical three-decimal text. Labels are names first, then the role. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceLineCancellation"];
+                };
+            };
+            /** @description Uniform scope/authority refusal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication/readiness refusal. */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -12508,6 +12663,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyWorkspacesResponse"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listMyMemberships: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's own active memberships in the selected company */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyMembershipsResponse"];
                 };
             };
             /** @description The API error envelope */
