@@ -34,7 +34,7 @@ export function startFilesWorker(
     clock,
     stored?.artifacts,
   );
-  const retention = startRetentionProcessors(cleanup, redisUrl);
+  const retention = startRetentionProcessors(cleanup, redisUrl, 'bull', capability !== null);
   return {
     consumer: retireBusinessLogoConsumer(
       new RetireBusinessLogo(logoRetirementStore(), logoReference(), clock),
