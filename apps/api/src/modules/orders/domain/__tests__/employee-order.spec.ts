@@ -28,4 +28,17 @@ describe('employeeIdBatches', () => {
   it('returns no batches for an empty list', () => {
     expect(employeeIdBatches([], 80)).toEqual([]);
   });
+
+  it.each([
+    [0, []],
+    [1, [1]],
+    [80, [80]],
+    [81, [80, 1]],
+    [161, [80, 80, 1]],
+  ] as const)('keeps order for %i ids in chunks %j', (count, sizes) => {
+    const ids = Array.from({ length: count }, (_, index) => index.toString(16).padStart(3, '0'));
+    const batches = employeeIdBatches(ids, 80);
+    expect(batches.map((batch) => batch.length)).toEqual([...sizes]);
+    expect(batches.flat()).toEqual(ids);
+  });
 });

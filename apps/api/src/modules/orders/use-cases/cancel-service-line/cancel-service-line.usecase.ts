@@ -1,4 +1,5 @@
 import type { CancelServiceLineInput, CancelServiceLineResponse } from '@pospay/contracts';
+import { PERFORMER_BATCH, ascendingEmployeeIds, employeeIdBatches } from '../../domain/employee-order.ts';
 import { lineCancelAudit } from '../../domain/line-cancel-audit.ts';
 import { resolveSessionCanceller } from '../../domain/line-cancel-canceller.ts';
 import { evaluateLineCancel } from '../../domain/line-cancel-evaluate.ts';
@@ -9,7 +10,7 @@ import { projectCancelResponse, savedLineCancelResponse } from '../../domain/lin
 import type { LineEditPerformer } from '../../domain/line-edit-identity.ts';
 import { lineActorAccess, linePerformerIdentities, refuseStaleLine, selectedLineMembership } from '../../domain/line-mutation-shared.ts';
 import { SessionError } from '../../domain/session-error.ts';
-import type { SessionLine, SessionRecord } from '../../domain/session-types.ts';
+import type { SessionEmployee, SessionLine, SessionRecord } from '../../domain/session-types.ts';
 import type {
   ActiveLinePerformers,
   LineCancelTransaction,
@@ -88,8 +89,9 @@ export class CancelServiceLineUseCase {
     const line = await tx.lines.loadLineForUpdate(context.sessionId, context.lineId);
     if (line === null) throw new SessionError('FORBIDDEN');
     const retained = await tx.lines.retainedPerformers(context.sessionId, context.lineId);
-    const employeeIds = [...new Set([...line.performers, ...retained].map((performer) => performer.employee_id))].sort();
-    if (employeeIds.length > 0) await tx.performers.lock(employeeIds);
+    for (const batch of performerIdBatches(line.performers, retained)) {
+      await tx.performers.lock(batch);
+    }
     return { line, retained };
   }
 
@@ -107,9 +109,12 @@ export class CancelServiceLineUseCase {
 
   private async identities(tx: LineCancelTransaction, locked: LockedCancel): Promise<LineEditPerformer[]> {
     const currentIds = locked.line.performers.map((performer) => performer.employee_id);
-    const all = [...new Set([...currentIds, ...locked.retained.map((performer) => performer.employee_id)])];
-    if (all.length === 0) return [];
-    const found = await tx.performers.read(all, locked.line.occurred_at);
+    const batches = performerIdBatches(locked.line.performers, locked.retained);
+    if (batches.length === 0) return [];
+    const found: SessionEmployee[] = [];
+    for (const batch of batches) {
+      found.push(...(await tx.performers.read(batch, locked.line.occurred_at)));
+    }
     if (currentIds.some((id) => !found.some((employee) => employee.id === id))) throw new SessionError('FORBIDDEN');
     return [...linePerformerIdentities(locked.line.performers, found), ...linePerformerIdentities(locked.retained, found)];
   }
@@ -137,6 +142,19 @@ export class CancelServiceLineUseCase {
   private async refuseStale(tx: LineCancelTransaction, context: CancelContext): Promise<never> {
     return refuseStaleLine(() => tx.lines.loadLineForUpdate(context.sessionId, context.lineId));
   }
+}
+
+function performerIdBatches(
+  current: readonly { employee_id: string }[],
+  retained: readonly { employee_id: string }[],
+): string[][] {
+  return employeeIdBatches(
+    ascendingEmployeeIds(
+      current.map((performer) => performer.employee_id),
+      retained.map((performer) => performer.employee_id),
+    ),
+    PERFORMER_BATCH,
+  );
 }
 
 function cancelFacts(

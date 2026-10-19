@@ -1,6 +1,6 @@
 import type { RecordSessionTipsInput, SessionTips } from '@pospay/contracts';
 import { parseMoney } from '@pospay/domain';
-import { ascendingEmployeeIds, employeeIdBatches } from '../../domain/employee-order.ts';
+import { PERFORMER_BATCH, ascendingEmployeeIds, employeeIdBatches } from '../../domain/employee-order.ts';
 import { resolveSessionRecorder, type SessionAccess } from '../../domain/session-authority.ts';
 import { SessionError } from '../../domain/session-error.ts';
 import { withCurrentLinks, type TipPerformerRow } from '../../domain/tip-people-links.ts';
@@ -24,9 +24,6 @@ import type {
   IdGenerator,
   SessionWriteContext,
 } from '../../ports/service-session-transactions.port.ts';
-
-/** حد قارئ الموارد البشرية؛ أي دفعة أكبر يرفضها قبل القراءة. */
-const PERFORMER_BATCH = 80;
 
 type TipContext = SessionWriteContext & { sessionId: string; input: RecordSessionTipsInput };
 type LoadedEmployees = Awaited<ReturnType<SessionTipsTransaction['performers']['read']>>;

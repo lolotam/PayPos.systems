@@ -27,6 +27,9 @@ export function ascendingEmployeeIds(...lists: readonly (readonly string[])[]): 
   return [...ids.values()].sort(compareEmployeeId);
 }
 
+/** حد قارئ الموارد البشرية للدفعة الواحدة؛ أي دفعة أكبر يرفضها قبل القفل والقراءة. */
+export const PERFORMER_BATCH = 80;
+
 /**
  * يقسم هويات مرتبة إلى دفعات بالحجم المعطى من غير أن يغيّر ترتيبها.
  * الحجم حد القارئ؛ الدفعة الأخيرة قد تكون أقصر، والقائمة الفارغة لا تنتج دفعات.
