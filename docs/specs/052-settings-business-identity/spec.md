@@ -119,6 +119,7 @@ Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, a
    `owner_entity_id`, `business_id`, branch, `created_by`, `required_permission`, `content_type`); any mismatch answers
    `FILE_NOT_FOUND`, identical to an unknown id; (b) only then the status: PENDING/VERIFYING answers `FILE_NOT_READY`. There is no size check at the bind: a READY
    file already passed the generic 10 MiB policy (BI-Q3).
+   REJECTED is refused as `FILE_NOT_FOUND` (orchestrator decision, technical): a rejected file can never become READY.
 4. **No logo-specific cap (BI-Q3 = 10 MiB).** The generic file policy and the DB checks apply unchanged, and the
    verification worker re-encodes the logo like any image. `request-upload`, the verification worker and the bind add
    nothing for size, and the employee-document images are unaffected. No new pixel rule: sharp's existing

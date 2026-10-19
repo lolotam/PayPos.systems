@@ -74,7 +74,21 @@ export const businessIdentityNames = responseObject({
 })
   .meta({ id: 'BusinessIdentityNames' });
 
+// null يشيل الشعار. المفتاح مطلوب: غيابه مش إزالة.
+export const setBusinessLogoInput = z
+  .object({
+    file_id: id.nullable(),
+  })
+  .strict()
+  .meta({ id: 'SetBusinessLogoInput' });
+
+export const businessLogo = responseObject({
+  logo_file_id: id.nullable(),
+}).meta({ id: 'BusinessLogo' });
+
 export type BusinessSettings = z.infer<typeof businessSettings>;
 export type UpdateBusinessSettingsInput = z.infer<typeof updateBusinessSettingsInput>;
 export type UpdateBusinessIdentityNamesInput = z.infer<typeof updateBusinessIdentityNamesInput>;
 export type BusinessIdentityNames = z.infer<typeof businessIdentityNames>;
+export type SetBusinessLogoInput = z.infer<typeof setBusinessLogoInput>;
+export type BusinessLogo = z.infer<typeof businessLogo>;
