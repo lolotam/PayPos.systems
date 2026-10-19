@@ -1,15 +1,15 @@
 import type { RecordSessionTipsInput, SessionTips } from '@pospay/contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { useRef } from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { id, scope } from '../model/session-recording-result.fixture';
-import { sessionTipsKey } from './use-session-tips';
+import { sessionTipsKey, sessionTipsPath, useSessionTips } from './use-session-tips';
 import { useRecordSessionTips, type UnresolvedTip } from './use-record-session-tips';
 
-const api = vi.hoisted(() => ({ put: vi.fn() }));
-vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ PUT: api.put }) }));
+const api = vi.hoisted(() => ({ put: vi.fn(), get: vi.fn() }));
+vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ PUT: api.put, GET: api.get }) }));
 
 const body: RecordSessionTipsInput = {
   expected_revision: 0,
@@ -44,6 +44,7 @@ function sent(index: number) {
 
 beforeEach(() => {
   api.put.mockReset();
+  api.get.mockReset();
 });
 
 it('replays the retained key and the same money strings after a network error', async () => {
@@ -109,4 +110,45 @@ it('does not recreate a tip cache entry removed while the save is in flight', as
   release(saved);
   await saving;
   expect(client.getQueryCache().find({ queryKey: key, exact: true })).toBeUndefined();
+});
+
+it('keeps the saved revision when an older read resolves after the put', async () => {
+  let releaseGet: (value: unknown) => void = () => undefined;
+  const hanging = new Promise((resolve) => {
+    releaseGet = resolve;
+  });
+  api.get.mockImplementation((path: string) => {
+    if (path === sessionTipsPath) return hanging;
+    return Promise.resolve({
+      error: { code: 'SESSION_NOT_FOUND', message_ar: 'x', message_en: 'x' },
+      response: { status: 404 },
+    });
+  });
+  const published = { revision: 2, tips: body.tips, total_cash: '6.000', total_card: '0.000' };
+  api.put.mockResolvedValue({ data: published, response: { status: 200 } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const hook = renderHook(
+    () => {
+      useSessionTips(scope, id(12), true);
+      const memory = useRef(new Map<string, UnresolvedTip>());
+      return useRecordSessionTips(scope, memory);
+    },
+    { wrapper },
+  );
+  await waitFor(() => expect(api.get).toHaveBeenCalled());
+  await hook.result.current.mutateAsync(attempt);
+  const key = sessionTipsKey(scope, id(12));
+  await act(async () => {
+    releaseGet({
+      data: { revision: 1, tips: body.tips, total_cash: '1.000', total_card: '0.000' },
+      response: { status: 200 },
+    });
+    await hanging;
+  });
+  expect(client.getQueryData<SessionTips>(key)?.revision).toBe(2);
 });

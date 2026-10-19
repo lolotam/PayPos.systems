@@ -7,7 +7,6 @@ import {
 import {
   moneyToString,
   parseMoney,
-  sumMoney,
   sumTipTotalsByMethod,
   type Money,
 } from '@pospay/domain';
@@ -48,7 +47,8 @@ function canonicalAmount(text: string): string | null | 'invalid' {
     const mills = parseMoney(normalized);
     if (mills === 0n) return null;
     if (mills < 0n) return 'invalid';
-    return normalized;
+    // العقد يشترط ثلاث خانات. النص المكتوب «1.5» يتحول من الفلس مش من شكل الإدخال.
+    return moneyToString(mills);
   } catch {
     return 'invalid';
   }
@@ -89,9 +89,13 @@ function withinMoney<T>(compute: () => T): T | 'too-large' {
   }
 }
 
-function combinedMills(entries: { method: 'CASH' | 'CARD'; amount: Money }[]): bigint {
-  const totals = sumTipTotalsByMethod(entries);
-  return sumMoney([parseMoney(totals.total_cash), parseMoney(totals.total_card)]);
+function addedTipMills(
+  entries: { method: 'CASH' | 'CARD'; amount: Money }[],
+): bigint | 'too-large' {
+  const totals = withinMoney(() => sumTipTotalsByMethod(entries));
+  if (totals === 'too-large') return 'too-large';
+  // السقف على كل طريقة لوحدها. جمع النقد والبطاقة مقارنة تحذير فقط، من غير سقف المال.
+  return parseMoney(totals.total_cash) + parseMoney(totals.total_card);
 }
 
 export type TipMethodTotalsResult =
@@ -116,7 +120,7 @@ export function tipExceedsVisit(
   const entries = counted(rows);
   if (!entries) return 'invalid';
   if (entries.length === 0) return 'within';
-  const tip = withinMoney(() => combinedMills(entries));
+  const tip = addedTipMills(entries);
   if (tip === 'too-large') return 'too-large';
   const net = withinMoney(() => visitNetMills(lines));
   if (net === 'too-large') return 'too-large';
@@ -130,13 +134,13 @@ export function suggestionMills(
   totalText: string,
   rows: readonly TipAmountRow[],
 ): SuggestionMillsResult {
-  if (tipExceedsVisit(rows, []) === 'too-large') return { status: 'too-large' };
+  if (tipMethodTotals(rows).status === 'too-large') return { status: 'too-large' };
   const typed = canonicalAmount(totalText);
   if (typed === 'invalid') return { status: 'none' };
   if (typed) return { status: 'ok', mills: parseMoney(typed) };
   const entries = counted(rows);
   if (!entries || entries.length === 0) return { status: 'none' };
-  const mills = withinMoney(() => combinedMills(entries));
+  const mills = addedTipMills(entries);
   if (mills === 'too-large') return { status: 'too-large' };
   return { status: 'ok', mills };
 }
@@ -176,6 +180,7 @@ function rowsFrom(
 export function tipFormValues(
   tips: SessionTips,
   lines: readonly TipSourceLine[],
+  recorderMembershipId = '',
 ): SessionTipFormInput {
   return {
     total: '',
@@ -183,7 +188,7 @@ export function tipFormValues(
     rows: rowsFrom(tipPeople(lines, tips.tips), tips.tips),
     reason: '',
     expected_revision: tips.revision,
-    recorder_membership_id: '',
+    recorder_membership_id: recorderMembershipId,
   };
 }
 
@@ -251,7 +256,9 @@ function reasonProblem(value: SessionTipFormInput): boolean {
 
 export function recordTipsBody(value: SessionTipFormInput): RecordSessionTipsInput | null {
   const tips = tipEntries(value.rows);
-  if (!tips || reasonProblem(value) || tipExceedsVisit(value.rows, []) === 'too-large') return null;
+  if (!tips || reasonProblem(value) || tipMethodTotals(value.rows).status === 'too-large') {
+    return null;
+  }
   const reason = tipReason(value.reason);
   const parsed = recordSessionTipsInput.safeParse({
     expected_revision: value.expected_revision,
@@ -273,8 +280,9 @@ export const resolveSessionTips: Resolver<SessionTipFormInput, unknown, RecordSe
 ) => {
   const errors: FieldErrors<SessionTipFormInput> = {};
   if (reasonProblem(value)) errors.reason = issue('reason');
-  if (tipExceedsVisit(value.rows, []) === 'too-large') errors.root = issue('too-large');
-  else if (!tipEntries(value.rows)) errors.root = issue('amount');
+  const totals = tipMethodTotals(value.rows);
+  if (totals.status === 'too-large') errors.root = issue('too-large');
+  else if (totals.status === 'invalid') errors.root = issue('amount');
   const body = recordTipsBody(value);
   // فشل العقد من غير خطأ ظاهر بيعدّي كنجاح في react-hook-form ويبعّت جسم فاضي.
   if (!body && !errors.reason && !errors.root) errors.root = issue('rejected');

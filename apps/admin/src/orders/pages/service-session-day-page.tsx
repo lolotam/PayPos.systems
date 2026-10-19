@@ -8,11 +8,13 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { useRecordingContext } from '../api/use-recording-context';
 import { useServiceSessionCapabilities } from '../api/use-service-session-capabilities';
 import { serviceSessionAccessRevoked } from '../model/service-session-access';
+import { useStickyCanRecord } from '../model/use-sticky-can-record';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { sessionLocalTime } from '../model/session-local-time';
 import { useBrowserConnectivity } from '../model/use-browser-connectivity';
 import { useSessionQueryLifecycle } from '../model/use-session-query-lifecycle';
 import { ServiceSessionDayBody } from '../ui/service-session-day-body';
+import { useTipAttemptMemory } from '../ui/use-tip-attempt-memory';
 import { ServiceSessionDayFilters } from '../ui/service-session-day-filters';
 
 export function ServiceSessionDayPage({ scope, timezone, canCancel }: { scope: SessionServiceScope; timezone: string; canCancel?: boolean }) {
@@ -29,7 +31,8 @@ export function ServiceSessionDayPage({ scope, timezone, canCancel }: { scope: S
   const capability = useServiceSessionCapabilities(scope, asked);
   // زر الإكرامية بيستدعي قراءة بتطلب record:service-sessions:branch؛ 403 من المسبار مش رفض لقائمة اليوم.
   const recording = useRecordingContext(scope, null, online && denied === null);
-  const canRecord = recording.isSuccess;
+  const canRecord = useStickyCanRecord(recording);
+  const tipAttempts = useTipAttemptMemory(companyId, businessId, branchId, userId);
   const cancelAllowed = canCancel ?? (capability.isSuccess && capability.data.can_cancel_lines === true);
   const onAccessDenied = useCallback((message: string) => { setDenied({ message }); }, []);
   // رفض القدرة 401/403/FEATURE_DISABLED معناه إن قراءة اليوم نفسها اتسحبت، مش الإلغاء بس؛ الشاشة تتقفل زي باقي القراءات.
@@ -48,6 +51,6 @@ export function ServiceSessionDayPage({ scope, timezone, canCancel }: { scope: S
     {connectivity === false ? <p role="status">{t(locale, 'serviceSessions.offline')}</p> : null}
     <ServiceSessionDayFilters date={date} lateOnly={lateOnly} onDate={setDate} onLate={setLateOnly} />
     {blocked ? <p role="alert">{blocked.message} <Button type="button" variant="outline" onClick={() => { setDenied(null); void capability.refetch(); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p>
-      : <ServiceSessionDayBody scope={scope} date={date} lateOnly={lateOnly} online={online} timezone={timezone} canCancel={cancelAllowed} canRecord={canRecord} onAccessDenied={onAccessDenied} />}
+      : <ServiceSessionDayBody scope={scope} date={date} lateOnly={lateOnly} online={online} timezone={timezone} canCancel={cancelAllowed} canRecord={canRecord} tipAttempts={tipAttempts} onAccessDenied={onAccessDenied} />}
   </section>;
 }

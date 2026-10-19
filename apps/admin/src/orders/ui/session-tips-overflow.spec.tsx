@@ -1,7 +1,7 @@
 import type { SessionTips } from '@pospay/contracts';
 import { serviceSessionErrors, t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { sessionTipsPath } from '../api/use-session-tips';
 import { id, scope } from '../model/session-recording-result.fixture';
@@ -98,11 +98,29 @@ it('refuses two cash amounts that only overflow together', async () => {
   await refuseSave();
 });
 
-it('refuses one cash amount and one card amount that only overflow together', async () => {
+it('submits cash and card totals that each stay within the money limit', async () => {
+  api.put.mockResolvedValue({
+    data: {
+      revision: 1,
+      tips: [
+        { employee_id: id(6), method: 'CASH', amount: HUGE },
+        { employee_id: id(6), method: 'CARD', amount: HUGE },
+      ],
+      total_cash: HUGE,
+      total_card: HUGE,
+    },
+    response: { status: 200 },
+  });
   renderTips();
   await openTips();
   fireEvent.change(box('Ada', 'cashAmount'), { target: { value: HUGE } });
   fireEvent.change(box('Ada', 'cardAmount'), { target: { value: HUGE } });
-  assertTooLarge();
-  await refuseSave();
+  expect(screen.getByRole('status').textContent).toContain(t('en', 'sessionTips.exceedsVisit'));
+  expect(screen.queryByText(serviceSessionErrors.TIP_TOTAL_TOO_LARGE.message_en)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.save') }));
+  await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1));
+  expect(api.put.mock.calls[0]?.[1].body.tips).toEqual([
+    { employee_id: id(6), method: 'CASH', amount: HUGE },
+    { employee_id: id(6), method: 'CARD', amount: HUGE },
+  ]);
 });

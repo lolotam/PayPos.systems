@@ -46,6 +46,19 @@ function keyOf(index: number) {
 function bodyOf(index: number) {
   return api.put.mock.calls[index]?.[1].body as { expected_revision: number };
 }
+function membership(n: number, role: string, scopeId: string, scopeName: string) {
+  return {
+    id: id(n),
+    role_code: role,
+    role_is_system: true,
+    role_name_ar: null,
+    role_name_en: role,
+    scope_type: n === 31 ? 'COMPANY' : 'BRANCH',
+    scope_id: scopeId,
+    scope_name_ar: null,
+    scope_name_en: scopeName,
+  };
+}
 function renderTips() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -127,4 +140,39 @@ it('keeps the same key when a 409 says the idempotency key is in progress', asyn
   await waitFor(() => expect(api.put).toHaveBeenCalledTimes(2));
   expect(keyOf(1)).toBe(keyOf(0));
   expect(api.put.mock.calls[1]?.[1].body).toEqual(api.put.mock.calls[0]?.[1].body);
+});
+
+it('keeps the chosen membership when a conflict reload replaces the amounts', async () => {
+  let reads = 0;
+  api.get.mockImplementation((path: string) => {
+    if (path === '/v1/me/memberships') {
+      return Promise.resolve({
+        data: {
+          items: [
+            membership(30, 'branch_manager', id(3), 'Salmiya'),
+            membership(31, 'owner', id(1), 'PosPay'),
+          ],
+        },
+      });
+    }
+    if (path !== sessionTipsPath) return Promise.resolve(refused(404, 'SESSION_NOT_FOUND'));
+    reads += 1;
+    return Promise.resolve(ok(reads === 1 ? tipped(1, '1.000') : tipped(2, '3.000')));
+  });
+  api.put.mockResolvedValueOnce(
+    refused(400, 'SESSION_RECORDER_MEMBERSHIP_REQUIRED', {
+      recorder_membership_ids: [id(30), id(31)],
+    }),
+  );
+  api.put.mockResolvedValueOnce(refused(409, 'TIP_REVISION_CONFLICT'));
+  renderTips();
+  await typeReplacement('4.000');
+  fireEvent.change(
+    await screen.findByRole('combobox', { name: t('en', 'sessionTips.membership') }),
+    { target: { value: id(31) } },
+  );
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.save') }));
+  expect(await screen.findByDisplayValue('3.000')).toBeTruthy();
+  const choice = screen.getByRole('combobox', { name: t('en', 'sessionTips.membership') });
+  expect((choice as HTMLSelectElement).value).toBe(id(31));
 });

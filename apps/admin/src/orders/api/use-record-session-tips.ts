@@ -100,7 +100,16 @@ async function sendTips(
   return parsed.data;
 }
 
-function publishSavedTips(
+function newerTips(
+  left: SessionTips | undefined,
+  right: SessionTips | undefined,
+): SessionTips | undefined {
+  if (!left) return right;
+  if (!right) return left;
+  return left.revision >= right.revision ? left : right;
+}
+
+async function publishSavedTips(
   client: QueryClient,
   scope: SessionServiceScope,
   sessionId: string,
@@ -109,9 +118,17 @@ function publishSavedTips(
   const key = sessionTipsKey(scope, sessionId);
   // الرد المتأخر بعد مسح الكاش ممنوع يرجّع مجموعة الإكرامية اللي الشاشة شالتها.
   if (!client.getQueryCache().find({ queryKey: key, exact: true })) return;
+  const before = client.getQueryData<SessionTips>(key);
+  // قراءة أقدم لسه في الطريق لو خلّصت بعد الحفظ بترجّع مراجعتها القديمة فوق الرد.
+  await client.cancelQueries({ queryKey: key, exact: true });
+  if (!client.getQueryCache().find({ queryKey: key, exact: true })) return;
   const current = client.getQueryData<SessionTips>(key);
+  const kept = newerTips(before, current);
   // إعادة المفتاح القديم بترجع المراجعة الأصلية؛ مراجعة أحدث من كاشير تاني بتفضل.
-  if (current && current.revision > data.revision) return;
+  if (kept && kept.revision > data.revision) {
+    if (!current || current.revision !== kept.revision) client.setQueryData(key, kept);
+    return;
+  }
   client.setQueryData(key, data);
 }
 
@@ -124,8 +141,8 @@ export function useRecordSessionTips(scope: SessionServiceScope, memory?: Attemp
     gcTime: 0,
     networkMode: 'always',
     mutationFn: (attempt: Attempt) => putTips(scope, attempt, held, memory),
-    onSuccess: (data, { sessionId }) => {
-      publishSavedTips(client, scope, sessionId, data);
+    onSuccess: async (data, { sessionId }) => {
+      await publishSavedTips(client, scope, sessionId, data);
     },
   });
 }

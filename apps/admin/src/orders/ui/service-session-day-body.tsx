@@ -1,8 +1,9 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useBranchDaySessions } from '../api/use-branch-day-sessions';
+import type { UnresolvedTip } from '../api/use-record-session-tips';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { serviceSessionAccessRevoked } from '../model/service-session-access';
 import { ServiceSessionDayList } from './service-session-day-list';
@@ -16,6 +17,7 @@ type ServiceSessionDayBodyProps = {
   canCancel: boolean;
   canRecord: boolean;
   onAccessDenied: (message: string) => void;
+  tipAttempts: RefObject<Map<string, UnresolvedTip>>;
 };
 
 export function ServiceSessionDayBody({
@@ -27,6 +29,7 @@ export function ServiceSessionDayBody({
   canCancel,
   canRecord,
   onAccessDenied,
+  tipAttempts,
 }: ServiceSessionDayBodyProps) {
   const locale = useLocale();
   const mounted = useRef(true);
@@ -69,6 +72,7 @@ export function ServiceSessionDayBody({
       }}
       mounted={mounted}
       onAccessDenied={onAccessDenied}
+      tipAttempts={tipAttempts}
     />
   );
 }

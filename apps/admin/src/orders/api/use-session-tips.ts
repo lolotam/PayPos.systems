@@ -34,11 +34,17 @@ export async function readSessionTips(
   return sessionTips.parse(result.data);
 }
 
-export function useSessionTips(scope: SessionServiceScope, sessionId: string, enabled: boolean) {
+export function useSessionTips(
+  scope: SessionServiceScope,
+  sessionId: string,
+  enabled: boolean,
+  refreshOnMount = false,
+) {
   return useQuery({
     queryKey: sessionTipsKey(scope, sessionId),
     enabled,
     retry: false,
+    ...(refreshOnMount ? { refetchOnMount: 'always' as const } : {}),
     queryFn: ({ signal }) => readSessionTips(scope, sessionId, signal),
   });
 }

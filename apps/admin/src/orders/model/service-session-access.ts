@@ -11,3 +11,10 @@ export function editAccessRevoked(error: unknown): boolean {
   const body = error as { status?: unknown; code?: unknown };
   return body.status === 401 || body.code === 'FEATURE_DISABLED';
 }
+
+// 403 من الإكرامية لوحده رفض للزر، مش فقدان لقائمة اليوم. 401 وإيقاف الميزة يفضلوا فقدان وصول.
+export function tipPermissionRefused(error: unknown): boolean {
+  if (editAccessRevoked(error)) return false;
+  if (typeof error !== 'object' || error === null) return false;
+  return (error as { status?: unknown }).status === 403;
+}

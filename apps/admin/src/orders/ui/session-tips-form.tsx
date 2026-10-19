@@ -23,6 +23,7 @@ type SessionTipsFormViewProps = {
   netsKnown?: boolean;
   onBusy: (busy: boolean) => void;
   onAccessDenied: (message: string) => void;
+  onForbidden: (message: string) => void;
   onClose: () => void;
 };
 
@@ -43,7 +44,8 @@ export function SessionTipsForm(props: SessionTipsFormViewProps) {
     ? t(state.locale, 'sessionTips.amountInvalid')
     : null;
   const locked = state.frozen || state.blocked;
-  useReportTipBusy(state.pending || (state.blocked && !state.conflictHold), props.onBusy);
+  const quietHold = state.pending || (state.blocked && !state.holding);
+  useReportTipBusy(quietHold, props.onBusy);
   return (
     <form className="grid gap-3 text-start" onSubmit={state.onSubmit}>
       {state.notice ? <p role="alert">{state.notice}</p> : null}
@@ -75,12 +77,14 @@ export function SessionTipsForm(props: SessionTipsFormViewProps) {
       <SessionTipsActions
         locale={state.locale}
         online={props.online}
-        pending={state.pending || (state.blocked && !state.conflictHold)}
+        pending={quietHold}
         blocked={state.blocked}
         conflictHold={state.conflictHold}
+        reloadHold={state.reloadHold}
         uncertain={state.uncertain}
         onClose={props.onClose}
         onRetry={state.retry}
+        onReload={state.reloadCurrent}
         onReplay={state.replay}
       />
     </form>

@@ -76,7 +76,7 @@ export function SessionSavedVisit({ result, scope, online, editBusy = false, onR
   return <>
     {visit.total === 'UNKNOWN' ? null : <p>{t(locale, 'serviceSessions.savedTotal')} <bdi>{kwd(visit.total === 'FROM_RESPONSE' ? visit.totalNet : session.total_net)}</bdi></p>}
     {refusalText ? <p role="alert">{refusalText}</p> : null}
-    {scope ? <SessionTipsLauncher scope={scope} sessionId={session.id} {...savedVisitTipSource(session.lines, visit)} online={online} onAccessDenied={(message) => { setDenial({ sessionId: session.id, message }); setOpen(null); }} /> : null}
+    {scope ? <SessionTipsLauncher scope={scope} sessionId={session.id} {...savedVisitTipSource(session.lines, visit)} online={online} disabled={editBusy} onForbidden={(message) => { setRefusal({ sessionId: session.id, message }); }} onAccessDenied={(message) => { setDenial({ sessionId: session.id, message }); setOpen(null); }} /> : null}
     <ul className="grid gap-3">{session.lines.map((line) => {
       const edit = visit.lines[line.id];
       return <SessionSavedLine key={line.id} line={line} locale={locale} when={when} sessionId={session.id} online={online}

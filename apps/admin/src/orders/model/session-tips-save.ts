@@ -1,6 +1,6 @@
 import type { SessionTips } from '@pospay/contracts';
 import type { Locale } from '@pospay/i18n';
-import { serviceSessionAccessRevoked } from './service-session-access';
+import { editAccessRevoked, tipPermissionRefused } from './service-session-access';
 import {
   isTipRevisionConflict,
   recorderMembershipIds,
@@ -12,6 +12,7 @@ export type TipSaveResult =
   | { kind: 'saved'; tips: SessionTips }
   | { kind: 'unknown'; message: string }
   | { kind: 'revoked'; message: string }
+  | { kind: 'forbidden'; message: string }
   | { kind: 'conflict'; tips: SessionTips | null; message: string }
   | { kind: 'refused'; message: string; memberships: string[] | null };
 
@@ -33,7 +34,8 @@ async function classifyTipSave(
   reload: () => Promise<SessionTips | null>,
 ): Promise<TipSaveResult> {
   const message = tipRefusalMessage(error, locale);
-  if (serviceSessionAccessRevoked(error)) return { kind: 'revoked', message };
+  if (editAccessRevoked(error)) return { kind: 'revoked', message };
+  if (tipPermissionRefused(error)) return { kind: 'forbidden', message };
   if (isTipRevisionConflict(error)) {
     const tips = await reload().catch(() => null);
     return { kind: 'conflict', tips, message };

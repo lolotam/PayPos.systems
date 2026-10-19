@@ -94,17 +94,34 @@ it.each([
   expect(screen.queryByLabelText(t('en', 'sessionTips.total'))).toBeNull();
 });
 
-it('clears the screen when saving tips is forbidden', async () => {
+it('hides the launcher when saving tips is forbidden without clearing access', async () => {
+  const denied = vi.fn();
   api.get.mockResolvedValue({ data: empty, response: { status: 200 } });
   api.put.mockResolvedValue(refused(403, 'FORBIDDEN'));
-  renderRevoked();
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <SessionTipsLauncher
+        scope={scope}
+        sessionId={id(12)}
+        lines={lines}
+        online
+        onAccessDenied={denied}
+      />
+    </QueryClientProvider>,
+  );
   await openTips();
   fireEvent.change(screen.getByLabelText(`${'Ada'} ${t('en', 'sessionTips.cashAmount')}`), {
     target: { value: '1.000' },
   });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'sessionTips.save') }));
-  expect((await screen.findByRole('alert')).textContent).toContain(t('en', 'errors.FORBIDDEN'));
+  await waitFor(() =>
+    expect(screen.queryByRole('button', { name: t('en', 'sessionTips.open') })).toBeNull(),
+  );
   expect(screen.queryByLabelText(t('en', 'sessionTips.total'))).toBeNull();
+  expect(denied).not.toHaveBeenCalled();
 });
 
 it('asks for a recorder membership and sends it on a new key', async () => {

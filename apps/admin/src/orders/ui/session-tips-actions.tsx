@@ -8,9 +8,11 @@ export function SessionTipsActions({
   pending,
   blocked,
   conflictHold,
+  reloadHold,
   uncertain,
   onClose,
   onRetry,
+  onReload,
   onReplay,
 }: {
   locale: Locale;
@@ -18,9 +20,11 @@ export function SessionTipsActions({
   pending: boolean;
   blocked: boolean;
   conflictHold: boolean;
+  reloadHold: boolean;
   uncertain: boolean;
   onClose: () => void;
   onRetry: () => void;
+  onReload: () => void;
   onReplay: () => void;
 }) {
   return (
@@ -37,6 +41,11 @@ export function SessionTipsActions({
       {conflictHold ? (
         <Button type="button" variant="outline" disabled={pending} onClick={onRetry}>
           {t(locale, 'sessionTips.retry')}
+        </Button>
+      ) : null}
+      {reloadHold ? (
+        <Button type="button" variant="outline" disabled={pending} onClick={onReload}>
+          {t(locale, 'sessionTips.reloadCurrent')}
         </Button>
       ) : null}
       <Button

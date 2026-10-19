@@ -24,6 +24,7 @@ export const sessionTipsEn = {
   cardTotal: 'Card total',
   membership: 'Membership',
   retrySame: 'Retry the same save',
+  reloadCurrent: 'Reload the current tips',
 };
 export const sessionTipsAr: Record<keyof typeof sessionTipsEn, string> = {
   open: 'تسجيل البقشيش',
@@ -51,4 +52,5 @@ export const sessionTipsAr: Record<keyof typeof sessionTipsEn, string> = {
   cardTotal: 'إجمالي البطاقة',
   membership: 'العضوية',
   retrySame: 'أعيدي نفس الحفظ',
+  reloadCurrent: 'أعيدي تحميل البقشيش الحالي',
 };
