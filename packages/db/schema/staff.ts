@@ -76,8 +76,8 @@ export const employees = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     // عداد تعديل الموارد البشرية يمنع مديرين من الكتابة فوق نفس النسخة.
     revision: integer('revision').notNull().default(1),
-    // الرقم الوظيفي فريد داخل الشركة كلها ويشمل المحذوفين (قرارا المالك EN-Q1 وEN-Q4)؛ يبقى فارغاً حتى مرحلة الإحكام.
-    employeeNumber: integer('employee_number'),
+    // الرقم الوظيفي فريد داخل الشركة كلها ويشمل المحذوفين (قرارا المالك EN-Q1 وEN-Q4)؛ مرحلة الإحكام 8c-11 ترفض الغياب.
+    employeeNumber: integer('employee_number').notNull(),
   },
   (t) => [
     primaryKey({ name: 'employees_pkey', columns: [t.companyId, t.id] }),
@@ -86,6 +86,7 @@ export const employees = pgTable(
       'employees_employee_number_range',
       sql`${t.employeeNumber} IS NULL OR ${t.employeeNumber} BETWEEN 1 AND 999999`,
     ),
+    check('employees_employee_number_present', sql`${t.employeeNumber} IS NOT NULL`),
     check('employees_name_en_key_present', sql`${t.nameEnKey} IS NOT NULL`),
     unique('employees_company_business_id_key').on(t.companyId, t.businessId, t.id),
     foreignKey({

@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm';
 import { expect, vi } from 'vitest';
 import type { personalFixture } from '../../../../test/personal-staff.fixture.ts';
 import { personalOrigin } from '../../../../test/personal-staff.fixture.ts';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 import { testAuthenticator } from '../../../../../../packages/auth/src/__tests__/webauthn.fixture.ts';
 import { createPasskeyTransactions } from '../persistence/passkey-transactions.ts';
 import { createAttendanceDeviceRefusals } from '../persistence/attendance-device-refusals.ts';
@@ -26,8 +27,8 @@ export async function lockEmployee(f: Fixture, samePerson = false, secondBusines
     await f.owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${f.companyId},${branchId},${businessId},'Synthetic branch')`;
   }
   const name = 'Synthetic ' + employeeId;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${f.companyId},${employeeId},${businessId},${branchId},${userId},${name},${employeeNameMatchKey(name)},'staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.companyId},${employeeId},${businessId},${branchId},${userId},${name},${employeeNameMatchKey(name)},'staff','2026-01-01',${takeTestEmployeeNumber(f.companyId)})`;
   await f.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES(${f.companyId},${f.ids.newId()},${businessId},${employeeId},${branchId},'2026-01-01')`;
   await f.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at)

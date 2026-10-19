@@ -15,7 +15,7 @@ import type {
   SetEmployeeNumberScope,
   SetEmployeeNumberTransactions,
 } from '../ports/employee-number.port.ts';
-import { retryableDatabaseCode, storedNumber } from './employee-number-row.ts';
+import { requiredStoredNumber, retryableDatabaseCode } from './employee-number-row.ts';
 
 const NUMBER_KEY = 'employees_company_employee_number_key';
 
@@ -54,14 +54,14 @@ async function readEmployee(tx: Tx, companyId: string, businessId: string, emplo
   const [row] = await tx.execute<{
     business_id: string;
     primary_branch_id: string;
-    employee_number: number | string | null;
+    employee_number: number | string;
   }>(sql`SELECT business_id, primary_branch_id, employee_number FROM employees
     WHERE company_id=${companyId} AND id=${employeeId} AND business_id=${businessId} AND deleted_at IS NULL`);
   if (row === undefined) return null;
   return {
     business_id: row.business_id,
     primary_branch_id: row.primary_branch_id,
-    employee_number: storedNumber(row.employee_number),
+    employee_number: requiredStoredNumber(row.employee_number),
     attached_branch_ids: await currentBranchIds(tx, companyId, employeeId),
   };
 }
@@ -69,7 +69,7 @@ async function readEmployee(tx: Tx, companyId: string, businessId: string, emplo
 async function lockEmployee(tx: Tx, companyId: string, businessId: string, employeeId: string) {
   const [row] = await tx.execute<{
     primary_branch_id: string;
-    employee_number: number | string | null;
+    employee_number: number | string;
   }>(sql`
     SELECT primary_branch_id, employee_number FROM employees
     WHERE company_id=${companyId} AND id=${employeeId} AND business_id=${businessId} AND deleted_at IS NULL
@@ -77,7 +77,7 @@ async function lockEmployee(tx: Tx, companyId: string, businessId: string, emplo
   if (row === undefined) return null;
   return {
     primary_branch_id: row.primary_branch_id,
-    employee_number: storedNumber(row.employee_number),
+    employee_number: requiredStoredNumber(row.employee_number),
     attached_branch_ids: await currentBranchIds(tx, companyId, employeeId),
   };
 }

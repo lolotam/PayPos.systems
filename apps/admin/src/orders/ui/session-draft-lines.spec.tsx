@@ -87,11 +87,11 @@ it('supports a disabled editor without fresh reads', () => {
 it('feeds edited UTC to performer options without replacing the chosen performer', async () => {
   mount(); const previous = get.getMockImplementation();
   get.mockImplementation((path, options) => path.endsWith('/performer-options') ? Promise.resolve({ data: {
-    items: [{ id: service.id, name_ar: null, name_en: 'Synthetic performer', employee_number: null, not_clocked_in_warning: false, approved_leave_warning: false }], next_cursor: null,
+    items: [{ id: service.id, name_ar: null, name_en: 'Synthetic performer', employee_number: 7, not_clocked_in_warning: false, approved_leave_warning: false }], next_cursor: null,
   } }) : previous?.(path, options));
   const time = screen.getByLabelText(t('en', 'serviceSessions.occurredAt'));
   fireEvent.change(time, { target: { value: '2026-10-12T17:00' } });
-  await screen.findByRole('option', { name: 'Synthetic performer' });
+  await screen.findByRole('option', { name: 'Synthetic performer (7)' });
   expect(get.mock.calls.findLast(([path]) => path.endsWith('/performer-options'))?.[1].params.query.occurred_at).toBe('2026-10-12T14:00:00.000Z');
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.performerNumber').replace('{n}', '1')), { target: { value: service.id } });
   fireEvent.change(time, { target: { value: '2026-10-11T17:00' } });

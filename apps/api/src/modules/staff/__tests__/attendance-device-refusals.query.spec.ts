@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { attendanceDeviceRefusalPage } from '@pospay/contracts';
 import { attendanceFixture, type AttendanceFixture } from './clock-attendance.fixture.ts';
 import { PHONE_X, PHONE_Y } from './passkey-device-lock.fixture.ts';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 import {
   attendanceDeviceRefusals,
   attendanceDeviceRefusalsStatement,
@@ -24,8 +25,8 @@ beforeAll(async () => {
   await f.owner`INSERT INTO branches(company_id,id,business_id,name_en)
     VALUES(${f.companyId},${holderBranch},${holderBusiness},'Synthetic holder branch')`;
   await f.owner`UPDATE employees SET name_ar='موظفة اختبار' WHERE company_id=${f.companyId} AND id=${f.employeeId}`;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date)
-    VALUES(${f.companyId},${holderId},${holderBusiness},${holderBranch},'حاملة جهاز للاختبار','Synthetic holder','synthetic holder','staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.companyId},${holderId},${holderBusiness},${holderBranch},'حاملة جهاز للاختبار','Synthetic holder','synthetic holder','staff','2026-01-01',${takeTestEmployeeNumber(f.companyId)})`;
   await f.refusals.record({
     ...f.scope,
     branchId: f.branchId,

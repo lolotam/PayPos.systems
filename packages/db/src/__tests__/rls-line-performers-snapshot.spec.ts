@@ -20,8 +20,8 @@ beforeAll(async () => {
   await seedTwoTenants(testDb.ownerUrl);
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   await seedOrders(owner);
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${A.company},${NEW.employee},${A.business},${A.branch},'Synthetic linked employee','synthetic linked employee','staff','2026-01-01')`;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${A.company},${NEW.employee},${A.business},${A.branch},'Synthetic linked employee','synthetic linked employee','staff','2026-01-01',2)`;
   db = createDatabase({ url: testDb.appUrl, ids: { newId: () => NEW.rejected } });
   await recordLine(LINKED, 2, USER);
   await recordLine(UNLINKED, 3, null);

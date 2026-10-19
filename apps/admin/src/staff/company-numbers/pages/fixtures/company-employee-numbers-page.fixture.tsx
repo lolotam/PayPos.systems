@@ -19,7 +19,7 @@ const heba = {
   business_id: salonId,
   business_name_ar: null,
   business_name_en: 'Synthetic salon',
-  employee_number: null as number | null,
+  employee_number: 8,
   salary_mills: 'synthetic-salary',
   phone: 'synthetic-phone',
 };
@@ -31,7 +31,7 @@ export const noura = {
   business_id: clinicId,
   business_name_ar: null,
   business_name_en: 'Synthetic clinic',
-  employee_number: 4 as number | null,
+  employee_number: 4,
 };
 
 export function listedPage() {

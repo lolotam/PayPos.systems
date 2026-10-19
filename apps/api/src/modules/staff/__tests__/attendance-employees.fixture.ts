@@ -1,5 +1,6 @@
 import { attendanceBoardFixture } from './attendance-board.fixture.ts';
 import { leaveIds } from './leave.fixture.ts';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 
 const cases = [
   { key: 'current', name: 'Picker Alpha', ar: 'اختيار ألف', from: '2026-01-01', to: null },
@@ -66,9 +67,9 @@ export async function attendanceEmployeesFixture() {
   for (const entry of cases) {
     const employee = { id: leaveIds.newId(), name_en: entry.name, name_ar: entry.ar };
     await f.h
-      .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date,contract_end,deleted_at)
+      .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date,contract_end,deleted_at,employee_number)
       VALUES(${f.company},${employee.id},${f.business},${entry.key === 'unlinked' ? f.branch : f.secondBranch},
-        ${employee.name_ar},${employee.name_en},${employee.name_en.toLowerCase()},'staff',${entry.hireDate ?? '2026-01-01'},${entry.contractEnd ?? null},${entry.key === 'deleted' ? new Date('2026-10-04') : null})`;
+        ${employee.name_ar},${employee.name_en},${employee.name_en.toLowerCase()},'staff',${entry.hireDate ?? '2026-01-01'},${entry.contractEnd ?? null},${entry.key === 'deleted' ? new Date('2026-10-04') : null},${takeTestEmployeeNumber(f.company)})`;
     if (entry.key !== 'unlinked')
       await f.h
         .owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from","to")

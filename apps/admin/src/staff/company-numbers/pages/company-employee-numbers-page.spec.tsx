@@ -44,7 +44,7 @@ it('renders only the rows the server returns', async () => {
   const hebaRow = rows[0];
   const nouraRow = rows[1];
   if (!hebaRow || !nouraRow) throw new Error('missing server row');
-  expect(within(hebaRow).getByText('\u2014')).toBeTruthy();
+  expect(within(hebaRow).getByText('8')).toBeTruthy();
   expect(within(nouraRow).getByText('Synthetic clinic')).toBeTruthy();
   expect(within(nouraRow).getByText('4')).toBeTruthy();
   expect(screen.queryByText('synthetic-salary')).toBeNull();

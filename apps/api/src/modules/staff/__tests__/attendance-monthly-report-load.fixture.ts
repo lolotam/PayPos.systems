@@ -1,4 +1,5 @@
 ﻿import { attendanceMonthDates, employeeNameMatchKey } from '@pospay/domain';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 import { monthlyReportFixture } from './attendance-monthly-report.fixture.ts';
 import { salaryIds } from './salary.fixture.ts';
 
@@ -12,10 +13,11 @@ export async function monthlyReportLoadFixture(branchCount = 1, employeesPerBran
     SELECT ${f.company},id,${f.business},name FROM jsonb_to_recordset(${f.h.owner.json(extraBranches)}::jsonb) AS x(id uuid,name text)`;
   const branchIds = [f.branch,...extraBranches.map((branch) => branch.id)];
   const employees = branchIds.flatMap((branch_id,index) => Array.from({length:employeesPerBranch-(index === 0 ? 1 : 0)},(_,number) => ({id:salaryIds.newId(),branch_id,
-    name:`Synthetic load employee ${index}-${number}`,key:employeeNameMatchKey(`Synthetic load employee ${index}-${number}`)})));
-  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    SELECT ${f.company},id,${f.business},branch_id,name,key,'staff','2026-01-01'::date
-    FROM jsonb_to_recordset(${f.h.owner.json(employees)}::jsonb) AS x(id uuid,branch_id uuid,name text,key text)`;
+    name:`Synthetic load employee ${index}-${number}`,key:employeeNameMatchKey(`Synthetic load employee ${index}-${number}`),
+    employee_number:takeTestEmployeeNumber(f.company)})));
+  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    SELECT ${f.company},id,${f.business},branch_id,name,key,'staff','2026-01-01'::date,employee_number
+    FROM jsonb_to_recordset(${f.h.owner.json(employees)}::jsonb) AS x(id uuid,branch_id uuid,name text,key text,employee_number int)`;
   await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     SELECT ${f.company},id,${f.business},employee_id,branch_id,'2026-01-01'::date
     FROM jsonb_to_recordset(${f.h.owner.json(employees.map((entry) => ({id:salaryIds.newId(),employee_id:entry.id,branch_id:entry.branch_id})))}::jsonb)

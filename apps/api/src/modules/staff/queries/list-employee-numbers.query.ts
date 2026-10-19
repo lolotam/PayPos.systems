@@ -20,7 +20,7 @@ type EmployeeNumberRow = {
   business_id: string;
   business_name_ar: string | null;
   business_name_en: string;
-  employee_number: number | string | null;
+  employee_number: number | string;
 };
 
 // شاشة الأرقام الوظيفية على مستوى الشركة.
@@ -82,7 +82,6 @@ function listedRow(row: EmployeeNumberRow) {
   };
 }
 
-function listedNumber(value: number | string | null): number | null {
-  if (value === null) return null;
+function listedNumber(value: number | string): number {
   return typeof value === 'number' ? value : Number(value);
 }

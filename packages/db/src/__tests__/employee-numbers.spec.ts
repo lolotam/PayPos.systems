@@ -36,6 +36,7 @@ beforeEach(async () => {
   await owner`DELETE FROM employee_number_sequences`;
   await owner`DELETE FROM attendance_states`;
   await owner`DELETE FROM employees`;
+  await restoreEmployeeNumberContract();
 });
 afterAll(async () => {
   await app?.close();
@@ -43,8 +44,21 @@ afterAll(async () => {
   await testDb?.drop();
 });
 
+async function suspendEmployeeNumberContract(): Promise<void> {
+  await owner`ALTER TABLE employees DROP CONSTRAINT IF EXISTS employees_employee_number_present`;
+  await owner`ALTER TABLE employees ALTER COLUMN employee_number DROP NOT NULL`;
+}
+
+async function restoreEmployeeNumberContract(): Promise<void> {
+  await owner`ALTER TABLE employees DROP CONSTRAINT IF EXISTS employees_employee_number_present`;
+  await owner`ALTER TABLE employees ADD CONSTRAINT employees_employee_number_present CHECK (employee_number IS NOT NULL) NOT VALID`;
+  await owner`ALTER TABLE employees VALIDATE CONSTRAINT employees_employee_number_present`;
+  await owner`ALTER TABLE employees ALTER COLUMN employee_number SET NOT NULL`;
+}
+
 async function insert(tenant: Tenant, seed: Seed): Promise<string> {
   const id = systemUuidV7().newId();
+  if (seed.number === undefined) await suspendEmployeeNumberContract();
   await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,created_at,deleted_at,employee_number)
     VALUES (${tenant.company},${id},${tenant.business},${tenant.branch},${seed.name},${employeeNameMatchKey(seed.name)},'staff',${seed.hire},
       ${seed.created ?? '2026-01-01T00:00:00Z'},${seed.deleted === true ? '2026-09-01T00:00:00Z' : null},${seed.number ?? null})`;
@@ -246,6 +260,34 @@ it('employee_number_sequences is FORCE RLS: cross-tenant read, insert, update an
     ),
   ).rejects.toThrow();
   expect(await counter(B)).toBe(5);
+});
+
+it('8c-11 keeps employee_number NOT NULL and refuses a NULL insert', async () => {
+  const [column] = await owner<{ attnotnull: boolean }[]>`
+    SELECT a.attnotnull FROM pg_attribute a
+    JOIN pg_class c ON c.oid = a.attrelid
+    WHERE c.relname = 'employees' AND a.attname = 'employee_number' AND NOT a.attisdropped`;
+  const [check] = await owner<{ convalidated: boolean }[]>`
+    SELECT convalidated FROM pg_constraint WHERE conname = 'employees_employee_number_present'`;
+  expect(column?.attnotnull).toBe(true);
+  expect(check?.convalidated).toBe(true);
+  await expect(
+    owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+      VALUES (${A.company},${systemUuidV7().newId()},${A.business},${A.branch},'Null number',${employeeNameMatchKey('Null number')},'staff','2026-01-01',NULL)`,
+  ).rejects.toMatchObject({ code: '23502' });
+});
+
+it('8c-11 numbers pre-migration NULL rows in hire order without moving a hand number or lowering the counter', async () => {
+  await suspendEmployeeNumberContract();
+  await owner`INSERT INTO employee_number_sequences(company_id,next_number) VALUES (${A.company},40)`;
+  await insert(A, { name: 'Hand', hire: '2020-01-01', number: 50 });
+  await insert(A, { name: 'Second', hire: '2025-01-01', created: '2026-02-01T00:00:00Z' });
+  await insert(A, { name: 'First', hire: '2025-01-01', created: '2026-01-01T00:00:00Z', deleted: true });
+  await insert(A, { name: 'Earlier', hire: '2024-06-01' });
+  const counts = await assignEmployeeNumbers(owner, app);
+  expect(counts).toMatchObject({ assigned: 3 });
+  expect(await numbers(A)).toEqual({ Hand: 50, Earlier: 40, First: 41, Second: 42 });
+  expect(await counter(A)).toBe(43);
 });
 
 it('the sequence checks reject a counter out of range and a half-set start', async () => {

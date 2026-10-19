@@ -4,6 +4,7 @@ import {
   employeeNameMatchesInput,
 } from '@pospay/contracts';
 import { employeeNameMatchKey } from '@pospay/domain';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
@@ -177,8 +178,8 @@ it('DN-09 never matches employees of another business or company', async () => {
     [f.otherCompany, f.foreignBranch],
   ]) {
     await f.h
-      .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-      SELECT ${company as string},${ids.newId()},business_id,id,'Isolated synthetic',${employeeNameMatchKey('Isolated synthetic')},'staff','2026-01-01' FROM branches WHERE company_id=${company as string} AND id=${branch as string}`;
+      .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+      SELECT ${company as string},${ids.newId()},business_id,id,'Isolated synthetic',${employeeNameMatchKey('Isolated synthetic')},'staff','2026-01-01',${takeTestEmployeeNumber(company as string)} FROM branches WHERE company_id=${company as string} AND id=${branch as string}`;
   }
   expect(await check({ name_en: 'Isolated synthetic' })).toEqual(empty);
   const [foreignBranch] = await f.h
@@ -246,12 +247,17 @@ it('DN-10 hides a forbidden primary or open attachment, while closed attachments
 it('uses employees_company_business_name_en_key_idx for the scoped scan', async () => {
   const rows = Array.from({ length: 2000 }, (_, i) => {
     const name = `Plan filler ${i}`;
-    return { id: ids.newId(), name_en: name, name_en_key: employeeNameMatchKey(name) };
+    return {
+      id: ids.newId(),
+      name_en: name,
+      name_en_key: employeeNameMatchKey(name),
+      employee_number: takeTestEmployeeNumber(f.company),
+    };
   });
   await f.h
-    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    SELECT ${f.company},id,${f.business},${f.branch},name_en,name_en_key,'staff','2026-01-01'
-    FROM jsonb_to_recordset(${f.h.owner.json(rows)}) AS r(id uuid,name_en text,name_en_key text)`;
+    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    SELECT ${f.company},id,${f.business},${f.branch},name_en,name_en_key,'staff','2026-01-01',employee_number
+    FROM jsonb_to_recordset(${f.h.owner.json(rows)}) AS r(id uuid,name_en text,name_en_key text,employee_number int)`;
   await f.h.owner`ANALYZE employees`;
   const plan = await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);

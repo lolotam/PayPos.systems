@@ -21,9 +21,11 @@ afterAll(async () => {
   await owner?.end();
   await testDb?.drop();
 });
+let nextHistoryNumber = 0;
 async function employee() {
   const id = ids.newId();
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date) VALUES (${A.company},${id},${A.business},${A.branch},'Synthetic history',${employeeNameMatchKey('Synthetic history')},'staff','2026-01-01')`;
+  nextHistoryNumber += 1;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number) VALUES (${A.company},${id},${A.business},${A.branch},'Synthetic history',${employeeNameMatchKey('Synthetic history')},'staff','2026-01-01',${nextHistoryNumber})`;
   return id;
 }
 function insert(tx: Tx, employeeId: string, from: string, to: string | null) {

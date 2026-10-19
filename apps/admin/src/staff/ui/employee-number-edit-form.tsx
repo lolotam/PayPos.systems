@@ -20,7 +20,7 @@ type EditFormProps = {
   businessId: string;
   userId: string;
   employeeId: string;
-  employeeNumber: number | null;
+  employeeNumber: number;
   readOnly: boolean;
   onClose: () => void;
 };

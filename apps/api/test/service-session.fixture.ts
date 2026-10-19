@@ -47,8 +47,8 @@ export async function sessionFixture(options: Parameters<typeof startHarness>[0]
   const employees: string[] = [];
   for (let i = 0; i < 4; i++) {
     const id = ids.newId(); employees.push(id);
-    await h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-      VALUES(${company},${id},${business},${branch},${`Synthetic employee ${i}`},${`synthetic employee ${i}`},'staff','2026-01-01')`;
+    await h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+      VALUES(${company},${id},${business},${branch},${`Synthetic employee ${i}`},${`synthetic employee ${i}`},'staff','2026-01-01',${101 + i})`;
     await h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from") VALUES(${company},${ids.newId()},${business},${id},${branch},'2026-01-01')`;
   }
   const db = createDatabase({ url: h.urls.app, ids });
