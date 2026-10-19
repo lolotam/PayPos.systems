@@ -2,10 +2,12 @@
 import { parseMoney } from '@pospay/domain';
 import { formatInstant, formatKwd, t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
+import { useEffect } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useServiceLineCancellation } from '../api/use-service-line-cancellation';
 import type { SessionServiceScope } from '../api/use-session-services';
+import { serviceSessionAccessRevoked } from '../model/service-session-access';
 
 const kwd = (value: string) => formatKwd(parseMoney(value));
 
@@ -14,14 +16,22 @@ export function ServiceLineCancellationDetails({
   sessionId,
   lineId,
   timezone,
+  onAccessDenied,
 }: {
   scope: SessionServiceScope;
   sessionId: string;
   lineId: string;
   timezone: string;
+  onAccessDenied: (message: string) => void;
 }) {
   const locale = useLocale();
   const query = useServiceLineCancellation(scope, sessionId, lineId, true);
+  const revoked = serviceSessionAccessRevoked(query.error);
+  // خطأ الصلاحية بيقفل الصفحة كلها؛ لو اللوحة بس اختفت الأسعار والاسم يفضلوا ظاهرين في الكاش جنب الزيارات.
+  useEffect(() => {
+    if (revoked) onAccessDenied(envelopeMessage(query.error, locale));
+  }, [revoked, query.error, locale, onAccessDenied]);
+  if (revoked) return <p role="alert">{envelopeMessage(query.error, locale)}</p>;
   if (query.isPending) return <p>{t(locale, 'serviceLineEdit.loading')}</p>;
   if (query.isError) {
     return (

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { ServiceSessionDayPage as DayPage } from '@pospay/contracts';
 import { formatInstant, t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { id, instant, scope } from '../model/session-recording-result.fixture';
 import { ServiceSessionDayPage } from '../pages/service-session-day-page';
@@ -118,10 +118,18 @@ it('shows the canceller, reason, and previous amounts after the details toggle',
   expect(screen.getByText('Service 22')).toBeTruthy();
 });
 
-it('shows the bilingual refusal when the cancellation read is forbidden', async () => {
+it('clears the day view when the cancellation read is forbidden', async () => {
   answer(refused);
   await openDetails();
-  expect((await screen.findByRole('alert')).textContent).toContain('Denied EN');
-  expect(screen.getByText('Service 22')).toBeTruthy();
-  expect(screen.getByText('Synthetic customer')).toBeTruthy();
+  await waitFor(() => {
+    expect(screen.getByRole('alert').textContent).toContain('Denied EN');
+    expect(screen.queryByText('Synthetic customer')).toBeNull();
+  });
+  expect(screen.queryByText('Service 22')).toBeNull();
+  expect(screen.queryByText('Nada')).toBeNull();
+  expect(screen.queryByText('10.000')).toBeNull();
+  expect(screen.queryByText('1.000')).toBeNull();
+  expect(screen.queryByText('9.000')).toBeNull();
+  expect(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') })).toBeTruthy();
+  expect(screen.getByLabelText(t('en', 'serviceLineEdit.date'))).toBeTruthy();
 });

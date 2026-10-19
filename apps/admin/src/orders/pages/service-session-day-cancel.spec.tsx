@@ -362,19 +362,36 @@ it('shows the response amounts when the follow-up day refetch fails', async () =
 });
 
 it('shows the 403 notice and keeps the day list', async () => {
-  state.post.mockResolvedValue({
-    error: { code: 'FORBIDDEN', message_ar: 'Denied AR', message_en: 'Forbidden EN' },
-    response: { status: 403 },
+  let posted = false;
+  state.get.mockImplementation((path: string) => {
+    if (!String(path).includes('/capabilities')) return Promise.resolve(day);
+    return Promise.resolve(
+      posted ? { data: { can_cancel_lines: false }, response: { status: 200 } } : allowed,
+    );
+  });
+  state.post.mockImplementation(() => {
+    posted = true;
+    return Promise.resolve({
+      error: { code: 'FORBIDDEN', message_ar: 'Denied AR', message_en: 'Forbidden EN' },
+      response: { status: 403 },
+    });
   });
   renderPage();
   await screen.findByText('Synthetic customer');
-  await waitFor(() => expect(cancelButton('en').length).toBeGreaterThan(0));
+  await waitFor(() => expect(cancelButton('en').length).toBe(2));
+  const capabilityReads = () =>
+    state.get.mock.calls.filter((call) => String(call[0]).includes('/capabilities')).length;
+  const before = capabilityReads();
   clickCancel();
   fireEvent.change(screen.getByLabelText(t('en', 'serviceLineCancel.reason')), {
     target: { value: 'because' },
   });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineCancel.submit') }));
   expect((await screen.findByRole('status')).textContent).toContain('Forbidden EN');
+  await waitFor(() =>
+    expect(screen.queryByRole('button', { name: t('en', 'serviceLineCancel.cancel') })).toBeNull(),
+  );
+  expect(capabilityReads()).toBeGreaterThan(before);
   expect(screen.queryByLabelText(t('en', 'serviceLineCancel.reason'))).toBeNull();
   expect(screen.getByText('Synthetic customer')).toBeTruthy();
 });

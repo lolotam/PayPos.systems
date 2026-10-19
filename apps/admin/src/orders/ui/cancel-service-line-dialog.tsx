@@ -1,15 +1,37 @@
 'use client';
 import type { CancelServiceLineInput } from '@pospay/contracts';
-import { t } from '@pospay/i18n';
-import { useEffect, useRef, useState } from 'react';
+import { t, type Locale } from '@pospay/i18n';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useForm } from 'react-hook-form';
 import { ModalDialog } from '@/shared/ui/modal-dialog';
 import { useLocale } from '@/shared/locale/locale-context';
-import { useCancelServiceLine } from '../api/use-cancel-service-line';
+import { useCancelServiceLine, type UnresolvedCancel } from '../api/use-cancel-service-line';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { resolveCancelLine, type CancelLineFormInput } from '../model/cancel-service-line-values';
 import { CancelServiceLineForm } from './cancel-service-line-form';
 import { CancelServiceLinePreview, type CancelDialogLine } from './cancel-service-line-preview';
+
+type AttemptMemory = RefObject<Map<string, UnresolvedCancel>>;
+
+function resumedCancel(
+  line: CancelDialogLine,
+  sessionId: string,
+  memory: Map<string, UnresolvedCancel> | undefined,
+  locale: Locale,
+) {
+  const pending = memory?.get(line.id);
+  const kept = pending?.sessionId === sessionId ? pending : undefined;
+  return {
+    body: kept?.body ?? null,
+    frozen: kept !== undefined,
+    root: kept ? t(locale, 'serviceLineCancel.outcomeUnknown') : null,
+    values: {
+      reason: kept?.body.reason ?? '',
+      expected_revision: kept?.body.expected_revision ?? line.revision,
+      canceller_membership_id: kept?.body.canceller_membership_id ?? '',
+    },
+  };
+}
 
 export type CancelServiceLineDialogProps = {
   scope: SessionServiceScope;
@@ -21,22 +43,20 @@ export type CancelServiceLineDialogProps = {
   onAccessDenied?: (message: string) => void;
   onClose: () => void;
   onRefresh?: () => Promise<{ status: string; revision: number } | null>;
+  attempts?: AttemptMemory;
 };
 export function CancelServiceLineDialog(props: CancelServiceLineDialogProps) {
   const locale = useLocale();
+  const resumed = resumedCancel(props.line, props.sessionId, props.attempts?.current, locale);
   const form = useForm<CancelLineFormInput, unknown, CancelServiceLineInput>({
     resolver: resolveCancelLine,
-    defaultValues: {
-      reason: '',
-      expected_revision: props.line.revision,
-      canceller_membership_id: '',
-    },
+    defaultValues: resumed.values,
   });
-  const mutation = useCancelServiceLine(props.scope);
-  const [root, setRoot] = useState<string | null>(null);
+  const mutation = useCancelServiceLine(props.scope, props.attempts, props.onAccessDenied);
+  const [root, setRoot] = useState<string | null>(resumed.root);
   const [memberships, setMemberships] = useState<string[]>([]);
-  const [frozen, setFrozen] = useState(false);
-  const retain = useRef<CancelServiceLineInput | null>(null);
+  const [frozen, setFrozen] = useState(resumed.frozen);
+  const retain = useRef<CancelServiceLineInput | null>(resumed.body);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;

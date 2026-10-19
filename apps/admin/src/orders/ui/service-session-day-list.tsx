@@ -2,7 +2,8 @@
 import type { ServiceSessionDayPage as DayPage } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
-import type { RefObject } from 'react';
+import { useRef, type RefObject } from 'react';
+import type { UnresolvedCancel } from '../api/use-cancel-service-line';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { CancelServiceLineDialog } from './cancel-service-line-dialog';
 import { ServiceLineCancellationDetails } from './service-line-cancellation-details';
@@ -84,6 +85,7 @@ function cancellationPanel(list: ServiceSessionDayListProps, visit: Visit, lineI
       sessionId={visit.id}
       lineId={lineId}
       timezone={visit.business_timezone || list.timezone}
+      onAccessDenied={list.onAccessDenied}
     />
   );
 }
@@ -142,6 +144,7 @@ function ServiceSessionDayVisitSlot({
 
 export function ServiceSessionDayList(props: ServiceSessionDayListProps) {
   const actions = useDayLineActions();
+  const attempts = useRef(new Map<string, UnresolvedCancel>());
   const cancelKey = actions.cancelling;
   const cancelTarget = findLine(props.visits, cancelKey?.key ?? null);
   return (
@@ -175,6 +178,7 @@ export function ServiceSessionDayList(props: ServiceSessionDayListProps) {
             actions.setNotice(message);
           }}
           onAccessDenied={props.onAccessDenied}
+          attempts={attempts}
           onRefresh={() => refreshCancelTarget(props, cancelTarget.visit.id, cancelTarget.line.id)}
           onClose={() => {
             actions.releaseCancel(cancelKey.key, cancelKey.token);
