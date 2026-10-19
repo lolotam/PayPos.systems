@@ -1,7 +1,7 @@
 'use client';
 
 import { t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { Button, PageHeader } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useBusinessIdentity } from '../api/use-business-identity';
 import { useBusinessLogo } from '../api/use-business-logo';
@@ -35,7 +35,14 @@ export function BusinessIdentityPage(scope: Scope) {
       />
       {identity.isPending ? <p role="status">{t(locale, 'admin.loading')}</p> : null}
       {identity.isError ? (
-        <p role="alert">{identityFailureMessage(identity.error, locale)}</p>
+        <div className="flex flex-col items-start gap-2">
+          <p role="alert">{identityFailureMessage(identity.error, locale)}</p>
+          {isAuthorizationRefusal(identity.error) ? null : (
+            <Button type="button" variant="outline" onClick={() => void identity.refetch()}>
+              {t(locale, 'pos.retry')}
+            </Button>
+          )}
+        </div>
       ) : null}
       {showEditor ? (
         <IdentityEditor

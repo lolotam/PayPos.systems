@@ -146,3 +146,29 @@ it('keeps the removal dialog closed after a successful removal and a new upload'
   );
   expect(screen.queryByRole('dialog')).toBeNull();
 });
+
+it('retries a failed identity read and then shows the names', async () => {
+  let failing = true;
+  api.GET.mockImplementation(async (path: string) => {
+    if (path === '/v1/businesses/{businessId}/settings/identity' && failing) {
+      return { error: { code: 'INTERNAL_ERROR' }, response: { status: 500 } };
+    }
+    return { data: settings(null) };
+  });
+  renderPage();
+  const retry = await screen.findByRole('button', { name: t('en', 'pos.retry') });
+  expect(screen.queryByLabelText(t('en', 'businessIdentity.nameEn'))).toBeNull();
+  failing = false;
+  fireEvent.click(retry);
+  const english = (await screen.findByLabelText(
+    t('en', 'businessIdentity.nameEn'),
+  )) as HTMLInputElement;
+  expect(english.value).toBe('Shop');
+});
+
+it('offers no retry when the identity read is refused', async () => {
+  api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+  renderPage();
+  await screen.findByRole('alert');
+  expect(screen.queryByRole('button', { name: t('en', 'pos.retry') })).toBeNull();
+});
