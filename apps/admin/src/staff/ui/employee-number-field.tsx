@@ -9,14 +9,17 @@ import { employeeNumberSaveAlert } from '../model/employee-number-save-alert';
 
 export function EmployeeNumberField({
   shown,
+  hidden,
   message,
 }: {
   shown: boolean;
+  hidden: boolean;
   message: string | null;
 }) {
   const locale = useLocale();
   const form = useFormContext<CreateEmployeeInput>();
-  if (!shown) return null;
+  // إعادة التركيب أثناء انتظار القدرة بتمرّر الرقم المخزّن من جديد؛ يفضل مركّب ومتخفي لحد الرد.
+  if (!shown && !hidden) return null;
   const alert = employeeNumberSaveAlert(
     form.formState.errors.employee_number,
     message,
@@ -24,7 +27,7 @@ export function EmployeeNumberField({
     message ?? '',
   );
   return (
-    <>
+    <div hidden={hidden}>
       <Label htmlFor="employee-number">{t(locale, 'staff.employeeNumber')}</Label>
       <Input
         id="employee-number"
@@ -34,6 +37,6 @@ export function EmployeeNumberField({
       />
       <p className="text-sm text-muted-foreground">{t(locale, 'staff.numberHint')}</p>
       {alert ? <p role="alert">{alert}</p> : null}
-    </>
+    </div>
   );
 }

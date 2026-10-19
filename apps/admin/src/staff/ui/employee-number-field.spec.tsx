@@ -88,7 +88,9 @@ it('shows the number field when the holder may type for the selected branch', as
   get.mockResolvedValue({ data: { can_type_number: true } });
   const query = client();
   render(mount(query, vi.fn(), [branch(allowed, 'Allowed branch')], null));
-  expect(await screen.findByLabelText(t('en', 'staff.employeeNumber'))).toBeTruthy();
+  expect(
+    await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') }),
+  ).toBeTruthy();
   expect(get).toHaveBeenCalledWith(...capabilityCall(allowed, allowed));
 });
 
@@ -143,7 +145,7 @@ it('re-asks when the primary branch changes and clears a typed number', async ()
       null,
     ),
   );
-  fireEvent.change(await screen.findByLabelText(t('en', 'staff.employeeNumber')), {
+  fireEvent.change(await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') }), {
     target: { value: '007' },
   });
   await chooseBranch('Denied branch');
@@ -160,7 +162,11 @@ it('re-asks when the primary branch changes and clears a typed number', async ()
   expect(Object.hasOwn(save.mock.calls[0]?.[0] as object, 'employee_number')).toBe(false);
   await chooseBranch('Allowed branch');
   expect(
-    ((await screen.findByLabelText(t('en', 'staff.employeeNumber'))) as HTMLInputElement).value,
+    (
+      (await screen.findByRole('textbox', {
+        name: t('en', 'staff.employeeNumber'),
+      })) as HTMLInputElement
+    ).value,
   ).toBe('');
 });
 
@@ -188,12 +194,16 @@ it('keeps a typed number across allowed branches and drops it when denied', asyn
       null,
     ),
   );
-  fireEvent.change(await screen.findByLabelText(t('en', 'staff.employeeNumber')), {
+  fireEvent.change(await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') }), {
     target: { value: '1005' },
   });
   await chooseBranch('Second allowed');
   expect(
-    ((await screen.findByLabelText(t('en', 'staff.employeeNumber'))) as HTMLInputElement).value,
+    (
+      (await screen.findByRole('textbox', {
+        name: t('en', 'staff.employeeNumber'),
+      })) as HTMLInputElement
+    ).value,
   ).toBe('1005');
   fillIdentity();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.create') }));
@@ -215,7 +225,7 @@ it('sends 007 as employee number 7', async () => {
   get.mockResolvedValue({ data: { can_type_number: true } });
   const save = vi.fn();
   render(mount(client(), save, [branch(allowed, 'Allowed branch')], null));
-  fireEvent.change(await screen.findByLabelText(t('en', 'staff.employeeNumber')), {
+  fireEvent.change(await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') }), {
     target: { value: '007' },
   });
   fillIdentity();
@@ -228,7 +238,7 @@ it('omits employee_number when the field is left blank', async () => {
   get.mockResolvedValue({ data: { can_type_number: true } });
   const save = vi.fn();
   render(mount(client(), save, [branch(allowed, 'Allowed branch')], null));
-  await screen.findByLabelText(t('en', 'staff.employeeNumber'));
+  await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') });
   fillIdentity();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.create') }));
   await waitFor(() => expect(save).toHaveBeenCalled());
@@ -239,7 +249,7 @@ it('does not send an invalid number', async () => {
   get.mockResolvedValue({ data: { can_type_number: true } });
   const save = vi.fn();
   render(mount(client(), save, [branch(allowed, 'Allowed branch')], null));
-  fireEvent.change(await screen.findByLabelText(t('en', 'staff.employeeNumber')), {
+  fireEvent.change(await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') }), {
     target: { value: '12a' },
   });
   fillIdentity();
@@ -257,7 +267,7 @@ it('keeps the typed number when the server says it is taken', async () => {
     message_ar: t('ar', 'errors.EMPLOYEE_NUMBER_TAKEN'),
   };
   const view = render(mount(query, vi.fn(), [branch(allowed, 'Allowed branch')], null));
-  fireEvent.change(await screen.findByLabelText(t('en', 'staff.employeeNumber')), {
+  fireEvent.change(await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') }), {
     target: { value: '007' },
   });
   view.rerender(mount(query, vi.fn(), [branch(allowed, 'Allowed branch')], error));
@@ -277,7 +287,7 @@ it('shows forbidden on the field only after a number was sent', async () => {
     message_ar: t('ar', 'errors.FORBIDDEN'),
   };
   const view = render(mount(query, save, [branch(allowed, 'Allowed branch')], null));
-  fireEvent.change(await screen.findByLabelText(t('en', 'staff.employeeNumber')), {
+  fireEvent.change(await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') }), {
     target: { value: '007' },
   });
   view.rerender(mount(query, save, [branch(allowed, 'Allowed branch')], error));
@@ -294,7 +304,7 @@ it('leaves a different server error off the number field', async () => {
   const query = client();
   const save = vi.fn();
   const view = render(mount(query, save, [branch(allowed, 'Allowed branch')], null));
-  fireEvent.change(await screen.findByLabelText(t('en', 'staff.employeeNumber')), {
+  fireEvent.change(await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') }), {
     target: { value: '007' },
   });
   fillIdentity();
@@ -376,7 +386,7 @@ it('drops a typed invalid number when the branch loses the capability', async ()
       null,
     ),
   );
-  fireEvent.change(await screen.findByLabelText(t('en', 'staff.employeeNumber')), {
+  fireEvent.change(await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') }), {
     target: { value: '12a' },
   });
   fillIdentity();
@@ -387,7 +397,11 @@ it('drops a typed invalid number when the branch loses the capability', async ()
   expect(screen.queryByRole('alert')).toBeNull();
   await chooseBranch('Allowed branch');
   expect(
-    ((await screen.findByLabelText(t('en', 'staff.employeeNumber'))) as HTMLInputElement).value,
+    (
+      (await screen.findByRole('textbox', {
+        name: t('en', 'staff.employeeNumber'),
+      })) as HTMLInputElement
+    ).value,
   ).toBe('');
   expect(screen.queryByRole('alert')).toBeNull();
 });

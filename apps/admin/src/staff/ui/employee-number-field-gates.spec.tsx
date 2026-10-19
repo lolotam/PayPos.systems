@@ -80,7 +80,9 @@ it('hides the number field when a capability refetch fails and the old success i
   });
   const query = client();
   render(mount(query, vi.fn(), [branch(allowed, 'Allowed branch')]));
-  expect(await screen.findByLabelText(t('en', 'staff.employeeNumber'))).toBeTruthy();
+  expect(
+    await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') }),
+  ).toBeTruthy();
   await query.invalidateQueries({ queryKey: ['employee-number-capability', allowed, allowed] });
   await waitFor(() => {
     const entry = query.getQueryCache().find({
@@ -110,11 +112,19 @@ it('holds submit until an uncached allowed branch resolves and then sends 1005',
       branch(secondAllowed, 'Second allowed'),
     ]),
   );
-  fireEvent.change(await screen.findByLabelText(t('en', 'staff.employeeNumber')), {
+  fireEvent.change(await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') }), {
     target: { value: '1005' },
   });
   await chooseBranch('Second allowed');
   await waitFor(() => expect(createButton().disabled).toBe(true));
+  const kept = screen.getByRole('textbox', {
+    name: t('en', 'staff.employeeNumber'),
+    hidden: true,
+  }) as HTMLInputElement;
+  expect(kept.value).toBe('1005');
+  expect(kept.disabled).toBe(false);
+  expect(kept.closest('[hidden]')).toBeTruthy();
+  expect(screen.queryByRole('textbox', { name: t('en', 'staff.employeeNumber') })).toBeNull();
   fillIdentity();
   fireEvent.click(createButton());
   expect(save).not.toHaveBeenCalled();
@@ -141,7 +151,7 @@ it('submits without a number when a hidden invalid draft is cleared', async () =
       branch(deniedBranch, 'Denied branch'),
     ]),
   );
-  fireEvent.change(await screen.findByLabelText(t('en', 'staff.employeeNumber')), {
+  fireEvent.change(await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') }), {
     target: { value: 'abc' },
   });
   await chooseBranch('Denied branch');
@@ -171,7 +181,7 @@ it('omits employee_number on confirm after the capability refetch blocks the fie
   const save = vi.fn();
   const query = client();
   render(mount(query, save, [branch(allowed, 'Allowed branch')]));
-  fireEvent.change(await screen.findByLabelText(t('en', 'staff.employeeNumber')), {
+  fireEvent.change(await screen.findByRole('textbox', { name: t('en', 'staff.employeeNumber') }), {
     target: { value: '1005' },
   });
   fillIdentity();

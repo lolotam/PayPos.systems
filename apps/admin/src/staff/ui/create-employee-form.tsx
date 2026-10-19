@@ -84,7 +84,11 @@ export function CreateEmployeeForm(props: CreateEmployeeFormProps) {
           <EmployeeNameFields />
           <EmployeePlacementFields branches={props.branches} />
           <EmployeeContractFields />
-          <EmployeeNumberField shown={number.shown} message={number.message} />
+          <EmployeeNumberField
+            shown={number.shown}
+            hidden={number.pending}
+            message={number.message}
+          />
           <Button type="submit" disabled={number.pending}>
             {t(locale, 'staff.create')}
           </Button>
