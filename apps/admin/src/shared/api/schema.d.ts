@@ -546,13 +546,31 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** @description Business-identity screen. Lock-free read of the stored official names and logo file id. Requires manage:business-identity:business on that business; read:settings:business alone is not enough. Unset fields and a missing settings row are null, and the read never creates a row. A settings-only holder, a device principal, and an unknown or foreign business are the same 403 FORBIDDEN. No Idempotency-Key. */
+        get: operations["getBusinessIdentity"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch: operations["updateBusinessIdentityNames"];
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/settings/identity-capability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Business-identity screen. Lock-free read of manage:business-identity:business on that business: ALLOW and no DENY, active membership. A device principal, a missing permission, a DENY, and an unknown or foreign business are the same 200 { can_manage_identity: false }. No Idempotency-Key. */
+        get: operations["identityCapability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/businesses/{businessId}/settings/logo": {
@@ -5555,6 +5573,12 @@ export interface components {
             /** @enum {string} */
             scope: "COMPANY" | "BUSINESS" | "BRANCH";
         };
+        BusinessIdentity: {
+            official_name_ar: string | null;
+            official_name_en: string | null;
+            /** Format: uuid */
+            logo_file_id: string | null;
+        };
         BusinessIdentityNames: {
             official_name_ar: string | null;
             official_name_en: string | null;
@@ -5577,6 +5601,9 @@ export interface components {
             overridden: ("default_language" | "calendar" | "limit_bps")[];
             /** Format: date-time */
             updated_at: string | null;
+        };
+        IdentityCapability: {
+            can_manage_identity: boolean;
         };
         SetBusinessLogoInput: {
             /** Format: uuid */
@@ -7160,6 +7187,39 @@ export interface operations {
             };
         };
     };
+    getBusinessIdentity: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stored official names and logo file id */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessIdentity"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     updateBusinessIdentityNames: {
         parameters: {
             query?: never;
@@ -7184,6 +7244,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BusinessIdentityNames"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    identityCapability: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether this caller may manage business identity */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityCapability"];
                 };
             };
             /** @description The API error envelope */

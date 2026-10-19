@@ -2,8 +2,15 @@ import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import type { Redis } from 'ioredis';
 
+import { SelectedCompanyGuard } from '../../shared/selected-company.guard.ts';
 import { SETTINGS_TEMPLATE } from './domain/business-settings.ts';
+import { IdentityCapabilityCompanyGuard } from './http/identity-capability-company.guard.ts';
+import { IdentityCapabilityController } from './http/identity-capability.controller.ts';
 import { SETTINGS_WIRING, SettingsController } from './http/settings.controller.ts';
+import { identityCapabilityAccess } from './persistence/business-identity-access.adapter.ts';
+import { BUSINESS_IDENTITY_READER } from './queries/business-identity.query.ts';
+import { IDENTITY_CAPABILITY_ACCESS } from './queries/identity-capability.query.ts';
+import { readBusinessIdentity } from './persistence/read-business-identity.ts';
 import { createRedisSettingsCache } from './persistence/redis-settings-cache.ts';
 import { createSettingsTransactions } from './persistence/settings-transactions.ts';
 import { UpdateBusinessSettings } from './use-cases/update-business-settings/update-business-settings.ts';
@@ -18,7 +25,7 @@ import { readBusinessDiscountDefault } from './queries/business-discount-default
 import { createDiscountSubjectReader } from './persistence/discount-subject-reader.adapter.ts';
 
 /** The controllers settings mounts. */
-export const settingsControllers = [SettingsController];
+export const settingsControllers = [SettingsController, IdentityCapabilityController];
 
 /**
  * The settings wiring — the one place its ports are bound to their adapters. Without a database or Redis the routes
@@ -34,6 +41,38 @@ export function settingsProviders(
   ids: IdGenerator,
   redis?: Redis,
 ): Provider[] {
+  return [
+    ...settingsWiring(database, ids, redis),
+    ...identityCapabilityProviders(database),
+    ...businessIdentityProviders(database),
+  ];
+}
+
+function businessIdentityProviders(database: TenantWrappers | undefined): Provider[] {
+  return [
+    {
+      provide: BUSINESS_IDENTITY_READER,
+      useValue: database === undefined ? null : { read: readBusinessIdentity },
+    },
+  ];
+}
+
+function identityCapabilityProviders(database: TenantWrappers | undefined): Provider[] {
+  return [
+    SelectedCompanyGuard,
+    IdentityCapabilityCompanyGuard,
+    {
+      provide: IDENTITY_CAPABILITY_ACCESS,
+      useValue: database === undefined ? null : identityCapabilityAccess(),
+    },
+  ];
+}
+
+function settingsWiring(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  redis?: Redis,
+): Provider[] {
   if (database === undefined || redis === undefined) {
     return [{ provide: SETTINGS_WIRING, useValue: null }];
   }
@@ -44,7 +83,10 @@ export function settingsProviders(
     SETTINGS_TEMPLATE,
   );
   const discount = new SetBusinessDiscountDefault(createSettingsTransactions(database, ids), cache);
-  const identity = new UpdateBusinessIdentityNames(createSettingsTransactions(database, ids), cache);
+  const identity = new UpdateBusinessIdentityNames(
+    createSettingsTransactions(database, ids),
+    cache,
+  );
   const logo = new SetBusinessLogo(createSettingsTransactions(database, ids), cache);
   return [
     {

@@ -37,7 +37,7 @@ export async function insertLogoFile(
       ${patch.companyId ?? f.company}, ${id}, ${businessId}, ${patch.branchId ?? null},
       ${patch.ownerModule ?? 'settings'}, ${patch.ownerEntityId ?? businessId}, ${`staging-${id}`},
       ${status === 'READY' ? `storage-${id}` : null}, ${patch.contentType ?? 'image/png'}, 10,
-      ${patch.requiredPermission ?? 'read:settings:business'}, ${patch.createdBy ?? f.userId}, ${at}, ${status},
+      ${patch.requiredPermission ?? 'manage:business-identity:business'}, ${patch.createdBy ?? f.userId}, ${at}, ${status},
       ${patch.purgeStarted === true ? at : null}, ${patch.purged === true ? at : null})`;
   return id;
 }

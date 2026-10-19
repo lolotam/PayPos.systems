@@ -165,7 +165,7 @@ it('metadata query projects its contract shape and uses the tenant primary-key i
   const plan = await db.withTenant(company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan = off`);
     return tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) SELECT id,status,content_type,size_bytes,storage_key,rejection_code,
-      business_id,branch_id,created_by,required_permission FROM file_objects WHERE company_id = ${company} AND id = ${ticket.id}`);
+      business_id,branch_id,created_by,owner_module,required_permission FROM file_objects WHERE company_id = ${company} AND id = ${ticket.id}`);
   });
   expect(JSON.stringify(plan)).toContain('file_objects_pkey');
   expect(
@@ -300,4 +300,95 @@ it('opens a staff document using its stored object key and never resolves anothe
       })
     ).status,
   ).toBe(404);
+});
+
+const logoPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+function logoUploadBody() {
+  return {
+    owner_module: 'settings',
+    owner_entity_id: business,
+    content_type: 'image/png',
+    size_bytes: logoPng.length,
+    required_permission: 'manage:business-identity:business',
+  };
+}
+
+async function grantReader(permission: string) {
+  await h.owner`INSERT INTO permission_overrides (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+    VALUES (${company},${ids.newId()},${readerMembership},${permission},'ALLOW','BUSINESS',${business},'synthetic grant',${readerId})`;
+}
+
+it('an identity delegate uploads, verifies, binds and previews a logo without files or settings read', async () => {
+  await grantReader('manage:business-identity:business');
+  const created = await h.send('POST', `/v1/businesses/${business}/files/uploads`, {
+    cookie: readerCookie,
+    company,
+    body: logoUploadBody(),
+  });
+  expect(created.status).toBe(201);
+  const id = created.body['id'] as string;
+  expect(
+    (
+      await fetch(created.body['upload_url'] as string, {
+        method: 'PUT',
+        headers: { 'content-type': 'image/png' },
+        body: logoPng,
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    (await h.send('POST', `/v1/files/${id}/confirm`, { cookie: readerCookie, company })).status,
+  ).toBe(202);
+  expect(
+    (await h.send('GET', `/v1/files/${id}`, { cookie: readerCookie, company })).body['status'],
+  ).toBe('PENDING');
+  await verifier.execute(company, id);
+  expect(
+    (await h.send('GET', `/v1/files/${id}`, { cookie: readerCookie, company })).body['status'],
+  ).toBe('READY');
+  expect(
+    (
+      await h.app.inject({
+        method: 'PUT',
+        url: `/v1/businesses/${business}/settings/logo`,
+        headers: { cookie: readerCookie, 'x-company-id': company },
+        payload: { file_id: id },
+      })
+    ).statusCode,
+  ).toBe(200);
+  const preview = await h.send('POST', `/v1/files/${id}/download`, {
+    cookie: readerCookie,
+    company,
+  });
+  expect(preview.status).toBe(200);
+  const [audit] =
+    await h.owner`SELECT outcome FROM file_access_audit WHERE company_id = ${company} AND file_id = ${id} AND actor_user_id = ${readerId}`;
+  expect(audit?.['outcome']).toBe('ALLOW');
+});
+
+it('manage:files alone cannot request a settings upload, and a staff document still can', async () => {
+  await grantReader('manage:files:business');
+  await grantReader('read:files:business');
+  expect(
+    (
+      await h.send('POST', `/v1/businesses/${business}/files/uploads`, {
+        cookie: readerCookie,
+        company,
+        body: logoUploadBody(),
+      })
+    ).status,
+  ).toBe(403);
+  expect(
+    (
+      await h.send('POST', `/v1/businesses/${business}/files/uploads`, {
+        cookie: readerCookie,
+        company,
+        body: input(),
+      })
+    ).status,
+  ).toBe(201);
 });

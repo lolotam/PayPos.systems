@@ -1,4 +1,4 @@
-import { FileError } from '../../domain/file.ts';
+import { FileError, uploadAuthority } from '../../domain/file.ts';
 import type {
   Actor,
   FileRepository,
@@ -22,7 +22,7 @@ export class ConfirmUpload {
       file.createdBy !== actor.userId ||
       !(await this.permissions.allowed(
         actor,
-        'manage:files:business',
+        uploadAuthority(file.ownerModule),
         file.businessId,
         file.branchId,
       ))

@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { id, requestFileUpload, fileDownloadByKey } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
-import { Authenticated, Require } from '../../../shared/access.decorators.ts';
+import { Authenticated } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError, type ErrorCode } from '../../../shared/errors.ts';
 import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts';
@@ -60,7 +60,8 @@ export class FilesController {
     return this.commands;
   }
   @Post('businesses/:businessId/files/uploads')
-  @Require('manage:files:business', { business: 'businessId' })
+  @Authenticated()
+  @UseGuards(SelectedCompanyGuard)
   async upload(
     @Param('businessId') businessId: string,
     @Body() input: unknown,

@@ -29,11 +29,39 @@ export const settingsPaths = {
     },
   },
   '/v1/businesses/{businessId}/settings/identity': {
+    get: {
+      operationId: 'getBusinessIdentity',
+      parameters,
+      description:
+        'Business-identity screen. Lock-free read of the stored official names and logo file id. Requires manage:business-identity:business on that business; read:settings:business alone is not enough. Unset fields and a missing settings row are null, and the read never creates a row. A settings-only holder, a device principal, and an unknown or foreign business are the same 403 FORBIDDEN. No Idempotency-Key.',
+      responses: {
+        '200': {
+          description: 'Stored official names and logo file id',
+          content: json('BusinessIdentity'),
+        },
+        default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+      },
+    },
     patch: {
       operationId: 'updateBusinessIdentityNames',
       parameters,
       responses: response('BusinessIdentityNames'),
       requestBody: { required: true, content: json('UpdateBusinessIdentityNamesInput') },
+    },
+  },
+  '/v1/businesses/{businessId}/settings/identity-capability': {
+    get: {
+      operationId: 'identityCapability',
+      parameters,
+      description:
+        'Business-identity screen. Lock-free read of manage:business-identity:business on that business: ALLOW and no DENY, active membership. A device principal, a missing permission, a DENY, and an unknown or foreign business are the same 200 { can_manage_identity: false }. No Idempotency-Key.',
+      responses: {
+        '200': {
+          description: 'Whether this caller may manage business identity',
+          content: json('IdentityCapability'),
+        },
+        default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+      },
     },
   },
   '/v1/businesses/{businessId}/settings/logo': {

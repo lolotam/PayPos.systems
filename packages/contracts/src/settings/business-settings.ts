@@ -74,6 +74,13 @@ export const businessIdentityNames = responseObject({
 })
   .meta({ id: 'BusinessIdentityNames' });
 
+// قراءة شاشة الهوية: null = لسه ما اتكتبش. غياب صف الإعدادات ثلاثة nulls، والقراءة ما بتنشئش صف.
+export const businessIdentity = responseObject({
+  official_name_ar: z.string().nullable(),
+  official_name_en: z.string().nullable(),
+  logo_file_id: id.nullable(),
+}).meta({ id: 'BusinessIdentity' });
+
 // null يشيل الشعار. المفتاح مطلوب: غيابه مش إزالة.
 export const setBusinessLogoInput = z
   .object({
@@ -86,9 +93,15 @@ export const businessLogo = responseObject({
   logo_file_id: id.nullable(),
 }).meta({ id: 'BusinessLogo' });
 
+export const identityCapability = responseObject({
+  can_manage_identity: z.boolean(),
+}).meta({ id: 'IdentityCapability' });
+
 export type BusinessSettings = z.infer<typeof businessSettings>;
 export type UpdateBusinessSettingsInput = z.infer<typeof updateBusinessSettingsInput>;
 export type UpdateBusinessIdentityNamesInput = z.infer<typeof updateBusinessIdentityNamesInput>;
 export type BusinessIdentityNames = z.infer<typeof businessIdentityNames>;
+export type BusinessIdentity = z.infer<typeof businessIdentity>;
 export type SetBusinessLogoInput = z.infer<typeof setBusinessLogoInput>;
 export type BusinessLogo = z.infer<typeof businessLogo>;
+export type IdentityCapability = z.infer<typeof identityCapability>;

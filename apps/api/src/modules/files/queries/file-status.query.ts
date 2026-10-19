@@ -4,6 +4,16 @@ import { sql } from 'drizzle-orm';
 import { ApiError } from '../../../shared/errors.ts';
 import type { RequestAuthorizer } from '../../../shared/request-authorizer.ts';
 
+function statusPermission(
+  row: { owner_module: string; created_by: string; required_permission: string },
+  userId: string,
+): string {
+  // الاستعلام ممنوع يستورد domain، فنفس قاعدة effectiveReadPermission بتتكرر هنا.
+  // ملف الإعدادات بيتقرأ بإدارة هوية النشاط حتى لو الصف القديم محفوظ بـ read:settings:business.
+  if (row.owner_module === 'settings') return 'manage:business-identity:business';
+  return row.created_by === userId ? 'manage:files:business' : row.required_permission;
+}
+
 export class FileStatusQuery {
   constructor(
     private readonly db: TenantWrappers,
@@ -24,15 +34,15 @@ export class FileStatusQuery {
           business_id: string;
           branch_id: string | null;
           created_by: string;
+          owner_module: string;
           required_permission: string;
         }>(sql`SELECT id, status, content_type, size_bytes, storage_key, rejection_code,
-      business_id, branch_id, created_by, required_permission FROM file_objects
+      business_id, branch_id, created_by, owner_module, required_permission FROM file_objects
       WHERE company_id = ${actor.companyId} AND id = ${id} AND purge_started_at IS NULL`),
       { userId: actor.userId },
     );
     if (row === undefined) throw new ApiError('FILE_NOT_FOUND');
-    const permission =
-      row.created_by === actor.userId ? 'manage:files:business' : row.required_permission;
+    const permission = statusPermission(row, actor.userId);
     const authorized = await this.authorization.execute({
       userId: actor.userId,
       requestedCompany: actor.companyId,

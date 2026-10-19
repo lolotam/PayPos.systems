@@ -94,3 +94,5 @@
 **الإجابة (وليد، 18 أكتوبر 2026، عن طريق الـ super agent):** «PP-2.2 (issue #331) = (a). manage:business-identity:business alone is enough; read:settings:business is not required (matches the specified guards and BI-Q1 owner-only grantable). 27h-1 may follow this answer.»
 
 **الأثر على الشغل:** 27h-1 بيمشي على الاختيار الأول.
+
+**الأثر على الشغل:** رفع اللوجو ومعاينته وصلاحية قراءة ملفه بقوا على «إدارة هوية النشاط» لوحدها (PR #397)، مكان «قراءة إعدادات النشاط» اللي كانت في 27h-2.
