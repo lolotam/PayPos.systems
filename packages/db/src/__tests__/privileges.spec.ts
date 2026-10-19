@@ -139,6 +139,7 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'service_line_performer_change_rows:SELECT',
     'service_line_performer_changes:INSERT',
     'service_line_performer_changes:SELECT',
+    'service_line_performer_notices:INSERT', 'service_line_performer_notices:SELECT',
     'service_lines:INSERT',
     'service_lines:SELECT',
     'service_session_recoveries:INSERT',
