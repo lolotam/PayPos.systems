@@ -67,6 +67,24 @@ it('FR-006 a retained BEFORE performer who is the caller cannot cancel that line
   expect(await cancelQuiet(f, visit.sessionId, lineId, key)).toEqual({ cancellations: 0, audits: 0, events: 0, keys: 0 });
 });
 
+it('FR-006 a removed identity still forbids self-cancel after the employee is relinked and re-added', async () => {
+  const base = f.line(must(f.services[0]), '25.000', '0.000');
+  const visit = await visitOf(f, [{ ...base, performers: [{ employee_id: f.editorEmployee }] }]);
+  const lineId = must(visit.lines[0]).id;
+  await replacePerformer(f, visit.sessionId, lineId, must(f.employees[0]));
+  await f.h.owner`UPDATE employees SET user_id=${f.userId} WHERE company_id=${f.company} AND id=${f.editorEmployee}`;
+  try {
+    await replacePerformer(f, visit.sessionId, lineId, f.editorEmployee, 2);
+    const key = ids.newId();
+    await expect(runCancel(f, visit.sessionId, lineId, cancelInput({ expected_revision: 3 }), { key })).rejects.toThrow(
+      'SESSION_PERFORMER_SELF_FORBIDDEN',
+    );
+    expect(await cancelQuiet(f, visit.sessionId, lineId, key)).toEqual({ cancellations: 0, audits: 0, events: 0, keys: 0 });
+  } finally {
+    await f.h.owner`UPDATE employees SET user_id=${f.editorId} WHERE company_id=${f.company} AND id=${f.editorEmployee}`;
+  }
+});
+
 it('FR-009 spec 054 §3.2: active performers exclude a retained one, so their tip does not block cancel', async () => {
   const kept = must(f.employees[0]);
   const visit = await recordVisit(f);
@@ -101,10 +119,16 @@ async function holdLine(fixture: CancelFixture, lineId: string) {
   };
 }
 
-async function replacePerformer(fixture: CancelFixture, sessionId: string, lineId: string, replacementId: string) {
+async function replacePerformer(
+  fixture: CancelFixture,
+  sessionId: string,
+  lineId: string,
+  replacementId: string,
+  fromRevision = 1,
+) {
   const [line] = await fixture.h.owner`SELECT service_id, revision, has_performer_warning FROM service_lines WHERE company_id=${fixture.company} AND id=${lineId}`;
   const current = must(line);
-  expect(Number(current['revision'])).toBe(1);
+  expect(Number(current['revision'])).toBe(fromRevision);
   const before = await livePerson(fixture, lineId);
   const next = await employeePerson(fixture, replacementId);
   await fixture.db.withTenant(fixture.company, (tx) => applyChange(tx, {
@@ -117,8 +141,8 @@ async function replacePerformer(fixture: CancelFixture, sessionId: string, lineI
     serviceId: String(current['service_id']),
   }, ids, {
     lineId,
-    previous: 1,
-    revision: 2,
+    previous: fromRevision,
+    revision: fromRevision + 1,
     before: [before],
     live: [next],
     after: [next],
@@ -126,7 +150,7 @@ async function replacePerformer(fixture: CancelFixture, sessionId: string, lineI
   }), { userId: fixture.ownerId });
   expect((await performersOf(fixture, lineId)).map((row) => row['employee_id'])).toEqual([replacementId]);
   const [moved] = await fixture.h.owner`SELECT revision FROM service_lines WHERE company_id=${fixture.company} AND id=${lineId}`;
-  expect(Number(moved?.['revision'])).toBe(2);
+  expect(Number(moved?.['revision'])).toBe(fromRevision + 1);
 }
 
 async function livePerson(fixture: CancelFixture, lineId: string): Promise<Person> {

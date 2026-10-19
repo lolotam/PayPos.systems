@@ -48,11 +48,11 @@ export interface SessionTipsReadPort {
 /** تخزين الإلغاء؛ قفل الزيارة والسطر والزيارة المحفوظة من تخزين التعديل، واختلاف النطاق يرفض برفض موحّد. */
 export interface LineCancelRepository extends Pick<LineEditRepository, 'lockVisit' | 'loadLineForUpdate' | 'loadSession'> {
   /**
-   * يعيد هويات المنفّذات اللواتي أُزلن من السطر ولم يُعدن إليه.
+   * يعيد كل هوية BEFORE للسطر حتى لو عادت الموظفة إليه مربوطة بمستخدم آخر.
    *
    * @param sessionId هوية الزيارة ضمن النشاط والفرع الحاليين
    * @param lineId هوية السطر
-   * @returns لقطات قبل الإزالة التي لم تعد على السطر، أو مصفوفة فارغة
+   * @returns لقطات الهوية بلا تكرار للثلاثي، أو مصفوفة فارغة
    */
   retainedPerformers(sessionId: string, lineId: string): Promise<readonly LockedLinePerformer[]>;
   /**
