@@ -4,6 +4,7 @@ import { serviceSessionErrors } from '@pospay/i18n';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { SelectedCompanyGuard } from '../../shared/selected-company.guard.ts';
 import { ServiceSessionsController } from './http/service-sessions.controller.ts';
+import { SessionTipsController } from './http/session-tips.controller.ts';
 import { ServiceSessionFormController } from './http/service-session-form.controller.ts';
 import { RecordingContextQueryHandler } from './queries/recording-context.query.ts';
 import { SessionServiceOptionsQueryHandler } from './queries/session-service-options.query.ts';
@@ -23,6 +24,7 @@ import { sessionRecordAccess } from './persistence/session-record-access.adapter
 import { sessionReadAccess } from './persistence/session-read-access.adapter.ts';
 import { BranchDayServiceSessionsQuery } from './queries/branch-day-service-sessions.query.ts';
 import { ServiceLineEditHistoryQuery } from './queries/service-line-edits.query.ts';
+import { SessionTipsCurrentQuery } from './queries/session-tips-current.query.ts';
 import { createServiceSessionTransactions } from './persistence/service-session-transactions.ts';
 import { bindLineEditReaders, createLineEditTransactions } from './persistence/line-edit-transactions.ts';
 import { createSessionTipsTransactions } from './persistence/session-tip-transactions.ts';
@@ -38,7 +40,7 @@ import { ConfirmSessionRecoveryUseCase } from './use-cases/confirm-session-recov
 import { SessionRecoveryController } from './http/session-recovery.controller.ts';
 import type { Clock } from './ports/service-session-transactions.port.ts';
 
-export const ordersControllers = [SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController];
+export const ordersControllers = [SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController];
 export function ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
   return new SessionPerformerOptionsQueryHandler(database, {
     time: (occurredAt, at, timezone) => sessionTime(new Date(occurredAt), at, timezone).occurred_at.toISOString(),
@@ -88,6 +90,11 @@ export function ordersLineEdits(database: TenantWrappers) {
 export function ordersSessionTips(database: TenantWrappers) {
   return createSessionTipsTransactions(database);
 }
+export function ordersSessionTipsCurrent(database: TenantWrappers, clock: Clock = systemClock) {
+  return new SessionTipsCurrentQuery(database, {
+    access: (tx, scope, at) => sessionRecordAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId).read(at),
+  }, clock);
+}
 export function ordersTransactions(database: TenantWrappers, ids: IdGenerator, clock: Clock = systemClock) {
   return createServiceSessionTransactions(database, ids, (tx, context) => ({
     catalog: catalogReader(tx, context.companyId, context.businessId), customer: customerLookup(tx, context.companyId),
@@ -112,5 +119,6 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
     { provide: RecordServiceSessionUseCase, useValue: writes === null ? null : new RecordServiceSessionUseCase(writes.transactions, writes.recovery, ids, clock) },
     { provide: AppendServiceSessionLinesUseCase, useValue: writes === null ? null : new AppendServiceSessionLinesUseCase(writes.transactions, writes.recovery, ids, clock) },
     { provide: EditServiceLinePriceUseCase, useValue: database === undefined ? null : new EditServiceLinePriceUseCase(ordersLineEdits(database), ids, clock) },
-    { provide: RecordSessionTipsUseCase, useValue: database === undefined ? null : new RecordSessionTipsUseCase(ordersSessionTips(database), ids, clock) }];
+    { provide: RecordSessionTipsUseCase, useValue: database === undefined ? null : new RecordSessionTipsUseCase(ordersSessionTips(database), ids, clock) },
+    { provide: SessionTipsCurrentQuery, useValue: database === undefined ? null : ordersSessionTipsCurrent(database, clock) }];
 }

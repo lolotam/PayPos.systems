@@ -7,20 +7,26 @@ export function EmployeePageNavigation({
   cursor,
   next,
   onChange,
+  disabled = false,
 }: {
   cursor: string | undefined;
   next: string | null;
   onChange: (cursor: string | undefined) => void;
+  disabled?: boolean;
 }) {
   const locale = useLocale();
   return (
     <div className="flex gap-2">
-      <Button variant="outline" disabled={cursor === undefined} onClick={() => onChange(undefined)}>
+      <Button
+        variant="outline"
+        disabled={disabled || cursor === undefined}
+        onClick={() => onChange(undefined)}
+      >
         {t(locale, 'staff.first')}
       </Button>
       <Button
         variant="outline"
-        disabled={next === null}
+        disabled={disabled || next === null}
         onClick={() => onChange(next ?? undefined)}
       >
         {t(locale, 'staff.next')}

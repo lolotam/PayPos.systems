@@ -1,0 +1,88 @@
+'use client';
+import { useCallback, useRef, useState, useEffect } from 'react';
+import { useLocale } from '@/shared/locale/locale-context';
+import { useEmployeeListControls } from '../../model/use-employee-list-controls';
+import {
+  companyNumbersEditMessage,
+  companyNumbersListDenied,
+} from '../model/company-employee-number-message';
+import {
+  useCompanyEmployeeNumbers,
+  useSetCompanyEmployeeNumber,
+} from './use-company-employee-numbers';
+
+// الموظفة اختفت من القائمة بعد رفض بالصلاحية: المحرّر بيتقفل والفشل بيتشال عشان البحث مايفضلش واقف.
+function useCloseVanishedEditor(
+  gone: boolean,
+  save: { isPending: boolean; reset: () => void },
+  close: (id: undefined) => void,
+) {
+  useEffect(() => {
+    if (!gone || save.isPending) return;
+    save.reset();
+    close(undefined);
+  }, [gone, save, close]);
+}
+
+export function useCompanyNumbersScreen(companyId: string, userId: string) {
+  const locale = useLocale();
+  const [editingId, setEditingId] = useState<string>();
+  const save = useSetCompanyEmployeeNumber(companyId, userId);
+  const saving = useRef(false);
+  const failed = useRef(false);
+  saving.current = save.isPending;
+  failed.current = save.isError;
+  const closeIfIdle = useCallback(() => {
+    // البحث المستقر بيوصل بعد الكتابة؛ لو الحفظ شغّال أو نتيجته ظاهرة المحرّر يفضل مفتوح.
+    if (saving.current || failed.current) return;
+    setEditingId(undefined);
+  }, []);
+  const controls = useEmployeeListControls(closeIfIdle, save.isPending || save.isError);
+  const list = useCompanyEmployeeNumbers(companyId, userId, controls.cursor, controls.q);
+  const editing = list.data?.items.find((item) => item.employee_id === editingId);
+  useCloseVanishedEditor(
+    editingId !== undefined && list.isSuccess && editing === undefined,
+    save,
+    setEditingId,
+  );
+  const onPage = (cursor: string | undefined) => {
+    if (save.isPending) return;
+    // الصفحة بتقفل المحرّر، فنتيجة الحفظ الفاشل ماتفضلش توقف البحث.
+    save.reset();
+    controls.onPage(cursor);
+    setEditingId(undefined);
+  };
+  const onSearch = (value: string) => {
+    if (save.isPending) return;
+    // كتابة بحث جديد بتشيل الحفظ الفاشل، فالبحث مايفضلش واقف على نتيجة اتقفلت.
+    if (save.isError) save.reset();
+    controls.onSearch(value);
+  };
+  const select = (employeeId: string | undefined) => {
+    // الحفظ الشغال ما يتسابش؛ reset بيمسح نتيجة الصف اللي اتبعت.
+    if (save.isPending) return;
+    save.reset();
+    setEditingId(employeeId);
+  };
+  const onSubmit = (employeeNumber: number) => {
+    if (!editing) return;
+    save.mutate(
+      { businessId: editing.business_id, employeeId: editing.employee_id, employeeNumber },
+      { onSuccess: () => setEditingId(undefined) },
+    );
+  };
+  return {
+    text: controls.text,
+    cursor: controls.cursor,
+    onSearch,
+    list,
+    denied: companyNumbersListDenied(list.error),
+    editingId,
+    pending: save.isPending,
+    message: save.isError ? companyNumbersEditMessage(save.error, locale) : null,
+    onEdit: (employeeId: string) => select(employeeId),
+    onClose: () => select(undefined),
+    onPage,
+    onSubmit,
+  };
+}

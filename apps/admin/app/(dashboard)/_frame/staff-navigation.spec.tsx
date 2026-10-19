@@ -15,6 +15,7 @@ it.each([
   render(<StaffNavigation />);
   expect(screen.getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual([
     '/staff',
+    '/staff/employee-numbers',
     '/staff/import',
     '/staff/attendance',
     '/staff/attendance-exceptions',
@@ -29,4 +30,16 @@ it.each([
     .filter((link) => link.getAttribute('aria-current') === 'page');
   expect(current).toHaveLength(1);
   expect(current[0]?.getAttribute('href')).toBe(path);
+});
+it('highlights employee numbers without highlighting the employee list', () => {
+  state.path = '/staff/employee-numbers';
+  render(<StaffNavigation />);
+  expect(
+    screen
+      .getByRole('link', { name: t('en', 'companyEmployeeNumbers.title') })
+      .getAttribute('aria-current'),
+  ).toBe('page');
+  expect(
+    screen.getByRole('link', { name: t('en', 'staff.listTitle') }).getAttribute('aria-current'),
+  ).toBeNull();
 });

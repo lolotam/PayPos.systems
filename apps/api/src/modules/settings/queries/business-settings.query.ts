@@ -38,9 +38,10 @@ export async function businessSettingsQuery(
   const cached = await cache.read(access.companyId, businessId);
   if (cached.json !== null) {
     const value = JSON.parse(cached.json) as BusinessSettings;
-    if ('limit_bps' in value) return value;
+    if ('logo_file_id' in value) return value;
   }
-  // Screen: admin › business settings. One business by its key; no row yet means every value is the template's.
+  // Screen: admin › business settings. One business by its key; no row yet means every template value.
+  // الأسماء والشعار قيم مخزنة: null يعني لسه ما اتكتبوش، ومش جزء من overridden.
   const [row] = await db.withTenant(
     access.companyId,
     async (tx) =>
@@ -51,6 +52,9 @@ export async function businessSettingsQuery(
                  COALESCE(s.calendar, ${template.calendar}) AS calendar,
                  COALESCE(s.limit_bps, ${template.limitBps ?? null}::integer) AS limit_bps,
                  s.tax_rule,
+                 s.official_name_ar,
+                 s.official_name_en,
+                 s.logo_file_id,
                  array_remove(ARRAY[
                    CASE WHEN s.default_language IS NOT NULL THEN 'default_language' END,
                    CASE WHEN s.calendar IS NOT NULL THEN 'calendar' END,

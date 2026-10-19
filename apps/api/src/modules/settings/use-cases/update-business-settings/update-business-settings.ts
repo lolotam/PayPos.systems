@@ -65,6 +65,9 @@ export class UpdateBusinessSettings {
       default_language: effective.defaultLanguage,
       calendar: effective.calendar,
       tax_rule: (saved.taxRule ?? null) as BusinessSettings['tax_rule'],
+      official_name_ar: saved.officialNameAr,
+      official_name_en: saved.officialNameEn,
+      logo_file_id: saved.logoFileId,
       overridden: [...effective.overridden],
       updated_at: saved.updatedAt,
     };
