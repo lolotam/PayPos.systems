@@ -219,7 +219,7 @@ user inside `withTenant`. `@Authenticated()` plus SelectedCompanyGuard proves th
 as the user and only then enters the company's tenant context, both in one transaction (PP-7.1, 2026-10-20);
 it requires `x-company-id`. No role permission is needed for a personal inbox or acknowledgment.
 The administrative delivery-log permission is unchanged. Device/key principals are refused.
-PR 4b review fixes also verify the selected company is open inside `withTenant` after membership,
+PR 4b review fixes also verify the selected company is open inside the same `withMember` transaction after membership,
 and scope browser inbox caches/invalidation by company and session user. The dashboard frame passes
 the session identity into the bell; identity navigation broadcasts before loading and peer tabs clear
 their shared QueryClient and reload, with a guarded fallback when BroadcastChannel is unavailable.

@@ -10,7 +10,7 @@ import { ApiError } from './errors.ts';
 
 /**
  * Session-only resources need an active membership and an open company, proved in one transaction:
- * membership first as the user, then the company, so a refusal never sets app.company_id.
+ * membership first as the user, then the company, so a failed membership proof never sets app.company_id.
  */
 @Injectable()
 export class SelectedCompanyGuard implements CanActivate {

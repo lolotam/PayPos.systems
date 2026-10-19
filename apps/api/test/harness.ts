@@ -47,6 +47,7 @@ export interface Harness {
   /**
    * What reached the database boundary, in order: every wrapper entered (with its tenant or user) and every SQL
    * statement executed inside it — the isolation proof asserts on the statements, not only on the wrapper calls.
+   * `withMember` records its company only after the membership proof, so a refused request records nothing.
    */
   readonly calls: {
     tenant: string[];

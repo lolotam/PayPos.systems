@@ -188,7 +188,7 @@ it cannot drain every company's outbox. The dispatcher role can, on `outbox` **o
 - T7b tests: it reads `outbox` across tenants and nothing else, cannot change the immutable columns, and no
   application role can assume it.
 
-`packages/db` exports `createDatabase({ url, ids })`, which returns exactly three entry points — all transaction-local
+`packages/db` exports `createDatabase({ url, ids })`, which returns exactly four entry points — all transaction-local
 (`set_config(…, true)`) — plus `close()`; the underlying client never leaves the package:
 
 ```ts
@@ -196,6 +196,8 @@ withTenant(companyId, fn, { userId? })  // sets app.company_id (+ app.user_id wh
                                         // webhooks and jobs have none)
 withUser(userId, fn)                    // sets app.user_id only — for listing one's own memberships
 withNewTenant(userId, fn)               // bootstrap only — generates the company id, calls fn(tx, companyId)
+withMember(userId, companyId, fn)       // path A in one transaction (PP-7.1) — proves the membership as the user,
+                                        // then sets app.company_id and calls fn; null when there is no membership
 ```
 
 **`withNewTenant` — the onboarding bootstrap.** A new company has no membership yet, so path A (§4) would refuse it, yet the company row and the first membership are RLS-protected writes. `withNewTenant`:
@@ -269,7 +271,7 @@ verify key hash                                packages/auth · pospay_auth · g
 ─► withTenant(companyId, fn)                   tenant RLS; the guard checks the key's scopes, not memberships
 ```
 
-`withUser()` is used by path A only.
+`withUser()` and `withMember()` are used by path A only.
 
 The resolved principal, defined in `packages/auth/src/principal.ts` (T9a):
 
@@ -386,7 +388,7 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 
 ## 6a. Revisions
 
-**2026-10-20, PP-7.1:** flow A may run as one transaction — membership proof in user context, then the company GUC is set in the same transaction only after the proof; refusal never sets `app.company_id`.
+**2026-10-20, PP-7.1:** flow A may run as one transaction — membership proof in user context, then the company GUC is set in the same transaction only after the proof; a failed membership proof never sets `app.company_id` (it stays `''`).
 
 **2026-10-09, ADR-0038 (Accepted):** §3 bootstrap-owner exception amended — migration data steps read only `companies.id` as the owner; tenant effects run under `withTenant` on `pospay_app`.
 
