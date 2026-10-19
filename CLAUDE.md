@@ -258,7 +258,7 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - Stock quantities are never updated directly: insert a `stock_movements` row; balances are derived (cached with `balance_after`).
 - Soft delete (`deleted_at`) only for: items, customers, employees, categories. Everything financial is immutable + reversible (returns, negative entries), never deleted.
 - Index every RLS predicate column and every FK; add composite indexes for known list filters (`(company_id, branch_id, created_at)`). **The migration that adds a query adds its index.**
-- **`packages/db` never throws a plain `Error` on an expected path.** An outcome a caller can cause in normal use (a conflict, an in-flight duplicate, a reused key, an exhausted number range) is thrown as a typed error class that the API's exception filter maps to a known error code, as `IdempotencyKeyBusyError` → 409 `IDEMPOTENCY_KEY_IN_PROGRESS`. A plain `Error` is only for startup misconfiguration, a migration abort, or a broken invariant that should end as a 500 (PP-7.2).
+- **`packages/db` never throws a plain `Error` on an expected path.** An outcome a caller can cause in normal use (a conflict, an in-flight duplicate, a reused key, an exhausted number range) is thrown as a typed error class that the API's exception filter maps to a known error code, as `IdempotencyKeyBusyError` → 409 `IDEMPOTENCY_KEY_IN_PROGRESS`. A plain `Error` is only for startup misconfiguration, a migration abort, an infrastructure failure the caller cannot cause (the bounded pool's `BOUNDED_DATABASE_UNAVAILABLE`, `BOUNDED_COMMIT_UNKNOWN`), or a broken invariant that should end as a 500 (PP-7.2).
 
 - ADR-0019: new OTP tables use exact auth-only column grants without tenant RLS; the auth facade exposes no raw client. Only independently keyed challenge MACs persist. Auth owns derivation and approved global phone mapping; worker receives a narrow execution capability, not full auth or tenant access. Metadata retention is thirty days after expiry; in-flight SENDING stays until drained.
 
@@ -315,7 +315,7 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - **RLS negative tests for every tenant table** (cross-tenant read = 0 rows, write = error).
 - **Every `queries/` file has a result-shape test and an `EXPLAIN ANALYZE` assertion.**
 - E2E (Playwright) for the POS critical path: open shift → order → split payment → print → close shift, including the offline toggle.
-- **A frontend test asserts what the user sees.** Tests in a frontend app (`apps/admin`, `apps/pos`) assert a visible outcome — the screen state, a disabled button, a message — never only that a mock was called. A mock-call assertion may sit next to the visible one, never replace it (PP-7.2).
+- **A frontend test asserts what the user sees.** Tests in a frontend app (`apps/admin`, `apps/pos`, `apps/menu`) assert a visible outcome — the screen state, a disabled button, a message — never only that a mock was called. A mock-call assertion may sit next to the visible one, never replace it (PP-7.2).
 
 ## 10. Git & delivery
 
