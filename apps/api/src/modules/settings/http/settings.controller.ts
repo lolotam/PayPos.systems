@@ -1,10 +1,13 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Req } from '@nestjs/common';
 import {
   updateBusinessSettingsInput,
+  updateBusinessIdentityNamesInput,
   discountLimitInput,
   type DiscountLimitInput,
   type DiscountLimit,
+  type BusinessIdentityNames,
   type BusinessSettings,
+  type UpdateBusinessIdentityNamesInput,
   type UpdateBusinessSettingsInput,
 } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
@@ -21,11 +24,13 @@ import {
   type SettingsTemplate,
 } from '../queries/business-settings.query.ts';
 import type { UpdateBusinessSettings } from '../use-cases/update-business-settings/update-business-settings.ts';
+import type { UpdateBusinessIdentityNames } from '../use-cases/update-business-identity-names/update-business-identity-names.ts';
 import type { SetBusinessDiscountDefault } from '../use-cases/set-business-discount-default/set-business-discount-default.ts';
 
 export interface SettingsWiring {
   readonly discount: SetBusinessDiscountDefault;
   readonly update: UpdateBusinessSettings;
+  readonly identity: UpdateBusinessIdentityNames;
   readonly cache: SettingsReadCache;
   readonly template: SettingsTemplate;
 }
@@ -88,5 +93,18 @@ export class SettingsController {
         ...('calendar' in input ? { calendar: input.calendar ?? null } : {}),
       },
     });
+  }
+
+  @Patch('businesses/:businessId/settings/identity')
+  @HttpCode(200)
+  @Require('manage:business-identity:business', { business: 'businessId' })
+  async updateIdentity(
+    @Param('businessId') businessId: string,
+    @Body(new ZodValidationPipe(updateBusinessIdentityNamesInput))
+    input: UpdateBusinessIdentityNamesInput,
+    @Req() request: FastifyRequest,
+  ): Promise<BusinessIdentityNames> {
+    if (this.#wiring === null) throw new ApiError('NOT_READY');
+    return this.#wiring.identity.execute(actorOf(request), businessId.toLowerCase(), input);
   }
 }

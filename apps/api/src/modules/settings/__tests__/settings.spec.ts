@@ -58,6 +58,9 @@ describe('business settings', () => {
       default_language: 'ar',
       calendar: 'gregorian',
       tax_rule: null,
+      official_name_ar: null,
+      official_name_en: null,
+      logo_file_id: null,
       overridden: [],
       updated_at: null,
     });

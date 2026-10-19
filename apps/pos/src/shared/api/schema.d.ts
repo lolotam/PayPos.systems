@@ -539,6 +539,22 @@ export interface paths {
         patch: operations["updateBusinessSettings"];
         trace?: never;
     };
+    "/v1/businesses/{businessId}/settings/identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateBusinessIdentityNames"];
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/settings/discount-limit": {
         parameters: {
             query?: never;
@@ -5420,6 +5436,10 @@ export interface components {
             /** @enum {string} */
             scope: "COMPANY" | "BUSINESS" | "BRANCH";
         };
+        BusinessIdentityNames: {
+            official_name_ar: string | null;
+            official_name_en: string | null;
+        };
         BusinessSettings: {
             /** Format: uuid */
             business_id: string;
@@ -5427,9 +5447,17 @@ export interface components {
             calendar: components["schemas"]["Calendar"];
             limit_bps: number | null;
             tax_rule: components["schemas"]["TaxRule"] | null;
+            official_name_ar: string | null;
+            official_name_en: string | null;
+            /** Format: uuid */
+            logo_file_id: string | null;
             overridden: ("default_language" | "calendar" | "limit_bps")[];
             /** Format: date-time */
             updated_at: string | null;
+        };
+        UpdateBusinessIdentityNamesInput: {
+            official_name_ar?: string | null;
+            official_name_en?: string | null;
         };
         UpdateBusinessSettingsInput: {
             default_language?: components["schemas"]["Language"] | null;
@@ -6992,6 +7020,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BusinessSettings"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateBusinessIdentityNames: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBusinessIdentityNamesInput"];
+            };
+        };
+        responses: {
+            /** @description Business settings result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessIdentityNames"];
                 };
             };
             /** @description The API error envelope */

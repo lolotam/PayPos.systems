@@ -2550,6 +2550,63 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/settings/identity": {
+      "patch": {
+        "operationId": "updateBusinessIdentityNames",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business settings result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BusinessIdentityNames"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBusinessIdentityNamesInput"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/settings/discount-limit": {
       "post": {
         "operationId": "setBusinessDiscountDefault",
@@ -26188,6 +26245,23 @@
           "scope"
         ]
       },
+      "BusinessIdentityNames": {
+        "type": "object",
+        "properties": {
+          "official_name_ar": {
+            "nullable": true,
+            "type": "string"
+          },
+          "official_name_en": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "official_name_ar",
+          "official_name_en"
+        ]
+      },
       "BusinessSettings": {
         "type": "object",
         "properties": {
@@ -26216,6 +26290,20 @@
               }
             ]
           },
+          "official_name_ar": {
+            "nullable": true,
+            "type": "string"
+          },
+          "official_name_en": {
+            "nullable": true,
+            "type": "string"
+          },
+          "logo_file_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
           "overridden": {
             "type": "array",
             "items": {
@@ -26240,9 +26328,31 @@
           "calendar",
           "limit_bps",
           "tax_rule",
+          "official_name_ar",
+          "official_name_en",
+          "logo_file_id",
           "overridden",
           "updated_at"
         ]
+      },
+      "UpdateBusinessIdentityNamesInput": {
+        "type": "object",
+        "properties": {
+          "official_name_ar": {
+            "nullable": true,
+            "minLength": 1,
+            "maxLength": 255,
+            "type": "string"
+          },
+          "official_name_en": {
+            "nullable": true,
+            "minLength": 1,
+            "maxLength": 255,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "minProperties": 1
       },
       "UpdateBusinessSettingsInput": {
         "type": "object",
