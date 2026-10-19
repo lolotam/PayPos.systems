@@ -11,6 +11,7 @@ import { OfficialNamesForm } from '../ui/official-names-form';
 
 export function IdentityEditor(props: {
   companyId: string;
+  userId: string;
   showNames: boolean;
   baseline: OfficialNames | null;
   saved: OfficialNames | null;
@@ -48,6 +49,7 @@ export function IdentityEditor(props: {
       ) : null}
       <LogoPanel
         companyId={props.companyId}
+        userId={props.userId}
         logoId={props.logoId}
         alt={props.alt}
         phase={props.phase}

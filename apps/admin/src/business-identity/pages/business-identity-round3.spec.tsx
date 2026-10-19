@@ -106,6 +106,35 @@ it('keeps a saved name when an older read resolves afterwards', async () => {
   expect(cached<BusinessSettings>(client, 'business-settings')?.official_name_en).toBe('New shop');
 });
 
+it('shows another admin name after save and does not send that name back', async () => {
+  let reads = 0;
+  api.GET.mockImplementation(async () => {
+    reads += 1;
+    const nameEn = reads === 1 ? 'Mine' : 'Theirs';
+    const nameAr = reads === 1 ? 'Alpha' : 'Saved ar';
+    return { data: { ...settings(), official_name_ar: nameAr, official_name_en: nameEn } };
+  });
+  api.PATCH.mockResolvedValue({
+    data: { official_name_ar: 'Saved ar', official_name_en: 'Mine' },
+  });
+  renderPage();
+  fireEvent.change(await screen.findByLabelText(t('en', 'businessIdentity.nameAr')), {
+    target: { value: 'Saved ar' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: save }));
+  await screen.findByText(t('en', 'businessIdentity.saved'));
+  await waitFor(() => {
+    const english = screen.getByLabelText(t('en', 'businessIdentity.nameEn')) as HTMLInputElement;
+    expect(english.value).toBe('Theirs');
+  });
+  fireEvent.change(screen.getByLabelText(t('en', 'businessIdentity.nameAr')), {
+    target: { value: 'Next ar' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: save }));
+  await waitFor(() => expect(api.PATCH).toHaveBeenCalledTimes(2));
+  expect(api.PATCH.mock.calls[1]?.[1].body).toEqual({ official_name_ar: 'Next ar' });
+});
+
 it('keeps a dirty official name when a refetch changes the other name', async () => {
   let current = settings();
   api.GET.mockImplementation(async () => ({ data: current }));

@@ -40,6 +40,7 @@ export function BusinessIdentityPage(scope: Scope) {
       {showEditor ? (
         <IdentityEditor
           companyId={scope.companyId}
+          userId={scope.userId}
           showNames={namesVisible}
           baseline={baseline}
           saved={names.data ?? null}

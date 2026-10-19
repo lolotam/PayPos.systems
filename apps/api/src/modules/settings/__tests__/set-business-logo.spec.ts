@@ -237,7 +237,6 @@ it('refuses another business, a staff document, and a file the actor does not ow
   await expectLogoRefusal(f, put, { createdBy: f.managerId });
   await expectLogoRefusal(f, put, { branchId: f.branch });
   await expectLogoRefusal(f, put, { requiredPermission: 'read:files:business' });
-  await expectLogoRefusal(f, put, { requiredPermission: 'read:settings:business' });
   await expectLogoRefusal(f, put, { contentType: 'application/pdf' });
   await expectLogoRefusal(f, put, {
     contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

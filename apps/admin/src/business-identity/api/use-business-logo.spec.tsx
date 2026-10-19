@@ -158,6 +158,33 @@ it('removes the logo by putting a null file id', async () => {
 
 const fileB = '01920000-0000-7000-8000-0000000000f2';
 
+it('does not store or confirm a logo aborted after the ticket', async () => {
+  let releaseTicket = () => {};
+  api.POST.mockImplementation((path: string) => {
+    if (path !== '/v1/businesses/{businessId}/files/uploads') {
+      return Promise.resolve({ data: { id: fileId, status: 'QUEUED' } });
+    }
+    return new Promise((resolve) => {
+      releaseTicket = () => resolve({ data: ticket });
+    });
+  });
+  const { result, unmount } = renderLogo();
+  act(() => {
+    void result.current.upload.mutate(png());
+  });
+  await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(1));
+  unmount();
+  releaseTicket();
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(fetch).not.toHaveBeenCalled();
+  expect(api.POST.mock.calls.map((call) => call[0])).toEqual([
+    '/v1/businesses/{businessId}/files/uploads',
+  ]);
+  expect(api.POST.mock.calls[0]?.[1].signal.aborted).toBe(true);
+});
+
 it('does not bind an upload that was left behind when a newer one finishes', async () => {
   let releaseA = () => {};
   const gateA = new Promise<void>((resolve) => {

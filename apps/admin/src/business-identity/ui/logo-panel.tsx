@@ -27,6 +27,7 @@ function closeConfirmAfterRemoval(
 
 type LogoPanelProps = {
   companyId: string;
+  userId: string;
   logoId: string | null | undefined;
   alt: string;
   phase: LogoPhase;
@@ -41,6 +42,7 @@ type LogoPanelProps = {
 
 export function LogoPanel({
   companyId,
+  userId,
   logoId,
   alt,
   phase,
@@ -65,8 +67,9 @@ export function LogoPanel({
       <h2 className="text-lg font-semibold">{t(locale, 'businessIdentity.logoTitle')}</h2>
       <p className="text-sm text-muted-foreground">{t(locale, 'businessIdentity.logoHint')}</p>
       <LogoPreview
-        key={`${companyId}:${previewId ?? ''}`}
+        key={`${companyId}:${userId}:${previewId ?? ''}`}
         companyId={companyId}
+        userId={userId}
         fileId={previewId}
         alt={alt}
       />

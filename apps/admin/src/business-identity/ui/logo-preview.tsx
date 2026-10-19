@@ -1,40 +1,37 @@
 'use client';
 
 import { t } from '@pospay/i18n';
-import { useEffect, useState } from 'react';
+import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
-import { issueLogoDownload } from '../api/identity-client';
+import { useLogoDownload } from '../api/use-logo-download';
 import { identityFailureMessage } from '../model/identity-failure';
 
 export function LogoPreview({
   companyId,
+  userId,
   fileId,
   alt,
 }: {
   companyId: string;
+  userId: string;
   fileId: string | null;
   alt: string;
 }) {
   const locale = useLocale();
-  const [url, setUrl] = useState<string | null>(null);
-  const [failure, setFailure] = useState<unknown>(null);
-  useEffect(() => {
-    if (!fileId) return undefined;
-    let cancelled = false;
-    void issueLogoDownload(companyId, fileId).then(
-      (download) => {
-        if (!cancelled) setUrl(download.download_url);
-      },
-      (error: unknown) => {
-        if (!cancelled) setFailure(error);
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [companyId, fileId]);
+  const download = useLogoDownload(companyId, userId, fileId);
   if (!fileId) return null;
-  if (failure) return <p role="alert">{identityFailureMessage(failure, locale)}</p>;
-  if (!url) return <p role="status">{t(locale, 'admin.loading')}</p>;
-  return <img src={url} alt={alt} className="max-h-40 max-w-full" />;
+  if (download.failure) {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <p role="alert">{identityFailureMessage(download.failure, locale)}</p>
+        {download.refused ? null : (
+          <Button type="button" variant="outline" onClick={() => void download.retry()}>
+            {t(locale, 'pos.retry')}
+          </Button>
+        )}
+      </div>
+    );
+  }
+  if (!download.url) return <p role="status">{t(locale, 'admin.loading')}</p>;
+  return <img src={download.url} alt={alt} className="max-h-40 max-w-full" />;
 }

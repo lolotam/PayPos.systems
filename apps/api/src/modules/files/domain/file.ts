@@ -49,6 +49,18 @@ export function uploadAuthority(ownerModule: string): string {
 }
 
 /**
+ * صلاحية قراءة الملف وقت الحالة والتنزيل. ملفات الإعدادات دايمًا على إدارة هوية النشاط (BI-Q5)،
+ * حتى الصفوف القديمة المخزّنة قبل 27h-5 بصلاحية قراءة الإعدادات، من غير ترحيل للبيانات.
+ *
+ * @param ownerModule الوحدة المالكة
+ * @param storedPermission الصلاحية المحفوظة على الصف
+ * @returns صلاحية القراءة الفعالة: manage:business-identity:business للإعدادات، وإلا القيمة المحفوظة
+ */
+export function effectiveReadPermission(ownerModule: string, storedPermission: string): string {
+  return ownerModule === 'settings' ? uploadAuthority(ownerModule) : storedPermission;
+}
+
+/**
  * يثبت الصلاحية المحفوظة على الملف حتى لا يخزّن نوع معروف بصلاحية غير صلاحيته.
  * وثائق الموظفين تبقى على read:files:business (PR 7a)، وملفات الإعدادات على manage:business-identity:business (BI-Q5).
  *

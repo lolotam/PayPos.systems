@@ -46,6 +46,7 @@ export function OfficialNamesForm({
   onSave,
 }: {
   baseline: OfficialNames | null;
+  /** صف الهوية بعد refreshBusinessIdentity، مش جسم الـ PATCH، عشان اسم أدمن تاني ما يترجعش. */
   saved: OfficialNames | null;
   pending: boolean;
   onSave: (body: UpdateBusinessIdentityNamesInput) => void;

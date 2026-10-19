@@ -8,8 +8,9 @@ function statusPermission(
   row: { owner_module: string; created_by: string; required_permission: string },
   userId: string,
 ): string {
-  // شعار النشاط بيتقرأ بالصلاحية المحفوظة عليه (هوية النشاط، BI-Q5). رافع وثيقة الموظف لسه بيتأكد بإدارة الملفات.
-  if (row.owner_module === 'settings') return row.required_permission;
+  // الاستعلام ممنوع يستورد domain، فنفس قاعدة effectiveReadPermission بتتكرر هنا.
+  // ملف الإعدادات بيتقرأ بإدارة هوية النشاط حتى لو الصف القديم محفوظ بـ read:settings:business.
+  if (row.owner_module === 'settings') return 'manage:business-identity:business';
   return row.created_by === userId ? 'manage:files:business' : row.required_permission;
 }
 

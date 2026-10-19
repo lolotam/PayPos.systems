@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { readyKey, uploadAuthority, validateStoredPermission, type FileRecord } from '../file.ts';
+import {
+  effectiveReadPermission,
+  readyKey,
+  uploadAuthority,
+  validateStoredPermission,
+  type FileRecord,
+} from '../file.ts';
 const file: FileRecord = {
   id: 'file',
   businessId: 'business',
@@ -42,4 +48,14 @@ it('settings files store the identity permission and open on that permission alo
 
 it('an owner kind without a stored-permission pin is unchanged', () => {
   expect(() => validateStoredPermission('customers', 'read:customers:business')).not.toThrow();
+});
+
+it('derives a settings read from the owner module and leaves a staff document on its stored permission', () => {
+  expect(effectiveReadPermission('settings', 'read:settings:business')).toBe(
+    'manage:business-identity:business',
+  );
+  expect(effectiveReadPermission('settings', 'manage:business-identity:business')).toBe(
+    'manage:business-identity:business',
+  );
+  expect(effectiveReadPermission('staff', 'read:files:business')).toBe('read:files:business');
 });

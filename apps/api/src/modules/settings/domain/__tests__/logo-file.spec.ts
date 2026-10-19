@@ -39,6 +39,9 @@ describe('validateLogoFile', () => {
     expect(() =>
       validateLogoFile(facts({ contentType: 'image/jpeg' }), BUSINESS, ACTOR),
     ).not.toThrow();
+    expect(() =>
+      validateLogoFile(facts({ requiredPermission: 'read:settings:business' }), BUSINESS, ACTOR),
+    ).not.toThrow();
   });
 
   it('answers FILE_NOT_FOUND for every ownership or identity mismatch', () => {
@@ -50,7 +53,7 @@ describe('validateLogoFile', () => {
     expect(codeOf(facts({ branchId: OTHER }))).toBe('FILE_NOT_FOUND');
     expect(codeOf(facts({ createdBy: OTHER }))).toBe('FILE_NOT_FOUND');
     expect(codeOf(facts({ requiredPermission: 'read:files:business' }))).toBe('FILE_NOT_FOUND');
-    expect(codeOf(facts({ requiredPermission: 'read:settings:business' }))).toBe('FILE_NOT_FOUND');
+    expect(codeOf(facts({ requiredPermission: 'manage:files:business' }))).toBe('FILE_NOT_FOUND');
     expect(codeOf(facts({ contentType: 'application/pdf' }))).toBe('FILE_NOT_FOUND');
     expect(codeOf(facts({ contentType: 'image/jpg' }))).toBe('FILE_NOT_FOUND');
     expect(

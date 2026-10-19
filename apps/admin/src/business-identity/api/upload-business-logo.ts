@@ -71,6 +71,7 @@ async function confirmedUpload(
   businessId: string,
   file: File,
   contentType: RequestFileUpload['content_type'],
+  signal?: AbortSignal,
 ) {
   const header = { 'x-company-id': companyId };
   const ticket = await apiClient().POST('/v1/businesses/{businessId}/files/uploads', {
@@ -82,6 +83,7 @@ async function confirmedUpload(
       size_bytes: file.size,
       required_permission: 'manage:business-identity:business',
     },
+    ...(signal ? { signal } : {}),
   });
   if (ticket.error) throw withHttpStatus(ticket.error, ticket.response.status);
   const upload = fileUploadTicket.parse(ticket.data);
@@ -90,14 +92,18 @@ async function confirmedUpload(
     (entry): entry is [string, string] =>
       typeof entry[1] === 'string' && !browserManagedHeader.test(entry[0]),
   );
+  throwIfAborted(signal);
   const put = await fetch(upload.upload_url, {
     method: 'PUT',
     headers: Object.fromEntries(signedHeaders),
     body: file,
+    ...(signal ? { signal } : {}),
   });
   if (!put.ok) throw failure('STORAGE_UNAVAILABLE');
+  throwIfAborted(signal);
   const confirmed = await apiClient().POST('/v1/files/{id}/confirm', {
     params: { header, path: { id: upload.id } },
+    ...(signal ? { signal } : {}),
   });
   if (confirmed.error) throw withHttpStatus(confirmed.error, confirmed.response.status);
   return upload.id;
@@ -143,7 +149,10 @@ export async function uploadBusinessLogo(options: {
   const wait = options.wait ?? ((ms: number) => pause(ms, signal));
   throwIfAborted(signal);
   onPhase?.('uploading');
-  const id = await raceAbort(confirmedUpload(companyId, businessId, file, contentType), signal);
+  const id = await raceAbort(
+    confirmedUpload(companyId, businessId, file, contentType, signal),
+    signal,
+  );
   throwIfAborted(signal);
   onPhase?.('verifying');
   return pollReady(companyId, id, signal, wait);

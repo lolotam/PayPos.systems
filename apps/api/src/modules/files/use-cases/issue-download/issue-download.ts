@@ -1,4 +1,9 @@
-import { FileError, readyKey, type FileRecord } from '../../domain/file.ts';
+import {
+  effectiveReadPermission,
+  FileError,
+  readyKey,
+  type FileRecord,
+} from '../../domain/file.ts';
 import type {
   Actor,
   FileRepository,
@@ -7,7 +12,7 @@ import type {
   Clock,
 } from '../../ports/files.port.ts';
 
-// يصدر قدرة قصيرة بعد الصلاحية المحفوظة ويسجل كل قرار قبل إرجاعها.
+// يصدر قدرة قصيرة بعد صلاحية القراءة الفعالة ويسجل كل قرار قبل إرجاعها.
 export class IssueDownload {
   constructor(
     private readonly repository: FileRepository,
@@ -25,7 +30,7 @@ export class IssueDownload {
     if (file === null) throw new FileError('FILE_NOT_FOUND');
     const allowed = await this.permissions.allowed(
       actor,
-      file.requiredPermission,
+      effectiveReadPermission(file.ownerModule, file.requiredPermission),
       file.businessId,
       file.branchId,
     );

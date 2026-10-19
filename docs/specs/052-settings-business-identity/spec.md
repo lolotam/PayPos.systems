@@ -110,13 +110,14 @@ Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, a
    re-encode, metadata stripped), poll status. A settings upload is authorized with `manage:business-identity:business`
    on that business instead of `manage:files:business`, and the stored permission must equal that. Confirm and status
    for a settings file follow the same identity permission, so the delegate can see verification. Staff documents stay
-   on `manage:files:business` and `read:files:business`. Download checks the stored permission (§5.4).
+   on `manage:files:business` and `read:files:business`. The effective read permission of a settings-owned file is
+   derived from `owner_module`, so rows stored before 27h-5 need no migration.
    Binding happens in a **separate settings call** that receives only the file id (ADR-0031 pattern): settings never
    handles bytes, keys, or storage.
 3. **Bind check** inside the settings tenant transaction, after the business settings row lock, through the existing
    `files` read export (`documentFileFacts`, extended additively with `purge_started`): READY, purge neither started nor completed,
    `content_type` in PNG/JPEG, `owner_module='settings'`, `owner_entity_id` and `business_id` both equal the route's business id, no branch,
-   `required_permission='manage:business-identity:business'` (BI-Q5), `created_by` = the actor. **Order matters, so that no answer discloses a
+   `required_permission` is `manage:business-identity:business` or the legacy `read:settings:business` stored before 27h-5 (BI-Q5), `created_by` = the actor. **Order matters, so that no answer discloses a
    file the caller may not know:** (a) first every ownership and identity check above (purge, `owner_module`,
    `owner_entity_id`, `business_id`, branch, `created_by`, `required_permission`, `content_type`); any mismatch answers
    `FILE_NOT_FOUND`, identical to an unknown id; (b) only then the status: PENDING/VERIFYING answers `FILE_NOT_READY`. There is no size check at the bind: a READY
@@ -214,6 +215,7 @@ Contracts in `packages/contracts` (Zod, strict, snake_case, listed in `openapi.t
   That permission replaces both the 27h-2 stored pin `read:settings:business` and the `manage:files:business` upload gate
   for `owner_module='settings'` only (§5.1 item 2). A holder of `manage:files:business` without the identity permission
   is refused. `read:settings:business` stays the permission of `GET …/settings` and is not required to manage the logo.
+  The effective read permission of a settings-owned file is derived from `owner_module`, so rows stored before 27h-5 need no migration.
   Staff documents keep the 13b files rule. The bind still accepts only a file the actor uploaded herself (§5.1 item 3).
   Removal (`file_id: null`) needs the identity permission only.
 - Live recheck of `manage:business-identity:business` inside the transaction after the settings row lock (the
