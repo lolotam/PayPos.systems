@@ -13,6 +13,7 @@ const put = vi.hoisted(() => vi.fn());
 const state = vi.hoisted(() => ({
   number: 15 as number | null,
   canType: true,
+  canEdit: true,
   refuse: null as { code: string; message_en: string; message_ar: string } | null,
 }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get, PUT: put }) }));
@@ -116,8 +117,12 @@ beforeEach(() => {
   installDialog();
   state.number = 15;
   state.canType = true;
+  state.canEdit = true;
   state.refuse = null;
   get.mockImplementation((path: string) => {
+    if (path === '/v1/businesses/{businessId}/employees/{employeeId}/employee-number-capability') {
+      return Promise.resolve({ data: { can_edit_number: state.canEdit } });
+    }
     if (path === '/v1/businesses/{businessId}/employee-number-capability') {
       return Promise.resolve({ data: { can_type_number: state.canType } });
     }
@@ -178,16 +183,16 @@ it('keeps the old number when the server says it is taken', async () => {
 });
 
 it('hides edit number from a non-holder', async () => {
-  state.canType = false;
+  state.canEdit = false;
   const query = renderProfile();
   await screen.findByRole('cell', { name: '15' });
   await waitFor(() => {
     const entry = query.getQueryCache().find({
-      queryKey: ['employee-number-capability'],
+      queryKey: ['employee-number-edit-capability'],
       exact: false,
     });
     expect(entry?.state.status).toBe('success');
-    expect(entry?.state.data).toEqual({ can_type_number: false });
+    expect(entry?.state.data).toEqual({ can_edit_number: false });
   });
   expect(screen.queryByRole('button', { name: t('en', 'staff.editNumber') })).toBeNull();
 });
@@ -220,6 +225,9 @@ it.each(['escape', 'close'] as const)('returns focus to edit number after %s', a
 it('keeps the new number when a later read still has the old one', async () => {
   let numberReads = 0;
   get.mockImplementation((path: string) => {
+    if (path === '/v1/businesses/{businessId}/employees/{employeeId}/employee-number-capability') {
+      return Promise.resolve({ data: { can_edit_number: true } });
+    }
     if (path === '/v1/businesses/{businessId}/employee-number-capability') {
       return Promise.resolve({ data: { can_type_number: true } });
     }
@@ -259,9 +267,9 @@ it('keeps the new number when a later read still has the old one', async () => {
 it('hides edit number when a capability refetch fails and the old success is kept', async () => {
   let reads = 0;
   get.mockImplementation((path: string) => {
-    if (path === '/v1/businesses/{businessId}/employee-number-capability') {
+    if (path === '/v1/businesses/{businessId}/employees/{employeeId}/employee-number-capability') {
       reads += 1;
-      if (reads === 1) return Promise.resolve({ data: { can_type_number: true } });
+      if (reads === 1) return Promise.resolve({ data: { can_edit_number: true } });
       return Promise.resolve({
         error: {
           code: 'FORBIDDEN',
@@ -284,14 +292,14 @@ it('hides edit number when a capability refetch fails and the old success is kep
   });
   const query = renderProfile();
   await screen.findByRole('button', { name: t('en', 'staff.editNumber') });
-  await query.invalidateQueries({ queryKey: ['employee-number-capability', id, id] });
+  await query.invalidateQueries({ queryKey: ['employee-number-edit-capability', id, id] });
   await waitFor(() => {
     const entry = query.getQueryCache().find({
-      queryKey: ['employee-number-capability'],
+      queryKey: ['employee-number-edit-capability'],
       exact: false,
     });
     expect(entry?.state.status).toBe('error');
-    expect(entry?.state.data).toEqual({ can_type_number: true });
+    expect(entry?.state.data).toEqual({ can_edit_number: true });
   });
   expect(screen.queryByRole('button', { name: t('en', 'staff.editNumber') })).toBeNull();
   expect(screen.queryByRole('dialog')).toBeNull();
@@ -299,7 +307,7 @@ it('hides edit number when a capability refetch fails and the old success is kep
 
 it('keeps the refusal dialog open after the capability becomes false', async () => {
   put.mockImplementation(() => {
-    state.canType = false;
+    state.canEdit = false;
     return Promise.resolve({
       error: {
         code: 'FORBIDDEN',

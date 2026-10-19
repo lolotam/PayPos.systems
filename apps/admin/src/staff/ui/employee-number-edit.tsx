@@ -3,8 +3,7 @@ import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useCallback, useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
-import { useEmployeeNumberEditRefused } from '../api/employee-number-edit-refusal';
-import { useEmployeeNumberCapability } from '../api/use-employee-number-capability';
+import { useEmployeeNumberEditCapability } from '../api/use-employee-number-edit-capability';
 import { EmployeeNumberEditForm } from './employee-number-edit-form';
 
 export function EmployeeNumberEdit({
@@ -12,22 +11,19 @@ export function EmployeeNumberEdit({
   businessId,
   userId,
   employeeId,
-  primaryBranchId,
   employeeNumber,
 }: {
   companyId: string;
   businessId: string;
   userId: string;
   employeeId: string;
-  primaryBranchId: string;
   employeeNumber: number | null;
 }) {
   const locale = useLocale();
-  const capability = useEmployeeNumberCapability(companyId, businessId, userId, primaryBranchId);
-  const refused = useEmployeeNumberEditRefused(companyId, businessId, userId, employeeId);
+  const capability = useEmployeeNumberEditCapability(companyId, businessId, userId, employeeId);
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
-  const allowed = !refused && !capability.isError && capability.data?.can_type_number === true;
+  const allowed = !capability.isError && capability.data?.can_edit_number === true;
   // الحوار المفتوح بعد الرفض بيفضل لحد ما المستخدم يقفله؛ الزرار يختفي بعد القفل بس.
   if (!allowed && !open) return null;
   return (

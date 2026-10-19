@@ -4,7 +4,7 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 import { apiClient } from '@/shared/api/client';
 import { applySavedEmployeeLists } from '../model/saved-number-page';
 import { isEmployeeNumberForbidden } from '../model/typed-employee-number';
-import { rememberEmployeeNumberEditRefusal } from './employee-number-edit-refusal';
+import { employeeNumberEditCapabilityKey } from './use-employee-number-edit-capability';
 
 // نفس بادئة use-employees حتى يظهر الرقم في العنوان والقائمة من غير تصدير مفتاح القراءة.
 function employeesRoot(companyId: string, businessId: string, userId: string) {
@@ -73,8 +73,10 @@ export function useSetEmployeeNumber(
       ),
     onError: (error) => {
       if (!isEmployeeNumberForbidden(error)) return;
-      // قدرة الإنشاء بتشوف الفرع الأساسي بس؛ رفض التعديل يتسجل للموظف ده لحد ما مرفقاتُه تتغير.
-      rememberEmployeeNumberEditRefusal(client, companyId, businessId, userId, employeeId);
+      // رفض التعديل يعيد قراءة قدرة هذا الموظف؛ قدرة الإنشاء تبقى على الفرع الأساسي.
+      void client.invalidateQueries({
+        queryKey: employeeNumberEditCapabilityKey(companyId, userId, businessId, employeeId),
+      });
       void client.invalidateQueries({
         queryKey: ['employee-number-capability', companyId, businessId],
       });

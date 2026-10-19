@@ -32,7 +32,6 @@ export function EmployeeProfileHeading({
           businessId={businessId}
           userId={userId}
           employeeId={employee.id}
-          primaryBranchId={employee.primary_branch_id}
           employeeNumber={employee.employee_number}
         />
       ) : null}

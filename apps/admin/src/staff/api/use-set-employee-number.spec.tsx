@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { useSetEmployeeNumber } from './use-set-employee-number';
+import { employeeNumberEditCapabilityKey } from './use-employee-number-edit-capability';
 
 const put = vi.hoisted(() => vi.fn());
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ PUT: put }) }));
@@ -57,7 +58,9 @@ it('invalidates number capability after a forbidden edit', async () => {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const capability = ['employee-number-capability', id, id, id];
+  const editCapability = employeeNumberEditCapabilityKey(id, id, id, id);
   client.setQueryData(capability, { can_type_number: true });
+  client.setQueryData(editCapability, { can_edit_number: true });
   const refusal = {
     code: 'FORBIDDEN',
     message_en: 'Synthetic refusal',
@@ -69,6 +72,7 @@ it('invalidates number capability after a forbidden edit', async () => {
     await expect(hook.result.current.mutateAsync(7)).rejects.toEqual(refusal);
   });
   expect(client.getQueryState(capability)?.isInvalidated).toBe(true);
+  expect(client.getQueryState(editCapability)?.isInvalidated).toBe(true);
 });
 
 function hangFirst(stale: unknown) {

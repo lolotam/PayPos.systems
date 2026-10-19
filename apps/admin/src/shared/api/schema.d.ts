@@ -872,6 +872,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/employees/{employeeId}/employee-number-capability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Lock-free FR-006 read of one employee. can_edit_number is true only when readEmployeeNumberAccess would return null for that employee business and every current attachment: the primary branch, even after its attachment has ended, plus each attachment that is still current, including one whose end date is in the future. Missing manage:employee-number:company or any DENY returns false, not 403. An unknown, foreign, soft-deleted, or wrong-business employee is NOT_FOUND. FEATURE_DISABLED is an error. No Idempotency-Key. */
+        get: operations["employeeNumberEditCapability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/schedules": {
         parameters: {
             query?: never;
@@ -8306,6 +8323,69 @@ export interface operations {
             };
             /** @description Bilingual refusal */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeNumberEditCapability: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether this caller may edit that employee number */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        can_edit_number: boolean;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
