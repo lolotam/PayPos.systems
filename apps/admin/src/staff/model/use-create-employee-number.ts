@@ -1,6 +1,6 @@
 'use client';
 import type { CreateEmployeeInput } from '@pospay/contracts';
-import { useEffect } from 'react';
+import { useEffect, type FormEvent } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -29,6 +29,23 @@ export function submitCreateEmployee(
   return next;
 }
 
+/** الحفظ أثناء التحميل بيضيع الرقم المكتوب؛ والمسودة الباطلة المخفية بتتشال قبل التحقق عشان ما توقفوش. */
+export function submitCreateEmployeeForm(
+  form: UseFormReturn<CreateEmployeeInput>,
+  shown: boolean,
+  pending: boolean,
+  save: (values: CreateEmployeeInput) => void,
+): (event: FormEvent<HTMLFormElement>) => void {
+  return (event) => {
+    if (pending) {
+      event.preventDefault();
+      return;
+    }
+    if (!shown) form.unregister('employee_number');
+    void form.handleSubmit((values) => save(submitCreateEmployee(shown, values)))(event);
+  };
+}
+
 export function useCreateEmployeeNumber({
   companyId,
   businessId,
@@ -41,12 +58,14 @@ export function useCreateEmployeeNumber({
 }: NumberDraft) {
   const locale = useLocale();
   const capability = useEmployeeNumberCapability(companyId, businessId, userId, branchId);
-  const shown = capability.data?.can_type_number === true;
+  const shown = !capability.isError && capability.data?.can_type_number === true;
+  // مفتاح الفرع الحالي لسه من غير رد؛ التحميل مش رفض، بس الحفظ يستنى عشان الرقم المكتوب ما يضيعش.
+  const pending = branchId.length > 0 && !capability.isError && capability.data === undefined;
   const blocked = capability.isError || capability.data?.can_type_number === false;
   useEffect(() => {
     // التحميل بين فرعين مسموحين مش رفض؛ المسح هنا كان بيمسح الرقم قبل ما الفرع الجديد يرد.
     if (!blocked) return;
-    form.resetField('employee_number');
+    form.unregister('employee_number');
   }, [blocked, form]);
   useEffect(() => {
     onVisibility?.(shown);
@@ -55,5 +74,5 @@ export function useCreateEmployeeNumber({
     shown && isEmployeeNumberRefusal(serverError, numberSent)
       ? envelopeMessage(serverError, locale)
       : null;
-  return { shown, message };
+  return { shown, pending, message };
 }

@@ -148,6 +148,64 @@ it('hides the start button after an already-set refusal refetches', async () => 
   expect(screen.queryByRole('button', { name: t('en', 'staff.startNumbering') })).toBeNull();
 });
 
+it('hides the start button from the cache before a slow refetch returns', async () => {
+  let reads = 0;
+  get.mockImplementation(() => {
+    reads += 1;
+    if (reads === 1) return Promise.resolve({ data: openCounter });
+    return new Promise(() => undefined);
+  });
+  put.mockResolvedValue({
+    error: {
+      code: 'EMPLOYEE_NUMBER_START_ALREADY_SET',
+      message_en: 'Synthetic already set',
+      message_ar: t('ar', 'errors.EMPLOYEE_NUMBER_START_ALREADY_SET'),
+    },
+  });
+  const query = renderDialog();
+  fireEvent.click(await screen.findByRole('button', { name: t('en', 'staff.startNumbering') }));
+  fireEvent.change(screen.getByLabelText(t('en', 'staff.startNumberField')), {
+    target: { value: '8' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.saveStartNumber') }));
+  await waitFor(() => {
+    expect(reads).toBeGreaterThanOrEqual(2);
+    expect(query.getQueryData<EmployeeNumbering>(['employee-numbering', id, id])).toMatchObject({
+      can_manage: false,
+      next_number: 4,
+      start_number: null,
+    });
+  });
+  expect(screen.queryByRole('button', { name: t('en', 'staff.startNumbering') })).toBeNull();
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('hides the start button when a refetch fails and the old success is kept', async () => {
+  let reads = 0;
+  get.mockImplementation(() => {
+    reads += 1;
+    if (reads === 1) return Promise.resolve({ data: openCounter });
+    return Promise.resolve({
+      error: {
+        code: 'FORBIDDEN',
+        message_en: 'Synthetic refusal',
+        message_ar: t('ar', 'errors.FORBIDDEN'),
+      },
+      response: { status: 403 },
+    });
+  });
+  const query = renderDialog();
+  await screen.findByRole('button', { name: t('en', 'staff.startNumbering') });
+  await query.invalidateQueries({ queryKey: ['employee-numbering', id, id] });
+  await waitFor(() => {
+    const entry = query.getQueryCache().find({ queryKey: ['employee-numbering', id, id] });
+    expect(entry?.state.status).toBe('error');
+    expect(entry?.state.data).toMatchObject({ can_manage: true });
+  });
+  expect(screen.queryByRole('button', { name: t('en', 'staff.startNumbering') })).toBeNull();
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+
 it('does not save an invalid start number', async () => {
   get.mockResolvedValue({ data: openCounter });
   renderDialog();

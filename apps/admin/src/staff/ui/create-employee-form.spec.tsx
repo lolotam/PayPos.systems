@@ -9,7 +9,7 @@ vi.mock('../api/use-employee-name-matches', () => ({
   useEmployeeNameMatches: () => ({ mutateAsync: state.check }),
 }));
 vi.mock('../api/use-employee-number-capability', () => ({
-  useEmployeeNumberCapability: () => ({ data: undefined }),
+  useEmployeeNumberCapability: () => ({ data: { can_type_number: false }, isError: false }),
 }));
 const empty = { matches: [], visible_total: 0, hidden_exists: false };
 const duplicate = { matches: [], visible_total: 0, hidden_exists: true };

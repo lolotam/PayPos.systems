@@ -25,10 +25,12 @@ export function EmployeeNumberEdit({
   const capability = useEmployeeNumberCapability(companyId, businessId, userId, primaryBranchId);
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
-  if (capability.data?.can_type_number !== true) return null;
+  const allowed = !capability.isError && capability.data?.can_type_number === true;
+  // الحوار المفتوح بعد الرفض بيفضل لحد ما المستخدم يقفله؛ الزرار يختفي بعد القفل بس.
+  if (!allowed && !open) return null;
   return (
     <div className="flex flex-col gap-2">
-      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
+      <Button type="button" variant="outline" disabled={!allowed} onClick={() => setOpen(true)}>
         {t(locale, 'staff.editNumber')}
       </Button>
       {open ? (
@@ -38,6 +40,7 @@ export function EmployeeNumberEdit({
           userId={userId}
           employeeId={employeeId}
           employeeNumber={employeeNumber}
+          readOnly={!allowed}
           onClose={close}
         />
       ) : null}

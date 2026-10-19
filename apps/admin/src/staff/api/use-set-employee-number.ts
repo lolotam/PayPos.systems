@@ -1,7 +1,8 @@
 'use client';
-import { employeeNumberView, type EmployeeDetail, type EmployeePage } from '@pospay/contracts';
+import { employeeNumberView, type EmployeeDetail } from '@pospay/contracts';
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
+import { applySavedEmployeeLists } from '../model/saved-number-page';
 import { isEmployeeNumberForbidden } from '../model/typed-employee-number';
 
 // نفس بادئة use-employees حتى يظهر الرقم في العنوان والقائمة من غير تصدير مفتاح القراءة.
@@ -9,7 +10,7 @@ function employeesRoot(companyId: string, businessId: string, userId: string) {
   return ['employees', companyId, businessId, userId] as const;
 }
 
-function rememberEmployeeNumber(
+async function rememberEmployeeNumber(
   client: QueryClient,
   companyId: string,
   businessId: string,
@@ -18,21 +19,16 @@ function rememberEmployeeNumber(
   employeeNumber: number,
 ) {
   const root = employeesRoot(companyId, businessId, userId);
-  client.setQueryData<EmployeeDetail>([...root, 'detail', employeeId], (current) =>
+  const detailKey = [...root, 'detail', employeeId];
+  // رد أقدم لسه في الطريق بيتلغى قبل الكتابة، عشان ما يرجعش يمسح الرقم الجديد.
+  await client.cancelQueries({ queryKey: detailKey });
+  await client.cancelQueries({ queryKey: [...root, 'list'] });
+  client.setQueryData<EmployeeDetail>(detailKey, (current) =>
     current ? { ...current, employee_number: employeeNumber } : current,
   );
-  client.setQueriesData<EmployeePage>({ queryKey: [...root, 'list'] }, (current) =>
-    current
-      ? {
-          ...current,
-          items: current.items.map((item) =>
-            item.id === employeeId ? { ...item, employee_number: employeeNumber } : item,
-          ),
-        }
-      : current,
-  );
-  // الرقم الجديد ظاهر من الكاش؛ إعادة الجلب الفورية كانت بتستبدله لو الرد رجع قديماً أو اتعلّق.
-  void client.invalidateQueries({ queryKey: [...root, 'list'], refetchType: 'none' });
+  applySavedEmployeeLists(client, root, employeeId, employeeNumber);
+  void client.invalidateQueries({ queryKey: detailKey });
+  void client.invalidateQueries({ queryKey: [...root, 'list'] });
   void client.invalidateQueries({ queryKey: ['employee-numbers', companyId] });
   // نفس شاشة الأرقام: نسخ الحضور والمؤدين المقفولة بتتشال، والمفتوحة بتتجاب من غير انتظار.
   for (const prefix of ['attendance-actions', 'session-performers', 'session-performer-facts']) {

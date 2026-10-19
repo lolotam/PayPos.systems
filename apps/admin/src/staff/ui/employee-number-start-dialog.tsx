@@ -17,7 +17,8 @@ export function EmployeeNumberStartDialog({
   const query = useEmployeeNumbering(companyId, userId);
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
-  if (query.data?.can_manage !== true) return null;
+  const numbering = query.isError ? undefined : query.data;
+  if (!numbering || numbering.can_manage !== true) return null;
   return (
     <div className="flex flex-col gap-2">
       <Button type="button" variant="outline" onClick={() => setOpen(true)}>
@@ -27,7 +28,7 @@ export function EmployeeNumberStartDialog({
         <EmployeeNumberStartForm
           companyId={companyId}
           userId={userId}
-          nextNumber={query.data.next_number}
+          nextNumber={numbering.next_number}
           onClose={close}
         />
       ) : null}

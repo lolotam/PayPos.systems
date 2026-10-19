@@ -9,7 +9,10 @@ import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import { submitCreateEmployee, useCreateEmployeeNumber } from '../model/use-create-employee-number';
+import {
+  submitCreateEmployeeForm,
+  useCreateEmployeeNumber,
+} from '../model/use-create-employee-number';
 import { useNameCheckedSubmit } from '../model/use-name-checked-submit';
 import { DuplicateNameWarning } from './duplicate-name-warning';
 import { EmployeeContractFields } from './employee-contract-fields';
@@ -63,8 +66,8 @@ export function CreateEmployeeForm(props: CreateEmployeeFormProps) {
   return (
     <FormProvider {...form}>
       <form
-        onSubmit={form.handleSubmit((values) =>
-          submit.submit(submitCreateEmployee(number.shown, values)),
+        onSubmit={submitCreateEmployeeForm(form, number.shown, number.pending, (values) =>
+          submit.submit(values),
         )}
         className="flex flex-col gap-3 text-start"
       >
@@ -76,7 +79,9 @@ export function CreateEmployeeForm(props: CreateEmployeeFormProps) {
           <EmployeePlacementFields branches={props.branches} />
           <EmployeeContractFields />
           <EmployeeNumberField shown={number.shown} message={number.message} />
-          <Button type="submit">{t(locale, 'staff.create')}</Button>
+          <Button type="submit" disabled={number.pending}>
+            {t(locale, 'staff.create')}
+          </Button>
         </fieldset>
         {submit.warning ? (
           <DuplicateNameWarning

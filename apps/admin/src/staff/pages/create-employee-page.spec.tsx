@@ -17,7 +17,8 @@ vi.mock('../api/use-employee-name-matches', () => ({
 }));
 vi.mock('../api/use-employee-number-capability', () => ({
   useEmployeeNumberCapability: () => ({
-    data: state.canType ? { can_type_number: true } : undefined,
+    data: { can_type_number: state.canType },
+    isError: false,
   }),
 }));
 vi.mock('../api/use-create-employee', () => ({

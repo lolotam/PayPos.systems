@@ -1,5 +1,5 @@
 'use client';
-import { employeeNumbering } from '@pospay/contracts';
+import { employeeNumbering, type EmployeeNumbering } from '@pospay/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 
@@ -51,6 +51,10 @@ export function useSetEmployeeNumberStart(companyId: string, userId: string) {
     },
     onError: (error) => {
       if (!startAlreadySet(error)) return;
+      // الرفض معناه إن البداية اتسجلت؛ الزرار يتقفل من الكاش فوراً حتى لو إعادة الجلب اتأخرت.
+      client.setQueryData<EmployeeNumbering>(key, (current) =>
+        current ? { ...current, can_manage: false } : current,
+      );
       void client.invalidateQueries({ queryKey: key });
     },
   });

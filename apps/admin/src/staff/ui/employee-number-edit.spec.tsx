@@ -239,7 +239,10 @@ it('keeps the new number when a later read still has the old one', async () => {
       response: { status: 404 },
     });
   });
-  put.mockResolvedValue({ data: { employee_id: id, employee_number: 7 } });
+  put.mockImplementation(() => {
+    state.number = 7;
+    return Promise.resolve({ data: { employee_id: id, employee_number: 7 } });
+  });
   renderProfile(<CompanyNumbersProbe />);
   fireEvent.click(await screen.findByRole('button', { name: t('en', 'staff.editNumber') }));
   fireEvent.change(screen.getByLabelText(t('en', 'staff.employeeNumber')), {
@@ -250,5 +253,89 @@ it('keeps the new number when a later read still has the old one', async () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByRole('cell', { name: '7' })).toBeTruthy();
     expect(numberReads).toBeGreaterThan(1);
+  });
+});
+
+it('hides edit number when a capability refetch fails and the old success is kept', async () => {
+  let reads = 0;
+  get.mockImplementation((path: string) => {
+    if (path === '/v1/businesses/{businessId}/employee-number-capability') {
+      reads += 1;
+      if (reads === 1) return Promise.resolve({ data: { can_type_number: true } });
+      return Promise.resolve({
+        error: {
+          code: 'FORBIDDEN',
+          message_en: 'Synthetic refusal',
+          message_ar: t('ar', 'errors.FORBIDDEN'),
+        },
+        response: { status: 403 },
+      });
+    }
+    if (path === '/v1/businesses/{businessId}/employees/{employeeId}') {
+      return Promise.resolve({ data: detail() });
+    }
+    if (path === '/v1/businesses/{businessId}/employees') {
+      return Promise.resolve({ data: { items: [listItem()], next_cursor: null } });
+    }
+    return Promise.resolve({
+      error: { message_en: 'Synthetic missing', message_ar: 'Synthetic missing' },
+      response: { status: 404 },
+    });
+  });
+  const query = renderProfile();
+  await screen.findByRole('button', { name: t('en', 'staff.editNumber') });
+  await query.invalidateQueries({ queryKey: ['employee-number-capability', id, id] });
+  await waitFor(() => {
+    const entry = query.getQueryCache().find({
+      queryKey: ['employee-number-capability'],
+      exact: false,
+    });
+    expect(entry?.state.status).toBe('error');
+    expect(entry?.state.data).toEqual({ can_type_number: true });
+  });
+  expect(screen.queryByRole('button', { name: t('en', 'staff.editNumber') })).toBeNull();
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('keeps the refusal dialog open after the capability becomes false', async () => {
+  put.mockImplementation(() => {
+    state.canType = false;
+    return Promise.resolve({
+      error: {
+        code: 'FORBIDDEN',
+        message_en: 'Synthetic refusal',
+        message_ar: t('ar', 'errors.FORBIDDEN'),
+      },
+    });
+  });
+  renderProfile();
+  fireEvent.click(await screen.findByRole('button', { name: t('en', 'staff.editNumber') }));
+  fireEvent.change(screen.getByLabelText(t('en', 'staff.employeeNumber')), {
+    target: { value: '8' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.saveNumber') }));
+  expect((await screen.findByRole('alert')).textContent).toBe('Synthetic refusal');
+  await waitFor(() => {
+    expect(
+      (screen.getByLabelText(t('en', 'staff.employeeNumber')) as HTMLInputElement).disabled,
+    ).toBe(true);
+  });
+  expect(screen.getByRole('dialog')).toBeTruthy();
+  expect(
+    (screen.getByRole('button', { name: t('en', 'staff.editNumber') }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
+  expect(
+    (screen.getByRole('button', { name: t('en', 'staff.saveNumber') }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
+  expect(
+    (screen.getByRole('button', { name: t('en', 'staff.closeNumber') }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.closeNumber') }));
+  await waitFor(() => {
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('button', { name: t('en', 'staff.editNumber') })).toBeNull();
   });
 });

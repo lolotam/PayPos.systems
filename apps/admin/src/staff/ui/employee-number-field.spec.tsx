@@ -149,6 +149,11 @@ it('re-asks when the primary branch changes and clears a typed number', async ()
   await chooseBranch('Denied branch');
   await waitFor(() => expect(screen.queryByLabelText(t('en', 'staff.employeeNumber'))).toBeNull());
   expect(get).toHaveBeenCalledWith(...capabilityCall(allowed, deniedBranch));
+  await waitFor(() => {
+    expect(
+      (screen.getByRole('button', { name: t('en', 'staff.create') }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
   fillIdentity();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.create') }));
   await waitFor(() => expect(save).toHaveBeenCalled());
@@ -196,6 +201,11 @@ it('keeps a typed number across allowed branches and drops it when denied', asyn
   expect(save.mock.calls[0]?.[0]).toMatchObject({ employee_number: 1005 });
   await chooseBranch('Denied branch');
   await waitFor(() => expect(screen.queryByLabelText(t('en', 'staff.employeeNumber'))).toBeNull());
+  await waitFor(() => {
+    expect(
+      (screen.getByRole('button', { name: t('en', 'staff.create') }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.create') }));
   await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
   expect(Object.hasOwn(save.mock.calls[1]?.[0] as object, 'employee_number')).toBe(false);

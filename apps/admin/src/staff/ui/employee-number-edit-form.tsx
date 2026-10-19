@@ -21,6 +21,7 @@ type EditFormProps = {
   userId: string;
   employeeId: string;
   employeeNumber: number | null;
+  readOnly: boolean;
   onClose: () => void;
 };
 
@@ -51,7 +52,9 @@ export function EmployeeNumberEditForm(props: EditFormProps) {
       className="max-w-lg"
     >
       <form
-        onSubmit={form.handleSubmit((body) => save.mutate(body.employee_number))}
+        onSubmit={form.handleSubmit((body) => {
+          if (!props.readOnly) save.mutate(body.employee_number);
+        })}
         className="flex flex-col gap-3"
       >
         <p>
@@ -64,10 +67,11 @@ export function EmployeeNumberEditForm(props: EditFormProps) {
           dir="ltr"
           inputMode="numeric"
           {...form.register('employee_number', employeeNumberFieldOptions)}
+          disabled={props.readOnly}
         />
         {alert ? <p role="alert">{alert}</p> : null}
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={save.isPending}>
+          <Button type="submit" disabled={save.isPending || props.readOnly}>
             {t(locale, 'staff.saveNumber')}
           </Button>
           <Button type="button" variant="outline" disabled={save.isPending} onClick={onClose}>
