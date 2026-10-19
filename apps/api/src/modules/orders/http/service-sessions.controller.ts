@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query, Req, UseFilters, UseGuards } from '@nestjs/common';
-import { appendServiceSessionLinesInput, editServiceLineInput, id, recordServiceSessionInput, serviceLineEditsQuery, serviceSessionDayQuery, type AppendServiceSessionLinesInput, type EditServiceLineInput, type RecordServiceSessionInput, type ServiceLineEditsQuery, type ServiceSessionDayQuery } from '@pospay/contracts';
+import { appendServiceSessionLinesInput, cancelServiceLineInput, editServiceLineInput, id, recordServiceSessionInput, serviceLineEditsQuery, serviceSessionDayQuery, type AppendServiceSessionLinesInput, type CancelServiceLineInput, type EditServiceLineInput, type RecordServiceSessionInput, type ServiceLineEditsQuery, type ServiceSessionDayQuery } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
 import { Authenticated, Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
@@ -9,6 +9,7 @@ import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts'
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { RecordServiceSessionUseCase } from '../use-cases/record-service-session/record-service-session.usecase.ts';
 import { AppendServiceSessionLinesUseCase } from '../use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
+import { CancelServiceLineUseCase } from '../use-cases/cancel-service-line/cancel-service-line.usecase.ts';
 import { EditServiceLinePriceUseCase } from '../use-cases/edit-service-line-price/edit-service-line-price.usecase.ts';
 import { SessionAdminGuard, SessionAppendGuard } from './session-access.guard.ts';
 import { SessionErrorsFilter } from './session-errors.filter.ts';
@@ -29,6 +30,7 @@ export class ServiceSessionsController {
   constructor(@Inject(RecordServiceSessionUseCase) private readonly record: RecordServiceSessionUseCase | null,
     @Inject(AppendServiceSessionLinesUseCase) private readonly appendLines: AppendServiceSessionLinesUseCase | null,
     @Inject(EditServiceLinePriceUseCase) private readonly editLine: EditServiceLinePriceUseCase | null,
+    @Inject(CancelServiceLineUseCase) private readonly cancelLine: CancelServiceLineUseCase | null,
     @Inject(BranchDayServiceSessionsQuery) private readonly dayList: BranchDayServiceSessionsQuery | null,
     @Inject(ServiceLineEditHistoryQuery) private readonly history: ServiceLineEditHistoryQuery | null) {}
   @Get()
@@ -100,6 +102,21 @@ export class ServiceSessionsController {
     @Idempotency() idem: IdempotencyInput, @Req() request: FastifyRequest) {
     if (this.editLine === null) throw new ApiError('NOT_READY');
     return this.editLine.execute({ ...actorOf(request), businessId, branchId, sessionId, lineId, input, key: idem.key,
+      fingerprint: fingerprint(request, input, businessId, branchId, sessionId, lineId) });
+  }
+  @Post(':sessionId/lines/:lineId/cancellation')
+  @HttpCode(200)
+  @Require('cancel:service-lines:branch', { branch: 'branchId' })
+  @RequiresFeature('orders')
+  @UseGuards(SessionAdminGuard)
+  async cancel(@Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
+    @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
+    @Param('sessionId', new ZodValidationPipe(pathId)) sessionId: string,
+    @Param('lineId', new ZodValidationPipe(pathId)) lineId: string,
+    @Body(new ZodValidationPipe(cancelServiceLineInput)) input: CancelServiceLineInput,
+    @Idempotency() idem: IdempotencyInput, @Req() request: FastifyRequest) {
+    if (this.cancelLine === null) throw new ApiError('NOT_READY');
+    return this.cancelLine.execute({ ...actorOf(request), businessId, branchId, sessionId, lineId, input, key: idem.key,
       fingerprint: fingerprint(request, input, businessId, branchId, sessionId, lineId) });
   }
 }

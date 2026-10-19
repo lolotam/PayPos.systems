@@ -16,13 +16,14 @@ beforeAll(async () => {
   for (const branch of branches.slice(1)) await f.h.owner`INSERT INTO branches(company_id,id,business_id,name_en)
     VALUES(${f.company},${branch},${f.business},'Synthetic explain branch')`;
   const data = JSON.stringify(Array.from({ length: 8000 }, (_, n) => ({
-    id: ids.newId(), line: ids.newId(), performer: ids.newId(), edit: ids.newId(), branch: branches[n % 4],
+    id: ids.newId(), line: ids.newId(), performer: ids.newId(), edit: ids.newId(), cancel: ids.newId(), branch: branches[n % 4],
     day: `2026-10-${String(5 + Math.floor(n / 4) % 10).padStart(2, '0')}`,
     at: `2026-10-${String(5 + Math.floor(n / 4) % 10).padStart(2, '0')}T08:${String(Math.floor(n / 40) % 60).padStart(2, '0')}:00.123456Z`,
     late: n % 23 === 0, append_late: n % 29 === 0,
   })));
   await seed(data, sample.session.id, must(sample.session.lines[0]).id);
-  for (const table of ['service_sessions', 'service_lines', 'line_performers', 'service_line_edits']) await f.h.owner.unsafe(`ANALYZE ${table}`);
+  await seedCancellations(data);
+  for (const table of ['service_sessions', 'service_lines', 'line_performers', 'service_line_edits', 'service_line_cancellations']) await f.h.owner.unsafe(`ANALYZE ${table}`);
 });
 afterAll(async () => { await f?.close(); });
 
@@ -59,6 +60,21 @@ async function seed(data: string, session: string, line: string) {
   });
 }
 
+async function seedCancellations(data: string) {
+  await f.h.owner.begin(async (tx) => {
+    await tx`UPDATE service_lines AS l SET status='CANCELLED', revision=l.revision+1
+      FROM jsonb_to_recordset(${data}::text::jsonb) r(line uuid)
+      WHERE l.company_id=${f.company} AND l.id=r.line AND l.status='ACTIVE'`;
+    await tx`INSERT INTO service_line_cancellations(company_id,id,business_id,line_id,revision,previous_revision,
+      previous_price,previous_discount,previous_net,cancelled_by,cancelled_by_membership_id,cancelled_at,reason,
+      canceller_name_ar,canceller_name_en,canceller_role,canceller_role_is_system,canceller_role_name_ar,canceller_role_name_en)
+      SELECT l.company_id,r.cancel,l.business_id,l.id,l.revision,l.revision-1,l.price,l.discount,l.net,
+        l.recorded_by,l.recorded_by_membership_id,l.recorded_at,'Cancelled',NULL,'Synthetic canceller',NULL,NULL,NULL,NULL
+      FROM jsonb_to_recordset(${data}::text::jsonb) r(line uuid, cancel uuid)
+      JOIN service_lines l ON l.company_id=${f.company} AND l.id=r.line`;
+  });
+}
+
 it.each([false, true])('normal planner uses tenant day and child indexes, late=%s, first and cursor pages', async (late) => {
   const scope = { ...f.context(), userId: f.ownerId };
   const page = { date, limit: 20, ...(late ? { late: 'true' as const } : {}) };
@@ -80,7 +96,8 @@ it.each([false, true])('normal planner uses tenant day and child indexes, late=%
       expect(indexes).toContain('service_lines_session_ordinal_key');
       expect(indexes).toContain('line_performers_ordinal_key');
       expect(indexes).toContain('service_line_edits_line_fk_idx');
-      for (const table of ['service_sessions', 'service_lines', 'line_performers', 'service_line_edits']) {
+      expect(indexes.includes('slc_line_uq') || indexes.includes('slc_line_fk_idx')).toBe(true);
+      for (const table of ['service_sessions', 'service_lines', 'line_performers', 'service_line_edits', 'service_line_cancellations']) {
         expect(plan.filter((node) => node['Relation Name'] === table).every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
       }
       const pageLimit = plan.find((node) => node['Node Type'] === 'Limit');

@@ -27,6 +27,8 @@ export const serviceSessionDayLine = responseObject({
   status: z.enum(['ACTIVE', 'CANCELLED']), revision: z.number().int().positive(),
   // مشتق من وجود صف service_line_edits للسطر، ولا يُستنتج من revision.
   edited: z.boolean(),
+  // الغياب يعني أن السطر لم يُلغَ؛ اللحظة من صف التاريخ لأن السطر نفسه لا يخزّنها.
+  cancelled_at: timestamp.optional(),
   list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney,
   effective_discount_bps: z.number().int().min(0).max(10000), recorded_by: id,
   recorded_at: timestamp, late: z.boolean(), has_performer_warning: z.boolean(),

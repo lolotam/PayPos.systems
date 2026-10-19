@@ -46,6 +46,33 @@ it('SESSION_NOT_FOUND is 404 and TIP_REVISION_CONFLICT is 409 with current_revis
   expect(JSON.stringify((conflict.body as { details: object }).details)).not.toMatch(/\d\.\d{3}/);
 });
 
+const CANCEL_422 = [
+  'SESSION_LINE_ALREADY_CANCELLED', 'SESSION_CANCEL_REASON_INVALID', 'SESSION_CANCEL_BLOCKED_BY_TIP',
+  'SESSION_LINE_IDENTITY_UNKNOWN', 'SESSION_CANCELLER_MEMBERSHIP_REQUIRED', 'SESSION_LINE_NOT_CANCELLABLE',
+] as const satisfies readonly SessionErrorCode[];
+
+it.each(CANCEL_422)('cancel refusal %s is 422 with both messages even when the filter default is 400', (code) => {
+  const details = code === 'SESSION_CANCEL_BLOCKED_BY_TIP' ? { employee_ids: ['e1'] }
+    : code === 'SESSION_CANCELLER_MEMBERSHIP_REQUIRED' ? { canceller_membership_ids: ['m1'] } : undefined;
+  const sent = capture(new SessionError(code, details), 400);
+  expect(sent.status).toBe(422);
+  expect(sent.body).toMatchObject({ code, ...serviceSessionErrors[code] });
+  if (details === undefined) expect(sent.body).not.toHaveProperty('details');
+  else {
+    expect((sent.body as { details: object }).details).toEqual(details);
+    expect(Object.keys(details)).toEqual(Object.keys((sent.body as { details: object }).details));
+    expect(JSON.stringify((sent.body as { details: object }).details)).not.toMatch(/\d\.\d{3}/);
+  }
+});
+
+it('SESSION_TIME_TOO_OLD follows the caller status and is 422 by default', () => {
+  expect(capture(new SessionError('SESSION_TIME_TOO_OLD')).status).toBe(422);
+  expect(capture(new SessionError('SESSION_TIME_TOO_OLD'), 400).status).toBe(400);
+  expect(capture(new SessionError('SESSION_TIME_TOO_OLD')).body).toEqual({
+    code: 'SESSION_TIME_TOO_OLD', ...serviceSessionErrors.SESSION_TIME_TOO_OLD,
+  });
+});
+
 it('SESSION_PERFORMER_SELF_FORBIDDEN stays 403 and discount refusals keep the caller status', () => {
   expect(capture(new SessionError('SESSION_PERFORMER_SELF_FORBIDDEN')).status).toBe(403);
   expect(capture(new SessionError('SESSION_PERFORMER_SELF_FORBIDDEN'), 400).status).toBe(403);
