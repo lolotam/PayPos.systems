@@ -199,6 +199,33 @@ it('keeps create capability when an edit changes attachments only', async () => 
   expect(client.getQueryState(editKey)?.isInvalidated).toBe(true);
   expect(client.getQueryState(typeKey)?.isInvalidated).toBe(false);
 });
+it('invalidates the capability of the employee whose save started, after the hook moved to another', async () => {
+  const third = '01920000-0000-7000-8000-0000000000a4';
+  api.GET.mockResolvedValue({ data: record });
+  let finish: (value: unknown) => void = () => undefined;
+  api.PATCH.mockReturnValueOnce(new Promise((resolve) => (finish = resolve)));
+  const { wrapper, client } = setup();
+  const firstKey = ['employee-number-edit-capability', id, other, id, id];
+  const secondKey = ['employee-number-edit-capability', id, other, id, third];
+  client.setQueryData(firstKey, { can_edit_number: true });
+  client.setQueryData(secondKey, { can_edit_number: true });
+  const hook = renderHook(({ employee }) => useEmployeeEdit(id, id, other, employee), {
+    wrapper,
+    initialProps: { employee: id },
+  });
+  await waitFor(() => expect(hook.result.current.record.isSuccess).toBe(true));
+  let pending: Promise<unknown> = Promise.resolve();
+  act(() => {
+    pending = hook.result.current.save.mutateAsync({ ...terms, branch_ids: [id, other] });
+  });
+  hook.rerender({ employee: third });
+  await act(async () => {
+    finish({ data: { ...record, revision: 4, branch_ids: [id, other] } });
+    await pending;
+  });
+  expect(client.getQueryState(firstKey)?.isInvalidated).toBe(true);
+  expect(client.getQueryState(secondKey)?.isInvalidated).toBe(false);
+});
 it('preserves conflict errors and the old edit token without an automatic retry/refetch', async () => {
   const conflict = {
     code: 'EMPLOYEE_REVISION_CONFLICT',

@@ -90,22 +90,21 @@ export function useEmployeeEdit(
     mutationKey: [...queryKey, 'update'],
     retry: false,
     mutationFn: (body: UpdateEmployeeInput) => update(companyId, businessId, employeeId, body),
-    onMutate: () => ({ queryKey, listKey: key(companyId, businessId, userId) }),
+    onMutate: () => ({
+      queryKey,
+      listKey: key(companyId, businessId, userId),
+      editCapabilityKey: employeeNumberEditCapabilityKey(companyId, userId, businessId, employeeId),
+      createCapabilityKey: ['employee-number-capability', companyId, businessId],
+    }),
     onSuccess: (saved, _terms, context) => {
       const previous = client.getQueryData<EmployeeDetail>(context.queryKey);
       client.setQueryData(context.queryKey, saved);
       const tasks = [
         client.invalidateQueries({ queryKey: [...context.listKey, 'list'] }),
-        client.invalidateQueries({
-          queryKey: employeeNumberEditCapabilityKey(companyId, userId, businessId, employeeId),
-        }),
+        client.invalidateQueries({ queryKey: context.editCapabilityKey }),
       ];
       if (previous !== undefined && previous.primary_branch_id !== saved.primary_branch_id) {
-        tasks.push(
-          client.invalidateQueries({
-            queryKey: ['employee-number-capability', companyId, businessId],
-          }),
-        );
+        tasks.push(client.invalidateQueries({ queryKey: context.createCapabilityKey }));
       }
       return Promise.all(tasks);
     },
