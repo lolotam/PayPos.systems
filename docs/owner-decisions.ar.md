@@ -99,7 +99,10 @@
 
 **الخلفية:** صفحة «قرارات PosPay» كانت artifact على claude.ai، وبياناتها متخزنة هناك. وليد طلب ينقلها لسيرفر الـ Dokploy بتاعنا على دومين خاص، وتتحفظ في ملف JSON.
 
-**الإجابة (وليد، 20 أكتوبر 2026، في الشات مباشرة):** «write prompt for the manager to change the artifact … to this project https://plan.pospay.systems … so after every merge will update this url and any questions to me or abusalem to it also and can retrieve the results» و«also change in the pipeline to update this project instead of https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF».
+**الإجابة (وليد، في الشات مباشرة، على مرحلتين):**
+
+- **19 أكتوبر 2026، قبل النقل:** طلب النقل نفسه: «Deploy the https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF to … json file … deploy to dokploy … https://plan.pospay.systems». النقل اتعمل بعد الطلب ده بنفس اليوم.
+- **20 أكتوبر 2026، بعد النقل:** تعديل قواعد الشغل: «write prompt for the manager to change the artifact … to this project https://plan.pospay.systems … so after every merge will update this url and any questions to me or abusalem to it also and can retrieve the results» و«also change in the pipeline to update this project instead of https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF».
 
 **الأثر على الشغل:**
 

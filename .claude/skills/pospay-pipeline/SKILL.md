@@ -254,7 +254,8 @@ typing do not.
    free model (GLM) and Claude edits them. Claude writes a document from scratch only when it records a decision it
    alone has the context for.
 7. **The roadmap is edited by a script.** After a merge, write the changed rows as `[{ "code": "…", "status": "done",
-   "ref": "PR #n" }]` and run `node scripts/roadmap/cli.mjs roadmap.json updates.json`. It sets status and ref by
+   "ref": "PR #n" }]` and, from this repo's root, run `node scripts/roadmap/cli.mjs F:/Dev/Projects/plan-pospay/public/roadmap.json updates.json`
+   (the `lolotam/plan` clone's file). It sets status and ref by
    code anywhere in the file (phases, gates, track items, partner requests), bumps `updated`, and refuses an unknown
    code or status before changing anything. It cannot add a row: add a new row by hand in the right group of
    `roadmap.json` first, then run the script for the statuses. `git pull` the `lolotam/plan` clone, run the script on

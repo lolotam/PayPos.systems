@@ -49,7 +49,10 @@ curl -s -u "$PLAN_AUTH" "$B/api/col?path=suggestions/<uid>/items"
 # one document
 curl -s -u "$PLAN_AUTH" "$B/api/doc?path=decisions/<docId>"
 
-# record a final decision Waleed gave in chat (only the owner can write this; it replaces the whole document)
+# record a final decision Waleed gave in chat (only the owner can write this; it replaces the whole document).
+# GET decisions/<docId> and Abu Salem's note first: if a decision exists, or Abu Salem picked differently,
+# do not PUT. His pick binds (PP-1.2), so bring the conflict to Waleed instead. When you do overwrite an older
+# decision on Waleed's word, name the old choice in "source" so the history survives.
 curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' \
   -d '{"qid":"XX-Q1","choice":0,"decidedAt":"<ISO time>","source":"Waleed answered in chat, <date>"}' \
   "$B/api/doc?path=decisions/<docId>"
@@ -92,9 +95,14 @@ Permission and technical questions still go to Waleed's super agent as `PP-n`. T
 Do this at the start of each session, before starting a slice that waits on a pending question, and after every merge.
 
 1. Read `decisions` and the `notes` of both reviewers.
-2. Go through each question that `owner-questions.ar.md` still marks pending:
+2. Go through **every question on the site that Abu Salem has not answered yet**. That covers both kinds:
+   - the ones `owner-questions.ar.md` still marks `PENDING`;
+   - the ones that already carry Waleed's pick, but no answer from Abu Salem.
+
+   Do not filter on `PENDING` alone. A question Waleed answered is still open until Abu Salem answers it, and his
+   later pick replaces Waleed's.
    - **Abu Salem gave a `choice`.** His pick binds (PP-1.2). Copy it, with any `text`, verbatim into `owner-questions.ar.md` with its date. If the code already followed a different pick from Waleed, keep the old answer as history and open a follow-up.
-   - **Only Waleed answered.** Work proceeds on Waleed's pick, and the question stays open for Abu Salem.
+   - **Only Waleed answered.** Work proceeds on Waleed's pick, and the question stays on this list until Abu Salem answers.
 3. A `verdict: "change"` with `text` on a question that is already decided is a change request. Bring it to Waleed and never act on it silently.
 4. Check `suggestions` for new partner requests, and add each one to `roadmap.json` under `partner[]`.
 
