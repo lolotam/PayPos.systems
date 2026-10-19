@@ -63,11 +63,11 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
     ),
     'ClockAttendanceController.challenge': declared(
       'PERSONAL',
-      'apps/api/src/modules/staff/persistence/attendance-context.adapter.ts#lockedAttendanceContext',
+      'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',
     ),
     'ClockAttendanceController.submit': declared(
       'PERSONAL',
-      'apps/api/src/modules/staff/persistence/attendance-context.adapter.ts#lockedAttendanceContext',
+      'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',
     ),
     'ClockByCardController.submit': declared(
       'RECORD_SCOPED',
@@ -163,23 +163,23 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
     ),
     'OwnLeaveController.cancelRequest': declared(
       'PERSONAL',
-      'apps/api/src/modules/staff/persistence/leave-records.ts#lockedLeaveEmployee',
+      'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',
     ),
     'OwnLeaveController.request': declared(
       'PERSONAL',
-      'apps/api/src/modules/staff/persistence/leave-records.ts#lockedLeaveEmployee',
+      'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',
     ),
     'PasskeysController.registrationOptions': declared(
       'PERSONAL',
-      'packages/auth/src/passkeys.ts#enrollmentOptions',
+      'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',
     ),
     'PasskeysController.verify': declared(
       'PERSONAL',
-      'apps/api/src/modules/staff/persistence/personal-employee.ts#personalEmployee',
+      'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',
     ),
     'PersonalOtpController.signOut': declared(
       'PERSONAL',
-      'packages/auth/src/personal-sessions.ts#createPersonalSessions',
+      'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',
     ),
     'ScheduleSettingsController.set': declared(
       'RECORD_SCOPED',
@@ -215,7 +215,7 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
     ),
     'StaffOtpController.signOut': declared(
       'PERSONAL',
-      'packages/auth/src/staff-sessions.ts#createStaffSessions',
+      'apps/api/src/shared/session.guard.ts##staff',
     ),
     'StaffOtpController.verify': declared(
       'DEVICE_ONLY',

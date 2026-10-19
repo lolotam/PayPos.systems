@@ -386,7 +386,7 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 
 ## 6a. Revisions
 
-**2026-10-19, PP-7.1/PP-7.2:** every `@Authenticated()` write (POST, PUT, PATCH, DELETE, and ALL) is declared in `apps/api/src/modules/identity/http/authenticated-writes.ts` with its kind (`RECORD_SCOPED`, `PERSONAL`, or `DEVICE_ONLY`) and the function that performs the check. `createApp` refuses to start when a mounted write is missing from that list. Banning `@Authenticated()` on writes was rejected: a record-scoped or personal decision cannot be expressed as one static permission.
+**2026-10-19, PP-7.1/PP-7.2:** every `@Authenticated()` write is declared in `apps/api/src/modules/identity/http/authenticated-writes.ts` with its kind (`RECORD_SCOPED`, `PERSONAL`, or `DEVICE_ONLY`) and the symbol that performs the check. A write is any method other than GET, HEAD, OPTIONS or SEARCH, including a missing method. `createApp` refuses to start when a mounted write is missing from that list, or when two mounted controllers share a name and either has such a write. A spec keeps the list equal to the mounted writes and checks each symbol is declared in its file. Banning `@Authenticated()` on writes was rejected: a record-scoped or personal decision cannot be expressed as one static permission.
 
 **2026-10-09, ADR-0038 (Accepted):** §3 bootstrap-owner exception amended — migration data steps read only `companies.id` as the owner; tenant effects run under `withTenant` on `pospay_app`.
 

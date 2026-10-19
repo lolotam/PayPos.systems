@@ -258,8 +258,8 @@ function buildAdapter(
   });
 }
 
-// The declaration spec compares the allowlist to this list without booting Nest. It lives on the composition
-// root because an identity test may not import the other modules.
+// The spec reaches the controllers through app.ts, the composition root, so identity code never imports
+// other modules.
 export const API_CONTROLLERS: readonly Type<unknown>[] = [
   HealthController,
   ...identityControllers,
