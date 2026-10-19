@@ -25,6 +25,7 @@ import { createStaffDocumentDefaults, startStaffWorker } from './modules/staff/i
 import {
   createLateServiceSessionNoticeConsumer,
   createLineCancelNoticeConsumer,
+  createPerformersChangeNoticeConsumer,
   createPriceEditNoticeConsumer,
 } from './modules/orders/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
@@ -100,6 +101,7 @@ const businessDeliver = createDeliverer(
     createLateServiceSessionNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
     createPriceEditNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
     createLineCancelNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
+    createPerformersChangeNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
   ],
   logger,
   { knownEventTypes: knownEventTypes(staff, notifications, inApp) },
