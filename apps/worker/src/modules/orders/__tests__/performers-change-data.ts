@@ -12,6 +12,7 @@ import { ORDER_IDS } from '../../../../../../packages/db/test/orders-fixture.ts'
 import { cancelServiceLine } from '../../../../../../packages/db/test/service-line-cancellation.ts';
 import {
   commitChange,
+  PERFORMER_STAFF,
   performer,
   recordLine,
   type ChangeCtx,
@@ -22,6 +23,8 @@ export const LINE_NET = '1.000';
 export const PERFORMERS_REASON = 'wrong split recorded';
 export const PERFORMERS_CHANGER = 'Changer Identity';
 export const PERFORMER_NAME = 'Synthetic performer';
+const SECOND_NAME = 'Synthetic second';
+const THIRD_NAME = 'Synthetic third';
 const OTHER_EMPLOYEE = '01920000-0000-7000-8000-000000004499';
 let nextOrdinal = 2;
 
@@ -41,6 +44,7 @@ export interface ChangeSpec {
   line?: LineState;
   again?: boolean;
   missingHeader?: boolean;
+  follow?: 'price' | 'cancel';
 }
 export interface LineState {
   companyId: string;
@@ -50,7 +54,8 @@ export interface LineState {
   branchId: string;
   businessDate: string;
   revision: number;
-  person: Person;
+  before: Person[];
+  after: Person[];
   saved: SavedSession;
 }
 export interface PreparedChange extends LineState {
@@ -81,6 +86,7 @@ async function prepareChange(
   const ctx = companyCtx(spec.line?.companyId ?? spec.company);
   const line = spec.line ?? (await recordFresh(context, ctx));
   const moved = await moveLine(context, ctx, line, spec);
+  await applyFollow(context, ctx, moved, spec.follow);
   const net = spec.eventNet ?? LINE_NET;
   return { ...moved, net, event: await insertEvent(context, spec, moved, net) };
 }
@@ -88,8 +94,9 @@ async function recordFresh(context: PerformersChangeContext, ctx: ChangeCtx): Pr
   const lineId = context.ids.newId();
   const ordinal = nextOrdinal;
   nextOrdinal += 1;
-  const person = performer(ORDER_IDS.employee, { nameEn: PERFORMER_NAME });
-  await recordLine(context.db, ctx, context.ids, lineId, ordinal, [person]);
+  const before = openingCast();
+  await ensureStaff(context.owner, ctx);
+  await recordLine(context.db, ctx, context.ids, lineId, ordinal, before);
   const saved = await readSession(context.owner, ctx);
   return {
     companyId: ctx.company,
@@ -99,7 +106,8 @@ async function recordFresh(context: PerformersChangeContext, ctx: ChangeCtx): Pr
     branchId: saved.branch_id,
     businessDate: saved.saved_date,
     revision: 1,
-    person,
+    before,
+    after: before,
     saved,
   };
 }
@@ -109,15 +117,19 @@ async function moveLine(
   line: LineState,
   spec: ChangeSpec,
 ): Promise<LineState> {
-  if (spec.again === true) return commitRecorded(context, ctx, line, line.revision, line.revision + 1);
-  if (spec.missingHeader === true) return cancelRecorded(context, ctx, line);
+  if (spec.again === true) {
+    return commitRecorded(context, ctx, line, line.after, laterCast(), line.revision, line.revision + 1);
+  }
+  if (spec.missingHeader === true) return cancelRecorded(context, ctx, line, 1);
   if (spec.kind !== undefined && spec.kind !== 'performers') return line;
-  return commitRecorded(context, ctx, line, 1, 2);
+  return commitRecorded(context, ctx, line, line.before, firstAfter(), 1, 2);
 }
 async function commitRecorded(
   context: PerformersChangeContext,
   ctx: ChangeCtx,
   line: LineState,
+  before: readonly Person[],
+  after: readonly Person[],
   previous: number,
   revision: number,
 ): Promise<LineState> {
@@ -125,24 +137,25 @@ async function commitRecorded(
     lineId: line.lineId,
     previous,
     revision,
-    before: [line.person],
-    after: [line.person],
-    live: [line.person],
+    before,
+    after,
+    live: after,
     reason: PERFORMERS_REASON,
     changerNameEn: PERFORMERS_CHANGER,
   });
-  return { ...line, revision };
+  return { ...line, revision, before: [...before], after: [...after] };
 }
 async function cancelRecorded(
   context: PerformersChangeContext,
   ctx: ChangeCtx,
   line: LineState,
+  expected: number,
 ): Promise<LineState> {
   await context.db.withTenant(ctx.company, (tx) =>
     cancelServiceLine(tx, {
       companyId: ctx.company,
       lineId: line.lineId,
-      expectedRevision: 1,
+      expectedRevision: expected,
       cancelledBy: USER,
       membershipId: ORDER_IDS.membership,
       cancellationId: context.ids.newId(),
@@ -150,7 +163,38 @@ async function cancelRecorded(
       cancellerNameEn: PERFORMERS_CHANGER,
     }),
   );
-  return { ...line, revision: 2 };
+  return { ...line, revision: expected + 1 };
+}
+async function applyFollow(
+  context: PerformersChangeContext,
+  ctx: ChangeCtx,
+  line: LineState,
+  follow: ChangeSpec['follow'],
+) {
+  if (follow === 'price') await priceAfter(context, line);
+  if (follow === 'cancel') await cancelServiceLineOnly(context, ctx, line);
+}
+async function priceAfter(context: PerformersChangeContext, line: LineState) {
+  const next = line.revision + 1;
+  const updated = await context.owner`UPDATE service_lines SET price=2.000, discount=0.000, net=2.000, revision=${next}
+    WHERE company_id=${line.companyId} AND id=${line.lineId} AND revision=${line.revision} RETURNING id`;
+  if (updated.length !== 1) throw new Error('price edit matched no row');
+  await context.owner`INSERT INTO service_line_edits(company_id,id,business_id,line_id,revision,previous_revision,
+    previous_price,previous_discount,previous_net,new_price,new_discount,new_net,
+    previous_effective_discount_bps,previous_limit_source,new_effective_discount_bps,new_limit_source,
+    reason,changed_at,changed_by,changed_by_membership_id,editor_name_en,editor_role,
+    editor_role_is_system,editor_role_name_en)
+    VALUES(${line.companyId},${context.ids.newId()},${line.businessId},${line.lineId},${next},${line.revision},
+      1.000,0.000,1.000,2.000,0.000,2.000,
+      0,'OWNER',0,'OWNER',
+      'price adjusted',${context.at},${USER},${ORDER_IDS.membership},'Synthetic editor','owner',true,'Synthetic role')`;
+}
+async function cancelServiceLineOnly(
+  context: PerformersChangeContext,
+  ctx: ChangeCtx,
+  line: LineState,
+) {
+  await cancelRecorded(context, ctx, line, line.revision);
 }
 async function insertEvent(
   context: PerformersChangeContext,
@@ -211,11 +255,34 @@ function changeOf(
   };
 }
 function announced(spec: ChangeSpec, line: LineState, side: 'before' | 'after') {
-  const real = [{ employee_id: line.person.employeeId, share_bps: line.person.share }];
-  const other = [{ employee_id: OTHER_EMPLOYEE, share_bps: line.person.share }];
+  const other = [{ employee_id: OTHER_EMPLOYEE, share_bps: 10000 }];
   if (side === 'after' && spec.mismatch === 'after-employee') return other;
   if (side === 'before' && spec.mismatch === 'before-employee') return other;
-  return real;
+  return announcedShares(side === 'before' ? line.before : line.after);
+}
+function announcedShares(people: readonly Person[]) {
+  return [...people]
+    .sort((left, right) => left.ordinal - right.ordinal)
+    .map((person) => ({ employee_id: person.employeeId, share_bps: person.share }));
+}
+function openingCast(): Person[] {
+  return [cast(ORDER_IDS.employee, 1, 7000, PERFORMER_NAME), cast(PERFORMER_STAFF.emp2, 2, 3000, SECOND_NAME)];
+}
+function firstAfter(): Person[] {
+  // الإدراج عكس الترتيب حتى يفشل الجرس إذا أُهمل performer_ordinal.
+  return [cast(ORDER_IDS.employee, 2, 6000, PERFORMER_NAME), cast(PERFORMER_STAFF.emp3, 1, 4000, THIRD_NAME)];
+}
+function laterCast(): Person[] {
+  return [cast(PERFORMER_STAFF.emp2, 2, 1500, SECOND_NAME), cast(ORDER_IDS.employee, 1, 8500, PERFORMER_NAME)];
+}
+function cast(employeeId: string, ordinal: number, share: number, nameEn: string): Person {
+  return performer(employeeId, { ordinal, share, nameEn });
+}
+async function ensureStaff(owner: postgres.Sql, ctx: ChangeCtx) {
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${ctx.company},${PERFORMER_STAFF.emp2},${ctx.business},${ctx.branch},'Synthetic second','synthetic second performer','staff','2026-01-01',2),
+      (${ctx.company},${PERFORMER_STAFF.emp3},${ctx.business},${ctx.branch},'Synthetic third','synthetic third performer','staff','2026-01-01',3)
+    ON CONFLICT (company_id, id) DO NOTHING`;
 }
 function identity(spec: ChangeSpec, line: LineState) {
   const saved = line.saved;
