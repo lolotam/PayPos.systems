@@ -310,6 +310,8 @@ reads:
   - orders -> staff.employeeNamesByUser @ apps/api/src/modules/orders/persistence/editor-name.adapter.ts
   - orders -> identity.lockServiceSessionEditAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> identity.readServiceSessionEditAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
+  - orders -> identity.lockServiceSessionCancelAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
+  - orders -> identity.readServiceSessionCancelAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> catalog.readSessionServices @ apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts
   - orders -> customers.readSessionCustomer @ apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts
   - orders -> staff.readSessionPerformers @ apps/api/src/modules/orders/persistence/performer-check.adapter.ts

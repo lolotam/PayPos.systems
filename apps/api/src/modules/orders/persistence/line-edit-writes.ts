@@ -1,14 +1,8 @@
 import type { Tx } from '@pospay/db';
 import { moneyToString } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
-import { SessionError } from '../domain/session-error.ts';
 import type { LinePriceUpdate, ServiceLineEditInsert } from '../ports/line-edit.port.ts';
-
-interface LineScope {
-  companyId: string;
-  businessId: string;
-  branchId: string;
-}
+import { lineInScope, requireScopedInsert, type LineScope } from './line-scope.ts';
 
 export async function updateLinePrice(
   tx: Tx,
@@ -50,9 +44,7 @@ export async function insertLineEdit(
       ${edit.changed_at.toISOString()}::timestamptz,${edit.changed_by},${edit.changed_by_membership_id},
       ${edit.editor_name_ar}::text,${edit.editor_name_en}::text,${edit.editor_role},${edit.editor_role_is_system},
       ${edit.editor_role_name_ar}::text,${edit.editor_role_name_en}
-    WHERE EXISTS (SELECT 1 FROM service_lines l JOIN service_sessions s ON s.company_id=l.company_id AND s.id=l.session_id
-      WHERE l.company_id=${scope.companyId} AND l.business_id=${scope.businessId} AND l.session_id=${sessionId} AND l.id=${lineId}
-        AND s.business_id=${scope.businessId} AND s.branch_id=${scope.branchId})
+    WHERE ${lineInScope(scope, sessionId, lineId)}
     RETURNING id`);
-  if (rows[0] === undefined) throw new SessionError('FORBIDDEN');
+  requireScopedInsert(rows);
 }

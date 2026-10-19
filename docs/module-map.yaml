@@ -55,6 +55,8 @@ reads:
   - { from: orders, to: staff, symbol: employeeNamesByUser, file: apps/api/src/modules/orders/persistence/editor-name.adapter.ts }
   - { from: orders, to: identity, symbol: lockServiceSessionEditAccess, file: apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts }
   - { from: orders, to: identity, symbol: readServiceSessionEditAccess, file: apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts }
+  - { from: orders, to: identity, symbol: lockServiceSessionCancelAccess, file: apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts }
+  - { from: orders, to: identity, symbol: readServiceSessionCancelAccess, file: apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts }
   - { from: orders, to: catalog, symbol: readSessionServices, file: apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts }
   - { from: orders, to: customers, symbol: readSessionCustomer, file: apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts }
   - { from: orders, to: staff, symbol: readSessionPerformers, file: apps/api/src/modules/orders/persistence/performer-check.adapter.ts }
