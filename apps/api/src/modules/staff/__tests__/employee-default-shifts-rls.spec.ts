@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { salaryFixture, salaryIds, type SalaryFixture } from './salary.fixture.ts';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 
 let f: SalaryFixture;
 beforeAll(async () => { f = await salaryFixture(); });
@@ -32,8 +33,8 @@ it('forces RLS and DH tenant read/insert/delete isolation with no UPDATE grant',
 
 it('rejects foreign employee/branch/business FKs and day/half-break CHECKs', async () => {
   const foreignEmployee = salaryIds.newId();
-  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    SELECT ${f.otherCompany},${foreignEmployee},business_id,id,'Synthetic foreign employee','synthetic foreign employee','staff','2026-01-01'
+  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    SELECT ${f.otherCompany},${foreignEmployee},business_id,id,'Synthetic foreign employee','synthetic foreign employee','staff','2026-01-01',${takeTestEmployeeNumber(f.otherCompany)}
     FROM branches WHERE company_id=${f.otherCompany} AND id=${f.foreignBranch}`;
   for (const statement of [
     insert(f.otherCompany),

@@ -17,7 +17,7 @@ export function EmployeeNumberEdit({
   businessId: string;
   userId: string;
   employeeId: string;
-  employeeNumber: number | null;
+  employeeNumber: number;
 }) {
   const locale = useLocale();
   const capability = useEmployeeNumberEditCapability(companyId, businessId, userId, employeeId);

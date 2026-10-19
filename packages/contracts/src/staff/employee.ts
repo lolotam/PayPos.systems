@@ -39,8 +39,8 @@ export const createEmployeeInput = z
     employee_number: z.number().int().min(1).max(999999).optional(),
   })
   .meta({ id: 'CreateEmployeeInput' });
-// الرقم أرقام صحيحة بلا فواصل (D-2)؛ NULL يبقى null والشرطة شأن الشاشة (TD-10).
-const employeeNumber = z.number().int().min(1).max(999999).nullable();
+// الرقم أرقام صحيحة بلا فواصل (D-2). بعد 8c-11 كل موظف له رقم والغياب مرفوض.
+const employeeNumber = z.number().int().min(1).max(999999);
 export const employee = responseObject({
     id,
     business_id: id,
@@ -55,7 +55,7 @@ export const employee = responseObject({
     employee_number: employeeNumber,
   })
   .meta({ id: 'Employee' });
-// نفس تعريف الرقم على الموظف الموسّع حتى يبقى مخطط CreatedEmployee المنشور من 8c-2 كما هو.
+// نفس تعريف الرقم على الموظف الموسّع حتى يبقى مخطط CreatedEmployee المنشور منفصلاً عن Employee.
 export const createdEmployee = employee
   .extend({ employee_number: employeeNumber })
   .meta({ id: 'CreatedEmployee' });

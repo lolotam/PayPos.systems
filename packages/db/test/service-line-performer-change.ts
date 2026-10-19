@@ -65,15 +65,15 @@ export async function seedPerformerChangeStaff(owner: postgres.Sql, ctx: ChangeC
   const staff = PERFORMER_STAFF;
   await owner`INSERT INTO "user"(id,name,email,email_verified,created_at,updated_at)
     VALUES(${staff.stranger},'Synthetic stranger','performer-change-stranger@example.test',true,now(),now())`;
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${ctx.company},${staff.emp2},${ctx.business},${ctx.branch},'Synthetic second','synthetic second performer','staff','2026-01-01'),
-      (${ctx.company},${staff.emp3},${ctx.business},${ctx.branch},'Synthetic third','synthetic third performer','staff','2026-01-01')`;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${ctx.company},${staff.emp2},${ctx.business},${ctx.branch},'Synthetic second','synthetic second performer','staff','2026-01-01',2),
+      (${ctx.company},${staff.emp3},${ctx.business},${ctx.branch},'Synthetic third','synthetic third performer','staff','2026-01-01',3)`;
   await owner`INSERT INTO businesses(company_id,id,name_en,vertical_type)
     VALUES(${ctx.company},${staff.otherBusiness},'Synthetic other salon','salon')`;
   await owner`INSERT INTO branches(company_id,id,business_id,name_en)
     VALUES(${ctx.company},${staff.otherBranch},${staff.otherBusiness},'Synthetic other branch')`;
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${ctx.company},${staff.otherEmployee},${staff.otherBusiness},${staff.otherBranch},'Synthetic other','synthetic other performer','staff','2026-01-01')`;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${ctx.company},${staff.otherEmployee},${staff.otherBusiness},${staff.otherBranch},'Synthetic other','synthetic other performer','staff','2026-01-01',4)`;
 }
 
 const lineSql = (ctx: ChangeCtx, lineId: string, ordinal: number, warning: boolean) =>

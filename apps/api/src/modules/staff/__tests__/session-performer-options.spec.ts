@@ -36,8 +36,8 @@ it('pages every employee lacking name_ar using the displayed English fallback ke
 });
 it('enforces RLS on exact picker SQL even when explicitly passed another company scope', async () => {
   const employee = ids.newId();
-  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${f.otherCompany},${employee},${f.foreignBusiness},${f.foreignBranch},'Foreign employee','foreign employee','staff','2026-01-01')`;
+  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.otherCompany},${employee},${f.foreignBusiness},${f.foreignBranch},'Foreign employee','foreign employee','staff','2026-01-01',1)`;
   await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES(${f.otherCompany},${ids.newId()},${f.foreignBusiness},${employee},${f.foreignBranch},'2026-01-01')`;
   const statement = sessionPerformerOptionsStatement(f.otherCompany, f.foreignBusiness, f.foreignBranch, '2026-10-14', { occurred_at, lang: 'en', limit: 20 }, null);
@@ -93,7 +93,7 @@ it('uses branch working day and identical save-time facts; approved full/partial
   expect(page.items.find((r) => r.id === f.employees[2])).toMatchObject({ not_clocked_in_warning: true, approved_leave_warning: true });
   const saved = await f.db.withTenant(f.company, (tx) => readSessionPerformers(tx, f.company, f.business, f.branch, f.employees, new Date(occurred_at)));
   expect(page.items).toEqual(saved.filter((r) => r.eligible).map((r) => ({ id: r.id, name_ar: r.name_ar, name_en: r.name_en,
-    employee_number: null, not_clocked_in_warning: !r.clocked_in, approved_leave_warning: r.approved_leave })));
+    employee_number: 101 + f.employees.indexOf(r.id), not_clocked_in_warning: !r.clocked_in, approved_leave_warning: r.approved_leave })));
   await f.h.owner`UPDATE leave_requests SET status='CANCELLED',revoked_by=${f.ownerId},revoked_at='2026-01-01',revocation_reason='Synthetic revocation' WHERE company_id=${f.company}`;
   expect((await read()).items.every((r) => !r.approved_leave_warning)).toBe(true);
 });
@@ -158,8 +158,12 @@ it('EN-14 digit search matches the exact number or the name, and 007 matches 7',
     expect((await search('0')).items.map((row) => row.id)).not.toContain(ten);
     expect(await search('1000000')).toEqual({ items: [], next_cursor: null });
   } finally {
-    await f.h.owner`UPDATE employees SET deleted_at=now(),employee_number=NULL WHERE company_id=${f.company} AND id=${plain}`;
-    await f.h.owner`UPDATE employees SET employee_number=NULL WHERE company_id=${f.company} AND id IN (${named},${seven},${ten})`;
+    await f.h.owner`DELETE FROM attendance_states WHERE company_id=${f.company} AND employee_id=${plain}`;
+    await f.h.owner`DELETE FROM employee_branches WHERE company_id=${f.company} AND employee_id=${plain}`;
+    await f.h.owner`DELETE FROM employees WHERE company_id=${f.company} AND id=${plain}`;
+    await f.h.owner`UPDATE employees SET employee_number=103 WHERE company_id=${f.company} AND id=${named}`;
+    await f.h.owner`UPDATE employees SET employee_number=102 WHERE company_id=${f.company} AND id=${seven}`;
+    await f.h.owner`UPDATE employees SET employee_number=104 WHERE company_id=${f.company} AND id=${ten}`;
   }
 });
 it('EN-14 digit search hides a number in another business or on another branch', async () => {
@@ -177,7 +181,9 @@ it('EN-14 digit search hides a number in another business or on another branch',
     expect(await search('5')).toEqual({ items: [], next_cursor: null });
     expect(await search('4')).toEqual({ items: [], next_cursor: null });
   } finally {
-    await f.h.owner`UPDATE employees SET deleted_at=now(),employee_number=NULL WHERE company_id=${f.company} AND id IN (${other},${off})`;
+    await f.h.owner`DELETE FROM attendance_states WHERE company_id=${f.company} AND employee_id IN (${other},${off})`;
+    await f.h.owner`DELETE FROM employee_branches WHERE company_id=${f.company} AND employee_id IN (${other},${off})`;
+    await f.h.owner`DELETE FROM employees WHERE company_id=${f.company} AND id IN (${other},${off})`;
   }
 });
 it('EN-14 digit search hides the same number in another company and on a deleted employee', async () => {
@@ -198,9 +204,13 @@ it('EN-14 digit search hides the same number in another company and on a deleted
     expect((await search('7')).items.map((row) => row.id)).toEqual([live]);
     expect(await search('6')).toEqual({ items: [], next_cursor: null });
   } finally {
-    await f.h.owner`UPDATE employees SET employee_number=NULL WHERE company_id=${f.company} AND id=${live}`;
-    await f.h.owner`UPDATE employees SET deleted_at=now(),employee_number=NULL WHERE company_id=${f.otherCompany} AND id=${foreign}`;
-    await f.h.owner`UPDATE employees SET employee_number=NULL WHERE company_id=${f.company} AND id=${gone}`;
+    await f.h.owner`UPDATE employees SET employee_number=102 WHERE company_id=${f.company} AND id=${live}`;
+    await f.h.owner`DELETE FROM attendance_states WHERE company_id=${f.otherCompany} AND employee_id=${foreign}`;
+    await f.h.owner`DELETE FROM employee_branches WHERE company_id=${f.otherCompany} AND employee_id=${foreign}`;
+    await f.h.owner`DELETE FROM employees WHERE company_id=${f.otherCompany} AND id=${foreign}`;
+    await f.h.owner`DELETE FROM attendance_states WHERE company_id=${f.company} AND employee_id=${gone}`;
+    await f.h.owner`DELETE FROM employee_branches WHERE company_id=${f.company} AND employee_id=${gone}`;
+    await f.h.owner`DELETE FROM employees WHERE company_id=${f.company} AND id=${gone}`;
   }
 });
 it('EN-14 digit search pages number and name matches with limit 1', async () => {
@@ -220,8 +230,10 @@ it('EN-14 digit search pages number and name matches with limit 1', async () => 
     expect(second.items.map((row) => row.id)).toEqual([named]);
     expect(second.next_cursor).toBeNull();
   } finally {
-    await f.h.owner`UPDATE employees SET deleted_at=now(),employee_number=NULL WHERE company_id=${f.company} AND id=${plain}`;
-    await f.h.owner`UPDATE employees SET employee_number=NULL WHERE company_id=${f.company} AND id=${named}`;
+    await f.h.owner`DELETE FROM attendance_states WHERE company_id=${f.company} AND employee_id=${plain}`;
+    await f.h.owner`DELETE FROM employee_branches WHERE company_id=${f.company} AND employee_id=${plain}`;
+    await f.h.owner`DELETE FROM employees WHERE company_id=${f.company} AND id=${plain}`;
+    await f.h.owner`UPDATE employees SET employee_number=103 WHERE company_id=${f.company} AND id=${named}`;
   }
 });
 it('EXPLAIN ANALYZE uses employees_company_employee_number_key for a digit search', async () => {

@@ -70,7 +70,9 @@ async function insertListed(nameEn: string, employeeNumber: number, nameAr: stri
   return id;
 }
 async function releaseListed(id: string) {
-  await f.h.owner`UPDATE employees SET deleted_at=now(),employee_number=NULL WHERE company_id=${f.company} AND id=${id}`;
+  await f.h.owner`DELETE FROM attendance_states WHERE company_id=${f.company} AND employee_id=${id}`;
+  await f.h.owner`DELETE FROM employee_branches WHERE company_id=${f.company} AND employee_id=${id}`;
+  await f.h.owner`DELETE FROM employees WHERE company_id=${f.company} AND id=${id}`;
 }
 it('UE-08 returns exact projections and stable cursor pages with no duplicate rows', async () => {
   const first = employeePage.parse(await list(2));
@@ -149,21 +151,14 @@ it('HTTP list is guarded, validates limits, checks the feature, and issues one s
       .owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='staff'`;
   }
 });
-it('list and detail keep a null employee number on the contract shape', async () => {
+it('refuses a NULL employee number and keeps the stored number', async () => {
   const record = records[1];
   if (record?.employee_number == null) throw new Error('missing employee number');
-  await f.h.owner`UPDATE employees SET employee_number=NULL WHERE company_id=${f.company} AND id=${record.id}`;
-  try {
-    const page = employeePage.parse(await list(20));
-    expect(page.items.find((row) => row.id === record.id)?.employee_number).toBeNull();
-    const detail = await f.db.withTenant(f.company, (tx) =>
-      employeeDetail(tx, f.company, f.business, record.id, f.userId, createEmployeeDetailAccess()),
-    );
-    expect(detail).toMatchObject({ id: record.id, employee_number: null });
-  } finally {
-    await f.h
-      .owner`UPDATE employees SET employee_number=${record.employee_number} WHERE company_id=${f.company} AND id=${record.id}`;
-  }
+  await expect(
+    f.h.owner`UPDATE employees SET employee_number=NULL WHERE company_id=${f.company} AND id=${record.id}`,
+  ).rejects.toMatchObject({ code: '23502' });
+  const page = employeePage.parse(await list(20));
+  expect(page.items.find((row) => row.id === record.id)?.employee_number).toBe(record.employee_number);
 });
 it('EN-14 list filter returns exactly that employee and an empty page outside its scope', async () => {
   const record = records[1];
@@ -196,7 +191,9 @@ it('EN-14 list filter hides the same number in another company and a deleted emp
     expect(await list(20, undefined, f.company, f.business, number)).toEqual({ items: [], next_cursor: null });
   } finally {
     await f.h.owner`UPDATE employees SET deleted_at=NULL WHERE company_id=${f.company} AND id=${record.id}`;
-    await f.h.owner`UPDATE employees SET deleted_at=now(),employee_number=NULL WHERE company_id=${f.otherCompany} AND id=${foreign}`;
+    await f.h.owner`DELETE FROM attendance_states WHERE company_id=${f.otherCompany} AND employee_id=${foreign}`;
+    await f.h.owner`DELETE FROM employee_branches WHERE company_id=${f.otherCompany} AND employee_id=${foreign}`;
+    await f.h.owner`DELETE FROM employees WHERE company_id=${f.otherCompany} AND id=${foreign}`;
   }
 });
 it('EN-14 list filter hides the numbered employee when their branch is forbidden', async () => {

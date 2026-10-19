@@ -3,6 +3,7 @@ import { leavePage, leaveRequest } from '@pospay/contracts';
 import { OWNER_ROLE_ID, SYSTEM_ROLES } from '@pospay/db';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { personalFixture, personalOrigin } from '../../../../test/personal-staff.fixture.ts';
+import { takeTestEmployeeNumber } from '../../../../test/test-employee-number.ts';
 import { createLeaveTransactions } from '../persistence/drizzle-leave-transactions.ts';
 import { createPersonalEligibility } from '../persistence/personal-employee.ts';
 import { RequestLeaveUseCase } from '../use-cases/request-leave/request-leave.usecase.ts';
@@ -25,8 +26,8 @@ beforeAll(async () => {
   unattachedBranch = f.ids.newId();
   await f.owner`INSERT INTO branches(company_id,id,business_id,name_en)
     VALUES(${f.companyId},${unattachedBranch},${f.businessId},'Synthetic unattached leave branch')`;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    VALUES(${f.companyId},${otherEmployee},${f.businessId},${f.branchId},'Synthetic other employee',${employeeNameMatchKey('Synthetic other employee')},'staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.companyId},${otherEmployee},${f.businessId},${f.branchId},'Synthetic other employee',${employeeNameMatchKey('Synthetic other employee')},'staff','2026-01-01',${takeTestEmployeeNumber(f.companyId)})`;
   await f.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES(${f.companyId},${f.ids.newId()},${f.businessId},${otherEmployee},${f.branchId},'2026-01-01')`;
   const request = new RequestLeaveUseCase(createLeaveTransactions(f.database, f.ids), f.ids, {

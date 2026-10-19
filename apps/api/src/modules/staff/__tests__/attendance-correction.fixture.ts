@@ -73,9 +73,12 @@ export async function seedSession(
 }
 export async function linkEmployee(f: AttendanceCorrectionFixture, userId: string | null) {
   const id = leaveIds.newId();
+  const [current] = await f.h
+    .owner`SELECT COALESCE(MAX(employee_number), 0) AS employee_number FROM employees WHERE company_id=${f.company}`;
+  const employeeNumber = Number(current?.employee_number ?? 0) + 1;
   await f.h
-    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,user_id)
-    VALUES(${f.company},${id},${f.business},${f.branch},'Synthetic corrected employee',${employeeNameMatchKey('Synthetic corrected employee')},'staff','2026-01-01',${userId})`;
+    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,user_id,employee_number)
+    VALUES(${f.company},${id},${f.business},${f.branch},'Synthetic corrected employee',${employeeNameMatchKey('Synthetic corrected employee')},'staff','2026-01-01',${userId},${employeeNumber})`;
   return id;
 }
 export async function ownerUserId(f: AttendanceCorrectionFixture) {

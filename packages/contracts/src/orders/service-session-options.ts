@@ -37,7 +37,7 @@ export const sessionPerformerOptionsQuery = sessionServiceOptionsQuery.extend({
 }).meta({ id: 'SessionPerformerOptionsQuery' });
 export const sessionPerformerOption = responseObject({
   id: id.toLowerCase(), name_ar: nameAr.nullable(), name_en: nameEn,
-  employee_number: z.number().int().min(1).max(999999).nullable(),
+  employee_number: z.number().int().min(1).max(999999),
   not_clocked_in_warning: z.boolean(),
   approved_leave_warning: z.boolean(),
 }).meta({ id: 'SessionPerformerOption' });

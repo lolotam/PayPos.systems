@@ -3,6 +3,11 @@ export function storedNumber(value: number | string | null): number | null {
   return typeof value === 'number' ? value : Number(value);
 }
 
+/** رقم الموظفة بعد 8c-11؛ بداية العدّاد ما زالت تستخدم storedNumber لأنها قد تغيب. */
+export function requiredStoredNumber(value: number | string): number {
+  return typeof value === 'number' ? value : Number(value);
+}
+
 export function retryableDatabaseCode(error: unknown): boolean {
   const seen = new Set<unknown>();
   for (

@@ -40,7 +40,7 @@ const record = {
   created_at: '2026-10-03T00:00:00Z',
   revision: 7,
   branch_ids: [branch.id],
-  employee_number: null,
+  employee_number: 4,
 };
 it.each(['ar', 'en'] as const)(
   'reuses create fields, submits revision/attachments/date and unlinks in %s',

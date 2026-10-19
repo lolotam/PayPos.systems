@@ -61,7 +61,7 @@ it('uses the server page, opens an editor for its row and clears selection on ne
             role_code: 'staff',
             hire_date: '2026-01-01',
             primary_branch_id: id,
-            employee_number: null,
+            employee_number: 3,
           },
         ],
         next_cursor: cursor ? null : next,
@@ -74,7 +74,7 @@ it('uses the server page, opens an editor for its row and clears selection on ne
   );
   expect(screen.getByRole('table')).toBeTruthy();
   expect(screen.getByRole('columnheader', { name: t('en', 'staff.employeeNumber') })).toBeTruthy();
-  expect(screen.getByText('\u2014')).toBeTruthy();
+  expect(screen.getByText('3')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.edit') }));
   expect(state.edit).toHaveBeenLastCalledWith(
     expect.objectContaining({ employeeId: id, companyId: id }),

@@ -80,13 +80,15 @@ it('EN-16 returns only the seven fields for both businesses', async () => {
   expect(employeeNumberListItem.safeParse({ ...row, salary_mills: 1 }).success).toBe(false);
 });
 
-it('omits a soft-deleted employee and keeps a null number', async () => {
+it('omits a soft-deleted employee and refuses a null number', async () => {
   const live = await executeCreate(f, 'EN16 null number');
   const gone = await executeCreate(f, 'EN16 deleted number');
-  await f.h.owner`UPDATE employees SET employee_number=NULL WHERE company_id=${f.company} AND id=${live.id}`;
+  await expect(
+    f.h.owner`UPDATE employees SET employee_number=NULL WHERE company_id=${f.company} AND id=${live.id}`,
+  ).rejects.toMatchObject({ code: '23502' });
   await f.h.owner`UPDATE employees SET deleted_at=now() WHERE company_id=${f.company} AND id=${gone.id}`;
   expect(await pageOf(f.ownerCookie, { q: 'EN16 null', limit: '20' })).toMatchObject({
-    items: [{ employee_id: live.id, employee_number: null }],
+    items: [{ employee_id: live.id, employee_number: live.employee_number }],
     next_cursor: null,
   });
   expect(await ids(f.ownerCookie, 'EN16 deleted')).toEqual([]);

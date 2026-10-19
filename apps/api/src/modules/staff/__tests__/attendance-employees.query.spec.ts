@@ -10,6 +10,7 @@ import {
   type AttendanceEmployeesFixture,
 } from './attendance-employees.fixture.ts';
 import { leaveIds } from './leave.fixture.ts';
+import { takeTestEmployeeNumbers } from '../../../../test/test-employee-number.ts';
 
 let f: AttendanceEmployeesFixture;
 beforeAll(async () => {
@@ -135,8 +136,9 @@ it('EXPLAIN ANALYZE bounds name matching to indexed branch links without scannin
   const ids = Array.from({ length: 3000 }, () => leaveIds.newId());
   const links = ids.map(() => leaveIds.newId());
   await f.h
-    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
-    SELECT ${f.company},id,${f.business},${f.secondBranch},'Synthetic load '||id,'synthetic load '||id,'staff','2026-01-01'
+    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    SELECT ${f.company},id,${f.business},${f.secondBranch},'Synthetic load '||id,'synthetic load '||id,'staff','2026-01-01',
+      row_number() OVER () + ${takeTestEmployeeNumbers(f.company, ids.length) - 1}
     FROM unnest(${ids}::uuid[]) AS id`;
   await f.h
     .owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
