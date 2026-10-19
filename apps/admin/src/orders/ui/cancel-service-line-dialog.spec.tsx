@@ -382,3 +382,17 @@ it('reuses the original key through a busy 409 and releases it after a definitiv
   expect(keyOf(3)).not.toBe(keyOf(0));
   expect(bodyOf(3)).toEqual(bodyOf(0));
 });
+
+it('locks the reason while the cancellation is in flight', async () => {
+  let finish: (value: unknown) => void = () => undefined;
+  state.post.mockReturnValueOnce(new Promise((resolve) => (finish = resolve)));
+  shown();
+  fireEvent.change(reasonBox(), { target: { value: 'first reason' } });
+  submit();
+  await waitFor(() => expect(state.post).toHaveBeenCalledTimes(1));
+  expect((reasonBox() as HTMLInputElement).disabled).toBe(true);
+  await act(async () => {
+    finish(saved);
+  });
+  expect(bodyOf(0).reason).toBe('first reason');
+});

@@ -35,16 +35,18 @@ export function CancelServiceLineFields({
   const reason = useWatch({ control: form.control, name: 'reason' });
   const reasonError = fieldText(formState.errors.reason?.message, locale);
   const reasonField = register('reason');
+  // أثناء الطلب الجسم المحفوظ هو اللي هيتعاد؛ تعديل السبب أو العضوية دلوقتي هيظهر قيمة غير اللي اتسجلت.
+  const locked = frozen || pending;
   return (
     <>
       <Label htmlFor="cancel-reason">{t(locale, 'serviceLineCancel.reason')}</Label>
       <Input
         id="cancel-reason"
-        disabled={frozen}
+        disabled={locked}
         aria-invalid={!!reasonError}
         {...reasonField}
         onChange={(event) => {
-          if (!frozen) reasonField.onChange(event);
+          if (!locked) reasonField.onChange(event);
         }}
       />
       <p>
@@ -59,7 +61,7 @@ export function CancelServiceLineFields({
         companyId={companyId}
         userId={userId}
         memberships={memberships}
-        frozen={frozen}
+        frozen={locked}
         register={register}
       />
       <CancelLineActions locale={locale} online={online} pending={pending} onClose={onClose} />
