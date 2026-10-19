@@ -36,6 +36,14 @@ export const settingsPaths = {
       requestBody: { required: true, content: json('UpdateBusinessIdentityNamesInput') },
     },
   },
+  '/v1/businesses/{businessId}/settings/logo': {
+    put: {
+      operationId: 'setBusinessLogo',
+      parameters,
+      responses: response('BusinessLogo'),
+      requestBody: { required: true, content: json('SetBusinessLogoInput') },
+    },
+  },
   '/v1/businesses/{businessId}/settings/discount-limit': {
     post: {
       operationId: 'setBusinessDiscountDefault',

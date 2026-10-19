@@ -555,6 +555,22 @@ export interface paths {
         patch: operations["updateBusinessIdentityNames"];
         trace?: never;
     };
+    "/v1/businesses/{businessId}/settings/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setBusinessLogo"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/settings/discount-limit": {
         parameters: {
             query?: never;
@@ -5476,6 +5492,10 @@ export interface components {
             official_name_ar: string | null;
             official_name_en: string | null;
         };
+        BusinessLogo: {
+            /** Format: uuid */
+            logo_file_id: string | null;
+        };
         BusinessSettings: {
             /** Format: uuid */
             business_id: string;
@@ -5490,6 +5510,10 @@ export interface components {
             overridden: ("default_language" | "calendar" | "limit_bps")[];
             /** Format: date-time */
             updated_at: string | null;
+        };
+        SetBusinessLogoInput: {
+            /** Format: uuid */
+            file_id: string | null;
         };
         UpdateBusinessIdentityNamesInput: {
             official_name_ar?: string | null;
@@ -7093,6 +7117,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BusinessIdentityNames"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setBusinessLogo: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetBusinessLogoInput"];
+            };
+        };
+        responses: {
+            /** @description Business settings result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessLogo"];
                 };
             };
             /** @description The API error envelope */

@@ -80,6 +80,7 @@ The reverse customers → orders DaySessionsPort is bound by an injected callbac
 customers must not import orders and introduce a compile-time cycle (ADR-0041).
 Worker `files` reads whether a file is still the business logo through `lockBusinessLogoReference` in
 `@pospay/db`, the same function the settings adapter calls. `files` does not import `settings` (ADR-0046, 27h-3).
+Settings binds a logo by reading `documentFileFacts` from `files` through its own adapter (27h-4, ADR-0046).
 
 ADR-0020 attendance QR reads the paired branch name and effective timezone through the existing tenancy
 `describeWorkspaces` surface; staff owns the read port. It adds no attendance write or clocking endpoint.
@@ -106,6 +107,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `EmployeeCreationScope` | `identity` | locked employee-management access and active company membership eligibility for user links (ADR-0021, PR #79) |
 | `settings` | `BusinessDiscountAccess`, `DiscountSubjectReader` | `identity` | locked discount-management authority and scoped personal limit/active owner metadata (ADR-0023) |
 | `settings` | `BusinessIdentityAccess` | `identity` | locked recheck of `manage:business-identity:business` at the business after the settings row lock (spec 052, 27h-1) |
+| `settings` | `LogoFileReader` | `files` | `documentFileFacts` after the settings lock: ownership, image type, permission, purge (ADR-0046, 27h-4) |
 | worker `files` | `LogoReference` | `@pospay/db` | locks `business_settings` through `lockBusinessLogoReference` and reports whether the file is still the logo; the settings adapter calls the same function, and `files` does not import `settings` (ADR-0046, 27h-3) |
 | `settings` | `DiscountSubjectReader` | `tenancy` | business and branch scope confirmed before identity membership read (ADR-0023) |
 | `staff` | `EmployeeDetailAccess` (read-side interface beside the query) | `identity` | effective grants at the persisted business/primary branch and staff feature; never global user existence (ADR-0021, PR #79) |
@@ -202,7 +204,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `EmployeeImportCommitRequested` | `staff` | `staff` worker registers per-company employee-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports employee-import-commit after outbox claim commits (ADR-0034, ADR-0018) |
 | `ImportCommitted` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
-| `BusinessLogoChanged` | `settings` (producer is 27h-4; this row registers the type only) | worker `files` retire consumer (27h-3, ADR-0046) |
+| `BusinessLogoChanged` | `settings` (`set-business-logo`, 27h-4) | worker `files` retire consumer (27h-3, ADR-0046) |
 | `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031, and registers the not-clocked-in schedule, ADR-0037) |
 | `ServiceLineChanged`                                                        | `orders`        | `commissions`, `customers`; worker `orders` (35d price/discount-edit bell — only when the optional `change.kind` is `PRICE_DISCOUNT_EDIT`; ADR-0044); worker `orders` also consumes `change.kind` `LINE_CANCELLED` (row 37 cancel bell; ADR-0044 addendum); worker `orders` also consumes `change.kind` `PERFORMERS_CHANGE` (row 37b bell; ADR-0044 addendum) |
 | `LateServiceSessionNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, permanent session ledger; no realtime until Phase 2 (ADR-0041 35b-2) |
@@ -257,7 +259,7 @@ imports:
   kitchen: []
   reporting: []
   identity: [tenancy]
-  settings: [tenancy, identity]
+  settings: [tenancy, identity, files]
   files: [tenancy]
   platform: [tenancy]
   catalog: [tenancy]
@@ -378,6 +380,7 @@ reads:
   - staff -> identity.readDocumentAccess @ apps/api/src/modules/staff/persistence/document-access.adapter.ts
   - staff -> tenancy.businessTimeZone @ apps/api/src/modules/staff/persistence/document-access.adapter.ts
   - staff -> files.documentFileFacts @ apps/api/src/modules/staff/persistence/document-files.adapter.ts
+  - settings -> files.documentFileFacts @ apps/api/src/modules/settings/persistence/logo-file.adapter.ts
   - staff -> files.documentFileFacts @ apps/api/src/modules/staff/persistence/drizzle-employee-import.ts
   - staff -> identity.readEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/drizzle-employee-import.ts
   - staff -> identity.lockEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/drizzle-employee-import.ts
