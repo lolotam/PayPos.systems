@@ -10262,6 +10262,142 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/cancellation": {
+      "post": {
+        "operationId": "cancelServiceLine",
+        "description": "Cancels one saved service line. Requires cancel:service-lines:branch on the route branch, the orders feature, and an individual admin login. Actor-bound Idempotency-Key. Every return, including a replay, is projected by the caller effective read:service-sessions:branch: the saved line with status CANCELLED and cancelled_at plus the visit total, or only cancelled true when that read is absent. The reason is never returned.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[!-~]+$"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "lineId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelServiceLineInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Projected cancellation. With branch read: line status CANCELLED, cancelled_at, and session id plus total_net. Without it: cancelled true only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelServiceLineResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Shape error or a missing Idempotency-Key. A missing or blank reason is not a shape error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission, orders feature, device principal, self-cancel, or a session or line that does not match the route. A foreign, unknown or out-of-scope session or line is the same body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale expected_revision (SESSION_LINE_REVISION_STALE): details carry current_revision only and no money. Also an idempotent request still in progress or a transaction retry, which carry no details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Domain refusal: an invalid reason, an already cancelled line, a tip that blocks the cancel, an unknown performer identity, a missing canceller membership, a line that cannot be cancelled, a session outside the window, or the same Idempotency-Key reused with another request (IDEMPOTENCY_KEY_REUSED).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual authentication or readiness refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/edits": {
       "get": {
         "operationId": "listServiceLineEdits",
@@ -22024,6 +22160,11 @@
           },
           "edited": {
             "type": "boolean"
+          },
+          "cancelled_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
           },
           "list_price": {
             "$ref": "#/components/schemas/SessionMoney"

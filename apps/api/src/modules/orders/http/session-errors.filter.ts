@@ -14,6 +14,11 @@ const TIP_UNPROCESSABLE = new Set<string>([
   'TIP_WINDOW_CLOSED', 'TIP_SELF_FORBIDDEN', 'TIP_IDENTITY_UNKNOWN', 'TIP_EMPLOYEE_NOT_PERFORMER',
   'TIP_TOTAL_TOO_LARGE', 'TIP_REASON_REQUIRED', 'TIP_NO_CHANGE',
 ]);
+// سبب الإلغاء والمنع يصلان 422 حتى لو فُتح الفلتر بحالة 400، مثل سبب التعديل.
+const CANCEL_UNPROCESSABLE = new Set<string>([
+  'SESSION_LINE_ALREADY_CANCELLED', 'SESSION_CANCEL_REASON_INVALID', 'SESSION_CANCEL_BLOCKED_BY_TIP',
+  'SESSION_LINE_IDENTITY_UNKNOWN', 'SESSION_CANCELLER_MEMBERSHIP_REQUIRED', 'SESSION_LINE_NOT_CANCELLABLE',
+]);
 
 function sessionErrorHttpStatus(code: string, invalidStatus: number): number {
   if (code === 'SESSION_PERFORMER_SELF_FORBIDDEN') return 403;
@@ -21,7 +26,7 @@ function sessionErrorHttpStatus(code: string, invalidStatus: number): number {
   // جلسة مجهولة أو خارج الفرع 404 بلا تمييز، وتعارض مراجعة البقشيش 409 مثل تعارض سطر.
   if (code === 'SESSION_RECOVERY_NOT_FOUND' || code === 'SESSION_NOT_FOUND') return 404;
   if (code === 'SESSION_RECOVERY_NOT_YET' || code === 'SESSION_RECOVERY_CLOSED' || code === 'SESSION_LINE_REVISION_STALE' || code === 'TIP_REVISION_CONFLICT') return 409;
-  if (EDIT_UNPROCESSABLE.has(code) || TIP_UNPROCESSABLE.has(code)) return 422;
+  if (EDIT_UNPROCESSABLE.has(code) || TIP_UNPROCESSABLE.has(code) || CANCEL_UNPROCESSABLE.has(code)) return 422;
   return invalidStatus;
 }
 

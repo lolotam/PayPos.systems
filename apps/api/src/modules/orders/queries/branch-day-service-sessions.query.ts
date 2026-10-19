@@ -39,6 +39,7 @@ const occurred = sql`to_char(s.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24
 
 // شاشة جلسات يوم الفرع تقسم الزيارات أولاً ثم تجمع البنود والمؤديات المحفوظات دون هاتف أو قراءة سياق آخر.
 // edited من وجود صف service_line_edits لا من revision، حتى لا تُقرأ مراجعة التسجيل كتعديل سعر.
+// وقت الإلغاء من صف التاريخ لأن السطر لا يخزّن اللحظة، والمفتاح يغيب عن السطر النشط.
 export function branchDayServiceSessionsStatement(scope: SessionDayScope, query: ServiceSessionDayQuery) {
   const cursor = decode(scope, query);
   const where = sql`s.company_id=${scope.companyId} AND s.business_id=${scope.businessId}
@@ -57,15 +58,20 @@ export function branchDayServiceSessionsStatement(scope: SessionDayScope, query:
       'business_date',to_char(s.business_date,'YYYY-MM-DD'),'business_timezone',s.business_timezone,
       'recorded_by',s.recorded_by,'late',s.late OR ${lateLines},'lines',COALESCE(lines.items,'[]'::jsonb)) AS item
     FROM visits s LEFT JOIN LATERAL (
-      SELECT jsonb_agg(jsonb_build_object('id',l.id,'service_id',l.service_id,'ordinal',l.ordinal,
+      SELECT jsonb_agg((jsonb_build_object('id',l.id,'service_id',l.service_id,'ordinal',l.ordinal,
         'name_ar',l.name_ar,'name_en',l.name_en,'status',l.status,'revision',l.revision,
         'edited',EXISTS(SELECT 1 FROM service_line_edits e WHERE e.company_id=l.company_id AND e.business_id=l.business_id AND e.line_id=l.id),
         'list_price',l.list_price::text,'price',l.price::text,'discount',l.discount::text,'net',l.net::text,
         'effective_discount_bps',l.effective_discount_bps,'recorded_by',l.recorded_by,
         'recorded_at',to_char(l.recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
         'late',l.late,'has_performer_warning',l.has_performer_warning,
-        'performers',COALESCE(performers.items,'[]'::jsonb)) ORDER BY l.ordinal) AS items
-      FROM service_lines l LEFT JOIN LATERAL (
+        'performers',COALESCE(performers.items,'[]'::jsonb))
+        || CASE WHEN c.cancelled_at IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('cancelled_at',
+          to_char(c.cancelled_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')) END)
+        ORDER BY l.ordinal) AS items
+      FROM service_lines l
+      LEFT JOIN service_line_cancellations c ON c.company_id=l.company_id AND c.business_id=l.business_id AND c.line_id=l.id
+      LEFT JOIN LATERAL (
         SELECT jsonb_agg(jsonb_build_object('employee_id',p.employee_id,'name_ar',p.name_ar,'name_en',p.name_en,
           'share_bps',p.share_bps,'not_clocked_in_warning',p.not_clocked_in_warning,
           'approved_leave_warning',p.approved_leave_warning) ORDER BY p.performer_ordinal) AS items

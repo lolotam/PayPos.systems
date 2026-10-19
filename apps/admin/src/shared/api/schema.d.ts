@@ -1620,6 +1620,23 @@ export interface paths {
         patch: operations["editServiceLine"];
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/cancellation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Cancels one saved service line. Requires cancel:service-lines:branch on the route branch, the orders feature, and an individual admin login. Actor-bound Idempotency-Key. Every return, including a replay, is projected by the caller effective read:service-sessions:branch: the saved line with status CANCELLED and cancelled_at plus the visit total, or only cancelled true when that read is absent. The reason is never returned. */
+        post: operations["cancelServiceLine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/edits": {
         parameters: {
             query?: never;
@@ -4426,6 +4443,8 @@ export interface components {
             status: "ACTIVE" | "CANCELLED";
             revision: number;
             edited: boolean;
+            /** Format: date-time */
+            cancelled_at?: string;
             list_price: components["schemas"]["SessionMoney"];
             price: components["schemas"]["SessionMoney"];
             discount: components["schemas"]["SessionMoney"];
@@ -11205,6 +11224,83 @@ export interface operations {
                 };
             };
             /** @description Domain refusal, including an invalid reason, an unchanged price and discount, or the same Idempotency-Key reused with another request (IDEMPOTENCY_KEY_REUSED). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    cancelServiceLine: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+                lineId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelServiceLineInput"];
+            };
+        };
+        responses: {
+            /** @description Projected cancellation. With branch read: line status CANCELLED, cancelled_at, and session id plus total_net. Without it: cancelled true only. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CancelServiceLineResponse"];
+                };
+            };
+            /** @description Shape error or a missing Idempotency-Key. A missing or blank reason is not a shape error. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Permission, orders feature, device principal, self-cancel, or a session or line that does not match the route. A foreign, unknown or out-of-scope session or line is the same body. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Stale expected_revision (SESSION_LINE_REVISION_STALE): details carry current_revision only and no money. Also an idempotent request still in progress or a transaction retry, which carry no details. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Domain refusal: an invalid reason, an already cancelled line, a tip that blocks the cancel, an unknown performer identity, a missing canceller membership, a line that cannot be cancelled, a session outside the window, or the same Idempotency-Key reused with another request (IDEMPOTENCY_KEY_REUSED). */
             422: {
                 headers: {
                     [name: string]: unknown;

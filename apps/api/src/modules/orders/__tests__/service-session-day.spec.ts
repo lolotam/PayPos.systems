@@ -3,8 +3,9 @@ import { serviceSessionDayPage, type RecordServiceSessionInput } from '@pospay/c
 import { sql } from 'drizzle-orm';
 import { ordersDayQuery } from '../orders.module.ts';
 import { branchDayServiceSessionsStatement } from '../queries/branch-day-service-sessions.query.ts';
+import { cancelServiceLine } from '../../../../../../packages/db/test/service-line-cancellation.ts';
 import { seedPriceEdit } from './line-edit.helpers.ts';
-import { interceptDatabase, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
+import { ids, interceptDatabase, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
 
 let f: SessionFixture;
 beforeAll(async () => { f = await sessionFixture(); });
@@ -139,4 +140,28 @@ it('derives edited from a history row and keeps price history off the day list',
   const payload = JSON.stringify(visit);
   for (const hidden of ['previous_price', 'previous_discount', 'previous_net', 'new_price', 'new_discount', 'new_net',
     'editor_label', 'editor_name', 'editor_role', 'changed_at', 'reason']) expect(payload).not.toContain(hidden);
+});
+
+it('projects cancelled_at from the history row and omits it on an active sibling', async () => {
+  f.setAt(new Date('2026-10-22T08:00:00Z'));
+  const saved = await f.create.execute({ ...f.context(), input: { ...f.body([f.line(), f.line()]), occurred_at: '2026-10-21T08:00:00.000Z' } });
+  const cancelledId = must(saved.session.lines[0]).id;
+  const owners = await f.h.owner`SELECT id FROM memberships WHERE company_id=${f.company} AND user_id=${f.ownerId} AND scope_type='COMPANY'`;
+  await f.db.withTenant(f.company, (tx) => cancelServiceLine(tx, {
+    companyId: f.company, lineId: cancelledId, expectedRevision: 1, cancelledBy: f.ownerId,
+    membershipId: must(owners[0])['id'] as string, cancellationId: ids.newId(), reason: 'Synthetic cancel reason',
+  }));
+  const [stored] = await f.h.owner`SELECT to_char(cancelled_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cancelled_at
+    FROM service_line_cancellations WHERE company_id=${f.company} AND line_id=${cancelledId}`;
+  const visit = must(serviceSessionDayPage.parse(await read('2026-10-21')).items.find((row) => row.id === saved.session.id));
+  const cancelled = must(visit.lines.find((line) => line.id === cancelledId));
+  const sibling = must(visit.lines.find((line) => line.id !== cancelledId));
+  expect(cancelled.status).toBe('CANCELLED');
+  expect(cancelled.cancelled_at).toBe(stored?.['cancelled_at']);
+  expect(sibling.status).toBe('ACTIVE');
+  expect(sibling.cancelled_at).toBeUndefined();
+  const linePayload = JSON.stringify(visit.lines);
+  for (const hidden of ['Synthetic cancel reason', '+999999998123', 'canceller_name', 'cancelled_by']) {
+    expect(linePayload).not.toContain(hidden);
+  }
 });
