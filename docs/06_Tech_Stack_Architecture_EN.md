@@ -34,7 +34,7 @@
 | Auth | **Better Auth (self-hosted, in our own DB)** with `organization`, `two-factor` (TOTP), `phone-number` (OTP) and `api-key` plugins, on the Drizzle adapter — **plus our `identity` layer** for cashier PIN, device registration and 3-level RBAC | $0 at any scale (per-MAU pricing is fatal at ~500k MAU against 50 KWD/shop), data stays in our Postgres under the same RLS, sessions are ours so the POS keeps working offline, and PIN/device-token flows simply do not exist in hosted providers | ✅ confirmed |
 | Realtime | SSE (KDS, dashboards); upgrade to WS only if bidirectional need appears | Simplest that works through proxies | ⏳ to review |
 | Files | Cloudflare R2 (Garage only for fully offline dev) | Images, receipts, exports | ✅ confirmed (`CLAUDE.md` V2) |
-| PDF/Excel | Worker: Playwright headless (HTML→PDF, Arabic fonts) + exceljs | Bilingual reports | ⏳ to review |
+| PDF/Excel | Worker: Playwright headless (HTML→PDF, Arabic fonts) + exceljs | Bilingual reports | ✅ PDF confirmed (ADR-0048, Phase 1 row 27i; worker on Debian slim with `playwright-core`); Excel ⏳ Phase 5 |
 | Payments (KW) | MyFatoorah first (KNET, cards, Apple Pay); Tap/UPayments adapters later | Kuwait reality | ⏳ to review |
 | Messaging | WhatsApp Cloud API (Meta); email via Resend/SES | Reminders, campaigns, OTP | ⏳ to review |
 | Observability | pino structured logs + request-id + Sentry; OpenTelemetry later | "What happened to tenant X order Z at 3:12?" | ⏳ to review |

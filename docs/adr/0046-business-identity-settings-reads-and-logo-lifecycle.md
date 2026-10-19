@@ -35,7 +35,7 @@ and `identity` today. ADR-0031 already solved "a module stores a file reference"
    the object outside any DB transaction with the tombstone and a system audit. Storage IO never runs in a request, a
    consumer or a transaction. The consumer ships **before** the producer (27h-3 before 27h-4), so an emitted event always has a registered consumer and is never parked or acknowledged unhandled.
 5. **Reading for the statement** is two exports in `settings/index.ts`: `readBusinessIdentity` (ids and names only) and the
-   pure `statementIdentity` fallback. The logo **bytes** are read by a `files`-owned export built with 27i, resolving the
+   pure `statementIdentity` fallback. The logo **bytes** are read by a `files`-owned export built with 27g (moved from 27i by ADR-0048 §6), resolving the
    currently bound logo of the authorised statement's business and writing one access-audit row for the requester. The
    statement requester need not hold any settings or files permission, so the stored permission gates only the admin
    preview. The `staff → settings` arrow for 27g is that row's own ADR.
