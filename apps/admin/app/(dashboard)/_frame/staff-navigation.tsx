@@ -7,6 +7,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { AttendanceBoardNavItem } from './attendance-board-nav-item';
 import { AttendanceActionsNavItem } from './attendance-actions-nav-item';
 import { AttendanceReportNavItem } from './attendance-report-nav-item';
+import { CompanyEmployeeNumbersNavItem } from './company-employee-numbers-nav-item';
 
 export function StaffNavigation() {
   const locale = useLocale();
@@ -20,11 +21,13 @@ export function StaffNavigation() {
         active={
           pathname.startsWith('/staff') &&
           !pathname.startsWith('/staff/import') &&
-          !pathname.startsWith('/staff/attendance')
+          !pathname.startsWith('/staff/attendance') &&
+          !pathname.startsWith('/staff/employee-numbers')
         }
       >
         <Link href="/staff" />
       </AppSidebarItem>
+      <CompanyEmployeeNumbersNavItem />
       <AppSidebarItem
         asChild
         icon={<Upload />}
