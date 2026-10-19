@@ -8,6 +8,7 @@ import {
 import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { apiClient } from '@/shared/api/client';
+import { cancelOutcomeKnown } from '../model/cancel-service-line-values';
 import { applyCancelledLine, type CancelledDaySource } from '../model/cancelled-day-line';
 import type { SessionServiceScope } from './use-session-services';
 
@@ -81,10 +82,10 @@ async function postCancellation(
     body: requestBody(attempt.body),
   });
   if (result.error) {
-    const status = result.response.status;
-    // رفض 4xx نتيجته معروفة، فالمحاولة الجاية لازم مفتاح جديد حتى لو الجسم ما اتغيرش.
-    if (typeof status === 'number' && status >= 400 && status <= 499) held.current = null;
-    throw { ...result.error, status };
+    const failure = { ...result.error, status: result.response.status };
+    // 409 والطلب لسه شغّال نتيجته مجهولة، فالمفتاح يفضل؛ الرفض المعروف بس بيحرره.
+    if (cancelOutcomeKnown(failure)) held.current = null;
+    throw failure;
   }
   const parsed = cancelServiceLineResponse.safeParse(result.data);
   if (!parsed.success) throw Object.assign(parsed.error, { status: result.response.status });

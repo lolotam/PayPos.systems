@@ -70,6 +70,12 @@ const visit = {
   ],
 };
 const day = { data: { items: [visit], next_cursor: null }, response: { status: 200 } };
+const allowed = { data: { can_cancel_lines: true }, response: { status: 200 } };
+function answerGet(body: () => Promise<unknown>) {
+  state.get.mockImplementation((path: string) =>
+    String(path).includes('/capabilities') ? Promise.resolve(allowed) : body(),
+  );
+}
 function renderPage(canCancel?: boolean) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -99,7 +105,7 @@ beforeEach(() => {
   state.locale = 'en';
   state.get.mockReset();
   state.post.mockReset();
-  state.get.mockResolvedValue(day);
+  answerGet(() => Promise.resolve(day));
 });
 
 function clickCancel() {
@@ -122,7 +128,7 @@ function withLineCancelled(): DayPage['items'][number] {
 function refuseThenCancelled(status: number, code: string, details?: { current_revision: number }) {
   let posted = false;
   const next = withLineCancelled();
-  state.get.mockImplementation(() =>
+  answerGet(() =>
     Promise.resolve({
       data: { items: [posted ? next : visit], next_cursor: null },
       response: { status: 200 },
@@ -144,6 +150,7 @@ function refuseThenCancelled(status: number, code: string, details?: { current_r
 
 async function submitCancelReason() {
   await screen.findByText('Synthetic customer');
+  await waitFor(() => expect(cancelButton('en').length).toBeGreaterThan(0));
   clickCancel();
   fireEvent.change(screen.getByLabelText(t('en', 'serviceLineCancel.reason')), {
     target: { value: 'because' },
@@ -154,7 +161,7 @@ async function submitCancelReason() {
 it('shows Cancel only when allowed, and the mark with its business-zone date to every caller', async () => {
   const view = renderPage();
   expect(await screen.findByText('Synthetic customer')).toBeTruthy();
-  expect(cancelButton('en')).toHaveLength(2);
+  await waitFor(() => expect(cancelButton('en')).toHaveLength(2));
   expect(screen.getAllByText(t('en', 'serviceLineCancel.cancelled'))).toHaveLength(1);
   expect(screen.getByText(formatInstant(new Date(keptAt), 'en', 'Asia/Kuwait'))).toBeTruthy();
   view.unmount();
@@ -183,7 +190,7 @@ it('marks the line cancelled with the business-zone date after a successful canc
         : item,
     ),
   };
-  state.get.mockImplementation(() =>
+  answerGet(() =>
     Promise.resolve(
       posted
         ? { data: { items: [cancelledVisit], next_cursor: null }, response: { status: 200 } }
@@ -209,6 +216,7 @@ it('marks the line cancelled with the business-zone date after a successful canc
   });
   renderPage();
   await screen.findByText('Synthetic customer');
+  await waitFor(() => expect(cancelButton('en').length).toBeGreaterThan(0));
   clickCancel();
   fireEvent.change(screen.getByLabelText(t('en', 'serviceLineCancel.reason')), {
     target: { value: 'because' },
@@ -300,7 +308,7 @@ function cancelledResponse() {
 it('shows the refreshed line and sends its revision on the next press', async () => {
   let refused = false;
   const revised = revisedVisit();
-  state.get.mockImplementation(() =>
+  answerGet(() =>
     Promise.resolve({
       data: { items: [refused ? revised : visit], next_cursor: null },
       response: { status: 200 },
@@ -336,9 +344,7 @@ it('shows the refreshed line and sends its revision on the next press', async ()
 
 it('shows the response amounts when the follow-up day refetch fails', async () => {
   let posted = false;
-  state.get.mockImplementation(() =>
-    posted ? Promise.reject(new Error('offline')) : Promise.resolve(day),
-  );
+  answerGet(() => (posted ? Promise.reject(new Error('offline')) : Promise.resolve(day)));
   state.post.mockImplementation(() => {
     posted = true;
     return Promise.resolve(cancelledResponse());
@@ -362,6 +368,7 @@ it('shows the 403 notice and keeps the day list', async () => {
   });
   renderPage();
   await screen.findByText('Synthetic customer');
+  await waitFor(() => expect(cancelButton('en').length).toBeGreaterThan(0));
   clickCancel();
   fireEvent.change(screen.getByLabelText(t('en', 'serviceLineCancel.reason')), {
     target: { value: 'because' },

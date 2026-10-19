@@ -9,6 +9,7 @@ export function useDayLineActions() {
   const [editing, setEditing] = useState<OpenEditor | null>(null);
   const [cancelling, setCancelling] = useState<OpenEditor | null>(null);
   const [history, setHistory] = useState<string | null>(null);
+  const [details, setDetails] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const openEdit = (visitId: string, lineId: string) => {
     const key = `${visitId}:${lineId}`;
@@ -30,6 +31,10 @@ export function useDayLineActions() {
     const key = `${visitId}:${lineId}`;
     setHistory((current) => (current === key ? null : key));
   };
+  const toggleDetails = (visitId: string, lineId: string) => {
+    const key = `${visitId}:${lineId}`;
+    setDetails((current) => (current === key ? null : key));
+  };
   const releaseEdit = (key: string, token: number) => {
     setEditing((current) => (current?.key === key && current.token === token ? null : current));
   };
@@ -40,11 +45,13 @@ export function useDayLineActions() {
     editing,
     cancelling,
     history,
+    details,
     notice,
     setNotice,
     openEdit,
     openCancel,
     toggleHistory,
+    toggleDetails,
     releaseEdit,
     releaseCancel,
   };

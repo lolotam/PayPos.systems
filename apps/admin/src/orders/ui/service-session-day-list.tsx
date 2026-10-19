@@ -5,6 +5,7 @@ import { Button } from '@pospay/ui';
 import type { RefObject } from 'react';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { CancelServiceLineDialog } from './cancel-service-line-dialog';
+import { ServiceLineCancellationDetails } from './service-line-cancellation-details';
 import { ServiceLineEditHistory } from './service-line-edit-history';
 import { ServiceSessionDayEditor } from './service-session-day-editor';
 import { ServiceSessionDayVisit } from './service-session-day-visit';
@@ -60,6 +61,33 @@ function findLine(visits: readonly Visit[], key: string | null) {
   return null;
 }
 
+function keyedLine(visitId: string, key: string | null) {
+  return key?.startsWith(`${visitId}:`) ? key.slice(visitId.length + 1) : null;
+}
+
+function historyPanel(list: ServiceSessionDayListProps, visit: Visit, lineId: string) {
+  return (
+    <ServiceLineEditHistory
+      scope={list.scope}
+      sessionId={visit.id}
+      lineId={lineId}
+      timezone={visit.business_timezone || list.timezone}
+      onAccessDenied={list.onAccessDenied}
+    />
+  );
+}
+
+function cancellationPanel(list: ServiceSessionDayListProps, visit: Visit, lineId: string) {
+  return (
+    <ServiceLineCancellationDetails
+      scope={list.scope}
+      sessionId={visit.id}
+      lineId={lineId}
+      timezone={visit.business_timezone || list.timezone}
+    />
+  );
+}
+
 function ServiceSessionDayVisitSlot({
   visit,
   list,
@@ -71,10 +99,8 @@ function ServiceSessionDayVisitSlot({
 }) {
   const editing = actions.editing;
   const open = findLine([visit], editing?.key ?? null);
-  const historyKey = actions.history;
-  const historyLineId = historyKey?.startsWith(`${visit.id}:`)
-    ? historyKey.slice(visit.id.length + 1)
-    : null;
+  const historyLineId = keyedLine(visit.id, actions.history);
+  const detailsLineId = keyedLine(visit.id, actions.details);
   const editor =
     open && editing ? (
       <ServiceSessionDayEditor
@@ -94,6 +120,7 @@ function ServiceSessionDayVisitSlot({
       canCancel={list.canCancel}
       activeLineId={open?.line.id ?? null}
       historyLineId={historyLineId}
+      detailsLineId={detailsLineId}
       onEdit={(lineId) => {
         actions.openEdit(visit.id, lineId);
       }}
@@ -103,18 +130,12 @@ function ServiceSessionDayVisitSlot({
       onToggleHistory={(lineId) => {
         actions.toggleHistory(visit.id, lineId);
       }}
+      onToggleDetails={(lineId) => {
+        actions.toggleDetails(visit.id, lineId);
+      }}
       editor={editor}
-      historyPanel={
-        historyLineId ? (
-          <ServiceLineEditHistory
-            scope={list.scope}
-            sessionId={visit.id}
-            lineId={historyLineId}
-            timezone={visit.business_timezone || list.timezone}
-            onAccessDenied={list.onAccessDenied}
-          />
-        ) : null
-      }
+      historyPanel={historyLineId ? historyPanel(list, visit, historyLineId) : null}
+      detailsPanel={detailsLineId ? cancellationPanel(list, visit, detailsLineId) : null}
     />
   );
 }

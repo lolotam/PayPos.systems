@@ -208,7 +208,7 @@ describe('openapi/openapi.json', () => {
         'ServiceSessionDayLine',
         'ServiceSessionDayItem',
         'ServiceSessionDayPage',
-        'ServiceLineCancellation', 'ServiceLineEditsQuery',
+        'ServiceLineCancellation', 'ServiceLineEditsQuery', 'ServiceSessionCapabilities',
         'ServiceLineEditItem',
         'ServiceLineEditsPage',
         'AttendanceChangeDecisionResult',

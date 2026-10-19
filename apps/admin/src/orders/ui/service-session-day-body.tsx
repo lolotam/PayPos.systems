@@ -13,7 +13,7 @@ export function ServiceSessionDayBody({
   lateOnly,
   online,
   timezone,
-  canCancel = true,
+  canCancel,
   onAccessDenied,
 }: {
   scope: SessionServiceScope;
@@ -21,7 +21,7 @@ export function ServiceSessionDayBody({
   lateOnly: boolean;
   online: boolean;
   timezone: string;
-  canCancel?: boolean;
+  canCancel: boolean;
   onAccessDenied: (message: string) => void;
 }) {
   const locale = useLocale();

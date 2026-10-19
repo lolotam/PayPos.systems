@@ -21,8 +21,10 @@ import { performerCheck } from './persistence/performer-check.adapter.ts';
 import { discountLimit } from './persistence/discount-limit.adapter.ts';
 import { sessionBranchBelongs, sessionPlace } from './persistence/session-place.adapter.ts';
 import { sessionRecordAccess } from './persistence/session-record-access.adapter.ts';
+import { sessionCancelCapability } from './persistence/session-edit-access.adapter.ts';
 import { sessionReadAccess } from './persistence/session-read-access.adapter.ts';
 import { BranchDayServiceSessionsQuery } from './queries/branch-day-service-sessions.query.ts';
+import { ServiceSessionCapabilitiesQuery } from './queries/service-session-capabilities.query.ts';
 import { ServiceLineCancellationQuery } from './queries/service-line-cancellation.query.ts';
 import { ServiceLineEditHistoryQuery } from './queries/service-line-edits.query.ts';
 import { SessionTipsCurrentQuery } from './queries/session-tips-current.query.ts';
@@ -93,6 +95,13 @@ export function ordersLineCancellation(database: TenantWrappers) {
     read: (tx, scope) => sessionReadAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
   });
 }
+export function ordersCapabilitiesQuery(database: TenantWrappers) {
+  return new ServiceSessionCapabilitiesQuery(database, {
+    place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
+    read: (tx, scope) => sessionReadAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
+    cancel: (tx, scope, at) => sessionCancelCapability(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
+  });
+}
 export function ordersLineEdits(database: TenantWrappers) {
   return createLineEditTransactions(database, bindLineEditReaders);
 }
@@ -127,6 +136,7 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
     { provide: BranchDayServiceSessionsQuery, useValue: database === undefined ? null : ordersDayQuery(database) },
     { provide: ServiceLineEditHistoryQuery, useValue: database === undefined ? null : ordersLineEditHistory(database) },
     { provide: ServiceLineCancellationQuery, useValue: database === undefined ? null : ordersLineCancellation(database) },
+    { provide: ServiceSessionCapabilitiesQuery, useValue: database === undefined ? null : ordersCapabilitiesQuery(database) },
     { provide: SessionRecoveryQuery, useValue: database === undefined ? null : ordersRecoveryQuery(database, clock) },
     { provide: ConfirmSessionRecoveryUseCase, useValue: database === undefined ? null : ordersRecoveryConfirm(database, ids, clock) },
     { provide: RecordServiceSessionUseCase, useValue: writes === null ? null : new RecordServiceSessionUseCase(writes.transactions, writes.recovery, ids, clock) },

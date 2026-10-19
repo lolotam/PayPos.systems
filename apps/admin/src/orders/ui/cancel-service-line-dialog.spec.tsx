@@ -286,3 +286,99 @@ it('replays the same key and body after a network error', async () => {
   expect(sent.reason).toBe('hello');
   await waitFor(() => expect(view.onSaved).toHaveBeenCalledTimes(1));
 });
+
+function mockSecondMembershipPage() {
+  const company = {
+    id: id(1),
+    name_en: 'PosPay',
+    name_ar: null,
+    role_code: 'owner',
+    scope: 'COMPANY' as const,
+    businesses: [
+      {
+        id: id(2),
+        name_en: 'Clinic',
+        name_ar: null,
+        branches: [
+          {
+            id: id(3),
+            name_en: 'Salmiya',
+            name_ar: null,
+            effective_timezone: 'Asia/Kuwait',
+            is_active: true,
+          },
+        ],
+      },
+    ],
+  };
+  state.get.mockImplementation(
+    (path: string, init?: { params?: { query?: { cursor?: string } } }) => {
+      if (path === '/v1/me/workspaces') return Promise.resolve({ data: { companies: [company] } });
+      const cursor = init?.params?.query?.cursor;
+      if (cursor === id(40)) {
+        return Promise.resolve({
+          data: {
+            items: [callerMembership(30, 'branch_manager', 'BRANCH', id(3))],
+            next_cursor: id(99),
+          },
+        });
+      }
+      if (cursor) return Promise.resolve({ data: { items: [], next_cursor: null } });
+      return Promise.resolve({
+        data: {
+          items: [callerMembership(40, 'cashier', 'COMPANY', id(1))],
+          next_cursor: id(40),
+        },
+      });
+    },
+  );
+}
+
+it('shows the role label when the eligible membership is only on the second page', async () => {
+  const branchLabel = `${roleName('en', 'branch_manager', 'branch_manager')} — Salmiya`;
+  mockSecondMembershipPage();
+  state.post.mockResolvedValueOnce(
+    refused(422, 'SESSION_CANCELLER_MEMBERSHIP_REQUIRED', {
+      canceller_membership_ids: [id(30)],
+    }),
+  );
+  shown();
+  fireEvent.change(reasonBox(), { target: { value: 'because' } });
+  submit();
+  expect(await screen.findByRole('option', { name: branchLabel })).toBeTruthy();
+  expect(
+    screen.queryByRole('option', {
+      name: t('en', 'serviceLineCancel.membershipN').replace('{n}', '1'),
+    }),
+  ).toBeNull();
+  const cursors = state.get.mock.calls
+    .filter((call) => call[0] === '/v1/permissions/memberships')
+    .map(
+      (call) => (call[1] as { params?: { query?: { cursor?: string } } })?.params?.query?.cursor,
+    );
+  expect(cursors).toContain(id(40));
+  expect(cursors).not.toContain(id(99));
+});
+
+it('reuses the original key through a busy 409 and releases it after a definitive 422', async () => {
+  state.post
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce(refused(409, 'IDEMPOTENCY_KEY_IN_PROGRESS'))
+    .mockResolvedValueOnce(refused(422, 'SESSION_LINE_NOT_CANCELLABLE'))
+    .mockResolvedValue(saved);
+  shown();
+  fireEvent.change(reasonBox(), { target: { value: 'because' } });
+  submit();
+  expect(await screen.findByText(t('en', 'serviceLineCancel.outcomeUnknown'))).toBeTruthy();
+  submit();
+  await waitFor(() => expect(state.post).toHaveBeenCalledTimes(2));
+  expect(keyOf(1)).toBe(keyOf(0));
+  submit();
+  await waitFor(() => expect(state.post).toHaveBeenCalledTimes(3));
+  expect(keyOf(2)).toBe(keyOf(0));
+  expect(await screen.findByText('SESSION_LINE_NOT_CANCELLABLE EN')).toBeTruthy();
+  submit();
+  await waitFor(() => expect(state.post).toHaveBeenCalledTimes(4));
+  expect(keyOf(3)).not.toBe(keyOf(0));
+  expect(bodyOf(3)).toEqual(bodyOf(0));
+});

@@ -1603,6 +1603,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Lock-free branch capability for the manager day list. Requires read:service-sessions:branch and the orders feature. can_cancel_lines is the effective cancel:service-lines:branch on this branch: ALLOW, no DENY, and an active membership. Missing cancel permission, a DENY, or another branch is 200 false. Missing read is the route 403. A disabled orders feature stays FEATURE_DISABLED. No Idempotency-Key. */
+        get: operations["readServiceSessionCapabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines": {
         parameters: {
             query?: never;
@@ -4542,6 +4559,9 @@ export interface components {
                 discount: components["schemas"]["SessionMoney"];
                 net: components["schemas"]["SessionMoney"];
             };
+        };
+        ServiceSessionCapabilities: {
+            can_cancel_lines: boolean;
         };
         RecordingContextQuery: {
             /** Format: uuid */
@@ -11174,6 +11194,49 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    readServiceSessionCapabilities: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether the day list may offer Cancel on this branch. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceSessionCapabilities"];
+                };
+            };
+            /** @description Uniform scope/authority refusal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication/readiness refusal. */
             default: {
                 headers: {
                     [name: string]: unknown;

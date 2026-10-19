@@ -36,6 +36,18 @@ export const serviceSessionPaths = {
     },
     post: write('recordServiceSession', 'RecordServiceSessionInput', 'RecordServiceSessionResponse', false),
   },
+  '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/capabilities': {
+    get: {
+      operationId: 'readServiceSessionCapabilities',
+      description: 'Lock-free branch capability for the manager day list. Requires read:service-sessions:branch and the orders feature. can_cancel_lines is the effective cancel:service-lines:branch on this branch: ALLOW, no DENY, and an active membership. Missing cancel permission, a DENY, or another branch is 200 false. Missing read is the route 403. A disabled orders feature stays FEATURE_DISABLED. No Idempotency-Key.',
+      parameters: parameters.filter((p) => p.name !== 'Idempotency-Key'),
+      responses: {
+        '200': { description: 'Whether the day list may offer Cancel on this branch.', content: json('ServiceSessionCapabilities') },
+        '403': { description: 'Uniform scope/authority refusal or disabled orders feature.', content: json('ErrorEnvelope') },
+        default: { description: 'Bilingual authentication/readiness refusal.', content: json('ErrorEnvelope') },
+      },
+    },
+  },
   '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines': {
     post: write('appendServiceSessionLines', 'AppendServiceSessionLinesInput', 'AppendServiceSessionLinesResponse', true),
   },

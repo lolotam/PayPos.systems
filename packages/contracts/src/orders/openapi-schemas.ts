@@ -1,5 +1,6 @@
 import { serviceSessionDaySchemas } from './service-session-day.js';
 import { serviceLineCancellationSchemas } from './service-line-cancellation.js';
+import { serviceSessionCapabilitiesSchemas } from './service-session-capabilities.js';
 import { serviceLineEditsSchemas } from './service-session-edits.js';
 import { serviceSessionFormSchemas } from './service-session-form-openapi.js';
 import { serviceSessionRecoverySchemas } from './service-session-recovery-openapi.js';
@@ -13,6 +14,7 @@ export const orderSchemas = [
   ...serviceSessionDaySchemas,
   ...serviceLineEditsSchemas,
   ...serviceLineCancellationSchemas,
+  ...serviceSessionCapabilitiesSchemas,
   ...serviceSessionFormSchemas,
   ...serviceSessionRecoverySchemas,
 ];

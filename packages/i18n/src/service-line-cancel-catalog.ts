@@ -12,6 +12,8 @@ export const serviceLineCancelEn = {
   outcomeUnknown: 'The result is unknown. The same button replays this cancellation safely.',
   membership: 'Membership',
   membershipN: 'Membership {n}',
+  details: 'Details',
+  canceller: 'Cancelled by',
 };
 export const serviceLineCancelAr: Record<keyof typeof serviceLineCancelEn, string> = {
   cancel: 'إلغاء',
@@ -27,4 +29,6 @@ export const serviceLineCancelAr: Record<keyof typeof serviceLineCancelEn, strin
   outcomeUnknown: 'النتيجة مش معروفة. نفس الزر هيعيد الإلغاء ده بأمان.',
   membership: 'العضوية',
   membershipN: 'العضوية {n}',
+  details: 'التفاصيل',
+  canceller: 'اللي لغى',
 };

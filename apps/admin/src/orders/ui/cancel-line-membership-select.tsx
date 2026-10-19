@@ -22,7 +22,7 @@ export function CancelLineMembershipSelect({
   companyId: string;
   userId: string;
 }) {
-  const directory = useCallerMemberships(companyId, userId);
+  const directory = useCallerMemberships(companyId, userId, memberships);
   const company = directory.companies.find((item) => item.id === companyId);
   const names = company ? workspaceScopeNames(company, locale) : {};
   const byId = new Map(directory.memberships.map((item) => [item.id, item]));
