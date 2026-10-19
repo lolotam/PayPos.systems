@@ -12,6 +12,8 @@ export function logoDownloadKey(companyId: string, userId: string, fileId: strin
 /**
  * الرابط الموقّع بيفضل في حالة المكوّن مش في بيانات الاستعلام، عشان الكاش المشترك ما يحتفظش بيه والمعاينة لسه ظاهرة.
  * gcTime 0 بيمسح حالة المحاولة لما المعاينة تتشال. إعادة المحاولة زر ظاهر؛ من غير إعادة تلقائية تخبّي أول فشل أو تعيد 403.
+ * كل إصدار بيسجّل صف تدقيق، فالجلب ما يتجدّدش مع التركيز أو رجوع الشبكة.
+ * إشارة الاستعلام بتلغي الطلب لما المعاينة تتشال، والنتيجة بعد الإلغاء ما بتتكتبش على مكوّن اتبدّل.
  */
 export function useLogoDownload(companyId: string, userId: string, fileId: string | null) {
   const [url, setUrl] = useState<string | null>(null);
@@ -19,10 +21,14 @@ export function useLogoDownload(companyId: string, userId: string, fileId: strin
     queryKey: logoDownloadKey(companyId, userId, fileId ?? 'none'),
     enabled: fileId !== null,
     gcTime: 0,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     retry: false,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (fileId === null) throw new Error('logo file is missing');
-      const download = await issueLogoDownload(companyId, fileId);
+      const download = await issueLogoDownload(companyId, fileId, signal);
+      if (signal.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
       setUrl(download.download_url);
       return { issued: true as const };
     },

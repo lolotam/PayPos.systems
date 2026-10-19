@@ -3,7 +3,6 @@ import { expect, it } from 'vitest';
 import {
   company,
   business,
-  cookie,
   h,
   ids,
   readerCookie,
@@ -64,8 +63,10 @@ it('read:settings alone cannot download a settings file, and a staff document st
   const [denied] =
     await h.owner`SELECT outcome FROM file_access_audit WHERE company_id = ${company} AND file_id = ${legacy} AND actor_user_id = ${readerId}`;
   expect(denied?.['outcome']).toBe('DENY');
+  await grantReader('read:files:business');
   const staff = await ready();
-  expect((await h.send('POST', `/v1/files/${staff.id}/download`, { cookie, company })).status).toBe(
-    200,
-  );
+  expect(
+    (await h.send('POST', `/v1/files/${staff.id}/download`, { cookie: readerCookie, company }))
+      .status,
+  ).toBe(200);
 });

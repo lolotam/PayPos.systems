@@ -1,4 +1,4 @@
-import { identityCapability } from '@pospay/contracts';
+import { businessIdentity, identityCapability } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
@@ -46,6 +46,29 @@ function text(statusCode: number, body: string) {
 it('reports true for the owner', async () => {
   const res = await read(f.cookie);
   expect(identityCapability.parse(res.json())).toEqual({ can_manage_identity: true });
+});
+
+it('accepts an uppercase business id for a holder and returns the stored identity', async () => {
+  await f.h.owner`INSERT INTO business_settings
+      (company_id, business_id, official_name_ar, official_name_en)
+    VALUES (${f.company}, ${f.business}, 'Alpha', 'Shop')
+    ON CONFLICT (company_id, business_id) DO UPDATE
+      SET official_name_ar = EXCLUDED.official_name_ar,
+          official_name_en = EXCLUDED.official_name_en`;
+  const business = f.business.toUpperCase();
+  const capability = await read(f.cookie, business);
+  expect(identityCapability.parse(capability.json())).toEqual({ can_manage_identity: true });
+  const identity = await f.h.app.inject({
+    method: 'GET',
+    url: `/v1/businesses/${business}/settings/identity`,
+    headers: { cookie: f.cookie, 'x-company-id': f.company, origin: 'http://admin.test' },
+  });
+  expect(identity.statusCode).toBe(200);
+  expect(businessIdentity.parse(identity.json())).toEqual({
+    official_name_ar: 'Alpha',
+    official_name_en: 'Shop',
+    logo_file_id: null,
+  });
 });
 
 it('reports false for a member who does not hold the identity permission', async () => {

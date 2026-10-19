@@ -83,9 +83,10 @@ export async function putBusinessLogo(
   return businessLogo.parse(response.data);
 }
 
-export async function issueLogoDownload(companyId: string, fileId: string) {
+export async function issueLogoDownload(companyId: string, fileId: string, signal?: AbortSignal) {
   const response = await apiClient().POST('/v1/files/{id}/download', {
     params: { header: header(companyId), path: { id: fileId } },
+    ...(signal ? { signal } : {}),
   });
   if (response.error) fail(response.error, response.response.status);
   return fileDownload.parse(response.data);

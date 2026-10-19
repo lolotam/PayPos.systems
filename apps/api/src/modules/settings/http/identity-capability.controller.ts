@@ -36,7 +36,8 @@ export class IdentityCapabilityController {
     const access = this.access;
     return this.database.withTenant(
       actor.companyId,
-      (tx) => readIdentityCapability(tx, actor.companyId, actor.userId, businessId, access),
+      (tx) =>
+        readIdentityCapability(tx, actor.companyId, actor.userId, businessId.toLowerCase(), access),
       { userId: actor.userId },
     );
   }
