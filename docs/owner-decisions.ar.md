@@ -94,3 +94,19 @@
 **الإجابة (وليد، 19 أكتوبر 2026، عن طريق الـ super agent):** «كله زي توصيتك» — يعني (أ).
 
 **الأثر على الشغل:** الحد فضل 5 جولات (`.claude/skills/pospay-pipeline/SKILL.md` §2). التعديل المحلي اتشال، ونسخة الـ main المحلية اتحدّثت.
+
+### 8. صفحة القرارات تتنقل من claude.ai لسيرفرنا
+
+**الخلفية:** صفحة «قرارات PosPay» كانت artifact على claude.ai، وبياناتها متخزنة هناك. وليد طلب ينقلها لسيرفر الـ Dokploy بتاعنا على دومين خاص، وتتحفظ في ملف JSON.
+
+**الإجابة (وليد، 20 أكتوبر 2026، في الشات مباشرة):** «write prompt for the manager to change the artifact … to this project https://plan.pospay.systems … so after every merge will update this url and any questions to me or abusalem to it also and can retrieve the results» و«also change in the pipeline to update this project instead of https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF».
+
+**الأثر على الشغل:**
+
+- الصفحة بقت https://plan.pospay.systems، والكود في الـ repo الخاص `lolotam/plan`.
+- أسئلة الفلوس وتبويب «المشروع أول بأول» بيتنشروا بـ push على الـ repo ده.
+- الإجابات بتتقري من الـ API بتاع الموقع.
+- القواعد اتعدلت في `CLAUDE.md` (V3.12) و`AGENTS.md` والـ pipeline skill و`docs/HANDOVER.md`.
+- الطريقة بالتفصيل في `docs/decisions-site.md`.
+- الـ artifact القديم اتقفل: مفيش نشر عليه ولا قراية منه تاني.
+- البيانات اتنقلت منه في 19 أكتوبر 2026 حوالي 20:30 UTC: 158 قرار نهائي و690 مراجعة.

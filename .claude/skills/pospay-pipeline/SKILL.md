@@ -85,7 +85,7 @@ moment it happens, in the owner report. Never switch to a metered provider witho
 | 10 | CI `ci-gate` green **on the exact head being merged** | GitHub Actions | green |
 | 11 | Merge: `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` — a push after the reviews makes the merge fail instead of landing an unreviewed head | orchestrator | merged |
 | 12 | Deploy to staging (§6) | orchestrator | `/ready` answers ready on the new SHA |
-| 13 | Update the decisions page's «المشروع أول بأول» tab (§6 step 8) | orchestrator | `roadmap.json` republished |
+| 13 | Update the decisions page's «المشروع أول بأول» tab (§6 step 8) | orchestrator | `roadmap.json` pushed to `lolotam/plan` and live |
 | 14 | Journey doc `docs/journey/NN-<name>.md` (Arabic + English) in its own docs PR | orchestrator | merged after Codex review |
 | 15 | Owner report (§7) | orchestrator | sent |
 
@@ -199,10 +199,11 @@ On the `abdulaziz` SSH profile, in `/opt/pospay-staging`:
 the `.env` next to itself, so it must always run from `/opt/pospay-staging/`, never from inside `known-good/`.
 7. Point `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
    local image is removed by the server's cleanup and the nightly backup then fails silently).
-8. Update the decisions page's «المشروع أول بأول» tab (`CLAUDE.md` §1 5c) at
-   https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF: read the live page, set the merged rows, sub-tasks and any partner
-   requests they close to done with the PR number, add any new rows, bump `updated`, and republish `roadmap.json` to the
-   same URL. A docs-only merge updates the tab too. A release is not reported to the owner until this is done.
+8. Update the decisions page's «المشروع أول بأول» tab (`CLAUDE.md` §1 5c) at https://plan.pospay.systems
+   (`docs/decisions-site.md` §B): `git pull` the `lolotam/plan` clone, set the merged rows, sub-tasks and any partner
+   requests they close to done with the PR number in `public/roadmap.json`, add any new rows, bump `updated`, push to
+   `main`, and confirm the live `roadmap.json` shows the change. Then read the answers back (§C of the same doc). A
+   docs-only merge updates the tab too. A release is not reported to the owner until this is done.
 
 The server is shared: never touch another project's containers, databases or files.
 
@@ -255,8 +256,8 @@ typing do not.
    "ref": "PR #n" }]` and run `node scripts/roadmap/cli.mjs roadmap.json updates.json`. It sets status and ref by
    code anywhere in the file (phases, gates, track items, partner requests), bumps `updated`, and refuses an unknown
    code or status before changing anything. It cannot add a row: add a new row by hand in the right group of
-   `roadmap.json` first, then run the script for the statuses. Read the live page, run the script on a copy of
-   `roadmap.json`, republish. Do not write a new script each time.
+   `roadmap.json` first, then run the script for the statuses. `git pull` the `lolotam/plan` clone, run the script on
+   its `public/roadmap.json`, push. Do not write a new script each time.
 8. **Report the draw.** When the owner asks about quota, answer from the context sizes of the sessions and the number of
    wake-ups, not from guesses; the app does not expose per-session numbers.
 
