@@ -2,6 +2,8 @@ import { refusingStaffSessions } from '../../../test/refusing-staff-sessions.ts'
 import { Writable } from 'node:stream';
 
 import { Controller, Get, Req } from '@nestjs/common';
+import type { ExecutionContext } from '@nestjs/common';
+import type { Reflector } from '@nestjs/core';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { AuthService } from '@pospay/auth';
 import { errorEnvelope } from '@pospay/contracts';
@@ -11,7 +13,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApp } from '../../app.ts';
 import { Authenticated } from '../access.decorators.ts';
+import { ApiError } from '../errors.ts';
 import { API_LOG_EVENTS } from '../log-events.ts';
+import { CLOSED_COMPANY_DEVICE_OTP, SessionGuard } from '../session.guard.ts';
+import { STAFF_ROUTE } from '../staff-authentication.ts';
 
 // T9a-1: deny by default. Better Auth itself (login, cookies, sign-out) is proven against Postgres in
 // packages/auth; here the API's side — the guard, the principal, and the /v1/auth/* bridge.
@@ -196,5 +201,109 @@ describe('refusals and cross-origin calls', () => {
     expect(allowed.headers['access-control-allow-credentials']).toBe('true');
     const other = await preflight('http://evil.test');
     expect(other.headers['access-control-allow-origin']).toBeUndefined();
+  });
+});
+
+const CLOSED_COMPANY = '019c0000-0000-7000-8000-0000000000a1';
+const CLOSED_DEVICE = '019c0000-0000-7000-8000-0000000000a2';
+const CLOSED_BRANCH = '019c0000-0000-7000-8000-0000000000a3';
+
+function deviceGuard(options: { staff?: 'device' | 'staff'; allowClosed?: true; session?: true }) {
+  const calls = { eligible: 0 };
+  const auth = (
+    options.session
+      ? { staff: { resolve: async () => ({ userId: '019c0000-0000-7000-8000-0000000000b1' }) } }
+      : null
+  ) as AuthService | null;
+  const reflector = {
+    getAllAndOverride: () => undefined,
+    get: (key: unknown) => {
+      if (key === STAFF_ROUTE) return options.staff;
+      if (key === CLOSED_COMPANY_DEVICE_OTP) return options.allowClosed;
+      return undefined;
+    },
+  } as unknown as Reflector;
+  const guard = new SessionGuard(
+    reflector,
+    auth,
+    {
+      authenticate: async (token) => {
+        if (token !== 'closed' && token !== 'live') return null;
+        return {
+          companyId: CLOSED_COMPANY,
+          deviceId: CLOSED_DEVICE,
+          branchId: CLOSED_BRANCH,
+          companyActive: token === 'live',
+        };
+      },
+    },
+    {
+      context: async () => ({
+        companyId: CLOSED_COMPANY,
+        businessId: '019c0000-0000-7000-8000-0000000000a4',
+        branchId: CLOSED_BRANCH,
+        deviceId: CLOSED_DEVICE,
+      }),
+      eligible: async () => {
+        calls.eligible += 1;
+        return false;
+      },
+    },
+    null,
+  );
+  return { guard, eligibleCalls: () => calls.eligible };
+}
+
+function activate(guard: SessionGuard, token: string) {
+  const request = { headers: { authorization: `Device ${token}` } } as FastifyRequest;
+  const context = {
+    getHandler: () => undefined,
+    getClass: () => undefined,
+    switchToHttp: () => ({
+      getRequest: () => request,
+      getResponse: () => ({ header: () => undefined }),
+    }),
+  } as unknown as ExecutionContext;
+  return { request, run: () => guard.canActivate(context) };
+}
+
+function envelope(error: unknown): string {
+  if (!(error instanceof ApiError)) throw error;
+  return JSON.stringify(error.toEnvelope());
+}
+
+describe('a soft-deleted company device token', () => {
+  it('is the same refusal as an unknown token, except the staff OTP allow-list', async () => {
+    const refused = async (options: Parameters<typeof deviceGuard>[0], token: string) => {
+      const built = deviceGuard(options);
+      const hit = activate(built.guard, token);
+      const error = await hit.run().then(
+        () => null,
+        (caught: unknown) => caught,
+      );
+      return { built, hit, error };
+    };
+    const closed = await refused({}, 'closed');
+    const unknown = await refused({}, 'unknown');
+    expect(envelope(closed.error)).toBe(envelope(unknown.error));
+    expect(closed.hit.request.principal).toBeUndefined();
+    expect(closed.built.eligibleCalls()).toBe(0);
+    const allowed = deviceGuard({ staff: 'device', allowClosed: true });
+    const pass = activate(allowed.guard, 'closed');
+    expect(await pass.run()).toBe(true);
+    expect(pass.request.staffDevice?.deviceId).toBe(CLOSED_DEVICE);
+    expect(allowed.eligibleCalls()).toBe(0);
+    const live = activate(deviceGuard({}).guard, 'live');
+    expect(await live.run()).toBe(true);
+    expect(live.request.principal?.kind).toBe('device');
+    const blocked = await refused({ staff: 'device' }, 'closed');
+    expect(envelope(blocked.error)).toBe(envelope(unknown.error));
+    expect(blocked.built.eligibleCalls()).toBe(0);
+    const staffPolicy = await refused(
+      { staff: 'staff', allowClosed: true, session: true },
+      'closed',
+    );
+    expect(envelope(staffPolicy.error)).toBe(envelope(unknown.error));
+    expect(staffPolicy.built.eligibleCalls()).toBe(1);
   });
 });

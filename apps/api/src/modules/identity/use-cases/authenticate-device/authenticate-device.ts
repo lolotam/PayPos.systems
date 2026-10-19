@@ -6,10 +6,13 @@ export interface AuthenticatedDevice {
   readonly companyId: string;
   readonly deviceId: string;
   readonly branchId: string;
+  /** false when the token is real and the company is soft-deleted; the guard hides that except on the OTP request. */
+  readonly companyActive: boolean;
 }
 
-// Proves a device token inside the company it names (ADR-0003 §4 path B) and renews it for 30 days on success (D-09).
-// Every failure is the same null, so the answer is no oracle for which companies or devices exist.
+// Proves a device token inside the company it names (ADR-0003 §4 path B) and renews it for 30 days only while that
+// company is still open (D-09). A soft-deleted company is companyActive: false and is not renewed; every other
+// failure is the same null, so the answer is no oracle for which companies or devices exist.
 export class AuthenticateDevice {
   readonly #transactions: DeviceTransactions;
   readonly #secrets: DeviceSecrets;
@@ -23,7 +26,7 @@ export class AuthenticateDevice {
 
   /**
    * @param token the device token as the request carried it
-   * @returns the device, or null when anything does not match
+   * @returns the device (companyActive false when it is soft-deleted), or null when anything does not match
    */
   async execute(token: string): Promise<AuthenticatedDevice | null> {
     const parsed = this.#secrets.parse(token);
@@ -40,8 +43,15 @@ export class AuthenticateDevice {
       ) {
         return null;
       }
+      const proved = {
+        companyId: parsed.companyId,
+        deviceId: device.id,
+        branchId: device.branchId,
+      };
+      // قراءة من غير قفل: المصادقة مش بتصدر اعتماد، ومينفعش تستنى حذف ناعم ولا تجدد توكن شركة اتقفلت.
+      if (!(await scope.companyActive())) return { ...proved, companyActive: false };
       await scope.update(device.id, { tokenExpiresAt: deviceTokenExpiry(now), lastSeenAt: now });
-      return { companyId: parsed.companyId, deviceId: device.id, branchId: device.branchId };
+      return { ...proved, companyActive: true };
     });
   }
 }

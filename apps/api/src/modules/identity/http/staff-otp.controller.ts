@@ -23,6 +23,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Authenticated } from '../../../shared/access.decorators.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
+import { AllowClosedCompanyDeviceOtp } from '../../../shared/session.guard.ts';
 import { STAFF_ROUTE } from '../../../shared/staff-authentication.ts';
 import { toWebHeaders } from '../../../shared/web-headers.ts';
 
@@ -43,6 +44,7 @@ export class StaffOtpController {
   @RouteConfig({ bodyLimit: STAFF_AUTH_BODY_BYTES })
   @Authenticated()
   @SetMetadata(STAFF_ROUTE, 'device')
+  @AllowClosedCompanyDeviceOtp()
   @HttpCode(202)
   async request(
     @Body(new ZodValidationPipe(staffOtpRequestInput)) input: StaffOtpRequestInput,

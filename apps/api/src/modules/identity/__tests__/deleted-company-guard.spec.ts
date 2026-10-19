@@ -90,6 +90,46 @@ function verifyPin(employeeId: string, pin: string) {
   });
 }
 
+async function claimedOn(company: string, branch: string, label: string) {
+  const code = await h.send('POST', `/v1/branches/${branch}/devices/pairing-code`, {
+    cookie,
+    company,
+  });
+  expect(code.status).toBe(201);
+  const registered = await h.app.inject({
+    method: 'POST',
+    url: '/v1/devices/register',
+    payload: { pairing_code: code.body['code'], label },
+  });
+  expect(registered.statusCode).toBe(201);
+  const device = registered.json() as {
+    company_id: string;
+    device_id: string;
+    claim_secret: string;
+  };
+  const approved = await h.send(
+    'POST',
+    `/v1/branches/${branch}/devices/${device.device_id}/approve`,
+    { cookie, company },
+  );
+  expect(approved.status).toBe(204);
+  const claimed = await h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: device });
+  expect(claimed.statusCode).toBe(200);
+  return {
+    id: device.device_id,
+    token: (claimed.json() as { device_token: string }).device_token,
+  };
+}
+
+function authed(method: 'GET' | 'POST', url: string, token: string, payload?: object) {
+  return h.app.inject({
+    method,
+    url,
+    headers: { authorization: `Device ${token}` },
+    ...(payload === undefined ? {} : { payload }),
+  });
+}
+
 async function armDeletedCompany(): Promise<void> {
   deletedBusiness = await businessIn(deletedCompany, 'deleted-guard');
   deletedBranch = await branchIn(deletedCompany, deletedBusiness, 'deleted-guard');
@@ -256,9 +296,47 @@ it('refuses a new device registration, an unclaimed token and a cashier PIN on t
     401,
     'UNAUTHENTICATED',
   ]);
-  expect([pin.statusCode, errorEnvelope.parse(pin.json()).code]).toEqual([401, 'PIN_INVALID']);
-  expect(await h.redis.get(`pin:${deletedCompany}:${EMPLOYEE}:failures`)).toBe('1');
+  expect([pin.statusCode, errorEnvelope.parse(pin.json()).code]).toEqual([401, 'UNAUTHENTICATED']);
+  expect(await h.redis.get(`pin:${deletedCompany}:${EMPLOYEE}:failures`)).toBeNull();
   const devices =
     await h.owner`SELECT id FROM devices WHERE company_id=${deletedCompany} AND label='Late till'`;
   expect(devices).toEqual([]);
+});
+
+it('refuses a deleted-company device token exactly like a revoked one, and leaves the other company', async () => {
+  const activeBranch = await branchIn(activeCompany, activeBusiness, 'active-token');
+  const live = await claimedOn(activeCompany, activeBranch, 'Live till');
+  const revoked = await claimedOn(activeCompany, activeBranch, 'Revoked till');
+  expect(
+    (
+      await h.send('POST', `/v1/branches/${activeBranch}/devices/${revoked.id}/revoke`, {
+        cookie,
+        company: activeCompany,
+      })
+    ).status,
+  ).toBe(204);
+  const closedMe = await authed('GET', '/v1/devices/me', deviceToken);
+  const revokedMe = await authed('GET', '/v1/devices/me', revoked.token);
+  expect(revokedMe.statusCode).toBe(401);
+  expect(errorEnvelope.parse(closedMe.json()).code).toBe('UNAUTHENTICATED');
+  expect(closedMe.body).toBe(revokedMe.body);
+  const pinBody = { employee_id: EMPLOYEE, pin: PIN };
+  const closedPin = await authed('POST', '/v1/devices/me/cashier-pin/verify', deviceToken, pinBody);
+  const revokedPin = await authed(
+    'POST',
+    '/v1/devices/me/cashier-pin/verify',
+    revoked.token,
+    pinBody,
+  );
+  expect(revokedPin.statusCode).toBe(401);
+  expect(closedPin.body).toBe(revokedPin.body);
+  await h.owner`UPDATE devices SET token_expires_at = now() + interval '1 day'
+    WHERE company_id=${deletedCompany} AND label='Open till'`;
+  expect((await authed('GET', '/v1/devices/me', deviceToken)).body).toBe(closedMe.body);
+  const [row] = await h.owner`SELECT token_expires_at < now() + interval '2 days' AS short
+    FROM devices WHERE company_id=${deletedCompany} AND label='Open till'`;
+  expect(row).toEqual({ short: true });
+  const liveMe = await authed('GET', '/v1/devices/me', live.token);
+  expect(liveMe.statusCode).toBe(200);
+  expect(liveMe.json()).toMatchObject({ company_id: activeCompany, branch_id: activeBranch });
 });
