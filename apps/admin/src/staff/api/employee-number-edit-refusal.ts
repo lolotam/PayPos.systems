@@ -9,8 +9,8 @@ type NumberEditRefusal = {
   branch_ids: readonly string[] | null;
 };
 
-function employeeNumberEditRefusedKey(companyId: string, employeeId: string) {
-  return ['employee-number-edit-refused', companyId, employeeId] as const;
+function employeeNumberEditRefusedKey(companyId: string, userId: string, employeeId: string) {
+  return ['employee-number-edit-refused', companyId, userId, employeeId] as const;
 }
 
 function employeeDetailKey(
@@ -41,7 +41,7 @@ function refusalFromDetail(detail: EmployeeDetail): NumberEditRefusal {
   };
 }
 
-/** بيرفض تعديل رقم الموظف ده لحد ما تفاصيله ترجع برقم أو فروع مختلفة، أو الصفحة تتحمل من جديد. */
+/** بيرفض تعديل رقم الموظف ده لحد ما تفاصيله تتغير بعد آخر جلب، أو الصفحة تتحمل من جديد. */
 export function rememberEmployeeNumberEditRefusal(
   client: QueryClient,
   companyId: string,
@@ -49,22 +49,27 @@ export function rememberEmployeeNumberEditRefusal(
   userId: string,
   employeeId: string,
 ): void {
-  const detail = client.getQueryData<EmployeeDetail>(
-    employeeDetailKey(companyId, businessId, userId, employeeId),
-  );
-  const mark = detail
-    ? refusalFromDetail(detail)
-    : { employee_number: null, primary_branch_id: null, branch_ids: null };
-  client.setQueryData(employeeNumberEditRefusedKey(companyId, employeeId), mark);
+  // العلامة من غير مشترك، فوقت الجمع الافتراضي (خمس دقايق) كان بيمسحها والزرار يرجع.
+  client.setQueryDefaults(['employee-number-edit-refused'], { gcTime: Infinity });
+  // التفاصيل المخزنة وقت الرفض ممكن تكون قديمة؛ المرفق يتثبت لما الجلب الجديد يوصل.
+  client.setQueryData(employeeNumberEditRefusedKey(companyId, userId, employeeId), {
+    employee_number: null,
+    primary_branch_id: null,
+    branch_ids: null,
+  });
+  void client.invalidateQueries({
+    queryKey: employeeDetailKey(companyId, businessId, userId, employeeId),
+  });
 }
 
 function syncEmployeeNumberEditRefusal(
   client: QueryClient,
   companyId: string,
+  userId: string,
   employeeId: string,
   detail: EmployeeDetail,
 ): void {
-  const key = employeeNumberEditRefusedKey(companyId, employeeId);
+  const key = employeeNumberEditRefusedKey(companyId, userId, employeeId);
   const mark = client.getQueryData<NumberEditRefusal>(key);
   if (!mark) return;
   const saved = attachmentFingerprint(mark);
@@ -74,6 +79,28 @@ function syncEmployeeNumberEditRefusal(
     return;
   }
   if (saved !== current) client.removeQueries({ queryKey: key, exact: true });
+}
+
+function watchDetailBaseline(
+  client: QueryClient,
+  companyId: string,
+  businessId: string,
+  userId: string,
+  employeeId: string,
+): () => void {
+  const detailKey = employeeDetailKey(companyId, businessId, userId, employeeId);
+  let seenAt = -1;
+  const publish = () => {
+    const state = client.getQueryState<EmployeeDetail>(detailKey);
+    // إبطال التفاصيل بيبعت تحديث قبل ما البيانات تتبدل؛ المرفق يتثبت على الجلب الجديد بس.
+    if (!state?.data || state.dataUpdatedAt === seenAt) return;
+    seenAt = state.dataUpdatedAt;
+    syncEmployeeNumberEditRefusal(client, companyId, userId, employeeId, state.data);
+  };
+  publish();
+  return client.getQueryCache().subscribe((event) => {
+    if (event.type === 'updated' && sameKey(event.query.queryKey, detailKey)) publish();
+  });
 }
 
 /** علامة رفض التعديل للموظف ده، وبتتشال لما تفاصيله تتحدث برقم أو مرفقات مختلفة. */
@@ -87,26 +114,21 @@ export function useEmployeeNumberEditRefused(
   const subscribe = useCallback(
     (onStoreChange: () => void) =>
       client.getQueryCache().subscribe((event) => {
-        if (sameKey(event.query.queryKey, employeeNumberEditRefusedKey(companyId, employeeId)))
+        if (
+          sameKey(event.query.queryKey, employeeNumberEditRefusedKey(companyId, userId, employeeId))
+        )
           onStoreChange();
       }),
-    [client, companyId, employeeId],
+    [client, companyId, userId, employeeId],
   );
   const refused = useSyncExternalStore(
     subscribe,
-    () => client.getQueryData(employeeNumberEditRefusedKey(companyId, employeeId)) != null,
+    () => client.getQueryData(employeeNumberEditRefusedKey(companyId, userId, employeeId)) != null,
     () => false,
   );
-  useEffect(() => {
-    const detailKey = employeeDetailKey(companyId, businessId, userId, employeeId);
-    const publish = () => {
-      const detail = client.getQueryData<EmployeeDetail>(detailKey);
-      if (detail) syncEmployeeNumberEditRefusal(client, companyId, employeeId, detail);
-    };
-    publish();
-    return client.getQueryCache().subscribe((event) => {
-      if (event.type === 'updated' && sameKey(event.query.queryKey, detailKey)) publish();
-    });
-  }, [client, companyId, businessId, userId, employeeId]);
+  useEffect(
+    () => watchDetailBaseline(client, companyId, businessId, userId, employeeId),
+    [client, companyId, businessId, userId, employeeId],
+  );
   return refused;
 }

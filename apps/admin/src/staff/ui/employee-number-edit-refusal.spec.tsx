@@ -1,6 +1,6 @@
 import { t } from '@pospay/i18n';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { EmployeeNumberEdit } from './employee-number-edit';
 
@@ -96,10 +96,141 @@ it('shows edit again when the employee detail attachments change', async () => {
   await screen.findByRole('alert');
   fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.closeNumber') }));
   await waitFor(() => expect(refused().queryByRole('button', { name: editName() })).toBeNull());
-  query.setQueryData(detailKey, {
-    employee_number: 15,
-    primary_branch_id: first,
-    branch_ids: [first, second],
-  });
+  query.setQueryData(
+    detailKey,
+    { employee_number: 15, primary_branch_id: first, branch_ids: [first] },
+    { updatedAt: 2_000 },
+  );
+  expect(refused().queryByRole('button', { name: editName() })).toBeNull();
+  query.setQueryData(
+    detailKey,
+    { employee_number: 15, primary_branch_id: first, branch_ids: [first, second] },
+    { updatedAt: 3_000 },
+  );
   expect(await refused().findByRole('button', { name: editName() })).toBeTruthy();
+});
+
+it('keeps edit for another user when this user was refused', async () => {
+  const query = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={query}>
+      <div data-testid="user-a">
+        <EmployeeNumberEdit
+          companyId={first}
+          businessId={first}
+          userId={first}
+          employeeId={first}
+          primaryBranchId={first}
+          employeeNumber={15}
+        />
+      </div>
+      <div data-testid="user-b">
+        <EmployeeNumberEdit
+          companyId={first}
+          businessId={first}
+          userId={second}
+          employeeId={first}
+          primaryBranchId={first}
+          employeeNumber={15}
+        />
+      </div>
+    </QueryClientProvider>,
+  );
+  const userA = () => within(screen.getByTestId('user-a'));
+  const userB = () => within(screen.getByTestId('user-b'));
+  fireEvent.click(await userA().findByRole('button', { name: editName() }));
+  expect(userB().getByRole('button', { name: editName() })).toBeTruthy();
+  fireEvent.change(screen.getByLabelText(t('en', 'staff.employeeNumber')), {
+    target: { value: '8' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.saveNumber') }));
+  await screen.findByRole('alert');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.closeNumber') }));
+  await waitFor(() => expect(userA().queryByRole('button', { name: editName() })).toBeNull());
+  expect(userB().getByRole('button', { name: editName() })).toBeTruthy();
+});
+
+it('keeps the refused edit hidden after the default cache time', async () => {
+  vi.useFakeTimers();
+  try {
+    const refused = () => within(screen.getByTestId('refused-employee'));
+    renderEdits();
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    fireEvent.click(refused().getByRole('button', { name: editName() }));
+    fireEvent.change(screen.getByLabelText(t('en', 'staff.employeeNumber')), {
+      target: { value: '8' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.saveNumber') }));
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByRole('alert').textContent).toBe('Synthetic refusal');
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.closeNumber') }));
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(refused().queryByRole('button', { name: editName() })).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1));
+    expect(refused().queryByRole('button', { name: editName() })).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+function StaleDetail({
+  snapshot,
+}: {
+  snapshot: () => {
+    employee_number: number;
+    primary_branch_id: string;
+    branch_ids: readonly string[];
+  };
+}) {
+  useQuery({
+    queryKey: ['employees', first, first, first, 'detail', first],
+    retry: false,
+    queryFn: () => snapshot(),
+  });
+  return null;
+}
+
+it('keeps edit hidden when a stale detail refetch returns new branches', async () => {
+  let reads = 0;
+  const snapshot = () => {
+    reads += 1;
+    const branch_ids = reads === 1 ? [first] : [first, second];
+    return { employee_number: 15, primary_branch_id: first, branch_ids };
+  };
+  const query = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={query}>
+      <StaleDetail snapshot={snapshot} />
+      <EmployeeNumberEdit
+        companyId={first}
+        businessId={first}
+        userId={first}
+        employeeId={first}
+        primaryBranchId={first}
+        employeeNumber={15}
+      />
+    </QueryClientProvider>,
+  );
+  await waitFor(() => expect(reads).toBe(1));
+  fireEvent.click(await screen.findByRole('button', { name: editName() }));
+  fireEvent.change(screen.getByLabelText(t('en', 'staff.employeeNumber')), {
+    target: { value: '8' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.saveNumber') }));
+  await screen.findByRole('alert');
+  await waitFor(() => {
+    expect(reads).toBeGreaterThanOrEqual(2);
+    expect(query.getQueryData(['employees', first, first, first, 'detail', first])).toMatchObject({
+      branch_ids: [first, second],
+    });
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.closeNumber') }));
+  await waitFor(() => {
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('button', { name: editName() })).toBeNull();
+  });
 });
