@@ -395,3 +395,18 @@ it('shows the 403 notice and keeps the day list', async () => {
   expect(screen.queryByLabelText(t('en', 'serviceLineCancel.reason'))).toBeNull();
   expect(screen.getByText('Synthetic customer')).toBeTruthy();
 });
+
+it('clears the day when the capability read says branch read was revoked', async () => {
+  state.get.mockImplementation((path: string) =>
+    String(path).includes('/capabilities')
+      ? Promise.resolve({
+          error: { code: 'FORBIDDEN', message_ar: 'Denied AR', message_en: 'Forbidden EN' },
+          response: { status: 403 },
+        })
+      : Promise.resolve(day),
+  );
+  renderPage();
+  expect((await screen.findByRole('alert')).textContent).toContain('Forbidden EN');
+  await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
+  expect(screen.queryByRole('button', { name: t('en', 'serviceLineCancel.cancel') })).toBeNull();
+});

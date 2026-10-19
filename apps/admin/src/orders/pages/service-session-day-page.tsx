@@ -3,8 +3,10 @@ import { t } from '@pospay/i18n';
 import { Button, PageHeader } from '@pospay/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
+import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useServiceSessionCapabilities } from '../api/use-service-session-capabilities';
+import { serviceSessionAccessRevoked } from '../model/service-session-access';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { sessionLocalTime } from '../model/session-local-time';
 import { useBrowserConnectivity } from '../model/use-browser-connectivity';
@@ -26,18 +28,21 @@ export function ServiceSessionDayPage({ scope, timezone, canCancel }: { scope: S
   const capability = useServiceSessionCapabilities(scope, asked);
   const cancelAllowed = canCancel ?? (capability.isSuccess && capability.data.can_cancel_lines === true);
   const onAccessDenied = useCallback((message: string) => { setDenied({ message }); }, []);
+  // رفض القدرة 401/403/FEATURE_DISABLED معناه إن قراءة اليوم نفسها اتسحبت، مش الإلغاء بس؛ الشاشة تتقفل زي باقي القراءات.
+  const blocked = denied ?? (serviceSessionAccessRevoked(capability.error) ? { message: envelopeMessage(capability.error, locale) } : null);
   // المسح بعد فك تركيب القائمة؛ لو اتمسح والكويري لسه متراقب TanStack بيعيد بناؤه ويجيبه من غير زر.
+  const isBlocked = blocked !== null;
   useEffect(() => {
-    if (!denied) return;
+    if (!isBlocked) return;
     client.removeQueries({ queryKey: ['branch-day-sessions', companyId, businessId, branchId, userId] });
     client.removeQueries({ queryKey: ['service-line-edits', companyId, businessId, branchId, userId] });
     client.removeQueries({ queryKey: ['service-line-cancellations', companyId, businessId, branchId, userId] });
-  }, [denied, client, companyId, businessId, branchId, userId]);
+  }, [isBlocked, client, companyId, businessId, branchId, userId]);
   return <section className="grid gap-4 text-start" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
     <PageHeader title={t(locale, 'serviceLineEdit.title')} />
     {connectivity === false ? <p role="status">{t(locale, 'serviceSessions.offline')}</p> : null}
     <ServiceSessionDayFilters date={date} lateOnly={lateOnly} onDate={setDate} onLate={setLateOnly} />
-    {denied ? <p role="alert">{denied.message} <Button type="button" variant="outline" onClick={() => { setDenied(null); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p>
+    {blocked ? <p role="alert">{blocked.message} <Button type="button" variant="outline" onClick={() => { setDenied(null); void capability.refetch(); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p>
       : <ServiceSessionDayBody scope={scope} date={date} lateOnly={lateOnly} online={online} timezone={timezone} canCancel={cancelAllowed} onAccessDenied={onAccessDenied} />}
   </section>;
 }
