@@ -24,7 +24,9 @@ import {
 import { LogController, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import {
+  AUTHENTICATED_WRITES,
   COMPANY_HEADER,
+  assertAuthenticatedWritesDeclared,
   assertEveryRouteGuarded,
   identityControllers,
   identityProviders,
@@ -256,6 +258,21 @@ function buildAdapter(
   });
 }
 
+// The declaration spec compares the allowlist to this list without booting Nest. It lives on the composition
+// root because an identity test may not import the other modules.
+export const API_CONTROLLERS: readonly Type<unknown>[] = [
+  HealthController,
+  ...identityControllers,
+  ...tenancyControllers,
+  ...customersControllers,
+  ...catalogControllers,
+  ...ordersControllers,
+  ...settingsControllers,
+  ...notificationsControllers,
+  ...staffControllers,
+  ...filesControllers,
+];
+
 /**
  * Builds the API: NestJS on Fastify, the shared sanitising logger, the error envelope for every error —
  * including the ones Fastify raises before Nest sees the request — `/health` and `/ready` at the root and
@@ -270,20 +287,9 @@ export async function createApp(
   options: AppOptions = {},
 ): Promise<NestFastifyApplication> {
   const logger = options.logger ?? createLogger('info', { events: API_LOG_EVENTS });
-  const controllers = [
-    HealthController,
-    ...identityControllers,
-    ...tenancyControllers,
-    ...customersControllers,
-    ...catalogControllers,
-    ...ordersControllers,
-    ...settingsControllers,
-    ...notificationsControllers,
-    ...staffControllers,
-    ...filesControllers,
-    ...(options.controllers ?? []),
-  ];
+  const controllers = [...API_CONTROLLERS, ...(options.controllers ?? [])];
   assertEveryRouteGuarded(controllers);
+  assertAuthenticatedWritesDeclared(controllers, AUTHENTICATED_WRITES);
   const adapter = buildAdapter(logger, deps.ids ?? systemUuidV7(), deps.trustedProxy ?? []);
   mountWhatsappSecurity(adapter, deps.whatsapp, deps.redis);
   adapter.getInstance().addHook('onRoute', (route) => {

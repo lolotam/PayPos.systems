@@ -1,5 +1,7 @@
-import type { Type } from '@nestjs/common';
-import { PATH_METADATA } from '@nestjs/common/constants.js';
+import { RequestMethod, type Type } from '@nestjs/common';
+import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants.js';
+
+import type { AuthenticatedWriteDeclarations } from './authenticated-writes.ts';
 
 import { PUBLIC_ROUTE } from '../../../shared/public.decorator.ts';
 import {
@@ -64,6 +66,59 @@ export function assertEveryRouteGuarded(controllers: readonly Type<unknown>[]): 
   if (problems.length > 0) {
     throw new Error(
       `every route needs exactly one of @Public, @Authenticated, @Require or @RequirePlatform: ${problems.join(', ')}`,
+    );
+  }
+}
+
+const WRITE_METHODS = new Set<RequestMethod>([
+  RequestMethod.POST,
+  RequestMethod.PUT,
+  RequestMethod.PATCH,
+  RequestMethod.DELETE,
+  RequestMethod.ALL,
+]);
+
+function isAuthenticatedWrite(handler: object): boolean {
+  if (Reflect.getMetadata(AUTHENTICATED_ONLY, handler) === undefined) return false;
+  const method: unknown = Reflect.getMetadata(METHOD_METADATA, handler);
+  const listed = Array.isArray(method) ? method : [method];
+  return listed.some((item) => typeof item === 'number' && WRITE_METHODS.has(item));
+}
+
+/**
+ * Mounted @Authenticated() writes, named Controller.method the same way assertEveryRouteGuarded names a route.
+ * A session-only GET is not declared: the list exists so a write cannot rely on the marker alone (PP-7.1).
+ *
+ * @param controllers every controller the app mounts
+ * @returns keys the declaration list must cover, without starting the server
+ */
+export function authenticatedWriteKeys(controllers: readonly Type<unknown>[]): string[] {
+  const keys: string[] = [];
+  for (const controller of controllers) {
+    for (const [name, handler] of handlers(controller)) {
+      if (isAuthenticatedWrite(handler as object)) keys.push(`${controller.name}.${name}`);
+    }
+  }
+  return keys;
+}
+
+/**
+ * Refuses to start when an @Authenticated() write is missing from the declaration list. POST, PUT, PATCH,
+ * DELETE and ALL count; the method comes from Nest's METHOD_METADATA, not the path. Record-scoped and personal
+ * checks cannot be one static permission (PP-7.2), so the missing name is the same startup failure as an unguarded route.
+ *
+ * @param controllers every controller the app mounts, including test-only ones
+ * @param declarations the allowlist keyed Controller.method
+ * @throws Error naming each undeclared Controller.method
+ */
+export function assertAuthenticatedWritesDeclared(
+  controllers: readonly Type<unknown>[],
+  declarations: AuthenticatedWriteDeclarations,
+): void {
+  const missing = authenticatedWriteKeys(controllers).filter((key) => declarations[key] === undefined);
+  if (missing.length > 0) {
+    throw new Error(
+      `@Authenticated write routes must declare where their check lives: ${missing.join(', ')}`,
     );
   }
 }

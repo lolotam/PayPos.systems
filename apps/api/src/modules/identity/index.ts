@@ -22,7 +22,12 @@ export {
   employeeUserLinkAvailable,
   readEmployeeDetailAccess,
 } from './persistence/employee-scope-access.ts';
-export { assertEveryRouteGuarded } from './http/route-coverage.ts';
+export {
+  assertAuthenticatedWritesDeclared,
+  assertEveryRouteGuarded,
+  authenticatedWriteKeys,
+} from './http/route-coverage.ts';
+export { AUTHENTICATED_WRITES } from './http/authenticated-writes.ts';
 export { identityControllers, identityProviders, staffOtpDependencies } from './identity.module.ts';
 export { readEmployeeBranchAccess } from './persistence/employee-scope-access.ts';
 export {
