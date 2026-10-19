@@ -47,7 +47,9 @@ export class VerifyCashierPin {
     if (reserved.kind !== 'ok') return { kind: reserved.kind };
     let matches: boolean;
     try {
-      const hash = await this.#transactions.run(companyId, null, (scope) => scope.findHash(employeeId));
+      const hash = await this.#transactions.run(companyId, null, (scope) =>
+        scope.findHash(employeeId),
+      );
       matches = await this.#hasher.verify(command.pin, hash);
       if (matches && this.afterCompare !== null) await this.afterCompare();
     } catch (error) {
@@ -56,15 +58,30 @@ export class VerifyCashierPin {
     }
     // النجاح بيتسجل والشركة متقفلة FOR SHARE في نفس المعاملة؛ حذف أثناء المقارنة يبقى PIN غلط.
     if (matches) {
-      const recorded = await this.#transactions.run(companyId, null, async (scope) => {
-        if (!(await scope.companyOpen())) return 'inactive' as const;
-        return this.#attempts.succeeded(target, reserved.reservation);
-      });
+      let recorded: Awaited<ReturnType<VerifyCashierPin['recordSuccess']>>;
+      try {
+        recorded = await this.recordSuccess(companyId, target, reserved.reservation);
+      } catch (error) {
+        // عطل في معاملة التسجيل مايسيبش الحجز ماسك خانة محاولة لحد ما ينتهي.
+        await this.#attempts.release(target, reserved.reservation);
+        throw error;
+      }
       if (recorded === 'ok') return { kind: 'verified', employeeId };
       if (recorded === 'locked') return { kind: 'locked' };
       if (recorded === 'expired') return { kind: 'busy' };
     }
     return this.#countWrongPin(companyId, employeeId, reserved.reservation);
+  }
+
+  private recordSuccess(
+    companyId: string,
+    target: { companyId: string; employeeId: string },
+    reservation: string,
+  ) {
+    return this.#transactions.run(companyId, null, async (scope) => {
+      if (!(await scope.companyOpen())) return 'inactive' as const;
+      return this.#attempts.succeeded(target, reservation);
+    });
   }
 
   async #countWrongPin(
