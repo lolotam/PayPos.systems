@@ -1,14 +1,11 @@
 'use client';
 import type { CreateEmployeeInput } from '@pospay/contracts';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import type { UseFormReturn } from 'react-hook-form';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployeeNumberCapability } from '../api/use-employee-number-capability';
-import {
-  isEmployeeNumberRefusal,
-  typedEmployeeNumber,
-  withEmployeeNumber,
-} from './typed-employee-number';
+import { isEmployeeNumberRefusal } from './typed-employee-number';
 
 type NumberDraft = {
   companyId: string;
@@ -16,17 +13,20 @@ type NumberDraft = {
   userId: string;
   branchId: string;
   serverError: unknown;
+  numberSent: boolean;
   onVisibility: ((shown: boolean) => void) | undefined;
+  form: UseFormReturn<CreateEmployeeInput>;
 };
 
-export function saveParsedEmployeeNumber(
-  apply: (values: CreateEmployeeInput) => CreateEmployeeInput | null,
-  submit: (values: CreateEmployeeInput) => void,
-) {
-  return (values: CreateEmployeeInput) => {
-    const next = apply(values);
-    if (next) submit(next);
-  };
+/** الحقل المخفي لا يرسل رقماً حتى لو القيمة لسه في النموذج من فرع سابق. */
+export function submitCreateEmployee(
+  shown: boolean,
+  values: CreateEmployeeInput,
+): CreateEmployeeInput {
+  if (shown && values.employee_number !== undefined) return values;
+  const next = { ...values };
+  delete next.employee_number;
+  return next;
 }
 
 export function useCreateEmployeeNumber({
@@ -35,34 +35,25 @@ export function useCreateEmployeeNumber({
   userId,
   branchId,
   serverError,
+  numberSent,
   onVisibility,
+  form,
 }: NumberDraft) {
   const locale = useLocale();
   const capability = useEmployeeNumberCapability(companyId, businessId, userId, branchId);
   const shown = capability.data?.can_type_number === true;
-  const [draft, setDraft] = useState('');
-  const [invalid, setInvalid] = useState(false);
+  const blocked = capability.isError || capability.data?.can_type_number === false;
   useEffect(() => {
-    if (!shown) setDraft('');
-  }, [shown]);
+    // التحميل بين فرعين مسموحين مش رفض؛ المسح هنا كان بيمسح الرقم قبل ما الفرع الجديد يرد.
+    if (!blocked) return;
+    form.resetField('employee_number');
+  }, [blocked, form]);
   useEffect(() => {
     onVisibility?.(shown);
   }, [onVisibility, shown]);
-  const changeDraft = (value: string) => {
-    setDraft(value);
-    setInvalid(false);
-  };
-  const apply = (values: CreateEmployeeInput) => {
-    if (!shown) return withEmployeeNumber(values, undefined);
-    const parsed = typedEmployeeNumber(draft);
-    if (parsed === null) {
-      setInvalid(true);
-      return null;
-    }
-    setInvalid(false);
-    return withEmployeeNumber(values, parsed);
-  };
   const message =
-    shown && isEmployeeNumberRefusal(serverError) ? envelopeMessage(serverError, locale) : null;
-  return { shown, draft, invalid, message, changeDraft, apply };
+    shown && isEmployeeNumberRefusal(serverError, numberSent)
+      ? envelopeMessage(serverError, locale)
+      : null;
+  return { shown, message };
 }

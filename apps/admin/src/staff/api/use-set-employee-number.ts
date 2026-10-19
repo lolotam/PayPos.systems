@@ -1,11 +1,8 @@
 'use client';
-import {
-  employeeNumberView,
-  type EmployeeDetail,
-  type EmployeePage,
-} from '@pospay/contracts';
+import { employeeNumberView, type EmployeeDetail, type EmployeePage } from '@pospay/contracts';
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
+import { isEmployeeNumberForbidden } from '../model/typed-employee-number';
 
 // نفس بادئة use-employees حتى يظهر الرقم في العنوان والقائمة من غير تصدير مفتاح القراءة.
 function employeesRoot(companyId: string, businessId: string, userId: string) {
@@ -34,7 +31,14 @@ function rememberEmployeeNumber(
         }
       : current,
   );
-  return client.invalidateQueries({ queryKey: [...root, 'list'] });
+  // الرقم الجديد ظاهر من الكاش؛ إعادة الجلب الفورية كانت بتستبدله لو الرد رجع قديماً أو اتعلّق.
+  void client.invalidateQueries({ queryKey: [...root, 'list'], refetchType: 'none' });
+  void client.invalidateQueries({ queryKey: ['employee-numbers', companyId] });
+  // نفس شاشة الأرقام: نسخ الحضور والمؤدين المقفولة بتتشال، والمفتوحة بتتجاب من غير انتظار.
+  for (const prefix of ['attendance-actions', 'session-performers', 'session-performer-facts']) {
+    client.removeQueries({ queryKey: [prefix, companyId], type: 'inactive' });
+    void client.invalidateQueries({ queryKey: [prefix, companyId] });
+  }
 }
 
 export function useSetEmployeeNumber(
@@ -70,5 +74,11 @@ export function useSetEmployeeNumber(
         employeeId,
         saved.employee_number,
       ),
+    onError: (error) => {
+      if (!isEmployeeNumberForbidden(error)) return;
+      void client.invalidateQueries({
+        queryKey: ['employee-number-capability', companyId, businessId],
+      });
+    },
   });
 }

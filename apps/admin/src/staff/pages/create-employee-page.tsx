@@ -20,7 +20,9 @@ export function CreateEmployeePage({
   const locale = useLocale();
   const save = useCreateEmployee(companyId, business.id, userId);
   const [numberShown, setNumberShown] = useState(false);
-  const numberRefusal = numberShown && save.isError && isEmployeeNumberRefusal(save.error);
+  const numberSent = save.variables?.employee_number !== undefined;
+  const numberRefusal =
+    numberShown && save.isError && isEmployeeNumberRefusal(save.error, numberSent);
   return (
     <section className="mx-auto flex w-full max-w-xl flex-col gap-4 text-start">
       <h1 className="text-xl font-semibold">{t(locale, 'staff.title')}</h1>
@@ -31,6 +33,7 @@ export function CreateEmployeePage({
         branches={business.branches}
         pending={save.isPending}
         serverError={save.isError ? save.error : null}
+        numberSent={numberSent}
         onNumberVisibility={setNumberShown}
         onSave={(terms) => save.mutate(terms)}
       />

@@ -1,6 +1,6 @@
 import { t } from '@pospay/i18n';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { CreateEmployeePage } from './create-employee-page';
 
 const state = vi.hoisted(() => ({
@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   canType: false,
   code: 'FORBIDDEN',
   messageEn: 'Synthetic refusal',
+  variables: undefined as { employee_number?: number } | undefined,
 }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 vi.mock('../api/use-employee-name-matches', () => ({
@@ -30,6 +31,7 @@ vi.mock('../api/use-create-employee', () => ({
       message_ar: t('ar', 'errors.FORBIDDEN'),
       message_en: state.messageEn,
     },
+    variables: state.variables,
     data: {
       name_en: 'Synthetic employee',
       name_ar: t('ar', 'roles.staff'),
@@ -37,6 +39,9 @@ vi.mock('../api/use-create-employee', () => ({
     },
   }),
 }));
+beforeEach(() => {
+  state.variables = undefined;
+});
 const id = '01920000-0000-7000-8000-0000000000a2';
 const business = {
   id,
@@ -84,4 +89,39 @@ it('keeps a typed number and shows the server refusal on the field', () => {
   fireEvent.change(input, { target: { value: '007' } });
   expect((input as HTMLInputElement).value).toBe('007');
   expect(screen.getByRole('alert').textContent).toBe('Synthetic taken');
+});
+it('shows a bare forbidden refusal on the page when no number was sent', () => {
+  state.locale = 'en';
+  state.error = true;
+  state.canType = true;
+  state.code = 'FORBIDDEN';
+  state.messageEn = 'Synthetic refusal';
+  render(<CreateEmployeePage companyId={id} business={business} userId={id} />);
+  const alert = screen.getByRole('alert');
+  expect(alert.textContent).toBe('Synthetic refusal');
+  expect(alert.closest('form')).toBeNull();
+  expect(screen.getByLabelText(t('en', 'staff.employeeNumber'))).toBeTruthy();
+});
+it('shows a forbidden refusal on the field when the create sent a number', () => {
+  state.locale = 'en';
+  state.error = true;
+  state.canType = true;
+  state.code = 'FORBIDDEN';
+  state.messageEn = 'Synthetic refusal';
+  state.variables = { employee_number: 7 };
+  render(<CreateEmployeePage companyId={id} business={business} userId={id} />);
+  const alert = screen.getByRole('alert');
+  expect(alert.textContent).toBe('Synthetic refusal');
+  expect(alert.closest('form')).toBeTruthy();
+  expect(screen.getByLabelText(t('en', 'staff.employeeNumber'))).toBeTruthy();
+});
+it('shows another error with its own envelope on the page', () => {
+  state.locale = 'en';
+  state.error = true;
+  state.canType = true;
+  state.code = 'VALIDATION';
+  state.messageEn = 'Synthetic other';
+  render(<CreateEmployeePage companyId={id} business={business} userId={id} />);
+  expect(screen.getByRole('alert').textContent).toBe('Synthetic other');
+  expect(screen.queryByText(t('en', 'errors.EMPLOYEE_NUMBER_TAKEN'))).toBeNull();
 });

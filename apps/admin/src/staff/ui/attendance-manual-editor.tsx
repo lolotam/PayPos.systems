@@ -4,7 +4,7 @@ import type { WorkspaceBranch } from '@pospay/contracts';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { useAttendanceActions } from '../api/use-attendance-actions';
-import { AttendanceActionDialog } from './attendance-action-dialog';
+import { ModalDialog } from '@/shared/ui/modal-dialog';
 import { AttendanceActionFeedback } from './attendance-action-feedback';
 import { AttendanceManualForm } from './attendance-manual-form';
 export function AttendanceManualEditor({
@@ -21,7 +21,7 @@ export function AttendanceManualEditor({
   const locale = useLocale();
   const { request } = useAttendanceActions(scope);
   return (
-    <AttendanceActionDialog
+    <ModalDialog
       title={t(locale, 'attendanceActions.manual')}
       pending={request.isPending}
       onClose={onClose}
@@ -40,6 +40,6 @@ export function AttendanceManualEditor({
         onSave={(input) => request.mutate(input, { onSuccess: onClose })}
       />
       <AttendanceActionFeedback error={request.error} write />
-    </AttendanceActionDialog>
+    </ModalDialog>
   );
 }

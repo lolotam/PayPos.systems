@@ -1,24 +1,12 @@
-import type { CreateEmployeeInput } from '@pospay/contracts';
-import { parseEmployeeNumber } from '@pospay/domain';
-
-/** فاضي بعد القص يعني ترقيم تلقائي؛ أي نص غير صالح يبقى null حتى لا يُرسل. */
-export function typedEmployeeNumber(text: string): number | null | undefined {
-  const trimmed = text.trim();
-  if (trimmed.length === 0) return undefined;
-  return parseEmployeeNumber(trimmed);
-}
-
-export function withEmployeeNumber(
-  values: CreateEmployeeInput,
-  employeeNumber: number | undefined,
-): CreateEmployeeInput {
-  const next = { ...values };
-  delete next.employee_number;
-  if (employeeNumber !== undefined) next.employee_number = employeeNumber;
-  return next;
-}
-
-export function isEmployeeNumberRefusal(error: unknown): boolean {
+/** FORBIDDEN رفض للرقم فقط لو الرقم اتبعت؛ غير كده التنبيه يبقى على الصفحة. */
+export function isEmployeeNumberRefusal(error: unknown, numberSent = false): boolean {
   if (typeof error !== 'object' || error === null || !('code' in error)) return false;
-  return error.code === 'EMPLOYEE_NUMBER_TAKEN' || error.code === 'FORBIDDEN';
+  if (error.code === 'EMPLOYEE_NUMBER_TAKEN') return true;
+  return error.code === 'FORBIDDEN' && numberSent;
+}
+
+export function isEmployeeNumberForbidden(error: unknown): boolean {
+  return (
+    typeof error === 'object' && error !== null && 'code' in error && error.code === 'FORBIDDEN'
+  );
 }

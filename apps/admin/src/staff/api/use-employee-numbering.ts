@@ -22,10 +22,20 @@ export function useEmployeeNumbering(companyId: string, userId: string) {
   });
 }
 
+function startAlreadySet(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'EMPLOYEE_NUMBER_START_ALREADY_SET'
+  );
+}
+
 export function useSetEmployeeNumberStart(companyId: string, userId: string) {
   const client = useQueryClient();
+  const key = employeeNumberingKey(companyId, userId);
   return useMutation({
-    mutationKey: [...employeeNumberingKey(companyId, userId), 'start'],
+    mutationKey: [...key, 'start'],
     retry: false,
     mutationFn: async (startNumber: number) => {
       const result = await apiClient().PUT('/v1/employee-numbering/start', {
@@ -36,7 +46,12 @@ export function useSetEmployeeNumberStart(companyId: string, userId: string) {
       return employeeNumbering.parse(result.data);
     },
     onSuccess: (saved) => {
-      client.setQueryData(employeeNumberingKey(companyId, userId), saved);
+      client.setQueryData(key, saved);
+      void client.invalidateQueries({ queryKey: key });
+    },
+    onError: (error) => {
+      if (!startAlreadySet(error)) return;
+      void client.invalidateQueries({ queryKey: key });
     },
   });
 }

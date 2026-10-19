@@ -254,7 +254,8 @@ export const ar: Catalog = {
     INTERNAL_ERROR: 'حدث خطأ غير متوقع',
   },
   staff: {
-    ...staffDuplicateNameAr, ...employeeNumberAdminAr,
+    ...staffDuplicateNameAr,
+    ...employeeNumberAdminAr,
     listTitle: 'الموظفون',
     listLead: 'أدر بيانات الموظفين وفروع العمل.',
     empty: 'لا يوجد موظفون في هذه الصفحة.',

@@ -4,7 +4,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { useAttendanceActions } from '../api/use-attendance-actions';
 import { voidAttendanceInput, type AttendanceSession } from '../model/attendance-action-display';
-import { AttendanceActionDialog } from './attendance-action-dialog';
+import { ModalDialog } from '@/shared/ui/modal-dialog';
 import { AttendanceActionFeedback } from './attendance-action-feedback';
 import { AttendanceReasonForm } from './attendance-reason-form';
 import { AttendanceCorrectionForm } from './attendance-correction-form';
@@ -36,7 +36,7 @@ export function AttendanceSessionEditor({
     );
   const mutation = action === 'correct' ? mutations.correct : mutations.request;
   return (
-    <AttendanceActionDialog
+    <ModalDialog
       title={t(locale, `attendanceActions.${action}`)}
       pending={mutation.isPending}
       onClose={onClose}
@@ -63,6 +63,6 @@ export function AttendanceSessionEditor({
         />
       )}
       <AttendanceActionFeedback error={mutation.error} write />
-    </AttendanceActionDialog>
+    </ModalDialog>
   );
 }

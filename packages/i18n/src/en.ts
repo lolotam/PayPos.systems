@@ -261,7 +261,8 @@ export const en = {
     INTERNAL_ERROR: 'An unexpected error occurred',
   },
   staff: {
-    ...staffDuplicateNameEn, ...employeeNumberAdminEn,
+    ...staffDuplicateNameEn,
+    ...employeeNumberAdminEn,
     listTitle: 'Employees',
     listLead: 'Manage employee records and working branches.',
     empty: 'No employees on this page.',

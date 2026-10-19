@@ -9,10 +9,7 @@ import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import {
-  saveParsedEmployeeNumber,
-  useCreateEmployeeNumber,
-} from '../model/use-create-employee-number';
+import { submitCreateEmployee, useCreateEmployeeNumber } from '../model/use-create-employee-number';
 import { useNameCheckedSubmit } from '../model/use-name-checked-submit';
 import { DuplicateNameWarning } from './duplicate-name-warning';
 import { EmployeeContractFields } from './employee-contract-fields';
@@ -27,6 +24,7 @@ type CreateEmployeeFormProps = {
   branches: readonly WorkspaceBranch[];
   pending: boolean;
   serverError?: unknown;
+  numberSent?: boolean;
   onNumberVisibility?: (shown: boolean) => void;
   onSave: (terms: CreateEmployeeInput) => void;
 };
@@ -57,12 +55,17 @@ export function CreateEmployeeForm(props: CreateEmployeeFormProps) {
     userId: props.userId,
     branchId: branchId ?? '',
     serverError: props.serverError ?? null,
+    numberSent: props.numberSent ?? false,
     onVisibility: props.onNumberVisibility,
+    form,
   });
+  const otherError = Object.keys(form.formState.errors).some((key) => key !== 'employee_number');
   return (
     <FormProvider {...form}>
       <form
-        onSubmit={form.handleSubmit(saveParsedEmployeeNumber(number.apply, submit.submit))}
+        onSubmit={form.handleSubmit((values) =>
+          submit.submit(submitCreateEmployee(number.shown, values)),
+        )}
         className="flex flex-col gap-3 text-start"
       >
         <fieldset
@@ -72,13 +75,7 @@ export function CreateEmployeeForm(props: CreateEmployeeFormProps) {
           <EmployeeNameFields />
           <EmployeePlacementFields branches={props.branches} />
           <EmployeeContractFields />
-          <EmployeeNumberField
-            shown={number.shown}
-            draft={number.draft}
-            invalid={number.invalid}
-            message={number.message}
-            onChange={number.changeDraft}
-          />
+          <EmployeeNumberField shown={number.shown} message={number.message} />
           <Button type="submit">{t(locale, 'staff.create')}</Button>
         </fieldset>
         {submit.warning ? (
@@ -89,9 +86,7 @@ export function CreateEmployeeForm(props: CreateEmployeeFormProps) {
             onConfirm={submit.confirm}
           />
         ) : null}
-        {Object.keys(form.formState.errors).length ? (
-          <p role="alert">{t(locale, 'staff.invalid')}</p>
-        ) : null}
+        {otherError ? <p role="alert">{t(locale, 'staff.invalid')}</p> : null}
       </form>
     </FormProvider>
   );
