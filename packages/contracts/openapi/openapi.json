@@ -2607,6 +2607,54 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/settings/identity-capability": {
+      "get": {
+        "operationId": "identityCapability",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "description": "Business-identity screen. Lock-free read of manage:business-identity:business on that business: ALLOW and no DENY, active membership. A device principal, a missing permission, a DENY, and an unknown or foreign business are the same 200 { can_manage_identity: false }. No Idempotency-Key.",
+        "responses": {
+          "200": {
+            "description": "Whether this caller may manage business identity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityCapability"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/settings/logo": {
       "put": {
         "operationId": "setBusinessLogo",
@@ -26640,6 +26688,17 @@
           "logo_file_id",
           "overridden",
           "updated_at"
+        ]
+      },
+      "IdentityCapability": {
+        "type": "object",
+        "properties": {
+          "can_manage_identity": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "can_manage_identity"
         ]
       },
       "SetBusinessLogoInput": {

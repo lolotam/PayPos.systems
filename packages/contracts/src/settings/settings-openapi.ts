@@ -36,6 +36,21 @@ export const settingsPaths = {
       requestBody: { required: true, content: json('UpdateBusinessIdentityNamesInput') },
     },
   },
+  '/v1/businesses/{businessId}/settings/identity-capability': {
+    get: {
+      operationId: 'identityCapability',
+      parameters,
+      description:
+        'Business-identity screen. Lock-free read of manage:business-identity:business on that business: ALLOW and no DENY, active membership. A device principal, a missing permission, a DENY, and an unknown or foreign business are the same 200 { can_manage_identity: false }. No Idempotency-Key.',
+      responses: {
+        '200': {
+          description: 'Whether this caller may manage business identity',
+          content: json('IdentityCapability'),
+        },
+        default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+      },
+    },
+  },
   '/v1/businesses/{businessId}/settings/logo': {
     put: {
       operationId: 'setBusinessLogo',

@@ -120,6 +120,7 @@ const expectedSchemas = [
   'FileUploadTicket',
   'FindOrCreateCustomerInput',
   'GeoPoint',
+  'IdentityCapability',
   'InAppNotification',
   'InAppNotificationPage',
   'InAppNotificationQuery',

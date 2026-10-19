@@ -23,6 +23,7 @@ import { employeeDefaultHoursAr } from './employee-default-hours-catalog.js';
 import { employeeNumberErrorsAr } from './employee-number-catalog.js';
 import { employeeNumberAdminAr } from './employee-number-admin-catalog.js';
 import { companyEmployeeNumbersAr } from './company-employee-numbers-catalog.js';
+import { businessIdentityAr } from './business-identity-catalog.js';
 import { roleNamesAr } from './role-names-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
@@ -379,4 +380,5 @@ export const ar: Catalog = {
   },
   employeeImport: employeeImportAr,
   companyEmployeeNumbers: companyEmployeeNumbersAr,
+  businessIdentity: businessIdentityAr,
 };
