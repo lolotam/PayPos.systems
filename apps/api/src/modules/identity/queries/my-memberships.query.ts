@@ -87,6 +87,7 @@ async function readRoles(tx: Tx, rows: readonly OwnMembership[]): Promise<Map<st
   const payload = JSON.stringify(
     rows.map((row) => ({ id: row.role_id, owner_key: row.role_owner_key })),
   );
+  // حوار إلغاء السطر: اسم الدور وكونه دور نظام لكل عضوية من عضويات المتصل.
   const found = await tx.execute<RoleRow>(sql`
     SELECT r.id, r.owner_key, r.code, r.name_ar, r.name_en,
            (r.owner_key = 'global')::boolean AS role_is_system
