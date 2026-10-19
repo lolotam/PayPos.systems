@@ -11,7 +11,7 @@ export class CheckFeature {
   /**
    * @param companyId the verified company
    * @param flag      the module's feature flag
-   * @returns true when an unexpired override, or else the plan, enables it
+   * @returns true when the company is open and an unexpired override, or else the plan, enables it
    */
   execute(companyId: string, flag: string): Promise<boolean> {
     return this.#reader.isFeatureEnabled(companyId, flag);
