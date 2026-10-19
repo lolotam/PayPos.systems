@@ -1,4 +1,9 @@
-import { businessIdentityNames, businessSettings, errorEnvelope } from '@pospay/contracts';
+import {
+  businessIdentityNames,
+  businessSettings,
+  errorEnvelope,
+  updateBusinessIdentityNamesInput,
+} from '@pospay/contracts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 
@@ -10,6 +15,7 @@ import {
 } from '../../../../test/permissions-fixture.ts';
 import { OfficialNameRejected } from '../domain/official-name.ts';
 import { createSettingsTransactions } from '../persistence/settings-transactions.ts';
+import type { SettingsTransactions } from '../ports/settings.port.ts';
 import { UpdateBusinessIdentityNames } from '../use-cases/update-business-identity-names/update-business-identity-names.ts';
 
 let f: PermissionFixture;
@@ -31,9 +37,23 @@ const patch = (body: object, cookie = f.cookie, company = f.company) =>
     payload: body,
   });
 const audits = () =>
-  f.h.owner`SELECT before, after FROM audit_log
-    WHERE company_id = ${f.company} AND entity_id = ${f.business} AND action = 'settings.identity_changed'
+  f.h.owner`SELECT actor_user_id, before, after FROM audit_log
+    WHERE company_id = ${f.company} AND entity = 'business_settings'
+      AND entity_id = ${f.business} AND action = 'settings.identity_changed'
     ORDER BY id`;
+
+// العقد والدومين بيرفضوا النص اللي الـ CHECK هيرفضه، فالكتابة هنا بتتبدّل بقيمة فاضية عشان 23514 يعدي من execute.
+function identityCheckFailure(real: SettingsTransactions): SettingsTransactions {
+  return {
+    run: (companyId, userId, work) =>
+      real.run(companyId, userId, async (scope) => {
+        const save = scope.saveIdentity;
+        scope.saveIdentity = (businessId, _change, updatedBy) =>
+          save(businessId, { officialNameAr: '' }, updatedBy);
+        return work(scope);
+      }),
+  };
+}
 
 it('the owner sets both names, trims them, and audits the three identity columns', async () => {
   const res = await patch({ official_name_ar: '  صالون لمسة  ', official_name_en: ' Lamsa ' });
@@ -53,6 +73,7 @@ it('the owner sets both names, trims them, and audits the three identity columns
   });
   expect(await audits()).toEqual([
     {
+      actor_user_id: f.userId,
       before: { official_name_ar: null, official_name_en: null, logo_file_id: null },
       after: { official_name_ar: 'صالون لمسة', official_name_en: 'Lamsa', logo_file_id: null },
     },
@@ -71,6 +92,7 @@ it('an omitted key stays and null clears, and the same value is still audited', 
   const rows = await audits();
   expect(rows).toHaveLength(3);
   expect(rows[1]).toEqual({
+    actor_user_id: f.userId,
     before: { official_name_ar: 'صالون لمسة', official_name_en: 'Lamsa', logo_file_id: null },
     after: { official_name_ar: 'صالون لمسة', official_name_en: null, logo_file_id: null },
   });
@@ -79,7 +101,13 @@ it('an omitted key stays and null clears, and the same value is still audited', 
 
 it('refuses an empty body, a blank name, 256 characters, and an unknown key without an audit', async () => {
   const before = await audits();
-  for (const body of [{}, { official_name_ar: ' ' }, { official_name_en: 'a'.repeat(256) }, { theme: 'dark' }]) {
+  for (const body of [
+    {},
+    { official_name_ar: ' ' },
+    { official_name_en: 'a'.repeat(256) },
+    { official_name_ar: 'Synthetic\u0000name' },
+    { theme: 'dark' },
+  ]) {
     const res = await patch(body);
     expect([res.statusCode, errorEnvelope.parse(res.json()).code]).toEqual([400, 'VALIDATION_FAILED']);
   }
@@ -148,7 +176,7 @@ it('a device token is refused', async () => {
     payload: { official_name_en: 'Device' },
     headers: { authorization: `Device ${token}`, 'x-company-id': f.company, origin: 'http://admin.test' },
   });
-  expect(res.statusCode).toBe(403);
+  expect([res.statusCode, errorEnvelope.parse(res.json()).code]).toEqual([403, 'FORBIDDEN']);
 });
 
 it("another company and a closed company are refused and write nothing", async () => {
@@ -182,6 +210,22 @@ it('a check violation from storage is validation and rolls back', async () => {
   const [row] = await f.h.owner`SELECT official_name_ar FROM business_settings
     WHERE company_id = ${f.company} AND business_id = ${f.business}`;
   expect(row?.['official_name_ar']).toBe('صالون لمسة');
+});
+
+it('execute maps a stored check violation to validation and leaves the row', async () => {
+  const [before] = await f.h.owner`SELECT official_name_ar, official_name_en, logo_file_id
+    FROM business_settings WHERE company_id = ${f.company} AND business_id = ${f.business}`;
+  const useCase = new UpdateBusinessIdentityNames(
+    identityCheckFailure(createSettingsTransactions(f.db, f.ids)),
+    { invalidate: async () => undefined },
+  );
+  const input = updateBusinessIdentityNamesInput.parse({ official_name_en: 'Contract accepts this' });
+  await expect(
+    useCase.execute({ companyId: f.company, userId: f.userId }, f.business, input),
+  ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+  const [after] = await f.h.owner`SELECT official_name_ar, official_name_en, logo_file_id
+    FROM business_settings WHERE company_id = ${f.company} AND business_id = ${f.business}`;
+  expect(after).toEqual(before);
 });
 
 it('revoked authority during the settings lock wait writes nothing', async () => {
@@ -221,4 +265,14 @@ it('revoked authority during the settings lock wait writes nothing', async () =>
   const [row] = await f.h.owner`SELECT official_name_en FROM business_settings
     WHERE company_id = ${f.company} AND business_id = ${f.business}`;
   expect(row?.['official_name_en']).toBe('Holder');
+});
+
+it('a cached settings read is replaced by the names written in the next patch', async () => {
+  const read = () =>
+    f.h.send('GET', `/v1/businesses/${f.business}/settings`, { cookie: f.cookie, company: f.company });
+  const cached = businessSettings.parse((await read()).body);
+  const next = cached.official_name_en === 'Cache After' ? 'Cache Before' : 'Cache After';
+  const patched = await patch({ official_name_en: next });
+  expect(patched.statusCode).toBe(200);
+  expect(businessSettings.parse((await read()).body).official_name_en).toBe(next);
 });

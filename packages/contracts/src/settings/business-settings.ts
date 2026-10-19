@@ -47,14 +47,17 @@ export const updateBusinessSettingsInput = z
   .refine((input) => Object.keys(input).length > 0, { message: 'Nothing to update' })
   .meta({ id: 'UpdateBusinessSettingsInput' });
 
-// مفتاح بقيمة = الاسم بعد القص؛ null = امسحه؛ مفتاح مش موجود = سيبه. الطول بعدد حروف Postgres.
+// القص والطول بعدد حروف Postgres قاعدتهم في normalizeOfficialName، والعقد بيعيدهم لأن الحزمة مش بتستورد الدومين.
+// NUL قبل القص: Postgres بيرفضه بـ 22021 ولو وصل الدرايفر بيطلع 500 بدل 400.
 const officialNameText = z
   .string()
+  .refine((value) => !value.includes('\u0000'))
   .transform((value) => value.trim())
   .refine((value) => {
     const length = [...value].length;
     return length >= 1 && length <= 255;
-  });
+  })
+  .meta({ minLength: 1, maxLength: 255 });
 
 export const updateBusinessIdentityNamesInput = z
   .object({
@@ -63,7 +66,7 @@ export const updateBusinessIdentityNamesInput = z
   })
   .strict()
   .refine((input) => Object.keys(input).length > 0, { message: 'Nothing to update' })
-  .meta({ id: 'UpdateBusinessIdentityNamesInput' });
+  .meta({ id: 'UpdateBusinessIdentityNamesInput', minProperties: 1 });
 
 export const businessIdentityNames = responseObject({
   official_name_ar: z.string().nullable(),

@@ -26109,14 +26109,19 @@
         "properties": {
           "official_name_ar": {
             "nullable": true,
+            "minLength": 1,
+            "maxLength": 255,
             "type": "string"
           },
           "official_name_en": {
             "nullable": true,
+            "minLength": 1,
+            "maxLength": 255,
             "type": "string"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "minProperties": 1
       },
       "UpdateBusinessSettingsInput": {
         "type": "object",

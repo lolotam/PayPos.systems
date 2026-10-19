@@ -38,6 +38,9 @@ it('trims an official name, clears with null, and refuses a blank or oversized n
   expect(updateBusinessIdentityNamesInput.safeParse({ official_name_en: ' ' }).success).toBe(false);
   expect(updateBusinessIdentityNamesInput.safeParse({ official_name_en: 'a'.repeat(256) }).success).toBe(false);
   expect(updateBusinessIdentityNamesInput.safeParse({ official_name_en: '😀'.repeat(255) }).success).toBe(true);
+  expect(updateBusinessIdentityNamesInput.safeParse({ official_name_en: '\u0000' }).success).toBe(false);
+  expect(updateBusinessIdentityNamesInput.safeParse({ official_name_ar: 'Synthetic\u0000name' }).success).toBe(false);
+  expect(updateBusinessIdentityNamesInput.safeParse({ official_name_ar: ' \u0000 ' }).success).toBe(false);
   expect(updateBusinessIdentityNamesInput.safeParse({ theme: 'dark' }).success).toBe(false);
   expect(businessIdentityNames.parse({ official_name_ar: null, official_name_en: 'Salon' })).toEqual({
     official_name_ar: null,
@@ -88,6 +91,16 @@ it('publishes settings read and audited discount command with exact 200 status a
           parameters: [{ name: 'x-company-id' }, { name: 'businessId' }],
         },
       },
+    },
+  });
+  const input = (
+    buildOpenApiDocument()['components'] as { schemas: Record<string, unknown> }
+  ).schemas['UpdateBusinessIdentityNamesInput'];
+  expect(input).toMatchObject({
+    minProperties: 1,
+    properties: {
+      official_name_ar: { type: 'string', nullable: true, minLength: 1, maxLength: 255 },
+      official_name_en: { type: 'string', nullable: true, minLength: 1, maxLength: 255 },
     },
   });
 });
