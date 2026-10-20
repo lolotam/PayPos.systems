@@ -120,6 +120,25 @@ export const serviceSessionPaths = {
       },
     },
   },
+  '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/performer-changes': {
+    get: {
+      operationId: 'listServiceLinePerformerChanges',
+      description: 'Newest-first performer-change history for one saved line. Requires read:service-sessions:branch and the orders feature. change:service-line-performers:branch does not grant this read. A line, session, branch or company mismatch is a uniform 403. The reason and the changer label are returned only here. The scoped cursor carries the last revision.',
+      parameters: [
+        ...parameters.filter((p) => p.name !== 'Idempotency-Key'),
+        { in: 'path', name: 'sessionId', required: true, schema: { type: 'string', format: 'uuid' } },
+        { in: 'path', name: 'lineId', required: true, schema: { type: 'string', format: 'uuid' } },
+        { in: 'query', name: 'cursor', required: false, schema: { type: 'string', minLength: 1, maxLength: 512, pattern: '^[A-Za-z0-9_-]+$' } },
+        { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 200, default: 50 } },
+      ],
+      responses: {
+        '200': { description: 'Performer-change history newest first. Names and shares are the snapshots stored at the change. next_cursor is null on the last page.', content: json('ServiceLinePerformerChangesPage') },
+        '400': { description: 'Invalid query or a cursor for another company, business, branch, session or line.', content: json('ErrorEnvelope') },
+        '403': { description: 'Uniform scope/authority refusal or disabled orders feature.', content: json('ErrorEnvelope') },
+        default: { description: 'Bilingual authentication/readiness refusal.', content: json('ErrorEnvelope') },
+      },
+    },
+  },
   '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/tips': {
     put: {
       operationId: 'recordSessionTips',

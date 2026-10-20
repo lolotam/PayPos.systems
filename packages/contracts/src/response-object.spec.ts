@@ -21,6 +21,7 @@ import { serviceSessionDayPage, serviceSessionDayQuery } from './orders/service-
 import { serviceLineCancellation } from './orders/service-line-cancellation.js';
 import { serviceSessionCapabilities } from './orders/service-session-capabilities.js';
 import { serviceLineEditsPage, serviceLineEditsQuery } from './orders/service-session-edits.js';
+import { serviceLinePerformerChangesPage, serviceLinePerformerChangesQuery } from './orders/service-session-performer-changes.js';
 import { sessionPerformerOptionPage, sessionServiceOptionPage, sessionServiceOptionsQuery } from './orders/service-session-options.js';
 import { confirmSessionRecoveryBody, serviceSessionRecoveryPage } from './orders/service-session-recovery.js';
 import { recordingContext, recordingContextQuery } from './orders/recording-context.js';
@@ -126,6 +127,7 @@ const responses = [
   { name: 'serviceLineCancellation', schema: serviceLineCancellation },
   { name: 'serviceSessionCapabilities', schema: serviceSessionCapabilities },
   { name: 'serviceLineEditsPage', schema: serviceLineEditsPage },
+  { name: 'serviceLinePerformerChangesPage', schema: serviceLinePerformerChangesPage },
   { name: 'serviceSessionDayPage', schema: serviceSessionDayPage },
   { name: 'serviceSessionRecoveryPage', schema: serviceSessionRecoveryPage },
   { name: 'sessionPerformerOptionPage', schema: sessionPerformerOptionPage },
@@ -148,6 +150,7 @@ const requests = [
   { name: 'recordingContextQuery', schema: recordingContextQuery },
   { name: 'serviceSessionDayQuery', schema: serviceSessionDayQuery },
   { name: 'serviceLineEditsQuery', schema: serviceLineEditsQuery },
+  { name: 'serviceLinePerformerChangesQuery', schema: serviceLinePerformerChangesQuery },
   { name: 'confirmSessionRecoveryBody', schema: confirmSessionRecoveryBody },
   { name: 'createPackageTypeInput', schema: createPackageTypeInput },
   { name: 'attendanceBoardQuery', schema: attendanceBoardQuery },

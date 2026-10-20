@@ -217,6 +217,8 @@ describe('openapi/openapi.json', () => {
         'ServiceLineCancellation', 'ServiceLineEditsQuery', 'ServiceSessionCapabilities',
         'ServiceLineEditItem',
         'ServiceLineEditsPage',
+        'ServiceLinePerformerChangesQuery', 'ServiceLinePerformerChangePerformer',
+        'ServiceLinePerformerChangeItem', 'ServiceLinePerformerChangesPage',
         'AttendanceChangeDecisionResult',
         'AttendanceChangeListQuery',
         'AttendanceChangeRequest',
