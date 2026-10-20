@@ -318,7 +318,10 @@ pins the PosPay rules on top of it.
      $opencodeExe = Join-Path (Split-Path (Get-Command opencode).Source) 'node_modules\@opencode\cli\bin\opencode.exe'
      if (-not (Test-Path $opencodeExe)) { throw 'opencode.exe not found: stop' }
      # the checker pins the version of this exact binary, the one Start-Process runs below
-     node "$tools\check-opencode.cjs" opencode.json $opencodeExe; if ($LASTEXITCODE) { throw 'opencode.json refused: stop' }
+     # some Node 24 releases (24.13) print an ExperimentalWarning for node:sqlite, which PowerShell 5.1 turns into a fatal
+     # error under Stop; only that warning class is silenced, every real error still reaches stderr
+     node --disable-warning=ExperimentalWarning "$tools\check-opencode.cjs" opencode.json $opencodeExe
+     if ($LASTEXITCODE) { throw 'opencode.json refused: stop' }
      $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\(Git|GitHub CLI|OpenSSH|Docker|DockerDesktop)(\\|$)') }) -join ';'
      foreach ($tool in 'git', 'gh', 'ssh', 'scp', 'docker') {
        if (Get-Command "$tool.exe" -ErrorAction SilentlyContinue) { throw "$tool is still on PATH: stop" }
@@ -342,7 +345,7 @@ pins the PosPay rules on top of it.
        # The stopper launches opencode.exe, so it runs only after the checks passed and the run started, while the
        # isolated config is still active. A refused setup never starts opencode, not even to clean up.
        if ($runStart) {
-         node "$tools\stop-opencode-sessions.cjs" $worktree --exe $opencodeExe --since $runStart
+         node --disable-warning=ExperimentalWarning "$tools\stop-opencode-sessions.cjs" $worktree --exe $opencodeExe --since $runStart
          $stopExit = $LASTEXITCODE
        } else {
          $stopExit = 0
