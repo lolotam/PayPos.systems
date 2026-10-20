@@ -145,8 +145,14 @@ pins the PosPay rules on top of it.
      stopper's interrupt of it is harmless;
    - `read` also denies every `opencode.*` file, anything under `.opencode`, and all of `.claude` (where the template
      lives), as `edit` does: MiniMax tried to read its own rules (Emlaa, 2026-10-20);
-   - `read` and `edit` deny `.env`, `.env.*`, `*.env` and `*.env.*` at any depth, the forms the root `.gitignore`
-     ignores. A worktree's copied `.env` holds database passwords (HANDOVER §3.3), and an explicit `"*": "allow"`
+   - **secret env files are not in the worktree during a run.** The dispatch moves every ignored `.env`, `.env.*`,
+     `*.env` and `*.env.*` file (`.env.example` templates excepted) to `briefs\guard\<worktree>\env-stash` before the
+     run, and moves them back only after MiniMax has stopped. A file MiniMax planted under the same name is set aside
+     and reported. The next dispatch refuses to start while the stash still holds a file. A deny list alone kept losing
+     to one more spelling of the same file (`.env::$DATA`, `.env ` with a trailing space; Codex on #416), and a file
+     that is not there cannot be read;
+   - as a second layer, `read` and `edit` deny `.env`, `.env.*`, `*.env` and `*.env.*` at any depth, the forms the
+     root `.gitignore` ignores. A worktree's copied `.env` holds database passwords (HANDOVER §3.3), and an explicit `"*": "allow"`
      would otherwise lift opencode's default protection for it. A 2026-10-20 smoke test read a planted
      `production.env` before `*.env` was added. opencode matches paths case-insensitively on Windows, and the same
      test confirmed that `.ENV` and `.Env` are refused. The tracked `.env.example` and `*.env.example` templates hold
@@ -262,6 +268,9 @@ pins the PosPay rules on top of it.
    if ((Test-Path .opencode) -or (Test-Path opencode.jsonc)) { throw 'a .opencode folder or opencode.jsonc exists: inspect it, stop' }
    $worktree = (Get-Location).Path
    $guard = Join-Path 'F:\Dev\Worktrees\PosPay\briefs\guard' (Split-Path $worktree -Leaf)
+   if (Get-ChildItem (Join-Path $guard 'env-stash') -Recurse -File -Force -ErrorAction SilentlyContinue) {
+     throw "env files from an earlier run are still in $guard\env-stash: move them back before a new run"
+   }
    if (Test-Path $guard) { Remove-Item $guard -Recurse -Force }
    New-Item -ItemType Directory $guard | Out-Null
    git fetch -q origin main; if ($LASTEXITCODE) { throw 'git fetch failed: a stale guard copy could be trusted, stop' }
@@ -277,12 +286,27 @@ pins the PosPay rules on top of it.
    [IO.File]::WriteAllText((Join-Path $isolatedConfig 'opencode\AGENTS.md'),
      "PosPay MiniMax run: follow the attached brief only. Read and edit files in this worktree only.`n")
    [IO.File]::WriteAllText((Join-Path $isolatedConfig 'opencode\opencode.json'), "{ `"autoupdate`": false }`n")
+   # Secret env files leave the worktree for the whole run (Codex on #416): a deny list can be dodged by one more
+   # spelling of the same file (.env::$DATA, '.env '), and a file that is not there cannot be read. MiniMax never needs
+   # them; the orchestrator runs every gate after the run, with the files back in place.
+   $envStash = Join-Path $guard 'env-stash'
+   $envFiles = @(git -c core.quotePath=false ls-files --others --ignored --exclude-standard --directory |
+     Where-Object { $_ -match '(^|/)[^/]*\.env(\.[^/]+)?$' -and $_ -notmatch '\.example$' })
+   if ($LASTEXITCODE) { throw 'could not list the ignored files: stop' }
+   $stashed = @()
+   $restoreFailed = $false
    $savedPath = $env:PATH
    $savedXdg = $env:XDG_CONFIG_HOME
    $opencodeExit = 1
    $stopExit = 1
    $runStart = $null
    try {
+     foreach ($rel in $envFiles) {
+       $dest = Join-Path $envStash $rel
+       New-Item -ItemType Directory (Split-Path $dest) -Force | Out-Null
+       Move-Item -LiteralPath (Join-Path $worktree $rel) -Destination $dest
+       $stashed += $rel
+     }
      $env:XDG_CONFIG_HOME = $isolatedConfig   # no global config: no MCP servers, plugins, agents or instructions
      if (-not (Get-Command opencode -ErrorAction SilentlyContinue)) { throw 'opencode is not on PATH: stop' }
      $opencodeExe = Join-Path (Split-Path (Get-Command opencode).Source) 'node_modules\@opencode\cli\bin\opencode.exe'
@@ -320,8 +344,26 @@ pins the PosPay rules on top of it.
      } finally {
        $env:PATH = $savedPath
        $env:XDG_CONFIG_HOME = $savedXdg
+       # The env files come back only after MiniMax has stopped. A file MiniMax planted under the same name is moved
+       # aside to the guard folder and reported, never overwritten silently.
+       foreach ($rel in $stashed) {
+         try {
+           $target = Join-Path $worktree $rel
+           if (Test-Path -LiteralPath $target) {
+             $planted = Join-Path (Join-Path $guard 'planted') $rel
+             New-Item -ItemType Directory (Split-Path $planted) -Force | Out-Null
+             Move-Item -LiteralPath $target -Destination $planted -ErrorAction Stop
+             Write-Warning "MiniMax created $rel during the run: moved to $planted, report it to the super agent"
+           }
+           Move-Item -LiteralPath (Join-Path $envStash $rel) -Destination $target -ErrorAction Stop
+         } catch {
+           $restoreFailed = $true
+           Write-Warning "could not restore $rel from $envStash`: $_"
+         }
+       }
      }
    }
+   if ($restoreFailed) { throw "an env file is still in $envStash: move it back by hand before the gates run" }
    if ($stopExit -ne 0) { throw 'a MiniMax session could not be stopped: interrupt it by hand before review' }
    if ($opencodeExit -eq 124) { throw 'MiniMax hit the 45-minute limit: report it, then treat it as a failed run (rule 8)' }
    if ($opencodeExit -ne 0) { throw "opencode run exited $($opencodeExit), so treat it as a failed run (rule 8)" }
