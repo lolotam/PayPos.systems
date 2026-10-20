@@ -55,8 +55,10 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
    the page, when Waleed and his partner (Abu Salem) differ, the partner's pick binds.
    Ask the questions of a whole feature before its first sub-PR, with a mockup when the answer is a screen: one batch per
    destination (the money questions on the page, the rest to Waleed), never a mixed batch.
-3. The implementer is the **Grok CLI, `grok-4.7`, effort high** (owner, 2026-10-14), one resumed session per
-   task to keep its cache warm. Claude Code orchestrates, judges the diff and runs `pnpm check`.
+3. The only implementer is **opencode with `minimax-coding-plan/MiniMax-M3.1-Flash`** (owner, PP-10.1, 2026-10-20),
+   for new tasks and for PR-finding fix rounds, one continued session per task. Its briefs ban every git command,
+   edits outside the task, and line-squashing. Claude Code orchestrates, judges the diff (including a line-by-line diff
+   of every rewritten SQL function) and runs `pnpm check`. Skill §4 has the dispatch rules.
 4. Guard pass (`clean-code-guard`, `test-guard`, `docs-guard`), then up to **5 review rounds**: Codex astra 6 →
    fresh Claude reviewers → the four PR bots: the Codex GitHub bot (`@codex review` after every push) and the
    MergePilot panel (MergePilot, waleed_bot, mohamed_bot). Every bot's result on the head SHA is read before a merge.

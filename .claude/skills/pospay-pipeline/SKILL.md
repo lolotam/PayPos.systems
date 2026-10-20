@@ -1,6 +1,6 @@
 ---
 name: pospay-pipeline
-description: "PosPay's fixed delivery pipeline, decided by the owner (Waleed) on 2026-10-07 and updated 2026-10-14. Use it for every row of a phase implementation plan, every new slice or use case, and every fix PR that touches production code in this repo. It pins who does each role (Grok CLI grok-4.7 high implements, Codex and the MergePilot panel review, Claude orchestrates), the review-round cap, the parallel-task cap, the database review, the guard pass, the staging deploy, the status page and the owner report, so they are never re-asked. It runs on top of waleed-implementation-v2 and replaces that skill's questions and fallback chains for this project. Not for a typo or a question. A docs-only change follows the docs-only lane (§2), and every merge, docs-only included, still updates the decisions page's status tab (§6 step 8)."
+description: "PosPay's fixed delivery pipeline, decided by the owner (Waleed) on 2026-10-07 and updated 2026-10-20. Use it for every row of a phase implementation plan, every new slice or use case, and every fix PR that touches production code in this repo. It pins who does each role (MiniMax-M3.1-Flash via opencode implements, Codex and the MergePilot panel review, Claude orchestrates), the review-round cap, the parallel-task cap, the database review, the guard pass, the staging deploy, the status page and the owner report, so they are never re-asked. It runs on top of waleed-implementation-v2 and replaces that skill's questions and fallback chains for this project. Not for a typo or a question. A docs-only change follows the docs-only lane (§2), and every merge, docs-only included, still updates the decisions page's status tab (§6 step 8)."
 ---
 
 # PosPay delivery pipeline
@@ -30,16 +30,13 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 | Review layer 1 | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) — owner's choice 2026-10-11 | no |
 | Review layer 2 | **one** fresh Claude reviewer, **Sonnet 5.5 at medium effort** (`claude-sonnet-5-5`), given the diff, the spec and the governing documents (§8 rule 5), never the session history; **high** effort for money, tenant isolation (RLS), auth and migrations; none for a docs-only PR (§8 rule 5) | no |
 | Review layer 3 — **four bots** | the Codex GitHub bot (`chatgpt-codex-connector[bot]`, `@codex review` after every push; Codex CLI when out of quota) **and** the MergePilot panel (`mergepilot-review[bot]`): MergePilot (`gpt-6.1-sol`), waleed_bot (`claude-sonnet-5-5`), mohamed_bot (`grok-4.7`), which reviews every pushed commit on its own | no |
-| Draft writer (§8 rule 6) | Codex or a free model (GLM) writes first drafts of specs, ADRs, journey docs and the HANDOVER; the orchestrator edits and owns the result | yes |
-| Fixer | the implementer, resuming **its own Grok session** with only the findings (§4); the orchestrator (or a doc-writing session) for a one-line fix, for any fix on a docs-only PR (no Grok session exists), and after two Grok failures (§8 rule 4) | yes |
+| Draft writer (§8 rule 6) | MiniMax writes first drafts of specs, ADRs, journey docs and the HANDOVER; the orchestrator edits and owns the result | yes |
+| Fixer | the implementer, continuing **its own MiniMax session** with only the findings (§4); the orchestrator (or a doc-writing session) for a one-line fix and for any fix on a docs-only PR (no implementer session exists) | yes |
 | Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
 
-On 2026-10-14 the owner picked `grok-4.7` at reasoning effort high from the live list (`grok models`: `grok-4.7`,
-`grok-4.7-build-fast`, `grok-4.6`, `grok-4.5`). Re-check `grok models` before the first dispatch of a session; if the id
-is gone, or the CLI says "not authenticated" or a call returns 402, ask the owner — never substitute silently.
-
-Fallback when Grok fails twice on one brief (§4 rule 9): the orchestrator implements. Announce the substitution the
-moment it happens, in the owner report. Never switch to a metered provider without the owner saying so.
+Before the first dispatch of a session, run one trivial `opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash` call. If the
+model id is gone, or the call fails on auth or quota, stop and ask the owner. Never substitute another provider
+(PP-10.1). On a quota stop, hold and resume the same session after the renewal.
 
 ---
 
@@ -75,12 +72,12 @@ moment it happens, in the owner report. Never switch to a metered provider witho
 | 0 | Pick the next row of the phase plan, or the task the owner names | orchestrator + owner | row named in the report |
 | 1 | Spec: `/speckit-specify` → `docs/specs/NNN-<module>-<use-case>/spec.md`; owner questions → the slice's `owner-questions.ar.md` (a question that belongs to no slice, such as a pipeline, docs or process rule, goes to `docs/owner-decisions.ar.md` instead), then routed by kind (`CLAUDE.md` §1 5b): charges/money → a new numbered batch on the decisions page; every other question → Waleed through his super agent; a feature's questions are asked together before its first sub-PR, one batch per destination, never a mixed batch | orchestrator | every business rule is in the spec or asked; an unknown rule is a `TODO(spec)` and a stop. **Ask the whole feature at once** (owner, 2026-10-17): before the first sub-PR of a feature starts, list every sub-PR in the plan, collect all of their owner questions, one numbered batch per destination (money on the page, the rest to Waleed), and add a clickable mockup (an HTML artifact, or a Lovable prototype) when the answer is a screen; late-found questions are the exception, not the routine |
 | 2 | Design advice — **only** when the slice parses files, runs long work, may cross 200 ms, moves money, or changes auth/RLS | both advisors, read-only | the chosen design is written into the spec |
-| 3 | Brief and dispatch the implementer (§4), baseline captured first | orchestrator → Grok | Grok reports done; the delivery is kept as the first commit, as delivered |
+| 3 | Brief and dispatch the implementer (§4), baseline captured first | orchestrator → MiniMax | MiniMax reports done; the delivery is kept as the first commit, as delivered |
 | 4 | Judge the delivery: diff against the baseline, read it against the spec, merge `main`, renumber migrations/ADRs, `pnpm check` | orchestrator | `pnpm check` green |
 | 5 | Guard pass: `clean-code-guard` on production code, `test-guard` on tests, `docs-guard` on docs (global `CLAUDE.md` guard workflow) | orchestrator | findings fixed or recorded |
 | 6 | Database review — **mandatory** when the PR touches `packages/db/**` (schema, migration, RLS, grants, seed) | Codex astra 6 medium | no open P0/P1 (§5 checklist) |
-| 7 | Review layer 1 | Codex astra 6 medium | findings fixed by Grok in its resumed session, or deferred per §2 |
-| 8 | Review layer 2 — one Sonnet 5.5 reviewer (§8 rule 5); no separate confirm round, the four bots confirm on the head SHA in step 9 | fresh Claude reviewer | its findings fixed by Grok or deferred per §2 |
+| 7 | Review layer 1 | Codex astra 6 medium | findings fixed by MiniMax in its continued session, or deferred per §2 |
+| 8 | Review layer 2 — one Sonnet 5.5 reviewer (§8 rule 5); no separate confirm round, the four bots confirm on the head SHA in step 9 | fresh Claude reviewer | its findings fixed by MiniMax or deferred per §2 |
 | 9 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | **all four bots answered on the head SHA**: Codex summary says Completed for that SHA, the MergePilot review for that SHA shows all three bots completed (a failing waleed_Bot is handled by the PP-5.2 exception in §2), and every inline finding is fixed or deferred per §2 |
 | 10 | CI `ci-gate` green **on the exact head being merged** | GitHub Actions | green |
 | 11 | Merge: `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` — a push after the reviews makes the merge fail instead of landing an unreviewed head | orchestrator | merged |
@@ -96,64 +93,53 @@ the MergePilot panel reviews each pushed commit by itself. Read every result bef
 
 ---
 
-## 4. Dispatching Grok — and keeping its tokens low
+## 4. Dispatching MiniMax (opencode)
 
-Grok runs through the **Grok CLI** (`grok` on `PATH`, installed under `E:\Dev\Tools_and_Utilities\grok`, signed in with the
-owner's grok.com account), model **`grok-4.7`** at reasoning effort **high** — never through `cursor-agent`,
-which bills a different quota. The CLI hides the xAI API, so `x-grok-conv-id` / `prompt_cache_key` cannot be set by us;
-what saves tokens is reusing one session and keeping its prefix stable:
+MiniMax runs through the **opencode CLI** (`opencode` on `PATH`, under `F:\Dev\Runtimes\npm-global`). The model is
+**`minimax-coding-plan/MiniMax-M3.1-Flash`**, on Waleed's flat-rate coding plan. That provider offers no `#high`
+variant, so the model runs at its default. The `opencode-delegate` skill holds the run and relay mechanics. This section
+pins the PosPay rules on top of it.
 
-1. **One session per task.** Before the first dispatch, create a UUID and record it in the task's notes; the first
-   run names the session with `-s`:
-
-   ```powershell
-   $sid = [guid]::NewGuid().ToString()
-   grok --cwd E:\Dev\Worktrees\PosPay\<branch> -m grok-4.7 --reasoning-effort high `
-       -s $sid --prompt-file E:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt --always-approve --permission-mode bypassPermissions --output-format plain
-   ```
-
-2. **Every later round resumes that session** instead of starting a new one, so Grok does not re-read the repo:
+1. **One session per task.** Give the first run a session id with `-s`, and record it in the task's notes
+   (`F:\Dev\Worktrees\PosPay\briefs\<task>\sid.txt`). Run it from the worktree:
 
    ```powershell
-   grok --cwd E:\Dev\Worktrees\PosPay\<branch> -m grok-4.7 --reasoning-effort high `
-       --resume $sid --prompt-file E:\Dev\Worktrees\PosPay\briefs\<task>\fix-<round>.txt --always-approve --permission-mode bypassPermissions --output-format plain
+   Set-Location F:\Dev\Worktrees\PosPay\<branch>
+   opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
+       -f F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt "Implement the attached brief."
    ```
 
-   Pass the brief with `--prompt-file`. `grok "prompt"` without `--prompt-file`/`-p` opens the interactive TUI and
-   looks hung in a background shell. Keep briefs **outside** the worktree (`E:\Dev\Worktrees\PosPay\briefs\<task>\`)
-   so they never land in the diff, and pass them by absolute path: `--prompt-file` resolves against the shell's
-   current directory, not against `--cwd`.
-3. **A fixed brief header, always in the same order and wording**, then the part that changes last:
-   1. Role and fences — "You implement only task N. Do not commit. Do not touch files outside: …"
-   2. Required reading — file **paths** only, in this fixed order: `CLAUDE.md`, `CLAUDE.architecture.md`, the spec
-      path, the plan path, the ADR paths, then the source files the task starts from.
+2. **Every later round, review-fix rounds included, continues that session** with the same `-s <sid>`, and attaches
+   only the new fix brief (`-f …\fix-<round>.txt`).
+3. **Keep briefs outside the worktree** (`F:\Dev\Worktrees\PosPay\briefs\<task>\`) so they never land in the diff. Pass
+   them by absolute path.
+4. **The brief header is fixed, in this order:**
+   1. Role and fences: "You implement only task N. **Run no git command at all** (no stash, checkout, reset, commit or
+      push). Do not touch files outside: …. Do not reformat lines you do not change. Never squash lines to get under
+      `max-lines`; split by responsibility instead. Do not create databases unless the brief asks."
+   2. Required reading, as file **paths** only: `CLAUDE.md`, `CLAUDE.architecture.md`, the spec, the plan, the ADRs,
+      then the source files the task starts from.
    3. The `CLAUDE.md` rules that apply, quoted verbatim.
    4. **Last:** the task, or the findings to fix.
-4. **Send paths, not file contents.** Grok reads only what it needs.
-5. **A fix brief carries only the new findings**, each as `file:line — what is wrong — what done looks like`. Never
-   resend the spec or the earlier brief into a resumed session.
-6. **Start a new session** only when the resumed one fails, or its context grows near 200K tokens (price doubles above
-   it). Hand over with a ten-line summary of the state, not the history. Grok CLI auto-compacts a session at 80 %
-   context ("Auto-compacting conversation") and replaces the history with its own summary. The cache survived it once
-   (23a round 3: 97.8 %), but the summary is Grok's, not ours: past round 3, or when `grok usage` input nears that
-   line, start the fresh session yourself with the ten-line handover before dispatching.
-7. The run is writable and auto-approving. After every dispatch, diff the worktree against the baseline: a run with
-   no change is a failed candidate, whatever it reports. `grok usage <session-id>` shows a session's token spend.
-8. **Measure the cache after every round** with `grok usage <session-id>` (run in the worktree) and put the numbers in
-   the owner report: input tokens, `cachedReadTokens` and their share, output tokens, model calls, cost. Target **90 %
-   or more** of input served from cache — the first 23a fix on 2026-10-07 reached 95 % (4.85 M of 5.1 M). A share
-   below that means the prefix moved: check that the session was resumed (not a new `-s`), that the brief header was
-   byte-identical, and that no file content was pasted into the brief.
-9. **When a Grok run is dry or fails**, stop its process, save its partial diff as a patch outside the repo and reset
-   the worktree to the baseline — never hand a half-edited tree to the next run. Then count failures on that brief:
-   - **First failure:** retry Grok once in a new session (rule 6) with the same brief plus one line on what went wrong.
-   - **Second failure on the same brief:** dispatch the fallback (§1) and announce the switch in the owner report.
+5. **Send paths, not file contents.** A fix brief carries only the new findings, each written as
+   `file:line — what is wrong — what done looks like`.
+6. **After every run, diff the worktree against the baseline.** A run with no change is a failed candidate, whatever
+   it reports. Check `git stash list`. **Diff every rewritten SQL function body line by line against the old one**:
+   on #338 a one-letter slip silently weakened a money guard.
+7. **Keep `briefs/<task>/EVAL.md`** (owner, 2026-10-20). For each round record whether the first delivery passed the
+   gates, the fix rounds, the findings MiniMax missed, any `CLAUDE.md` violations, and the wall time, then end with a
+   short verdict.
+8. **When a run is dry or fails**, stop its process, save its partial diff as a patch outside the repo, and reset the
+   worktree to the baseline:
+   - **First failure:** retry once in a new session with the same brief, plus one line on what went wrong.
+   - **Second failure on the same brief:** stop and report it to Waleed through his super agent. **Never** switch to
+     Grok, Codex or another provider without his word (PP-10.1).
 
 ---
 
 ## 5. Database work
 
-- **Grok writes** migrations, schema, RLS policies, grants and seed with the rest of the slice. The database reviewer
+- **MiniMax writes** migrations, schema, RLS policies, grants and seed with the rest of the slice. The database reviewer
   (Codex astra 6 medium, read-only) reviews every PR that touches `packages/db/**` against this list:
   - every tenant table has `company_id`, primary key `(company_id, id)`, `ENABLE` + `FORCE ROW LEVEL SECURITY`, a
     policy, and a negative isolation test in the same PR (`CLAUDE.md` §5, ADR-0007);
@@ -212,7 +198,7 @@ The server is shared: never touch another project's containers, databases or fil
   count recounted from `roadmap.json`, `git log` and `gh pr list` each time:
   1. the 7 phases and the status of each;
   2. the current phase's groups, each with done / in progress / not started counts;
-  3. what runs now (row, PR, review round, Grok cache share);
+  3. what runs now (row, PR, review round, MiniMax round count);
   4. what comes next;
   5. what waits on the owner (questions, approvals, server changes).
 - Ask the owner — with options and a recommended one — for every business rule, every server change, and every
@@ -236,11 +222,11 @@ typing do not.
 3. **Choose the model per session.** Sessions that only continue a PR, write documentation or answer bot findings run on
    Sonnet or Haiku at medium effort. High effort and the strongest model are for design advice, risky slices (§3 step 2)
    and P0/P1 judgement only.
-4. **Fix rounds go to Grok.** When a bot finds something, the findings go to the implementer's resumed Grok session
-   (§4 rule 2, `file:line — what is wrong — what done looks like`). Claude judges whether the fix is right; it does not
-   retype it. A Claude session fixes a finding itself only when it is a one-line change. Two exceptions stay as written:
-   a docs-only PR has no Grok session, so the orchestrator (or a doc-writing session) fixes its findings; and after two
-   Grok failures on one brief the orchestrator implements (§1 fallback).
+4. **Fix rounds go to MiniMax.** When a bot finds something, the findings go to the implementer's continued MiniMax
+   session (§4 rule 2), each written as `file:line — what is wrong — what done looks like`. Claude judges whether the
+   fix is right; it does not retype it. A Claude session fixes a finding itself only when it is a one-line change, or
+   when the PR is docs-only and so has no implementer session. After two MiniMax failures on one brief, stop and report
+   to Waleed (§4 rule 8). Never switch to another provider.
 5. **One cheaper review layer 2.** One fresh Sonnet 5.5 reviewer at medium effort replaces the two Opus-class reviewers
    (review and confirm round). It gets the diff, the spec and the governing documents (`CLAUDE.md`, `CLAUDE.architecture.md`, `docs/06_Tech_Stack_Architecture_EN.md`, `docs/module-map.md`, the ADRs the slice cites), never the session history, so its context stays small. Use high
    effort when the PR touches money, tenant isolation, auth or migrations, (the other-vendor reviewer is review layer 1, Codex astra 6, which already runs on every code PR in §3 step 7; the docs-only lane skips it and has no layer 2 either). A docs-only
@@ -262,7 +248,7 @@ typing do not.
 
 ## 9. Never
 
-- Never let Grok commit, merge, push, or touch the server.
+- Never let MiniMax run any git command, merge, push, or touch the server.
 - Never merge with a P0/P1 open, or with CI red on the head being merged.
 - Never exceed 5 review rounds without applying §2 (a docs-only PR has no cap, see the docs-only lane in §2), and never exceed 3 parallel tasks.
 - Never run two tasks in parallel that touch the same file.
