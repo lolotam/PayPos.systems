@@ -1,9 +1,16 @@
 import type postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { applyChange, performer, type ChangeCtx, type Person } from '../../../../../../packages/db/test/service-line-performer-change.ts';
 import { serviceLinePerformerChangesStatement } from '../queries/service-line-performer-changes.query.ts';
-import { ids, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
+import {
+  changeContext,
+  commitPerformerChange,
+  employeePerson,
+  livePeople,
+  ownerMembershipOf,
+  withShare,
+} from './performer-change-history.helpers.ts';
+import { must, sessionFixture, type SessionFixture } from './session.fixture.ts';
 
 let f: SessionFixture;
 let sessionId = '';
@@ -17,56 +24,23 @@ beforeAll(async () => {
   const saved = await f.create.execute({ ...f.context(), input: f.body([f.line()]) });
   sessionId = saved.session.id;
   lineId = must(saved.session.lines[0]).id;
-  const [membership] = await f.h.owner`SELECT id FROM memberships WHERE company_id=${f.company} AND user_id=${f.ownerId}`;
-  ownerMembership = String(must(membership)['id']);
+  ownerMembership = await ownerMembershipOf(f);
   await seedTargetChanges();
 });
 afterAll(async () => { await f?.close(); });
 
 async function seedTargetChanges() {
-  const [row] = await f.h.owner`SELECT service_id FROM service_lines WHERE company_id=${f.company} AND id=${lineId}`;
-  const ctx: ChangeCtx = { company: f.company, business: f.business, branch: f.branch, userId: f.ownerId, membershipId: ownerMembership,
-    sessionId, serviceId: String(must(row)['service_id']) };
-  const first = await employeePerson(must(f.employees[0]));
-  const second = await employeePerson(must(f.employees[1]));
-  await change(ctx, { revision: 2, before: await livePeople(), after: [withShare(first, 1, 7000), withShare(second, 2, 3000)],
-    reason: 'Split the colour and the rinse' });
-  await change(ctx, { revision: 3, before: await livePeople(), after: [withShare(first, 1, 10000)],
-    reason: 'Rana left the branch before the visit' });
-}
-async function change(ctx: ChangeCtx, planned: { revision: number; before: Person[]; after: Person[]; reason: string }) {
-  await f.db.withTenant(f.company, (tx) => applyChange(tx, ctx, ids, {
-    lineId, previous: planned.revision - 1, revision: planned.revision,
-    before: planned.before, live: planned.after, after: planned.after, reason: planned.reason,
-    warning: planned.after.some((person) => person.clock || person.leave),
-  }), { userId: f.ownerId });
-}
-async function livePeople(): Promise<Person[]> {
-  const rows = await f.h.owner`SELECT employee_id, performer_ordinal, share_bps, linked_user_id, linked_user_snapshotted,
-    name_en, name_ar, not_clocked_in_warning, approved_leave_warning
-    FROM line_performers WHERE company_id=${f.company} AND line_id=${lineId} ORDER BY performer_ordinal`;
-  return rows.map((row) => performer(String(row['employee_id']), {
-    ordinal: Number(row['performer_ordinal']), share: Number(row['share_bps']),
-    userId: textOrNull(row['linked_user_id']), nameEn: String(row['name_en']), nameAr: textOrNull(row['name_ar']),
-    snapshotted: row['linked_user_snapshotted'] === true, clock: row['not_clocked_in_warning'] === true,
-    leave: row['approved_leave_warning'] === true,
-  }));
-}
-async function employeePerson(employeeId: string): Promise<Person> {
-  const [row] = await f.h.owner`SELECT name_en, name_ar, user_id FROM employees WHERE company_id=${f.company} AND id=${employeeId}`;
-  const employee = must(row);
-  return performer(employeeId, { userId: textOrNull(employee['user_id']), nameEn: String(employee['name_en']),
-    nameAr: textOrNull(employee['name_ar']), snapshotted: true });
-}
-function withShare(person: Person, ordinal: number, share: number): Person {
-  return performer(person.employeeId, { ordinal, share, userId: person.userId, nameEn: person.nameEn,
-    nameAr: person.nameAr, snapshotted: person.snapshotted, clock: person.clock, leave: person.leave });
-}
-function textOrNull(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
+  const ctx = await changeContext(f, sessionId, lineId, ownerMembership);
+  const first = await employeePerson(f, must(f.employees[0]));
+  const second = await employeePerson(f, must(f.employees[1]));
+  await commitPerformerChange(f, ctx, lineId, { revision: 2, before: await livePeople(f, lineId),
+    after: [withShare(first, 1, 7000), withShare(second, 2, 3000)], reason: 'Split the colour and the rinse',
+    changerNameEn: 'Changer' });
+  await commitPerformerChange(f, ctx, lineId, { revision: 3, before: await livePeople(f, lineId),
+    after: [withShare(first, 1, 10000)], reason: 'Rana left the branch before the visit', changerNameEn: 'Changer' });
 }
 
-// الحجم على أسطر كتير مش على سطر واحد: جداول التاريخ متريجرات، ف thousand revision على سطر واحد هتتكسر بالترiggers.
+// الحجم موزّع على أسطر كتير مش على سطر واحد: تريجرات جداول التاريخ بتفرض سلسلة revision متتالية لكل سطر، فآلاف التغييرات على سطر واحد مش ممكنة.
 async function plant() {
   await f.h.owner.begin(async (tx) => { await copyVolume(tx, f.company); });
   await f.h.owner.begin(async (tx) => { await recordHistory(tx, f.company); });
@@ -121,7 +95,7 @@ async function insertSide(tx: postgres.TransactionSql, company: string, side: 'B
     WHERE c.company_id=${company} AND c.write_xid=pg_current_xact_id()`;
 }
 
-it('reads the history through slpc_history_idx and the sides through slpcr_change_fk_idx', async () => {
+it('reads headers and sides through their line and change indexes, never a Seq Scan', async () => {
   await plant();
   const scope = { ...f.context(), userId: f.ownerId, sessionId, lineId };
   const cursor = Buffer.from(JSON.stringify({ v: 1, company: f.company, business: f.business, branch: f.branch,
@@ -134,11 +108,11 @@ it('reads the history through slpc_history_idx and the sides through slpcr_chang
       const headers = plan.filter((node) => node['Relation Name'] === 'service_line_performer_changes');
       expect(headers.length).toBeGreaterThan(0);
       expect(headers.every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
+      expect(headers.every((node) => ['slpc_line_revision_uq', 'slpc_history_idx'].includes(node['Index Name'] ?? ''))).toBe(true);
       const sides = plan.filter((node) => node['Relation Name'] === 'service_line_performer_change_rows');
       expect(sides.length).toBeGreaterThan(0);
       expect(sides.every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
-      expect(plan.map((node) => node['Index Name'])).toContain('slpc_history_idx');
-      expect(plan.map((node) => node['Index Name'])).toContain('slpcr_change_fk_idx');
+      expect(sides.every((node) => ['slpcr_ordinal_uq', 'slpcr_change_fk_idx'].includes(node['Index Name'] ?? ''))).toBe(true);
     });
   }
 }, 120_000);

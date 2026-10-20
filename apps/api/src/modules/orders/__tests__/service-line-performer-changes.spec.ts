@@ -1,14 +1,17 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { serviceLinePerformerChangesPage } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
-import { applyChange, performer, type ChangeCtx, type Person } from '../../../../../../packages/db/test/service-line-performer-change.ts';
 import { ordersLinePerformerChangeHistory } from '../orders.module.ts';
 import { serviceLinePerformerChangesStatement } from '../queries/service-line-performer-changes.query.ts';
+import {
+  changeContext,
+  commitPerformerChange,
+  employeePerson,
+  livePeople,
+  ownerMembershipOf,
+  withShare,
+} from './performer-change-history.helpers.ts';
 import { ids, interceptDatabase, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
-
-type Change = { revision: number; before: Person[]; after: Person[]; reason: string;
-  changerNameAr?: string | null; changerNameEn?: string | null; changerRole?: string | null;
-  roleIsSystem?: boolean | null; roleNameEn?: string | null };
 
 let f: SessionFixture;
 let sessionId = '';
@@ -22,8 +25,7 @@ beforeAll(async () => {
   sessionId = saved.session.id;
   lineId = must(saved.session.lines[0]).id;
   plainLineId = must(saved.session.lines[1]).id;
-  const [membership] = await f.h.owner`SELECT id FROM memberships WHERE company_id=${f.company} AND user_id=${f.ownerId}`;
-  ownerMembership = String(must(membership)['id']);
+  ownerMembership = await ownerMembershipOf(f);
   await seedChanges();
 });
 afterAll(async () => { await f?.close(); });
@@ -34,53 +36,18 @@ const read = (extra: { limit?: number; cursor?: string } = {}) => history().exec
   { limit: extra.limit ?? 50, ...(extra.cursor === undefined ? {} : { cursor: extra.cursor }) });
 
 async function seedChanges() {
-  const [row] = await f.h.owner`SELECT service_id FROM service_lines WHERE company_id=${f.company} AND id=${lineId}`;
-  const ctx: ChangeCtx = { company: f.company, business: f.business, branch: f.branch, userId: f.ownerId,
-    membershipId: ownerMembership, sessionId, serviceId: String(must(row)['service_id']) };
-  const first = await employeePerson(must(f.employees[0]));
-  const second = await employeePerson(must(f.employees[1]));
-  await change(ctx, { revision: 2, before: await livePeople(), after: [withShare(first, 1, 7000), withShare(second, 2, 3000)],
+  const ctx = await changeContext(f, sessionId, lineId, ownerMembership);
+  const first = await employeePerson(f, must(f.employees[0]));
+  const second = await employeePerson(f, must(f.employees[1]));
+  await commitPerformerChange(f, ctx, lineId, { revision: 2, before: await livePeople(f, lineId),
+    after: [withShare(first, 1, 7000), withShare(second, 2, 3000)],
     reason: 'Split the colour and the rinse', changerNameAr: 'ليلى', changerNameEn: 'Layla' });
-  await change(ctx, { revision: 3, before: await livePeople(), after: [withShare(first, 1, 10000)],
-    reason: 'Rana left the branch before the visit', changerRole: 'owner', roleIsSystem: true, roleNameEn: 'Owner' });
-  await change(ctx, { revision: 4, before: await livePeople(), after: [withShare(first, 1, 6000), withShare(second, 2, 4000)],
-    reason: 'Corrected the split', changerRole: 'branch_manager', roleIsSystem: true, roleNameEn: 'Branch manager' });
-}
-
-// كل تغيير في معاملاته لوحده: القاعدة ترفض تغييرين لنفس السطر في نفس المعاملة.
-async function change(ctx: ChangeCtx, planned: Change) {
-  await f.db.withTenant(f.company, (tx) => applyChange(tx, ctx, ids, {
-    lineId, previous: planned.revision - 1, revision: planned.revision,
-    before: planned.before, live: planned.after, after: planned.after,
-    reason: planned.reason, warning: planned.after.some((person) => person.clock || person.leave),
-    changerNameAr: planned.changerNameAr ?? null, changerNameEn: planned.changerNameEn ?? null,
-    changerRole: planned.changerRole ?? null, roleIsSystem: planned.roleIsSystem ?? null,
-    roleNameAr: null, roleNameEn: planned.roleNameEn ?? null,
-  }), { userId: f.ownerId });
-}
-async function livePeople(): Promise<Person[]> {
-  const rows = await f.h.owner`SELECT employee_id, performer_ordinal, share_bps, linked_user_id, linked_user_snapshotted,
-    name_en, name_ar, not_clocked_in_warning, approved_leave_warning
-    FROM line_performers WHERE company_id=${f.company} AND line_id=${lineId} ORDER BY performer_ordinal`;
-  return rows.map((row) => performer(String(row['employee_id']), {
-    ordinal: Number(row['performer_ordinal']), share: Number(row['share_bps']),
-    userId: textOrNull(row['linked_user_id']), nameEn: String(row['name_en']), nameAr: textOrNull(row['name_ar']),
-    snapshotted: row['linked_user_snapshotted'] === true, clock: row['not_clocked_in_warning'] === true,
-    leave: row['approved_leave_warning'] === true,
-  }));
-}
-async function employeePerson(employeeId: string): Promise<Person> {
-  const [row] = await f.h.owner`SELECT name_en, name_ar, user_id FROM employees WHERE company_id=${f.company} AND id=${employeeId}`;
-  const employee = must(row);
-  return performer(employeeId, { userId: textOrNull(employee['user_id']), nameEn: String(employee['name_en']),
-    nameAr: textOrNull(employee['name_ar']), snapshotted: true });
-}
-function withShare(person: Person, ordinal: number, share: number): Person {
-  return performer(person.employeeId, { ordinal, share, userId: person.userId, nameEn: person.nameEn,
-    nameAr: person.nameAr, snapshotted: person.snapshotted, clock: person.clock, leave: person.leave });
-}
-function textOrNull(value: unknown): string | null {
-  return typeof value === 'string' ? value : null;
+  await commitPerformerChange(f, ctx, lineId, { revision: 3, before: await livePeople(f, lineId),
+    after: [withShare(first, 1, 10000)], reason: 'Rana left the branch before the visit',
+    changerNameEn: null, changerRole: 'owner', roleIsSystem: true, roleNameEn: 'Owner' });
+  await commitPerformerChange(f, ctx, lineId, { revision: 4, before: await livePeople(f, lineId),
+    after: [withShare(first, 1, 6000), withShare(second, 2, 4000)], reason: 'Corrected the split',
+    changerNameEn: null, changerRole: 'branch_manager', roleIsSystem: true, roleNameEn: 'Branch manager' });
 }
 
 it('returns the newest change first with the stored names, shares, labels and reasons', async () => {

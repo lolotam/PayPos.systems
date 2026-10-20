@@ -40,7 +40,7 @@ function side(which: 'BEFORE' | 'AFTER') {
     ORDER BY r.performer_ordinal) FROM service_line_performer_change_rows r
     WHERE r.company_id=c.company_id AND r.business_id=c.business_id AND r.change_id=c.id AND r.side=${which})`;
 }
-// شاشة سجل تغيير منفّذي سطر محفوظ لمن يملك read:service-sessions:branch؛ السبب وهوية الملغي هنا فقط (D-7).
+// شاشة سجل تغيير منفّذي سطر محفوظ لمن يملك read:service-sessions:branch؛ السبب وهوية اللي غيّر المنفّذين بيرجعوا هنا بس (D-7).
 export function serviceLinePerformerChangesStatement(scope: ServiceLinePerformerChangesScope, query: ServiceLinePerformerChangesQuery) {
   const cursor = decode(scope, query);
   const older = cursor === null ? sql`true` : sql`c.revision<${cursor.revision}`;
