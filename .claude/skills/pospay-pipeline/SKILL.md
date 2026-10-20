@@ -177,6 +177,10 @@ pins the PosPay rules on top of it.
      no secret, and a slice that adds an env var must update one, so they are allowed again right after the env
      denies;
    - `edit` denies everything under `.claude`, where the guard scripts, this template and the skills live;
+   - `read` also denies the local tool state folders `.agents`, `.vscode`, `.idea` and `.playwright-mcp`, because
+     they can hold credentials (Playwright MCP storage-state files keep cookies and local storage; Codex on #416). A
+     2026-10-20 smoke test refused reads of `.playwright-mcp/storage-state.json` and `.vscode/settings.json`, and
+     `README.md` still read;
    - `edit` also denies every path the root `.gitignore` ignores, outside `.env` and `.claude` (denied above): the
      dependency and build folders (`node_modules`, `.pnpm-store`, `dist`, `build`, `.next`, `out`, `.turbo`,
      `coverage`), local tool state other agents or IDEs load (`.agents`, `.vscode`, `.idea`, `.playwright-mcp`), and

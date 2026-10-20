@@ -64,6 +64,14 @@ const ignoredFolders = [
   '.playwright-mcp',
 ];
 const ignoredFiles = ['.DS_Store', 'Thumbs.db', 'next-env.d.ts'];
+// Local tool state may hold credentials (Playwright MCP storage-state files keep cookies and local storage; IDE
+// settings can keep tokens), so MiniMax may not read these folders either (Codex on #416).
+const localToolPaths = ['.agents', '.vscode', '.idea', '.playwright-mcp'].flatMap((dir) => [
+  dir,
+  `${dir}/*`,
+  `*/${dir}`,
+  `*/${dir}/*`,
+]);
 const generatedPaths = [
   ...ignoredFolders.flatMap((dir) => [
     dir,
@@ -113,7 +121,13 @@ const permission = {
   '*': 'deny',
   external_directory: 'deny',
   // MiniMax tried to read its own rules (Emlaa, 2026-10-20), so it may not read any opencode config either.
-  read: fileRules([...gitPaths, ...configPaths, ...claudePaths, ...otherDrivePaths]),
+  read: fileRules([
+    ...gitPaths,
+    ...configPaths,
+    ...claudePaths,
+    ...localToolPaths,
+    ...otherDrivePaths,
+  ]),
   edit: fileRules([
     ...gitPaths,
     ...configPaths,
