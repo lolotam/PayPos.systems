@@ -394,7 +394,7 @@ describe('ADR-0019 private auth OTP database facade', () => {
   });
 });
 
-describe('ADR-0048 documents renderer import', () => {
+describe('ADR-0049 documents renderer import', () => {
   const wiringMap = {
     ...MAP,
     packagesRestricted: { ...MAP.packagesRestricted, documents: ['reporting'] },

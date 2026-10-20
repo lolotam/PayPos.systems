@@ -1,4 +1,4 @@
-# ADR-0048 — The PDF renderer comes into Phase 1
+# ADR-0049 — The PDF renderer comes into Phase 1
 
 - **Status:** Accepted — Waleed answered PP-6.1…PP-6.3 with the recommended options on 2026-10-20
   ([owner questions](../specs/056-documents-pdf-renderer/owner-questions.ar.md))

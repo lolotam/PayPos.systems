@@ -1,7 +1,7 @@
 # Spec 056 — The PDF renderer (Phase 1 row 27i)
 
 > **Status:** Ready · 2026-10-20. Foundation only: no screen, no endpoint, no database change.
-> **Decision record:** [ADR-0048](../../adr/0048-pdf-renderer-in-phase-1.md) (design advisors Codex astra 6 and Claude
+> **Decision record:** [ADR-0049](../../adr/0049-pdf-renderer-in-phase-1.md) (design advisors Codex astra 6 and Claude
 > Fable 5.1, 2026-10-19).
 > **Needed by:** row 27g (the official attendance statement PDF, Abu Salem's pick AB-Q10).
 > **Depends on:** row 27 and 27h-4 (merged).
@@ -25,7 +25,7 @@ document. 27g then adds the first real document.
 | `apps/worker`: the `documents-render` queue processor, the source registry by `kind`, the browser lifecycle, the liveness key | the `attendance-statement` source in the staff worker module |
 | `deploy/Dockerfile.worker` on `node:24-bookworm-slim` with Chromium; the worker memory limit; the PDF smoke | the API port and its BullMQ/Redis adapter in `staff/persistence/` |
 | module map: the `documents` composition root | `staff → settings`, `staff → files` arrows; the logo bytes reader (ADR-0046 §5, amended) |
-| ADR-0048; ADR-0046 §5 amended; `06` §2 "PDF" confirmed | the download audit row (ST-Q5) |
+| ADR-0049; ADR-0046 §5 amended; `06` §2 "PDF" confirmed | the download audit row (ST-Q5) |
 
 ## 3. Requirements
 
@@ -58,7 +58,7 @@ document. 27g then adds the first real document.
   `/ready` does not depend on the renderer.
 - **FR-013** The worker image renders an Arabic fixture to a valid PDF at build time (the `%PDF-` header), next to the
   existing sharp smoke.
-- **FR-014** The four sandbox compensating controls of ADR-0048 §3.3 (C1 escaped HTML, C2 JavaScript off, C3 every
+- **FR-014** The four sandbox compensating controls of ADR-0049 §3.3 (C1 escaped HTML, C2 JavaScript off, C3 every
   request aborted, C4 non-root) each have a test that runs with no server.
 
 ## 4. Acceptance criteria
@@ -80,7 +80,7 @@ document. 27g then adds the first real document.
 
 ## 5. Design
 
-See ADR-0048 for the reasons. In short:
+See ADR-0049 for the reasons. In short:
 
 - **Transport:** 202 + poll + `POST …/download` that `GETDEL`s the bytes (the API half is 27g's). The PDF lives only in
   Redis, for at most 120 s, and only until the first collection.

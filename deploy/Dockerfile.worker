@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# apps/worker — multi-stage on node:24-bookworm-slim (ADR-0048). The API image stays on Alpine.
+# apps/worker — multi-stage on node:24-bookworm-slim (ADR-0049). The API image stays on Alpine.
 # Chromium headless shell is installed here for packages/documents (playwright-core 1.63.0).
 # Nothing is downloaded at runtime. The final process is USER node, never root.
 
@@ -22,7 +22,7 @@ RUN node node_modules/@pospay/documents/scripts/install-headless-shell.mjs --wit
     && rm -rf /var/lib/apt/lists/* \
     && chown -R node:node /ms-playwright
 USER node
-# ADR-0022 / ADR-0048: sharp smoke on the glibc image, then the PDF smoke which refuses uid 0.
+# ADR-0022 / ADR-0049: sharp smoke on the glibc image, then the PDF smoke which refuses uid 0.
 RUN node node_modules/@pospay/storage/scripts/native-smoke.mjs
 RUN node node_modules/@pospay/documents/scripts/pdf-smoke.mjs
 EXPOSE 3001
