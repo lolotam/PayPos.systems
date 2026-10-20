@@ -1,6 +1,6 @@
 // Refuses a MiniMax run unless <worktree>/opencode.json parses and carries exactly the required limits
 // (Waleed, SA-6 and SA-7.1, 2026-10-20). Exits 1 with the problems listed.
-// Usage: node .claude/skills/pospay-pipeline/check-opencode.cjs [path to opencode.json]
+// Usage: node .claude/skills/pospay-pipeline/check-opencode.cjs <path to opencode.json> <opencode.exe the run will use>
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -216,18 +216,21 @@ if (!configHome) {
 }
 
 // opencode can update itself in place (Codex on #416, upstream issue 56835), and every rule here was smoke-tested on
-// one version. Auto-update is off above, and the installed version must be the tested one. Raise
+// one version. Auto-update is off above, and the binary the dispatch will run must be the tested one, so the version
+// is read from the package beside that exact opencode.exe, not from the first one on PATH (Codex on #416). Raise
 // PINNED_OPENCODE only after the skill's smoke tests pass on the new version.
 const PINNED_OPENCODE = '2.0.32';
-const opencodePackage = (process.env.PATH ?? '')
-  .split(path.delimiter)
-  .filter((dir) => dir && !path.resolve(dir).toLowerCase().startsWith(worktreeRoot))
-  .map((dir) => path.join(dir, 'node_modules', '@opencode', 'cli', 'package.json'))
-  .find((candidate) => fs.existsSync(candidate));
-if (!opencodePackage) {
+const EXE_TAIL = path.join('node_modules', '@opencode', 'cli', 'bin', 'opencode.exe').toLowerCase();
+const exe = process.argv[3] ? path.resolve(process.argv[3]) : '';
+const opencodePackage = path.join(path.dirname(path.dirname(exe)), 'package.json');
+if (!exe || !exe.toLowerCase().endsWith(EXE_TAIL) || !fs.existsSync(exe)) {
   problems.push(
-    'cannot find the installed opencode (@opencode/cli under an npm global folder on PATH)',
+    `pass the opencode.exe the dispatch will run as the second argument (got: ${exe || 'nothing'})`,
   );
+} else if (exe.toLowerCase().startsWith(worktreeRoot)) {
+  problems.push(`${exe} is inside the worktree, where MiniMax could replace it`);
+} else if (!fs.existsSync(opencodePackage)) {
+  problems.push(`no package.json beside ${exe}`);
 } else {
   const { version } = JSON.parse(fs.readFileSync(opencodePackage, 'utf8'));
   if (version !== PINNED_OPENCODE)

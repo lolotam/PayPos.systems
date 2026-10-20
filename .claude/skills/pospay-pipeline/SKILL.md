@@ -188,7 +188,8 @@ pins the PosPay rules on top of it.
      worktree that holds exactly those two files;
    - **opencode is pinned to the version the smoke tests passed on** (2.0.32). opencode can update itself in place
      (Codex on #416). The isolated config turns auto-update off, but the guard that holds is the checker: it refuses
-     the run when the installed `@opencode/cli` version differs from `PINNED_OPENCODE`. To upgrade, rerun both smoke
+     the run when the `package.json` beside the exact `opencode.exe` the dispatch runs (passed as its second argument)
+     has a version other than `PINNED_OPENCODE`. To upgrade, rerun both smoke
      tests on the new version first, then raise the pin in the same PR. Note: `opencode debug config` still lists
      `~/.config/opencode/opencode.json` under isolation, but a real isolated run on 2026-10-20 logged zero MCP
      lines and loaded only the isolated `AGENTS.md`. Judge isolation by a real run's `--print-logs`, not by
@@ -276,14 +277,15 @@ pins the PosPay rules on top of it.
    $runStart = $null
    try {
      $env:XDG_CONFIG_HOME = $isolatedConfig   # no global config: no MCP servers, plugins, agents or instructions
-     node "$tools\check-opencode.cjs" opencode.json; if ($LASTEXITCODE) { throw 'opencode.json refused: stop' }
+     if (-not (Get-Command opencode -ErrorAction SilentlyContinue)) { throw 'opencode is not on PATH: stop' }
+     $opencodeExe = Join-Path (Split-Path (Get-Command opencode).Source) 'node_modules\@opencode\cli\bin\opencode.exe'
+     if (-not (Test-Path $opencodeExe)) { throw 'opencode.exe not found: stop' }
+     # the checker pins the version of this exact binary, the one Start-Process runs below
+     node "$tools\check-opencode.cjs" opencode.json $opencodeExe; if ($LASTEXITCODE) { throw 'opencode.json refused: stop' }
      $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\(Git|GitHub CLI|OpenSSH|Docker|DockerDesktop)(\\|$)') }) -join ';'
      foreach ($tool in 'git', 'gh', 'ssh', 'scp', 'docker') {
        if (Get-Command "$tool.exe" -ErrorAction SilentlyContinue) { throw "$tool is still on PATH: stop" }
      }
-     if (-not (Get-Command opencode -ErrorAction SilentlyContinue)) { throw 'opencode is not on PATH: stop' }
-     $opencodeExe = Join-Path (Split-Path (Get-Command opencode).Source) 'node_modules\@opencode\cli\bin\opencode.exe'
-     if (-not (Test-Path $opencodeExe)) { throw 'opencode.exe not found: stop' }
      $ErrorActionPreference = 'Continue'
      $runArgs = @('run', '--standalone', '--agent', 'pospay-minimax', '-m', 'minimax-coding-plan/MiniMax-M3.1-Flash',
        '-s', '<sid>', '--title', '"<task>"', '-f', 'F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt',
