@@ -25,7 +25,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 |---|---|---|
 | Orchestrator | Claude Code (this session) | yes — specs, briefs, merges, renumbering, small fixes |
 | Design advisors (risky slices only, §3 step 2) | Codex astra 6 medium (`gpt-6-astra`, effort medium) **and** Claude Fable 5.1 medium (`claude-fable-5-1`) | no — read-only |
-| **Implementer** — code, tests **and migrations** | **Grok CLI, `grok-4.7`, reasoning effort high** — owner's choice 2026-10-14 (replaces Codex Sol 6.1; switched from `grok-4.7-build-fast` the same evening) | yes, in its own worktree |
+| **Implementer** — code, tests **and migrations** | **Default: opencode `minimax-coding-plan/MiniMax-M3.1-Flash`** (default variant). **Grok CLI `grok-4.7`, effort high** for big end-to-end or sensitive (money, permissions, auth, tenant isolation) slices, at the orchestrator's call — owner's choice 2026-10-20 (PP-10.1). Every MiniMax brief bans all git commands, unrelated reformatting and line-squashing to dodge `max-lines`; the reviewer diffs every rewritten SQL function body against the old one | yes, in its own worktree |
 | **Database reviewer** | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) | no |
 | Review layer 1 | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) — owner's choice 2026-10-11 | no |
 | Review layer 2 | **one** fresh Claude reviewer, **Sonnet 5.5 at medium effort** (`claude-sonnet-5-5`), given the diff, the spec and the governing documents (§8 rule 5), never the session history; **high** effort for money, tenant isolation (RLS), auth and migrations; none for a docs-only PR (§8 rule 5) | no |
@@ -169,11 +169,6 @@ what saves tokens is reusing one session and keeping its prefix stable:
 ---
 
 ## 6. Staging deploy — after every merge that changes code
-
-**Hold (PP-5.1, 2026-10-19):** the staging server's SSH host key changed. Until the owner confirms the new
-fingerprint on the server console, make no SSH connection and no deploy. Merged code waits for staging, and the owner
-report lists it. Never bypass or auto-accept a host-key warning. Remove this hold in the PR that records his
-confirmation.
 
 On the `abdulaziz` SSH profile, in `/opt/pospay-staging`:
 

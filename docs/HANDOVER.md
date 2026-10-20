@@ -232,8 +232,8 @@ drill, production sizing and the salon pilot (row 63, partner request AS-17).
   **temporary**, until D-11), DNS-only.
 - Dokploy with Traefik + Let's Encrypt on that server; the reverse proxy is Dokploy's shared Traefik, never a container
   of ours (`CLAUDE.md` §10).
-- **On hold since 2026-10-19 (PP-5.1):** the staging host key changed. There is no SSH and no deploy until Waleed
-  confirms the fingerprint (skill §6).
+- The staging host key changed on 2026-10-19; Waleed confirmed the new fingerprint on 2026-10-20 (PP-5.1), so the
+  hold is lifted.
 - Staging lives in `/opt/pospay-staging`, reached over the `abdulaziz` SSH profile; images come from GHCR tagged by
   commit SHA; `staging-deploy.sh <sha>` migrates, starts and proves `/ready`; `known-good/<sha>/` keeps every ready
   pair for one-step rollback; a nightly backup runs from `pospay-backup:<sha>`. Steps: pipeline skill §6.
