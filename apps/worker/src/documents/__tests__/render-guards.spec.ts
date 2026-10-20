@@ -129,7 +129,8 @@ it('does not start a rejecting source when the deadline has already passed', asy
       opened.registry.register('fixture', {
         load: () => {
           calls += 1;
-          return Promise.reject(new Error('Noura Salim attendance 08:17'));
+          // وقت مستحيل عمداً حتى لا يحتويه طابع وقت الـ logger فيفشل الاختبار في دقيقة بعينها
+          return Promise.reject(new Error('Noura Salim attendance 27:93'));
         },
       });
       await seedQueued(opened, companyId, id);
@@ -145,7 +146,7 @@ it('does not start a rejecting source when the deadline has already passed', asy
       ).rejects.toThrow('DOCUMENT_RENDER_TIMEOUT');
       expect(calls).toBe(0);
       expect(opened.lines.join('\n')).not.toContain('Noura Salim');
-      expect(opened.lines.join('\n')).not.toContain('08:17');
+      expect(opened.lines.join('\n')).not.toContain('27:93');
       await new Promise((resolve) => setImmediate(resolve));
     });
     expect(reasons).toEqual([]);
