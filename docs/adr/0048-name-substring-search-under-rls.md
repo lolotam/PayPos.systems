@@ -39,10 +39,11 @@ A scratch database on PostgreSQL 16.15 (the dev compose image) confirmed this. I
 1. **No trigram index, and no `pg_trgm` extension, for these searches.** It would cost write time and disk and would
    never be chosen for `pospay_app`.
 2. **The tenant B-tree bounds the scan.** Both queries filter on `company_id` and `business_id` with leakproof
-   equality, so the planner can read only that business's employees through `employees_company_business_id_idx` (or
-   the matching key), then filter by name. Each query has an `EXPLAIN ANALYZE` test, run without
-   `enable_seqscan=off` and with other tenants' rows present. The test checks that the plan reads `employees` through
-   that index, that it has no sequential scan on `employees`, and that it reads no more rows than the business holds.
+   equality, so the planner can read only that business's employees through an index led by those two columns
+   (`employees_company_business_id_idx`, or the `name_*_key` indexes of migration 0098), then filter by name. Each
+   query has an `EXPLAIN ANALYZE` test, run without `enable_seqscan=off` and with other tenants' rows present. The
+   test checks that `employees` is read through an index condition on both `company_id` and `business_id`, that it
+   has no sequential scan on `employees`, and that it reads no more rows than the business holds.
    A change that drops the tenant filter, or reorders it out of the index, fails the test.
    The planner's choice is cost-based, so this holds when the business is a small share of `employees`, which is the
    multi-tenant case. When one business holds most of the table, a sequential scan is legitimate: it reads about the

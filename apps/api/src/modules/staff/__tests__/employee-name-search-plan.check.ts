@@ -20,7 +20,6 @@ export const PLAN_PROBLEMS = {
   noEmployees: 'no employees node in the plan',
   sequentialScan: 'employees is read by a sequential scan',
   noIndexAccess: 'employees is not read through an index',
-  wrongIndex: 'employees is not read through the tenant index',
   unboundTenant:
     'the employees access is not bound by company_id and business_id in the index condition',
   nameInIndexCond: 'the name predicate became an index condition',
@@ -28,11 +27,10 @@ export const PLAN_PROBLEMS = {
   tooManyRows: 'the node read more rows than the business holds',
 } as const;
 
-// فهرس المستأجر (company_id, business_id, id) هو ما يحدّ المسح تحت RLS (ADR-0048).
-const TENANT_INDEX = /employees_company_business_id_(idx|key)/;
-// العقد اللي بتطلع صفوف من الجدول، مش عقد الفهرس اللي تحتها.
-const HEAP_NODE_TYPES = new Set(['Index Scan', 'Index Only Scan', 'Bitmap Heap Scan', 'Seq Scan']);
+// عقد الفهرس اللي تحت عقدة الجدول مش عقد جدول؛ الـ BitmapAnd/BitmapOr مجرد تجميع.
+const BITMAP_INDEX_NODE = 'Bitmap Index Scan';
 const INDEX_SCAN_TYPES = new Set(['Index Scan', 'Index Only Scan']);
+const INDEX_NODE_TYPES = new Set(['Index Scan', 'Index Only Scan', BITMAP_INDEX_NODE]);
 
 function safeJson(value: string): unknown {
   try {
@@ -42,7 +40,8 @@ function safeJson(value: string): unknown {
   }
 }
 
-// عقدة واحدة لكل علاقة في الشجرة، مع كل حقولها؛ العدّاد يحتاج الصفوف المقروءة لا النوع فقط.
+// تفكيك المخطط لعقد: الفاحص محتاج كل عقدة على حدة لأنها هي اللي بتحمل شرط الفهرس
+// والصفوف المقروءة، وعقد الجدول الواحد ممكن يتكرر في الشجرة.
 export function planNodes(plan: unknown): PlanNode[] {
   const nodes: PlanNode[] = [];
   const visit = (value: unknown): void => {
@@ -69,27 +68,39 @@ export function planNodes(plan: unknown): PlanNode[] {
   return nodes;
 }
 
-// عقدة جدول الموظفين اللي بتطلع صفوف؛ عقد Bitmap Index Scan تحتها مش منها.
+// كل عقدة بتطلع صفوف من جدول الموظفين؛ عقد فهرس جدول الموظفين تحت heap مش منها.
+// أي نوع تاني نتعامل معاه كـ heap عشان نوع غير معروف يسقط الاختبار بدل ما يعدّي صامت.
 function employeesHeapNodes(nodes: PlanNode[]): PlanNode[] {
   return nodes.filter(
-    (node) => node['Relation Name'] === 'employees' && HEAP_NODE_TYPES.has(node['Node Type'] ?? ''),
+    (node) => node['Relation Name'] === 'employees' && node['Node Type'] !== BITMAP_INDEX_NODE,
   );
 }
 
-// وصول الفهرس: العقدة نفسها لو كانت مسح فهرس، أو عقد Bitmap Index Scan تحت عقدة heap
-// (مروراً بـ BitmapAnd/BitmapOr). من غير كده ما كنا هنشوف اسم الفهرس ولا شرطه.
-function indexAccess(node: PlanNode): PlanNode[] {
-  if (INDEX_SCAN_TYPES.has(node['Node Type'] ?? '')) return [node];
-  const found: PlanNode[] = [];
-  const visit = (child: PlanNode): void => {
-    if (child['Node Type'] === 'Bitmap Index Scan') {
-      found.push(child);
-      return;
-    }
-    for (const grand of child.Plans ?? []) visit(grand);
-  };
-  for (const child of node.Plans ?? []) visit(child);
-  return found;
+// الوصول للفهرس: العقدة نفسها لو كانت مسح فهرس، أو جذر شجرة الـ bitmap تحت عقدة الجدول.
+// من غير كده ما كنا هنشوف شرط الفهرس ولا نعرف هو مربوط بالمستأجر ولا لأ.
+function indexAccess(node: PlanNode): PlanNode | null {
+  if (INDEX_SCAN_TYPES.has(node['Node Type'] ?? '')) return node;
+  return (node.Plans ?? [])[0] ?? null;
+}
+
+// العقدة مربوطة بمفتاح المستأجر لو شرط الفهرس فيها فيه الشركة والنشاط معاً؛
+// الـ BitmapAnd بيضيّق فأي فرع مربوط يكفي، والـ BitmapOr بيوسّع فكل فرع لازم يكون مربوط.
+function isTenantBound(node: PlanNode): boolean {
+  const type = node['Node Type'];
+  if (type !== undefined && INDEX_NODE_TYPES.has(type)) {
+    const cond = node['Index Cond'] ?? '';
+    return cond.includes('company_id') && cond.includes('business_id');
+  }
+  const children = node.Plans ?? [];
+  if (type === 'BitmapAnd') return children.some(isTenantBound);
+  if (type === 'BitmapOr') return children.length > 0 && children.every(isTenantBound);
+  return false;
+}
+
+// كل عقدة فهرس في شجرة الوصول؛ شرط الاسم ما يصحّش يتحوّل لشرط فهرس في أي فرع منها.
+function indexNodes(access: PlanNode): PlanNode[] {
+  if (INDEX_NODE_TYPES.has(access['Node Type'] ?? '')) return [access];
+  return (access.Plans ?? []).flatMap(indexNodes);
 }
 
 // الصفوف اللي العقدة قراها: اللي رجعت، واللي الفلتر شالها، واللي الـ recheck شالها.
@@ -113,19 +124,20 @@ export function tenantBoundProblems(nodes: PlanNode[], allowedRows: number): str
   if (heaps.length === 0) return [PLAN_PROBLEMS.noEmployees];
   const problems: string[] = [];
   for (const heap of heaps) {
-    if (heap['Node Type'] === 'Seq Scan') problems.push(PLAN_PROBLEMS.sequentialScan);
-    const accesses = indexAccess(heap);
-    if (accesses.length === 0) problems.push(PLAN_PROBLEMS.noIndexAccess);
-    for (const access of accesses) {
-      const indexName = access['Index Name'] ?? '';
-      if (!TENANT_INDEX.test(indexName)) {
-        problems.push(`${PLAN_PROBLEMS.wrongIndex} (${indexName})`);
+    if (heap['Node Type'] === 'Seq Scan') {
+      problems.push(PLAN_PROBLEMS.sequentialScan);
+    } else {
+      const access = indexAccess(heap);
+      if (access === null) {
+        problems.push(PLAN_PROBLEMS.noIndexAccess);
+      } else {
+        if (!isTenantBound(access)) problems.push(PLAN_PROBLEMS.unboundTenant);
+        for (const index of indexNodes(access)) {
+          if (/name_ar|name_en/.test(index['Index Cond'] ?? '')) {
+            problems.push(PLAN_PROBLEMS.nameInIndexCond);
+          }
+        }
       }
-      const cond = access['Index Cond'] ?? '';
-      if (!cond.includes('company_id') || !cond.includes('business_id')) {
-        problems.push(PLAN_PROBLEMS.unboundTenant);
-      }
-      if (/name_ar|name_en/.test(cond)) problems.push(PLAN_PROBLEMS.nameInIndexCond);
     }
     if (!(heap.Filter ?? '').includes('name_ar')) problems.push(PLAN_PROBLEMS.nameNotFilter);
     if (rowsRead(heap) > allowedRows) problems.push(PLAN_PROBLEMS.tooManyRows);

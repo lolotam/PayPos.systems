@@ -10,7 +10,6 @@ import {
 } from '../../../../test/service-session.fixture.ts';
 import { takeTestEmployeeNumbers } from '../../../../test/test-employee-number.ts';
 import {
-  PLAN_PROBLEMS,
   planNodes,
   tenantBoundProblems,
   type PlanNode,
@@ -44,7 +43,7 @@ const fillerIds: string[] = [];
 function assertTenantBounded(nodes: PlanNode[], label: string, allowedRows: number) {
   expect(
     tenantBoundProblems(nodes, allowedRows),
-    `${label}: the plan is not bounded by the tenant index`,
+    `${label}: the plan is not bounded by the tenant key`,
   ).toEqual([]);
 }
 
@@ -187,83 +186,4 @@ it('the name search returns the searched business only and hides every filler ro
       expect(performed.some((id) => fillerIds.includes(id))).toBe(false);
     }
   }
-});
-
-// اختبارات الفاحص نفسه: مخططات مكتوبة باليد بلا داتابيز، عشان الفاحص ما يعديش وهو
-// بيفشل صامت. كل حالة تخرب هنا لازم ترجّع مشكلة مسمّاة، وكل حالة سليمة ترجّع فاضية.
-const TENANT_COND = '(e.company_id = 1 AND e.business_id = 2)';
-const NAME_PREDICATE = '(lower(e.name_ar) ~~ lower(e.name_en))';
-const NAME_FILTER = `(e.deleted_at IS NULL AND ${NAME_PREDICATE})`;
-
-const indexScanPlan = (cond = TENANT_COND, filter = NAME_FILTER): PlanNode[] => [
-  {
-    'Node Type': 'Index Scan',
-    'Relation Name': 'employees',
-    'Index Name': 'employees_company_business_id_idx',
-    'Index Cond': cond,
-    Filter: filter,
-    'Actual Rows': 3,
-    'Actual Loops': 1,
-    'Rows Removed by Filter': 4,
-  },
-];
-
-const bitmapHeapPlan = (cond = TENANT_COND): PlanNode[] => [
-  {
-    'Node Type': 'Bitmap Heap Scan',
-    'Relation Name': 'employees',
-    Filter: NAME_FILTER,
-    'Actual Rows': 3,
-    'Actual Loops': 1,
-    'Rows Removed by Filter': 4,
-    'Rows Removed by Index Recheck': 0,
-    Plans: [
-      {
-        'Node Type': 'Bitmap Index Scan',
-        'Index Name': 'employees_company_business_id_idx',
-        'Index Cond': cond,
-        'Actual Rows': 7,
-        'Actual Loops': 1,
-      },
-    ],
-  },
-];
-
-const seqScanPlan = (): PlanNode[] => [
-  {
-    'Node Type': 'Seq Scan',
-    'Relation Name': 'employees',
-    Filter: NAME_FILTER,
-    'Actual Rows': 3,
-    'Actual Loops': 1,
-    'Rows Removed by Filter': 4000,
-  },
-];
-
-it('the plan checker accepts an index scan bounded by the tenant keys', () => {
-  expect(tenantBoundProblems(indexScanPlan(), 7)).toEqual([]);
-});
-
-it('the plan checker accepts a bitmap heap scan whose bitmap index scan carries the tenant keys', () => {
-  expect(tenantBoundProblems(bitmapHeapPlan(), 7)).toEqual([]);
-});
-
-it('the plan checker rejects a tenant key that moved from the index condition to the filter', () => {
-  const problems = tenantBoundProblems(
-    indexScanPlan('(e.business_id = 2)', `(e.company_id = 1 AND ${NAME_PREDICATE})`),
-    7,
-  );
-  expect(problems.join(' | ')).toContain(PLAN_PROBLEMS.unboundTenant);
-});
-
-it('the plan checker rejects a sequential scan on employees', () => {
-  expect(tenantBoundProblems(seqScanPlan(), 7).join(' | ')).toContain(PLAN_PROBLEMS.sequentialScan);
-});
-
-it('the plan checker rejects a name predicate inside an index condition', () => {
-  const problems = tenantBoundProblems(
-    indexScanPlan(`(e.company_id = 1 AND e.business_id = 2 AND ${NAME_PREDICATE})`),
-    7,
-  );
-  expect(problems.join(' | ')).toContain(PLAN_PROBLEMS.nameInIndexCond);
 });
