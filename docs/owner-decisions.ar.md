@@ -19,7 +19,7 @@
 | PP-6 | 2026-10-19 | PP-6.1 مكان ملف الـ PDF لحد ما يتحمّل؛ PP-6.2 قراءة اللوجو تتعمل مع 27g؛ PP-6.3 الـ sandbox بتاع Chromium (بند 27i) | ملف أسئلة مواصفة 056 في PR #413 (بند 27i)؛ وليد جاوب 2026-10-20 «Question 1: a / Question 2: a / Question 3: A» |
 | PP-7 | 2026-10-19 | PP-7.1 الفجوتين الحقيقيتين في مراجعة م. خالد؛ PP-7.2 قواعده الجديدة؛ PP-7.3 الاستعلام المكرر في guard الأوردرات | هنا (البنود 9 و10 و11) |
 | PP-8 | 2026-10-20 | PP-8.1 مين يكمّل مدير PosPay لما اتنين اشتغلوا مع بعض | هنا (البند 13) |
-| PP-10 | 2026-10-20 | PP-10.1 مين ينفّذ الكود: MiniMax ولا Grok | هنا (البند 14) |
+| PP-10 | 2026-10-20 | PP-10.1 مين ينفّذ الكود: MiniMax بس (اتعدّلت نفس اليوم) | هنا (البند 14) |
 
 ### 1. أسئلة المالك تروح فين؟ (PP-4.3)
 
@@ -186,7 +186,9 @@
 
 **الإجابة (وليد، 20 أكتوبر 2026، في شات المدير مباشرة):** «YES AS YOU RECCOMENDED» — يعني (أ).
 
+**تعديل نفس اليوم (وليد، 20 أكتوبر 2026، عن طريق الـ super agent، لكل المديرين):** «USE MINIMAX 3.1 FLASH ONLY LOVABEL FOR EYADEX FOR WEB AND FOR LOCAL WAAS CODEX MAKE IT MINIMAX 3.1 FOR LOCACAL ALLL MANAGERS». يعني لـ PosPay: MiniMax بس هو المنفّذ للمهام الجديدة ولجولات تصليح ملاحظات الـ PR. مفيش تشغيل جديد لـ Grok أو Codex كمنفّذ، والتشغيل اللي شغال دلوقتي يخلّص جولته بس. Codex كبوت مراجعة على GitHub (`@codex review`) زي ما هو.
+
 **الأثر على الشغل:**
-- `.claude/skills/pospay-pipeline/SKILL.md` §1 اتعدّل: MiniMax (`minimax-coding-plan/MiniMax-M3.1-Flash` عن طريق opencode) هو الافتراضي، وGrok للمهام الكبيرة أو الحساسة.
+- `.claude/skills/pospay-pipeline/SKILL.md` §1 اتعدّل: MiniMax (`minimax-coding-plan/MiniMax-M3.1-Flash` عن طريق opencode) هو المنفّذ الوحيد.
 - كل brief لـ MiniMax لازم يمنع أي أمر git، ويمنع إعادة تنسيق ملفات مش في المهمة، ويمنع ضغط السطور عشان حد الطول.
 - أي دالة SQL بيعيد MiniMax كتابتها، المراجع بيقارن الجسم القديم بالجديد سطر بسطر.
