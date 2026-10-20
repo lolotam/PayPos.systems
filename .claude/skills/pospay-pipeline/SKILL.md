@@ -136,6 +136,9 @@ pins the PosPay rules on top of it.
      protection for it. The tracked `.env.example` templates hold no secret and a slice that adds an env var must
      update one, so they are allowed again right after the env denies;
    - `edit` denies everything under `.claude`, where the guard scripts, this template and the skills live;
+   - `edit` also denies the ignored dependency and build folders (`node_modules`, `.pnpm-store`, `dist`, `build`,
+     `.next`, `out`, `.turbo`, `coverage`) and `*.tsbuildinfo`. The gates run what is there, and `git status` cannot
+     show an edit to a file that was already in an ignored folder;
    - `edit` also denies every `opencode.*` file (config, or an `opencode.cmd` a later shell could run) and anything under `.opencode`. A config, agent or plugin file
      MiniMax wrote would load on its next round, and a plugin runs as code outside every rule. The dispatch also
      stops if a `.opencode` folder or an `opencode.jsonc` already exists;
@@ -270,12 +273,19 @@ pins the PosPay rules on top of it.
        $opencodeExit = $run.ExitCode
      }
    } finally {
-     # The stopper launches opencode.exe, so it runs while the isolated config is still active.
-     $since = if ($runStart) { @('--since', $runStart) } else { @() }
-     node "$tools\stop-opencode-sessions.cjs" $worktree @since
-     $stopExit = $LASTEXITCODE
-     $env:PATH = $savedPath
-     $env:XDG_CONFIG_HOME = $savedXdg
+     try {
+       # The stopper launches opencode.exe, so it runs only after the checks passed and the run started, while the
+       # isolated config is still active. A refused setup never starts opencode, not even to clean up.
+       if ($runStart) {
+         node "$tools\stop-opencode-sessions.cjs" $worktree --since $runStart
+         $stopExit = $LASTEXITCODE
+       } else {
+         $stopExit = 0
+       }
+     } finally {
+       $env:PATH = $savedPath
+       $env:XDG_CONFIG_HOME = $savedXdg
+     }
    }
    if ($stopExit -ne 0) { throw 'a MiniMax session could not be stopped: interrupt it by hand before review' }
    if ($opencodeExit -eq 124) { throw 'MiniMax hit the 45-minute limit: report it, then treat it as a failed run (rule 8)' }
@@ -316,6 +326,8 @@ pins the PosPay rules on top of it.
    the run and again after it. Plain `--porcelain` hides ignored files, and MiniMax can create one (a `.log`, a
    `dist/` file). Every line the second snapshot adds must be a file the brief names, so any new file, ignored or not
    (a probe, a scratch script), or an edit to an unnamed file is reverted and reported to Waleed's super agent at once.
+   An edit to a file already inside an ignored folder does not change either snapshot, which is why the
+   permission file denies edits to those folders.
    **Then diff the worktree against the baseline, and run the gates yourself.** A run with no change
    is a failed candidate, whatever it reports. Check `git stash list`. MiniMax cannot run tests, so a failing gate
    becomes a fix brief for its next round. **Diff every rewritten SQL function body line by line against the old one**:

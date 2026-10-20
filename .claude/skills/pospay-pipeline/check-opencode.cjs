@@ -29,19 +29,28 @@ const claudePaths = [
   `*${BS}.claude`,
   `*${BS}.claude${BS}*`,
 ];
+// Ignored folders hold installed packages and build output that the gates run. git status cannot show an edit to a
+// file already there, so MiniMax may never write one (MergePilot on #416).
+const generatedPaths = [
+  ...['node_modules', '.pnpm-store', 'dist', 'build', '.next', 'out', '.turbo', 'coverage'].flatMap(
+    (dir) => [dir, `${dir}/*`, `*/${dir}`, `*/${dir}/*`, `*${BS}${dir}`, `*${BS}${dir}${BS}*`],
+  ),
+  '*.tsbuildinfo',
+];
 // Each path map must hold exactly these rules in this order, because the last matching rule wins. The only allows
 // after "*" are the secret-free .env.example templates, and the git, config and .claude denies follow them, so no
 // allow can re-open a protected tree.
 const ordered = (...groups) => groups.flatMap(([paths, action]) => paths.map((p) => [p, action]));
-const fileRules = ordered(
-  [['*'], 'allow'],
-  [envPaths, 'deny'],
-  [envExamplePaths, 'allow'],
-  [[...gitPaths, ...configPaths, ...claudePaths], 'deny'],
-);
+const fileRules = (protectedPaths) =>
+  ordered(
+    [['*'], 'allow'],
+    [envPaths, 'deny'],
+    [envExamplePaths, 'allow'],
+    [protectedPaths, 'deny'],
+  );
 const pathMaps = {
-  read: fileRules,
-  edit: fileRules,
+  read: fileRules([...gitPaths, ...configPaths, ...claudePaths]),
+  edit: fileRules([...gitPaths, ...configPaths, ...claudePaths, ...generatedPaths]),
   glob: ordered([['*'], 'allow'], [gitPaths, 'deny']),
 };
 // Only read, edit (which covers write) and glob may be allowed, through the path maps above; everything named

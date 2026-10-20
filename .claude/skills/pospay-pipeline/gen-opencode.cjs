@@ -35,6 +35,14 @@ const claudePaths = [
   `*${BS}.claude`,
   `*${BS}.claude${BS}*`,
 ];
+// Ignored folders hold installed packages and build output that the gates run. git status cannot show an edit to a
+// file already there, so MiniMax may never write one (MergePilot on #416).
+const generatedPaths = [
+  ...['node_modules', '.pnpm-store', 'dist', 'build', '.next', 'out', '.turbo', 'coverage'].flatMap(
+    (dir) => [dir, `${dir}/*`, `*/${dir}`, `*/${dir}/*`, `*${BS}${dir}`, `*${BS}${dir}${BS}*`],
+  ),
+  '*.tsbuildinfo',
+];
 const denyAfterAllow = (paths) =>
   Object.fromEntries([['*', 'allow'], ...paths.map((p) => [p, 'deny'])]);
 // The last matching rule wins, so the order is the policy: env denies, the template allows, then every protected tree.
@@ -54,7 +62,7 @@ const permission = {
   external_directory: 'deny',
   // MiniMax tried to read its own rules (Emlaa, 2026-10-20), so it may not read any opencode config either.
   read: fileRules([...gitPaths, ...configPaths, ...claudePaths]),
-  edit: fileRules([...gitPaths, ...configPaths, ...claudePaths]),
+  edit: fileRules([...gitPaths, ...configPaths, ...claudePaths, ...generatedPaths]),
   glob: denyAfterAllow(gitPaths),
   // Already refused by "*", each named so the owner's lists can be checked line by line. Only read, edit
   // (which covers write) and glob are allowed.
