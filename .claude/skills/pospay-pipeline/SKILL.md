@@ -195,6 +195,7 @@ pins the PosPay rules on top of it.
      $opencodeExit = if ($?) { $LASTEXITCODE } else { 1 }
    } finally {
      $env:PATH = $savedPath
+     node .\.claude\skills\pospay-pipeline\stop-opencode-sessions.cjs .
    }
    if ($opencodeExit -ne 0) { throw "opencode run exited $($opencodeExit), so treat it as a failed run (rule 8)" }
    ```
@@ -216,7 +217,12 @@ pins the PosPay rules on top of it.
    4. **Last:** the task, or the findings to fix.
 5. **Send paths, not file contents.** A fix brief carries only the new findings, each written as
    `file:line — what is wrong — what done looks like`.
-6. **After every run, diff the worktree against the baseline, then run the gates yourself.** A run with no change
+6. **After every run, or after killing one, stop its opencode session first.** Killing the `opencode run` CLI does
+   not stop a session inside the shared `opencode serve --service`; one kept working for 14 more minutes on
+   2026-10-20. The dispatch block's `finally` runs `stop-opencode-sessions.cjs .`, which reads `opencode.db`
+   read-only for sessions under the worktree that are not idle, and calls
+   `opencode api post /api/session/<id>/interrupt` on each. Run it by hand after any kill; `--dry-run` only lists.
+   **Then diff the worktree against the baseline, and run the gates yourself.** A run with no change
    is a failed candidate, whatever it reports. Check `git stash list`. MiniMax cannot run tests, so a failing gate
    becomes a fix brief for its next round. **Diff every rewritten SQL function body line by line against the old one**:
    on #338 a one-letter slip silently weakened a money guard.
