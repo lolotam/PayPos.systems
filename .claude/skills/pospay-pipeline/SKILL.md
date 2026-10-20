@@ -106,7 +106,19 @@ pins the PosPay rules on top of it.
    without `-s`, take the generated id from the `--format json` output, and use that id from round two on. Run it from
    the worktree:
 
-   **The git ban is enforced, not just written.** Before the first run, copy the tracked template
+   **The git ban is enforced, not just written, in three layers.** It guards against MiniMax's habit (the #338
+   `git stash`), not against a model that tries to hide git on purpose. Layer one is the main barrier, and
+   wildcards cannot give a complete ban on their own.
+
+   - **Git is not on MiniMax's `PATH`.** The orchestrator drops every `\Git\` folder from `PATH` before starting
+     opencode, so no command or interpreter can find `git` by name. That covers
+     `node -e "…execFileSync('g'+'it', …)"`, which no wildcard can catch. In the 2026-10-20 test that call failed
+     with git missing, while opencode, `node` and `echo` ran normally.
+   - **The permission file.** It catches the common direct and wrapped forms. Its rules are below.
+   - **The post-run check.** After every run the orchestrator checks `git stash list`, the reflog and
+     `git status` of the shared checkout.
+
+   For the permission file, copy the tracked template
    `.claude/skills/pospay-pipeline/opencode-pospay.json` to `<worktree>\opencode.json`. Its `bash` rules start
    with `"*": "allow"` and then deny `git` anywhere in a command (`git`, `git *`, `*git *`, `*git.exe*`, `*/git`)
    and every shell wrapper that could hide it (`bash -c*`, `sh -c*`, `powershell*`, `pwsh*`, `cmd /c*`,
@@ -114,8 +126,7 @@ pins the PosPay rules on top of it.
    string, so a deny on `git *` alone lets `bash -c "git stash"` through. In the 2026-10-20 test with MiniMax,
    `git status`, `bash -c "git status"`, `powershell -Command "git status"` and `echo x && git log` were all
    rejected, while `echo` and `node --version` ran. The price is that a harmless command containing `git ` (a
-   `grep` for it) is refused too. Wildcards cannot prove a complete ban, so after every run the orchestrator still
-   checks `git stash list` and the reflog of the shared checkout.
+   `grep` for it) is refused too.
 
    The file only takes effect as a project-level `opencode.json`: the `OPENCODE_CONFIG` env var did not apply it.
    The orchestrator (never MiniMax) adds `/opencode.json` to the clone's shared
@@ -127,6 +138,7 @@ pins the PosPay rules on top of it.
    $exclude = Join-Path (git rev-parse --git-common-dir) 'info\exclude'
    if (-not (Select-String -Path $exclude -SimpleMatch '/opencode.json' -Quiet)) { Add-Content $exclude '/opencode.json' }
    Copy-Item .\.claude\skills\pospay-pipeline\opencode-pospay.json .\opencode.json
+   $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\Git\\') }) -join ';'
    opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
        -f F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt "Implement the attached brief."
    ```
