@@ -133,14 +133,15 @@ pins the PosPay rules on top of it.
      lives), as `edit` does: MiniMax tried to read its own rules (Emlaa, 2026-10-20);
    - `read` and `edit` deny `.env` and `.env.*` at any depth, in both slash styles. A worktree's copied `.env` holds
      database passwords (HANDOVER §3.3), and an explicit `"*": "allow"` would otherwise lift opencode's default
-     protection for it;
+     protection for it. The tracked `.env.example` templates hold no secret and a slice that adds an env var must
+     update one, so they are allowed again right after the env denies;
    - `edit` denies everything under `.claude`, where the guard scripts, this template and the skills live;
    - `edit` also denies every `opencode.*` file (config, or an `opencode.cmd` a later shell could run) and anything under `.opencode`. A config, agent or plugin file
      MiniMax wrote would load on its next round, and a plugin runs as code outside every rule. The dispatch also
      stops if a `.opencode` folder or an `opencode.jsonc` already exists;
-   - each path map holds exactly `"*": "allow"` followed by its denies, with no other key. Any later allow would
-     win over them, because the last matching rule wins. Any unknown permission key or top-level config key is
-     refused;
+   - each path map holds exactly its rules in a fixed order, with no other key, because the last matching rule
+     wins: `"*": "allow"`, the env denies, the `.env.example` allows, then the git, config and `.claude` denies, so
+     no allow can re-open a protected tree. Any unknown permission key or top-level config key is refused;
    - MiniMax runs only at a worktree root, so the dispatch requires `.git` to be a file there;
    - every run pins the project's own agent, `--agent pospay-minimax`, whose permission map is the same allowlist.
      Agent permissions win over top-level ones. So a `default_agent`, or agent permissions added later to the
@@ -311,9 +312,10 @@ pins the PosPay rules on top of it.
    recovered later, so the next round starts a new session (rule 8). Run the staged copy by hand after any kill;
    `--dry-run` only lists. Until the PR that adds these scripts reaches `main`, stage
    them from that PR's reviewed head instead of `origin/main`.
-   **Then look for anything nobody asked for:** `git status --porcelain` must list only files the brief names, so
-   any untracked file (a probe, a scratch script) or an edit to an unnamed file is reverted and reported to Waleed's
-   super agent at once.
+   **Then look for anything nobody asked for:** save `git status --porcelain --ignored --untracked-files=all` before
+   the run and again after it. Plain `--porcelain` hides ignored files, and MiniMax can create one (a `.log`, a
+   `dist/` file). Every line the second snapshot adds must be a file the brief names, so any new file, ignored or not
+   (a probe, a scratch script), or an edit to an unnamed file is reverted and reported to Waleed's super agent at once.
    **Then diff the worktree against the baseline, and run the gates yourself.** A run with no change
    is a failed candidate, whatever it reports. Check `git stash list`. MiniMax cannot run tests, so a failing gate
    becomes a fix brief for its next round. **Diff every rewritten SQL function body line by line against the old one**:

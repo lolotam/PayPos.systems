@@ -23,6 +23,9 @@ const configPaths = [
 ];
 // The worktree's copied .env holds database passwords (HANDOVER §3.3); MiniMax never reads or writes one.
 const envPaths = ['.env', '.env.*', '*/.env', '*/.env.*', `*${BS}.env`, `*${BS}.env.*`];
+// The tracked .env.example templates hold no secret, and CLAUDE.md §8 has a slice that adds an env var update one,
+// so they are allowed again right after the env denies. The git, config and .claude denies come later and win.
+const envExamplePaths = ['.env.example', '*/.env.example', `*${BS}.env.example`];
 // The guard scripts, this template and the skills live under .claude; MiniMax never edits them.
 const claudePaths = [
   '.claude',
@@ -34,6 +37,14 @@ const claudePaths = [
 ];
 const denyAfterAllow = (paths) =>
   Object.fromEntries([['*', 'allow'], ...paths.map((p) => [p, 'deny'])]);
+// The last matching rule wins, so the order is the policy: env denies, the template allows, then every protected tree.
+const fileRules = (protectedPaths) =>
+  Object.fromEntries([
+    ['*', 'allow'],
+    ...envPaths.map((p) => [p, 'deny']),
+    ...envExamplePaths.map((p) => [p, 'allow']),
+    ...protectedPaths.map((p) => [p, 'deny']),
+  ]);
 
 // An allowlist: "*" is denied first, so every tool not allowed below is refused, every MCP tool included.
 // MiniMax has no shell at all (Waleed, SA-7.1, 2026-10-20): it only reads and edits files in its worktree,
@@ -42,8 +53,8 @@ const permission = {
   '*': 'deny',
   external_directory: 'deny',
   // MiniMax tried to read its own rules (Emlaa, 2026-10-20), so it may not read any opencode config either.
-  read: denyAfterAllow([...gitPaths, ...envPaths, ...configPaths, ...claudePaths]),
-  edit: denyAfterAllow([...gitPaths, ...configPaths, ...envPaths, ...claudePaths]),
+  read: fileRules([...gitPaths, ...configPaths, ...claudePaths]),
+  edit: fileRules([...gitPaths, ...configPaths, ...claudePaths]),
   glob: denyAfterAllow(gitPaths),
   // Already refused by "*", each named so the owner's lists can be checked line by line. Only read, edit
   // (which covers write) and glob are allowed.

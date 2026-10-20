@@ -20,6 +20,7 @@ const configPaths = [
   `*${BS}.opencode${BS}*`,
 ];
 const envPaths = ['.env', '.env.*', '*/.env', '*/.env.*', `*${BS}.env`, `*${BS}.env.*`];
+const envExamplePaths = ['.env.example', '*/.env.example', `*${BS}.env.example`];
 const claudePaths = [
   '.claude',
   '.claude/*',
@@ -28,12 +29,20 @@ const claudePaths = [
   `*${BS}.claude`,
   `*${BS}.claude${BS}*`,
 ];
-// Each path map must hold exactly these keys in this order: "*" allow first, then only denies, because the
-// last matching rule wins and any later allow would re-open what the denies close.
+// Each path map must hold exactly these rules in this order, because the last matching rule wins. The only allows
+// after "*" are the secret-free .env.example templates, and the git, config and .claude denies follow them, so no
+// allow can re-open a protected tree.
+const ordered = (...groups) => groups.flatMap(([paths, action]) => paths.map((p) => [p, action]));
+const fileRules = ordered(
+  [['*'], 'allow'],
+  [envPaths, 'deny'],
+  [envExamplePaths, 'allow'],
+  [[...gitPaths, ...configPaths, ...claudePaths], 'deny'],
+);
 const pathMaps = {
-  read: [...gitPaths, ...envPaths, ...configPaths, ...claudePaths],
-  edit: [...gitPaths, ...configPaths, ...envPaths, ...claudePaths],
-  glob: gitPaths,
+  read: fileRules,
+  edit: fileRules,
+  glob: ordered([['*'], 'allow'], [gitPaths, 'deny']),
 };
 // Only read, edit (which covers write) and glob may be allowed, through the path maps above; everything named
 // here must be an explicit "deny" (owner's lists, SA-6, SA-7.1 and the 2026-10-20 execute broadcast).
@@ -85,16 +94,15 @@ function checkPermissionMap(permission, where) {
   for (const key of mustDeny) {
     if (permission[key] !== 'deny') problems.push(`${where}: ${key} must be "deny"`);
   }
-  for (const [tool, denies] of Object.entries(pathMaps)) {
+  for (const [tool, expected] of Object.entries(pathMaps)) {
     const rules = permission[tool];
-    const expected = ['*', ...denies];
-    const actual = rules && typeof rules === 'object' ? Object.keys(rules) : [];
+    const actual = rules && typeof rules === 'object' ? Object.entries(rules) : [];
     const exact =
-      actual.length === expected.length && expected.every((key, i) => actual[i] === key);
-    const values = expected.every((key, i) => rules?.[key] === (i === 0 ? 'allow' : 'deny'));
-    if (!exact || !values)
+      actual.length === expected.length &&
+      expected.every(([key, action], i) => actual[i][0] === key && actual[i][1] === action);
+    if (!exact)
       problems.push(
-        `${where}: ${tool} must be exactly "*": "allow" then denies on ${denies.join(', ')}`,
+        `${where}: ${tool} must be exactly ${expected.map(([key, action]) => `"${key}": "${action}"`).join(', ')}`,
       );
   }
 }
