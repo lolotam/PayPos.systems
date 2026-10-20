@@ -322,8 +322,17 @@ if (escapingLinks.length)
 // An NTFS 8.3 short name (GIT~1 for .git) would slip past every name rule here (Codex on #416). The PosPay F: volume
 // creates none (2026-10-20: no short name in the worktree, and a new long-named folder got none), so a volume that
 // starts creating them, or a short name kept on any entry the link scan visited (every folder outside node_modules
-// and .git, at any depth), stops the run. `dir /x` prints the short-name column; folders go in batches per call.
-const SHORT_NAME = /\s\S{1,8}~\d+(\.\S{0,3})?\s+\S/;
+// and .git, at any depth), stops the run. `dir /x` prints the short name in a fixed column (characters 39 to 50, the
+// long name from 52), blank when there is none. Any short name that differs from the long name counts, with or
+// without a tilde, because one can be assigned by hand (`GIT` for .git; Codex on #416). Folders go in batches.
+const ENTRY_LINE = /^\d\d\/\d\d\/\d{4}\s/;
+function hasShortName(line) {
+  if (!ENTRY_LINE.test(line)) return false;
+  if (line.length < 53) throw new Error(`unexpected dir /x line: ${line}`);
+  const short = line.slice(39, 51).trim();
+  const long = line.slice(52);
+  return short !== '' && short.toLowerCase() !== long.toLowerCase();
+}
 function shortNameLines(dirs) {
   const lines = [];
   for (let start = 0; start < dirs.length;) {
@@ -336,7 +345,7 @@ function shortNameLines(dirs) {
     const listing = execFileSync('cmd.exe', ['/d', '/c', 'dir', '/x', '/a', ...batch], {
       encoding: 'utf8',
     });
-    lines.push(...listing.split(/\r?\n/).filter((line) => SHORT_NAME.test(line)));
+    lines.push(...listing.split(/\r?\n/).filter(hasShortName));
   }
   return lines;
 }
