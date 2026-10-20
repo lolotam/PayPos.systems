@@ -106,8 +106,21 @@ pins the PosPay rules on top of it.
    without `-s`, take the generated id from the `--format json` output, and use that id from round two on. Run it from
    the worktree:
 
+   **The git ban is enforced, not just written.** Before the first run, copy
+   `F:\Dev\Worktrees\PosPay\briefs\opencode-pospay.json` to `<worktree>\opencode.json`. Its rules are:
+
+   ```json
+   { "permission": { "bash": { "*": "allow", "git": "deny", "git *": "deny" } } }
+   ```
+
+   The last matching rule wins, so `"*"` must come first. The file only takes effect as a project-level
+   `opencode.json`: the `OPENCODE_CONFIG` env var did not apply it in the 2026-10-20 test, where `git status` was
+   denied but `echo` still ran. `opencode.json` is listed in the main checkout's `.git/info/exclude`, so it never
+   lands in a diff.
+
    ```powershell
    Set-Location F:\Dev\Worktrees\PosPay\<branch>
+   Copy-Item F:\Dev\Worktrees\PosPay\briefs\opencode-pospay.json .\opencode.json
    opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
        -f F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt "Implement the attached brief."
    ```
