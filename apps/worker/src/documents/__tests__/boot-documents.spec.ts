@@ -8,7 +8,10 @@ import { WORKER_LOG_EVENTS } from '../../shared/log-events.ts';
 import { beginDocumentRendering, startCoreBeforeDocuments } from '../start-documents.ts';
 import { redisUrl } from './render-harness.ts';
 
-function hungRenderer(release: { go: () => void }, flags: { launched: boolean; closed: boolean }): DocumentRenderer {
+function hungRenderer(
+  release: { go: () => void },
+  flags: { launched: boolean; closed: boolean },
+): DocumentRenderer {
   return {
     start: () =>
       new Promise<void>((resolve) => {

@@ -25,7 +25,14 @@ it('fails an unknown kind on the first attempt', async () => {
     await seedQueued(opened, companyId, id);
     const started = Date.now();
     await expect(
-      opened.queue.add('render', job(companyId, id, 'missing'), { jobId: id, attempts: 2, backoff: { type: 'fixed', delay: 5000 }, removeOnFail: true }).then((added) => added.waitUntilFinished(opened.events)),
+      opened.queue
+        .add('render', job(companyId, id, 'missing'), {
+          jobId: id,
+          attempts: 2,
+          backoff: { type: 'fixed', delay: 5000 },
+          removeOnFail: true,
+        })
+        .then((added) => added.waitUntilFinished(opened.events)),
     ).rejects.toThrow('DOCUMENT_KIND_UNKNOWN');
     expect(Date.now() - started).toBeLessThan(4_000);
     expect(loads).toBe(0);
@@ -49,7 +56,14 @@ it('fails oversized HTML after one source load', async () => {
     await seedQueued(opened, companyId, id);
     const started = Date.now();
     await expect(
-      opened.queue.add('render', job(companyId, id, 'fixture'), { jobId: id, attempts: 2, backoff: { type: 'fixed', delay: 5000 }, removeOnFail: true }).then((added) => added.waitUntilFinished(opened.events)),
+      opened.queue
+        .add('render', job(companyId, id, 'fixture'), {
+          jobId: id,
+          attempts: 2,
+          backoff: { type: 'fixed', delay: 5000 },
+          removeOnFail: true,
+        })
+        .then((added) => added.waitUntilFinished(opened.events)),
     ).rejects.toThrow('DOCUMENT_TOO_LARGE');
     expect(Date.now() - started).toBeLessThan(4_000);
     expect(loads).toBe(1);
@@ -79,7 +93,14 @@ it('fails an oversized PDF after one render', async () => {
     await seedQueued(opened, companyId, id);
     const started = Date.now();
     await expect(
-      opened.queue.add('render', job(companyId, id, 'fixture'), { jobId: id, attempts: 2, backoff: { type: 'fixed', delay: 5000 }, removeOnFail: true }).then((added) => added.waitUntilFinished(opened.events)),
+      opened.queue
+        .add('render', job(companyId, id, 'fixture'), {
+          jobId: id,
+          attempts: 2,
+          backoff: { type: 'fixed', delay: 5000 },
+          removeOnFail: true,
+        })
+        .then((added) => added.waitUntilFinished(opened.events)),
     ).rejects.toThrow('DOCUMENT_TOO_LARGE');
     expect(Date.now() - started).toBeLessThan(4_000);
     expect(loads).toBe(1);

@@ -126,7 +126,11 @@ export async function finishJob(opened: Opened, data: unknown, id: string): Prom
   return job.waitUntilFinished(opened.events);
 }
 
-export async function statusOf(opened: Opened, companyId: string, id: string): Promise<Record<string, string>> {
+export async function statusOf(
+  opened: Opened,
+  companyId: string,
+  id: string,
+): Promise<Record<string, string>> {
   return opened.redis.hgetall(documentStatusKey(companyId, id));
 }
 

@@ -41,18 +41,18 @@ export function baseLayout(input: LayoutInput): HtmlFragment {
   const direction = input.language === 'ar' ? 'rtl' : 'ltr';
   const footer = input.footer ?? raw('');
   return html`<!doctype html>
-<html lang="${input.language}" dir="${direction}">
-<head>
-<meta charset="utf-8">
-<title>${input.title}</title>
-<style>
-${fontFaceCss()}
-${raw(PAGE_CSS)}
-</style>
-</head>
-<body>
-${input.body}
-<footer>${footer}</footer>
-</body>
-</html>`;
+    <html lang="${input.language}" dir="${direction}">
+      <head>
+        <meta charset="utf-8" />
+        <title>${input.title}</title>
+        <style>
+          ${fontFaceCss()}
+          ${raw(PAGE_CSS)}
+        </style>
+      </head>
+      <body>
+        ${input.body}
+        <footer>${footer}</footer>
+      </body>
+    </html>`;
 }

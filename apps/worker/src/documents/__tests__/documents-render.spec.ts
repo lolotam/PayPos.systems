@@ -59,8 +59,12 @@ it('stores one PDF, keeps API fields, and logs no document body', async () => {
     expect(status['error_code']).toBeUndefined();
     const bytes = await opened.redis.getBuffer(documentBytesKey(companyId, id));
     expect(bytes?.subarray(0, 5).toString('latin1')).toBe('%PDF-');
-    expect(await opened.redis.ttl(documentBytesKey(companyId, id))).toBeLessThanOrEqual(DOCUMENT_BYTES_TTL_SECONDS);
-    expect(await opened.redis.ttl(documentStatusKey(companyId, id))).toBeLessThanOrEqual(DOCUMENT_STATUS_TTL_SECONDS);
+    expect(await opened.redis.ttl(documentBytesKey(companyId, id))).toBeLessThanOrEqual(
+      DOCUMENT_BYTES_TTL_SECONDS,
+    );
+    expect(await opened.redis.ttl(documentStatusKey(companyId, id))).toBeLessThanOrEqual(
+      DOCUMENT_STATUS_TTL_SECONDS,
+    );
     const logs = opened.lines.join('\n');
     expect(logs).not.toContain(SECRET);
     expect(logs).not.toContain(PDF_MARK);
@@ -109,9 +113,9 @@ it('drops an invalid payload before Redis or the renderer', async () => {
   await useRender(async (opened) => {
     const renderer = opened.renderer as FakeRenderer;
     const id = renderId();
-    await expect(finishJob(opened, { company_id: 'nope', render_id: id, kind: 'fixture' }, id)).rejects.toThrow(
-      'DOCUMENT_JOB_INVALID',
-    );
+    await expect(
+      finishJob(opened, { company_id: 'nope', render_id: id, kind: 'fixture' }, id),
+    ).rejects.toThrow('DOCUMENT_JOB_INVALID');
     expect(renderer.seen).toEqual([]);
     expect(await opened.redis.exists(documentStatusKey('nope', id))).toBe(0);
   });
@@ -124,7 +128,9 @@ it('rejects oversized HTML without rendering', async () => {
     const id = renderId();
     opened.registry.register('fixture', { load: async () => 'x'.repeat(5 * 1024 * 1024) });
     await seedQueued(opened, companyId, id);
-    await expect(finishJob(opened, job(companyId, id, 'fixture'), id)).rejects.toThrow('DOCUMENT_TOO_LARGE');
+    await expect(finishJob(opened, job(companyId, id, 'fixture'), id)).rejects.toThrow(
+      'DOCUMENT_TOO_LARGE',
+    );
     expect(renderer.seen).toEqual([]);
     expect(await opened.redis.exists(documentBytesKey(companyId, id))).toBe(0);
     expect((await statusOf(opened, companyId, id))['error_code']).toBe('DOCUMENT_TOO_LARGE');
@@ -282,36 +288,48 @@ it('AC-08 retries once the renderer relaunches after a disconnect', async () => 
     factory: droppingFactory(),
     browserCloseGraceMs: 0,
   });
-  await useRender(async (opened) => {
-    const companyId = renderId();
-    const id = renderId();
-    expect(documentRenderJobOptions(id).backoff).toEqual({ type: 'fixed', delay: 5000 });
-    opened.registry.register('fixture', { load: async () => '<p>again</p>' });
-    await seedQueued(opened, companyId, id);
-    await finishJob(opened, job(companyId, id, 'fixture'), id);
-    const bytes = await opened.redis.getBuffer(documentBytesKey(companyId, id));
-    expect(bytes?.subarray(0, 5).toString('latin1')).toBe('%PDF-');
-    expect((await statusOf(opened, companyId, id))['state']).toBe('READY');
-  }, { renderer });
+  await useRender(
+    async (opened) => {
+      const companyId = renderId();
+      const id = renderId();
+      expect(documentRenderJobOptions(id).backoff).toEqual({ type: 'fixed', delay: 5000 });
+      opened.registry.register('fixture', { load: async () => '<p>again</p>' });
+      await seedQueued(opened, companyId, id);
+      await finishJob(opened, job(companyId, id, 'fixture'), id);
+      const bytes = await opened.redis.getBuffer(documentBytesKey(companyId, id));
+      expect(bytes?.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+      expect((await statusOf(opened, companyId, id))['state']).toBe('READY');
+    },
+    { renderer },
+  );
 }, 15_000);
 
-it.skipIf(!chromiumReady)('AC-01 renders a fixture source through the real browser', async () => {
-  const renderer = new PlaywrightDocumentRenderer();
-  await useRender(async (opened) => {
-    const companyId = renderId();
-    const id = renderId();
-    opened.registry.register('fixture', {
-      load: async () => fixtureDocument({ language: 'ar', lines: ['worker-e2e'] }),
-    });
-    await seedQueued(opened, companyId, id);
-    await finishJob(opened, job(companyId, id, 'fixture'), id);
-    const bytes = await opened.redis.getBuffer(documentBytesKey(companyId, id));
-    expect(bytes?.subarray(0, 5).toString('latin1')).toBe('%PDF-');
-    expect(bytes?.byteLength ?? 0).toBeLessThanOrEqual(DOCUMENT_PDF_MAX_BYTES);
-    expect(embeddedFamily(bytes ?? new Uint8Array())).toMatch(/IBMPlexSansArabic|IBM Plex Sans Arabic/);
-    expect((await statusOf(opened, companyId, id))['state']).toBe('READY');
-  }, { renderer });
-}, 60_000);
+it.skipIf(!chromiumReady)(
+  'AC-01 renders a fixture source through the real browser',
+  async () => {
+    const renderer = new PlaywrightDocumentRenderer();
+    await useRender(
+      async (opened) => {
+        const companyId = renderId();
+        const id = renderId();
+        opened.registry.register('fixture', {
+          load: async () => fixtureDocument({ language: 'ar', lines: ['worker-e2e'] }),
+        });
+        await seedQueued(opened, companyId, id);
+        await finishJob(opened, job(companyId, id, 'fixture'), id);
+        const bytes = await opened.redis.getBuffer(documentBytesKey(companyId, id));
+        expect(bytes?.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+        expect(bytes?.byteLength ?? 0).toBeLessThanOrEqual(DOCUMENT_PDF_MAX_BYTES);
+        expect(embeddedFamily(bytes ?? new Uint8Array())).toMatch(
+          /IBMPlexSansArabic|IBM Plex Sans Arabic/,
+        );
+        expect((await statusOf(opened, companyId, id))['state']).toBe('READY');
+      },
+      { renderer },
+    );
+  },
+  60_000,
+);
 
 it('AC-03 rejects an extra key and a missing kind', async () => {
   await useRender(async (opened) => {

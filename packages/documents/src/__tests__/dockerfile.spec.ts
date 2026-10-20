@@ -14,7 +14,7 @@ it('C4 keeps the worker image off root', () => {
   const smoke = readFileSync(resolve(root, 'packages/documents/scripts/pdf-smoke.mjs'), 'utf8');
   expect(smoke).toContain('process.getuid');
   expect(smoke).toContain('uid === 0');
-  expect(smoke).toContain("console.log(`uid=");
+  expect(smoke).toContain('console.log(`uid=');
   expect(smoke).toContain('rendererFailureText');
 });
 

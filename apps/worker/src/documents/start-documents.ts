@@ -127,7 +127,9 @@ async function openWorker(
         connection,
         concurrency: 2,
         lockDuration: input.lockDurationMs ?? LOCK_MS,
-        ...(input.stalledIntervalMs === undefined ? {} : { stalledInterval: input.stalledIntervalMs }),
+        ...(input.stalledIntervalMs === undefined
+          ? {}
+          : { stalledInterval: input.stalledIntervalMs }),
         ...(input.maxStalledCount === undefined ? {} : { maxStalledCount: input.maxStalledCount }),
         ...(input.prefix === undefined ? {} : { prefix: input.prefix }),
       },
@@ -210,7 +212,9 @@ export function beginDocumentRendering(input: StartDocumentsInput): DocumentRend
 }
 
 /** النواة (السيرفر والموزّع) بتخلّص الأول. تعليق Chromium ما يأخرش `/ready`. */
-export async function startCoreBeforeDocuments(input: CoreBeforeDocumentsInput): Promise<DocumentRendering> {
+export async function startCoreBeforeDocuments(
+  input: CoreBeforeDocumentsInput,
+): Promise<DocumentRendering> {
   await input.startCore();
   const documents = input.beginDocuments();
   if (input.isStopping()) await documents.close();
@@ -221,7 +225,9 @@ export async function startCoreBeforeDocuments(input: CoreBeforeDocumentsInput):
  * قدرة اختيارية: فشل Chromium بيتسجل والإقلاع بيعيد المحاولة، والوركر يكمل.
  * الإيقاف بيقفل طابور BullMQ الأول، وبعدين المتصفح.
  */
-export async function startDocumentRendering(input: StartDocumentsInput): Promise<DocumentRendering> {
+export async function startDocumentRendering(
+  input: StartDocumentsInput,
+): Promise<DocumentRendering> {
   const handle = beginDocumentRendering(input);
   await handle.started;
   return handle;

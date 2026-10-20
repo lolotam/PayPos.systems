@@ -65,7 +65,10 @@ it('marks a job failed outside the processor when BullMQ finishes it', async () 
       filename: 'a.pdf',
     });
     const deps = { redis: opened.redis, logger: opened.logger, clock: { now: () => 25 } };
-    await recordExternalJobFailure(asJob(data, { finishedOn: 20, processedOn: 5, attemptsMade: 2 }), deps);
+    await recordExternalJobFailure(
+      asJob(data, { finishedOn: 20, processedOn: 5, attemptsMade: 2 }),
+      deps,
+    );
     const status = await statusOf(opened, companyId, id);
     expect(status['state']).toBe('FAILED');
     expect(status['error_code']).toBe('DOCUMENT_RENDER_FAILED');

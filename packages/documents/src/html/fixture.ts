@@ -15,7 +15,9 @@ export interface FixtureInput {
 export function fixtureDocument(input: FixtureInput): string {
   const title = input.language === 'ar' ? 'مستند تجريبي' : 'Sample document';
   const footer = input.language === 'ar' ? 'نهاية المستند' : 'End of document';
-  const body = html`<main>${input.lines.map((line) => html`<p>${lineSlot(line, input.language)}</p>`)}</main>`;
+  const body = html`<main>
+    ${input.lines.map((line) => html`<p>${lineSlot(line, input.language)}</p>`)}
+  </main>`;
   return baseLayout({
     language: input.language,
     title,

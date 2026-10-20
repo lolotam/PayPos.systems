@@ -20,7 +20,9 @@ try {
     console.error('pdf smoke:', failure.error_class, failure.error_message);
     process.exit(1);
   }
-  const pdf = await renderer.render(fixtureDocument({ language: 'ar', lines: ['pospay-pdf-smoke'] }));
+  const pdf = await renderer.render(
+    fixtureDocument({ language: 'ar', lines: ['pospay-pdf-smoke'] }),
+  );
   const header = Buffer.from(pdf.subarray(0, 5)).toString('latin1');
   if (!header.startsWith('%PDF-')) {
     console.error('pdf smoke: output is not a PDF');

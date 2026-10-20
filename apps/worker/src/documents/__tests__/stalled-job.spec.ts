@@ -24,7 +24,12 @@ function logger(): ReturnType<typeof createLogger> {
   });
 }
 
-async function untilState(redis: Redis, companyId: string, id: string, state: string): Promise<void> {
+async function untilState(
+  redis: Redis,
+  companyId: string,
+  id: string,
+  state: string,
+): Promise<void> {
   const key = documentStatusKey(companyId, id);
   const started = Date.now();
   while (Date.now() - started < 8_000) {
@@ -68,12 +73,18 @@ it('marks a stalled active job FAILED without a second render', async () => {
       requested_by: 'user-1',
       filename: 'a.pdf',
     });
-    await queue.add('render', { company_id: companyId, render_id: id, kind: 'fixture' }, documentRenderJobOptions(id));
+    await queue.add(
+      'render',
+      { company_id: companyId, render_id: id, kind: 'fixture' },
+      documentRenderJobOptions(id),
+    );
     await untilState(redis, companyId, id, 'RENDERING');
     await first.stop(true);
     next = await startDocumentRendering({ ...shared, renderer: second });
     await untilState(redis, companyId, id, 'FAILED');
-    expect((await redis.hget(documentStatusKey(companyId, id), 'error_code'))).toBe('DOCUMENT_RENDER_FAILED');
+    expect(await redis.hget(documentStatusKey(companyId, id), 'error_code')).toBe(
+      'DOCUMENT_RENDER_FAILED',
+    );
     expect(renders).toBe(1);
     expect(second.seen).toEqual([]);
   } finally {

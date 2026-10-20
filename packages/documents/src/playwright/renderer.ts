@@ -37,7 +37,8 @@ function asRendererError(error: unknown): Error {
   if (error instanceof DocumentRenderTimeoutError) return error;
   if (error instanceof DocumentTooLargeError) return error;
   if (error instanceof DocumentRendererUnavailableError) return error;
-  if (error instanceof Error && error.name === 'TimeoutError') return new DocumentRenderTimeoutError();
+  if (error instanceof Error && error.name === 'TimeoutError')
+    return new DocumentRenderTimeoutError();
   if (error instanceof Error) return error;
   return new Error('DOCUMENT_RENDER_FAILED');
 }
@@ -204,7 +205,11 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     }
   }
 
-  async #renderOnce(browser: PdfBrowser, html: string, options: RenderOptions | undefined): Promise<Uint8Array> {
+  async #renderOnce(
+    browser: PdfBrowser,
+    html: string,
+    options: RenderOptions | undefined,
+  ): Promise<Uint8Array> {
     let context: PdfContext | undefined;
     let abandoned = false;
     const work = browser.newContext(CONTEXT).then(async (opened) => {
@@ -230,7 +235,8 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     } catch (error) {
       abandoned = true;
       const mapped = asRendererError(error);
-      if (mapped instanceof DocumentRenderTimeoutError) await this.#closeAfterTimeout(context, browser);
+      if (mapped instanceof DocumentRenderTimeoutError)
+        await this.#closeAfterTimeout(context, browser);
       throw mapped;
     }
   }

@@ -21,7 +21,10 @@ function context(pdf: PdfPage['pdf'], onRoute?: PdfContext['route']): PdfContext
   };
 }
 
-function browser(pdf: PdfPage['pdf'], hooks?: { onClose?: () => void; route?: PdfContext['route'] }): PdfBrowser {
+function browser(
+  pdf: PdfPage['pdf'],
+  hooks?: { onClose?: () => void; route?: PdfContext['route'] },
+): PdfBrowser {
   const listeners: Array<() => void> = [];
   return {
     newContext: async () => context(pdf, hooks?.route),
@@ -154,9 +157,9 @@ it('drops a late rejection when the signal is already aborted', async () => {
   const renderer = new PlaywrightDocumentRenderer({ factory });
   try {
     await renderer.start();
-    await expect(renderer.render('<p>x</p>', { signal: AbortSignal.abort() })).rejects.toBeInstanceOf(
-      DocumentRenderTimeoutError,
-    );
+    await expect(
+      renderer.render('<p>x</p>', { signal: AbortSignal.abort() }),
+    ).rejects.toBeInstanceOf(DocumentRenderTimeoutError);
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(rejections).toEqual([]);
   } finally {

@@ -5,7 +5,8 @@ import { baseLayout, bdi } from '../html/layout.ts';
 import { html } from '../html/template.ts';
 import { fixtureDocument } from '../html/fixture.ts';
 
-const PHYSICAL = /(?:margin|padding|border)-(?:left|right)\b|(?:^|[^-])(?:left|right)\s*:|text-align\s*:\s*(?:left|right)/;
+const PHYSICAL =
+  /(?:margin|padding|border)-(?:left|right)\b|(?:^|[^-])(?:left|right)\s*:|text-align\s*:\s*(?:left|right)/;
 const EXTERNAL = /(?:src|href)\s*=\s*["'](?!data:)|\burl\(\s*['"]?(?!data:)/;
 
 it('lays out Arabic and English with logical CSS and an embedded font', () => {

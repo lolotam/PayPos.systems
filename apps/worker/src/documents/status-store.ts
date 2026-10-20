@@ -48,7 +48,11 @@ function moved(result: unknown): boolean {
 }
 
 /** QUEUED أو RENDERING بس. أي حالة تانية (أو مفتاح ناقص) بترجع false من غير كتابة. */
-export async function markRendering(redis: Redis, companyId: string, renderId: string): Promise<boolean> {
+export async function markRendering(
+  redis: Redis,
+  companyId: string,
+  renderId: string,
+): Promise<boolean> {
   const key = documentStatusKey(companyId, renderId);
   return moved(await redis.eval(MARK_RENDERING, 1, key, String(DOCUMENT_STATUS_TTL_SECONDS)));
 }
@@ -61,9 +65,7 @@ export async function markFailed(
   code: DocumentRenderErrorCode,
 ): Promise<boolean> {
   const key = documentStatusKey(companyId, renderId);
-  return moved(
-    await redis.eval(MARK_FAILED, 1, key, code, String(DOCUMENT_STATUS_TTL_SECONDS)),
-  );
+  return moved(await redis.eval(MARK_FAILED, 1, key, code, String(DOCUMENT_STATUS_TTL_SECONDS)));
 }
 
 /** من RENDERING بس: البايتات والحالة والانتهاء في سكربت واحد. غير كده ما يكتبش. */

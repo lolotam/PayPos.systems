@@ -126,11 +126,7 @@ function logOutcome(
   logger.info(record, 'document render');
 }
 
-function skip(
-  deps: ProcessDocumentDeps,
-  data: DocumentRenderJob,
-  started: number,
-): void {
+function skip(deps: ProcessDocumentDeps, data: DocumentRenderJob, started: number): void {
   logOutcome(deps.logger, {
     company_id: data.company_id,
     render_id: data.render_id,

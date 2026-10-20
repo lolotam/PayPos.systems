@@ -64,7 +64,9 @@ function mergeCmap(map: Map<number, string>, text: string): void {
     }
   }
   for (const block of text.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
-    for (const range of (block[1] ?? '').matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
+    for (const range of (block[1] ?? '').matchAll(
+      /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g,
+    )) {
       addRange(
         map,
         Number.parseInt(range[1] ?? '', 16),
@@ -114,5 +116,12 @@ export function pdfText(bytes: Uint8Array): string {
   const raw = Buffer.from(bytes).toString('latin1');
   const inflated = streams(raw);
   const joined = inflated.join('\n');
-  return [raw, joined, utf16Binary(joined), utf16Hex(raw), utf16Hex(joined), paintedText(inflated)].join('\n');
+  return [
+    raw,
+    joined,
+    utf16Binary(joined),
+    utf16Hex(raw),
+    utf16Hex(joined),
+    paintedText(inflated),
+  ].join('\n');
 }

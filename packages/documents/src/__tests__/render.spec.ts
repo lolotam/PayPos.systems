@@ -34,7 +34,10 @@ async function chromiumInstalled(): Promise<boolean> {
 
 const chromiumReady = await chromiumInstalled();
 
-async function rendered(html: string, onDocumentHtml?: (outerHtml: string) => void): Promise<Uint8Array> {
+async function rendered(
+  html: string,
+  onDocumentHtml?: (outerHtml: string) => void,
+): Promise<Uint8Array> {
   const renderer = new PlaywrightDocumentRenderer(
     onDocumentHtml === undefined ? {} : { onDocumentHtml },
   );
@@ -47,14 +50,17 @@ async function rendered(html: string, onDocumentHtml?: (outerHtml: string) => vo
   }
 }
 
-it.skipIf(!chromiumReady)('renders Arabic and English fixtures with the embedded font', async () => {
-  for (const language of ['ar', 'en'] as const) {
-    const pdf = await rendered(fixtureDocument({ language, lines: ['Line 1', 'سطر'] }));
-    expect(Buffer.from(pdf.subarray(0, 5)).toString('latin1')).toBe('%PDF-');
-    expect(pdf.byteLength).toBeLessThanOrEqual(DOCUMENT_PDF_MAX_BYTES);
-    expect(pdfText(pdf)).toMatch(/IBMPlexSansArabic|IBM Plex Sans Arabic/);
-  }
-});
+it.skipIf(!chromiumReady)(
+  'renders Arabic and English fixtures with the embedded font',
+  async () => {
+    for (const language of ['ar', 'en'] as const) {
+      const pdf = await rendered(fixtureDocument({ language, lines: ['Line 1', 'سطر'] }));
+      expect(Buffer.from(pdf.subarray(0, 5)).toString('latin1')).toBe('%PDF-');
+      expect(pdf.byteLength).toBeLessThanOrEqual(DOCUMENT_PDF_MAX_BYTES);
+      expect(pdfText(pdf)).toMatch(/IBMPlexSansArabic|IBM Plex Sans Arabic/);
+    }
+  },
+);
 
 it.skipIf(!chromiumReady)('C2 keeps an inline script from changing the document', async () => {
   let outer = '';

@@ -67,7 +67,11 @@ async function release(slot: Slot): Promise<void> {
   await renderer?.close().catch(() => undefined);
 }
 
-function pause(state: SessionState, ms: number, sleep: (ms: number) => Promise<void>): Promise<void> {
+function pause(
+  state: SessionState,
+  ms: number,
+  sleep: (ms: number) => Promise<void>,
+): Promise<void> {
   return new Promise((resolve) => {
     let done = false;
     const finish = (): void => {
@@ -108,7 +112,12 @@ function arm(state: SessionState, input: StartupSessionInput): void {
   );
 }
 
-function finishAttempt(state: SessionState, input: StartupSessionInput, slot: Slot, ready: boolean): void {
+function finishAttempt(
+  state: SessionState,
+  input: StartupSessionInput,
+  slot: Slot,
+  ready: boolean,
+): void {
   if (state.closed || slot.token !== state.generation) return;
   if (state.timer !== undefined) clearTimeout(state.timer);
   if (ready || input.stopped() || !state.accept) {
@@ -118,7 +127,12 @@ function finishAttempt(state: SessionState, input: StartupSessionInput, slot: Sl
   void fail(state, input, slot, new Error('DOCUMENT_START_FAILED'));
 }
 
-async function fail(state: SessionState, input: StartupSessionInput, slot: Slot, error: Error): Promise<void> {
+async function fail(
+  state: SessionState,
+  input: StartupSessionInput,
+  slot: Slot,
+  error: Error,
+): Promise<void> {
   if (state.closed || !state.accept || slot.token !== state.generation) return;
   state.generation += 1;
   if (state.timer !== undefined) clearTimeout(state.timer);

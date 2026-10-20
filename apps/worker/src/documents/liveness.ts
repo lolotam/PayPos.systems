@@ -1,4 +1,7 @@
-import { DOCUMENT_RENDERER_ALIVE_KEY, DOCUMENT_RENDERER_ALIVE_TTL_SECONDS } from '@pospay/contracts';
+import {
+  DOCUMENT_RENDERER_ALIVE_KEY,
+  DOCUMENT_RENDERER_ALIVE_TTL_SECONDS,
+} from '@pospay/contracts';
 import type { DocumentRenderer } from '@pospay/documents';
 import type { Redis } from 'ioredis';
 
