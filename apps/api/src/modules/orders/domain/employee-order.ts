@@ -45,3 +45,24 @@ export function employeeIdBatches(ids: readonly string[], size: number): string[
   }
   return batches;
 }
+
+/**
+ * يقسم هويات المنفّذات الحالية والمحفوظة في سجل تغييرات السطر إلى دفعات قفل واحدة مرتبة تصاعدياً.
+ * الترتيب التصاعدي العام يمنع تعارض الكتّاب على نفس صفوف الموظفات، ومنفذ الموارد البشرية يرفض دفعة أكبر من ثمانين هوية.
+ *
+ * @param current هويات المنفّذات الحالية على السطر
+ * @param retained هويات المنفّذات المحفوظة في سجل تغييرات السطر
+ * @returns دفعات الهويات الفريدة مرتبة تصاعدياً
+ */
+export function identityLockBatches(
+  current: readonly { employee_id: string }[],
+  retained: readonly { employee_id: string }[],
+): string[][] {
+  return employeeIdBatches(
+    ascendingEmployeeIds(
+      current.map((performer) => performer.employee_id),
+      retained.map((performer) => performer.employee_id),
+    ),
+    PERFORMER_BATCH,
+  );
+}
