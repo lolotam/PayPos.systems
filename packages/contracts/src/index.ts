@@ -389,3 +389,4 @@ export * from './orders/late-service-session-notice.js';
 export * from './orders/service-line-edit-notice.js';
 export * from './orders/service-line-cancel-notice.js';
 export * from './orders/service-line-performers-notice.js';
+export * from './documents-render.js';

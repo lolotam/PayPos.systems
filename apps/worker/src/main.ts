@@ -29,6 +29,12 @@ import {
   createPriceEditNoticeConsumer,
 } from './modules/orders/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
+import {
+  beginDocumentRendering,
+  startCoreBeforeDocuments,
+  type DocumentRendering,
+} from './documents/start-documents.ts';
+import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
 
 const config = readConfig(process.env);
 const logger = createLogger(config.LOG_LEVEL, { events: WORKER_LOG_EVENTS });
@@ -107,6 +113,7 @@ const businessDeliver = createDeliverer(
   { knownEventTypes: knownEventTypes(staff, notifications, inApp) },
 );
 let queue: OptionalCapabilities['queue'];
+let documents: DocumentRendering | undefined;
 const deliver: typeof businessDeliver = (event) =>
   deliverFilesEvent(event, {
     register: (claimed) => files.deliver(claimed),
@@ -121,6 +128,8 @@ const release = async (): Promise<void> => {
   // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
   await files.close();
   await staff.close();
+  // المتصفح بيتقفل بعد تصفية الطابور، مش مع إيقاف الحلقة.
+  await documents?.close();
   await optionalWithin(
     () =>
       Promise.allSettled([
@@ -140,7 +149,7 @@ const release = async (): Promise<void> => {
   redis.disconnect();
 };
 
-try {
+async function startWorkerCore(): Promise<void> {
   const started = await startOptionalCapabilities({
     env: process.env,
     logger,
@@ -175,8 +184,12 @@ try {
         stopping = true;
         email.stop();
         maintenance?.stop();
-        await loop.stop();
-        await closeOptional([() => queue?.stop(), () => inbound?.stop()]);
+        await drainDispatchAndDocuments({
+          stopDispatch: () => loop.stop(),
+          stopDocuments: () => documents?.stop(),
+          stopQueue: () => queue?.stop(),
+          stopInbound: () => inbound?.stop(),
+        });
         clearInterval(capabilityTimer);
         await closeOptional([() => otp?.stop()]);
       },
@@ -187,6 +200,22 @@ try {
   worker.enableShutdownHooks();
   await worker.listen({ host: config.WORKER_HOST, port: config.WORKER_PORT });
   loop.start();
+}
+
+try {
+  documents = await startCoreBeforeDocuments({
+    startCore: startWorkerCore,
+    beginDocuments: () =>
+      beginDocumentRendering({
+        redis,
+        redisUrl: config.REDIS_URL,
+        logger,
+        clock: { now: () => Date.now() },
+        isStopping: () => stopping,
+      }),
+    isStopping: () => stopping,
+  });
+  void documents.started.catch(() => undefined);
 } catch (error) {
   // Only the sanitised diagnostic is logged — the error's message can carry a connection string.
   logger.fatal({ err: error }, 'worker failed to start');

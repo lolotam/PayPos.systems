@@ -37,7 +37,7 @@ the name text.
 | **27h-4** | `set-business-logo` (bind or remove; the event producer) | (a) domain `validateLogoFile` + port + adapter (`settings → files` read) + module-map line; (b) use case + `PUT /v1/businesses/:businessId/settings/logo` + audit + `BusinessLogoChanged` emit; (c) `readBusinessIdentity` + pure `statementIdentity` exports + tests | 27h-1, 27h-2, 27h-3 |
 | **27h-5** | Admin screen (names, upload with status, preview, replace, remove) | (a) names form; (b) logo upload flow (files endpoints, poll status); (c) preview through the audited download + i18n | 27h-1, 27h-4 |
 
-Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, and the binding surface); plan row 27i lists `27, 27h-4` (also stated in the 27i row so 27i cannot start before the binding exists). Not here: the statement itself (27g), the PDF renderer (27i), the files-side bytes reader for the renderer (27i), the
+The logo-bytes reader (row 27g, moved from 27i by ADR-0049 §6) depends on 27h-4 (the schema, introduced in 27h-1, and the binding surface); plan row 27i lists `27, 27h-4` (also stated in the 27i row so 27i cannot start before the binding exists). Not here: the statement itself (27g), the PDF renderer (27i), the files-side bytes reader for the renderer (27g, moved from 27i by ADR-0049 §6), the
 `staff → settings` import arrow (27g's ADR). Other documents (receipts, invoices) may reuse the identity later; out of scope.
 
 ## 3. Owner rules (final)
@@ -162,7 +162,7 @@ Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, a
    `{ official_name_ar, official_name_en, logo_file_id }` and the pure `statementIdentity` (§6). The **bytes** reader is
    declared, not built: a `files`-owned export that resolves the currently bound logo of the authorised statement's
    business (never an arbitrary id from the requester), reads at most the generic file cap (10 MiB, BI-Q3), and writes one `file_access_audit` ALLOW
-   row for the requester. Built with 27i. This matters because the statement requester holds "view attendance"
+   row for the requester. Built with 27g (moved from 27i by ADR-0049 §6). This matters because the statement requester holds "view attendance"
    (`read:attendance:branch`), not necessarily any settings or files permission, so the stored
    `manage:business-identity:business` (BI-Q5) gates the admin preview and its audited download, not the statement.
 7. **Cache.** `businessSettingsQuery` extends its SELECT and changes its stale-entry guard from `'limit_bps' in value` to
