@@ -13,7 +13,7 @@ export interface LineEditPerformer {
  * المقارنة بعد تصغير الحالتين حتى لا يفلت معرّف مكتوب بحروف مختلفة.
  *
  * @param editorUserId مستخدمة التعديل
- * @param performers منفّذات السطر وقت التعديل
+ * @param performers منفّذات السطر الحاليون وهويات المنفّذات المُزالة المحفوظة في سجل تغييرات السطر
  * @returns لا شيء؛ التطابق أو غياب اللقطة يرفض
  */
 export function assertEditorIsNotPerformer(

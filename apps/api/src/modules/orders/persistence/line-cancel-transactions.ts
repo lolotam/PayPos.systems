@@ -2,9 +2,10 @@ import type { TenantWrappers, Tx } from '@pospay/db';
 import type { LineCancelRepository, LineCancelTransaction, LineCancelTransactions } from '../ports/line-cancel.port.ts';
 import type { SessionWriteContext } from '../ports/service-session-transactions.port.ts';
 import { editorName } from './editor-name.adapter.ts';
-import { activeLinePerformers, retainedLinePerformers } from './line-cancel-records.ts';
+import { activeLinePerformers } from './line-cancel-records.ts';
 import { insertLineCancellation, markLineCancelled } from './line-cancel-writes.ts';
 import { loadEditableSession, loadLineForUpdate, lockLineEditVisit } from './line-edit-records.ts';
+import { lineIdentity } from './line-identity-records.ts';
 import { createLineWriteTransactions } from './line-write-transactions.ts';
 import { performerCheck } from './performer-check.adapter.ts';
 import { sessionCancelAccess } from './session-edit-access.adapter.ts';
@@ -19,6 +20,7 @@ interface LineCancelReaders {
   editors: LineCancelTransaction['editors'];
   performers: LineCancelTransaction['performers'];
   tips: LineCancelTransaction['tips'];
+  identities: LineCancelTransaction['identities'];
 }
 
 type LineCancelBody = LineCancelReaders & { lines: LineCancelRepository };
@@ -37,6 +39,11 @@ export function bindLineCancelReaders(tx: Tx, context: SessionWriteContext): Lin
     editors: editorName(tx, context.companyId, context.businessId),
     performers: performerCheck(tx, context.companyId, context.businessId, context.branchId),
     tips: sessionTipEmployees(tx, context.companyId, context.businessId, context.branchId),
+    identities: lineIdentity(tx, {
+      companyId: context.companyId,
+      businessId: context.businessId,
+      branchId: context.branchId,
+    }),
   };
 }
 
@@ -51,7 +58,6 @@ function assembleLineCancel(
     lines: {
       lockVisit: (sessionId) => lockLineEditVisit(tx, sessionId),
       loadLineForUpdate: (sessionId, lineId) => loadLineForUpdate(tx, scope, sessionId, lineId),
-      retainedPerformers: (sessionId, lineId) => retainedLinePerformers(tx, scope, sessionId, lineId),
       activePerformers: (sessionId) => activeLinePerformers(tx, scope, sessionId),
       cancelLine: (sessionId, lineId, expectedRevision) => markLineCancelled(tx, scope, sessionId, lineId, expectedRevision),
       insertCancellation: (sessionId, lineId, row) => insertLineCancellation(tx, scope, sessionId, lineId, row),

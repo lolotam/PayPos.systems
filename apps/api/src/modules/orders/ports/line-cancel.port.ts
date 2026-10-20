@@ -3,9 +3,9 @@ import type {
   EditorNamePort,
   LineEditAuditEntry,
   LineEditRepository,
-  LockedLinePerformer,
   SessionEditAccessPort,
 } from './line-edit.port.ts';
+import type { SessionLineIdentityPort } from './line-identity.port.ts';
 import type { PerformerCheckPort, SessionPlacePort } from './session-readers.port.ts';
 
 /** صف تاريخ الإلغاء؛ السبب يبقى هنا ولا يخرج إلى الحدث أو التدقيق. */
@@ -48,14 +48,6 @@ export interface SessionTipsReadPort {
 /** تخزين الإلغاء؛ قفل الزيارة والسطر والزيارة المحفوظة من تخزين التعديل، واختلاف النطاق يرفض برفض موحّد. */
 export interface LineCancelRepository extends Pick<LineEditRepository, 'lockVisit' | 'loadLineForUpdate' | 'loadSession'> {
   /**
-   * يعيد كل هوية BEFORE للسطر حتى لو عادت الموظفة إليه مربوطة بمستخدم آخر.
-   *
-   * @param sessionId هوية الزيارة ضمن النشاط والفرع الحاليين
-   * @param lineId هوية السطر
-   * @returns لقطات الهوية بلا تكرار للثلاثي، أو مصفوفة فارغة
-   */
-  retainedPerformers(sessionId: string, lineId: string): Promise<readonly LockedLinePerformer[]>;
-  /**
    * يعيد الأسطر النشطة ومنفّذاتها الحالية لبناء حارس البقشيش.
    *
    * @param sessionId هوية الزيارة ضمن النشاط والفرع الحاليين
@@ -93,6 +85,7 @@ export interface LineCancelTransaction {
   editors: EditorNamePort;
   performers: PerformerCheckPort;
   tips: SessionTipsReadPort;
+  identities: SessionLineIdentityPort;
   lines: LineCancelRepository;
   /**
    * يحفظ الجسم الكامل تحت عملية الإلغاء أو يعيد الجسم المخزون.

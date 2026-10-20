@@ -37,3 +37,30 @@ export function withCurrentLinks(
     };
   });
 }
+
+/**
+ * يبني صفاً لكل هوية محفوظة في سجل تغييرات الزيارات.
+ * هوية الموظفة المُزالة تبقى تسدّ سطرها هي: مَن رابطه بها لا يضيف ولا يغيّر ولا يحذف سطر بقشيشها (TP-04).
+ * السطر بلا سطر فعّال، فهي لا تُحسب منفّذة لبقشيش جديد (TP-05)، ودمج الصفوف في indexTipPeople يبقي السطر فعّالاً لو كانت ما زالت منفّذة بسطر آخر من الزيارة.
+ *
+ * @param retained الهويات المحفوظة لموظفات أُزيلن من أسطر الزيارة
+ * @returns صفوف بلا سطر فعّال، كل صف فيها لقطة واحدة كما سُجلت
+ */
+export function retainedTipRows(
+  retained: readonly {
+    employee_id: string;
+    linked_user_id: string | null;
+    linked_user_snapshotted: boolean;
+  }[],
+): TipPerformerRow[] {
+  return retained.map((row) => ({
+    employee_id: row.employee_id,
+    has_active_line: false,
+    identities: [
+      {
+        linked_user_id: row.linked_user_id,
+        linked_user_snapshotted: row.linked_user_snapshotted,
+      },
+    ],
+  }));
+}

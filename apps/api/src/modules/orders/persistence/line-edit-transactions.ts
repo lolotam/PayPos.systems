@@ -5,6 +5,7 @@ import { discountLimit } from './discount-limit.adapter.ts';
 import { editorName } from './editor-name.adapter.ts';
 import { activeLineNets, loadEditableSession, loadLineForUpdate, lockLineEditVisit } from './line-edit-records.ts';
 import { insertLineEdit, updateLinePrice } from './line-edit-writes.ts';
+import { lineIdentity } from './line-identity-records.ts';
 import { createLineWriteTransactions } from './line-write-transactions.ts';
 import { performerCheck } from './performer-check.adapter.ts';
 import { sessionEditAccess } from './session-edit-access.adapter.ts';
@@ -18,6 +19,7 @@ interface LineEditReaders {
   editors: LineEditTransaction['editors'];
   performers: LineEditTransaction['performers'];
   discount: LineEditTransaction['discount'];
+  identities: LineEditTransaction['identities'];
 }
 
 type LineEditBody = LineEditReaders & { lines: LineEditRepository };
@@ -36,6 +38,11 @@ export function bindLineEditReaders(tx: Tx, context: SessionWriteContext): LineE
     editors: editorName(tx, context.companyId, context.businessId),
     performers: performerCheck(tx, context.companyId, context.businessId, context.branchId),
     discount: discountLimit(tx, context.companyId, context.businessId),
+    identities: lineIdentity(tx, {
+      companyId: context.companyId,
+      businessId: context.businessId,
+      branchId: context.branchId,
+    }),
   };
 }
 

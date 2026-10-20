@@ -1,4 +1,5 @@
 import type { SessionLimit, SessionRecord } from '../domain/session-types.ts';
+import type { SessionLineIdentityPort } from './line-identity.port.ts';
 import type { SessionWriteContext } from './service-session-transactions.port.ts';
 import type { DiscountLimitPort, PerformerCheckPort, SessionPlacePort } from './session-readers.port.ts';
 
@@ -187,6 +188,7 @@ export interface LineEditTransaction {
   editors: EditorNamePort;
   performers: PerformerCheckPort;
   discount: DiscountLimitPort;
+  identities: SessionLineIdentityPort;
   lines: LineEditRepository;
   /**
    * يحفظ الجسم الكامل تحت عملية تعديل السعر أو يعيد الجسم المخزون.

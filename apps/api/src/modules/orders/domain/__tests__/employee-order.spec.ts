@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ascendingEmployeeIds, compareEmployeeId, employeeIdBatches } from '../employee-order.ts';
+import { ascendingEmployeeIds, compareEmployeeId, employeeIdBatches, identityLockBatches } from '../employee-order.ts';
 
 describe('compareEmployeeId', () => {
   it('orders lowercase ids and treats case variants as the same employee', () => {
@@ -40,5 +40,28 @@ describe('employeeIdBatches', () => {
     const batches = employeeIdBatches(ids, 80);
     expect(batches.map((batch) => batch.length)).toEqual([...sizes]);
     expect(batches.flat()).toEqual(ids);
+  });
+});
+
+describe('identityLockBatches', () => {
+  const person = (employee_id: string) => ({ employee_id });
+
+  it('locks a performer shared by the line and the retained history once', () => {
+    expect(identityLockBatches([person('b'), person('a')], [person('a')])).toEqual([['a', 'b']]);
+  });
+
+  it('returns the union ascending', () => {
+    expect(identityLockBatches([person('c')], [person('b'), person('a')])).toEqual([['a', 'b', 'c']]);
+  });
+
+  it('splits eighty-one distinct ids into a full batch and one', () => {
+    const ids = Array.from({ length: 81 }, (_, index) => index.toString(16).padStart(3, '0'));
+    const batches = identityLockBatches(ids.map(person), []);
+    expect(batches.map((batch) => batch.length)).toEqual([80, 1]);
+    expect(batches.flat()).toEqual(ids);
+  });
+
+  it('returns no batches when both lists are empty', () => {
+    expect(identityLockBatches([], [])).toEqual([]);
   });
 });

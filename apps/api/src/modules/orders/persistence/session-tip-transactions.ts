@@ -13,6 +13,7 @@ import type {
   SessionTipsTransactions,
 } from '../ports/session-tips.port.ts';
 import type { SessionWriteContext } from '../ports/service-session-transactions.port.ts';
+import { lineIdentity } from './line-identity-records.ts';
 import { performerCheck } from './performer-check.adapter.ts';
 import { sessionPlace } from './session-place.adapter.ts';
 import { sessionRecordAccess } from './session-record-access.adapter.ts';
@@ -59,6 +60,7 @@ function sessionTipsTransaction(tx: Tx, context: SessionWriteContext): SessionTi
     performers: performerCheck(tx, context.companyId, context.businessId, context.branchId),
     tips: sessionTipsRepository(tx, scope),
     place: sessionPlace(tx, context.companyId, context.businessId, context.branchId),
+    identities: lineIdentity(tx, scope),
     idempotent: <T>(handler: () => Promise<T>) => claimSessionTips(tx, context, handler),
     audit: (id: string, entry: SessionTipsAuditEntry) => appendAuditLog(tx, id, entry),
     emit: (id: string, sessionId: string, payload: unknown) =>

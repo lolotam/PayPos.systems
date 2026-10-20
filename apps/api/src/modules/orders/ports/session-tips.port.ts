@@ -1,6 +1,7 @@
 import type { TipPerformerRow } from '../domain/tip-people-links.ts';
 import type { TipRevisionSession } from '../domain/tip-records.ts';
 import type { TipEntry } from '../domain/tip-set.ts';
+import type { SessionLineIdentityPort } from './line-identity.port.ts';
 import type {
   PerformerCheckPort,
   SessionPlacePort,
@@ -80,9 +81,10 @@ export interface SessionTipsRepository {
 }
 
 /**
- * ترتيب D-T6: فحص المكان والصلاحية قبل المطالبة، ثم idempotent، ثم access.lock ثم lockVisit ثم loadSession و loadPeople و loadCurrent،
- * ثم performers.lock لاتحاد هويات الناس والحالية والمطلوبة تصاعدياً ودفعات في حد قارئ الموارد البشرية ثم performers.read،
- * ثم إعادة فحص الصلاحية و place.read ثم نسخة المراجعة ثم withCurrentLinks لهويات الناس والحالية فقط ثم النافذة والسبب والمجموعة ورفض عدم التغيير،
+ * ترتيب D-T6: فحص المكان والصلاحية قبل المطالبة، ثم idempotent، ثم access.lock ثم lockVisit ثم loadSession و loadPeople
+ * ثم قراءة الهويات المحفوظة لأسطر الزيارة ثم loadCurrent،
+ * ثم performers.lock لاتحاد هويات الناس والمجموعة الحالية والمطلوبة تصاعدياً ودفعات في حد قارئ الموارد البشرية ثم performers.read،
+ * ثم إعادة فحص الصلاحية و place.read ثم نسخة المراجعة ثم withCurrentLinks لهويات الناس والمجموعة الحالية فقط ثم النافذة والسبب والمجموعة ورفض عدم التغيير،
  * ثم insertRevision ثم audit ثم emit.
  */
 export interface SessionTipsTransaction {
@@ -91,6 +93,8 @@ export interface SessionTipsTransaction {
   /** مكان الزيارة؛ غيابه رفض موحّد عن الزيارة أو سلطة المتصلة الحية. */
   place: SessionPlacePort;
   tips: SessionTipsRepository;
+  /** الهويات المحفوظة للموظفات اللواتي أُزيلن من أسطر الزيارة. */
+  identities: SessionLineIdentityPort;
   /**
    * يحفظ جسم الرد تحت عملية تسجيل البقشيش أو يعيد الجسم المخزون.
    *

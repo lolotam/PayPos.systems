@@ -1,5 +1,6 @@
 import type { EditServiceLineInput, EditServiceLineResponse } from '@pospay/contracts';
 import { parseMoney } from '@pospay/domain';
+import { identityLockBatches } from '../../domain/employee-order.ts';
 import { lineEditAudit } from '../../domain/line-edit-audit.ts';
 import { resolveSessionEditor } from '../../domain/line-edit-editor.ts';
 import { lineEditEvent } from '../../domain/line-edit-event.ts';
@@ -14,6 +15,7 @@ import type { SessionEmployee, SessionLine, SessionRecord } from '../../domain/s
 import type {
   LineEditTransaction,
   LineEditTransactions,
+  LockedLinePerformer,
   LockedServiceLine,
   ServiceLineEditInsert,
   SessionEditFacts,
@@ -22,6 +24,7 @@ import type {
 import type { Clock, IdGenerator, SessionWriteContext } from '../../ports/service-session-transactions.port.ts';
 
 type EditContext = SessionWriteContext & { sessionId: string; lineId: string; input: EditServiceLineInput };
+interface LockedEdit { line: LockedServiceLine; retained: readonly LockedLinePerformer[] }
 interface EditDecision {
   facts: SessionEditFacts;
   at: Date;
@@ -69,22 +72,24 @@ export class EditServiceLinePriceUseCase {
   }
 
   private async edit(tx: LineEditTransaction, context: EditContext) {
-    const line = await this.loadLocked(tx, context);
-    const decision = await this.decide(tx, context, line);
-    return { facts: decision.facts, body: await this.commit(tx, context, line, decision) };
+    const locked = await this.loadLocked(tx, context);
+    const decision = await this.decide(tx, context, locked);
+    return { facts: decision.facts, body: await this.commit(tx, context, locked.line, decision) };
   }
 
-  private async loadLocked(tx: LineEditTransaction, context: EditContext): Promise<LockedServiceLine> {
+  private async loadLocked(tx: LineEditTransaction, context: EditContext): Promise<LockedEdit> {
     await tx.access.lock();
     await tx.lines.lockVisit(context.sessionId);
     const line = await tx.lines.loadLineForUpdate(context.sessionId, context.lineId);
     if (line === null) throw new SessionError('FORBIDDEN');
-    const employeeIds = line.performers.map((performer) => performer.employee_id);
-    if (employeeIds.length > 0) await tx.performers.lock(employeeIds);
-    return line;
+    const retained = await tx.identities.retainedForLine(context.sessionId, context.lineId);
+    for (const batch of identityLockBatches(line.performers, retained)) {
+      await tx.performers.lock(batch);
+    }
+    return { line, retained };
   }
 
-  private async decide(tx: LineEditTransaction, context: EditContext, line: LockedServiceLine): Promise<EditDecision> {
+  private async decide(tx: LineEditTransaction, context: EditContext, locked: LockedEdit): Promise<EditDecision> {
     const at = this.clock.now();
     const facts = await tx.access.read(at);
     const membershipId = resolveSessionEditor(lineActorAccess(facts), context.input.editor_membership_id);
@@ -92,13 +97,13 @@ export class EditServiceLinePriceUseCase {
     // الحد يُقرأ من جديد بعد كل انتظار؛ قفل العضويات FOR SHARE لا يسمح باختبار تغيّره أثناء الانتظار.
     const limit = await tx.discount.read(membershipId);
     if ((await tx.place.read()) === null) throw new SessionError('FORBIDDEN');
-    await this.refusePerformer(tx, context, line);
-    assertLineEditable(line, context.input.expected_revision);
-    validateAppendWindow(line.business_date, at, line.business_timezone);
+    await this.refusePerformer(tx, context, locked);
+    assertLineEditable(locked.line, context.input.expected_revision);
+    validateAppendWindow(locked.line.business_date, at, locked.line.business_timezone);
     const reason = normalizeEditReason(context.input.reason);
     const prepared = prepareLineEdit({
-      list_price: line.list_price,
-      current: { price: line.price, discount: line.discount },
+      list_price: locked.line.list_price,
+      current: { price: locked.line.price, discount: locked.line.discount },
       requested: { price: parseMoney(context.input.price), discount: requestedDiscount(context.input) },
       limit,
       other_active_nets: await tx.lines.activeNets(context.sessionId, context.lineId),
@@ -106,15 +111,27 @@ export class EditServiceLinePriceUseCase {
     return { facts, at, editor, reason, prepared };
   }
 
-  private async refusePerformer(tx: LineEditTransaction, context: EditContext, line: LockedServiceLine): Promise<void> {
+  private async refusePerformer(tx: LineEditTransaction, context: EditContext, locked: LockedEdit): Promise<void> {
+    const line = locked.line;
     const employeeIds = line.performers.map((performer) => performer.employee_id);
     if (employeeIds.length === 0) {
       assertEditorIsNotPerformer(context.userId, []);
       return;
     }
-    const current = await tx.performers.read(employeeIds, line.occurred_at);
-    if (current.length !== employeeIds.length || missingPerformer(employeeIds, current)) throw new SessionError('FORBIDDEN');
-    assertEditorIsNotPerformer(context.userId, linePerformerIdentities(line.performers, current));
+    const found = await this.readIdentities(tx, locked);
+    if (missingPerformer(employeeIds, found)) throw new SessionError('FORBIDDEN');
+    assertEditorIsNotPerformer(context.userId, [
+      ...linePerformerIdentities(line.performers, found),
+      ...linePerformerIdentities(locked.retained, found),
+    ]);
+  }
+
+  private async readIdentities(tx: LineEditTransaction, locked: LockedEdit): Promise<SessionEmployee[]> {
+    const found: SessionEmployee[] = [];
+    for (const batch of identityLockBatches(locked.line.performers, locked.retained)) {
+      found.push(...(await tx.performers.read(batch, locked.line.occurred_at)));
+    }
+    return found;
   }
 
   private async commit(tx: LineEditTransaction, context: EditContext, line: LockedServiceLine, decision: EditDecision) {
