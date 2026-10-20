@@ -34,11 +34,10 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 | Fixer | the implementer, continuing **its own MiniMax session** with only the findings (§4), for every production-code finding, a one-line one included (PP-10.1); the orchestrator (or a doc-writing session) only for a fix on a docs-only PR, where no implementer session exists | yes |
 | Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
 
-Before the first dispatch of a session, check the model with `opencode models`, which runs no inference. Its output must
-list `minimax-coding-plan/MiniMax-M3.1-Flash`. Never probe it with a bare `opencode run`: that would run the model
-before §4's guarded setup, under opencode's default, unrestricted permissions. An auth or quota failure then shows on the
-first guarded run, as a nonzero exit (§4 rule 8). If the model id is gone, or a run fails on auth or quota, stop and
-ask the owner. Never substitute another provider (PP-10.1). On a quota stop, hold and resume the same session after
+There is no separate model check before the first dispatch. Any `opencode` command started outside §4's guarded setup
+loads plugins and config before `check-opencode.cjs` has vetted them, and a bare `opencode run` would also run the model
+under opencode's default, unrestricted permissions. The first guarded run is the check: a missing model id, or an auth
+or quota failure, shows as a nonzero exit (§4 rule 8). Then stop and ask the owner. Never substitute another provider (PP-10.1). On a quota stop, hold and resume the same session after
 the renewal.
 
 ---
