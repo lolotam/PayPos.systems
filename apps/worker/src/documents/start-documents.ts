@@ -39,6 +39,8 @@ export interface StartDocumentsInput {
   readonly startupMs?: number;
   readonly retryDelaysMs?: readonly number[];
   readonly sleep?: (ms: number) => Promise<void>;
+  /** مهلة قفل المتصفح وتنظيف المحاولة الفاشلة. نفس الرقم للاتنين. */
+  readonly closeGraceMs?: number;
   readonly lockDurationMs?: number;
   readonly stalledIntervalMs?: number;
   readonly maxStalledCount?: number;
@@ -89,6 +91,7 @@ async function openRenderer(input: StartDocumentsInput): Promise<DocumentRendere
   const { PlaywrightDocumentRenderer } = await import('@pospay/documents');
   const renderer = new PlaywrightDocumentRenderer({
     ...(input.browserFactory === undefined ? {} : { factory: input.browserFactory }),
+    ...(input.closeGraceMs === undefined ? {} : { closeGraceMs: input.closeGraceMs }),
     onLaunchError: (error) => logUnavailable(input.logger, 'LAUNCH_FAILED', error),
   });
   bindAvailableLog(input.logger, renderer);
@@ -203,6 +206,7 @@ export function beginDocumentRendering(input: StartDocumentsInput): DocumentRend
     startupMs: input.startupMs ?? STARTUP_MS,
     retryDelaysMs: input.retryDelaysMs ?? RETRY_DELAYS_MS,
     sleep: input.sleep ?? delay,
+    ...(input.closeGraceMs === undefined ? {} : { closeGraceMs: input.closeGraceMs }),
     stopped: () => input.isStopping?.() === true,
     onFailed: (error) => logUnavailable(input.logger, 'SETUP_FAILED', error),
     run: (attempt) => bringUp(input, registry, attempt),

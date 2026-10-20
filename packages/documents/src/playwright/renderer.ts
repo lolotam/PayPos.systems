@@ -10,6 +10,7 @@ import { playwrightFactory } from './factory.ts';
 import { renderPage, type RenderPageHooks } from './render-page.ts';
 
 const DEFAULT_BACKOFF_MS = [250, 500, 1000, 2000, 5000] as const;
+const CLOSE_GRACE_MS = 5_000;
 const CONTEXT = { javaScriptEnabled: false, offline: true, serviceWorkers: 'block' } as const;
 
 export interface RendererOptions {
@@ -20,6 +21,8 @@ export interface RendererOptions {
   readonly pdfTimeoutMs?: number;
   readonly overallTimeoutMs?: number;
   readonly browserCloseGraceMs?: number;
+  /** انتظار browser.close في الإغلاق المتعمد. بعد المهلة القفل يكمل في الخلفية. */
+  readonly closeGraceMs?: number;
   /** التأخير بيرجع لأول درجة بعد ما المتصفح يفضل قائم المدة دي. */
   readonly stableForMs?: number;
   readonly onLaunchError?: (error: unknown) => void;
@@ -86,6 +89,44 @@ async function closeHungContext(
   if (!finished) await browser?.close().catch(() => undefined);
 }
 
+function armGrace(ms: number): { done: Promise<void>; stop: () => void } {
+  if (!(ms > 0)) return { done: Promise.resolve(), stop: () => undefined };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const done = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, ms);
+  });
+  return {
+    done,
+    stop: () => {
+      if (timer !== undefined) clearTimeout(timer);
+    },
+  };
+}
+
+/**
+ * بروتوكول Chromium المعلّق ما يمسكش المستدعي.
+ * المؤقّت مش sleep بتاع إعادة الإطلاق، عشان الإغلاق ما يطولش التأخير.
+ * القفل نفسه بيفضل شغال بعد المهلة لحد ما يخلّص أو يقع.
+ */
+async function finishWithinGrace(work: Promise<unknown>, graceMs: number): Promise<void> {
+  let finished = false;
+  const pending = work.then(
+    () => {
+      finished = true;
+    },
+    () => {
+      finished = true;
+    },
+  );
+  const grace = armGrace(graceMs);
+  try {
+    await Promise.race([pending, grace.done]);
+  } finally {
+    grace.stop();
+  }
+  if (!finished) void pending;
+}
+
 /**
  * Chromium واحد للعملية. كل رندر سياق جديد من غير جافاسكربت ومن غير شبكة.
  * سقوط المتصفح بيعيد الإطلاق بتأخير قابل للحقن؛ الإغلاق المتعمد ما بيعيدش الإطلاق.
@@ -98,6 +139,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   readonly #pdfTimeoutMs: number;
   readonly #overallTimeoutMs: number;
   readonly #browserCloseGraceMs: number;
+  readonly #closeGraceMs: number;
   readonly #stableForMs: number;
   readonly #onLaunchError: ((error: unknown) => void) | undefined;
   readonly #onDocumentHtml: ((outerHtml: string) => void) | undefined;
@@ -118,6 +160,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#pdfTimeoutMs = options.pdfTimeoutMs ?? 20_000;
     this.#overallTimeoutMs = options.overallTimeoutMs ?? 30_000;
     this.#browserCloseGraceMs = options.browserCloseGraceMs ?? 1_000;
+    this.#closeGraceMs = options.closeGraceMs ?? CLOSE_GRACE_MS;
     this.#stableForMs = options.stableForMs ?? 30_000;
     this.#onLaunchError = options.onLaunchError;
     this.#onDocumentHtml = options.onDocumentHtml;
@@ -146,7 +189,8 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#markUnavailable();
     const browser = this.#browser;
     this.#browser = null;
-    await browser?.close().catch(() => undefined);
+    if (browser === null) return;
+    await finishWithinGrace(browser.close(), this.#closeGraceMs);
   }
 
   async render(html: string, options?: RenderOptions): Promise<Uint8Array> {
@@ -160,7 +204,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     try {
       const browser = await this.#factory.launch();
       if (this.#closing) {
-        await browser.close().catch(() => undefined);
+        await finishWithinGrace(browser.close(), this.#closeGraceMs);
         return;
       }
       this.#browser = browser;

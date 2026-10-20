@@ -42,6 +42,8 @@ interface SessionState {
   resolveStart: () => void;
 }
 
+const CLOSE_GRACE_MS = 5_000;
+
 export interface StartupSessionInput {
   readonly startupMs: number;
   readonly retryDelaysMs: readonly number[];
@@ -49,6 +51,8 @@ export interface StartupSessionInput {
   readonly stopped: () => boolean;
   readonly run: (attempt: AttemptBinder) => Promise<boolean>;
   readonly onFailed: (error: Error) => void;
+  /** أقصى انتظار لتنظيف محاولة فاشلة قبل جدولة اللي بعدها. */
+  readonly closeGraceMs?: number;
 }
 
 export interface StartupSession {
@@ -84,6 +88,20 @@ async function release(slot: Slot): Promise<void> {
     await closeHeld(queue.worker, queue.connection, true);
   }
   await renderer?.close().catch(() => undefined);
+}
+
+function waitForGrace(ms: number): { done: Promise<void>; stop: () => void } {
+  if (!(ms > 0)) return { done: Promise.resolve(), stop: () => undefined };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const done = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, ms);
+  });
+  return {
+    done,
+    stop: () => {
+      if (timer !== undefined) clearTimeout(timer);
+    },
+  };
 }
 
 function pause(
@@ -160,7 +178,11 @@ async function fail(
   state.generation += 1;
   if (state.timer !== undefined) clearTimeout(state.timer);
   input.onFailed(error);
-  await release(slot);
+  // تنظيف المتصفح المعلّق ما يؤجّلش المحاولة الجاية. القفل يكمل لو عدّى المهلة.
+  const cleaning = release(slot);
+  const grace = waitForGrace(input.closeGraceMs ?? CLOSE_GRACE_MS);
+  await Promise.race([cleaning.catch(() => undefined), grace.done]);
+  grace.stop();
   if (state.closed || !state.accept || input.stopped()) return;
   const last = input.retryDelaysMs.length - 1;
   const delay = input.retryDelaysMs[Math.min(state.attempt, last)] ?? 60_000;
