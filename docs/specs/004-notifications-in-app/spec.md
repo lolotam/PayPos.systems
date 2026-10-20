@@ -64,7 +64,7 @@ A member marks one message or all their messages read.
 
 `in_app_notifications`: PK `(company_id,id)`, `recipient_user_id` FK to global `user(id)`, nullable business/branch tenant-qualified FKs, template key/revision/locale, safe parameters JSON array, created_at/read_at, source_event_id. No source-outbox FK: identity survives retention. ENABLE/FORCE RLS with company SELECT/INSERT/UPDATE policies for pospay_app; no auth/dispatcher/DELETE grants. Immutable identity and monotonic read trigger; branch/business consistency checked on insert.
 
-RLS keys on company because a database-only worker inserts recipients without a user session and uses the same restricted role. Every API list/count/update keys on the verified session user inside withTenant. The shared selected-company guard rechecks active membership via withUser before entering the tenant, matching workspace discovery; it never trusts principal membership hints. Business/branch are message context, not additional permission filters: the producer explicitly selected this recipient.
+RLS keys on company because a database-only worker inserts recipients without a user session and uses the same restricted role. Every API list/count/update keys on the verified session user inside withTenant. The shared selected-company guard rechecks active membership as the user before entering the tenant, in the same transaction (`withMember`, PP-7.1), matching workspace discovery; it never trusts principal membership hints. Business/branch are message context, not additional permission filters: the producer explicitly selected this recipient.
 
 Indexes: unique dedupe key (covers source event/company), company/business, company/branch, recipient-user FK index, `(company_id,recipient_user_id,created_at DESC,id DESC)`, and partial unread index with the same order where read_at IS NULL. All indexes are created with the new table; no concurrent rebuild.
 
@@ -97,7 +97,7 @@ No new permission or feature flag; selected-company membership plus recipient ow
 
 ### Review fixes
 
-The session area reads the authenticated user id separately without changing `loadBrowserSession`'s in/out contract. The dashboard frame passes that identity to notifications; every inbox query and mutation invalidation includes both company and user. Shared browser navigation publishes a payload without personal data over BroadcastChannel before navigation; the shared query provider clears cached data and reloads on messages from another tab. Unsupported BroadcastChannel leaves navigation working. SelectedCompanyGuard verifies the company has `deleted_at IS NULL` inside `withTenant` after the active membership check and returns FORBIDDEN otherwise.
+The session area reads the authenticated user id separately without changing `loadBrowserSession`'s in/out contract. The dashboard frame passes that identity to notifications; every inbox query and mutation invalidation includes both company and user. Shared browser navigation publishes a payload without personal data over BroadcastChannel before navigation; the shared query provider clears cached data and reloads on messages from another tab. Unsupported BroadcastChannel leaves navigation working. SelectedCompanyGuard verifies the company has `deleted_at IS NULL` inside the same `withMember` transaction, after the active membership is proven with an empty company GUC (PP-7.1), and returns FORBIDDEN otherwise.
 
 ## Success Criteria
 

@@ -171,6 +171,11 @@ beforeAll(async () => {
       tenantCalls.push(companyId);
       return database.withTenant(companyId, fn, options);
     },
+    withMember: (userId, companyId, fn) =>
+      database.withMember(userId, companyId, (tx) => {
+        tenantCalls.push(companyId);
+        return fn(tx);
+      }),
   };
   app = await createApp(
     {
