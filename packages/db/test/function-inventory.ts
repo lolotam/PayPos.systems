@@ -69,6 +69,11 @@ export const FUNCTION_INVENTORY = [
     proconfig: ['search_path=pg_catalog, pg_temp'],
   },
   {
+    proname: 'pospay_system_id',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog'],
+  },
+  {
     proname: 'sweep_expired_idempotency_keys',
     prosecdef: true,
     proconfig: ['search_path=pg_catalog, pg_temp'],

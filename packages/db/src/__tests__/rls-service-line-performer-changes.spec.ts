@@ -17,6 +17,7 @@ import {
 
 const FUNCTIONS = [
   'line_performers_change_guard',
+  'pospay_system_id',
   'service_lines_performer_transition',
   'slpc_begin',
   'slpc_change_complete',
