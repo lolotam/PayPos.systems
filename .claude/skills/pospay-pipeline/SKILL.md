@@ -137,8 +137,9 @@ pins the PosPay rules on top of it.
      both forms after it, while `README.md` and its absolute `F:\` path still read (Codex on #416);
    - the checker refuses the run when the volume creates NTFS 8.3 short names (`GIT~1` for `.git` would match none
      of the name rules; Codex on #416), probed by making a long-named folder in the isolated config home and reading
-     `dir /x`, or when an entry at the worktree root has one. On 2026-10-20 F: created none and the worktree had
-     none, while the same probe on C: was refused;
+     `dir /x`, or when any entry still has one in any folder the link scan visits (every folder outside
+     `node_modules` and `.git`, at any depth), because disabling creation keeps old aliases. On 2026-10-20 F: created
+     none and the worktree had none, the whole check took 1.7 s, and the same probe on C: was refused;
    - the checker refuses the run when a symlink or junction inside the worktree resolves outside it, or would if it
      is broken, because opencode authorizes the written path and then follows the link (Codex on #416). MiniMax
      cannot make one without a shell. In `node_modules` it reads only the levels pnpm links at (the top, `@scope`
@@ -181,6 +182,9 @@ pins the PosPay rules on top of it.
      they can hold credentials (Playwright MCP storage-state files keep cookies and local storage; Codex on #416). A
      2026-10-20 smoke test refused reads of `.playwright-mcp/storage-state.json` and `.vscode/settings.json`, and
      `README.md` still read;
+   - `read` and `edit` deny the logs the root `.gitignore` ignores (`*.log` and the npm/pnpm `*-debug.log*`), which
+     can hold tokens, request bodies or customer data and never show in `git status` when unchanged (Codex on #416).
+     A 2026-10-20 smoke test refused `apps/api/server.log` and `pnpm-debug.log.1`;
    - `edit` also denies every path the root `.gitignore` ignores, outside `.env` and `.claude` (denied above): the
      dependency and build folders (`node_modules`, `.pnpm-store`, `dist`, `build`, `.next`, `out`, `.turbo`,
      `coverage`), local tool state other agents or IDEs load (`.agents`, `.vscode`, `.idea`, `.playwright-mcp`), and

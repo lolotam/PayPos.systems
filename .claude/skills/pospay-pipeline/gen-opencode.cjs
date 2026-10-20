@@ -64,6 +64,9 @@ const ignoredFolders = [
   '.playwright-mcp',
 ];
 const ignoredFiles = ['.DS_Store', 'Thumbs.db', 'next-env.d.ts'];
+// Logs the root .gitignore ignores (*.log and the npm/pnpm debug logs) can hold tokens, request bodies or customer
+// data, and an unchanged log never shows in git status, so MiniMax may neither read nor edit one (Codex on #416).
+const logPaths = ['*.log', '*-debug.log*'];
 // Local tool state may hold credentials (Playwright MCP storage-state files keep cookies and local storage; IDE
 // settings can keep tokens), so MiniMax may not read these folders either (Codex on #416).
 const localToolPaths = ['.agents', '.vscode', '.idea', '.playwright-mcp'].flatMap((dir) => [
@@ -83,7 +86,7 @@ const generatedPaths = [
   ]),
   ...ignoredFiles.flatMap((name) => [name, `*/${name}`, `*${BS}${name}`]),
   '*.tsbuildinfo',
-  '*.log',
+  ...logPaths,
   // The one nested .gitignore, .specify/.gitignore: Spec Kit's active-feature pointer and local extension config,
   // which its scripts read to pick the slice (Codex on #416).
   '.specify/feature.json',
@@ -99,7 +102,7 @@ const driveLetterPaths = 'ABCDEGHIJKLMNOPQRSTUVWXYZ'
 // path (\\?\C:), or a root on the current drive. Codex on #416 flagged the first two as able to skip a drive-letter deny.
 // A colon anywhere but the drive letter is an NTFS stream: .env::$DATA is the .env file itself, and a named stream
 // is a hidden file git never shows. No worktree path has one, so '??*:*' (two or more characters before a colon)
-// refuses them while F:... still matches nothing (Codex on #416; a smoke test read .env::$DATA before this).
+// refuses them while an F:\ path, whose only colon is its second character, matches nothing (Codex on #416; a smoke test read .env::$DATA before this).
 // A name component that ends in a space or a dot is not a real worktree path either: opencode 2.0.32 writes it
 // literally (a folder named '.opencode ' beside the real one), and Win32 tools would strip the space or dot and
 // reach the protected name (Codex on #416). Normal paths never end a component that way.
@@ -126,6 +129,7 @@ const permission = {
     ...configPaths,
     ...claudePaths,
     ...localToolPaths,
+    ...logPaths,
     ...otherDrivePaths,
   ]),
   edit: fileRules([

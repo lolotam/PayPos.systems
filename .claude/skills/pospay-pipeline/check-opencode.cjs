@@ -61,6 +61,9 @@ const ignoredFolders = [
   '.playwright-mcp',
 ];
 const ignoredFiles = ['.DS_Store', 'Thumbs.db', 'next-env.d.ts'];
+// Logs the root .gitignore ignores (*.log and the npm/pnpm debug logs) can hold tokens, request bodies or customer
+// data, and an unchanged log never shows in git status, so MiniMax may neither read nor edit one (Codex on #416).
+const logPaths = ['*.log', '*-debug.log*'];
 // Local tool state may hold credentials (Playwright MCP storage-state files keep cookies and local storage; IDE
 // settings can keep tokens), so MiniMax may not read these folders either (Codex on #416).
 const localToolPaths = ['.agents', '.vscode', '.idea', '.playwright-mcp'].flatMap((dir) => [
@@ -80,7 +83,7 @@ const generatedPaths = [
   ]),
   ...ignoredFiles.flatMap((name) => [name, `*/${name}`, `*${BS}${name}`]),
   '*.tsbuildinfo',
-  '*.log',
+  ...logPaths,
   // The one nested .gitignore, .specify/.gitignore: Spec Kit's active-feature pointer and local extension config,
   // which its scripts read to pick the slice (Codex on #416).
   '.specify/feature.json',
@@ -96,7 +99,7 @@ const driveLetterPaths = 'ABCDEGHIJKLMNOPQRSTUVWXYZ'
 // path (\\?\C:), or a root on the current drive. Codex on #416 flagged the first two as able to skip a drive-letter deny.
 // A colon anywhere but the drive letter is an NTFS stream: .env::$DATA is the .env file itself, and a named stream
 // is a hidden file git never shows. No worktree path has one, so '??*:*' (two or more characters before a colon)
-// refuses them while F:... still matches nothing (Codex on #416; a smoke test read .env::$DATA before this).
+// refuses them while an F:\ path, whose only colon is its second character, matches nothing (Codex on #416; a smoke test read .env::$DATA before this).
 // A name component that ends in a space or a dot is not a real worktree path either: opencode 2.0.32 writes it
 // literally (a folder named '.opencode ' beside the real one), and Win32 tools would strip the space or dot and
 // reach the protected name (Codex on #416). Normal paths never end a component that way.
@@ -119,6 +122,7 @@ const pathMaps = {
     ...configPaths,
     ...claudePaths,
     ...localToolPaths,
+    ...logPaths,
     ...otherDrivePaths,
   ]),
   edit: fileRules([
@@ -297,7 +301,10 @@ function scanNodeModules(dir) {
     }
   }
 }
+// Every folder the link scan visits, for the 8.3 check below.
+const scannedDirs = [];
 (function scanLinks(dir) {
+  scannedDirs.push(dir);
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name === '.git') continue;
     const full = path.join(dir, entry.name);
@@ -311,20 +318,31 @@ if (escapingLinks.length)
 
 // An NTFS 8.3 short name (GIT~1 for .git) would slip past every name rule here (Codex on #416). The PosPay F: volume
 // creates none (2026-10-20: no short name in the worktree, and a new long-named folder got none), so a volume that
-// starts creating them, or a short name at the worktree root, stops the run. `dir /x` prints the short-name column.
+// starts creating them, or a short name kept on any entry the link scan visited (every folder outside node_modules
+// and .git, at any depth), stops the run. `dir /x` prints the short-name column; folders go in batches per call.
 const SHORT_NAME = /\s\S{1,8}~\d+(\.\S{0,3})?\s+\S/;
-function shortNameLines(dir) {
-  const listing = execFileSync('cmd.exe', ['/d', '/c', 'dir', '/x', '/a', dir], {
-    encoding: 'utf8',
-  });
-  return listing.split(/\r?\n/).filter((line) => SHORT_NAME.test(line));
+function shortNameLines(dirs) {
+  const lines = [];
+  for (let start = 0; start < dirs.length;) {
+    const batch = [];
+    let length = 0;
+    while (start < dirs.length && (batch.length === 0 || length + dirs[start].length < 6000)) {
+      length += dirs[start].length + 3;
+      batch.push(dirs[start++]);
+    }
+    const listing = execFileSync('cmd.exe', ['/d', '/c', 'dir', '/x', '/a', ...batch], {
+      encoding: 'utf8',
+    });
+    lines.push(...listing.split(/\r?\n/).filter((line) => SHORT_NAME.test(line)));
+  }
+  return lines;
 }
 try {
   if (configHome) {
     const probe = path.join(configHome, 'pospay-8dot3-probe-with-a-long-name');
     fs.mkdirSync(probe, { recursive: true });
     try {
-      if (shortNameLines(configHome).length)
+      if (shortNameLines([configHome]).length)
         problems.push(
           'this volume creates 8.3 short names: disable them (fsutil 8dot3name set) first',
         );
@@ -332,10 +350,10 @@ try {
       fs.rmSync(probe, { recursive: true, force: true });
     }
   }
-  const rootShortNames = shortNameLines(path.dirname(path.resolve(file)));
-  if (rootShortNames.length)
+  const keptShortNames = shortNameLines(scannedDirs);
+  if (keptShortNames.length)
     problems.push(
-      `8.3 short names at the worktree root: ${rootShortNames.map((l) => l.trim()).join(' | ')}`,
+      `8.3 short names in the worktree: ${keptShortNames.map((l) => l.trim()).join(' | ')}`,
     );
 } catch (error) {
   problems.push(`cannot confirm that no 8.3 short name exists (${error.message})`);
