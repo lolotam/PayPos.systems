@@ -419,6 +419,16 @@ export function checkModules(root, map) {
         ) {
           problems.push(`${rel}: @pospay/${pkg} composition wiring is not declared for this root`);
         }
+        if (
+          pkg === 'documents' &&
+          from.module === null &&
+          !(map.compositionRoots['documents'] ?? []).includes(rel) &&
+          !rel.startsWith('apps/worker/src/documents/')
+        ) {
+          problems.push(
+            `${rel}: @pospay/documents may be imported only by the worker documents folder and its composition root`,
+          );
+        }
         if (target === null) continue;
         const to = place(root, target);
         // The composition root is imported only by the composition root: nothing can forward a module through it.

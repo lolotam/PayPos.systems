@@ -393,3 +393,56 @@ describe('ADR-0019 private auth OTP database facade', () => {
     );
   });
 });
+
+describe('ADR-0049 documents renderer import', () => {
+  const wiringMap = {
+    ...MAP,
+    packagesRestricted: { ...MAP.packagesRestricted, documents: ['reporting'] },
+    compositionRoots: { ...MAP.compositionRoots, documents: ['apps/worker/src/main.ts'] },
+  };
+  const code = "import { render } from '@pospay/documents'; void render;\n";
+  const workerPackage = {
+    'apps/worker/package.json': '{"name":"@pospay/worker","dependencies":{}}',
+  };
+
+  it('allows the worker documents folder and its composition root', () => {
+    assert.equal(
+      checkModules(
+        repo({
+          ...workerPackage,
+          'apps/worker/src/main.ts': code,
+          'apps/worker/src/documents/processor.ts': code,
+        }),
+        wiringMap,
+      ).join('\n'),
+      '',
+    );
+  });
+
+  it('allows a reporting module and rejects outbox and identity', () => {
+    assert.equal(
+      checkModules(
+        repo({
+          ...workerPackage,
+          'apps/api/src/modules/reporting/persistence/render.ts': code,
+        }),
+        wiringMap,
+      ).join('\n'),
+      '',
+    );
+    assert.match(
+      checkModules(
+        repo({ ...workerPackage, 'apps/worker/src/outbox/sneak.ts': code }),
+        wiringMap,
+      ).join('\n'),
+      /worker documents folder and its composition root/,
+    );
+    assert.match(
+      checkModules(
+        repo({ ...workerPackage, 'apps/api/src/modules/identity/persistence/sneak.ts': code }),
+        wiringMap,
+      ).join('\n'),
+      /may be imported only by reporting/,
+    );
+  });
+});

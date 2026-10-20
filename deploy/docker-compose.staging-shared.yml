@@ -100,6 +100,8 @@ services:
 
   worker:
     image: ${REGISTRY:-ghcr.io/lolotam}/pospay-worker:${IMAGE_TAG:?}
+    init: true
+    stop_grace_period: 90s
     restart: unless-stopped
     environment:
       <<: [*app-env, *staff-otp-env]
@@ -119,7 +121,7 @@ services:
       migrate:
         condition: service_completed_successfully
     networks: [dokploy-network]
-    mem_limit: 384m
+    mem_limit: 1g
 
 networks:
   dokploy-network:

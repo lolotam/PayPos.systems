@@ -15,4 +15,7 @@ export const WORKER_LOG_EVENTS = [
   'notification job failed',
   'whatsapp inbox queue error',
   'whatsapp inbox job failed',
+  'document render',
+  'document renderer unavailable',
+  'document renderer available',
 ] as const;
