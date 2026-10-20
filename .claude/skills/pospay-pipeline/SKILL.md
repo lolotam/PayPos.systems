@@ -324,6 +324,10 @@ pins the PosPay rules on top of it.
    $ErrorActionPreference = 'Stop'
    Set-Location F:\Dev\Worktrees\PosPay\<branch>
    if (-not (Test-Path .git -PathType Leaf)) { throw 'MiniMax runs only at a worktree root, where .git is a file' }
+   # git fetch and git archive below stage the guards through this worktree's .git pointer, so it must lead to the
+   # PosPay main checkout and nowhere else before git runs (Codex on #416)
+   $commonDir = [IO.Path]::GetFullPath((git rev-parse --git-common-dir))
+   if ($commonDir -ne 'F:\Dev\Projects\PosPay.systems\main\.git') { throw "this worktree's .git leads to $commonDir, not the PosPay main checkout: stop" }
    if ((Test-Path .opencode) -or (Test-Path opencode.jsonc)) { throw 'a .opencode folder or opencode.jsonc exists: inspect it, stop' }
    $worktree = (Get-Location).Path
    $guard = Join-Path 'F:\Dev\Worktrees\PosPay\briefs\guard' (Split-Path $worktree -Leaf)

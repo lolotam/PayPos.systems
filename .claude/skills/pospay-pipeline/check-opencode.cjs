@@ -315,17 +315,23 @@ const scannedDirs = [];
 // store of public package code, which MiniMax may read but not edit.
 const hardLinked = [];
 // The root .git is the one entry the scan skips, and git status and reset trust it, so it must be the plain pointer
-// a worktree gets: a regular file with one name (not a link, not a hard link) that points into the main checkout's
-// .git/worktrees folder (Codex on #416).
+// a worktree gets: a regular file with one name (not a link, not a hard link) whose resolved gitdir is one folder
+// directly under the PosPay main checkout's .git\worktrees, not any path that merely ends that way (Codex on #416).
+const MAIN_WORKTREES = path
+  .resolve('F:\\Dev\\Projects\\PosPay.systems\\main\\.git\\worktrees')
+  .toLowerCase();
 const worktreeDir = path.dirname(path.resolve(file));
 const gitPointer = path.join(worktreeDir, '.git');
 try {
   const pointer = fs.lstatSync(gitPointer);
   const gitdir = fs.readFileSync(gitPointer, 'utf8').trim();
+  const target = gitdir.startsWith('gitdir: ') ? path.resolve(worktreeDir, gitdir.slice(8)) : '';
   if (!pointer.isFile() || pointer.isSymbolicLink() || pointer.nlink !== 1)
     problems.push(`${gitPointer} must be a plain file with one name, not a link`);
-  else if (!/^gitdir: .+[\\/]\.git[\\/]worktrees[\\/][^\\/]+$/.test(gitdir))
-    problems.push(`${gitPointer} does not point into a .git/worktrees folder: ${gitdir}`);
+  else if (path.dirname(target).toLowerCase() !== MAIN_WORKTREES)
+    problems.push(
+      `${gitPointer} does not point into the PosPay main checkout's .git\\worktrees: ${gitdir}`,
+    );
 } catch (error) {
   problems.push(`cannot validate ${gitPointer} (${error.message})`);
 }
