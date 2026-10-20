@@ -309,7 +309,9 @@ On the `abdulaziz` SSH profile, in `/opt/pospay-staging`:
 **Restore `<sha>`:** copy `known-good/<sha>/docker-compose.staging-shared.yml` and `staging-deploy.sh` back into
 `/opt/pospay-staging/` (keep the script executable), then run `./staging-deploy.sh <sha>` from there. The script reads
 the `.env` next to itself, so it must always run from `/opt/pospay-staging/`, never from inside `known-good/`.
-7. Point `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
+7. **Only with Waleed's yes:** PP-12.1 makes a staging deploy part of the merge, but a cron change is a change to
+   the server itself. Ask him through his super agent, and do nothing until he answers. Then point
+   `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
    local image is removed by the server's cleanup and the nightly backup then fails silently).
 8. Update the decisions page's «المشروع أول بأول» tab (`CLAUDE.md` §1 5c) at https://plan.pospay.systems
    (`docs/decisions-site.md` §B): `git pull` the `lolotam/plan` clone, set the merged rows, sub-tasks and any partner
