@@ -145,8 +145,13 @@ pins the PosPay rules on top of it.
      shell's environment would prove nothing about it;
    - the checker refuses a global plugin (a `plugin` or `plugins` key in the global config, or a `plugin`/`plugins`
      folder beside it), because plugins load at startup and run as code outside every rule. It also refuses a
-     global `tool`/`tools` folder, because a custom tool named `read` or `edit` would replace the allowed built-in.
+     global `tool`/`tools` folder, because a custom tool named `read` or `edit` would replace the allowed built-in,
+     and a global `agent`/`agents`/`mode`/`modes` folder, because a file there could redefine `pospay-minimax`.
      None of these exists today;
+   - the global `AGENTS.md` is injected into the model automatically, so the checker pins it by SHA-256 to the
+     version reviewed on 2026-10-20. A change stops the run until someone reviews the file and updates the hash in
+     `check-opencode.cjs`. A missing file also stops the run, because opencode would then inject
+     `~/.claude/CLAUDE.md` instead;
    - global instruction files go straight into the model's context, past every read rule, so the checker allows
      only the reviewed global `AGENTS.md` (instruction text with no secrets, checked 2026-10-20). Any other
      `instructions` entry, or a global config it cannot parse, stops the run;

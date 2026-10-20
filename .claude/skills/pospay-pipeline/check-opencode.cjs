@@ -1,6 +1,7 @@
 // Refuses a MiniMax run unless <worktree>/opencode.json parses and carries exactly the required limits
 // (Waleed, SA-6 and SA-7.1, 2026-10-20). Exits 1 with the problems listed.
 // Usage: node .claude/skills/pospay-pipeline/check-opencode.cjs [path to opencode.json]
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -132,9 +133,12 @@ for (const name of ['opencode.json', 'opencode.jsonc']) {
 // Global plugins load at startup and run as code outside every permission rule. None exists today.
 const globalDir = path.join(os.homedir(), '.config', 'opencode');
 // Global custom tools load the same way, and one named read or edit would replace the allowed built-in.
-for (const dir of ['plugin', 'plugins', 'tool', 'tools']) {
+// Global agent and mode files can redefine pospay-minimax and override this file's permissions.
+for (const dir of ['plugin', 'plugins', 'tool', 'tools', 'agent', 'agents', 'mode', 'modes']) {
   if (fs.existsSync(path.join(globalDir, dir)))
-    problems.push(`a global plugin or custom-tool folder exists: ${path.join(globalDir, dir)}`);
+    problems.push(
+      `a global plugin, tool, agent or mode folder exists: ${path.join(globalDir, dir)}`,
+    );
 }
 for (const name of ['opencode.json', 'opencode.jsonc']) {
   const globalPath = path.join(globalDir, name);
@@ -157,6 +161,24 @@ for (const name of ['opencode.json', 'opencode.jsonc']) {
   const instructions = globalConfig.instructions ?? [];
   if (!Array.isArray(instructions) || instructions.some((entry) => entry !== 'AGENTS.md'))
     problems.push(`the global ${name} lists instructions other than AGENTS.md: inspect them`);
+}
+
+// The global AGENTS.md is injected into the model's context automatically, so it is pinned to the reviewed
+// version: a change stops the run until someone reviews it and updates this hash. Without it, opencode falls
+// back to ~/.claude/CLAUDE.md, so a missing file stops the run too.
+const REVIEWED_GLOBAL_AGENTS_SHA256 =
+  'b92fa28a39ad7cb23ed68df7091800d2986c30792b861e1103627f14aa7e1fa8';
+const globalAgents = path.join(globalDir, 'AGENTS.md');
+if (!fs.existsSync(globalAgents)) {
+  problems.push(
+    `${globalAgents} is missing, so opencode would inject ~/.claude/CLAUDE.md instead: stop`,
+  );
+} else {
+  const sha = crypto.createHash('sha256').update(fs.readFileSync(globalAgents)).digest('hex');
+  if (sha !== REVIEWED_GLOBAL_AGENTS_SHA256)
+    problems.push(
+      `${globalAgents} changed since it was reviewed: review it, then update the pinned hash`,
+    );
 }
 
 // opencode also loads config found in every folder above the worktree, up to the drive root.
