@@ -40,9 +40,12 @@ const generatedPaths = [
 // opencode 2.0.32 can treat a path on another drive as inside the project on Windows (path.relative across drives
 // returns an absolute path), so external_directory alone may not stop it (Codex on #416, opencode issue 27596).
 // Every worktree lives on F: (the storage rule), so every other drive is denied by name, in both letter cases.
-const otherDrivePaths = 'ABCDEGHIJKLMNOPQRSTUVWXYZ'
+const driveLetterPaths = 'ABCDEGHIJKLMNOPQRSTUVWXYZ'
   .split('')
   .flatMap((letter) => [`${letter}:*`, `${letter.toLowerCase()}:*`]);
+// A path that starts with a slash is never inside a worktree: it is a UNC share (\\host\C$), a Windows namespace
+// path (\\?\C:), or a root on the current drive. Codex on #416 flagged the first two as able to skip a drive-letter deny.
+const otherDrivePaths = [...driveLetterPaths, `${BS}*`, '/*'];
 // Each path map must hold exactly these rules in this order, because the last matching rule wins. The only allows
 // after "*" are the secret-free .env.example templates, and the git, config and .claude denies follow them, so no
 // allow can re-open a protected tree.
