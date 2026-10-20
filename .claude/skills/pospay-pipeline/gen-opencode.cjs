@@ -11,9 +11,9 @@ const gitPaths = ['.git', '.git/*', '*/.git', '*/.git/*', `*${BS}.git`, `*${BS}.
 // A config, agent or plugin file MiniMax wrote would load on its next round, and a plugin runs as code
 // outside every rule here, so MiniMax may never write one.
 const configPaths = [
-  'opencode.json*',
-  '*/opencode.json*',
-  `*${BS}opencode.json*`,
+  'opencode.*',
+  '*/opencode.*',
+  `*${BS}opencode.*`,
   '.opencode',
   '.opencode/*',
   '*/.opencode',

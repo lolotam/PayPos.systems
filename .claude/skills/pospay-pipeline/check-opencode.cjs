@@ -10,9 +10,9 @@ const path = require('path');
 const BS = String.fromCharCode(92);
 const gitPaths = ['.git', '.git/*', '*/.git', '*/.git/*', `*${BS}.git`, `*${BS}.git${BS}*`];
 const configPaths = [
-  'opencode.json*',
-  '*/opencode.json*',
-  `*${BS}opencode.json*`,
+  'opencode.*',
+  '*/opencode.*',
+  `*${BS}opencode.*`,
   '.opencode',
   '.opencode/*',
   '*/.opencode',

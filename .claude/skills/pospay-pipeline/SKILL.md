@@ -127,7 +127,7 @@ pins the PosPay rules on top of it.
      database passwords (HANDOVER §3.3), and an explicit `"*": "allow"` would otherwise lift opencode's default
      protection for it;
    - `edit` denies everything under `.claude`, where the guard scripts, this template and the skills live;
-   - `edit` also denies every `opencode.json*` and anything under `.opencode`. A config, agent or plugin file
+   - `edit` also denies every `opencode.*` file (config, or an `opencode.cmd` a later shell could run) and anything under `.opencode`. A config, agent or plugin file
      MiniMax wrote would load on its next round, and a plugin runs as code outside every rule. The dispatch also
      stops if a `.opencode` folder or an `opencode.jsonc` already exists;
    - each path map holds exactly `"*": "allow"` followed by its denies, with no other key. Any later allow would
