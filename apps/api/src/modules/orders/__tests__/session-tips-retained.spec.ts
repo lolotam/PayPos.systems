@@ -3,6 +3,7 @@ import {
   recordVisit,
   runTips,
   tip,
+  tipFixture,
   tipInput,
   tipQuiet,
   tipRows,
@@ -29,8 +30,10 @@ it('TP-05 a performer removed from her only line keeps her carried tip while ano
   expect(replaced.revision).toBe(2);
   expect(replaced.tips).toHaveLength(2);
   const rows = await tipRows(f, visit.sessionId);
-  expect(rows.entries).toHaveLength(2);
-  expect(rows.entries).toEqual(
+  const second = String(must(rows.revisions.find((row) => row['revision'] === 2))['id']);
+  const entries = rows.entries.filter((entry) => entry['revision_id'] === second);
+  expect(entries).toHaveLength(2);
+  expect(entries).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ employee_id: must(f.employees[0]), method: 'CASH', amount: '1.000' }),
       expect.objectContaining({ employee_id: must(f.employees[1]), method: 'CARD', amount: '3.000' }),
@@ -110,12 +113,34 @@ it('another manager removes the entry of the removed performer', async () => {
   expect(saved.tips.map((entry) => entry.employee_id)).toEqual([must(f.employees[1])]);
 });
 
+it('TP-05 a performer removed from one line still counts while she performs another active line', async () => {
+  const visit = await twoLinesOfOnePerformer(f);
+  await removeFirst(f, visit);
+  const saved = await runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CARD', '1.500')]), { userId: f.ownerId });
+  expect(saved.revision).toBe(1);
+  const rows = await tipRows(f, visit.sessionId);
+  const first = String(must(rows.revisions[0])['id']);
+  const entries = rows.entries.filter((entry) => entry['revision_id'] === first);
+  expect(entries).toHaveLength(1);
+  expect(entries[0]).toMatchObject({ employee_id: must(f.employees[0]), method: 'CARD', amount: '1.500' });
+});
+
 async function twoPerformerVisit(fixture: TipFixture) {
   const first = fixture.line(must(fixture.services[0]), '25.000', '0.000');
   const second = fixture.line(must(fixture.services[1]), '7.125', '0.000');
   const visit = await recordVisit(fixture, [
     { ...first, performers: [{ employee_id: must(fixture.employees[0]) }] },
     { ...second, performers: [{ employee_id: must(fixture.employees[1]) }] },
+  ]);
+  return { sessionId: visit.sessionId, lineId: must(visit.lineIds[0]) };
+}
+
+async function twoLinesOfOnePerformer(fixture: TipFixture) {
+  const first = fixture.line(must(fixture.services[0]), '25.000', '0.000');
+  const second = fixture.line(must(fixture.services[1]), '7.125', '0.000');
+  const visit = await recordVisit(fixture, [
+    { ...first, performers: [{ employee_id: must(fixture.employees[0]) }] },
+    { ...second, performers: [{ employee_id: must(fixture.employees[0]) }] },
   ]);
   return { sessionId: visit.sessionId, lineId: must(visit.lineIds[0]) };
 }

@@ -58,6 +58,23 @@ it('FR-017 a removed performer who was later soft-deleted still blocks her linke
   }
 });
 
+it('FR-017 a removed performer with no linked user at recording blocks the user linked to her later', async () => {
+  const visit = await recorded(f, '25.000', '0.000', [{ employee_id: must(f.employees[0]) }]);
+  const removed = must(f.employees[0]);
+  const replacement = await employeePerson(changeHost(f), must(f.employees[1]));
+  await replacePerformers(changeHost(f), visit.sessionId, visit.lineId, 1, [replacement]);
+  await f.h.owner`UPDATE employees SET user_id=${f.editorId} WHERE company_id=${f.company} AND id=${removed}`;
+  try {
+    const key = ids.newId();
+    await expect(runEdit(f, visit.sessionId, visit.lineId, editBody({ expected_revision: 2 }), { key })).rejects.toThrow(
+      'SESSION_PERFORMER_SELF_FORBIDDEN',
+    );
+    expect(await quietCounts(f, visit.sessionId, visit.lineId, key)).toEqual({ edits: 0, audits: 0, events: 0, keys: 0 });
+  } finally {
+    await f.h.owner`UPDATE employees SET user_id=NULL WHERE company_id=${f.company} AND id=${removed}`;
+  }
+});
+
 async function editorVisit(fixture: EditFixture) {
   const visit = await recorded(fixture, '25.000', '0.000', [{ employee_id: fixture.editorEmployee }]);
   return { sessionId: visit.sessionId, lineId: visit.lineId };
