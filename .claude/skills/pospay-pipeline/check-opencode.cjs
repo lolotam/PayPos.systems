@@ -354,7 +354,16 @@ function shortNameLines(dirs) {
       encoding: 'utf8',
       windowsVerbatimArguments: true,
     });
-    lines.push(...listing.split(/\r?\n/).filter(hasShortName));
+    const listed = listing.split(/\r?\n/);
+    // Every listed folder prints at least its "." entry, so recognizing fewer entry lines than folders means the
+    // date layout is not the expected one, and the check must stop rather than pass on lines it never read
+    // (Codex on #416).
+    const recognized = listed.filter((line) => ENTRY_LINE.test(line)).length;
+    if (recognized < batch.length)
+      throw new Error(
+        `dir /x printed an unexpected layout (${recognized} entry lines for ${batch.length} folders)`,
+      );
+    lines.push(...listed.filter(hasShortName));
   }
   return lines;
 }
