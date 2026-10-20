@@ -8,6 +8,7 @@ import { lockServiceSessionAccess } from './service-session-access.ts';
 
 const EDIT_PERMISSION = 'edit:service-line-prices:branch';
 const CANCEL_PERMISSION = 'cancel:service-lines:branch';
+const PERFORMERS_PERMISSION = 'change:service-line-performers:branch';
 const READ_PERMISSION = 'read:service-sessions:branch';
 
 type CandidateRow = {
@@ -63,6 +64,17 @@ export async function lockServiceSessionCancelAccess(tx: Tx, companyId: string):
   await lockLineAccess(tx, companyId);
 }
 
+/**
+ * يحفظ سلطة تغيير المنفّذين بنفس أقفال التسجيل المتوافقة مع الكتالوج.
+ *
+ * @param tx معاملة الشركة المستهلكة
+ * @param companyId الشركة المؤكدة
+ * @returns اكتمال قفل الشركة ثم العضويات بترتيب ثابت
+ */
+export async function lockServiceSessionPerformersAccess(tx: Tx, companyId: string): Promise<void> {
+  await lockLineAccess(tx, companyId);
+}
+
 async function lockLineAccess(tx: Tx, companyId: string): Promise<void> {
   await lockServiceSessionAccess(tx, companyId);
 }
@@ -111,6 +123,29 @@ export async function readServiceSessionCancelAccess(
   at: Date,
 ): Promise<LineAccess> {
   return readLineAccess(tx, CANCEL_PERMISSION, companyId, userId, businessId, branchId, at);
+}
+
+/**
+ * يعيد عضويات تغيير المنفّذين المؤهلة بذاتها، ومنع التغيير، وقراءة الزيارات، وميزة الطلبات عند اللحظة المحقونة.
+ * المنع والقراءة يُحسبان على كل عضوية سارية لأن نطاق الـ override مستقل عن نطاق عضويته، والأهلية تبقى للعضوية التي تغطي الفرع وتمنح تغيير المنفّذين بذاتها.
+ *
+ * @param tx معاملة المستهلك نفسها
+ * @param companyId الشركة المؤكدة
+ * @param userId مستخدمة التغيير
+ * @param businessId النشاط الذي أثبته النطاق
+ * @param branchId فرع الزيارة
+ * @param at وقت جديد بعد الأقفال لفحص سريان العضوية
+ * @returns المنع والميزة وحق القراءة والعضويات التي يمنح دورها تغيير المنفّذين على هذا الفرع
+ */
+export async function readServiceSessionPerformersAccess(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  branchId: string,
+  at: Date,
+): Promise<LineAccess> {
+  return readLineAccess(tx, PERFORMERS_PERMISSION, companyId, userId, businessId, branchId, at);
 }
 
 async function readLineAccess(

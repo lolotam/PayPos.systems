@@ -31,6 +31,7 @@ import { SessionTipsCurrentQuery } from './queries/session-tips-current.query.ts
 import { createServiceSessionTransactions } from './persistence/service-session-transactions.ts';
 import { bindLineEditReaders, createLineEditTransactions } from './persistence/line-edit-transactions.ts';
 import { bindLineCancelReaders, createLineCancelTransactions } from './persistence/line-cancel-transactions.ts';
+import { bindLinePerformersReaders, createLinePerformersTransactions } from './persistence/line-performers-transactions.ts';
 import { createSessionTipsTransactions } from './persistence/session-tip-transactions.ts';
 import { createSessionRecovery, recoveryKeyHash } from './persistence/session-recovery.adapter.ts';
 import { sessionRecoveryPlace, sessionRecoveryRecord } from './persistence/session-recovery-read.adapter.ts';
@@ -40,6 +41,7 @@ import { RecordServiceSessionUseCase } from './use-cases/record-service-session/
 import { AppendServiceSessionLinesUseCase } from './use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
 import { EditServiceLinePriceUseCase } from './use-cases/edit-service-line-price/edit-service-line-price.usecase.ts';
 import { CancelServiceLineUseCase } from './use-cases/cancel-service-line/cancel-service-line.usecase.ts';
+import { ChangeLinePerformersUseCase } from './use-cases/change-line-performers/change-line-performers.usecase.ts';
 import { RecordSessionTipsUseCase } from './use-cases/record-session-tips/record-session-tips.usecase.ts';
 import { ConfirmSessionRecoveryUseCase } from './use-cases/confirm-session-recovery/confirm-session-recovery.usecase.ts';
 import { SessionRecoveryController } from './http/session-recovery.controller.ts';
@@ -108,6 +110,9 @@ export function ordersLineEdits(database: TenantWrappers) {
 export function ordersLineCancels(database: TenantWrappers) {
   return createLineCancelTransactions(database, bindLineCancelReaders);
 }
+export function ordersLinePerformers(database: TenantWrappers) {
+  return createLinePerformersTransactions(database, bindLinePerformersReaders);
+}
 export function ordersSessionTips(database: TenantWrappers) {
   return createSessionTipsTransactions(database);
 }
@@ -143,6 +148,7 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
     { provide: AppendServiceSessionLinesUseCase, useValue: writes === null ? null : new AppendServiceSessionLinesUseCase(writes.transactions, writes.recovery, ids, clock) },
     { provide: EditServiceLinePriceUseCase, useValue: database === undefined ? null : new EditServiceLinePriceUseCase(ordersLineEdits(database), ids, clock) },
     { provide: CancelServiceLineUseCase, useValue: database === undefined ? null : new CancelServiceLineUseCase(ordersLineCancels(database), ids, clock) },
+    { provide: ChangeLinePerformersUseCase, useValue: database === undefined ? null : new ChangeLinePerformersUseCase(ordersLinePerformers(database), ids, clock) },
     { provide: RecordSessionTipsUseCase, useValue: database === undefined ? null : new RecordSessionTipsUseCase(ordersSessionTips(database), ids, clock) },
     { provide: SessionTipsCurrentQuery, useValue: database === undefined ? null : ordersSessionTipsCurrent(database, clock) }];
 }
