@@ -127,6 +127,18 @@ for (const name of ['opencode.json', 'opencode.jsonc']) {
     problems.push(`the global ${name} mentions "${AGENT}": inspect it`);
 }
 
+// Global plugins load at startup and run as code outside every permission rule. None exists today.
+const globalDir = path.join(os.homedir(), '.config', 'opencode');
+for (const dir of ['plugin', 'plugins']) {
+  if (fs.existsSync(path.join(globalDir, dir)))
+    problems.push(`a global plugin folder exists: ${path.join(globalDir, dir)}`);
+}
+for (const name of ['opencode.json', 'opencode.jsonc']) {
+  const globalPath = path.join(globalDir, name);
+  if (fs.existsSync(globalPath) && /"plugin"\s*:/.test(fs.readFileSync(globalPath, 'utf8')))
+    problems.push(`the global ${name} declares plugins: inspect them`);
+}
+
 // Higher-precedence sources would override this file: the system config folder and the config env vars.
 // None exists on the PosPay host today, so any that appears stops the run until someone inspects it.
 const systemDir = path.join(process.env.ProgramData ?? 'C:\\ProgramData', 'opencode');

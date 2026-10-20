@@ -138,6 +138,11 @@ pins the PosPay rules on top of it.
      Agent permissions win over top-level ones. So a `default_agent`, or agent permissions added later to the
      untouched global config, cannot loosen the rules. The checker refuses any other agent, a `default_agent`, or a
      global config that mentions `pospay-minimax`;
+   - every run uses `--standalone`, a private opencode server started from this checked environment. The shared
+     `opencode serve --service` keeps the `OPENCODE_*` variables and config it started with, so checking this
+     shell's environment would prove nothing about it;
+   - the checker refuses a global plugin (a `plugin` key in the global config, or a `plugin`/`plugins` folder
+     beside it), because plugins load at startup and run as code outside every rule. None exists today;
    - the checker also refuses a run when a higher-precedence source exists: the system config folder
      `%ProgramData%\opencode`, or any `OPENCODE_CONFIG*`/`OPENCODE_PERMISSION*` environment variable. None exists
      on the host today;
@@ -198,8 +203,9 @@ pins the PosPay rules on top of it.
    $guard = Join-Path 'F:\Dev\Worktrees\PosPay\briefs\guard' (Split-Path $worktree -Leaf)
    if (Test-Path $guard) { Remove-Item $guard -Recurse -Force }
    New-Item -ItemType Directory $guard | Out-Null
-   git fetch -q origin main
-   git archive -o "$guard\guard.tar" origin/main .claude/skills/pospay-pipeline
+   git fetch -q origin main; if ($LASTEXITCODE) { throw 'git fetch failed: a stale guard copy could be trusted, stop' }
+   $mainSha = git rev-parse FETCH_HEAD
+   git archive -o "$guard\guard.tar" $mainSha .claude/skills/pospay-pipeline; if ($LASTEXITCODE) { throw 'git archive failed: stop' }
    tar -xf "$guard\guard.tar" -C $guard; if ($LASTEXITCODE) { throw 'could not stage the guard scripts: stop' }
    $tools = "$guard\.claude\skills\pospay-pipeline"
    $exclude = Join-Path (git rev-parse --git-common-dir) 'info\exclude'
@@ -216,7 +222,7 @@ pins the PosPay rules on top of it.
      }
      if (-not (Get-Command opencode -ErrorAction SilentlyContinue)) { throw 'opencode is not on PATH: stop' }
      $ErrorActionPreference = 'Continue'
-     opencode run --agent pospay-minimax -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
+     opencode run --standalone --agent pospay-minimax -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
          -f F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt "Implement the attached brief."
      $opencodeExit = if ($?) { $LASTEXITCODE } else { 1 }
    } finally {
