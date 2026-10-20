@@ -29,7 +29,7 @@ import {
   type FakeRenderer,
 } from './render-harness.ts';
 
-const SECRET = 'SECRET_HTML_9f3a';
+const LEAK_MARKER = 'LEAK_MARKER_HTML_9f3a';
 const PDF_MARK = 'PDFBYTES_9f3a';
 
 function job(companyId: string, id: string, kind: string) {
@@ -44,7 +44,7 @@ it('stores one PDF, keeps API fields, and logs no document body', async () => {
     renderer.pdf = Uint8Array.from(Buffer.from(`%PDF-${PDF_MARK}`));
     const companyId = renderId();
     const id = renderId();
-    opened.registry.register('fixture', { load: async () => `<p>${SECRET}</p>` });
+    opened.registry.register('fixture', { load: async () => `<p>${LEAK_MARKER}</p>` });
     await opened.redis.hset(documentStatusKey(companyId, id), {
       state: 'QUEUED',
       requested_by: 'user-1',
@@ -66,7 +66,7 @@ it('stores one PDF, keeps API fields, and logs no document body', async () => {
       DOCUMENT_STATUS_TTL_SECONDS,
     );
     const logs = opened.lines.join('\n');
-    expect(logs).not.toContain(SECRET);
+    expect(logs).not.toContain(LEAK_MARKER);
     expect(logs).not.toContain(PDF_MARK);
     expect(logs).toContain('"state":"READY"');
   });
@@ -143,13 +143,13 @@ it('maps a renderer timeout', async () => {
     renderer.failWith = new DocumentRenderTimeoutError();
     const companyId = renderId();
     const id = renderId();
-    opened.registry.register('fixture', { load: async () => `<p>${SECRET}</p>` });
+    opened.registry.register('fixture', { load: async () => `<p>${LEAK_MARKER}</p>` });
     await seedQueued(opened, companyId, id);
     await expect(finishJob(opened, job(companyId, id, 'fixture'), id)).rejects.toThrow(
       'DOCUMENT_RENDER_TIMEOUT',
     );
     expect((await statusOf(opened, companyId, id))['error_code']).toBe('DOCUMENT_RENDER_TIMEOUT');
-    expect(opened.lines.join('\n')).not.toContain(SECRET);
+    expect(opened.lines.join('\n')).not.toContain(LEAK_MARKER);
   });
 });
 

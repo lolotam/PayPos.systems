@@ -1,9 +1,15 @@
+import { Writable } from 'node:stream';
 import type { Job } from 'bullmq';
-import { documentStatusKey } from '@pospay/contracts';
+import { documentBytesKey, documentStatusKey } from '@pospay/contracts';
+import type { Redis } from 'ioredis';
+import { createLogger } from '@pospay/observability';
 import { expect, it } from 'vitest';
 
 import { processDocumentJob, recordExternalJobFailure } from '../process-job.ts';
-import { renderId, seedQueued, statusOf, useRender, type FakeRenderer } from './render-harness.ts';
+import { DocumentSourceRegistry } from '../source-registry.ts';
+import { storeReady } from '../status-store.ts';
+import { WORKER_LOG_EVENTS } from '../../shared/log-events.ts';
+import { FakeRenderer, renderId, seedQueued, statusOf, useRender } from './render-harness.ts';
 
 function job(companyId: string, id: string, kind: string) {
   return { company_id: companyId, render_id: id, kind };
@@ -79,5 +85,91 @@ it('marks a job failed outside the processor when BullMQ finishes it', async () 
     await recordExternalJobFailure(asJob(data, { attemptsMade: 2 }), deps);
     expect((await statusOf(opened, companyId, id))['state']).toBe('RENDERING');
     expect(opened.lines.length).toBe(before);
+  });
+});
+
+function quietLogger() {
+  return createLogger('info', {
+    events: WORKER_LOG_EVENTS,
+    destination: new Writable({
+      write(_chunk, _encoding, done) {
+        done();
+      },
+    }),
+  });
+}
+
+it('releases the job when status Redis never answers', async () => {
+  const redis = { eval: () => new Promise(() => undefined) } as unknown as Redis;
+  const started = Date.now();
+  await expect(
+    processDocumentJob(asJob(job(renderId(), renderId(), 'fixture'), { attemptsMade: 1 }), {
+      redis,
+      registry: new DocumentSourceRegistry(),
+      renderer: new FakeRenderer(),
+      clock: { now: () => started },
+      logger: quietLogger(),
+      deadlineMs: 40,
+    }),
+  ).rejects.toThrow('DOCUMENT_RENDER_TIMEOUT');
+  expect(Date.now() - started).toBeLessThan(2_500);
+});
+
+it('does not start a rejecting source when the deadline has already passed', async () => {
+  const reasons: unknown[] = [];
+  const onUnhandled = (reason: unknown): void => {
+    reasons.push(reason);
+  };
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    await useRender(async (opened) => {
+      const companyId = renderId();
+      const id = renderId();
+      let calls = 0;
+      opened.registry.register('fixture', {
+        load: () => {
+          calls += 1;
+          return Promise.reject(new Error('Noura Salim attendance 08:17'));
+        },
+      });
+      await seedQueued(opened, companyId, id);
+      await expect(
+        processDocumentJob(asJob(job(companyId, id, 'fixture'), { attemptsMade: 1 }), {
+          redis: opened.redis,
+          registry: opened.registry,
+          renderer: opened.renderer,
+          clock: { now: () => Date.now() },
+          logger: opened.logger,
+          deadlineMs: 0,
+        }),
+      ).rejects.toThrow('DOCUMENT_RENDER_TIMEOUT');
+      expect(calls).toBe(0);
+      expect(opened.lines.join('\n')).not.toContain('Noura Salim');
+      expect(opened.lines.join('\n')).not.toContain('08:17');
+      await new Promise((resolve) => setImmediate(resolve));
+    });
+    expect(reasons).toEqual([]);
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+  }
+});
+
+it('does not store READY after the deadline', async () => {
+  await useRender(async (opened) => {
+    const companyId = renderId();
+    const lateId = renderId();
+    const openId = renderId();
+    const pdf = Uint8Array.from(Buffer.from('%PDF-1'));
+    await opened.redis.hset(documentStatusKey(companyId, lateId), { state: 'RENDERING' });
+    await opened.redis.hset(documentStatusKey(companyId, openId), { state: 'RENDERING' });
+    expect(await storeReady(opened.redis, companyId, lateId, pdf, Date.now() - 60_000)).toBe(
+      'late',
+    );
+    expect((await statusOf(opened, companyId, lateId))['state']).toBe('RENDERING');
+    expect(await opened.redis.exists(documentBytesKey(companyId, lateId))).toBe(0);
+    expect(await storeReady(opened.redis, companyId, openId, pdf, Date.now() + 60_000)).toBe(
+      'stored',
+    );
+    expect((await statusOf(opened, companyId, openId))['state']).toBe('READY');
   });
 });

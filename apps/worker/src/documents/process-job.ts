@@ -20,6 +20,8 @@ import type { DocumentSourceRegistry } from './source-registry.ts';
 import { markFailed, markRendering, storeReady } from './status-store.ts';
 
 const JOB_DEADLINE_MS = 30_000;
+/** بعد المهلة، كتابة الفشل لسه بتاخد محاولة قصيرة ومقفولة. */
+const MARK_FAILED_FLOOR_MS = 1_000;
 
 export interface EpochClock {
   now(): number;
@@ -61,12 +63,47 @@ function failsAtOnce(code: DocumentRenderErrorCode): boolean {
 
 function armDeadline(ms: number): { signal: AbortSignal; stop: () => void } {
   const controller = new AbortController();
+  if (!(ms > 0)) {
+    controller.abort();
+    return { signal: controller.signal, stop: () => undefined };
+  }
   const timer = setTimeout(() => controller.abort(), ms);
   return { signal: controller.signal, stop: () => clearTimeout(timer) };
 }
 
+function withinBudget<T>(ms: number, start: () => Promise<T>): Promise<T> {
+  if (!(ms > 0)) return Promise.reject(new DocumentRenderTimeoutError());
+  const work = start();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (settle: () => void): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      settle();
+    };
+    const timer = setTimeout(() => {
+      work.catch(() => undefined);
+      finish(() => reject(new DocumentRenderTimeoutError()));
+    }, ms);
+    work.then(
+      (value) => finish(() => resolve(value)),
+      (error: unknown) => finish(() => reject(error)),
+    );
+  });
+}
+
+function failWindow(deadlineAtMs: number): number {
+  const left = deadlineAtMs - Date.now();
+  if (left <= 0) return MARK_FAILED_FLOOR_MS;
+  return Math.min(left, MARK_FAILED_FLOOR_MS);
+}
+
 function untilAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(new DocumentRenderTimeoutError());
+  if (signal.aborted) {
+    work.catch(() => undefined);
+    return Promise.reject(new DocumentRenderTimeoutError());
+  }
   return new Promise((resolve, reject) => {
     const onAbort = (): void => reject(new DocumentRenderTimeoutError());
     signal.addEventListener('abort', onAbort, { once: true });
@@ -93,8 +130,10 @@ async function renderHtml(
   const source = deps.registry.get(kind);
   if (source === undefined) throw new DocumentKindUnknownError();
   if (!deps.renderer.isAvailable()) throw new DocumentRendererUnavailableError();
+  if (signal.aborted) throw new DocumentRenderTimeoutError();
   const html = await untilAbort(source.load(companyId, renderId, signal), signal);
   assertHtmlWithinLimit(html);
+  if (signal.aborted) throw new DocumentRenderTimeoutError();
   return untilAbort(deps.renderer.render(html, { signal }), signal);
 }
 
@@ -137,13 +176,18 @@ async function failFinal(
   deps: ProcessDocumentDeps,
   data: DocumentRenderJob,
   started: number,
+  deadlineAtMs: number,
   error: unknown,
 ): Promise<void> {
   const code = errorCode(error);
   const failure = rendererFailureText(error);
   const terminal = isFinalAttempt(job) || failsAtOnce(code);
   if (terminal) {
-    await markFailed(deps.redis, data.company_id, data.render_id, code);
+    await withinBudget(failWindow(deadlineAtMs), () =>
+      markFailed(deps.redis, data.company_id, data.render_id, code),
+    ).catch((caught: unknown) => {
+      if (!(caught instanceof DocumentRenderTimeoutError)) throw caught;
+    });
     logOutcome(deps.logger, {
       company_id: data.company_id,
       render_id: data.render_id,
@@ -166,9 +210,12 @@ export async function processDocumentJob(job: Job, deps: ProcessDocumentDeps): P
   const started = deps.clock.now();
   const parsed = documentRenderJob.safeParse(job.data);
   if (!parsed.success) throw new UnrecoverableError('DOCUMENT_JOB_INVALID');
-  const deadline = armDeadline(deps.deadlineMs ?? JOB_DEADLINE_MS);
+  const budgetMs = deps.deadlineMs ?? JOB_DEADLINE_MS;
+  // TIME بتاع Redis ساعة الجدار، مش ساعة السجل اللي الاختبار بيحقنها.
+  const deadlineAtMs = Date.now() + budgetMs;
+  const deadline = armDeadline(budgetMs);
   try {
-    await runGuarded(job, deps, parsed.data, started, deadline.signal);
+    await runGuarded(job, deps, parsed.data, started, deadline.signal, deadlineAtMs);
   } finally {
     deadline.stop();
   }
@@ -180,16 +227,24 @@ async function runGuarded(
   data: DocumentRenderJob,
   started: number,
   signal: AbortSignal,
+  deadlineAtMs: number,
 ): Promise<void> {
   try {
-    const rendering = await markRendering(deps.redis, data.company_id, data.render_id);
+    const rendering = await withinBudget(deadlineAtMs - Date.now(), () =>
+      markRendering(deps.redis, data.company_id, data.render_id),
+    );
     if (!rendering) {
       skip(deps, data, started);
       return;
     }
+    if (signal.aborted) throw new DocumentRenderTimeoutError();
     const pdf = await renderHtml(deps, data.company_id, data.render_id, data.kind, signal);
-    const stored = await storeReady(deps.redis, data.company_id, data.render_id, pdf);
-    if (!stored) {
+    if (signal.aborted) throw new DocumentRenderTimeoutError();
+    const stored = await withinBudget(deadlineAtMs - Date.now(), () =>
+      storeReady(deps.redis, data.company_id, data.render_id, pdf, deadlineAtMs),
+    );
+    if (stored === 'late') throw new DocumentRenderTimeoutError();
+    if (stored !== 'stored') {
       skip(deps, data, started);
       return;
     }
@@ -201,7 +256,7 @@ async function runGuarded(
       duration_ms: deps.clock.now() - started,
     });
   } catch (error) {
-    await failFinal(job, deps, data, started, error);
+    await failFinal(job, deps, data, started, deadlineAtMs, error);
   }
 }
 

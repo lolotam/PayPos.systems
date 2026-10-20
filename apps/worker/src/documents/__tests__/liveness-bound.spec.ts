@@ -4,6 +4,10 @@ import { expect, it } from 'vitest';
 import { startRendererLiveness } from '../liveness.ts';
 import { FakeRenderer } from './render-harness.ts';
 
+function yieldNow(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 function redisStub(status: string | undefined): Redis {
   return {
     status,
@@ -53,5 +57,43 @@ it('publishes immediately when redis is already ready', async () => {
   });
   expect(sets).toBeGreaterThan(0);
   expect(Date.now() - started).toBeLessThan(500);
+  await live.stop();
+});
+
+it('drops a liveness key published by a SET that settles after disconnect', async () => {
+  let stored: string | null = null;
+  const pending: Array<() => void> = [];
+  const redis = redisStub('ready');
+  redis.set = () =>
+    new Promise((resolve) => {
+      pending.push(() => {
+        stored = '1';
+        resolve('OK');
+      });
+    });
+  redis.del = async () => {
+    stored = null;
+    return 1;
+  };
+  const renderer = new FakeRenderer();
+  const starting = startRendererLiveness({
+    redis,
+    renderer,
+    intervalMs: 20,
+    readyTimeoutMs: 1_000,
+  });
+  await yieldNow();
+  expect(pending).toHaveLength(1);
+  renderer.available = false;
+  await renderer.close();
+  const release = pending[0];
+  if (release === undefined) throw new Error('missing pending set');
+  release();
+  const live = await starting;
+  await yieldNow();
+  expect(stored).toBeNull();
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  expect(stored).toBeNull();
+  expect(pending).toHaveLength(1);
   await live.stop();
 });

@@ -49,6 +49,7 @@ function settled(value: unknown): Promise<unknown> {
 
 /**
  * بيجدّد مفتاح الحياة ما دام المتصفح متاح، وبيمسحه فور ما يقع أو الوركر يقفل.
+ * SET اتبدأ قبل القطع بيتمسح بعد ما يخلّص، عشان الرد المتأخر ما يعلنش متصفح ميت.
  * الانتهاء بعد ٣ ثواني لسه بيمسك الانهيار لو المسح نفسه ما لحقش.
  */
 export async function startRendererLiveness(input: {
@@ -62,31 +63,43 @@ export async function startRendererLiveness(input: {
   const intervalMs = input.intervalMs ?? 1_000;
   const readyTimeoutMs = input.readyTimeoutMs ?? READY_TIMEOUT_MS;
   let timer: ReturnType<typeof setInterval> | undefined;
-  const publish = (): Promise<unknown> =>
-    settled(input.redis.set(DOCUMENT_RENDERER_ALIVE_KEY, '1', 'EX', ttlSeconds));
-  const refresh = (): void => {
-    void publish();
+  let epoch = 0;
+  let stopped = false;
+  const live = (): boolean => !stopped && input.renderer.isAvailable();
+  const publish = async (): Promise<void> => {
+    if (!live()) return;
+    const token = epoch;
+    await settled(input.redis.set(DOCUMENT_RENDERER_ALIVE_KEY, '1', 'EX', ttlSeconds));
+    if (token !== epoch || !live()) await settled(input.redis.del(DOCUMENT_RENDERER_ALIVE_KEY));
   };
   const halt = async (): Promise<void> => {
+    epoch += 1;
     if (timer !== undefined) clearInterval(timer);
     timer = undefined;
     await settled(input.redis.del(DOCUMENT_RENDERER_ALIVE_KEY));
   };
   const arm = (): void => {
-    if (timer !== undefined) return;
-    refresh();
-    timer = setInterval(refresh, intervalMs);
+    if (!live() || timer !== undefined) return;
+    void publish();
+    timer = setInterval(() => {
+      void publish();
+    }, intervalMs);
   };
   input.renderer.onAvailable(arm);
   input.renderer.onUnavailable(() => {
     void halt();
   });
   await whenRedisReady(input.redis, readyTimeoutMs);
-  if (input.renderer.isAvailable()) {
-    await settled(input.redis.set(DOCUMENT_RENDERER_ALIVE_KEY, '1', 'EX', ttlSeconds));
-    if (timer === undefined) timer = setInterval(refresh, intervalMs);
-  } else {
-    await halt();
+  await publish();
+  if (live() && timer === undefined) {
+    timer = setInterval(() => {
+      void publish();
+    }, intervalMs);
   }
-  return { stop: () => halt() };
+  return {
+    stop: async () => {
+      stopped = true;
+      await halt();
+    },
+  };
 }

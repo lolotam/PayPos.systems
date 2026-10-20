@@ -15,8 +15,8 @@ const HOSTILE_SCRIPT = `<!doctype html><html><head><title>${QUIET_TITLE}</title>
 </head><body><p id="quiet">${QUIET_BODY}</p></body></html>`;
 const HOSTILE_NETWORK = `<!doctype html><html><head>
 <link rel="stylesheet" href="https://example.invalid/sheet.css">
-<style>@font-face{font-family:X;src:url(https://example.invalid/font.woff2)} body{font-family:X}</style>
-</head><body><img src="https://example.invalid/pixel.png" alt=""></body></html>`;
+<style>@font-face{font-family:X;src:url(https://example.invalid/font.woff2)} .x{font-family:X}</style>
+</head><body><p class="x">face</p><img src="https://example.invalid/pixel.png" alt=""></body></html>`;
 
 async function chromiumInstalled(): Promise<boolean> {
   try {

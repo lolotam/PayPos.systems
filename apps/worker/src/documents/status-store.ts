@@ -22,6 +22,11 @@ return 0
 `;
 
 const STORE_READY = `
+local now = redis.call('TIME')
+local nowMs = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
+if nowMs >= tonumber(ARGV[4]) then
+  return -1
+end
 local state = redis.call('HGET', KEYS[1], 'state')
 if state ~= 'RENDERING' then
   return 0
@@ -47,6 +52,15 @@ function moved(result: unknown): boolean {
   return Number(result) === 1;
 }
 
+export type StoreReadyResult = 'stored' | 'unchanged' | 'late';
+
+function readyResult(result: unknown): StoreReadyResult {
+  const code = Number(result);
+  if (code === 1) return 'stored';
+  if (code < 0) return 'late';
+  return 'unchanged';
+}
+
 /** QUEUED أو RENDERING بس. أي حالة تانية (أو مفتاح ناقص) بترجع false من غير كتابة. */
 export async function markRendering(
   redis: Redis,
@@ -68,15 +82,16 @@ export async function markFailed(
   return moved(await redis.eval(MARK_FAILED, 1, key, code, String(DOCUMENT_STATUS_TTL_SECONDS)));
 }
 
-/** من RENDERING بس: البايتات والحالة والانتهاء في سكربت واحد. غير كده ما يكتبش. */
+/** من RENDERING بس وقبل مهلة الساعة على Redis. رد متأخر ما ينشرش READY. */
 export async function storeReady(
   redis: Redis,
   companyId: string,
   renderId: string,
   pdf: Uint8Array,
-): Promise<boolean> {
+  deadlineAtMs: number,
+): Promise<StoreReadyResult> {
   const statusKey = documentStatusKey(companyId, renderId);
-  return moved(
+  return readyResult(
     await redis.eval(
       STORE_READY,
       2,
@@ -85,6 +100,7 @@ export async function storeReady(
       Buffer.from(pdf),
       String(DOCUMENT_BYTES_TTL_SECONDS),
       String(DOCUMENT_STATUS_TTL_SECONDS),
+      String(deadlineAtMs),
     ),
   );
 }

@@ -34,6 +34,7 @@ import {
   startCoreBeforeDocuments,
   type DocumentRendering,
 } from './documents/start-documents.ts';
+import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
 
 const config = readConfig(process.env);
 const logger = createLogger(config.LOG_LEVEL, { events: WORKER_LOG_EVENTS });
@@ -127,6 +128,7 @@ const release = async (): Promise<void> => {
   // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
   await files.close();
   await staff.close();
+  // المتصفح بيتقفل بعد تصفية الطابور، مش مع إيقاف الحلقة.
   await documents?.close();
   await optionalWithin(
     () =>
@@ -182,8 +184,12 @@ async function startWorkerCore(): Promise<void> {
         stopping = true;
         email.stop();
         maintenance?.stop();
-        await loop.stop();
-        await closeOptional([() => queue?.stop(), () => inbound?.stop(), () => documents?.stop()]);
+        await drainDispatchAndDocuments({
+          stopDispatch: () => loop.stop(),
+          stopDocuments: () => documents?.stop(),
+          stopQueue: () => queue?.stop(),
+          stopInbound: () => inbound?.stop(),
+        });
         clearInterval(capabilityTimer);
         await closeOptional([() => otp?.stop()]);
       },
