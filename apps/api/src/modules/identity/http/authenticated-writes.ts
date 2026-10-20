@@ -163,11 +163,11 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
     ),
     'OwnLeaveController.cancelRequest': declared(
       'PERSONAL',
-      'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',
+      'apps/api/src/modules/staff/persistence/leave-records.ts#lockedLeaveEmployee',
     ),
     'OwnLeaveController.request': declared(
       'PERSONAL',
-      'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',
+      'apps/api/src/modules/staff/persistence/leave-records.ts#lockedLeaveEmployee',
     ),
     'PasskeysController.registrationOptions': declared(
       'PERSONAL',

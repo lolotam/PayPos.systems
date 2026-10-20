@@ -257,15 +257,11 @@ describe('the mounted allowlist', () => {
       const handler = mountedHandler(key);
       const personal: unknown = Reflect.getMetadata(PERSONAL_ROUTE, handler);
       const staff: unknown = Reflect.getMetadata(STAFF_ROUTE, handler);
-      const citesGuard = entry.checkedIn === PERSONAL_GUARD || entry.checkedIn === STAFF_GUARD;
-      // A principal.kind check in the handler body has neither marker; removing a marker fails the guard cite.
-      if (!citesGuard && personal === undefined && staff === undefined) continue;
-      if (entry.access === 'DEVICE_ONLY') {
-        expect(staff).toBe('device');
-      } else if (personal !== undefined || entry.checkedIn === PERSONAL_GUARD) {
-        expect(personal === true || personal === 'staff').toBe(true);
-      } else {
-        expect(staff).toBe('staff');
+      // The personal guard is the whole check only when every request goes through it. PERSONAL_ROUTE 'staff'
+      // lets a request with an Authorization header take another path, so such a route cites a check on both.
+      expect(entry.checkedIn === PERSONAL_GUARD, key).toBe(personal === true);
+      if (entry.checkedIn === STAFF_GUARD) {
+        expect(staff, key).toBe(entry.access === 'DEVICE_ONLY' ? 'device' : 'staff');
       }
     }
   });
