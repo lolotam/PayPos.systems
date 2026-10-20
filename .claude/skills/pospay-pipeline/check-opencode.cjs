@@ -240,25 +240,51 @@ if (!process.env.PWD || path.resolve(process.env.PWD).toLowerCase() !== worktree
 
 // opencode authorizes the path as written and then follows a symlink or junction, so a link inside the worktree that
 // points outside it would carry every read past external_directory (Codex on #416). MiniMax cannot create one (no
-// shell), so any such link already there stops the run. node_modules is skipped: pnpm links it to its package store,
-// which holds public package code, and MiniMax may not edit there.
-const SKIP_LINK_SCAN = new Set(['node_modules', '.git', '.pnpm-store']);
+// shell), so any such link already there stops the run. pnpm's own links all stay inside the worktree (its store
+// files are hard links, not symlinks): 2,832 of them in the main checkout on 2026-10-20, plus 5 broken ones.
 const escapingLinks = [];
+function checkLink(full) {
+  let target;
+  try {
+    target = fs.realpathSync(full);
+  } catch {
+    // A broken link cannot be followed today; judge it by where it would point.
+    try {
+      target = path.resolve(path.dirname(full), fs.readlinkSync(full));
+    } catch {
+      target = '';
+    }
+  }
+  if (!target.toLowerCase().startsWith(worktreeRoot + path.sep)) escapingLinks.push(full);
+}
+// A node_modules tree holds links only at its top level, under @scope folders, and in each .pnpm/<package>/node_modules;
+// the real package files below them hold none, so only those levels are read (about 1.2 s on the main checkout).
+function scanNodeModules(dir) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isSymbolicLink()) checkLink(full);
+    else if (entry.isDirectory() && entry.name.startsWith('@')) scanNodeModules(full);
+    else if (entry.isDirectory() && entry.name === '.pnpm') {
+      for (const pkg of fs.readdirSync(full, { withFileTypes: true })) {
+        if (pkg.isSymbolicLink()) checkLink(path.join(full, pkg.name));
+        else if (pkg.isDirectory()) scanNodeModules(path.join(full, pkg.name, 'node_modules'));
+      }
+    }
+  }
+}
 (function scanLinks(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (SKIP_LINK_SCAN.has(entry.name)) continue;
+    if (entry.name === '.git') continue;
     const full = path.join(dir, entry.name);
-    if (entry.isSymbolicLink()) {
-      let target;
-      try {
-        target = fs.realpathSync(full);
-      } catch {
-        target = '';
-      }
-      if (!target.toLowerCase().startsWith(worktreeRoot + path.sep)) escapingLinks.push(full);
-    } else if (entry.isDirectory()) {
-      scanLinks(full);
-    }
+    if (entry.isSymbolicLink()) checkLink(full);
+    else if (entry.isDirectory() && entry.name === 'node_modules') scanNodeModules(full);
+    else if (entry.isDirectory()) scanLinks(full);
   }
 })(path.dirname(path.resolve(file)));
 if (escapingLinks.length)
