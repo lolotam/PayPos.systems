@@ -52,7 +52,7 @@ export function withShare(person: Person, ordinal: number, share: number): Perso
 }
 
 // كل تغيير في معاملاته لوحده: القاعدة ترفض تغييرين لنفس السطر في نفس المعاملة.
-// حقول لقطة الملغي بتتبعت كاملة: الغايب منها يعني null (مفيش اسم ولا دور)، والقاعدة بتقبل الاسم أو الدور.
+// حقول لقطة اللي غيّر المنفّذين بتتبعت كاملة: الغايب منها يعني null (مفيش اسم ولا دور)، والقاعدة بتقبل الاسم أو الدور.
 export async function commitPerformerChange(f: SessionFixture, ctx: ChangeCtx, lineId: string, plan: PerformerChangePlan) {
   await f.db.withTenant(f.company, (tx) => applyChange(tx, ctx, ids, {
     lineId, previous: plan.revision - 1, revision: plan.revision,

@@ -40,7 +40,7 @@ async function seedTargetChanges() {
     after: [withShare(first, 1, 10000)], reason: 'Rana left the branch before the visit', changerNameEn: 'Changer' });
 }
 
-// الحجم موزّع على أسطر كتير مش على سطر واحد: تريجرات جداول التاريخ بتفرض سلسلة revision متتالية لكل سطر، فآلاف التغييرات على سطر واحد مش ممكنة.
+// الحجم موزّع على أسطر كتير: سلسلة revision بتخلّي كل تغيير على نفس السطر في معاملة لوحده، فآلاف التغييرات على سطر واحد هتبطّأ الاختبار، بينما الأسطر الكتير بتتزرع في معاملة واحدة.
 async function plant() {
   await f.h.owner.begin(async (tx) => { await copyVolume(tx, f.company); });
   await f.h.owner.begin(async (tx) => { await recordHistory(tx, f.company); });

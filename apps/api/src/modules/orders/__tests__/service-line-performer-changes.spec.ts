@@ -45,8 +45,9 @@ async function seedChanges() {
   await commitPerformerChange(f, ctx, lineId, { revision: 3, before: await livePeople(f, lineId),
     after: [withShare(first, 1, 10000)], reason: 'Rana left the branch before the visit',
     changerNameEn: null, changerRole: 'owner', roleIsSystem: true, roleNameEn: 'Owner' });
+  // المجموعة دي بتترد عمداً بترتيب معكوس، عشان ترتيب الجانب في رد القراءة يثبت ترتيب performer_ordinal مش ترتيب الإدراج.
   await commitPerformerChange(f, ctx, lineId, { revision: 4, before: await livePeople(f, lineId),
-    after: [withShare(first, 1, 6000), withShare(second, 2, 4000)], reason: 'Corrected the split',
+    after: [withShare(second, 2, 4000), withShare(first, 1, 6000)], reason: 'Corrected the split',
     changerNameEn: null, changerRole: 'branch_manager', roleIsSystem: true, roleNameEn: 'Branch manager' });
 }
 
@@ -79,9 +80,31 @@ it('returns no identity, no membership and no column of the change row', async (
     'performer_ordinal', 'warning']) {
     expect(payload).not.toContain(hidden);
   }
+  // الرد المتين بيشيل المفتاح الزيادة، فالتسريب بيتأكد من الجملة نفسها: مفيش عمود زيادة ولا مفتاح زيادة في الجانبين.
+  const statement = serviceLinePerformerChangesStatement(scope(), { limit: 50 });
+  const rows = await f.db.withTenant(f.company, (tx) => tx.execute<Record<string, unknown>>(statement), { userId: f.ownerId });
+  const header = ['revision', 'changed_at', 'reason', 'changer_name_ar', 'changer_name_en', 'changer_role',
+    'changer_role_is_system', 'changer_role_name_ar', 'changer_role_name_en', 'before_side', 'after_side'];
+  const side = ['name_ar', 'name_en', 'share_bps'];
+  expect(rows.length).toBeGreaterThan(0);
+  for (const row of rows) {
+    if ((row['revision'] as number | null) === null) continue;
+    expect(Object.keys(row).sort()).toEqual([...header].sort());
+    for (const people of [row['before_side'], row['after_side']]) {
+      for (const person of people as Record<string, unknown>[]) {
+        expect(Object.keys(person).sort()).toEqual([...side].sort());
+      }
+    }
+  }
 });
 
 it('pages newest-first on limit 2 using the last included revision', async () => {
+  const whole = await read({ limit: 3 });
+  expect(whole.items).toHaveLength(3);
+  expect(whole.next_cursor).toBeNull();
+  const first = await read({ limit: 2 });
+  expect(first.items).toHaveLength(2);
+  expect(first.next_cursor).not.toBeNull();
   const seen: number[] = [];
   let cursor: string | undefined;
   do {
@@ -134,14 +157,20 @@ it('rejects a bad or foreign cursor before any tenant read', async () => {
   expect(statements).toHaveLength(0);
 });
 
-it('reads no row of another tenant', async () => {
+it('shows the statement of one company to another tenant as nothing, while the owning tenant still reads its rows', async () => {
   const statement = serviceLinePerformerChangesStatement(scope(), { limit: 50 });
   const rows = await f.db.withTenant(f.otherCompany, (tx) => tx.execute(statement));
   expect(rows).toHaveLength(0);
-  const [changes] = await f.db.withTenant(f.otherCompany, (tx) => tx.execute(
-    sql`SELECT count(*)::int AS total FROM service_line_performer_changes WHERE company_id=${f.company}`));
-  expect(Number(must(changes)['total'])).toBe(0);
-  const [sides] = await f.db.withTenant(f.otherCompany, (tx) => tx.execute(
-    sql`SELECT count(*)::int AS total FROM service_line_performer_change_rows WHERE company_id=${f.company}`));
-  expect(Number(must(sides)['total'])).toBe(0);
+  const counts = async (company: string) => {
+    const [changes] = await f.db.withTenant(company, (tx) => tx.execute(
+      sql`SELECT count(*)::int AS total FROM service_line_performer_changes WHERE company_id=${f.company}`));
+    const [sides] = await f.db.withTenant(company, (tx) => tx.execute(
+      sql`SELECT count(*)::int AS total FROM service_line_performer_change_rows WHERE company_id=${f.company}`));
+    return { changes: Number(must(changes)['total']), sides: Number(must(sides)['total']) };
+  };
+  // نفس العدّين تحت المستأجر المالك: عدد أكبر من صفر، فالصفر تحت المستأجر التاني من الـ RLS مش من جدول فاضي.
+  const owner = await counts(f.company);
+  expect(owner.changes).toBeGreaterThan(0);
+  expect(owner.sides).toBeGreaterThan(0);
+  expect(await counts(f.otherCompany)).toEqual({ changes: 0, sides: 0 });
 });
