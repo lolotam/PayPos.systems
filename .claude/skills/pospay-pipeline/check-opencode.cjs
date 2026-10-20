@@ -1,9 +1,7 @@
 // Refuses a MiniMax run unless <worktree>/opencode.json parses and carries exactly the required limits
 // (Waleed, SA-6 and SA-7.1, 2026-10-20). Exits 1 with the problems listed.
 // Usage: node .claude/skills/pospay-pipeline/check-opencode.cjs [path to opencode.json]
-const crypto = require('crypto');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 
 // Kept apart from gen-opencode.cjs on purpose: the checker is the spec the generator is held to, so a
@@ -121,64 +119,31 @@ checkPermissionMap(agent.permission, `agent ${AGENT} permission`);
 if (JSON.stringify(agent.permission) !== JSON.stringify(config.permission))
   problems.push(`agent ${AGENT} permission must equal the top-level permission`);
 
-// The global config merges in; an agent of the same name there could change this one, so refuse it.
-for (const name of ['opencode.json', 'opencode.jsonc']) {
-  const globalPath = path.join(os.homedir(), '.config', 'opencode', name);
-  if (!fs.existsSync(globalPath)) continue;
-  const raw = fs.readFileSync(globalPath, 'utf8');
-  if (raw.includes(`"${AGENT}"`))
-    problems.push(`the global ${name} mentions "${AGENT}": inspect it`);
-}
-
-// Global plugins load at startup and run as code outside every permission rule. None exists today.
-const globalDir = path.join(os.homedir(), '.config', 'opencode');
-// Global custom tools load the same way, and one named read or edit would replace the allowed built-in.
-// Global agent and mode files can redefine pospay-minimax and override this file's permissions.
-for (const dir of ['plugin', 'plugins', 'tool', 'tools', 'agent', 'agents', 'mode', 'modes']) {
-  if (fs.existsSync(path.join(globalDir, dir)))
-    problems.push(
-      `a global plugin, tool, agent or mode folder exists: ${path.join(globalDir, dir)}`,
-    );
-}
-for (const name of ['opencode.json', 'opencode.jsonc']) {
-  const globalPath = path.join(globalDir, name);
-  if (fs.existsSync(globalPath) && /"plugins?"\s*:/.test(fs.readFileSync(globalPath, 'utf8')))
-    problems.push(`the global ${name} declares plugins: inspect them`);
-}
-
-// Global instruction files go straight into the model's context, past every read rule, so only the reviewed
-// global AGENTS.md (instruction text, no secrets; checked 2026-10-20) may be listed. Any other entry stops the run.
-for (const name of ['opencode.json', 'opencode.jsonc']) {
-  const globalPath = path.join(globalDir, name);
-  if (!fs.existsSync(globalPath)) continue;
-  let globalConfig;
-  try {
-    globalConfig = JSON.parse(fs.readFileSync(globalPath, 'utf8'));
-  } catch {
-    problems.push(`the global ${name} could not be parsed, so its instructions cannot be checked`);
-    continue;
-  }
-  const instructions = globalConfig.instructions ?? [];
-  if (!Array.isArray(instructions) || instructions.some((entry) => entry !== 'AGENTS.md'))
-    problems.push(`the global ${name} lists instructions other than AGENTS.md: inspect them`);
-}
-
-// The global AGENTS.md is injected into the model's context automatically, so it is pinned to the reviewed
-// version: a change stops the run until someone reviews it and updates this hash. Without it, opencode falls
-// back to ~/.claude/CLAUDE.md, so a missing file stops the run too.
-const REVIEWED_GLOBAL_AGENTS_SHA256 =
-  'b92fa28a39ad7cb23ed68df7091800d2986c30792b861e1103627f14aa7e1fa8';
-const globalAgents = path.join(globalDir, 'AGENTS.md');
-if (!fs.existsSync(globalAgents)) {
+// Every run uses an isolated global config home (XDG_CONFIG_HOME), so none of the user's global opencode config
+// loads. That rules out MCP servers (the global config starts 28 on every run, some reaching outside services),
+// plugins, custom tools, agents, modes and instruction files. The folder must hold only the AGENTS.md the dispatch
+// writes, so opencode does not fall back to ~/.claude/CLAUDE.md either. It must sit outside the worktree, where
+// MiniMax cannot write.
+const ISOLATED_AGENTS =
+  'PosPay MiniMax run: follow the attached brief only. Read and edit files in this worktree only.\n';
+const configHome = process.env.XDG_CONFIG_HOME;
+const worktreeRoot = path.dirname(path.resolve(file)).toLowerCase();
+if (!configHome) {
+  problems.push('XDG_CONFIG_HOME is not set: the run must use the isolated config home');
+} else if (path.resolve(configHome).toLowerCase().startsWith(worktreeRoot)) {
   problems.push(
-    `${globalAgents} is missing, so opencode would inject ~/.claude/CLAUDE.md instead: stop`,
+    `XDG_CONFIG_HOME (${configHome}) is inside the worktree, where MiniMax could edit it`,
   );
 } else {
-  const sha = crypto.createHash('sha256').update(fs.readFileSync(globalAgents)).digest('hex');
-  if (sha !== REVIEWED_GLOBAL_AGENTS_SHA256)
+  const isolatedDir = path.join(configHome, 'opencode');
+  const entries = fs.existsSync(isolatedDir) ? fs.readdirSync(isolatedDir) : [];
+  if (entries.join() !== 'AGENTS.md') {
     problems.push(
-      `${globalAgents} changed since it was reviewed: review it, then update the pinned hash`,
+      `${isolatedDir} must hold only AGENTS.md (found: ${entries.join(', ') || 'nothing'})`,
     );
+  } else if (fs.readFileSync(path.join(isolatedDir, 'AGENTS.md'), 'utf8') !== ISOLATED_AGENTS) {
+    problems.push(`${path.join(isolatedDir, 'AGENTS.md')} is not the dispatch's fixed text`);
+  }
 }
 
 // opencode also loads config found in every folder above the worktree, up to the drive root.
@@ -197,7 +162,7 @@ const systemDir = path.join(process.env.ProgramData ?? 'C:\\ProgramData', 'openc
 if (fs.existsSync(systemDir))
   problems.push(`a system opencode config exists at ${systemDir}: inspect it`);
 for (const name of Object.keys(process.env)) {
-  if (/^OPENCODE_(CONFIG|PERMISSION)/i.test(name))
+  if (/^(OPENCODE_(CONFIG|PERMISSION|DB)|XDG_DATA_HOME$)/i.test(name))
     problems.push(`environment variable ${name} is set: unset it`);
 }
 

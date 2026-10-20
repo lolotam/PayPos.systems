@@ -149,22 +149,21 @@ pins the PosPay rules on top of it.
    - every run uses `--standalone`, a private opencode server started from this checked environment. The shared
      `opencode serve --service` keeps the `OPENCODE_*` variables and config it started with, so checking this
      shell's environment would prove nothing about it;
-   - the checker refuses a global plugin (a `plugin` or `plugins` key in the global config, or a `plugin`/`plugins`
-     folder beside it), because plugins load at startup and run as code outside every rule. It also refuses a
-     global `tool`/`tools` folder, because a custom tool named `read` or `edit` would replace the allowed built-in,
-     and a global `agent`/`agents`/`mode`/`modes` folder, because a file there could redefine `pospay-minimax`.
-     None of these exists today;
-   - the global `AGENTS.md` is injected into the model automatically, so the checker pins it by SHA-256 to the
-     version reviewed on 2026-10-20. A change stops the run until someone reviews the file and updates the hash in
-     `check-opencode.cjs`. A missing file also stops the run, because opencode would then inject
-     `~/.claude/CLAUDE.md` instead;
-   - global instruction files go straight into the model's context, past every read rule, so the checker allows
-     only the reviewed global `AGENTS.md` (instruction text with no secrets, checked 2026-10-20). Any other
-     `instructions` entry, or a global config it cannot parse, stops the run;
+   - **every run uses an isolated global config home**: the dispatch points `XDG_CONFIG_HOME` at a fresh
+     `briefs\guard\<worktree>\xdg-config`, outside the worktree, holding only a fixed one-line `AGENTS.md`. None of
+     Waleed's global opencode config loads. On 2026-10-20 that global config started 28 MCP servers on every run,
+     some connecting to outside services such as `mcp.facebook.com` and `n8n`, even with every MCP tool denied. Under
+     isolation the log showed zero MCP lines, and MiniMax still signed in, because its credentials sit in the data
+     folder (`auth.json`), not in the config. Isolation also keeps out global plugins, custom tools (which could
+     replace `read` or `edit`), agent and mode files (which could redefine `pospay-minimax`) and instruction files
+     (which enter the model's context past every read rule). The fixed `AGENTS.md` stops opencode falling back to
+     `~/.claude/CLAUDE.md`. The checker refuses the run unless `XDG_CONFIG_HOME` is set to a folder outside the
+     worktree that holds exactly that file;
    - the checker refuses an `.opencode`, `opencode.json` or `opencode.jsonc` in any folder above the worktree, up to
      the drive root, because opencode loads config from every ancestor. None exists today;
    - the checker also refuses a run when a higher-precedence source exists: the system config folder
-     `%ProgramData%\opencode`, or any `OPENCODE_CONFIG*`/`OPENCODE_PERMISSION*` environment variable. None exists
+     `%ProgramData%\opencode`, or any `OPENCODE_CONFIG*`/`OPENCODE_PERMISSION*`/`OPENCODE_DB*` or `XDG_DATA_HOME`
+     environment variable (the last two would also move the database the session stopper reads). None exists
      on the host today;
    - git, the GitHub CLI, OpenSSH and Docker are off `PATH`, as a second layer, and `PATH` is restored after the
      run.
@@ -231,11 +230,17 @@ pins the PosPay rules on top of it.
    $exclude = Join-Path (git rev-parse --git-common-dir) 'info\exclude'
    if (-not (Select-String -Path $exclude -SimpleMatch '/opencode.json' -Quiet)) { Add-Content $exclude "`n/opencode.json" }
    Copy-Item "$tools\opencode-pospay.json" .\opencode.json -Force
-   node "$tools\check-opencode.cjs" opencode.json; if ($LASTEXITCODE) { throw 'opencode.json refused: stop' }
+   $isolatedConfig = Join-Path $guard 'xdg-config'
+   New-Item -ItemType Directory (Join-Path $isolatedConfig 'opencode') | Out-Null
+   [IO.File]::WriteAllText((Join-Path $isolatedConfig 'opencode\AGENTS.md'),
+     "PosPay MiniMax run: follow the attached brief only. Read and edit files in this worktree only.`n")
    $savedPath = $env:PATH
+   $savedXdg = $env:XDG_CONFIG_HOME
    $opencodeExit = 1
    $stopExit = 1
    try {
+     $env:XDG_CONFIG_HOME = $isolatedConfig   # no global config: no MCP servers, plugins, agents or instructions
+     node "$tools\check-opencode.cjs" opencode.json; if ($LASTEXITCODE) { throw 'opencode.json refused: stop' }
      $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\(Git|GitHub CLI|OpenSSH|Docker|DockerDesktop)(\\|$)') }) -join ';'
      foreach ($tool in 'git', 'gh', 'ssh', 'scp', 'docker') {
        if (Get-Command "$tool.exe" -ErrorAction SilentlyContinue) { throw "$tool is still on PATH: stop" }
@@ -258,6 +263,7 @@ pins the PosPay rules on top of it.
      }
    } finally {
      $env:PATH = $savedPath
+     $env:XDG_CONFIG_HOME = $savedXdg
      node "$tools\stop-opencode-sessions.cjs" $worktree
      $stopExit = $LASTEXITCODE
    }
