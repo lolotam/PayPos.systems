@@ -10,6 +10,7 @@ import { serviceCommissionRule, serviceCommissionRuleView } from '../catalog/ser
 const id = sharedId.toLowerCase();
 
 export const sessionMoney = z.string().regex(/^(0|[1-9]\d{0,10})\.\d{3}$/).meta({ id: 'SessionMoney' });
+const businessDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const bps = z.number().int().min(0).max(10000);
 const names = { name_en: z.string(), name_ar: z.string().nullable() };
 const sessionLineDiscount = z.discriminatedUnion('kind', [
@@ -47,11 +48,13 @@ export const savedServiceLine = responseObject({
   edited: z.boolean().optional(),
   // الغياب يعني أن السطر لم يُلغَ؛ جسم التسجيل القديم يبقى بلا المفتاح ومن غير .default.
   cancelled_at: timestamp.optional(),
+  // الغياب يعني أن المنفّذين لم يتغيّروا؛ جسم التسجيل القديم يبقى بلا المفتاح ومن غير .default.
+  performers_changed_at: businessDate.optional(),
 }).meta({ id: 'SavedServiceLine' });
 export const serviceSession = responseObject({
   id, business_id: id, branch_id: id, customer: responseObject({ id, name: z.string(), phone_masked: z.string() }),
   recorded_by: id, recorded_by_membership_id: id, occurred_at: timestamp, recorded_at: timestamp,
-  business_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), business_timezone: z.string(), late: z.boolean(),
+  business_date: businessDate, business_timezone: z.string(), late: z.boolean(),
   total_net: sessionMoney, lines: z.array(savedServiceLine).min(1).max(20),
 }).meta({ id: 'ServiceSession' });
 export const rejectedServiceLine = responseObject({
@@ -103,6 +106,27 @@ export const cancelServiceLineResponseNarrow = responseObject({
 }).meta({ id: 'CancelServiceLineResponseNarrow' });
 export const cancelServiceLineResponse = z.union([cancelServiceLineResponseFull, cancelServiceLineResponseNarrow])
   .meta({ id: 'CancelServiceLineResponse' });
+export const changeLinePerformersInput = z.strictObject({
+  // بلا حدّ أدنى أو أقصى: صفر أو أكثر من أربع أو تكرار تصل للنطاق لترد 422 على قاعدة SS-20، لا 400 من التحقق الشكلي.
+  performers: z.array(sessionPerformerInput),
+  // السبب الغائب يصل للنطاق ليرد 422، لا 400 من التحقق الشكلي.
+  reason: z.string().optional(),
+  expected_revision: z.number().int().min(1),
+  changer_membership_id: id.optional(),
+}).meta({ id: 'ChangeLinePerformersInput' });
+const performersChangedServiceLine = savedServiceLine.safeExtend({
+  status: z.literal('ACTIVE'),
+  performers_changed_at: businessDate,
+});
+export const changeLinePerformersResponseFull = responseObject({
+  line: performersChangedServiceLine,
+  session: responseObject({ id, total_net: sessionMoney }),
+}).meta({ id: 'ChangeLinePerformersResponseFull' });
+export const changeLinePerformersResponseNarrow = responseObject({
+  changed: z.literal(true),
+}).meta({ id: 'ChangeLinePerformersResponseNarrow' });
+export const changeLinePerformersResponse = z.union([changeLinePerformersResponseFull, changeLinePerformersResponseNarrow])
+  .meta({ id: 'ChangeLinePerformersResponse' });
 const serviceLineChangeFields = {
   changed_at: timestamp,
   changed_by: id,
@@ -166,7 +190,8 @@ export const serviceSessionSchemas = [sessionMoney, sessionPerformerInput, sessi
   appendServiceSessionLinesInput, sessionPerformer, savedServiceLine, serviceSession, rejectedServiceLine,
   recordServiceSessionResponse, appendServiceSessionLinesResponse, editServiceLineInput, editServiceLineResponseFull,
   editServiceLineResponseNarrow, editServiceLineResponse, cancelServiceLineInput, cancelServiceLineResponseFull,
-  cancelServiceLineResponseNarrow, cancelServiceLineResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded, lateServiceSessionNoticeRequested, serviceLineEditNoticeRequested, serviceLineCancelNoticeRequested, serviceLinePerformersNoticeRequested];
+  cancelServiceLineResponseNarrow, cancelServiceLineResponse, changeLinePerformersInput, changeLinePerformersResponseFull,
+  changeLinePerformersResponseNarrow, changeLinePerformersResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded, lateServiceSessionNoticeRequested, serviceLineEditNoticeRequested, serviceLineCancelNoticeRequested, serviceLinePerformersNoticeRequested];
 export type RecordServiceSessionInput = z.infer<typeof recordServiceSessionInput>;
 export type AppendServiceSessionLinesInput = z.infer<typeof appendServiceSessionLinesInput>;
 export type RecordServiceSessionResponse = z.infer<typeof recordServiceSessionResponse>;
@@ -185,3 +210,7 @@ export type CancelServiceLineInput = z.infer<typeof cancelServiceLineInput>;
 export type CancelServiceLineResponseFull = z.infer<typeof cancelServiceLineResponseFull>;
 export type CancelServiceLineResponseNarrow = z.infer<typeof cancelServiceLineResponseNarrow>;
 export type CancelServiceLineResponse = z.infer<typeof cancelServiceLineResponse>;
+export type ChangeLinePerformersInput = z.infer<typeof changeLinePerformersInput>;
+export type ChangeLinePerformersResponseFull = z.infer<typeof changeLinePerformersResponseFull>;
+export type ChangeLinePerformersResponseNarrow = z.infer<typeof changeLinePerformersResponseNarrow>;
+export type ChangeLinePerformersResponse = z.infer<typeof changeLinePerformersResponse>;

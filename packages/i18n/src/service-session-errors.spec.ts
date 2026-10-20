@@ -118,8 +118,8 @@ const cancelMessages = {
       'A tip is recorded for a performer who has no other service on this visit. Remove the tip first, then cancel.',
   },
   SESSION_LINE_IDENTITY_UNKNOWN: {
-    message_ar: 'مينفعش نتأكد مين نفّذ الخدمة دي (سطر قديم)، فمينفعش تتلغي.',
-    message_en: 'This older line has no performer identity record and cannot be cancelled.',
+    message_ar: 'مينفعش نتأكد مين نفّذ الخدمة دي (سطر قديم)، فمينفعش تتغيّر.',
+    message_en: 'This older line has no performer identity record and cannot be changed.',
   },
   SESSION_CANCELLER_MEMBERSHIP_REQUIRED: {
     message_ar: 'اختاري العضوية اللي بتلغّي بيها.',
@@ -134,6 +134,31 @@ const cancelMessages = {
 it('publishes the cancel-line errors from spec 054', () => {
   for (const code of Object.keys(cancelMessages) as (keyof typeof cancelMessages)[]) {
     expect(serviceSessionErrors[code]).toEqual(cancelMessages[code]);
+  }
+});
+
+const performersChangeMessages = {
+  SESSION_PERFORMERS_NO_CHANGE: {
+    message_ar: 'المنفّذين والنسب زي ما هما، مفيش تغيير يتحفظ.',
+    message_en: 'Performers and shares are unchanged; nothing to save.',
+  },
+  SESSION_PERFORMERS_REASON_INVALID: {
+    message_ar: 'اكتب سبب تغيير المنفّذين (لحد 500 حرف).',
+    message_en: 'Enter the reason for the performer change (up to 500 characters).',
+  },
+  SESSION_CHANGER_MEMBERSHIP_REQUIRED: {
+    message_ar: 'اختاري العضوية اللي بتغيّري بيها المنفّذين.',
+    message_en: 'Select the membership you are changing the performers under.',
+  },
+  SESSION_LINE_PERFORMERS_NOT_CHANGEABLE: {
+    message_ar: 'المنفّذين في السطر ده مينفعش يتغيّروا.',
+    message_en: 'The performers of this line cannot be changed.',
+  },
+} as const;
+
+it('publishes the change-performers errors from spec 055', () => {
+  for (const code of Object.keys(performersChangeMessages) as (keyof typeof performersChangeMessages)[]) {
+    expect(serviceSessionErrors[code]).toEqual(performersChangeMessages[code]);
   }
 });
 
