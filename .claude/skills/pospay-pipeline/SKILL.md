@@ -34,9 +34,12 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 | Fixer | the implementer, continuing **its own MiniMax session** with only the findings (§4), for every production-code finding, a one-line one included (PP-10.1); the orchestrator (or a doc-writing session) only for a fix on a docs-only PR, where no implementer session exists | yes |
 | Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
 
-Before the first dispatch of a session, run one trivial `opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash` call. If the
-model id is gone, or the call fails on auth or quota, stop and ask the owner. Never substitute another provider
-(PP-10.1). On a quota stop, hold and resume the same session after the renewal.
+Before the first dispatch of a session, check the model with `opencode models`, which runs no inference. Its output must
+list `minimax-coding-plan/MiniMax-M3.1-Flash`. Never probe it with a bare `opencode run`: that would run the model
+before §4's guarded setup, under opencode's default, unrestricted permissions. An auth or quota failure then shows on the
+first guarded run, as a nonzero exit (§4 rule 8). If the model id is gone, or a run fails on auth or quota, stop and
+ask the owner. Never substitute another provider (PP-10.1). On a quota stop, hold and resume the same session after
+the renewal.
 
 ---
 
@@ -120,6 +123,9 @@ pins the PosPay rules on top of it.
    - `webfetch`, `websearch`, `task`/`subagent` and `skill` are denied;
    - `external_directory` is denied, so no tool reaches outside the worktree, the main checkout's `.git` included;
    - `read`, `edit`, `glob` and `list` deny `.git` and anything under it, in both slash styles;
+   - `read` and `edit` deny `.env` and `.env.*` at any depth, in both slash styles. A worktree's copied `.env` holds
+     database passwords (HANDOVER §3.3), and an explicit `"*": "allow"` would otherwise lift opencode's default
+     protection for it;
    - `edit` also denies every `opencode.json*` and anything under `.opencode`. A config, agent or plugin file
      MiniMax wrote would load on its next round, and a plugin runs as code outside every rule. The dispatch also
      stops if a `.opencode` folder or an `opencode.jsonc` already exists;

@@ -10,7 +10,13 @@
       "*/.git": "deny",
       "*/.git/*": "deny",
       "*\\.git": "deny",
-      "*\\.git\\*": "deny"
+      "*\\.git\\*": "deny",
+      ".env": "deny",
+      ".env.*": "deny",
+      "*/.env": "deny",
+      "*/.env.*": "deny",
+      "*\\.env": "deny",
+      "*\\.env.*": "deny"
     },
     "edit": {
       "*": "allow",
@@ -28,7 +34,13 @@
       "*/.opencode": "deny",
       "*/.opencode/*": "deny",
       "*\\.opencode": "deny",
-      "*\\.opencode\\*": "deny"
+      "*\\.opencode\\*": "deny",
+      ".env": "deny",
+      ".env.*": "deny",
+      "*/.env": "deny",
+      "*/.env.*": "deny",
+      "*\\.env": "deny",
+      "*\\.env.*": "deny"
     },
     "glob": {
       "*": "allow",

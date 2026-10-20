@@ -21,6 +21,8 @@ const configPaths = [
   `*${BS}.opencode`,
   `*${BS}.opencode${BS}*`,
 ];
+// The worktree's copied .env holds database passwords (HANDOVER §3.3); MiniMax never reads or writes one.
+const envPaths = ['.env', '.env.*', '*/.env', '*/.env.*', `*${BS}.env`, `*${BS}.env.*`];
 const denyAfterAllow = (paths) =>
   Object.fromEntries([['*', 'allow'], ...paths.map((p) => [p, 'deny'])]);
 
@@ -32,8 +34,8 @@ const config = {
   permission: {
     '*': 'deny',
     external_directory: 'deny',
-    read: denyAfterAllow(gitPaths),
-    edit: denyAfterAllow([...gitPaths, ...configPaths]),
+    read: denyAfterAllow([...gitPaths, ...envPaths]),
+    edit: denyAfterAllow([...gitPaths, ...configPaths, ...envPaths]),
     glob: denyAfterAllow(gitPaths),
     list: denyAfterAllow(gitPaths),
     todowrite: 'allow',
