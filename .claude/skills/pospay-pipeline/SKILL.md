@@ -107,15 +107,18 @@ pins the PosPay rules on top of it.
    the worktree:
 
    **The git ban is enforced, not just written.** Before the first run, copy the tracked template
-   `.claude/skills/pospay-pipeline/opencode-pospay.json` to `<worktree>\opencode.json`. Its rules are:
+   `.claude/skills/pospay-pipeline/opencode-pospay.json` to `<worktree>\opencode.json`. Its `bash` rules start
+   with `"*": "allow"` and then deny `git` anywhere in a command (`git`, `git *`, `*git *`, `*git.exe*`, `*/git`)
+   and every shell wrapper that could hide it (`bash -c*`, `sh -c*`, `powershell*`, `pwsh*`, `cmd /c*`,
+   `cmd.exe*`). The last matching rule wins, so `"*"` must come first. A pattern only matches the whole command
+   string, so a deny on `git *` alone lets `bash -c "git stash"` through. In the 2026-10-20 test with MiniMax,
+   `git status`, `bash -c "git status"`, `powershell -Command "git status"` and `echo x && git log` were all
+   rejected, while `echo` and `node --version` ran. The price is that a harmless command containing `git ` (a
+   `grep` for it) is refused too. Wildcards cannot prove a complete ban, so after every run the orchestrator still
+   checks `git stash list` and the reflog of the shared checkout.
 
-   ```json
-   { "permission": { "bash": { "*": "allow", "git": "deny", "git *": "deny" } } }
-   ```
-
-   The last matching rule wins, so `"*"` must come first. The file only takes effect as a project-level
-   `opencode.json`: the `OPENCODE_CONFIG` env var did not apply it in the 2026-10-20 test, where `git status` was
-   denied but `echo` still ran. The orchestrator (never MiniMax) adds `/opencode.json` to the clone's shared
+   The file only takes effect as a project-level `opencode.json`: the `OPENCODE_CONFIG` env var did not apply it.
+   The orchestrator (never MiniMax) adds `/opencode.json` to the clone's shared
    `info/exclude` once per clone, as the first two lines below do, so the copy never lands in a diff. The rule stays
    local because `.gitignore` is a config file outside the docs-only lane.
 

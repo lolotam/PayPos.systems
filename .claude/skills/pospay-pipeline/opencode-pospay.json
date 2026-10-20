@@ -4,7 +4,16 @@
     "bash": {
       "*": "allow",
       "git": "deny",
-      "git *": "deny"
+      "git *": "deny",
+      "*git *": "deny",
+      "*git.exe*": "deny",
+      "*/git": "deny",
+      "bash -c*": "deny",
+      "sh -c*": "deny",
+      "powershell*": "deny",
+      "pwsh*": "deny",
+      "cmd /c*": "deny",
+      "cmd.exe*": "deny"
     }
   }
 }
