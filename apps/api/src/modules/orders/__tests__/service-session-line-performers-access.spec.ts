@@ -145,8 +145,9 @@ it('PC-10 a performer removed by another manager still forbids her linked user',
   const line = must(visit.lines[0]).id;
   await runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[0]) }] }), { userId: f.ownerId });
   const key = ids.newId();
+  const before = await changeQuiet(f, visit.sessionId, line, key);
   await expect(runChange(f, visit.sessionId, line, performersInput({ expected_revision: 2, performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toMatchObject({ code: 'SESSION_PERFORMER_SELF_FORBIDDEN' });
-  expect(await changeQuiet(f, visit.sessionId, line, key)).toMatchObject({ keys: 0 });
+  expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ ...before, keys: 0 });
   expect(await runChange(f, visit.sessionId, line, performersInput({ expected_revision: 2, performers: [{ employee_id: must(f.employees[1]) }] }), { userId: f.ownerId })).toMatchObject({ line: { revision: 3 } });
 });
 
@@ -160,7 +161,7 @@ it('PC-10 a removed performer whose link is gone still forbids her recorded user
     const key = ids.newId();
     const before = await changeQuiet(f, visit.sessionId, line, key);
     await expect(runChange(f, visit.sessionId, line, performersInput({ expected_revision: 2, performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toMatchObject({ code: 'SESSION_PERFORMER_SELF_FORBIDDEN' });
-    expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual(before);
+    expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ ...before, keys: 0 });
   } finally {
     await f.linkEmployee(f.editorEmployee, f.editorId);
   }
@@ -178,7 +179,7 @@ it('PC-10 a re-added performer still forbids her recorded user', async () => {
     const key = ids.newId();
     const before = await changeQuiet(f, visit.sessionId, line, key);
     await expect(runChange(f, visit.sessionId, line, performersInput({ expected_revision: 3, performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toMatchObject({ code: 'SESSION_PERFORMER_SELF_FORBIDDEN' });
-    expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual(before);
+    expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ ...before, keys: 0 });
   } finally {
     await f.linkEmployee(f.editorEmployee, null);
     await f.linkEmployee(f.editorEmployee, f.editorId);
@@ -194,8 +195,9 @@ it('PC-10b a removed performer linked to the changer later still forbids her', a
   await f.linkEmployee(removed, f.editorId);
   try {
     const key = ids.newId();
+    const before = await changeQuiet(f, visit.sessionId, line, key);
     await expect(runChange(f, visit.sessionId, line, performersInput({ expected_revision: 2, performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toMatchObject({ code: 'SESSION_PERFORMER_SELF_FORBIDDEN' });
-    expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
+    expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ ...before, keys: 0 });
   } finally {
     await f.linkEmployee(removed, null);
     await f.linkEmployee(f.editorEmployee, f.editorId);

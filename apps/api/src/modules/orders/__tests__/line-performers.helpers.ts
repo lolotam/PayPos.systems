@@ -185,6 +185,17 @@ export async function seedWarnings(
   });
 }
 
+/** يزرع نشاطاً ثانياً وفرعاً في الشركة نفسها، فحالة «موظفة نشاط آخر» تُبنى بلا شركة أخرى. */
+export async function otherBusinessOfCompany(f: PerformersFixture) {
+  const businessId = ids.newId();
+  const branchId = ids.newId();
+  await f.h.owner`INSERT INTO businesses(company_id,id,name_en,vertical_type,timezone)
+    VALUES(${f.company},${businessId},'Synthetic second salon','salon','Asia/Kuwait')`;
+  await f.h.owner`INSERT INTO branches(company_id,id,business_id,name_en)
+    VALUES(${f.company},${branchId},${businessId},'Synthetic second branch')`;
+  return { businessId, branchId };
+}
+
 /** يسجّل مستخدماً جديداً بلا عضوية، فيُستخدم لربط موظفة بمستخدم آخر لا بالحساب نفسه. */
 export async function newOperatorUser(f: PerformersFixture, email: string) {
   await f.h.signedInOperator(email);

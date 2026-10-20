@@ -90,7 +90,7 @@ export class ChangeLinePerformersUseCase {
     await tx.lines.lockVisit(context.sessionId);
     const line = await tx.lines.loadLineForUpdate(context.sessionId, context.lineId);
     if (line === null) {
-      // السلطة تسبق النطاق: سطر مجهول يبقى رفضاً موحّداً، لكن المنع أو الميزة يبقيا هما.
+      // السلطة تسبق النطاق: سطر مجهول يبقى رفضاً موحّداً، لكن المنع أو الميزة يبقىان هما.
       const access = lineActorAccess(await tx.access.read(this.clock.now()));
       resolveSessionChanger(access, context.input.changer_membership_id ?? access.eligible_membership_ids[0]);
       throw new SessionError('FORBIDDEN');

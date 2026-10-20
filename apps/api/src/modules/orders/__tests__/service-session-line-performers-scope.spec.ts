@@ -7,6 +7,7 @@ import {
   changeRows,
   createEmployee,
   newOperatorUser,
+  otherBusinessOfCompany,
   performersFixture,
   performersInput,
   runChange,
@@ -75,7 +76,8 @@ it('FR-004 a set of more than eighty performers is locked in batches and refused
 });
 
 it('FR-008 a performer of another business of the same company is not eligible', async () => {
-  const stranger = await createEmployee(f, { business_id: f.foreignBusiness, branch_id: f.foreignBranch });
+  const other = await otherBusinessOfCompany(f);
+  const stranger = await createEmployee(f, { business_id: other.businessId, branch_id: other.branchId });
   const visit = await visitOf(f);
   const line = must(visit.lines[0]).id;
   const key = ids.newId();
@@ -116,7 +118,7 @@ it('PC-23 a change racing a cancel leaves one winner and the loser is stale', as
   const loser = outcomes.find((item) => item.status === 'rejected');
   if (loser?.status !== 'rejected') throw new Error('expected one stale refusal');
   expect(loser.reason).toMatchObject({ code: 'SESSION_LINE_REVISION_STALE', details: { current_revision: 2 } });
-  const [cancellations] = await f.h.owner`SELECT 1 FROM service_line_cancellations WHERE company_id=${f.company} AND line_id=${line}`;
+  const cancellations = await f.h.owner`SELECT 1 FROM service_line_cancellations WHERE company_id=${f.company} AND line_id=${line}`;
   const saved = await changeRows(f, visit.sessionId, line);
   expect(saved.line).toMatchObject({ revision: 2 });
   expect(saved.headers.length + cancellations.length).toBe(1);
@@ -137,7 +139,7 @@ it('PC-23 a change racing a price edit leaves one winner and the loser is stale'
   const loser = outcomes.find((item) => item.status === 'rejected');
   if (loser?.status !== 'rejected') throw new Error('expected one stale refusal');
   expect(loser.reason).toMatchObject({ code: 'SESSION_LINE_REVISION_STALE', details: { current_revision: 2 } });
-  const [edits] = await f.h.owner`SELECT 1 FROM service_line_edits WHERE company_id=${f.company} AND line_id=${line}`;
+  const edits = await f.h.owner`SELECT 1 FROM service_line_edits WHERE company_id=${f.company} AND line_id=${line}`;
   const saved = await changeRows(f, visit.sessionId, line);
   expect(saved.line).toMatchObject({ revision: 2 });
   expect(saved.headers.length + edits.length).toBe(1);
