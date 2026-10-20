@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, customType, date, foreignKey, index, integer, numeric, pgTable, primaryKey, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, check, customType, date, foreignKey, index, integer, numeric, pgTable, primaryKey, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 import { companies, branches } from './tenancy.ts';
 import { customers } from './customers.ts';
 import { services } from './catalog.ts';
@@ -235,11 +235,13 @@ export const serviceLinePerformerChanges = pgTable('service_line_performer_chang
   changerRoleNameEn: text('changer_role_name_en'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   writeXid: xid8('write_xid').notNull(),
+  // 0 = صف اتكتب قبل الختم المزدوج: معرّف ما يملكوش أي cluster، فعمره ما يتحسب رأس المعاملة الحالية (ADR-0049).
+  writeSystemId: bigint('write_system_id', { mode: 'bigint' }).notNull().default(sql`0`),
 }, (t) => [
   primaryKey({ name: 'slpc_pk', columns: [t.companyId, t.id] }),
   unique('slpc_line_revision_uq').on(t.companyId, t.lineId, t.revision),
   unique('slpc_business_id_uq').on(t.companyId, t.businessId, t.id),
-  unique('slpc_line_xid_uq').on(t.companyId, t.lineId, t.writeXid),
+  unique('slpc_line_xid_uq').on(t.companyId, t.lineId, t.writeSystemId, t.writeXid),
   foreignKey({ name: 'slpc_company_fk', columns: [t.companyId], foreignColumns: [companies.id] }),
   foreignKey({ name: 'slpc_line_fk', columns: [t.companyId, t.businessId, t.lineId], foreignColumns: [serviceLines.companyId, serviceLines.businessId, serviceLines.id] }),
   foreignKey({ name: 'slpc_membership_fk', columns: [t.companyId, t.changedBy, t.changedByMembershipId], foreignColumns: [memberships.companyId, memberships.userId, memberships.id] }),
@@ -410,13 +412,15 @@ export const sessionTipRevisions = pgTable('session_tip_revisions', {
   // بلا مفتاح للأوتبوكس: الصف يُمسح لاحقاً ودور التطبيق إدخال فقط، وربط الحدث يُفحص في حالة الاستخدام.
   eventId: uuid('event_id').notNull(),
   writeXid: xid8('write_xid').notNull(),
+  // 0 = صف اتكتب قبل الختم المزدوج: معرّف ما يملكوش أي cluster، فعمره ما يتحسب رأس المعاملة الحالية (ADR-0049).
+  writeSystemId: bigint('write_system_id', { mode: 'bigint' }).notNull().default(sql`0`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   primaryKey({ name: 'session_tip_revisions_pk', columns: [t.companyId, t.id] }),
   unique('session_tip_revisions_session_revision_uq').on(t.companyId, t.sessionId, t.revision),
   unique('session_tip_revisions_event_uq').on(t.companyId, t.eventId),
   unique('session_tip_revisions_business_session_id_uq').on(t.companyId, t.businessId, t.sessionId, t.id),
-  unique('session_tip_revisions_session_xid_uq').on(t.companyId, t.sessionId, t.writeXid),
+  unique('session_tip_revisions_session_xid_uq').on(t.companyId, t.sessionId, t.writeSystemId, t.writeXid),
   foreignKey({ name: 'session_tip_revisions_company_fk', columns: [t.companyId], foreignColumns: [companies.id] }),
   foreignKey({ name: 'session_tip_revisions_session_fk', columns: [t.companyId, t.businessId, t.sessionId], foreignColumns: [serviceSessions.companyId, serviceSessions.businessId, serviceSessions.id] }),
   foreignKey({ name: 'session_tip_revisions_previous_fk', columns: [t.companyId, t.sessionId, t.previousRevision], foreignColumns: [t.companyId, t.sessionId, t.revision] }),

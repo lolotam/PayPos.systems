@@ -50,4 +50,22 @@ describe('function inventory', () => {
     );
     expect(rows.map((r) => r.role)).toEqual(['pospay_dispatcher']);
   });
+
+  // الختم بيتقرأ من معرّف الـ cluster، فالـ runtime role هو الوحيد اللي لازم ينفّذ الدالة دي.
+  it('only pospay_app may execute the cluster identifier reader', async () => {
+    const rows = await withClusterRoleLock(
+      'shared',
+      () => owner<{ role: string }[]>`
+      SELECT r AS role FROM unnest(${APP_ROLES}::text[]) AS r
+      WHERE has_function_privilege(r, 'pospay_system_id()', 'EXECUTE')`,
+    );
+    expect(rows.map((r) => r.role)).toEqual(['pospay_app']);
+  });
+
+  it('the cluster identifier reader is not exposed to PUBLIC', async () => {
+    const [row] = await owner`
+      SELECT p.proacl::text AS acl FROM pg_proc p WHERE p.oid='public.pospay_system_id()'::regprocedure`;
+    expect(row?.acl?.includes('{=X/')).toBe(false);
+    expect(row?.acl?.includes(',=X/')).toBe(false);
+  });
 });
