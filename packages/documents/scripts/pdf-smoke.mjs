@@ -1,4 +1,4 @@
-import { PlaywrightDocumentRenderer, fixtureDocument, rendererFailureText } from '../dist/index.js';
+import { PlaywrightDocumentRenderer, fixtureDocument } from '../dist/index.js';
 
 const uid = typeof process.getuid === 'function' ? process.getuid() : null;
 console.log(`uid=${uid === null ? 'unavailable' : String(uid)}`);
@@ -16,8 +16,7 @@ const renderer = new PlaywrightDocumentRenderer({
 try {
   await renderer.start();
   if (!renderer.isAvailable()) {
-    const failure = rendererFailureText(launchFailure);
-    console.error('pdf smoke:', failure.error_class, failure.error_message);
+    console.error('pdf smoke:', launchFailure);
     process.exit(1);
   }
   const pdf = await renderer.render(

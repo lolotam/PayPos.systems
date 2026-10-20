@@ -1,31 +1,60 @@
+import {
+  DocumentRenderTimeoutError,
+  DocumentRendererUnavailableError,
+  DocumentTooLargeError,
+} from './errors.ts';
+
 export interface RendererFailureText {
-  readonly error_class: string;
-  readonly error_message: string;
+  readonly error_class:
+    | 'TimeoutError'
+    | 'TypeError'
+    | 'RangeError'
+    | 'DocumentRenderTimeoutError'
+    | 'DocumentTooLargeError'
+    | 'DocumentRendererUnavailableError'
+    | 'DocumentKindUnknownError'
+    | 'MISSING_EXECUTABLE'
+    | 'MISSING_LIBRARY'
+    | 'OTHER';
 }
 
-const URL_OR_DATA = /\b(?:[a-z][a-z0-9+.-]*:\/\/\S+|data:[^\s"'<>]*)/gi;
-const WINDOWS_PATH = /\b[A-Za-z]:\\[^\s"'<>]*/g;
-const UNIX_PATH = /\/(?:[\w.+@=-]+\/)+[\w.+@=-]*/g;
-const HTML_TAG = /<[^>\n]*>/g;
+type FailureClass = RendererFailureText['error_class'];
+
+const NAMED_CLASS = new Map<string, FailureClass>([
+  ['TimeoutError', 'TimeoutError'],
+  ['DocumentKindUnknownError', 'DocumentKindUnknownError'],
+]);
+
+const MISSING_EXECUTABLE = "Executable doesn't exist";
+const MISSING_LIBRARY_PACKAGES = 'missing dependencies to run browsers';
+const MISSING_SHARED_LIBRARY = 'error while loading shared libraries';
+
+function builtinClass(error: Error): FailureClass | undefined {
+  if (error instanceof DocumentRenderTimeoutError) return 'DocumentRenderTimeoutError';
+  if (error instanceof DocumentTooLargeError) return 'DocumentTooLargeError';
+  if (error instanceof DocumentRendererUnavailableError) return 'DocumentRendererUnavailableError';
+  if (error instanceof TypeError) return 'TypeError';
+  if (error instanceof RangeError) return 'RangeError';
+  return NAMED_CLASS.get(error.name);
+}
+
+function launchClass(message: string): FailureClass | undefined {
+  if (message.includes(MISSING_EXECUTABLE)) return 'MISSING_EXECUTABLE';
+  if (message.includes(MISSING_LIBRARY_PACKAGES) || message.includes(MISSING_SHARED_LIBRARY)) {
+    return 'MISSING_LIBRARY';
+  }
+  return undefined;
+}
 
 /**
- * بياخد أول سطر من سبب الفشل بعد ما يشيل المسارات والعناوين وHTML.
- * السجل محتاج اسم الخطأ عشان مكتبة ناقصة أو /dev/shm تتفهم، من غير مسار المتصفح ولا الصفحة.
+ * بيحوّل فشل الرندر لرمز من قائمة ثابتة.
+ * الاسم والنص ممكن يحملوا اسم موظف أو قيمة حضور أو نص المستند، فالسجل ما ياخدش غير الرمز.
  *
- * @param error الخطأ الخام من Chromium أو الطابور
- * @returns اسم الصنف وأول سطر متنضّف
+ * @param error الخطأ الخام من Chromium أو المصدر أو الطابور
+ * @returns رمز الصنف المسموح، أو OTHER
  */
 export function rendererFailureText(error: unknown): RendererFailureText {
-  const errorClass = error instanceof Error && error.name !== '' ? error.name : 'Error';
-  const raw = error instanceof Error ? error.message : '';
-  const first = raw.split(/\r?\n/, 1)[0] ?? '';
-  const errorMessage = first
-    .replace(URL_OR_DATA, '')
-    .replace(WINDOWS_PATH, '')
-    .replace(UNIX_PATH, '')
-    .replace(HTML_TAG, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 180);
-  return { error_class: errorClass, error_message: errorMessage };
+  if (!(error instanceof Error)) return { error_class: 'OTHER' };
+  const errorClass = builtinClass(error) ?? launchClass(error.message) ?? 'OTHER';
+  return { error_class: errorClass };
 }

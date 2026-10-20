@@ -58,8 +58,10 @@ it('retries a failed renderer start instead of closing the capability', async ()
     expect(calls).toBe(3);
     expect(ready.isAvailable()).toBe(true);
     const text = lines.join('\n');
-    expect(text).toContain('"error_class":"Error"');
+    expect(text).toContain('"error_class":"OTHER"');
     expect(text).not.toContain('/var/run/chromium');
+    expect(text).not.toContain('slow start');
+    expect(text).not.toContain('error_message');
     expect(text).toContain('document renderer unavailable');
   } finally {
     await handle.close();

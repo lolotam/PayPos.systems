@@ -10,16 +10,24 @@ export interface LiveQueue {
   liveness: RendererLiveness;
 }
 
+/** طابور اتبنى ولسه مستنّى Redis. المهلة بتقفله قبل ما يبقى live. */
+export interface HeldQueue {
+  worker: Worker;
+  connection: Redis;
+}
+
 export interface AttemptBinder {
   cancelled(): boolean;
   setRenderer(renderer: DocumentRenderer): void;
   setLive(live: LiveQueue): void;
+  holdQueue(queue: HeldQueue): void;
 }
 
 interface Slot {
   token: number;
   renderer?: DocumentRenderer | undefined;
   live?: LiveQueue | undefined;
+  queue?: HeldQueue | undefined;
 }
 
 interface SessionState {
@@ -56,14 +64,25 @@ function succeed(state: SessionState): void {
   state.resolveStart();
 }
 
+async function closeHeld(worker: Worker, connection: Redis, force: boolean): Promise<void> {
+  await worker.close(force).catch(() => undefined);
+  connection.disconnect();
+}
+
 async function release(slot: Slot): Promise<void> {
   const live = slot.live;
+  const queue = slot.queue;
   const renderer = slot.renderer;
   slot.live = undefined;
+  slot.queue = undefined;
   slot.renderer = undefined;
-  await live?.worker.close().catch(() => undefined);
-  await live?.liveness.stop().catch(() => undefined);
-  live?.connection.disconnect();
+  if (live !== undefined) {
+    await closeHeld(live.worker, live.connection, false);
+    await live.liveness.stop().catch(() => undefined);
+  } else if (queue !== undefined) {
+    // لسه مش جاهز وماسكش وظيفة، فالقوة بتقطع إعادة اتصال Redis
+    await closeHeld(queue.worker, queue.connection, true);
+  }
   await renderer?.close().catch(() => undefined);
 }
 
@@ -93,6 +112,10 @@ function binder(state: SessionState, slot: Slot): AttemptBinder {
     },
     setLive: (live) => {
       slot.live = live;
+      slot.queue = undefined;
+    },
+    holdQueue: (queue) => {
+      slot.queue = queue;
     },
   };
 }

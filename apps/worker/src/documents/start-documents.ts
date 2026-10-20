@@ -11,7 +11,7 @@ import { Redis } from 'ioredis';
 import { startRendererLiveness, type RendererLiveness } from './liveness.ts';
 import type { EpochClock } from './process-job.ts';
 import { DocumentSourceRegistry } from './source-registry.ts';
-import { trackDocumentStartup, type AttemptBinder } from './startup-session.ts';
+import { trackDocumentStartup, type AttemptBinder, type HeldQueue } from './startup-session.ts';
 
 const LOCK_MS = 45_000;
 const STARTUP_MS = 30_000;
@@ -43,6 +43,8 @@ export interface StartDocumentsInput {
   readonly stalledIntervalMs?: number;
   readonly maxStalledCount?: number;
   readonly isStopping?: () => boolean;
+  /** بيتنده بعد بناء الطابور وقبل انتظار Redis. الاختبار بيتأكد إن المهلة بتقفله. */
+  readonly onQueueConstructed?: (queue: HeldQueue) => void;
 }
 
 export interface CoreBeforeDocumentsInput {
@@ -62,9 +64,7 @@ function logUnavailable(logger: Logger, reason: string, error?: unknown): void {
   logger.warn(
     {
       capability: { name: 'DOCUMENTS', state: 'UNAVAILABLE', reason },
-      ...(failure === undefined
-        ? {}
-        : { error_class: failure.error_class, error_message: failure.error_message }),
+      ...(failure === undefined ? {} : { error_class: failure.error_class }),
     },
     'document renderer unavailable',
   );
@@ -108,6 +108,7 @@ async function openWorker(
   input: StartDocumentsInput,
   registry: DocumentSourceRegistry,
   renderer: DocumentRenderer,
+  attempt: AttemptBinder,
 ): Promise<{ worker: Worker; connection: Redis }> {
   const { processDocumentJob, recordExternalJobFailure } = await import('./process-job.ts');
   const connection = openQueueConnection(input.redisUrl);
@@ -134,6 +135,9 @@ async function openWorker(
         ...(input.prefix === undefined ? {} : { prefix: input.prefix }),
       },
     );
+    // المهلة بتقفل الطابور بس اللي اتسجل على المحاولة. التسجيل قبل الانتظار.
+    attempt.holdQueue({ worker, connection });
+    input.onQueueConstructed?.({ worker, connection });
     worker.on('error', (error: Error) => logUnavailable(input.logger, 'QUEUE_FAILED', error));
     worker.on('failed', (job) => {
       if (job == null) return;
@@ -146,7 +150,7 @@ async function openWorker(
     await worker.waitUntilReady();
     return { worker, connection };
   } catch (error) {
-    await worker?.close().catch(() => undefined);
+    await worker?.close(true).catch(() => undefined);
     connection.disconnect();
     throw error;
   }
@@ -175,7 +179,7 @@ async function bringUp(
       ...(input.livenessIntervalMs === undefined ? {} : { intervalMs: input.livenessIntervalMs }),
     });
     if (halted(input, attempt)) return false;
-    const opened = await openWorker(input, registry, renderer);
+    const opened = await openWorker(input, registry, renderer, attempt);
     if (halted(input, attempt)) {
       await opened.worker.close().catch(() => undefined);
       opened.connection.disconnect();

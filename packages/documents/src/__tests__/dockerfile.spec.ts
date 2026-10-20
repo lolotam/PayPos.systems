@@ -15,7 +15,9 @@ it('C4 keeps the worker image off root', () => {
   expect(smoke).toContain('process.getuid');
   expect(smoke).toContain('uid === 0');
   expect(smoke).toContain('console.log(`uid=');
-  expect(smoke).toContain('rendererFailureText');
+  expect(smoke).toContain('console.error');
+  expect(smoke).toContain('launchFailure');
+  expect(smoke).not.toContain('rendererFailureText');
 });
 
 it('AC-12 keeps the renderer out of the API package', () => {

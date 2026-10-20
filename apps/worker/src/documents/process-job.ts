@@ -108,7 +108,6 @@ function logOutcome(
     readonly duration_ms: number;
     readonly error_code?: DocumentRenderErrorCode;
     readonly error_class?: string;
-    readonly error_message?: string;
   },
 ): void {
   const record: Record<string, string | number> = {
@@ -120,9 +119,6 @@ function logOutcome(
   };
   if (fields.error_code !== undefined) record['error_code'] = fields.error_code;
   if (fields.error_class !== undefined) record['error_class'] = fields.error_class;
-  if (fields.error_message !== undefined && fields.error_message !== '') {
-    record['error_message'] = fields.error_message;
-  }
   logger.info(record, 'document render');
 }
 
@@ -156,7 +152,6 @@ async function failFinal(
       duration_ms: deps.clock.now() - started,
       error_code: code,
       error_class: failure.error_class,
-      error_message: failure.error_message,
     });
   }
   if (failsAtOnce(code)) throw new UnrecoverableError(code);
