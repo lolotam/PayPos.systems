@@ -85,7 +85,10 @@ const driveLetterPaths = 'ABCDEGHIJKLMNOPQRSTUVWXYZ'
   .flatMap((letter) => [`${letter}:*`, `${letter.toLowerCase()}:*`]);
 // A path that starts with a slash is never inside a worktree: it is a UNC share (\\host\C$), a Windows namespace
 // path (\\?\C:), or a root on the current drive. Codex on #416 flagged the first two as able to skip a drive-letter deny.
-const otherDrivePaths = [...driveLetterPaths, `${BS}*`, '/*'];
+// A colon anywhere but the drive letter is an NTFS stream: .env::$DATA is the .env file itself, and a named stream
+// is a hidden file git never shows. No worktree path has one, so '??*:*' (two or more characters before a colon)
+// refuses them while F:... still matches nothing (Codex on #416; a smoke test read .env::$DATA before this).
+const otherDrivePaths = [...driveLetterPaths, `${BS}*`, '/*', '??*:*'];
 // The last matching rule wins, so the order is the policy: env denies, the template allows, then every protected tree.
 const fileRules = (protectedPaths) =>
   Object.fromEntries([

@@ -131,6 +131,10 @@ pins the PosPay rules on top of it.
      tried the `\\?\C:\…`, `\\localhost\C$\…` and `//localhost/C$/…` forms: all were refused, while `README.md` and
      its absolute `F:\` path inside the worktree still read. Repeat both smoke tests before raising the opencode pin;
    - `read` and `edit` deny `.git` and anything under it, in both slash styles;
+   - `read` and `edit` deny any path with a colon after its first two characters (`??*:*`), that is, an NTFS stream.
+     `.env::$DATA` is the `.env` file itself, and a named stream such as `.env:hidden` is a hidden file that git
+     never shows. A 2026-10-20 smoke test read a planted `.env` through `.env::$DATA` before this deny, and refused
+     both forms after it, while `README.md` and its absolute `F:\` path still read (Codex on #416);
    - `glob` is denied too. opencode checks its permission against the search pattern only, never the folder it
      searches, so no path rule could keep a glob out of `.git`, another drive or a share (Codex on #416). Briefs
      name every file MiniMax needs (rule 5), so it reads them directly;

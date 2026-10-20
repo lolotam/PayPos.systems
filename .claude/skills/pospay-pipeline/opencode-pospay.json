@@ -91,7 +91,8 @@
       "Z:*": "deny",
       "z:*": "deny",
       "\\*": "deny",
-      "/*": "deny"
+      "/*": "deny",
+      "??*:*": "deny"
     },
     "edit": {
       "*": "allow",
@@ -262,7 +263,8 @@
       "Z:*": "deny",
       "z:*": "deny",
       "\\*": "deny",
-      "/*": "deny"
+      "/*": "deny",
+      "??*:*": "deny"
     },
     "glob": "deny",
     "list": "deny",
@@ -377,7 +379,8 @@
           "Z:*": "deny",
           "z:*": "deny",
           "\\*": "deny",
-          "/*": "deny"
+          "/*": "deny",
+          "??*:*": "deny"
         },
         "edit": {
           "*": "allow",
@@ -548,7 +551,8 @@
           "Z:*": "deny",
           "z:*": "deny",
           "\\*": "deny",
-          "/*": "deny"
+          "/*": "deny",
+          "??*:*": "deny"
         },
         "glob": "deny",
         "list": "deny",
