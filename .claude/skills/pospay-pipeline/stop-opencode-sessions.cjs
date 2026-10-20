@@ -3,16 +3,24 @@
 // `opencode serve --service`: one kept working for 14 minutes on 2026-10-20.
 // Reads opencode.db read-only (session metadata only, never credentials).
 // Run the trusted copy staged outside the worktree (pipeline skill §4), never the worktree's own copy.
-// Usage: node <guard>/stop-opencode-sessions.cjs <absolute folder> [--dry-run]
+// Usage: node <guard>/stop-opencode-sessions.cjs <absolute folder> [--since <epoch ms>] [--dry-run]
+//   --since limits the check to sessions touched during this run, so an older, already-abandoned record does
+//   not fail every later dispatch in the same worktree.
 const { DatabaseSync } = require('node:sqlite');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const [folder, flag] = process.argv.slice(2);
-if (!folder || !path.isAbsolute(folder)) {
-  console.error('usage: stop-opencode-sessions.cjs <absolute folder> [--dry-run]');
+const args = process.argv.slice(2);
+const folder = args[0];
+const dryRun = args.includes('--dry-run');
+const sinceIndex = args.indexOf('--since');
+const since = sinceIndex > 0 ? Number(args[sinceIndex + 1]) : 0;
+if (!folder || !path.isAbsolute(folder) || Number.isNaN(since)) {
+  console.error(
+    'usage: stop-opencode-sessions.cjs <absolute folder> [--since <epoch ms>] [--dry-run]',
+  );
   process.exit(2);
 }
 const normalise = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
@@ -31,25 +39,33 @@ function opencodeExe() {
 }
 
 const dbPath = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
-const db = new DatabaseSync(dbPath, { readOnly: true });
-const busy = db
-  .prepare(
-    // A first round is busy while time_idle is null; a later round sets time_suspended while time_idle still holds
-    // the previous round's timestamp (opencode 2.0.32), so both count as working.
-    'select id, directory, title, time_created from session_v2 where time_archived is null and (time_idle is null or time_suspended is not null)',
-  )
-  .all()
-  .filter((s) => {
-    const dir = normalise(s.directory);
-    return dir === root || dir.startsWith(`${root}/`);
-  });
-db.close();
+// A first round is busy while time_idle is null; a later round sets time_suspended while time_idle still holds
+// the previous round's timestamp (opencode 2.0.32), so both count as working.
+const BUSY_SQL =
+  'select id, directory, title, time_created, time_updated from session_v2 ' +
+  'where time_archived is null and (time_idle is null or time_suspended is not null)';
 
+function busySessions() {
+  const db = new DatabaseSync(dbPath, { readOnly: true });
+  try {
+    return db
+      .prepare(BUSY_SQL)
+      .all()
+      .filter((s) => {
+        const dir = normalise(s.directory);
+        return (dir === root || dir.startsWith(`${root}/`)) && Number(s.time_updated) >= since;
+      });
+  } finally {
+    db.close();
+  }
+}
+
+const busy = busySessions();
 if (!busy.length) {
   console.log(`no working opencode session under ${root}`);
   process.exit(0);
 }
-const exe = flag === '--dry-run' ? null : opencodeExe();
+const exe = dryRun ? null : opencodeExe();
 let failed = 0;
 for (const s of busy) {
   const label = `${s.id} (${s.title ?? 'untitled'}, started ${new Date(Number(s.time_created)).toISOString()})`;
@@ -57,15 +73,34 @@ for (const s of busy) {
     console.log(`would interrupt ${label}`);
     continue;
   }
+  let reply;
   try {
-    execFileSync(exe, ['api', 'post', `/api/session/${s.id}/interrupt`], {
-      stdio: 'pipe',
+    reply = execFileSync(exe, ['api', 'post', `/api/session/${s.id}/interrupt`], {
+      stdio: ['ignore', 'pipe', 'pipe'],
       cwd: os.tmpdir(),
+      encoding: 'utf8',
     });
-    console.log(`interrupted ${label}`);
   } catch (error) {
     failed++;
     console.error(`could not interrupt ${label}: ${error.message}`);
+    continue;
+  }
+  // The endpoint answers 200 with {"interrupted": false} when nothing was stopped, so trust only an explicit
+  // true, or a database that no longer shows the claim.
+  let interrupted = false;
+  try {
+    interrupted = JSON.parse(reply).interrupted === true;
+  } catch {
+    interrupted = false;
+  }
+  const stillBusy = busySessions().some((other) => other.id === s.id);
+  if (interrupted || !stillBusy) {
+    console.log(`interrupted ${label}`);
+  } else {
+    failed++;
+    console.error(
+      `the interrupt did not clear ${label}: never continue this session (-s); the next round starts a new one (rule 8)`,
+    );
   }
 }
 process.exit(failed ? 1 : 0);

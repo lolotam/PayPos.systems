@@ -243,6 +243,7 @@ pins the PosPay rules on top of it.
    $savedXdg = $env:XDG_CONFIG_HOME
    $opencodeExit = 1
    $stopExit = 1
+   $runStart = $null
    try {
      $env:XDG_CONFIG_HOME = $isolatedConfig   # no global config: no MCP servers, plugins, agents or instructions
      node "$tools\check-opencode.cjs" opencode.json; if ($LASTEXITCODE) { throw 'opencode.json refused: stop' }
@@ -257,6 +258,7 @@ pins the PosPay rules on top of it.
      $runArgs = @('run', '--standalone', '--agent', 'pospay-minimax', '-m', 'minimax-coding-plan/MiniMax-M3.1-Flash',
        '-s', '<sid>', '--title', '"<task>"', '-f', 'F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt',
        '"Implement the attached brief."')
+     $runStart = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
      $run = Start-Process -FilePath $opencodeExe -ArgumentList $runArgs -NoNewWindow -PassThru `
        -RedirectStandardOutput "$guard\run.out.txt" -RedirectStandardError "$guard\run.err.txt"
      $null = $run.Handle   # keeps ExitCode readable after the process ends (Windows PowerShell 5.1)
@@ -268,7 +270,8 @@ pins the PosPay rules on top of it.
      }
    } finally {
      # The stopper launches opencode.exe, so it runs while the isolated config is still active.
-     node "$tools\stop-opencode-sessions.cjs" $worktree
+     $since = if ($runStart) { @('--since', $runStart) } else { @() }
+     node "$tools\stop-opencode-sessions.cjs" $worktree @since
      $stopExit = $LASTEXITCODE
      $env:PATH = $savedPath
      $env:XDG_CONFIG_HOME = $savedXdg
@@ -300,8 +303,13 @@ pins the PosPay rules on top of it.
    not stop a session inside the shared `opencode serve --service`; one kept working for 14 more minutes on
    2026-10-20. The dispatch block's `finally` runs the staged `stop-opencode-sessions.cjs <worktree>`. It reads
    `opencode.db` read-only for sessions under the worktree that are not idle, and calls
-   `opencode.exe api post /api/session/<id>/interrupt` on each, by absolute path and with no shell. Run the staged
-   copy by hand after any kill; `--dry-run` only lists. Until the PR that adds these scripts reaches `main`, stage
+   `opencode.exe api post /api/session/<id>/interrupt` on each, by absolute path and with no shell. `--since
+   <run start>` limits it to sessions touched during this run, so an old abandoned record cannot fail every later
+   dispatch. The endpoint answers 200 with `{"interrupted": false}` when it stops nothing, as it did for a killed
+   standalone session on 2026-10-20. So the stopper accepts only `interrupted: true` or a database that no longer
+   shows the claim. Otherwise it fails, and **that session is never continued with `-s`**: its claim could be
+   recovered later, so the next round starts a new session (rule 8). Run the staged copy by hand after any kill;
+   `--dry-run` only lists. Until the PR that adds these scripts reaches `main`, stage
    them from that PR's reviewed head instead of `origin/main`.
    **Then look for anything nobody asked for:** `git status --porcelain` must list only files the brief names, so
    any untracked file (a probe, a scratch script) or an edit to an unnamed file is reverted and reported to Waleed's
