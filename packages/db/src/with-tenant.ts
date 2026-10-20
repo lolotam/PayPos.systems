@@ -32,12 +32,22 @@ export interface TenantOptions {
 }
 
 /**
- * نقط الدخول التلاتة للداتابيز (ADR-0003 §3) — كلها transaction-local.
+ * نقط الدخول للداتابيز (ADR-0003 §3) — كلها transaction-local.
  */
 export interface TenantWrappers {
   withTenant<T>(companyId: string, fn: (tx: Tx) => Promise<T>, options?: TenantOptions): Promise<T>;
   withUser<T>(userId: string, fn: (tx: Tx) => Promise<T>): Promise<T>;
   withNewTenant<T>(userId: string, fn: (tx: Tx, companyId: string) => Promise<T>): Promise<T>;
+  /**
+   * بيثبت عضوية المستخدم في الشركة دي قبل أي سياق tenant.
+   * الحارس محتاجه عشان يفتح اتصال واحد: لو مفيش عضوية سارية بيرجع null من غير app.company_id، وبعد الإثبات بس بيدخل fn.
+   *
+   * @param userId    المستخدم اللي بيثبت عضويته
+   * @param companyId الشركة المطلوب دخولها
+   * @param fn        الشغل بعد الإثبات، جوه نفس الـ transaction
+   * @returns نتيجة fn، أو null لو العضوية مش سارية
+   */
+  withMember<T>(userId: string, companyId: string, fn: (tx: Tx) => Promise<T>): Promise<T | null>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -135,14 +145,46 @@ function limits(timeoutMs: number | undefined) {
            set_config('idle_in_transaction_session_timeout', ${`${timeoutMs}ms`}, true)`;
 }
 
+// الشركة فاضية لحد ما الصف يثبت: policy العضوية بتسمح كمان بـ company_id = app.company_id()،
+// فلو الـ GUC اتحط الأول الطلب يشوف صفوف الشركة من غير عضوية.
+async function runAsMember<T>(
+  db: PostgresJsDatabase,
+  userId: string,
+  companyId: string,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T | null> {
+  return db.transaction(async (tx) => {
+    const [role] = await tx.execute<{ privileged: boolean }>(
+      sql`SELECT set_config('app.company_id', '', true),
+                 set_config('app.user_id', ${userId}, true),
+                 (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) AS privileged`,
+    );
+    if (role?.privileged !== false) {
+      throw new Error(
+        'Refusing to run tenant work as a role that bypasses RLS — check DATABASE_URL',
+      );
+    }
+    const membership = await tx.execute<{ id: string }>(
+      sql`SELECT id FROM memberships
+          WHERE user_id = ${userId} AND company_id = ${companyId}
+            AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now())
+          LIMIT 1`,
+    );
+    if (membership.length === 0) return null;
+    await tx.execute(sql`SELECT set_config('app.company_id', ${companyId}, true)`);
+    return fn(tx);
+  });
+}
+
 /**
- * بيبني الـ wrappers التلاتة فوق client واحد من غير ما يطلّعه بره.
- * كل wrapper بيحط الإعدادين الاتنين في كل مرة — اللي مش مستخدم بيبقى '' —
- * عشان connection راجعة من الـ pool متورّثش company أو user من الـ transaction اللي قبلها.
+ * بيبني الـ wrappers فوق client واحد من غير ما يطلّعه بره.
+ * كل wrapper بيصفّر الإعدادين في أول الـ transaction —
+ * عشان connection راجعة من الـ pool متورّثش company أو user من اللي قبلها.
+ * withMember بيحط app.company_id الحقيقي بعد إثبات العضوية بس.
  *
  * @param db  الـ Drizzle client — بيفضل جوه الـ closure
  * @param ids مولّد الـ ids لـ withNewTenant
- * @returns withTenant و withUser و withNewTenant
+ * @returns withTenant و withUser و withNewTenant و withMember
  */
 export function createTenantWrappers(db: PostgresJsDatabase, ids: IdGenerator): TenantWrappers {
   // superuser أو BYPASSRLS بيتجاهل الـ RLS كله، فـ DATABASE_URL غلط كان هيشيل العزل بين الشركات
@@ -187,5 +229,7 @@ export function createTenantWrappers(db: PostgresJsDatabase, ids: IdGenerator): 
       const companyId = assertUuid(ids.newId(), 'generated companyId');
       return run(companyId, assertUuid(userId, 'userId'), (tx) => fn(tx, companyId));
     },
+    withMember: async (userId, companyId, fn) =>
+      runAsMember(db, assertUuid(userId, 'userId'), assertUuid(companyId, 'companyId'), fn),
   };
 }

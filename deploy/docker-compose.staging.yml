@@ -118,6 +118,7 @@ services:
     environment:
       <<: [*app-env, *staff-otp-env]
       AUTH_DATABASE_URL: postgres://pospay_auth:${POSTGRES_AUTH_PASSWORD:?}@postgres:5432/pospay
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?}
       AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:?}

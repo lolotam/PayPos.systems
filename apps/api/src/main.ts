@@ -37,6 +37,7 @@ logger.info(
 const database = createDatabase({
   url: config.DATABASE_URL,
   ids: systemUuidV7(),
+  maxConnections: config.DATABASE_POOL_MAX,
   boundedTenantTransactions:
     readStaffOtpConfiguration(process.env, 'api', readOtpTemplateApproval(process.env)).state ===
     'READY',
