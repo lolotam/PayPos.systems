@@ -22,7 +22,8 @@ const root = normalise(folder);
 // a shell would also find an opencode.cmd MiniMax could have written inside its worktree.
 function opencodeExe() {
   for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
-    if (!dir || normalise(dir).startsWith(root)) continue;
+    // Resolve first, so an entry such as `C:\x\..\<worktree>` cannot slip past the worktree exclusion.
+    if (!dir || normalise(path.resolve(dir)).startsWith(root)) continue;
     const exe = path.join(dir, 'node_modules', '@opencode', 'cli', 'bin', 'opencode.exe');
     if (fs.existsSync(exe)) return exe;
   }
