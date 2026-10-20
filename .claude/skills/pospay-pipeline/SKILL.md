@@ -115,11 +115,14 @@ pins the PosPay rules on top of it.
 
    The last matching rule wins, so `"*"` must come first. The file only takes effect as a project-level
    `opencode.json`: the `OPENCODE_CONFIG` env var did not apply it in the 2026-10-20 test, where `git status` was
-   denied but `echo` still ran. The root `.gitignore` lists `/opencode.json`, so the copy never lands in a diff on
-   any clone.
+   denied but `echo` still ran. The orchestrator (never MiniMax) adds `/opencode.json` to the clone's shared
+   `info/exclude` once per clone, as the first two lines below do, so the copy never lands in a diff. The rule stays
+   local because `.gitignore` is a config file outside the docs-only lane.
 
    ```powershell
    Set-Location F:\Dev\Worktrees\PosPay\<branch>
+   $exclude = Join-Path (git rev-parse --git-common-dir) 'info\exclude'
+   if (-not (Select-String -Path $exclude -SimpleMatch '/opencode.json' -Quiet)) { Add-Content $exclude '/opencode.json' }
    Copy-Item .\.claude\skills\pospay-pipeline\opencode-pospay.json .\opencode.json
    opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
        -f F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt "Implement the attached brief."
