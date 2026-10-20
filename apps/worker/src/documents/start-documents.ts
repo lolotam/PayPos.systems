@@ -207,7 +207,6 @@ function trackStartup(
   let renderer: DocumentRenderer | undefined;
   let closed = false;
   let settled = false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
   let resolveStart: () => void = () => undefined;
   let rejectStart: (error: Error) => void = () => undefined;
   const started = new Promise<void>((resolve, reject) => {
@@ -217,7 +216,7 @@ function trackStartup(
   const finish = (error?: Error): void => {
     if (settled) return;
     settled = true;
-    if (timer !== undefined) clearTimeout(timer);
+    clearTimeout(timer);
     if (error === undefined || closed) resolveStart();
     else {
       warnSetupFailed(input.logger);
@@ -236,7 +235,7 @@ function trackStartup(
     await renderer?.close().catch(() => undefined);
     opened?.connection.disconnect();
   };
-  timer = setTimeout(() => {
+  const timer = setTimeout(() => {
     finish(new Error('DOCUMENT_START_TIMEOUT'));
     void close();
   }, input.startupMs ?? STARTUP_MS);
