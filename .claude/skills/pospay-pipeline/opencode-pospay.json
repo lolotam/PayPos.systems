@@ -136,6 +136,11 @@
     "webfetch": "deny",
     "websearch": "deny",
     "task": "deny",
-    "execute": "deny"
+    "execute": "deny",
+    "skill": "deny",
+    "subagent": "deny",
+    "*mcp*": "deny",
+    "*_mcp_resource*": "deny",
+    "opencode.*": "deny"
   }
 }
