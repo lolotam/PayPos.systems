@@ -25,11 +25,16 @@ export const serviceSessionErrors = {
   SESSION_LINE_ALREADY_CANCELLED: { message_ar: 'السطر ده ملغي بالفعل.', message_en: 'This line is already cancelled.' },
   SESSION_CANCEL_REASON_INVALID: { message_ar: 'اكتب سبب الإلغاء (لحد 500 حرف).', message_en: 'Enter the reason for the cancellation (up to 500 characters).' },
   SESSION_CANCEL_BLOCKED_BY_TIP: { message_ar: 'فيه بقشيش مسجّل لموظفة ملهاش خدمة تانية في الزيارة. امسحي البقشيش الأول وبعدين الغي.', message_en: 'A tip is recorded for a performer who has no other service on this visit. Remove the tip first, then cancel.' },
-  SESSION_LINE_IDENTITY_UNKNOWN: { message_ar: 'مينفعش نتأكد مين نفّذ الخدمة دي (سطر قديم)، فمينفعش تتلغي.', message_en: 'This older line has no performer identity record and cannot be cancelled.' },
+  SESSION_LINE_IDENTITY_UNKNOWN: { message_ar: 'مينفعش نتأكد مين نفّذ الخدمة دي (سطر قديم)، فمينفعش تتغيّر.', message_en: 'This older line has no performer identity record and cannot be changed.' },
   // TODO(spec): المواصفة تسمّي الرمز وتفاصيل canceller_membership_ids ولا تعطي الجملة؛ النص مرآة لعضوية التعديل.
   SESSION_CANCELLER_MEMBERSHIP_REQUIRED: { message_ar: 'اختاري العضوية اللي بتلغّي بيها.', message_en: 'Select the membership you are cancelling under.' },
   // الجملة محايدة لأن المواصفة تؤجّل النص حتى صفوف 42/43، وفهرس الفلتر يطلب مفتاحاً لكل رمز.
   SESSION_LINE_NOT_CANCELLABLE: { message_ar: 'السطر ده مش قابل للإلغاء.', message_en: 'This line cannot be cancelled.' },
+  SESSION_PERFORMERS_NO_CHANGE: { message_ar: 'المنفّذين والنسب زي ما هما، مفيش تغيير يتحفظ.', message_en: 'Performers and shares are unchanged; nothing to save.' },
+  SESSION_PERFORMERS_REASON_INVALID: { message_ar: 'اكتب سبب تغيير المنفّذين (لحد 500 حرف).', message_en: 'Enter the reason for the performer change (up to 500 characters).' },
+  SESSION_CHANGER_MEMBERSHIP_REQUIRED: { message_ar: 'اختاري العضوية اللي بتغيّري بيها المنفّذين.', message_en: 'Select the membership you are changing the performers under.' },
+  // الجملة محايدة لأن المواصفة تؤجّل النص حتى صفوف 42/43، وفهرس الفلتر يطلب مفتاحاً لكل رمز.
+  SESSION_LINE_PERFORMERS_NOT_CHANGEABLE: { message_ar: 'المنفّذين في السطر ده مينفعش يتغيّروا.', message_en: 'The performers of this line cannot be changed.' },
   VALIDATION_FAILED: { message_ar: 'البيانات المرسلة غير صحيحة', message_en: 'The request is not valid' },
   TIP_WINDOW_CLOSED: { message_ar: 'فات وقت تسجيل البقشيش للزيارة دي.', message_en: 'The time to record a tip for this visit has passed.' },
   TIP_SELF_FORBIDDEN: { message_ar: 'ماينفعش تسجّلي أو تغيّري بقشيشك إنتِ.', message_en: 'You cannot record or change your own tip.' },
