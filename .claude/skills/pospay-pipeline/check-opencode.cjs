@@ -296,6 +296,21 @@ try {
   problems.push(`cannot confirm that opencode has no signed-in account (${error.message})`);
 }
 
+// A "wellknown" credential in auth.json makes opencode fetch that provider's /.well-known/opencode config and merge it
+// (plugins, MCP servers, instructions) whatever the tables above say (Codex on #416). Only each entry's type is read.
+const authFile = path.join(path.dirname(dataDb), 'auth.json');
+try {
+  const wellKnown = Object.entries(JSON.parse(fs.readFileSync(authFile, 'utf8')))
+    .filter(([, entry]) => entry?.type === 'wellknown')
+    .map(([name]) => name);
+  if (wellKnown.length)
+    problems.push(
+      `${authFile} has a wellknown credential (${wellKnown.join(', ')}): remove it first`,
+    );
+} catch (error) {
+  problems.push(`cannot confirm that ${authFile} has no wellknown credential (${error.message})`);
+}
+
 if (problems.length) {
   console.error(`refused: ${file}\n  - ${problems.join('\n  - ')}`);
   process.exit(1);

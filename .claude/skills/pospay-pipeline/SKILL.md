@@ -149,8 +149,11 @@ pins the PosPay rules on top of it.
      `*.env` and `*.env.*` file (`.env.example` templates excepted) to `briefs\guard\<worktree>\env-stash` before the
      run, and moves them back only after MiniMax has stopped. A file MiniMax planted under the same name is set aside
      and reported. The next dispatch refuses to start while the stash still holds a file. A deny list alone kept losing
-     to one more spelling of the same file (`.env::$DATA`, `.env ` with a trailing space; Codex on #416), and a file
-     that is not there cannot be read;
+     to one more spelling of the same file (`.env::$DATA` read a planted secret; Codex on #416), and a file that is not
+     there cannot be read. The scan uses `git ls-files --directory`, so it does not open wholly ignored folders such as
+     `node_modules`; an env file inside one is still covered by the `*.env` deny. A 2026-10-20 smoke test refused
+     `.playwright-mcp/profile.env`, and its trailing-space and trailing-dot spellings (`.env `, `.env.`,
+     `.claude /x`) found no file on opencode 2.0.32;
    - as a second layer, `read` and `edit` deny `.env`, `.env.*`, `*.env` and `*.env.*` at any depth, the forms the
      root `.gitignore` ignores. A worktree's copied `.env` holds database passwords (HANDOVER §3.3), and an explicit `"*": "allow"`
      would otherwise lift opencode's default protection for it. A 2026-10-20 smoke test read a planted
@@ -182,7 +185,10 @@ pins the PosPay rules on top of it.
    - opencode must be signed in to no account. A signed-in organization's config is fetched and merged after the
      project file, so it could override every rule here (Codex on #416). The checker reads the `account`,
      `account_state` and `control_account` tables of `~/.local/share/opencode/opencode.db` read-only and refuses the
-     run if any has a row, or if it cannot read them. All three were empty on 2026-10-20;
+     run if any has a row, or if it cannot read them. All three were empty on 2026-10-20. It also refuses a
+     `wellknown` credential in `auth.json` (reading only each entry's `type`), because opencode fetches that
+     provider's `/.well-known/opencode` config and merges it. None existed on 2026-10-20: the entries were `oauth`
+     and `api` only;
    - `formatter` and `lsp` are `false` in the template, and the checker requires it. opencode runs formatters
      (prettier, and others) after every edit, and starts built-in LSP servers when a file opens, as host processes
      outside every permission rule. A formatter also loads project config that MiniMax could edit. The orchestrator
@@ -287,7 +293,7 @@ pins the PosPay rules on top of it.
      "PosPay MiniMax run: follow the attached brief only. Read and edit files in this worktree only.`n")
    [IO.File]::WriteAllText((Join-Path $isolatedConfig 'opencode\opencode.json'), "{ `"autoupdate`": false }`n")
    # Secret env files leave the worktree for the whole run (Codex on #416): a deny list can be dodged by one more
-   # spelling of the same file (.env::$DATA, '.env '), and a file that is not there cannot be read. MiniMax never needs
+   # spelling of the same file (.env::$DATA read one), and a file that is not there cannot be read. MiniMax never needs
    # them; the orchestrator runs every gate after the run, with the files back in place.
    $envStash = Join-Path $guard 'env-stash'
    $envFiles = @(git -c core.quotePath=false ls-files --others --ignored --exclude-standard --directory |
