@@ -147,8 +147,9 @@ node -e 'fetch("https://ntfy.pospay.systems",{method:"POST",
 }).then(r=>console.log(r.status))'
 ```
 
-A `200` means it was sent. To check what went out, read the topic as Waleed:
-`https://ntfy.pospay.systems/pospay-waleed/json?poll=1&since=1h`.
+A `200` means it was sent. To check what went out, read the same topic you published to, as Waleed (he reads every
+`pospay-*` topic). For the example above that is
+`https://ntfy.pospay.systems/pospay-questions/json?poll=1&since=1h`; for a feature notice, use `pospay-features`.
 
 ## Never
 
