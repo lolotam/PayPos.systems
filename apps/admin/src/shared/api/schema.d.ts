@@ -1723,6 +1723,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/performer-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Newest-first performer-change history for one saved line. Requires read:service-sessions:branch and the orders feature. change:service-line-performers:branch does not grant this read. A line, session, branch or company mismatch is a uniform 403. The reason and the changer label are returned only here. The scoped cursor carries the last revision. */
+        get: operations["listServiceLinePerformerChanges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/tips": {
         parameters: {
             query?: never;
@@ -4670,6 +4687,30 @@ export interface components {
         };
         ServiceLineEditsPage: {
             items: components["schemas"]["ServiceLineEditItem"][];
+            next_cursor: string | null;
+        };
+        ServiceLinePerformerChangesQuery: {
+            /** @default 50 */
+            limit: number;
+            cursor?: string;
+        };
+        ServiceLinePerformerChangePerformer: {
+            name_ar: string | null;
+            name_en: string;
+            share_bps: number;
+        };
+        ServiceLinePerformerChangeItem: {
+            revision: number;
+            /** Format: date-time */
+            changed_at: string;
+            changer_label_ar: string;
+            changer_label_en: string;
+            reason: string;
+            before: components["schemas"]["ServiceLinePerformerChangePerformer"][];
+            after: components["schemas"]["ServiceLinePerformerChangePerformer"][];
+        };
+        ServiceLinePerformerChangesPage: {
+            items: components["schemas"]["ServiceLinePerformerChangeItem"][];
             next_cursor: string | null;
         };
         ServiceLineCancellation: {
@@ -11810,6 +11851,63 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceLineEditsPage"];
+                };
+            };
+            /** @description Invalid query or a cursor for another company, business, branch, session or line. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform scope/authority refusal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication/readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listServiceLinePerformerChanges: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+                lineId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Performer-change history newest first. Names and shares are the snapshots stored at the change. next_cursor is null on the last page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceLinePerformerChangesPage"];
                 };
             };
             /** @description Invalid query or a cursor for another company, business, branch, session or line. */
