@@ -29,29 +29,41 @@ const denyAfterAllow = (paths) =>
 // An allowlist: "*" is denied first, so every tool not allowed below is refused, every MCP tool included.
 // MiniMax has no shell at all (Waleed, SA-7.1, 2026-10-20): it only reads and edits files in its worktree,
 // and the orchestrator runs every gate and test after reviewing the diff.
+const permission = {
+  '*': 'deny',
+  external_directory: 'deny',
+  read: denyAfterAllow([...gitPaths, ...envPaths]),
+  edit: denyAfterAllow([...gitPaths, ...configPaths, ...envPaths]),
+  glob: denyAfterAllow(gitPaths),
+  list: denyAfterAllow(gitPaths),
+  todowrite: 'allow',
+  todoread: 'allow',
+  bash: 'deny',
+  shell: 'deny',
+  execute: 'deny',
+  grep: 'deny',
+  webfetch: 'deny',
+  websearch: 'deny',
+  task: 'deny',
+  subagent: 'deny',
+  skill: 'deny',
+  '*mcp*': 'deny',
+  '*_mcp_resource*': 'deny',
+  'opencode.*': 'deny',
+};
+
+// The dispatch pins this agent with --agent. Agent permissions win over top-level ones, so a default_agent or
+// agent permissions added later to the global config cannot loosen this map; the top-level copy covers anything
+// that runs without an agent.
 const config = {
   $schema: 'https://opencode.ai/config.json',
-  permission: {
-    '*': 'deny',
-    external_directory: 'deny',
-    read: denyAfterAllow([...gitPaths, ...envPaths]),
-    edit: denyAfterAllow([...gitPaths, ...configPaths, ...envPaths]),
-    glob: denyAfterAllow(gitPaths),
-    list: denyAfterAllow(gitPaths),
-    todowrite: 'allow',
-    todoread: 'allow',
-    bash: 'deny',
-    shell: 'deny',
-    execute: 'deny',
-    grep: 'deny',
-    webfetch: 'deny',
-    websearch: 'deny',
-    task: 'deny',
-    subagent: 'deny',
-    skill: 'deny',
-    '*mcp*': 'deny',
-    '*_mcp_resource*': 'deny',
-    'opencode.*': 'deny',
+  permission,
+  agent: {
+    'pospay-minimax': {
+      description: 'PosPay implementer: reads and edits files in its worktree only (SA-6, SA-7.1).',
+      mode: 'primary',
+      permission,
+    },
   },
 };
 

@@ -133,6 +133,10 @@ pins the PosPay rules on top of it.
      win over them, because the last matching rule wins. Any unknown permission key or top-level config key is
      refused;
    - MiniMax runs only at a worktree root, so the dispatch requires `.git` to be a file there;
+   - every run pins the project's own agent, `--agent pospay-minimax`, whose permission map is the same allowlist.
+     Agent permissions win over top-level ones. So a `default_agent`, or agent permissions added later to the
+     untouched global config, cannot loosen the rules. The checker refuses any other agent, a `default_agent`, or a
+     global config that mentions `pospay-minimax`;
    - git, the GitHub CLI, OpenSSH and Docker are off `PATH`, as a second layer, and `PATH` is restored after the
      run.
 
@@ -190,13 +194,15 @@ pins the PosPay rules on top of it.
      }
      if (-not (Get-Command opencode -ErrorAction SilentlyContinue)) { throw 'opencode is not on PATH: stop' }
      $ErrorActionPreference = 'Continue'
-     opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
+     opencode run --agent pospay-minimax -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
          -f F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt "Implement the attached brief."
      $opencodeExit = if ($?) { $LASTEXITCODE } else { 1 }
    } finally {
      $env:PATH = $savedPath
      node .\.claude\skills\pospay-pipeline\stop-opencode-sessions.cjs .
+     $stopExit = $LASTEXITCODE
    }
+   if ($stopExit -ne 0) { throw 'a MiniMax session could not be stopped: interrupt it by hand before review' }
    if ($opencodeExit -ne 0) { throw "opencode run exited $($opencodeExit), so treat it as a failed run (rule 8)" }
    ```
 

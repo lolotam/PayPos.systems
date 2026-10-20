@@ -74,5 +74,86 @@
     "*mcp*": "deny",
     "*_mcp_resource*": "deny",
     "opencode.*": "deny"
+  },
+  "agent": {
+    "pospay-minimax": {
+      "description": "PosPay implementer: reads and edits files in its worktree only (SA-6, SA-7.1).",
+      "mode": "primary",
+      "permission": {
+        "*": "deny",
+        "external_directory": "deny",
+        "read": {
+          "*": "allow",
+          ".git": "deny",
+          ".git/*": "deny",
+          "*/.git": "deny",
+          "*/.git/*": "deny",
+          "*\\.git": "deny",
+          "*\\.git\\*": "deny",
+          ".env": "deny",
+          ".env.*": "deny",
+          "*/.env": "deny",
+          "*/.env.*": "deny",
+          "*\\.env": "deny",
+          "*\\.env.*": "deny"
+        },
+        "edit": {
+          "*": "allow",
+          ".git": "deny",
+          ".git/*": "deny",
+          "*/.git": "deny",
+          "*/.git/*": "deny",
+          "*\\.git": "deny",
+          "*\\.git\\*": "deny",
+          "opencode.json*": "deny",
+          "*/opencode.json*": "deny",
+          "*\\opencode.json*": "deny",
+          ".opencode": "deny",
+          ".opencode/*": "deny",
+          "*/.opencode": "deny",
+          "*/.opencode/*": "deny",
+          "*\\.opencode": "deny",
+          "*\\.opencode\\*": "deny",
+          ".env": "deny",
+          ".env.*": "deny",
+          "*/.env": "deny",
+          "*/.env.*": "deny",
+          "*\\.env": "deny",
+          "*\\.env.*": "deny"
+        },
+        "glob": {
+          "*": "allow",
+          ".git": "deny",
+          ".git/*": "deny",
+          "*/.git": "deny",
+          "*/.git/*": "deny",
+          "*\\.git": "deny",
+          "*\\.git\\*": "deny"
+        },
+        "list": {
+          "*": "allow",
+          ".git": "deny",
+          ".git/*": "deny",
+          "*/.git": "deny",
+          "*/.git/*": "deny",
+          "*\\.git": "deny",
+          "*\\.git\\*": "deny"
+        },
+        "todowrite": "allow",
+        "todoread": "allow",
+        "bash": "deny",
+        "shell": "deny",
+        "execute": "deny",
+        "grep": "deny",
+        "webfetch": "deny",
+        "websearch": "deny",
+        "task": "deny",
+        "subagent": "deny",
+        "skill": "deny",
+        "*mcp*": "deny",
+        "*_mcp_resource*": "deny",
+        "opencode.*": "deny"
+      }
+    }
   }
 }
