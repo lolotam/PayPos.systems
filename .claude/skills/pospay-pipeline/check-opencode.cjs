@@ -84,7 +84,11 @@ const driveLetterPaths = 'ABCDEGHIJKLMNOPQRSTUVWXYZ'
 // A colon anywhere but the drive letter is an NTFS stream: .env::$DATA is the .env file itself, and a named stream
 // is a hidden file git never shows. No worktree path has one, so '??*:*' (two or more characters before a colon)
 // refuses them while F:... still matches nothing (Codex on #416; a smoke test read .env::$DATA before this).
-const otherDrivePaths = [...driveLetterPaths, `${BS}*`, '/*', '??*:*'];
+// A name component that ends in a space or a dot is not a real worktree path either: opencode 2.0.32 writes it
+// literally (a folder named '.opencode ' beside the real one), and Win32 tools would strip the space or dot and
+// reach the protected name (Codex on #416). Normal paths never end a component that way.
+const trailingAliasPaths = ['* ', '* /*', '*.', '*./*'];
+const otherDrivePaths = [...driveLetterPaths, `${BS}*`, '/*', '??*:*', ...trailingAliasPaths];
 // Each path map must hold exactly these rules in this order, because the last matching rule wins. The only allows
 // after "*" are the secret-free .env.example templates, and the git, config and .claude denies follow them, so no
 // allow can re-open a protected tree.

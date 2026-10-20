@@ -135,6 +135,10 @@ pins the PosPay rules on top of it.
      `.env::$DATA` is the `.env` file itself, and a named stream such as `.env:hidden` is a hidden file that git
      never shows. A 2026-10-20 smoke test read a planted `.env` through `.env::$DATA` before this deny, and refused
      both forms after it, while `README.md` and its absolute `F:\` path still read (Codex on #416);
+   - `read` and `edit` deny any path whose name component ends in a space or a dot (`* `, `* /*`, `*.`, `*./*`).
+     opencode 2.0.32 writes such a path literally, so a 2026-10-20 smoke test created folders named `.opencode ` and
+     `.claude.` beside the real names, which other Windows tools would treat as the protected folder. After the
+     deny both writes were refused, while `./sub/a.txt`, `sub/../README.md`, a new file and an edit still worked;
    - `glob` is denied too. opencode checks its permission against the search pattern only, never the folder it
      searches, so no path rule could keep a glob out of `.git`, another drive or a share (Codex on #416). Briefs
      name every file MiniMax needs (rule 5), so it reads them directly;
