@@ -35,16 +35,23 @@ const pathMaps = {
   read: [...gitPaths, ...envPaths],
   edit: [...gitPaths, ...configPaths, ...envPaths, ...claudePaths],
   glob: gitPaths,
-  list: gitPaths,
 };
+// Only read, edit (which covers write) and glob may be allowed, through the path maps above; everything named
+// here must be an explicit "deny" (owner's lists, SA-6, SA-7.1 and the 2026-10-20 execute broadcast).
 const mustDeny = [
+  'list',
+  'todowrite',
+  'todoread',
   'bash',
   'shell',
   'execute',
   'external_directory',
   'grep',
+  'search',
+  'fetch',
   'webfetch',
   'websearch',
+  'question',
   'task',
   'subagent',
   'skill',
@@ -52,8 +59,7 @@ const mustDeny = [
   '*_mcp_resource*',
   'opencode.*',
 ];
-const mayAllow = ['todowrite', 'todoread'];
-const knownKeys = ['*', ...mustDeny, ...mayAllow, ...Object.keys(pathMaps)];
+const knownKeys = ['*', ...mustDeny, ...Object.keys(pathMaps)];
 
 const AGENT = 'pospay-minimax';
 const file = process.argv[2] || 'opencode.json';
@@ -79,10 +85,6 @@ function checkPermissionMap(permission, where) {
   }
   for (const key of mustDeny) {
     if (permission[key] !== 'deny') problems.push(`${where}: ${key} must be "deny"`);
-  }
-  for (const key of mayAllow) {
-    if (![undefined, 'allow', 'deny'].includes(permission[key]))
-      problems.push(`${where}: ${key} must be "allow" or "deny"`);
   }
   for (const [tool, denies] of Object.entries(pathMaps)) {
     const rules = permission[tool];

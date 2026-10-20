@@ -118,11 +118,13 @@ pins the PosPay rules on top of it.
 
    **Every limit below must be in place before each run.** `check-opencode.cjs` refuses the run when one is missing:
    - the shell is denied outright (`bash` and `shell`), as are `execute`, which is code mode and reaches opencode's
-     internal `tools.opencode.*`, and `grep`, which ignores path rules;
+     internal `tools.opencode.*` (eyadex saw MiniMax use it to hunt for the banned `grep`), and `grep`, which
+     ignores path rules;
    - every MCP tool is denied, including `list`/`read_mcp_resource`;
-   - `webfetch`, `websearch`, `task`/`subagent` and `skill` are denied;
+   - `search`, `fetch`, `webfetch`, `websearch`, `question`, `list`, `todowrite`, `todoread`, `task`/`subagent` and
+     `skill` are denied, each by name;
    - `external_directory` is denied, so no tool reaches outside the worktree, the main checkout's `.git` included;
-   - `read`, `edit`, `glob` and `list` deny `.git` and anything under it, in both slash styles;
+   - `read`, `edit` and `glob` deny `.git` and anything under it, in both slash styles;
    - `read` and `edit` deny `.env` and `.env.*` at any depth, in both slash styles. A worktree's copied `.env` holds
      database passwords (HANDOVER §3.3), and an explicit `"*": "allow"` would otherwise lift opencode's default
      protection for it;
@@ -152,8 +154,8 @@ pins the PosPay rules on top of it.
      run.
 
    **The permission file is an allowlist.** `"*"` is denied first, so every tool not allowed after it is refused,
-   whatever an MCP server or a later opencode version names it. Only `read`, `edit`, `glob`, `list` and the todo
-   tools are allowed. `gen-opencode.cjs` writes the tracked template `opencode-pospay.json` next to this skill, and
+   whatever an MCP server or a later opencode version names it. Only `read`, `edit` (which covers `write`) and
+   `glob` are allowed. `gen-opencode.cjs` writes the tracked template `opencode-pospay.json` next to this skill, and
    the dispatch copies it to `<worktree>\opencode.json`. Never edit the template by hand: opencode **silently
    ignores an invalid `opencode.json` and then runs with no restrictions at all**, which happened on 2026-10-20
    when a lost backslash broke the JSON. A template change gets one MiniMax smoke run before it is used. The file
