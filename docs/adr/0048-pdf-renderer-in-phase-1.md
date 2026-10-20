@@ -39,7 +39,9 @@ enforces) names only `reporting`.
    `removeOnComplete`/`removeOnFail: true`.
 3. The worker keeps two Redis keys, both prefixed with the tenant:
    - `documents:status:{company_id}:{render_id}`: a small hash `{ state, requested_by, error_code?, filename }`,
-     TTL 15 minutes. Written `QUEUED` by the API at enqueue time; `RENDERING`, `READY` or `FAILED` by the worker.
+     TTL 15 minutes. Written `QUEUED` by the API **before** it enqueues the job (`HSET` + `EXPIRE`, then `Queue.add`); the worker skips a
+     job whose status is missing. `RENDERING`, `READY` or `FAILED` are written by the worker, each by one atomic script
+     guarded by the current state.
    - `documents:bytes:{company_id}:{render_id}`: the PDF, written `SET NX` with a TTL of **120 seconds** from `READY`.
 4. The requester polls `GET …/{render_id}` (status only: `QUEUED | RENDERING | READY | FAILED | EXPIRED | CONSUMED`
    and a safe `error_code`; `Cache-Control: no-store`). It then collects the file with **`POST …/{render_id}/download`**,
@@ -90,6 +92,8 @@ BullMQ's `returnvalue` (it stays in the job hash after the download, and `remove
    `disconnected` the capability is marked unavailable and relaunched with backoff; the job in flight fails and BullMQ
    retries it once. Concurrency 2 on the queue; BullMQ `lockDuration` at least 45 s so a slow render is never picked up
    twice.
+   Playwright's own signal handlers are off, so the worker's ordered shutdown closes the queue first and the browser
+   last; a start that fails or is slow retries with backoff instead of closing the capability for good.
 2. Each context runs with `javaScriptEnabled: false`, `offline: true`, service workers blocked and every route aborted.
    All CSS, fonts and images are inline. Timeouts: `setContent` 10 s, `pdf` 20 s, 30 s for the whole job; a timeout
    closes the context (and the browser if it hangs), it does not just stop waiting.
@@ -107,7 +111,9 @@ BullMQ's `returnvalue` (it stays in the job hash after the download, and `remove
      build's smoke prints a non-zero uid.
 
 4. `--disable-dev-shm-usage` (Docker's 64 MB `/dev/shm`) and `--disable-gpu`. No traces, HAR files or downloads.
-5. The renderer is an **optional capability**: `/ready` does not wait for Chromium, so the outbox dispatcher, files and
+5. The liveness key is one key per Redis, which fits the single worker instance staging runs today; a second worker
+   instance needs a per-instance key first.
+6. The renderer is an **optional capability**: `/ready` does not wait for Chromium, so the outbox dispatcher, files and
    notifications keep running if it fails. While the browser is up, the worker refreshes a 3-second liveness key in
    Redis (the `staff-otp:worker-capability` pattern); the API refuses a new render with `503 RENDERER_UNAVAILABLE` when
    the key is missing, so no job is queued with nothing to run it.

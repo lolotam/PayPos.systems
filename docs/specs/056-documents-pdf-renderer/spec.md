@@ -1,6 +1,6 @@
 # Spec 056 — The PDF renderer (Phase 1 row 27i)
 
-> **Status:** Draft · 2026-10-19. Foundation only: no screen, no endpoint, no database change.
+> **Status:** Ready · 2026-10-20. Foundation only: no screen, no endpoint, no database change.
 > **Decision record:** [ADR-0048](../../adr/0048-pdf-renderer-in-phase-1.md) (design advisors Codex astra 6 and Claude
 > Fable 5.1, 2026-10-19).
 > **Needed by:** row 27g (the official attendance statement PDF, Abu Salem's pick AB-Q10).
@@ -38,10 +38,12 @@ document. 27g then adds the first real document.
   transaction is open while Chromium runs.
 - **FR-004** HTML over 4 MiB or a PDF over 8 MiB sets `FAILED` with `DOCUMENT_TOO_LARGE`; nothing is written to the bytes
   key.
-- **FR-005** A render that exceeds its timeouts (`setContent` 10 s, `pdf` 20 s, 30 s overall) sets `FAILED` with
-  `DOCUMENT_RENDER_TIMEOUT` after its context has been closed.
-- **FR-006** A failure on the first attempt is retried once (`attempts: 2`); `FAILED` is written only after the last
-  attempt. A retry never overwrites bytes that are already written (`SET NX`).
+- **FR-005** A render that exceeds its timeouts (`setContent` 10 s, `pdf` 20 s, 30 s overall, which starts before
+  the source loads) sets `FAILED` with `DOCUMENT_RENDER_TIMEOUT`; its context (or a hung browser) is closed in the
+  background.
+- **FR-006** A failure on the first attempt is retried once, 5 s later (`attempts: 2`); `FAILED` is written only after
+  the last attempt. `DOCUMENT_KIND_UNKNOWN` and `DOCUMENT_TOO_LARGE` are final at once. Every status change is one
+  atomic Redis script guarded by the current state, so a retry never republishes bytes after `READY`.
 - **FR-007** No PDF byte, HTML, template data, Redis key value or tenant field is written to a log line, the job's
   `returnvalue`, Postgres or object storage. Logs carry `company_id`, `render_id`, `kind`, the state and the duration.
 - **FR-008** Every interpolated value in a template is HTML-escaped. `raw()` accepts only fragments built by the
