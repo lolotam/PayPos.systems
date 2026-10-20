@@ -115,8 +115,14 @@ Waleed and Abu Salem get phone notifications from https://ntfy.pospay.systems (t
 
 | Topic | Who reads it | What goes there |
 |---|---|---|
-| `pospay-waleed` | Waleed | Every review or suggestion Abu Salem saves (the site sends it on its own); every merge; anything waiting on Waleed |
-| `pospay-team` | Waleed and Abu Salem | Every new money question batch |
+| `pospay-features` | Waleed and Abu Salem | Something new or changed that users can see, in 2–3 plain Arabic lines (PP-13.2) |
+| `pospay-questions` | Waleed and Abu Salem | Every question waiting for them, money question batches included (PP-13) |
+| `pospay-waleed` | Waleed | Every review or suggestion Abu Salem saves (the site sends it on its own); anything waiting on Waleed |
+| `pospay-team` | Waleed and Abu Salem | Nothing today; kept so existing subscriptions do not break |
+
+Abu Salem is not technical. Never send a bare «تم الـ merge»: a merge is announced only as what it changed for the
+user, with no engineering words (merge, PR, test, CI, migration, branch, file names or codes). An internal fix that
+users cannot see gets no notification (Waleed, 2026-10-20, `owner-decisions.ar.md` item 18).
 
 **Credentials.** The orchestrator publishes as `plan-bot`, which can write to every topic but read none. Its token is
 `NTFY_TOKEN` in the Dokploy environment of the `plan` application. Keep it only in a shell env var such as `NTFY_TOKEN`,
@@ -124,8 +130,9 @@ never in git, a doc or a message.
 
 **When to send:**
 
-- after step 8 of §A: one notification to `pospay-team` naming the batch;
-- after every merge (§B): one to `pospay-waleed`;
+- after step 8 of §A: one notification to `pospay-questions` naming the batch;
+- after a merge that adds or changes something users see (§B): one to `pospay-features`, saying in plain words what
+  they can now do;
 - whenever work stops on an owner decision: one to `pospay-waleed`.
 
 A notification names the batch or the row and links to the page. It never quotes an answer or the text of a review.
@@ -135,13 +142,14 @@ A notification names the batch or the row and links to the page. It never quotes
 ```bash
 node -e 'fetch("https://ntfy.pospay.systems",{method:"POST",
   headers:{authorization:"Bearer "+process.env.NTFY_TOKEN,"content-type":"application/json"},
-  body:JSON.stringify({topic:"pospay-team",title:"قرارات PosPay",
+  body:JSON.stringify({topic:"pospay-questions",title:"قرارات PosPay",
     message:"دفعة 34 — 3 أسئلة فلوس جديدة مستنية رأيكم",click:"https://plan.pospay.systems/#batch-34",tags:["bell"]})
 }).then(r=>console.log(r.status))'
 ```
 
-A `200` means it was sent. To check what went out, read the topic as Waleed:
-`https://ntfy.pospay.systems/pospay-waleed/json?poll=1&since=1h`.
+A `200` means it was sent. To check what went out, read the same topic you published to, as Waleed (he reads every
+`pospay-*` topic). For the example above that is
+`https://ntfy.pospay.systems/pospay-questions/json?poll=1&since=1h`; for a feature notice, use `pospay-features`.
 
 ## Never
 
