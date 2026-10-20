@@ -1,5 +1,15 @@
 # Worker operations
 
+## Restoring a logical dump
+
+Restore a logical dump only into a **freshly `initdb`'d cluster**, with triggers disabled:
+`pg_restore --disable-triggers` as superuser, or `SET session_replication_role = replica` for the
+restoring session. The write seal (`write_system_id`, `write_xid` — ADR-0048) is stamped by the
+triggers: restoring with them on re-stamps the rows with the new cluster's identifier and the
+deferred performer-change check plus the uniques refuse them. Never restore into a cluster that
+kept the writer's `system_identifier` (a PITR target or a physical fork), or a restored row can
+pass as a header of the current transaction.
+
 ## PR 28: register existing companies for not-clocked-in alerts
 
 Run this procedure **only after the new worker release is fully rolled out on every replica**, before relying

@@ -125,12 +125,12 @@ CREATE OR REPLACE FUNCTION slpc_change_complete() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
 DECLARE header uuid; sid bigint;
 BEGIN
-  sid := public.pospay_system_id();
   IF TG_TABLE_NAME = 'service_line_performer_changes' THEN
     PERFORM public.slpc_validate_change(NEW.company_id, NEW.id);
   ELSIF TG_TABLE_NAME = 'service_line_performer_change_rows' THEN
     PERFORM public.slpc_validate_change(NEW.company_id, NEW.change_id);
   ELSIF TG_OP = 'DELETE' THEN
+    sid := public.pospay_system_id();
     SELECT c.id INTO header FROM public.service_line_performer_changes c
     WHERE c.company_id = OLD.company_id AND c.line_id = OLD.line_id
       AND c.write_system_id = sid AND c.write_xid = pg_current_xact_id();
@@ -140,10 +140,19 @@ BEGIN
     END IF;
     PERFORM public.slpc_validate_change(OLD.company_id, header);
   ELSE
-    SELECT c.id INTO header FROM public.service_line_performer_changes c
-    WHERE c.company_id = NEW.company_id AND c.line_id = NEW.line_id
-      AND c.write_system_id = sid AND c.write_xid = pg_current_xact_id();
-    IF FOUND THEN PERFORM public.slpc_validate_change(NEW.company_id, header); END IF;
+    -- قراءة pg_control ممكن ترجع بخطأ CRC مؤقت وقت checkpoint، والبديل مفيش فيه إعادة محاولة؛
+    -- فبنتأجلها: بنفحص الأول إن فيه رأس للمعاملة دي، وبعدين بس نقرأ المعرّف.
+    IF EXISTS (
+      SELECT 1 FROM public.service_line_performer_changes c
+      WHERE c.company_id = NEW.company_id AND c.line_id = NEW.line_id
+        AND c.write_xid = pg_current_xact_id()
+    ) THEN
+      sid := public.pospay_system_id();
+      SELECT c.id INTO header FROM public.service_line_performer_changes c
+      WHERE c.company_id = NEW.company_id AND c.line_id = NEW.line_id
+        AND c.write_system_id = sid AND c.write_xid = pg_current_xact_id();
+      IF FOUND THEN PERFORM public.slpc_validate_change(NEW.company_id, header); END IF;
+    END IF;
   END IF;
   RETURN NULL;
 END $$;
@@ -203,6 +212,13 @@ CREATE OR REPLACE FUNCTION service_lines_performer_transition() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
 DECLARE header record; sid bigint;
 BEGIN
+  -- نفس سبب التأجيل في slpc_change_complete: قراءة pg_control ممكن تفشل مؤقت مع checkpoint،
+  -- وهنا المسار بيضرب كل تعديل على service_lines، فبنفحص الأول إن فيه رأس للمعاملة.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.service_line_performer_changes c
+    WHERE c.company_id = OLD.company_id AND c.line_id = OLD.id
+      AND c.write_xid = pg_current_xact_id()
+  ) THEN RETURN NEW; END IF;
   sid := public.pospay_system_id();
   SELECT c.id, c.previous_revision, c.revision INTO header
   FROM public.service_line_performer_changes c
@@ -226,9 +242,9 @@ CREATE OR REPLACE FUNCTION line_performers_change_guard() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
 DECLARE header uuid; line_rev integer; target integer; sid bigint;
 BEGIN
-  sid := public.pospay_system_id();
   IF TG_OP = 'DELETE' THEN
     IF OLD.company_id IS DISTINCT FROM public.app_company_id() THEN RETURN OLD; END IF;
+    sid := public.pospay_system_id();
     SELECT c.id INTO header FROM public.service_line_performer_changes c
     JOIN public.service_lines l ON l.company_id = c.company_id AND l.business_id = c.business_id AND l.id = c.line_id
     WHERE c.company_id = OLD.company_id AND c.line_id = OLD.line_id
@@ -246,13 +262,22 @@ BEGIN
     RETURN OLD;
   END IF;
   IF NEW.company_id IS DISTINCT FROM public.app_company_id() THEN RETURN NEW; END IF;
-  SELECT l.revision, c.revision INTO line_rev, target
-  FROM public.service_lines l
-  LEFT JOIN public.service_line_performer_changes c
-    ON c.company_id = l.company_id AND c.business_id = l.business_id AND c.line_id = l.id
-      AND c.write_system_id = sid AND c.write_xid = pg_current_xact_id()
+  SELECT l.revision INTO line_rev FROM public.service_lines l
   WHERE l.company_id = NEW.company_id AND l.business_id = NEW.business_id AND l.id = NEW.line_id;
   IF NOT FOUND THEN RETURN NEW; END IF;
+  target := NULL;
+  -- نفس سبب التأجيل: قراءة pg_control ممكن تفشل مؤقت مع checkpoint، وهنا المسار بيضرب كل
+  -- إدراج منفّذ عند الكاشير، فبنفحص الأول إن فيه رأس للمعاملة قبل ما نقرأ المعرّف.
+  IF EXISTS (
+    SELECT 1 FROM public.service_line_performer_changes c
+    WHERE c.company_id = NEW.company_id AND c.line_id = NEW.line_id
+      AND c.write_xid = pg_current_xact_id()
+  ) THEN
+    sid := public.pospay_system_id();
+    SELECT c.revision INTO target FROM public.service_line_performer_changes c
+    WHERE c.company_id = NEW.company_id AND c.business_id = NEW.business_id AND c.line_id = NEW.line_id
+      AND c.write_system_id = sid AND c.write_xid = pg_current_xact_id();
+  END IF;
   IF target IS NOT NULL AND line_rev IS DISTINCT FROM target THEN
     RAISE EXCEPTION 'performer insert requires the line to be at the change target revision'
       USING ERRCODE = '23514', CONSTRAINT = 'line_performers_change_guard';

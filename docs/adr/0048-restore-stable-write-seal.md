@@ -56,7 +56,22 @@ refuses to run when the identifier reads back as `NULL` or `0`.
 |---|---|---|---|
 | Logical restore (`initdb` + `pg_restore`) | **new** | restarts low | yes — the restored rows carry the old identifier, which the new cluster never has |
 | Physical restore (file copy), replica promotion, PITR | unchanged | unchanged | yes — identifier and XID history both survive, so the seal keeps its meaning |
-| `pg_upgrade` | either kept (new binaries on the same data directory) or new (new cluster directory) | kept or reset | yes — the two cases above |
+| `pg_upgrade` | **new** (it always targets a freshly `initdb`'d cluster) | **kept** (the counter is carried over) | yes — a new identifier with the old XID history is exactly the case the pair separates |
+
+### 1a. The identifier read costs a control-file read, so the hot paths read it lazily
+
+`pg_control_system()` reads `global/pg_control` through PostgreSQL 16's backend
+`get_controlfile()`: no lock, no retry, and a CRC error is raised when the read races a
+checkpoint. The read is cheap in the common case, but on a hot path it must not be the reason a
+write fails. Three guards therefore read the identifier **lazily**: they first check whether the
+transaction has a header for the line at all (`EXISTS … write_xid = pg_current_xact_id()`, which
+costs an index lookup on a small table), and only then read the identifier and run the paired
+lookup. The three are `service_lines_performer_transition` (every `service_lines` update),
+`line_performers_change_guard`'s INSERT branch (every performer row written at the till) and
+`slpc_change_complete`'s remaining branch (every `line_performers` insert). The other seal-reading
+functions run only inside a tip or performer change, so they keep the eager read. A header is
+never picked by its XID alone: the cheap check is only a pre-filter, and the lookup that follows
+compares the pair.
 
 ### 2. The seal is stamped by a trigger, never by the caller
 
@@ -100,6 +115,17 @@ level, so it cannot rewrite a stamp after the fact. The trigger overwrites the v
 identifier itself is only readable through `public.pospay_system_id()`, whose `EXECUTE` grant
 belongs to `pospay_app` alone.
 
+### 6. Supported restore procedure
+
+A logical restore of these tables must run **into a freshly `initdb`'d cluster with triggers
+disabled**: `pg_restore --disable-triggers` as superuser, or `SET session_replication_role =
+replica` for the session. A restore that fires the triggers re-stamps every restored row with the
+new cluster's identifier, and the deferred `slpc_change_complete` check plus the four-column
+uniques then refuse the rows — that refusal predates this ADR and is the reason the seal is not
+restored by replaying it. This is the path the seal protects: the restored rows keep the writing
+cluster's identifier (or the `0` sentinel for the rows that predate it), so they can never
+authorise a write in the new cluster.
+
 ## Consequences
 
 - A restored row can never authorise a write, and a legitimate write after a restore is never
@@ -113,7 +139,8 @@ belongs to `pospay_app` alone.
   `system_identifier` but has a different XID history is not covered. That means a PITR to an
   earlier point followed by loading a later logical dump of the same cluster, or importing data
   from a physical fork of it. The restore runbook must therefore load logical dumps only into a
-  fresh `initdb` cluster, never into a cluster that kept the writer's identifier.
+  fresh `initdb` cluster, with triggers disabled, never into a cluster that kept the writer's
+  identifier (`docs/runbook.md`, "Restoring a logical dump").
 - The residual needs a different anchor (a per-row UUID written by the writer, or a signed
   cluster epoch) if it ever has to be covered.
 

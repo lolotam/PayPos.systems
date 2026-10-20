@@ -8,6 +8,7 @@ import { seedTwoTenants } from '../../test/tenancy-fixtures.ts';
 import { seedOrders, ORDER_IDS } from '../../test/orders-fixture.ts';
 import { openSession, tenantA as tipTenant, type TipCtx } from '../../test/session-tip.ts';
 import {
+  PERFORMER_STAFF,
   performer,
   recordLine,
   seedPerformerChangeStaff,
@@ -178,19 +179,28 @@ it('keeps a legitimate header for the same session beside a restored one', async
     await insertRevision(owner, legitimate, sessionId, 2, 1);
     await insertTip(owner, sessionId, legitimate);
   });
+  const [cluster] = await owner`SELECT public.pospay_system_id()::text AS id`;
   const rows = await owner`SELECT write_system_id::text AS cluster FROM session_tip_revisions
     WHERE company_id=${tipCtx.company} AND session_id=${sessionId} ORDER BY revision`;
-  expect(rows.map((row) => row['cluster'])).toEqual([String(FOREIGN_CLUSTER), expect.any(String)]);
+  expect(cluster?.['id']).not.toBe(String(FOREIGN_CLUSTER));
+  expect(rows.map((row) => row['cluster'])).toEqual([String(FOREIGN_CLUSTER), cluster?.['id']]);
 });
 
 it('refuses a side row and a performer delete for a header from another cluster', async () => {
   const change = ids.newId();
   await rolledBack(async () => {
     await asApp(owner, changeCtx.company);
+    // تغيير performers شرعي: الرأس، صف BEFORE المطابق للمنفّذ الحيّ، ثم السطر بيمشي للـ revision المستهدف.
     await owner`INSERT INTO service_line_performer_changes(company_id,id,business_id,line_id,revision,previous_revision,reason,changed_at,
       changed_by,changed_by_membership_id,changer_name_en,write_xid)
       VALUES(${changeCtx.company},${change},${changeCtx.business},${LINE},2,1,'Changed performers',clock_timestamp(),
         ${changeCtx.userId},${changeCtx.membershipId},'Changer','1'::xid8)`;
+    await owner`INSERT INTO service_line_performer_change_rows(company_id,id,business_id,change_id,side,employee_id,performer_ordinal,share_bps,
+      name_en,linked_user_snapshotted,not_clocked_in_warning,approved_leave_warning)
+      VALUES(${changeCtx.company},${ids.newId()},${changeCtx.business},${change},'BEFORE',${ORDER_IDS.employee},1,10000,
+        'Synthetic',true,false,false)`;
+    await owner`UPDATE service_lines SET revision=2 WHERE company_id=${changeCtx.company} AND id=${LINE}`;
+    // الختم بس هو اللي بيتزوّر: معرّف cluster تاني ونفس الـ xid بتاع المعاملة.
     await owner`RESET ROLE`;
     await owner`UPDATE service_line_performer_changes SET write_system_id=${FOREIGN_CLUSTER}
       WHERE company_id=${changeCtx.company} AND id=${change}`;
@@ -200,7 +210,7 @@ it('refuses a side row and a performer delete for a header from another cluster'
       () =>
         owner`INSERT INTO service_line_performer_change_rows(company_id,id,business_id,change_id,side,employee_id,performer_ordinal,share_bps,
         name_en,linked_user_snapshotted,not_clocked_in_warning,approved_leave_warning)
-        VALUES(${changeCtx.company},${ids.newId()},${changeCtx.business},${change},'BEFORE',${ORDER_IDS.employee},1,10000,
+        VALUES(${changeCtx.company},${ids.newId()},${changeCtx.business},${change},'AFTER',${ORDER_IDS.employee},1,10000,
           'Synthetic',true,false,false)`,
     );
     expect(detail(side)).toEqual({ code: '23514', constraint: 'slpcr_current_xact' });
@@ -210,6 +220,50 @@ it('refuses a side row and a performer delete for a header from another cluster'
         owner`DELETE FROM line_performers WHERE company_id=${changeCtx.company} AND line_id=${LINE}`,
     );
     expect(detail(removed)).toEqual({ code: '23514', constraint: 'line_performers_change_guard' });
+  });
+});
+
+it('a line revision move ignores a header from another cluster', async () => {
+  const forged = ids.newId();
+  await rolledBack(async () => {
+    await asApp(owner, changeCtx.company);
+    await owner`INSERT INTO service_line_performer_changes(company_id,id,business_id,line_id,revision,previous_revision,reason,changed_at,
+      changed_by,changed_by_membership_id,changer_name_en,write_xid)
+      VALUES(${changeCtx.company},${forged},${changeCtx.business},${LINE},2,1,'Changed performers',clock_timestamp(),
+        ${changeCtx.userId},${changeCtx.membershipId},'Changer','1'::xid8)`;
+    await owner`RESET ROLE`;
+    await owner`UPDATE service_line_performer_changes SET write_system_id=${FOREIGN_CLUSTER}
+      WHERE company_id=${changeCtx.company} AND id=${forged}`;
+    await asApp(owner, changeCtx.company);
+    // الرأس المزوّر بيستهدف revision 2؛ لو الحرّار شافه رأساً للمعاملة كان هيرفض التعديل ده.
+    await owner`UPDATE service_lines SET revision=3 WHERE company_id=${changeCtx.company} AND id=${LINE}`;
+  });
+  const legitimate = ids.newId();
+  await rolledBack(async () => {
+    await asApp(owner, changeCtx.company);
+    await owner`INSERT INTO service_line_performer_changes(company_id,id,business_id,line_id,revision,previous_revision,reason,changed_at,
+      changed_by,changed_by_membership_id,changer_name_en,write_xid)
+      VALUES(${changeCtx.company},${legitimate},${changeCtx.business},${LINE},2,1,'Changed performers',clock_timestamp(),
+        ${changeCtx.userId},${changeCtx.membershipId},'Changer','1'::xid8)`;
+    const error = await failing(
+      owner,
+      () => owner`UPDATE service_lines SET revision=3 WHERE company_id=${changeCtx.company} AND id=${LINE}`,
+    );
+    expect(detail(error)).toEqual({ code: '23514', constraint: 'service_lines_performer_transition' });
+  });
+});
+
+it('a line edit and a performer insert with no header in the transaction still succeed', async () => {
+  // المجموعة بقت فيها منفّذين فسعرها 20000، فالفحص المؤجل هيفشل لو الـ commit؛
+  // بنرجّع عشان نتحقق من المسار الكسول (من غير رأس في المعاملة) بس.
+  await rolledBack(async () => {
+    await asApp(owner, changeCtx.company);
+    await owner`UPDATE service_lines SET price = price + 1, net = net + 1
+      WHERE company_id=${changeCtx.company} AND id=${LINE}`;
+    await owner`INSERT INTO line_performers(company_id,id,business_id,line_id,employee_id,performer_ordinal,share_bps,name_en,
+      not_clocked_in_warning,approved_leave_warning,linked_user_snapshotted)
+      VALUES(${changeCtx.company},${ids.newId()},${changeCtx.business},${LINE},${PERFORMER_STAFF.emp2},2,10000,'Synthetic second',
+        false,false,true)`;
   });
 });
 
