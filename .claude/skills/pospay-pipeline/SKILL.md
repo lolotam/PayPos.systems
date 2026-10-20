@@ -163,6 +163,10 @@ pins the PosPay rules on top of it.
    - every run uses `--standalone`, a private opencode server started from this checked environment. The shared
      `opencode serve --service` keeps the `OPENCODE_*` variables and config it started with, so checking this
      shell's environment would prove nothing about it;
+   - opencode must be signed in to no account. A signed-in organization's config is fetched and merged after the
+     project file, so it could override every rule here (Codex on #416). The checker reads the `account`,
+     `account_state` and `control_account` tables of `~/.local/share/opencode/opencode.db` read-only and refuses the
+     run if any has a row, or if it cannot read them. All three were empty on 2026-10-20;
    - `formatter` and `lsp` are `false` in the template, and the checker requires it. opencode runs formatters
      (prettier, and others) after every edit, and starts built-in LSP servers when a file opens, as host processes
      outside every permission rule. A formatter also loads project config that MiniMax could edit. The orchestrator

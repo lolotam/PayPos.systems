@@ -2,7 +2,9 @@
 // (Waleed, SA-6 and SA-7.1, 2026-10-20). Exits 1 with the problems listed.
 // Usage: node .claude/skills/pospay-pipeline/check-opencode.cjs [path to opencode.json]
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { DatabaseSync } = require('node:sqlite');
 
 // Kept apart from gen-opencode.cjs on purpose: the checker is the spec the generator is held to, so a
 // generator bug cannot also weaken the check.
@@ -203,6 +205,27 @@ if (fs.existsSync(systemDir))
 for (const name of Object.keys(process.env)) {
   if (/^(OPENCODE_|XDG_DATA_HOME$)/i.test(name))
     problems.push(`environment variable ${name} is set: unset it`);
+}
+
+// opencode fetches a signed-in organization's config and merges it after this file (Codex on #416), so an account
+// could override every rule here. The shared data store must hold no account. Its tables are read, never written.
+const dataDb = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
+const accountTables = ['account', 'account_state', 'control_account'];
+try {
+  const db = new DatabaseSync(dataDb, { readOnly: true });
+  try {
+    for (const table of accountTables) {
+      const { rows } = db.prepare(`select count(*) as rows from ${table}`).get();
+      if (rows)
+        problems.push(
+          `${table} in ${dataDb} has ${rows} row(s): sign opencode out of every account first`,
+        );
+    }
+  } finally {
+    db.close();
+  }
+} catch (error) {
+  problems.push(`cannot confirm that opencode has no signed-in account (${error.message})`);
 }
 
 if (problems.length) {
