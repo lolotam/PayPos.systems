@@ -34,7 +34,9 @@ const dbPath = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.
 const db = new DatabaseSync(dbPath, { readOnly: true });
 const busy = db
   .prepare(
-    'select id, directory, title, time_created from session_v2 where time_idle is null and time_archived is null',
+    // A first round is busy while time_idle is null; a later round sets time_suspended while time_idle still holds
+    // the previous round's timestamp (opencode 2.0.32), so both count as working.
+    'select id, directory, title, time_created from session_v2 where time_archived is null and (time_idle is null or time_suspended is not null)',
   )
   .all()
   .filter((s) => {

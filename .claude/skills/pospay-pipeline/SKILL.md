@@ -267,10 +267,11 @@ pins the PosPay rules on top of it.
        $opencodeExit = $run.ExitCode
      }
    } finally {
-     $env:PATH = $savedPath
-     $env:XDG_CONFIG_HOME = $savedXdg
+     # The stopper launches opencode.exe, so it runs while the isolated config is still active.
      node "$tools\stop-opencode-sessions.cjs" $worktree
      $stopExit = $LASTEXITCODE
+     $env:PATH = $savedPath
+     $env:XDG_CONFIG_HOME = $savedXdg
    }
    if ($stopExit -ne 0) { throw 'a MiniMax session could not be stopped: interrupt it by hand before review' }
    if ($opencodeExit -eq 124) { throw 'MiniMax hit the 45-minute limit: report it, then treat it as a failed run (rule 8)' }
