@@ -45,7 +45,7 @@ async function seedChanges() {
   await commitPerformerChange(f, ctx, lineId, { revision: 3, before: await livePeople(f, lineId),
     after: [withShare(first, 1, 10000)], reason: 'Rana left the branch before the visit',
     changerNameEn: null, changerRole: 'owner', roleIsSystem: true, roleNameEn: 'Owner' });
-  // المجموعة دي بتترد عمداً بترتيب معكوس، عشان ترتيب الجانب في رد القراءة يثبت ترتيب performer_ordinal مش ترتيب الإدراج.
+  // المجموعة دي بتتبعت عمداً بترتيب معكوس عشان صفوفها تتكتب عكس ترتيب performer_ordinal، فترتيب الجانب في رد القراءة يثبت الـ ORDER BY مش ترتيب الإدراج.
   await commitPerformerChange(f, ctx, lineId, { revision: 4, before: await livePeople(f, lineId),
     after: [withShare(second, 2, 4000), withShare(first, 1, 6000)], reason: 'Corrected the split',
     changerNameEn: null, changerRole: 'branch_manager', roleIsSystem: true, roleNameEn: 'Branch manager' });
@@ -80,7 +80,7 @@ it('returns no identity, no membership and no column of the change row', async (
     'performer_ordinal', 'warning']) {
     expect(payload).not.toContain(hidden);
   }
-  // الرد المتين بيشيل المفتاح الزيادة، فالتسريب بيتأكد من الجملة نفسها: مفيش عمود زيادة ولا مفتاح زيادة في الجانبين.
+  // الـ responseObject بيشيل أي مفتاح زيادة من الرد، فالتسريب بيتأكد من الجملة نفسها: مفيش عمود زيادة ولا مفتاح زيادة في الجانبين.
   const statement = serviceLinePerformerChangesStatement(scope(), { limit: 50 });
   const rows = await f.db.withTenant(f.company, (tx) => tx.execute<Record<string, unknown>>(statement), { userId: f.ownerId });
   const header = ['revision', 'changed_at', 'reason', 'changer_name_ar', 'changer_name_en', 'changer_role',
