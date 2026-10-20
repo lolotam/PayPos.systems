@@ -159,7 +159,8 @@ pins the PosPay rules on top of it.
      placed inside `node_modules` to a secret is a known residual risk. MiniMax cannot create one without a shell,
      the worktree's `node_modules` comes from a fresh `pnpm install`, and the separate-account question covers it;
    - the checker validates the worktree's root `.git` before trusting it: it must be a plain file with one name (not
-     a symlink, junction or hard link) holding `gitdir: …/.git/worktrees/<name>`, because git status and reset
+     a symlink, junction or hard link) holding `gitdir:` set to a folder directly under the PosPay main checkout's
+     `.git\worktrees`, whose own `gitdir` backlink names this exact `.git` file, because git status and reset
      follow it (Codex on #416). A `.git` folder, a hard-linked pointer and a pointer elsewhere were all refused;
    - the checker refuses the run when any symlink or junction exists outside `node_modules` (none did on
      2026-10-20), and when a link inside `node_modules` resolves outside the worktree, or would if it is broken, or

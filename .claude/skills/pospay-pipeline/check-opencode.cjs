@@ -332,6 +332,15 @@ try {
     problems.push(
       `${gitPointer} does not point into the PosPay main checkout's .git\\worktrees: ${gitdir}`,
     );
+  else {
+    // Another PosPay worktree's pointer would pass the line above, so the metadata folder's own gitdir backlink
+    // must name this exact .git file (git's linked-worktree layout; Codex on #416).
+    const backlink = path.resolve(fs.readFileSync(path.join(target, 'gitdir'), 'utf8').trim());
+    if (backlink.toLowerCase() !== gitPointer.toLowerCase())
+      problems.push(
+        `${gitPointer} borrows another worktree's metadata (its backlink is ${backlink})`,
+      );
+  }
 } catch (error) {
   problems.push(`cannot validate ${gitPointer} (${error.message})`);
 }
