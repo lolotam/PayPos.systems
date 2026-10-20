@@ -122,7 +122,12 @@ pins the PosPay rules on top of it.
    - every MCP tool is denied, including `list`/`read_mcp_resource`;
    - `search`, `fetch`, `webfetch`, `websearch`, `question`, `list`, `todowrite`, `todoread`, `task`/`subagent` and
      `skill` are denied, each by name;
-   - `external_directory` is denied, so no tool reaches outside the worktree, the main checkout's `.git` included;
+   - `external_directory` is denied, so no tool reaches outside the worktree, the main checkout's `.git` included.
+     `read`, `edit` and `glob` also deny every drive but `F:` by name (`C:*`, `c:*`, …), because opencode has a
+     reported Windows bug that treats another drive as inside the project (opencode issue 27596). On 2026-10-20 a
+     MiniMax smoke test on opencode 2.0.32 asked to read a harmless file on `C:` and was refused with
+     `external_directory` both with and without these denies, so they are a second layer. Repeat that smoke test
+     after every opencode upgrade;
    - `read`, `edit` and `glob` deny `.git` and anything under it, in both slash styles;
    - every run has a **hard 45-minute limit**: opencode runs as its own process, and past the limit the dispatch
      kills its whole process tree, and the `finally` stopper interrupts its session. On 2026-10-20 Emlaa saw MiniMax

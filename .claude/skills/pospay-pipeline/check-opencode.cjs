@@ -37,6 +37,12 @@ const generatedPaths = [
   ),
   '*.tsbuildinfo',
 ];
+// opencode 2.0.32 can treat a path on another drive as inside the project on Windows (path.relative across drives
+// returns an absolute path), so external_directory alone may not stop it (Codex on #416, opencode issue 27596).
+// Every worktree lives on F: (the storage rule), so every other drive is denied by name, in both letter cases.
+const otherDrivePaths = 'ABCDEGHIJKLMNOPQRSTUVWXYZ'
+  .split('')
+  .flatMap((letter) => [`${letter}:*`, `${letter.toLowerCase()}:*`]);
 // Each path map must hold exactly these rules in this order, because the last matching rule wins. The only allows
 // after "*" are the secret-free .env.example templates, and the git, config and .claude denies follow them, so no
 // allow can re-open a protected tree.
@@ -49,9 +55,15 @@ const fileRules = (protectedPaths) =>
     [protectedPaths, 'deny'],
   );
 const pathMaps = {
-  read: fileRules([...gitPaths, ...configPaths, ...claudePaths]),
-  edit: fileRules([...gitPaths, ...configPaths, ...claudePaths, ...generatedPaths]),
-  glob: ordered([['*'], 'allow'], [gitPaths, 'deny']),
+  read: fileRules([...gitPaths, ...configPaths, ...claudePaths, ...otherDrivePaths]),
+  edit: fileRules([
+    ...gitPaths,
+    ...configPaths,
+    ...claudePaths,
+    ...generatedPaths,
+    ...otherDrivePaths,
+  ]),
+  glob: ordered([['*'], 'allow'], [[...gitPaths, ...otherDrivePaths], 'deny']),
 };
 // Only read, edit (which covers write) and glob may be allowed, through the path maps above; everything named
 // here must be an explicit "deny" (owner's lists, SA-6, SA-7.1 and the 2026-10-20 execute broadcast).
