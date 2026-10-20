@@ -132,7 +132,10 @@ it('stamps the cluster identifier over a client-supplied value', async () => {
   });
 });
 
-it('refuses a tip row whose revision carries another cluster identifier', async () => {
+it.each([
+  ['another cluster identifier (a restored row)', FOREIGN_CLUSTER],
+  ['the zero sentinel (a legacy row)', 0],
+])('refuses a tip row whose revision carries %s, even with the current xid', async (_label, cluster) => {
   const sessionId = ids.newId();
   await openSession(owner, tipCtx, sessionId);
   const revision = ids.newId();
@@ -140,26 +143,11 @@ it('refuses a tip row whose revision carries another cluster identifier', async 
     await asApp(owner, tipCtx.company);
     await insertRevision(owner, revision, sessionId, 1, null);
     await owner`RESET ROLE`;
-    await forgeCluster(owner, revision, FOREIGN_CLUSTER);
+    await forgeCluster(owner, revision, cluster);
     await asApp(owner, tipCtx.company);
     const [row] = await owner`SELECT write_xid::text AS xid, pg_current_xact_id()::text AS current
       FROM session_tip_revisions WHERE id=${revision}`;
     expect(row?.['xid']).toBe(row?.['current']);
-    const error = await failing(owner, () => insertTip(owner, sessionId, revision));
-    expect(detail(error)).toEqual({ code: '23514', constraint: 'session_tips_current_xact' });
-  });
-});
-
-it('never counts a legacy row with the zero sentinel as current', async () => {
-  const sessionId = ids.newId();
-  await openSession(owner, tipCtx, sessionId);
-  const revision = ids.newId();
-  await rolledBack(async () => {
-    await asApp(owner, tipCtx.company);
-    await insertRevision(owner, revision, sessionId, 1, null);
-    await owner`RESET ROLE`;
-    await forgeCluster(owner, revision, 0);
-    await asApp(owner, tipCtx.company);
     const error = await failing(owner, () => insertTip(owner, sessionId, revision));
     expect(detail(error)).toEqual({ code: '23514', constraint: 'session_tips_current_xact' });
   });
