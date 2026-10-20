@@ -1,6 +1,7 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "permission": {
+    "*": "deny",
     "external_directory": "deny",
     "read": {
       "*": "allow",
@@ -20,6 +21,24 @@
       "*\\.git": "deny",
       "*\\.git\\*": "deny"
     },
+    "glob": {
+      "*": "allow",
+      ".git": "deny",
+      ".git/*": "deny",
+      "*/.git": "deny",
+      "*/.git/*": "deny",
+      "*\\.git": "deny",
+      "*\\.git\\*": "deny"
+    },
+    "list": {
+      "*": "allow",
+      ".git": "deny",
+      ".git/*": "deny",
+      "*/.git": "deny",
+      "*/.git/*": "deny",
+      "*\\.git": "deny",
+      "*\\.git\\*": "deny"
+    },
     "bash": {
       "*": "allow",
       "git": "deny",
@@ -27,12 +46,7 @@
       "*git *": "deny",
       "*git.exe*": "deny",
       "*/git": "deny",
-      "*.git": "deny",
-      "*.git *": "deny",
-      "*.git/*": "deny",
-      "*.git\\*": "deny",
-      "*.git\"*": "deny",
-      "*.git'*": "deny",
+      "*.git*": "deny",
       "*gitdir*": "deny",
       "bash -c*": "deny",
       "sh -c*": "deny",
@@ -40,6 +54,12 @@
       "pwsh*": "deny",
       "cmd /c*": "deny",
       "cmd.exe*": "deny"
-    }
+    },
+    "todowrite": "allow",
+    "todoread": "allow",
+    "grep": "deny",
+    "webfetch": "deny",
+    "websearch": "deny",
+    "task": "deny"
   }
 }

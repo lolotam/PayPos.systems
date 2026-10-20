@@ -106,7 +106,7 @@ pins the PosPay rules on top of it.
    without `-s`, take the generated id from the `--format json` output, and use that id from round two on. Run it from
    the worktree:
 
-   **The git ban is enforced, not just written, in four layers.** It covers both git commands and the `.git`
+   **The git ban is enforced, not just written, in layers.** It covers both git commands and the `.git`
    folder (a worktree's `.git` file and the main checkout's `.git` directory). It guards against MiniMax's
    habits, not against a model trying to hide git on purpose. The habits so far: `git stash` on #338, and in a
    later test, with git gone, an offer to read `.git` internals directly. Wildcards cannot give a complete ban on
@@ -115,12 +115,23 @@ pins the PosPay rules on top of it.
    - **Git is not on MiniMax's `PATH`.** The orchestrator drops every `\Git\` folder from `PATH` before starting
      opencode, so no command or interpreter can find `git` by name. That covers
      `node -e "…execFileSync('g'+'it', …)"`, which no wildcard can catch.
+   - **MiniMax runs only in a worktree.** In a worktree `.git` is a small pointer file, and the real git data
+     sits outside it, behind `external_directory`. The dispatch refuses to start in a checkout whose `.git` is a
+     folder (the main checkout).
    - **The permission file** (the tracked template `.claude/skills/pospay-pipeline/opencode-pospay.json`, copied
-     to `<worktree>\opencode.json`):
+     to `<worktree>\opencode.json`). It is an **allowlist**:
+     - `"*"` is `deny` first, so every tool not named after it is refused. That covers every MCP tool on the
+       machine (SSH, Dokploy, Supabase, …), `webfetch`, `websearch`, `skill`, subagents and opencode's own
+       `worktree_*` and `*_mcp_resource` tools.
+     - Only `read`, `edit`, `glob`, `list`, `bash` and the todo tools are allowed.
+     - `grep` is denied outright because it ignores path rules (another manager read `.git` with it).
      - `external_directory` is `deny`, so no tool reaches outside the worktree, the main checkout's `.git` included.
-     - `read` and `edit` deny `.git` and anything under it, in both slash styles.
+     - `read`, `edit`, `glob` and `list` deny `.git` and anything under it, in both slash styles.
+     - The global opencode config is left untouched (Waleed's call); the project file overrides it for MiniMax's
+       runs only.
      - `bash` starts with `"*": "allow"`, because the last matching rule wins. It then denies `git` anywhere in a
-       command, any command that names `.git` or `gitdir`, and the shell wrappers that could hide either
+       command, any command that names `.git` (`*.git*`, so `Get-ChildItem .git` and `Test-Path .git\refs` too)
+       or `gitdir`, and the shell wrappers that could hide either
        (`bash -c*`, `sh -c*`, `powershell*`, `pwsh*`, `cmd /c*`, `cmd.exe*`). A pattern matches the whole command
        string, so `git *` alone would let `bash -c "git stash"` through. The price is that a harmless command
        naming `git ` or `.git` is refused too.
@@ -134,11 +145,21 @@ pins the PosPay rules on top of it.
    Generate the file with a JSON writer rather than by hand, because the backslash patterns need escaping. The file
    only takes effect as a project-level `opencode.json`; the `OPENCODE_CONFIG` env var did not apply it.
 
-   In the 2026-10-20 test, MiniMax ran in a worktree with this file and with git off `PATH`. These were all
-   refused: reading `.git`; reading `…/main/.git/HEAD` (`external_directory`); `type .git` and `cat …/.git/HEAD`;
-   `git --version`; and writing `.git/probe.txt`. `package.json` reads and `echo` still worked. An earlier run
-   also refused `bash -c "git status"`, `powershell -Command "git status"` and `echo x && git log`, and showed
-   the node-wrapped call failing once git was off `PATH`.
+   **Write the dispatch script with the file-writing tool, never a shell heredoc.** A heredoc ate the backslashes
+   of the `PATH` filter once, leaving `-notmatch '\Git\'`, an invalid regex, so git stayed on `PATH`. The smoke run
+   therefore also checks that git is really absent.
+
+   **The 2026-10-20 smoke run.** MiniMax ran in a worktree with this file and with git off `PATH`.
+   - Its tool list was only `execute, glob, read, edit, write`. The same prompt under the old bash-only file listed
+     `webfetch`, `websearch`, `skill`, `subagent`, `opencode.read_mcp_resource`, `opencode.list_mcp_resources` and
+     `opencode.worktree_create`/`remove`.
+   - Refused: reading `.git`, grep on `.git`, `Get-ChildItem .git`, `Test-Path .git\refs`, `git --version`, writing
+     `.git/probe.txt`, and an SSH MCP call (no such tool).
+   - The node-wrapped git call ended in `ENOENT`.
+   - `package.json` reads, `echo` and `node --version` still worked.
+
+   An audit of all 92 local opencode sessions found no MCP tool call in any of them. The only non-basic calls were
+   `skill`, and `webfetch`/`websearch` reads of public docs.
 
    The orchestrator (never MiniMax) adds `/opencode.json` to the clone's shared `info/exclude` once per clone, as
    the first two lines below do, so the copy never lands in a diff. The rule stays local because `.gitignore` is a
@@ -146,11 +167,13 @@ pins the PosPay rules on top of it.
 
    ```powershell
    Set-Location F:\Dev\Worktrees\PosPay\<branch>
+   if (Test-Path .git -PathType Container) { throw 'MiniMax runs only in a worktree: .git here is a folder' }
    $exclude = Join-Path (git rev-parse --git-common-dir) 'info\exclude'
    if (-not (Select-String -Path $exclude -SimpleMatch '/opencode.json' -Quiet)) { Add-Content $exclude '/opencode.json' }
    Copy-Item .\.claude\skills\pospay-pipeline\opencode-pospay.json .\opencode.json
    node -e "JSON.parse(require('fs').readFileSync('opencode.json','utf8'))"; if ($LASTEXITCODE) { throw 'opencode.json is invalid: stop' }
-   $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\Git\') }) -join ';'
+   $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\Git\\') }) -join ';'
+   if (Get-Command git -ErrorAction SilentlyContinue) { throw 'git is still on PATH: stop' }
    opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
        -f F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt "Implement the attached brief."
    ```
@@ -296,7 +319,8 @@ typing do not.
 
 ## 9. Never
 
-- Never let MiniMax run any git command, read or write anything under `.git`, merge, push, or touch the server.
+- Never let MiniMax run any git command, read or write anything under `.git`, use any MCP tool, merge, push, or
+  touch the server.
 - Never merge with a P0/P1 open, or with CI red on the head being merged.
 - Never exceed 5 review rounds without applying §2 (a docs-only PR has no cap, see the docs-only lane in §2), and never exceed 3 parallel tasks.
 - Never run two tasks in parallel that touch the same file.
