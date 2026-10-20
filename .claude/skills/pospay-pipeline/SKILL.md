@@ -124,6 +124,13 @@ pins the PosPay rules on top of it.
      `skill` are denied, each by name;
    - `external_directory` is denied, so no tool reaches outside the worktree, the main checkout's `.git` included;
    - `read`, `edit` and `glob` deny `.git` and anything under it, in both slash styles;
+   - every run has a **hard 45-minute limit**: opencode runs as its own process, and past the limit the dispatch
+     kills its whole process tree, and the `finally` stopper interrupts its session. On 2026-10-20 Emlaa saw MiniMax
+     loop for 7+ minutes, write probe files and edit a file it was never asked to touch. A killed standalone session
+     stays marked busy in `opencode.db` but is frozen. A test killed at 21 s had no update a minute later, and the
+     stopper's interrupt of it is harmless;
+   - `read` also denies every `opencode.*` file, anything under `.opencode`, and all of `.claude` (where the template
+     lives), as `edit` does: MiniMax tried to read its own rules (Emlaa, 2026-10-20);
    - `read` and `edit` deny `.env` and `.env.*` at any depth, in both slash styles. A worktree's copied `.env` holds
      database passwords (HANDOVER §3.3), and an explicit `"*": "allow"` would otherwise lift opencode's default
      protection for it;
@@ -234,16 +241,28 @@ pins the PosPay rules on top of it.
        if (Get-Command "$tool.exe" -ErrorAction SilentlyContinue) { throw "$tool is still on PATH: stop" }
      }
      if (-not (Get-Command opencode -ErrorAction SilentlyContinue)) { throw 'opencode is not on PATH: stop' }
+     $opencodeExe = Join-Path (Split-Path (Get-Command opencode).Source) 'node_modules\@opencode\cli\bin\opencode.exe'
+     if (-not (Test-Path $opencodeExe)) { throw 'opencode.exe not found: stop' }
      $ErrorActionPreference = 'Continue'
-     opencode run --standalone --agent pospay-minimax -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
-         -f F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt "Implement the attached brief."
-     $opencodeExit = if ($?) { $LASTEXITCODE } else { 1 }
+     $runArgs = @('run', '--standalone', '--agent', 'pospay-minimax', '-m', 'minimax-coding-plan/MiniMax-M3.1-Flash',
+       '-s', '<sid>', '--title', '"<task>"', '-f', 'F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt',
+       '"Implement the attached brief."')
+     $run = Start-Process -FilePath $opencodeExe -ArgumentList $runArgs -NoNewWindow -PassThru `
+       -RedirectStandardOutput "$guard\run.out.txt" -RedirectStandardError "$guard\run.err.txt"
+     $null = $run.Handle   # keeps ExitCode readable after the process ends (Windows PowerShell 5.1)
+     if (-not $run.WaitForExit(45 * 60 * 1000)) {   # hard limit: 45 minutes
+       & taskkill /PID $run.Id /T /F | Out-Null
+       $opencodeExit = 124
+     } else {
+       $opencodeExit = $run.ExitCode
+     }
    } finally {
      $env:PATH = $savedPath
      node "$tools\stop-opencode-sessions.cjs" $worktree
      $stopExit = $LASTEXITCODE
    }
    if ($stopExit -ne 0) { throw 'a MiniMax session could not be stopped: interrupt it by hand before review' }
+   if ($opencodeExit -eq 124) { throw 'MiniMax hit the 45-minute limit: report it, then treat it as a failed run (rule 8)' }
    if ($opencodeExit -ne 0) { throw "opencode run exited $($opencodeExit), so treat it as a failed run (rule 8)" }
    }
    ```
@@ -272,6 +291,9 @@ pins the PosPay rules on top of it.
    `opencode.exe api post /api/session/<id>/interrupt` on each, by absolute path and with no shell. Run the staged
    copy by hand after any kill; `--dry-run` only lists. Until the PR that adds these scripts reaches `main`, stage
    them from that PR's reviewed head instead of `origin/main`.
+   **Then look for anything nobody asked for:** `git status --porcelain` must list only files the brief names, so
+   any untracked file (a probe, a scratch script) or an edit to an unnamed file is reverted and reported to Waleed's
+   super agent at once.
    **Then diff the worktree against the baseline, and run the gates yourself.** A run with no change
    is a failed candidate, whatever it reports. Check `git stash list`. MiniMax cannot run tests, so a failing gate
    becomes a fix brief for its next round. **Diff every rewritten SQL function body line by line against the old one**:

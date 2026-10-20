@@ -33,7 +33,7 @@ const claudePaths = [
 // Each path map must hold exactly these keys in this order: "*" allow first, then only denies, because the
 // last matching rule wins and any later allow would re-open what the denies close.
 const pathMaps = {
-  read: [...gitPaths, ...envPaths],
+  read: [...gitPaths, ...envPaths, ...configPaths, ...claudePaths],
   edit: [...gitPaths, ...configPaths, ...envPaths, ...claudePaths],
   glob: gitPaths,
 };

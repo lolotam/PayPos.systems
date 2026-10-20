@@ -41,7 +41,8 @@ const denyAfterAllow = (paths) =>
 const permission = {
   '*': 'deny',
   external_directory: 'deny',
-  read: denyAfterAllow([...gitPaths, ...envPaths]),
+  // MiniMax tried to read its own rules (Emlaa, 2026-10-20), so it may not read any opencode config either.
+  read: denyAfterAllow([...gitPaths, ...envPaths, ...configPaths, ...claudePaths]),
   edit: denyAfterAllow([...gitPaths, ...configPaths, ...envPaths, ...claudePaths]),
   glob: denyAfterAllow(gitPaths),
   // Already refused by "*", each named so the owner's lists can be checked line by line. Only read, edit
