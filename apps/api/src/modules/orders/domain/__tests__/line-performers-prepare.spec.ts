@@ -146,7 +146,15 @@ it('FR-011 refuses an invalid reason before the shape of the set', () => {
 it('FR-011 refuses an invalid set before the eligibility of the additions', () => {
   const error = thrown(() =>
     prepareLinePerformersChange(
-      input({ business_date: '2026-10-12', reason: 'سبب', requested_performers: [] }),
+      input({
+        business_date: '2026-10-12',
+        reason: 'سبب',
+        requested_performers: [
+          { employee_id: 'ghost', share_bps: 6000 },
+          { employee_id: 'sara', share_bps: 3000 },
+        ],
+        added_employees: [],
+      }),
     ),
   );
   expect(error.code).toBe('SESSION_PERFORMER_SHARES_INVALID');

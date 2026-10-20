@@ -85,17 +85,32 @@ it('PC-03 changes the shares only and copies the kept identity from the old row'
   const plan = planPerformersChange({
     current: [
       row({ employee_id: 'sara', performer_ordinal: 1, share_bps: 5000, linked_user_id: 'u1' }),
-      row({ employee_id: 'rana', performer_ordinal: 2, share_bps: 5000 }),
+      row({ employee_id: 'rana', performer_ordinal: 2, share_bps: 5000, name_en: 'Rana' }),
     ],
     requested: [
       { employee_id: 'sara', share_bps: 7000 },
       { employee_id: 'rana', share_bps: 3000 },
     ],
-    added_employees: [],
+    added_employees: [
+      employee({ id: 'sara', name_en: 'Another Sara', user_id: 'other-user', clocked_in: false }),
+      employee({ id: 'rana', name_en: 'Another Rana', user_id: 'other-rana', approved_leave: true }),
+    ],
   });
   expect(plan.after.map((item) => item.share_bps)).toEqual([7000, 3000]);
-  expect(plan.after[0]?.linked_user_id).toBe('u1');
+  expect(plan.after[0]).toMatchObject({
+    name_en: 'Sara',
+    linked_user_id: 'u1',
+    not_clocked_in_warning: false,
+    approved_leave_warning: false,
+  });
+  expect(plan.after[1]).toMatchObject({
+    name_en: 'Rana',
+    linked_user_id: null,
+    not_clocked_in_warning: false,
+    approved_leave_warning: false,
+  });
   expect(plan.added_ids).toEqual([]);
+  expect(plan.has_performer_warning).toBe(false);
 });
 
 it('PC-13 stores an added performer with her link at change time and no snapshot of a recording', () => {
@@ -122,16 +137,40 @@ it('PC-13 stores an added performer with no linked user as a null link and a tru
   });
 });
 
-it('PC-13 keeps the recording-time snapshot of a performer who stays', () => {
+it('PC-13 and D-5 keep the recording-time snapshot of a performer who stays', () => {
   const plan = planPerformersChange({
     current: [
-      row({ employee_id: 'sara', linked_user_id: 'old-user', linked_user_snapshotted: true }),
+      row({
+        employee_id: 'sara',
+        name_en: 'Sara',
+        name_ar: 'سارة',
+        linked_user_id: 'old-user',
+        linked_user_snapshotted: true,
+        not_clocked_in_warning: false,
+        approved_leave_warning: false,
+      }),
     ],
     requested: [{ employee_id: 'sara', share_bps: 10000 }],
-    added_employees: [employee({ id: 'sara', user_id: 'new-user' })],
+    added_employees: [
+      employee({
+        id: 'sara',
+        name_en: 'Another Sara',
+        name_ar: 'سارة أخرى',
+        user_id: 'new-user',
+        clocked_in: false,
+        approved_leave: true,
+      }),
+    ],
   });
-  expect(plan.after[0]?.linked_user_id).toBe('old-user');
-  expect(plan.after[0]?.linked_user_snapshotted).toBe(true);
+  expect(plan.after[0]).toMatchObject({
+    name_en: 'Sara',
+    name_ar: 'سارة',
+    linked_user_id: 'old-user',
+    linked_user_snapshotted: true,
+    not_clocked_in_warning: false,
+    approved_leave_warning: false,
+  });
+  expect(plan.has_performer_warning).toBe(false);
 });
 
 it('PC-06 raises the line flag for the warnings of an added performer', () => {

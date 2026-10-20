@@ -9,7 +9,7 @@ import type { SessionLine, SessionRecord } from '../session-types.ts';
 
 it('returns the full body when the caller can read the visit', () => {
   const line = visitLine(20000n, 'ACTIVE');
-  const built = savedLinePerformersChangeResponse(visitRecord([line]), line.id, '2026-10-20');
+  const built = savedLinePerformersChangeResponse(visitRecord([line]), line.id, '2026-10-20', false);
   const projected = projectPerformersChangeResponse(true, built.line, built.session);
   expect(projected).toEqual({ line: built.line, session: built.session });
   if (!('line' in projected)) throw new Error('expected the full body');
@@ -19,9 +19,21 @@ it('returns the full body when the caller can read the visit', () => {
   expect(projected).not.toHaveProperty('changer_membership_id');
 });
 
+it('PC-02 keeps the price-edit mark of a line whose price was edited before', () => {
+  const line = visitLine(20000n, 'ACTIVE');
+  const built = savedLinePerformersChangeResponse(visitRecord([line]), line.id, '2026-10-20', true);
+  expect(built.line.edited).toBe(true);
+});
+
+it('PC-02 leaves the price-edit mark absent on a line whose price was never edited', () => {
+  const line = visitLine(20000n, 'ACTIVE');
+  const built = savedLinePerformersChangeResponse(visitRecord([line]), line.id, '2026-10-20', false);
+  expect(Object.hasOwn(built.line, 'edited')).toBe(false);
+});
+
 it('returns only the change mark when the caller cannot read the visit, replays included', () => {
   const line = visitLine(20000n, 'ACTIVE');
-  const built = savedLinePerformersChangeResponse(visitRecord([line]), line.id, '2026-10-20');
+  const built = savedLinePerformersChangeResponse(visitRecord([line]), line.id, '2026-10-20', false);
   const projected = projectPerformersChangeResponse(false, built.line, built.session);
   expect(projected).toEqual({ changed: true });
   expect(Object.keys(projected)).toEqual(['changed']);
@@ -35,6 +47,7 @@ it('sums only active nets and keeps the line figures', () => {
     visitRecord([changed, other]),
     changed.id,
     '2026-10-20',
+    false,
   );
   expect(response.line.net).toBe('20.000');
   expect(response.line.price).toBe('25.000');
@@ -49,6 +62,7 @@ it('refuses a line that is not in the visit', () => {
       visitRecord([line]),
       '01990000-0000-7000-8000-00000000000f',
       '2026-10-20',
+      false,
     ),
   ).toThrow(SessionError);
 });
@@ -56,7 +70,7 @@ it('refuses a line that is not in the visit', () => {
 it('refuses to build the body from a line that is not ACTIVE', () => {
   const cancelled = visitLine(20000n, 'CANCELLED');
   expect(() =>
-    savedLinePerformersChangeResponse(visitRecord([cancelled]), cancelled.id, '2026-10-20'),
+    savedLinePerformersChangeResponse(visitRecord([cancelled]), cancelled.id, '2026-10-20', false),
   ).toThrow(/not ACTIVE/);
 });
 

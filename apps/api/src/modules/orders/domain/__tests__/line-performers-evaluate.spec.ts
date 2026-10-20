@@ -41,7 +41,7 @@ function performer(over: Partial<LineEditPerformer> = {}): LineEditPerformer {
 }
 
 function identity(over: Partial<LinePerformersIdentity> = {}): LinePerformersIdentity {
-  return { current: [], retained: [], requested: [], ...over };
+  return { current: [], retained: [], ...over };
 }
 
 function facts(over: Partial<LinePerformersFacts> = {}): LinePerformersFacts {
@@ -76,6 +76,12 @@ function thrown(run: () => void): SessionError {
   throw new Error('expected a SessionError');
 }
 
+const stackedFaults = {
+  expected_revision: 9,
+  reason: '   ',
+  requested_performers: [],
+};
+
 it('accepts a changer who performs nothing on the line and returns the plan', () => {
   const result = evaluateLinePerformersChange(facts());
   expect(result.revision).toBe(2);
@@ -95,13 +101,42 @@ it('refuses the identity before the stale revision', () => {
   expect(error.code).toBe('SESSION_PERFORMER_SELF_FORBIDDEN');
 });
 
-it('fails closed on a line without an identity snapshot before anything else', () => {
+it('refuses a changer who is linked to a performer the change adds', () => {
+  const error = thrown(() =>
+    evaluateLinePerformersChange(
+      facts({
+        actor_user_id: 'manager',
+        preparation: {
+          ...facts().preparation,
+          added_employees: [employee({ id: 'rana', name_en: 'Rana', user_id: 'manager' })],
+        },
+      }),
+    ),
+  );
+  expect(error.code).toBe('SESSION_PERFORMER_SELF_FORBIDDEN');
+});
+
+it('fails closed on a line without an identity snapshot before the revision, the reason and the set shape', () => {
   const error = thrown(() =>
     evaluateLinePerformersChange(
       facts({
         identities: identity({ current: [performer({ linked_user_snapshotted: false })] }),
+        preparation: { ...facts().preparation, ...stackedFaults },
       }),
     ),
   );
   expect(error.code).toBe('SESSION_LINE_IDENTITY_UNKNOWN');
+});
+
+it('refuses the self-performer before the revision, the reason and the set shape', () => {
+  const error = thrown(() =>
+    evaluateLinePerformersChange(
+      facts({
+        actor_user_id: 'manager',
+        identities: identity({ current: [performer({ current_user_id: 'manager' })] }),
+        preparation: { ...facts().preparation, ...stackedFaults },
+      }),
+    ),
+  );
+  expect(error.code).toBe('SESSION_PERFORMER_SELF_FORBIDDEN');
 });
