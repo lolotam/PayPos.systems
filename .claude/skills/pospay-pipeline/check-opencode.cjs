@@ -41,6 +41,8 @@ for (const tool of ['read', 'edit', 'glob', 'list']) {
     problems.push(`${tool} must be a path map`);
     continue;
   }
+  // The last matching rule wins, so a "*": "allow" after the .git denies would override them.
+  if (Object.keys(rules)[0] !== '*') problems.push(`${tool}: "*" must be the first path rule`);
   for (const p of gitPaths) if (rules[p] !== 'deny') problems.push(`${tool} must deny ${p}`);
 }
 const allowed = Object.entries(permission ?? {})
