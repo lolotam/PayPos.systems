@@ -135,6 +135,10 @@ pins the PosPay rules on top of it.
      `.env::$DATA` is the `.env` file itself, and a named stream such as `.env:hidden` is a hidden file that git
      never shows. A 2026-10-20 smoke test read a planted `.env` through `.env::$DATA` before this deny, and refused
      both forms after it, while `README.md` and its absolute `F:\` path still read (Codex on #416);
+   - the checker refuses the run when the volume creates NTFS 8.3 short names (`GIT~1` for `.git` would match none
+     of the name rules; Codex on #416), probed by making a long-named folder in the isolated config home and reading
+     `dir /x`, or when an entry at the worktree root has one. On 2026-10-20 F: created none and the worktree had
+     none, while the same probe on C: was refused;
    - the checker refuses the run when a symlink or junction inside the worktree resolves outside it, or would if it
      is broken, because opencode authorizes the written path and then follows the link (Codex on #416). MiniMax
      cannot make one without a shell. In `node_modules` it reads only the levels pnpm links at (the top, `@scope`

@@ -5,6 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
+const { execFileSync } = require('node:child_process');
 
 // Kept apart from gen-opencode.cjs on purpose: the checker is the spec the generator is held to, so a
 // generator bug cannot also weaken the check.
@@ -293,6 +294,38 @@ function scanNodeModules(dir) {
 })(path.dirname(path.resolve(file)));
 if (escapingLinks.length)
   problems.push(`links that leave the worktree (remove them first): ${escapingLinks.join(', ')}`);
+
+// An NTFS 8.3 short name (GIT~1 for .git) would slip past every name rule here (Codex on #416). The PosPay F: volume
+// creates none (2026-10-20: no short name in the worktree, and a new long-named folder got none), so a volume that
+// starts creating them, or a short name at the worktree root, stops the run. `dir /x` prints the short-name column.
+const SHORT_NAME = /\s\S{1,8}~\d+(\.\S{0,3})?\s+\S/;
+function shortNameLines(dir) {
+  const listing = execFileSync('cmd.exe', ['/d', '/c', 'dir', '/x', '/a', dir], {
+    encoding: 'utf8',
+  });
+  return listing.split(/\r?\n/).filter((line) => SHORT_NAME.test(line));
+}
+try {
+  if (configHome) {
+    const probe = path.join(configHome, 'pospay-8dot3-probe-with-a-long-name');
+    fs.mkdirSync(probe, { recursive: true });
+    try {
+      if (shortNameLines(configHome).length)
+        problems.push(
+          'this volume creates 8.3 short names: disable them (fsutil 8dot3name set) first',
+        );
+    } finally {
+      fs.rmSync(probe, { recursive: true, force: true });
+    }
+  }
+  const rootShortNames = shortNameLines(path.dirname(path.resolve(file)));
+  if (rootShortNames.length)
+    problems.push(
+      `8.3 short names at the worktree root: ${rootShortNames.map((l) => l.trim()).join(' | ')}`,
+    );
+} catch (error) {
+  problems.push(`cannot confirm that no 8.3 short name exists (${error.message})`);
+}
 
 // opencode can update itself in place (Codex on #416, upstream issue 56835), and every rule here was smoke-tested on
 // one version. Auto-update is off above, and the binary the dispatch will run must be the tested one, so the version
