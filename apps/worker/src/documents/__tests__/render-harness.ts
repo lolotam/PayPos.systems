@@ -1,5 +1,5 @@
 import { Writable } from 'node:stream';
-import { Queue, QueueEvents, type Job } from 'bullmq';
+import { Queue, QueueEvents } from 'bullmq';
 import { Redis } from 'ioredis';
 import {
   DOCUMENTS_RENDER_QUEUE,
@@ -104,7 +104,12 @@ export async function openRender(options?: {
     ...(options?.intervalMs === undefined ? {} : { livenessIntervalMs: options.intervalMs }),
   });
   const queue = new Queue(DOCUMENTS_RENDER_QUEUE, { connection: { url: redisUrl }, prefix });
-  const events = new QueueEvents(DOCUMENTS_RENDER_QUEUE, { connection: { url: redisUrl }, prefix });
+  // القارئ بيبدأ من أول المجرى عشان ما يضيعش حدث اتبعت قبل أول قراءة، والبريفكس جديد لكل اختبار.
+  const events = new QueueEvents(DOCUMENTS_RENDER_QUEUE, {
+    connection: { url: redisUrl },
+    prefix,
+    lastEventId: '0-0',
+  });
   await events.waitUntilReady();
   return { redis, registry, handle, queue, events, lines, renderer, logger };
 }
@@ -121,9 +126,33 @@ export function renderId(): string {
   return ids.newId();
 }
 
+/**
+ * بنركّب المستمعين قبل الإضافة: removeOnFail بيمسح الوظيفة اللي فشلت بسرعة،
+ * فيفوت waitUntilFinished سبب الفشل بتاعها.
+ */
 export async function finishJob(opened: Opened, data: unknown, id: string): Promise<unknown> {
-  const job: Job = await opened.queue.add('render', data, documentRenderJobOptions(id));
-  return job.waitUntilFinished(opened.events);
+  return new Promise<unknown>((resolve, reject) => {
+    const onCompleted = (args: { jobId: string; returnvalue: unknown }): void => {
+      if (args.jobId !== id) return;
+      removeListeners();
+      resolve(args.returnvalue);
+    };
+    const onFailed = (args: { jobId: string; failedReason: string }): void => {
+      if (args.jobId !== id) return;
+      removeListeners();
+      reject(new Error(args.failedReason));
+    };
+    const removeListeners = (): void => {
+      opened.events.off('completed', onCompleted);
+      opened.events.off('failed', onFailed);
+    };
+    opened.events.on('completed', onCompleted);
+    opened.events.on('failed', onFailed);
+    void opened.queue.add('render', data, documentRenderJobOptions(id)).catch((error: unknown) => {
+      removeListeners();
+      reject(error);
+    });
+  });
 }
 
 export async function statusOf(
