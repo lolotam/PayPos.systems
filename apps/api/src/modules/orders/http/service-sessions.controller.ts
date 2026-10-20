@@ -88,7 +88,7 @@ export class ServiceSessionsController {
   @Get(':sessionId/lines/:lineId/performer-changes')
   @Require('read:service-sessions:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
-  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  @UseGuards(SessionAdminGuard)
   async performerChanges(@Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
     @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
     @Param('sessionId', new ZodValidationPipe(pathId)) sessionId: string,
