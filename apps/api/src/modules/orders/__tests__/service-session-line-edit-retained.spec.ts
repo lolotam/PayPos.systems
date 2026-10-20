@@ -63,6 +63,8 @@ it('FR-017 a removed performer with no linked user at recording blocks the user 
   const removed = must(f.employees[0]);
   const replacement = await employeePerson(changeHost(f), must(f.employees[1]));
   await replacePerformers(changeHost(f), visit.sessionId, visit.lineId, 1, [replacement]);
+  // المستخدم مايترابطش بأكتر من موظفة نشطة في النشاط نفسه، فلازم نفكّ ربط موظفة المحررة قبل ما نربط الموظفة المُزالة.
+  await f.h.owner`UPDATE employees SET user_id=NULL WHERE company_id=${f.company} AND id=${f.editorEmployee}`;
   await f.h.owner`UPDATE employees SET user_id=${f.editorId} WHERE company_id=${f.company} AND id=${removed}`;
   try {
     const key = ids.newId();
@@ -72,6 +74,7 @@ it('FR-017 a removed performer with no linked user at recording blocks the user 
     expect(await quietCounts(f, visit.sessionId, visit.lineId, key)).toEqual({ edits: 0, audits: 0, events: 0, keys: 0 });
   } finally {
     await f.h.owner`UPDATE employees SET user_id=NULL WHERE company_id=${f.company} AND id=${removed}`;
+    await f.h.owner`UPDATE employees SET user_id=${f.editorId} WHERE company_id=${f.company} AND id=${f.editorEmployee}`;
   }
 });
 
