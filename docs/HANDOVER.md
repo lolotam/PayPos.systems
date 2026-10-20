@@ -15,8 +15,8 @@ inventory, appointments, staff attendance & commissions, customers/loyalty, repo
 English, RTL, KWD with 3 decimals (money = `bigint` mills). Modular monolith, TypeScript end-to-end.
 Solo developer (Waleed) building entirely with AI agents.
 
-- **Repo:** https://github.com/lolotam/PayPos.systems — local clone `E:\Dev\Projects\PosPay.systems\Main` (Windows);
-  task worktrees live under `E:\Dev\Worktrees\PosPay\<branch>`
+- **Repo:** https://github.com/lolotam/PayPos.systems — local clone `F:\Dev\Projects\PosPay.systems\main` (Windows);
+  task worktrees live under `F:\Dev\Worktrees\PosPay\<branch>` (moved from `E:` with the machine change)
 - Business docs, logos and archives live outside the repo and are **not** part of it
 - The repo is **public for now** (GitHub Actions minutes). Nothing secret may ever be committed. It will go private later.
 
@@ -55,8 +55,11 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
    the page, when Waleed and his partner (Abu Salem) differ, the partner's pick binds.
    Ask the questions of a whole feature before its first sub-PR, with a mockup when the answer is a screen: one batch per
    destination (the money questions on the page, the rest to Waleed), never a mixed batch.
-3. The implementer is the **Grok CLI, `grok-4.7`, effort high** (owner, 2026-10-14), one resumed session per
-   task to keep its cache warm. Claude Code orchestrates, judges the diff and runs `pnpm check`.
+3. The only implementer is **opencode with `minimax-coding-plan/MiniMax-M3.1-Flash`** (owner, PP-10.1, 2026-10-20),
+   for new tasks and for PR-finding fix rounds, one continued session per task. Its briefs ban every git command,
+   any read or write under `.git`, edits outside the task, and line-squashing. Claude Code orchestrates, judges the diff (including a line-by-line diff
+   of every rewritten SQL function) and runs `pnpm check`. MiniMax has no shell (Waleed, SA-7.1): it only reads and
+   edits files in its worktree, and the orchestrator runs every gate and test. Skill §4 has the dispatch rules.
 4. Guard pass (`clean-code-guard`, `test-guard`, `docs-guard`), then up to **5 review rounds**: Codex astra 6 →
    fresh Claude reviewers → the four PR bots: the Codex GitHub bot (`@codex review` after every push) and the
    MergePilot panel (MergePilot, waleed_bot, mohamed_bot). Every bot's result on the head SHA is read before a merge.
@@ -124,7 +127,7 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 - CI (`.github/workflows/ci.yml`) runs on every PR. A `changes` job skips the heavy `check` job when only `docs/**` or `*.md` changed; the small `ci-gate` job always reports, and **`ci-gate` is the check branch protection requires** on `main` (plan v4 T12a).
 - `lint:docs` fails on closing JSX comments, `FIXME`/`HACK`/`XXX`, commented-out code, and on any JSDoc in `domain/**`, `ports/**`, `events/published.ts` that has no Arabic **letter**.
 
-## 4. Status — 2026-10-16
+## 4. Status — 2026-10-16 (the workflow rules in §3 were updated on 2026-10-20; this snapshot was not refreshed)
 
 **Source of truth:** the «المشروع أول بأول» tab of the decisions page
 https://plan.pospay.systems (`public/roadmap.json` in the `lolotam/plan` repo, see `docs/decisions-site.md`),
@@ -232,8 +235,8 @@ drill, production sizing and the salon pilot (row 63, partner request AS-17).
   **temporary**, until D-11), DNS-only.
 - Dokploy with Traefik + Let's Encrypt on that server; the reverse proxy is Dokploy's shared Traefik, never a container
   of ours (`CLAUDE.md` §10).
-- **On hold since 2026-10-19 (PP-5.1):** the staging host key changed. There is no SSH and no deploy until Waleed
-  confirms the fingerprint (skill §6).
+- The staging host key changed on 2026-10-19; Waleed confirmed the new fingerprint on 2026-10-20 (PP-5.1), so the
+  hold is lifted.
 - Staging lives in `/opt/pospay-staging`, reached over the `abdulaziz` SSH profile; images come from GHCR tagged by
   commit SHA; `staging-deploy.sh <sha>` migrates, starts and proves `/ready`; `known-good/<sha>/` keeps every ready
   pair for one-step rollback; a nightly backup runs from `pospay-backup:<sha>`. Steps: pipeline skill §6.
