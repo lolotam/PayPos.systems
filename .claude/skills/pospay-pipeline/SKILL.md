@@ -129,7 +129,7 @@ pins the PosPay rules on top of it.
      MiniMax smoke test on opencode 2.0.32 asked to read a harmless file on `C:` and was refused with
      `external_directory` both with and without these denies, so they are a second layer. A second test the same day
      tried the `\\?\C:\…`, `\\localhost\C$\…` and `//localhost/C$/…` forms: all were refused, while `README.md` and
-     its absolute `F:\` path inside the worktree still read. Repeat both smoke tests after every opencode upgrade;
+     its absolute `F:\` path inside the worktree still read. Repeat both smoke tests before raising the opencode pin;
    - `read` and `edit` deny `.git` and anything under it, in both slash styles;
    - `glob` is denied too. opencode checks its permission against the search pattern only, never the folder it
      searches, so no path rule could keep a glob out of `.git`, another drive or a share (Codex on #416). Briefs
@@ -146,9 +146,12 @@ pins the PosPay rules on top of it.
      protection for it. The tracked `.env.example` templates hold no secret and a slice that adds an env var must
      update one, so they are allowed again right after the env denies;
    - `edit` denies everything under `.claude`, where the guard scripts, this template and the skills live;
-   - `edit` also denies the ignored dependency and build folders (`node_modules`, `.pnpm-store`, `dist`, `build`,
-     `.next`, `out`, `.turbo`, `coverage`) and `*.tsbuildinfo`. The gates run what is there, and `git status` cannot
-     show an edit to a file that was already in an ignored folder;
+   - `edit` also denies every path the root `.gitignore` ignores, outside `.env` and `.claude` (denied above): the
+     dependency and build folders (`node_modules`, `.pnpm-store`, `dist`, `build`, `.next`, `out`, `.turbo`,
+     `coverage`), local tool state other agents or IDEs load (`.agents`, `.vscode`, `.idea`, `.playwright-mcp`), and
+     `*.tsbuildinfo`, `*.log`, `.DS_Store`, `Thumbs.db` and `next-env.d.ts`. The gates run what is there, and
+     `git status` cannot show an edit to a file that was already ignored. A new `.gitignore` entry gets a matching
+     deny in the same PR;
    - `edit` also denies every `opencode.*` file (config, or an `opencode.cmd` a later shell could run) and anything under `.opencode`. A config, agent or plugin file
      MiniMax wrote would load on its next round, and a plugin runs as code outside every rule. The dispatch also
      stops if a `.opencode` folder or an `opencode.jsonc` already exists;
@@ -173,7 +176,8 @@ pins the PosPay rules on top of it.
      formats with `pnpm format` when it runs the gates. A 2026-10-20 run wrote `const   x  =  1` and it stayed
      unformatted;
    - **every run uses an isolated global config home**: the dispatch points `XDG_CONFIG_HOME` at a fresh
-     `briefs\guard\<worktree>\xdg-config`, outside the worktree, holding only a fixed one-line `AGENTS.md`. None of
+     `briefs\guard\<worktree>\xdg-config`, outside the worktree, holding only a fixed one-line `AGENTS.md` and an
+     `opencode.json` that only sets `"autoupdate": false`. None of
      Waleed's global opencode config loads. On 2026-10-20 that global config started 28 MCP servers on every run,
      some connecting to outside services such as `mcp.facebook.com` and `n8n`, even with every MCP tool denied. Under
      isolation the log showed zero MCP lines, and MiniMax still signed in, because its credentials sit in the data
@@ -181,7 +185,14 @@ pins the PosPay rules on top of it.
      replace `read` or `edit`), agent and mode files (which could redefine `pospay-minimax`) and instruction files
      (which enter the model's context past every read rule). The fixed `AGENTS.md` stops opencode falling back to
      `~/.claude/CLAUDE.md`. The checker refuses the run unless `XDG_CONFIG_HOME` is set to a folder outside the
-     worktree that holds exactly that file;
+     worktree that holds exactly those two files;
+   - **opencode is pinned to the version the smoke tests passed on** (2.0.32). opencode can update itself in place
+     (Codex on #416). The isolated config turns auto-update off, but the guard that holds is the checker: it refuses
+     the run when the installed `@opencode/cli` version differs from `PINNED_OPENCODE`. To upgrade, rerun both smoke
+     tests on the new version first, then raise the pin in the same PR. Note: `opencode debug config` still lists
+     `~/.config/opencode/opencode.json` under isolation, but a real isolated run on 2026-10-20 logged zero MCP
+     lines and loaded only the isolated `AGENTS.md`. Judge isolation by a real run's `--print-logs`, not by
+     `debug config`;
    - the checker refuses an `.opencode`, `opencode.json` or `opencode.jsonc` in any folder above the worktree, up to
      the drive root, because opencode loads config from every ancestor. None exists today;
    - the checker also refuses a run when a higher-precedence source exists: the system config folder
@@ -257,6 +268,7 @@ pins the PosPay rules on top of it.
    New-Item -ItemType Directory (Join-Path $isolatedConfig 'opencode') | Out-Null
    [IO.File]::WriteAllText((Join-Path $isolatedConfig 'opencode\AGENTS.md'),
      "PosPay MiniMax run: follow the attached brief only. Read and edit files in this worktree only.`n")
+   [IO.File]::WriteAllText((Join-Path $isolatedConfig 'opencode\opencode.json'), "{ `"autoupdate`": false }`n")
    $savedPath = $env:PATH
    $savedXdg = $env:XDG_CONFIG_HOME
    $opencodeExit = 1

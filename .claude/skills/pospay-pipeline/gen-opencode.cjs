@@ -35,13 +35,36 @@ const claudePaths = [
   `*${BS}.claude`,
   `*${BS}.claude${BS}*`,
 ];
-// Ignored folders hold installed packages and build output that the gates run. git status cannot show an edit to a
-// file already there, so MiniMax may never write one (MergePilot on #416).
+// Every path the root .gitignore ignores, outside .env and .claude (denied above): installed packages, build output
+// the gates run, and local tool state other agents or IDEs load (.agents skills, .vscode, .playwright-mcp). git
+// status cannot show an edit to a file already there, so MiniMax may never write one (MergePilot and Codex on #416).
+const ignoredFolders = [
+  'node_modules',
+  '.pnpm-store',
+  'dist',
+  'build',
+  '.next',
+  'out',
+  '.turbo',
+  'coverage',
+  '.agents',
+  '.vscode',
+  '.idea',
+  '.playwright-mcp',
+];
+const ignoredFiles = ['.DS_Store', 'Thumbs.db', 'next-env.d.ts'];
 const generatedPaths = [
-  ...['node_modules', '.pnpm-store', 'dist', 'build', '.next', 'out', '.turbo', 'coverage'].flatMap(
-    (dir) => [dir, `${dir}/*`, `*/${dir}`, `*/${dir}/*`, `*${BS}${dir}`, `*${BS}${dir}${BS}*`],
-  ),
+  ...ignoredFolders.flatMap((dir) => [
+    dir,
+    `${dir}/*`,
+    `*/${dir}`,
+    `*/${dir}/*`,
+    `*${BS}${dir}`,
+    `*${BS}${dir}${BS}*`,
+  ]),
+  ...ignoredFiles.flatMap((name) => [name, `*/${name}`, `*${BS}${name}`]),
   '*.tsbuildinfo',
+  '*.log',
 ];
 // opencode 2.0.32 can treat a path on another drive as inside the project on Windows (path.relative across drives
 // returns an absolute path), so external_directory alone may not stop it (Codex on #416, opencode issue 27596).

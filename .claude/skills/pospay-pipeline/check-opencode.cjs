@@ -31,13 +31,36 @@ const claudePaths = [
   `*${BS}.claude`,
   `*${BS}.claude${BS}*`,
 ];
-// Ignored folders hold installed packages and build output that the gates run. git status cannot show an edit to a
-// file already there, so MiniMax may never write one (MergePilot on #416).
+// Every path the root .gitignore ignores, outside .env and .claude (denied above): installed packages, build output
+// the gates run, and local tool state other agents or IDEs load (.agents skills, .vscode, .playwright-mcp). git
+// status cannot show an edit to a file already there, so MiniMax may never write one (MergePilot and Codex on #416).
+const ignoredFolders = [
+  'node_modules',
+  '.pnpm-store',
+  'dist',
+  'build',
+  '.next',
+  'out',
+  '.turbo',
+  'coverage',
+  '.agents',
+  '.vscode',
+  '.idea',
+  '.playwright-mcp',
+];
+const ignoredFiles = ['.DS_Store', 'Thumbs.db', 'next-env.d.ts'];
 const generatedPaths = [
-  ...['node_modules', '.pnpm-store', 'dist', 'build', '.next', 'out', '.turbo', 'coverage'].flatMap(
-    (dir) => [dir, `${dir}/*`, `*/${dir}`, `*/${dir}/*`, `*${BS}${dir}`, `*${BS}${dir}${BS}*`],
-  ),
+  ...ignoredFolders.flatMap((dir) => [
+    dir,
+    `${dir}/*`,
+    `*/${dir}`,
+    `*/${dir}/*`,
+    `*${BS}${dir}`,
+    `*${BS}${dir}${BS}*`,
+  ]),
+  ...ignoredFiles.flatMap((name) => [name, `*/${name}`, `*${BS}${name}`]),
   '*.tsbuildinfo',
+  '*.log',
 ];
 // opencode 2.0.32 can treat a path on another drive as inside the project on Windows (path.relative across drives
 // returns an absolute path), so external_directory alone may not stop it (Codex on #416, opencode issue 27596).
@@ -160,11 +183,14 @@ if (JSON.stringify(agent.permission) !== JSON.stringify(config.permission))
 
 // Every run uses an isolated global config home (XDG_CONFIG_HOME), so none of the user's global opencode config
 // loads. That rules out MCP servers (the global config starts 28 on every run, some reaching outside services),
-// plugins, custom tools, agents, modes and instruction files. The folder must hold only the AGENTS.md the dispatch
-// writes, so opencode does not fall back to ~/.claude/CLAUDE.md either. It must sit outside the worktree, where
-// MiniMax cannot write.
-const ISOLATED_AGENTS =
-  'PosPay MiniMax run: follow the attached brief only. Read and edit files in this worktree only.\n';
+// plugins, custom tools, agents, modes and instruction files. The folder must hold only the two files the dispatch
+// writes: AGENTS.md, so opencode does not fall back to ~/.claude/CLAUDE.md, and an opencode.json that only turns
+// auto-update off. It must sit outside the worktree, where MiniMax cannot write.
+const ISOLATED_FILES = {
+  'AGENTS.md':
+    'PosPay MiniMax run: follow the attached brief only. Read and edit files in this worktree only.\n',
+  'opencode.json': '{ "autoupdate": false }\n',
+};
 const configHome = process.env.XDG_CONFIG_HOME;
 const worktreeRoot = path.dirname(path.resolve(file)).toLowerCase();
 if (!configHome) {
@@ -175,14 +201,39 @@ if (!configHome) {
   );
 } else {
   const isolatedDir = path.join(configHome, 'opencode');
-  const entries = fs.existsSync(isolatedDir) ? fs.readdirSync(isolatedDir) : [];
-  if (entries.join() !== 'AGENTS.md') {
+  const entries = fs.existsSync(isolatedDir) ? fs.readdirSync(isolatedDir).sort() : [];
+  const expected = Object.keys(ISOLATED_FILES).sort();
+  if (entries.join() !== expected.join()) {
     problems.push(
-      `${isolatedDir} must hold only AGENTS.md (found: ${entries.join(', ') || 'nothing'})`,
+      `${isolatedDir} must hold only ${expected.join(' and ')} (found: ${entries.join(', ') || 'nothing'})`,
     );
-  } else if (fs.readFileSync(path.join(isolatedDir, 'AGENTS.md'), 'utf8') !== ISOLATED_AGENTS) {
-    problems.push(`${path.join(isolatedDir, 'AGENTS.md')} is not the dispatch's fixed text`);
+  } else {
+    for (const [name, text] of Object.entries(ISOLATED_FILES)) {
+      if (fs.readFileSync(path.join(isolatedDir, name), 'utf8') !== text)
+        problems.push(`${path.join(isolatedDir, name)} is not the dispatch's fixed text`);
+    }
   }
+}
+
+// opencode can update itself in place (Codex on #416, upstream issue 56835), and every rule here was smoke-tested on
+// one version. Auto-update is off above, and the installed version must be the tested one. Raise
+// PINNED_OPENCODE only after the skill's smoke tests pass on the new version.
+const PINNED_OPENCODE = '2.0.32';
+const opencodePackage = (process.env.PATH ?? '')
+  .split(path.delimiter)
+  .filter((dir) => dir && !path.resolve(dir).toLowerCase().startsWith(worktreeRoot))
+  .map((dir) => path.join(dir, 'node_modules', '@opencode', 'cli', 'package.json'))
+  .find((candidate) => fs.existsSync(candidate));
+if (!opencodePackage) {
+  problems.push(
+    'cannot find the installed opencode (@opencode/cli under an npm global folder on PATH)',
+  );
+} else {
+  const { version } = JSON.parse(fs.readFileSync(opencodePackage, 'utf8'));
+  if (version !== PINNED_OPENCODE)
+    problems.push(
+      `opencode is ${version}, not the smoke-tested ${PINNED_OPENCODE}: rerun the smoke tests first`,
+    );
 }
 
 // opencode also loads config found in every folder above the worktree, up to the drive root.
