@@ -104,7 +104,9 @@ pins the PosPay rules on top of it.
 
 1. **One session per task.** Give the first run a session id with `-s`, and record it in the task's notes
    (`F:\Dev\Worktrees\PosPay\briefs\<task>\sid.txt`). The installed opencode CLI (v2.0.32) documents `-s` as
-   "Session ID to continue, or to create if it does not exist". If a later version stops creating it, run round one
+   "Session ID to continue, or to create if it does not exist". It refuses an id that does not start with `ses`
+   (`Expected a string starting with "ses"`, 2026-10-20), so a plain UUID fails before the model runs. Use opencode's
+   own shape, `ses_` followed by 12 hex and 14 base62 characters. If a later version stops creating it, run round one
    without `-s`, take the generated id from the `--format json` output, and use that id from round two on. Run it from
    the worktree:
 
@@ -117,9 +119,12 @@ pins the PosPay rules on top of it.
 
    **Known residual risk: the gates run MiniMax's code.** The permission file limits what MiniMax can do while it
    runs. It does not sandbox what runs afterwards: `pnpm check` and the tests execute MiniMax-authored source,
-   tests, package scripts and build config under the orchestrator's own Windows account (Codex on #416). Until a
-   separate OS account or container for the gates is decided (the option PP-11.1 left open, raised again to Waleed
-   on 2026-10-20), the line-by-line review is the barrier. Read every changed script, test, config file and anything a
+   tests, package scripts and build config under the orchestrator's own Windows account (Codex on #416). Waleed
+   chose to keep it that way: no separate OS account and no container, only the passwords move out of the global
+   opencode config («(ب) نشيل الباسوردات بس», 2026-10-20, `docs/owner-decisions.ar.md` item 19). That move, the
+   password rotation and the removal of the global MCP servers wait for the end of the PosPay plan («SEE LETS PROCEED
+   IN OUR POSPAY PLANE LATER POSTPOND TILL THE END»); until then nobody edits the global opencode config, and the
+   secrets in it stay readable by any code the gates run. So the line-by-line review is the barrier. Read every changed script, test, config file and anything a
    gate imports before running a gate, and treat an unexplained `child_process`, network, `fs` access outside the
    worktree, or a changed `package.json` script as a stop-and-report finding.
 
@@ -310,7 +315,13 @@ pins the PosPay rules on top of it.
    **The setup fails closed.** Every setup step runs under `$ErrorActionPreference = 'Stop'`, so a failed
    `Set-Location`, `Copy-Item` or check stops the dispatch. The preference goes back to `Continue` just before
    `opencode run`, because Windows PowerShell 5.1 turns any stderr line of a native command into a terminating
-   error under `Stop`. A nonzero opencode exit is a failed run (rule 8).
+   error under `Stop`. A nonzero opencode exit is a failed run (rule 8). Save the block as a `.ps1` file and
+   parse-check it before the first run
+   (`$errors = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile(<path>, [ref]$null,
+   [ref]$errors); $errors.Count` must print 0; `[ref]` needs the variable to exist first).
+   A parse error stops the whole file before any line runs. That is safe, but it hides a broken block until it is
+   used: on 2026-10-20 `"…still in $envStash: move…"` would not parse, because PowerShell reads `$name:` inside a
+   double-quoted string as a drive-qualified variable. Write `${name}:` instead.
 
    **The guard scripts run from a trusted copy, never from the worktree.** MiniMax may not edit `.claude` (an `edit`
    deny), and as a second barrier the checker, the template and the session stopper are staged before every run
@@ -439,7 +450,7 @@ pins the PosPay rules on top of it.
        }
      }
    }
-   if ($restoreFailed) { throw "an env file is still in $envStash: move it back by hand before the gates run" }
+   if ($restoreFailed) { throw "an env file is still in ${envStash}: move it back by hand before the gates run" }
    if ($stopExit -ne 0) {
      throw "a MiniMax session could not be stopped: interrupt it by hand, confirm it stopped, then move the env files back from $envStash"
    }
