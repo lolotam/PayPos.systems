@@ -120,7 +120,13 @@ pins the PosPay rules on top of it.
    - `webfetch`, `websearch`, `task`/`subagent` and `skill` are denied;
    - `external_directory` is denied, so no tool reaches outside the worktree, the main checkout's `.git` included;
    - `read`, `edit`, `glob` and `list` deny `.git` and anything under it, in both slash styles;
-   - MiniMax runs only in a worktree (the dispatch refuses a checkout whose `.git` is a folder);
+   - `edit` also denies every `opencode.json*` and anything under `.opencode`. A config, agent or plugin file
+     MiniMax wrote would load on its next round, and a plugin runs as code outside every rule. The dispatch also
+     stops if a `.opencode` folder or an `opencode.jsonc` already exists;
+   - each path map holds exactly `"*": "allow"` followed by its denies, with no other key. Any later allow would
+     win over them, because the last matching rule wins. Any unknown permission key or top-level config key is
+     refused;
+   - MiniMax runs only at a worktree root, so the dispatch requires `.git` to be a file there;
    - git, the GitHub CLI, OpenSSH and Docker are off `PATH`, as a second layer, and `PATH` is restored after the
      run.
 
@@ -163,21 +169,24 @@ pins the PosPay rules on top of it.
    ```powershell
    $ErrorActionPreference = 'Stop'
    Set-Location F:\Dev\Worktrees\PosPay\<branch>
-   if (Test-Path .git -PathType Container) { throw 'MiniMax runs only in a worktree: .git here is a folder' }
+   if (-not (Test-Path .git -PathType Leaf)) { throw 'MiniMax runs only at a worktree root, where .git is a file' }
+   if ((Test-Path .opencode) -or (Test-Path opencode.jsonc)) { throw 'a .opencode folder or opencode.jsonc exists: inspect it, stop' }
    $exclude = Join-Path (git rev-parse --git-common-dir) 'info\exclude'
-   if (-not (Select-String -Path $exclude -SimpleMatch '/opencode.json' -Quiet)) { Add-Content $exclude '/opencode.json' }
+   if (-not (Select-String -Path $exclude -SimpleMatch '/opencode.json' -Quiet)) { Add-Content $exclude "`n/opencode.json" }
    Copy-Item .\.claude\skills\pospay-pipeline\opencode-pospay.json .\opencode.json -Force
    node .\.claude\skills\pospay-pipeline\check-opencode.cjs opencode.json; if ($LASTEXITCODE) { throw 'opencode.json refused: stop' }
    $savedPath = $env:PATH
+   $opencodeExit = 1
    try {
      $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\(Git|GitHub CLI|OpenSSH|Docker)\\') }) -join ';'
      foreach ($tool in 'git', 'gh', 'ssh', 'scp', 'docker') {
        if (Get-Command "$tool.exe" -ErrorAction SilentlyContinue) { throw "$tool is still on PATH: stop" }
      }
+     if (-not (Get-Command opencode -ErrorAction SilentlyContinue)) { throw 'opencode is not on PATH: stop' }
      $ErrorActionPreference = 'Continue'
      opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
          -f F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt "Implement the attached brief."
-     $opencodeExit = $LASTEXITCODE
+     $opencodeExit = if ($?) { $LASTEXITCODE } else { 1 }
    } finally {
      $env:PATH = $savedPath
    }

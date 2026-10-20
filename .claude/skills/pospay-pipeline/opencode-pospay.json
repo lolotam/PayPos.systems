@@ -19,7 +19,16 @@
       "*/.git": "deny",
       "*/.git/*": "deny",
       "*\\.git": "deny",
-      "*\\.git\\*": "deny"
+      "*\\.git\\*": "deny",
+      "opencode.json*": "deny",
+      "*/opencode.json*": "deny",
+      "*\\opencode.json*": "deny",
+      ".opencode": "deny",
+      ".opencode/*": "deny",
+      "*/.opencode": "deny",
+      "*/.opencode/*": "deny",
+      "*\\.opencode": "deny",
+      "*\\.opencode\\*": "deny"
     },
     "glob": {
       "*": "allow",

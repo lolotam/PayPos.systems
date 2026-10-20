@@ -1,19 +1,32 @@
-// Refuses a MiniMax run unless <worktree>/opencode.json parses and carries every required limit
-// (Waleed, SA-6 and SA-7.1, 2026-10-20). Exits 1 with the missing limits listed.
+// Refuses a MiniMax run unless <worktree>/opencode.json parses and carries exactly the required limits
+// (Waleed, SA-6 and SA-7.1, 2026-10-20). Exits 1 with the problems listed.
 // Usage: node .claude/skills/pospay-pipeline/check-opencode.cjs [path to opencode.json]
 const fs = require('fs');
 
-const file = process.argv[2] || 'opencode.json';
-let permission;
-try {
-  permission = JSON.parse(fs.readFileSync(file, 'utf8')).permission;
-} catch (error) {
-  console.error(`refused: ${file} does not parse (${error.message})`);
-  process.exit(1);
-}
-
+// Kept apart from gen-opencode.cjs on purpose: the checker is the spec the generator is held to, so a
+// generator bug cannot also weaken the check.
+const BS = String.fromCharCode(92);
+const gitPaths = ['.git', '.git/*', '*/.git', '*/.git/*', `*${BS}.git`, `*${BS}.git${BS}*`];
+const configPaths = [
+  'opencode.json*',
+  '*/opencode.json*',
+  `*${BS}opencode.json*`,
+  '.opencode',
+  '.opencode/*',
+  '*/.opencode',
+  '*/.opencode/*',
+  `*${BS}.opencode`,
+  `*${BS}.opencode${BS}*`,
+];
+// Each path map must hold exactly these keys in this order: "*" allow first, then only denies, because the
+// last matching rule wins and any later allow would re-open what the denies close.
+const pathMaps = {
+  read: gitPaths,
+  edit: [...gitPaths, ...configPaths],
+  glob: gitPaths,
+  list: gitPaths,
+};
 const mustDeny = [
-  '*',
   'bash',
   'shell',
   'execute',
@@ -28,29 +41,44 @@ const mustDeny = [
   '*_mcp_resource*',
   'opencode.*',
 ];
-const gitPaths = ['.git', '.git/*', '*/.git', '*/.git/*'];
-const problems = [];
+const mayAllow = ['todowrite', 'todoread'];
+const knownKeys = ['*', ...mustDeny, ...mayAllow, ...Object.keys(pathMaps)];
 
-if (!permission || Object.keys(permission)[0] !== '*') problems.push('"*" must be the first rule');
+const file = process.argv[2] || 'opencode.json';
+let config;
+try {
+  config = JSON.parse(fs.readFileSync(file, 'utf8'));
+} catch (error) {
+  console.error(`refused: ${file} does not parse (${error.message})`);
+  process.exit(1);
+}
+
+const problems = [];
+const permission = config.permission ?? {};
+for (const key of Object.keys(config)) {
+  if (!['$schema', 'permission'].includes(key))
+    problems.push(`top-level key "${key}" is not allowed`);
+}
+if (Object.keys(permission)[0] !== '*' || permission['*'] !== 'deny')
+  problems.push('"*": "deny" must be the first rule');
+for (const key of Object.keys(permission)) {
+  if (!knownKeys.includes(key)) problems.push(`unknown permission key "${key}"`);
+}
 for (const key of mustDeny) {
-  if (permission?.[key] !== 'deny') problems.push(`${key} must be "deny"`);
+  if (permission[key] !== 'deny') problems.push(`${key} must be "deny"`);
 }
-for (const tool of ['read', 'edit', 'glob', 'list']) {
-  const rules = permission?.[tool];
-  if (typeof rules !== 'object' || rules === null) {
-    problems.push(`${tool} must be a path map`);
-    continue;
-  }
-  // The last matching rule wins, so a "*": "allow" after the .git denies would override them.
-  if (Object.keys(rules)[0] !== '*') problems.push(`${tool}: "*" must be the first path rule`);
-  for (const p of gitPaths) if (rules[p] !== 'deny') problems.push(`${tool} must deny ${p}`);
+for (const key of mayAllow) {
+  if (![undefined, 'allow', 'deny'].includes(permission[key]))
+    problems.push(`${key} must be "allow" or "deny"`);
 }
-const allowed = Object.entries(permission ?? {})
-  .filter(([, v]) => v === 'allow')
-  .map(([k]) => k);
-for (const key of allowed) {
-  if (!['todowrite', 'todoread'].includes(key))
-    problems.push(`${key} must not be allowed outright`);
+for (const [tool, denies] of Object.entries(pathMaps)) {
+  const rules = permission[tool];
+  const expected = ['*', ...denies];
+  const actual = rules && typeof rules === 'object' ? Object.keys(rules) : [];
+  const exact = actual.length === expected.length && expected.every((key, i) => actual[i] === key);
+  const values = expected.every((key, i) => rules?.[key] === (i === 0 ? 'allow' : 'deny'));
+  if (!exact || !values)
+    problems.push(`${tool} must be exactly "*": "allow" then denies on ${denies.join(', ')}`);
 }
 
 if (problems.length) {
