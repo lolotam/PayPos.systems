@@ -229,6 +229,11 @@ if (!configHome) {
   }
 }
 
+// opencode takes its project folder from the inherited PWD variable, not the process's current folder (#423), so a
+// stale PWD would load another folder's opencode.json. The dispatch sets PWD to the worktree; anything else is refused.
+if (!process.env.PWD || path.resolve(process.env.PWD).toLowerCase() !== worktreeRoot)
+  problems.push(`PWD (${process.env.PWD || 'unset'}) must be the worktree that holds ${file}`);
+
 // opencode can update itself in place (Codex on #416, upstream issue 56835), and every rule here was smoke-tested on
 // one version. Auto-update is off above, and the binary the dispatch will run must be the tested one, so the version
 // is read from the package beside that exact opencode.exe, not from the first one on PATH (Codex on #416). Raise

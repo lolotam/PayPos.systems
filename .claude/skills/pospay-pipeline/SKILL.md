@@ -282,7 +282,9 @@ pins the PosPay rules on top of it.
    git fetch -q origin main; if ($LASTEXITCODE) { throw 'git fetch failed: a stale guard copy could be trusted, stop' }
    $mainSha = git rev-parse FETCH_HEAD
    git archive -o "$guard\guard.tar" $mainSha .claude/skills/pospay-pipeline; if ($LASTEXITCODE) { throw 'git archive failed: stop' }
-   tar -xf "$guard\guard.tar" -C $guard; if ($LASTEXITCODE) { throw 'could not stage the guard scripts: stop' }
+   # Windows' own tar: under a PowerShell started from Git Bash, plain `tar` is GNU tar, which reads F: as a remote host
+   & "$env:SystemRoot\System32\tar.exe" -xf "$guard\guard.tar" -C $guard
+   if ($LASTEXITCODE) { throw 'could not stage the guard scripts: stop' }
    $tools = "$guard\.claude\skills\pospay-pipeline"
    $exclude = Join-Path (git rev-parse --git-common-dir) 'info\exclude'
    if (-not (Select-String -Path $exclude -SimpleMatch '/opencode.json' -Quiet)) { Add-Content $exclude "`n/opencode.json" }
@@ -303,6 +305,7 @@ pins the PosPay rules on top of it.
    $restoreFailed = $false
    $savedPath = $env:PATH
    $savedXdg = $env:XDG_CONFIG_HOME
+   $savedPwd = $env:PWD
    $opencodeExit = 1
    $stopExit = 1
    $runStart = $null
@@ -314,6 +317,9 @@ pins the PosPay rules on top of it.
        $stashed += $rel
      }
      $env:XDG_CONFIG_HOME = $isolatedConfig   # no global config: no MCP servers, plugins, agents or instructions
+     # opencode takes its project folder from the inherited PWD variable, not from Set-Location. Launched from Git Bash,
+     # PWD is the caller's folder, no project opencode.json loads, and the run stops with "Agent not found" (#423).
+     $env:PWD = $worktree
      if (-not (Get-Command opencode -ErrorAction SilentlyContinue)) { throw 'opencode is not on PATH: stop' }
      $opencodeExe = Join-Path (Split-Path (Get-Command opencode).Source) 'node_modules\@opencode\cli\bin\opencode.exe'
      if (-not (Test-Path $opencodeExe)) { throw 'opencode.exe not found: stop' }
@@ -353,6 +359,7 @@ pins the PosPay rules on top of it.
      } finally {
        $env:PATH = $savedPath
        $env:XDG_CONFIG_HOME = $savedXdg
+       $env:PWD = $savedPwd
        # The env files come back only after MiniMax has stopped. A file MiniMax planted under the same name is moved
        # aside to the guard folder and reported, never overwritten silently.
        foreach ($rel in $stashed) {
