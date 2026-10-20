@@ -121,8 +121,10 @@ pins the PosPay rules on top of it.
    runs. It does not sandbox what runs afterwards: `pnpm check` and the tests execute MiniMax-authored source,
    tests, package scripts and build config under the orchestrator's own Windows account (Codex on #416). Waleed
    chose to keep it that way: no separate OS account and no container, only the passwords move out of the global
-   opencode config («(ب) نشيل الباسوردات بس», 2026-10-20, `docs/owner-decisions.ar.md` item 19). So the line-by-line
-   review is the barrier. Read every changed script, test, config file and anything a
+   opencode config («(ب) نشيل الباسوردات بس», 2026-10-20, `docs/owner-decisions.ar.md` item 19). That move, the
+   password rotation and the removal of the global MCP servers wait for the end of the PosPay plan («SEE LETS PROCEED
+   IN OUR POSPAY PLANE LATER POSTPOND TILL THE END»); until then nobody edits the global opencode config, and the
+   secrets in it stay readable by any code the gates run. So the line-by-line review is the barrier. Read every changed script, test, config file and anything a
    gate imports before running a gate, and treat an unexplained `child_process`, network, `fs` access outside the
    worktree, or a changed `package.json` script as a stop-and-report finding.
 
@@ -315,7 +317,8 @@ pins the PosPay rules on top of it.
    `opencode run`, because Windows PowerShell 5.1 turns any stderr line of a native command into a terminating
    error under `Stop`. A nonzero opencode exit is a failed run (rule 8). Save the block as a `.ps1` file and
    parse-check it before the first run
-   (`[System.Management.Automation.Language.Parser]::ParseFile(<path>, [ref]$null, [ref]$errors)`, zero errors).
+   (`$errors = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile(<path>, [ref]$null,
+   [ref]$errors); $errors.Count` must print 0; `[ref]` needs the variable to exist first).
    A parse error stops the whole file before any line runs. That is safe, but it hides a broken block until it is
    used: on 2026-10-20 `"…still in $envStash: move…"` would not parse, because PowerShell reads `$name:` inside a
    double-quoted string as a drive-qualified variable. Write `${name}:` instead.
