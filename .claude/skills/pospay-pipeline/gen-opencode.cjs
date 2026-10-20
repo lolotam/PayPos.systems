@@ -111,13 +111,19 @@ const driveLetterPaths = 'ABCDEGHIJKLMNOPQRSTUVWXYZ'
 // reach the protected name (Codex on #416). Normal paths never end a component that way.
 const trailingAliasPaths = ['* ', '* /*', '*.', '*./*'];
 const otherDrivePaths = [...driveLetterPaths, `${BS}*`, '/*', '??*:*', ...trailingAliasPaths];
-// The last matching rule wins, so the order is the policy: env denies, the template allows, then every protected tree.
+// The repo tracks the Spec Kit skills under .agents/skills/speckit-*/SKILL.md (.gitignore exempts them), so they stay
+// readable and editable through the .agents deny (Codex on #416). Only that root form and only SKILL.md.
+const trackedAgentSkillPaths = ['.agents/skills/speckit-*/SKILL.md'];
+// The last matching rule wins, so the order is the policy: env denies, the template allows, every protected tree, the
+// tracked Spec Kit skills, then the other-drive, stream and trailing-alias denies, so no allow can reopen those.
 const fileRules = (protectedPaths) =>
   Object.fromEntries([
     ['*', 'allow'],
     ...envPaths.map((p) => [p, 'deny']),
     ...envExamplePaths.map((p) => [p, 'allow']),
     ...protectedPaths.map((p) => [p, 'deny']),
+    ...trackedAgentSkillPaths.map((p) => [p, 'allow']),
+    ...otherDrivePaths.map((p) => [p, 'deny']),
   ]);
 
 // An allowlist: "*" is denied first, so every tool not allowed below is refused, every MCP tool included.
@@ -127,21 +133,8 @@ const permission = {
   '*': 'deny',
   external_directory: 'deny',
   // MiniMax tried to read its own rules (Emlaa, 2026-10-20), so it may not read any opencode config either.
-  read: fileRules([
-    ...gitPaths,
-    ...configPaths,
-    ...claudePaths,
-    ...localToolPaths,
-    ...logPaths,
-    ...otherDrivePaths,
-  ]),
-  edit: fileRules([
-    ...gitPaths,
-    ...configPaths,
-    ...claudePaths,
-    ...generatedPaths,
-    ...otherDrivePaths,
-  ]),
+  read: fileRules([...gitPaths, ...configPaths, ...claudePaths, ...localToolPaths, ...logPaths]),
+  edit: fileRules([...gitPaths, ...configPaths, ...claudePaths, ...generatedPaths]),
   // opencode checks the glob permission against the pattern only, never the search root, so no path rule could keep
   // a glob out of .git, another drive or a share (Codex on #416). Briefs name every file, so MiniMax needs no glob.
   glob: 'deny',

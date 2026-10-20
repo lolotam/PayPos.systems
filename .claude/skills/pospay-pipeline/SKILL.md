@@ -147,11 +147,17 @@ pins the PosPay rules on top of it.
      of the name rules; Codex on #416), probed by making a long-named folder in the isolated config home and reading
      `dir /x`, or when any entry still has one in any folder the link scan visits (every folder outside
      `node_modules` and `.git`, at any depth), because disabling creation keeps old aliases. On 2026-10-20 F: created
-     none and the worktree had none, the whole check took 1.7 s, and the same probe on C: was refused;
+     none and the worktree had none, the whole check took 1.7 s, and the same probe on C: was refused. Folder names
+     reach `cmd.exe` only double-quoted on a command line the checker builds, with delayed expansion off, so a
+     MiniMax-made folder such as `probe&pwn.cmd` stays a name. A folder name holding `%` stops the run. Tested:
+     `probe&pwn.cmd` and `(dashboard)` passed without running anything, and `x%PATH%y` was refused;
    - the checker refuses the run when a file outside `node_modules` and `.git` has more than one hard-link name,
      because a hard link to another worktree's `.env` would expose it through an allowed path (Codex on #416). None
      existed on 2026-10-20 (3,830 files in a worktree, 18,758 in the main checkout), and a planted one was refused.
-     pnpm hard-links `node_modules` files to its store of public package code, which MiniMax may read but not edit;
+     pnpm hard-links `node_modules` files to its store of public package code, which MiniMax may read but not edit.
+     Those links cannot be told apart from a planted one without listing each file's other names, so a hard link
+     placed inside `node_modules` to a secret is a known residual risk. MiniMax cannot create one without a shell,
+     the worktree's `node_modules` comes from a fresh `pnpm install`, and the separate-account question covers it;
    - the checker refuses the run when a symlink or junction inside the worktree resolves outside it, or would if it
      is broken, because opencode authorizes the written path and then follows the link (Codex on #416). MiniMax
      cannot make one without a shell. In `node_modules` it reads only the levels pnpm links at (the top, `@scope`
@@ -193,7 +199,9 @@ pins the PosPay rules on top of it.
    - `read` also denies the local tool state folders `.agents`, `.vscode`, `.idea` and `.playwright-mcp`, because
      they can hold credentials (Playwright MCP storage-state files keep cookies and local storage; Codex on #416). A
      2026-10-20 smoke test refused reads of `.playwright-mcp/storage-state.json` and `.vscode/settings.json`, and
-     `README.md` still read;
+     `README.md` still read. The tracked Spec Kit skills (`.agents/skills/speckit-*/SKILL.md`, which `.gitignore`
+     exempts) stay readable and editable through a later allow, placed before the other-drive, stream and
+     trailing-alias denies so it cannot reopen them;
    - `read` and `edit` deny the logs the root `.gitignore` ignores (`*.log` and the npm/pnpm `*-debug.log*`), which
      can hold tokens, request bodies or customer data and never show in `git status` when unchanged (Codex on #416).
      A 2026-10-20 smoke test refused `apps/api/server.log` and `pnpm-debug.log.1`;

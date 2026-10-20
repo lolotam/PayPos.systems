@@ -108,9 +108,11 @@ const driveLetterPaths = 'ABCDEGHIJKLMNOPQRSTUVWXYZ'
 // reach the protected name (Codex on #416). Normal paths never end a component that way.
 const trailingAliasPaths = ['* ', '* /*', '*.', '*./*'];
 const otherDrivePaths = [...driveLetterPaths, `${BS}*`, '/*', '??*:*', ...trailingAliasPaths];
+// The tracked Spec Kit skills stay readable and editable through the .agents deny: only the root SKILL.md form.
+const trackedAgentSkillPaths = ['.agents/skills/speckit-*/SKILL.md'];
 // Each path map must hold exactly these rules in this order, because the last matching rule wins. The only allows
-// after "*" are the secret-free .env.example templates, and the git, config and .claude denies follow them, so no
-// allow can re-open a protected tree.
+// after "*" are the secret-free .env.example templates, followed by the protected denies, and the tracked Spec Kit
+// skills, followed by the other-drive, stream and trailing-alias denies, so no allow can reopen what follows it.
 const ordered = (...groups) => groups.flatMap(([paths, action]) => paths.map((p) => [p, action]));
 const fileRules = (protectedPaths) =>
   ordered(
@@ -118,23 +120,12 @@ const fileRules = (protectedPaths) =>
     [envPaths, 'deny'],
     [envExamplePaths, 'allow'],
     [protectedPaths, 'deny'],
+    [trackedAgentSkillPaths, 'allow'],
+    [otherDrivePaths, 'deny'],
   );
 const pathMaps = {
-  read: fileRules([
-    ...gitPaths,
-    ...configPaths,
-    ...claudePaths,
-    ...localToolPaths,
-    ...logPaths,
-    ...otherDrivePaths,
-  ]),
-  edit: fileRules([
-    ...gitPaths,
-    ...configPaths,
-    ...claudePaths,
-    ...generatedPaths,
-    ...otherDrivePaths,
-  ]),
+  read: fileRules([...gitPaths, ...configPaths, ...claudePaths, ...localToolPaths, ...logPaths]),
+  edit: fileRules([...gitPaths, ...configPaths, ...claudePaths, ...generatedPaths]),
 };
 // Only read and edit (which covers write) may be allowed, through the path maps above; everything named here must
 // be an explicit "deny" (owner's lists, SA-6, SA-7.1 and the 2026-10-20 execute broadcast). glob is denied because
@@ -352,8 +343,16 @@ function shortNameLines(dirs) {
       length += dirs[start].length + 3;
       batch.push(dirs[start++]);
     }
-    const listing = execFileSync('cmd.exe', ['/d', '/c', 'dir', '/x', '/a', ...batch], {
+    // Folder names come from the worktree, where MiniMax can create them, so cmd must never parse one as syntax
+    // (`probe&pwn.cmd` would run pwn.cmd; Codex on #416). Each path is double-quoted on a command line built here,
+    // which makes & ( ) ^ literal; delayed expansion is off, so ! is literal too. % still expands inside quotes, so
+    // a path holding one stops the run before cmd starts. Windows forbids " in names.
+    const unsafe = batch.find((dir) => dir.includes('%') || dir.includes('"'));
+    if (unsafe) throw new Error(`a folder name holds % or ", which cmd would expand: ${unsafe}`);
+    const command = `/d /v:off /c dir /x /a ${batch.map((dir) => `"${dir}"`).join(' ')}`;
+    const listing = execFileSync('cmd.exe', [command], {
       encoding: 'utf8',
+      windowsVerbatimArguments: true,
     });
     lines.push(...listing.split(/\r?\n/).filter(hasShortName));
   }
