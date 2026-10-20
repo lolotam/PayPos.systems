@@ -13,7 +13,7 @@ const READY_TIMEOUT_MS = 30_000;
  * الانتظار متسقوف عشان Redis اللي ما بيبعتش ready ما يعلّقش إقلاع الوركر.
  */
 function whenRedisReady(redis: Redis, timeoutMs: number): Promise<void> {
-  if (redis.status === 'ready' || typeof redis.status !== 'string') return Promise.resolve();
+  if (redis.status === 'ready') return Promise.resolve();
   if (redis.status === 'end') return Promise.reject(new Error('redis ended'));
   return new Promise((resolve, reject) => {
     let done = false;

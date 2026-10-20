@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 
 import { imageDataUri } from '../html/image.ts';
-import { baseLayout } from '../html/layout.ts';
+import { baseLayout, bdi } from '../html/layout.ts';
 import { html } from '../html/template.ts';
 import { fixtureDocument } from '../html/fixture.ts';
 
@@ -26,6 +26,14 @@ it('lays out Arabic and English with logical CSS and an embedded font', () => {
   expect(english).toContain('<html lang="en" dir="ltr">');
   expect(english).toContain('One &amp; two');
   expect(english).not.toMatch(EXTERNAL);
+});
+
+it('wraps a Latin line in bdi and escapes it', () => {
+  expect(bdi('A<B>&"').value).toBe('<bdi>A&lt;B&gt;&amp;&quot;</bdi>');
+  const arabic = fixtureDocument({ language: 'ar', lines: ['INV <1>', 'سطر'] });
+  expect(arabic).toContain('<bdi>INV &lt;1&gt;</bdi>');
+  expect(arabic).toContain('<p>سطر</p>');
+  expect(arabic).not.toContain('<p>INV');
 });
 
 it('builds image data URIs only for png and jpeg', () => {

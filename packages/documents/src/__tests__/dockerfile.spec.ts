@@ -15,4 +15,18 @@ it('C4 keeps the worker image off root', () => {
   expect(smoke).toContain('process.getuid');
   expect(smoke).toContain('uid === 0');
   expect(smoke).toContain("console.log(`uid=");
+  expect(smoke).toContain('rendererFailureText');
+});
+
+it('AC-12 keeps the renderer out of the API package', () => {
+  const manifest = JSON.parse(readFileSync(resolve(root, 'apps/api/package.json'), 'utf8')) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+  const names = [
+    ...Object.keys(manifest.dependencies ?? {}),
+    ...Object.keys(manifest.devDependencies ?? {}),
+  ];
+  expect(names).not.toContain('@pospay/documents');
+  expect(names).not.toContain('playwright-core');
 });

@@ -20,6 +20,8 @@ export interface RendererOptions {
   readonly pdfTimeoutMs?: number;
   readonly overallTimeoutMs?: number;
   readonly browserCloseGraceMs?: number;
+  /** التأخير بيرجع لأول درجة بعد ما المتصفح يفضل قائم المدة دي. */
+  readonly stableForMs?: number;
   readonly onLaunchError?: (error: unknown) => void;
   /** لقطة DOM بعد التحميل. للاختبار؛ مش بتتسجل. */
   readonly onDocumentHtml?: (outerHtml: string) => void;
@@ -55,9 +57,8 @@ async function closeHungContext(
       finished = true;
     },
   );
-  await sleep(graceMs);
+  await Promise.race([closing, sleep(graceMs)]);
   if (!finished) await browser?.close().catch(() => undefined);
-  await Promise.race([closing, sleep(0)]);
 }
 
 /**
@@ -72,11 +73,14 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   readonly #pdfTimeoutMs: number;
   readonly #overallTimeoutMs: number;
   readonly #browserCloseGraceMs: number;
+  readonly #stableForMs: number;
   readonly #onLaunchError: ((error: unknown) => void) | undefined;
   readonly #onDocumentHtml: ((outerHtml: string) => void) | undefined;
   #browser: PdfBrowser | null = null;
   #available = false;
   #closing = false;
+  #launchFailures = 0;
+  #stableTimer: ReturnType<typeof setTimeout> | undefined;
   #relaunching: Promise<void> | null = null;
   #unavailable: Array<() => void> = [];
   #availableListeners: Array<() => void> = [];
@@ -89,6 +93,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     this.#pdfTimeoutMs = options.pdfTimeoutMs ?? 20_000;
     this.#overallTimeoutMs = options.overallTimeoutMs ?? 30_000;
     this.#browserCloseGraceMs = options.browserCloseGraceMs ?? 1_000;
+    this.#stableForMs = options.stableForMs ?? 30_000;
     this.#onLaunchError = options.onLaunchError;
     this.#onDocumentHtml = options.onDocumentHtml;
   }
@@ -112,6 +117,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
 
   async close(): Promise<void> {
     this.#closing = true;
+    this.#clearStable();
     this.#markUnavailable();
     const browser = this.#browser;
     this.#browser = null;
@@ -152,14 +158,31 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
 
   #markAvailable(): void {
     this.#available = true;
+    this.#armStable();
     for (const listener of this.#availableListeners) listener();
   }
 
   #markUnavailable(): void {
+    this.#clearStable();
     const wasAvailable = this.#available;
     this.#available = false;
     if (!wasAvailable) return;
     for (const listener of this.#unavailable) listener();
+  }
+
+  #armStable(): void {
+    this.#clearStable();
+    const timer = setTimeout(() => {
+      if (this.#available && !this.#closing) this.#launchFailures = 0;
+    }, this.#stableForMs);
+    timer.unref();
+    this.#stableTimer = timer;
+  }
+
+  #clearStable(): void {
+    if (this.#stableTimer === undefined) return;
+    clearTimeout(this.#stableTimer);
+    this.#stableTimer = undefined;
   }
 
   #scheduleRelaunch(): void {
@@ -171,8 +194,10 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   }
 
   async #relaunchLoop(): Promise<void> {
-    for (let attempt = 0; !this.#closing && !this.#available; attempt += 1) {
-      const delayMs = this.#backoff[Math.min(attempt, this.#backoff.length - 1)] ?? 0;
+    while (!this.#closing && !this.#available) {
+      const index = Math.min(this.#launchFailures, this.#backoff.length - 1);
+      const delayMs = this.#backoff[index] ?? 0;
+      this.#launchFailures += 1;
       await this.#sleep(delayMs);
       if (this.#closing) return;
       await this.#launchOnce();
@@ -211,10 +236,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   }
 
   async #closeAfterTimeout(context: PdfContext | undefined, browser: PdfBrowser): Promise<void> {
-    if (context === undefined) {
-      await browser.close().catch(() => undefined);
-      return;
-    }
+    if (context === undefined) return;
     await closeHungContext(context, browser, this.#browserCloseGraceMs, this.#sleep);
   }
 
@@ -235,6 +257,7 @@ function raceDeadline(
   let onAbort: (() => void) | undefined;
   const raced = new Promise<Uint8Array>((resolve, reject) => {
     if (signal?.aborted === true) {
+      work.catch(() => undefined);
       reject(new DocumentRenderTimeoutError());
       return;
     }

@@ -1,3 +1,4 @@
+import { escapeHtml } from '../domain/escape.ts';
 import { fontFaceCss } from '../fonts/ibm-plex.ts';
 import { raw, type HtmlFragment } from './fragment.ts';
 import { html } from './template.ts';
@@ -17,6 +18,17 @@ const PAGE_CSS = [
   'main { margin-inline: 0; }',
   'footer { margin-block-start: 8mm; }',
 ].join('\n');
+
+/**
+ * بيعزل مقطع لاتيني جوّه سطر عربي عشان الأرقام والاختصارات ما تنعكسش مع اتجاه الصفحة.
+ * القيمة بتتهرب قبل الوسم؛ الوسم نفسه من القالب مش من الطلب.
+ *
+ * @param value المقطع كما كتبه الطالب
+ * @returns القطعة جوّه bdi
+ */
+export function bdi(value: string): HtmlFragment {
+  return raw(`<bdi>${escapeHtml(value)}</bdi>`);
+}
 
 /**
  * الهيكل المطبوع: اتجاه اللغة، خط مضمّن، وحواف صفحة منطقية.

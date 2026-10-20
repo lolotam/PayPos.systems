@@ -1,5 +1,9 @@
 import { DOCUMENTS_RENDER_QUEUE } from '@pospay/contracts';
-import type { DocumentRenderer } from '@pospay/documents';
+import {
+  rendererFailureText,
+  type DocumentRenderer,
+  type RendererOptions,
+} from '@pospay/documents';
 import type { Logger } from '@pospay/observability';
 import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
@@ -7,15 +11,17 @@ import { Redis } from 'ioredis';
 import { startRendererLiveness, type RendererLiveness } from './liveness.ts';
 import type { EpochClock } from './process-job.ts';
 import { DocumentSourceRegistry } from './source-registry.ts';
+import { trackDocumentStartup, type AttemptBinder } from './startup-session.ts';
 
 const LOCK_MS = 45_000;
 const STARTUP_MS = 30_000;
+const RETRY_DELAYS_MS = [5_000, 15_000, 60_000] as const;
 
 export interface DocumentRendering {
-  stop(): Promise<void>;
+  stop(force?: boolean): Promise<void>;
   close(): Promise<void>;
   readonly registry: DocumentSourceRegistry;
-  /** بيتكمّل لما الطابور يبقى جاهز، أو لما الإقلاع يتقفل أو يتخطى السقف. */
+  /** بيتكمّل لما الطابور يبقى جاهز، أو لما الإيقاف يقفل الإقلاع. */
   readonly started: Promise<void>;
 }
 
@@ -25,10 +31,17 @@ export interface StartDocumentsInput {
   readonly logger: Logger;
   readonly clock: EpochClock;
   readonly renderer?: DocumentRenderer;
+  readonly createRenderer?: () => DocumentRenderer | Promise<DocumentRenderer>;
+  readonly browserFactory?: NonNullable<RendererOptions['factory']>;
   readonly registry?: DocumentSourceRegistry;
   readonly prefix?: string;
   readonly livenessIntervalMs?: number;
   readonly startupMs?: number;
+  readonly retryDelaysMs?: readonly number[];
+  readonly sleep?: (ms: number) => Promise<void>;
+  readonly lockDurationMs?: number;
+  readonly stalledIntervalMs?: number;
+  readonly maxStalledCount?: number;
   readonly isStopping?: () => boolean;
 }
 
@@ -38,29 +51,23 @@ export interface CoreBeforeDocumentsInput {
   isStopping(): boolean;
 }
 
-interface LiveQueue {
-  worker: Worker;
-  connection: Redis;
-  liveness: RendererLiveness;
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
-async function openRenderer(input: StartDocumentsInput): Promise<DocumentRenderer> {
-  if (input.renderer !== undefined) {
-    bindAvailableLog(input.logger, input.renderer);
-    return input.renderer;
-  }
-  // الاستيراد بيتأجل لبعد فحص Redis، عشان اختبار الإقلاع ما يحمّلش Chromium.
-  const { PlaywrightDocumentRenderer } = await import('@pospay/documents');
-  const renderer = new PlaywrightDocumentRenderer({
-    onLaunchError: () => {
-      input.logger.warn(
-        { capability: { name: 'DOCUMENTS', state: 'UNAVAILABLE', reason: 'LAUNCH_FAILED' } },
-        'document renderer unavailable',
-      );
+function logUnavailable(logger: Logger, reason: string, error?: unknown): void {
+  const failure = error === undefined ? undefined : rendererFailureText(error);
+  logger.warn(
+    {
+      capability: { name: 'DOCUMENTS', state: 'UNAVAILABLE', reason },
+      ...(failure === undefined
+        ? {}
+        : { error_class: failure.error_class, error_message: failure.error_message }),
     },
-  });
-  bindAvailableLog(input.logger, renderer);
-  return renderer;
+    'document renderer unavailable',
+  );
 }
 
 function bindAvailableLog(logger: Logger, renderer: DocumentRenderer): void {
@@ -72,31 +79,29 @@ function bindAvailableLog(logger: Logger, renderer: DocumentRenderer): void {
   });
 }
 
+async function openRenderer(input: StartDocumentsInput): Promise<DocumentRenderer> {
+  if (input.createRenderer !== undefined) {
+    const renderer = await input.createRenderer();
+    bindAvailableLog(input.logger, renderer);
+    return renderer;
+  }
+  if (input.renderer !== undefined) return input.renderer;
+  const { PlaywrightDocumentRenderer } = await import('@pospay/documents');
+  const renderer = new PlaywrightDocumentRenderer({
+    ...(input.browserFactory === undefined ? {} : { factory: input.browserFactory }),
+    onLaunchError: (error) => logUnavailable(input.logger, 'LAUNCH_FAILED', error),
+  });
+  bindAvailableLog(input.logger, renderer);
+  return renderer;
+}
+
 function openQueueConnection(redisUrl: string): Redis {
   const connection = new Redis(redisUrl, {
     maxRetriesPerRequest: null,
     enableOfflineQueue: false,
   });
   connection.on('error', () => undefined);
-  // عميل من غير حالة مش هيبعت ready، وwaitUntilReady كان هيعلّق إقلاع الوركر كله.
-  if (typeof connection.once !== 'function' || typeof connection.status !== 'string') {
-    connection.disconnect();
-    throw new Error('DOCUMENT_REDIS_UNUSABLE');
-  }
   return connection;
-}
-
-/** فشل العميل يتكشف قبل Chromium. الإطلاق المعلّق ما يبقاش ثمن اتصال ميت. */
-function assertQueueRedisUsable(redisUrl: string): void {
-  const connection = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
-    enableOfflineQueue: false,
-    lazyConnect: true,
-  });
-  connection.on('error', () => undefined);
-  const usable = typeof connection.once === 'function' && typeof connection.status === 'string';
-  connection.disconnect();
-  if (!usable) throw new Error('DOCUMENT_REDIS_UNUSABLE');
 }
 
 async function openWorker(
@@ -121,11 +126,13 @@ async function openWorker(
       {
         connection,
         concurrency: 2,
-        lockDuration: LOCK_MS,
+        lockDuration: input.lockDurationMs ?? LOCK_MS,
+        ...(input.stalledIntervalMs === undefined ? {} : { stalledInterval: input.stalledIntervalMs }),
+        ...(input.maxStalledCount === undefined ? {} : { maxStalledCount: input.maxStalledCount }),
         ...(input.prefix === undefined ? {} : { prefix: input.prefix }),
       },
     );
-    worker.on('error', () => undefined);
+    worker.on('error', (error: Error) => logUnavailable(input.logger, 'QUEUE_FAILED', error));
     worker.on('failed', (job) => {
       if (job == null) return;
       void recordExternalJobFailure(job, {
@@ -143,120 +150,63 @@ async function openWorker(
   }
 }
 
-function stopping(input: StartDocumentsInput, closed: () => boolean): boolean {
-  return closed() || input.isStopping?.() === true;
+function halted(input: StartDocumentsInput, attempt: AttemptBinder): boolean {
+  return attempt.cancelled() || input.isStopping?.() === true;
 }
 
 async function bringUp(
   input: StartDocumentsInput,
   registry: DocumentSourceRegistry,
-  closed: () => boolean,
-  assign: (live: LiveQueue) => void,
-  setRenderer: (renderer: DocumentRenderer) => void,
-): Promise<void> {
+  attempt: AttemptBinder,
+): Promise<boolean> {
   let liveness: RendererLiveness | undefined;
   try {
-    assertQueueRedisUsable(input.redisUrl);
-    if (stopping(input, closed)) return;
+    if (halted(input, attempt)) return false;
     const renderer = await openRenderer(input);
-    setRenderer(renderer);
-    if (stopping(input, closed)) return;
+    attempt.setRenderer(renderer);
+    if (halted(input, attempt)) return false;
     await renderer.start();
-    if (stopping(input, closed)) return;
+    if (halted(input, attempt)) return false;
     liveness = await startRendererLiveness({
       redis: input.redis,
       renderer,
       ...(input.livenessIntervalMs === undefined ? {} : { intervalMs: input.livenessIntervalMs }),
     });
-    if (stopping(input, closed)) return;
+    if (halted(input, attempt)) return false;
     const opened = await openWorker(input, registry, renderer);
-    if (stopping(input, closed)) {
+    if (halted(input, attempt)) {
       await opened.worker.close().catch(() => undefined);
       opened.connection.disconnect();
-      return;
+      return false;
     }
-    assign({ ...opened, liveness });
+    attempt.setLive({ ...opened, liveness });
     liveness = undefined;
+    return true;
   } finally {
     await liveness?.stop().catch(() => undefined);
   }
 }
 
-function warnSetupFailed(logger: Logger): void {
-  logger.warn(
-    { capability: { name: 'DOCUMENTS', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
-    'document renderer unavailable',
-  );
-}
-
 /**
- * القدرة بتترجع فورًا. إقلاع Chromium وRedis متسقوف، والإغلاق أثناء التعليق
- * بيقفل المحوّل حتى لو الإطلاق لسه ما خلّصش.
+ * القدرة بتترجع فورًا. إقلاع Chromium وRedis بيتأجل لو بطّأ، والإيقاف بيقفل المحاولة.
  */
 export function beginDocumentRendering(input: StartDocumentsInput): DocumentRendering {
   const registry = input.registry ?? new DocumentSourceRegistry();
-  const runtime = trackStartup(input, registry);
-  return { stop: () => runtime.stop(), close: () => runtime.close(), registry, started: runtime.started };
-}
-
-function trackStartup(
-  input: StartDocumentsInput,
-  registry: DocumentSourceRegistry,
-): { started: Promise<void>; stop: () => Promise<void>; close: () => Promise<void> } {
-  let opened: LiveQueue | undefined;
-  let renderer: DocumentRenderer | undefined;
-  let closed = false;
-  let settled = false;
-  let resolveStart: () => void = () => undefined;
-  let rejectStart: (error: Error) => void = () => undefined;
-  const started = new Promise<void>((resolve, reject) => {
-    resolveStart = resolve;
-    rejectStart = reject;
+  if (input.renderer !== undefined) bindAvailableLog(input.logger, input.renderer);
+  const runtime = trackDocumentStartup({
+    startupMs: input.startupMs ?? STARTUP_MS,
+    retryDelaysMs: input.retryDelaysMs ?? RETRY_DELAYS_MS,
+    sleep: input.sleep ?? delay,
+    stopped: () => input.isStopping?.() === true,
+    onFailed: (error) => logUnavailable(input.logger, 'SETUP_FAILED', error),
+    run: (attempt) => bringUp(input, registry, attempt),
   });
-  const finish = (error?: Error): void => {
-    if (settled) return;
-    settled = true;
-    clearTimeout(timer);
-    if (error === undefined || closed) resolveStart();
-    else {
-      warnSetupFailed(input.logger);
-      rejectStart(error);
-    }
-  };
-  const stop = async (): Promise<void> => {
-    await opened?.worker.close().catch(() => undefined);
-  };
-  const close = async (): Promise<void> => {
-    if (closed) return;
-    closed = true;
-    finish();
-    await stop();
-    await opened?.liveness.stop().catch(() => undefined);
-    await renderer?.close().catch(() => undefined);
-    opened?.connection.disconnect();
-  };
-  const timer = setTimeout(() => {
-    finish(new Error('DOCUMENT_START_TIMEOUT'));
-    void close();
-  }, input.startupMs ?? STARTUP_MS);
-  void bringUp(
-    input,
+  return {
+    stop: (force) => runtime.stop(force ?? false),
+    close: () => runtime.close(),
     registry,
-    () => closed,
-    (live) => {
-      opened = live;
-    },
-    (next) => {
-      renderer = next;
-    },
-  ).then(
-    () => finish(),
-    (error: unknown) => {
-      finish(error instanceof Error ? error : new Error('DOCUMENT_START_FAILED'));
-      void close();
-    },
-  );
-  return { started, stop, close };
+    started: runtime.started,
+  };
 }
 
 /** النواة (السيرفر والموزّع) بتخلّص الأول. تعليق Chromium ما يأخرش `/ready`. */
@@ -268,16 +218,11 @@ export async function startCoreBeforeDocuments(input: CoreBeforeDocumentsInput):
 }
 
 /**
- * قدرة اختيارية: فشل Chromium بيسجّل تحذير والوركر يكمل.
+ * قدرة اختيارية: فشل Chromium بيتسجل والإقلاع بيعيد المحاولة، والوركر يكمل.
  * الإيقاف بيقفل طابور BullMQ الأول، وبعدين المتصفح.
  */
 export async function startDocumentRendering(input: StartDocumentsInput): Promise<DocumentRendering> {
   const handle = beginDocumentRendering(input);
-  try {
-    await handle.started;
-  } catch (error) {
-    await handle.close().catch(() => undefined);
-    throw error;
-  }
+  await handle.started;
   return handle;
 }

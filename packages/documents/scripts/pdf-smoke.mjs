@@ -1,4 +1,4 @@
-import { PlaywrightDocumentRenderer, fixtureDocument } from '../dist/index.js';
+import { PlaywrightDocumentRenderer, fixtureDocument, rendererFailureText } from '../dist/index.js';
 
 const uid = typeof process.getuid === 'function' ? process.getuid() : null;
 console.log(`uid=${uid === null ? 'unavailable' : String(uid)}`);
@@ -7,11 +7,17 @@ if (uid === 0) {
   process.exit(1);
 }
 
-const renderer = new PlaywrightDocumentRenderer();
+let launchFailure;
+const renderer = new PlaywrightDocumentRenderer({
+  onLaunchError: (error) => {
+    launchFailure = error;
+  },
+});
 try {
   await renderer.start();
   if (!renderer.isAvailable()) {
-    console.error('pdf smoke: renderer unavailable');
+    const failure = rendererFailureText(launchFailure);
+    console.error('pdf smoke:', failure.error_class, failure.error_message);
     process.exit(1);
   }
   const pdf = await renderer.render(fixtureDocument({ language: 'ar', lines: ['pospay-pdf-smoke'] }));

@@ -1,10 +1,23 @@
-import { chromium, type Browser, type BrowserContext, type Page, type Route } from 'playwright-core';
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type LaunchOptions,
+  type Page,
+  type Route,
+} from 'playwright-core';
 
 import type { PdfBrowser, PdfBrowserFactory, PdfContext, PdfPage, PdfRoute } from './browser.ts';
 
-const LAUNCH = {
+/**
+ * إشارات الإيقاف بتوصل للوركر. Playwright لو قفل Chromium معاها، الوظيفة الجارية بتتقص قبل ما الطابور يخلّص.
+ */
+export const chromiumLaunchOptions: LaunchOptions = {
   chromiumSandbox: false,
   args: ['--disable-dev-shm-usage', '--disable-gpu'],
+  handleSIGINT: false,
+  handleSIGTERM: false,
+  handleSIGHUP: false,
 };
 
 function wrapRoute(route: Route): PdfRoute {
@@ -62,6 +75,6 @@ function wrapBrowser(browser: Browser): PdfBrowser {
 /** متصفح العملية. المسار بييجي من PLAYWRIGHT_BROWSERS_PATH ومن غير تنزيل وقت التشغيل. */
 export function playwrightFactory(): PdfBrowserFactory {
   return {
-    launch: async () => wrapBrowser(await chromium.launch(LAUNCH)),
+    launch: async () => wrapBrowser(await chromium.launch(chromiumLaunchOptions)),
   };
 }

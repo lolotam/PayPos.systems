@@ -9,6 +9,7 @@ import {
   DocumentRenderTimeoutError,
   DocumentRendererUnavailableError,
   DocumentTooLargeError,
+  rendererFailureText,
   type DocumentRenderer,
 } from '@pospay/documents';
 import type { Logger } from '@pospay/observability';
@@ -52,6 +53,10 @@ function errorCode(error: unknown): DocumentRenderErrorCode {
   if (error instanceof DocumentTooLargeError) return 'DOCUMENT_TOO_LARGE';
   if (error instanceof DocumentRenderTimeoutError) return 'DOCUMENT_RENDER_TIMEOUT';
   return 'DOCUMENT_RENDER_FAILED';
+}
+
+function failsAtOnce(code: DocumentRenderErrorCode): boolean {
+  return code === 'DOCUMENT_KIND_UNKNOWN' || code === 'DOCUMENT_TOO_LARGE';
 }
 
 function armDeadline(ms: number): { signal: AbortSignal; stop: () => void } {
@@ -102,6 +107,8 @@ function logOutcome(
     readonly state: 'READY' | 'FAILED' | 'SKIPPED';
     readonly duration_ms: number;
     readonly error_code?: DocumentRenderErrorCode;
+    readonly error_class?: string;
+    readonly error_message?: string;
   },
 ): void {
   const record: Record<string, string | number> = {
@@ -112,6 +119,10 @@ function logOutcome(
     duration_ms: fields.duration_ms,
   };
   if (fields.error_code !== undefined) record['error_code'] = fields.error_code;
+  if (fields.error_class !== undefined) record['error_class'] = fields.error_class;
+  if (fields.error_message !== undefined && fields.error_message !== '') {
+    record['error_message'] = fields.error_message;
+  }
   logger.info(record, 'document render');
 }
 
@@ -137,7 +148,9 @@ async function failFinal(
   error: unknown,
 ): Promise<void> {
   const code = errorCode(error);
-  if (isFinalAttempt(job)) {
+  const failure = rendererFailureText(error);
+  const terminal = isFinalAttempt(job) || failsAtOnce(code);
+  if (terminal) {
     await markFailed(deps.redis, data.company_id, data.render_id, code);
     logOutcome(deps.logger, {
       company_id: data.company_id,
@@ -146,14 +159,17 @@ async function failFinal(
       state: 'FAILED',
       duration_ms: deps.clock.now() - started,
       error_code: code,
+      error_class: failure.error_class,
+      error_message: failure.error_message,
     });
   }
+  if (failsAtOnce(code)) throw new UnrecoverableError(code);
   throw new Error(code, { cause: error });
 }
 
 /**
  * بيخلّص وظيفة رندر واحدة: حالة، ثم HTML، ثم بايتات بنص قصير.
- * الفشل النهائي بس هو اللي بيتكتب FAILED؛ المحاولة الأولى بتترمي عشان BullMQ يعيد.
+ * الفشل العابر بيترمي عشان BullMQ يعيد. النوع المجهول والحجم الزايد بيتقفلوا من أول مرة.
  */
 export async function processDocumentJob(job: Job, deps: ProcessDocumentDeps): Promise<void> {
   const started = deps.clock.now();

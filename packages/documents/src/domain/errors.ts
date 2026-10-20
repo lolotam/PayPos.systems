@@ -31,12 +31,13 @@ export class DocumentRenderTimeoutError extends Error {
 }
 
 /**
- * مفيش متصفح جاهز. الشغل بيتأجل لإعادة المحاولة بدل ما يتعلم فشل نهائي من أول مرة.
+ * مفيش متصفح جاهز للصفحة.
+ * الكود ثابت عشان BullMQ ما يخزّنش مسار المتصفح ولا محتوى الصفحة؛ تشخيص الإطلاق سطر لوحده.
  */
 export class DocumentRendererUnavailableError extends Error {
   readonly code = 'DOCUMENT_RENDER_FAILED' as const;
 
-  /** الكود عام؛ سبب الإطلاق بيتسجل في حدث من غير مسار المتصفح. */
+  /** الرسالة كود ثابت. مسار الإطلاق مش من الرسالة دي. */
   constructor() {
     super('DOCUMENT_RENDER_FAILED');
     this.name = 'DocumentRendererUnavailableError';

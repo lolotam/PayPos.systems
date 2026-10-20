@@ -37,14 +37,21 @@ it('bounds a Redis client that never becomes ready', async () => {
   expect(Date.now() - started).toBeLessThan(1_000);
 });
 
-it('does not wait when the client has no status string', async () => {
+it('publishes immediately when redis is already ready', async () => {
+  let sets = 0;
+  const redis = redisStub('ready');
+  redis.set = async () => {
+    sets += 1;
+    return 'OK';
+  };
   const started = Date.now();
   const live = await startRendererLiveness({
-    redis: redisStub(undefined),
+    redis,
     renderer: new FakeRenderer(),
     readyTimeoutMs: 30_000,
     intervalMs: 60_000,
   });
+  expect(sets).toBeGreaterThan(0);
   expect(Date.now() - started).toBeLessThan(500);
   await live.stop();
 });

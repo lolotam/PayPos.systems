@@ -134,8 +134,99 @@ it('times out a hanging newContext inside the deadline', async () => {
   const started = Date.now();
   await expect(renderer.render('<p>x</p>')).rejects.toBeInstanceOf(DocumentRenderTimeoutError);
   expect(Date.now() - started).toBeLessThan(1_000);
-  expect(browserClosed).toBe(true);
+  expect(browserClosed).toBe(false);
   await renderer.close();
+});
+
+it('drops a late rejection when the signal is already aborted', async () => {
+  const rejections: unknown[] = [];
+  const onRejection = (reason: unknown): void => {
+    rejections.push(reason);
+  };
+  process.on('unhandledRejection', onRejection);
+  const factory: PdfBrowserFactory = {
+    launch: async () => ({
+      newContext: () => Promise.reject(new Error('late context')),
+      close: async () => undefined,
+      on: () => undefined,
+    }),
+  };
+  const renderer = new PlaywrightDocumentRenderer({ factory });
+  try {
+    await renderer.start();
+    await expect(renderer.render('<p>x</p>', { signal: AbortSignal.abort() })).rejects.toBeInstanceOf(
+      DocumentRenderTimeoutError,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(rejections).toEqual([]);
+  } finally {
+    process.off('unhandledRejection', onRejection);
+    await renderer.close();
+  }
+});
+
+it('does not close the browser when the context closes inside the grace', async () => {
+  let browserClosed = false;
+  const factory: PdfBrowserFactory = {
+    launch: async () => ({
+      newContext: async () => ({
+        route: async () => undefined,
+        newPage: async () => ({
+          setContent: () => new Promise<void>(() => undefined),
+          evaluate: async () => undefined,
+          pdf: async () => Uint8Array.from([1]),
+          close: async () => undefined,
+        }),
+        close: async () => undefined,
+      }),
+      close: async () => {
+        browserClosed = true;
+      },
+      on: () => undefined,
+    }),
+  };
+  const renderer = new PlaywrightDocumentRenderer({
+    factory,
+    overallTimeoutMs: 20,
+    browserCloseGraceMs: 5_000,
+  });
+  await renderer.start();
+  const started = Date.now();
+  await expect(renderer.render('<p>x</p>')).rejects.toBeInstanceOf(DocumentRenderTimeoutError);
+  expect(Date.now() - started).toBeLessThan(1_000);
+  expect(browserClosed).toBe(false);
+  await renderer.close();
+});
+
+it('keeps growing the relaunch delay when Chromium dies on launch', async () => {
+  const delays: number[] = [];
+  let release: () => void = () => undefined;
+  const stopped = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const factory: PdfBrowserFactory = {
+    launch: async () => ({
+      newContext: async () => context(async () => Uint8Array.from([1])),
+      close: async () => undefined,
+      on: (_event, listener) => {
+        queueMicrotask(listener);
+      },
+    }),
+  };
+  const renderer = new PlaywrightDocumentRenderer({
+    factory,
+    backoffMs: [5, 15, 40],
+    stableForMs: 60_000,
+    sleep: async (ms) => {
+      delays.push(ms);
+      if (delays.length < 3) return;
+      await renderer.close();
+      release();
+    },
+  });
+  await renderer.start();
+  await stopped;
+  expect(delays).toEqual([5, 15, 40]);
 });
 
 it('times out a hanging setContent inside the deadline', async () => {
