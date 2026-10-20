@@ -77,7 +77,10 @@ for (const s of busy) {
   try {
     reply = execFileSync(exe, ['api', 'post', `/api/session/${s.id}/interrupt`], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      cwd: os.tmpdir(),
+      // The worktree is the one place already vetted: the dispatch refused a `.opencode` there, the checker
+      // refused config in every ancestor, and its only opencode.json is the checked template. opencode searches
+      // from its working directory up to the root, so an unvetted folder such as %TEMP% could inject config.
+      cwd: folder,
       encoding: 'utf8',
     });
   } catch (error) {
