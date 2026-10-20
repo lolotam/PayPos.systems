@@ -45,7 +45,7 @@ The seal becomes the pair **`(write_system_id, write_xid)`**.
 ### 1. `write_system_id` is the writing cluster's identifier
 
 `public.pospay_system_id()` returns `system_identifier` from `pg_catalog.pg_control_system()`. It
-is `LANGUAGE sql`, `STABLE`, `SECURITY INVOKER`, `SET search_path = pg_catalog`; `PUBLIC` has no
+is `LANGUAGE plpgsql`, `STABLE`, `SECURITY INVOKER`, `SET search_path = pg_catalog`; `PUBLIC` has no
 `EXECUTE` and only `pospay_app` has it. Migration 0158 refuses to run when
 `has_function_privilege('pospay_app', 'pg_catalog.pg_control_system()', 'EXECUTE')` is false, and
 refuses to run when the identifier reads back as `NULL` or `0`.
@@ -58,15 +58,24 @@ refuses to run when the identifier reads back as `NULL` or `0`.
 | Physical restore (file copy), replica promotion, PITR | unchanged | unchanged | yes — identifier and XID history both survive, so the seal keeps its meaning |
 | `pg_upgrade` | **new** (it always targets a freshly `initdb`'d cluster) | **kept** (the counter is carried over) | yes — a new identifier with the old XID history is exactly the case the pair separates |
 
-### 1a. The identifier read costs a control-file read, so the hot paths read it lazily
+### 1a. The identifier read costs a control-file read, so it is retried and read lazily
 
 `pg_control_system()` reads `global/pg_control` through PostgreSQL 16's backend
-`get_controlfile()`: no lock, no retry, and a CRC error is raised when the read races a
-checkpoint. The read is cheap in the common case, but on a hot path it must not be the reason a
-write fails. Three guards therefore read the identifier **lazily**: they first check whether the
-transaction has a header for the line at all (`EXISTS … write_xid = pg_current_xact_id()`, which
-costs an index lookup on a small table), and only then read the identifier and run the paired
-lookup. The three are `service_lines_performer_transition` (every `service_lines` update),
+`get_controlfile()`. In PostgreSQL 16, `pg_control_system()` holds `ControlFileLock` in shared mode
+around that read, and writers update the file under the exclusive lock, so a CRC error is not
+expected in normal operation. The reader itself has no retry in the backend (the retry in that
+file is frontend-only), and a money write must not roll back because of one transient read, so as
+defence in depth `public.pospay_system_id()` retries the read **at most three times**, and only for
+that error: the message has to start with `calculated
+CRC checksum does not match`, and anything else is re-raised unchanged. A localized `lc_messages`
+makes the message comparison fail, and that only re-raises — the write fails closed rather than
+losing its seal. The function never returns `0` or `NULL`.
+
+The read is cheap in the common case, but on a hot path it must not be the reason a write fails.
+Three guards therefore read the identifier **lazily**: they first check whether the transaction has
+a header for the line at all (`EXISTS … write_xid = pg_current_xact_id()`, which costs an index
+lookup on a small table), and only then read the identifier and run the paired lookup. The three
+are `service_lines_performer_transition` (every `service_lines` update),
 `line_performers_change_guard`'s INSERT branch (every performer row written at the till) and
 `slpc_change_complete`'s remaining branch (every `line_performers` insert). The other seal-reading
 functions run only inside a tip or performer change, so they keep the eager read. A header is

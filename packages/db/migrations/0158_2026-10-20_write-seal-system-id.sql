@@ -13,9 +13,31 @@ END $$;
 -- الختم = (write_system_id, write_xid). الـ xid لوحده مش كافي: بعد استرجاع dump على cluster جديد العدّاد بيبدأ من الصفر،
 -- فلما يوصل لقيمة قديمة معاملة واحدة هتشوف صفاً قديماً كأنه صفها هي.
 CREATE FUNCTION public.pospay_system_id() RETURNS bigint
-LANGUAGE sql STABLE SECURITY INVOKER SET search_path = pg_catalog AS $$
-  SELECT system_identifier FROM pg_catalog.pg_control_system()
-$$;
+LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = pg_catalog AS $$
+DECLARE
+  attempt integer := 0;
+  sid bigint;
+BEGIN
+  LOOP
+    attempt := attempt + 1;
+    BEGIN
+      SELECT system_identifier INTO sid FROM pg_catalog.pg_control_system();
+      IF NOT FOUND OR sid IS NULL OR sid = 0 THEN
+        RAISE EXCEPTION 'the cluster system identifier is unavailable';
+      END IF;
+      RETURN sid;
+    EXCEPTION WHEN internal_error THEN
+      -- pg_control_system() في PG16 بيقرا تحت ControlFileLock مشترك، فخطأ الـ CRC مش متوقع؛ لكن القارئ نفسه مفيهوش
+      -- إعادة محاولة في الـ backend، وكتابة فلوس ما ينفعش تقع بسبب قراءة عابرة، فبنعيد بس للخطأ ده ولحد 3 محاولات،
+      -- ولو رسائل السيرفر مترجمة المطابقة هتفشل وهنعيد الرمي زي ما هو (fail closed).
+      IF attempt < 3 AND SQLERRM LIKE 'calculated CRC checksum does not match%' THEN
+        PERFORM pg_catalog.pg_sleep(0.005);
+      ELSE
+        RAISE;
+      END IF;
+    END;
+  END LOOP;
+END $$;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION public.pospay_system_id() FROM PUBLIC;
 --> statement-breakpoint
