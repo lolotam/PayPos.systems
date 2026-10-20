@@ -1,6 +1,25 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "permission": {
+    "external_directory": "deny",
+    "read": {
+      "*": "allow",
+      ".git": "deny",
+      ".git/*": "deny",
+      "*/.git": "deny",
+      "*/.git/*": "deny",
+      "*\\.git": "deny",
+      "*\\.git\\*": "deny"
+    },
+    "edit": {
+      "*": "allow",
+      ".git": "deny",
+      ".git/*": "deny",
+      "*/.git": "deny",
+      "*/.git/*": "deny",
+      "*\\.git": "deny",
+      "*\\.git\\*": "deny"
+    },
     "bash": {
       "*": "allow",
       "git": "deny",
@@ -8,6 +27,13 @@
       "*git *": "deny",
       "*git.exe*": "deny",
       "*/git": "deny",
+      "*.git": "deny",
+      "*.git *": "deny",
+      "*.git/*": "deny",
+      "*.git\\*": "deny",
+      "*.git\"*": "deny",
+      "*.git'*": "deny",
+      "*gitdir*": "deny",
       "bash -c*": "deny",
       "sh -c*": "deny",
       "powershell*": "deny",

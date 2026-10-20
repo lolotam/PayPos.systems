@@ -106,39 +106,51 @@ pins the PosPay rules on top of it.
    without `-s`, take the generated id from the `--format json` output, and use that id from round two on. Run it from
    the worktree:
 
-   **The git ban is enforced, not just written, in three layers.** It guards against MiniMax's habit (the #338
-   `git stash`), not against a model that tries to hide git on purpose. Layer one is the main barrier, and
-   wildcards cannot give a complete ban on their own.
+   **The git ban is enforced, not just written, in four layers.** It covers both git commands and the `.git`
+   folder (a worktree's `.git` file and the main checkout's `.git` directory). It guards against MiniMax's
+   habits, not against a model trying to hide git on purpose. The habits so far: `git stash` on #338, and in a
+   later test, with git gone, an offer to read `.git` internals directly. Wildcards cannot give a complete ban on
+   their own, so layer one is the main barrier.
 
    - **Git is not on MiniMax's `PATH`.** The orchestrator drops every `\Git\` folder from `PATH` before starting
      opencode, so no command or interpreter can find `git` by name. That covers
-     `node -e "…execFileSync('g'+'it', …)"`, which no wildcard can catch. In the 2026-10-20 test that call failed
-     with git missing, while opencode, `node` and `echo` ran normally.
-   - **The permission file.** It catches the common direct and wrapped forms. Its rules are below.
-   - **The post-run check.** After every run the orchestrator checks `git stash list`, the reflog and
-     `git status` of the shared checkout.
+     `node -e "…execFileSync('g'+'it', …)"`, which no wildcard can catch.
+   - **The permission file** (the tracked template `.claude/skills/pospay-pipeline/opencode-pospay.json`, copied
+     to `<worktree>\opencode.json`):
+     - `external_directory` is `deny`, so no tool reaches outside the worktree, the main checkout's `.git` included.
+     - `read` and `edit` deny `.git` and anything under it, in both slash styles.
+     - `bash` starts with `"*": "allow"`, because the last matching rule wins. It then denies `git` anywhere in a
+       command, any command that names `.git` or `gitdir`, and the shell wrappers that could hide either
+       (`bash -c*`, `sh -c*`, `powershell*`, `pwsh*`, `cmd /c*`, `cmd.exe*`). A pattern matches the whole command
+       string, so `git *` alone would let `bash -c "git stash"` through. The price is that a harmless command
+       naming `git ` or `.git` is refused too.
+   - **The brief bans it in words** (step 4).
+   - **The post-run check.** After every run the orchestrator checks `git stash list`, the reflog and `git status`
+     of the shared checkout.
 
-   For the permission file, copy the tracked template
-   `.claude/skills/pospay-pipeline/opencode-pospay.json` to `<worktree>\opencode.json`. Its `bash` rules start
-   with `"*": "allow"` and then deny `git` anywhere in a command (`git`, `git *`, `*git *`, `*git.exe*`, `*/git`)
-   and every shell wrapper that could hide it (`bash -c*`, `sh -c*`, `powershell*`, `pwsh*`, `cmd /c*`,
-   `cmd.exe*`). The last matching rule wins, so `"*"` must come first. A pattern only matches the whole command
-   string, so a deny on `git *` alone lets `bash -c "git stash"` through. In the 2026-10-20 test with MiniMax,
-   `git status`, `bash -c "git status"`, `powershell -Command "git status"` and `echo x && git log` were all
-   rejected, while `echo` and `node --version` ran. The price is that a harmless command containing `git ` (a
-   `grep` for it) is refused too.
+   **opencode silently ignores an invalid `opencode.json` and then runs with no restrictions at all.** That
+   happened on 2026-10-20, when a lost backslash broke the JSON. So the dispatch parses the copied file before
+   every run and stops if it does not parse. A template change also gets one MiniMax smoke run before it is used.
+   Generate the file with a JSON writer rather than by hand, because the backslash patterns need escaping. The file
+   only takes effect as a project-level `opencode.json`; the `OPENCODE_CONFIG` env var did not apply it.
 
-   The file only takes effect as a project-level `opencode.json`: the `OPENCODE_CONFIG` env var did not apply it.
-   The orchestrator (never MiniMax) adds `/opencode.json` to the clone's shared
-   `info/exclude` once per clone, as the first two lines below do, so the copy never lands in a diff. The rule stays
-   local because `.gitignore` is a config file outside the docs-only lane.
+   In the 2026-10-20 test, MiniMax ran in a worktree with this file and with git off `PATH`. These were all
+   refused: reading `.git`; reading `…/main/.git/HEAD` (`external_directory`); `type .git` and `cat …/.git/HEAD`;
+   `git --version`; and writing `.git/probe.txt`. `package.json` reads and `echo` still worked. An earlier run
+   also refused `bash -c "git status"`, `powershell -Command "git status"` and `echo x && git log`, and showed
+   the node-wrapped call failing once git was off `PATH`.
+
+   The orchestrator (never MiniMax) adds `/opencode.json` to the clone's shared `info/exclude` once per clone, as
+   the first two lines below do, so the copy never lands in a diff. The rule stays local because `.gitignore` is a
+   config file outside the docs-only lane.
 
    ```powershell
    Set-Location F:\Dev\Worktrees\PosPay\<branch>
    $exclude = Join-Path (git rev-parse --git-common-dir) 'info\exclude'
    if (-not (Select-String -Path $exclude -SimpleMatch '/opencode.json' -Quiet)) { Add-Content $exclude '/opencode.json' }
    Copy-Item .\.claude\skills\pospay-pipeline\opencode-pospay.json .\opencode.json
-   $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\Git\\') }) -join ';'
+   node -e "JSON.parse(require('fs').readFileSync('opencode.json','utf8'))"; if ($LASTEXITCODE) { throw 'opencode.json is invalid: stop' }
+   $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\Git\') }) -join ';'
    opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
        -f F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt "Implement the attached brief."
    ```
@@ -149,7 +161,9 @@ pins the PosPay rules on top of it.
    them by absolute path.
 4. **The brief header is fixed, in this order:**
    1. Role and fences: "You implement only task N. **Run no git command at all** (no stash, checkout, reset, commit or
-      push). Do not touch files outside: …. Do not reformat lines you do not change. Never squash lines to get under
+      push). **Never read, list or write anything under `.git`**, neither the worktree's `.git` file nor any `.git`
+      folder, by any tool, script or interpreter; git is deliberately unavailable, so do not look for a way around
+      that. Do not touch files outside: …. Do not reformat lines you do not change. Never squash lines to get under
       `max-lines`; split by responsibility instead. Do not create databases unless the brief asks."
    2. Required reading, as file **paths** only: `CLAUDE.md`, `CLAUDE.architecture.md`, the spec, the plan, the ADRs,
       then the source files the task starts from.
@@ -282,7 +296,7 @@ typing do not.
 
 ## 9. Never
 
-- Never let MiniMax run any git command, merge, push, or touch the server.
+- Never let MiniMax run any git command, read or write anything under `.git`, merge, push, or touch the server.
 - Never merge with a P0/P1 open, or with CI red on the head being merged.
 - Never exceed 5 review rounds without applying §2 (a docs-only PR has no cap, see the docs-only lane in §2), and never exceed 3 parallel tasks.
 - Never run two tasks in parallel that touch the same file.
