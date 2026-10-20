@@ -58,7 +58,8 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
 3. The only implementer is **opencode with `minimax-coding-plan/MiniMax-M3.1-Flash`** (owner, PP-10.1, 2026-10-20),
    for new tasks and for PR-finding fix rounds, one continued session per task. Its briefs ban every git command,
    any read or write under `.git`, edits outside the task, and line-squashing. Claude Code orchestrates, judges the diff (including a line-by-line diff
-   of every rewritten SQL function) and runs `pnpm check`. Skill §4 has the dispatch rules.
+   of every rewritten SQL function) and runs `pnpm check`. MiniMax has no shell (Waleed, SA-7.1): it only reads and
+   edits files in its worktree, and the orchestrator runs every gate and test. Skill §4 has the dispatch rules.
 4. Guard pass (`clean-code-guard`, `test-guard`, `docs-guard`), then up to **5 review rounds**: Codex astra 6 →
    fresh Claude reviewers → the four PR bots: the Codex GitHub bot (`@codex review` after every push) and the
    MergePilot panel (MergePilot, waleed_bot, mohamed_bot). Every bot's result on the head SHA is read before a merge.
