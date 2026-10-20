@@ -104,7 +104,12 @@ export async function openRender(options?: {
     ...(options?.intervalMs === undefined ? {} : { livenessIntervalMs: options.intervalMs }),
   });
   const queue = new Queue(DOCUMENTS_RENDER_QUEUE, { connection: { url: redisUrl }, prefix });
-  const events = new QueueEvents(DOCUMENTS_RENDER_QUEUE, { connection: { url: redisUrl }, prefix });
+  // القارئ بيبدأ من أول المجرى عشان ما يضيعش حدث اتبعت قبل أول قراءة، والبريفكس جديد لكل اختبار.
+  const events = new QueueEvents(DOCUMENTS_RENDER_QUEUE, {
+    connection: { url: redisUrl },
+    prefix,
+    lastEventId: '0-0',
+  });
   await events.waitUntilReady();
   return { redis, registry, handle, queue, events, lines, renderer, logger };
 }
