@@ -235,7 +235,7 @@ export const serviceLinePerformerChanges = pgTable('service_line_performer_chang
   changerRoleNameEn: text('changer_role_name_en'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   writeXid: xid8('write_xid').notNull(),
-  // 0 = صف اتكتب قبل الختم المزدوج: معرّف ما يملكوش أي cluster، فعمره ما يتحسب رأس المعاملة الحالية (ADR-0048).
+  // 0 = صف اتكتب قبل الختم المزدوج: معرّف ما يملكوش أي cluster، فعمره ما يتحسب رأس المعاملة الحالية (ADR-0049).
   writeSystemId: bigint('write_system_id', { mode: 'bigint' }).notNull().default(sql`0`),
 }, (t) => [
   primaryKey({ name: 'slpc_pk', columns: [t.companyId, t.id] }),
@@ -412,7 +412,7 @@ export const sessionTipRevisions = pgTable('session_tip_revisions', {
   // بلا مفتاح للأوتبوكس: الصف يُمسح لاحقاً ودور التطبيق إدخال فقط، وربط الحدث يُفحص في حالة الاستخدام.
   eventId: uuid('event_id').notNull(),
   writeXid: xid8('write_xid').notNull(),
-  // 0 = صف اتكتب قبل الختم المزدوج: معرّف ما يملكوش أي cluster، فعمره ما يتحسب رأس المعاملة الحالية (ADR-0048).
+  // 0 = صف اتكتب قبل الختم المزدوج: معرّف ما يملكوش أي cluster، فعمره ما يتحسب رأس المعاملة الحالية (ADR-0049).
   writeSystemId: bigint('write_system_id', { mode: 'bigint' }).notNull().default(sql`0`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

@@ -1,4 +1,4 @@
-# ADR-0048 — A restore-stable write seal: `(write_system_id, write_xid)`
+# ADR-0049 — A restore-stable write seal: `(write_system_id, write_xid)`
 
 - **Status:** Proposed
 - **Date:** 2026-10-20
