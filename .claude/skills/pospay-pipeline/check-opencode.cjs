@@ -135,8 +135,18 @@ for (const dir of ['plugin', 'plugins']) {
 }
 for (const name of ['opencode.json', 'opencode.jsonc']) {
   const globalPath = path.join(globalDir, name);
-  if (fs.existsSync(globalPath) && /"plugin"\s*:/.test(fs.readFileSync(globalPath, 'utf8')))
+  if (fs.existsSync(globalPath) && /"plugins?"\s*:/.test(fs.readFileSync(globalPath, 'utf8')))
     problems.push(`the global ${name} declares plugins: inspect them`);
+}
+
+// opencode also loads config found in every folder above the worktree, up to the drive root.
+// None exists above the PosPay worktrees today, so any that appears stops the run until someone inspects it.
+for (let dir = path.dirname(path.dirname(path.resolve(file))); ; dir = path.dirname(dir)) {
+  for (const name of ['.opencode', 'opencode.json', 'opencode.jsonc']) {
+    if (fs.existsSync(path.join(dir, name)))
+      problems.push(`an ancestor opencode config exists: ${path.join(dir, name)}`);
+  }
+  if (path.dirname(dir) === dir) break;
 }
 
 // Higher-precedence sources would override this file: the system config folder and the config env vars.

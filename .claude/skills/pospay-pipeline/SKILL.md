@@ -141,8 +141,10 @@ pins the PosPay rules on top of it.
    - every run uses `--standalone`, a private opencode server started from this checked environment. The shared
      `opencode serve --service` keeps the `OPENCODE_*` variables and config it started with, so checking this
      shell's environment would prove nothing about it;
-   - the checker refuses a global plugin (a `plugin` key in the global config, or a `plugin`/`plugins` folder
-     beside it), because plugins load at startup and run as code outside every rule. None exists today;
+   - the checker refuses a global plugin (a `plugin` or `plugins` key in the global config, or a `plugin`/`plugins`
+     folder beside it), because plugins load at startup and run as code outside every rule. None exists today;
+   - the checker refuses an `.opencode`, `opencode.json` or `opencode.jsonc` in any folder above the worktree, up to
+     the drive root, because opencode loads config from every ancestor. None exists today;
    - the checker also refuses a run when a higher-precedence source exists: the system config folder
      `%ProgramData%\opencode`, or any `OPENCODE_CONFIG*`/`OPENCODE_PERMISSION*` environment variable. None exists
      on the host today;
