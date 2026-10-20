@@ -230,9 +230,11 @@ pins the PosPay rules on top of it.
      $ErrorActionPreference = 'Continue'
      opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
          -f F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt "Implement the attached brief."
+     $opencodeExit = $LASTEXITCODE
    } finally {
      $env:PATH = $savedPath
    }
+   if ($opencodeExit -ne 0) { throw "opencode run exited $($opencodeExit), so treat it as a failed run (rule 8)" }
    ```
 
 2. **Every later round, review-fix rounds included, continues that session** with the same `-s <sid>`, and attaches
@@ -353,8 +355,9 @@ typing do not.
    and P0/P1 judgement only.
 4. **Fix rounds go to MiniMax.** When a bot finds something, the findings go to the implementer's continued MiniMax
    session (§4 rule 2), each written as `file:line — what is wrong — what done looks like`. Claude judges whether the
-   fix is right; it does not retype it. A Claude session fixes a finding itself only when it is a one-line change, or
-   when the PR is docs-only and so has no implementer session. After two MiniMax failures on one brief, stop and report
+   fix is right; it does not retype it. Every production-code finding goes to MiniMax, a one-line one included
+   (PP-10.1). A Claude session fixes a finding itself only when the PR is docs-only and so has no implementer
+   session. After two MiniMax failures on one brief, stop and report
    to Waleed (§4 rule 8). Never switch to another provider.
 5. **One cheaper review layer 2.** One fresh Sonnet 5.5 reviewer at medium effort replaces the two Opus-class reviewers
    (review and confirm round). It gets the diff, the spec and the governing documents (`CLAUDE.md`, `CLAUDE.architecture.md`, `docs/06_Tech_Stack_Architecture_EN.md`, `docs/module-map.md`, the ADRs the slice cites), never the session history, so its context stays small. Use high
