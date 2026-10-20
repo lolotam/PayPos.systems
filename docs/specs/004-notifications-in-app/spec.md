@@ -97,7 +97,7 @@ No new permission or feature flag; selected-company membership plus recipient ow
 
 ### Review fixes
 
-The session area reads the authenticated user id separately without changing `loadBrowserSession`'s in/out contract. The dashboard frame passes that identity to notifications; every inbox query and mutation invalidation includes both company and user. Shared browser navigation publishes a payload without personal data over BroadcastChannel before navigation; the shared query provider clears cached data and reloads on messages from another tab. Unsupported BroadcastChannel leaves navigation working. SelectedCompanyGuard verifies the company has `deleted_at IS NULL` inside `withTenant` after the active membership check and returns FORBIDDEN otherwise.
+The session area reads the authenticated user id separately without changing `loadBrowserSession`'s in/out contract. The dashboard frame passes that identity to notifications; every inbox query and mutation invalidation includes both company and user. Shared browser navigation publishes a payload without personal data over BroadcastChannel before navigation; the shared query provider clears cached data and reloads on messages from another tab. Unsupported BroadcastChannel leaves navigation working. SelectedCompanyGuard verifies the company has `deleted_at IS NULL` inside the same `withMember` transaction, after the active membership is proven with an empty company GUC (PP-7.1), and returns FORBIDDEN otherwise.
 
 ## Success Criteria
 
