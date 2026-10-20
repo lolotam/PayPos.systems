@@ -4,7 +4,7 @@
 
 Restore a logical dump only into a **freshly `initdb`'d cluster**, with triggers disabled:
 `pg_restore --disable-triggers` as superuser, or `SET session_replication_role = replica` for the
-restoring session. The write seal (`write_system_id`, `write_xid` — ADR-0049) is stamped by the
+restoring session. The write seal (`write_system_id`, `write_xid` — ADR-0050) is stamped by the
 triggers: restoring with them on re-stamps the rows with the new cluster's identifier and the
 deferred performer-change check plus the uniques refuse them. Never restore into a cluster that
 kept the writer's `system_identifier` (a PITR target or a physical fork), or a restored row can
