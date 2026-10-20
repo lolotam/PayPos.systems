@@ -127,6 +127,16 @@ for (const name of ['opencode.json', 'opencode.jsonc']) {
     problems.push(`the global ${name} mentions "${AGENT}": inspect it`);
 }
 
+// Higher-precedence sources would override this file: the system config folder and the config env vars.
+// None exists on the PosPay host today, so any that appears stops the run until someone inspects it.
+const systemDir = path.join(process.env.ProgramData ?? 'C:\\ProgramData', 'opencode');
+if (fs.existsSync(systemDir))
+  problems.push(`a system opencode config exists at ${systemDir}: inspect it`);
+for (const name of Object.keys(process.env)) {
+  if (/^OPENCODE_(CONFIG|PERMISSION)/i.test(name))
+    problems.push(`environment variable ${name} is set: unset it`);
+}
+
 if (problems.length) {
   console.error(`refused: ${file}\n  - ${problems.join('\n  - ')}`);
   process.exit(1);

@@ -138,6 +138,9 @@ pins the PosPay rules on top of it.
      Agent permissions win over top-level ones. So a `default_agent`, or agent permissions added later to the
      untouched global config, cannot loosen the rules. The checker refuses any other agent, a `default_agent`, or a
      global config that mentions `pospay-minimax`;
+   - the checker also refuses a run when a higher-precedence source exists: the system config folder
+     `%ProgramData%\opencode`, or any `OPENCODE_CONFIG*`/`OPENCODE_PERMISSION*` environment variable. None exists
+     on the host today;
    - git, the GitHub CLI, OpenSSH and Docker are off `PATH`, as a second layer, and `PATH` is restored after the
      run.
 
