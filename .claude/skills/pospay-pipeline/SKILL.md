@@ -364,9 +364,11 @@ pins the PosPay rules on top of it.
        $env:PATH = $savedPath
        $env:XDG_CONFIG_HOME = $savedXdg
        $env:PWD = $savedPwd
-       # The env files come back only after MiniMax has stopped. A file MiniMax planted under the same name is moved
-       # aside to the guard folder and reported, never overwritten silently.
-       foreach ($rel in $stashed) {
+       # The env files come back only once the stopper confirmed MiniMax has stopped ($stopExit is 0, or the run never
+       # started); after a failed or thrown stop they stay stashed (MergePilot on #416). A file MiniMax planted under the
+       # same name is moved aside to the guard folder and reported, never overwritten silently.
+       $restorable = if ($stopExit -eq 0) { $stashed } else { @() }
+       foreach ($rel in $restorable) {
          try {
            $target = Join-Path $worktree $rel
            if (Test-Path -LiteralPath $target) {
@@ -384,7 +386,9 @@ pins the PosPay rules on top of it.
      }
    }
    if ($restoreFailed) { throw "an env file is still in $envStash: move it back by hand before the gates run" }
-   if ($stopExit -ne 0) { throw 'a MiniMax session could not be stopped: interrupt it by hand before review' }
+   if ($stopExit -ne 0) {
+     throw "a MiniMax session could not be stopped: interrupt it by hand, confirm it stopped, then move the env files back from $envStash"
+   }
    if ($opencodeExit -eq 124) { throw 'MiniMax hit the 45-minute limit: report it, then treat it as a failed run (rule 8)' }
    if ($opencodeExit -ne 0) { throw "opencode run exited $($opencodeExit), so treat it as a failed run (rule 8)" }
    }
@@ -417,7 +421,11 @@ pins the PosPay rules on top of it.
    standalone session on 2026-10-20. So the stopper accepts only `interrupted: true` or a database that no longer
    shows the claim. Otherwise it fails, and **that session is never continued with `-s`**: its claim could be
    recovered later, so the next round starts a new session (rule 8). Run the staged copy by hand after any kill,
-   with `--exe` set to the same checked `opencode.exe` (the stopper refuses any other path); `--dry-run` only lists. Until the PR that adds these scripts reaches `main`, stage
+   with `--exe` set to the same checked `opencode.exe` (the stopper refuses any other path); `--dry-run` only lists.
+   The stopper gives the `opencode.exe` it starts the run's isolation on its own: `PWD` set to the worktree, a fresh
+   config home holding only the two fixed files, and no `OPENCODE_*`, `XDG_DATA_HOME` or caller `XDG_CONFIG_HOME`.
+   A manual cleanup from any shell is therefore as isolated as the dispatch. After a failed stop the env files stay
+   in `env-stash`; move them back by hand only once the session is confirmed stopped. Until the PR that adds these scripts reaches `main`, stage
    them from that PR's reviewed head instead of `origin/main`.
    **Then look for anything nobody asked for:** save `git status --porcelain --ignored --untracked-files=all` before
    the run and again after it. Plain `--porcelain` hides ignored files, and MiniMax can create one (a `.log`, a

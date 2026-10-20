@@ -71,6 +71,26 @@ if (!busy.length) {
   console.log(`no working opencode session under ${root}`);
   process.exit(0);
 }
+// The interrupt starts opencode, so it gets the run's isolation even when run by hand from another shell: PWD is the
+// worktree (opencode takes its project folder from PWD, #423), a fresh config home holds only the dispatch's two fixed
+// files, and no OPENCODE_* or XDG_DATA_HOME override passes through (MergePilot on #416).
+function isolatedEnv() {
+  const configHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pospay-stop-'));
+  fs.mkdirSync(path.join(configHome, 'opencode'));
+  fs.writeFileSync(
+    path.join(configHome, 'opencode', 'AGENTS.md'),
+    'PosPay MiniMax run: follow the attached brief only. Read and edit files in this worktree only.\n',
+  );
+  fs.writeFileSync(path.join(configHome, 'opencode', 'opencode.json'), '{ "autoupdate": false }\n');
+  const inherited = Object.entries(process.env).filter(
+    ([name]) => !/^(OPENCODE_|XDG_DATA_HOME$|XDG_CONFIG_HOME$|PWD$)/i.test(name),
+  );
+  return {
+    configHome,
+    env: { ...Object.fromEntries(inherited), PWD: folder, XDG_CONFIG_HOME: configHome },
+  };
+}
+const isolation = exe ? isolatedEnv() : null;
 let failed = 0;
 for (const s of busy) {
   const label = `${s.id} (${s.title ?? 'untitled'}, started ${new Date(Number(s.time_created)).toISOString()})`;
@@ -86,6 +106,7 @@ for (const s of busy) {
       // refused config in every ancestor, and its only opencode.json is the checked template. opencode searches
       // from its working directory up to the root, so an unvetted folder such as %TEMP% could inject config.
       cwd: folder,
+      env: isolation.env,
       encoding: 'utf8',
       // A hung background service must not hold the dispatch's finally block; a timeout counts as failed cleanup.
       timeout: 30_000,
@@ -113,4 +134,5 @@ for (const s of busy) {
     );
   }
 }
+if (isolation) fs.rmSync(isolation.configHome, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);
