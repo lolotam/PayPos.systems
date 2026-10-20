@@ -2,6 +2,7 @@ import { PlaywrightDocumentRenderer, type RendererOptions } from '@pospay/docume
 import { expect, it } from 'vitest';
 
 import { trackDocumentStartup } from '../startup-session.ts';
+import { FakeRenderer } from './render-harness.ts';
 
 const GRACE_MS = 80;
 
@@ -60,6 +61,41 @@ it('schedules the next startup attempt when browser close never returns', async 
     expect(mark.launches).toBe(2);
     expect(mark.secondLaunchAt - mark.closeAt).toBeGreaterThanOrEqual(GRACE_MS - 25);
     expect(mark.secondLaunchAt - mark.closeAt).toBeLessThan(1_000);
+  } finally {
+    await session.close();
+  }
+});
+
+it('closes a renderer that resolves after startup timed out', async () => {
+  let resolveRenderer: (renderer: FakeRenderer) => void = () => undefined;
+  const late = new Promise<FakeRenderer>((resolve) => {
+    resolveRenderer = resolve;
+  });
+  const renderer = new FakeRenderer();
+  let closes = 0;
+  const originalClose = renderer.close.bind(renderer);
+  renderer.close = async () => {
+    closes += 1;
+    await originalClose();
+  };
+  const session = trackDocumentStartup({
+    startupMs: 40,
+    closeGraceMs: 50,
+    retryDelaysMs: [60_000],
+    sleep: () => new Promise(() => undefined),
+    stopped: () => false,
+    onFailed: () => undefined,
+    run: async (attempt) => {
+      attempt.setRenderer(await late);
+      return true;
+    },
+  });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    resolveRenderer(renderer);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(closes).toBe(1);
+    expect(renderer.isAvailable()).toBe(false);
   } finally {
     await session.close();
   }

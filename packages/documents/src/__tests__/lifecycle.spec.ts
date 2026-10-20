@@ -321,3 +321,42 @@ it('times out a hanging setContent inside the deadline', async () => {
   expect(contextClosed).toBe(true);
   await renderer.close();
 });
+
+it('times out a hanging pdf at the print deadline', async () => {
+  const printMs = 80;
+  let contextClosed = false;
+  let browserClosed = false;
+  const factory: PdfBrowserFactory = {
+    launch: async () => ({
+      newContext: async () => ({
+        route: async () => undefined,
+        newPage: async () => page(() => new Promise(() => undefined)),
+        close: async () => {
+          contextClosed = true;
+        },
+      }),
+      close: async () => {
+        browserClosed = true;
+      },
+      on: () => undefined,
+    }),
+  };
+  const renderer = new PlaywrightDocumentRenderer({
+    factory,
+    pdfTimeoutMs: printMs,
+    overallTimeoutMs: 5_000,
+    browserCloseGraceMs: 20,
+  });
+  await renderer.start();
+  const started = Date.now();
+  const failed = renderer.render('<p>x</p>');
+  await expect(failed).rejects.toBeInstanceOf(DocumentRenderTimeoutError);
+  await expect(failed).rejects.toMatchObject({ code: 'DOCUMENT_RENDER_TIMEOUT' });
+  const elapsed = Date.now() - started;
+  expect(elapsed).toBeGreaterThanOrEqual(printMs - 25);
+  expect(elapsed).toBeLessThan(1_000);
+  expect(contextClosed).toBe(true);
+  expect(browserClosed).toBe(false);
+  expect(renderer.isAvailable()).toBe(true);
+  await renderer.close();
+});

@@ -280,6 +280,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   ): Promise<Uint8Array> {
     let context: PdfContext | undefined;
     let abandoned = false;
+    const print = new AbortController();
     const opening = browser.newContext(CONTEXT);
     const work = opening.then(async (opened) => {
       if (abandoned) {
@@ -291,7 +292,11 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
         const pdf = await renderPage(
           opened,
           html,
-          { contentMs: this.#contentTimeoutMs, pdfMs: this.#pdfTimeoutMs },
+          {
+            contentMs: this.#contentTimeoutMs,
+            pdfMs: this.#pdfTimeoutMs,
+            signal: print.signal,
+          },
           this.#hooks(options?.onAbortedRequest),
         );
         return assertPdfWithinLimit(pdf);
@@ -303,6 +308,9 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
       return await raceDeadline(work, this.#overallTimeoutMs, options?.signal);
     } catch (error) {
       abandoned = true;
+      // المهلة الكلية لو سبقت الطباعة بتقفل السياق هنا. نلغي مؤقّت الطباعة من غير رفض السباق
+      // عشان page.pdf المعلّق ما يقفلش السياق مرة تانية وهو بيتقفل.
+      print.abort();
       const mapped = asRendererError(error);
       if (mapped instanceof DocumentRenderTimeoutError) {
         await this.#closeAfterTimeout(context, opening, browser);

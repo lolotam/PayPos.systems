@@ -11,7 +11,6 @@ export interface PdfPage {
     format: 'A4';
     printBackground: true;
     preferCSSPageSize: true;
-    timeout: number;
   }): Promise<Uint8Array>;
   evaluate(expression: string): Promise<unknown>;
   outerHtml?(): Promise<string>;

@@ -122,10 +122,25 @@ function pause(
   });
 }
 
-function binder(state: SessionState, slot: Slot): AttemptBinder {
+/** متصفح وصل بعد إلغاء المحاولة. القفل متسقوف زي مهلة الإغلاق عشان close المعلّق ما يمسكش الإيقاف. */
+function closeAbandoned(renderer: DocumentRenderer, graceMs: number): void {
+  const closing = renderer.close().catch(() => undefined);
+  const grace = waitForGrace(graceMs);
+  void Promise.race([closing, grace.done]).finally(() => {
+    grace.stop();
+  });
+}
+
+function binder(state: SessionState, slot: Slot, graceMs: number): AttemptBinder {
+  const cancelled = (): boolean => state.closed || !state.accept || slot.token !== state.generation;
   return {
-    cancelled: () => state.closed || !state.accept || slot.token !== state.generation,
+    cancelled,
     setRenderer: (renderer) => {
+      // التخزين بعد الإلغاء بيسيب متصفح من غير حد يقفله.
+      if (cancelled()) {
+        closeAbandoned(renderer, graceMs);
+        return;
+      }
       slot.renderer = renderer;
     },
     setLive: (live) => {
@@ -144,7 +159,7 @@ function arm(state: SessionState, input: StartupSessionInput): void {
   state.timer = setTimeout(() => {
     void fail(state, input, slot, new Error('DOCUMENT_START_TIMEOUT'));
   }, input.startupMs);
-  void input.run(binder(state, slot)).then(
+  void input.run(binder(state, slot, input.closeGraceMs ?? CLOSE_GRACE_MS)).then(
     (ready) => finishAttempt(state, input, slot, ready),
     (error: unknown) => {
       const wrapped = error instanceof Error ? error : new Error('DOCUMENT_START_FAILED');
@@ -195,7 +210,12 @@ async function fail(
 async function stopSession(state: SessionState, force: boolean): Promise<void> {
   state.accept = false;
   state.wake?.();
-  await state.current.live?.worker.close(force).catch(() => undefined);
+  const live = state.current.live;
+  if (live === undefined) return;
+  // المفتاح لو فضل بعد قفل المستهلك، الطلب الجاي هيلاقي متصفح من غير حد يستقبل.
+  // Chromium بيفضل عشان الرندر الجاري، وبيتقفل آخر حاجة في close.
+  await live.liveness.stop().catch(() => undefined);
+  await live.worker.close(force).catch(() => undefined);
 }
 
 async function closeSession(state: SessionState): Promise<void> {

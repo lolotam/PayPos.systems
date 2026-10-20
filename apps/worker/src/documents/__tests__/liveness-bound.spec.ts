@@ -97,3 +97,33 @@ it('drops a liveness key published by a SET that settles after disconnect', asyn
   expect(pending).toHaveLength(1);
   await live.stop();
 });
+
+it('keeps a single SET pending when redis never answers', async () => {
+  const commandMs = 100;
+  let sets = 0;
+  let dels = 0;
+  const redis = redisStub('ready');
+  redis.set = () => {
+    sets += 1;
+    return new Promise(() => undefined);
+  };
+  redis.del = () => {
+    dels += 1;
+    return new Promise(() => undefined);
+  };
+  const live = await startRendererLiveness({
+    redis,
+    renderer: new FakeRenderer(),
+    intervalMs: 10,
+    commandTimeoutMs: commandMs,
+    readyTimeoutMs: 1_000,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  expect(sets).toBe(1);
+  expect(dels).toBe(0);
+  const started = Date.now();
+  await live.stop();
+  expect(Date.now() - started).toBeLessThan(commandMs + 80);
+  expect(sets).toBe(1);
+  expect(dels).toBe(1);
+});

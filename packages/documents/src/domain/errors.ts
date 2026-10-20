@@ -17,7 +17,7 @@ export class DocumentTooLargeError extends Error {
 }
 
 /**
- * مهلة الصفحة أو المهلة الكلية خلصت.
+ * مهلة الطباعة أو المهلة الكلية خلصت.
  * السياق بيتقفل عشان متصفح واحد معلّق ما يبلوكش الطابور.
  */
 export class DocumentRenderTimeoutError extends Error {
