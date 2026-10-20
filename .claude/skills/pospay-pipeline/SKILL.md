@@ -48,7 +48,7 @@ model id is gone, or the call fails on auth or quota, stop and ask the owner. Ne
     implementer applies it, and the PR **stays blocked** until it is fixed and confirmed. The cap never lowers the bar.
   - **P2 / P3**: open a GitHub issue per finding, linked from its review thread, then merge.
 - **Parallel work: at most 3 tasks at once**, and only when their file paths are **disjoint**. Two tasks that touch the
-  same file wait for each other. Each task has its own branch, worktree (`E:\Dev\Worktrees\PosPay\<branch>`) and PR.
+  same file wait for each other. Each task has its own branch, worktree (`F:\Dev\Worktrees\PosPay\<branch>`) and PR.
   Migration and ADR numbers are assigned **at merge time**: renumber the later PR after the earlier one lands. Each
   slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
 - **One use case per PR** (`CLAUDE.md` §1). A task that needs two use cases is two PRs.
@@ -101,7 +101,10 @@ variant, so the model runs at its default. The `opencode-delegate` skill holds t
 pins the PosPay rules on top of it.
 
 1. **One session per task.** Give the first run a session id with `-s`, and record it in the task's notes
-   (`F:\Dev\Worktrees\PosPay\briefs\<task>\sid.txt`). Run it from the worktree:
+   (`F:\Dev\Worktrees\PosPay\briefs\<task>\sid.txt`). The installed opencode CLI (v2.0.32) documents `-s` as
+   "Session ID to continue, or to create if it does not exist". If a later version stops creating it, run round one
+   without `-s`, take the generated id from the `--format json` output, and use that id from round two on. Run it from
+   the worktree:
 
    ```powershell
    Set-Location F:\Dev\Worktrees\PosPay\<branch>
