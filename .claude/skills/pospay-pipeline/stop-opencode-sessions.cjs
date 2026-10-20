@@ -82,6 +82,8 @@ for (const s of busy) {
       // from its working directory up to the root, so an unvetted folder such as %TEMP% could inject config.
       cwd: folder,
       encoding: 'utf8',
+      // A hung background service must not hold the dispatch's finally block; a timeout counts as failed cleanup.
+      timeout: 30_000,
     });
   } catch (error) {
     failed++;

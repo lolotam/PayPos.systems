@@ -160,13 +160,15 @@ for (let dir = path.dirname(path.dirname(path.resolve(file))); ; dir = path.dirn
   if (path.dirname(dir) === dir) break;
 }
 
-// Higher-precedence sources would override this file: the system config folder and the config env vars.
-// None exists on the PosPay host today, so any that appears stops the run until someone inspects it.
+// Higher-precedence sources would override this file: the system config folder and opencode's environment
+// variables. Every OPENCODE_* variable is refused, not a list of known ones: OPENCODE_CONFIG, OPENCODE_PERMISSION
+// and OPENCODE_DB change the config or database, and OPENCODE_DISABLE_PROJECT_CONFIG skips this file entirely.
+// XDG_DATA_HOME moves the database too. None is set on the PosPay host today.
 const systemDir = path.join(process.env.ProgramData ?? 'C:\\ProgramData', 'opencode');
 if (fs.existsSync(systemDir))
   problems.push(`a system opencode config exists at ${systemDir}: inspect it`);
 for (const name of Object.keys(process.env)) {
-  if (/^(OPENCODE_(CONFIG|PERMISSION|DB)|XDG_DATA_HOME$)/i.test(name))
+  if (/^(OPENCODE_|XDG_DATA_HOME$)/i.test(name))
     problems.push(`environment variable ${name} is set: unset it`);
 }
 
