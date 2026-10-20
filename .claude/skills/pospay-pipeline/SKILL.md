@@ -31,7 +31,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 | Review layer 2 | **one** fresh Claude reviewer, **Sonnet 5.5 at medium effort** (`claude-sonnet-5-5`), given the diff, the spec and the governing documents (§8 rule 5), never the session history; **high** effort for money, tenant isolation (RLS), auth and migrations; none for a docs-only PR (§8 rule 5) | no |
 | Review layer 3 — **four bots** | the Codex GitHub bot (`chatgpt-codex-connector[bot]`, `@codex review` after every push; Codex CLI when out of quota) **and** the MergePilot panel (`mergepilot-review[bot]`): MergePilot (`gpt-6.1-sol`), waleed_bot (`claude-sonnet-5-5`), mohamed_bot (`grok-4.7`), which reviews every pushed commit on its own | no |
 | Draft writer (§8 rule 6) | MiniMax writes first drafts of specs, ADRs, journey docs and the HANDOVER; the orchestrator edits and owns the result | yes |
-| Fixer | the implementer, continuing **its own MiniMax session** with only the findings (§4); the orchestrator (or a doc-writing session) for a one-line fix and for any fix on a docs-only PR (no implementer session exists) | yes |
+| Fixer | the implementer, continuing **its own MiniMax session** with only the findings (§4), for every production-code finding, a one-line one included (PP-10.1); the orchestrator (or a doc-writing session) only for a fix on a docs-only PR, where no implementer session exists | yes |
 | Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
 
 Before the first dispatch of a session, run one trivial `opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash` call. If the
@@ -112,9 +112,11 @@ pins the PosPay rules on top of it.
    later test, with git gone, an offer to read `.git` internals directly. Wildcards cannot give a complete ban on
    their own, so layer one is the main barrier.
 
-   - **Git is not on MiniMax's `PATH`.** The orchestrator drops every `\Git\` folder from `PATH` before starting
-     opencode, so no command or interpreter can find `git` by name. That covers
-     `node -e "…execFileSync('g'+'it', …)"`, which no wildcard can catch.
+   - **Git, GitHub CLI, SSH and Docker are not on MiniMax's `PATH`.** The orchestrator drops every `\Git\`,
+     `\GitHub CLI\`, `\OpenSSH\` and `\Docker\` folder from `PATH` before starting opencode, so no command or
+     interpreter can find `git`, `gh`, `ssh`, `scp` or `docker` by name. That covers
+     `node -e "…execFileSync('g'+'it', …)"`, which no wildcard can catch. `PATH` is restored in a `finally` block
+     after the run, so the orchestrator's own post-run git checks still work.
    - **MiniMax runs only in a worktree.** In a worktree `.git` is a small pointer file, and the real git data
      sits outside it, behind `external_directory`. The dispatch refuses to start in a checkout whose `.git` is a
      folder (the main checkout).
@@ -135,6 +137,12 @@ pins the PosPay rules on top of it.
        (`bash -c*`, `sh -c*`, `powershell*`, `pwsh*`, `cmd /c*`, `cmd.exe*`). A pattern matches the whole command
        string, so `git *` alone would let `bash -c "git stash"` through. The price is that a harmless command
        naming `git ` or `.git` is refused too.
+     - `bash` also denies everything that reaches GitHub, a server or the network: `gh`, `ssh`, `scp`, `sftp`,
+       `docker`, `curl`, `wget`, `Invoke-WebRequest`, `Invoke-RestMethod`, `iwr`, `irm`, `Start-BitsTransfer`,
+       Node's `fetch(` and `http(s).get`/`request`, and `opencode` itself. MiniMax never merges, pushes, deploys
+       or fetches. `curl.exe` sits in `System32`, which cannot leave `PATH`, so its deny rule is the barrier.
+       A determined script could still open a socket by other means, which is why the brief also bans it in
+       words.
    - **The brief bans it in words** (step 4).
    - **The post-run check.** After every run the orchestrator checks `git stash list`, the reflog and `git status`
      of the shared checkout.
@@ -158,24 +166,43 @@ pins the PosPay rules on top of it.
    - The node-wrapped git call ended in `ENOENT`.
    - `package.json` reads, `echo` and `node --version` still worked.
 
+   A second run with the network rules refused `gh --version`, `ssh -V`, `docker --version`,
+   `curl https://example.com`, `Invoke-WebRequest`, a Node `fetch(…)`, and reads of `zz-probe\.git\config` in both
+   slash styles. That settles whether the backslash patterns match. `echo` and `node --version` still ran, and git
+   was back on `PATH` for the orchestrator once the run ended.
+
    An audit of all 92 local opencode sessions found no MCP tool call in any of them. The only non-basic calls were
    `skill`, and `webfetch`/`websearch` reads of public docs.
 
    The orchestrator (never MiniMax) adds `/opencode.json` to the clone's shared `info/exclude` once per clone, as
-   the first two lines below do, so the copy never lands in a diff. The rule stays local because `.gitignore` is a
+   the `$exclude` lines below do, so the copy never lands in a diff. The rule stays local because `.gitignore` is a
    config file outside the docs-only lane.
 
+   **The setup fails closed.** Every setup step runs under `$ErrorActionPreference = 'Stop'`, so a failed
+   `Set-Location` or `Copy-Item` stops the dispatch instead of leaving a stale `opencode.json` or the wrong folder.
+   The preference goes back to `Continue` just before `opencode run`, because Windows PowerShell 5.1 turns any
+   stderr line of a native command into a terminating error under `Stop`.
+
    ```powershell
+   $ErrorActionPreference = 'Stop'
    Set-Location F:\Dev\Worktrees\PosPay\<branch>
    if (Test-Path .git -PathType Container) { throw 'MiniMax runs only in a worktree: .git here is a folder' }
    $exclude = Join-Path (git rev-parse --git-common-dir) 'info\exclude'
    if (-not (Select-String -Path $exclude -SimpleMatch '/opencode.json' -Quiet)) { Add-Content $exclude '/opencode.json' }
-   Copy-Item .\.claude\skills\pospay-pipeline\opencode-pospay.json .\opencode.json
+   Copy-Item .\.claude\skills\pospay-pipeline\opencode-pospay.json .\opencode.json -Force
    node -e "JSON.parse(require('fs').readFileSync('opencode.json','utf8'))"; if ($LASTEXITCODE) { throw 'opencode.json is invalid: stop' }
-   $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\Git\\') }) -join ';'
-   if (Get-Command git -ErrorAction SilentlyContinue) { throw 'git is still on PATH: stop' }
-   opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
-       -f F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt "Implement the attached brief."
+   $savedPath = $env:PATH
+   try {
+     $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\(Git|GitHub CLI|OpenSSH|Docker)\\') }) -join ';'
+     foreach ($tool in 'git', 'gh', 'ssh', 'scp', 'docker') {
+       if (Get-Command "$tool.exe" -ErrorAction SilentlyContinue) { throw "$tool is still on PATH: stop" }
+     }
+     $ErrorActionPreference = 'Continue'
+     opencode run -m minimax-coding-plan/MiniMax-M3.1-Flash -s <sid> --title "<task>" `
+         -f F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt "Implement the attached brief."
+   } finally {
+     $env:PATH = $savedPath
+   }
    ```
 
 2. **Every later round, review-fix rounds included, continues that session** with the same `-s <sid>`, and attaches
@@ -186,7 +213,8 @@ pins the PosPay rules on top of it.
    1. Role and fences: "You implement only task N. **Run no git command at all** (no stash, checkout, reset, commit or
       push). **Never read, list or write anything under `.git`**, neither the worktree's `.git` file nor any `.git`
       folder, by any tool, script or interpreter; git is deliberately unavailable, so do not look for a way around
-      that. Do not touch files outside: …. Do not reformat lines you do not change. Never squash lines to get under
+      that. **Make no network call and run no `gh`, `ssh`, `docker` or `curl`**, by any tool, script or
+      interpreter: you never merge, push, deploy or fetch. Do not touch files outside: …. Do not reformat lines you do not change. Never squash lines to get under
       `max-lines`; split by responsibility instead. Do not create databases unless the brief asks."
    2. Required reading, as file **paths** only: `CLAUDE.md`, `CLAUDE.architecture.md`, the spec, the plan, the ADRs,
       then the source files the task starts from.
