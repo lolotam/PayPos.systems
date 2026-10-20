@@ -148,6 +148,10 @@ pins the PosPay rules on top of it.
      `dir /x`, or when any entry still has one in any folder the link scan visits (every folder outside
      `node_modules` and `.git`, at any depth), because disabling creation keeps old aliases. On 2026-10-20 F: created
      none and the worktree had none, the whole check took 1.7 s, and the same probe on C: was refused;
+   - the checker refuses the run when a file outside `node_modules` and `.git` has more than one hard-link name,
+     because a hard link to another worktree's `.env` would expose it through an allowed path (Codex on #416). None
+     existed on 2026-10-20 (3,830 files in a worktree, 18,758 in the main checkout), and a planted one was refused.
+     pnpm hard-links `node_modules` files to its store of public package code, which MiniMax may read but not edit;
    - the checker refuses the run when a symlink or junction inside the worktree resolves outside it, or would if it
      is broken, because opencode authorizes the written path and then follows the link (Codex on #416). MiniMax
      cannot make one without a shell. In `node_modules` it reads only the levels pnpm links at (the top, `@scope`

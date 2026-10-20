@@ -306,6 +306,11 @@ function scanNodeModules(dir) {
 }
 // Every folder the link scan visits, for the 8.3 check below.
 const scannedDirs = [];
+// A hard link is a second name for the same file, so a worktree file hard-linked to another worktree's .env would
+// expose it through an allowed path (Codex on #416). Outside node_modules no file may have more than one name: none
+// did on 2026-10-20 (3,830 files in a worktree, 18,758 in the main checkout). pnpm hard-links node_modules files to its
+// store of public package code, which MiniMax may read but not edit.
+const hardLinked = [];
 (function scanLinks(dir) {
   scannedDirs.push(dir);
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -314,10 +319,15 @@ const scannedDirs = [];
     if (entry.isSymbolicLink()) checkLink(full);
     else if (entry.isDirectory() && entry.name === 'node_modules') scanNodeModules(full);
     else if (entry.isDirectory()) scanLinks(full);
+    else if (entry.isFile() && fs.statSync(full).nlink > 1) hardLinked.push(full);
   }
 })(path.dirname(path.resolve(file)));
 if (escapingLinks.length)
   problems.push(`links that leave the worktree (remove them first): ${escapingLinks.join(', ')}`);
+if (hardLinked.length)
+  problems.push(
+    `files with more than one hard-link name (remove them first): ${hardLinked.join(', ')}`,
+  );
 
 // An NTFS 8.3 short name (GIT~1 for .git) would slip past every name rule here (Codex on #416). The PosPay F: volume
 // creates none (2026-10-20: no short name in the worktree, and a new long-named folder got none), so a volume that
