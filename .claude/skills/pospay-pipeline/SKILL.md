@@ -23,7 +23,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 
 | Role | Who (friendly name → live id) | Writes files? |
 |---|---|---|
-| Orchestrator | Claude Code (this session) | yes — specs, briefs, merges, renumbering, small fixes |
+| Orchestrator | Claude Code (this session) | yes — specs, briefs, renumbering, small fixes, and merges without asking once every gate passes (Waleed, SA-11 «ج»: a PosPay merge reaches staging only; production, production data and server changes still need his yes; `docs/owner-decisions.ar.md` item 17) |
 | Design advisors (risky slices only, §3 step 2) | Codex astra 6 medium (`gpt-6-astra`, effort medium) **and** Claude Fable 5.1 medium (`claude-fable-5-1`) | no — read-only |
 | **Implementer** — code, tests, migrations **and PR-finding fix rounds** | **Only opencode `minimax-coding-plan/MiniMax-M3.1-Flash`** (default variant) — owner's rule 2026-10-20 (PP-10.1, tightened the same day: no new Grok or Codex implementation runs; a run already in flight may finish its current round). Every MiniMax brief bans all git commands, edits outside the task, unrelated reformatting and line-squashing to dodge `max-lines`; the reviewer diffs every rewritten SQL function body against the old one and reviews money, DB and permission changes strictly | yes, in its own worktree |
 | **Database reviewer** | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) | no |
