@@ -45,6 +45,8 @@ function explaining(database: Database): TenantWrappers {
   return {
     withUser: (userId, fn) => database.withUser(userId, (tx) => fn(explain(tx))),
     withNewTenant: (userId, fn) => database.withNewTenant(userId, (tx, id) => fn(explain(tx), id)),
+    withMember: (userId, companyId, fn) =>
+      database.withMember(userId, companyId, (tx) => fn(explain(tx))),
     withTenant: (companyId, fn, options) =>
       database.withTenant(companyId, (tx) => fn(explain(tx)), options),
   };

@@ -35,6 +35,11 @@ const schema = z.object({
   ),
   TRUSTED_PROXY_CIDRS: trustedProxies,
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+  // This process's pospay_app pool. An empty value is unset; the default is 10.
+  DATABASE_POOL_MAX: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce.number().int().min(1).max(100).default(10),
+  ),
   REDIS_URL: z.url({ protocol: /^rediss?$/ }),
   // pospay_auth — Better Auth's own pool, opened inside packages/auth (ADR-0003 §2.1).
   AUTH_DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
