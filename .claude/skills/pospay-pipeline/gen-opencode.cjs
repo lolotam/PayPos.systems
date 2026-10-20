@@ -76,6 +76,10 @@ const generatedPaths = [
   ...ignoredFiles.flatMap((name) => [name, `*/${name}`, `*${BS}${name}`]),
   '*.tsbuildinfo',
   '*.log',
+  // The one nested .gitignore, .specify/.gitignore: Spec Kit's active-feature pointer and local extension config,
+  // which its scripts read to pick the slice (Codex on #416).
+  '.specify/feature.json',
+  '.specify/extensions/*/local-config.yml',
 ];
 // opencode 2.0.32 can treat a path on another drive as inside the project on Windows (path.relative across drives
 // returns an absolute path), so external_directory alone may not stop it (Codex on #416, opencode issue 27596).

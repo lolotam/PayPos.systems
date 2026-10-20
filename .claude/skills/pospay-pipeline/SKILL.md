@@ -176,9 +176,11 @@ pins the PosPay rules on top of it.
    - `edit` also denies every path the root `.gitignore` ignores, outside `.env` and `.claude` (denied above): the
      dependency and build folders (`node_modules`, `.pnpm-store`, `dist`, `build`, `.next`, `out`, `.turbo`,
      `coverage`), local tool state other agents or IDEs load (`.agents`, `.vscode`, `.idea`, `.playwright-mcp`), and
-     `*.tsbuildinfo`, `*.log`, `.DS_Store`, `Thumbs.db` and `next-env.d.ts`. The gates run what is there, and
-     `git status` cannot show an edit to a file that was already ignored. A new `.gitignore` entry gets a matching
-     deny in the same PR;
+     `*.tsbuildinfo`, `*.log`, `.DS_Store`, `Thumbs.db` and `next-env.d.ts`. It also denies the entries of the one
+     nested ignore file, `.specify/.gitignore`: `.specify/feature.json`, the Spec Kit pointer to the active slice, and
+     `.specify/extensions/*/local-config.yml`. The gates and tools read what is there, and `git status` cannot show
+     an edit to a file that was already ignored. A new entry in any `.gitignore`, root or nested (list them with
+     `git ls-files '*.gitignore'`), gets a matching deny in the same PR;
    - `edit` also denies every `opencode.*` file (config, or an `opencode.cmd` a later shell could run) and anything under `.opencode`. A config, agent or plugin file
      MiniMax wrote would load on its next round, and a plugin runs as code outside every rule. The dispatch also
      stops if a `.opencode` folder or an `opencode.jsonc` already exists;
