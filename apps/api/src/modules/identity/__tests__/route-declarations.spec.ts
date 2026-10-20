@@ -104,6 +104,22 @@ describe('inherited handlers', () => {
 
 const silent = { logger: createLogger('silent') };
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../../../../../..');
+// What SessionGuard reads on each PERSONAL / DEVICE_ONLY write. A route absent here carries neither marker.
+const ROUTE_MARKERS: Readonly<
+  Record<string, { personal?: true | 'staff'; staff?: 'device' | 'staff' }>
+> = {
+  'ClockAttendanceController.challenge': { personal: true },
+  'ClockAttendanceController.submit': { personal: true },
+  'OwnLeaveController.cancelRequest': { personal: 'staff', staff: 'staff' },
+  'OwnLeaveController.request': { personal: 'staff', staff: 'staff' },
+  'PasskeysController.registrationOptions': { personal: true },
+  'PasskeysController.verify': { personal: true },
+  'PersonalOtpController.signOut': { personal: true },
+  'StaffOtpController.request': { staff: 'device' },
+  'StaffOtpController.signOut': { staff: 'staff' },
+  'StaffOtpController.verify': { staff: 'device' },
+  'StaffPinController.signIn': { staff: 'device' },
+};
 const PERSONAL_GUARD = 'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest';
 const STAFF_GUARD = 'apps/api/src/shared/session.guard.ts##staff';
 
@@ -263,6 +279,8 @@ describe('the mounted allowlist', () => {
       if (entry.checkedIn === STAFF_GUARD) {
         expect(staff, key).toBe(entry.access === 'DEVICE_ONLY' ? 'device' : 'staff');
       }
+      // Every marker the session guard reads is pinned, so dropping or changing one fails here.
+      expect({ personal, staff }, key).toEqual(ROUTE_MARKERS[key] ?? {});
     }
   });
 
