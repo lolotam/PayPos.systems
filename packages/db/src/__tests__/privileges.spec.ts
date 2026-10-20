@@ -364,10 +364,8 @@ describe('effective privileges match the reviewed allowlist', () => {
 
 // A role the application can SET ROLE to is a way around every check above, even without inheritance.
 const settableRoles = async (role: string): Promise<string[]> =>
-  (
-    await owner<{ name: string }[]>`SELECT rolname AS name FROM pg_roles
-    WHERE rolname <> ${role} AND pg_has_role(${role}, oid, 'SET') ORDER BY 1`
-  ).map((r) => r.name);
+  (await owner<{ name: string }[]>`SELECT rolname AS name FROM pg_roles
+    WHERE rolname <> ${role} AND pg_has_role(${role}, oid, 'SET') ORDER BY 1`).map((r) => r.name);
 
 describe('no application role can switch to another role', () => {
   it.each(APP_ROLES)('%s can SET ROLE to no other role, directly or indirectly', async (role) => {
@@ -393,7 +391,8 @@ describe('effective access', () => {
     const rows = await withClusterRoleLock(
       'shared',
       () => owner<{ role: string; table: string }[]>`
-      SELECT r AS role, t AS table FROM unnest(${['pospay_app', 'pospay_dispatcher']}::text[]) AS r, unnest(${IDENTITY_TABLES}::text[]) AS t
+      SELECT r AS role, t AS table
+      FROM unnest(${['pospay_app', 'pospay_dispatcher']}::text[]) AS r, unnest(${IDENTITY_TABLES}::text[]) AS t
       WHERE has_table_privilege(r, quote_ident(t), 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`,
     );
     expect(rows).toEqual([]);
@@ -403,7 +402,8 @@ describe('effective access', () => {
     const rows = await withClusterRoleLock(
       'shared',
       () => owner<{ table: string }[]>`
-      SELECT t AS table FROM unnest(${[...TENANT_TABLES, 'plans', 'permissions']}::text[]) AS t WHERE has_table_privilege('pospay_auth', t, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`,
+      SELECT t AS table FROM unnest(${[...TENANT_TABLES, 'plans', 'permissions']}::text[]) AS t
+      WHERE has_table_privilege('pospay_auth', t, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`,
     );
     expect(rows).toEqual([]);
   });
@@ -412,22 +412,15 @@ describe('effective access', () => {
     const rows = await withClusterRoleLock(
       'shared',
       () => owner<{ table: string }[]>`
-      SELECT t AS table FROM unnest(${[...TENANT_TABLES, 'plans']}::text[]) AS t WHERE has_table_privilege('pospay_app', t, 'TRUNCATE, REFERENCES, TRIGGER')`,
+      SELECT t AS table FROM unnest(${[...TENANT_TABLES, 'plans']}::text[]) AS t
+      WHERE has_table_privilege('pospay_app', t, 'TRUNCATE, REFERENCES, TRIGGER')`,
     );
     expect(rows).toEqual([]);
   });
 
-  // الختم لازم يفضل مقفول: التطبيق يقدر يكتب الصف بس ما يقدرش يعدّل الختم بعد ما اتكتب.
-  it('pospay_app may not update the write seal columns', async () => {
-    const rows =
-      await owner`SELECT c.relname FROM pg_class c JOIN pg_attribute a ON a.attrelid = c.oid
-      WHERE a.attname IN ('write_xid', 'write_system_id')
-        AND has_column_privilege('pospay_app', c.oid, a.attname, 'UPDATE')`;
-    expect(rows).toEqual([]);
-  });
-
   it('no application role owns a table', async () => {
-    const rows = await owner`SELECT c.relname FROM pg_class c JOIN pg_roles r ON r.oid = c.relowner
+    const rows = await owner`
+      SELECT c.relname FROM pg_class c JOIN pg_roles r ON r.oid = c.relowner
       WHERE c.relnamespace = 'public'::regnamespace AND r.rolname = ANY(${APP_ROLES})`;
     expect(rows).toHaveLength(0);
   });

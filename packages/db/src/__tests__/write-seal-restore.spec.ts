@@ -54,7 +54,7 @@ const detail = (error: unknown) => {
   };
 };
 
-// postgres.js بيسقط المعاملة كلها لو statement فشال جوّاها، فالرفض المتوقّع بيتعمل في transaction manually.
+// المحاكاة لازم تفضل في معاملة واحدة عشان الـ xid يفضل هو هو، فبنفتح المعاملة بإيدينا على اتصال الـ owner.
 async function rolledBack(work: () => Promise<void>) {
   await owner`BEGIN`;
   try {
@@ -75,13 +75,13 @@ async function committed(work: () => Promise<void>) {
   }
 }
 
-/** The app role inside the owner's transaction: the guards read app.company_id, so the context must be set. */
+// الحرّاس بيقروا app.company_id، فلازم السياق يتظبط قبل ما نلبس دور التطبيق جوّه نفس المعاملة.
 async function asApp(tx: postgres.Sql, company: string) {
   await tx`SELECT set_config('app.company_id', ${company}, true)`;
   await tx`SET LOCAL ROLE pospay_app`;
 }
 
-/** Runs the statement and rolls the savepoint back, so the transaction survives the refusal. */
+// الرفض بيبوّظ المعاملة، فالـ savepoint بيرجّعها عشان نكمّل باقي الفحوص على نفس الـ xid.
 async function failing(tx: postgres.Sql, work: () => Promise<unknown>) {
   await tx`SAVEPOINT seal_check`;
   const error = await work().then(
@@ -241,7 +241,7 @@ it('keeps a legitimate header for the same line beside a restored one', async ()
 it('the runtime role reads the identifier and may not rewrite the seal', async () => {
   const [ownerValue] = await owner`SELECT public.pospay_system_id()::text AS id`;
   const [appValue] = await app`SELECT public.pospay_system_id()::text AS id`;
-  expect(Number(ownerValue?.['id'])).toBeGreaterThan(0);
+  expect(ownerValue?.['id']).not.toBe('0');
   expect(appValue?.['id']).toBe(ownerValue?.['id']);
   for (const table of ['session_tip_revisions', 'service_line_performer_changes']) {
     const rows =
@@ -252,4 +252,8 @@ it('the runtime role reads the identifier and may not rewrite the seal', async (
       'INSERT',
     ]);
   }
+  const updatable = await owner`SELECT c.relname FROM pg_class c JOIN pg_attribute a ON a.attrelid = c.oid
+    WHERE a.attname IN ('write_xid', 'write_system_id')
+      AND has_column_privilege('pospay_app', c.oid, a.attname, 'UPDATE')`;
+  expect(updatable).toEqual([]);
 });

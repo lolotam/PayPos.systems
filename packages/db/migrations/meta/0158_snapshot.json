@@ -1,5 +1,5 @@
 {
-  "id": "e6fa3425-77f4-4935-90be-57a009df6a54",
+  "id": "35defd98-3d10-4a83-a985-f643f51e53c0",
   "prevId": "69bda473-0afa-4fca-979d-01ef4d62dcc0",
   "version": "7",
   "dialect": "postgresql",
@@ -16016,7 +16016,8 @@
           "name": "write_system_id",
           "type": "bigint",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "0"
         }
       },
       "indexes": {
@@ -16192,7 +16193,6 @@
           "columns": [
             "company_id",
             "line_id",
-            "write_system_id",
             "write_xid"
           ]
         }
@@ -17577,7 +17577,8 @@
           "name": "write_system_id",
           "type": "bigint",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "0"
         },
         "created_at": {
           "name": "created_at",
@@ -17780,7 +17781,6 @@
           "columns": [
             "company_id",
             "session_id",
-            "write_system_id",
             "write_xid"
           ]
         }

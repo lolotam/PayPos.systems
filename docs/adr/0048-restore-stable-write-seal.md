@@ -62,8 +62,9 @@ refuses to run when the identifier reads back as `NULL` or `0`.
 
 `session_tip_revisions_begin` and `slpc_begin` set `NEW.write_system_id` and `NEW.write_xid`
 themselves, overwriting anything the caller supplied. If the identifier reads back as `NULL` or `0`
-the trigger raises (`23514`) instead of falling back: an infrastructure failure must never produce
-a seal that looks like the legacy sentinel.
+the trigger raises a plain exception (SQLSTATE `P0001`, so the API answers 500, `CLAUDE.md` §5)
+instead of falling back: an infrastructure failure must never produce a seal that looks like the
+legacy sentinel.
 
 Every guard that compared `write_xid` with `pg_current_xact_id()` now compares the pair. Each
 `plpgsql` function reads the identifier **once** into a declared `bigint` and uses that variable in

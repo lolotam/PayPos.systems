@@ -42,7 +42,7 @@ DECLARE sid bigint;
 BEGIN
   sid := public.pospay_system_id();
   IF sid IS NULL OR sid = 0 THEN
-    RAISE EXCEPTION 'the cluster system identifier is unavailable' USING ERRCODE = '23514', CONSTRAINT = 'session_tip_revisions_seal_stamp';
+    RAISE EXCEPTION 'the cluster system identifier is unavailable';
   END IF;
   NEW.write_system_id := sid;
   NEW.write_xid := pg_current_xact_id();
@@ -115,7 +115,7 @@ BEGIN
     WHERE b.company_id = tenant AND b.change_id = header.id AND b.side = 'BEFORE' AND NOT b.linked_user_snapshotted
       AND NOT EXISTS (
         SELECT 1 FROM public.service_line_performer_change_rows a
-        WHERE a.company_id = b.company_id AND b.change_id = b.change_id AND a.side = 'AFTER' AND a.employee_id = b.employee_id)
+        WHERE a.company_id = b.company_id AND a.change_id = b.change_id AND a.side = 'AFTER' AND a.employee_id = b.employee_id)
   ) THEN
     RAISE EXCEPTION 'removed performer was not snapshotted' USING ERRCODE = '23514', CONSTRAINT = 'slpc_complete';
   END IF;
@@ -156,7 +156,7 @@ DECLARE line_rev integer; sid bigint;
 BEGIN
   sid := public.pospay_system_id();
   IF sid IS NULL OR sid = 0 THEN
-    RAISE EXCEPTION 'the cluster system identifier is unavailable' USING ERRCODE = '23514', CONSTRAINT = 'slpc_seal_stamp';
+    RAISE EXCEPTION 'the cluster system identifier is unavailable';
   END IF;
   NEW.write_system_id := sid;
   IF NEW.company_id IS DISTINCT FROM public.app_company_id() THEN RETURN NEW; END IF;
