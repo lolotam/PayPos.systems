@@ -3,7 +3,7 @@ import { parseMoney } from '@pospay/domain';
 import { PERFORMER_BATCH, ascendingEmployeeIds, employeeIdBatches } from '../../domain/employee-order.ts';
 import { resolveSessionRecorder, type SessionAccess } from '../../domain/session-authority.ts';
 import { SessionError } from '../../domain/session-error.ts';
-import { withCurrentLinks, type TipPerformerRow } from '../../domain/tip-people-links.ts';
+import { withCurrentLinks, retainedTipRows, type TipPerformerRow } from '../../domain/tip-people-links.ts';
 import {
   sessionTipsAudit,
   sessionTipsChangedEvent,
@@ -98,13 +98,15 @@ export class RecordSessionTipsUseCase {
     const session = await tx.tips.loadSession(context.sessionId);
     if (session === null) throw new SessionError('SESSION_NOT_FOUND');
     const rows = await tx.tips.loadPeople(context.sessionId);
+    const retained = await tx.identities.retainedForSession(context.sessionId);
+    const people = [...rows, ...retainedTipRows(retained)];
     const current = await tx.tips.loadCurrent(context.sessionId);
     const employees = await readPerformers(
       tx,
-      performerIds(rows, current.entries, requested),
+      performerIds(people, current.entries, requested),
       session.occurred_at,
     );
-    return { session, current, rows, employees };
+    return { session, current, rows: people, employees };
   }
 
   private async recheck(

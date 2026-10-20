@@ -37,3 +37,30 @@ export function withCurrentLinks(
     };
   });
 }
+
+/**
+ * يبني صفاً لكل هوية محفوظة في سجل تغييرات الزيارات.
+ * الموظفة المُزالة تحجب سطرها هي لأنها كانت منفّذة، لكنها لا تُحسب منفّذة لبقشيش جديد، فالسطر بلا سطر فعّال.
+ * دمج الصفوف في indexTipPeople يبقي السطر فعّالاً لو كانت ما زالت منفّذة بسطر آخر من الزيارة نفسها.
+ *
+ * @param retained الهويات المحفوظة برقم السطر الذي كانت عليه كل موظفة
+ * @returns صفوف بلا سطر فعّال، كل صف فيها لقطة واحدة كما سُجلت
+ */
+export function retainedTipRows(
+  retained: readonly {
+    employee_id: string;
+    linked_user_id: string | null;
+    linked_user_snapshotted: boolean;
+  }[],
+): TipPerformerRow[] {
+  return retained.map((row) => ({
+    employee_id: row.employee_id,
+    has_active_line: false,
+    identities: [
+      {
+        linked_user_id: row.linked_user_id,
+        linked_user_snapshotted: row.linked_user_snapshotted,
+      },
+    ],
+  }));
+}

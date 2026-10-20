@@ -38,6 +38,10 @@ function batchPort(calls: PerformerCall[]): SessionTipsTransaction {
       loadCurrent: async () => ({ revision: 0, entries: [] }),
       insertRevision: () => Promise.reject(new Error('insertRevision')),
     },
+    identities: {
+      retainedForLine: async () => [],
+      retainedForSession: async () => [],
+    },
     idempotent: async (handler) => ({ body: await handler(), replayed: false }),
     audit: async () => undefined,
     emit: async () => undefined,
