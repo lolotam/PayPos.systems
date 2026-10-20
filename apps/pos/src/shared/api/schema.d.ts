@@ -3809,6 +3809,7 @@ export interface components {
             edited?: boolean;
             /** Format: date-time */
             cancelled_at?: string;
+            performers_changed_at?: string;
         };
         ServiceSession: {
             /** Format: uuid */
@@ -3940,6 +3941,7 @@ export interface components {
                 edited: true;
                 /** Format: date-time */
                 cancelled_at?: string;
+                performers_changed_at?: string;
             };
             session: {
                 /** Format: uuid */
@@ -4012,6 +4014,7 @@ export interface components {
                 edited?: boolean;
                 /** Format: date-time */
                 cancelled_at: string;
+                performers_changed_at?: string;
             };
             session: {
                 /** Format: uuid */
@@ -4024,6 +4027,78 @@ export interface components {
             cancelled: true;
         };
         CancelServiceLineResponse: components["schemas"]["CancelServiceLineResponseFull"] | components["schemas"]["CancelServiceLineResponseNarrow"];
+        ChangeLinePerformersInput: {
+            performers: components["schemas"]["SessionPerformerInput"][];
+            reason?: string;
+            expected_revision: number;
+            /** Format: uuid */
+            changer_membership_id?: string;
+        };
+        ChangeLinePerformersResponseFull: {
+            line: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                session_id: string;
+                /** Format: uuid */
+                service_id: string;
+                input_index: number;
+                ordinal: number;
+                name_en: string;
+                name_ar: string | null;
+                list_price: components["schemas"]["SessionMoney"];
+                price: components["schemas"]["SessionMoney"];
+                discount: components["schemas"]["SessionMoney"];
+                net: components["schemas"]["SessionMoney"];
+                effective_discount_bps: number;
+                limit_bps_applied: number | null;
+                /** @enum {string} */
+                limit_source: "OWNER" | "PERSON" | "BUSINESS" | "NOT_CONFIGURED";
+                /** @enum {string} */
+                status: "ACTIVE";
+                revision: number;
+                rule_snapshot: {
+                    /** @enum {string} */
+                    kind: "FOLLOW_PLAN";
+                } | {
+                    /** @enum {string} */
+                    kind: "ZERO";
+                } | {
+                    /** @enum {string} */
+                    kind: "PCT";
+                    value: number;
+                } | {
+                    /** @enum {string} */
+                    kind: "FIXED";
+                    value: components["schemas"]["ServicePrice"];
+                };
+                counts_snapshot: boolean;
+                catalog_revision: number;
+                has_performer_warning: boolean;
+                performers: components["schemas"]["SessionPerformer"][];
+                /** Format: uuid */
+                recorded_by: string;
+                /** Format: uuid */
+                recorded_by_membership_id: string;
+                /** Format: date-time */
+                recorded_at: string;
+                late: boolean;
+                edited?: boolean;
+                /** Format: date-time */
+                cancelled_at?: string;
+                performers_changed_at: string;
+            };
+            session: {
+                /** Format: uuid */
+                id: string;
+                total_net: components["schemas"]["SessionMoney"];
+            };
+        };
+        ChangeLinePerformersResponseNarrow: {
+            /** @enum {boolean} */
+            changed: true;
+        };
+        ChangeLinePerformersResponse: components["schemas"]["ChangeLinePerformersResponseFull"] | components["schemas"]["ChangeLinePerformersResponseNarrow"];
         ServiceLineChanged: {
             /** Format: uuid */
             line_id: string;
