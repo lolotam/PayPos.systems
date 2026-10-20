@@ -28,12 +28,13 @@ const indexScan = (overrides: Partial<PlanNode> = {}): PlanNode[] => [
   },
 ];
 
-const bitmapIndexScan = (cond: string): PlanNode => ({
+const bitmapIndexScan = (cond: string, overrides: Partial<PlanNode> = {}): PlanNode => ({
   'Node Type': 'Bitmap Index Scan',
   'Index Name': 'employees_company_business_id_idx',
   'Index Cond': cond,
   'Actual Rows': 7,
   'Actual Loops': 1,
+  ...overrides,
 });
 
 const bitmapHeap = (bitmap: PlanNode, overrides: Partial<PlanNode> = {}): PlanNode[] => [
@@ -66,6 +67,13 @@ const ACCEPT: { name: string; plan: PlanNode[] }[] = [
   {
     name: 'an index scan on the name key index with both tenant keys',
     plan: indexScan({ 'Index Name': 'employees_company_business_name_en_key_idx' }),
+  },
+  {
+    name: 'an index scan on the name key index with a prefix condition on the key column',
+    plan: indexScan({
+      'Index Name': 'employees_company_business_name_en_key_idx',
+      'Index Cond': `(e.company_id = 1 AND e.business_id = 2 AND e.name_en_key >= 'sar'::text)`,
+    }),
   },
 ];
 
@@ -142,6 +150,17 @@ const REJECT: { name: string; plan: PlanNode[]; problem: string }[] = [
   {
     name: 'a node that read more rows than the business holds',
     plan: indexScan({ 'Rows Removed by Filter': 4000 }),
+    problem: PLAN_PROBLEMS.tooManyRows,
+  },
+  {
+    name: 'a bitmap and whose unbound branch read more rows than the business holds',
+    plan: bitmapHeap({
+      'Node Type': 'BitmapAnd',
+      Plans: [
+        bitmapIndexScan(TENANT_COND),
+        bitmapIndexScan(COMPANY_ONLY_COND, { 'Actual Rows': 4000 }),
+      ],
+    }),
     problem: PLAN_PROBLEMS.tooManyRows,
   },
 ];

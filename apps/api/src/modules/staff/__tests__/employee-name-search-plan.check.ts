@@ -31,6 +31,9 @@ export const PLAN_PROBLEMS = {
 const BITMAP_INDEX_NODE = 'Bitmap Index Scan';
 const INDEX_SCAN_TYPES = new Set(['Index Scan', 'Index Only Scan']);
 const INDEX_NODE_TYPES = new Set(['Index Scan', 'Index Only Scan', BITMAP_INDEX_NODE]);
+// عمود الاسم نفسه مش مفتاحه: مفتاح المطابقة name_*_key فهرس تاني على نفس بادئة
+// المستأجر، فوجوده في شرط الفهرس مشروع (ADR-0048) وما ينفعش يتحسب بحث بالاسم.
+const NAME_COLUMN = /\bname_(ar|en)\b/;
 
 function safeJson(value: string): unknown {
   try {
@@ -97,7 +100,8 @@ function isTenantBound(node: PlanNode): boolean {
   return false;
 }
 
-// كل عقدة فهرس في شجرة الوصول؛ شرط الاسم ما يصحّش يتحوّل لشرط فهرس في أي فرع منها.
+// كل عقدة فهرس في شجرة الوصول: شرط الاسم ما يصحّش يتحوّل لشرط فهرس في أي فرع منها،
+// وكل فرع منهم له سقف صفوف لوحده لأن الـ Bitmap Index Scan ممكن يطلّع TIDs لصفوف برّه النشاط.
 function indexNodes(access: PlanNode): PlanNode[] {
   if (INDEX_NODE_TYPES.has(access['Node Type'] ?? '')) return [access];
   return (access.Plans ?? []).flatMap(indexNodes);
@@ -124,23 +128,28 @@ export function tenantBoundProblems(nodes: PlanNode[], allowedRows: number): str
   if (heaps.length === 0) return [PLAN_PROBLEMS.noEmployees];
   const problems: string[] = [];
   for (const heap of heaps) {
-    if (heap['Node Type'] === 'Seq Scan') {
+    const isSeqScan = heap['Node Type'] === 'Seq Scan';
+    const access = isSeqScan ? null : indexAccess(heap);
+    const indexes = access === null ? [] : indexNodes(access);
+    if (isSeqScan) {
       problems.push(PLAN_PROBLEMS.sequentialScan);
+    } else if (access === null) {
+      problems.push(PLAN_PROBLEMS.noIndexAccess);
     } else {
-      const access = indexAccess(heap);
-      if (access === null) {
-        problems.push(PLAN_PROBLEMS.noIndexAccess);
-      } else {
-        if (!isTenantBound(access)) problems.push(PLAN_PROBLEMS.unboundTenant);
-        for (const index of indexNodes(access)) {
-          if (/name_ar|name_en/.test(index['Index Cond'] ?? '')) {
-            problems.push(PLAN_PROBLEMS.nameInIndexCond);
-          }
+      if (!isTenantBound(access)) problems.push(PLAN_PROBLEMS.unboundTenant);
+      for (const index of indexes) {
+        if (NAME_COLUMN.test(index['Index Cond'] ?? '')) {
+          problems.push(PLAN_PROBLEMS.nameInIndexCond);
         }
       }
     }
-    if (!(heap.Filter ?? '').includes('name_ar')) problems.push(PLAN_PROBLEMS.nameNotFilter);
-    if (rowsRead(heap) > allowedRows) problems.push(PLAN_PROBLEMS.tooManyRows);
+    if (!NAME_COLUMN.test(heap.Filter ?? '')) problems.push(PLAN_PROBLEMS.nameNotFilter);
+    // السقف بيطبق على عقد الجدول وعقد الفهرس مع بعض: فرع company-only جوّه BitmapAnd
+    // بيقرا آلاف الصفوف حتى لو الـ heap رجّع صفوف النشاط بس.
+    const counted = new Set<PlanNode>([heap, ...indexes]);
+    for (const node of counted) {
+      if (rowsRead(node) > allowedRows) problems.push(PLAN_PROBLEMS.tooManyRows);
+    }
   }
   return problems;
 }
