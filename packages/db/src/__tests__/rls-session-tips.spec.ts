@@ -20,7 +20,7 @@ import {
   type TipCtx,
 } from '../../test/session-tip.ts';
 
-const FUNCTIONS = ['session_tip_revisions_begin', 'session_tips_insert_guard'];
+const FUNCTIONS = ['pospay_system_id', 'session_tip_revisions_begin', 'session_tips_insert_guard'];
 const TABLES = ['session_tip_revisions', 'session_tips'] as const;
 
 let testDb: TestDatabase, owner: postgres.Sql, db: Database;

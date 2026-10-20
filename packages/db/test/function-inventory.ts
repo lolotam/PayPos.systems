@@ -1,6 +1,14 @@
 export const FUNCTION_INVENTORY = [
-  { proname: 'orders_check_performers', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
-  { proname: 'orders_performer_consistency', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  {
+    proname: 'orders_check_performers',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'orders_performer_consistency',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
   {
     proname: 'initialize_attendance_state',
     prosecdef: false,
@@ -67,6 +75,11 @@ export const FUNCTION_INVENTORY = [
     proname: 'platform_whatsapp_is_suppressed',
     prosecdef: true,
     proconfig: ['search_path=pg_catalog, pg_temp'],
+  },
+  {
+    proname: 'pospay_system_id',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog'],
   },
   {
     proname: 'sweep_expired_idempotency_keys',
