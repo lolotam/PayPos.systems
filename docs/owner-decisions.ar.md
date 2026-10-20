@@ -187,7 +187,7 @@
 
 **الإجابة (وليد، 20 أكتوبر 2026، في شات المدير مباشرة):** «YES AS YOU RECCOMENDED» — يعني (أ).
 
-**تعديل نفس اليوم (وليد، 20 أكتوبر 2026، عن طريق الـ super agent، لكل المديرين):** «USE MINIMAX 3.1 FLASH ONLY LOVABEL FOR EYADEX FOR WEB AND FOR LOCAL WAAS CODEX MAKE IT MINIMAX 3.1 FOR LOCACAL ALLL MANAGERS». يعني لـ PosPay: MiniMax بس هو المنفّذ للمهام الجديدة ولجولات تصليح ملاحظات الـ PR. مفيش تشغيل جديد لـ Grok أو Codex كمنفّذ، والتشغيل اللي شغال دلوقتي يخلّص جولته بس. Codex كبوت مراجعة على GitHub (`@codex review`) زي ما هو.
+**تعديل نفس اليوم (وليد، 20 أكتوبر 2026، عن طريق الـ super agent، لكل المديرين):** «USE MINIMAX 3.1 FLASH ONLY LOVABEL FOR EYADEX FOR WEB AND FOR LOCAL WAAS CODEX MAKE IT MINIMAX 3.1 FOR LOCACAL ALLL MANAGERS». يعني لـ PosPay: MiniMax بس هو المنفّذ للمهام الجديدة ولجولات تصليح ملاحظات الـ PR. مفيش تشغيل جديد لـ Grok أو Codex كمنفّذ، والتشغيل اللي شغال دلوقتي يخلّص جولته بس. Codex كبوت مراجعة على GitHub (`@codex review`) زي ما هو. **التعديل ده بيلغي الاختيار (أ) اللي فوق.** القاعدة النهائية: MiniMax هو المنفّذ الوحيد، وGrok مايتشغّلش لأي مهمة، حتى الكبيرة أو الحساسة.
 
 **الأثر على الشغل:**
 - `.claude/skills/pospay-pipeline/SKILL.md` §1 اتعدّل: MiniMax (`minimax-coding-plan/MiniMax-M3.1-Flash` عن طريق opencode) هو المنفّذ الوحيد.
