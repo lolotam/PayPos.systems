@@ -115,6 +115,14 @@ pins the PosPay rules on top of it.
    outside the worktree. The record is `docs/owner-decisions.ar.md` item 16. Waleed rotates the SSH passwords and
    tokens himself. Production actions still need his typed yes in the orchestrator's chat.
 
+   **Known residual risk: the gates run MiniMax's code.** The permission file limits what MiniMax can do while it
+   runs. It does not sandbox what runs afterwards: `pnpm check` and the tests execute MiniMax-authored source,
+   tests, package scripts and build config under the orchestrator's own Windows account (Codex on #416). Until a
+   separate OS account or container for the gates is decided (the option PP-11.1 left open, raised again to Waleed
+   on 2026-10-20), the line-by-line review is the barrier. Read every changed script, test, config file and anything a
+   gate imports before running a gate, and treat an unexplained `child_process`, network, `fs` access outside the
+   worktree, or a changed `package.json` script as a stop-and-report finding.
+
    **Every limit below must be in place before each run.** `check-opencode.cjs` refuses the run when one is missing:
    - the shell is denied outright (`bash` and `shell`), as are `execute`, which is code mode and reaches opencode's
      internal `tools.opencode.*` (eyadex saw MiniMax use it to hunt for the banned `grep`), and `grep`, which
