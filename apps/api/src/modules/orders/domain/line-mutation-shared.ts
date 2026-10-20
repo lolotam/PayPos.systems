@@ -1,4 +1,4 @@
-import type { LineEditPerformer } from './line-edit-identity.ts';
+import { assertEditorIsNotPerformer, type LineEditPerformer } from './line-edit-identity.ts';
 import type { SessionEditAccess } from './line-edit-editor.ts';
 import { SessionError } from './session-error.ts';
 
@@ -77,4 +77,27 @@ export async function refuseStaleLine(load: () => Promise<{ revision: number } |
   const fresh = await load();
   if (fresh === null) throw new SessionError('FORBIDDEN');
   throw new SessionError('SESSION_LINE_REVISION_STALE', { current_revision: fresh.revision });
+}
+
+/**
+ * يطبّق قاعدة «لا تكتب على سطر أنت منفّذته» على كل كتّاب السطر، بنفس دالة التعديل.
+ * الرمز المفقود للّقطة يُترجم هنا إلى الرمز المشترك بين الإلغاء وتغيير المنفّذين، لأن جملة التعديل نفسها
+ * لا تصلح لكتّاب آخرين؛ الدالة لا تقرّر أي مجموعة هوية ولا تراها.
+ *
+ * @param actorUserId المستخدم الفاعل: الملغية أو صاحبة التغيير
+ * @param performers هوية المنفّذات المجمّعة: الحالية والمتبقية والمطلوبة
+ * @returns لا شيء؛ التطابق أو غياب اللقطة يرفض
+ */
+export function assertActorIsNotPerformer(
+  actorUserId: string,
+  performers: readonly LineEditPerformer[],
+): void {
+  try {
+    assertEditorIsNotPerformer(actorUserId, performers);
+  } catch (error) {
+    if (error instanceof SessionError && error.code === 'SESSION_EDIT_IDENTITY_UNKNOWN') {
+      throw new SessionError('SESSION_LINE_IDENTITY_UNKNOWN');
+    }
+    throw error;
+  }
 }
