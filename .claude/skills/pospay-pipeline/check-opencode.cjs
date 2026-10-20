@@ -66,11 +66,12 @@ const pathMaps = {
     ...generatedPaths,
     ...otherDrivePaths,
   ]),
-  glob: ordered([['*'], 'allow'], [[...gitPaths, ...otherDrivePaths], 'deny']),
 };
-// Only read, edit (which covers write) and glob may be allowed, through the path maps above; everything named
-// here must be an explicit "deny" (owner's lists, SA-6, SA-7.1 and the 2026-10-20 execute broadcast).
+// Only read and edit (which covers write) may be allowed, through the path maps above; everything named here must
+// be an explicit "deny" (owner's lists, SA-6, SA-7.1 and the 2026-10-20 execute broadcast). glob is denied because
+// opencode checks it against the pattern only, never the search root (Codex on #416).
 const mustDeny = [
+  'glob',
   'list',
   'todowrite',
   'todoread',

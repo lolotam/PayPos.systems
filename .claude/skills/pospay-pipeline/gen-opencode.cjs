@@ -52,8 +52,6 @@ const driveLetterPaths = 'ABCDEGHIJKLMNOPQRSTUVWXYZ'
 // A path that starts with a slash is never inside a worktree: it is a UNC share (\\host\C$), a Windows namespace
 // path (\\?\C:), or a root on the current drive. Codex on #416 flagged the first two as able to skip a drive-letter deny.
 const otherDrivePaths = [...driveLetterPaths, `${BS}*`, '/*'];
-const denyAfterAllow = (paths) =>
-  Object.fromEntries([['*', 'allow'], ...paths.map((p) => [p, 'deny'])]);
 // The last matching rule wins, so the order is the policy: env denies, the template allows, then every protected tree.
 const fileRules = (protectedPaths) =>
   Object.fromEntries([
@@ -78,9 +76,11 @@ const permission = {
     ...generatedPaths,
     ...otherDrivePaths,
   ]),
-  glob: denyAfterAllow([...gitPaths, ...otherDrivePaths]),
-  // Already refused by "*", each named so the owner's lists can be checked line by line. Only read, edit
-  // (which covers write) and glob are allowed.
+  // opencode checks the glob permission against the pattern only, never the search root, so no path rule could keep
+  // a glob out of .git, another drive or a share (Codex on #416). Briefs name every file, so MiniMax needs no glob.
+  glob: 'deny',
+  // Already refused by "*", each named so the owner's lists can be checked line by line. Only read and edit
+  // (which covers write) are allowed.
   list: 'deny',
   todowrite: 'deny',
   todoread: 'deny',
