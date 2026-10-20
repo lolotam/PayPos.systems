@@ -60,4 +60,4 @@ A scratch database on PostgreSQL 16.15 (the dev compose image) confirmed this. I
 - No new extension, migration or grant. RLS is unchanged.
 - #373 closes as "won't index under RLS". The catalog service picker
   (`apps/api/src/modules/catalog/queries/session-service-options.query.ts`) runs the same `LIKE` on `services` and is
-  bounded the same way; its plan test is a separate follow-up issue.
+  bounded the same way; its plan test is follow-up issue #410.
