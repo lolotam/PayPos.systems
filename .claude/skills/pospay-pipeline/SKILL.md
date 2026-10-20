@@ -182,7 +182,8 @@ pins the PosPay rules on top of it.
 
    **The guard scripts run from a trusted copy, never from the worktree.** MiniMax may not edit `.claude` (an `edit`
    deny), and as a second barrier the checker, the template and the session stopper are staged before every run
-   from the last reviewed `main` into `F:\Dev\Worktrees\PosPay\briefs\guard\`. That folder is outside the worktree,
+   from the last reviewed `main` into `F:\Dev\Worktrees\PosPay\briefs\guard\<worktree folder>\`, one folder per
+   worktree so parallel tasks never replace each other's copy. That folder is outside the worktree,
    so `external_directory` keeps MiniMax out of it. The `finally` block runs only those copies, because it executes
    after MiniMax returns and before the diff is reviewed. The session stopper calls `opencode.exe` by its absolute
    path with no shell, so an `opencode.cmd` planted in the worktree cannot run.
@@ -194,7 +195,7 @@ pins the PosPay rules on top of it.
    if (-not (Test-Path .git -PathType Leaf)) { throw 'MiniMax runs only at a worktree root, where .git is a file' }
    if ((Test-Path .opencode) -or (Test-Path opencode.jsonc)) { throw 'a .opencode folder or opencode.jsonc exists: inspect it, stop' }
    $worktree = (Get-Location).Path
-   $guard = 'F:\Dev\Worktrees\PosPay\briefs\guard'
+   $guard = Join-Path 'F:\Dev\Worktrees\PosPay\briefs\guard' (Split-Path $worktree -Leaf)
    if (Test-Path $guard) { Remove-Item $guard -Recurse -Force }
    New-Item -ItemType Directory $guard | Out-Null
    git fetch -q origin main
