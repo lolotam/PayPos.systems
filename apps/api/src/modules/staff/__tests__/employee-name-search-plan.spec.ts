@@ -9,6 +9,12 @@ import {
   type SessionFixture,
 } from '../../../../test/service-session.fixture.ts';
 import { takeTestEmployeeNumbers } from '../../../../test/test-employee-number.ts';
+import {
+  PLAN_PROBLEMS,
+  planNodes,
+  tenantBoundProblems,
+  type PlanNode,
+} from './employee-name-search-plan.check.ts';
 
 // اختبارات خطة البحث بالاسم: قائمة الموظفين ومنتقي موظف الاستقبال (ADR-0048).
 // السبب: تحت FORCE RLS لا يتحوّل LIKE إلى شرط فهرس لأن textlike ليس LEAKPROOF، فالفهرس
@@ -33,108 +39,13 @@ const businessIds = new Set<string>();
 const targetIds: string[] = [];
 const fillerIds: string[] = [];
 
-interface PlanNode {
-  'Node Type'?: string;
-  'Relation Name'?: string;
-  'Index Name'?: string;
-  Filter?: string;
-  'Index Cond'?: string;
-  'Actual Rows'?: number;
-  'Actual Loops'?: number;
-  'Rows Removed by Filter'?: number;
-  Plans?: PlanNode[];
-}
-
-function safeJson(value: string): unknown {
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-// عقدة واحدة لكل علاقة في الشجرة، مع كل حقولها؛ العدّاد يحتاج الصفوف المقروءة لا النوع فقط.
-function planNodes(plan: unknown): PlanNode[] {
-  const nodes: PlanNode[] = [];
-  const visit = (value: unknown): void => {
-    if (typeof value === 'string') {
-      const parsed = safeJson(value);
-      if (parsed !== null) visit(parsed);
-      return;
-    }
-    if (value === null || typeof value !== 'object') return;
-    if (Array.isArray(value)) {
-      for (const item of value) visit(item);
-      return;
-    }
-    const record = value as Record<string, unknown>;
-    if (typeof record['Node Type'] === 'string') {
-      nodes.push(record as PlanNode);
-      visit(record['Plans']);
-      return;
-    }
-    visit(record['Plan']);
-    visit(record['QUERY PLAN']);
-  };
-  visit(plan);
-  return nodes;
-}
-
-// العقدة التي تقرأ جدول الموظفين هي وحدها التي يصحّ أن تقيس حدود المسح.
-function employeesNodes(nodes: PlanNode[]): PlanNode[] {
-  return nodes.filter((node) => node['Relation Name'] === 'employees');
-}
-
-function rowsRead(node: PlanNode): number {
-  return (
-    ((node['Actual Rows'] ?? 0) + (node['Rows Removed by Filter'] ?? 0)) *
-    (node['Actual Loops'] ?? 1)
-  );
-}
-
-// أي واحدة من دي لو اتكسرت يبقى البحث بقى بيقرا جدول الموظفين برّه حدود النشاط (ADR-0048).
+// الفحص كله في ملف الفاحص؛ هنا غلاف رقيق بيقول إن قائمة المشاكل فاضية، يعني المخطط
+// مربوط بمفتاح المستأجر ومش بيقرا برّه حدود النشاط (ADR-0048).
 function assertTenantBounded(nodes: PlanNode[], label: string, allowedRows: number) {
-  const employees = employeesNodes(nodes);
-  expect(employees.length, `${label}: no employees node in the plan`).toBeGreaterThan(0);
   expect(
-    employees.some((node) => node['Node Type'] === 'Seq Scan'),
-    `${label}: employees is read by a sequential scan`,
-  ).toBe(false);
-  const indexNames = employees
-    .map((node) => node['Index Name'])
-    .filter((name): name is string => typeof name === 'string');
-  expect(
-    indexNames.some((name) => /employees_company_business_id_(idx|key)/.test(name)),
-    `${label}: employees is not read through the tenant index (${indexNames.join(', ')})`,
-  ).toBe(true);
-  // الدليل الذي لا يتأثر بشكل المخطط: الوصول لجدول الموظفين مربوط بالشركة والنشاط معاً.
-  const bound = employees
-    .map((node) => `${node['Index Cond'] ?? ''} ${node['Filter'] ?? ''}`)
-    .join(' ');
-  expect(
-    bound,
-    `${label}: the employees access is not bound by company_id and business_id`,
-  ).toMatch(/company_id/);
-  expect(
-    bound,
-    `${label}: the employees access is not bound by company_id and business_id`,
-  ).toMatch(/business_id/);
-  for (const node of employees) {
-    expect(
-      node['Index Cond'] ?? '',
-      `${label}: the name predicate became an index condition`,
-    ).not.toMatch(/name_ar|name_en/);
-  }
-  expect(
-    employees.some((node) => (node['Filter'] ?? '').includes('name_ar')),
-    `${label}: the name predicate is not a filter`,
-  ).toBe(true);
-  for (const node of employees) {
-    expect(
-      rowsRead(node),
-      `${label}: the node read more rows than the business holds`,
-    ).toBeLessThanOrEqual(allowedRows);
-  }
+    tenantBoundProblems(nodes, allowedRows),
+    `${label}: the plan is not bounded by the tenant index`,
+  ).toEqual([]);
 }
 
 async function seedFiller(
@@ -276,4 +187,83 @@ it('the name search returns the searched business only and hides every filler ro
       expect(performed.some((id) => fillerIds.includes(id))).toBe(false);
     }
   }
+});
+
+// اختبارات الفاحص نفسه: مخططات مكتوبة باليد بلا داتابيز، عشان الفاحص ما يعديش وهو
+// بيفشل صامت. كل حالة تخرب هنا لازم ترجّع مشكلة مسمّاة، وكل حالة سليمة ترجّع فاضية.
+const TENANT_COND = '(e.company_id = 1 AND e.business_id = 2)';
+const NAME_PREDICATE = '(lower(e.name_ar) ~~ lower(e.name_en))';
+const NAME_FILTER = `(e.deleted_at IS NULL AND ${NAME_PREDICATE})`;
+
+const indexScanPlan = (cond = TENANT_COND, filter = NAME_FILTER): PlanNode[] => [
+  {
+    'Node Type': 'Index Scan',
+    'Relation Name': 'employees',
+    'Index Name': 'employees_company_business_id_idx',
+    'Index Cond': cond,
+    Filter: filter,
+    'Actual Rows': 3,
+    'Actual Loops': 1,
+    'Rows Removed by Filter': 4,
+  },
+];
+
+const bitmapHeapPlan = (cond = TENANT_COND): PlanNode[] => [
+  {
+    'Node Type': 'Bitmap Heap Scan',
+    'Relation Name': 'employees',
+    Filter: NAME_FILTER,
+    'Actual Rows': 3,
+    'Actual Loops': 1,
+    'Rows Removed by Filter': 4,
+    'Rows Removed by Index Recheck': 0,
+    Plans: [
+      {
+        'Node Type': 'Bitmap Index Scan',
+        'Index Name': 'employees_company_business_id_idx',
+        'Index Cond': cond,
+        'Actual Rows': 7,
+        'Actual Loops': 1,
+      },
+    ],
+  },
+];
+
+const seqScanPlan = (): PlanNode[] => [
+  {
+    'Node Type': 'Seq Scan',
+    'Relation Name': 'employees',
+    Filter: NAME_FILTER,
+    'Actual Rows': 3,
+    'Actual Loops': 1,
+    'Rows Removed by Filter': 4000,
+  },
+];
+
+it('the plan checker accepts an index scan bounded by the tenant keys', () => {
+  expect(tenantBoundProblems(indexScanPlan(), 7)).toEqual([]);
+});
+
+it('the plan checker accepts a bitmap heap scan whose bitmap index scan carries the tenant keys', () => {
+  expect(tenantBoundProblems(bitmapHeapPlan(), 7)).toEqual([]);
+});
+
+it('the plan checker rejects a tenant key that moved from the index condition to the filter', () => {
+  const problems = tenantBoundProblems(
+    indexScanPlan('(e.business_id = 2)', `(e.company_id = 1 AND ${NAME_PREDICATE})`),
+    7,
+  );
+  expect(problems.join(' | ')).toContain(PLAN_PROBLEMS.unboundTenant);
+});
+
+it('the plan checker rejects a sequential scan on employees', () => {
+  expect(tenantBoundProblems(seqScanPlan(), 7).join(' | ')).toContain(PLAN_PROBLEMS.sequentialScan);
+});
+
+it('the plan checker rejects a name predicate inside an index condition', () => {
+  const problems = tenantBoundProblems(
+    indexScanPlan(`(e.company_id = 1 AND e.business_id = 2 AND ${NAME_PREDICATE})`),
+    7,
+  );
+  expect(problems.join(' | ')).toContain(PLAN_PROBLEMS.nameInIndexCond);
 });

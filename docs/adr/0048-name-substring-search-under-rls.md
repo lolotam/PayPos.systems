@@ -19,9 +19,11 @@ index (`pg_trgm`, GIN `gin_trgm_ops` on the two lowered names).
 `employees` has FORCE ROW LEVEL SECURITY. `pospay_app` reads it through the policy
 `employees_select ... USING (company_id = app_company_id())` (migration 0039), inside `withTenant()` (`CLAUDE.md` §5).
 
-PostgreSQL applies the RLS qual before any user qual. A user qual can become an index condition only when it is
-`LEAKPROOF`, so that it cannot run on a row the policy would hide. `LIKE` is `~~`, implemented by
-`pg_catalog.textlike`, which is not leakproof (`proleakproof = f`; `lower` is not leakproof either; `texteq` is).
+PostgreSQL gives the policy's qual a lower security level than the quals the query itself writes, and evaluates
+it first. A qual at a higher level can become an index condition only when every function in it is `LEAKPROOF`, so
+it cannot run on a row the policy would hide (`restriction_is_securely_promotable` in the planner). `LIKE` is `~~`,
+implemented by `pg_catalog.textlike`, which is not leakproof (`proleakproof = f`; `lower` is not leakproof either;
+`texteq` is). A qual inside the policy itself is not held back this way.
 
 A scratch database on PostgreSQL 16.15 (the dev compose image) confirmed this. It had a table shaped like
 `employees`, both trigram indexes and FORCE RLS:
@@ -36,19 +38,23 @@ A scratch database on PostgreSQL 16.15 (the dev compose image) confirmed this. I
 
 1. **No trigram index, and no `pg_trgm` extension, for these searches.** It would cost write time and disk and would
    never be chosen for `pospay_app`.
-2. **The tenant B-tree bounds the scan.** Both queries filter on `company_id` and `business_id`, so the planner reads
-   only that business's employees through `employees_company_business_id_idx` (or the matching key), then filters
-   by name. Each query has an `EXPLAIN ANALYZE` test, run without `enable_seqscan=off` and with other tenants' rows
-   present. The test checks that the plan reads `employees` through that index, that it has no sequential scan
-   on `employees`, and that it reads no more rows than the business holds. A change that drops the tenant filter,
-   or reorders it out of the index, fails the test.
+2. **The tenant B-tree bounds the scan.** Both queries filter on `company_id` and `business_id` with leakproof
+   equality, so the planner can read only that business's employees through `employees_company_business_id_idx` (or
+   the matching key), then filter by name. Each query has an `EXPLAIN ANALYZE` test, run without
+   `enable_seqscan=off` and with other tenants' rows present. The test checks that the plan reads `employees` through
+   that index, that it has no sequential scan on `employees`, and that it reads no more rows than the business holds.
+   A change that drops the tenant filter, or reorders it out of the index, fails the test.
+   The planner's choice is cost-based, so this holds when the business is a small share of `employees`, which is the
+   multi-tenant case. When one business holds most of the table, a sequential scan is legitimate: it reads about the
+   same number of rows the index would, and RLS still hides every other tenant's row. The 20,000-employee probe above
+   (half the table) still used the tenant index.
 3. **`ALTER FUNCTION pg_catalog.textlike LEAKPROOF` is rejected.** It needs a superuser. It edits `pg_catalog` in our
    database, which `pg_dump` does not carry, so a restored backup would quietly lose the index's use. Upstream
    deliberately leaves `textlike` without `LEAKPROOF`. The shared server's migration role may not be a superuser.
-4. **This is a project-wide constraint.** Under FORCE RLS, a non-leakproof predicate (`LIKE`, `ILIKE`, `~`, `lower()`,
-   most functions) never drives an index, whatever the index type. Only leakproof comparisons (`=`, `<`, `>` on the
-   built-in types) on the tenant key, or on columns indexed with it, narrow the rows read. A new search must be
-   bounded by such a filter.
+4. **This is a project-wide constraint.** On a table behind a tenant policy, a predicate the query writes that uses
+   a non-leakproof function (`LIKE`, `ILIKE`, `~`, `lower()`, most functions) never drives an index, whatever the
+   index type. Only leakproof comparisons (`=`, `<`, `>` on the built-in types) on the tenant key, or on columns
+   indexed with it, narrow the rows read. A new search must be bounded by such a filter.
 5. **If substring search is ever needed at scale**, it needs its own design and slice, not an index on these
    queries. One example is a tenant-keyed side table of name trigrams, matched with equality and then rechecked with
    `LIKE`. Another is a different search contract (prefix only, or an external search service).
