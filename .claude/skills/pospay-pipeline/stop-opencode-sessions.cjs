@@ -100,7 +100,10 @@ for (const s of busy) {
   }
   let reply;
   try {
-    reply = execFileSync(exe, ['api', 'post', `/api/session/${s.id}/interrupt`], {
+    // --standalone starts a private server under the isolated environment above, instead of asking the shared background
+    // service, which runs with the user's global config (Codex on #416; about 2 s). It does not revive a killed run's
+    // claim either: both forms answered {"interrupted": false} for one on 2026-10-20, so the check below still decides.
+    reply = execFileSync(exe, ['api', '--standalone', 'post', `/api/session/${s.id}/interrupt`], {
       stdio: ['ignore', 'pipe', 'pipe'],
       // The worktree is the one place already vetted: the dispatch refused a `.opencode` there, the checker
       // refused config in every ancestor, and its only opencode.json is the checked template. opencode searches

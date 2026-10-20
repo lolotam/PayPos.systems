@@ -429,7 +429,8 @@ pins the PosPay rules on top of it.
    shows the claim. Otherwise it fails, and **that session is never continued with `-s`**: its claim could be
    recovered later, so the next round starts a new session (rule 8). Run the staged copy by hand after any kill,
    with `--exe` set to the same checked `opencode.exe` (the stopper refuses any other path); `--dry-run` only lists.
-   The stopper gives the `opencode.exe` it starts the run's isolation on its own: `PWD` set to the worktree, a fresh
+   The stopper calls `opencode.exe api --standalone`, a private server for that one call (about 2 s), never the shared
+   background service, and gives it the run's isolation on its own: `PWD` set to the worktree, a fresh
    config home holding only the two fixed files, and no `OPENCODE_*`, `XDG_DATA_HOME` or caller `XDG_CONFIG_HOME`.
    A manual cleanup from any shell is therefore as isolated as the dispatch. After a failed stop the env files stay
    in `env-stash`; move them back by hand only once the session is confirmed stopped. Until the PR that adds these scripts reaches `main`, stage
