@@ -74,6 +74,8 @@ const localToolPaths = ['.agents', '.vscode', '.idea', '.playwright-mcp'].flatMa
   `${dir}/*`,
   `*/${dir}`,
   `*/${dir}/*`,
+  `*${BS}${dir}`,
+  `*${BS}${dir}${BS}*`,
 ]);
 const generatedPaths = [
   ...ignoredFolders.flatMap((dir) => [

@@ -71,6 +71,8 @@ const localToolPaths = ['.agents', '.vscode', '.idea', '.playwright-mcp'].flatMa
   `${dir}/*`,
   `*/${dir}`,
   `*/${dir}/*`,
+  `*${BS}${dir}`,
+  `*${BS}${dir}${BS}*`,
 ]);
 const generatedPaths = [
   ...ignoredFolders.flatMap((dir) => [
@@ -259,8 +261,17 @@ if (!process.env.PWD || path.resolve(process.env.PWD).toLowerCase() !== worktree
 // points outside it would carry every read past external_directory (Codex on #416). MiniMax cannot create one (no
 // shell), so any such link already there stops the run. pnpm's own links all stay inside the worktree (its store
 // files are hard links, not symlinks): 2,832 of them in the main checkout on 2026-10-20, plus 5 broken ones.
+// A link that stays inside the worktree can still give a protected folder an allowed name (docs/guard -> .claude;
+// MergePilot on #416), so outside node_modules no link is allowed at all (none existed on 2026-10-20), and a pnpm link
+// inside node_modules may not lead into a protected folder or file.
+const PROTECTED_TARGET =
+  /(^|[\\/])(\.git|\.claude|\.opencode|\.agents|\.vscode|\.idea|\.playwright-mcp|\.specify)([\\/]|$)|(^|[\\/])opencode\.[^\\/]*$|(^|[\\/])[^\\/]*\.env(\.[^\\/]*)?$|\.log$/i;
 const escapingLinks = [];
-function checkLink(full) {
+function checkLink(full, insideNodeModules) {
+  if (!insideNodeModules) {
+    escapingLinks.push(full);
+    return;
+  }
   let target;
   try {
     target = fs.realpathSync(full);
@@ -272,7 +283,8 @@ function checkLink(full) {
       target = '';
     }
   }
-  if (!target.toLowerCase().startsWith(worktreeRoot + path.sep)) escapingLinks.push(full);
+  const inside = target.toLowerCase().startsWith(worktreeRoot + path.sep);
+  if (!inside || PROTECTED_TARGET.test(target.slice(worktreeRoot.length))) escapingLinks.push(full);
 }
 // A node_modules tree holds links only at its top level, under @scope folders, and in each .pnpm/<package>/node_modules;
 // the real package files below them hold none, so only those levels are read (about 1.2 s on the main checkout).
@@ -285,11 +297,11 @@ function scanNodeModules(dir) {
   }
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
-    if (entry.isSymbolicLink()) checkLink(full);
+    if (entry.isSymbolicLink()) checkLink(full, true);
     else if (entry.isDirectory() && entry.name.startsWith('@')) scanNodeModules(full);
     else if (entry.isDirectory() && entry.name === '.pnpm') {
       for (const pkg of fs.readdirSync(full, { withFileTypes: true })) {
-        if (pkg.isSymbolicLink()) checkLink(path.join(full, pkg.name));
+        if (pkg.isSymbolicLink()) checkLink(path.join(full, pkg.name), true);
         else if (pkg.isDirectory()) scanNodeModules(path.join(full, pkg.name, 'node_modules'));
       }
     }
@@ -307,14 +319,16 @@ const hardLinked = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name === '.git') continue;
     const full = path.join(dir, entry.name);
-    if (entry.isSymbolicLink()) checkLink(full);
+    if (entry.isSymbolicLink()) checkLink(full, false);
     else if (entry.isDirectory() && entry.name === 'node_modules') scanNodeModules(full);
     else if (entry.isDirectory()) scanLinks(full);
     else if (entry.isFile() && fs.statSync(full).nlink > 1) hardLinked.push(full);
   }
 })(path.dirname(path.resolve(file)));
 if (escapingLinks.length)
-  problems.push(`links that leave the worktree (remove them first): ${escapingLinks.join(', ')}`);
+  problems.push(
+    `links outside node_modules, or leading out of the worktree or into a protected path (remove them first): ${escapingLinks.join(', ')}`,
+  );
 if (hardLinked.length)
   problems.push(
     `files with more than one hard-link name (remove them first): ${hardLinked.join(', ')}`,
@@ -350,7 +364,9 @@ function shortNameLines(dirs) {
     const unsafe = batch.find((dir) => dir.includes('%') || dir.includes('"'));
     if (unsafe) throw new Error(`a folder name holds % or ", which cmd would expand: ${unsafe}`);
     const command = `/d /v:off /c dir /x /a ${batch.map((dir) => `"${dir}"`).join(' ')}`;
-    const listing = execFileSync('cmd.exe', [command], {
+    // By absolute path, so a cmd.exe in the current folder can never be picked instead (MergePilot on #416).
+    const cmdExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
+    const listing = execFileSync(cmdExe, [command], {
       encoding: 'utf8',
       windowsVerbatimArguments: true,
     });

@@ -158,9 +158,14 @@ pins the PosPay rules on top of it.
      Those links cannot be told apart from a planted one without listing each file's other names, so a hard link
      placed inside `node_modules` to a secret is a known residual risk. MiniMax cannot create one without a shell,
      the worktree's `node_modules` comes from a fresh `pnpm install`, and the separate-account question covers it;
-   - the checker refuses the run when a symlink or junction inside the worktree resolves outside it, or would if it
-     is broken, because opencode authorizes the written path and then follows the link (Codex on #416). MiniMax
-     cannot make one without a shell. In `node_modules` it reads only the levels pnpm links at (the top, `@scope`
+   - the checker refuses the run when any symlink or junction exists outside `node_modules` (none did on
+     2026-10-20), and when a link inside `node_modules` resolves outside the worktree, or would if it is broken, or
+     into a protected path (`.git`, `.claude`, `.opencode`, `.agents`, `.vscode`, `.idea`, `.playwright-mcp`,
+     `.specify`, `opencode.*`, an env file or a log). opencode authorizes the written path and then follows the link,
+     so even a link to `.claude` inside the worktree would give it an allowed name (Codex and MergePilot on #416).
+     MiniMax cannot make one without a shell. Tested: `docs/guard-link` to `.claude` and `node_modules/evil` to
+     `.vscode` were refused, and a pnpm-style link was allowed. In `node_modules` it reads only the levels pnpm links
+     at (the top, `@scope`
      folders and each `.pnpm/<package>/node_modules`), about 1.2 s. pnpm's store files are hard links, and on
      2026-10-20 all 2,832 links of the main checkout stayed inside it, except 5 stale `apps/pos` links to the old
      `F:\Dev\Projects\PayPos.systems` path, which the check rightly refuses. Run `pnpm install` in a worktree that
