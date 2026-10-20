@@ -70,8 +70,12 @@ const permission = {
 // The dispatch pins this agent with --agent. Agent permissions win over top-level ones, so a default_agent or
 // agent permissions added later to the global config cannot loosen this map; the top-level copy covers anything
 // that runs without an agent.
+// Formatters run after every edit and LSP servers start when a file opens, both as host processes outside every
+// permission rule; a formatter also loads project config MiniMax could edit. The orchestrator formats and checks.
 const config = {
   $schema: 'https://opencode.ai/config.json',
+  formatter: false,
+  lsp: false,
   permission,
   agent: {
     'pospay-minimax': {

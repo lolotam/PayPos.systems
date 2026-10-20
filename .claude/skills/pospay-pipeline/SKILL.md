@@ -149,6 +149,11 @@ pins the PosPay rules on top of it.
    - every run uses `--standalone`, a private opencode server started from this checked environment. The shared
      `opencode serve --service` keeps the `OPENCODE_*` variables and config it started with, so checking this
      shell's environment would prove nothing about it;
+   - `formatter` and `lsp` are `false` in the template, and the checker requires it. opencode runs formatters
+     (prettier, and others) after every edit, and starts built-in LSP servers when a file opens, as host processes
+     outside every permission rule. A formatter also loads project config that MiniMax could edit. The orchestrator
+     formats with `pnpm format` when it runs the gates. A 2026-10-20 run wrote `const   x  =  1` and it stayed
+     unformatted;
    - **every run uses an isolated global config home**: the dispatch points `XDG_CONFIG_HOME` at a fresh
      `briefs\guard\<worktree>\xdg-config`, outside the worktree, holding only a fixed one-line `AGENTS.md`. None of
      Waleed's global opencode config loads. On 2026-10-20 that global config started 28 MCP servers on every run,

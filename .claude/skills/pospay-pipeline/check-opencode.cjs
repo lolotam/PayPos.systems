@@ -100,8 +100,12 @@ function checkPermissionMap(permission, where) {
 }
 
 for (const key of Object.keys(config)) {
-  if (!['$schema', 'permission', 'agent'].includes(key))
+  if (!['$schema', 'formatter', 'lsp', 'permission', 'agent'].includes(key))
     problems.push(`top-level key "${key}" is not allowed`);
+}
+// Formatters and LSP servers run as host processes outside every permission rule, so both must be off.
+for (const key of ['formatter', 'lsp']) {
+  if (config[key] !== false) problems.push(`${key} must be false`);
 }
 checkPermissionMap(config.permission, 'permission');
 
