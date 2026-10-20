@@ -47,8 +47,8 @@ function asRendererError(error: unknown): Error {
 }
 
 /**
- * newContext المعلّق بيسيب Chromium متعلم متاح، ومفتاح الحياة يفضل يعرضه.
- * لو السياق جه جوّه المهلة يتقفل لوحده؛ لو ما جاش المتصفح يتقفل عشان disconnected يعيد الإطلاق.
+ * newContext المعلّق لو استنيناه بلا سقف، المهلة الكلية ما بتخلّصش الرندر.
+ * رجوع السياق جوّه المهلة يتقفل لوحده؛ اللي ما جاش بيتساب معلّق والمتصل يتقاعد من غير close.
  */
 async function openWithinGrace(
   opening: Promise<PdfContext>,
@@ -70,12 +70,12 @@ async function openWithinGrace(
   return { settled, context };
 }
 
+/** قفل السياق جوّه المهلة يسيب المتصفح. اللي ما خلّصش بيتقاعد من برّه، من غير close بلا حد. */
 async function closeHungContext(
   context: PdfContext,
-  browser: PdfBrowser | null,
   graceMs: number,
   sleep: (ms: number) => Promise<void>,
-): Promise<void> {
+): Promise<boolean> {
   let finished = false;
   const closing = context.close().then(
     () => {
@@ -86,7 +86,40 @@ async function closeHungContext(
     },
   );
   await Promise.race([closing, sleep(graceMs)]);
-  if (!finished) await browser?.close().catch(() => undefined);
+  return !finished;
+}
+
+/**
+ * close على البروتوكول المعلّق ما بيرجع. السباق على sleep المحقون، وبعد المهلة بنقتل العملية.
+ * الرفض المتأخر بيترمى عشان مسار الرندر ما يستناش القفل.
+ */
+async function dropRetiredBrowser(
+  browser: PdfBrowser,
+  graceMs: number,
+  sleep: (ms: number) => Promise<void>,
+): Promise<void> {
+  let finished = false;
+  let closing: Promise<unknown>;
+  try {
+    closing = browser.close();
+  } catch {
+    return;
+  }
+  const pending = closing.then(
+    () => {
+      finished = true;
+    },
+    () => {
+      finished = true;
+    },
+  );
+  await Promise.race([pending, sleep(graceMs)]).catch(() => undefined);
+  if (finished) return;
+  try {
+    browser.kill?.();
+  } catch {
+    // إشارة القتل مش بتوقف إعادة الإطلاق؛ المتصفح القديم مش هو الحالي.
+  }
 }
 
 function armGrace(ms: number): { done: Promise<void>; stop: () => void } {
@@ -319,6 +352,18 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     }
   }
 
+  /**
+   * الإتاحة لازم تسقط حتى لو close معلّق، وإلا مفتاح الحياة يفضل يعرض المتصفح المعلّق.
+   * القفل مش بيتستناه؛ البروتوكول المعلّق ما بيرجّع close فبعد المهلة بنقتل العملية.
+   */
+  #retire(browser: PdfBrowser): void {
+    if (this.#browser !== browser) return;
+    this.#browser = null;
+    this.#markUnavailable();
+    this.#scheduleRelaunch();
+    void dropRetiredBrowser(browser, this.#browserCloseGraceMs, this.#sleep).catch(() => undefined);
+  }
+
   async #closeAfterTimeout(
     context: PdfContext | undefined,
     opening: Promise<PdfContext>,
@@ -329,10 +374,11 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
         ? await openWithinGrace(opening, this.#browserCloseGraceMs, this.#sleep)
         : { settled: true, context };
     if (late.context !== undefined) {
-      await closeHungContext(late.context, browser, this.#browserCloseGraceMs, this.#sleep);
+      const hung = await closeHungContext(late.context, this.#browserCloseGraceMs, this.#sleep);
+      if (hung) this.#retire(browser);
       return;
     }
-    if (!late.settled) await browser.close().catch(() => undefined);
+    if (!late.settled) this.#retire(browser);
   }
 
   #hooks(onAborted: RenderOptions['onAbortedRequest']): RenderPageHooks {

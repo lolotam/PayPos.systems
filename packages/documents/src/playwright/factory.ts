@@ -62,10 +62,36 @@ function wrapContext(context: BrowserContext): PdfContext {
   };
 }
 
+type KillableProcess = { kill(signal: NodeJS.Signals): boolean };
+
+/**
+ * Playwright 1.63 شال Browser.process() من الواجهة العامة.
+ * عملية Chromium لسه على اتصال الإطلاق المحلي، و SIGKILL هو اللي يفك البروتوكول المعلّق.
+ */
+function chromiumProcess(browser: Browser): KillableProcess | null {
+  const published = browser as Browser & { process?: () => KillableProcess | null };
+  if (typeof published.process === 'function') return published.process() ?? null;
+  const owned = browser as unknown as {
+    _connection?: {
+      toImpl?: (owner: Browser) => {
+        options?: { browserProcess?: { process?: KillableProcess | null } };
+      };
+    };
+  };
+  try {
+    return owned._connection?.toImpl?.(browser)?.options?.browserProcess?.process ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function wrapBrowser(browser: Browser): PdfBrowser {
   return {
     newContext: async (options) => wrapContext(await browser.newContext(options)),
     close: () => browser.close(),
+    kill: () => {
+      chromiumProcess(browser)?.kill('SIGKILL');
+    },
     on: (event, listener) => {
       browser.on(event, listener);
     },

@@ -33,6 +33,8 @@ export interface PdfBrowser {
   newContext(options: PdfContextOptions): Promise<PdfContext>;
   close(): Promise<void>;
   on(event: 'disconnected', listener: () => void): void;
+  /** البروتوكول المعلّق ما بيرجّعش close، فالقتل هو اللي يفضي المكان للإطلاق الجاي. */
+  kill?(): void;
 }
 
 export interface PdfBrowserFactory {
