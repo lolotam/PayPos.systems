@@ -265,7 +265,7 @@ if (!process.env.PWD || path.resolve(process.env.PWD).toLowerCase() !== worktree
 // MergePilot on #416), so outside node_modules no link is allowed at all (none existed on 2026-10-20), and a pnpm link
 // inside node_modules may not lead into a protected folder or file.
 const PROTECTED_TARGET =
-  /(^|[\\/])(\.git|\.claude|\.opencode|\.agents|\.vscode|\.idea|\.playwright-mcp|\.specify)([\\/]|$)|(^|[\\/])opencode\.[^\\/]*$|(^|[\\/])[^\\/]*\.env(\.[^\\/]*)?$|\.log$/i;
+  /(^|[\\/])(\.git|\.claude|\.opencode|\.agents|\.vscode|\.idea|\.playwright-mcp|\.specify)([\\/]|$)|(^|[\\/])opencode\.[^\\/]*$|(^|[\\/])[^\\/]*\.env(\.[^\\/]*)?$|\.log$|-debug\.log[^\\/]*$/i;
 const escapingLinks = [];
 function checkLink(full, insideNodeModules) {
   if (!insideNodeModules) {
@@ -314,17 +314,32 @@ const scannedDirs = [];
 // did on 2026-10-20 (3,830 files in a worktree, 18,758 in the main checkout). pnpm hard-links node_modules files to its
 // store of public package code, which MiniMax may read but not edit.
 const hardLinked = [];
+// The root .git is the one entry the scan skips, and git status and reset trust it, so it must be the plain pointer
+// a worktree gets: a regular file with one name (not a link, not a hard link) that points into the main checkout's
+// .git/worktrees folder (Codex on #416).
+const worktreeDir = path.dirname(path.resolve(file));
+const gitPointer = path.join(worktreeDir, '.git');
+try {
+  const pointer = fs.lstatSync(gitPointer);
+  const gitdir = fs.readFileSync(gitPointer, 'utf8').trim();
+  if (!pointer.isFile() || pointer.isSymbolicLink() || pointer.nlink !== 1)
+    problems.push(`${gitPointer} must be a plain file with one name, not a link`);
+  else if (!/^gitdir: .+[\\/]\.git[\\/]worktrees[\\/][^\\/]+$/.test(gitdir))
+    problems.push(`${gitPointer} does not point into a .git/worktrees folder: ${gitdir}`);
+} catch (error) {
+  problems.push(`cannot validate ${gitPointer} (${error.message})`);
+}
 (function scanLinks(dir) {
   scannedDirs.push(dir);
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === '.git') continue;
+    if (entry.name === '.git' && dir === worktreeDir) continue;
     const full = path.join(dir, entry.name);
     if (entry.isSymbolicLink()) checkLink(full, false);
     else if (entry.isDirectory() && entry.name === 'node_modules') scanNodeModules(full);
     else if (entry.isDirectory()) scanLinks(full);
     else if (entry.isFile() && fs.statSync(full).nlink > 1) hardLinked.push(full);
   }
-})(path.dirname(path.resolve(file)));
+})(worktreeDir);
 if (escapingLinks.length)
   problems.push(
     `links outside node_modules, or leading out of the worktree or into a protected path (remove them first): ${escapingLinks.join(', ')}`,
