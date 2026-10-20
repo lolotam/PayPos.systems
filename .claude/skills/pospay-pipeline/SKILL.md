@@ -188,6 +188,7 @@ pins the PosPay rules on top of it.
    path with no shell, so an `opencode.cmd` planted in the worktree cannot run.
 
    ```powershell
+   & {   # a child scope, so the caller's $ErrorActionPreference comes back after any outcome
    $ErrorActionPreference = 'Stop'
    Set-Location F:\Dev\Worktrees\PosPay\<branch>
    if (-not (Test-Path .git -PathType Leaf)) { throw 'MiniMax runs only at a worktree root, where .git is a file' }
@@ -224,6 +225,7 @@ pins the PosPay rules on top of it.
    }
    if ($stopExit -ne 0) { throw 'a MiniMax session could not be stopped: interrupt it by hand before review' }
    if ($opencodeExit -ne 0) { throw "opencode run exited $($opencodeExit), so treat it as a failed run (rule 8)" }
+   }
    ```
 
 2. **Every later round, review-fix rounds included, continues that session** with the same `-s <sid>`, and attaches

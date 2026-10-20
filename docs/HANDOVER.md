@@ -127,7 +127,7 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 - CI (`.github/workflows/ci.yml`) runs on every PR. A `changes` job skips the heavy `check` job when only `docs/**` or `*.md` changed; the small `ci-gate` job always reports, and **`ci-gate` is the check branch protection requires** on `main` (plan v4 T12a).
 - `lint:docs` fails on closing JSX comments, `FIXME`/`HACK`/`XXX`, commented-out code, and on any JSDoc in `domain/**`, `ports/**`, `events/published.ts` that has no Arabic **letter**.
 
-## 4. Status — 2026-10-16
+## 4. Status — 2026-10-16 (the workflow rules in §3 were updated on 2026-10-20; this snapshot was not refreshed)
 
 **Source of truth:** the «المشروع أول بأول» tab of the decisions page
 https://plan.pospay.systems (`public/roadmap.json` in the `lolotam/plan` repo, see `docs/decisions-site.md`),
