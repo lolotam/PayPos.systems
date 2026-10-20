@@ -238,6 +238,32 @@ if (!configHome) {
 if (!process.env.PWD || path.resolve(process.env.PWD).toLowerCase() !== worktreeRoot)
   problems.push(`PWD (${process.env.PWD || 'unset'}) must be the worktree that holds ${file}`);
 
+// opencode authorizes the path as written and then follows a symlink or junction, so a link inside the worktree that
+// points outside it would carry every read past external_directory (Codex on #416). MiniMax cannot create one (no
+// shell), so any such link already there stops the run. node_modules is skipped: pnpm links it to its package store,
+// which holds public package code, and MiniMax may not edit there.
+const SKIP_LINK_SCAN = new Set(['node_modules', '.git', '.pnpm-store']);
+const escapingLinks = [];
+(function scanLinks(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (SKIP_LINK_SCAN.has(entry.name)) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isSymbolicLink()) {
+      let target;
+      try {
+        target = fs.realpathSync(full);
+      } catch {
+        target = '';
+      }
+      if (!target.toLowerCase().startsWith(worktreeRoot + path.sep)) escapingLinks.push(full);
+    } else if (entry.isDirectory()) {
+      scanLinks(full);
+    }
+  }
+})(path.dirname(path.resolve(file)));
+if (escapingLinks.length)
+  problems.push(`links that leave the worktree (remove them first): ${escapingLinks.join(', ')}`);
+
 // opencode can update itself in place (Codex on #416, upstream issue 56835), and every rule here was smoke-tested on
 // one version. Auto-update is off above, and the binary the dispatch will run must be the tested one, so the version
 // is read from the package beside that exact opencode.exe, not from the first one on PATH (Codex on #416). Raise

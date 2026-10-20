@@ -135,6 +135,11 @@ pins the PosPay rules on top of it.
      `.env::$DATA` is the `.env` file itself, and a named stream such as `.env:hidden` is a hidden file that git
      never shows. A 2026-10-20 smoke test read a planted `.env` through `.env::$DATA` before this deny, and refused
      both forms after it, while `README.md` and its absolute `F:\` path still read (Codex on #416);
+   - the checker refuses the run when a symlink or junction inside the worktree (outside `node_modules`, `.git` and
+     `.pnpm-store`) resolves outside it, because opencode authorizes the written path and then follows the link
+     (Codex on #416). MiniMax cannot make one without a shell. The 2026-10-20 worktree had none among 4,449 entries,
+     and the repo tracks no symlink. pnpm's `node_modules` links point at public package code that MiniMax may read
+     but not edit;
    - `read` and `edit` deny any path whose name component ends in a space or a dot (`* `, `* /*`, `*.`, `*./*`).
      opencode 2.0.32 writes such a path literally, so a 2026-10-20 smoke test created folders named `.opencode ` and
      `.claude.` beside the real names, which other Windows tools would treat as the protected folder. After the
