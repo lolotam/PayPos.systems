@@ -113,9 +113,24 @@ the migration. The `DEFAULT 0` is kept on both tables for those rows.
 
 `session_tip_revisions_session_xid_uq` and `slpc_line_xid_uq` become
 `(company_id, session_id | line_id, write_system_id, write_xid)`. The **constraint names do not
-change** — the tests and the plan assertions name them — and migration 0159 builds the new unique
-indexes `CONCURRENTLY` and attaches them with `ADD CONSTRAINT … UNIQUE USING INDEX`, which renames
-the index to the constraint name (ADR-0033).
+change** — the tests and the plan assertions name them.
+
+The swap is **migrations 0159 and 0160**, split so that the table is never left without its unique
+constraint, and the split is the owner's decision PP-9.1 (2026-10-20,
+`docs/owner-decisions.ar.md` item 12): the new index is built `CONCURRENTLY` in a migration of its
+own, and the swap happens in a second migration, in one transaction, with a short `lock_timeout`.
+
+- **0159** builds the two new unique indexes on their own with `CREATE UNIQUE INDEX CONCURRENTLY`,
+  so the build never blocks the writes (ADR-0033).
+- **0160** swaps them in **one transaction** with `lock_timeout = 5s`: a guard block first refuses
+  unless both 0159 indexes exist with `indisvalid` **and** `indisready` — a build that was cut
+  short leaves an INVALID index, and a constraint cannot be attached to one — and only then each
+  old constraint is dropped and re-added **under the same name** with
+  `ADD CONSTRAINT … UNIQUE USING INDEX`, which renames the index to the constraint name.
+
+The swap narrows nothing for the writes of the current cluster: any two rows of one cluster that
+collided before still collide. It only admits the post-restore case — the same xid under a
+different cluster identifier.
 
 ### 5. The seal cannot be forged
 

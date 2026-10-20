@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { systemUuidV7 } from '@pospay/ids';
@@ -18,6 +21,9 @@ import {
 
 const FOREIGN_CLUSTER = 4242;
 const LINE = '01920000-0000-7000-8000-000000004480';
+const SWAP_MIGRATION = fileURLToPath(
+  new URL('../../migrations/0160_2026-10-20_write-seal-system-id-uniques.sql', import.meta.url),
+);
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
@@ -174,6 +180,27 @@ it('keeps a legitimate header for the same session beside a restored one', async
   expect(rows.map((row) => row['cluster'])).toEqual([String(FOREIGN_CLUSTER), cluster?.['id']]);
 });
 
+it('refuses two tip revisions of one session written in the same transaction', async () => {
+  const sessionId = ids.newId();
+  await openSession(owner, tipCtx, sessionId);
+  await rolledBack(async () => {
+    await owner`INSERT INTO session_tip_revisions(company_id,id,business_id,session_id,revision,previous_revision,
+      changed_by,changed_by_membership_id,changed_at,reason,event_id,write_xid)
+      VALUES(${tipCtx.company},${ids.newId()},${tipCtx.business},${sessionId},1,NULL,
+        ${tipCtx.userId},${tipCtx.membershipId},clock_timestamp(),NULL,${ids.newId()},'1'::xid8)`;
+    // التريجر بيعيد ختم الصفّين بنفس (write_system_id, write_xid) بتاع المعاملة، فالقيد الفريد هو اللي بيرفض.
+    const error = await failing(
+      owner,
+      () =>
+        owner`INSERT INTO session_tip_revisions(company_id,id,business_id,session_id,revision,previous_revision,
+        changed_by,changed_by_membership_id,changed_at,reason,event_id,write_xid)
+        VALUES(${tipCtx.company},${ids.newId()},${tipCtx.business},${sessionId},2,1,
+          ${tipCtx.userId},${tipCtx.membershipId},clock_timestamp(),'Replaced the tip',${ids.newId()},'1'::xid8)`,
+    );
+    expect(detail(error)).toEqual({ code: '23505', constraint: 'session_tip_revisions_session_xid_uq' });
+  });
+});
+
 it('refuses a side row and a performer delete for a header from another cluster', async () => {
   const change = ids.newId();
   await rolledBack(async () => {
@@ -278,6 +305,84 @@ it('keeps a legitimate header for the same line beside a restored one', async ()
       VALUES(${changeCtx.company},${ids.newId()},${changeCtx.business},${legitimate},'BEFORE',${ORDER_IDS.employee},1,10000,
         'Synthetic',true,false,false)`;
   });
+});
+
+it('refuses two performer-change headers of one line written in the same transaction', async () => {
+  await rolledBack(async () => {
+    await owner`INSERT INTO service_line_performer_changes(company_id,id,business_id,line_id,revision,previous_revision,reason,changed_at,
+      changed_by,changed_by_membership_id,changer_name_en,write_xid)
+      VALUES(${changeCtx.company},${ids.newId()},${changeCtx.business},${LINE},2,1,'Changed performers',clock_timestamp(),
+        ${changeCtx.userId},${changeCtx.membershipId},'Changer',pg_current_xact_id()::text::xid8)`;
+    // من غير سياق مستأجر slpc_begin بيرجع بدري بعد ما يختم معرّف الـ cluster، فالـ xid بيجي من الـ owner.
+    const error = await failing(
+      owner,
+      () =>
+        owner`INSERT INTO service_line_performer_changes(company_id,id,business_id,line_id,revision,previous_revision,reason,changed_at,
+        changed_by,changed_by_membership_id,changer_name_en,write_xid)
+        VALUES(${changeCtx.company},${ids.newId()},${changeCtx.business},${LINE},3,2,'Changed performers',clock_timestamp(),
+          ${changeCtx.userId},${changeCtx.membershipId},'Changer',pg_current_xact_id()::text::xid8)`,
+    );
+    expect(detail(error)).toEqual({ code: '23505', constraint: 'slpc_line_xid_uq' });
+  });
+});
+
+it('rollback claim: the previous application image writes a tip revision without write_system_id', async () => {
+  const sessionId = ids.newId();
+  await openSession(owner, tipCtx, sessionId);
+  const revision = ids.newId();
+  await rolledBack(async () => {
+    await asApp(owner, tipCtx.company);
+    // نفس جملة النسخة القديمة: من غير write_system_id و write_xid = '0'::xid8.
+    const [row] =
+      await owner`INSERT INTO session_tip_revisions(company_id,id,business_id,session_id,revision,previous_revision,
+        changed_by,changed_by_membership_id,changed_at,reason,event_id,write_xid)
+        SELECT ${tipCtx.company},${revision},${tipCtx.business},${sessionId},1,NULL,
+          ${tipCtx.userId},${tipCtx.membershipId},clock_timestamp(),NULL,${ids.newId()},'0'::xid8
+        WHERE EXISTS (SELECT 1 FROM service_sessions s
+          WHERE s.company_id=${tipCtx.company} AND s.business_id=${tipCtx.business}
+            AND s.branch_id=${tipCtx.branch} AND s.id=${sessionId})
+        RETURNING write_system_id::text AS cluster, write_xid::text AS xid,
+          pg_current_xact_id()::text AS current, public.pospay_system_id()::text AS expected`;
+    expect(row?.['cluster']).toBe(row?.['expected']);
+    expect(row?.['xid']).toBe(row?.['current']);
+    await insertTip(owner, sessionId, revision);
+  });
+});
+
+it('rollback claim: the previous application image writes a performer change without write_system_id', async () => {
+  const change = ids.newId();
+  await rolledBack(async () => {
+    await asApp(owner, changeCtx.company);
+    // نفس قائمة الأعمدة اللي الـ helper بيستخدمها: من غير write_system_id.
+    const [row] =
+      await owner`INSERT INTO service_line_performer_changes(company_id,id,business_id,line_id,revision,previous_revision,reason,changed_at,
+        changed_by,changed_by_membership_id,changer_name_ar,changer_name_en,changer_role,changer_role_is_system,changer_role_name_ar,changer_role_name_en,write_xid)
+        VALUES(${changeCtx.company},${change},${changeCtx.business},${LINE},2,1,'Changed performers',clock_timestamp(),
+          ${changeCtx.userId},${changeCtx.membershipId},NULL,'Changer',NULL,NULL,NULL,NULL,'1'::xid8)
+        RETURNING write_system_id::text AS cluster, write_xid::text AS xid,
+          pg_current_xact_id()::text AS current, public.pospay_system_id()::text AS expected`;
+    expect(row?.['cluster']).toBe(row?.['expected']);
+    expect(row?.['xid']).toBe(row?.['current']);
+    await owner`INSERT INTO service_line_performer_change_rows(company_id,id,business_id,change_id,side,employee_id,performer_ordinal,share_bps,
+      name_en,name_ar,linked_user_id,linked_user_snapshotted,not_clocked_in_warning,approved_leave_warning)
+      VALUES(${changeCtx.company},${ids.newId()},${changeCtx.business},${change},'BEFORE',${ORDER_IDS.employee},1,10000,
+        'Synthetic',NULL,NULL,true,false,false)`;
+  });
+});
+
+it('the swap migration refuses a missing or INVALID index', async () => {
+  const migration = readFileSync(SWAP_MIGRATION, 'utf8');
+  const start = migration.indexOf('DO $$');
+  const end = migration.indexOf('$$;', start);
+  expect(start).toBeGreaterThan(-1);
+  const guard = migration.slice(start, end + 3);
+  // 0160 سمّى الفهرسين بالقيدين، فأسماهما مش موجودين تاني والحارس لازم يرفض.
+  const error = await owner.unsafe(guard).then(
+    () => null,
+    (caught: unknown) => caught,
+  );
+  expect(error).toBeInstanceOf(Error);
+  expect((error as Error).message).toContain('missing or INVALID');
 });
 
 it('the runtime role reads the identifier and may not rewrite the seal', async () => {
