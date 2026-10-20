@@ -21,8 +21,19 @@ const configPaths = [
   `*${BS}.opencode`,
   `*${BS}.opencode${BS}*`,
 ];
-const envPaths = ['.env', '.env.*', '*/.env', '*/.env.*', `*${BS}.env`, `*${BS}.env.*`];
-const envExamplePaths = ['.env.example', '*/.env.example', `*${BS}.env.example`];
+// Every secret env file form the root .gitignore ignores: .env, .env.*, and any *.env such as production.env
+// (Codex on #416). Matching is case-insensitive on Windows, so .ENV is covered too (smoke-tested 2026-10-20).
+const envPaths = [
+  '.env',
+  '.env.*',
+  '*/.env',
+  '*/.env.*',
+  `*${BS}.env`,
+  `*${BS}.env.*`,
+  '*.env',
+  '*.env.*',
+];
+const envExamplePaths = ['.env.example', '*/.env.example', `*${BS}.env.example`, '*.env.example'];
 const claudePaths = [
   '.claude',
   '.claude/*',

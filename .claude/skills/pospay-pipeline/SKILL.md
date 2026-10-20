@@ -141,10 +141,13 @@ pins the PosPay rules on top of it.
      stopper's interrupt of it is harmless;
    - `read` also denies every `opencode.*` file, anything under `.opencode`, and all of `.claude` (where the template
      lives), as `edit` does: MiniMax tried to read its own rules (Emlaa, 2026-10-20);
-   - `read` and `edit` deny `.env` and `.env.*` at any depth, in both slash styles. A worktree's copied `.env` holds
-     database passwords (HANDOVER §3.3), and an explicit `"*": "allow"` would otherwise lift opencode's default
-     protection for it. The tracked `.env.example` templates hold no secret and a slice that adds an env var must
-     update one, so they are allowed again right after the env denies;
+   - `read` and `edit` deny `.env`, `.env.*`, `*.env` and `*.env.*` at any depth, the forms the root `.gitignore`
+     ignores. A worktree's copied `.env` holds database passwords (HANDOVER §3.3), and an explicit `"*": "allow"`
+     would otherwise lift opencode's default protection for it. A 2026-10-20 smoke test read a planted
+     `production.env` before `*.env` was added. opencode matches paths case-insensitively on Windows, and the same
+     test confirmed that `.ENV` and `.Env` are refused. The tracked `.env.example` and `*.env.example` templates hold
+     no secret, and a slice that adds an env var must update one, so they are allowed again right after the env
+     denies;
    - `edit` denies everything under `.claude`, where the guard scripts, this template and the skills live;
    - `edit` also denies every path the root `.gitignore` ignores, outside `.env` and `.claude` (denied above): the
      dependency and build folders (`node_modules`, `.pnpm-store`, `dist`, `build`, `.next`, `out`, `.turbo`,
@@ -305,7 +308,7 @@ pins the PosPay rules on top of it.
        # The stopper launches opencode.exe, so it runs only after the checks passed and the run started, while the
        # isolated config is still active. A refused setup never starts opencode, not even to clean up.
        if ($runStart) {
-         node "$tools\stop-opencode-sessions.cjs" $worktree --since $runStart
+         node "$tools\stop-opencode-sessions.cjs" $worktree --exe $opencodeExe --since $runStart
          $stopExit = $LASTEXITCODE
        } else {
          $stopExit = 0
@@ -347,8 +350,8 @@ pins the PosPay rules on top of it.
    dispatch. The endpoint answers 200 with `{"interrupted": false}` when it stops nothing, as it did for a killed
    standalone session on 2026-10-20. So the stopper accepts only `interrupted: true` or a database that no longer
    shows the claim. Otherwise it fails, and **that session is never continued with `-s`**: its claim could be
-   recovered later, so the next round starts a new session (rule 8). Run the staged copy by hand after any kill;
-   `--dry-run` only lists. Until the PR that adds these scripts reaches `main`, stage
+   recovered later, so the next round starts a new session (rule 8). Run the staged copy by hand after any kill,
+   with `--exe` set to the same checked `opencode.exe` (the stopper refuses any other path); `--dry-run` only lists. Until the PR that adds these scripts reaches `main`, stage
    them from that PR's reviewed head instead of `origin/main`.
    **Then look for anything nobody asked for:** save `git status --porcelain --ignored --untracked-files=all` before
    the run and again after it. Plain `--porcelain` hides ignored files, and MiniMax can create one (a `.log`, a

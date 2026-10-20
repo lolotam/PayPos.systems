@@ -3,9 +3,11 @@
 // `opencode serve --service`: one kept working for 14 minutes on 2026-10-20.
 // Reads opencode.db read-only (session metadata only, never credentials).
 // Run the trusted copy staged outside the worktree (pipeline skill §4), never the worktree's own copy.
-// Usage: node <guard>/stop-opencode-sessions.cjs <absolute folder> [--since <epoch ms>] [--dry-run]
-//   --since limits the check to sessions touched during this run, so an older, already-abandoned record does
-//   not fail every later dispatch in the same worktree.
+// Usage: node <guard>/stop-opencode-sessions.cjs <absolute folder> --exe <opencode.exe> [--since <epoch ms>]
+//        [--dry-run]
+//   --exe is the exact binary the dispatch checked and ran, so cleanup never starts a different, unpinned opencode
+//   (Codex on #416). --since limits the check to sessions touched during this run, so an older, already-abandoned
+//   record does not fail every later dispatch in the same worktree.
 const { DatabaseSync } = require('node:sqlite');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -17,25 +19,27 @@ const folder = args[0];
 const dryRun = args.includes('--dry-run');
 const sinceIndex = args.indexOf('--since');
 const since = sinceIndex > 0 ? Number(args[sinceIndex + 1]) : 0;
-if (!folder || !path.isAbsolute(folder) || Number.isNaN(since)) {
+const exeIndex = args.indexOf('--exe');
+const exeArg = exeIndex > 0 ? args[exeIndex + 1] : '';
+if (!folder || !path.isAbsolute(folder) || Number.isNaN(since) || (!dryRun && !exeArg)) {
   console.error(
-    'usage: stop-opencode-sessions.cjs <absolute folder> [--since <epoch ms>] [--dry-run]',
+    'usage: stop-opencode-sessions.cjs <absolute folder> --exe <opencode.exe> [--since <epoch ms>] [--dry-run]',
   );
   process.exit(2);
 }
 const normalise = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 const root = normalise(folder);
 
-// The real opencode.exe from an npm global install on PATH, never a bare `opencode` run through a shell:
-// a shell would also find an opencode.cmd MiniMax could have written inside its worktree.
+// The checked opencode.exe by absolute path, never a bare `opencode` run through a shell: a shell would also find
+// an opencode.cmd MiniMax could have written inside its worktree.
 function opencodeExe() {
-  for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
-    // Resolve first, so an entry such as `C:\x\..\<worktree>` cannot slip past the worktree exclusion.
-    if (!dir || normalise(path.resolve(dir)).startsWith(root)) continue;
-    const exe = path.join(dir, 'node_modules', '@opencode', 'cli', 'bin', 'opencode.exe');
-    if (fs.existsSync(exe)) return exe;
-  }
-  throw new Error('opencode.exe not found under an npm global folder on PATH');
+  const exe = path.resolve(exeArg);
+  const tail = normalise(path.join('node_modules', '@opencode', 'cli', 'bin', 'opencode.exe'));
+  if (!normalise(exe).endsWith(tail) || !fs.existsSync(exe))
+    throw new Error(`--exe must be the checked opencode.exe (got: ${exe})`);
+  // Resolved first, so a path such as `C:\x\..\<worktree>` cannot slip past the worktree exclusion.
+  if (normalise(exe).startsWith(root)) throw new Error(`${exe} is inside the worktree`);
+  return exe;
 }
 
 const dbPath = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
@@ -60,12 +64,13 @@ function busySessions() {
   }
 }
 
+// Validated before the database is read, so a wrong --exe fails every run, not only one with a busy session.
+const exe = dryRun ? null : opencodeExe();
 const busy = busySessions();
 if (!busy.length) {
   console.log(`no working opencode session under ${root}`);
   process.exit(0);
 }
-const exe = dryRun ? null : opencodeExe();
 let failed = 0;
 for (const s of busy) {
   const label = `${s.id} (${s.title ?? 'untitled'}, started ${new Date(Number(s.time_created)).toISOString()})`;

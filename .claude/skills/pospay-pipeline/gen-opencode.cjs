@@ -22,10 +22,21 @@ const configPaths = [
   `*${BS}.opencode${BS}*`,
 ];
 // The worktree's copied .env holds database passwords (HANDOVER §3.3); MiniMax never reads or writes one.
-const envPaths = ['.env', '.env.*', '*/.env', '*/.env.*', `*${BS}.env`, `*${BS}.env.*`];
+// Every secret env file form the root .gitignore ignores: .env, .env.*, and any *.env such as production.env
+// (Codex on #416). Matching is case-insensitive on Windows, so .ENV is covered too (smoke-tested 2026-10-20).
+const envPaths = [
+  '.env',
+  '.env.*',
+  '*/.env',
+  '*/.env.*',
+  `*${BS}.env`,
+  `*${BS}.env.*`,
+  '*.env',
+  '*.env.*',
+];
 // The tracked .env.example templates hold no secret, and CLAUDE.md §8 has a slice that adds an env var update one,
 // so they are allowed again right after the env denies. The git, config and .claude denies come later and win.
-const envExamplePaths = ['.env.example', '*/.env.example', `*${BS}.env.example`];
+const envExamplePaths = ['.env.example', '*/.env.example', `*${BS}.env.example`, '*.env.example'];
 // The guard scripts, this template and the skills live under .claude; MiniMax never edits them.
 const claudePaths = [
   '.claude',
