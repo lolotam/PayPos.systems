@@ -23,6 +23,15 @@ const configPaths = [
 ];
 // The worktree's copied .env holds database passwords (HANDOVER §3.3); MiniMax never reads or writes one.
 const envPaths = ['.env', '.env.*', '*/.env', '*/.env.*', `*${BS}.env`, `*${BS}.env.*`];
+// The guard scripts, this template and the skills live under .claude; MiniMax never edits them.
+const claudePaths = [
+  '.claude',
+  '.claude/*',
+  '*/.claude',
+  '*/.claude/*',
+  `*${BS}.claude`,
+  `*${BS}.claude${BS}*`,
+];
 const denyAfterAllow = (paths) =>
   Object.fromEntries([['*', 'allow'], ...paths.map((p) => [p, 'deny'])]);
 
@@ -33,7 +42,7 @@ const permission = {
   '*': 'deny',
   external_directory: 'deny',
   read: denyAfterAllow([...gitPaths, ...envPaths]),
-  edit: denyAfterAllow([...gitPaths, ...configPaths, ...envPaths]),
+  edit: denyAfterAllow([...gitPaths, ...configPaths, ...envPaths, ...claudePaths]),
   glob: denyAfterAllow(gitPaths),
   list: denyAfterAllow(gitPaths),
   todowrite: 'allow',

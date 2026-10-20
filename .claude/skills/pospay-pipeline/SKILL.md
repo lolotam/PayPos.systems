@@ -126,6 +126,7 @@ pins the PosPay rules on top of it.
    - `read` and `edit` deny `.env` and `.env.*` at any depth, in both slash styles. A worktree's copied `.env` holds
      database passwords (HANDOVER §3.3), and an explicit `"*": "allow"` would otherwise lift opencode's default
      protection for it;
+   - `edit` denies everything under `.claude`, where the guard scripts, this template and the skills live;
    - `edit` also denies every `opencode.json*` and anything under `.opencode`. A config, agent or plugin file
      MiniMax wrote would load on its next round, and a plugin runs as code outside every rule. The dispatch also
      stops if a `.opencode` folder or an `opencode.jsonc` already exists;
@@ -176,19 +177,35 @@ pins the PosPay rules on top of it.
    `opencode run`, because Windows PowerShell 5.1 turns any stderr line of a native command into a terminating
    error under `Stop`. A nonzero opencode exit is a failed run (rule 8).
 
+   **The guard scripts run from a trusted copy, never from the worktree.** MiniMax may not edit `.claude` (an `edit`
+   deny), and as a second barrier the checker, the template and the session stopper are staged before every run
+   from the last reviewed `main` into `F:\Dev\Worktrees\PosPay\briefs\guard\`. That folder is outside the worktree,
+   so `external_directory` keeps MiniMax out of it. The `finally` block runs only those copies, because it executes
+   after MiniMax returns and before the diff is reviewed. The session stopper calls `opencode.exe` by its absolute
+   path with no shell, so an `opencode.cmd` planted in the worktree cannot run.
+
    ```powershell
    $ErrorActionPreference = 'Stop'
    Set-Location F:\Dev\Worktrees\PosPay\<branch>
    if (-not (Test-Path .git -PathType Leaf)) { throw 'MiniMax runs only at a worktree root, where .git is a file' }
    if ((Test-Path .opencode) -or (Test-Path opencode.jsonc)) { throw 'a .opencode folder or opencode.jsonc exists: inspect it, stop' }
+   $worktree = (Get-Location).Path
+   $guard = 'F:\Dev\Worktrees\PosPay\briefs\guard'
+   if (Test-Path $guard) { Remove-Item $guard -Recurse -Force }
+   New-Item -ItemType Directory $guard | Out-Null
+   git fetch -q origin main
+   git archive -o "$guard\guard.tar" origin/main .claude/skills/pospay-pipeline
+   tar -xf "$guard\guard.tar" -C $guard; if ($LASTEXITCODE) { throw 'could not stage the guard scripts: stop' }
+   $tools = "$guard\.claude\skills\pospay-pipeline"
    $exclude = Join-Path (git rev-parse --git-common-dir) 'info\exclude'
    if (-not (Select-String -Path $exclude -SimpleMatch '/opencode.json' -Quiet)) { Add-Content $exclude "`n/opencode.json" }
-   Copy-Item .\.claude\skills\pospay-pipeline\opencode-pospay.json .\opencode.json -Force
-   node .\.claude\skills\pospay-pipeline\check-opencode.cjs opencode.json; if ($LASTEXITCODE) { throw 'opencode.json refused: stop' }
+   Copy-Item "$tools\opencode-pospay.json" .\opencode.json -Force
+   node "$tools\check-opencode.cjs" opencode.json; if ($LASTEXITCODE) { throw 'opencode.json refused: stop' }
    $savedPath = $env:PATH
    $opencodeExit = 1
+   $stopExit = 1
    try {
-     $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\(Git|GitHub CLI|OpenSSH|Docker)\\') }) -join ';'
+     $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\(Git|GitHub CLI|OpenSSH|Docker|DockerDesktop)(\\|$)') }) -join ';'
      foreach ($tool in 'git', 'gh', 'ssh', 'scp', 'docker') {
        if (Get-Command "$tool.exe" -ErrorAction SilentlyContinue) { throw "$tool is still on PATH: stop" }
      }
@@ -199,7 +216,7 @@ pins the PosPay rules on top of it.
      $opencodeExit = if ($?) { $LASTEXITCODE } else { 1 }
    } finally {
      $env:PATH = $savedPath
-     node .\.claude\skills\pospay-pipeline\stop-opencode-sessions.cjs .
+     node "$tools\stop-opencode-sessions.cjs" $worktree
      $stopExit = $LASTEXITCODE
    }
    if ($stopExit -ne 0) { throw 'a MiniMax session could not be stopped: interrupt it by hand before review' }
@@ -225,9 +242,11 @@ pins the PosPay rules on top of it.
    `file:line — what is wrong — what done looks like`.
 6. **After every run, or after killing one, stop its opencode session first.** Killing the `opencode run` CLI does
    not stop a session inside the shared `opencode serve --service`; one kept working for 14 more minutes on
-   2026-10-20. The dispatch block's `finally` runs `stop-opencode-sessions.cjs .`, which reads `opencode.db`
-   read-only for sessions under the worktree that are not idle, and calls
-   `opencode api post /api/session/<id>/interrupt` on each. Run it by hand after any kill; `--dry-run` only lists.
+   2026-10-20. The dispatch block's `finally` runs the staged `stop-opencode-sessions.cjs <worktree>`. It reads
+   `opencode.db` read-only for sessions under the worktree that are not idle, and calls
+   `opencode.exe api post /api/session/<id>/interrupt` on each, by absolute path and with no shell. Run the staged
+   copy by hand after any kill; `--dry-run` only lists. Until the PR that adds these scripts reaches `main`, stage
+   them from that PR's reviewed head instead of `origin/main`.
    **Then diff the worktree against the baseline, and run the gates yourself.** A run with no change
    is a failed candidate, whatever it reports. Check `git stash list`. MiniMax cannot run tests, so a failing gate
    becomes a fix brief for its next round. **Diff every rewritten SQL function body line by line against the old one**:

@@ -21,11 +21,19 @@ const configPaths = [
   `*${BS}.opencode${BS}*`,
 ];
 const envPaths = ['.env', '.env.*', '*/.env', '*/.env.*', `*${BS}.env`, `*${BS}.env.*`];
+const claudePaths = [
+  '.claude',
+  '.claude/*',
+  '*/.claude',
+  '*/.claude/*',
+  `*${BS}.claude`,
+  `*${BS}.claude${BS}*`,
+];
 // Each path map must hold exactly these keys in this order: "*" allow first, then only denies, because the
 // last matching rule wins and any later allow would re-open what the denies close.
 const pathMaps = {
   read: [...gitPaths, ...envPaths],
-  edit: [...gitPaths, ...configPaths, ...envPaths],
+  edit: [...gitPaths, ...configPaths, ...envPaths, ...claudePaths],
   glob: gitPaths,
   list: gitPaths,
 };

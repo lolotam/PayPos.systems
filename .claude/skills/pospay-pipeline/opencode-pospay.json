@@ -40,7 +40,13 @@
       "*/.env": "deny",
       "*/.env.*": "deny",
       "*\\.env": "deny",
-      "*\\.env.*": "deny"
+      "*\\.env.*": "deny",
+      ".claude": "deny",
+      ".claude/*": "deny",
+      "*/.claude": "deny",
+      "*/.claude/*": "deny",
+      "*\\.claude": "deny",
+      "*\\.claude\\*": "deny"
     },
     "glob": {
       "*": "allow",
@@ -119,7 +125,13 @@
           "*/.env": "deny",
           "*/.env.*": "deny",
           "*\\.env": "deny",
-          "*\\.env.*": "deny"
+          "*\\.env.*": "deny",
+          ".claude": "deny",
+          ".claude/*": "deny",
+          "*/.claude": "deny",
+          "*/.claude/*": "deny",
+          "*\\.claude": "deny",
+          "*\\.claude\\*": "deny"
         },
         "glob": {
           "*": "allow",
