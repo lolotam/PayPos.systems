@@ -131,14 +131,32 @@ for (const name of ['opencode.json', 'opencode.jsonc']) {
 
 // Global plugins load at startup and run as code outside every permission rule. None exists today.
 const globalDir = path.join(os.homedir(), '.config', 'opencode');
-for (const dir of ['plugin', 'plugins']) {
+// Global custom tools load the same way, and one named read or edit would replace the allowed built-in.
+for (const dir of ['plugin', 'plugins', 'tool', 'tools']) {
   if (fs.existsSync(path.join(globalDir, dir)))
-    problems.push(`a global plugin folder exists: ${path.join(globalDir, dir)}`);
+    problems.push(`a global plugin or custom-tool folder exists: ${path.join(globalDir, dir)}`);
 }
 for (const name of ['opencode.json', 'opencode.jsonc']) {
   const globalPath = path.join(globalDir, name);
   if (fs.existsSync(globalPath) && /"plugins?"\s*:/.test(fs.readFileSync(globalPath, 'utf8')))
     problems.push(`the global ${name} declares plugins: inspect them`);
+}
+
+// Global instruction files go straight into the model's context, past every read rule, so only the reviewed
+// global AGENTS.md (instruction text, no secrets; checked 2026-10-20) may be listed. Any other entry stops the run.
+for (const name of ['opencode.json', 'opencode.jsonc']) {
+  const globalPath = path.join(globalDir, name);
+  if (!fs.existsSync(globalPath)) continue;
+  let globalConfig;
+  try {
+    globalConfig = JSON.parse(fs.readFileSync(globalPath, 'utf8'));
+  } catch {
+    problems.push(`the global ${name} could not be parsed, so its instructions cannot be checked`);
+    continue;
+  }
+  const instructions = globalConfig.instructions ?? [];
+  if (!Array.isArray(instructions) || instructions.some((entry) => entry !== 'AGENTS.md'))
+    problems.push(`the global ${name} lists instructions other than AGENTS.md: inspect them`);
 }
 
 // opencode also loads config found in every folder above the worktree, up to the drive root.

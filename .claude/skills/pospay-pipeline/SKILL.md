@@ -144,7 +144,12 @@ pins the PosPay rules on top of it.
      `opencode serve --service` keeps the `OPENCODE_*` variables and config it started with, so checking this
      shell's environment would prove nothing about it;
    - the checker refuses a global plugin (a `plugin` or `plugins` key in the global config, or a `plugin`/`plugins`
-     folder beside it), because plugins load at startup and run as code outside every rule. None exists today;
+     folder beside it), because plugins load at startup and run as code outside every rule. It also refuses a
+     global `tool`/`tools` folder, because a custom tool named `read` or `edit` would replace the allowed built-in.
+     None of these exists today;
+   - global instruction files go straight into the model's context, past every read rule, so the checker allows
+     only the reviewed global `AGENTS.md` (instruction text with no secrets, checked 2026-10-20). Any other
+     `instructions` entry, or a global config it cannot parse, stops the run;
    - the checker refuses an `.opencode`, `opencode.json` or `opencode.jsonc` in any folder above the worktree, up to
      the drive root, because opencode loads config from every ancestor. None exists today;
    - the checker also refuses a run when a higher-precedence source exists: the system config folder
