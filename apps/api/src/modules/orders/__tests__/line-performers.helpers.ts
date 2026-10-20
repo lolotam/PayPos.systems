@@ -120,16 +120,26 @@ export async function changeQuiet(f: PerformersFixture, sessionId: string, lineI
 /** يزرع موظفة جديدة باسم ورابط وعقد وارتباط فرع قابل للضبط، فحالات الأهلية تُبنى بلا لمس موظفات الفيكستشر. */
 export async function createEmployee(
   f: PerformersFixture,
-  options: { contract_end?: string | null; branch_from?: string; user_id?: string | null } = {},
+  options: {
+    contract_end?: string | null;
+    branch_from?: string;
+    user_id?: string | null;
+    company_id?: string;
+    business_id?: string;
+    branch_id?: string;
+  } = {},
 ) {
   const id = ids.newId();
-  const number = takeTestEmployeeNumber(f.company);
+  const companyId = options.company_id ?? f.company;
+  const businessId = options.business_id ?? f.business;
+  const branchId = options.branch_id ?? f.branch;
+  const number = takeTestEmployeeNumber(companyId);
   const nameEn = `Synthetic added employee ${id}`;
   await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,role_code,hire_date,contract_end,employee_number)
-    VALUES(${f.company},${id},${f.business},${f.branch},${options.user_id ?? null},
+    VALUES(${companyId},${id},${businessId},${branchId},${options.user_id ?? null},
       ${nameEn},${employeeNameMatchKey(nameEn)},'staff','2026-01-01',${options.contract_end ?? null},${number})`;
   await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
-    VALUES(${f.company},${ids.newId()},${f.business},${id},${f.branch},${options.branch_from ?? '2026-01-01'})`;
+    VALUES(${companyId},${ids.newId()},${businessId},${id},${branchId},${options.branch_from ?? '2026-01-01'})`;
   return id;
 }
 
@@ -152,17 +162,42 @@ export async function livePerformers(f: PerformersFixture, lineId: string) {
     FROM line_performers WHERE company_id=${f.company} AND line_id=${lineId} ORDER BY performer_ordinal`;
 }
 
-/** يزرع تنبيهات الحضور على صف حيّ، فالمنفّذة الباقية تحمل راياتها القديمة كما تنسخها القاعدة. */
+/**
+ * يزرع تنبيهات الحضور على صف حيّ، فالمنفّذة الباقية تحمل راياتها القديمة كما تنسخها القاعدة.
+ * الراية والرايات تُكتب في معاملة واحدة: الفحص المؤجل يقارن راية السطر بمجموع رايات الصفوف،
+ * فكتابتهما في معاملتين تكسر الاتساق وترفض العملية كلها.
+ */
 export async function seedWarnings(
   f: PerformersFixture,
   lineId: string,
   rows: { employee_id: string; not_clocked_in_warning: boolean; approved_leave_warning: boolean }[],
 ) {
-  for (const row of rows) {
-    await f.h.owner`UPDATE line_performers SET not_clocked_in_warning=${row.not_clocked_in_warning},
-      approved_leave_warning=${row.approved_leave_warning}
-      WHERE company_id=${f.company} AND line_id=${lineId} AND employee_id=${row.employee_id}`;
-  }
+  await f.h.owner.begin(async (tx) => {
+    for (const row of rows) {
+      await tx`UPDATE line_performers SET not_clocked_in_warning=${row.not_clocked_in_warning},
+        approved_leave_warning=${row.approved_leave_warning}
+        WHERE company_id=${f.company} AND line_id=${lineId} AND employee_id=${row.employee_id}`;
+    }
+    await tx`UPDATE service_lines l SET has_performer_warning = (
+        SELECT coalesce(bool_or(p.not_clocked_in_warning OR p.approved_leave_warning), false)
+        FROM line_performers p WHERE p.company_id=l.company_id AND p.line_id=l.id)
+      WHERE l.company_id=${f.company} AND l.id=${lineId}`;
+  });
+}
+
+/** يسجّل مستخدماً جديداً بلا عضوية، فيُستخدم لربط موظفة بمستخدم آخر لا بالحساب نفسه. */
+export async function newOperatorUser(f: PerformersFixture, email: string) {
+  await f.h.signedInOperator(email);
+  const users = await f.h.owner`SELECT id FROM "user" WHERE email=${email}`;
+  return must(users[0])['id'] as string;
+}
+
+/** يزرع فرعاً ثانياً في النشاط نفسه، فالنطاق يُختبر على فرع حقيقي لا على فرع نشاط آخر. */
+export async function secondBranchOfBusiness(f: PerformersFixture) {
+  const branchId = ids.newId();
+  await f.h.owner`INSERT INTO branches(company_id,id,business_id,name_en)
+    VALUES(${f.company},${branchId},${f.business},'Synthetic second branch')`;
+  return branchId;
 }
 
 export async function sessionStamp(f: PerformersFixture, sessionId: string) {

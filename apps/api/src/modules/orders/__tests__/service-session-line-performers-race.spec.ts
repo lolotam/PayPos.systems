@@ -25,11 +25,13 @@ it('PC-20 the same key, body and actor replay, and a different actor reuses the 
   const input = performersInput({ performers: [{ employee_id: must(f.employees[1]) }] });
   const fingerprint = changeFingerprint(f, visit.sessionId, line, f.editorId, input);
   const first = await runChange(f, visit.sessionId, line, input, { key, fingerprint });
+  const written = await expectOneChange(f, visit.sessionId, line);
   expect(await runChange(f, visit.sessionId, line, input, { key, fingerprint })).toEqual(first);
-  expect((await changeRows(f, visit.sessionId, line)).headers).toHaveLength(1);
+  const replayed = await expectOneChange(f, visit.sessionId, line);
+  expect(replayed.sides).toEqual(written.sides);
   const ownerPrint = changeFingerprint(f, visit.sessionId, line, f.ownerId, input);
   expect(ownerPrint).not.toBe(fingerprint);
-  await expect(runChange(f, visit.sessionId, line, input, { userId: f.ownerId, key, fingerprint: ownerPrint })).rejects.toThrow('IDEMPOTENCY_KEY_REUSED');
+  await expect(runChange(f, visit.sessionId, line, input, { userId: f.ownerId, key, fingerprint: ownerPrint })).rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' });
 });
 
 it('PC-20 concurrent duplicates of one key fulfil equally and write one header', async () => {
@@ -49,7 +51,7 @@ it('PC-20 concurrent duplicates of one key fulfil equally and write one header',
   expect(first?.status).toBe('fulfilled');
   expect(second?.status).toBe('fulfilled');
   if (first?.status === 'fulfilled' && second?.status === 'fulfilled') expect(second.value).toEqual(first.value);
-  expect((await changeRows(f, visit.sessionId, line)).headers).toHaveLength(1);
+  await expectOneChange(f, visit.sessionId, line);
 });
 
 it('PC-20 a replay whose read permission is denied narrows the stored full body', async () => {
@@ -60,6 +62,7 @@ it('PC-20 a replay whose read permission is denied narrows the stored full body'
   const input = performersInput({ performers: [{ employee_id: must(f.employees[1]) }] });
   const full = await runChange(f, visit.sessionId, line, input, { key, fingerprint });
   expect(full).toMatchObject({ line: { revision: 2 } });
+  await expectOneChange(f, visit.sessionId, line);
   const deny = ids.newId();
   await f.h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
     VALUES(${f.company},${deny},${f.editorMembership},'read:service-sessions:branch','DENY','BRANCH',${f.branch},'Synthetic read deny',${f.ownerId})`;
@@ -68,6 +71,7 @@ it('PC-20 a replay whose read permission is denied narrows the stored full body'
   } finally {
     await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${deny}`;
   }
+  await expectOneChange(f, visit.sessionId, line);
 });
 
 it('PC-21 two managers racing revision 1 leave one header, and a retry stays stale', async () => {
@@ -112,7 +116,7 @@ it('PC-22 a deny that lands while the request waits refuses it and writes nothin
     await owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
       VALUES(${f.company},${deny},${f.editorMembership},'change:service-line-performers:branch','DENY','BRANCH',${f.branch},'Synthetic waiting deny',${f.ownerId})`;
     await held.release();
-    await expect(pending).rejects.toThrow('FORBIDDEN');
+    await expect(pending).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
   } finally {
     await held.release();
@@ -133,7 +137,7 @@ it('PC-22 a replay after a later deny is forbidden and keeps the stored body', a
   await f.h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
     VALUES(${f.company},${deny},${f.editorMembership},'change:service-line-performers:branch','DENY','BRANCH',${f.branch},'Synthetic later deny',${f.ownerId})`;
   try {
-    await expect(runChange(f, visit.sessionId, line, input, { key, fingerprint })).rejects.toThrow('FORBIDDEN');
+    await expect(runChange(f, visit.sessionId, line, input, { key, fingerprint })).rejects.toMatchObject({ code: 'FORBIDDEN' });
   } finally {
     await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${deny}`;
   }
@@ -148,7 +152,7 @@ it('PC-23 a cancelled line is not changeable and a changed line makes the price 
     lineId: cancelledLine,
     input: { reason: 'Synthetic cancel reason', expected_revision: 1 },
   });
-  await expect(runChange(f, cancelled.sessionId, cancelledLine, performersInput({ expected_revision: 2, performers: [{ employee_id: must(f.employees[1]) }] }))).rejects.toThrow('SESSION_LINE_NOT_EDITABLE');
+  await expect(runChange(f, cancelled.sessionId, cancelledLine, performersInput({ expected_revision: 2, performers: [{ employee_id: must(f.employees[1]) }] }))).rejects.toMatchObject({ code: 'SESSION_LINE_NOT_EDITABLE' });
   const changed = await visitOf(f);
   const changedLine = must(changed.lines[0]).id;
   await runChange(f, changed.sessionId, changedLine, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }));
@@ -220,4 +224,15 @@ function changeFingerprint(
       lineId,
     },
   });
+}
+
+/** يثبت أن التغيير كُتب مرة واحدة: رأس واحد وأثر واحد وحدث واحد ونسخة واحدة وصفوف sides ثابتة. */
+async function expectOneChange(fixture: PerformersFixture, sessionId: string, lineId: string) {
+  const saved = await changeRows(fixture, sessionId, lineId);
+  expect(saved.headers).toHaveLength(1);
+  expect(saved.audits).toHaveLength(1);
+  expect(saved.events).toHaveLength(1);
+  expect(saved.sides).toHaveLength(2);
+  expect(saved.line).toMatchObject({ revision: 2 });
+  return saved;
 }

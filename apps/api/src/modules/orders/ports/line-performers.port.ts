@@ -36,7 +36,7 @@ export interface LinePerformersRepository extends Pick<LineEditRepository, 'lock
    *
    * @param sessionId هوية الزيارة ضمن النشاط والفرع الحاليين
    * @param lineId هوية السطر المطلوب تغييره داخل تلك الزيارة
-   * @returns الصفوف التسعة لكل منفّذة بترتيب رقم المنفّذة
+   * @returns الأعمدة التسعة لكل منفّذة بترتيب رقم المنفّذة
    */
   currentPerformers(sessionId: string, lineId: string): Promise<LinePerformerRow[]>;
   /**
@@ -57,16 +57,16 @@ export interface LinePerformersRepository extends Pick<LineEditRepository, 'lock
    */
   insertChange(sessionId: string, lineId: string, header: ServiceLinePerformerChangeInsert): Promise<void>;
   /**
-   * يدخل صفّاً واحداً من جانب التاريخ؛ الجانب BEFORE يوصف ما كان محفوظاً والجانب AFTER ما صار محفوظاً.
+   * يدخل صفوف جانب واحد من التاريخ؛ BEFORE يصف ما كان محفوظاً وAFTER ما صار محفوظاً.
    *
    * @param changeId هوية رأس التغيير في المعاملة نفسها
    * @param side جانب التاريخ المدخل
    * @param rows صفوف الجانب بالتسعة أعمدة نفسها
-   * @returns يكتمل إدخال الصف
+   * @returns يكتمل إدخال الصفوف
    */
   insertSide(changeId: string, side: 'BEFORE' | 'AFTER', rows: readonly StoredPerformerRow[]): Promise<void>;
   /**
-   * يرفع نسخة السطر ويرفع راية تنبيه المنفّذات، ولا يمس أي عمود آخر.
+   * يرفع نسخة السطر ويضبط راية تنبيه المنفّذات على قيمة المجموعة الجديدة، ولا يمس أي عمود آخر.
    *
    * @param sessionId هوية الزيارة
    * @param lineId هوية السطر

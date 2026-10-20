@@ -50,7 +50,7 @@ it('PC-14 a stale revision is refused before the closed window', async () => {
   }
 });
 
-it('PC-15 an in-window change writes only the change artifacts and never the visit row', async () => {
+it('PC-15 partial: an in-window change writes only the change artifacts; an approved or paid month is not seedable yet', async () => {
   const visit = await visitOf(f);
   const line = must(visit.lines[0]).id;
   const stamp = await sessionStamp(f, visit.sessionId);

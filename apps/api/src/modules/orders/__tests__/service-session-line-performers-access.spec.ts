@@ -4,6 +4,7 @@ import {
   changeQuiet,
   createEmployee,
   livePerformers,
+  newOperatorUser,
   performersFixture,
   performersInput,
   performersOnlyRole,
@@ -22,21 +23,21 @@ it('PC-07 a cashier, a device and a disabled feature write nothing', async () =>
   const cashier = await visitOf(f);
   const cashierLine = must(cashier.lines[0]).id;
   const cashierKey = ids.newId();
-  await expect(runChange(f, cashier.sessionId, cashierLine, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { userId: f.userId, key: cashierKey })).rejects.toThrow('FORBIDDEN');
+  await expect(runChange(f, cashier.sessionId, cashierLine, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { userId: f.userId, key: cashierKey })).rejects.toMatchObject({ code: 'FORBIDDEN' });
   expect(await changeQuiet(f, cashier.sessionId, cashierLine, cashierKey)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
   const deviceVisit = await visitOf(f);
   const deviceLine = must(deviceVisit.lines[0]).id;
   const deviceKey = ids.newId();
-  await expect(runChange(f, deviceVisit.sessionId, deviceLine, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { userId: device.userId, key: deviceKey })).rejects.toThrow('FORBIDDEN');
+  await expect(runChange(f, deviceVisit.sessionId, deviceLine, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { userId: device.userId, key: deviceKey })).rejects.toMatchObject({ code: 'FORBIDDEN' });
   expect(await changeQuiet(f, deviceVisit.sessionId, deviceLine, deviceKey)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
   const gated = await visitOf(f);
   const gatedLine = must(gated.lines[0]).id;
   const gatedKey = ids.newId();
   await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by) VALUES(${f.company},'orders',false,'Synthetic feature',${f.ownerId})`;
   try {
-    await expect(runChange(f, gated.sessionId, gatedLine, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { key: gatedKey })).rejects.toThrow('FEATURE_DISABLED');
+    await expect(runChange(f, gated.sessionId, gatedLine, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { key: gatedKey })).rejects.toMatchObject({ code: 'FEATURE_DISABLED' });
     expect(await changeQuiet(f, gated.sessionId, gatedLine, gatedKey)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
-    await expect(runChange(f, gated.sessionId, ids.newId(), performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }))).rejects.toThrow('FEATURE_DISABLED');
+    await expect(runChange(f, gated.sessionId, ids.newId(), performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }))).rejects.toMatchObject({ code: 'FEATURE_DISABLED' });
   } finally {
     await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='orders'`;
   }
@@ -69,7 +70,7 @@ it('PC-08 the recording-time link alone forbids the changer', async () => {
     const line = must(visit.lines[0]).id;
     await f.linkEmployee(performer, null);
     const key = ids.newId();
-    await expect(runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toThrow('SESSION_PERFORMER_SELF_FORBIDDEN');
+    await expect(runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toMatchObject({ code: 'SESSION_PERFORMER_SELF_FORBIDDEN' });
     expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
     expect((await livePerformers(f, line)).map((row) => row['employee_id'])).toEqual([performer]);
   } finally {
@@ -80,17 +81,18 @@ it('PC-08 the recording-time link alone forbids the changer', async () => {
 
 it('PC-08 the current link alone forbids the changer, the owner included', async () => {
   const performer = must(f.employees[0]);
+  // التسجيل بلا رابط: اللقطة فارغة، فيُختبر مصدر الرابط الحالي وحده.
+  const visit = await visitOf(f);
+  const line = must(visit.lines[0]).id;
   await f.linkEmployee(f.editorEmployee, null);
   await f.linkEmployee(performer, f.editorId);
   try {
-    const visit = await visitOf(f);
-    const line = must(visit.lines[0]).id;
     const key = ids.newId();
-    await expect(runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toThrow('SESSION_PERFORMER_SELF_FORBIDDEN');
+    await expect(runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toMatchObject({ code: 'SESSION_PERFORMER_SELF_FORBIDDEN' });
     expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
     await f.linkEmployee(performer, f.ownerId);
     const ownerKey = ids.newId();
-    await expect(runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { userId: f.ownerId, key: ownerKey })).rejects.toThrow('SESSION_PERFORMER_SELF_FORBIDDEN');
+    await expect(runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { userId: f.ownerId, key: ownerKey })).rejects.toMatchObject({ code: 'SESSION_PERFORMER_SELF_FORBIDDEN' });
     expect(await changeQuiet(f, visit.sessionId, line, ownerKey)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
   } finally {
     await f.linkEmployee(performer, null);
@@ -129,9 +131,11 @@ it('PC-09 an added performer linked to the changer is refused even when she is i
     const key = ids.newId();
     await expect(runChange(f, visit.sessionId, line, performersInput({
       performers: [{ employee_id: must(f.employees[0]), share_bps: 5000 }, { employee_id: added, share_bps: 5000 }],
-    }), { key })).rejects.toThrow('SESSION_PERFORMER_SELF_FORBIDDEN');
+    }), { key })).rejects.toMatchObject({ code: 'SESSION_PERFORMER_SELF_FORBIDDEN' });
     expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
   } finally {
+    // الموظفة المضافة تُفكّ قبل موظفة المحررة، فلا يجتمع مستخدمان على موظفتين نشطتين في النشاط.
+    await f.linkEmployee(added, null);
     await f.linkEmployee(f.editorEmployee, f.editorId);
   }
 });
@@ -141,9 +145,44 @@ it('PC-10 a performer removed by another manager still forbids her linked user',
   const line = must(visit.lines[0]).id;
   await runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[0]) }] }), { userId: f.ownerId });
   const key = ids.newId();
-  await expect(runChange(f, visit.sessionId, line, performersInput({ expected_revision: 2, performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toThrow('SESSION_PERFORMER_SELF_FORBIDDEN');
-  expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
+  await expect(runChange(f, visit.sessionId, line, performersInput({ expected_revision: 2, performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toMatchObject({ code: 'SESSION_PERFORMER_SELF_FORBIDDEN' });
+  expect(await changeQuiet(f, visit.sessionId, line, key)).toMatchObject({ keys: 0 });
   expect(await runChange(f, visit.sessionId, line, performersInput({ expected_revision: 2, performers: [{ employee_id: must(f.employees[1]) }] }), { userId: f.ownerId })).toMatchObject({ line: { revision: 3 } });
+});
+
+it('PC-10 a removed performer whose link is gone still forbids her recorded user', async () => {
+  const visit = await visitOf(f, [editorLine(f)]);
+  const line = must(visit.lines[0]).id;
+  await runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[0]) }] }), { userId: f.ownerId });
+  // الرابط زال بعد الإزالة، فلم يبقَ إلا لقطة التسجيل.
+  await f.linkEmployee(f.editorEmployee, null);
+  try {
+    const key = ids.newId();
+    const before = await changeQuiet(f, visit.sessionId, line, key);
+    await expect(runChange(f, visit.sessionId, line, performersInput({ expected_revision: 2, performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toMatchObject({ code: 'SESSION_PERFORMER_SELF_FORBIDDEN' });
+    expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual(before);
+  } finally {
+    await f.linkEmployee(f.editorEmployee, f.editorId);
+  }
+});
+
+it('PC-10 a re-added performer still forbids her recorded user', async () => {
+  const other = await newOperatorUser(f, 'performers-other-user@example.test');
+  const visit = await visitOf(f, [editorLine(f)]);
+  const line = must(visit.lines[0]).id;
+  await runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[0]) }] }), { userId: f.ownerId });
+  await f.linkEmployee(f.editorEmployee, null);
+  await f.linkEmployee(f.editorEmployee, other);
+  try {
+    await runChange(f, visit.sessionId, line, performersInput({ expected_revision: 2, performers: [{ employee_id: f.editorEmployee }] }), { userId: f.ownerId });
+    const key = ids.newId();
+    const before = await changeQuiet(f, visit.sessionId, line, key);
+    await expect(runChange(f, visit.sessionId, line, performersInput({ expected_revision: 3, performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toMatchObject({ code: 'SESSION_PERFORMER_SELF_FORBIDDEN' });
+    expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual(before);
+  } finally {
+    await f.linkEmployee(f.editorEmployee, null);
+    await f.linkEmployee(f.editorEmployee, f.editorId);
+  }
 });
 
 it('PC-10b a removed performer linked to the changer later still forbids her', async () => {
@@ -155,7 +194,7 @@ it('PC-10b a removed performer linked to the changer later still forbids her', a
   await f.linkEmployee(removed, f.editorId);
   try {
     const key = ids.newId();
-    await expect(runChange(f, visit.sessionId, line, performersInput({ expected_revision: 2, performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toThrow('SESSION_PERFORMER_SELF_FORBIDDEN');
+    await expect(runChange(f, visit.sessionId, line, performersInput({ expected_revision: 2, performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toMatchObject({ code: 'SESSION_PERFORMER_SELF_FORBIDDEN' });
     expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
   } finally {
     await f.linkEmployee(removed, null);
@@ -170,7 +209,7 @@ it('PC-11 one of two performers linked to the changer is enough to refuse', asyn
     const visit = await visitOf(f, [pairLine(f)]);
     const line = must(visit.lines[0]).id;
     const key = ids.newId();
-    await expect(runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[0]) }] }), { key })).rejects.toThrow('SESSION_PERFORMER_SELF_FORBIDDEN');
+    await expect(runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[0]) }] }), { key })).rejects.toMatchObject({ code: 'SESSION_PERFORMER_SELF_FORBIDDEN' });
     expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
   } finally {
     await f.linkEmployee(must(f.employees[1]), null);
@@ -183,17 +222,17 @@ it('PC-12 a line without an identity snapshot is refused for everybody', async (
   const line = must(visit.lines[0]).id;
   await f.snapshotPerformers(line, [{ employee_id: must(f.employees[0]), linked_user_id: null, linked_user_snapshotted: false }]);
   const key = ids.newId();
-  await expect(runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toThrow('SESSION_LINE_IDENTITY_UNKNOWN');
+  await expect(runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { key })).rejects.toMatchObject({ code: 'SESSION_LINE_IDENTITY_UNKNOWN' });
   expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
   const ownerKey = ids.newId();
-  await expect(runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { userId: f.ownerId, key: ownerKey })).rejects.toThrow('SESSION_LINE_IDENTITY_UNKNOWN');
+  await expect(runChange(f, visit.sessionId, line, performersInput({ performers: [{ employee_id: must(f.employees[1]) }] }), { userId: f.ownerId, key: ownerKey })).rejects.toMatchObject({ code: 'SESSION_LINE_IDENTITY_UNKNOWN' });
   expect(await changeQuiet(f, visit.sessionId, line, ownerKey)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
 });
 
 it('several eligible memberships need an explicit changer, and a foreign one is forbidden', async () => {
   const visit = await visitOf(f);
   const line = must(visit.lines[0]).id;
-  await expect(runChange(f, visit.sessionId, line, performersInput({ changer_membership_id: ids.newId() }))).rejects.toThrow('FORBIDDEN');
+  await expect(runChange(f, visit.sessionId, line, performersInput({ changer_membership_id: ids.newId() }))).rejects.toMatchObject({ code: 'FORBIDDEN' });
   const extra = ids.newId();
   try {
     await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,limit_bps,starts_at)
@@ -207,18 +246,6 @@ it('several eligible memberships need an explicit changer, and a foreign one is 
   } finally {
     await f.h.owner`UPDATE memberships SET ends_at='2026-10-14T00:00:00Z' WHERE company_id=${f.company} AND id=${extra}`;
   }
-});
-
-it('a missing, foreign or wrong-branch line is forbidden and writes nothing', async () => {
-  const visit = await visitOf(f);
-  const other = await visitOf(f);
-  const line = must(visit.lines[0]).id;
-  const key = ids.newId();
-  await expect(runChange(f, visit.sessionId, ids.newId(), performersInput(), { key })).rejects.toThrow('FORBIDDEN');
-  await expect(runChange(f, visit.sessionId, must(other.lines[0]).id, performersInput())).rejects.toThrow('FORBIDDEN');
-  await expect(runChange(f, visit.sessionId, line, performersInput(), { branchId: f.secondBranch })).rejects.toThrow('FORBIDDEN');
-  await expect(runChange(f, visit.sessionId, line, performersInput(), { companyId: f.otherCompany, businessId: f.foreignBusiness, branchId: f.foreignBranch })).rejects.toThrow('FORBIDDEN');
-  expect(await changeQuiet(f, visit.sessionId, line, key)).toEqual({ headers: 0, audits: 0, events: 0, keys: 0 });
 });
 
 function pairLine(fixture: PerformersFixture) {

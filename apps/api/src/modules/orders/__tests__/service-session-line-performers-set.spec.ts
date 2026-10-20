@@ -5,6 +5,7 @@ import {
   changeRows,
   createEmployee,
   livePerformers,
+  newOperatorUser,
   nineColumns,
   performersFixture,
   performersInput,
@@ -85,33 +86,31 @@ it('PC-06 the line flag follows the warnings of the added performer and clears w
 });
 
 it('PC-13 an added performer carries her link and a kept one keeps her recording-time link', async () => {
-  const first = await newUser('performers-linked-a@example.test');
-  const second = await newUser('performers-linked-b@example.test');
+  const first = await newOperatorUser(f, 'performers-linked-a@example.test');
+  const second = await newOperatorUser(f, 'performers-linked-b@example.test');
   const linked = await createEmployee(f, { user_id: first });
   const unlinked = await createEmployee(f);
   const visit = await visitOf(f);
   const line = must(visit.lines[0]).id;
   await f.h.owner`UPDATE employees SET user_id=${second} WHERE company_id=${f.company} AND id=${must(f.employees[0])}`;
-  const result = await runChange(f, visit.sessionId, line, performersInput({
-    performers: [
-      { employee_id: must(f.employees[0]), share_bps: 5000 },
-      { employee_id: linked, share_bps: 3000 },
-      { employee_id: unlinked, share_bps: 2000 },
-    ],
-  }));
-  expect(result).toMatchObject({ line: { revision: 2 } });
-  const saved = await changeRows(f, visit.sessionId, line);
-  const rows = saved.live.map((row) => nineColumns(row));
-  expect(rows[0]).toMatchObject({ employee_id: must(f.employees[0]), linked_user_id: null, linked_user_snapshotted: true });
-  expect(rows[1]).toMatchObject({ employee_id: linked, linked_user_id: first, linked_user_snapshotted: true });
-  expect(rows[2]).toMatchObject({ employee_id: unlinked, linked_user_id: null, linked_user_snapshotted: true });
+  try {
+    const result = await runChange(f, visit.sessionId, line, performersInput({
+      performers: [
+        { employee_id: must(f.employees[0]), share_bps: 5000 },
+        { employee_id: linked, share_bps: 3000 },
+        { employee_id: unlinked, share_bps: 2000 },
+      ],
+    }));
+    expect(result).toMatchObject({ line: { revision: 2 } });
+    const saved = await changeRows(f, visit.sessionId, line);
+    const rows = saved.live.map((row) => nineColumns(row));
+    expect(rows[0]).toMatchObject({ employee_id: must(f.employees[0]), linked_user_id: null, linked_user_snapshotted: true });
+    expect(rows[1]).toMatchObject({ employee_id: linked, linked_user_id: first, linked_user_snapshotted: true });
+    expect(rows[2]).toMatchObject({ employee_id: unlinked, linked_user_id: null, linked_user_snapshotted: true });
+  } finally {
+    await f.linkEmployee(must(f.employees[0]), null);
+  }
 });
-
-async function newUser(email: string) {
-  await f.h.signedInOperator(email);
-  const users = await f.h.owner`SELECT id FROM "user" WHERE email=${email}`;
-  return must(users[0])['id'] as string;
-}
 
 function trioLine(fixture: PerformersFixture) {
   return {

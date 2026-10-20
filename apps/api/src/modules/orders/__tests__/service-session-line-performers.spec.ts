@@ -1,4 +1,4 @@
-import { changeLinePerformersResponse, serviceLineChanged } from '@pospay/contracts';
+import { changeLinePerformersResponseFull, serviceLineChanged } from '@pospay/contracts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { AT, ids, must } from './session.fixture.ts';
 import { editBody, runEdit } from './line-edit.helpers.ts';
@@ -12,7 +12,6 @@ import {
   performersFixture,
   performersInput,
   runChange,
-  seedWarnings,
   visitOf,
   type PerformersFixture,
 } from './line-performers.helpers.ts';
@@ -27,7 +26,7 @@ it('PC-01 a manager replaces the performers and shares, and the history, audit a
   const before = (await livePerformers(f, line.id)).map((row) => nineColumns(row));
   const reason = `sentinel-reason-${ids.newId()}`;
   const key = ids.newId();
-  const result = changeLinePerformersResponse.parse(
+  const result = changeLinePerformersResponseFull.parse(
     await runChange(f, visit.sessionId, line.id, performersInput({
       performers: [{ employee_id: must(f.employees[2]), share_bps: 6000 }, { employee_id: must(f.employees[0]), share_bps: 4000 }],
       reason,
@@ -50,7 +49,8 @@ it('PC-01 a manager replaces the performers and shares, and the history, audit a
     changer_role_is_system: true, changer_role_name_en: 'Branch Manager', changer_role_name_ar: null,
   });
   expect(Number(saved.headers[0]?.['write_system_id'])).toBeGreaterThan(0);
-  expect(Number(saved.headers[0]?.['write_xid'])).toBeGreaterThan(0);  expect(saved.sides.filter((row) => row['side'] === 'BEFORE').map((row) => nineColumns(row))).toEqual(before);
+  expect(Number(saved.headers[0]?.['write_xid'])).toBeGreaterThan(0);
+  expect(saved.sides.filter((row) => row['side'] === 'BEFORE').map((row) => nineColumns(row))).toEqual(before);
   expect(saved.sides.filter((row) => row['side'] === 'AFTER').map((row) => nineColumns(row)))
     .toEqual(saved.live.map((row) => nineColumns(row)));
   expect(payloadOf(must(saved.audits[0])['after'])).toMatchObject({
@@ -95,10 +95,14 @@ it('PC-01 a second change keeps the old order in the before side and in the even
   expect(before).toEqual(middle);
   expect(before.map((row) => row.employee_id)).toEqual([must(f.employees[2]), must(f.employees[0])]);
   const event = serviceLineChanged.parse(payloadOf(must(saved.events[1])['payload']));
-  expect(event.change?.previous.performers).toEqual([
-    { employee_id: must(f.employees[2]), share_bps: 6000 },
-    { employee_id: must(f.employees[0]), share_bps: 4000 },
-  ]);
+  expect(event.change?.kind).toBe('PERFORMERS_CHANGE');
+  expect(event.change?.previous).toEqual({
+    revision: 2,
+    performers: [
+      { employee_id: must(f.employees[2]), share_bps: 6000 },
+      { employee_id: must(f.employees[0]), share_bps: 4000 },
+    ],
+  });
 });
 
 it('PC-02 the money, the status, the other line and the visit total never move', async () => {
@@ -106,7 +110,7 @@ it('PC-02 the money, the status, the other line and the visit total never move',
   const visit = await visitOf(f, [f.line(must(f.services[0]), '25.000', '0.000'), { ...second, performers: [{ employee_id: must(f.employees[1]) }] }]);
   const line = must(visit.lines[0]);
   const other = must(visit.lines[1]);
-  const result = changeLinePerformersResponse.parse(
+  const result = changeLinePerformersResponseFull.parse(
     await runChange(f, visit.sessionId, line.id, performersInput({ performers: [{ employee_id: must(f.employees[2]) }] })),
   );
   expect(result.session.total_net).toBe('32.125');
@@ -125,7 +129,7 @@ it('PC-02 a line whose price was edited keeps the edited mark', async () => {
   const visit = await visitOf(f);
   const line = must(visit.lines[0]);
   await runEdit(f, visit.sessionId, line.id, editBody({ price: '25.000', discount: { kind: 'AMOUNT', amount: '5.000' } }));
-  const result = changeLinePerformersResponse.parse(
+  const result = changeLinePerformersResponseFull.parse(
     await runChange(f, visit.sessionId, line.id, performersInput({ expected_revision: 2, performers: [{ employee_id: must(f.employees[2]) }] })),
   );
   expect(result.line.edited).toBe(true);
@@ -136,21 +140,19 @@ it('PC-02 a line whose price was edited keeps the edited mark', async () => {
 
 it('PC-03 a swap, an addition, a removal and a shares-only change each succeed', async () => {
   const swap = await visitOf(f);
-  expect(await runChange(f, swap.sessionId, must(swap.lines[0]).id, performersInput({
-    performers: [{ employee_id: must(f.employees[1]) }],
-  }))).toMatchObject({ line: { revision: 2 } });
+  await expectChanged(f, swap.sessionId, must(swap.lines[0]).id, [{ employee_id: must(f.employees[1]), share_bps: 10000 }]);
   const addition = await visitOf(f);
-  expect(await runChange(f, addition.sessionId, must(addition.lines[0]).id, performersInput({
-    performers: [{ employee_id: must(f.employees[0]) }, { employee_id: must(f.employees[1]) }],
-  }))).toMatchObject({ line: { revision: 2 } });
+  await expectChanged(f, addition.sessionId, must(addition.lines[0]).id, [
+    { employee_id: must(f.employees[0]), share_bps: 5000 },
+    { employee_id: must(f.employees[1]), share_bps: 5000 },
+  ]);
   const removal = await visitOf(f, [pairLine(f)]);
-  expect(await runChange(f, removal.sessionId, must(removal.lines[0]).id, performersInput({
-    performers: [{ employee_id: must(f.employees[0]) }],
-  }))).toMatchObject({ line: { revision: 2 } });
+  await expectChanged(f, removal.sessionId, must(removal.lines[0]).id, [{ employee_id: must(f.employees[0]), share_bps: 10000 }]);
   const shares = await visitOf(f, [sharedPairLine(f)]);
-  expect(await runChange(f, shares.sessionId, must(shares.lines[0]).id, performersInput({
-    performers: [{ employee_id: must(f.employees[0]), share_bps: 7000 }, { employee_id: must(f.employees[1]), share_bps: 3000 }],
-  }))).toMatchObject({ line: { revision: 2 } });
+  await expectChanged(f, shares.sessionId, must(shares.lines[0]).id, [
+    { employee_id: must(f.employees[0]), share_bps: 7000 },
+    { employee_id: must(f.employees[1]), share_bps: 3000 },
+  ]);
 });
 
 it('PC-03 the same set and a reordering alone are refused and write nothing', async () => {
@@ -174,7 +176,7 @@ it('PC-03 the same set and a reordering alone are refused and write nothing', as
 it('PC-04 omitted shares split equally and the remainder goes to the first', async () => {
   const visit = await visitOf(f);
   const line = must(visit.lines[0]);
-  const result = changeLinePerformersResponse.parse(await runChange(f, visit.sessionId, line.id, performersInput({
+  const result = changeLinePerformersResponseFull.parse(await runChange(f, visit.sessionId, line.id, performersInput({
     performers: [{ employee_id: must(f.employees[0]) }, { employee_id: must(f.employees[1]) }, { employee_id: must(f.employees[2]) }],
   })));
   expect(result.line.performers.map((row) => row.share_bps)).toEqual([3334, 3333, 3333]);
@@ -215,4 +217,23 @@ function sharedPairLine(fixture: PerformersFixture) {
       { employee_id: must(fixture.employees[1]), share_bps: 5000 },
     ],
   };
+}
+
+/** يثبت مجموعة التغيير مرتين: في الرد وفي الصفوف الحية، فالتخزين هو الحكم لا الرد وحده. */
+async function expectChanged(
+  fixture: PerformersFixture,
+  sessionId: string,
+  lineId: string,
+  performers: { employee_id: string; share_bps: number }[],
+) {
+  const result = changeLinePerformersResponseFull.parse(
+    await runChange(fixture, sessionId, lineId, performersInput({ performers })),
+  );
+  expect(result.line.revision).toBe(2);
+  expect(result.line.performers.map((row) => [row.employee_id, row.performer_ordinal, row.share_bps])).toEqual(
+    performers.map((performer, index) => [performer.employee_id, index + 1, performer.share_bps]),
+  );
+  const saved = await changeRows(fixture, sessionId, lineId);
+  const after = saved.sides.filter((row) => row['side'] === 'AFTER').map((row) => nineColumns(row));
+  expect(after).toEqual(saved.live.map((row) => nineColumns(row)));
 }
