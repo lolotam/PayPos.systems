@@ -117,11 +117,61 @@ it('records urls aborted by the route handler', async () => {
   await renderer.close();
 });
 
-it('times out a hanging newContext inside the deadline', async () => {
+async function untilAvailable(renderer: PlaywrightDocumentRenderer): Promise<void> {
+  for (let attempt = 0; attempt < 20 && !renderer.isAvailable(); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+it('recycles a browser whose newContext never settles', async () => {
+  let launches = 0;
   let browserClosed = false;
   const factory: PdfBrowserFactory = {
+    launch: async () => {
+      launches += 1;
+      const listeners: Array<() => void> = [];
+      return {
+        newContext: () => new Promise(() => undefined),
+        close: async () => {
+          browserClosed = true;
+          for (const listener of listeners) listener();
+        },
+        on: (_event, listener) => {
+          listeners.push(listener);
+        },
+      };
+    },
+  };
+  const renderer = new PlaywrightDocumentRenderer({
+    factory,
+    overallTimeoutMs: 20,
+    browserCloseGraceMs: 5,
+    backoffMs: [0],
+  });
+  await renderer.start();
+  const started = Date.now();
+  await expect(renderer.render('<p>x</p>')).rejects.toBeInstanceOf(DocumentRenderTimeoutError);
+  expect(Date.now() - started).toBeLessThan(1_000);
+  expect(browserClosed).toBe(true);
+  expect(renderer.isAvailable()).toBe(false);
+  await untilAvailable(renderer);
+  expect(launches).toBe(2);
+  expect(renderer.isAvailable()).toBe(true);
+  await renderer.close();
+});
+
+it('closes a context that arrives after an aborted signal', async () => {
+  let browserClosed = false;
+  let contextClosed = false;
+  const factory: PdfBrowserFactory = {
     launch: async () => ({
-      newContext: () => new Promise(() => undefined),
+      newContext: async () => ({
+        route: async () => undefined,
+        newPage: async () => page(async () => Uint8Array.from([1])),
+        close: async () => {
+          contextClosed = true;
+        },
+      }),
       close: async () => {
         browserClosed = true;
       },
@@ -130,14 +180,21 @@ it('times out a hanging newContext inside the deadline', async () => {
   };
   const renderer = new PlaywrightDocumentRenderer({
     factory,
-    overallTimeoutMs: 30,
-    browserCloseGraceMs: 5,
+    browserCloseGraceMs: 5_000,
+    sleep: (ms) =>
+      new Promise((resolve) => {
+        setTimeout(resolve, ms).unref();
+      }),
   });
   await renderer.start();
   const started = Date.now();
-  await expect(renderer.render('<p>x</p>')).rejects.toBeInstanceOf(DocumentRenderTimeoutError);
+  await expect(renderer.render('<p>x</p>', { signal: AbortSignal.abort() })).rejects.toBeInstanceOf(
+    DocumentRenderTimeoutError,
+  );
   expect(Date.now() - started).toBeLessThan(1_000);
+  expect(contextClosed).toBe(true);
   expect(browserClosed).toBe(false);
+  expect(renderer.isAvailable()).toBe(true);
   await renderer.close();
 });
 

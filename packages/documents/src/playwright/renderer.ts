@@ -43,6 +43,30 @@ function asRendererError(error: unknown): Error {
   return new Error('DOCUMENT_RENDER_FAILED');
 }
 
+/**
+ * newContext المعلّق بيسيب Chromium متعلم متاح، ومفتاح الحياة يفضل يعرضه.
+ * لو السياق جه جوّه المهلة يتقفل لوحده؛ لو ما جاش المتصفح يتقفل عشان disconnected يعيد الإطلاق.
+ */
+async function openWithinGrace(
+  opening: Promise<PdfContext>,
+  graceMs: number,
+  sleep: (ms: number) => Promise<void>,
+): Promise<{ readonly settled: boolean; readonly context: PdfContext | undefined }> {
+  let settled = false;
+  let context: PdfContext | undefined;
+  const pending = opening.then(
+    (opened) => {
+      settled = true;
+      context = opened;
+    },
+    () => {
+      settled = true;
+    },
+  );
+  await Promise.race([pending, sleep(graceMs)]);
+  return { settled, context };
+}
+
 async function closeHungContext(
   context: PdfContext,
   browser: PdfBrowser | null,
@@ -212,7 +236,8 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   ): Promise<Uint8Array> {
     let context: PdfContext | undefined;
     let abandoned = false;
-    const work = browser.newContext(CONTEXT).then(async (opened) => {
+    const opening = browser.newContext(CONTEXT);
+    const work = opening.then(async (opened) => {
       if (abandoned) {
         await opened.close().catch(() => undefined);
         throw new DocumentRenderTimeoutError();
@@ -235,15 +260,27 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     } catch (error) {
       abandoned = true;
       const mapped = asRendererError(error);
-      if (mapped instanceof DocumentRenderTimeoutError)
-        await this.#closeAfterTimeout(context, browser);
+      if (mapped instanceof DocumentRenderTimeoutError) {
+        await this.#closeAfterTimeout(context, opening, browser);
+      }
       throw mapped;
     }
   }
 
-  async #closeAfterTimeout(context: PdfContext | undefined, browser: PdfBrowser): Promise<void> {
-    if (context === undefined) return;
-    await closeHungContext(context, browser, this.#browserCloseGraceMs, this.#sleep);
+  async #closeAfterTimeout(
+    context: PdfContext | undefined,
+    opening: Promise<PdfContext>,
+    browser: PdfBrowser,
+  ): Promise<void> {
+    const late =
+      context === undefined
+        ? await openWithinGrace(opening, this.#browserCloseGraceMs, this.#sleep)
+        : { settled: true, context };
+    if (late.context !== undefined) {
+      await closeHungContext(late.context, browser, this.#browserCloseGraceMs, this.#sleep);
+      return;
+    }
+    if (!late.settled) await browser.close().catch(() => undefined);
   }
 
   #hooks(onAborted: RenderOptions['onAbortedRequest']): RenderPageHooks {
