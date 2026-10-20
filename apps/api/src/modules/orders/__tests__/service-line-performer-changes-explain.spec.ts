@@ -108,11 +108,14 @@ it('reads headers and sides through their line and change indexes, never a Seq S
       const headers = plan.filter((node) => node['Relation Name'] === 'service_line_performer_changes');
       expect(headers.length).toBeGreaterThan(0);
       expect(headers.every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
-      expect(headers.every((node) => ['slpc_line_revision_uq', 'slpc_history_idx'].includes(node['Index Name'] ?? ''))).toBe(true);
       const sides = plan.filter((node) => node['Relation Name'] === 'service_line_performer_change_rows');
       expect(sides.length).toBeGreaterThan(0);
       expect(sides.every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
-      expect(sides.every((node) => ['slpcr_ordinal_uq', 'slpcr_change_fk_idx'].includes(node['Index Name'] ?? ''))).toBe(true);
+      // الفهرس ممكن يبان كـ Bitmap Index Scan تحت Bitmap Heap Scan، فبنجمع أسماء كل الفهارس اللي في الخطة.
+      const indexes = new Set(plan.map((node) => node['Index Name']).filter((name): name is string => name !== undefined));
+      const uses = (candidates: string[]) => candidates.some((name) => indexes.has(name));
+      expect(uses(['slpc_line_revision_uq', 'slpc_history_idx'])).toBe(true);
+      expect(uses(['slpcr_ordinal_uq', 'slpcr_change_fk_idx'])).toBe(true);
     });
   }
 }, 120_000);

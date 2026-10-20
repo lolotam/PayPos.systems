@@ -132,17 +132,24 @@ it('refuses a mismatched line, session, branch or tenant without saying which is
 });
 
 it('refuses the change permission when the caller cannot read service sessions', async () => {
+  const overrideId = ids.newId();
   await f.h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,expires_at,reason,granted_by)
-    VALUES(${f.company},${ids.newId()},${f.membership},'change:service-line-performers:branch','ALLOW','BRANCH',${f.branch},NULL,'Synthetic change without read',${f.ownerId})`;
-  await expect(history().execute({ ...scope(), userId: f.userId }, { limit: 50 })).rejects.toMatchObject({ code: 'FORBIDDEN' });
-  await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND membership_id=${f.membership}`;
+    VALUES(${f.company},${overrideId},${f.membership},'change:service-line-performers:branch','ALLOW','BRANCH',${f.branch},NULL,'Synthetic change without read',${f.ownerId})`;
+  try {
+    await expect(history().execute({ ...scope(), userId: f.userId }, { limit: 50 })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  } finally {
+    await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${overrideId}`;
+  }
 });
 
 it('refuses the history read when the orders feature is disabled', async () => {
   await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
     VALUES(${f.company},'orders',false,'Synthetic history feature test',${f.ownerId})`;
-  await expect(history().execute(scope(), { limit: 50 })).rejects.toMatchObject({ code: 'FEATURE_DISABLED' });
-  await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='orders'`;
+  try {
+    await expect(history().execute(scope(), { limit: 50 })).rejects.toMatchObject({ code: 'FEATURE_DISABLED' });
+  } finally {
+    await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='orders'`;
+  }
 });
 
 it('rejects a bad or foreign cursor before any tenant read', async () => {
