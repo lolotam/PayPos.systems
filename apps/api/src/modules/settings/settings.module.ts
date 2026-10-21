@@ -9,7 +9,7 @@ import { IdentityCapabilityController } from './http/identity-capability.control
 import { SETTINGS_WIRING, SettingsController } from './http/settings.controller.ts';
 import { ALERT_RULES_WIRING, AlertRulesController } from './http/alert-rules.controller.ts';
 import { createAlertRulesTransactions } from './persistence/alert-rules-store.ts';
-import { readBranchAlertRulesAccess } from './persistence/alert-rules-read-access.adapter.ts';
+import { createAlertRulesReadAccess } from './persistence/alert-rules-read-access.adapter.ts';
 import { ResetBranchAlertRule } from './use-cases/reset-branch-alert-rule/reset-branch-alert-rule.ts';
 import { SetAlertRules } from './use-cases/set-alert-rules/set-alert-rules.ts';
 import { SetAlertsMaster } from './use-cases/set-alerts-master/set-alerts-master.ts';
@@ -66,7 +66,7 @@ function alertRulesProviders(database: TenantWrappers | undefined, ids: IdGenera
     {
       provide: ALERT_RULES_WIRING,
       useValue: {
-        branchAccess: readBranchAlertRulesAccess,
+        branchAccess: createAlertRulesReadAccess(),
         set: new SetAlertRules(transactions),
         reset: new ResetBranchAlertRule(transactions),
         master: new SetAlertsMaster(transactions),

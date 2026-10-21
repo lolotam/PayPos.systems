@@ -1,3 +1,4 @@
+import type { Tx } from '@pospay/db';
 import type { AlertKind, AlertRuleSettings } from '@pospay/domain';
 
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
@@ -21,6 +22,29 @@ export interface StoredAlertRule extends AlertRuleSettings {
 export interface AlertRulesSnapshot {
   readonly alertsEnabled: boolean | null;
   readonly rules: readonly (StoredAlertRule & { readonly branchId: string | null })[];
+}
+
+/**
+ * قرار قراية قواعد فرع: نفس قرار الكتابة (النشاط كله والفرع) بس من غير أقفال، على معاملة القراية نفسها.
+ */
+export interface AlertRulesReadAccess {
+  /**
+   * بيقرر `manage:settings:business` على النشاط كله وعلى الفرع ليه، عشان شاشة الفرع ما تقرايش قاعدة مش مسموحة.
+   *
+   * @param tx        معاملة الشركة
+   * @param companyId الشركة
+   * @param userId    المستخدم اللي بيقرا
+   * @param target    النشاط والفرع
+   * @param target.businessId النشاط
+   * @param target.branchId   الفرع
+   * @returns FORBIDDEN أو null عند السماح
+   */
+  read(
+    tx: Tx,
+    companyId: string,
+    userId: string,
+    target: { businessId: string; branchId: string },
+  ): Promise<'FORBIDDEN' | null>;
 }
 
 /**

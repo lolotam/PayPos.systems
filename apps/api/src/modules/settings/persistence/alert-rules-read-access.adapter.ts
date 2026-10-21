@@ -1,12 +1,8 @@
-import type { Tx } from '@pospay/db';
-
 import { readAlertRulesAccess } from '../../identity/index.ts';
+import type { AlertRulesReadAccess } from '../ports/alert-rules.port.ts';
 
-export function readBranchAlertRulesAccess(
-  tx: Tx,
-  companyId: string,
-  userId: string,
-  target: { businessId: string; branchId: string },
-): Promise<'FORBIDDEN' | null> {
-  return readAlertRulesAccess(tx, companyId, userId, target);
+export function createAlertRulesReadAccess(): AlertRulesReadAccess {
+  return {
+    read: (tx, companyId, userId, target) => readAlertRulesAccess(tx, companyId, userId, target),
+  };
 }

@@ -34,12 +34,14 @@ import type { SetAlertsMaster } from '../use-cases/set-alerts-master/set-alerts-
 
 export interface AlertRulesWiring {
   /** قرار قراية قواعد فرع على معاملة القراية نفسها (نفس قرار الكتابة: النشاط كله والفرع). */
-  readonly branchAccess: (
-    tx: Tx,
-    companyId: string,
-    userId: string,
-    target: { businessId: string; branchId: string },
-  ) => Promise<'FORBIDDEN' | null>;
+  readonly branchAccess: {
+    read(
+      tx: Tx,
+      companyId: string,
+      userId: string,
+      target: { businessId: string; branchId: string },
+    ): Promise<'FORBIDDEN' | null>;
+  };
   readonly set: SetAlertRules;
   readonly reset: ResetBranchAlertRule;
   readonly master: SetAlertsMaster;
@@ -152,7 +154,7 @@ export class AlertRulesController {
       async (tx) => {
         if (branch !== null) {
           const target = { businessId: business, branchId: branch };
-          if ((await access(tx, actor.companyId, actor.userId, target)) !== null) return null;
+          if ((await access.read(tx, actor.companyId, actor.userId, target)) !== null) return null;
         }
         return alertRulesQuery(tx, actor.companyId, business, branch);
       },
