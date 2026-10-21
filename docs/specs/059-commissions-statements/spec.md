@@ -38,7 +38,7 @@ statement freezes (commission 35.000, card tips 6.000, cash tips 4.000 for infor
 On 10 November a manager cancels one of سارة's October lines worth 200.000 (allowed: the window reaches back to the first
 day of the previous month, CX-Q2). October is closed, so the projection recomputes October with the line removed: 1,500.000
 → 25.000. The difference, **−10.000**, is posted as corrections (one per affected line, generation 1) into November, the
-earliest open month; the October statement still says 35.000. November's statement shows them in its own corrections
+earliest DRAFT month (SPEC §6); the October statement still says 35.000. November's statement shows them in its own corrections
 section (`TODO(spec)` CS-Q9) and they reduce what November pays (`TODO(spec)` CS-Q7 if November ends negative).
 
 ## 2. Scope and what this spec settles
@@ -80,7 +80,7 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 | D-10 | **Revision guards per input identity:** a line `(line_id)` by its per-line `revision` (ADR-0041 §4: a newer `ServiceLineChanged` wins over a delayed revision-1 recording); tips by the per-session `revision` (spec 053); a salary by `(employee_id, effective_from)` and its per-entry `revision` (spec 021); a sale by `(sale_id, revision)` (SPEC §3). Older or equal revisions are no-ops | last-write-wins |
 | D-11 | **A line is projected as one row per performer**, with `net_share` from the engine's `allocateLineShares` (floor, remainder mills by ascending `employee_id`, SPEC §5.2). A newer revision **replaces** every row of the line, so a performer change (spec 055) removes the old performers' rows and adds the new ones; money in events is a KWD string read with `parseMoney` (ADR-0041 §4) | storing the line once (the engine prices per performer) |
 | D-12 | **Period repair** is a plan version marked `repair_period = 'YYYY-MM'` that applies **only inside that month** and is ignored for every other month; the engine's `selectCommissionPlanVersion` gains that rule (a new kind of version by decision, SPEC §5.7's last sentence, never an `if` in a caller). Which lines of that month it may price is `TODO(spec)` CS-Q11 | reusing `whole_period` (it would also apply from its date onward, `plan-version.ts`) |
-| D-13 | **Correction target = the earliest not-closed period after the source** (DRAFT or REVIEWED; a REVIEWED target returns to DRAFT by D-5). SPEC §6 says "earliest DRAFT"; REVIEWED is not closed (§6 "Closed means APPROVED or PAID"), and skipping a reviewed month would put a correction two months away | skipping REVIEWED months |
+| D-13 | **Correction target = the earliest DRAFT period after the source**, exactly as SPEC §6 says (a settled money rule): a REVIEWED month is skipped and keeps its review. The target is chosen from the statuses held under the locks **before** this event returns any REVIEWED month to DRAFT (FR-015 order), so a month the same event reopens is not a target of that event | retargeting into a REVIEWED month (would change which payroll month bears the correction without an owner answer) |
 | D-14 | **"Lines without a performer" is satisfied by construction:** a line has 1…4 performers summing to 10000 (deferred consistency trigger, migration 0131). Approval still refuses if any projected ACTIVE line's rows do not sum to 10000 bps, as a defensive check of the projection | a second performer source in commissions |
 | D-15 | **Bootstrap before approval opens** (ADR-0041 §6, spec 053 BR-08): tips from orders' `listCurrentSessionTips` (36-5); lines from an orders-owned paged reader of the latest line revision with its event ids, built in the same shape as 36-5 (new orders sub-PR 50-0); salaries from the ADR-0012 amendment backfill of unconsumed `SalaryChanged` outbox rows; package sales from an orders-owned paged reader of the latest entitlement revision with its event ids (`listCurrentPackageSales`, same shape as 36-5), which row 42 must ship with its producer. Every reader is bound to a commissions-owned port **at the composition root** (no module-map arrow); the design advisors confirm the line reader versus a controlled outbox replay before 50-0 | reading orders tables from commissions (ADR-0041 §6 forbids it) |
 | D-16 | **Reads beyond SPEC §3's arrows** (the business timezone for "the period has ended", service names and customer full names for the statement detail and the export (CS-Q15), the owner and manager recipients of reminders and bells) use provider-owned readers bound to commissions-owned ports at the composition root, the BR-08 pattern; if one cannot be bound there, the sub-PR stops and adds an ADR and the module-map row first (IMPLEMENTATION-PLAN §4) | new import arrows by default |
@@ -98,7 +98,7 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 | Approval only after the month has ended; atomic; refused while commission events are pending, with the retryable 409 «updates are still being calculated, try again shortly» | SPEC §6, ADR-0012 §3/§5 |
 | Review is bound to the inputs; the owner approves only the fingerprint that was reviewed | SPEC §6 |
 | Closed means APPROVED or PAID; payment never stops corrections; the frozen statement never changes | SPEC §6 |
-| A change to a closed month becomes corrections in the earliest open month after it, keyed `(source_period, employee, source_ref, generation)`, one signed delta per affected source, lines whose tier moved included | SPEC §6, M4 |
+| A change to a closed month becomes corrections in the earliest DRAFT month after it, keyed `(source_period, employee, source_ref, generation)`, one signed delta per affected source, lines whose tier moved included | SPEC §6, M4 |
 | A performer change after approval moves money as corrections: the removed performer's line goes down, the added one's goes up | spec 055 PF-Q3, SPEC M12 |
 | Cancelling, editing the price of, or changing the performers of a line in an approved month is allowed within the recording window and becomes a correction; orders reads no statement status | CX-Q2, ED-Q3, PF-Q3, TP-Q2 |
 | No plan or no salary is never a silent zero: recording continues, the estimate says "no plan", review and approval are refused; a disabled `package_sale` pays 0 | D-57, SPEC §5 |
@@ -136,8 +136,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   before submit (the same function, imported from `packages/commissions-engine/validation` by `apps/admin/src/commissions`, D-17;
   unit test over the full product, and a boundaries-lint test that the admin app imports nothing else of the package).
 - **CM-07** An ordinary version with `effective_from` before today (business timezone) → 422
-  `COMMISSION_EFFECTIVE_FROM_PAST`; a `whole_period` version for a past month that is REVIEWED → accepted and that month
-  returns to DRAFT (D-5); for a month that is APPROVED or PAID, or with a closed month after it → 409
+  `COMMISSION_EFFECTIVE_FROM_PAST`; a `whole_period` version for a month that is REVIEWED, or with a REVIEWED month after it
+  → 409 `COMMISSION_PERIOD_NOT_DRAFT`; for a month that is APPROVED or PAID, or with a closed month after it → 409
   `COMMISSION_PERIOD_CLOSED`.
 - **CM-07b** On 2 November هبة's October shows `NO_PLAN`; ليلى adds a `whole_period` version dated 1 October while October
   is still DRAFT: October's estimate prices her lines, review is no longer blocked, and November follows the same version.
@@ -266,14 +266,15 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-46b** (FR-042) سارة has salary entries on 1 January (500.000) and 10 April (600.000); January and February are
   APPROVED, March is REVIEWED, April is DRAFT. A back-dated entry on 15 January (550.000) is the selected salary of
   January, February and March only: one transaction locks January…March (and the correction target April), posts
-  corrections for January and February into April, returns March to DRAFT, and leaves April's own month unchanged; a
+  corrections for January and February into April (the earliest DRAFT month: March was REVIEWED when the targets were
+  chosen, D-13), returns March to DRAFT, and leaves April's own month unchanged; a
   later revision of the 15 January entry repeats the same range.
 - **CM-46** A salary committed after approval → corrections on the lines whose threshold moved (SPEC §11); a tip changed in a
   closed month → a `TIP_CARD` or `TIP_CASH` correction for that `tip:<session>:<method>` source; raising a cash tip of a
   closed month changes no payable figure, raising a card tip does.
 - **CM-47** A change to a PAID month posts a correction exactly like an APPROVED one (SPEC §11).
 - **CM-48** The target closes while a correction is being posted (barrier): the writer rechecks under the target's lock,
-  moves to the next not-closed month and locks it (ascending order kept, SPEC §11).
+  moves to the next DRAFT month and locks it (ascending order kept, SPEC §11); a REVIEWED month on the way is skipped.
 - **CM-49** A replayed event is deduped before it can bump the generation; a second real change bumps it again and posts only
   `new − (frozen + corrections already posted)` for each source.
 - **CM-50** Corrections received are inputs of the target: they enter its fingerprint and are frozen as `CORRECTION` lines at
@@ -288,8 +289,11 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `COMMISSION_REPAIR_NOT_ALLOWED`, including for a `NO_SALARY` block): one audited repair version that applies only inside September (D-12); the recompute posts
   the correction normally and resolves the blocked correction. Which September lines it prices: `TODO(spec)` CS-Q11.
 - **CM-52b** A repair for an open `NO_PLAN` block whose recompute then needs a salary that is missing: the same open block's
-  `code` becomes `NO_SALARY` (one row, not two), nothing is posted, and a later repair request is refused; any other `code`
-  change (`NO_SALARY` → `NO_PLAN`, or on a resolved row) is refused by the table's trigger.
+  `code` becomes `NO_SALARY` (one row, not two), nothing is posted, and a later repair request is refused; any change to a
+  resolved row is refused by the table's trigger.
+- **CM-52c** The reverse: هبة's open September block is `NO_SALARY` (her plan from 15 September is salary-based); a late
+  session dated 10 September arrives, then her salary is set: the recompute now returns `NO_PLAN` for the 10 September line,
+  so the same open row's `code` becomes `NO_PLAN`, a repair is then allowed and resolves it.
 - **CM-53** A `NO_SALARY` block is resolved by setting the salary for its date in staff (spec 021); the `SalaryChanged`
   recompute posts the correction and resolves the block; a repair request for a `NO_SALARY` block is refused.
 - **CM-54** (CS-Q19 = PP-17.7) When a blocked correction is first recorded, one in-app bell reaches the holders of the plan
@@ -360,9 +364,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   §5.7); its codes become 422 `COMMISSION_PLAN_INVALID` with `details.code`.
 - **FR-007** Under `lockStatementPeriods` for every month from the month of `effective_from` through the current month: an
   ordinary version needs `effective_from ≥ today`; a `whole_period` version may name a past month (SPEC §6: "or `whole_period`
-  only for a DRAFT period") when that month and every later month up to today are not closed (REVIEWED ones return to DRAFT,
-  D-5), because the version then also applies from its date onward (`plan-version.ts`); any closed month in that range →
-  409 `COMMISSION_PERIOD_CLOSED`. This is how a `NO_PLAN` found after a month ended, before its approval, is fixed.
+  only for a DRAFT period") when that month and every later month up to today are DRAFT, because the version then also
+  applies from its date onward (`plan-version.ts`); a REVIEWED month in that range → 409 `COMMISSION_PERIOD_NOT_DRAFT`, a
+  closed one → 409 `COMMISSION_PERIOD_CLOSED`. This is how a `NO_PLAN` found after a month ended, before its approval, is fixed.
 - **FR-008** Insert-only `commission_plan_versions`; `version` is the next integer per employee, allocated under the employee's
   row lock; `created_at` from the injected `Clock`, the id from `IdGenerator` (CLAUDE.md §4.3); one audit entry
   `commission_plan.version_created` with the plan JSON (no salary figure in the audit text).
@@ -524,7 +528,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-047** `POST /v1/businesses/:businessId/employees/:employeeId/commission-period-repairs` `{ period, plan }`
   (Idempotency-Key): allowed only while an open blocked correction **with code `NO_PLAN`** exists for that employee and month
   (a `NO_SALARY` block is resolved only by the dated salary, SPEC §6, and refused here with `COMMISSION_REPAIR_NOT_ALLOWED`;
-  if the repaired recompute then returns `NO_SALARY`, the same block stays open with its code changed to `NO_SALARY`); the plan is validated
+  every recompute of an open block (after a repair, a salary, or a later event) sets its `code` to what the engine now
+  returns, `NO_PLAN` ↔ `NO_SALARY` either way, on the same row; a resolved row never changes); the plan is validated
   like FR-006; stored as a plan version with `repair_period` (D-12, CS-Q11); audit `commission_plan.period_repaired`. In the
   same transaction the month is recomputed and the correction posted (FR-039); the block is resolved when the recompute
   succeeds.
@@ -603,15 +608,15 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 | `commission_statements` (48a) | `period char(7)`, `status`, `current_fingerprint`, `reviewed_fingerprint`, `reviewed_by`, `reviewed_membership_id`, `reviewed_at`, `input_fingerprint`, `approved_by`, `approved_at`, `paid_by`, `paid_at`, `paid_on date`, `paid_method`, `revision` | `UNIQUE (company_id, business_id, period)`; `CHECK` period format; FR-001 trigger; `SELECT, INSERT, UPDATE (status, …)` to `pospay_app` |
 | `commission_plan_versions` (48) | `employee_id`, `version`, `effective_from date`, `whole_period`, `repair_period char(7) NULL`, `plan jsonb`, `created_at`, `created_by` | `UNIQUE (company_id, employee_id, version)`; `CHECK NOT (whole_period AND repair_period IS NOT NULL)`; insert-only (`SELECT, INSERT`) |
 | `commission_service_overrides` (49) | `employee_id`, `service_id`, `rule_kind`, `rule_value`, `effective_from`, `created_at`, `created_by` | `CHECK` per kind (bps 0…10000, mills ≥ 0); index `(company_id, employee_id, service_id, effective_from)`; insert-only |
-| `commission_line_heads` (50) | `line_id`, `session_id`, `service_id`, `customer_id`, `revision`, `status`, `business_date`, `period` | `UNIQUE (company_id, line_id)`; `SELECT, INSERT, UPDATE` |
-| `commission_lines` (50) | `line_id`, `employee_id`, `service_id`, `occurred_at`, `recorded_at`, `business_date`, `period`, `net`, `net_share`, `share_bps`, `rule_kind`, `rule_value`, `counts`, `status` | `UNIQUE (company_id, line_id, employee_id)`; index `(company_id, business_id, period, employee_id)`; `SELECT, INSERT, UPDATE, DELETE` (a projection, D-11) |
+| `commission_line_heads` (50) | `line_id`, `session_id`, `branch_id`, `service_id`, `customer_id`, `revision`, `status`, `business_date`, `period` | `UNIQUE (company_id, line_id)`; `SELECT, INSERT, UPDATE` |
+| `commission_lines` (50) | `line_id`, `branch_id`, `employee_id`, `service_id`, `occurred_at`, `recorded_at`, `business_date`, `period`, `net`, `net_share`, `share_bps`, `rule_kind`, `rule_value`, `counts`, `status` | `UNIQUE (company_id, line_id, employee_id)`; index `(company_id, business_id, period, employee_id)`; `SELECT, INSERT, UPDATE, DELETE` (a projection, D-11) |
 | `commission_tip_heads` / `commission_tips` (50) | head: `session_id`, `revision`, `business_date`, `period`; rows: `session_id`, `employee_id`, `method`, `amount` | `UNIQUE (company_id, session_id)` / `UNIQUE (company_id, session_id, employee_id, method)`; projection grants |
 | `commission_salaries` (50) | `employee_id`, `effective_from`, `amount`, `revision` | `UNIQUE (company_id, employee_id, effective_from)`; projection grants; never logged (SPEC §12) |
 | `commission_sales` (50) | `sale_id`, `seller_employee_id NULL`, `business_date`, `period`, `price_paid`, `refunded_amount`, `status`, `revision` | `UNIQUE (company_id, sale_id)`; projection grants |
 | `commission_statement_lines` (53) | `statement_id`, `employee_id`, `employee_number`, `employee_name_ar`, `employee_name_en` (the label frozen at approval), `source_ref`, `kind`, `amount`, `source_period NULL`, and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only; a trigger refuses an insert unless the statement is being approved in the same transaction |
 | `commission_period_generations` (55) | `employee_id`, `period`, `generation` | `UNIQUE (company_id, employee_id, period)`; `SELECT, INSERT, UPDATE (generation)` |
 | `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed), `generation`, `event_id`, `created_at` | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; index `(company_id, business_id, target_period)`; insert-only |
-| `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; `SELECT, INSERT, UPDATE (code, resolved_at, resolved_generation)`; a trigger allows `code` only `NO_PLAN` → `NO_SALARY` on an open row |
+| `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; `SELECT, INSERT, UPDATE (code, resolved_at, resolved_generation)`; a trigger allows `code` to change (`NO_PLAN` ↔ `NO_SALARY`) only on an open row and refuses any change to a resolved row |
 | `commission_statement_returns` (52) | `statement_id`, `returned_by`, `returned_membership_id`, `reason`, `returned_at` | `CHECK` reason 1…500 trimmed; insert-only; reason never logged |
 | `commission_statement_reminders` (56b) | `statement_id`, `kind`, `reminder_date`, `recipient_count` | `UNIQUE (company_id, statement_id, kind, reminder_date)`; insert-only |
 
@@ -661,6 +666,8 @@ and a refusal test (CLAUDE.md §6).
 
 - `COMMISSION_PERIOD_CLOSED` 409 — «الشهر ده اتعمد خلاص، أي تغيير هيتسجّل تصحيح في الشهر الجاي.» / "This month is already
   approved; changes become corrections in the next month."
+- `COMMISSION_PERIOD_NOT_DRAFT` 409 — «الشهر ده اتراجع، رجّعه للمسودة الأول.» / "This month has been reviewed; return it to
+  draft first."
 - `COMMISSION_PERIOD_NOT_ENDED` 422 — «الشهر لسه مخلصش.» / "This month has not ended yet."
 - `COMMISSION_PLAN_INVALID` 422 — details `code` (the engine's validation codes, each with its own ar/en text).
 - `COMMISSION_EFFECTIVE_FROM_PAST` 422 — «تاريخ البداية لازم يكون النهارده أو بعده.» / "The start date must be today or later."
