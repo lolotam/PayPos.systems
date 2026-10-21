@@ -687,6 +687,15 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
    device id, `opened_at` and `last_activity_at`, and its stored expiry is `opened_at` + 5 minutes. It holds no tenant
    data, no employee data, no column setting and no PIN material. A session has at most one window; opening it again
    replaces it.
+   **Openings are serialized per session.** `verification.identifier` has only a non-unique index, so two concurrent
+   openings could each find no record and insert two windows. The opening therefore runs in one `pospay_auth`
+   transaction that first locks the operator's `session` row (`SELECT … FOR UPDATE`), then deletes every window record
+   of that session and inserts the new one before it commits. A second opening waits on the lock, then replaces the
+   first: whatever order they arrive in, one record with one `window_id` survives. The session-ending and replacement
+   operations of item 6 take the same session-row lock before they delete the window, so neither can interleave with
+   an opening. `pospay_auth` already holds `UPDATE` on `session` (migration 0008), so the lock needs no new grant, and
+   no unique index or migration is added. Reads, touch, close and cleanup need no lock: with at most one record per
+   session, the `window_id` match inside their conditional statement is enough (item 4).
    **Every opening gets a new `window_id`:** 128 random bits from the injected entropy source, never derived from the
    session, the user or the time. The opening response returns it to the POS, and every request inside that window
    carries it in a dedicated request header (57-1's contract names it). Like the session token, it is never logged and
@@ -734,30 +743,45 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
    window, and the check in item 4 also requires the bound session to be the live one, so a stale record never passes.
    The POS clears the screen and the query cache of these reads in every tab, as §1 already requires for a replaced
    operator. The server's idle expiry never depends on the close request arriving.
+   **The browser keeps two clocks.** Neither clock alone is enough. A wall clock (`Date.now()`) can be moved back by
+   less than the time elapsed, and then passes every sanity check. A monotonic clock (`performance.now()`) belongs to
+   one tab, restarts on reload and may pause while the device sleeps. The POS keeps both and closes on whichever
+   expires first:
    **The browser clears on its own clock too.** Opening the window returns its two limits (60 seconds idle, 5 minutes
    from the opening). The POS turns them into two wall-clock expiry instants, `Date.now()` plus the limit:
    - the idle expiry is counted from the moment the POS **sent** the last passing request, and the cap from the moment
      it sent the opening request, so the browser always expires no later than the server does;
    - the POS stores the two instants and the `window_id`, and nothing else, in `localStorage` under one key. Every tab sees the same
      deadlines, and a tab that sleeps or reloads still finds them;
-   - it compares them with `Date.now()` on a periodic tick, on `visibilitychange`, `focus` and `pageshow` (so a device
-     that wakes from sleep, or a tab restored from the back-forward cache, checks before it shows anything), and before
-     it renders any private data.
+   - each tab also keeps its own monotonic deadlines in memory, `performance.now()` plus the remaining time, set from
+     its own send instants and never shared or stored;
+   - it compares both pairs on a periodic tick, on `visibilitychange`, `focus` and `pageshow`, and before it renders any
+     private data;
+   - **a context whose elapsed time cannot be trusted shows nothing private until the server says so.** That covers a
+     tab that was hidden and becomes visible again, a page restored from the back-forward cache (`pageshow` with
+     `persisted`), a reload, a newly opened tab, and a device waking from sleep. Such a tab first hides the private
+     screen, then sends one touch (item 5). It shows the data again only if that touch passes the server check of
+     item 4; a 403 sends it to the PIN step. So a partial clock rollback combined with sleep still cannot keep data on
+     the screen past the server window.
 
-   When either deadline has passed, the tab that notices it removes the private screen, clears its query cache and
-   shows the PIN step, with no request needed. It then tells every other tab through a `BroadcastChannel` message, with
-   the `storage` event of removing the key as the fallback. Each tab that receives either one clears its own private
-   screen and cache.
+   When any deadline has passed, the tab that notices it removes the private screen, clears its query cache and shows
+   the PIN step, with no request needed. It then tells every other tab through a `BroadcastChannel` message, with the
+   `storage` event of removing the key as the fallback. **Cross-tab closes are fenced like server writes:** the
+   `BroadcastChannel` message carries the `window_id` it closes, and a tab reads the closed `window_id` from the
+   removal event's `oldValue`. Each receiving tab clears its private screen and cache only when that `window_id` is
+   its current one. A late notice about an older window is ignored, so it can never close a newer window that another
+   tab has just opened.
 
    **A changed device clock.** The server check of item 4 runs on the server's Clock and stays the authority: a device
    clock moved forward or back cannot keep a window open on the server. The browser timer only makes sure the data
    leaves the screen on time when nobody sends a request. It closes early whenever the clock looks wrong. That covers a
    `Date.now()` earlier than the stored send instant, and a stored deadline further away than the limit allows
    (60 seconds or 5 minutes). Closing early costs the employee one PIN entry; closing late would show her data.
-7. **Nothing kept.** Responses carry `Cache-Control: no-store`, and the PWA persists nothing from these screens: no
-   IndexedDB, no offline queue (spec 060 S-19, `CLAUDE.md` §7). The only stored item is item 6's key: the two expiry
-   instants and the `window_id`. It holds no private data, is useless without the operator's session and Device
-   credentials, and is removed when the window closes.
+7. **No private data kept.** Responses carry `Cache-Control: no-store`, and the PWA persists no private data from these
+   screens: no IndexedDB, no offline queue (spec 060 S-19, `CLAUDE.md` §7). The ban covers private data, not window
+   metadata. The only stored item is item 6's key: the `window_id` and the two expiry instants. It holds no personal
+   data, is useless without the operator's session and Device credentials, and is removed when the window closes.
+   ADR-0027's addendum says the same.
 8. **Route policy, for 57-1 (spec 060 FR-A06b).** Today `PERSONAL_ROUTE = true` makes `SessionGuard`
    (`apps/api/src/shared/session.guard.ts`) call `personalSessionRequest` at once, so a `STAFF_POS` request would be
    refused before any window check. FR-A01…FR-A04 therefore use the combined `PERSONAL_ROUTE = 'staff'` policy the
@@ -785,6 +809,11 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
    - **another tab:** the deadline is noticed in one tab → a second open tab receives the `BroadcastChannel` (or
      `storage`) close, removes its private screen and empties its cache;
    - **clock moved back:** `Date.now()` earlier than the stored send instant → the screen closes at once;
+   - **partial clock rollback:** the device clock is moved back by less than the time elapsed, so `Date.now()` stays
+     after the send instant and inside both limits → the tab's monotonic deadline still closes the screen on time;
+     after sleep or a restore, the tab shows nothing private until a fresh touch passes on the server;
+   - **fenced cross-tab close:** a `BroadcastChannel` or `storage` close naming window A reaches a tab already showing
+     window B → that tab keeps B open;
    - **late request:** a request sent in window A arrives after A closed and window B opened → 403
      `PRIVATE_VIEW_EXPIRED`, no data, and B's `last_activity_at` is unchanged;
    - **late close:** a close or cleanup for window A arrives after window B opened → B stays open and its next request
