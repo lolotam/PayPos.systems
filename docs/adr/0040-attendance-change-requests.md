@@ -94,5 +94,5 @@ recipients and deduplicated; the acting user (the requester on a request, the de
 receives the bell, and the employee herself is left out unless she is an owner, exactly as the fixed
 recipients are. Those role holders are read through staff's `AlertRulesPort.roleHolders`, whose adapter calls
 identity's public `readBranchRoleHolders` on the same transaction (the `staff → identity` arrow already exists,
-module-map §1); this addendum is the decision that authorizes that port read, which the ADR-0010 addendum's
+module-map §2); this addendum is the decision that authorizes that port read, which the ADR-0010 addendum's
 settings-only rule for `AlertRulesPort` adapters does not cover.
