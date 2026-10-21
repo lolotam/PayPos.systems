@@ -164,7 +164,8 @@ function copyOwner(parked, lock, created, write = writeFileSync) {
 
 /**
  * بيشيل owner.json الجزئي اللي عملناه، بس لو الفولدر لسه بتاعنا؛ والمسح بيتكرر لأن ويندوز ممكن يقفل
- * الملف لحظة، والـ owner اللي مش بيتقرا هيسدّ الـ lock لحد ما يبقى قديم.
+ * الملف لحظة، والـ owner اللي مش بيتقرا هيسدّ الـ lock لحد ما يبقى قديم. والمسح بـ recursive مع إن الملف
+ * file، لأن Node بيتجاهل maxRetries و retryDelay من غير recursive.
  *
  * @param lock     مسار الـ lock
  * @param created هوية الفولدر اللي عملناه
@@ -173,7 +174,12 @@ function discardPartialOwner(lock, created) {
   if (identity(lock) !== created) return;
   const ownerFile = join(lock, 'owner.json');
   try {
-    rmSync(ownerFile, { force: true, maxRetries: RENAME_ATTEMPTS, retryDelay: 50 });
+    rmSync(ownerFile, {
+      force: true,
+      recursive: true,
+      maxRetries: RENAME_ATTEMPTS,
+      retryDelay: 50,
+    });
   } catch (error) {
     console.log(
       `could not remove partial ${ownerFile} (${error.code}); delete it once no lane start is running`,
