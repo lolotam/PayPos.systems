@@ -720,15 +720,28 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
    The POS clears the screen and the query cache of these reads in every tab, as §1 already requires for a replaced
    operator. The server's idle expiry never depends on the close request arriving.
    **The browser clears on its own clock too.** Opening the window returns its two limits (60 seconds idle, 5 minutes
-   from the opening). The POS keeps both deadlines on a monotonic clock. The idle deadline starts from the moment it
-   **sent** the last passing request, and the cap from the moment it sent the opening request, so the browser always
-   expires no later than the server does. When either deadline passes, the POS removes the private screen, clears its
-   query cache in every tab and shows the PIN step, with no request needed. A background tab whose timers were throttled
-   compares the deadlines again on `visibilitychange` and focus before it shows anything. The server check of item 4
-   stays the authority; the browser timer only makes sure the data leaves the screen on time when nobody sends a
-   request.
+   from the opening). The POS turns them into two wall-clock expiry instants, `Date.now()` plus the limit:
+   - the idle expiry is counted from the moment the POS **sent** the last passing request, and the cap from the moment
+     it sent the opening request, so the browser always expires no later than the server does;
+   - the POS stores the two instants, and nothing else, in `localStorage` under one key. Every tab sees the same
+     deadlines, and a tab that sleeps or reloads still finds them;
+   - it compares them with `Date.now()` on a periodic tick, on `visibilitychange`, `focus` and `pageshow` (so a device
+     that wakes from sleep, or a tab restored from the back-forward cache, checks before it shows anything), and before
+     it renders any private data.
+
+   When either deadline has passed, the tab that notices it removes the private screen, clears its query cache and
+   shows the PIN step, with no request needed. It then tells every other tab through a `BroadcastChannel` message, with
+   the `storage` event of removing the key as the fallback. Each tab that receives either one clears its own private
+   screen and cache.
+
+   **A changed device clock.** The server check of item 4 runs on the server's Clock and stays the authority: a device
+   clock moved forward or back cannot keep a window open on the server. The browser timer only makes sure the data
+   leaves the screen on time when nobody sends a request. It closes early whenever the clock looks wrong. That covers a
+   `Date.now()` earlier than the stored send instant, and a stored deadline further away than the limit allows
+   (60 seconds or 5 minutes). Closing early costs the employee one PIN entry; closing late would show her data.
 7. **Nothing kept.** Responses carry `Cache-Control: no-store`, and the PWA persists nothing from these screens: no
-   IndexedDB, no offline queue (spec 060 S-19, `CLAUDE.md` §7).
+   IndexedDB, no offline queue (spec 060 S-19, `CLAUDE.md` §7). The only stored item is item 6's pair of expiry
+   instants, which holds no private data and is removed when the window closes.
 8. **Route policy, for 57-1 (spec 060 FR-A06b).** Today `PERSONAL_ROUTE = true` makes `SessionGuard`
    (`apps/api/src/shared/session.guard.ts`) call `personalSessionRequest` at once, so a `STAFF_POS` request would be
    refused before any window check. FR-A01…FR-A04 therefore use the combined `PERSONAL_ROUTE = 'staff'` policy the
@@ -751,6 +764,11 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
      is still signed in; a replaced or signed-out operator → 401 `UNAUTHENTICATED`;
    - with no request at all, 60 seconds of idle, or 5 minutes from the opening, remove the private screen and empty
      its query cache in every open tab (57-4's UI test asserts the visible screen, `CLAUDE.md` §9);
+   - **sleep and wake:** the device sleeps and wakes after a deadline has passed → on `visibilitychange`, `focus` or
+     `pageshow` the private screen is gone before any data shows, and the PIN step is visible;
+   - **another tab:** the deadline is noticed in one tab → a second open tab receives the `BroadcastChannel` (or
+     `storage`) close, removes its private screen and empties its cache;
+   - **clock moved back:** `Date.now()` earlier than the stored send instant → the screen closes at once;
    - a route test asserts that each FR-A01…FR-A04 handler carries both `STAFF_ROUTE = 'staff'` and
      `PERSONAL_ROUTE = 'staff'`.
 
