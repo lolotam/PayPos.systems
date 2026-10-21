@@ -104,6 +104,6 @@ leave, sign-out and replacement.
 The same routes serve both paths through `STAFF_ROUTE = 'staff'` plus `PERSONAL_ROUTE = 'staff'`, as the ADR-0026
 leave routes do (spec 060 FR-A06b). A personal request never receives `PRIVATE_VIEW_EXPIRED`. Both paths send `no-store`
 responses and persist no private data in the PWA, and the cache clearing above applies to both. The one stored item
-is the reception device's window metadata (ADR-0019 addendum, item 7): the `window_id`, its `opened_at` and two expiry instants, with
+is the reception device's window metadata (ADR-0019 addendum, item 7): the `window_id`, its `window_seq` and two expiry instants, with
 no personal data, removed when the window closes. The personal path stores nothing. Adding the four own reads to
 this ADR's list of personal-purpose capabilities is a separate addendum in sub-PR 57-1 (spec 060 D-A5).
