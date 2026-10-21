@@ -19,3 +19,11 @@ export const DISCOUNT_PROPOSAL_COLUMN_GRANTS = [
   'consumed_line_id',
   'consumed_at',
 ].map((column) => `discount_proposals.${column}:pospay_app:UPDATE`);
+
+// جدول المنفذين للإدخال فقط؛ ترتيب القائمة هو ترتيب Postgres (C collation) لأن الاختبار يقارنها بـ ORDER BY.
+export const DISCOUNT_PROPOSAL_TABLE_GRANTS = [
+  'discount_proposal_performers:INSERT',
+  'discount_proposal_performers:SELECT',
+  'discount_proposals:INSERT',
+  'discount_proposals:SELECT',
+];

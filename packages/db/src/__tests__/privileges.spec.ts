@@ -17,7 +17,7 @@ import { SERVICE_COLUMN_GRANTS, PACKAGE_TYPE_COLUMN_GRANTS } from '../../test/ca
 import { SERVICE_LINE_EDIT_COLUMN_GRANTS } from '../../test/service-line-edit-grants.ts';
 import { SERVICE_LINE_CANCEL_COLUMN_GRANTS } from '../../test/service-line-cancel-grants.ts';
 import { SERVICE_LINE_PERFORMER_COLUMN_GRANTS } from '../../test/service-line-performer-grants.ts';
-import { DISCOUNT_PROPOSAL_COLUMN_GRANTS } from '../../test/discount-proposal-grants.ts';
+import { DISCOUNT_PROPOSAL_COLUMN_GRANTS, DISCOUNT_PROPOSAL_TABLE_GRANTS } from '../../test/discount-proposal-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -56,10 +56,7 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'devices:INSERT',
     'devices:SELECT',
     'devices:UPDATE',
-    'discount_proposal_performers:INSERT',
-    'discount_proposal_performers:SELECT',
-    'discount_proposals:INSERT',
-    'discount_proposals:SELECT',
+    ...DISCOUNT_PROPOSAL_TABLE_GRANTS,
     'document_types:INSERT',
     'document_types:SELECT',
     'employee_branches:INSERT',
@@ -301,8 +298,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...PACKAGE_TYPE_COLUMN_GRANTS,
         ...SERVICE_LINE_EDIT_COLUMN_GRANTS,
         ...SERVICE_LINE_PERFORMER_COLUMN_GRANTS,
-        ...SERVICE_LINE_CANCEL_COLUMN_GRANTS,
-        ...DISCOUNT_PROPOSAL_COLUMN_GRANTS,
+        ...SERVICE_LINE_CANCEL_COLUMN_GRANTS, ...DISCOUNT_PROPOSAL_COLUMN_GRANTS,
       ].sort(),
     );
   });
