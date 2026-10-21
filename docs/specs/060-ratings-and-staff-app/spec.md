@@ -87,7 +87,7 @@ question. Until an answer arrives the rule is `TODO(spec)` and only the sub-PRs 
 | RT-Q1 | How the rating link reaches the sender without storing the token (ADR-0011 open question 1) | 59b-1, 59b-3 — **no rating send is enabled before it** |
 | RT-Q2 | Approval of the ar/en copy: WhatsApp message, page, completion, opt-out, unavailable link | 59b-3, 60-2 (ADR-0011 §4) |
 | RT-Q3 | A per-business switch for sending rating requests, and its default | 59-1 |
-| RT-Q4 | Which closing time when a day has two opening periods or crosses midnight; a visit outside opening hours | 59-1 |
+| RT-Q4 | Which closing time counts when a day has two opening periods, and which day an overnight interval's close belongs to (after-close behaviour is settled by S-2) | 59-1 |
 | RT-Q5 | A visit recorded after its day ended (late entry): rated or not | 59-1 |
 | RT-Q6 | The average's window and the minimum count before an employee sees it | 61-2 |
 | RT-Q7 | Who reads ratings, averages and comments in the admin | 61-2 |
@@ -311,7 +311,8 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 - **RT-04** (R7) A claim after the deadline → `PAST_DEADLINE`; an event reaching notifications after it → attempt
   `EXPIRED`, not sent.
 - **RT-05** A branch with no opening hours → `send_deadline = NULL` (S-2); `TODO(spec)` RT-Q5 decides a late entry.
-- **RT-06** `TODO(spec)` RT-Q4: a split day (10:00–13:00, 16:00–22:00) and an overnight interval (18:00–02:00).
+- **RT-06** `TODO(spec)` RT-Q4: a split day (10:00–13:00, 16:00–22:00) and an overnight interval (18:00–02:00). Settled
+  either way (S-2): a 22:15 visit at a 22:00 close is due at once and claimable until 22:30; at 22:31 → `PAST_DEADLINE`.
 - **RT-07** `TODO(spec)` RT-Q3: a business with rating requests switched off schedules nothing.
 - **RT-08** Bootstrap: sessions recorded before 59 ships schedule only requests whose deadline is still ahead; expired
   deadlines never trigger historical ratings (spec 050).
