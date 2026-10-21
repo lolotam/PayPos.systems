@@ -1,7 +1,7 @@
 # Spec 059 — Commission plans, projection and statements (Phase 1 rows 48a–56b)
 
 > **Status:** Draft · 2026-10-21 · docs-only PR. Owner questions are recorded in [owner-questions.ar.md](owner-questions.ar.md):
-> the money list CS-Q1…CS-Q12 (decisions page batch 36) and the money question CS-Q22 (batch 39) are all answered. **CS-Q4,
+> the money list CS-Q1…CS-Q12 (decisions page batch 36) and the money question CS-Q22 (batch 39) are all answered; one new question, **CS-Q27** (from Abu Salem's note on CS-Q1), is open. **CS-Q4,
 > CS-Q6…CS-Q12 and CS-Q22 were answered the same way by Waleed and Abu Salem on the decisions page (2026-10-22; the
 > recommended options): CS-Q4** the pay permission goes to the owner, the general manager and the accountant, grantable;
 > **CS-Q6** the payment method is picked from «مع المرتب» / «تحويل بنكي» / «كاش» with an optional note; **CS-Q7** a negative
@@ -10,7 +10,7 @@
 > **CS-Q9** a separate section «تصحيحات شهور سابقة», one row per affected service; **CS-Q10** export only after approval, a
 > summary sheet and a detail sheet; **CS-Q11** a repair plan prices only the days that had no plan; **CS-Q12** the payable
 > is rounded to the nearest 5 fils when paid in cash; **CS-Q22** approval stays allowed after the 5th and the reminders on
-> the 3rd and 5th stay. `TODO(spec)` remain only on CS-Q1's note (FR-010), CS-Q8's "final settlement" (FR-045) and CS-Q12's
+> the 3rd and 5th stay. `TODO(spec)` remain only on the new question CS-Q27 (the plan permission's default roles and who grants it; Abu Salem's note on CS-Q1, FR-010), CS-Q8's "final settlement" (FR-045) and CS-Q12's
 > storage (D-19). CS-Q1 and CS-Q2 were answered by Abu Salem (below); CS-Q3 and CS-Q5 by Waleed through his super agent (2026-10-21, cards; still on batch 36, and Abu
 > Salem's pick replaces them if it differs), and the follow-up CS-Q2b (who holds review by default, batch 42) by Waleed
 > (PP-25.1, the recommended option). **Abu Salem answered on the decisions page (batch 36, 2026-10-22) and his pick binds**
@@ -555,10 +555,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-009** `GET …/commission-plan-versions` (a `queries/` file, newest first) for the builder's history.
 - **FR-010** Permission: `manage:commission-plans:business` (proposed code; CS-Q1 answered by Abu Salem, 2026-10-22: held by
   the owner only by default, and the owner may grant it), the `commissions` feature, an individual admin login (not a
-  device), rechecked inside the transaction. `TODO(spec)` CS-Q1: Abu Salem's note «المالك مدير اداري و مالي و المحاسب مع
-  امكانية اعطاء الصلاحيه» may also mean the accountant role holds it by default; this spec builds the owner-only default
-  with an owner grant (to the accountant or anyone) until that is confirmed, and says nothing yet on whether only the owner
-  may grant it (as review and approve are) or any holder of the grant screen.
+  device), rechecked inside the transaction. `TODO(spec)` CS-Q27 (a new owner question, from Abu Salem's note «المالك مدير اداري و مالي و المحاسب مع
+  امكانية اعطاء الصلاحيه»): whether the accountant role holds this permission by default and who may grant it (only the owner, as review and approve, or any holder of the grant screen). The default roles and the grant policy are `TODO(spec)` CS-Q27; until it is answered this spec shows the owner-only default as the working assumption, and the sub-PR that seeds the permission waits (48-1).
 
 ### 49 — service overrides
 
@@ -1038,7 +1036,7 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
 
 | Code | Who by default | Status |
 | --- | --- | --- |
-| `manage:commission-plans:business` (proposed) | owner only; grantable by the owner (CS-Q1, Abu Salem 2026-10-22, replacing Waleed's recommended owner / general manager / business manager); `TODO(spec)` CS-Q1: the accountant by default? (FR-010) | new; plan versions, overrides, period repair |
+| `manage:commission-plans:business` (proposed) | owner only; grantable by the owner (CS-Q1, Abu Salem 2026-10-22, replacing Waleed's recommended owner / general manager / business manager); default roles and grant policy: `TODO(spec)` CS-Q27 (the accountant by default? who grants? FR-010) | new; plan versions, overrides, period repair |
 | `read:commissions:business` | owner, general manager, business manager, accountant **and branch manager** (CS-Q14 = PP-17.2, against the recommendation); grantable | new; estimate of all employees, statement view, export. A holder sees only the employees of her effective branch set (CS-Q20 = PP-20.1, below) |
 | `review:commissions:business` | owner, general manager, business manager (CS-Q2b = PP-25.1, Waleed 2026-10-21; CS-Q2, Abu Salem 2026-10-22, the same); granted and revoked **by the owner only**, to any user he chooses (52-1 registers both codes as owner-grantable only; if spec 009's grant flow has no per-code granter rule yet, 52-1 adds it for these two codes); usable only by a business-wide reader (CS-Q26 = PP-24.1, FR-029), and the grant screen warns of it (FR-029b) | named by SPEC §6 |
 | `approve:commissions:business` | owner (D-17, SPEC §11; CS-Q5, Waleed 2026-10-21); granted and revoked **by the owner only**, to a named person (52-1 registers both codes as owner-grantable only; if spec 009's grant flow has no per-code granter rule yet, 52-1 adds it for these two codes); usable only by a business-wide reader (FR-036, from PP-24.1), and the grant screen warns of it (FR-029b) | named by SPEC §6 |
@@ -1108,7 +1106,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1), the global `operational_recovery_flags` table and its grants (FR-053) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the two fingerprints (D-6). 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9; the statement fingerprint recomputed from the frozen rows after the freeze, FR-032), ADR-0049 addendum (binary output contract, the xlsx kind and the per-kind renderer admission, D-18) | this spec; design advisors | 150–250 |
 | **48a-1** | `packages/commissions-engine` (D-17) | 1. Package scaffold, `packages/domain` its only dependency, and the browser-safe `validation` entry point. 2. Move the engine and its tests unchanged. 3. Rewire the api imports; the boundaries rule (only the `commissions` modules may import it) and the module-map check | 59-0 | 150–300 (moves) |
 | **48a-2** | Statements and the lock | 1. `commission_statements` + RLS + grants + FR-001 trigger + negative tests, and the two frozen-statement tables `commission_statement_lines` and `commission_statement_attachments` (schema, RLS, grants, the insert-only trigger, CM-R08), so 55-1's seed (FR-044) and 53-2's freeze both find them. 2. `lockStatementPeriods` (with the injected `IdGenerator`, FR-002) + typed errors. 3. Lock tests CM-01…CM-04 and the FR-004 check | 48a-1 | 400–540 |
-| **48-1** | Plan storage and contracts | 1. Zod contracts and OpenAPI. 2. `commission_plan_versions` + RLS. 3. The plan permission (CS-Q1, Abu Salem: owner-only default) and its role defaults | 48a-2 (CS-Q1 answered; its one `TODO(spec)` detail, FR-010, does not change the owner-only default) | 250–380 |
+| **48-1** | Plan storage and contracts | 1. Zod contracts and OpenAPI. 2. `commission_plan_versions` + RLS. 3. The plan permission (CS-Q1, Abu Salem; its default roles and grant policy per CS-Q27) and its role defaults | 48a-2; **CS-Q27** (the permission's default roles and grant policy, FR-010; the seeding migration waits for it) | 250–380 |
 | **48-2** | Create and list plan versions | 1. Use case (FR-007/FR-008) and ports. 2. HTTP + list query + `EXPLAIN`. 3. CM-05…CM-08, CM-10 | 48-1 | 350–480 |
 | **48-3** | The builder screen | 1. Blocks with switches, validated before submit through `packages/commissions-engine/validation` (D-17). 2. History list. 3. ar/en keys, component tests (CM-06 builder half, CM-09) | 48-2 | 300–450 |
 | **49-1** | Overrides | 1. Contracts + table + RLS. 2. Use case + HTTP + list. 3. CM-11…CM-13 | 48-2 | 350–480 |

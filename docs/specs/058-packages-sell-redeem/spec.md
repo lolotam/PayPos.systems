@@ -17,8 +17,8 @@
 > PK-Q3 (the recorder cannot name herself the seller), PK-Q5 (refund permission with reason, bell and audit), PK-Q6 (cancel
 > rules of a line), PK-Q7 (expiry by visit date), PK-Q8 (performer change by the 055 rules), PK-Q9 (an imported package's
 > price is what the customer actually paid) and PK-Q10 (an imported package refunds by the refund rules; one `TODO(spec)`
-> remains on Abu Salem's note). **No question is open.** Two `TODO(spec)` remain: PK-Q10's note (FR-053) and PK-Q22's
-> `list_price_snapshot` (FR-063); **no code starts on a sub-PR whose rows name a pending `TODO(spec)`** (§7).
+> remains on Abu Salem's note). **No question is open.** One `TODO(spec)` remains: PK-Q10's note (FR-053); PK-Q22's
+> `list_price_snapshot` is settled as a display-only invariant (FR-063); **no code starts on a sub-PR whose rows name a pending `TODO(spec)`** (§7).
 > **Implements:** SPEC §4 (`PackageEntitlement`, `PackageComponent`, `PackageSessionSlot`, `PackageRedemption`,
 > `PackageRefund`), §5.6, §8 and the M5–M14 behaviour tests of §11; PRD D-30, D-42, D-48, D-51, D-55; plan rows
 > 33b, 42, 43, 44, 45, 46, 47 (`docs/specs/phase-1/IMPLEMENTATION-PLAN.md`).
@@ -324,8 +324,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   remaining sessions, expiry date, `external_ref`. Per-row errors are named; the phone shows its last 3 digits only.
 - **IM-02** A clean preview commits all rows in one worker transaction (spec 030 IM-03…IM-05): per row one entitlement
   `IMPORTED` with no seller, components valued over the **original** sessions **by session count only** (PK-Q22, Abu Salem): every
-  original session of the package has the same value whatever its service (`TODO(spec)` what `list_price_snapshot` stores
-  on an imported component, FR-063), slots `1…used` `IMPORTED_USED` and the rest `FREE`; one audit entry per commit. [M11]
+  original session of the package has the same value whatever its service (`list_price_snapshot` of an imported component is display-only, FR-063), slots `1…used` `IMPORTED_USED` and the rest `FREE`; one audit entry per commit. [M11]
 - **IM-03** An `external_ref` already imported → the row is a no-op on re-import (reported "already imported"); twice
   in one file → row error.
 - **IM-04** Remaining > original, sessions 0 or > 365, a duplicate service, a negative or 4-decimal price, an unknown
@@ -527,13 +526,13 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   money is split by session count only (PK-Q22, Abu Salem).
 - **FR-062** (PK-Q19) No package type is named; `package_type_id` is `NULL` for `IMPORTED`; the names are
   stored on the entitlement.
-- **FR-063** (PK-Q9; `TODO(spec)` PK-Q22) `price_paid` is the amount actually paid, required, `≥ 0`; components are
+- **FR-063** (PK-Q9, PK-Q22) `price_paid` is the amount actually paid, required, `≥ 0`; components are
   valued over the **original** sessions **by session count only** (PK-Q22, Abu Salem): every original session of the
-  package has the same value whatever its service (`allocatePackagePrice` already falls back to session-count weights
-  when every weight is zero), so the file gives no per-service price. `TODO(spec)` PK-Q22: what `list_price_snapshot`
-  stores on an imported component (the sold components fill it from the catalog price; the session-count split does
-  not need it) and whether `allocatePackagePrice` gets an explicit session-count mode or the import passes zero
-  weights; `createPackageSlots(…, remaining)` marks ordinals `1…original − remaining` `IMPORTED_USED`.
+  package has the same value whatever its service , so the file gives no per-service price.
+  **Invariant (technical decision, orchestrator 2026-10-22):** for an imported component `list_price_snapshot` is the
+  service's catalog list price at import time and is display-only; it never weights the value. The value comes from an
+  explicit session-count mode of the pure allocation (equal value per original session, largest remainder, as the existing
+  zero-weight fallback does), so the 47-1 code adds that mode rather than relying on zero weights; `createPackageSlots(…, remaining)` marks ordinals `1…original − remaining` `IMPORTED_USED`.
 - **FR-063b** Each group's service name is matched, trimmed and case-insensitive, against the `name_en` and `name_ar`
   of the business's services (031 allows duplicate names, SV-02). No match → the unknown-service row error (IM-04);
   more than one distinct service matching → row error `IMPORT_SERVICE_AMBIGUOUS` naming the group, and the file saves
@@ -821,7 +820,7 @@ Every row waits on this spec's merge and on the owner answers named in its "Bloc
 | **46-1** | Refund storage | 1. `package_refunds`, `package_refund_slots`, RLS, grants. 2. Contracts, error codes, permission. 3. Negative tests | **design advisors**; 43-1 (PK-Q5 answered) |
 | **46-2** | Refund | 1. Use case (FR-051…FR-055). 2. Route. 3. RF-01…RF-10 incl. M6/M9 races | 46-1; the PK-Q10 `TODO(spec)` (FR-053) |
 | **46-3** | Refund bell + dialog | 1. Events, ADR-0044 addendum, module-map rows, template ar/en. 2. Consumer + ledger. 3. Admin refund dialog and the detail's refund history (FR-071) | 46-2, **42-4**, after **45** on the detail query file; PK-Q5 |
-| **47-1** | Import framework for packages | 1. The workbook reader moved to `shared/import` with per-plug-in bounds (FR-060b); staff passes its own, unchanged; IM-09. 2. Package plug-in on the shared `import_previews` / `import-sheet.ts` framework: template, row validation, `CustomerLookupPort.findByPhone` (TD-11). 3. The new permission `import:packages:business` (catalog, role defaults, seeding migration, i18n names, PK-Q18) with the guard on it and its refusal tests | **design advisors**; 43-1 (PK-Q9 answered); the `list_price_snapshot` detail of PK-Q22 (FR-063 `TODO(spec)`) |
+| **47-1** | Import framework for packages | 1. The workbook reader moved to `shared/import` with per-plug-in bounds (FR-060b); staff passes its own, unchanged; IM-09. 2. Package plug-in on the shared `import_previews` / `import-sheet.ts` framework: template, row validation, `CustomerLookupPort.findByPhone` (TD-11). 3. The new permission `import:packages:business` (catalog, role defaults, seeding migration, i18n names, PK-Q18) with the guard on it and its refusal tests | **design advisors**; 43-1 (PK-Q9 and PK-Q22 answered) |
 | **47-2** | Import commit | 1. Commit request route (202, `Idempotency-Key`, sets `commit_requested` and appends `PackageImportCommitRequested` in one transaction), the event's contract, worker known type, ADR-0034 addendum and module-map §4 row. 2. Orders worker: commit use case, `package-import-commit` processor and the recovery sweep, wired like staff's. 3. IM-01…IM-08, plus worker tests: the job is enqueued only after the claim commits, and a request left pending ten minutes is marked `failed` | 47-1 |
 | **47-3** | Import screen | 1. Upload/preview/commit screen. 2. Row errors. 3. Component tests | 47-2 |
 
