@@ -1,10 +1,10 @@
 # Spec 058 — Packages: stop selling, sell, redeem, cancel a redemption, extend, refund, import (Phase 1 rows 33b, 42–47)
 
 > **Status:** Draft · 2026-10-21 · docs-only PR. 22 owner questions in [owner-questions.ar.md](owner-questions.ar.md).
-> **Answered:** PK-Q12…PK-Q19 and PK-Q21 by Waleed (PP-16, through his super agent, 2026-10-21); PK-Q17 and PK-Q18
+> **Answered:** PK-Q12…PK-Q21 by Waleed (PP-16, fully answered, through his super agent, 2026-10-21); PK-Q17 and PK-Q18
 > went against the recommendation (reception sees everything; the import uses the package-type permission).
-> **Still open (13):** the charges/money questions PK-Q1…PK-Q11 and PK-Q22 (decisions page, batches 35 and 37; Abu Salem
-> binds) and PK-Q20 (Waleed asked for an explanation; PP-16.9 is being re-asked). Every rule that waits on an open one
+> **Still open (12):** the charges/money questions PK-Q1…PK-Q11 and PK-Q22 (decisions page, batches 35 and 37; Abu Salem
+> binds). Every rule that waits on an open one
 > is marked `TODO(spec)` with its number and follows its recommended option, so only that rule moves if an owner picks
 > otherwise. **No code starts on a sub-PR whose rows name a pending question** (§7).
 > **Implements:** SPEC §4 (`PackageEntitlement`, `PackageComponent`, `PackageSessionSlot`, `PackageRedemption`,
@@ -61,7 +61,7 @@ commission, it would fall in proportion to (22.500 − 18.000) ÷ 22.500 (SPEC �
 | Performer change of a redeemed line | `TODO(spec)` PK-Q8 | FR-035 |
 | Extend (45) | forward only, audited, compare-and-set on the current date (PK-Q16 answered; `TODO(spec)` PK-Q1) | FR-040…FR-044 |
 | Refund (46) | the manager picks one component and a count; highest `FREE` ordinals; exact or `INSUFFICIENT_SLOTS` (SPEC §8) (`TODO(spec)` PK-Q4, PK-Q5, PK-Q10) | FR-050…FR-057 |
-| Import (47) | the spec 030 framework: template, preview, one all-or-nothing commit; `external_ref` unique per company (`TODO(spec)` PK-Q9, PK-Q20, PK-Q22) | FR-060…FR-068 |
+| Import (47) | the spec 030 framework: template, preview, one all-or-nothing commit; `external_ref` unique per company (`TODO(spec)` PK-Q9, PK-Q22) | FR-060…FR-068 |
 | Who sees a customer's packages | reception and managers alike see everything (PK-Q17, PP-16.6) | FR-070, FR-071 |
 
 **Not in 33b, 42–47:** instalments and sharing a package between customers (D-42, out of scope); a package used in another
@@ -138,7 +138,7 @@ commission arithmetic and statements (rows 50–55); the staff app's view of pac
 | PK-Q17 | permission | Who sees a customer's packages | **Answered (PP-16.6):** **against the recommendation:** reception sees everything, amounts and history included | settled — FR-070, FR-071, CP-01, CP-03 |
 | PK-Q18 | permission | Who imports | **Answered (PP-16.7):** **against the recommendation:** the import uses `manage:package-types:business`; no new import permission | settled — FR-060, IM-01, IM-08, 47-1 |
 | PK-Q19 | technical | Imported package without a matching type | **Answered (PP-16.8):** as recommended: rows give a name, services and sessions directly; no type link | settled |
-| PK-Q20 | technical | Import row whose customer phone is unknown | the row is refused; customers are imported first (row 34b) | FR-064 |
+| PK-Q20 | technical | Import row whose customer phone is unknown | **Answered (PP-16.9):** as recommended: the row is refused with a clear error; customers are imported first (row 34b) | settled |
 | PK-Q21 | technical | Import row already expired | **Answered (PP-16.10):** as recommended: accepted as it is (a manager can extend it later) | settled |
 | PK-Q22 | money | How an imported package with several services is split between them | the file may give each service's price at the original sale; where it is blank, today's menu price is used | FR-061, FR-063, IM-02 |
 
@@ -285,7 +285,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   in one file → row error.
 - **IM-04** Remaining > original, sessions 0 or > 365, a duplicate service, a negative or 4-decimal price, an unknown
   service of the business, an invalid date → named row errors; one invalid row saves nothing. [M11]
-- **IM-05** (`TODO(spec)` PK-Q20) A phone with no customer in the company → row error `IMPORT_CUSTOMER_NOT_FOUND`.
+- **IM-05** (PK-Q20, PP-16.9) A phone with no customer in the company → row error `IMPORT_CUSTOMER_NOT_FOUND`.
 - **IM-06** (PK-Q21) A past expiry date is accepted; the package is expired until extended.
 - **IM-07** Imported packages redeem, cancel, extend and refund like sold ones; they never emit `PackageSaleChanged`.
 - **IM-08** Without `manage:package-types:business` (PK-Q18), a device, or the `orders` feature off → 403 /
@@ -444,7 +444,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   valued by `allocatePackagePrice` over the **original** sessions, with `list_price_snapshot` = the service's price at
   the original sale when the row gives it (an optional column per service group), else its current list price;
   `createPackageSlots(…, remaining)` marks ordinals `1…original − remaining` `IMPORTED_USED`.
-- **FR-064** (`TODO(spec)` PK-Q20) The phone is resolved through `CustomerLookupPort.findByPhone` (TD-11); unknown → row
+- **FR-064** (PK-Q20, PP-16.9) The phone is resolved through `CustomerLookupPort.findByPhone` (TD-11); unknown → row
   error.
 - **FR-065** (PK-Q21) Any valid expiry date is accepted, past included; `sold_business_date` is `NULL` and
   RD's "not yet valid" check does not apply.
@@ -598,7 +598,7 @@ Every row waits on this spec's merge and on the owner answers named in its "Bloc
 | **46-1** | Refund storage | 1. `package_refunds`, `package_refund_slots`, RLS, grants. 2. Contracts, error codes, permission. 3. Negative tests | **design advisors**; 43-1; PK-Q4, PK-Q5 |
 | **46-2** | Refund | 1. Use case (FR-051…FR-055). 2. Route. 3. RF-01…RF-10 incl. M6/M9 races | 46-1; PK-Q10 |
 | **46-3** | Refund bell + dialog | 1. Events, ADR-0044 addendum, module-map rows, template ar/en. 2. Consumer + ledger. 3. Admin refund dialog and the detail's refund history (FR-071) | 46-2, **42-4**, after **45** on the detail query file; PK-Q5 |
-| **47-1** | Import framework for packages | 1. Package plug-in on the shared `import_previews` / `import-sheet.ts` framework: template, row validation. 2. `CustomerLookupPort.findByPhone` (TD-11). 3. Guard on `manage:package-types:business` and its refusal tests | **design advisors**; 43-1; PK-Q9, PK-Q20, PK-Q22 |
+| **47-1** | Import framework for packages | 1. Package plug-in on the shared `import_previews` / `import-sheet.ts` framework: template, row validation. 2. `CustomerLookupPort.findByPhone` (TD-11). 3. Guard on `manage:package-types:business` and its refusal tests | **design advisors**; 43-1; PK-Q9, PK-Q22 |
 | **47-2** | Import commit | 1. Worker commit use case. 2. Routes. 3. IM-01…IM-08 | 47-1 |
 | **47-3** | Import screen | 1. Upload/preview/commit screen. 2. Row errors. 3. Component tests | 47-2 |
 
