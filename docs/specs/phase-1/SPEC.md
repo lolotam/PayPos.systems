@@ -126,7 +126,10 @@ per stored discount-approval request in its transaction (`request_id`, `business
 phone or the terms). Worker orders claims a `(company_id, request_id)` ledger row, resolves every active user whose
 membership covering the branch effectively grants `approve:discounts:branch` (DENY excludes; PP-15.2, so **not** the
 ADR-0037 manager rule), drops the requester, and emits `DiscountApprovalNoticeRequested` to notifications for the IN_APP
-bell in groups of at most 100; zero recipients is a durable decision. Approvals, rejects and consumption emit no event.
+bell in groups of at most 100; zero recipients is a durable decision. Rejects and consumption emit no event; an approval
+emits `DiscountApprovedByPerformer` only when the approver performs one of its services (DA-Q3, Waleed 2026-10-21), and
+worker orders then emits `DiscountApprovedByPerformerNoticeRequested` to the owners' IN_APP bell (owner scope
+`TODO(spec)` DA-Q3).
 The approver is proved by phone + PIN on a paired branch device (the reception computer, PP-15.1) or by an admin session;
 `identity` supplies that proof and the approver's authority through consumer-owned ports, with no new import arrow.
 
