@@ -499,14 +499,16 @@ Money in contracts is canonical three-decimal KWD strings; `bigint` mills inside
   `approve:discounts:branch`, minus any covering DENY; PP-15.2, so **not** the ADR-0037 manager rule), drops the
   requester, and appends `DiscountApprovalNoticeRequested` to `notifications` (existing IN_APP storage, admin bell). A second
   worker `orders` consumer `orders.discount-self-approval-notice-v1` (057-3b) claims a `discount_self_approval_notices`
-  row per event, resolves the active `owner` memberships covering the branch through the worker identity scoped-role
-  reader (roles = `owner`, the approving owner included: DA-Q10, D-19) and appends `DiscountSelfApprovalNoticeRequested` in
-  groups of at most 100.
+  row per event, reads the master switch and the kind's effective alert rule through `AlertRulesPort` (DA-Q11; nothing is
+  sent when either is off), resolves the rule's roles covering the branch through the worker identity scoped-role reader
+  (default `owner`, the approving owner included: DA-Q10, D-19) and appends `DiscountSelfApprovalNoticeRequested` in groups
+  of at most 100.
 - **Ports (module-map §3 rows, no new import arrow — `orders → identity, settings` exists, map line 43):**
   `DiscountApprovalAccessPort` (identity: approve permission, DENY, feature, approver memberships, locked),
   `DiscountPinApproverPort` (identity: PIN verify by phone through the existing facility, outcome only),
   `DiscountLimitPort` (settings, reused for the approver), worker `DiscountApprovalNoticeRecipients` (identity,
-  tenancy), worker `DiscountApprovalNoticePlace` (tenancy), worker `DiscountSelfApprovalNoticeRecipients` (identity, owners) and
+  tenancy), worker `DiscountApprovalNoticePlace` (tenancy), worker `DiscountSelfApprovalNoticeRecipients` (identity, the rule's roles; default owners), worker `AlertRulesPort`
+  (settings, ADR-0010 addendum A-0, built in 62-3) and
   `DiscountSelfApprovalNoticePlace` (tenancy).
 - **Bell content (proposed copy; fixed in 057-1):** «طلب موافقة على خصم» · branch · service · «حتى 20%» · number of
   lines; template key `discount_approval_requested`, ar and en. For DA-Q3: the approver's label (the stored
