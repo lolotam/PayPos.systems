@@ -18283,6 +18283,42 @@
           "primaryKey": false,
           "notNull": true
         },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "line_id": {
+          "name": "line_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "base_revision": {
+          "name": "base_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "base_price": {
+          "name": "base_price",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "base_discount": {
+          "name": "base_discount",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "base_net": {
+          "name": "base_net",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "session_id": {
           "name": "session_id",
           "type": "uuid",
@@ -18511,6 +18547,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "approver_is_performer": {
+          "name": "approver_is_performer",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
         "reject_reason": {
           "name": "reject_reason",
           "type": "text",
@@ -18519,6 +18561,12 @@
         },
         "consumed_line_id": {
           "name": "consumed_line_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consumed_edit_id": {
+          "name": "consumed_edit_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -18549,6 +18597,28 @@
           ],
           "isUnique": true,
           "where": "\"discount_proposals\".\"consumed_line_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "dp_consumed_edit_uq": {
+          "name": "dp_consumed_edit_uq",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "consumed_edit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"discount_proposals\".\"consumed_edit_id\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -18698,6 +18768,34 @@
           ],
           "isUnique": false,
           "where": "\"discount_proposals\".\"session_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "dp_line_fk_idx": {
+          "name": "dp_line_fk_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "line_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"discount_proposals\".\"line_id\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -18899,6 +18997,23 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "dp_line_fk": {
+          "name": "dp_line_fk",
+          "tableFrom": "discount_proposals",
+          "tableTo": "service_lines",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "line_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "dp_customer_fk": {
           "name": "dp_customer_fk",
           "tableFrom": "discount_proposals",
@@ -18977,6 +19092,15 @@
             "consumed_line_id"
           ]
         },
+        "dp_consumed_edit_key": {
+          "name": "dp_consumed_edit_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "company_id",
+            "id",
+            "consumed_edit_id"
+          ]
+        },
         "dp_request_input_key": {
           "name": "dp_request_input_key",
           "nullsNotDistinct": false,
@@ -18992,6 +19116,18 @@
         "dp_status_ck": {
           "name": "dp_status_ck",
           "value": "\"discount_proposals\".\"status\" IN ('PENDING','APPROVED','REJECTED','CONSUMED')"
+        },
+        "dp_kind_ck": {
+          "name": "dp_kind_ck",
+          "value": "(\"discount_proposals\".\"kind\" IN ('RECORD','EDIT')) IS TRUE"
+        },
+        "dp_kind_shape_ck": {
+          "name": "dp_kind_shape_ck",
+          "value": "(((\"discount_proposals\".\"kind\" = 'RECORD' AND \"discount_proposals\".\"line_id\" IS NULL AND \"discount_proposals\".\"base_revision\" IS NULL AND \"discount_proposals\".\"base_price\" IS NULL AND \"discount_proposals\".\"base_discount\" IS NULL AND \"discount_proposals\".\"base_net\" IS NULL AND \"discount_proposals\".\"consumed_edit_id\" IS NULL) OR (\"discount_proposals\".\"kind\" = 'EDIT' AND \"discount_proposals\".\"line_id\" IS NOT NULL AND \"discount_proposals\".\"base_revision\" IS NOT NULL AND \"discount_proposals\".\"base_revision\" >= 1 AND \"discount_proposals\".\"base_price\" IS NOT NULL AND \"discount_proposals\".\"base_discount\" IS NOT NULL AND \"discount_proposals\".\"base_net\" IS NOT NULL AND \"discount_proposals\".\"session_id\" IS NOT NULL AND \"discount_proposals\".\"input_index\" = 0 AND \"discount_proposals\".\"consumed_line_id\" IS NULL))) IS TRUE"
+        },
+        "dp_base_amounts_ck": {
+          "name": "dp_base_amounts_ck",
+          "value": "(((\"discount_proposals\".\"base_price\" IS NULL AND \"discount_proposals\".\"base_discount\" IS NULL) OR (\"discount_proposals\".\"base_price\" >= 0 AND \"discount_proposals\".\"base_discount\" >= 0 AND \"discount_proposals\".\"base_discount\" <= \"discount_proposals\".\"base_price\")) IS TRUE"
         },
         "dp_input_index_ck": {
           "name": "dp_input_index_ck",
@@ -19011,7 +19147,7 @@
         },
         "dp_requester_limit_ck": {
           "name": "dp_requester_limit_ck",
-          "value": "(\"discount_proposals\".\"requester_limit_source\"='OWNER' AND \"discount_proposals\".\"requester_limit_bps\" IS NULL) OR (\"discount_proposals\".\"requester_limit_source\"='NOT_CONFIGURED' AND \"discount_proposals\".\"requester_limit_bps\"=0) OR (\"discount_proposals\".\"requester_limit_source\" IN ('PERSON','BUSINESS') AND \"discount_proposals\".\"requester_limit_bps\" BETWEEN 0 AND 10000)"
+          "value": "((\"discount_proposals\".\"requester_limit_source\"='OWNER' AND \"discount_proposals\".\"requester_limit_bps\" IS NULL) OR (\"discount_proposals\".\"requester_limit_source\"='NOT_CONFIGURED' AND \"discount_proposals\".\"requester_limit_bps\"=0) OR (\"discount_proposals\".\"requester_limit_source\" IN ('PERSON','BUSINESS') AND \"discount_proposals\".\"requester_limit_bps\" BETWEEN 0 AND 10000)) IS TRUE"
         },
         "dp_requester_names_ck": {
           "name": "dp_requester_names_ck",
@@ -19047,15 +19183,19 @@
         },
         "dp_approved_limit_ck": {
           "name": "dp_approved_limit_ck",
-          "value": "(\"discount_proposals\".\"status\" IN ('APPROVED','CONSUMED')) = (\"discount_proposals\".\"approved_limit_source\" IS NOT NULL) AND ((\"discount_proposals\".\"approved_limit_source\" IS NULL AND \"discount_proposals\".\"approved_limit_bps\" IS NULL) OR (\"discount_proposals\".\"approved_limit_source\"='OWNER' AND \"discount_proposals\".\"approved_limit_bps\" IS NULL) OR (\"discount_proposals\".\"approved_limit_source\"='NOT_CONFIGURED' AND \"discount_proposals\".\"approved_limit_bps\"=0) OR (\"discount_proposals\".\"approved_limit_source\" IN ('PERSON','BUSINESS') AND \"discount_proposals\".\"approved_limit_bps\" BETWEEN 0 AND 10000))"
+          "value": "(((\"discount_proposals\".\"status\" IN ('APPROVED','CONSUMED')) = (\"discount_proposals\".\"approved_limit_source\" IS NOT NULL)) AND ((\"discount_proposals\".\"approved_limit_source\" IS NULL AND \"discount_proposals\".\"approved_limit_bps\" IS NULL) OR (\"discount_proposals\".\"approved_limit_source\"='OWNER' AND \"discount_proposals\".\"approved_limit_bps\" IS NULL) OR (\"discount_proposals\".\"approved_limit_source\"='NOT_CONFIGURED' AND \"discount_proposals\".\"approved_limit_bps\"=0) OR (\"discount_proposals\".\"approved_limit_source\" IN ('PERSON','BUSINESS') AND \"discount_proposals\".\"approved_limit_bps\" BETWEEN 0 AND 10000))) IS TRUE"
         },
         "dp_reject_reason_ck": {
           "name": "dp_reject_reason_ck",
           "value": "\"discount_proposals\".\"reject_reason\" IS NULL OR (\"discount_proposals\".\"status\" = 'REJECTED' AND \"discount_proposals\".\"reject_reason\" = btrim(\"discount_proposals\".\"reject_reason\", chr(9) || chr(10) || chr(13) || chr(32)) AND char_length(\"discount_proposals\".\"reject_reason\") BETWEEN 1 AND 500)"
         },
+        "dp_approver_flag_ck": {
+          "name": "dp_approver_flag_ck",
+          "value": "(((\"discount_proposals\".\"status\" IN ('APPROVED','CONSUMED')) = (\"discount_proposals\".\"approver_is_performer\" IS NOT NULL)) IS TRUE)"
+        },
         "dp_consumption_ck": {
           "name": "dp_consumption_ck",
-          "value": "(\"discount_proposals\".\"status\" = 'CONSUMED') = (\"discount_proposals\".\"consumed_line_id\" IS NOT NULL) AND (\"discount_proposals\".\"status\" = 'CONSUMED') = (\"discount_proposals\".\"consumed_at\" IS NOT NULL)"
+          "value": "(((\"discount_proposals\".\"status\" = 'CONSUMED') = (\"discount_proposals\".\"consumed_at\" IS NOT NULL)) AND ((\"discount_proposals\".\"status\" <> 'CONSUMED' AND \"discount_proposals\".\"consumed_line_id\" IS NULL AND \"discount_proposals\".\"consumed_edit_id\" IS NULL) OR (\"discount_proposals\".\"status\" = 'CONSUMED' AND \"discount_proposals\".\"kind\" = 'RECORD' AND \"discount_proposals\".\"consumed_line_id\" IS NOT NULL AND \"discount_proposals\".\"consumed_edit_id\" IS NULL) OR (\"discount_proposals\".\"status\" = 'CONSUMED' AND \"discount_proposals\".\"kind\" = 'EDIT' AND \"discount_proposals\".\"consumed_edit_id\" IS NOT NULL AND \"discount_proposals\".\"consumed_line_id\" IS NULL))) IS TRUE"
         }
       },
       "isRLSEnabled": false

@@ -49,11 +49,11 @@ async function refused(work: Promise<unknown>, code: string, constraint?: string
 }
 
 const proposal = (company: string, business: string, branch: string, id: string, status = 'PENDING') =>
-  sql`INSERT INTO discount_proposals(company_id,id,business_id,branch_id,request_id,input_index,session_id,occurred_at,
+  sql`INSERT INTO discount_proposals(company_id,id,business_id,branch_id,request_id,input_index,kind,session_id,occurred_at,
     customer_id,service_id,service_name_en,terms,terms_hash,effective_bps,requested_by,requested_by_membership_id,
     requester_limit_source,requester_limit_bps,requester_role,requester_role_is_system,requester_role_name_en,
     customer_first_name,requested_at,status,expires_at)
-  VALUES(${company},${id},${business},${branch},${ids.newId()},0,${ORDER_IDS.session},clock_timestamp(),
+  VALUES(${company},${id},${business},${branch},${ids.newId()},0,'RECORD',${ORDER_IDS.session},clock_timestamp(),
     ${ORDER_IDS.customer},${ORDER_IDS.service},'Synthetic service','{}'::jsonb,${HASH},2000,${USER},${ORDER_IDS.membership},
     'PERSON',1000,'cashier',true,'Cashier','Synthetic',clock_timestamp(),${status},clock_timestamp() + interval '1 day')`;
 
@@ -64,7 +64,7 @@ const performer = (company: string, business: string, proposalId: string) =>
 const approveRemote = (id: string, extra = sql``) =>
   sql`UPDATE discount_proposals SET status='APPROVED',decided_by=${USER},decided_by_membership_id=${ORDER_IDS.membership},
     decided_via='REMOTE',decider_role='owner',decider_role_is_system=true,decider_role_name_en='Owner',
-    decided_at=clock_timestamp(),approved_limit_source='OWNER' ${extra} WHERE id=${id}`;
+    decided_at=clock_timestamp(),approved_limit_source='OWNER',approver_is_performer=false ${extra} WHERE id=${id}`;
 
 it.each([
   ['discount_proposals', ['INSERT', 'SELECT', 'UPDATE']],

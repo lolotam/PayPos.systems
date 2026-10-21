@@ -15,8 +15,10 @@ export const DISCOUNT_PROPOSAL_COLUMN_GRANTS = [
   'decided_at',
   'approved_limit_source',
   'approved_limit_bps',
+  'approver_is_performer',
   'reject_reason',
   'consumed_line_id',
+  'consumed_edit_id',
   'consumed_at',
 ].map((column) => `discount_proposals.${column}:pospay_app:UPDATE`);
 

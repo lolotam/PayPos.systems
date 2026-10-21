@@ -9,6 +9,7 @@ import {
   lineNoticeMatchStatement,
 } from '../persistence/service-line-edit-notice.repository.ts';
 
+// The planner may serve these reads through service_lines_discount_proposal_key; it leads with the primary key columns (company_id, id).
 let f: PriceEditFixture;
 beforeAll(async () => {
   f = await priceEditFixture();
@@ -36,10 +37,10 @@ it(
       await explain(editSnapshotStatement(line.companyId, line.lineId, line.revision)),
     );
     const context = JSON.stringify(await explain(lineContextStatement(line)));
-    expect(match).toMatch(/service_lines_(company_id_id_pk|session_fk_idx)/);
+    expect(match).toMatch(/service_lines_(company_id_id_pk|session_fk_idx|discount_proposal_key)/);
     expect(match).toMatch(/service_sessions_(company_id_id_pk|business_id_key)/);
     expect(snapshot).toContain('service_line_edits_line_revision_key');
-    expect(context).toMatch(/service_lines_(company_id_id_pk|session_fk_idx)/);
+    expect(context).toMatch(/service_lines_(company_id_id_pk|session_fk_idx|discount_proposal_key)/);
     for (const plan of [match, snapshot, context]) expect(plan).not.toContain('Seq Scan');
     const claim = JSON.stringify(
       await explain(
