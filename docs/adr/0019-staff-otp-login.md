@@ -695,9 +695,22 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
      and `now − opened_at ≤ 5 min`;
    - a passing request sets `last_activity_at = now`, so each request extends the window by 60 seconds from its own
      time, never past 5 minutes from the opening;
-   - any other request is refused with 401 `UNAUTHENTICATED` and the record is deleted, which closes the window.
+   - any other request is refused with **403 `PRIVATE_VIEW_EXPIRED`** and the record is deleted, which closes the
+     window.
 
    A killed tab, a lost connection or a bypassed client therefore never keeps the window open.
+
+   **Two refusals, two meanings.** The staff-session checks run first, so a dead operator session (sign-out,
+   replacement, the 8-hour deadline, a revoked device) is always 401 `UNAUTHENTICATED`, even when its window is also
+   gone. `PRIVATE_VIEW_EXPIRED` (403) is returned only while the operator session is still live and means only that the
+   window is missing or lapsed. The POS acts on the code, never on the status alone:
+   - `PRIVATE_VIEW_EXPIRED`: close the private screen, clear its query cache, and show the PIN step. The operator stays
+     signed in.
+   - `UNAUTHENTICATED`: the existing signed-out handling of §1, which clears the operator's caches in every tab.
+
+   Spec 060 D-A13 says "refused (401)"; this addendum refines it into the two codes above. 57-1 adds
+   `PRIVATE_VIEW_EXPIRED` to `src/shared/errors.ts` with its `message_ar`/`message_en`, and the spec's error list
+   follows in the same PR.
 5. **Activity touch.** While the screen has input, the POS sends a throttled touch, at most one every 20 seconds,
    through the same route policy and the same check. It returns no private data. Its only effect is to keep the
    server's clock in step with real use.
@@ -706,20 +719,40 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
    window, and the check in item 4 also requires the bound session to be the live one, so a stale record never passes.
    The POS clears the screen and the query cache of these reads in every tab, as §1 already requires for a replaced
    operator. The server's idle expiry never depends on the close request arriving.
+   **The browser clears on its own clock too.** Opening the window returns its two limits (60 seconds idle, 5 minutes
+   from the opening). The POS keeps both deadlines on a monotonic clock. The idle deadline starts from the moment it
+   **sent** the last passing request, and the cap from the moment it sent the opening request, so the browser always
+   expires no later than the server does. When either deadline passes, the POS removes the private screen, clears its
+   query cache in every tab and shows the PIN step, with no request needed. A background tab whose timers were throttled
+   compares the deadlines again on `visibilitychange` and focus before it shows anything. The server check of item 4
+   stays the authority; the browser timer only makes sure the data leaves the screen on time when nobody sends a
+   request.
 7. **Nothing kept.** Responses carry `Cache-Control: no-store`, and the PWA persists nothing from these screens: no
    IndexedDB, no offline queue (spec 060 S-19, `CLAUDE.md` §7).
 8. **Route policy, for 57-1 (spec 060 FR-A06b).** Today `PERSONAL_ROUTE = true` makes `SessionGuard`
    (`apps/api/src/shared/session.guard.ts`) call `personalSessionRequest` at once, so a `STAFF_POS` request would be
    refused before any window check. FR-A01…FR-A04 therefore use the combined `PERSONAL_ROUTE = 'staff'` policy the
    ADR-0026 leave routes already use:
-   - with an `Authorization` header, the request takes the `STAFF_POS` operator path; without one, it takes the
-     personal session, and it never falls back to an admin session;
+   - each route carries **both** markers, exactly as the ADR-0026 leave routes do
+     (`apps/api/src/modules/staff/http/own-leave.controller.ts`): `@SetMetadata(STAFF_ROUTE, 'staff')` and
+     `@SetMetadata(PERSONAL_ROUTE, 'staff')`;
+   - without an `Authorization` header, `SessionGuard` takes the personal session (`personalSessionRequest`). With one,
+     it skips the personal branch and continues to the `STAFF_ROUTE` check. That check sends the request to its
+     `#staff` path (a Device credential plus the `pospay-staff` session, with the device context checked). With
+     `PERSONAL_ROUTE` alone, a request with that header would reach no staff policy and would be judged as a bare
+     Device or admin request. Neither path ever falls back to an admin session;
    - a per-route private-view marker makes the `STAFF_POS` path call auth's window check after the staff session
      resolves;
    - the personal path and the leave routes never call it.
 
    This addendum names the `SessionGuard` change and the auth window store; 57-1 builds both, with test MY-13b, its
-   killed-tab case included.
+   killed-tab case included. MY-13b also covers the two codes and the browser timer:
+   - an idle or capped window on a live session → 403 `PRIVATE_VIEW_EXPIRED`, the PIN step is shown and the operator
+     is still signed in; a replaced or signed-out operator → 401 `UNAUTHENTICATED`;
+   - with no request at all, 60 seconds of idle, or 5 minutes from the opening, remove the private screen and empty
+     its query cache in every open tab (57-4's UI test asserts the visible screen, `CLAUDE.md` §9);
+   - a route test asserts that each FR-A01…FR-A04 handler carries both `STAFF_ROUTE = 'staff'` and
+     `PERSONAL_ROUTE = 'staff'`.
 
 ### Not in this addendum
 

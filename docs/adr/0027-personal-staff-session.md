@@ -101,6 +101,7 @@ session instead, behind the private-view window recorded in ADR-0019's addendum 
 at most 60 seconds old, at most 5 minutes from the opening, a server-enforced 60-second idle expiry, and clearing on
 leave, sign-out and replacement.
 
-The same routes serve both paths through `PERSONAL_ROUTE = 'staff'` (spec 060 FR-A06b). Both paths send `no-store`
+The same routes serve both paths through `STAFF_ROUTE = 'staff'` plus `PERSONAL_ROUTE = 'staff'`, as the ADR-0026
+leave routes do (spec 060 FR-A06b). A personal request never receives `PRIVATE_VIEW_EXPIRED`. Both paths send `no-store`
 responses and persist nothing in the PWA, and the cache clearing above applies to both. Adding the four own reads to
 this ADR's list of personal-purpose capabilities is a separate addendum in sub-PR 57-1 (spec 060 D-A5).
