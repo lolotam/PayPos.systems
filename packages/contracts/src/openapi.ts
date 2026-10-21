@@ -123,6 +123,7 @@ import {
   whatsappHandshake,
   whatsappWebhookAcknowledgement,
 } from './whatsapp-webhook.js';
+import { json, operation } from './openapi-operation.js';
 
 const SCHEMAS = [
   ...employeeIbanSchemas,
@@ -223,27 +224,6 @@ const SCHEMAS = [
   calendar,
   taxRule,
 ];
-
-const json = (schema: string) => ({
-  'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
-});
-
-function operation(
-  operationId: string,
-  status: '200' | '201' | '202',
-  description: string,
-  response: string,
-  body?: string,
-) {
-  return {
-    operationId,
-    ...(body === undefined ? {} : { requestBody: { required: true, content: json(body) } }),
-    responses: {
-      [status]: { description, content: json(response) },
-      default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
-    },
-  };
-}
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
