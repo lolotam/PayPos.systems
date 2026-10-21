@@ -2,6 +2,7 @@ import type {
   PerformersChangeHistory,
   PerformersChangeParameters,
 } from '../domain/performers-change-notice.ts';
+import type { AlertRulesPort } from './alert-rule.port.ts';
 import type { Clock, IdGenerator } from './late-service-session-notice.port.ts';
 
 export type { Clock, IdGenerator };
@@ -130,4 +131,5 @@ export interface PerformersChangeNoticePorts {
   readonly place: PerformersChangeNoticePlace;
   readonly repository: PerformersChangeNoticeRepository;
   readonly outbox: PerformersChangeNoticeOutbox;
+  readonly rules: AlertRulesPort;
 }

@@ -7,6 +7,7 @@ import { createDeliverer } from '../../../outbox/deliver.ts';
 import { failingBranchRead } from './failing-branch-read.ts';
 import type { PriceEditNameFallback } from '../domain/price-edit-notice.ts';
 import { onServiceLineChanged } from '../events/handlers/on-service-line-changed.handler.ts';
+import { alertRules } from '../persistence/alert-rule.adapter.ts';
 import { priceEditRecipients } from '../persistence/price-edit-recipients.adapter.ts';
 import {
   priceEditOutbox,
@@ -138,6 +139,7 @@ function useCase(tx: Tx) {
       place: { branchPlace: async () => null },
       repository: priceEditRepository(tx),
       outbox: priceEditOutbox(tx),
+      rules: alertRules(tx),
     },
     f.ids,
     { now: () => f.at },

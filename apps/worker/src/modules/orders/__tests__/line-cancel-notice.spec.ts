@@ -6,6 +6,7 @@ import { beforeAll, afterAll, expect, it } from 'vitest';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import type { LineCancelNameFallback } from '../domain/line-cancel-notice.ts';
 import { onLineCancelled } from '../events/handlers/on-line-cancelled.handler.ts';
+import { alertRules } from '../persistence/alert-rule.adapter.ts';
 import { lineCancelPlace } from '../persistence/line-cancel-place.adapter.ts';
 import { lineCancelRecipients } from '../persistence/line-cancel-recipients.adapter.ts';
 import {
@@ -101,6 +102,7 @@ function withoutManagers() {
                 place: lineCancelPlace(tx),
                 repository: lineCancelRepository(tx),
                 outbox: lineCancelOutbox(tx),
+                rules: alertRules(tx),
               },
               f.ids,
               { now: () => f.at },

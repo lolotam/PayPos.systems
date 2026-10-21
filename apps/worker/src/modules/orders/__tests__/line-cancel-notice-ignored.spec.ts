@@ -7,6 +7,7 @@ import { createDeliverer } from '../../../outbox/deliver.ts';
 import { failingBranchRead } from './failing-branch-read.ts';
 import type { LineCancelNameFallback } from '../domain/line-cancel-notice.ts';
 import { onLineCancelled } from '../events/handlers/on-line-cancelled.handler.ts';
+import { alertRules } from '../persistence/alert-rule.adapter.ts';
 import { lineCancelRecipients } from '../persistence/line-cancel-recipients.adapter.ts';
 import {
   lineCancelOutbox,
@@ -140,6 +141,7 @@ function useCase(tx: Tx) {
       place: { branchPlace: async () => null },
       repository: lineCancelRepository(tx),
       outbox: lineCancelOutbox(tx),
+      rules: alertRules(tx),
     },
     f.ids,
     { now: () => f.at },

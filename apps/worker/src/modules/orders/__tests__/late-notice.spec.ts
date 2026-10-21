@@ -1,6 +1,7 @@
 import { createInAppTestModule } from '../../../outbox/__tests__/late-service-session-inbox.ts';
 import { createLogger } from '@pospay/observability';
 import { createDeliverer } from '../../../outbox/deliver.ts';
+import { alertRules } from '../persistence/alert-rule.adapter.ts';
 import { lateNoticeRecipients } from '../persistence/branch-manager-recipients.adapter.ts';
 import { lateNoticePlace } from '../persistence/branch-place.adapter.ts';
 import {
@@ -75,6 +76,7 @@ it('zero recipients is observable and manager added later never gets the histori
                 place: lateNoticePlace(tx),
                 repository: lateNoticeRepository(tx),
                 outbox: lateNoticeOutbox(tx),
+                rules: alertRules(tx),
               },
               f.ids,
               { now: () => f.at },
@@ -110,6 +112,7 @@ it('a missing branch place is recorded with no recipients and is not retried', a
                 place: { forBranch: async () => null },
                 repository: lateNoticeRepository(tx),
                 outbox: lateNoticeOutbox(tx),
+                rules: alertRules(tx),
               },
               f.ids,
               { now: () => f.at },

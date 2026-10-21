@@ -1,4 +1,5 @@
 import type { PriceEditParameters } from '../domain/price-edit-notice.ts';
+import type { AlertRulesPort } from './alert-rule.port.ts';
 import type { Clock, IdGenerator } from './late-service-session-notice.port.ts';
 
 export type { Clock, IdGenerator };
@@ -135,4 +136,5 @@ export interface PriceEditNoticePorts {
   readonly place: PriceEditNoticePlace;
   readonly repository: PriceEditNoticeRepository;
   readonly outbox: PriceEditNoticeOutbox;
+  readonly rules: AlertRulesPort;
 }
