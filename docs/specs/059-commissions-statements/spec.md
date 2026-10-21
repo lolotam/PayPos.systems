@@ -692,7 +692,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   total), even with no source at all: in scope means an employee of the business whose employment overlaps the month
   (hire date ≤ the last day, contract end and deletion, if any, ≥ the first day, read through `EmployeeDirectoryPort`) or
   who has any source or received correction in the month. It carries the frozen label and **`attached_branch_ids`**: every
-  branch she was attached to on any day of the month (from the attachment snapshot frozen with it, never changed), so a reader whose effective branch set (§6 _Permissions_) overlaps it still finds her in a closed month, with a zero total
+  branch she was attached to on any day of the month (from the attachment snapshot frozen with it, never changed),
+  **plus the `attached_branch_ids` of every correction frozen for her in this statement** (a correction keeps its source
+  month's branches, so رنا, who left at the end of October, still appears in ليلى's November part through her October
+  correction; MergePilot on #441), so a reader whose effective branch set (§6 _Permissions_) overlaps it still finds her in a closed month, with a zero total
   when she has no row in that part, and
   an approved month always lists the same employees with their zero totals.
   **Every** frozen row also stores the employee's label as read in the approval transaction through
