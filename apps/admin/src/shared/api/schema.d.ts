@@ -1870,7 +1870,7 @@ export interface paths {
         /** @description The caller own proposals of one request (record:service-sessions:branch and the orders feature). Another recorder request id returns an empty list. EXPIRED is derived from expires_at. */
         get: operations["listMyDiscountProposals"];
         put?: never;
-        /** @description Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; the expiry rule is set by spec 057 (DA-Q4: 24 hours; its start point is still open). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201. */
+        /** @description Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; a RECORD proposal terms use the fresh catalog list price (D-4). expires_at is never null: 24 hours from the request, reset to 24 hours from the approval (DA-Q4, DA-Q4b). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201. */
         post: operations["requestDiscountApproval"];
         delete?: never;
         options?: never;
@@ -1939,7 +1939,7 @@ export interface paths {
         /** @description The caller own EDIT proposals of one request for this line (edit:service-line-prices:branch and the orders feature), each with kind, line_id, base_revision and the base price, discount and net. Another editor request id returns an empty list. */
         get: operations["listMyEditDiscountProposals"];
         put?: never;
-        /** @description Asks approval for one edit of a saved line above the editor limit (DA-Q5; edit:service-line-prices:branch, orders feature, admin login). The body is the price/discount edit body without the reason; expected_revision becomes the proposal base_revision. One EDIT proposal; the expiry rule is set by spec 057 (DA-Q4: 24 hours; its start point is still open). Actor-bound Idempotency-Key; replayable 201. */
+        /** @description Asks approval for one edit of a saved line above the editor limit (DA-Q5; edit:service-line-prices:branch, orders feature, admin login). The body is the price/discount edit body without the reason; expected_revision becomes the proposal base_revision. The EDIT terms use the line stored list_price, never a fresh catalog price (D-20). One EDIT proposal; expires_at is never null: 24 hours from the request, reset to 24 hours from the approval (DA-Q4, DA-Q4b). Actor-bound Idempotency-Key; replayable 201. */
         post: operations["requestDiscountApprovalForEdit"];
         delete?: never;
         options?: never;
@@ -1954,7 +1954,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description The paired device branch live PENDING proposals shown before a PIN: service, amounts, percent, requester and customer first names, time left. Never a phone, never another branch. */
+        /** @description The paired device branch live PENDING proposals shown before a PIN: service, amounts, percent, requester and customer first names, time left. Newest first with an opaque (requested_at, id) cursor. Never a phone, never another branch. */
         get: operations["listDeviceDiscountProposals"];
         put?: never;
         post?: never;
@@ -5099,14 +5099,6 @@ export interface components {
             request_id: string;
             input_index: number;
             status: components["schemas"]["DiscountProposalStatus"];
-            /** @enum {string} */
-            kind: "RECORD" | "EDIT";
-            /** Format: uuid */
-            line_id?: string;
-            base_revision?: number;
-            base_price?: components["schemas"]["SessionMoney"];
-            base_discount?: components["schemas"]["SessionMoney"];
-            base_net?: components["schemas"]["SessionMoney"];
             /** Format: uuid */
             session_id: string | null;
             /** Format: date-time */
@@ -5132,6 +5124,53 @@ export interface components {
             reject_reason?: string;
             /** Format: uuid */
             consumed_line_id?: string;
+            /** @enum {string} */
+            kind: "RECORD";
+            line_id?: unknown;
+            base_revision?: unknown;
+            base_price?: unknown;
+            base_discount?: unknown;
+            base_net?: unknown;
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            request_id: string;
+            input_index: number;
+            status: components["schemas"]["DiscountProposalStatus"];
+            /** Format: uuid */
+            session_id: string | null;
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: uuid */
+            service_id: string;
+            service_name_en: string;
+            service_name_ar: string | null;
+            list_price: components["schemas"]["SessionMoney"];
+            price: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"];
+            net: components["schemas"]["SessionMoney"];
+            effective_bps: number;
+            /** Format: date-time */
+            expires_at: string;
+            terms_hash: string;
+            decided_label_ar?: string;
+            decided_label_en?: string;
+            /** @enum {string} */
+            decided_via?: "PIN" | "REMOTE";
+            /** Format: date-time */
+            decided_at?: string;
+            reject_reason?: string;
+            /** Format: uuid */
+            consumed_line_id?: string;
+            /** @enum {string} */
+            kind: "EDIT";
+            /** Format: uuid */
+            line_id: string;
+            base_revision: number;
+            base_price: components["schemas"]["SessionMoney"];
+            base_discount: components["schemas"]["SessionMoney"];
+            base_net: components["schemas"]["SessionMoney"];
         };
         RequesterDiscountProposalList: {
             items: components["schemas"]["RequesterDiscountProposal"][];
@@ -5152,14 +5191,6 @@ export interface components {
             id: string;
             /** Format: uuid */
             request_id: string;
-            /** @enum {string} */
-            kind: "RECORD" | "EDIT";
-            /** Format: uuid */
-            line_id?: string;
-            base_revision?: number;
-            base_price?: components["schemas"]["SessionMoney"];
-            base_discount?: components["schemas"]["SessionMoney"];
-            base_net?: components["schemas"]["SessionMoney"];
             /** Format: uuid */
             session_id: string | null;
             /** Format: date-time */
@@ -5182,6 +5213,48 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
             terms_hash: string;
+            /** @enum {string} */
+            kind: "RECORD";
+            line_id?: unknown;
+            base_revision?: unknown;
+            base_price?: unknown;
+            base_discount?: unknown;
+            base_net?: unknown;
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            request_id: string;
+            /** Format: uuid */
+            session_id: string | null;
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: uuid */
+            service_id: string;
+            service_name_en: string;
+            service_name_ar: string | null;
+            list_price: components["schemas"]["SessionMoney"];
+            price: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"];
+            net: components["schemas"]["SessionMoney"];
+            effective_bps: number;
+            performers: components["schemas"]["DiscountProposalPerformer"][];
+            requester_label_ar: string;
+            requester_label_en: string;
+            customer_first_name: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            terms_hash: string;
+            /** @enum {string} */
+            kind: "EDIT";
+            /** Format: uuid */
+            line_id: string;
+            base_revision: number;
+            base_price: components["schemas"]["SessionMoney"];
+            base_discount: components["schemas"]["SessionMoney"];
+            base_net: components["schemas"]["SessionMoney"];
         };
         PendingDiscountProposalPage: {
             items: components["schemas"]["PendingDiscountProposal"][];
@@ -5192,14 +5265,6 @@ export interface components {
             id: string;
             /** Format: uuid */
             request_id: string;
-            /** @enum {string} */
-            kind: "RECORD" | "EDIT";
-            /** Format: uuid */
-            line_id?: string;
-            base_revision?: number;
-            base_price?: components["schemas"]["SessionMoney"];
-            base_discount?: components["schemas"]["SessionMoney"];
-            base_net?: components["schemas"]["SessionMoney"];
             service_name_en: string;
             service_name_ar: string | null;
             list_price: components["schemas"]["SessionMoney"];
@@ -5215,9 +5280,50 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
             terms_hash: string;
+            /** @enum {string} */
+            kind: "RECORD";
+            line_id?: unknown;
+            base_revision?: unknown;
+            base_price?: unknown;
+            base_discount?: unknown;
+            base_net?: unknown;
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            request_id: string;
+            service_name_en: string;
+            service_name_ar: string | null;
+            list_price: components["schemas"]["SessionMoney"];
+            price: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"];
+            net: components["schemas"]["SessionMoney"];
+            effective_bps: number;
+            requester_first_name_en: string;
+            requester_first_name_ar: string | null;
+            customer_first_name: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            terms_hash: string;
+            /** @enum {string} */
+            kind: "EDIT";
+            /** Format: uuid */
+            line_id: string;
+            base_revision: number;
+            base_price: components["schemas"]["SessionMoney"];
+            base_discount: components["schemas"]["SessionMoney"];
+            base_net: components["schemas"]["SessionMoney"];
+        };
+        DeviceDiscountProposalQuery: {
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
         };
         DeviceDiscountProposalList: {
             items: components["schemas"]["DeviceDiscountProposal"][];
+            next_cursor: string | null;
         };
         ApproveDiscountProposalsInput: {
             proposal_ids: string[];
@@ -13689,14 +13795,17 @@ export interface operations {
     };
     listDeviceDiscountProposals: {
         parameters: {
-            query?: never;
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Pending proposals of the device branch. */
+            /** @description One page of the pending proposals of the device branch. */
             200: {
                 headers: {
                     [name: string]: unknown;

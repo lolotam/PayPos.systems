@@ -1,13 +1,19 @@
 import { expect, it } from 'vitest';
 import {
   approveDiscountProposalsInput,
+  decidedDiscountProposal,
   deviceApproveDiscountProposalsInput,
   deviceDiscountProposal,
+  deviceDiscountProposalList,
+  deviceDiscountProposalQuery,
   deviceRejectDiscountProposalsInput,
+  pendingDiscountProposal,
   rejectDiscountProposalsInput,
+  requestedDiscountProposal,
   requestDiscountApprovalEditInput,
   requestDiscountApprovalInput,
   requestDiscountApprovalResponse,
+  requesterDiscountProposal,
 } from './discount-approval.js';
 import { notificationRequest } from '../notifications.js';
 import {
@@ -76,7 +82,7 @@ it('takes a canonical phone and a four-digit PIN on the device routes only', () 
 });
 
 it('projects no phone and no performer on the device list', () => {
-  const keys = Object.keys(deviceDiscountProposal.shape);
+  const keys = deviceDiscountProposal.options.flatMap((option) => Object.keys(option.shape));
   expect(keys.filter((key) => /phone|performer|customer_name|customer_id/.test(key))).toEqual([]);
 });
 
@@ -172,5 +178,82 @@ it('asks an edit approval with the 35d edit body minus the reason (DA-Q5, FR-025
   expect(requestDiscountApprovalEditInput.safeParse(body).success).toBe(true);
   expect(requestDiscountApprovalEditInput.safeParse({ ...body, reason: 'x' }).success).toBe(false);
   expect(requestDiscountApprovalEditInput.safeParse({ ...body, discount_proposal_id: A }).success).toBe(false);
+});
+
+const AT = '2026-10-21T10:00:00.000Z';
+const EXPIRES = '2026-10-21T10:15:00.000Z';
+const requesterProposal: Record<string, unknown> = {
+  id: A, request_id: B, input_index: 0, status: 'PENDING', session_id: null, occurred_at: AT,
+  service_id: A, service_name_en: 'Colour', service_name_ar: 'صبغة',
+  list_price: '25.000', price: '25.000', discount: '5.000', net: '20.000',
+  effective_bps: 2000, expires_at: EXPIRES, terms_hash: HASH,
+};
+const pendingProposal: Record<string, unknown> = {
+  id: A, request_id: B, session_id: null, occurred_at: AT,
+  service_id: A, service_name_en: 'Colour', service_name_ar: 'صبغة',
+  list_price: '25.000', price: '25.000', discount: '5.000', net: '20.000',
+  effective_bps: 2000, performers: [{ employee_id: B, first_name_en: 'Heba', first_name_ar: 'هبة' }],
+  requester_label_ar: 'المالكة', requester_label_en: 'Owner', customer_first_name: 'Sara',
+  requested_at: AT, expires_at: EXPIRES, terms_hash: HASH,
+};
+const deviceProposal: Record<string, unknown> = {
+  id: A, request_id: B, service_name_en: 'Colour', service_name_ar: 'صبغة',
+  list_price: '25.000', price: '25.000', discount: '5.000', net: '20.000',
+  effective_bps: 2000, requester_first_name_en: 'Heba', requester_first_name_ar: 'هبة',
+  customer_first_name: 'Sara', requested_at: AT, expires_at: EXPIRES, terms_hash: HASH,
+};
+const editKind = {
+  kind: 'EDIT', line_id: A, base_revision: 2,
+  base_price: '30.000', base_discount: '5.000', base_net: '25.000',
+};
+type ProposalParser = { safeParse: (value: unknown) => { success: boolean } };
+
+// التسجيل يحمل kind وحده (وحقول التعديل مرفوضة عليه)، والتعديل يحمل حقول الـ base كلها؛ فأي نقص أو زيادة يرفض الرد.
+const expectClosedKind = (schema: ProposalParser, base: Record<string, unknown>) => {
+  expect(schema.safeParse({ ...base, kind: 'RECORD' }).success).toBe(true);
+  expect(schema.safeParse({ ...base, ...editKind }).success).toBe(true);
+  expect(schema.safeParse({ ...base, kind: 'RECORD', line_id: A }).success).toBe(false);
+  for (const key of ['line_id', 'base_revision', 'base_price', 'base_discount', 'base_net']) {
+    const partial = Object.fromEntries(Object.entries(editKind).filter(([name]) => name !== key));
+    expect(schema.safeParse({ ...base, ...partial }).success).toBe(false);
+  }
+};
+
+it('closes the kind contract on every proposal shape', () => {
+  expectClosedKind(requesterDiscountProposal, requesterProposal);
+  expectClosedKind(pendingDiscountProposal, pendingProposal);
+  expectClosedKind(deviceDiscountProposal, deviceProposal);
+});
+
+it('keeps a stored rejection reason of 500 astral characters (the CHECK counts characters)', () => {
+  const rejected = { ...requesterProposal, kind: 'RECORD', status: 'REJECTED', reject_reason: '😀'.repeat(500) };
+  expect(requesterDiscountProposal.safeParse(rejected).success).toBe(true);
+});
+
+it('refuses a null expiry on every proposal shape (FR-010: it is never null)', () => {
+  const proposal = { id: A, input_index: 0, status: 'PENDING', expires_at: null, effective_bps: 2000, terms_hash: HASH };
+  expect(requestedDiscountProposal.safeParse(proposal).success).toBe(false);
+  expect(requesterDiscountProposal.safeParse({ ...requesterProposal, kind: 'RECORD', expires_at: null }).success).toBe(false);
+  expect(pendingDiscountProposal.safeParse({ ...pendingProposal, kind: 'RECORD', expires_at: null }).success).toBe(false);
+  expect(deviceDiscountProposal.safeParse({ ...deviceProposal, kind: 'RECORD', expires_at: null }).success).toBe(false);
+  expect(decidedDiscountProposal.safeParse({ id: A, status: 'APPROVED', expires_at: EXPIRES }).success).toBe(true);
+  expect(decidedDiscountProposal.safeParse({ id: A, status: 'REJECTED', expires_at: EXPIRES }).success).toBe(true);
+  expect(decidedDiscountProposal.safeParse({ id: A, status: 'APPROVED', expires_at: null }).success).toBe(false);
+  expect(decidedDiscountProposal.safeParse({ id: A, status: 'REJECTED', expires_at: null }).success).toBe(false);
+});
+
+it('drops a field the browser does not know yet but still refuses an edit field on a RECORD', () => {
+  const parsed = requesterDiscountProposal.safeParse({ ...requesterProposal, kind: 'RECORD', future_field: 'x' });
+  expect(parsed.success).toBe(true);
+  expect(parsed.success ? Object.keys(parsed.data) : []).not.toContain('future_field');
+  expect(requesterDiscountProposal.safeParse({ ...requesterProposal, kind: 'RECORD', line_id: A }).success).toBe(false);
+});
+
+it('pages the device list like the pending one and closes its query', () => {
+  expect(deviceDiscountProposalQuery.safeParse({ limit: 20 }).success).toBe(true);
+  expect(deviceDiscountProposalQuery.safeParse({ limit: 20, branch_id: A }).success).toBe(false);
+  expect(deviceDiscountProposalQuery.safeParse({ cursor: 'abc-123_XYZ' }).success).toBe(true);
+  expect(deviceDiscountProposalQuery.safeParse({ cursor: 'abc/123' }).success).toBe(false);
+  expect(deviceDiscountProposalList.safeParse({ items: [], next_cursor: null }).success).toBe(true);
 });
 

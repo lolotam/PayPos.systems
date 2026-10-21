@@ -17,7 +17,7 @@ const expectedSchemas = [
   'DiscountProposalStatus', 'DiscountRequestLineInput', 'RequestDiscountApprovalInput', 'RequestDiscountApprovalEditInput', 'RequestedDiscountProposal',
   'RequestDiscountApprovalResponse', 'DiscountProposalRequestQuery', 'RequesterDiscountProposal', 'RequesterDiscountProposalList',
   'PendingDiscountProposalQuery', 'DiscountProposalPerformer', 'PendingDiscountProposal', 'PendingDiscountProposalPage',
-  'DeviceDiscountProposal', 'DeviceDiscountProposalList', 'ApproveDiscountProposalsInput', 'RejectDiscountProposalsInput',
+  'DeviceDiscountProposal', 'DeviceDiscountProposalQuery', 'DeviceDiscountProposalList', 'ApproveDiscountProposalsInput', 'RejectDiscountProposalsInput',
   'DeviceApproveDiscountProposalsInput', 'DeviceRejectDiscountProposalsInput', 'DecidedDiscountProposal',
   'DecideDiscountProposalsResponse', 'DiscountApprovalRequested', 'DiscountApprovalNoticeRequested', 'DiscountApprovedByPerformer',
   'DiscountSelfApprovalNoticeRequested',

@@ -12074,7 +12074,7 @@
       },
       "post": {
         "operationId": "requestDiscountApproval",
-        "description": "Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; the expiry rule is set by spec 057 (DA-Q4: 24 hours; its start point is still open). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201.",
+        "description": "Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; a RECORD proposal terms use the fresh catalog list price (D-4). expires_at is never null: 24 hours from the request, reset to 24 hours from the approval (DA-Q4, DA-Q4b). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201.",
         "parameters": [
           {
             "in": "header",
@@ -12669,7 +12669,7 @@
       },
       "post": {
         "operationId": "requestDiscountApprovalForEdit",
-        "description": "Asks approval for one edit of a saved line above the editor limit (DA-Q5; edit:service-line-prices:branch, orders feature, admin login). The body is the price/discount edit body without the reason; expected_revision becomes the proposal base_revision. One EDIT proposal; the expiry rule is set by spec 057 (DA-Q4: 24 hours; its start point is still open). Actor-bound Idempotency-Key; replayable 201.",
+        "description": "Asks approval for one edit of a saved line above the editor limit (DA-Q5; edit:service-line-prices:branch, orders feature, admin login). The body is the price/discount edit body without the reason; expected_revision becomes the proposal base_revision. The EDIT terms use the line stored list_price, never a fresh catalog price (D-20). One EDIT proposal; expires_at is never null: 24 hours from the request, reset to 24 hours from the approval (DA-Q4, DA-Q4b). Actor-bound Idempotency-Key; replayable 201.",
         "parameters": [
           {
             "in": "header",
@@ -12805,15 +12805,39 @@
     "/v1/devices/me/discount-proposals": {
       "get": {
         "operationId": "listDeviceDiscountProposals",
-        "description": "The paired device branch live PENDING proposals shown before a PIN: service, amounts, percent, requester and customer first names, time left. Never a phone, never another branch.",
+        "description": "The paired device branch live PENDING proposals shown before a PIN: service, amounts, percent, requester and customer first names, time left. Newest first with an opaque (requested_at, id) cursor. Never a phone, never another branch.",
         "security": [
           {
             "DeviceToken": []
           }
         ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Pending proposals of the device branch.",
+            "description": "One page of the pending proposals of the device branch.",
             "content": {
               "application/json": {
                 "schema": {
@@ -25643,160 +25667,294 @@
         "additionalProperties": false
       },
       "RequesterDiscountProposal": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "request_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "input_index": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 19
-          },
-          "status": {
-            "$ref": "#/components/schemas/DiscountProposalStatus"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "RECORD",
-              "EDIT"
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "input_index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 19
+              },
+              "status": {
+                "$ref": "#/components/schemas/DiscountProposalStatus"
+              },
+              "session_id": {
+                "nullable": true,
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "occurred_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "service_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "service_name_en": {
+                "type": "string"
+              },
+              "service_name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "list_price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "discount": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "net": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "effective_bps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "terms_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "decided_label_ar": {
+                "type": "string"
+              },
+              "decided_label_en": {
+                "type": "string"
+              },
+              "decided_via": {
+                "type": "string",
+                "enum": [
+                  "PIN",
+                  "REMOTE"
+                ]
+              },
+              "decided_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "reject_reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "consumed_line_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "RECORD"
+                ]
+              },
+              "line_id": {
+                "not": {}
+              },
+              "base_revision": {
+                "not": {}
+              },
+              "base_price": {
+                "not": {}
+              },
+              "base_discount": {
+                "not": {}
+              },
+              "base_net": {
+                "not": {}
+              }
+            },
+            "required": [
+              "id",
+              "request_id",
+              "input_index",
+              "status",
+              "session_id",
+              "occurred_at",
+              "service_id",
+              "service_name_en",
+              "service_name_ar",
+              "list_price",
+              "price",
+              "discount",
+              "net",
+              "effective_bps",
+              "expires_at",
+              "terms_hash",
+              "kind"
             ]
           },
-          "line_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "base_revision": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 9007199254740991
-          },
-          "base_price": {
-            "allOf": [
-              {
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "input_index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 19
+              },
+              "status": {
+                "$ref": "#/components/schemas/DiscountProposalStatus"
+              },
+              "session_id": {
+                "nullable": true,
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "occurred_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "service_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "service_name_en": {
+                "type": "string"
+              },
+              "service_name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "list_price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "discount": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "net": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "effective_bps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "terms_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "decided_label_ar": {
+                "type": "string"
+              },
+              "decided_label_en": {
+                "type": "string"
+              },
+              "decided_via": {
+                "type": "string",
+                "enum": [
+                  "PIN",
+                  "REMOTE"
+                ]
+              },
+              "decided_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "reject_reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "consumed_line_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "EDIT"
+                ]
+              },
+              "line_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "base_revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "base_price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "base_discount": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "base_net": {
                 "$ref": "#/components/schemas/SessionMoney"
               }
+            },
+            "required": [
+              "id",
+              "request_id",
+              "input_index",
+              "status",
+              "session_id",
+              "occurred_at",
+              "service_id",
+              "service_name_en",
+              "service_name_ar",
+              "list_price",
+              "price",
+              "discount",
+              "net",
+              "effective_bps",
+              "expires_at",
+              "terms_hash",
+              "kind",
+              "line_id",
+              "base_revision",
+              "base_price",
+              "base_discount",
+              "base_net"
             ]
-          },
-          "base_discount": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SessionMoney"
-              }
-            ]
-          },
-          "base_net": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SessionMoney"
-              }
-            ]
-          },
-          "session_id": {
-            "nullable": true,
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "occurred_at": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
-          "service_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "service_name_en": {
-            "type": "string"
-          },
-          "service_name_ar": {
-            "nullable": true,
-            "type": "string"
-          },
-          "list_price": {
-            "$ref": "#/components/schemas/SessionMoney"
-          },
-          "price": {
-            "$ref": "#/components/schemas/SessionMoney"
-          },
-          "discount": {
-            "$ref": "#/components/schemas/SessionMoney"
-          },
-          "net": {
-            "$ref": "#/components/schemas/SessionMoney"
-          },
-          "effective_bps": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 10000
-          },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
-          "terms_hash": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$"
-          },
-          "decided_label_ar": {
-            "type": "string"
-          },
-          "decided_label_en": {
-            "type": "string"
-          },
-          "decided_via": {
-            "type": "string",
-            "enum": [
-              "PIN",
-              "REMOTE"
-            ]
-          },
-          "decided_at": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
-          "reject_reason": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 500
-          },
-          "consumed_line_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           }
-        },
-        "required": [
-          "id",
-          "request_id",
-          "input_index",
-          "status",
-          "kind",
-          "session_id",
-          "occurred_at",
-          "service_id",
-          "service_name_en",
-          "service_name_ar",
-          "list_price",
-          "price",
-          "discount",
-          "net",
-          "effective_bps",
-          "expires_at",
-          "terms_hash"
         ]
       },
       "RequesterDiscountProposalList": {
@@ -25855,149 +26013,274 @@
         ]
       },
       "PendingDiscountProposal": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "request_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "RECORD",
-              "EDIT"
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "session_id": {
+                "nullable": true,
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "occurred_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "service_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "service_name_en": {
+                "type": "string"
+              },
+              "service_name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "list_price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "discount": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "net": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "effective_bps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "performers": {
+                "minItems": 1,
+                "maxItems": 4,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DiscountProposalPerformer"
+                }
+              },
+              "requester_label_ar": {
+                "type": "string"
+              },
+              "requester_label_en": {
+                "type": "string"
+              },
+              "customer_first_name": {
+                "type": "string"
+              },
+              "requested_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "terms_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "RECORD"
+                ]
+              },
+              "line_id": {
+                "not": {}
+              },
+              "base_revision": {
+                "not": {}
+              },
+              "base_price": {
+                "not": {}
+              },
+              "base_discount": {
+                "not": {}
+              },
+              "base_net": {
+                "not": {}
+              }
+            },
+            "required": [
+              "id",
+              "request_id",
+              "session_id",
+              "occurred_at",
+              "service_id",
+              "service_name_en",
+              "service_name_ar",
+              "list_price",
+              "price",
+              "discount",
+              "net",
+              "effective_bps",
+              "performers",
+              "requester_label_ar",
+              "requester_label_en",
+              "customer_first_name",
+              "requested_at",
+              "expires_at",
+              "terms_hash",
+              "kind"
             ]
           },
-          "line_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "base_revision": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 9007199254740991
-          },
-          "base_price": {
-            "allOf": [
-              {
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "session_id": {
+                "nullable": true,
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "occurred_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "service_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "service_name_en": {
+                "type": "string"
+              },
+              "service_name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "list_price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "discount": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "net": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "effective_bps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "performers": {
+                "minItems": 1,
+                "maxItems": 4,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DiscountProposalPerformer"
+                }
+              },
+              "requester_label_ar": {
+                "type": "string"
+              },
+              "requester_label_en": {
+                "type": "string"
+              },
+              "customer_first_name": {
+                "type": "string"
+              },
+              "requested_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "terms_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "EDIT"
+                ]
+              },
+              "line_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "base_revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "base_price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "base_discount": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "base_net": {
                 "$ref": "#/components/schemas/SessionMoney"
               }
+            },
+            "required": [
+              "id",
+              "request_id",
+              "session_id",
+              "occurred_at",
+              "service_id",
+              "service_name_en",
+              "service_name_ar",
+              "list_price",
+              "price",
+              "discount",
+              "net",
+              "effective_bps",
+              "performers",
+              "requester_label_ar",
+              "requester_label_en",
+              "customer_first_name",
+              "requested_at",
+              "expires_at",
+              "terms_hash",
+              "kind",
+              "line_id",
+              "base_revision",
+              "base_price",
+              "base_discount",
+              "base_net"
             ]
-          },
-          "base_discount": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SessionMoney"
-              }
-            ]
-          },
-          "base_net": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SessionMoney"
-              }
-            ]
-          },
-          "session_id": {
-            "nullable": true,
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "occurred_at": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
-          "service_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "service_name_en": {
-            "type": "string"
-          },
-          "service_name_ar": {
-            "nullable": true,
-            "type": "string"
-          },
-          "list_price": {
-            "$ref": "#/components/schemas/SessionMoney"
-          },
-          "price": {
-            "$ref": "#/components/schemas/SessionMoney"
-          },
-          "discount": {
-            "$ref": "#/components/schemas/SessionMoney"
-          },
-          "net": {
-            "$ref": "#/components/schemas/SessionMoney"
-          },
-          "effective_bps": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 10000
-          },
-          "performers": {
-            "minItems": 1,
-            "maxItems": 4,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DiscountProposalPerformer"
-            }
-          },
-          "requester_label_ar": {
-            "type": "string"
-          },
-          "requester_label_en": {
-            "type": "string"
-          },
-          "customer_first_name": {
-            "type": "string"
-          },
-          "requested_at": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
-          "terms_hash": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$"
           }
-        },
-        "required": [
-          "id",
-          "request_id",
-          "kind",
-          "session_id",
-          "occurred_at",
-          "service_id",
-          "service_name_en",
-          "service_name_ar",
-          "list_price",
-          "price",
-          "discount",
-          "net",
-          "effective_bps",
-          "performers",
-          "requester_label_ar",
-          "requester_label_en",
-          "customer_first_name",
-          "requested_at",
-          "expires_at",
-          "terms_hash"
         ]
       },
       "PendingDiscountProposalPage": {
@@ -26022,136 +26305,259 @@
         ]
       },
       "DeviceDiscountProposal": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "service_name_en": {
+                "type": "string"
+              },
+              "service_name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "list_price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "discount": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "net": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "effective_bps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "requester_first_name_en": {
+                "type": "string"
+              },
+              "requester_first_name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "customer_first_name": {
+                "type": "string"
+              },
+              "requested_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "terms_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "RECORD"
+                ]
+              },
+              "line_id": {
+                "not": {}
+              },
+              "base_revision": {
+                "not": {}
+              },
+              "base_price": {
+                "not": {}
+              },
+              "base_discount": {
+                "not": {}
+              },
+              "base_net": {
+                "not": {}
+              }
+            },
+            "required": [
+              "id",
+              "request_id",
+              "service_name_en",
+              "service_name_ar",
+              "list_price",
+              "price",
+              "discount",
+              "net",
+              "effective_bps",
+              "requester_first_name_en",
+              "requester_first_name_ar",
+              "customer_first_name",
+              "requested_at",
+              "expires_at",
+              "terms_hash",
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "service_name_en": {
+                "type": "string"
+              },
+              "service_name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "list_price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "discount": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "net": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "effective_bps": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "requester_first_name_en": {
+                "type": "string"
+              },
+              "requester_first_name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "customer_first_name": {
+                "type": "string"
+              },
+              "requested_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "terms_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "EDIT"
+                ]
+              },
+              "line_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "base_revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "base_price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "base_discount": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "base_net": {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            },
+            "required": [
+              "id",
+              "request_id",
+              "service_name_en",
+              "service_name_ar",
+              "list_price",
+              "price",
+              "discount",
+              "net",
+              "effective_bps",
+              "requester_first_name_en",
+              "requester_first_name_ar",
+              "customer_first_name",
+              "requested_at",
+              "expires_at",
+              "terms_hash",
+              "kind",
+              "line_id",
+              "base_revision",
+              "base_price",
+              "base_discount",
+              "base_net"
+            ]
+          }
+        ]
+      },
+      "DeviceDiscountProposalQuery": {
         "type": "object",
         "properties": {
-          "id": {
+          "cursor": {
             "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            "minLength": 1,
+            "maxLength": 512,
+            "pattern": "^[A-Za-z0-9_-]+$"
           },
-          "request_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "RECORD",
-              "EDIT"
-            ]
-          },
-          "line_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "base_revision": {
+          "limit": {
+            "default": 20,
             "type": "integer",
             "minimum": 1,
-            "maximum": 9007199254740991
-          },
-          "base_price": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SessionMoney"
-              }
-            ]
-          },
-          "base_discount": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SessionMoney"
-              }
-            ]
-          },
-          "base_net": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SessionMoney"
-              }
-            ]
-          },
-          "service_name_en": {
-            "type": "string"
-          },
-          "service_name_ar": {
-            "nullable": true,
-            "type": "string"
-          },
-          "list_price": {
-            "$ref": "#/components/schemas/SessionMoney"
-          },
-          "price": {
-            "$ref": "#/components/schemas/SessionMoney"
-          },
-          "discount": {
-            "$ref": "#/components/schemas/SessionMoney"
-          },
-          "net": {
-            "$ref": "#/components/schemas/SessionMoney"
-          },
-          "effective_bps": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 10000
-          },
-          "requester_first_name_en": {
-            "type": "string"
-          },
-          "requester_first_name_ar": {
-            "nullable": true,
-            "type": "string"
-          },
-          "customer_first_name": {
-            "type": "string"
-          },
-          "requested_at": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
-          "terms_hash": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$"
+            "maximum": 100
           }
         },
-        "required": [
-          "id",
-          "request_id",
-          "kind",
-          "service_name_en",
-          "service_name_ar",
-          "list_price",
-          "price",
-          "discount",
-          "net",
-          "effective_bps",
-          "requester_first_name_en",
-          "requester_first_name_ar",
-          "customer_first_name",
-          "requested_at",
-          "expires_at",
-          "terms_hash"
-        ]
+        "additionalProperties": false
       },
       "DeviceDiscountProposalList": {
         "type": "object",
         "properties": {
           "items": {
+            "maxItems": 100,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DeviceDiscountProposal"
             }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 512
           }
         },
         "required": [
-          "items"
+          "items",
+          "next_cursor"
         ]
       },
       "ApproveDiscountProposalsInput": {
