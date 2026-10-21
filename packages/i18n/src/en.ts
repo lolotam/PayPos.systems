@@ -4,6 +4,7 @@ import { attendanceChangeEn } from './attendance-change.js';
 import { inAppEn } from './in-app-catalog.js';
 import { permissionCodesEn } from './permission-codes-catalog.js';
 import { catalogPackageTypesEn, packageTypeErrorsEn } from './catalog-package-types.js';
+import { staffColumnsErrorsEn } from './staff-columns-errors.js';
 import { attendanceEn } from './attendance-en.js';
 import { clockCardAdminEn, clockCardPosEn } from './clock-card-catalog.js';
 import { employeeImportEn, employeeImportErrorsEn } from './employee-import.js';
@@ -216,6 +217,7 @@ export const en = {
     ...employeeImportErrorsEn,
     ...serviceErrorsEn,
     ...packageTypeErrorsEn,
+    ...staffColumnsErrorsEn,
     PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',

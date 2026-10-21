@@ -8,7 +8,7 @@ import { memberships } from './identity-access.ts';
 import { user } from './identity-auth.ts';
 import { serviceLines, serviceSessions } from './orders.ts';
 
-// طلب موافقة على خصم فوق الحد (spec 057): طلب تسجيل بند جديد وطلب تعديل بند محفوظ في الجدول نفسه (D-20)؛ الربط مع service_lines في 0162–0163.
+// طلب موافقة على خصم فوق الحد (spec 057): طلب تسجيل بند جديد وطلب تعديل بند محفوظ في الجدول نفسه (D-20)؛ الربط مع service_lines في 0163–0164.
 export const discountProposals = pgTable('discount_proposals', {
   companyId: uuid('company_id').notNull().references(() => companies.id),
   id: uuid('id').notNull(),

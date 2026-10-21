@@ -72,7 +72,7 @@ export class AccessGuard implements CanActivate {
     const authorized = await this.#authorize.execute({
       userId,
       requestedCompany: header === undefined ? request.companyHint : header,
-      permission: required.permission,
+      permission: required.permissions,
       ...(required.target.membership === undefined
         ? {}
         : { membershipParam: params[required.target.membership] ?? null }),

@@ -226,14 +226,19 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
   container is `--rm` with an anonymous data volume, published on `127.0.0.1` only. The port is
   `55400 + <trailing digits of the lane>` when free, otherwise the first free port from 55401; `--port N`
   picks one. Choosing the port and `docker run` happen under a lock directory `pospay-test-lane.lock.d` (atomic
-  `mkdir`, with an `owner.json` naming host, pid and token) in the repository's shared git directory, so
-  concurrent `up` calls from different worktrees get different ports; if a publish still collides, `up`
-  retries on the next free port (up to five times), removing only the container its own failed attempt
-  created. A lock whose owner is on this host is taken over only when that pid is gone; the 15-minute age
-  limit applies only when liveness cannot be checked (another host, or no readable owner). Takeover renames
-  the directory to a unique name and deletes it only if it is exactly the generation inspected; anything else
-  is put back, or left as a `pospay-test-lane.lock.d.stale-*` orphan that is safe to delete when no start is
-  running. Only the owner's token releases the lock. The code is `scripts/test-db/lane-lock.mjs`.
+  `mkdir`, with an `owner.json` naming host, pid, process start time and token) in the repository's shared git
+  directory, so concurrent `up` calls from different worktrees get different ports; if a publish still
+  collides, `up` retries on the next free port (up to five times), removing only the container its own failed
+  attempt created. A lock whose owner is on this host is taken over only when that pid is gone, or is alive but
+  started more than 5 seconds away from the recorded start time (the pid was reused, for example after a
+  reboot); when the start time cannot be read, a live pid keeps the lock. The 15-minute age limit applies only
+  when liveness cannot be checked (another host, or no readable owner). Takeovers run one at a time under a
+  second directory `pospay-test-lane.lock.d.takeover` (cleared after a minute if its holder died), and the
+  takeover re-checks the lock inside it. It renames the lock to a unique name and deletes it only if it is
+  exactly the generation inspected; anything else is put back with `mkdir` (never over a lock created in the
+  meantime), or left as a `pospay-test-lane.lock.d.stale-*` orphan that is safe to delete when no start is
+  running. Only the owner's token releases the lock. The code is `scripts/test-db/lane-lock.mjs` and
+  `lane-process.mjs`, tested by `lane-lock.test.mjs`.
 - `up` on a running lane waits for readiness, rewrites the override and reprints the port. A lane container
   that exists but is not plainly running (created, exited, paused, restarting) is removed and started fresh.
 - `up` writes `.env.test.local` at the worktree root (git-ignored by `.env.*`) with only

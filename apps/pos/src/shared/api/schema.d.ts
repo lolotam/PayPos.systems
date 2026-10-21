@@ -605,6 +605,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/settings/staff-columns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Staff-app columns screen. The effective columns (the saved set, or the default when nothing is saved) and months back (1 when nothing is saved). rating_average is never returned while the rating track is postponed. Requires read:settings:business or manage:settings:business on that business (MY-Q10). No Idempotency-Key. */
+        get: operations["getStaffColumns"];
+        /** @description Replaces the staff-app columns and months back of the business; null returns a value to its default. An unknown, duplicate or not-offered code is 422 STAFF_COLUMNS_INVALID with details.codes; months back outside 1–24 is 422 STAFF_MONTHS_BACK_INVALID. Requires manage:settings:business on that business. Each changed value is audited. */
+        put: operations["replaceStaffColumns"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/files/download": {
         parameters: {
             query?: never;
@@ -3455,6 +3473,20 @@ export interface components {
         FileDownloadByKey: {
             storage_key: string;
         };
+        StaffColumnsSettings: {
+            /** Format: uuid */
+            business_id: string;
+            columns: components["schemas"]["StaffColumnCode"][];
+            columns_default: boolean;
+            months_back: number;
+            months_back_default: boolean;
+        };
+        ReplaceStaffColumnsInput: {
+            columns: string[] | null;
+            months_back: number | null;
+        };
+        /** @enum {string} */
+        StaffColumnCode: "date" | "time" | "service" | "customer_name" | "list_price" | "discount" | "net" | "share" | "estimated_commission" | "tip" | "rating_average";
         Employee: {
             /** Format: uuid */
             id: string;
@@ -7487,6 +7519,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscountLimit"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getStaffColumns: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The effective staff-app columns and months back */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffColumnsSettings"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    replaceStaffColumns: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplaceStaffColumnsInput"];
+            };
+        };
+        responses: {
+            /** @description The effective staff-app columns and months back */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffColumnsSettings"];
                 };
             };
             /** @description The API error envelope */

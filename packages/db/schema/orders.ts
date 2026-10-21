@@ -92,7 +92,7 @@ export const serviceLines = pgTable('service_lines', {
   // قيمة العمولة ملتقطة وقت حفظ البند؛ FIXED بالدينار وثلاث خانات مثل بقية المال.
   ruleKind: text('rule_kind').notNull(), rulePctBps: integer('rule_pct_bps'), ruleFixedAmount: money('rule_fixed_amount'),
   countsTowardThreshold: boolean('counts_toward_threshold').notNull(), hasPerformerWarning: boolean('has_performer_warning').notNull(),
-  // الموافقة التي استُهلكت لهذا البند (spec 057)؛ الربط المؤجل بالاتجاهين وقيوده في الهجرتين 0162–0163.
+  // الموافقة التي استُهلكت لهذا البند (spec 057)؛ الربط المؤجل بالاتجاهين وقيوده في الهجرتين 0163–0164.
   discountProposalId: uuid('discount_proposal_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

@@ -1,6 +1,6 @@
 {
-  "id": "eb8848ae-fefd-43b5-a3e3-d5ed1a7b3259",
-  "prevId": "c088ace8-d7ca-47af-8635-7d8a50899ab0",
+  "id": "c088ace8-d7ca-47af-8635-7d8a50899ab0",
+  "prevId": "c710f308-fde8-46df-a960-3fc37dfd9f32",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5194,6 +5194,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "staff_columns": {
+          "name": "staff_columns",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "staff_months_back": {
+          "name": "staff_months_back",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
         "updated_by": {
           "name": "updated_by",
           "type": "uuid",
@@ -5323,6 +5335,14 @@
         "business_settings_official_name_en": {
           "name": "business_settings_official_name_en",
           "value": "\"business_settings\".\"official_name_en\" IS NULL OR char_length(\"business_settings\".\"official_name_en\") BETWEEN 1 AND 255"
+        },
+        "business_settings_staff_columns": {
+          "name": "business_settings_staff_columns",
+          "value": "\"business_settings\".\"staff_columns\" IS NULL OR (\"business_settings\".\"staff_columns\" <@ ARRAY['date', 'time', 'service', 'customer_name', 'list_price', 'discount', 'net', 'share', 'estimated_commission', 'tip', 'rating_average']::text[] AND array_position(\"business_settings\".\"staff_columns\", NULL) IS NULL AND staff_columns_distinct(\"business_settings\".\"staff_columns\"))"
+        },
+        "business_settings_staff_months_back": {
+          "name": "business_settings_staff_months_back",
+          "value": "\"business_settings\".\"staff_months_back\" IS NULL OR \"business_settings\".\"staff_months_back\" BETWEEN 1 AND 24"
         }
       },
       "isRLSEnabled": false

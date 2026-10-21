@@ -20,8 +20,30 @@ export interface AccessTargetParams {
 }
 
 export interface RequiredAccess {
-  readonly permission: TenantPermission;
+  readonly permissions: readonly TenantPermission[];
   readonly target: AccessTargetParams;
+}
+
+/**
+ * Whether the target names exactly the scope the permission needs — the rules @Require applies today.
+ *
+ * @param permission the catalogued 'action:resource:scope' permission
+ * @param target     the route parameters naming the business or branch
+ * @returns true when the target matches the permission's scope
+ */
+function targetMatchesScope(permission: TenantPermission, target: AccessTargetParams): boolean {
+  const scope = permission.split(':')[2];
+  const business = target.business !== undefined;
+  const branch = target.branch !== undefined;
+  const membership = target.membership !== undefined;
+  return (
+    (permission === 'manage:discount-limits:business' && membership && !business && !branch) ||
+    // ADR-0018: the same log permission is evaluated at the route's actual company/business/branch scope.
+    (permission === 'view:notifications:business' && !(business && branch) && !membership) ||
+    (scope === 'company' && !business && !branch && !membership) ||
+    (scope === 'business' && business && !branch && !membership) ||
+    (scope === 'branch' && branch && !business && !membership)
+  );
 }
 
 /**
@@ -30,6 +52,7 @@ export interface RequiredAccess {
  * the route must declare — a `:branch` permission needs `{ branch: '<param>' }`, a `:business` one
  * `{ business: '<param>' }`, a `:company` one nothing. A mismatch fails when the module loads.
  * Discount-limit administration also accepts `{ membership: '<param>' }` to authorize the membership's verified scope.
+ * It is the one-element case of @RequireAny.
  *
  * @param permission the catalogued 'action:resource:scope' permission
  * @param target     the route parameters naming the business or branch, when the scope needs one
@@ -39,21 +62,38 @@ export function Require(
   permission: TenantPermission,
   target: AccessTargetParams = {},
 ): MethodDecorator {
-  const scope = permission.split(':')[2];
-  const business = target.business !== undefined;
-  const branch = target.branch !== undefined;
-  const membership = target.membership !== undefined;
-  const expected =
-    (permission === 'manage:discount-limits:business' && membership && !business && !branch) ||
-    // ADR-0018: the same log permission is evaluated at the route's actual company/business/branch scope.
-    (permission === 'view:notifications:business' && !(business && branch) && !membership) ||
-    (scope === 'company' && !business && !branch && !membership) ||
-    (scope === 'business' && business && !branch && !membership) ||
-    (scope === 'branch' && branch && !business && !membership);
-  if (!expected) {
-    throw new TypeError(`@Require('${permission}') needs exactly the target its scope names`);
+  return RequireAny([permission], target);
+}
+
+/**
+ * Guards a route with any one of several permissions (TD-13): the caller needs an active membership in the
+ * requested company, and a grant covering the target with no DENY covering it for at least one of the listed
+ * permissions. Every listed permission has the same scope, so the target is validated once at module load exactly
+ * as @Require does, and a list of mixed scopes fails there.
+ *
+ * @param permissions the catalogued 'action:resource:scope' permissions, one of which is enough
+ * @param target      the route parameters naming the business or branch, when the scope needs one
+ * @returns the metadata decorator
+ */
+export function RequireAny(
+  permissions: readonly TenantPermission[],
+  target: AccessTargetParams = {},
+): MethodDecorator {
+  const [first] = permissions;
+  if (first === undefined) {
+    throw new TypeError('@RequireAny() needs at least one permission');
   }
-  return SetMetadata(REQUIRE_ACCESS, { permission, target } satisfies RequiredAccess);
+  const label = permissions.length === 1 ? `@Require('${first}')` : '@RequireAny()';
+  const scopes = new Set(permissions.map((permission) => permission.split(':')[2]));
+  if (scopes.size > 1) {
+    throw new TypeError(`${label} needs one scope for every permission`);
+  }
+  for (const permission of permissions) {
+    if (!targetMatchesScope(permission, target)) {
+      throw new TypeError(`${label} needs exactly the target its scope names`);
+    }
+  }
+  return SetMetadata(REQUIRE_ACCESS, { permissions, target } satisfies RequiredAccess);
 }
 
 /**

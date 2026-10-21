@@ -3,6 +3,7 @@ import { staffDuplicateNameAr } from './staff-duplicate-name-catalog.js';
 import { attendanceChangeAr } from './attendance-change.js';
 import { inAppAr } from './in-app-catalog.js';
 import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
+import { staffColumnsErrorsAr } from './staff-columns-errors.js';
 import { attendanceAr } from './attendance-ar.js';
 import { clockCardAdminAr, clockCardPosAr } from './clock-card-catalog.js';
 import { employeeImportAr, employeeImportErrorsAr } from './employee-import.js';
@@ -214,6 +215,7 @@ export const ar: Catalog = {
     ...employeeImportErrorsAr,
     ...serviceErrorsAr,
     ...packageTypeErrorsAr,
+    ...staffColumnsErrorsAr,
     PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',
     PERMISSION_SELF_EDIT: 'لا يمكنك تعديل صلاحيات عضويتك الشخصية',
     PERMISSION_OWNER_PROTECTED: 'صلاحيات صاحب الشركة محمية من هذا التغيير',
