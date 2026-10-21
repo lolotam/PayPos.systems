@@ -227,8 +227,9 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
   `55400 + <trailing digits of the lane>` when free, otherwise the first free port from 55401; `--port N`
   picks one. Choosing the port and `docker run` happen under a lock file `pospay-test-lane.lock` in the
   repository's shared git directory, so concurrent `up` calls from different worktrees get different ports;
-  if a publish still collides, `up` retries on the next free port (up to five times). A lock older than three
-  minutes is treated as left by a crashed run and taken over.
+  if a publish still collides, `up` retries on the next free port (up to five times), removing only the container
+  its own failed attempt created. The lock records its owner (host, pid, token); it is taken over only when
+  that process is gone on this host or the lock is older than 15 minutes, and only its owner releases it.
 - `up` on a running lane waits for readiness, rewrites the override and reprints the port. A lane container
   that exists but is not plainly running (created, exited, paused, restarting) is removed and started fresh.
 - `up` writes `.env.test.local` at the worktree root (git-ignored by `.env.*`) with only

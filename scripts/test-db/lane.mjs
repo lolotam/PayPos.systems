@@ -23,6 +23,8 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { hostname } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createConnection, createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -35,7 +37,11 @@ const COMPOSE_FILE = `${ROOT}deploy/docker-compose.dev.yml`;
 const LANE = /^[a-z0-9-]{1,32}$/;
 const LABEL = 'pospay.test-lane';
 const WORKTREE_LABEL = 'pospay.test-worktree';
-const WORKTREE = resolve(ROOT).replaceAll('\\', '/').toLowerCase();
+const START_LABEL = 'pospay.test-start';
+// Windows paths are case-insensitive, so one worktree must get one label however it was spelled; elsewhere
+// /work/Lane and /work/lane are different worktrees and keep different labels.
+const ROOT_PATH = resolve(ROOT).replaceAll('\\', '/');
+const WORKTREE = process.platform === 'win32' ? ROOT_PATH.toLowerCase() : ROOT_PATH;
 const HOST = '127.0.0.1';
 const BASE_PORT = 55400;
 const PORT_SCAN = 99;
@@ -43,7 +49,7 @@ const RESERVED_PORTS = new Set([5432, 6379]);
 const READY_TIMEOUT_MS = 90_000;
 const START_ATTEMPTS = 5;
 const LOCK_WAIT_MS = 120_000;
-const LOCK_STALE_MS = 180_000;
+const LOCK_STALE_MS = 15 * 60_000;
 const PORT_TAKEN = /port is already allocated|address already in use|ports are not available/i;
 
 const USAGE = [
@@ -52,9 +58,11 @@ const USAGE = [
   '       node scripts/test-db/lane.mjs status',
 ].join('\n');
 
+class LaneError extends Error {}
+
+// Throws instead of exiting, so a `finally` (the start lock) always runs; the CLI entry turns it into exit 1.
 function fail(message) {
-  console.error('lane:', message);
-  process.exit(1);
+  throw new LaneError(message);
 }
 
 function docker(args, options = {}) {
@@ -118,11 +126,12 @@ function findContainer(lane) {
   if (id === '') return undefined;
   // A paused or restarting container still reports Running=true; only a plainly running one is usable.
   const usable = '{{and .State.Running (not .State.Paused) (not .State.Restarting)}}';
-  const [running, worktree] = dockerOk(
-    ['inspect', '--format', `${usable}\t{{index .Config.Labels "${WORKTREE_LABEL}"}}`, id],
+  const labels = `{{index .Config.Labels "${WORKTREE_LABEL}"}}\t{{index .Config.Labels "${START_LABEL}"}}`;
+  const [running, worktree, start] = dockerOk(
+    ['inspect', '--format', `${usable}\t${labels}`, id],
     'inspecting the lane container',
   ).split('\t');
-  return { id, running: running === 'true', worktree: worktree ?? '' };
+  return { id, running: running === 'true', worktree: worktree ?? '', start: start ?? '' };
 }
 
 // Same lane name from another worktree: refuse, so neither shares nor removes the other's cluster.
@@ -171,7 +180,7 @@ async function choosePort(lane, requested, tried) {
   return fail(`no free port in ${BASE_PORT + 1}–${BASE_PORT + PORT_SCAN}; pass --port`);
 }
 
-function runContainer(lane, port, service) {
+function runContainer(lane, port, service, start) {
   const childEnv = { ...process.env };
   const envFlags = [];
   for (const [name, value] of Object.entries(service.environment ?? {})) {
@@ -190,6 +199,8 @@ function runContainer(lane, port, service) {
       `${LABEL}=${lane}`,
       '--label',
       `${WORKTREE_LABEL}=${WORKTREE}`,
+      '--label',
+      `${START_LABEL}=${start}`,
       '--publish',
       `${HOST}:${port}:5432`,
       ...memory,
@@ -210,49 +221,86 @@ function gitCommonDir() {
   return result.status === 0 ? result.stdout.trim() : ROOT;
 }
 
-function lockAge(path) {
+function readLock(path) {
   try {
-    return Date.now() - statSync(path).mtimeMs;
+    const text = readFileSync(path, 'utf8');
+    return { text, owner: JSON.parse(text), age: Date.now() - statSync(path).mtimeMs };
   } catch {
-    return 0;
+    // Missing, or created but not yet written: only its age can make it stale.
+    let age = 0;
+    try {
+      age = Date.now() - statSync(path).mtimeMs;
+    } catch {
+      // gone already
+    }
+    return { text: undefined, owner: undefined, age };
   }
 }
 
+function ownerAlive(owner) {
+  if (owner?.host !== hostname() || !Number.isInteger(owner?.pid)) return true;
+  try {
+    process.kill(owner.pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === 'EPERM';
+  }
+}
+
+// A lock is taken over only when its owner process on this host is gone, or it is far older than any start.
+function takeOverIfStale(path) {
+  const seen = readLock(path);
+  const dead = seen.owner !== undefined && !ownerAlive(seen.owner);
+  if (!dead && seen.age <= LOCK_STALE_MS) return;
+  // Remove only the lock we judged stale, not one another process created in between.
+  if (readLock(path).text === seen.text) rmSync(path, { force: true });
+}
+
 // One lock for every worktree of the repo (the git common dir is shared), held from the port probe until
-// docker has bound the port. A lock left by a crashed run is taken over after LOCK_STALE_MS.
+// docker has bound the port. It names its owner (host, pid, token) and is released only by that token.
 async function withStartLock(fn) {
   const lock = join(gitCommonDir(), 'pospay-test-lane.lock');
+  const token = randomUUID();
   const deadline = Date.now() + LOCK_WAIT_MS;
   for (;;) {
     try {
-      closeSync(openSync(lock, 'wx'));
+      const descriptor = openSync(lock, 'wx');
+      writeFileSync(descriptor, JSON.stringify({ host: hostname(), pid: process.pid, token }));
+      closeSync(descriptor);
       break;
     } catch (error) {
       if (error.code !== 'EEXIST') throw error;
-      if (lockAge(lock) > LOCK_STALE_MS) rmSync(lock, { force: true });
-      else if (Date.now() > deadline)
-        fail(`another lane start holds ${lock}; retry, or delete it if stale`);
-      else await delay(200 + Math.random() * 300);
+      if (Date.now() > deadline) fail(`another lane start holds ${lock}; retry later`);
+      takeOverIfStale(lock);
+      await delay(200 + Math.random() * 300);
     }
   }
   try {
     return await fn();
   } finally {
-    rmSync(lock, { force: true });
+    if (readLock(lock).owner?.token === token) rmSync(lock, { force: true });
   }
 }
 
-// A publish collision (another process took the port after the probe) moves on to the next free port.
+// Runs under the start lock. A concurrent `up` of the same lane may have started it while we waited.
 async function startContainer(lane, requested, service) {
+  const current = findContainer(lane);
+  if (current !== undefined) {
+    assertOwned(current, lane);
+    if (current.running) return publishedPort(current.id);
+    // Not running, and no start is in flight (they all hold this lock): a leftover, start fresh.
+    removeContainer(current.id, lane);
+    console.log(`removed ${containerName(lane)}: it was not running`);
+  }
   const tried = new Set();
   for (let attempt = 1; attempt <= START_ATTEMPTS; attempt++) {
     const port = await choosePort(lane, requested, tried);
-    const result = runContainer(lane, port, service);
+    const start = randomUUID();
+    const result = runContainer(lane, port, service, start);
     if (result.status === 0) return port;
-    // A failed publish can leave the container in Created state under our name.
+    // A failed publish can leave this attempt's container in Created state; remove only that one.
     const leftover = findContainer(lane);
-    if (leftover !== undefined && leftover.worktree === WORKTREE)
-      removeContainer(leftover.id, lane);
+    if (leftover !== undefined && leftover.start === start) removeContainer(leftover.id, lane);
     if (requested !== undefined || !PORT_TAKEN.test(result.stderr)) {
       fail(`starting the lane container failed: ${result.stderr.trim()}`);
     }
@@ -325,20 +373,17 @@ function overrideLane() {
 async function up(lane, requestedPort) {
   const service = devPostgresService();
   const existing = findContainer(lane);
-  if (existing !== undefined) {
-    assertOwned(existing, lane);
-    if (existing.running) {
-      const port = publishedPort(existing.id);
-      await waitReady(lane, port, service);
-      writeOverride(lane, port);
-      console.log(`${containerName(lane)} already running on ${HOST}:${port}; wrote ${OVERRIDE}`);
-      console.log(`port=${port}`);
-      return;
-    }
-    // Created, exited or restarting after an interrupted Docker lifecycle: never reuse it, start fresh.
-    removeContainer(existing.id, lane);
-    console.log(`removed ${containerName(lane)}: it was not running`);
+  if (existing !== undefined) assertOwned(existing, lane);
+  if (existing?.running) {
+    const port = publishedPort(existing.id);
+    await waitReady(lane, port, service);
+    writeOverride(lane, port);
+    console.log(`${containerName(lane)} already running on ${HOST}:${port}; wrote ${OVERRIDE}`);
+    console.log(`port=${port}`);
+    return;
   }
+  // Anything not plainly running is handled under the lock: outside it, a container in Created state may be
+  // another `up` halfway through `docker run`.
   const port = await withStartLock(() => startContainer(lane, requestedPort, service));
   await waitReady(lane, port, service);
   writeOverride(lane, port);
@@ -381,7 +426,13 @@ function status() {
 }
 
 const [command, lane, ...rest] = process.argv.slice(2);
-if (command === 'up') await up(validLane(lane), parsePort(rest));
-else if (command === 'down') down(validLane(lane));
-else if (command === 'status') status();
-else fail(USAGE);
+try {
+  if (command === 'up') await up(validLane(lane), parsePort(rest));
+  else if (command === 'down') down(validLane(lane));
+  else if (command === 'status') status();
+  else fail(USAGE);
+} catch (error) {
+  if (!(error instanceof LaneError)) throw error;
+  console.error('lane:', error.message);
+  process.exitCode = 1;
+}
