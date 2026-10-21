@@ -30,11 +30,14 @@ drift apart, which is exactly the failure the statement must not have: its figur
 
 ## Decision
 
-### 1. All statement data is read in the worker; the API reads nothing from `settings` or `files`
+### 1. All statement data is read in the worker; the API only records which logo the render will use
 
-The API side of 27g (request, status, collect) reads only `staff`'s own request table, the permission through the
-existing guard, and Redis. So **no API `staff → settings` arrow** is added, and the API's `staff → files` arrow keeps its
-ADR-0031 purpose only.
+The API side of 27g (request, status, collect) reads `staff`'s own request table, the permission through the existing
+guard, Redis, and one stored fact: the business's bound `logo_file_id`, read in the request transaction through the
+shared `@pospay/db` `readBusinessIdentity` (§2) and written on the request row (§5). That makes the logo decision of a
+render, a file **or none**, durable before any attempt, so a retry can never change it (§3). This is a read of a shared
+statement, not a `settings` import: **no API `staff → settings` arrow** is added, and the API's `staff → files` arrow
+keeps its ADR-0031 purpose only.
 
 ### 2. Shared reads go to the shared packages, not to a second copy
 
@@ -63,24 +66,21 @@ still owns the table and the rule; the shared package is only where the one copy
 
 Worker `files` exports, from `apps/worker/src/modules/files/index.ts`:
 
-1. `resolveStatementLogo(tx, { companyId, businessId, requesterUserId, renderId })`, called **inside** the reader's
-   tenant transaction. The access row it writes is keyed by the render (`file_access_audit.id = renderId`), and that
-   files-owned row is also the record of which logo the render uses, so a retry embeds the same file it audited:
-   - **First attempt** (no access row with `id = renderId`): it reads the business's currently bound `logo_file_id` and
-     its `file_objects` row (READY, `owner_module = 'settings'`, `purge_started_at IS NULL`). When there is one, it
-     inserts the access row (`id = renderId`, `file_id`, `outcome = 'ALLOW'`, `actor_user_id` = the requester) with
-     `ON CONFLICT (company_id, id) DO NOTHING RETURNING id`, and only when the insert returned a row it appends the
-     `file`/`access` audit-log entry, as the API files repository does for a download.
-   - **Retry** (spec 056 FR-006; the access row with `id = renderId` exists): it does **not** look at the current logo.
-     It reuses that row's `file_id` and reads its `file_objects` row with the same conditions; it writes nothing. A
-     logo replaced between attempts therefore never reaches the PDF without its own access row. If the audited file has
-     been purged meanwhile, the statement prints the name only (spec 052 BR-04) and reads no other file.
-
-   So every logo embedded in a PDF has exactly one access row for that render, naming that file. `render_id` is a fresh
-   UUID v7, so it never collides with another access row. `pospay_app` holds `SELECT, INSERT` on `file_access_audit`
-   (`packages/db/migrations/0042_2026-10-03_files-rls.sql`), which covers both the retry's read and `RETURNING id`; an
-   integration test runs the first attempt and the retry as `pospay_app`. It returns an opaque handle (file id, storage
-   key, content type), or `null` and writes nothing.
+1. `resolveStatementLogo(tx, { companyId, businessId, fileId, requesterUserId, renderId })`, called **inside** the
+   reader's tenant transaction with the `logo_file_id` recorded on the request row (§1, §5); it never looks up the logo
+   bound now. When the request row recorded no logo, the reader does not call it and the statement prints the name only
+   (spec 052 BR-04), on every attempt, even if a logo is bound in between. Otherwise it reads that file's `file_objects`
+   row (READY, `owner_module = 'settings'`, owner = the business, `purge_started_at IS NULL`); if the file no longer
+   qualifies it returns `null` (name only) and writes nothing. When it qualifies, it inserts one access row
+   (`file_access_audit.id = renderId`, `file_id`, `outcome = 'ALLOW'`, `actor_user_id` = the requester) with
+   `ON CONFLICT (company_id, id) DO NOTHING RETURNING id`, and only when the insert returned a row it appends the
+   `file`/`access` audit-log entry, as the API files repository does for a download. A retry (spec 056 FR-006) passes
+   the same `fileId`, so it embeds the same file and writes nothing new: every logo embedded in a PDF has exactly one
+   access row for that render, naming that file. `render_id` is a fresh UUID v7, so it never collides with another
+   access row. `pospay_app` holds `SELECT, INSERT` on `file_access_audit`
+   (`packages/db/migrations/0042_2026-10-03_files-rls.sql`), which covers `RETURNING id`; an integration test runs a
+   first attempt and a retry as `pospay_app`. It returns an opaque handle (file id, storage key, content type), or
+   `null`.
 2. `fetchStatementLogo(handle, signal)`, called **after commit**, outside any transaction. It reads the object through
    `packages/storage`, and re-encodes it with the same `sharp` setup as upload inspection to fit 512 × 512 px, PNG for a
    PNG and JPEG for a JPEG, at most 512 KiB. A 10 MiB logo (spec 052 BR-10) would otherwise take most of the 4 MiB HTML
@@ -109,8 +109,10 @@ source with the worker `staff` reader injected (so `sources/` imports no module 
 
 `attendance_statement_requests` (spec 061 §6.2), written by the API in the request transaction and read by the worker
 reader by `(company_id, render_id)`. It is the "own request record" ADR-0049 §1.1 allows, with RLS, a negative isolation
-test, `(company_id, id)` key (ADR-0007), and `SELECT, INSERT` only for `pospay_app`. It carries ids, dates, form and
-language; never a figure. The download audit (ST-Q5) is a separate `audit_log` entry written at collection (spec 061
+test, `(company_id, id)` key (ADR-0007), and `SELECT, INSERT` only for `pospay_app`. It carries ids, dates, form,
+language and the logo decision (`logo_file_id`, null for "no logo"); never a figure. `logo_file_id` has no foreign key
+to `file_objects`: it records a decision, and the file's own lifecycle (retire, purge) must not be blocked by a
+statement request; the files reader re-checks the file at render time (§3). The download audit (ST-Q5) is a separate `audit_log` entry written at collection (spec 061
 §6.5), because "downloaded" means the file reached the requester (ADR-0049 §1.4).
 
 ## Consequences

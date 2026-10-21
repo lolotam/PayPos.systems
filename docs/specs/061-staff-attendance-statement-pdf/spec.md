@@ -141,13 +141,13 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 
 ### Story 5 — Logo and identity (P2)
 
-1. A business with no logo: the header has the name only (BR-01); no `file_access_audit` row is written.
+1. A business with no logo when the request is made: the header has the name only (BR-01) on every attempt, even if a
+   logo is bound before a retry; no `file_access_audit` row is written.
 2. A business with a logo: exactly one `file_access_audit` row (`outcome = 'ALLOW'`, actor = the requester, `id =
-   render_id`) and one `file`/`access` audit entry per render, even when the job's attempt is retried; a retry embeds
-   the file that row names, never a logo bound after it (ADR-0051 §3).
-3. A logo replaced or purged between the request and the render: the statement uses the logo bound at the render's
-   first attempt (the one its access row names, also on a retry), or the name only if none was bound or that file is
-   gone.
+   render_id`) and one `file`/`access` audit entry per render, even when the job's attempt is retried; every attempt
+   embeds the file recorded on the request row, never a logo bound after it (ADR-0051 §3).
+3. A logo replaced or purged between the request and the render: the statement uses the logo bound when the request
+   was made (recorded on the request row), or the name only if none was bound or that file no longer qualifies.
 4. With no official names written, the header follows spec 052 BR-11 (the display name).
 
 ### Edge cases
@@ -193,8 +193,9 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   inputs statement (ADR-0051 §2) limited to that one employee, exposed from `@pospay/db` beside it, so the request
   refuses exactly the employees the statement would show nothing for; otherwise `404
   ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` before any insert (no request row, no job). An employee whose only activity
-  is an OPEN session is refused too: an OPEN session is not counted until it closes (AB-Q9g). Then it inserts the
-  request row (§6.2). The `branch` guard authorizes the branch by its own stored business, so this check is
+  is an OPEN session is refused too: an OPEN session is not counted until it closes (AB-Q9g). Then it reads the
+  business's bound `logo_file_id` through the shared `@pospay/db` `readBusinessIdentity` (ADR-0051 §1) and inserts the
+  request row with it (§6.2), so the logo decision of the render, a file or none, is fixed before any attempt. The `branch` guard authorizes the branch by its own stored business, so this check is
   what stops a business A route with a business B branch from mixing A's identity with B's attendance. After commit it writes the status hash `QUEUED` (`requested_by`, `filename`) with its
   900-second TTL, then adds the BullMQ job `{ company_id, render_id, kind: 'attendance-statement' }` with
   `jobId = render_id` (ADR-0049 §1.1–§1.3), and answers `202 { render_id }`. `render_id` comes from the injected
@@ -203,8 +204,9 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   `DOCUMENT_RENDER_FAILED` and answers `503 RENDERER_UNAVAILABLE`. The request row stays (it records the attempt).
 - **FR-005** `GET …/attendance-statements/:renderId` is a **read**, so it goes through `queries/`, not a use case
   (`CLAUDE.md` §6): `queries/attendance-statement-status.query.ts` reads the request-row binding with SQL (result-shape
-  test and `EXPLAIN` assertion), and the Redis status hash through a read port the module owns
-  (`ports/document-status.port.ts`, adapter in `persistence/`, the same Redis keys ADR-0049 §1.3 names). It writes
+  test and `EXPLAIN` assertion), and the Redis status hash through a read-side interface declared **beside the query**
+  in `queries/` (`DocumentStatusRead`, as `EmployeeDetailAccess` sits beside its query, module map §3), not in
+  `ports/`; the module wiring supplies its Redis adapter from `persistence/` (the same Redis keys ADR-0049 §1.3 names). It writes
   nothing and imports no `domain/` or `use-cases/`. It returns `{ state, error_code? }` (`QUEUED | RENDERING | READY |
   FAILED | EXPIRED | CONSUMED`) with `Cache-Control: no-store`. It answers `404` unless the request row exists in the
   tenant, its branch is the route branch, and `requested_by` is the caller (ADR-0049 §1.5).
@@ -231,9 +233,9 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   `apps/worker/src/modules/staff/index.ts`) runs one `withTenant(companyId, …, { userId: requested_by })` transaction that
   reads the request row, the business and branch names, the employees with `employee_number`, the period inputs through
   the shared 27b inputs statement (ADR-0051 §2), the employee's OPEN sessions in the period for the employee form
-  (FR-011a), the stored identity (ADR-0051 §2) and resolves the logo through its own `StatementLogoReader` port, whose
-  adapter calls the worker `files` reader; that reader writes the access audit on the first attempt and reuses the
-  audited file on a retry (ADR-0051 §3). It commits, then fetches the logo bytes outside any
+  (FR-011a), the stored identity (ADR-0051 §2) and resolves the logo recorded on the request row through its own `StatementLogoReader`
+  port, whose adapter calls the worker `files` reader; that reader writes the access audit once per render (ADR-0051
+  §3). It commits, then fetches the logo bytes outside any
   transaction (ADR-0051 §3), then computes the figures with `packages/domain` and returns. No transaction is open while
   Chromium runs (spec 056 FR-003).
 - **FR-011a** The 27b inputs statement leaves OPEN sessions out (`s.status<>'OPEN'` in
@@ -296,6 +298,7 @@ admin ── POST …/:renderId/download ──▶ api: one withTenant: binding 
 | `period_from`, `period_to` | date NOT NULL | branch-local working dates; CHECK `period_from <= period_to` and at most 366 days |
 | `language` | text NOT NULL | CHECK `IN ('ar','en')` |
 | `shift_start`, `shift_end` | time NULL | the BR-11 pair; CHECK both null or both set, and set only when `form = 'BRANCH'` |
+| `logo_file_id` | uuid NULL | the business's bound logo when the request was made, read through the shared `@pospay/db` `readBusinessIdentity` in the request transaction; null = no logo. No FK (ADR-0051 §5) |
 | `requested_by` | uuid NOT NULL | the user; the binding of ADR-0049 §1.5 |
 | `requested_at` | timestamptz NOT NULL | from the injected clock |
 
@@ -388,7 +391,8 @@ and no module index: `apps/worker/src/main.ts` injects the `staff` reader into t
   employee) belongs to another business of the same company fails on the composite foreign key.
 - **Queries:** every new or moved `queries/` statement has a result-shape test and an `EXPLAIN` assertion.
 - **Worker:** the source against the T2 Redis with a fake renderer: data read, logo resolve + access audit as
-  `pospay_app`, a retry after the logo was replaced embeds the first audited file and adds no row, logo fetch outside
+  `pospay_app`, a retry after the logo was replaced embeds the recorded file and adds no row, a request made with no
+  logo stays name-only after a logo is bound, logo fetch outside
   the transaction, missing request row fails, no figure or HTML in a log line; one end-to-end run with the real
   renderer that checks `%PDF-`, `dir`/`lang`, and the escaped employee names.
 - **Template:** escaping of names with `<script>`, quotes and `&`; no external URL; signature places and footer present
@@ -410,7 +414,7 @@ and no module index: `apps/worker/src/main.ts` injects the `staff` reader into t
 | 1 | shared reads + logo reader | move the identity read statement to `@pospay/db` and `statementIdentity` to `packages/domain` (settings re-exports both, no behaviour change); move the 27b inputs statement to `@pospay/db` (27b unchanged, its EXPLAIN and shape tests follow it); worker `files` `resolveStatementLogo` / `fetchStatementLogo` with the once-per-render access audit (ADR-0051 §2–§3) |
 | 2 | schema, contracts, domain | migration + RLS + negative test for `attendance_statement_requests` (with the shift columns); contracts (request body, status, `attendanceStatementDocument`); `packages/domain` period, day-by-day and BR-11 shift-day functions with unit tests |
 | 3 | worker | worker `staff` `readAttendanceStatement` and the OPEN-sessions query (FR-011a); template; source and its registration in `main.ts` |
-| 4 | API | request and collect use cases (with the shift filter and the business–branch check), the status and shift-options `queries/` reads with their read port (FR-005, FR-001a), the guard, the rate limit, the audit entry and every refusal test |
+| 4 | API | request and collect use cases (with the shift filter and the business–branch check), the status and shift-options `queries/` reads with the status read interface beside its query (FR-005, FR-001a), the guard, the rate limit, the audit entry and every refusal test |
 | 5 | admin | the download screen (form, period, employee, shift picker, language, waiting state, download, refusals), i18n ar/en, RTL |
 
 The worker source (3) ships **before** the API that admits requests (4), so every request the API accepts has a
