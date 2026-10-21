@@ -81,9 +81,10 @@ without letting that voice touch commission (D-41, D-14).
 ## 3. Open owner questions and what each blocks
 
 All are in [owner-questions.ar.md](owner-questions.ar.md) with options and a recommended option. MY-Q6 is a money
-question (what staff earn, `CLAUDE.md` §1 5b) and goes to Abu Salem too; the older others were Waleed's. Since PP-23.2
-(`CLAUDE.md` V3.14, 2026-10-21) every new question, AL-Q7 included, is on the shared decisions page for both owners, and
-Abu Salem's pick binds on a difference. Until an answer arrives the rule is `TODO(spec)` and only the sub-PRs listed here wait.
+question (what staff earn, `CLAUDE.md` §1 5b) and goes to Abu Salem too; the others went to Waleed. Since PP-23.2
+(`CLAUDE.md` V3.14, 2026-10-21) every question is on the shared decisions page for both owners and Abu Salem's pick binds
+on a difference: PP-18 (MY-Q1…MY-Q9, RT-Q1…RT-Q12, AL-Q1…AL-Q6) was republished in batch 40 with Waleed's picks, and AL-Q7
+is in batch 45. Until an answer arrives the rule is `TODO(spec)` and only the sub-PRs listed here wait.
 
 | ID | Subject | Blocks |
 |---|---|---|
@@ -116,7 +117,7 @@ Abu Salem's pick binds on a difference. Until an answer arrives the rule is `TOD
 | AL-Q4 | What the master switch covers | **Answered (PP-18.24): team alerts only** (recommended); rating requests keep their own switch (D-B16) |
 | AL-Q5 | The default of every alert kind (the table in §B.4) | **Answered (PP-18.25): approved** (recommended) |
 | AL-Q6 | Email/WhatsApp to team members: in row 62, or later after a contact-read ADR | **Answered (PP-18.26): later, in row 62b** (recommended); row 62 is in-app only |
-| AL-Q7 | Who a «مدير الفرع» recipient means on alert kinds with no branch (document expiring, statements) | **Open (PP-29.1, batch 45)**: `TODO(spec)`, blocks 62-2 and 62-2c, and 62-4 through 62-2 (issue #476). 62-1 is not blocked: it accepts the four recipient roles on every kind and only stores them; both AL-Q7 options keep «مدير الفرع» off the `STATEMENT_*` kinds and the second keeps it off `DOCUMENT_EXPIRING` too, so the narrowing of the per-kind validator lands with 62-2 / 62-2c, which wait on the answer anyway |
+| AL-Q7 | Who a «مدير الفرع» recipient means on alert kinds with no branch (document expiring, statements) | **Open (PP-29.1, batch 45)**: `TODO(spec)`, blocks 62-2 and 62-2c, and 62-4 through 62-2 (issue #476). 62-1 is not blocked: it accepts the four recipient roles on every kind and only stores them; both AL-Q7 options keep «مدير الفرع» off the `STATEMENT_*` kinds and the second keeps it off `DOCUMENT_EXPIRING` too, so the narrowing of the per-kind validator lands with 62-2 / 62-2c, which wait on the answer anyway. If option 1 wins, the recipients for an employee attached to two branches are a follow-up question before 62-2 (`TODO(spec)`, issue #484) |
 
 ---
 
