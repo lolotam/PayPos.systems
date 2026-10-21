@@ -35,16 +35,17 @@ export class RequestLateServiceSessionNotice {
     const rule = interimLateNoticeRule();
     const decidedAt = this.clock.now();
     const users = await this.ports.recipients.forBranch(input, decidedAt, rule.roles);
-    const { groups, recipientCount } = lateNoticeRecipientGroups(users);
+    const branch = await this.ports.place.forBranch(input);
+    // فرع لم يعد موجودًا حالة نهائية لا تصلحها إعادة المحاولة: تُسجَّل كقرار بلا مستلمين
+    // مثل «لا مدير في النطاق» فلا يتكرر الحدث ولا يخرج جرس.
+    const { groups, recipientCount } = lateNoticeRecipientGroups(branch === null ? [] : users);
     const won = await this.ports.repository.claim(input, {
       id: this.ids.newId(),
       sourceEventId: input.sourceEventId,
       decidedAt,
       recipientCount,
     });
-    if (!won || recipientCount === 0) return;
-    const branch = await this.ports.place.forBranch(input);
-    if (branch === null) throw new Error('LATE_SESSION_PLACE_INVALID');
+    if (!won || branch === null || recipientCount === 0) return;
     const parameters = lateNoticeParameters(branch, input.businessDate, this.fallback);
     for (const group of groups)
       await this.ports.outbox.append(this.ids.newId(), {
