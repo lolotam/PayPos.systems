@@ -154,8 +154,7 @@ Defined in worker `customers/ports/`: `hours(tx, companyId, branchId)` → `{ op
 caller's transaction, where `time_zone` is the branch's effective zone (the branch's, otherwise the business's).
 It is implemented by an adapter in worker `customers/persistence/`, which calls a new public reader of the worker
 `tenancy` module, `branchScheduleHours(tx, companyId, branchId)`, from `tenancy/index.ts`. The reader has the same
-shape as tenancy's existing `branchPlace` and `businessTimeZone` readers. "Bound at the worker root" in spec 060
-D-B3 and row 59-1 means the composition root binds the port to that adapter class, as worker `staff`'s
+shape as tenancy's existing `branchPlace` and `businessTimeZone` readers. Spec 060 D-B3 and row 59-1 say the same: the composition root binds the port to that adapter class, as worker `staff`'s
 `BranchPlaceReader` is bound (ADR-0037 §6). It is **not** an injected callback.
 
 - It feeds two pure functions in `customers/domain`. `requestDayOf(occurredAt, zone, openingHours)` gives each session
@@ -204,7 +203,7 @@ lists by name, not for the adapters that implement them. The `StaffColumnsPort` 
 - **No cycle between adapters** (the Consequences warning above): `settings` and `tenancy` read none of `orders`,
   `customers`, `staff` or `commissions` through any adapter.
 - As the Consequences above require, each adapter adds its `reads` line in the PR that writes it, one line per
-  symbol: 57c-1 adds the settings reader lines of all four `StaffColumnsPort` adapters; 62-2, 62-2b, 62-2c and 62-3
-  add their `AlertRulesPort` lines; 59-1 adds `customers -> tenancy.branchScheduleHours`.
+  symbol: 57c-1 adds the settings reader lines of all four `StaffColumnsPort` adapters; 62-2, 62-2b, 62-2c, 62-3
+  and 61-1 add their `AlertRulesPort` lines; 59-1 adds `customers -> tenancy.branchScheduleHours`.
 - **Not in this addendum:** customers' `RatingAlertRecipientsPort` (docs PR A-1, postponed with the rating track), and
   the `NotificationDelivered` ⇒ `customers` event row (spec 060 D-B8, in 59b-3).
