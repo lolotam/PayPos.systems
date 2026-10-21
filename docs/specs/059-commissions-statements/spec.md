@@ -3,8 +3,8 @@
 > **Status:** Draft · 2026-10-21 · docs-only PR. Owner questions are recorded in [owner-questions.ar.md](owner-questions.ar.md):
 > the money list CS-Q1…CS-Q12 (Abu Salem, decisions page batch 36) and the new money question CS-Q22 are open, except
 > CS-Q2, CS-Q3 and CS-Q5, which Waleed answered through his super agent (2026-10-21, cards; still on batch 36, and Abu
-> Salem's pick replaces them if it differs), with one follow-up still open: CS-Q2b (who holds review by default, batch 42,
-> PP-25.1, `PENDING`); the permissions/technical list CS-Q13…CS-Q19 is
+> Salem's pick replaces them if it differs), and its follow-up CS-Q2b (who holds review by default, batch 42) answered by Waleed
+> (PP-25.1, the recommended option); the permissions/technical list CS-Q13…CS-Q19 is
 > answered by Waleed through his super agent (PP-17, 2026-10-21; CS-Q14, CS-Q15 and CS-Q16 against the recommendation),
 > and its follow-ups: CS-Q20 (a branch manager's scope) answered (PP-20.1, the recommended option), CS-Q21 (erasing a
 > frozen customer name) answered (PP-20.2, the recommended option), and the permissions question CS-Q23 (a mid-month
@@ -101,7 +101,7 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 
 | Rule | Source |
 | --- | --- |
-| The period is the calendar month in the business timezone; the manager reviews (review is a permission the owner grants and revokes as he chooses, CS-Q2; the spec reads Waleed's free-text answer as «only the owner holds it by default», and that reading is being confirmed with him: `TODO(spec)` CS-Q2b), the owner approves within the first five days, paid with the salary (what happens after day 5: `TODO(spec)` CS-Q22) | D-17, SPEC §5 _Dates_ |
+| The period is the calendar month in the business timezone; the manager reviews (review is held by default by the owner, the general manager and the business manager, and the owner grants or revokes it for anyone else, CS-Q2 and CS-Q2b = PP-25.1), the owner approves within the first five days, paid with the salary (what happens after day 5: `TODO(spec)` CS-Q22) | D-17, SPEC §5 _Dates_ |
 | Reminders to the owner on the 3rd and the 5th of the next month; reminders, not locks | D-54, SPEC §6 |
 | Approval only after the month has ended; atomic; refused while commission events are pending, with the retryable 409 «updates are still being calculated, try again shortly» | SPEC §6, ADR-0012 §3/§5 |
 | Review is bound to the inputs; the owner approves only the fingerprint that was reviewed, and the rows frozen are the rows that were reviewed | SPEC §6 |
@@ -116,7 +116,7 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 | Tips: per employee and method, outside net, thresholds and commission; card tips are a statement column paid with payroll, cash tips are informational; frozen as `TIP_CARD`/`TIP_CASH`; a tip changed in a closed month is a correction of kind TIP | D-36, SPEC §6, spec 053 |
 | Package-sale commission follows the employee's plan; the salon's current plans pay none | spec 037 owner questions §3 («عمولة بيع الباكدج»), D-55 |
 | Who sees commissions: the owner and the manager see all; employees and reception see their own | D-46; the exact permission and roles: CS-Q14 = PP-17.2 (§6 _Permissions_) |
-| The permission strings of the statement flow: `review:commissions:business`, `approve:commissions:business`, `pay:commissions:business` | SPEC §6 (their default roles: approve is the owner by default and granted by the owner, CS-Q5; review is granted by the owner, CS-Q2, and its default holders are `TODO(spec)` CS-Q2b; CS-Q4 open) |
+| The permission strings of the statement flow: `review:commissions:business`, `approve:commissions:business`, `pay:commissions:business` | SPEC §6 (their default roles: approve is the owner by default and granted by the owner, CS-Q5; review is held by default by the owner, the general manager and the business manager and granted by the owner, CS-Q2 and CS-Q2b = PP-25.1; CS-Q4 open) |
 | The success criterion: the approved statement matches the manager's hand calculation to 0.001 KWD for every employee in the parallel month | SPEC §1, D-45 |
 
 ## 4. User scenarios and acceptance criteria _(mandatory)_
@@ -290,7 +290,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   post-freeze change. No frozen row carries the new split while another carries the old one.
 - **CM-33c** RLS (negative isolation): company B reads 0 of company A's `commission_statement_returns` rows, and inserting a
   return row for A's statement as B fails.
-- **CM-33** Without `review:commissions:business` → 403. Its default holders are `TODO(spec)` CS-Q2b (the test asserts them once answered); the owner grants it to
+- **CM-33** Without `review:commissions:business` → 403. By default the owner, the general manager and the business manager hold it (CS-Q2b = PP-25.1); the owner grants it to
   المحاسب and revokes it again, and the grant and the revoke each take effect on the next request; a business manager
   who tries to grant it is refused (CS-Q2, Waleed 2026-10-21). The owner reviews October and then approves it: both
   succeed (CS-Q3, Waleed 2026-10-21), and the statement row and the two audit entries `commission_statement.reviewed` and
@@ -466,7 +466,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-57** On the 3rd and on the 5th of November, if October is not APPROVED, one `StatementAwaitingApproval` request per
   statement per day reaches the approvers who are business-wide readers (FR-030) as an in-app bell at 09:00 business time (CS-Q17 = PP-17.5); none once it is
   approved; a rerun of the
-  job the same day sends nothing new (ledger, SPEC §11 "reminders on the 3rd and 5th"). Never a lock (D-54).
+  job the same day sends nothing new (ledger, SPEC §11 "reminders on the 3rd and 5th"). Never a lock (D-54). A business whose `commissions` feature is off gets no statement row, no ledger row and no reminder.
 - **CM-57c** A quiet business (no session, plan or generate in October) still gets its reminder on 3 November: the job
   creates October's DRAFT statement, writes the ledger row and the events in one transaction; a rerun that day adds
   nothing. If Redis is lost (its `run_id` changes or the sentinel key disappears), `/ready` turns degraded and the
@@ -506,7 +506,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 
 - **FR-001** Table `commission_statements` (§6 _Schema_), one row per `(company_id, business_id, period)`, status DRAFT →
   REVIEWED → APPROVED → PAID, plus REVIEWED → DRAFT (D-5, and by hand FR-031). A `BEFORE UPDATE` trigger refuses every other
-  transition and any change to an APPROVED row except to PAID, and any change to a PAID row.
+  transition and any change to an APPROVED row except to PAID, and any change to a PAID row. A `BEFORE INSERT` trigger refuses
+  any row whose status is not DRAFT, so no path can insert an APPROVED statement and skip review (Codex 4336601157).
 - **FR-002** `packages/db` exports `lockStatementPeriods(tx, { businessId, periods, ids })` (D-3): `ids` is the caller's
   injected `IdGenerator` (the `@pospay/db` type, UUID v7 from `packages/ids`, as `appendAuditLog` takes it), so the API,
   the worker and the FR-044 seed each pass their own; it validates `YYYY-MM`, de-duplicates,
@@ -888,7 +889,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   for each business whose local time has passed 09:00 (CS-Q17 = PP-17.5), emits `StatementAwaitingApproval` on
   the 3rd and the 5th for the previous month while it is not APPROVED or PAID. For each business, in **one** transaction, the
   job first calls `lockStatementPeriods` for the previous month, which **creates the DRAFT row if the business was quiet**
-  (no input, no plan write, no generate) and locks it, then rechecks the status under the lock, then inserts the
+  (no input, no plan write, no generate) and locks it, then rechecks the status under the lock, **skips the business when its `commissions` feature is off** (no statement
+  row created, no ledger row, no event; Codex 4336601165), then inserts the
   `commission_statement_reminders` ledger row (`UNIQUE (company_id, statement_id, kind, reminder_date)`, once per day) and
   the grouped notice events (FR-030); a business is never skipped for having no statement row. Zero recipients is a durable
   decision.
@@ -1001,7 +1003,8 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
 - **Arrows:** two new **event** rows in `docs/module-map.md`: `CompanyCreated` (identity) consumed by worker `commissions`
   (added by 56b-1) and `CommissionCorrectionBlockedNoticeRequested` commissions ⇒ notifications (added by 55-2);
   `StatementAwaitingReview`/`StatementAwaitingApproval` are already declared. No new **import** arrow (D-16); the root-bound readers are: business timezone (tenancy), service names (catalog),
-  recipients (identity), tips and lines bootstrap (orders). 59-0's ADR lists each binding.
+  recipients (identity), tips and lines bootstrap (orders). 59-0's ADR lists each binding, and 59-0 adds each as a **Port** row in
+  `docs/module-map.md` §3 (and the generated YAML), as the root-bound `DaySessionsPort` is declared there (Codex 4336601176).
 
 ### Permissions
 
@@ -1009,7 +1012,7 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
 | --- | --- | --- |
 | `manage:commission-plans:business` (proposed) | `TODO(spec)` CS-Q1 | new; plan versions, overrides, period repair |
 | `read:commissions:business` | owner, general manager, business manager, accountant **and branch manager** (CS-Q14 = PP-17.2, against the recommendation); grantable | new; estimate of all employees, statement view, export. A holder sees only the employees of her effective branch set (CS-Q20 = PP-20.1, below) |
-| `review:commissions:business` | default holders `TODO(spec)` CS-Q2b (the owner at least); granted and revoked **by the owner only**, to any user he chooses (52-1 registers both codes as owner-grantable only; if spec 009's grant flow has no per-code granter rule yet, 52-1 adds it for these two codes); usable only by a business-wide reader (CS-Q26 = PP-24.1, FR-029), and the grant screen warns of it (FR-029b) | named by SPEC §6 |
+| `review:commissions:business` | owner, general manager, business manager (CS-Q2b = PP-25.1, Waleed 2026-10-21); granted and revoked **by the owner only**, to any user he chooses (52-1 registers both codes as owner-grantable only; if spec 009's grant flow has no per-code granter rule yet, 52-1 adds it for these two codes); usable only by a business-wide reader (CS-Q26 = PP-24.1, FR-029), and the grant screen warns of it (FR-029b) | named by SPEC §6 |
 | `approve:commissions:business` | owner (D-17, SPEC §11; CS-Q5, Waleed 2026-10-21); granted and revoked **by the owner only**, to a named person (52-1 registers both codes as owner-grantable only; if spec 009's grant flow has no per-code granter rule yet, 52-1 adds it for these two codes); usable only by a business-wide reader (FR-036, from PP-24.1), and the grant screen warns of it (FR-029b) | named by SPEC §6 |
 | `pay:commissions:business` | `TODO(spec)` CS-Q4 | named by SPEC §6 |
 
@@ -1093,7 +1096,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port, and the statement builder with its statement fingerprint (D-6, FR-026) and the round-trip unit test of CM-34e. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 (CM-28c included), and the statement-view part of CM-23d, CM-23e, CM-23f, CM-23g and CM-23h | 50-5; CS-Q7 | 350–480 |
 | **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044; CM-48c's concurrent approval is the FR-044 seed transaction under the lock), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations, its `docs/module-map.md` event row). 3. CM-51…CM-54, CM-53b (the stored target, FR-046/FR-048) | 55-1; CS-Q11 | 400–550 |
-| **52-1** | Review | 1. The statement permissions `review:commissions:business` and `approve:commissions:business` with their defaults (approve: owner only, CS-Q5; review: `TODO(spec)` CS-Q2b) and owner-only granting (CS-Q2, CS-Q5), and the grant-screen warning (FR-029b), so `StatementAwaitingApproval`, first emitted here, has a defined recipient set from its first release; 53-2 adds only the approval guard (FR-036). 2. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS), and the `StatementAwaitingApproval` contract, template and registrations it emits (Codex 4336152050: three subtasks). 3. CM-30…CM-33, CM-33b, CM-33c, CM-33d and the FR-029b grant-screen UI test | 51-1, 55-2; CS-Q2b | 350–480 |
+| **52-1** | Review | 1. The statement permissions `review:commissions:business` and `approve:commissions:business` with their defaults (approve: owner only, CS-Q5; review: owner, general manager and business manager, CS-Q2b = PP-25.1) and owner-only granting (CS-Q2, CS-Q5), and the grant-screen warning (FR-029b), so `StatementAwaitingApproval`, first emitted here, has a defined recipient set from its first release; 53-2 adds only the approval guard (FR-036). 2. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS), and the `StatementAwaitingApproval` contract, template and registrations it emits (Codex 4336152050: three subtasks). 3. CM-30…CM-33, CM-33b, CM-33c, CM-33d and the FR-029b grant-screen UI test | 51-1, 55-2 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
 | **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check, the attachment snapshot write (its table comes from 48a-2), the post-freeze statement-fingerprint recompute, and correction rows frozen with `previous_amount`, `new_amount` and the delta (CS-Q9 then decides only the display, in 53-3). 2. HTTP and the approval guard (FR-036) on the permission 52-1 registers. 3. CM-34, CM-34b, CM-34c, CM-34d, CM-34e (integration part), CM-35, CM-37, CM-38, CM-38b | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q22 | 400–550 |
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to the employees of her effective branch set (CS-Q20 = PP-20.1, §6 _Permissions_). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
