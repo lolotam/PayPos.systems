@@ -391,3 +391,5 @@ export * from './orders/service-line-edit-notice.js';
 export * from './orders/service-line-cancel-notice.js';
 export * from './orders/service-line-performers-notice.js';
 export * from './documents-render.js';
+export * from './orders/discount-approval.js';
+export * from './orders/discount-approval-events.js';

@@ -1,0 +1,132 @@
+import { z } from 'zod';
+import { canonicalStaffPhone } from '../identity/staff-otp.js';
+import { responseObject } from '../response-object.js';
+import { id as sharedId } from '../scalars/id.js';
+import { timestamp } from '../scalars/timestamp.js';
+import { pageQuery } from '../pagination/cursor.js';
+import { sessionLineInput, sessionMoney } from './service-session.js';
+
+const id = sharedId.toLowerCase();
+const termsHash = z.string().regex(/^[0-9a-f]{64}$/);
+const effectiveBps = z.number().int().min(1).max(10000);
+const inputIndex = z.number().int().min(0).max(19);
+const proposalIds = z.array(id).min(1).max(20);
+const termsHashes = z.array(termsHash).min(1).max(20);
+const serviceNames = { service_id: id, service_name_en: z.string(), service_name_ar: z.string().nullable() };
+const amounts = { list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney };
+// EXPIRED مشتق من expires_at والساعة المحقونة ولا يُكتب في الصف أبدًا (D-7).
+export const discountProposalStatus = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'EXPIRED', 'CONSUMED'])
+  .meta({ id: 'DiscountProposalStatus' });
+
+// سطر الطلب هو سطر spec 050 بلا discount_proposal_id: طلب موافقة لا يحمل موافقة سابقة، والمفتاح الزائد 400.
+export const discountRequestLineInput = z.strictObject(sessionLineInput.omit({ discount_proposal_id: true }).shape)
+  .meta({ id: 'DiscountRequestLineInput' });
+/** مع session_id تأتي بيانات الزيارة من الزيارة المحفوظة، فإرسال occurred_at معها رفض شكلي (FR-002). */
+export const requestDiscountApprovalInput = z.strictObject({
+  customer_id: id,
+  session_id: id.optional(),
+  occurred_at: timestamp.optional(),
+  lines: z.array(discountRequestLineInput).min(1).max(20),
+  requester_membership_id: id.optional(),
+}).refine((input) => input.session_id === undefined || input.occurred_at === undefined, {
+  path: ['occurred_at'],
+}).meta({ id: 'RequestDiscountApprovalInput' });
+export const requestedDiscountProposal = responseObject({
+  id, input_index: inputIndex, status: discountProposalStatus, expires_at: timestamp,
+  effective_bps: effectiveBps, terms_hash: termsHash,
+}).meta({ id: 'RequestedDiscountProposal' });
+/** occurred_at هو اللحظة المطبّعة التي بُنيت منها الشروط، فإعادة إرسالها تحفظ نفس يوم العمل (FR-007). */
+export const requestDiscountApprovalResponse = responseObject({
+  request_id: id, occurred_at: timestamp, proposals: z.array(requestedDiscountProposal).min(1).max(20),
+}).meta({ id: 'RequestDiscountApprovalResponse' });
+
+export const discountProposalRequestQuery = z.strictObject({ request_id: id })
+  .meta({ id: 'DiscountProposalRequestQuery' });
+// حقول القرار تظهر بعد القرار فقط، والسبب للرفض فقط، وسطر الاستهلاك بعد الاستهلاك فقط.
+export const requesterDiscountProposal = responseObject({
+  id, request_id: id, input_index: inputIndex, status: discountProposalStatus,
+  session_id: id.nullable(), occurred_at: timestamp, ...serviceNames, ...amounts,
+  effective_bps: effectiveBps, expires_at: timestamp, terms_hash: termsHash,
+  decided_label_ar: z.string().optional(), decided_label_en: z.string().optional(),
+  decided_via: z.enum(['PIN', 'REMOTE']).optional(), decided_at: timestamp.optional(),
+  reject_reason: z.string().min(1).max(500).optional(), consumed_line_id: id.optional(),
+}).meta({ id: 'RequesterDiscountProposal' });
+export const requesterDiscountProposalList = responseObject({
+  items: z.array(requesterDiscountProposal).max(20),
+}).meta({ id: 'RequesterDiscountProposalList' });
+
+export const pendingDiscountProposalQuery = pageQuery.extend({
+  cursor: z.string().min(1).max(512).regex(/^[A-Za-z0-9_-]+$/).optional(),
+}).strict().meta({ id: 'PendingDiscountProposalQuery' });
+/** المؤشر يحمل (requested_at, id) معًا حتى لا تتكرر أو تُفقد طلبات اللحظة الواحدة بين الصفحات. */
+export const pendingDiscountProposalCursor = z.strictObject({
+  v: z.literal(1), company: id, business: id, branch: id,
+  at: timestamp.regex(/^(?!0000-)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/), id,
+});
+export const discountProposalPerformer = responseObject({
+  employee_id: id, first_name_en: z.string(), first_name_ar: z.string().nullable(),
+}).meta({ id: 'DiscountProposalPerformer' });
+// كل الأسماء لقطات وقت الطلب (D-18): الاسم الأول للعميل فقط، ولا هاتف أبدًا.
+export const pendingDiscountProposal = responseObject({
+  id, request_id: id, session_id: id.nullable(), occurred_at: timestamp, ...serviceNames, ...amounts,
+  effective_bps: effectiveBps, performers: z.array(discountProposalPerformer).min(1).max(4),
+  requester_label_ar: z.string(), requester_label_en: z.string(), customer_first_name: z.string(),
+  requested_at: timestamp, expires_at: timestamp, terms_hash: termsHash,
+}).meta({ id: 'PendingDiscountProposal' });
+export const pendingDiscountProposalPage = responseObject({
+  items: z.array(pendingDiscountProposal).max(100), next_cursor: z.string().max(512).nullable(),
+}).meta({ id: 'PendingDiscountProposalPage' });
+
+/** القائمة على جهاز الفرع قبل الرقم السري (DA-Q8): بلا هاتف وبلا مؤدّين، والاسم الأول للطالبة يرجع لاسم الدور عند غيابه. */
+export const deviceDiscountProposal = responseObject({
+  id, request_id: id, service_name_en: z.string(), service_name_ar: z.string().nullable(), ...amounts,
+  effective_bps: effectiveBps, requester_first_name_en: z.string(), requester_first_name_ar: z.string().nullable(),
+  customer_first_name: z.string(), requested_at: timestamp, expires_at: timestamp, terms_hash: termsHash,
+}).meta({ id: 'DeviceDiscountProposal' });
+export const deviceDiscountProposalList = responseObject({
+  items: z.array(deviceDiscountProposal),
+}).meta({ id: 'DeviceDiscountProposalList' });
+
+// البصمات بنفس ترتيب المعرّفات؛ اختلاف العدد أو تكرار معرّف رفض شكلي، واختلاف البصمة المخزّنة 409 من النطاق.
+const sameOrder = (input: { proposal_ids: string[]; terms_hashes: string[] }) =>
+  input.proposal_ids.length === input.terms_hashes.length
+  && new Set(input.proposal_ids).size === input.proposal_ids.length;
+const decisionFields = { proposal_ids: proposalIds, terms_hashes: termsHashes, approver_membership_id: id.optional() };
+// السبب الغائب أو الطويل يصل للنطاق ليرد 422 DISCOUNT_REJECT_REASON_INVALID، لا 400 من التحقق الشكلي.
+const reasonField = { reason: z.string().optional() };
+export const approveDiscountProposalsInput = z.strictObject(decisionFields).refine(sameOrder, { path: ['terms_hashes'] })
+  .meta({ id: 'ApproveDiscountProposalsInput' });
+export const rejectDiscountProposalsInput = z.strictObject({ ...decisionFields, ...reasonField })
+  .refine(sameOrder, { path: ['terms_hashes'] }).meta({ id: 'RejectDiscountProposalsInput' });
+// الرقم السري يثبت هوية الموافِق لهذا الفعل فقط: لا جلسة، ولا يُخزّن ولا يُسجَّل ولا يُرد (FR-023).
+const pinFields = { phone: canonicalStaffPhone, pin: z.string().regex(/^\d{4}$/) };
+export const deviceApproveDiscountProposalsInput = z.strictObject({ ...decisionFields, ...pinFields })
+  .refine(sameOrder, { path: ['terms_hashes'] }).meta({ id: 'DeviceApproveDiscountProposalsInput' });
+export const deviceRejectDiscountProposalsInput = z.strictObject({ ...decisionFields, ...pinFields, ...reasonField })
+  .refine(sameOrder, { path: ['terms_hashes'] }).meta({ id: 'DeviceRejectDiscountProposalsInput' });
+export const decidedDiscountProposal = responseObject({
+  id, status: z.enum(['APPROVED', 'REJECTED']), expires_at: timestamp,
+}).meta({ id: 'DecidedDiscountProposal' });
+export const decideDiscountProposalsResponse = responseObject({
+  proposals: z.array(decidedDiscountProposal).min(1).max(20),
+}).meta({ id: 'DecideDiscountProposalsResponse' });
+
+export const discountApprovalSchemas = [discountProposalStatus, discountRequestLineInput, requestDiscountApprovalInput,
+  requestedDiscountProposal, requestDiscountApprovalResponse, discountProposalRequestQuery, requesterDiscountProposal,
+  requesterDiscountProposalList, pendingDiscountProposalQuery, discountProposalPerformer, pendingDiscountProposal,
+  pendingDiscountProposalPage, deviceDiscountProposal, deviceDiscountProposalList, approveDiscountProposalsInput,
+  rejectDiscountProposalsInput, deviceApproveDiscountProposalsInput, deviceRejectDiscountProposalsInput,
+  decidedDiscountProposal, decideDiscountProposalsResponse];
+export type DiscountProposalStatus = z.infer<typeof discountProposalStatus>;
+export type RequestDiscountApprovalInput = z.infer<typeof requestDiscountApprovalInput>;
+export type RequestDiscountApprovalResponse = z.infer<typeof requestDiscountApprovalResponse>;
+export type RequesterDiscountProposalList = z.infer<typeof requesterDiscountProposalList>;
+export type PendingDiscountProposalQuery = z.infer<typeof pendingDiscountProposalQuery>;
+export type PendingDiscountProposalCursor = z.infer<typeof pendingDiscountProposalCursor>;
+export type PendingDiscountProposalPage = z.infer<typeof pendingDiscountProposalPage>;
+export type DeviceDiscountProposalList = z.infer<typeof deviceDiscountProposalList>;
+export type ApproveDiscountProposalsInput = z.infer<typeof approveDiscountProposalsInput>;
+export type RejectDiscountProposalsInput = z.infer<typeof rejectDiscountProposalsInput>;
+export type DeviceApproveDiscountProposalsInput = z.infer<typeof deviceApproveDiscountProposalsInput>;
+export type DeviceRejectDiscountProposalsInput = z.infer<typeof deviceRejectDiscountProposalsInput>;
+export type DecideDiscountProposalsResponse = z.infer<typeof decideDiscountProposalsResponse>;

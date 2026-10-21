@@ -24,6 +24,8 @@ export const sessionLineInput = z.strictObject({
   price: sessionMoney,
   discount: sessionLineDiscount,
   performers: z.array(sessionPerformerInput),
+  // spec 057 FR-019: موافقة الخصم تُستهلك في معاملة السطر نفسه؛ الغياب يعني الرفض فوق الحد كما هو اليوم.
+  discount_proposal_id: id.optional(),
 }).meta({ id: 'SessionLineInput' });
 const writeFields = { lines: z.array(sessionLineInput).min(1).max(20), recorder_membership_id: id.optional() };
 export const recordServiceSessionInput = z.strictObject({
@@ -50,6 +52,8 @@ export const savedServiceLine = responseObject({
   cancelled_at: timestamp.optional(),
   // الغياب يعني أن المنفّذين لم يتغيّروا؛ جسم التسجيل القديم يبقى بلا المفتاح ومن غير .default.
   performers_changed_at: businessDate.optional(),
+  // spec 057 FR-021: الغياب يعني أن السطر حُفظ على حد المسجّل نفسه؛ جسم التسجيل القديم يبقى بلا المفتاح ومن غير .default.
+  discount_proposal_id: id.optional(),
 }).meta({ id: 'SavedServiceLine' });
 export const serviceSession = responseObject({
   id, business_id: id, branch_id: id, customer: responseObject({ id, name: z.string(), phone_masked: z.string() }),
@@ -63,6 +67,9 @@ export const rejectedServiceLine = responseObject({
   list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney,
   effective_discount_bps: bps, limit_bps: bps, limit_source: z.enum(['PERSON', 'BUSINESS', 'NOT_CONFIGURED']),
   minimum_net: sessionMoney, max_discount_amount: sessionMoney,
+  // spec 057 FR-019/FR-021: يظهران فقط لسطر حمل discount_proposal_id ولم يستهلك الموافقة؛ الغياب هو رفض اليوم كما هو.
+  approval_refusal: z.enum(['NOT_FOUND', 'NOT_APPROVED', 'EXPIRED', 'CONSUMED', 'TERMS_MISMATCH']).optional(),
+  discount_proposal_id: id.optional(),
 }).meta({ id: 'RejectedServiceLine' });
 const responseFields = { outcome: z.enum(['COMPLETE', 'PARTIAL']), session: serviceSession, rejected_lines: z.array(rejectedServiceLine).max(20) };
 export const recordServiceSessionResponse = responseObject(responseFields).meta({ id: 'RecordServiceSessionResponse' });
