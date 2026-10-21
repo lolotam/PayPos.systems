@@ -369,6 +369,7 @@ reads:
   - settings -> identity.lockBusinessIdentityAccess @ apps/api/src/modules/settings/persistence/business-identity-access.adapter.ts
   - settings -> identity.readBusinessIdentityAccess @ apps/api/src/modules/settings/persistence/business-identity-access.adapter.ts
   - settings -> identity.lockAlertRulesAccess @ apps/api/src/modules/settings/persistence/alert-rules-store.ts
+  - settings -> identity.readAlertRulesAccess @ apps/api/src/modules/settings/persistence/alert-rules-read-access.adapter.ts
   - settings -> identity.lockMembershipDiscountSubject @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts
   - settings -> identity.readMembershipDiscountSubject @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts
   - settings -> tenancy.businessDiscountScope @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts

@@ -34,9 +34,32 @@ export async function lockAlertRulesAccess(
   const [business] = await tx.execute(sql`SELECT id FROM businesses
     WHERE company_id=${companyId} AND id=${target.businessId} FOR SHARE`);
   if (business === undefined) return 'FORBIDDEN';
+  return readAlertRulesAccess(tx, companyId, userId, target, true);
+}
+
+/**
+ * نفس قرار lockAlertRulesAccess من غير أقفال، لقراية قواعد فرع: صاحب الصلاحية على النشاط كله مع منع على الفرع
+ * مايقراش قواعد الفرع ده (نفس قرار الكتابة).
+ *
+ * @param tx معاملة الشركة
+ * @param companyId الشركة المتحقق منها
+ * @param userId المستخدم
+ * @param target النشاط والفرع
+ * @param target.businessId النشاط
+ * @param target.branchId الفرع أو null
+ * @param share قفل صف الفرع FOR SHARE (مسار الكتابة)
+ * @returns FORBIDDEN أو null عند السماح
+ */
+export async function readAlertRulesAccess(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  target: { businessId: string; branchId: string | null },
+  share = false,
+): Promise<'FORBIDDEN' | null> {
   if (target.branchId !== null) {
     const [branch] = await tx.execute(sql`SELECT id FROM branches
-      WHERE company_id=${companyId} AND business_id=${target.businessId} AND id=${target.branchId} FOR SHARE`);
+      WHERE company_id=${companyId} AND business_id=${target.businessId} AND id=${target.branchId} ${share ? sql`FOR SHARE` : sql``}`);
     if (branch === undefined) return 'FORBIDDEN';
   }
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);

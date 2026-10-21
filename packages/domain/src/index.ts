@@ -50,6 +50,7 @@ export {
   ALERT_KINDS,
   ALERT_MAX_MINUTES,
   ALERT_RECIPIENT_ROLES,
+  alertKindAllowsBranchOverride,
   alertRuleViolation,
   effectiveAlertRule,
   sameAlertRuleSettings,

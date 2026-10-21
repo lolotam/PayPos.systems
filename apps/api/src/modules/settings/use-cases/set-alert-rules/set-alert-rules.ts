@@ -1,5 +1,6 @@
 import type { SetAlertRulesInput } from '@pospay/contracts';
 import {
+  alertKindAllowsBranchOverride,
   alertRuleViolation,
   sameAlertRuleSettings,
   type AlertKind,
@@ -30,10 +31,15 @@ export class SetAlertRules {
     input: SetAlertRulesInput,
   ): Promise<readonly AlertRuleChange[]> {
     const requested = input.rules.map((rule) => ({ kind: rule.kind, settings: settingsOf(rule) }));
-    for (const { kind, settings } of requested)
-      if (alertRuleViolation(kind, settings) !== null) throw new ApiError('ALERT_RULE_INVALID');
     return this.transactions.run(actor.companyId, actor.userId, async (scope) => {
+      // الصلاحية قبل التحقق من القيم، عشان منع على الفرع يرجع 403 واحدة مهما كان الطلب.
       if ((await scope.access(target)) !== null) throw new ApiError('FORBIDDEN');
+      for (const { kind, settings } of requested)
+        if (
+          alertRuleViolation(kind, settings) !== null ||
+          (target.branchId !== null && !alertKindAllowsBranchOverride(kind))
+        )
+          throw new ApiError('ALERT_RULE_INVALID');
       const stored = await scope.lockRules(target);
       const changes: AlertRuleChange[] = [];
       for (const { kind, settings } of requested) {

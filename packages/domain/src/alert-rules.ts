@@ -62,6 +62,8 @@ export interface AlertKindDefinition {
   readonly hasLead: boolean;
   /** النوع بيتبعت للموظفة نفسها بإشعار ثابت، فمفيش أدوار ولا قنوات تتختار. */
   readonly employeeOnly: boolean;
+  /** الحدث ليه فرع، فالفرع يقدر يغيّر قاعدته (AL-Q2)؛ false = النوع بيتقري دايماً بقاعدة النشاط. */
+  readonly branchScoped: boolean;
 }
 
 const MANAGERS = ALERT_RECIPIENT_ROLES;
@@ -72,6 +74,7 @@ const managersInApp = (extra: Partial<AlertKindDefinition> = {}): AlertKindDefin
   hasDelay: false,
   hasLead: false,
   employeeOnly: false,
+  branchScoped: true,
   ...extra,
 });
 const fixedOnly = (fixed: readonly FixedAlertRecipient[]): AlertKindDefinition =>
@@ -101,9 +104,13 @@ export const ALERT_KIND_DEFINITIONS: Readonly<Record<AlertKind, AlertKindDefinit
     hasDelay: false,
     hasLead: true,
     employeeOnly: true,
+    branchScoped: true,
   },
   ATTENDANCE_EXCEPTION: managersInApp(),
-  DOCUMENT_EXPIRING: fixedOnly([{ selector: 'PERMISSION_HOLDERS', permission: 'read:files:business' }]),
+  DOCUMENT_EXPIRING: {
+    ...fixedOnly([{ selector: 'PERMISSION_HOLDERS', permission: 'read:files:business' }]),
+    branchScoped: false,
+  },
   LATE_SERVICE_SESSION: managersInApp(),
   SERVICE_LINE_EDITED: managersInApp(),
   SERVICE_LINE_CANCELLED: managersInApp(),
@@ -112,11 +119,13 @@ export const ALERT_KIND_DEFINITIONS: Readonly<Record<AlertKind, AlertKindDefinit
     { selector: 'PERMISSION_HOLDERS', permission: 'decide:attendance-change:company' },
   ]),
   ATTENDANCE_CHANGE_DECIDED: fixedOnly([{ selector: 'CONTEXT', who: 'REQUESTER' }]),
-  STATEMENT_AWAITING_REVIEW: fixedOnly([
-    { selector: 'PERMISSION_HOLDERS', permission: 'review:commissions:business' },
-  ]),
+  STATEMENT_AWAITING_REVIEW: {
+    ...fixedOnly([{ selector: 'PERMISSION_HOLDERS', permission: 'review:commissions:business' }]),
+    branchScoped: false,
+  },
   STATEMENT_AWAITING_APPROVAL: managersInApp({
     defaults: { enabled: true, recipientRoles: ['owner'], channels: IN_APP, delayMinutes: null, leadMinutes: null },
+    branchScoped: false,
   }),
 };
 
@@ -224,4 +233,15 @@ export function sameAlertRuleSettings(a: AlertRuleSettings, b: AlertRuleSettings
     sameSet(a.recipientRoles, b.recipientRoles) &&
     sameSet(a.channels, b.channels)
   );
+}
+
+/**
+ * بيتأكد إن النوع ينفع يتغيّر لفرع: أنواع من غير فرع (المستندات والكشوفات) بتتقري دايماً بقاعدة النشاط،
+ * فقاعدة فرع ليها كانت هتتخزن ومحدش يقراها أبداً.
+ *
+ * @param kind نوع التنبيه
+ * @returns true لو النوع ليه قاعدة فرع
+ */
+export function alertKindAllowsBranchOverride(kind: AlertKind): boolean {
+  return ALERT_KIND_DEFINITIONS[kind].branchScoped;
 }

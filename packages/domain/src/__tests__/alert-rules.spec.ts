@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALERT_KIND_DEFINITIONS,
+  alertKindAllowsBranchOverride,
   ALERT_KINDS,
   alertRuleViolation,
   effectiveAlertRule,
@@ -118,5 +119,13 @@ describe('sameAlertRuleSettings', () => {
     expect(sameAlertRuleSettings(rule(), rule({ channels: [] }))).toBe(false);
     expect(sameAlertRuleSettings(rule({ delayMinutes: 10 }), rule({ delayMinutes: 20 }))).toBe(false);
     expect(sameAlertRuleSettings(rule({ leadMinutes: 10 }), rule({ leadMinutes: null }))).toBe(false);
+  });
+});
+
+describe('alertKindAllowsBranchOverride', () => {
+  it('kinds without a branch never take a branch override', () => {
+    for (const kind of ['DOCUMENT_EXPIRING', 'STATEMENT_AWAITING_REVIEW', 'STATEMENT_AWAITING_APPROVAL'] as const)
+      expect(alertKindAllowsBranchOverride(kind)).toBe(false);
+    expect(alertKindAllowsBranchOverride('SHIFT_NOT_CLOCKED_IN')).toBe(true);
   });
 });

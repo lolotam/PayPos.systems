@@ -17,7 +17,7 @@ import {
   type SetAlertRulesInput,
   type SetAlertsMasterInput,
 } from '@pospay/contracts';
-import type { TenantWrappers } from '@pospay/db';
+import type { TenantWrappers, Tx } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 
 import { Require } from '../../../shared/access.decorators.ts';
@@ -31,6 +31,13 @@ import type { SetAlertRules } from '../use-cases/set-alert-rules/set-alert-rules
 import type { SetAlertsMaster } from '../use-cases/set-alerts-master/set-alerts-master.ts';
 
 export interface AlertRulesWiring {
+  /** قرار قراية قواعد فرع على معاملة القراية نفسها (نفس قرار الكتابة: النشاط كله والفرع). */
+  readonly branchAccess: (
+    tx: Tx,
+    companyId: string,
+    userId: string,
+    target: { businessId: string; branchId: string },
+  ) => Promise<'FORBIDDEN' | null>;
   readonly set: SetAlertRules;
   readonly reset: ResetBranchAlertRule;
   readonly master: SetAlertsMaster;
@@ -132,12 +139,20 @@ export class AlertRulesController {
     businessId: string,
     branchId: string | null,
   ): Promise<AlertRules> {
-    if (this.#db === null) throw new ApiError('NOT_READY');
+    if (this.#db === null || this.#wiring === null) throw new ApiError('NOT_READY');
     const actor = actorOf(request);
+    const business = businessId.toLowerCase();
+    const branch = branchId?.toLowerCase() ?? null;
+    const access = this.#wiring.branchAccess;
     const view = await this.#db.withTenant(
       actor.companyId,
-      (tx) =>
-        alertRulesQuery(tx, actor.companyId, businessId.toLowerCase(), branchId?.toLowerCase() ?? null),
+      async (tx) => {
+        if (branch !== null) {
+          const target = { businessId: business, branchId: branch };
+          if ((await access(tx, actor.companyId, actor.userId, target)) !== null) return null;
+        }
+        return alertRulesQuery(tx, actor.companyId, business, branch);
+      },
       { userId: actor.userId },
     );
     if (view === null) throw new ApiError('FORBIDDEN');

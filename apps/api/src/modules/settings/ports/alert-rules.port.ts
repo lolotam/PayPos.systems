@@ -30,6 +30,7 @@ export interface AlertRulesScope {
    * القواعد المخزنة للنطاق ده بالظبط، مقفولة لحد آخر الـ transaction عشان التدقيق يسجل قبل وبعد صح.
    *
    * @param target النشاط والفرع
+   * @returns القواعد المخزنة حسب النوع
    */
   lockRules(target: AlertRuleTarget): Promise<ReadonlyMap<AlertKind, StoredAlertRule>>;
   /**
@@ -39,6 +40,7 @@ export interface AlertRulesScope {
    * @param kind      النوع
    * @param settings  القيم الجديدة
    * @param updatedBy المستخدم اللي غيّر
+   * @returns القاعدة بعد الحفظ بالـ revision الجديد
    */
   saveRule(
     target: AlertRuleTarget,
@@ -51,6 +53,7 @@ export interface AlertRulesScope {
    *
    * @param target النشاط والفرع (الفرع مطلوب)
    * @param kind   النوع
+   * @returns القاعدة اللي اتمسحت أو null
    */
   deleteBranchRule(
     target: AlertRuleTarget & { readonly branchId: string },
@@ -60,6 +63,7 @@ export interface AlertRulesScope {
    * المفتاح العام المخزن مقفول (null = شغّال، أو مفيش صف إعدادات لسه).
    *
    * @param businessId النشاط
+   * @returns القيمة المخزنة؛ null = شغّال
    */
   lockMaster(businessId: string): Promise<boolean | null>;
   /**
@@ -67,6 +71,7 @@ export interface AlertRulesScope {
    *
    * @param businessId النشاط
    * @param enabled    القيمة الجديدة
+   * @returns بيخلص لما القيمة تتكتب
    */
   saveMaster(businessId: string, enabled: boolean): Promise<void>;
 }
@@ -76,9 +81,12 @@ export interface AlertRulesScope {
  */
 export interface AlertRulesTransactions {
   /**
+   * بيشغّل شغل القواعد كله في transaction واحدة للشركة، عشان القفل والقرار والكتابة والتدقيق يتعملوا سوا أو يترجعوا سوا.
+   *
    * @param companyId الشركة
    * @param userId    المستخدم اللي بيغيّر
    * @param work      الشغل جوه الـ transaction
+   * @returns اللي الشغل رجّعه بعد الـ commit
    */
   run<T>(
     companyId: string,

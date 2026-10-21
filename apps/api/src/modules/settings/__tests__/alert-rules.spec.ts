@@ -161,6 +161,14 @@ it('RT-29: no permission, a branch-only grant, a branch DENY and another busines
     scope_id: f.branch,
   });
   await forbidden(await put(f.branch, [notClockedIn(15)], f.managerCookie));
+  await forbidden(await put(f.branch, [{ ...notClockedIn(15), delay_minutes: null }], f.managerCookie));
+  await forbidden(
+    await f.h.send('GET', path(f.branch), { cookie: f.managerCookie, company: f.company }),
+  );
+  expect(
+    (await f.h.send('GET', path(f.siblingBranch), { cookie: f.managerCookie, company: f.company }))
+      .status,
+  ).toBe(200);
   await forbidden(await reset(f.branch, 'SHIFT_NOT_CLOCKED_IN', f.managerCookie));
   expect((await put(f.siblingBranch, [notClockedIn(15)], f.managerCookie)).status).toBe(200);
   await forbidden(await put(f.foreignBranch, [notClockedIn(15)], f.managerCookie));
@@ -171,4 +179,14 @@ it('RT-29: no permission, a branch-only grant, a branch DENY and another busines
   await forbidden(await put(f.branch, [notClockedIn(15)], f.cookie, f.otherBusiness));
   await forbidden(await reset(f.foreignBranch, 'SHIFT_NOT_CLOCKED_IN'));
   expect((await effective(f.branch, 'SHIFT_NOT_CLOCKED_IN')).delayMinutes).toBe(10);
+});
+
+it('kinds without a branch refuse a branch override with ALERT_RULE_INVALID', async () => {
+  for (const kind of ['DOCUMENT_EXPIRING', 'STATEMENT_AWAITING_REVIEW', 'STATEMENT_AWAITING_APPROVAL'] as const) {
+    const response = await put(f.siblingBranch, [
+      { kind, enabled: false, recipient_roles: [], channels: ['IN_APP'], delay_minutes: null, lead_minutes: null },
+    ]);
+    expect(response.status).toBe(422);
+    expect(response.body).toMatchObject({ code: 'ALERT_RULE_INVALID' });
+  }
 });
