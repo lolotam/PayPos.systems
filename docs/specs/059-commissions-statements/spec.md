@@ -887,10 +887,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   would need such a read and therefore an ADR and Waleed's approval before it is built. The job reads the
   company's businesses and their timezones under `withTenant` through the tenancy reader bound at the root (D-16) and,
   for each business whose local time has passed 09:00 (CS-Q17 = PP-17.5), emits `StatementAwaitingApproval` on
-  the 3rd and the 5th for the previous month while it is not APPROVED or PAID. For each business, in **one** transaction, the
+  the 3rd and the 5th for the previous month while it is not APPROVED or PAID. For each business whose `commissions` feature is on (a business with the feature off is skipped **before** any
+  transaction: no statement row, no ledger row, no event; Codex 4336601165, 4336673731), in **one** transaction, the
   job first calls `lockStatementPeriods` for the previous month, which **creates the DRAFT row if the business was quiet**
-  (no input, no plan write, no generate) and locks it, then rechecks the status under the lock, **skips the business when its `commissions` feature is off** (no statement
-  row created, no ledger row, no event; Codex 4336601165), then inserts the
+  (no input, no plan write, no generate) and locks it, then rechecks the status under the lock, then inserts the
   `commission_statement_reminders` ledger row (`UNIQUE (company_id, statement_id, kind, reminder_date)`, once per day) and
   the grouped notice events (FR-030); a business is never skipped for having no statement row. Zero recipients is a durable
   decision.
@@ -1003,8 +1003,10 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
 - **Arrows:** two new **event** rows in `docs/module-map.md`: `CompanyCreated` (identity) consumed by worker `commissions`
   (added by 56b-1) and `CommissionCorrectionBlockedNoticeRequested` commissions ⇒ notifications (added by 55-2);
   `StatementAwaitingReview`/`StatementAwaitingApproval` are already declared. No new **import** arrow (D-16); the root-bound readers are: business timezone (tenancy), service names (catalog),
-  recipients (identity), tips and lines bootstrap (orders). 59-0's ADR lists each binding, and 59-0 adds each as a **Port** row in
-  `docs/module-map.md` §3 (and the generated YAML), as the root-bound `DaySessionsPort` is declared there (Codex 4336601176).
+  recipients (identity), customer full names (customers, D-16/D-20), tips, lines and package-sales bootstrap (orders,
+  D-15). 59-0's ADR lists each binding, and 59-0 adds each as a **Port** row in `docs/module-map.md` §3 (and the generated
+  YAML), as the root-bound `DaySessionsPort` is declared there (Codex 4336601176). A root-bound read adds a Port row but
+  no **import** arrow; that is what D-15/D-16's "no module-map arrow" means.
 
 ### Permissions
 
