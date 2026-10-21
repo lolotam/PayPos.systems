@@ -361,6 +361,7 @@ reads:
   - staff -> identity.lockAttendanceExceptionAccess @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
   - staff -> identity.readAttendanceChangeAccess @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
   - staff -> identity.readAttendanceChangeApprovers @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
+  - staff -> identity.readBranchRoleHolders @ apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
   - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts
   - staff -> tenancy.attendanceBranch @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts

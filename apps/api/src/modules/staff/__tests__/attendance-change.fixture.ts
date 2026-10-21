@@ -15,6 +15,7 @@ import { AttendanceChangeError } from '../domain/attendance-change-request.ts';
 import { createAttendanceChangeKinds } from '../persistence/attendance-change-kinds.ts';
 import { createAddSessionKind } from '../persistence/add-session-kind.ts';
 import { createAttendanceChangeTransactions } from '../persistence/drizzle-attendance-change-transactions.ts';
+import { attendanceChangeAlertRules } from '../persistence/attendance-change-alert-rule.adapter.ts';
 import { RequestAttendanceChangeUseCase } from '../use-cases/request-attendance-change/request-attendance-change.usecase.ts';
 import { CancelAttendanceChangeUseCase } from '../use-cases/cancel-attendance-change/cancel-attendance-change.usecase.ts';
 import { DecideAttendanceChangeUseCase } from '../use-cases/decide-attendance-change/decide-attendance-change.usecase.ts';
@@ -77,7 +78,12 @@ export async function attendanceChangeFixture(production = false) {
     production && provider && typeof provider === 'object' && 'useValue' in provider
       ? (provider.useValue as AttendanceChangeKinds)
       : kinds;
-  const tx = createAttendanceChangeTransactions(f.db, leaveIds, activeKinds);
+  const tx = createAttendanceChangeTransactions(
+    f.db,
+    leaveIds,
+    attendanceChangeAlertRules,
+    activeKinds,
+  );
   return {
     ...f,
     owner,

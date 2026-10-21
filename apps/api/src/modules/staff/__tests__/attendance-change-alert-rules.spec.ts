@@ -10,7 +10,7 @@ import {
 } from './attendance-change.fixture.ts';
 import { linkEmployee } from './attendance-correction.fixture.ts';
 import { leaveIds } from './leave.fixture.ts';
-import { attendanceChangeAlertRule } from '../persistence/attendance-change-alert-rule.adapter.ts';
+import { attendanceChangeAlertRules } from '../persistence/attendance-change-alert-rule.adapter.ts';
 
 let f: ChangeFixture;
 let customRoleId: string;
@@ -173,7 +173,7 @@ it('62-2b: the rule is read on the caller transaction', async () => {
       sql`INSERT INTO alert_rules (company_id,id,business_id,branch_id,kind,enabled,recipient_roles,channels,delay_minutes,lead_minutes,updated_by,revision)
         VALUES (${f.company},${leaveIds.newId()},${f.business},NULL,'ATTENDANCE_CHANGE_REQUESTED',false,ARRAY[]::text[],ARRAY['IN_APP']::text[],NULL,NULL,${f.owner},1)`,
     );
-    return attendanceChangeAlertRule(
+    return attendanceChangeAlertRules.rule(
       tx,
       f.company,
       { businessId: f.business, branchId: f.branch },

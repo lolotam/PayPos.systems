@@ -6,6 +6,7 @@ import {
 } from '@pospay/domain';
 import {
   attendanceChangeAlertPlan,
+  attendanceChangeRoleRecipients,
   type AttendanceChangeAlertKind,
   type AttendanceChangeAlertPlan,
 } from '../attendance-change-alert-rule.ts';
@@ -19,8 +20,17 @@ const settings = (change: Partial<AlertRuleSettings> = {}): AlertRuleSettings =>
   ...change,
 });
 
-const NOTHING: AttendanceChangeAlertPlan = { resolveRecipients: false, channel: null };
-const IN_APP: AttendanceChangeAlertPlan = { resolveRecipients: true, channel: 'IN_APP' };
+const NOTHING: AttendanceChangeAlertPlan = {
+  resolveRecipients: false,
+  channel: null,
+  roles: [],
+};
+const IN_APP: AttendanceChangeAlertPlan = { resolveRecipients: true, channel: 'IN_APP', roles: [] };
+const WITH_ROLE: AttendanceChangeAlertPlan = {
+  resolveRecipients: true,
+  channel: 'IN_APP',
+  roles: ['branch_manager'],
+};
 
 const requestedDefault = effectiveAlertRule('ATTENDANCE_CHANGE_REQUESTED', null, null, null);
 const decidedDefault = effectiveAlertRule('ATTENDANCE_CHANGE_DECIDED', null, null, null);
@@ -75,7 +85,35 @@ const cases: [string, EffectiveAlertRule, AttendanceChangeAlertKind, AttendanceC
     'a stored rule with roles and the fixed selector of the request kind',
     effectiveAlertRule('ATTENDANCE_CHANGE_REQUESTED', withRoles, null, null),
     'ATTENDANCE_CHANGE_REQUESTED',
-    IN_APP,
+    { resolveRecipients: true, channel: 'IN_APP', roles: ['owner'] },
+  ],
+  [
+    'roles without the selector the request kind needs',
+    effectiveAlertRule('ATTENDANCE_CHANGE_DECIDED', settings({ recipientRoles: ['branch_manager'] }), null, null),
+    'ATTENDANCE_CHANGE_REQUESTED',
+    WITH_ROLE,
+  ],
+  [
+    'roles on a switched-off kind',
+    effectiveAlertRule(
+      'ATTENDANCE_CHANGE_REQUESTED',
+      settings({ enabled: false, recipientRoles: ['branch_manager'] }),
+      null,
+      null,
+    ),
+    'ATTENDANCE_CHANGE_REQUESTED',
+    NOTHING,
+  ],
+  [
+    'roles on a kind with no channel',
+    effectiveAlertRule(
+      'ATTENDANCE_CHANGE_REQUESTED',
+      settings({ channels: [], recipientRoles: ['branch_manager'] }),
+      null,
+      null,
+    ),
+    'ATTENDANCE_CHANGE_REQUESTED',
+    NOTHING,
   ],
 ];
 
@@ -93,4 +131,31 @@ it('a closed rule carries no fixed recipients and no channel', () => {
     fixedRecipients: [],
   });
   expect(attendanceChangeAlertPlan(closed, 'ATTENDANCE_CHANGE_REQUESTED')).toEqual(NOTHING);
+});
+
+it('the default rules of both kinds read no roles', () => {
+  expect(attendanceChangeAlertPlan(requestedDefault, 'ATTENDANCE_CHANGE_REQUESTED').roles).toEqual([]);
+  expect(attendanceChangeAlertPlan(decidedDefault, 'ATTENDANCE_CHANGE_DECIDED').roles).toEqual([]);
+});
+
+it('drops the acting user and the employee, and keeps the owner', () => {
+  const holders = [
+    { userId: 'actor', owner: false },
+    { userId: 'employee', owner: false },
+    { userId: 'owner', owner: true },
+    { userId: 'other', owner: false },
+  ];
+  expect(attendanceChangeRoleRecipients(holders, 'actor', 'employee')).toEqual(['owner', 'other']);
+  expect(attendanceChangeRoleRecipients(holders, 'actor', 'owner')).toEqual([
+    'employee',
+    'owner',
+    'other',
+  ]);
+  expect(attendanceChangeRoleRecipients(holders, 'nobody', 'nobody')).toEqual([
+    'actor',
+    'employee',
+    'owner',
+    'other',
+  ]);
+  expect(attendanceChangeRoleRecipients([], 'actor', 'employee')).toEqual([]);
 });

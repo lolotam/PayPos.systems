@@ -23,6 +23,7 @@ import type {
   AttendanceChangeScope,
   AttendanceChangeTransactions,
 } from '../ports/attendance-change-transactions.port.ts';
+import type { AlertRulesPort } from '../ports/alert-rules.port.ts';
 import {
   attendanceChangeAuthority,
   attendanceChangeAuthorityLock,
@@ -147,6 +148,7 @@ function inputFrom(row: AttendanceChangeRequest): AttendanceChangeKindInput {
 export function createAttendanceChangeTransactions(
   database: TenantWrappers,
   ids: IdGenerator,
+  alertRules: AlertRulesPort,
   kinds: AttendanceChangeKinds = { find: () => null },
 ): AttendanceChangeTransactions {
   const run = (
@@ -156,7 +158,7 @@ export function createAttendanceChangeTransactions(
     work: Work,
     filing?: Filing,
     reject = false,
-  ) => changeOnce(database, ids, kinds, actor, action, clock, work, filing, reject);
+  ) => changeOnce(database, ids, kinds, alertRules, actor, action, clock, work, filing, reject);
   return {
     file: (actor, input, kind, clock, requestId, work) =>
       run(actor, 'file', clock, work, { input, kind, requestId }),
@@ -169,6 +171,7 @@ async function changeOnce(
   database: TenantWrappers,
   ids: IdGenerator,
   kinds: AttendanceChangeKinds,
+  alertRules: AlertRulesPort,
   actor: AttendanceChangeActor,
   action: Action,
   clock: AttendanceChangeClock,
@@ -206,7 +209,8 @@ async function changeOnce(
               ...context,
               transaction: tx,
               hold: (plan, values) => holdAttendanceChange(tx, ids, actor, context, plan, values),
-              save: (plan, values) => saveAttendanceChange(tx, ids, actor, context, plan, values),
+              save: (plan, values) =>
+                saveAttendanceChange(tx, ids, actor, context, plan, values, alertRules),
             }),
           }),
         );

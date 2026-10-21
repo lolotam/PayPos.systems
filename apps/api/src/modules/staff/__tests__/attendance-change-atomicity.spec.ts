@@ -11,6 +11,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { OWNER_ROLE_ID } from '@pospay/db';
 import { leaveIds } from './leave.fixture.ts';
 import { createAttendanceChangeTransactions } from '../persistence/drizzle-attendance-change-transactions.ts';
+import { attendanceChangeAlertRules } from '../persistence/attendance-change-alert-rule.adapter.ts';
 import { DecideAttendanceChangeUseCase } from '../use-cases/decide-attendance-change/decide-attendance-change.usecase.ts';
 let f: ChangeFixture;
 beforeAll(async () => {
@@ -28,7 +29,12 @@ it('ACR-14 an outbox failure rolls back the kind effect, decision, audit and ide
   const effects = await effectCount(f);
   const actor = changeActor(f, row.id, f.owner);
   const useCase = new DecideAttendanceChangeUseCase(
-    createAttendanceChangeTransactions(f.db, { newId: () => collision }, f.kinds),
+    createAttendanceChangeTransactions(
+      f.db,
+      { newId: () => collision },
+      attendanceChangeAlertRules,
+      f.kinds,
+    ),
     f.clock,
     f.kinds,
   );

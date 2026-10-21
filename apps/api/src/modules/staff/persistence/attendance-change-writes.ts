@@ -5,26 +5,17 @@ import { sql } from 'drizzle-orm';
 import {
   AttendanceChangeError,
   attendanceChangeRecipientGroups,
-  attendanceChangeRecipients,
-  attendanceDecisionRecipients,
   attendanceChangeNoticeText,
   type AttendanceChangePlan,
 } from '../domain/attendance-change-request.ts';
-import {
-  attendanceChangeAlertPlan,
-  type AttendanceChangeAlertKind,
-} from '../domain/attendance-change-alert-rule.ts';
 import type {
   AttendanceChangeKindInput,
   AttendanceChangeKindValues,
   AttendanceChangeTarget,
 } from '../ports/attendance-change-kinds.port.ts';
 import type { AttendanceChangeActor } from '../ports/attendance-change-transactions.port.ts';
-import {
-  attendanceChangeApprovers,
-  attendanceChangeAuthority,
-} from './attendance-change-context.adapter.ts';
-import { attendanceChangeAlertRule } from './attendance-change-alert-rule.adapter.ts';
+import type { AlertRulesPort } from '../ports/alert-rules.port.ts';
+import { attendanceChangeNoticeRecipients } from './attendance-change-recipients.ts';
 
 interface SaveContext {
   requestId: string;
@@ -43,6 +34,7 @@ export async function saveAttendanceChange(
   context: SaveContext,
   plan: AttendanceChangePlan,
   values: AttendanceChangeKindValues,
+  alertRules: AlertRulesPort,
 ): Promise<AttendanceChangeRequest> {
   values = targetValues(context, values);
   const id = context.before?.id ?? context.requestId;
@@ -53,7 +45,7 @@ export async function saveAttendanceChange(
   if (!context.before) await audit(tx, ids, id, 'requested', null, plan);
   if (plan.status !== 'PENDING')
     await audit(tx, ids, id, plan.status.toLowerCase(), context.before, plan);
-  if (plan.status !== 'CANCELLED') await events(tx, ids, actor, context, row);
+  if (plan.status !== 'CANCELLED') await events(tx, ids, actor, context, row, alertRules);
   return row;
 }
 // خطوة المالك الواحدة تحفظ الطلب PENDING قبل أثر النوع، حتى يشير الأثر لصف موجود ويبقى السجل نفس شكل الطلب العادي.
@@ -171,64 +163,23 @@ async function audit(
     after: snapshot(after),
   });
 }
-async function eventRecipients(
-  tx: Tx,
-  actor: AttendanceChangeActor,
-  context: SaveContext,
-  row: AttendanceChangeRequest,
-): Promise<{ users: string[]; channel: 'IN_APP' | null }> {
-  const kind: AttendanceChangeAlertKind =
-    row.status === 'PENDING' ? 'ATTENDANCE_CHANGE_REQUESTED' : 'ATTENDANCE_CHANGE_DECIDED';
-  const rule = await attendanceChangeAlertRule(
-    tx,
-    actor.companyId,
-    { businessId: row.business_id, branchId: row.branch_id },
-    kind,
-  );
-  const plan = attendanceChangeAlertPlan(rule, kind);
-  if (!plan.resolveRecipients) return { users: [], channel: plan.channel };
-  if (row.status === 'PENDING')
-    return {
-      users: attendanceChangeRecipients(
-        await attendanceChangeApprovers(
-          tx,
-          actor.companyId,
-          row.business_id,
-          row.branch_id,
-          context.now,
-        ),
-        actor.userId,
-        context.employeeUserId,
-      ),
-      channel: plan.channel,
-    };
-  if (row.requested_by === actor.userId) return { users: [], channel: plan.channel };
-  const requester = await attendanceChangeAuthority(
-    tx,
-    actor.companyId,
-    row.requested_by,
-    row.business_id,
-    row.branch_id,
-    context.now,
-  );
-  return {
-    users: attendanceDecisionRecipients(
-      { ...requester, userId: row.requested_by },
-      actor.userId,
-      context.employeeUserId,
-    ),
-    channel: plan.channel,
-  };
-}
 async function events(
   tx: Tx,
   ids: IdGenerator,
   actor: AttendanceChangeActor,
   context: SaveContext,
   row: AttendanceChangeRequest,
+  alertRules: AlertRulesPort,
 ) {
   const pending = row.status === 'PENDING';
-  const { users, channel } = await eventRecipients(tx, actor, context, row);
+  const { users, channel } = await attendanceChangeNoticeRecipients(
+    tx,
+    actor,
+    row,
+    context.now,
+    context.employeeUserId,
+    alertRules,
+  );
   const groups = attendanceChangeRecipientGroups(users);
   const facts = {
     request_id: row.id,
