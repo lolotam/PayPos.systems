@@ -18,3 +18,12 @@ it('still accepts both values null to return them to their defaults', () => {
     true,
   );
 });
+
+it('months back: any whole number reaches the domain, a fraction does not', () => {
+  for (const months_back of [9007199254740992, -9007199254740992]) {
+    expect(replaceStaffColumnsInput.safeParse({ columns: null, months_back }).success).toBe(true);
+  }
+  expect(replaceStaffColumnsInput.safeParse({ columns: null, months_back: 1.5 }).success).toBe(
+    false,
+  );
+});

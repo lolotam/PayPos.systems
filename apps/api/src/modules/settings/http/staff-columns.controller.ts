@@ -14,10 +14,8 @@ import { ApiError } from '../../../shared/errors.ts';
 import { Idempotency, type IdempotencyInput } from '../../../shared/idempotency.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { storedStaffColumnsQuery } from '../queries/staff-columns.query.ts';
-import {
-  ReplaceStaffColumns,
-  staffColumnsView,
-} from '../use-cases/replace-staff-columns/replace-staff-columns.ts';
+import { ReplaceStaffColumns } from '../use-cases/replace-staff-columns/replace-staff-columns.ts';
+import { staffColumnsView } from '../use-cases/staff-columns-view/staff-columns-view.ts';
 
 @Controller('businesses/:businessId/settings/staff-columns')
 export class StaffColumnsController {

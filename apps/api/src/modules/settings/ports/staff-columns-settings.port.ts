@@ -11,13 +11,14 @@ export interface StaffColumnsScope {
   readonly audit: AuditTrail;
   /**
    * بيرجّع الإعداد المحفوظ مقفول لحد آخر الـ transaction، عشان قبل وبعد في الـ audit يبقوا صح مع كتابتين في نفس الوقت.
+   * القفل استشاري على النشاط: ما بيعملش صف، فلو النشاط مالوش صف بيرجع nulls من غير ما يتكتب شيء.
    *
    * @param businessId النشاط
    * @returns المحفوظ، أو nulls لو النشاط ما اختارش
    */
   lock(businessId: string): Promise<StoredStaffColumns>;
   /**
-   * بيستبدل الأعمدة وعدد الشهور ويرجّع اللي اتخزن.
+   * بيستبدل الأعمدة وعدد الشهور ويرجّع اللي اتخزن، وبيعمل صف الإعدادات لو النشاط مالوش صف.
    *
    * @param businessId النشاط
    * @param value      القيم الجديدة؛ null يرجّع للافتراضي

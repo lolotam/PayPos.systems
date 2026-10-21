@@ -3,8 +3,6 @@ import type { ReplaceStaffColumnsInput, StaffColumnsSettings } from '@pospay/con
 import { ApiError } from '../../../../shared/errors.ts';
 import {
   canonicalStaffColumns,
-  effectiveStaffColumns,
-  effectiveStaffMonthsBack,
   invalidStaffColumns,
   isValidStaffMonthsBack,
   sameStaffColumns,
@@ -14,26 +12,7 @@ import type {
   StoredStaffColumns,
 } from '../../ports/staff-columns-settings.port.ts';
 import type { SettingsCache } from '../../ports/settings.port.ts';
-
-/**
- * The response every caller of the setting sees: what the "my" reads apply, and whether it is the default.
- *
- * @param businessId the business
- * @param stored     what is stored
- * @returns the effective setting
- */
-export function staffColumnsView(
-  businessId: string,
-  stored: StoredStaffColumns,
-): StaffColumnsSettings {
-  return {
-    business_id: businessId,
-    columns: effectiveStaffColumns(stored.columns),
-    columns_default: stored.columns === null,
-    months_back: effectiveStaffMonthsBack(stored.monthsBack),
-    months_back_default: stored.monthsBack === null,
-  };
-}
+import { staffColumnsView } from '../staff-columns-view/staff-columns-view.ts';
 
 // المدير بيستبدل أعمدة تطبيق الموظفات وعدد الشهور، وكل قيمة اتغيرت ليها سطر audit في نفس المعاملة (MY-18، D-A14).
 export class ReplaceStaffColumns {

@@ -80,10 +80,10 @@ function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): StaffColumnsScop
   return {
     audit: transactionWriters(tx, ids).audit,
     lock: async (businessId) => {
-      // The row is created first so two first writes queue on it instead of both auditing "nothing yet".
-      await tx.execute(sql`
-        INSERT INTO business_settings (company_id, business_id) VALUES (${companyId}, ${businessId})
-        ON CONFLICT (company_id, business_id) DO NOTHING`);
+      // القفل الاستشاري بدل صف مبكّر: طلب ما بيغيّرش مايعملش صف، وكتابتين أول مرة بتتقفوا على بعض.
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended('business_settings:staff_columns:' || ${companyId}::text || ':' || ${businessId}::text, 0))`,
+      );
       const [row] = await tx.execute<Row>(sql`
         SELECT staff_columns, staff_months_back FROM business_settings
         WHERE company_id = ${companyId} AND business_id = ${businessId} FOR UPDATE`);
@@ -97,11 +97,15 @@ function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): StaffColumnsScop
               value.columns.map((code) => sql`${code}`),
               sql`,`,
             )}]::text[]`;
+      // الكتابة بتعمل الصف لو مش موجود: الطلب اللي غيّر حاجة هو اللي يترك أثر، واللي ما غيّرش مايعملش صف.
       const [row] = await tx.execute<Row>(sql`
-        UPDATE business_settings
-        SET staff_columns = ${columns}, staff_months_back = ${value.monthsBack},
-            updated_by = ${updatedBy}, updated_at = now()
-        WHERE company_id = ${companyId} AND business_id = ${businessId}
+        INSERT INTO business_settings (company_id, business_id, staff_columns, staff_months_back, updated_by, updated_at)
+        VALUES (${companyId}, ${businessId}, ${columns}, ${value.monthsBack}, ${updatedBy}, now())
+        ON CONFLICT (company_id, business_id) DO UPDATE
+          SET staff_columns = EXCLUDED.staff_columns,
+              staff_months_back = EXCLUDED.staff_months_back,
+              updated_by = EXCLUDED.updated_by,
+              updated_at = now()
         RETURNING staff_columns, staff_months_back`);
       if (row === undefined) throw new Error('staff columns update returned no row');
       return toStored(row);

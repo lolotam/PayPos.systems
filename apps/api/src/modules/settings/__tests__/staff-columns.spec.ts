@@ -136,7 +136,7 @@ it('MY-13 months back: saved 3 and 24 reach every adapter; 0 and 25 are 422 and 
   expect((await put({ columns: null, months_back: 24 })).statusCode).toBe(200);
   expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 24));
   const before = await audits();
-  for (const months_back of [0, 25, 1001, -5000]) {
+  for (const months_back of [0, 25, 1001, -5000, 9007199254740992]) {
     const refused = await put({ columns: null, months_back });
     expect(refused.statusCode).toBe(422);
     expect(errorEnvelope.parse(refused.json()).code).toBe('STAFF_MONTHS_BACK_INVALID');
@@ -197,6 +197,25 @@ it('MY-18 the same columns in another order are not a change: the row and the au
   expect(second.json()).toEqual(first.json());
   expect(await storedRow()).toEqual(afterFirst);
   expect(await audits()).toEqual(auditsAfterFirst);
+});
+
+it('MY-18 a no-op on a business with no settings row leaves no row and no audit', async () => {
+  const businessId = f.ids.newId();
+  await f.h.owner`INSERT INTO businesses (id, company_id, vertical_type, name_en)
+    VALUES (${businessId}, ${f.company}, 'salon', 'Synthetic staff columns business')`;
+  const res = await put({ columns: null, months_back: null }, owner(), businessId);
+  expect(res.statusCode).toBe(200);
+  expect(staffColumnsSettings.parse(res.json())).toMatchObject({
+    business_id: businessId,
+    columns_default: true,
+    months_back: 1,
+  });
+  const rows = await f.h.owner`SELECT business_id FROM business_settings
+    WHERE company_id = ${f.company} AND business_id = ${businessId}`;
+  expect(rows).toHaveLength(0);
+  const entries = await f.h.owner`SELECT action FROM audit_log
+    WHERE company_id = ${f.company} AND entity = 'business_settings' AND entity_id = ${businessId}`;
+  expect(entries).toHaveLength(0);
 });
 
 it('MY-21 no permission, a device or another business is a uniform 403 and nothing is saved', async () => {
