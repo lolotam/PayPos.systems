@@ -30,6 +30,8 @@
 | PP-16 | 2026-10-21 | PP-16.1…PP-16.10 صلاحيات وتقنية الباقات (PP-16.n = PK-Q(11+n)، يعني PK-Q12…Q21) | `docs/specs/058-packages-sell-redeem/owner-questions.ar.md` (PR #440) |
 | PP-17 | 2026-10-21 | PP-17.1…PP-17.7 صلاحيات وتقنية كشوف العمولة (PP-17.n = CS-Q(12+n)، يعني CS-Q13…Q19) | `docs/specs/059-commissions-statements/owner-questions.ar.md` (PR #441) |
 | PP-18 | 2026-10-21 | PP-18.1…PP-18.26 التقييمات وتطبيق الموظف والتنبيهات (PP-18.1…18.8 = MY-Q1…Q8، PP-18.9…18.20 = RT-Q1…Q12، PP-18.21…18.26 = AL-Q1…Q6؛ MY-Q6 = PP-18.6 سؤال فلوس كمان واتنشر لأبو سالم في دفعة 37) | `docs/specs/060-ratings-and-staff-app/owner-questions.ar.md` (PR #442) |
+| PP-19 | 2026-10-21 | PP-19.1 قايمة أسامي المنفّذين تفتح لصلاحية التغيير كمان («القايمة تظهر لصلاحية التغيير كمان (Recommended)»)؛ PP-19.2 زرار تغيير المنفّذين يختفي عند اللي معندوش الصلاحية («يختفي عند اللي معندوش صلاحية (Recommended)») | `docs/specs/055-orders-change-line-performers/owner-questions.ar.md` (في PR المتابعة بعد #445) |
+| PP-20 | 2026-10-21 | PP-20.1 مدير الفرع يشوف عمولات مين («موظفات فرعه بس (Recommended)»، CS-Q20)؛ PP-20.2 مسح اسم الزبونة من الكشف المعتمد («يتبدّل بـ «عميلة محذوفة» (Recommended)»، CS-Q21)؛ PP-20.3 شروط رفض طلب الخصم («أيوه، أي مدير يقدر يرفض (Recommended)»، DA-Q9)؛ PP-20.4 مين يشغّل ويقفل رسايل التقييم (RT-Q13، لسه مستني) | PP-20.1 و20.2: `docs/specs/059-commissions-statements/owner-questions.ar.md` (PR #441)؛ PP-20.3: `docs/specs/057-orders-discount-approval/owner-questions.ar.md` (PR #438)؛ PP-20.4: `docs/specs/060-ratings-and-staff-app/owner-questions.ar.md` (PR #442) |
 
 ### 1. أسئلة المالك تروح فين؟ (PP-4.3)
 
