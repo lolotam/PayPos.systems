@@ -50,7 +50,9 @@ settings adapter and the worker files adapter, with no `files → settings` impo
 - The 27b inputs statement (`attendanceMonthlyInputsStatement` and `attendanceReportContractsStatement`) moves to
   `@pospay/db` beside `employee-branch-links.ts` and `employee-default-shifts-projection.ts`, unchanged. It already
   takes `from` and `to` (the monthly report passes its month's first and last day), so a period needs no new SQL. The API 27b query
-  and the worker statement reader both call it; its result-shape and EXPLAIN tests move with it.
+  and the worker statement reader both call it; its result-shape and EXPLAIN tests move with it. It keeps leaving OPEN
+  sessions out (AB-Q9g); the employee statement shows them from a separate small worker `queries/` read (spec 061
+  FR-011a), so the shared statement and the monthly report stay unchanged.
 
 The worker `staff` module reads identity through a port it owns (`StatementIdentityReader`) whose adapter calls
 `@pospay/db`, the same shape as the worker `files` `LogoReference` row in the module map. **No `staff → settings` import
@@ -61,12 +63,16 @@ still owns the table and the rule; the shared package is only where the one copy
 
 Worker `files` exports, from `apps/worker/src/modules/files/index.ts`:
 
-1. `resolveStatementLogo(tx, { companyId, businessId, requesterUserId })`, called **inside** the reader's tenant
-   transaction. It reads the business's currently bound `logo_file_id` and its `file_objects` row (READY, `owner_module =
-   'settings'`, `purge_started_at IS NULL`). When there is one, it writes one `file_access_audit` row (`outcome = 'ALLOW'`,
-   `actor_user_id` = the requester) and one `file`/`access` audit-log entry, exactly as the API files repository does for
-   a download, and returns an opaque handle (file id, storage key, content type). Otherwise it returns `null` and writes
-   nothing.
+1. `resolveStatementLogo(tx, { companyId, businessId, requesterUserId, renderId })`, called **inside** the reader's
+   tenant transaction. It reads the business's currently bound `logo_file_id` and its `file_objects` row (READY,
+   `owner_module = 'settings'`, `purge_started_at IS NULL`). When there is one, it inserts one `file_access_audit` row
+   (`id = renderId`, `outcome = 'ALLOW'`, `actor_user_id` = the requester) with `ON CONFLICT (company_id, id) DO
+   NOTHING RETURNING id`, and only when that insert returned a row it appends the `file`/`access` audit-log entry, as the
+   API files repository does for a download. A retried attempt of the same render (spec 056 FR-006) therefore writes
+   nothing new: the access audit is **once per render**, and it names the logo the first attempt resolved. `render_id`
+   is a fresh UUID v7, so it never collides with another access row; `ON CONFLICT DO NOTHING` needs only the `INSERT`
+   grant `pospay_app` already has. It returns an opaque handle (file id, storage key, content type), or `null` and
+   writes nothing.
 2. `fetchStatementLogo(handle, signal)`, called **after commit**, outside any transaction. It reads the object through
    `packages/storage`, and re-encodes it with the same `sharp` setup as upload inspection to fit 512 × 512 px, PNG for a
    PNG and JPEG for a JPEG, at most 512 KiB. A 10 MiB logo (spec 052 BR-10) would otherwise take most of the 4 MiB HTML

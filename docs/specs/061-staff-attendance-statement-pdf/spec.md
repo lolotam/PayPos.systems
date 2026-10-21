@@ -5,9 +5,9 @@
 > **Owner answers:** ST-Q1…ST-Q5 (batch 14) were answered on 2026-10-12 by Waleed and Abu Salem with the same pick, plus
 > three clarifications by Waleed; they are recorded in
 > [spec 051's owner-questions](../051-staff-employee-number/owner-questions.ar.md) §5–§9 and cited in §3, not asked again.
-> **Open:** one technical question, **ST-Q6** (how a shift is identified for the shift filter), in
-> [owner-questions.ar.md](owner-questions.ar.md), to Waleed through his super agent. Every rule that depends on it is
-> marked `TODO(spec) ST-Q6`; sub-PRs 1–4 ship without the shift filter (§9).
+> **ST-Q6** (how a shift is identified for the shift filter) was answered by Waleed on 2026-10-21 (PP-15.4, through his
+> super agent) with the recommended option: a shift is a start–end pair from the schedule (BR-11). Recorded in
+> [owner-questions.ar.md](owner-questions.ar.md). No question is open and no sub-PR waits on an owner answer.
 > **Depends on (all merged):** row 27 ([spec 049](../049-staff-attendance-board-report/spec.md), 27b report and its audit),
 > row 8c ([spec 051](../051-staff-employee-number/spec.md), `employee_number`), row 27h
 > ([spec 052](../052-settings-business-identity/spec.md), official names and logo, 27h-1…27h-5), row 27i
@@ -46,7 +46,7 @@ statement counts it.
 | The `attendance-statement` document source and its data reader in the worker | The employee's own statement in her app (row 57b) |
 | The download audit (ST-Q5) | Payroll, deductions, public holidays (spec 049 §7) |
 | The `files`-owned logo bytes reader and its access audit (ADR-0049 §6, ADR-0051) | A page number on every page (needs a renderer option; §10) |
-| The admin download screen | The shift filter's meaning, until ST-Q6 is answered |
+| The admin download screen, with the shift picker (BR-11) | Named shifts (ST-Q6 option ج, not chosen) |
 
 ## 3. Owner rules (final, cited — not asked again)
 
@@ -59,8 +59,8 @@ From [spec 051 owner-questions](../051-staff-employee-number/owner-questions.ar.
   statement (one table, a row per employee with her totals for the period) and the employee statement (her table day by
   day).
 - **BR-03 (ST-Q2, Abu Salem's comment + Waleed's clarification «مفيش فلتر بالساعة… فلتر بالشيفت»):** the branch statement
-  can be filtered by one employee, by a date or period, or by a shift. There is no filter by hour. What identifies a
-  shift is ST-Q6 (`TODO(spec) ST-Q6`).
+  can be filtered by one employee, by a date or period, or by a shift. There is no filter by hour. What a shift is:
+  BR-11 (ST-Q6).
 - **BR-04 (ST-Q2, Waleed's clarification «التوقيع»):** both forms have signature places: in the branch statement a
   «التوقيع» column in front of each employee's row and the manager's signature under the table; in the employee
   statement the employee's and the manager's signature under the table.
@@ -75,6 +75,11 @@ From [spec 051 owner-questions](../051-staff-employee-number/owner-questions.ar.
 - **BR-09 (ST-Q5):** every download is written to the audit log with who, when, which form, the branch, the employee
   when one, the period, the shift filter when one, and the language.
 - **BR-10 (plan row 27g):** a month or any date range.
+- **BR-11 (ST-Q6, Waleed 2026-10-21, PP-15.4, through his super agent: «وقت بداية ونهاية (Recommended)»):** a shift is
+  a **start–end pair** of the branch schedule (for example 09:00–20:00). The filtered branch statement counts **only the
+  days** on which the employee's scheduled shift at the branch had that pair: days present, worked hours, lateness,
+  missing clock-out, manual days and scheduled hours. The contracted hours and the difference print «—» in a filtered
+  statement, because they are not tied to a shift. An employee with no day on that pair in the period has no row.
 
 Carried from earlier decisions (no new rule): the column rules of the 27b report (spec 049 §5: AB-Q3…AB-Q9c, AB-Q11,
 AB-Q12, BW-Q8, ACR-Q18, ACR-Q20, D-32, DH-Q4); `employee_number` on every employee (spec 051, EN-Q1…EN-Q14); a voided
@@ -93,6 +98,9 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    employee with any counted session or contracted minutes at the branch in the period, a signature column, the
    manager's signature line and the footer (BR-01, BR-02, BR-04, BR-06).
 5. Each row's figures equal the 27b monthly report row of the same employee, branch and month (parity test).
+6. **Given** سارة always on 09:00–20:00, هبة always on 08:00–16:00 and ريم on 09:00–20:00 on some days and 08:00–16:00 on
+   others, **when** the manager filters October by the shift 09:00–20:00, **then** the table has سارة with all her days
+   and ريم with her 09:00–20:00 days only; هبة has no row; contracted hours and difference print «—» (BR-11).
 
 ### Story 2 — The employee statement (P1)
 
@@ -131,8 +139,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 ### Story 5 — Logo and identity (P2)
 
 1. A business with no logo: the header has the name only (BR-01); no `file_access_audit` row is written.
-2. A business with a logo: exactly one `file_access_audit` row (`outcome = 'ALLOW'`, actor = the requester) and one
-   `file`/`access` audit entry per render that embedded it (ADR-0051 §3).
+2. A business with a logo: exactly one `file_access_audit` row (`outcome = 'ALLOW'`, actor = the requester, `id =
+   render_id`) and one `file`/`access` audit entry per render, even when the job's attempt is retried (ADR-0051 §3).
 3. A logo replaced or purged between the request and the render: the statement uses the logo bound at render time, or
    the name only if none is bound or its object is gone.
 4. With no official names written, the header follows spec 052 BR-11 (the display name).
@@ -157,8 +165,13 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 - **FR-001** `POST /v1/businesses/:businessId/branches/:branchId/attendance-statements` with body
   `{ form: 'BRANCH' | 'EMPLOYEE', from, to, employee_id?, language: 'ar' | 'en' }` (Zod `z.strictObject` in
   `packages/contracts`). `employee_id` is required when `form = 'EMPLOYEE'`; on `BRANCH` it is the optional one-employee
-  filter (BR-03). `from`/`to` are branch-local dates (`YYYY-MM-DD`, SPEC §7 working dates). The shift filter field is
-  added by sub-PR 5 after ST-Q6 (`TODO(spec) ST-Q6`).
+  filter (BR-03). `from`/`to` are branch-local dates (`YYYY-MM-DD`, SPEC §7 working dates). The optional
+  `shift: { start, end }` (branch-local `HH:MM`, the `scheduleShift` time format) is the BR-11 filter; it is accepted on
+  `BRANCH` only and refused on `EMPLOYEE` with `422 ATTENDANCE_STATEMENT_SHIFT_FILTER_INVALID`.
+- **FR-001a** `GET /v1/businesses/:businessId/branches/:branchId/attendance-statement-shifts?from&to` (a `queries/` read,
+  same guard as FR-002) lists the distinct start–end pairs of the branch's schedule shifts in the period, ordered by
+  start then end, for the screen's shift picker (BR-11). A pair not in that list is still accepted by FR-001 and simply
+  matches no day.
 - **FR-002** The route is guarded by `@Require('read:attendance:branch', { branch: 'branchId' })` and
   `@RequiresFeature('staff')`, like `attendance-monthly-report.controller.ts` (BR-08).
 - **FR-003** The use case validates the period (FR-001, Story 3.4), checks the renderer liveness key, the per-user rate
@@ -193,16 +206,24 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 - **FR-011** The `staff` data reader (`readAttendanceStatement(companyId, renderId, signal)`, exported by
   `apps/worker/src/modules/staff/index.ts`) runs one `withTenant(companyId, …, { userId: requested_by })` transaction that
   reads the request row, the business and branch names, the employees with `employee_number`, the period inputs through
-  the shared 27b inputs statement (ADR-0051 §2), the stored identity (ADR-0051 §2) and resolves the logo through the
+  the shared 27b inputs statement (ADR-0051 §2), the employee's OPEN sessions in the period for the employee form
+  (FR-011a), the stored identity (ADR-0051 §2) and resolves the logo through the
   `files` reader, which writes its access audit (ADR-0051 §3). It commits, then fetches the logo bytes outside any
   transaction (ADR-0051 §3), then computes the figures with `packages/domain` and returns. No transaction is open while
   Chromium runs (spec 056 FR-003).
+- **FR-011a** The 27b inputs statement leaves OPEN sessions out (`s.status<>'OPEN'` in
+  `attendance-monthly-report.query.ts`, AB-Q9g), and it stays unchanged so the report and the branch statement keep the
+  same figures. The employee form reads the employee's OPEN sessions of the period at the branch through its own worker
+  `queries/` statement (`attendance-statement-open-sessions.query.ts`: working date and clock-in only, non-voided), and
+  shows them as «لسه جوّه» / "Still clocked in" with 0 hours. They never enter a total.
 - **FR-012** A missing request row (or one for another company) fails the job with `DOCUMENT_RENDER_FAILED`; it is never
   rendered for anyone.
 - **FR-013** The figures come from pure functions in `packages/domain`: the 27b `computeAttendanceMonthlyReport` rules
   generalised to a `from`–`to` period (the month becomes one period, with the 27b report unchanged), plus a day-by-day
-  breakdown for the employee form. Each has exhaustive unit tests, including a parity test that a full calendar month
-  gives the 27b row.
+  breakdown for the employee form, plus the BR-11 day selection: the working dates whose schedule shift at the branch,
+  in branch-local time, starts and ends at the pair; on such a date the counted sessions are those the 27b rules
+  attribute to the matching shift (on a split-shift day, the other shift's sessions are left out). Each has exhaustive
+  unit tests, including a parity test that a full calendar month with no shift filter gives the 27b row.
 - **FR-014** The data the staff reader returns is a Zod schema in `packages/contracts` (`attendanceStatementDocument`),
   validated by the source before it formats it for the template (ADR-0049 §2.2). It carries names, numbers, dates, minutes and the logo as `{ content_type, base64 }`
   or `null`; never a phone, salary, IBAN or user id.
@@ -249,12 +270,14 @@ admin ── POST …/:renderId/download ──▶ api: one withTenant: binding 
 | `employee_id` | uuid NULL | FK `(company_id, employee_id)` → `employees`; CHECK NOT NULL when `form = 'EMPLOYEE'` |
 | `period_from`, `period_to` | date NOT NULL | branch-local working dates; CHECK `period_from <= period_to` and at most 366 days |
 | `language` | text NOT NULL | CHECK `IN ('ar','en')` |
+| `shift_start`, `shift_end` | time NULL | the BR-11 pair; CHECK both null or both set, and set only when `form = 'BRANCH'` |
 | `requested_by` | uuid NOT NULL | the user; the binding of ADR-0049 §1.5 |
 | `requested_at` | timestamptz NOT NULL | from the injected clock |
 
-Indexes: `(company_id, branch_id, requested_at)`, `(company_id, employee_id)`, `(company_id, requested_by,
-requested_at)`. The shift filter columns arrive with sub-PR 5 (`TODO(spec) ST-Q6`). The rows are kept; they hold ids and
-dates only. A cleanup is out of scope.
+Indexes (one for every foreign key and every list filter, `CLAUDE.md` §5): `(company_id, business_id)`,
+`(company_id, branch_id, requested_at)` (also covers the branch foreign key), `(company_id, employee_id)`,
+`(company_id, requested_by, requested_at)`. The rows are kept; they hold ids, dates and times only. A cleanup is out of
+scope.
 
 ### 6.3 Status binding
 
@@ -275,15 +298,15 @@ concurrent transactions).
 ### 6.5 The audit entry (BR-09)
 
 `appendAuditLog(tx, id, { entity: 'attendance_statement', entityId: render_id, action: 'attendance.statement.downloaded',
-after: { form, business_id, branch_id, employee_id, from, to, shift: null, language } })`, through the module's existing
+after: { form, business_id, branch_id, employee_id, from, to, shift, language } })`, through the module's existing
 `AuditTrail` port as `attendance-report-audit.adapter.ts` does for the CSV (AB-Q9f). Who and when are the audit row's
-actor and time. `shift` stays `null` until sub-PR 5.
+actor and time. `shift` is `{ start, end }` or `null`.
 
 ### 6.6 The two forms' data
 
 **Header (both):** logo or none, header name (`statementIdentity(language, …)`, spec 052 BR-11), branch name in that
 language, the period. Employee form adds the employee's name and `employee_number`. Branch form adds the applied filter
-(one employee, and the shift once ST-Q6 lands).
+(one employee, and the shift pair, BR-11). A shift-filtered table prints «—» for contracted hours and difference.
 
 **Branch table:** `employee_number`, name, days present, worked hours, scheduled hours, contracted hours, difference,
 leave by type, late count and minutes, missing clock-out count, manual days (the 27b columns, spec 049 §5), «التوقيع».
@@ -307,6 +330,7 @@ no `files` or `settings` permission to see the logo in her statement (ADR-0046 �
 | `ATTENDANCE_STATEMENT_PERIOD_INVALID` | 422 | Story 3.4 |
 | `ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` | 404 | Story 3.3 |
 | `ATTENDANCE_STATEMENT_RATE_LIMITED` | 429 | FR-008 |
+| `ATTENDANCE_STATEMENT_SHIFT_FILTER_INVALID` | 422 | FR-001: a shift on the employee form |
 | `RENDERER_UNAVAILABLE` | 503 | ADR-0049 §3.6, FR-004 |
 | `DOCUMENT_NOT_READY` | 409 | Story 4.3 |
 | `DOCUMENT_EXPIRED` | 410 | Story 4.1, 4.2 |
@@ -321,7 +345,9 @@ and no module index: `apps/worker/src/main.ts` injects the `staff` reader into t
 
 - **Domain (`packages/domain`):** period totals (every 27b column) for partial months, year boundaries, hire and contract
   edges, AB-Q11 leave at every branch, AB-Q12 deletion; day-by-day rows (sessions, MISSED_OUT with and without
-  correction, MANUAL, OPEN, overnight, leave, scheduled with no session); parity with 27b for full months.
+  correction, MANUAL, OPEN, overnight, leave, scheduled with no session); BR-11 shift-day selection (one pair, a
+  split-shift day, an overnight shift, a pair that matches nothing, «—» for contracted and difference); parity with 27b
+  for full months with no filter.
 - **Contracts:** request body (forms, `employee_id` rule, `strictObject`), status reply, the template data schema.
 - **API integration (T2 Postgres, one cloned DB per file, ADR-0006):** 202 and the request row; every refusal of
   Story 3 including `403` without the permission and `404` cross-tenant/other-user/other-branch; collect once, expired,
@@ -334,7 +360,7 @@ and no module index: `apps/worker/src/main.ts` injects the `staff` reader into t
   renderer that checks `%PDF-`, `dir`/`lang`, and the escaped employee names.
 - **Template:** escaping of names with `<script>`, quotes and `&`; no external URL; signature places and footer present
   in both languages.
-- **Admin (sub-PR 4):** the screen shows the form choices, the waiting state, the download and each refusal message —
+- **Admin (sub-PR 5):** the screen shows the form choices, the waiting state, the download and each refusal message —
   asserting what the user sees (PP-7.2).
 
 ## 8. Success criteria
@@ -347,14 +373,17 @@ and no module index: `apps/worker/src/main.ts` injects the `staff` reader into t
 
 | # | PR | Content |
 |---|---|---|
-| 0 | docs (this PR) | spec 061, ADR-0051, owner question ST-Q6 |
-| 1 | shared reads + logo reader | move the identity read statement to `@pospay/db` and `statementIdentity` to `packages/domain` (settings re-exports both, no behaviour change); move the 27b inputs statement to `@pospay/db` (27b unchanged, its EXPLAIN and shape tests follow it); worker `files` `resolveStatementLogo` / `fetchStatementLogo` with the access audit (ADR-0051 §2–§3) |
-| 2 | API | migration + RLS + negative test for `attendance_statement_requests`; contracts; request, status and collect endpoints with the guard, the rate limit, the audit entry and every refusal test |
-| 3 | worker | `packages/domain` period and day-by-day functions with unit tests; worker `staff` `readAttendanceStatement`; template, source and registration in `main.ts` |
-| 4 | admin | the download screen (form, period, employee, language, waiting state, download, refusals), i18n ar/en, RTL |
-| 5 | after ST-Q6 | the shift filter across contract, request row, data reader, audit field and screen |
+| 0 | docs (this PR) | spec 061, ADR-0051, owner question ST-Q6 (answered) |
+| 1 | shared reads + logo reader | move the identity read statement to `@pospay/db` and `statementIdentity` to `packages/domain` (settings re-exports both, no behaviour change); move the 27b inputs statement to `@pospay/db` (27b unchanged, its EXPLAIN and shape tests follow it); worker `files` `resolveStatementLogo` / `fetchStatementLogo` with the once-per-render access audit (ADR-0051 §2–§3) |
+| 2 | schema, contracts, domain | migration + RLS + negative test for `attendance_statement_requests` (with the shift columns); contracts (request body, status, `attendanceStatementDocument`); `packages/domain` period, day-by-day and BR-11 shift-day functions with unit tests |
+| 3 | worker | worker `staff` `readAttendanceStatement` and the OPEN-sessions query (FR-011a); template; source and its registration in `main.ts` |
+| 4 | API | request (with the shift filter), status and collect endpoints, the shift-options query (FR-001a), the guard, the rate limit, the audit entry and every refusal test |
+| 5 | admin | the download screen (form, period, employee, shift picker, language, waiting state, download, refusals), i18n ar/en, RTL |
 
-Sub-PRs 1–4 do not wait for ST-Q6. Each code sub-PR passes the gates of `CLAUDE.md` §10 before merge.
+The worker source (3) ships **before** the API that admits requests (4), so every request the API accepts has a
+registered `attendance-statement` source; until 4 is deployed nothing enqueues that kind. ST-Q6 is answered, so the
+shift filter is no longer a separate PR waiting on the owner: it is built in 2–5 with the rest. Each code sub-PR passes
+the gates of `CLAUDE.md` §10 before merge.
 
 ## 10. Assumptions
 
