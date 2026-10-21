@@ -1,7 +1,9 @@
 # Spec 059 — Commission plans, projection and statements (Phase 1 rows 48a–56b)
 
 > **Status:** Draft · 2026-10-21 · docs-only PR. Owner questions are recorded in [owner-questions.ar.md](owner-questions.ar.md):
-> the money list CS-Q1…CS-Q12 (Abu Salem, decisions page batch 36) and the new money question CS-Q22 are open; the permissions/technical list CS-Q13…CS-Q19 is
+> the money list CS-Q1…CS-Q12 (Abu Salem, decisions page batch 36) and the new money question CS-Q22 are open, except
+> CS-Q2, CS-Q3 and CS-Q5, which Waleed answered through his super agent (2026-10-21, cards; still on batch 36, and Abu
+> Salem's pick replaces them if it differs); the permissions/technical list CS-Q13…CS-Q19 is
 > answered by Waleed through his super agent (PP-17, 2026-10-21; CS-Q14, CS-Q15 and CS-Q16 against the recommendation),
 > and its follow-ups: CS-Q20 (a branch manager's scope) answered (PP-20.1, the recommended option), CS-Q21 (erasing a
 > frozen customer name) answered (PP-20.2, the recommended option), and the permissions question CS-Q23 (a mid-month
@@ -98,7 +100,7 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 
 | Rule | Source |
 | --- | --- |
-| The period is the calendar month in the business timezone; the manager reviews, the owner approves within the first five days, paid with the salary (what happens after day 5: `TODO(spec)` CS-Q22) | D-17, SPEC §5 _Dates_ |
+| The period is the calendar month in the business timezone; the manager reviews (by default the owner holds review and grants it to whom he chooses, CS-Q2), the owner approves within the first five days, paid with the salary (what happens after day 5: `TODO(spec)` CS-Q22) | D-17, SPEC §5 _Dates_ |
 | Reminders to the owner on the 3rd and the 5th of the next month; reminders, not locks | D-54, SPEC §6 |
 | Approval only after the month has ended; atomic; refused while commission events are pending, with the retryable 409 «updates are still being calculated, try again shortly» | SPEC §6, ADR-0012 §3/§5 |
 | Review is bound to the inputs; the owner approves only the fingerprint that was reviewed, and the rows frozen are the rows that were reviewed | SPEC §6 |
@@ -113,7 +115,7 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 | Tips: per employee and method, outside net, thresholds and commission; card tips are a statement column paid with payroll, cash tips are informational; frozen as `TIP_CARD`/`TIP_CASH`; a tip changed in a closed month is a correction of kind TIP | D-36, SPEC §6, spec 053 |
 | Package-sale commission follows the employee's plan; the salon's current plans pay none | spec 037 owner questions §3 («عمولة بيع الباكدج»), D-55 |
 | Who sees commissions: the owner and the manager see all; employees and reception see their own | D-46; the exact permission and roles: CS-Q14 = PP-17.2 (§6 _Permissions_) |
-| The permission strings of the statement flow: `review:commissions:business`, `approve:commissions:business`, `pay:commissions:business` | SPEC §6 (their default roles: CS-Q2, CS-Q4, CS-Q5) |
+| The permission strings of the statement flow: `review:commissions:business`, `approve:commissions:business`, `pay:commissions:business` | SPEC §6 (their default roles: CS-Q2 and CS-Q5 answered by Waleed, owner by default and granted by the owner; CS-Q4 open) |
 | The success criterion: the approved statement matches the manager's hand calculation to 0.001 KWD for every employee in the parallel month | SPEC §1, D-45 |
 
 ## 4. User scenarios and acceptance criteria _(mandatory)_
@@ -287,10 +289,13 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   post-freeze change. No frozen row carries the new split while another carries the old one.
 - **CM-33c** RLS (negative isolation): company B reads 0 of company A's `commission_statement_returns` rows, and inserting a
   return row for A's statement as B fails.
-- **CM-33** Without `review:commissions:business` (default roles `TODO(spec)` CS-Q2) → 403. Whether the reviewer may also
-  be the approver is `TODO(spec)` CS-Q3.
-- **CM-33d** (CS-Q26 = PP-24.1, negative) ليلى, manager of السالمية, holds `review:commissions:business` (as CS-Q2 may
-  grant it) on an October with السالمية and حولي employees: her `review`, `generate` and return requests are refused with
+- **CM-33** Without `review:commissions:business` → 403. By default only the owner holds it; the owner grants it to
+  المحاسب and revokes it again, and the grant and the revoke each take effect on the next request; a business manager
+  who tries to grant it is refused (CS-Q2, Waleed 2026-10-21). The owner reviews October and then approves it: both
+  succeed (CS-Q3, Waleed 2026-10-21), and the statement row and the two audit entries `commission_statement.reviewed` and
+  `commission_statement.approved` name the same user, so the record shows that one person did both steps.
+- **CM-33d** (CS-Q26 = PP-24.1, negative) ليلى, manager of السالمية, holds `review:commissions:business` (as the owner may
+  grant it, CS-Q2) on an October with السالمية and حولي employees: her `review`, `generate` and return requests are refused with
   the uniform 403 `FORBIDDEN`, the statement stays DRAFT (or REVIEWED), no fingerprint is returned to her and no audit
   entry is written; the same with two branch-manager memberships covering every branch of a two-branch business. The
   business manager (business-scoped grant, no DENY) reviews the same October; with a DENY of
@@ -335,10 +340,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-37** Two approvers at once: one approves, the other waits on the lock (D-3), then sees APPROVED and gets 409
   `COMMISSION_PERIOD_CLOSED`; a statement returned to DRAFT while an approval waits gives it 409
   `COMMISSION_STATEMENT_NOT_REVIEWED`, and a permission revoked while it waits gives it the uniform 403.
-- **CM-38** Only holders of `approve:commissions:business` approve (default owner; grantable `TODO(spec)` CS-Q5); the reviewer
-  rule CS-Q3 applies; a month not ended → 422 `COMMISSION_PERIOD_NOT_ENDED`.
-- **CM-38b** (FR-036, negative; Codex 4335896943) ليلى, manager of السالمية, is given `approve:commissions:business` (as CS-Q5
-  may allow) on a REVIEWED October with السالمية and حولي employees: her approval and her return to DRAFT are refused with
+- **CM-38** Only holders of `approve:commissions:business` approve (default owner; only the owner grants it to a named
+  person and revokes it, CS-Q5); the same person may review and approve (CS-Q3, CM-33); a month not ended → 422 `COMMISSION_PERIOD_NOT_ENDED`.
+- **CM-38b** (FR-036, negative; Codex 4335896943) ليلى, manager of السالمية, is given `approve:commissions:business` by the owner
+  (CS-Q5) on a REVIEWED October with السالمية and حولي employees: her approval and her return to DRAFT are refused with
   the uniform 403 `FORBIDDEN`, no fingerprint is computed or returned, nothing is frozen, the statement stays REVIEWED and
   no audit entry is written; the same with branch grants covering every branch of a two-branch business, and for a
   business-wide holder with a DENY of `read:commissions:business` on حولي. The owner approves the same October.
@@ -437,6 +442,12 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   her whole effective set in `branch_ids` (never a single id); a job whose
   `render_id` has no request row fails without reading any statement; the xlsx bytes are returned with the xlsx MIME type
   and never pass through the PDF renderer.
+- **CM-55f** (Codex 4336086349, CS-Q23 = PP-21.2) سارة is transferred from السالمية to حولي on 15 October and October is
+  APPROVED with a correction of one of her 3 October lines. ليلى (السالمية) exports October: the workbook holds سارة's
+  `EMPLOYEE` row and only her rows of 1–14 October (the 10 October line she did at حولي included, with its place حولي,
+  and the correction of the 3 October line), and none of 15–31 October, neither their amounts nor their customer names,
+  although سارة is in the saved employee set; هند (حولي) gets only 15–31 October. A test whose worker filtered by the
+  employee set alone would fail on this file.
 - **CM-55e** (privacy) ليلى requests the October export as branch manager of السالمية, then before she collects it she is
   transferred to حولي (or her read permission or membership is revoked, or a DENY on السالمية is added): the collect is refused with the uniform 403, no
   workbook is returned, the stored bytes are discarded, no export audit entry is written and `collected_at` stays empty.
@@ -464,7 +475,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `StatementAwaitingReview` reaches the holders of `review:commissions:business` who are business-wide readers; none on
   the 5th; none if it is already REVIEWED or closed.
 - **CM-58b** (FR-030; Codex 4335896948) ليلى, manager of السالمية, holds `review:commissions:business` and
-  `approve:commissions:business` (as CS-Q2 and CS-Q5 may grant them), and a business manager holds both with a DENY of
+  `approve:commissions:business` (as the owner may grant them, CS-Q2 and CS-Q5), and a business manager holds both with a DENY of
   `read:commissions:business` on حولي: neither receives the day-3 `StatementAwaitingReview`, the 3rd/5th
   `StatementAwaitingApproval` reminders, or the `StatementAwaitingApproval` sent when October is reviewed; the owner and
   a business manager with no DENY receive them. A unit test proves the recipient filter and the review and approve
@@ -616,12 +627,17 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   statement is one per business and review certifies all of it, so marking it REVIEWED requires, besides
   `review:commissions:business`, that the caller is a business-wide reader (§6 _Permissions_: a current company- or
   business-scoped grant of `read:commissions:business` and no DENY of it at any scope), checked under the lock in the
-  review transaction; the owner or the business manager in practice. A branch manager, even one holding review (if CS-Q2
-  grants it to branch managers) and even one whose branch grants cover every branch, sees only her branch's part (FR-028)
+  review transaction; the owner or the business manager in practice. A branch manager, even one holding review (the owner
+  may grant it to anyone, CS-Q2) and even one whose branch grants cover every branch, sees only her branch's part (FR-028)
   and does not review: the request is refused with the uniform 403 `FORBIDDEN` before any fingerprint is computed or
   returned, so she never certifies rows she did not see and never receives the whole-statement fingerprint. The same rule
   guards `generate` (it returns the whole view, FR-025) and a reviewer's return to DRAFT (FR-031); an approver's return
   follows FR-036.
+- **FR-029b** (CS-Q2, CS-Q5 with PP-24.1) The owner may grant `review:commissions:business` and
+  `approve:commissions:business` to anyone, but they take effect only together with business-wide read (FR-029, FR-036):
+  a holder whose read is branch-scoped keeps getting the uniform 403. The grant is not refused for that; the permission
+  grant screen shows, next to each of these two codes, the warning «الصلاحية دي مالهاش أثر غير مع قراءة النشاط كله»
+  (an i18n key, Arabic and English), and a UI test asserts the warning is visible when either code is selected.
 - **FR-030** Emit `StatementAwaitingApproval` (SPEC §3) to notifications in the same transaction, recipients resolved by
   commissions (SPEC §3 "emitting modules put recipients and channels in the event"; in-app, CS-Q17 = PP-17.5).
   **Recipients pass the endpoint's own check** (Codex 4335896948): an approval prompt or reminder goes only to the
@@ -703,11 +719,13 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   the approval actor and time are in the audit log).
 - **FR-035** 53-1 delivers the ADR-0012 function, role, grants, policies and index with the six types of D-9 and its addendum;
   53-2 the use case; 53-3 the race tests.
-- **FR-036** Permission `approve:commissions:business` (CS-Q5); reviewer rule CS-Q3. **Only a business-wide reader
+- **FR-036** Permission `approve:commissions:business`: the owner by default, granted and revoked **by the owner only**, to a named person (52-1 registers both codes as owner-grantable only; if spec 009's grant flow has no per-code granter rule yet, 52-1 adds it for these two codes) (CS-Q5, Waleed
+  2026-10-21). Reviewer rule (CS-Q3, Waleed 2026-10-21): the reviewer may also be the approver; `reviewed_by` and
+  `approved_by` are both kept and the audit entries show it. **Only a business-wide reader
   approves**, for the reason of PP-24.1 (whoever certifies the figures must have seen all of them; derived from CS-Q26 =
   PP-24.1, not a new owner question): besides `approve:commissions:business`, the caller must be a business-wide reader
   (§6 _Permissions_: a current company- or business-scoped grant of `read:commissions:business` and no DENY of it at any
-  scope), checked under the lock in the approval transaction. An approver to whom approval is delegated (CS-Q5) but whose
+  scope), checked under the lock in the approval transaction. An approver to whom the owner delegated approval (CS-Q5) but whose
   read is branch-scoped, even with branch grants covering every branch, or who has any DENY, is refused with the uniform
   403 `FORBIDDEN` before any fingerprint is computed or returned and before anything is frozen; the same guard covers an
   approver's return to DRAFT (FR-031).
@@ -810,8 +828,13 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   branch; else `BRANCHES` with
   `branch_ids` = _R_ and the exact employee set _R_ lets her see, CS-Q20 = PP-20.1, §6 _Permissions_). The job
   payload stays `{ company_id, render_id, kind }` (ADR-0049 §1); the worker document source loads the request by `render_id`
-  under `withTenant`, refuses a missing one, reads only the frozen rows of that statement and those employees, closes the
-  transaction, then builds the workbook (binary output, D-18); poll and collect once. **The saved scope is an upper bound, never a
+  under `withTenant`, refuses a missing one, reads only the frozen rows of that statement and those employees and, for a
+  `BRANCHES` request, filters **every** frozen row by the saved `branch_ids`, never by the employee set alone (Codex
+  4336086349): a row other than `EMPLOYEE` (lines, tips, sales, `CORRECTION` rows) is included only when its
+  `attached_branch_ids` overlaps `branch_ids`, and an `EMPLOYEE` row only when its frozen branch set overlaps `branch_ids`,
+  the same predicate as the closed statement's view (FR-033, CS-Q23); an employee transferred or attached to two branches
+  in the month therefore contributes only her rows of the saved branches (CM-55f). It then closes the
+  transaction and builds the workbook (binary output, D-18); poll and collect once. **The saved scope is an upper bound, never a
   grant:** at collection the API re-checks, in the collect transaction, that the collector is the requester and that her
   **current** authorization still covers the saved scope: the collect transaction recomputes her effective branch set _R'_
   with the same rules, and the saved `branch_ids` must be a subset of _R'_ (a `BUSINESS` request needs her to still be a
@@ -972,8 +995,8 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
 | --- | --- | --- |
 | `manage:commission-plans:business` (proposed) | `TODO(spec)` CS-Q1 | new; plan versions, overrides, period repair |
 | `read:commissions:business` | owner, general manager, business manager, accountant **and branch manager** (CS-Q14 = PP-17.2, against the recommendation); grantable | new; estimate of all employees, statement view, export. A holder sees only the employees of her effective branch set (CS-Q20 = PP-20.1, below) |
-| `review:commissions:business` | `TODO(spec)` CS-Q2; usable only by a business-wide reader (CS-Q26 = PP-24.1, FR-029) | named by SPEC §6 |
-| `approve:commissions:business` | owner (D-17, SPEC §11); grantable `TODO(spec)` CS-Q5; usable only by a business-wide reader (FR-036, from PP-24.1) | named by SPEC §6 |
+| `review:commissions:business` | owner (CS-Q2, Waleed 2026-10-21); granted and revoked **by the owner only**, to any user he chooses (52-1 registers both codes as owner-grantable only; if spec 009's grant flow has no per-code granter rule yet, 52-1 adds it for these two codes); usable only by a business-wide reader (CS-Q26 = PP-24.1, FR-029), and the grant screen warns of it (FR-029b) | named by SPEC §6 |
+| `approve:commissions:business` | owner (D-17, SPEC §11; CS-Q5, Waleed 2026-10-21); granted and revoked **by the owner only**, to a named person (52-1 registers both codes as owner-grantable only; if spec 009's grant flow has no per-code granter rule yet, 52-1 adds it for these two codes); usable only by a business-wide reader (FR-036, from PP-24.1), and the grant screen warns of it (FR-029b) | named by SPEC §6 |
 | `pay:commissions:business` | `TODO(spec)` CS-Q4 | named by SPEC §6 |
 
 **Branch scope (CS-Q20 = PP-20.1):** every read and export first resolves, in the read's own transaction, the reader's
@@ -1054,13 +1077,13 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port, and the statement builder with its statement fingerprint (D-6, FR-026) and the round-trip unit test of CM-34e. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 (CM-28c included), and the statement-view part of CM-23d, CM-23e, CM-23f, CM-23g and CM-23h | 50-5; CS-Q7 | 350–480 |
 | **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044; CM-48c's concurrent approval is the FR-044 seed transaction under the lock), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations, its `docs/module-map.md` event row). 3. CM-51…CM-54, CM-53b (the stored target, FR-046/FR-048) | 55-1; CS-Q11 | 400–550 |
-| **52-1** | Review | 0. The statement permissions `review:commissions:business` and `approve:commissions:business` with their decided role defaults and grants (CS-Q2, CS-Q5), so `StatementAwaitingApproval`, first emitted here, has a defined recipient set from its first release; 53-2 adds only the approval guard (FR-036). 1. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c, CM-33d | 51-1, 55-2; CS-Q2, CS-Q3, CS-Q5 | 350–480 |
+| **52-1** | Review | 0. The statement permissions `review:commissions:business` and `approve:commissions:business` with their decided defaults (owner only) and owner-only granting (CS-Q2, CS-Q5), and the grant-screen warning (FR-029b), so `StatementAwaitingApproval`, first emitted here, has a defined recipient set from its first release; 53-2 adds only the approval guard (FR-036). 1. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c, CM-33d | 51-1, 55-2 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
 | **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check, the attachment snapshot write (its table comes from 48a-2), the post-freeze statement-fingerprint recompute, and correction rows frozen with `previous_amount`, `new_amount` and the delta (CS-Q9 then decides only the display, in 53-3). 2. HTTP and the approval guard (FR-036) on the permission 52-1 registers. 3. CM-34, CM-34b, CM-34c, CM-34d, CM-34e (integration part), CM-35, CM-37, CM-38, CM-38b | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q22 | 400–550 |
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to the employees of her effective branch set (CS-Q20 = PP-20.1, §6 _Permissions_). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
 | **54-1** | Mark paid | 1. The payment columns on `commission_statements` in the shape CS-Q6 decides (expand-only migration, grants), the use case + HTTP. 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
 | **56-0** | Binary documents in the worker (D-18) | 1. Generalize the source/processor contract: a source returns HTML for the PDF renderer or bytes with a MIME type; no HTML → PDF step for bytes. 2. The xlsx MIME type, the 8 MiB cap (`DOCUMENT_TOO_LARGE`), the same Redis store and collect-once reply with the source's MIME type; the API's request admission checks the Chromium liveness key only for kinds that declare the PDF renderer (D-18). 3. Tests: a bytes source never reaches the renderer, the cap, collect-once, the PDF kinds unchanged; with the liveness key absent, a bytes-kind request is queued (202) and its job completes, while a PDF-kind request still gets `503 RENDERER_UNAVAILABLE` | 59-0's ADR-0049 addendum | 200–320 |
-| **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-55e, CM-56, CM-R10, and the export part of CM-23d, CM-23e, CM-23f, CM-23g and CM-23h | 53-2, **56-0**; CS-Q10, CS-Q12 | 350–480 |
+| **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and filters every frozen row by the saved `branch_ids` (FR-050), and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-55e, CM-55f, CM-56, CM-R10, and the export part of CM-23d, CM-23e, CM-23f, CM-23g and CM-23h | 53-2, **56-0**; CS-Q10, CS-Q12 | 350–480 |
 | **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the Redis-loss detection (start-up sentinel check before write, heartbeat, the `operational_recovery_flags` table and its operator clear command, `/ready` degraded, alert) and the runbook's mandatory `CompanyCreated` replay step, the job and recipients (FR-053). 3. CM-57, CM-58, CM-58b, CM-57b, runbook replay | 52-1 | 300–420 |
 
 **Deferred — «with the customer-erasure feature» (D-21, CS-Q21 = PP-20.2).** Not a sub-PR of this slice; it ships with the
