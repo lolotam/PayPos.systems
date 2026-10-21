@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { ids, must, editFixture, type EditFixture } from './session.fixture.ts';
 import { editBody, quietCounts, recorded, runEdit } from './line-edit.helpers.ts';
 import { employeePerson, replacePerformers, type PerformerChangeHost } from './line-identity.helpers.ts';
+import { lineIdentity } from '../persistence/line-identity-records.ts';
 
 let f: EditFixture;
 beforeAll(async () => { f = await editFixture(); });
@@ -76,6 +77,20 @@ it('FR-017 a removed performer with no linked user at recording blocks the user 
     await f.h.owner`UPDATE employees SET user_id=NULL WHERE company_id=${f.company} AND id=${removed}`;
     await f.h.owner`UPDATE employees SET user_id=${f.editorId} WHERE company_id=${f.company} AND id=${f.editorEmployee}`;
   }
+});
+
+it('#431 the line and the visit readers return the same retained identities for a one-line visit', async () => {
+  const visit = await editorVisit(f);
+  await removeEditor(f, visit.sessionId, visit.lineId);
+  const last = await employeePerson(changeHost(f), must(f.employees[1]));
+  await replacePerformers(changeHost(f), visit.sessionId, visit.lineId, 2, [last]);
+  const scope = { companyId: f.company, businessId: f.business, branchId: f.branch };
+  const [line, session] = await f.db.withTenant(f.company, async (tx) => {
+    const identity = lineIdentity(tx, scope);
+    return [await identity.retainedForLine(visit.sessionId, visit.lineId), await identity.retainedForSession(visit.sessionId)];
+  });
+  expect(line.map((row) => row.employee_id).sort()).toEqual([f.editorEmployee, must(f.employees[0])].sort());
+  expect(session).toEqual(line);
 });
 
 async function editorVisit(fixture: EditFixture) {
