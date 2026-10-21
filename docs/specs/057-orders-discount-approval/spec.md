@@ -264,7 +264,8 @@ second branch manager who also performs services.
   decided_label_ar/en?, decided_via?, decided_at?, reject_reason?, consumed_line_id? }` — `occurred_at` is the
   normalized instant of FR-007. `request_id` is required on this route. The approver's list has **its own path**, `GET …/discount-proposals/pending?cursor&limit`,
   under its own `@Require('approve:discounts:branch', { branch: 'branchId' })` (never the requester read with a
-  status filter), newest first, items `{ id, request_id, session_id, occurred_at, service_id, service name
+  status filter), ordered `(requested_at DESC, id DESC)` with an opaque keyset cursor that carries both values (the next page is
+  `(requested_at, id) < (cursor.requested_at, cursor.id)`, so requests of one instant are neither repeated nor skipped), items `{ id, request_id, session_id, occurred_at, service_id, service name
   ar/en, list_price, price, discount, net, effective_bps, performers [{ employee_id, first name ar/en }], requester
   label ar/en, customer first name, requested_at, expires_at, terms_hash }` — everything the approver must see to
   decide and the `terms_hash` FR-017 sends back; never a phone. Every label comes from the D-18 snapshots on
@@ -355,7 +356,8 @@ second branch manager who also performs services.
 | `discount_approval_notices` (new, consumer PR) | the bell ledger: `company_id`, `id`, `business_id`, `request_id`, `source_event_id`, `decided_at`, `recipient_count >= 0` | PK `(company_id, id)` (CLAUDE.md §5, ADR-0007); `UNIQUE (company_id, request_id)`; `ENABLE` + `FORCE` RLS with explicit tenant policies (`USING` and `WITH CHECK` `company_id = app_company_id()`, as `service_lines`); `SELECT, INSERT` to `pospay_app`; negative isolation test (cross-tenant read = 0 rows, write = error) in 057-3 |
 
 **Indexes** (the migration that adds a query adds its index): `(company_id, branch_id, status, expires_at)` for the
-pending lists (device and admin); the `UNIQUE (company_id, request_id, input_index)` serves the requester's read (ordered by `input_index`); `(company_id, requested_by,
+device pending list; the partial `(company_id, branch_id, requested_at DESC, id DESC) WHERE status = 'PENDING'` for the
+admin `/pending` list's order and keyset cursor; the `UNIQUE (company_id, request_id, input_index)` serves the requester's read (ordered by `input_index`); `(company_id, requested_by,
 requested_at DESC)`; **every composite FK gets an index whose leading columns are exactly the FK's columns**
 (CLAUDE.md §5): on `discount_proposals` `(company_id, business_id, branch_id)`, `(company_id, business_id,
 session_id)` (partial, not null), `(company_id, customer_id)`, `(company_id, business_id, service_id)`, `(company_id,
