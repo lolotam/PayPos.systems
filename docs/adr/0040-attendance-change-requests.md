@@ -92,4 +92,7 @@ requester authority reads entirely and leaves the event in the outbox with its f
 company, business or branch membership covering the branch, active at the event time), unioned with the fixed
 recipients and deduplicated; the acting user (the requester on a request, the decider on a decision) never
 receives the bell, and the employee herself is left out unless she is an owner, exactly as the fixed
-recipients are.
+recipients are. Those role holders are read through staff's `AlertRulesPort.roleHolders`, whose adapter calls
+identity's public `readBranchRoleHolders` on the same transaction (the `staff → identity` arrow already exists,
+module-map §1); this addendum is the decision that authorizes that port read, which the ADR-0010 addendum's
+settings-only rule for `AlertRulesPort` adapters does not cover.
