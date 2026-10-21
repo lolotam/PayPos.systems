@@ -1,7 +1,8 @@
 import { discountTermsHash, type DiscountTermsV1 } from './discount-terms.ts';
 import type { SessionLimit } from './session-types.ts';
 
-// TODO(spec) DA-Q4b: the expiry rule (how long an approval lives and what it counts from) is being rewritten in spec 057 FR-010; no expiry computation in this slice.
+/** عمر الموافقة: أربع وعشرون ساعة بالمللي ثانية من وقت الطلب، وثابت مسمّى لا إعداد. */
+export const DISCOUNT_APPROVAL_VALIDITY_MS = 24 * 60 * 60 * 1000;
 
 /** حالة الطلب كما تُخزَّن: معلّق، أو موافَق عليه، أو مرفوض، أو مستهلَك. */
 export type DiscountProposalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CONSUMED';
@@ -36,6 +37,17 @@ export interface ConsumptionActor {
 }
 
 /**
+ * يحسب موعد انتهاء الموافقة: أربع وعشرون ساعة بعد وقت الطلب.
+ * القاعدة: انتهاء الموافقة أربع وعشرون ساعة من وقت الطلب، والموافقة نفسها ما بتحرّكش هذا الوقت — مفيش تجديد عند الموافقة.
+ *
+ * @param requestedAt وقت الطلب كـ Date محقونة
+ * @returns تاريخ جديد لنهاية الموافقة، والتاريخ المُعطى لا يتغيّر
+ */
+export function proposalExpiry(requestedAt: Date): Date {
+  return new Date(requestedAt.getTime() + DISCOUNT_APPROVAL_VALIDITY_MS);
+}
+
+/**
  * يقرر هل يحتاج هذا الخصم موافقة: كل جزء أكبر من حد مَن يسجّل يستحق موافقة.
  * القاعدة: الحد نفسه داخله، وما فوقه فقط يحتاج موافقة (spec 016: أي جزء فوق الحد).
  * المالك بلا حد، ومَن حدّه غير مضبوط حدّه صفر، فيحتاج أي خصم أكبر من صفر.
@@ -54,7 +66,7 @@ export function needsApproval(requesterLimit: SessionLimit, effectiveBps: number
  * القاعدة: `EXPIRED` لا يُكتب في الجدول بل يُشتق من الوقت (D-7): لو كانت `now` مساوية لوقت الانتهاء
  * أو بعده، الحالة تُقرأ `EXPIRED` — لحظة الانتهاء نفسها منتهية، ومفيش لحظة سماح بعدها.
  * المرفوض والمستهلَك يبقيان على حالهما لأنهما قراران اتُّخذا.
- * وقت الانتهاء (`expires_at`) مُدخَل يكتبه المستدعي؛ القاعدة التي تحسبه معلّقة: TODO(spec) DA-Q4b.
+ * وقت الانتهاء (`expires_at`) مُدخَل يكتبه المستدعي، ويحسبه `proposalExpiry` من وقت الطلب.
  *
  * @param status الحالة المخزَّنة للطلب
  * @param expiresAt وقت الانتهاء كما كتبه المستدعي، لا حساب له هنا
@@ -118,7 +130,7 @@ export function approverIsPerformer(
  * (ج) موافَق عليه وبصمة الشروط مختلفة `TERMS_MISMATCH` — تطابق بالظبط بلا تسامح (D-4).
  * (د) غير ذلك `null`: السطر يستهلك الموافقة.
  * مقارنة المعرّفات لا تفرّق بين الأحرف الكبيرة والصغيرة، وبصمة الشروط تُقارن صغيرة.
- * وقت الانتهاء (`expires_at`) مُدخَل يكتبه المستدعي؛ القاعدة التي تحسبه معلّقة: TODO(spec) DA-Q4b.
+ * وقت الانتهاء (`expires_at`) مُدخَل يكتبه المستدعي، ويحسبه `proposalExpiry` من وقت الطلب.
  *
  * @param proposal الطلب الذي يستهلكه السطر، أو `null` إن لم يوجد
  * @param lineTerms شروط السطر كما حُسبت عند الكتابة

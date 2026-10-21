@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DISCOUNT_APPROVAL_VALIDITY_MS,
   approverIsPerformer,
   canApprove,
   consumptionRefusal,
   needsApproval,
+  proposalExpiry,
   proposalState,
   type ConsumableProposal,
   type ConsumptionActor,
@@ -97,6 +99,64 @@ const CHANGED_FIELDS: [string, unknown][] = [
   ['occurred_business_date', '2026-10-22'],
   ['session_id', 'session-2'],
 ];
+
+// The local clock in a zone that changed its offset that night, so the wall clock is not simply +24h.
+const localHourIn = (timeZone: string, instant: Date): string =>
+  new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(instant);
+
+describe('the expiry of an approval', () => {
+  it('lasts twenty-four hours from the request', () => {
+    expect(DISCOUNT_APPROVAL_VALIDITY_MS).toBe(86_400_000);
+    expect(proposalExpiry(new Date('2026-10-21T12:00:00.000Z')).toISOString()).toBe(
+      '2026-10-22T12:00:00.000Z',
+    );
+  });
+
+  it('does not mutate the request time it was given', () => {
+    const requestedAt = new Date('2026-10-21T12:00:00.000Z');
+    const expiry = proposalExpiry(requestedAt);
+    expect(requestedAt.toISOString()).toBe('2026-10-21T12:00:00.000Z');
+    expect(expiry).not.toBe(requestedAt);
+  });
+
+  it('crosses a month end and a year end in UTC', () => {
+    expect(proposalExpiry(new Date('2026-10-31T23:30:00.000Z')).toISOString()).toBe(
+      '2026-11-01T23:30:00.000Z',
+    );
+    expect(proposalExpiry(new Date('2026-12-31T12:00:00.000Z')).toISOString()).toBe(
+      '2027-01-01T12:00:00.000Z',
+    );
+  });
+
+  it('adds exactly 86,400,000 ms across a daylight-saving date in a DST zone', () => {
+    const requestedAt = new Date('2026-11-01T05:30:00.000Z');
+    const expiry = proposalExpiry(requestedAt);
+    expect(expiry.getTime() - requestedAt.getTime()).toBe(DISCOUNT_APPROVAL_VALIDITY_MS);
+    expect(localHourIn('America/New_York', expiry)).not.toBe(
+      localHourIn('America/New_York', requestedAt),
+    );
+  });
+
+  it('approval does not move the expiry: proposalExpiry takes only the request time', () => {
+    expect(proposalExpiry.length).toBe(1);
+    const requestedAt = new Date('2026-10-21T12:00:00.000Z');
+    expect(proposalExpiry(requestedAt).getTime()).toBe(
+      proposalExpiry(new Date(requestedAt.getTime())).getTime(),
+    );
+  });
+
+  it('reads a row made with that expiry as PENDING just before it and EXPIRED at it', () => {
+    const requestedAt = new Date('2026-10-21T12:00:00.000Z');
+    const expiresAt = proposalExpiry(requestedAt);
+    expect(proposalState('PENDING', expiresAt, new Date(expiresAt.getTime() - 1))).toBe('PENDING');
+    expect(proposalState('PENDING', expiresAt, expiresAt)).toBe('EXPIRED');
+  });
+});
 
 describe('when a discount needs an approval', () => {
   it.each(APPROVAL_CASES)('%s', (_label, limit, effectiveBps, expected) => {
