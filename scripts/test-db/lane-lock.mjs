@@ -75,6 +75,23 @@ function isStale(seen) {
 const sameGeneration = (a, b) =>
   b !== undefined && a.ino === b.ino && a.owner?.token === b.owner?.token;
 
+// على ويندوز الـ rename بيفشل لحظياً لو عملية تانية بتقرا owner.json أو الـ antivirus فاتح الفولدر.
+const BUSY = new Set(['EPERM', 'EACCES', 'EBUSY']);
+const RENAME_ATTEMPTS = 5;
+const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+function renameWithRetry(from, to) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      renameSync(from, to);
+      return;
+    } catch (error) {
+      if (!BUSY.has(error.code) || attempt === RENAME_ATTEMPTS) throw error;
+      sleepSync(50 * attempt);
+    }
+  }
+}
+
 /**
  * بيرجّع lock اتشال بالغلط لمكانه، من غير ما يستبدل lock تاني اتعمل في المكان ده.
  * rename على POSIX بيستبدل فولدر فاضي لسه متعمل بـ mkdir (#451)؛ mkdir بيفشل بدل ما يستبدل،
@@ -94,37 +111,23 @@ export function restoreParked(lock, parked) {
     return false;
   }
   try {
-    renameSync(join(parked, 'owner.json'), join(lock, 'owner.json'));
+    renameWithRetry(join(parked, 'owner.json'), join(lock, 'owner.json'));
   } catch (error) {
     // الـ lock اللي رجع لسه صاحبه مكتبش owner.json: هيكتبه في مكانه الأصلي.
     if (error.code !== 'ENOENT') throw error;
   }
-  rmSync(parked, { recursive: true, force: true });
+  rmSync(parked, { recursive: true, force: true, maxRetries: RENAME_ATTEMPTS, retryDelay: 50 });
   return true;
 }
 
-// على ويندوز الـ rename بيفشل لحظياً لو عملية تانية بتقرا owner.json أو الـ antivirus فاتح الفولدر.
-const BUSY = new Set(['EPERM', 'EACCES', 'EBUSY']);
-const RENAME_ATTEMPTS = 5;
-const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-
-function renameWithRetry(from, to) {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      renameSync(from, to);
-      return;
-    } catch (error) {
-      if (!BUSY.has(error.code) || attempt === RENAME_ATTEMPTS) throw error;
-      sleepSync(50 * attempt);
-    }
-  }
-}
-
 // المسح بالاسم مش مشروط: ممكن يمسح جيل اتعمل بعد ما بصينا. فبنعمل rename ذري لاسم فريد، وبنمسح اللي اتنقل
-// بس لو هو الجيل المتوقع، وإلا بنرجّعه. لو الـ rename فشل بعد المحاولات بنقوله سطر واحد، والفشل نفسه مش
-// بنرميه: الرمي وقت فك الـ start lock كان هيضيع نتيجة الشغل اللي اشتغل تحته.
+// بس لو هو الجيل المتوقع، وإلا بنرجّعه. الفحص بيتعمل مرتين: على المكان نفسه قبل الـ rename، وعلى اللي اتنقل
+// بعده. القراءة من جديد بتضيّق النافذة بس ما بتقفلهاش: من غير قفل ذري حد يقدر يبدّل المكان في نص النافذة.
+// ولو الـ rename فشل بعد المحاولات بنقوله سطر واحد، والفشل نفسه مش بنرميه: الرمي وقت فك الـ start lock
+// كان هيضيع نتيجة الشغل اللي اشتغل تحته.
 function removeGeneration(dir, isExpected) {
   const parked = `${dir}.stale-${randomUUID()}`;
+  if (!isExpected(inspect(dir))) return;
   try {
     renameWithRetry(dir, parked);
   } catch (error) {
@@ -132,7 +135,8 @@ function removeGeneration(dir, isExpected) {
     console.log(`could not remove ${dir} (${error.code}); delete it once no lane start is running`);
     return;
   }
-  if (isExpected(inspect(parked))) rmSync(parked, { recursive: true, force: true });
+  if (isExpected(inspect(parked)))
+    rmSync(parked, { recursive: true, force: true, maxRetries: RENAME_ATTEMPTS, retryDelay: 50 });
   else restoreParked(dir, parked);
 }
 
@@ -188,7 +192,14 @@ function withTakeoverGuard(lock, fn) {
     // لو الـ guard بتاعنا اتشال كقديم واتعمل غيره قبل ما نكتب، نرجع ونحاول تاني.
     if (inspect(guard)?.owner?.token === token) fn();
   } finally {
-    releaseGuard(guard, token);
+    // فك الـ guard ما لازمش يرمي: فشله بينطبع سطر وخلاص، عشان حلقة الانتظار في withStartLock ما توقفش.
+    try {
+      releaseGuard(guard, token);
+    } catch (error) {
+      console.log(
+        `could not release ${guard} (${error.code}); delete it once no lane start is running`,
+      );
+    }
   }
 }
 
