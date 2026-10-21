@@ -620,7 +620,8 @@ commit, so a slot can never stay `FREE` under a live redemption or stay held by 
 drive every refund and performer commission (BR-01, SC-001), so a sale or import write that drops a slot or stores a
 wrong value would be wrong forever. A deferred constraint trigger fires on the insert of each `package_entitlements`
 row only, never per component or slot, and checks at commit, for that entitlement (sold or imported), in one aggregate
-over its components and slots: it has at least one component; each component has exactly `sessions_total` slots;
+over its components and slots: it has at least one component; each component has exactly `sessions_total` slots whose ordinals are exactly
+`1…sessions_total` (smallest 1, largest `sessions_total`, none repeated);
 each component's slot `unit_value`s sum to its `component_value`; and the components' `component_value`s sum to the
 entitlement's `price_paid`. Any mismatch refuses the commit. Components and slots are insert-only with immutable value
 columns, and the composition seal refuses a component or slot inserted in any transaction other than the one that
@@ -728,7 +729,8 @@ a handful of rows under row locks. Import: a worker job (spec 030 Stage B). Read
   entitlement),
   each value-conservation breach on a sold and on an imported entitlement (a component with one slot fewer or one
   more than `sessions_total`; slot `unit_value`s that do not sum to `component_value`; `component_value`s that do not
-  sum to `price_paid`; an entitlement with no component),
+  sum to `price_paid`; an entitlement with no component; a ten-session component with the right count and sums but
+  a missing ordinal, `{1…9, 11}`, or shifted ordinals, `{2…11}`),
   each composition-seal breach (a later transaction adding a `0.000` component of a new service with `0.000` slots, or
   one more slot to an existing component; a caller-supplied `created_txid` is overwritten),
   each redeemed-line cancellation breach (a redeemed line set `CANCELLED` with its redemption live, or reversed by
