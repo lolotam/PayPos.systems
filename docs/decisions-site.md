@@ -83,13 +83,13 @@ curl -s "$B/health"
 Every question also goes to Waleed's super agent as `PP-n` (`CLAUDE.md` §1 5b). When his card answer comes back, record it on the site as his own pick, not as a final decision:
 
 ```bash
-# Waleed's pick from a card: a note under his user id (choice = 0-based option index; omit it for a free-text answer)
+# Waleed's pick from a card: a note under his user id, marked source "card" (choice = 0-based option index)
 curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' \
-  -d '{"qid":"XX-Q1","verdict":"ok","choice":0,"text":"<his words, verbatim>","updatedAt":"<ISO time>"}' \
+  -d '{"qid":"XX-Q1","verdict":"ok","choice":0,"text":"<his words, verbatim>","source":"card","updatedAt":"<ISO time>"}' \
   "$B/api/doc?path=reviews/u_kxawXFcE2cQIRRqI4Cn8Iw/notes/<docId>"
 ```
 
-Read the note first; never overwrite a pick he made on the page himself.
+Before the PUT, GET the note: write only when it does not exist (`{"exists":false}`) or its `source` is `"card"`. A note without `source` was made on the page by Waleed himself and is never overwritten. When his card answer matches no option (free text), store it as `"verdict":"change"` with his words in `text` and no `choice`, so the page shows it as his own answer and not as agreement with the recommended option.
 
 ## B. After every merge, and after any row change or new partner request
 
