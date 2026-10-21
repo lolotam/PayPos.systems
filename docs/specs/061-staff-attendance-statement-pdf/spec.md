@@ -179,8 +179,13 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   matches no day.
 - **FR-002** The route is guarded by `@Require('read:attendance:branch', { branch: 'branchId' })` and
   `@RequiresFeature('staff')`, like `attendance-monthly-report.controller.ts` (BR-08).
-- **FR-003** The use case validates the period (FR-001, Story 3.4), checks the renderer liveness key, the per-user rate
-  limit, then in **one** `withTenant(companyId, …, { userId })` transaction confirms that the route's branch belongs to
+- **FR-003** The use case checks the period's shape (`from <= to`, at most 366 days), the renderer liveness key and the
+  per-user rate limit, then in **one** `withTenant(companyId, …, { userId })` transaction loads the branch's effective
+  time zone (the branch's, otherwise the business's, through the `tenancy.describeWorkspaces` read staff already uses)
+  and only then checks the ceiling of Story 3.4: `to` must not pass the last day of the month that the injected `Clock`
+  falls in **in that time zone** (at 22:00 UTC on 31 October it is already November in `Asia/Kuwait`, so November is
+  the current month). A violation is `422 ATTENDANCE_STATEMENT_PERIOD_INVALID` with nothing written. The same
+  transaction then confirms that the route's branch belongs to
   the route's business (`branches` row with `(company_id, business_id, id)`; otherwise `404
   ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`, nothing written), confirms the employee (when given) with the **same
   candidate rule the branch table uses** (Story 1.4, Story 3.3): she belongs to that business and has a counted
@@ -372,7 +377,9 @@ and no module index: `apps/worker/src/main.ts` injects the `staff` reader into t
 - **Contracts:** request body (forms, `employee_id` rule, `strictObject`), status reply, the template data schema.
 - **API integration (T2 Postgres, one cloned DB per file, ADR-0006):** 202 and the request row; every refusal of
   Story 3 including `403` without the permission, `404` cross-tenant/other-user/other-branch, and `404` for a business A
-  route with a business B branch the caller may read (no row, no job), and `404` for an employee of the business with
+  route with a business B branch the caller may read (no row, no job); the month ceiling at the time-zone boundary
+  with a fixed clock for an `Asia/Kuwait` branch: at 2026-10-31T21:00Z `to = 2026-11-30` is accepted, at
+  2026-10-31T20:59Z it is refused, and a branch without its own time zone uses the business's; `404` for an employee of the business with
   no counted session and no contracted minutes at the branch in the period, or only an OPEN session (no row, no job),
   while one with only contracted minutes is accepted; collect once, expired,
   not ready; the audit entry's fields; no audit when nothing is delivered.
