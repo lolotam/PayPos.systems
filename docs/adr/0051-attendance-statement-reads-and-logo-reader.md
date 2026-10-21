@@ -4,7 +4,8 @@
   27g). It becomes Accepted when sub-PR 1 lands. The number is the next free one on `main` and on every remote branch
   on 2026-10-21; the orchestrator renumbers it at merge if another lane took it.
 - **Amends:** [ADR-0046](0046-business-identity-settings-reads-and-logo-lifecycle.md) §5 (where the identity read and the
-  logo bytes reader live, and the `staff → settings` arrow it left to this ADR).
+  logo bytes reader live, and the `staff → settings` arrow it left to this ADR); a pointer is added there and in
+  ADR-0049 §6.
 - **Builds on:** [ADR-0049](0049-pdf-renderer-in-phase-1.md) §1 (request, poll, collect once), §5 (module map) and §6
   (the logo bytes reader moves to 27g, PP-6.2); [ADR-0031](0031-employee-document-file-binding.md) (`staff → files`).
 
@@ -82,8 +83,9 @@ checked when the request was made, and the stored permission of a settings file 
 `packages/documents` may be imported only by `apps/worker/src/main.ts` and `apps/worker/src/documents/` (module map,
 ADR-0049 §5). So the worker `staff` module returns **typed data** (`attendanceStatementDocument`, Zod in
 `packages/contracts`), not HTML. The template lives in `packages/documents/src/templates/attendance-statement.ts`, and
-`apps/worker/src/documents/sources/attendance-statement.source.ts` turns the data into HTML. `main.ts` registers that
-source for the kind `attendance-statement`. A business module still never imports `packages/documents`.
+`apps/worker/src/documents/sources/attendance-statement.source.ts` turns the data into HTML. `main.ts` builds that
+source with the worker `staff` reader injected (so `sources/` imports no module index) and registers it for the kind
+`attendance-statement`. A business module still never imports `packages/documents`.
 
 ### 5. The request record is a `staff` table
 

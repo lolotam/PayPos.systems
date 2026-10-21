@@ -147,6 +147,8 @@ ADR-0046 §5 put the `files`-owned logo bytes reader in 27i. It writes a `file_a
 requester, and its first caller is 27g's statement source. It is built with 27g, beside the `staff → settings` and
 `staff → files` arrows that row adds, so 27i stays free of database changes and cross-module calls. ADR-0046 §5 is
 amended to say so.
+ADR-0051 (27g) later settles those arrows: no `staff → settings` import (the identity read moves to `@pospay/db`) and
+the existing `staff → files` arrow from the worker `staff` reader to the worker `files` logo reader.
 
 ## Consequences
 

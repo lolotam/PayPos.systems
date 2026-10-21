@@ -39,6 +39,9 @@ and `identity` today. ADR-0031 already solved "a module stores a file reference"
    currently bound logo of the authorised statement's business and writing one access-audit row for the requester. The
    statement requester need not hold any settings or files permission, so the stored permission gates only the admin
    preview. The `staff → settings` arrow for 27g is that row's own ADR.
+   **Amended by ADR-0051 (27g):** the statement is read in the worker, so `readBusinessIdentity` moves to `@pospay/db`
+   and `statementIdentity` to `packages/domain` (both still exported by `settings/index.ts`); no `staff → settings`
+   import arrow is added. The logo bytes reader is the worker `files` pair `resolveStatementLogo` / `fetchStatementLogo`.
 
 ## Consequences
 

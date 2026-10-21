@@ -114,7 +114,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    on status and collect (ADR-0049 §1.5).
 3. An employee who has no session and no contracted minutes at the branch in the period, or who belongs to another
    business or company: `404 ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND`.
-4. `from > to`, a period longer than 366 days, or `to` after today in the branch time zone:
+4. `from > to`, a period longer than 366 days, or `to` after the last day of the current month in the branch time
+   zone (so the current month can be asked for on any day; its future dates show the date only, Story 2.2):
    `422 ATTENDANCE_STATEMENT_PERIOD_INVALID`.
 5. The renderer is down (no `documents:renderer-alive` key): `503 RENDERER_UNAVAILABLE`, no request row, no job.
 6. More than 20 requests by the same user in a rolling hour: `429 ATTENDANCE_STATEMENT_RATE_LIMITED`.
@@ -185,8 +186,10 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 ### Worker (`apps/worker`)
 
 - **FR-010** `apps/worker/src/main.ts` registers the kind `attendance-statement` in the 056 `DocumentSourceRegistry`
-  with a source built in `apps/worker/src/documents/sources/attendance-statement.source.ts`. The source asks the worker
-  `staff` module for the typed statement data, then fills the template from `packages/documents` (ADR-0051 §4).
+  with a source built by a factory in `apps/worker/src/documents/sources/attendance-statement.source.ts`. `main.ts`
+  passes the worker `staff` reader into that factory, so the `sources/` folder imports no module index (the composition-root
+  pattern). The source calls the reader for the typed statement data, then fills the template from `packages/documents`
+  (ADR-0051 §4).
 - **FR-011** The `staff` data reader (`readAttendanceStatement(companyId, renderId, signal)`, exported by
   `apps/worker/src/modules/staff/index.ts`) runs one `withTenant(companyId, …, { userId: requested_by })` transaction that
   reads the request row, the business and branch names, the employees with `employee_number`, the period inputs through
@@ -257,7 +260,8 @@ dates only. A cleanup is out of scope.
 
 Status and collect read the request row first (in the guard's tenant scope) and answer `404` when it is missing, belongs
 to another branch, or `requested_by` differs from the caller. The Redis status hash's `requested_by` is checked as well
-(ADR-0049 §1.5). Missing status hash with a request row = `EXPIRED`.
+(ADR-0049 §1.5). A status hash that is gone (its 900-second TTL ran out) answers the same `404` as an unknown id
+(ADR-0049 §1.5); bytes that are gone while the status hash remains read as `EXPIRED` (ADR-0049 §1.6).
 
 ### 6.4 Collect
 
@@ -311,7 +315,7 @@ no `files` or `settings` permission to see the logo in her statement (ADR-0046 �
 
 ADR-0051: no new import arrow. The worker `staff` reader calls worker `files` (`staff → files` is already declared,
 ADR-0031) and two shared `@pospay/db` reads; `apps/worker/src/documents/` imports `@pospay/documents` (already allowed)
-and the worker `staff` index. The code PRs add the matching `reads:` entries and port rows.
+and no module index: `apps/worker/src/main.ts` injects the `staff` reader into the source factory. The code PRs add the matching `reads:` entries and port rows.
 
 ## 7. Tests
 
@@ -356,6 +360,6 @@ Sub-PRs 1–4 do not wait for ST-Q6. Each code sub-PR passes the gates of `CLAUD
 
 - The footer is printed once at the end of the document body, as the 056 base layout does (ADR-0049 §2.1). A footer and
   page number on every printed page needs a Chromium header/footer option in `packages/documents`; it is out of scope.
-- A period is at most 366 days and never ends after today in the branch time zone. These are technical bounds (render
-  time and size), not owner rules; Waleed can widen them without a schema change other than the CHECK.
+- A period is at most 366 days and never ends after the current month in the branch time zone. These are technical
+  bounds (render time and size), not owner rules; Waleed can widen them without a schema change other than the CHECK.
 - The admin screen offers the current month by default and polls the status every 2 seconds for at most 60 seconds.
