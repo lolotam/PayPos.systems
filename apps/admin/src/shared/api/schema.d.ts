@@ -5126,11 +5126,6 @@ export interface components {
             consumed_line_id?: string;
             /** @enum {string} */
             kind: "RECORD";
-            line_id?: unknown;
-            base_revision?: unknown;
-            base_price?: unknown;
-            base_discount?: unknown;
-            base_net?: unknown;
         } | {
             /** Format: uuid */
             id: string;
@@ -5215,11 +5210,6 @@ export interface components {
             terms_hash: string;
             /** @enum {string} */
             kind: "RECORD";
-            line_id?: unknown;
-            base_revision?: unknown;
-            base_price?: unknown;
-            base_discount?: unknown;
-            base_net?: unknown;
         } | {
             /** Format: uuid */
             id: string;
@@ -5282,11 +5272,6 @@ export interface components {
             terms_hash: string;
             /** @enum {string} */
             kind: "RECORD";
-            line_id?: unknown;
-            base_revision?: unknown;
-            base_price?: unknown;
-            base_discount?: unknown;
-            base_net?: unknown;
         } | {
             /** Format: uuid */
             id: string;

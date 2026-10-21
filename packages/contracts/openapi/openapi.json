@@ -25770,21 +25770,6 @@
                 "enum": [
                   "RECORD"
                 ]
-              },
-              "line_id": {
-                "not": {}
-              },
-              "base_revision": {
-                "not": {}
-              },
-              "base_price": {
-                "not": {}
-              },
-              "base_discount": {
-                "not": {}
-              },
-              "base_net": {
-                "not": {}
               }
             },
             "required": [
@@ -26103,21 +26088,6 @@
                 "enum": [
                   "RECORD"
                 ]
-              },
-              "line_id": {
-                "not": {}
-              },
-              "base_revision": {
-                "not": {}
-              },
-              "base_price": {
-                "not": {}
-              },
-              "base_discount": {
-                "not": {}
-              },
-              "base_net": {
-                "not": {}
               }
             },
             "required": [
@@ -26372,21 +26342,6 @@
                 "enum": [
                   "RECORD"
                 ]
-              },
-              "line_id": {
-                "not": {}
-              },
-              "base_revision": {
-                "not": {}
-              },
-              "base_price": {
-                "not": {}
-              },
-              "base_discount": {
-                "not": {}
-              },
-              "base_net": {
-                "not": {}
               }
             },
             "required": [

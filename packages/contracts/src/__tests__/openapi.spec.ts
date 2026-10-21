@@ -292,3 +292,8 @@ it('publishes both change kinds of a changed line', () => {
   expect(document).toContain('LINE_CANCELLED');
   expect(document).toContain('PERFORMERS_CHANGE');
 });
+
+// OpenAPI 3.0 مالهاش keyword اسمه not، وz.never بينشره (service-session.ts)؛ فأي not في الوثيقة غلط.
+it('publishes no "not" keyword, which OpenAPI 3.0 does not have', () => {
+  expect(JSON.stringify(buildOpenApiDocument())).not.toContain('"not":');
+});

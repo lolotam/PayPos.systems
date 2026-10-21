@@ -15,13 +15,9 @@ const termsHashes = z.array(termsHash).min(1).max(20);
 const serviceNames = { service_id: id, service_name_en: z.string(), service_name_ar: z.string().nullable() };
 const amounts = { list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney };
 // FR-027 (DA-Q5): التعديل يحمل السطر والنسخة التي يعدّلها وقيمها قبل التعديل، والتسجيل لا يحمل منها شيئًا.
-// حقول التعديل على RECORD معلنة بـ never: حضور أيٍّ منها مرفوض في كل الأوضاع، فالمقترح ما يمرّ ناقصًا ولا زائدًا.
-// والردود بresponseObject عشان المتصفح القديم يتجاهل أي حقل جديد بعد النشر، والاتحاد على kind يمنع الناقص والزائد.
+// الحصرية شغالة زي أي رد تاني: تحت POSPAY_STRICT_RESPONSES=1 (اختبارات الـ API) الـ responseObject بيبقى صارم، فالـ RECORD اللي فيه حقل تعديل مرفوض، وفي المتصفح المفتاح الزيادة بيتشال.
+// وz.never مش مستعمل: بينشر المفتاح بصيغة `not` اللي OpenAPI 3.0 مش بيفهمها (زي service-session.ts).
 const kindRecord = { kind: z.literal('RECORD') };
-const kindRecordNoEdit = {
-  ...kindRecord, line_id: z.never().optional(), base_revision: z.never().optional(),
-  base_price: z.never().optional(), base_discount: z.never().optional(), base_net: z.never().optional(),
-};
 const kindEdit = {
   kind: z.literal('EDIT'), line_id: id, base_revision: z.number().int().min(1),
   base_price: sessionMoney, base_discount: sessionMoney, base_net: sessionMoney,
@@ -72,7 +68,7 @@ const requesterCommon = {
   reject_reason: z.string().min(1).optional(), consumed_line_id: id.optional(),
 };
 export const requesterDiscountProposal = z.discriminatedUnion('kind', [
-  responseObject({ ...requesterCommon, ...kindRecordNoEdit }),
+  responseObject({ ...requesterCommon, ...kindRecord }),
   responseObject({ ...requesterCommon, ...kindEdit }),
 ]).meta({ id: 'RequesterDiscountProposal' });
 export const requesterDiscountProposalList = responseObject({
@@ -98,7 +94,7 @@ const pendingCommon = {
   requested_at: timestamp, expires_at: timestamp, terms_hash: termsHash,
 };
 export const pendingDiscountProposal = z.discriminatedUnion('kind', [
-  responseObject({ ...pendingCommon, ...kindRecordNoEdit }),
+  responseObject({ ...pendingCommon, ...kindRecord }),
   responseObject({ ...pendingCommon, ...kindEdit }),
 ]).meta({ id: 'PendingDiscountProposal' });
 export const pendingDiscountProposalPage = responseObject({
@@ -112,7 +108,7 @@ const deviceCommon = {
   customer_first_name: z.string(), requested_at: timestamp, expires_at: timestamp, terms_hash: termsHash,
 };
 export const deviceDiscountProposal = z.discriminatedUnion('kind', [
-  responseObject({ ...deviceCommon, ...kindRecordNoEdit }),
+  responseObject({ ...deviceCommon, ...kindRecord }),
   responseObject({ ...deviceCommon, ...kindEdit }),
 ]).meta({ id: 'DeviceDiscountProposal' });
 /** جهاز الفرع يقرأ فرعته وحده، فمؤشره بلا business: مسار الجهاز ما فيه business أصلًا. */

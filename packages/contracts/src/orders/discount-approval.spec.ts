@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import {
   approveDiscountProposalsInput,
   decidedDiscountProposal,
@@ -208,11 +208,10 @@ const editKind = {
 };
 type ProposalParser = { safeParse: (value: unknown) => { success: boolean } };
 
-// التسجيل يحمل kind وحده (وحقول التعديل مرفوضة عليه)، والتعديل يحمل حقول الـ base كلها؛ فأي نقص أو زيادة يرفض الرد.
+// التسجيل يحمل kind وحده، والتعديل يحمل حقول الـ base كلها؛ فأي نقص في حقول التعديل يرفض الرد.
 const expectClosedKind = (schema: ProposalParser, base: Record<string, unknown>) => {
   expect(schema.safeParse({ ...base, kind: 'RECORD' }).success).toBe(true);
   expect(schema.safeParse({ ...base, ...editKind }).success).toBe(true);
-  expect(schema.safeParse({ ...base, kind: 'RECORD', line_id: A }).success).toBe(false);
   for (const key of ['line_id', 'base_revision', 'base_price', 'base_discount', 'base_net']) {
     const partial = Object.fromEntries(Object.entries(editKind).filter(([name]) => name !== key));
     expect(schema.safeParse({ ...base, ...partial }).success).toBe(false);
@@ -242,11 +241,27 @@ it('refuses a null expiry on every proposal shape (FR-010: it is never null)', (
   expect(decidedDiscountProposal.safeParse({ id: A, status: 'REJECTED', expires_at: null }).success).toBe(false);
 });
 
-it('drops a field the browser does not know yet but still refuses an edit field on a RECORD', () => {
-  const parsed = requesterDiscountProposal.safeParse({ ...requesterProposal, kind: 'RECORD', future_field: 'x' });
+it('drops a field the browser does not know yet, and an edit field a RECORD carries with it', () => {
+  const parsed = requesterDiscountProposal.safeParse({ ...requesterProposal, kind: 'RECORD', future_field: 'x', line_id: A });
   expect(parsed.success).toBe(true);
-  expect(parsed.success ? Object.keys(parsed.data) : []).not.toContain('future_field');
-  expect(requesterDiscountProposal.safeParse({ ...requesterProposal, kind: 'RECORD', line_id: A }).success).toBe(false);
+  const keys = parsed.success ? Object.keys(parsed.data) : [];
+  expect(keys).not.toContain('future_field');
+  expect(keys).not.toContain('line_id');
+});
+
+// الحصرية على RECORD بتشتغل في الوضع الصارم (اختبارات الـ API): responseObject بيبقى strict فالمفتاح الزيادة مرفوض.
+it('refuses a RECORD that carries an edit field when the responses are strict', async () => {
+  vi.stubEnv('POSPAY_STRICT_RESPONSES', '1');
+  vi.resetModules();
+  try {
+    const strict = await import('./discount-approval.js');
+    expect(strict.requesterDiscountProposal.safeParse({ ...requesterProposal, kind: 'RECORD', line_id: A }).success).toBe(false);
+    expect(strict.pendingDiscountProposal.safeParse({ ...pendingProposal, kind: 'RECORD', line_id: A }).success).toBe(false);
+    expect(strict.deviceDiscountProposal.safeParse({ ...deviceProposal, kind: 'RECORD', line_id: A }).success).toBe(false);
+  } finally {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  }
 });
 
 it('pages the device list like the pending one and closes its query', () => {
