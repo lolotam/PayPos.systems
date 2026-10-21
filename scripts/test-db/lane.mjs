@@ -10,8 +10,20 @@
 // are read from `docker compose config` of deploy/docker-compose.dev.yml (read-only), so they cannot drift.
 // Roles and grants are created by the migration bootstrap at test time, as on a fresh CI cluster.
 // Passwords travel only through the docker process environment (`-e NAME` without a value), never argv or output.
+// A container belongs to the worktree that started it (label pospay.test-worktree): another worktree using the
+// same lane name is refused, never handed the first one's cluster. Choosing a port and binding it run under a
+// lock file in the shared git directory, and a publish collision moves on to the next free port.
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { join, resolve } from 'node:path';
 import { createConnection, createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
@@ -22,11 +34,17 @@ const OVERRIDE = `${ROOT}.env.test.local`;
 const COMPOSE_FILE = `${ROOT}deploy/docker-compose.dev.yml`;
 const LANE = /^[a-z0-9-]{1,32}$/;
 const LABEL = 'pospay.test-lane';
+const WORKTREE_LABEL = 'pospay.test-worktree';
+const WORKTREE = resolve(ROOT).replaceAll('\\', '/').toLowerCase();
 const HOST = '127.0.0.1';
 const BASE_PORT = 55400;
 const PORT_SCAN = 99;
 const RESERVED_PORTS = new Set([5432, 6379]);
 const READY_TIMEOUT_MS = 90_000;
+const START_ATTEMPTS = 5;
+const LOCK_WAIT_MS = 120_000;
+const LOCK_STALE_MS = 180_000;
+const PORT_TAKEN = /port is already allocated|address already in use|ports are not available/i;
 
 const USAGE = [
   'usage: node scripts/test-db/lane.mjs up <lane> [--port N]',
@@ -97,7 +115,28 @@ function findContainer(lane) {
     ],
     'listing lane containers',
   );
-  return id === '' ? undefined : id;
+  if (id === '') return undefined;
+  // A paused or restarting container still reports Running=true; only a plainly running one is usable.
+  const usable = '{{and .State.Running (not .State.Paused) (not .State.Restarting)}}';
+  const [running, worktree] = dockerOk(
+    ['inspect', '--format', `${usable}\t{{index .Config.Labels "${WORKTREE_LABEL}"}}`, id],
+    'inspecting the lane container',
+  ).split('\t');
+  return { id, running: running === 'true', worktree: worktree ?? '' };
+}
+
+// Same lane name from another worktree: refuse, so neither shares nor removes the other's cluster.
+function assertOwned(container, lane) {
+  if (container.worktree === WORKTREE) return;
+  fail(
+    `${containerName(lane)} belongs to worktree ${container.worktree || '(unknown)'}, not ${WORKTREE}; ` +
+      'use another lane name here, or run down from that worktree',
+  );
+}
+
+function removeContainer(id, lane) {
+  // --volumes removes the anonymous data volume with it: nothing of the lane survives.
+  dockerOk(['rm', '--force', '--volumes', id], `removing ${containerName(lane)}`);
 }
 
 function publishedPort(id) {
@@ -115,18 +154,19 @@ function portIsFree(port) {
   });
 }
 
-// lane-7 → 55407 when free; otherwise the first free port from 55401.
-async function choosePort(lane, requested) {
+// lane-7 → 55407 when free; otherwise the first free port from 55401. `tried` holds ports a publish lost.
+async function choosePort(lane, requested, tried) {
   if (requested !== undefined) {
     if (!(await portIsFree(requested))) fail(`port ${HOST}:${requested} is already in use`);
     return requested;
   }
+  const usable = async (port) => !tried.has(port) && (await portIsFree(port));
   const suffix = /(\d+)$/.exec(lane);
   const preferred = suffix ? BASE_PORT + (Number(suffix[1]) % PORT_SCAN) : undefined;
-  if (preferred !== undefined && preferred !== BASE_PORT && (await portIsFree(preferred)))
+  if (preferred !== undefined && preferred !== BASE_PORT && (await usable(preferred)))
     return preferred;
   for (let port = BASE_PORT + 1; port <= BASE_PORT + PORT_SCAN; port++) {
-    if (await portIsFree(port)) return port;
+    if (await usable(port)) return port;
   }
   return fail(`no free port in ${BASE_PORT + 1}–${BASE_PORT + PORT_SCAN}; pass --port`);
 }
@@ -139,7 +179,7 @@ function runContainer(lane, port, service) {
     envFlags.push('-e', name);
   }
   const memory = service.mem_limit ? ['--memory', String(service.mem_limit)] : [];
-  dockerOk(
+  return docker(
     [
       'run',
       '--detach',
@@ -148,6 +188,8 @@ function runContainer(lane, port, service) {
       containerName(lane),
       '--label',
       `${LABEL}=${lane}`,
+      '--label',
+      `${WORKTREE_LABEL}=${WORKTREE}`,
       '--publish',
       `${HOST}:${port}:5432`,
       ...memory,
@@ -155,9 +197,69 @@ function runContainer(lane, port, service) {
       service.image,
       ...service.command,
     ],
-    'starting the lane container',
     { env: childEnv },
   );
+}
+
+function gitCommonDir() {
+  const result = spawnSync(
+    'git',
+    ['-C', ROOT, 'rev-parse', '--path-format=absolute', '--git-common-dir'],
+    { encoding: 'utf8' },
+  );
+  return result.status === 0 ? result.stdout.trim() : ROOT;
+}
+
+function lockAge(path) {
+  try {
+    return Date.now() - statSync(path).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+// One lock for every worktree of the repo (the git common dir is shared), held from the port probe until
+// docker has bound the port. A lock left by a crashed run is taken over after LOCK_STALE_MS.
+async function withStartLock(fn) {
+  const lock = join(gitCommonDir(), 'pospay-test-lane.lock');
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  for (;;) {
+    try {
+      closeSync(openSync(lock, 'wx'));
+      break;
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      if (lockAge(lock) > LOCK_STALE_MS) rmSync(lock, { force: true });
+      else if (Date.now() > deadline)
+        fail(`another lane start holds ${lock}; retry, or delete it if stale`);
+      else await delay(200 + Math.random() * 300);
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    rmSync(lock, { force: true });
+  }
+}
+
+// A publish collision (another process took the port after the probe) moves on to the next free port.
+async function startContainer(lane, requested, service) {
+  const tried = new Set();
+  for (let attempt = 1; attempt <= START_ATTEMPTS; attempt++) {
+    const port = await choosePort(lane, requested, tried);
+    const result = runContainer(lane, port, service);
+    if (result.status === 0) return port;
+    // A failed publish can leave the container in Created state under our name.
+    const leftover = findContainer(lane);
+    if (leftover !== undefined && leftover.worktree === WORKTREE)
+      removeContainer(leftover.id, lane);
+    if (requested !== undefined || !PORT_TAKEN.test(result.stderr)) {
+      fail(`starting the lane container failed: ${result.stderr.trim()}`);
+    }
+    console.log(`port ${port} was taken before docker bound it; trying another`);
+    tried.add(port);
+  }
+  return fail(`no port could be bound after ${START_ATTEMPTS} attempts; pass --port`);
 }
 
 function tcpReachable(port) {
@@ -221,16 +323,23 @@ function overrideLane() {
 }
 
 async function up(lane, requestedPort) {
+  const service = devPostgresService();
   const existing = findContainer(lane);
   if (existing !== undefined) {
-    const port = publishedPort(existing);
-    writeOverride(lane, port);
-    console.log(`${containerName(lane)} already running on ${HOST}:${port}; wrote ${OVERRIDE}`);
-    return;
+    assertOwned(existing, lane);
+    if (existing.running) {
+      const port = publishedPort(existing.id);
+      await waitReady(lane, port, service);
+      writeOverride(lane, port);
+      console.log(`${containerName(lane)} already running on ${HOST}:${port}; wrote ${OVERRIDE}`);
+      console.log(`port=${port}`);
+      return;
+    }
+    // Created, exited or restarting after an interrupted Docker lifecycle: never reuse it, start fresh.
+    removeContainer(existing.id, lane);
+    console.log(`removed ${containerName(lane)}: it was not running`);
   }
-  const service = devPostgresService();
-  const port = await choosePort(lane, requestedPort);
-  runContainer(lane, port, service);
+  const port = await withStartLock(() => startContainer(lane, requestedPort, service));
   await waitReady(lane, port, service);
   writeOverride(lane, port);
   console.log(`${containerName(lane)} ready on ${HOST}:${port}; wrote ${OVERRIDE}`);
@@ -238,11 +347,11 @@ async function up(lane, requestedPort) {
 }
 
 function down(lane) {
-  const id = findContainer(lane);
-  if (id === undefined) console.log(`no container ${containerName(lane)}`);
+  const existing = findContainer(lane);
+  if (existing === undefined) console.log(`no container ${containerName(lane)}`);
   else {
-    // -v removes the anonymous data volume with it: nothing of the lane survives.
-    dockerOk(['rm', '--force', '--volumes', id], `removing ${containerName(lane)}`);
+    assertOwned(existing, lane);
+    removeContainer(existing.id, lane);
     console.log(`removed ${containerName(lane)} and its data volume`);
   }
   const owner = overrideLane();
@@ -256,7 +365,14 @@ function down(lane) {
 
 function status() {
   const rows = dockerOk(
-    ['ps', '-a', '--filter', `label=${LABEL}`, '--format', '{{.Names}}\t{{.Status}}\t{{.Ports}}'],
+    [
+      'ps',
+      '-a',
+      '--filter',
+      `label=${LABEL}`,
+      '--format',
+      `{{.Names}}\t{{.Status}}\t{{.Ports}}\t{{.Label "${WORKTREE_LABEL}"}}`,
+    ],
     'listing lane containers',
   );
   console.log(rows === '' ? 'no lane containers' : rows);

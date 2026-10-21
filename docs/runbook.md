@@ -225,7 +225,12 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
   the roles are created by the migration bootstrap when the tests start, as on a fresh CI cluster. The
   container is `--rm` with an anonymous data volume, published on `127.0.0.1` only. The port is
   `55400 + <trailing digits of the lane>` when free, otherwise the first free port from 55401; `--port N`
-  picks one. `up` on a running lane only rewrites the override and reprints the port.
+  picks one. Choosing the port and `docker run` happen under a lock file `pospay-test-lane.lock` in the
+  repository's shared git directory, so concurrent `up` calls from different worktrees get different ports;
+  if a publish still collides, `up` retries on the next free port (up to five times). A lock older than three
+  minutes is treated as left by a crashed run and taken over.
+- `up` on a running lane waits for readiness, rewrites the override and reprints the port. A lane container
+  that exists but is not plainly running (created, exited, paused, restarting) is removed and started fresh.
 - `up` writes `.env.test.local` at the worktree root (git-ignored by `.env.*`) with only
   `POSPAY_TEST_PG_HOST` and `POSPAY_TEST_PG_PORT`; passwords stay in `.env`. `down` deletes the file only
   when its marker names that lane.
@@ -236,6 +241,10 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
 - The lane name must match `^[a-z0-9-]{1,32}$`. The script only ever removes the container that has both
   the exact name `pospay-test-<lane>` and the lane label; it never touches `pospay-dev-*` or any other
   container, and it refuses ports 5432 and 6379.
+- A lane container belongs to the worktree that started it (label `pospay.test-worktree`). `up` or `down` of
+  the same lane name from another worktree is refused, so two worktrees never share or remove each other's
+  cluster; pick a different lane name per worktree. `status` shows each container's worktree.
+- ADR-0006, addendum 2026-10-21, records that a lane cluster is the T2 compose service run a second time.
 - Not redirected: Redis (tests still use the shared `127.0.0.1:6379`), `pnpm db:migrate`, and the apps'
   `DATABASE_URL`-style variables. Only the test harness moves.
 - Run one lane per worktree: the override file is per worktree. Bring the lane down when the slice is done;
