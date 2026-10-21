@@ -120,6 +120,16 @@ shows the service, branch, date, «was X, now Y» (net) and the editor's name, o
 editor has no employee record (ED-Q9–ED-Q11, ED-Q13, Waleed 2026-10-16); the receptionist sees only an «edited» mark and
 the full history is the manager's (ED-Q12); zero recipients is a durable decision.
 
+057 (ADR-0051, spec 057, rows 38–41): `orders` ⇒ worker `orders` event **new** `DiscountApprovalRequested`, emitted once
+per stored discount-approval request in its transaction (`request_id`, `business_id`, `branch_id`, `requested_by`,
+`line_count`, `max_effective_bps`, the distinct `services` with name snapshots, `occurred_at`; never a customer, a
+phone or the terms). Worker orders claims a `(company_id, request_id)` ledger row, resolves every active user whose
+membership covering the branch effectively grants `approve:discounts:branch` (DENY excludes; PP-15.2, so **not** the
+ADR-0037 manager rule), drops the requester, and emits `DiscountApprovalNoticeRequested` to notifications for the IN_APP
+bell in groups of at most 100; zero recipients is a durable decision. Approvals, rejects and consumption emit no event.
+The approver is proved by phone + PIN on a paired branch device (the reception computer, PP-15.1) or by an admin session;
+`identity` supplies that proof and the approver's authority through consumer-owned ports, with no new import arrow.
+
 ---
 
 ## 4. Domain model — Phase 1 subset

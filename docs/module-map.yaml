@@ -50,6 +50,9 @@ reads:
   - { from: orders, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/orders/persistence/performers-change-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/performers-change-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/performers-change-place.adapter.ts }
+  - { from: orders, to: identity, symbol: discountApproverRecipients, file: apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts }
+  - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts }
+  - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/discount-approval-place.adapter.ts }
   - { from: orders, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/line-cancel-place.adapter.ts }
