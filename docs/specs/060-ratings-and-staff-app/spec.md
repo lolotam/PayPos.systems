@@ -550,7 +550,12 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
   `GET/PUT/DELETE /v1/businesses/:businessId/branches/:branchId/alert-rules` (a branch's overrides; `DELETE` of a kind
   returns the branch to the business rule, AL-Q2) and `PUT /v1/businesses/:businessId/alert-rules/master`; idempotent,
   audited, all guarded by `manage:settings:business` on the business (AL-Q1, D-B13); validated per kind (delay/lead
-  ranges, allowed recipient roles, `IN_APP` only until row 62b, AL-Q6).
+  ranges, allowed recipient roles, `IN_APP` only until row 62b, AL-Q6). Concurrency (as built in 62-1, PR #467): every
+  view shows, per kind, the `rule_id` and `revision` stored at that scope (both `null` when none is stored); a `PUT`
+  carries `expected_rule_id` and `expected_revision` per kind, and a branch `DELETE` carries both in the query. Any
+  mismatch is `409 ALERT_RULE_REVISION_CONFLICT` and writes nothing. The `rule_id` makes a request read before a
+  delete-and-recreate stale even when the new row's `revision` matches. A `PUT` returns the state it wrote, from the same
+  transaction.
 - **FR-B17** `AlertRulesPort` read in the API (customers) and worker (staff, orders) per D-B13/D-B14; every interim rule
   is replaced: `interimNotClockedInRule` (ADR-0037 §3), `interimBreakNotReturnedRule` (spec 041, both in
   `apps/worker/src/modules/staff/domain/`), the late-session,
