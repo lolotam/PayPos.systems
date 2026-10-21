@@ -133,7 +133,10 @@ beforeEach(() => {
   state.get.mockReset();
   state.put.mockReset();
   day = () => dayWith([line(20, '2026-10-17'), line(21)]);
-  history = () => ({ data: { items: [change(3, 'Rana did the rinse')], next_cursor: null } });
+  history = () => ({
+    data: { items: [change(3, 'Rana did the rinse')], next_cursor: null },
+    response: { status: 200 },
+  });
   state.get.mockImplementation(route);
 });
 
@@ -154,8 +157,14 @@ it('shows the changed mark with its business date and the history button only on
 it('opens the history newest first with the changer, reason and both sides, and loads more by cursor', async () => {
   history = (query) =>
     query.cursor
-      ? { data: { items: [change(2, 'first split')], next_cursor: null } }
-      : { data: { items: [change(3, 'Rana did the rinse')], next_cursor: 'next-page' } };
+      ? {
+          data: { items: [change(2, 'first split')], next_cursor: null },
+          response: { status: 200 },
+        }
+      : {
+          data: { items: [change(3, 'Rana did the rinse')], next_cursor: 'next-page' },
+          response: { status: 200 },
+        };
   renderPage();
   fireEvent.click(
     await screen.findByRole('button', { name: t('en', 'serviceLinePerformers.history') }),
@@ -314,4 +323,22 @@ it('closes with a notice when the stale refresh finds the line cancelled meanwhi
   expect(notice.getAttribute('role')).toBe('status');
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(await screen.findByText(t('en', 'serviceLineCancel.cancelled'))).toBeTruthy();
+});
+
+it('locks the page and drops the cached history on an empty-body 403 from the history read', async () => {
+  history = () => ({ error: '', response: { status: 403 } });
+  const client = renderPage();
+  expect(await screen.findByText('Service 20')).toBeTruthy();
+  fireEvent.click(historyButton());
+  await waitFor(() =>
+    expect(screen.getAllByRole('alert').map((node) => node.textContent)).toEqual([
+      `${t('en', 'admin.unexpected')} ${t('en', 'serviceLineEdit.retry')}`,
+    ]),
+  );
+  expect(screen.queryByText('Service 20')).toBeNull();
+  await waitFor(() =>
+    expect(
+      client.getQueryCache().findAll({ queryKey: ['service-line-performer-changes'] }),
+    ).toHaveLength(0),
+  );
 });

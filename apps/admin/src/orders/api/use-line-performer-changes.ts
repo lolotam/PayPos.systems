@@ -42,7 +42,12 @@ export function useLinePerformerChanges(
         },
         signal,
       });
-      if (result.error) throw { ...result.error, status: result.response.status };
+      // 401/403 بجسم فاضي لازم يقفل الصفحة زي الرفض العادي؛ من غير الحالة كان هيبان كخطأ قراءة عادي والأسامي تفضل.
+      if (result.error !== undefined || result.response.status >= 400) {
+        const envelope: object =
+          typeof result.error === 'object' && result.error !== null ? result.error : {};
+        throw { ...envelope, status: result.response.status };
+      }
       return serviceLinePerformerChangesPage.parse(result.data);
     },
     getNextPageParam: (last) => last.next_cursor ?? undefined,
