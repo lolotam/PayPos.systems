@@ -87,6 +87,7 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 | D-17 | **The engine moves to a new shared package, `packages/commissions-engine`** (CS-Q13 = PP-17.1): pure TypeScript whose only dependency is `packages/domain`, the same import rules as a module's `domain/` (CLAUDE.architecture.md §3.1), imported only by the `commissions` modules of `apps/api` and `apps/worker` (a `packages_restricted` entry in `docs/module-map.md`, enforced by the boundaries lint). 59-0 writes its ADR (a new package, CLAUDE.md §11) and the CLAUDE.md §2.1 / module-map rows; 48a-1 creates the package and moves the engine and its tests unchanged. ADR-0035 stands: commission kinds stay out of `packages/domain` | running the consumer in the api process; copying the engine into the worker |
 | D-18 | **The Excel export is a worker render** on the ADR-0049 transport (202 `{ render_id }`, poll, collect once, not stored), a new `kind` for the commission statement; the workbook is built with `exceljs` (already a dependency of `apps/api`), and generation over 200 ms never runs in a request (CLAUDE.md §6). An ADR-0049 addendum names the new kind | a synchronous download |
 | D-19 | **Money:** `numeric(14,3)` in Postgres, `bigint` mills in TypeScript, KWD strings on the wire (ADR-0035, ADR-0041 §4); one `roundKwd` per source inside the engine (SPEC §5.2, ADR-0005); every total is a plain sum of rounded sources and is never rounded again (`TODO(spec)` CS-Q12 for cash) | rounding a total |
+| D-20 | **Customer identity for the detail (CS-Q15):** the projection head keeps the event's `customer_id` (and `service_id`), and a line-sourced frozen statement row copies `line_id`, `session_id`, `service_id`, `customer_id` and `business_date`. The customer's **name is not copied**: it is read at display and export time through the customers reader bound at the root (D-16), by id. Commissions then stores no personal data beyond an opaque id, a name correction or an erasure in `customers` applies everywhere, and no phone is ever read or stored here (SPEC §4). The money and the identifiers stay frozen; only the displayed name follows `customers` | an immutable name snapshot at freeze (a second copy of personal data in commissions, out of reach of a later correction or erasure); resolving the line through orders (ADR-0041 §6 forbids commissions reading orders) |
 
 ## 3. Rules already settled (cited, not asked again)
 
@@ -156,7 +157,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 
 ### Story 4 — The projection and the estimate (50, P1)
 
-- **CM-14** A `ServiceSessionRecorded` with two lines, one shared 50/50 by سارة and هبة: one line head and three performer rows;
+- **CM-14** A `ServiceSessionRecorded` with two lines, one shared 50/50 by سارة and هبة: one line head (with the event's
+  `customer_id` and `service_id`, D-20) and three performer rows;
   `net_share` by `allocateLineShares` sums to the line's net; the consumer's mark is in the same transaction.
 - **CM-15** `ServiceSessionLinesAdded` projects only its new lines; an already-projected line is never projected twice.
 - **CM-16** `ServiceLineChanged` revision 2 (`PRICE_DISCOUNT_EDIT`) replaces the line's rows; delivered **before** the delayed
@@ -285,6 +287,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   only; the file has the card-tips and cash-tips columns (D-36) and never a phone (SPEC §4); every download is audited
   (who, when, business, period). Its sheets and which statuses can be exported: `TODO(spec)` CS-Q10. The detail rows carry the
   customer's **full name** (CS-Q15 = PP-17.3), never her phone.
+- **CM-55b** (D-20) Every line-sourced detail row of a frozen statement carries the `customer_id`, service and date copied at
+  approval; the export shows the customer's full name read by that id, never a phone; after the customer's name is
+  corrected in `customers`, a new export of the same frozen statement shows the corrected name and identical amounts.
 - **CM-56** The amounts in the file equal the frozen statement bit for bit (KWD, three decimals, as text-safe numbers).
 
 ### Story 12 — Reminders (56b, P2)
@@ -405,7 +410,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   approval are refused while any exists.
 - **FR-028** Permission: `read:commissions:business` for `GET` (CS-Q20 for a branch manager); `review:commissions:business`
   for `generate`. Detail rows show the customer's full name (CS-Q15 = PP-17.3), read through the customers reader bound at
-  the root (D-16); never a phone.
+  the root (D-16) from the `customer_id` the projection head (DRAFT/REVIEWED) or the frozen row (closed) holds (D-20); never
+  a phone.
 
 ### 52 — review-statement
 
@@ -432,6 +438,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   source, one `SALE` per `sale:<id>`, one `TIP_CARD`/`TIP_CASH` per `tip:<session>:<method>`, one line per received
   correction (its own id as source) of kind `CORRECTION` (commission and sale corrections), `CORRECTION_TIP_CARD` or
   `CORRECTION_TIP_CASH`, so the payable figure can be computed from the frozen kinds alone; zero amounts are frozen too, so the frozen set equals the fingerprinted set.
+  A line-sourced frozen row also copies the line's detail identifiers from the projection head (D-20), so the frozen
+  statement and its export never need orders or the live projection to say which visit, service and customer a row is.
 - **FR-034** Status APPROVED, `approved_by`, `approved_at`, `input_fingerprint`; audit `commission_statement.approved` (SPEC §1:
   the approval actor and time are in the audit log).
 - **FR-035** 53-1 delivers the ADR-0012 function, role, grants, policies and index with the six types of D-9 and its addendum;
@@ -549,12 +557,12 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 | `commission_statements` (48a) | `period char(7)`, `status`, `current_fingerprint`, `reviewed_fingerprint`, `reviewed_by`, `reviewed_membership_id`, `reviewed_at`, `input_fingerprint`, `approved_by`, `approved_at`, `paid_by`, `paid_at`, `paid_on date`, `paid_method`, `revision` | `UNIQUE (company_id, business_id, period)`; `CHECK` period format; FR-001 trigger; `SELECT, INSERT, UPDATE (status, …)` to `pospay_app` |
 | `commission_plan_versions` (48) | `employee_id`, `version`, `effective_from date`, `whole_period`, `repair_period char(7) NULL`, `plan jsonb`, `created_at`, `created_by` | `UNIQUE (company_id, employee_id, version)`; `CHECK NOT (whole_period AND repair_period IS NOT NULL)`; insert-only (`SELECT, INSERT`) |
 | `commission_service_overrides` (49) | `employee_id`, `service_id`, `rule_kind`, `rule_value`, `effective_from`, `created_at`, `created_by` | `CHECK` per kind (bps 0…10000, mills ≥ 0); index `(company_id, employee_id, service_id, effective_from)`; insert-only |
-| `commission_line_heads` (50) | `line_id`, `session_id`, `revision`, `status`, `business_date`, `period` | `UNIQUE (company_id, line_id)`; `SELECT, INSERT, UPDATE` |
+| `commission_line_heads` (50) | `line_id`, `session_id`, `service_id`, `customer_id`, `revision`, `status`, `business_date`, `period` | `UNIQUE (company_id, line_id)`; `SELECT, INSERT, UPDATE` |
 | `commission_lines` (50) | `line_id`, `employee_id`, `service_id`, `occurred_at`, `recorded_at`, `business_date`, `period`, `net`, `net_share`, `share_bps`, `rule_kind`, `rule_value`, `counts`, `status` | `UNIQUE (company_id, line_id, employee_id)`; index `(company_id, business_id, period, employee_id)`; `SELECT, INSERT, UPDATE, DELETE` (a projection, D-11) |
 | `commission_tip_heads` / `commission_tips` (50) | head: `session_id`, `revision`, `business_date`, `period`; rows: `session_id`, `employee_id`, `method`, `amount` | `UNIQUE (company_id, session_id)` / `UNIQUE (company_id, session_id, employee_id, method)`; projection grants |
 | `commission_salaries` (50) | `employee_id`, `effective_from`, `amount`, `revision` | `UNIQUE (company_id, employee_id, effective_from)`; projection grants; never logged (SPEC §12) |
 | `commission_sales` (50) | `sale_id`, `seller_employee_id NULL`, `business_date`, `period`, `price_paid`, `refunded_amount`, `status`, `revision` | `UNIQUE (company_id, sale_id)`; projection grants |
-| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `source_ref`, `kind`, `amount`, `source_period NULL` | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only; a trigger refuses an insert unless the statement is being approved in the same transaction |
+| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `source_ref`, `kind`, `amount`, `source_period NULL`, and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `customer_id`, `business_date` (NULL otherwise; D-20) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only; a trigger refuses an insert unless the statement is being approved in the same transaction |
 | `commission_period_generations` (55) | `employee_id`, `period`, `generation` | `UNIQUE (company_id, employee_id, period)`; `SELECT, INSERT, UPDATE (generation)` |
 | `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed), `generation`, `event_id`, `created_at` | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; index `(company_id, business_id, target_period)`; insert-only |
 | `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; `SELECT, INSERT, UPDATE (resolved_at, resolved_generation)` |
