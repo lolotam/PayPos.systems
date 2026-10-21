@@ -37,6 +37,7 @@
 | PP-23 | 2026-10-21 | PP-23.1 موظفة تابعة لفرعين في نفس الوقت: مين يشوف عمولتها («المديرتين الشهر كله (المقترح)»، CS-Q25)؛ PP-23.2 أسئلة الصلاحيات والتقنية على موقع القرارات، ولو اختلفوا اختيار مين يمشي («زي الفلوس: أبو سالم (المقترح)»، بند 21 هنا) | PP-23.1: `docs/specs/059-commissions-statements/owner-questions.ar.md` (PR #441)؛ PP-23.2: هنا |
 | PP-24 | 2026-10-21 | PP-24.1 مين يعلّم كشف العمولة «اتراجع» («اللي شايف النشاط بس (المقترح)»، CS-Q26؛ منشور كمان في دفعة 41 على الموقع) | `docs/specs/059-commissions-statements/owner-questions.ar.md` (PR #441) |
 | PP-25 | 2026-10-21 | PP-25.1 مين عنده صلاحية مراجعة كشف العمولة من الأول (CS-Q2b، `PENDING`)؛ PP-25.2 الـ 24 ساعة بتاعة موافقة الخصم بتبدأ من إمتى (DA-Q4b، `PENDING`). الاتنين منشورين كمان في دفعة 42 على الموقع | `docs/specs/059-commissions-statements/owner-questions.ar.md` (PR #441)، `docs/specs/057-orders-discount-approval/owner-questions.ar.md` (PR #466) |
+| PP-26 | 2026-10-21 | PP-26.1 المالك اللي وافق على خصم على شغله، يجيله هو كمان الجرس؟ (DA-Q10، `PENDING`؛ منشور كمان في دفعة 43 على الموقع) | `docs/specs/057-orders-discount-approval/owner-questions.ar.md` (PR #466) |
 
 ### 1. أسئلة المالك تروح فين؟ (PP-4.3)
 
