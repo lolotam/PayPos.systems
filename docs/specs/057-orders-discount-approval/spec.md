@@ -82,7 +82,7 @@ is quarantined; P2-T9); WhatsApp or email for the request (tenant outbound stays
 | D-7 | `EXPIRED` is **derived**, never written: a `PENDING` or `APPROVED` row whose `expires_at ≤ now` (injected clock, the fresh instant after every lock wait) reads and behaves as `EXPIRED`. No sweeper job | a status-writing job (one more writer to race the approver and the consumer) |
 | D-8 | Approval does not change the line row's limit columns: `limit_source` / `limit_bps_applied` stay the **recorder's** own (what she really had); the line gains a nullable `discount_proposal_id` and a deferred composite FK proves the proposal points back at it (§6) | a new `limit_source = 'APPROVAL'` (rewrites the `service_lines_limit` CHECK on a live table and hides the recorder's real limit) |
 | D-9 | (DA-Q6 ⭐) **PIN on the paired branch device**, ADR-0003 §4 path B: the device is already approved and bound to one branch; the PIN identifies the approver for **this one action**, opens no session and never opens `app.`. The PIN is verified by identity's existing facility (hash in `packages/auth`, Redis reservation and lockout: 5 failures → 15 min, D-08; an unknown holder is compared against the placeholder hash) **outside** the database transaction; the approval transaction then rechecks authority under locks | typing the manager's PIN into the receptionist's admin session (a PIN outside a paired device: any logged-in user could probe any manager's PIN and lock it; needs its own ADR) |
-| D-10 | The approver is identified on the device by **phone + PIN**, the shape of the existing staff PIN sign-in (`staffPinInput`, ADR-0019 user-held PIN). The approver's authority is that user's memberships **filtered to scopes covering the device's branch** (ADR-0003 path B); DENY wins | picking a name from a list (it would list every manager on a shared tablet) |
+| D-10 | The approver is identified on the device by **phone + PIN**, the shape of the existing staff PIN sign-in (`staffPinInput`, `SignInStaffPin`): the phone resolves to a user through auth's **approved global phone binding** (`candidate(phone)`; a binding is a platform-reviewed operation, `approvePhoneBinding`, ADR-0019), then that user's PIN record (`cashier_pins` user holder, set through `staff-pins/reset`) is compared under the same reservation/lockout. Only the lookup, compare and counters are reused: **no** staff session is issued and `login:staff:branch` eligibility is not required. The approver's authority is that user's memberships **filtered to scopes covering the device's branch** (ADR-0003 path B); DENY wins. **Prerequisite:** an approver needs both an approved phone binding and a PIN (§9, DA-Q6) | picking a name from a list (it would list every manager on a shared tablet) |
 | D-11 | Remote approval (row 40) is an ordinary admin user session with `approve:discounts:branch` on the proposal's branch; the approver membership is chosen like 35a's recorder (optional `approver_membership_id`; one eligible picked automatically; several → `DISCOUNT_APPROVER_MEMBERSHIP_REQUIRED`; never the highest limit) | the principal-wide limit (a membership without the grant would lend its higher limit, 35d D-9) |
 | D-12 | Reject is allowed by the same authority on both channels, with an optional reason (≤ 500 characters, trimmed) shown to the requester; a rejected proposal is final | requiring a reason (slows a manager at the till; nothing moves money on a reject) |
 | D-13 | A consumption failure inside a create/append is an **above-limit** refusal of that line under SS-Q6 (the line returns for editing with `approval_refusal`), never a whole-request 403, so the other lines still save (SS-26). A proposal id that is unknown, foreign, of another branch or of another requester returns the same `NOT_FOUND` refusal (no oracle) | rolling back the whole visit for one stale approval (contradicts SS-Q6) |
@@ -139,8 +139,9 @@ second branch manager who also performs services.
   membership, `via = PIN`, `approved_device_id`, `approved_limit_source/bps`, `expires_at = approved_at + 15 min`
   (DA-Q4 ⭐); one audit entry per proposal.
 - **DP-10** Wrong PIN → 401 `PIN_INVALID`, nothing changes; the fifth failure → 423 `PIN_LOCKED` for 15 minutes; five
-  comparisons in flight → 429 `TOO_MANY_REQUESTS` (the facility's existing outcomes). An unknown phone behaves like a
-  wrong PIN (same code and timing).
+  comparisons in flight → 429 `TOO_MANY_REQUESTS` (the facility's existing outcomes). A phone with no approved binding,
+  or a bound user with no PIN, is compared against the placeholder hash and counted on its own per-phone counter
+  (`pinCounterKey`), so it answers `PIN_INVALID` with the same timing as a wrong PIN.
 - **DP-11** A proposal of another branch, a device of another branch, an unpaired or revoked device → uniform 403.
 - **DP-12** The PIN holder has the permission only at another branch → uniform 403 (path B filters to the device's
   branch).
@@ -401,8 +402,11 @@ open PR on those files.
 - All answers marked ⭐ are assumed until the owners answer; each is confined to the FR it names, so a different pick
   changes one rule, not the design (DA-Q6 is the exception: a PIN on the admin reception computer needs a different
   ADR and replaces 057-7 and 057-8b).
-- The approver must already have a PIN set by a manager (`POST /v1/staff-pins/reset`, `manage:memberships:company`, ADR-0019);
-  this spec adds no PIN enrollment.
+- (DA-Q6 ⭐) A PIN approver needs **two** things this spec does not create: an **approved global phone binding** (a
+  platform operation, `approvePhoneBinding`, ADR-0019; there is no tenant endpoint for it today) and a PIN set by a
+  manager (`POST /v1/staff-pins/reset`, `manage:memberships:company`). Owners and admin-only managers sign in with
+  email + TOTP and may have neither; until both exist for them they can approve **remotely** (row 40) only. Adding a
+  tenant-side binding or enrollment flow is out of scope and would need its own decision.
 - Shares are outside the terms (D-2): a share change between approval and saving keeps the approval valid; a
   performer change voids it.
 - Bell wording, the device list columns and the 20-line request size follow existing patterns; changing them needs no
