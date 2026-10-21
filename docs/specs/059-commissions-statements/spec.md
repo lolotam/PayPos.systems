@@ -344,8 +344,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   job the same day sends nothing new (ledger, SPEC §11 "reminders on the 3rd and 5th"). Never a lock (D-54).
 - **CM-57c** A quiet business (no session, plan or generate in October) still gets its reminder on 3 November: the job
   creates October's DRAFT statement, writes the ledger row and the events in one transaction; a rerun that day adds
-  nothing. If Redis lost that quiet company's scheduler, the next worker start (or the daily reconcile) registers it again
-  and the 3 November reminder is still sent.
+  nothing. If Redis is lost (its `run_id` changes or the sentinel key disappears), `/ready` turns degraded and the
+  `COMMISSION_REMINDER_SCHEDULES_LOST` alert is raised; after the runbook's `CompanyCreated` replay the quiet company's
+  scheduler exists again and the 3 November reminder is sent.
 - **CM-57b** A company created after the release gets its scheduler from `CompanyCreated`; a company whose Redis schedule
   was lost gets it back on the next commission input delivery; an existing company gets it from the operator replay.
 - **CM-58** (CS-Q16 = PP-17.4) On the 3rd, in the same 09:00 run as the owner's reminder, if October is still DRAFT one
@@ -599,12 +600,14 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-053** Discovery follows ADR-0037: a worker `commissions` consumer of `CompanyCreated` upserts the BullMQ job scheduler
   `commissions-statement-reminders-<companyId>` (hourly, job data `{ companyId }` only, outside any transaction); every
   `commissions.project-inputs` delivery upserts the same scheduler (repair of a lost Redis schedule); existing companies get a
-  one-time controlled operator replay of `CompanyCreated` after the worker rolls out (runbook). **Reconcile, so a quiet
-  company is never lost:** at every worker start and once a day, one global job (fixed scheduler id, upserted at start, so
-  it cannot stay lost) lists the active company ids through a narrow company-id reader (a `SECURITY DEFINER` function
-  that returns only `companies.id`, the ADR-0012 pattern, recorded in 59-0's ADR with its grants and tests; no tenant
-  data) and upserts the per-company scheduler of every company that lacks one. A company with no commission input at all
-  therefore gets its scheduler back even when Redis lost it. The job reads the
+  one-time controlled operator replay of `CompanyCreated` after the worker rolls out (runbook). **A lost Redis is
+  detected, then recovered by the operator:** (1) _detection_: the worker's existing heartbeat watches Redis; when Redis's
+  `run_id` changes or the fixed sentinel key this module writes at start-up is missing, `/ready` reports degraded and one
+  operational alert with a fixed code (`COMMISSION_REMINDER_SCHEDULES_LOST`) is raised; this check needs no company list.
+  (2) _recovery_: the runbook's Redis-restore procedure gains a **mandatory** step, the same controlled operator replay of
+  `CompanyCreated` used at rollout, which re-registers every company's scheduler, a quiet company's included. **No worker
+  read spans all companies** (CLAUDE.md §5 allows only the outbox dispatcher to); an automatic repair without an operator
+  would need such a read and therefore an ADR and Waleed's approval before it is built. The job reads the
   company's businesses and their timezones under `withTenant` through the tenancy reader bound at the root (D-16) and,
   for each business whose local time has passed 09:00 (CS-Q17 = PP-17.5), emits `StatementAwaitingApproval` on
   the 3rd and the 5th for the previous month while it is not APPROVED or PAID. For each business, in **one** transaction, the
@@ -753,7 +756,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 
 | PR | Result | Subtasks | Blocked on | Size |
 | --- | --- | --- | --- | --- |
-| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1), the reminder reconcile's company-id reader (FR-053) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9), ADR-0049 addendum (binary output contract and the xlsx kind, D-18) | this spec; design advisors | 150–250 |
+| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9), ADR-0049 addendum (binary output contract and the xlsx kind, D-18) | this spec; design advisors | 150–250 |
 | **48a-1** | `packages/commissions-engine` (D-17) | 1. Package scaffold, `packages/domain` its only dependency, and the browser-safe `validation` entry point. 2. Move the engine and its tests unchanged. 3. Rewire the api imports; the boundaries rule (only the `commissions` modules may import it) and the module-map check | 59-0 | 150–300 (moves) |
 | **48a-2** | Statements and the lock | 1. `commission_statements` + RLS + grants + FR-001 trigger + negative tests. 2. `lockStatementPeriods` + typed errors. 3. Lock tests CM-01…CM-04 and the FR-004 check | 48a-1 | 300–420 |
 | **48-1** | Plan storage and contracts | 1. Zod contracts and OpenAPI. 2. `commission_plan_versions` + RLS. 3. The plan permission (CS-Q1) and its role defaults | 48a-2; CS-Q1 | 250–380 |
@@ -779,7 +782,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **54-1** | Mark paid | 1. The payment columns on `commission_statements` in the shape CS-Q6 decides (expand-only migration, grants), the use case + HTTP. 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
 | **56-0** | Binary documents in the worker (D-18) | 1. Generalize the source/processor contract: a source returns HTML for the PDF renderer or bytes with a MIME type; no HTML → PDF step for bytes. 2. The xlsx MIME type, the 8 MiB cap (`DOCUMENT_TOO_LARGE`), the same Redis store and collect-once reply with the source's MIME type. 3. Tests: a bytes source never reaches the renderer, the cap, collect-once, the PDF kinds unchanged | 59-0's ADR-0049 addendum | 200–320 |
 | **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-55e, CM-56, CM-R10 | 53-2, **56-0**; CS-Q10, CS-Q12, CS-Q23 | 350–480 |
-| **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the start-up and daily reconcile over the company-id reader, the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
+| **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the Redis-loss detection (heartbeat, `/ready` degraded, alert) and the runbook's mandatory `CompanyCreated` replay step, the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
 
 **Deferred — «with the customer-erasure feature» (D-21, CS-Q21 = PP-20.2).** Not a sub-PR of this slice; it ships with the
 feature that erases a customer, which Phase 1 does not have. It must decide and deliver together: the erasure use case in
