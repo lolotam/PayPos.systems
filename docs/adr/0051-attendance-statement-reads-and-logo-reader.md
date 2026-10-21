@@ -104,8 +104,10 @@ checked when the request was made, and the stored permission of a settings file 
 ### 4. The template stays inside the documents boundary
 
 `packages/documents` may be imported only by `apps/worker/src/main.ts` and `apps/worker/src/documents/` (module map,
-ADR-0049 §5). So the worker `staff` module returns **typed data** (`attendanceStatementDocument`, Zod in
-`packages/contracts`), not HTML. The template lives in `packages/documents/src/templates/attendance-statement.ts`, and
+ADR-0049 §5). So the worker `staff` module returns **typed data**, not HTML: its internal result
+`AttendanceStatementData` (the statement data plus `businessId`, `requesterUserId` and `logoFileId`, which the source
+needs only to call `readStatementLogo`). The source then builds the template input `attendanceStatementDocument` (Zod in
+`packages/contracts`) from the statement data and the logo, `{ content_type, base64 }` or `null`, with no user id. The template lives in `packages/documents/src/templates/attendance-statement.ts`, and
 `apps/worker/src/documents/sources/attendance-statement.source.ts` turns the data into HTML. `main.ts` builds that
 source with the worker `staff` reader and the worker `files` `readStatementLogo` injected (so `sources/` imports no
 module index) and registers it for the kind `attendance-statement`. A business module still never imports `packages/documents`.

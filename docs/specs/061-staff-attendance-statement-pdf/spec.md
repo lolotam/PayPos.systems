@@ -236,8 +236,11 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   `apps/worker/src/modules/staff/index.ts`) runs one `withTenant(companyId, …, { userId: requested_by })` transaction that
   reads the request row, the business and branch names, the employees with `employee_number`, the period inputs through
   the shared 27b inputs statement (ADR-0051 §2), the employee's OPEN sessions in the period for the employee form
-  (FR-011a) and the stored identity (ADR-0051 §2); it returns the request row's `logo_file_id` untouched and never
-  calls `files`. It commits, then computes the figures with `packages/domain` and returns. No transaction is open while
+  (FR-011a) and the stored identity (ADR-0051 §2), and never calls `files`. It commits, then computes the figures with
+  `packages/domain` and returns its internal result `AttendanceStatementData` (a TypeScript type exported from the
+  worker `staff` index, not a contract): `businessId`, `requesterUserId` (the request row's `requested_by`),
+  `logoFileId` (the request row's `logo_file_id`, untouched, or `null`) and `statement`, the statement data without a
+  logo (FR-014). No transaction is open while
   Chromium runs (spec 056 FR-003).
 - **FR-011a** The 27b inputs statement leaves OPEN sessions out (`s.status<>'OPEN'` in
   `attendance-monthly-report.query.ts`, AB-Q9g), and it stays unchanged so the report and the branch statement keep the
@@ -252,9 +255,12 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   in branch-local time, starts and ends at the pair; on such a date the counted sessions are those the 27b rules
   attribute to the matching shift (on a split-shift day, the other shift's sessions are left out). Each has exhaustive
   unit tests, including a parity test that a full calendar month with no shift filter gives the 27b row.
-- **FR-014** The data the staff reader returns is a Zod schema in `packages/contracts` (`attendanceStatementDocument`),
-  validated by the source before it formats it for the template (ADR-0049 §2.2). It carries names, numbers, dates, minutes and the logo as `{ content_type, base64 }`
-  or `null`; never a phone, salary, IBAN or user id.
+- **FR-014** The template's input is a Zod schema in `packages/contracts` (`attendanceStatementDocument`). The source
+  builds it, after the two calls of FR-010, from the reader's `statement` (FR-011) and the `readStatementLogo` result
+  encoded as `logo: { content_type, base64 }`, or `logo: null` when `logoFileId` is `null` or the logo reader returned
+  `null`; it validates it before it formats it for the template (ADR-0049 §2.2). It carries names, numbers, dates,
+  minutes and the logo; never a phone, salary, IBAN or user id. `businessId`, `requesterUserId` and `logoFileId` stay
+  in `AttendanceStatementData`, used only to call `readStatementLogo`, and never reach the template or the PDF.
 - **FR-015** The template (`packages/documents/src/templates/attendance-statement.ts`) uses the 056 `html` kit and base
   layout only: escaped interpolation, `raw()` only for the logo data URI it builds, logical CSS, `<bdi>` around Latin
   runs in Arabic, the table header repeated on every printed page, hours as h:mm (AB-Q9d), dates in the Gregorian
