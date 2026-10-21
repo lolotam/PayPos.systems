@@ -195,7 +195,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-23c** (CS-Q23 = PP-21.2) سارة is transferred from السالمية to حولي on 15 October: in ليلى's session (السالمية) the
   estimate, the statement view and the export show only سارة's 1–14 October lines, tips and sales at السالمية; in هند's
   session (حولي) only her 15–31 October ones at حولي; neither sees the other part, each subtotal is labelled partial, and
-  the business manager sees the whole month with its full total.
+  the business manager sees the whole month with its full total. **After approval** the same split holds on the closed
+  statement and in its export, read only from the frozen `source_branch_id` / `source_business_date` columns: ليلى sees
+  only the السالمية part (corrections of السالمية lines included), هند only the حولي part, even if the projection or the
+  branch links change after approval.
 - **CM-23b** (CS-Q20 = PP-20.1) ليلى, branch manager of السالمية, reads October: she sees سارة (attached to السالمية) with
   her full-month commission, including a line she performed in حولي, and does not see رنا (attached to حولي only); the
   business manager sees both; the export as ليلى contains سارة only.
@@ -348,7 +351,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   creates October's DRAFT statement, writes the ledger row and the events in one transaction; a rerun that day adds
   nothing. If Redis is lost (its `run_id` changes or the sentinel key disappears), `/ready` turns degraded and the
   `COMMISSION_REMINDER_SCHEDULES_LOST` alert is raised; after the runbook's `CompanyCreated` replay the quiet company's
-  scheduler exists again and the 3 November reminder is sent.
+  scheduler exists again and the 3 November reminder is sent. **Worker down during the loss:** Redis is emptied while the
+  worker is stopped; on start the worker finds no sentinel, opens the `operational_recovery_flags` row before writing the
+  sentinel, reports degraded and raises the alert; a second restart keeps the flag and the alert; only the operator's
+  confirmation after the replay clears it, and `/ready` is healthy again.
 - **CM-57b** A company created after the release gets its scheduler from `CompanyCreated`; a company whose Redis schedule
   was lost gets it back on the next commission input delivery; an existing company gets it from the operator replay.
 - **CM-58** (CS-Q16 = PP-17.4) On the 3rd, in the same 09:00 run as the owner's reminder, if October is still DRAFT one
@@ -507,6 +513,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   **Every** frozen row also stores the employee's label as read in the approval transaction through
   `EmployeeDirectoryPort` (staff, ADR-0010): `employee_number` (row 8c), `employee_name_ar`, `employee_name_en`, so a later
   rename or renumbering of the employee never changes an approved statement or its export (D-20).
+  **Every** frozen row (except `EMPLOYEE`) also stores `source_branch_id` and `source_business_date`: the branch and the
+  business date of the original line, sale or tip, copied from the projection at freeze; a `CORRECTION` row copies them from
+  its correction, which took them from the line, sale or tip it corrects. They never change after insert. A closed
+  statement's branch filter (CS-Q20, CS-Q23) and its export read **only** these frozen columns, never the live projection.
   A line-sourced frozen row also copies the line's detail identifiers from the projection head and the customer and
   service names read in the same transaction (D-20), so the frozen statement and its export never need orders, the live
   projection or a live name to say which visit, service and customer a row is.
@@ -530,7 +540,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `commission_period_generations` → recompute the month with current inputs (D-1) → for every source of that employee in
   the month (union of frozen, previously corrected and newly computed sources) post `delta = new − (frozen + corrections
   already posted)` when non-zero → into the target of D-13, rechecked under its lock (SPEC §6).
-- **FR-040** `commission_corrections` is insert-only, `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`,
+- **FR-040** `commission_corrections` is insert-only and every row carries the `source_branch_id` and `source_business_date`
+  of the line, sale or tip it corrects (copied when posted, never changed); `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`,
   with `kind` `COMMISSION | SALE | TIP_CARD | TIP_CASH` (SPEC §6's kind TIP, split by method because the two are paid
   differently, D-36), the signed amount, the target month and statement, and the event id.
 - **FR-041** Tips: a newer `SessionTipsChanged` for a closed month posts `TIP_CARD` or `TIP_CASH` corrections per
@@ -603,9 +614,17 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `commissions-statement-reminders-<companyId>` (hourly, job data `{ companyId }` only, outside any transaction); every
   `commissions.project-inputs` delivery upserts the same scheduler (repair of a lost Redis schedule); existing companies get a
   one-time controlled operator replay of `CompanyCreated` after the worker rolls out (runbook). **A lost Redis is
-  detected, then recovered by the operator:** (1) _detection_: the worker's existing heartbeat watches Redis; when Redis's
-  `run_id` changes or the fixed sentinel key this module writes at start-up is missing, `/ready` reports degraded and one
-  operational alert with a fixed code (`COMMISSION_REMINDER_SCHEDULES_LOST`) is raised; this check needs no company list.
+  detected, then recovered by the operator:** (1) _detection_: at start-up the worker **checks the fixed sentinel key before
+  writing it**, and while running its existing heartbeat watches Redis's `run_id` and the sentinel. A missing sentinel at
+  start-up (Redis lost while the worker was down, or a first deploy) or a changed `run_id` or vanished sentinel while
+  running raises a durable **needs-recovery** flag **outside Redis**: one row in a global operational table
+  `operational_recovery_flags` (`code` primary key, `raised_at`, `cleared_at`, `cleared_by`), keyed
+  `COMMISSION_REMINDER_SCHEDULES_LOST`. The table holds no company data, so it is not a tenant table and reads no tenant
+  (CLAUDE.md §5's rule is about tenant data; this is classified in 59-0's ADR like the other global tables, ADR-0003, with
+  `SELECT, INSERT, UPDATE` on that table only); the outbox is not used because it is per company and would need a tenant.
+  While the flag is open, `/ready` reports degraded and the alert with that fixed code is raised on every start; only
+  then does the worker write the sentinel. The flag is cleared **only** by the operator's audited confirmation command
+  after the `CompanyCreated` replay, never by a restart; this check needs no company list.
   (2) _recovery_: the runbook's Redis-restore procedure gains a **mandatory** step, the same controlled operator replay of
   `CompanyCreated` used at rollout, which re-registers every company's scheduler, a quiet company's included. **No worker
   read spans all companies** (CLAUDE.md §5 allows only the outbox dispatcher to); an automatic repair without an operator
@@ -667,9 +686,9 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 | `commission_tip_heads` / `commission_tips` (50) | head: `session_id`, `branch_id`, `revision`, `business_date`, `period`; rows: `session_id`, `employee_id`, `method`, `amount` | `UNIQUE (company_id, session_id)` / `UNIQUE (company_id, session_id, employee_id, method)`; projection grants |
 | `commission_salaries` (50) | `employee_id`, `effective_from`, `amount`, `revision` | `UNIQUE (company_id, employee_id, effective_from)`; projection grants; never logged (SPEC §12) |
 | `commission_sales` (50) | `sale_id`, `branch_id`, `seller_employee_id NULL`, `business_date`, `period`, `price_paid`, `refunded_amount`, `status`, `revision` | `UNIQUE (company_id, sale_id)`; projection grants |
-| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `employee_number`, `employee_name_ar`, `employee_name_en` (the label frozen at approval), `source_ref`, `kind`, `amount`, `source_period NULL`, and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only (the erasure exception of D-21 is added by the deferred customer-erasure item, not here); a trigger refuses an insert unless the statement is being approved in the same transaction |
+| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `employee_number`, `employee_name_ar`, `employee_name_en` (the label frozen at approval), `source_ref`, `kind`, `amount`, `source_period NULL`, the **source's** `source_branch_id` and `source_business_date` (copied at freeze from the projection for a line, a sale or a tip, and from the correction row for a correction; NULL only on the `EMPLOYEE` row), and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only (the erasure exception of D-21 is added by the deferred customer-erasure item, not here); a trigger refuses an insert unless the statement is being approved in the same transaction |
 | `commission_period_generations` (55) | `employee_id`, `period`, `generation` | `UNIQUE (company_id, employee_id, period)`; `SELECT, INSERT, UPDATE (generation)` |
-| `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed), `generation`, `event_id`, `created_at` | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; index `(company_id, business_id, target_period)`; insert-only |
+| `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed), `generation`, `event_id`, `created_at`, `source_branch_id`, `source_business_date` (the branch and business date of the line, sale or tip it corrects, copied from the projection when it is posted) | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; index `(company_id, business_id, target_period)`; insert-only |
 | `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; `SELECT, INSERT, UPDATE (code, resolved_at, resolved_generation)`; a trigger allows `code` to change (`NO_PLAN` ↔ `NO_SALARY`) only on an open row and refuses any change to a resolved row |
 | `commission_statement_returns` (52) | `statement_id`, `returned_by`, `returned_membership_id`, `reason`, `returned_at` | `CHECK` reason 1…500 trimmed; insert-only; reason never logged |
 | `commission_statement_exports` (56) | `render_id`, `statement_id`, `period`, `requested_by`, `requested_membership_id`, `scope` (`BUSINESS` / `BRANCH`), `branch_id NULL`, `employee_ids uuid[] NULL` (the branch-filtered set), `requested_at`, `collected_at NULL` | `UNIQUE (company_id, render_id)`; `CHECK` (`scope = 'BRANCH'`) = (`branch_id` and `employee_ids` not null); `SELECT, INSERT, UPDATE (collected_at)` |
@@ -763,7 +782,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 
 | PR | Result | Subtasks | Blocked on | Size |
 | --- | --- | --- | --- | --- |
-| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9), ADR-0049 addendum (binary output contract and the xlsx kind, D-18) | this spec; design advisors | 150–250 |
+| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1), the global `operational_recovery_flags` table and its grants (FR-053) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9), ADR-0049 addendum (binary output contract and the xlsx kind, D-18) | this spec; design advisors | 150–250 |
 | **48a-1** | `packages/commissions-engine` (D-17) | 1. Package scaffold, `packages/domain` its only dependency, and the browser-safe `validation` entry point. 2. Move the engine and its tests unchanged. 3. Rewire the api imports; the boundaries rule (only the `commissions` modules may import it) and the module-map check | 59-0 | 150–300 (moves) |
 | **48a-2** | Statements and the lock | 1. `commission_statements` + RLS + grants + FR-001 trigger + negative tests. 2. `lockStatementPeriods` + typed errors. 3. Lock tests CM-01…CM-04 and the FR-004 check | 48a-1 | 300–420 |
 | **48-1** | Plan storage and contracts | 1. Zod contracts and OpenAPI. 2. `commission_plan_versions` + RLS. 3. The plan permission (CS-Q1) and its role defaults | 48a-2; CS-Q1 | 250–380 |
@@ -789,7 +808,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **54-1** | Mark paid | 1. The payment columns on `commission_statements` in the shape CS-Q6 decides (expand-only migration, grants), the use case + HTTP. 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
 | **56-0** | Binary documents in the worker (D-18) | 1. Generalize the source/processor contract: a source returns HTML for the PDF renderer or bytes with a MIME type; no HTML → PDF step for bytes. 2. The xlsx MIME type, the 8 MiB cap (`DOCUMENT_TOO_LARGE`), the same Redis store and collect-once reply with the source's MIME type. 3. Tests: a bytes source never reaches the renderer, the cap, collect-once, the PDF kinds unchanged | 59-0's ADR-0049 addendum | 200–320 |
 | **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-55e, CM-56, CM-R10 | 53-2, **56-0**; CS-Q10, CS-Q12 | 350–480 |
-| **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the Redis-loss detection (heartbeat, `/ready` degraded, alert) and the runbook's mandatory `CompanyCreated` replay step, the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
+| **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the Redis-loss detection (start-up sentinel check before write, heartbeat, the `operational_recovery_flags` table and its operator clear command, `/ready` degraded, alert) and the runbook's mandatory `CompanyCreated` replay step, the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
 
 **Deferred — «with the customer-erasure feature» (D-21, CS-Q21 = PP-20.2).** Not a sub-PR of this slice; it ships with the
 feature that erases a customer, which Phase 1 does not have. It must decide and deliver together: the erasure use case in
