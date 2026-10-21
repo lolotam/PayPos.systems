@@ -39,8 +39,8 @@ export const requestDiscountApprovalInput = z.strictObject({
 }).refine((input) => input.session_id === undefined || input.occurred_at === undefined, {
   path: ['occurred_at'],
 }).meta({ id: 'RequestDiscountApprovalInput' });
-// FR-010 (DA-Q4b): expires_at دايمًا لحظة مش NULL: الطلب بيكتبها requested_at + 24 ساعة،
-// والموافقة بتعيدها decided_at + 24 ساعة، والرفض بيخليها زي ما الطلب كتبها.
+// FR-010 (DA-Q4b): expires_at دايمًا لحظة مش NULL: الطلب بيكتبها requested_at + 24 ساعة
+// ومرة واحدة بس، والموافقة والرفض الاتنين بيخلّوها زي ما هي.
 export const requestedDiscountProposal = responseObject({
   id, input_index: inputIndex, status: discountProposalStatus, expires_at: timestamp,
   effective_bps: effectiveBps, terms_hash: termsHash,

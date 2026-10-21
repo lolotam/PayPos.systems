@@ -1149,6 +1149,13 @@
       "when": 1792582059309,
       "tag": "0165_2026-10-21_alert-rules",
       "breakpoints": true
+    },
+    {
+      "idx": 166,
+      "version": "7",
+      "when": 1792617054108,
+      "tag": "0166_2026-10-21_discount-proposal-expiry-immutable",
+      "breakpoints": true
     }
   ]
 }
