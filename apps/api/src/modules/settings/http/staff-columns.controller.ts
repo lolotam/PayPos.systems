@@ -7,7 +7,7 @@ import {
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 
-import { Require } from '../../../shared/access.decorators.ts';
+import { Require, RequireAny } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
@@ -27,7 +27,8 @@ export class StaffColumnsController {
   ) {}
 
   @Get()
-  @Require('read:settings:business', { business: 'businessId' })
+  // القراءة مقبولة بصلاحية القراءة أو بصلاحية الإدارة (MY-Q10، PP-27.1).
+  @RequireAny(['read:settings:business', 'manage:settings:business'], { business: 'businessId' })
   async read(
     @Param('businessId') businessId: string,
     @Req() request: FastifyRequest,

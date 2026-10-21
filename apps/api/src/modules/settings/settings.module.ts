@@ -55,9 +55,12 @@ export function settingsProviders(
     {
       provide: ReplaceStaffColumns,
       useValue:
-        database === undefined
+        database === undefined || redis === undefined
           ? null
-          : new ReplaceStaffColumns(createStaffColumnsTransactions(database, ids)),
+          : new ReplaceStaffColumns(
+              createStaffColumnsTransactions(database, ids),
+              createRedisSettingsCache(redis, ids),
+            ),
     },
   ];
 }

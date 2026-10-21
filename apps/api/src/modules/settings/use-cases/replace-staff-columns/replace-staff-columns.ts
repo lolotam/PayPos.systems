@@ -13,6 +13,7 @@ import type {
   StaffColumnsTransactions,
   StoredStaffColumns,
 } from '../../ports/staff-columns-settings.port.ts';
+import type { SettingsCache } from '../../ports/settings.port.ts';
 
 /**
  * The response every caller of the setting sees: what the "my" reads apply, and whether it is the default.
@@ -37,9 +38,11 @@ export function staffColumnsView(
 // المدير بيستبدل أعمدة تطبيق الموظفات وعدد الشهور، وكل قيمة اتغيرت ليها سطر audit في نفس المعاملة (MY-18، D-A14).
 export class ReplaceStaffColumns {
   readonly #transactions: StaffColumnsTransactions;
+  readonly #cache: SettingsCache;
 
-  constructor(transactions: StaffColumnsTransactions) {
+  constructor(transactions: StaffColumnsTransactions, cache: SettingsCache) {
     this.#transactions = transactions;
+    this.#cache = cache;
   }
 
   /**
@@ -70,7 +73,7 @@ export class ReplaceStaffColumns {
       columns: input.columns === null ? null : canonicalStaffColumns(input.columns),
       monthsBack: input.months_back,
     };
-    return this.#transactions.run(command, async (scope) => {
+    const view = await this.#transactions.run(command, async (scope) => {
       const before = await scope.lock(businessId);
       // الأعمدة مجموعة مش ترتيب: تكرار نفس الأعمدة بترتيب تاني مش تغيير، فمفيش كتابة ولا سطر audit.
       if (sameStaffColumns(before.columns, next.columns) && before.monthsBack === next.monthsBack) {
@@ -97,5 +100,8 @@ export class ReplaceStaffColumns {
       }
       return staffColumnsView(businessId, after);
     });
+    // الإبطال بعد كل طلب نجح، حتى لو الأعمدة ما تغيّرتش: إعادة المحاولة بعد سقوط Redis لازم تمسح الجيل القديم.
+    await this.#cache.invalidate(command.companyId, businessId);
+    return view;
   }
 }
