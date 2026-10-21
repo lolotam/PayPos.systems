@@ -74,10 +74,10 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 | --- | --- | --- |
 | D-1 | **The engine is reused unchanged** except two additions: the period-scoped repair version (D-12) and the tips/corrections assembly around `computePeriod` (tips and corrections are not priced; they pass through). `computePeriod` stays the only pricing function | re-implementing any pricing in the consumer, the estimate or the screen |
 | D-2 | **One statement per business and calendar month** (SPEC §4 `Statement business_id · period`, D-17); its lines are per employee. Review, approval and payment act on the whole statement | per-employee statements (not in SPEC §4) |
-| D-3 | **One lock helper** in `packages/db` (`lockStatementPeriods`): it creates the statement row of a period if absent (`INSERT … ON CONFLICT DO NOTHING`), then takes `SELECT … FOR UPDATE` on the rows of the requested periods **in ascending period order**, and returns their status. Every writer of a period's inputs (the consumer, plan versions, overrides, period repair) and every status change (review, approve, pay) goes through it. A closed period refused by a writer raises the typed `StatementPeriodClosedError` (CLAUDE.md §5, PP-7.2) | an advisory lock (no row to recheck status on); a helper per module (the API and the worker both write periods) |
+| D-3 | **One lock helper** in `packages/db` (`lockStatementPeriods`): it creates the statement row of a period if absent (`INSERT … ON CONFLICT DO NOTHING`, with an id from the caller's injected `IdGenerator`, UUID v7, CLAUDE.md §4.3; the table has no id default), then takes `SELECT … FOR UPDATE` on the rows of the requested periods **in ascending period order**, and returns their status. Every writer of a period's inputs (the consumer, plan versions, overrides, period repair) and every status change (review, approve, pay) goes through it. A closed period refused by a writer raises the typed `StatementPeriodClosedError` (CLAUDE.md §5, PP-7.2) | an advisory lock (no row to recheck status on); a helper per module (the API and the worker both write periods) |
 | D-4 | **The estimate is never stored** (SPEC §6). `generate-statement` persists only the statement row and its current fingerprint; statement lines are written **once**, frozen, by approval. The estimate and the DRAFT/REVIEWED view are the engine run on read over the projection | a stored DRAFT result that could drift from its inputs |
-| D-5 | **Any applied input change returns a REVIEWED statement to DRAFT** under its lock (clears `reviewed_*`), in the same transaction as the change; approval additionally recomputes the fingerprint under the lock and compares it with `reviewed_fingerprint` | comparing hashes only at approval (the screen would show "reviewed" for a statement that is no longer what was reviewed) |
-| D-6 | **The fingerprint** is SHA-256 over the canonical JSON (`packages/db` `canonicalJson`) of the period's ordered inputs for the business (§6 _Fingerprint_). The ordered input set is built by a pure domain function; the hashing is an injected port (`domain/` imports nothing, CLAUDE.architecture.md §3.1) | hashing inside `domain/`; a counter (does not detect a writer that forgot to bump it) |
+| D-5 | **Any applied input change returns a REVIEWED statement to DRAFT** under its lock (clears `reviewed_*`), in the same transaction as the change; approval additionally recomputes the input fingerprint under the lock and compares it with `reviewed_fingerprint`, and after the freeze compares the statement fingerprint of the frozen rows with `reviewed_statement_fingerprint` (D-6) | comparing hashes only at approval (the screen would show "reviewed" for a statement that is no longer what was reviewed) |
+| D-6 | **Two fingerprints**, each SHA-256 over the canonical JSON (`packages/db` `canonicalJson`) (§6 _Fingerprint_). The **input fingerprint** (`current_fingerprint`, `reviewed_fingerprint`, `input_fingerprint`, the `expected_fingerprint` of the requests) hashes the period's ordered inputs; it is what a writer's change moves. The **statement fingerprint** (`reviewed_statement_fingerprint`, `statement_fingerprint`) hashes the rows approval freezes, built by **one** pure builder that the review and the freeze both use: review hashes the rows the builder would freeze, approval re-reads the rows it froze and hashes them in the same canonical shape. The frozen rows cannot reproduce the input fingerprint (they hold no revisions, rule snapshots, salary or plans), so the post-freeze check compares statement fingerprints only. Both input sets and the builder are pure functions; the hashing is an injected port (`domain/` imports nothing, CLAUDE.architecture.md §3.1) | one fingerprint for both (the frozen rows cannot reproduce the inputs, so every real approval would be refused, or the check would hash something other than what was reviewed); hashing inside `domain/`; a counter (does not detect a writer that forgot to bump it) |
 | D-7 | **The estimate and statement views are read-only use cases**, not `queries/` files, because they must run the engine and `queries/` may not import `domain/` (CLAUDE.architecture.md §7.1). They read through ports, write nothing, and the ADR of 59-0 records this as the one read-path exception of the module. Plain lists (plan versions, overrides, corrections, blocked corrections) stay `queries/` with `EXPLAIN` tests | stored results (D-4); pricing in SQL |
 | D-8 | **One consumer id, `commissions.project-inputs`,** for every input event type (ADR-0012 §1); its `consumed_events` mark commits in the same transaction as the projection change, the generation increment and the corrections, under the statement locks (SPEC §6). A stale-revision no-op still writes the mark (ADR-0012 §1) | one consumer per type (the approval count reads one id) |
 | D-9 | **ADR-0012's counted types grow from four to six** in row 53: `ServiceSessionRecorded` and `ServiceSessionLinesAdded` join `ServiceLineChanged`, `PackageSaleChanged`, `SessionTipsChanged` and `SalaryChanged`, as ADR-0041 §6 requires. 53-1 ships the function with the six types and an ADR-0012 addendum | leaving initial recordings out of the gate (an unprojected recording would be approved as zero) |
@@ -89,7 +89,7 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 | D-15 | **Bootstrap before approval opens** (ADR-0041 §6, spec 053 BR-08): tips from orders' `listCurrentSessionTips` (36-5); lines from an orders-owned paged reader of the latest line revision with its event ids, built in the same shape as 36-5 (new orders sub-PR 50-0); salaries from the ADR-0012 amendment backfill of unconsumed `SalaryChanged` outbox rows; package sales from an orders-owned paged reader of the latest entitlement revision with its event ids (`listCurrentPackageSales`, same shape as 36-5), which row 42 must ship with its producer. Every reader is bound to a commissions-owned port **at the composition root** (no module-map arrow); the design advisors confirm the line reader versus a controlled outbox replay before 50-0 | reading orders tables from commissions (ADR-0041 §6 forbids it) |
 | D-16 | **Reads beyond SPEC §3's arrows** (the business timezone for "the period has ended", service names and customer full names for the statement detail and the export (CS-Q15), the owner and manager recipients of reminders and bells) use provider-owned readers bound to commissions-owned ports at the composition root, the BR-08 pattern; if one cannot be bound there, the sub-PR stops and adds an ADR and the module-map row first (IMPLEMENTATION-PLAN §4) | new import arrows by default |
 | D-17 | **The engine moves to a new shared package, `packages/commissions-engine`** (CS-Q13 = PP-17.1): pure TypeScript whose only dependency is `packages/domain`, the same import rules as a module's `domain/` (CLAUDE.architecture.md §3.1), imported only by the `commissions` modules of `apps/api` and `apps/worker` (a `packages_restricted` entry in `docs/module-map.md`, enforced by the boundaries lint). **One exception:** a browser-safe subpath entry point, `packages/commissions-engine/validation`, exports only `validateCommissionPlan`, its error codes and the plan types (pure, no dependency beyond `packages/domain`, no Node-only code), and `apps/admin/src/commissions` may import that entry point and nothing else of the package, so the builder runs the same validator as the API (CM-06); the ADR and the boundaries rule of 59-0 name both the restriction and this exception. 59-0 writes its ADR (a new package, CLAUDE.md §11) and the CLAUDE.md §2.1 / module-map rows; 48a-1 creates the package and moves the engine and its tests unchanged. ADR-0035 stands: commission kinds stay out of `packages/domain` | running the consumer in the api process; copying the engine into the worker |
-| D-18 | **The Excel export is a worker render** on the ADR-0049 transport (202 `{ render_id }`, poll, collect once, not stored), a new `kind` for the commission statement; the workbook is built with `exceljs` (already in the repo; the builder lives in `packages/documents`, which owns Excel rendering, CLAUDE.md §2.1), and generation over 200 ms never runs in a request (CLAUDE.md §6). Today every document source returns HTML that the worker sends to the PDF renderer (`apps/worker/src/documents/source-registry.ts`, `process-job.ts`), so sub-PR 56-0 first generalizes that contract to binary output: a source declares its output (HTML → PDF, or bytes with a MIME type), the xlsx kind has **no** HTML → PDF step, its MIME type is `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, its size cap is 8 MiB (the ADR-0049 PDF cap; larger → `DOCUMENT_TOO_LARGE`), and its bytes use the same tenant-prefixed Redis store and collect-once `GETDEL` as the PDF (ADR-0049 §1, PP-6.1). An ADR-0049 addendum (in 59-0) records the binary-output contract and the new kind | a synchronous download; converting the workbook through the PDF path |
+| D-18 | **The Excel export is a worker render** on the ADR-0049 transport (202 `{ render_id }`, poll, collect once, not stored), a new `kind` for the commission statement; the workbook is built with `exceljs` (already in the repo; the builder lives in `packages/documents`, which owns Excel rendering, CLAUDE.md §2.1), and generation over 200 ms never runs in a request (CLAUDE.md §6). Today every document source returns HTML that the worker sends to the PDF renderer (`apps/worker/src/documents/source-registry.ts`, `process-job.ts`), so sub-PR 56-0 first generalizes that contract to binary output: a source declares its output (HTML → PDF, or bytes with a MIME type), the xlsx kind has **no** HTML → PDF step, its MIME type is `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, its size cap is 8 MiB (the ADR-0049 PDF cap; larger → `DOCUMENT_TOO_LARGE`), and its bytes use the same tenant-prefixed Redis store and collect-once `GETDEL` as the PDF (ADR-0049 §1, PP-6.1). **Admission is per kind:** ADR-0049 §3.6's `503 RENDERER_UNAVAILABLE` (the API checks the Chromium liveness key before queuing) applies only to kinds that declare the PDF renderer; a bytes kind such as xlsx is queued and built while Chromium is down. An ADR-0049 addendum (in 59-0) records the binary-output contract and the new kind | a synchronous download; converting the workbook through the PDF path |
 | D-19 | **Money:** `numeric(14,3)` in Postgres, `bigint` mills in TypeScript, KWD strings on the wire (ADR-0035, ADR-0041 §4); one `roundKwd` per source inside the engine (SPEC §5.2, ADR-0005); every total is a plain sum of rounded sources and is never rounded again (`TODO(spec)` CS-Q12 for cash) | rounding a total |
 | D-20 | **Customer identity for the detail (CS-Q15):** the projection head keeps the event's `customer_id` (and `service_id`), and a line-sourced frozen statement row copies `line_id`, `session_id`, `service_id`, `customer_id` and `business_date`. While the month is open (DRAFT/REVIEWED) the customer's full name and the service names are read live by id through the readers bound at the root (D-16). **At approval they are frozen:** the line-sourced frozen row also stores `customer_name` and `service_name_ar`/`service_name_en` as read in the approval transaction, so an approved statement and every later export of it never change (BR-02, SPEC §6 "the frozen statement is never changed"). The name is the only personal data copied; no phone is ever read or stored here (SPEC §4). Erasure: D-21 | reading names live for a closed statement (a renamed customer would change an approved export); resolving the line through orders (ADR-0041 §6 forbids commissions reading orders) |
 | D-21 | **Customer erasure (CS-Q21 = PP-20.2), recorded now, built later.** The owner decided that when a customer is erased, every frozen statement row naming her has **only** its customer name replaced by a placeholder, by a recorded operation, and amounts, dates, services and ids never change. This is the **one controlled exception** to BR-02 and SC-002. Phase 1 has no customer-erasure feature, so this slice designs none of its mechanics; they are one deferred item, **«with the customer-erasure feature»** (§7 _Deferred_). Until then frozen rows are insert-only with no exception | designing the erasure use case, trigger and event inside this slice without the feature that drives them |
@@ -101,7 +101,7 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 | The period is the calendar month in the business timezone; the manager reviews, the owner approves within the first five days, paid with the salary (what happens after day 5: `TODO(spec)` CS-Q22) | D-17, SPEC §5 _Dates_ |
 | Reminders to the owner on the 3rd and the 5th of the next month; reminders, not locks | D-54, SPEC §6 |
 | Approval only after the month has ended; atomic; refused while commission events are pending, with the retryable 409 «updates are still being calculated, try again shortly» | SPEC §6, ADR-0012 §3/§5 |
-| Review is bound to the inputs; the owner approves only the fingerprint that was reviewed | SPEC §6 |
+| Review is bound to the inputs; the owner approves only the fingerprint that was reviewed, and the rows frozen are the rows that were reviewed | SPEC §6 |
 | Closed means APPROVED or PAID; payment never stops corrections; the frozen statement never changes | SPEC §6 |
 | A change to a closed month becomes corrections in the earliest DRAFT month after it, keyed `(source_period, employee, source_ref, generation)`, one signed delta per affected source, lines whose tier moved included | SPEC §6, M4 |
 | A performer change after approval moves money as corrections: the removed performer's line goes down, the added one's goes up | spec 055 PF-Q3, SPEC M12 |
@@ -123,8 +123,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 
 ### Story 1 — One lock for every writer of a month (48a, P1)
 
-- **CM-01** `lockStatementPeriods(tx, businessId, ['2026-10'])` on a month with no statement creates one DRAFT row and locks it;
-  two concurrent callers create exactly one row (unique `(company_id, business_id, period)`), the second waits.
+- **CM-01** `lockStatementPeriods(tx, { businessId, periods: ['2026-10'], ids })` on a month with no statement creates one DRAFT row and locks it;
+  two concurrent callers create exactly one row (unique `(company_id, business_id, period)`), the second waits. The new
+  row's id is the one the caller's injected `IdGenerator` returned (a fake generator in the test), and the migration
+  declares no default on `commission_statements.id`.
 - **CM-02** Locking `['2026-11', '2026-10']` locks October then November (ascending); a writer that needs both never deadlocks
   against another that needs both (barrier test, two transactions).
 - **CM-03** A plan-version writer that finds the month APPROVED or PAID under the lock gets `StatementPeriodClosedError` →
@@ -249,8 +251,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 
 ### Story 6 — Review (52, P1)
 
-- **CM-30** ليلى reviews October with `expected_fingerprint` equal to the current one: status REVIEWED, `reviewed_fingerprint`,
-  reviewer and time stored, one audit entry, one `StatementAwaitingApproval` request (FR-053).
+- **CM-30** ليلى reviews October with `expected_fingerprint` equal to the current one: status REVIEWED, `reviewed_fingerprint` and
+  `reviewed_statement_fingerprint` (the statement fingerprint of the rows the builder would freeze now, D-6), reviewer and time stored, one audit entry, one `StatementAwaitingApproval` request (FR-053).
 - **CM-31** A stale `expected_fingerprint` → 409 `COMMISSION_FINGERPRINT_STALE` with the current fingerprint; a blocking issue
   → 422 `COMMISSION_STATEMENT_BLOCKED` with the issues by employee (D-57).
 - **CM-32** An input change after REVIEWED returns the statement to DRAFT in the writer's transaction (D-5, SPEC §11).
@@ -261,7 +263,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   statement as changed since review, approval is refused with 409 `COMMISSION_FINGERPRINT_STALE`, and after a new review
   (with the new branch split) it can be approved. **Concurrency:** the transfer-date edit commits while the approval
   transaction is running (barriers before and after the freeze's one read of the branch links): if that read sees the
-  edit, the fingerprint recomputed from the frozen rows differs and approval is refused with 409
+  edit, the statement fingerprint of the frozen rows differs from `reviewed_statement_fingerprint` and approval is refused with 409
   `COMMISSION_FINGERPRINT_STALE`, nothing frozen; if it does not, the old split is frozen whole and the edit is a
   post-freeze change. No frozen row carries the new split while another carries the old one.
 - **CM-33c** RLS (negative isolation): company B reads 0 of company A's `commission_statement_returns` rows, and inserting a
@@ -276,7 +278,16 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   issue, no unresolved blocked correction, no projected line with shares ≠ 10000 (D-14), the ADR-0012 count is 0; then every
   `StatementLine` is frozen (one per employee × source: `COMMISSION`, `SALE`, `TIP_CARD`, `TIP_CASH`, `CORRECTION`, and one
   `EMPLOYEE` row per in-scope employee), the
-  fingerprint is frozen as `input_fingerprint`, status APPROVED with approver and time, one audit entry.
+  input fingerprint is frozen as `input_fingerprint`, the statement fingerprint re-read from the frozen rows equals
+  `reviewed_statement_fingerprint` and is stored as `statement_fingerprint`, status APPROVED with approver and time, one
+  audit entry.
+- **CM-34e** (D-6) A clean approval of a non-trivial October passes the post-freeze check: lines with rule snapshots and
+  shares, a sale with a refund, card and cash tips, a selected salary, a plan version and an override, a received
+  correction and سارة's two branches; `statement_fingerprint = reviewed_statement_fingerprint`. A unit test proves the
+  builder's round trip: the rows it builds and the same rows read back from `commission_statement_lines` and
+  `commission_statement_attachments` (ids, `statement_id` and timestamps aside) give the same statement fingerprint. After
+  review, an edit that changes a frozen column without an input event (سارة's branch link, CM-32b, or a customer's or
+  service's name) → approval refused with 409 `COMMISSION_FINGERPRINT_STALE`, nothing frozen, and a new review approves.
 - **CM-34c** An empty month approved: the business had two employees and no session, tip, sale or correction in October;
   approval freezes two `EMPLOYEE` rows (amount 0, frozen names and numbers) and nothing else; the statement view and the
   export list both employees with zero totals; an employee hired in November is not listed. ليلى (branch manager of
@@ -417,8 +428,11 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-001** Table `commission_statements` (§6 _Schema_), one row per `(company_id, business_id, period)`, status DRAFT →
   REVIEWED → APPROVED → PAID, plus REVIEWED → DRAFT (D-5, and by hand FR-031). A `BEFORE UPDATE` trigger refuses every other
   transition and any change to an APPROVED row except to PAID, and any change to a PAID row.
-- **FR-002** `packages/db` exports `lockStatementPeriods(tx, { businessId, periods })` (D-3): validates `YYYY-MM`, de-duplicates,
-  sorts ascending, upserts missing rows as DRAFT, locks them `FOR UPDATE`, returns `{ period, statementId, status }[]`.
+- **FR-002** `packages/db` exports `lockStatementPeriods(tx, { businessId, periods, ids })` (D-3): `ids` is the caller's
+  injected `IdGenerator` (the `@pospay/db` type, UUID v7 from `packages/ids`, as `appendAuditLog` takes it), so the API,
+  the worker and the FR-044 seed each pass their own; it validates `YYYY-MM`, de-duplicates,
+  sorts ascending, upserts missing rows as DRAFT with an id from `ids` (an id drawn for a row that already exists is
+  dropped by `ON CONFLICT DO NOTHING`; the table has no id default), locks them `FOR UPDATE`, returns `{ period, statementId, status }[]`.
   It runs inside the caller's `withTenant` transaction and never opens its own (CLAUDE.md §6, PP-7.2).
 - **FR-003** Typed errors from `packages/db`: `StatementPeriodClosedError` (mapped to 409 `COMMISSION_PERIOD_CLOSED`) and
   `StatementPeriodFormatError` for a malformed period (500, a broken invariant); never a plain `Error` on an expected path.
@@ -508,7 +522,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   (CM-27) and the fingerprint, stores `current_fingerprint` and returns the view. `GET …/:period` **writes nothing and takes
   no lock**: it computes the same view and fingerprint on read (D-7), returns `generated: false` when no statement row exists,
   and for a closed month returns its frozen lines.
-- **FR-026** The fingerprint input (§6 _Fingerprint_) is built by a pure function; the hash by an injected port (D-6).
+- **FR-026** The input fingerprint's input and the statement builder (§6 _Fingerprint_) are pure functions; the hash is
+  an injected port (D-6). The builder is the one the freeze uses (FR-033) to produce the frozen rows, never a copy.
 - **FR-027** The view lists blocking issues per employee: `NO_PLAN`, `NO_SALARY`, unresolved blocked corrections; review and
   approval are refused while any exists.
 - **FR-028** Permission: `read:commissions:business` for `GET` (a reader sees only the employees of her effective branch set, CS-Q20 = PP-20.1, §6 _Permissions_); `review:commissions:business`
@@ -519,8 +534,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 ### 52 — review-statement
 
 - **FR-029** `POST …/:period/review` `{ expected_fingerprint }` (Idempotency-Key): under the lock, the month has ended, status
-  DRAFT, no blocking issue, recomputed fingerprint = `expected_fingerprint`; set REVIEWED with `reviewed_fingerprint`,
-  reviewer user and membership, time; audit `commission_statement.reviewed`.
+  DRAFT, no blocking issue, recomputed input fingerprint = `expected_fingerprint`; set REVIEWED with `reviewed_fingerprint`, and
+  `reviewed_statement_fingerprint` computed from the rows the statement builder (FR-026) would freeze now (the live
+  attachments and labels read in this transaction), reviewer user and membership, time; audit `commission_statement.reviewed`.
 - **FR-030** Emit `StatementAwaitingApproval` (SPEC §3) to notifications in the same transaction, recipients resolved by
   commissions (SPEC §3 "emitting modules put recipients and channels in the event"; in-app, CS-Q17 = PP-17.5). **Every
   notification event of this slice** (this one, the reminders of FR-053/FR-055 and the blocked-correction notice of FR-049)
@@ -539,20 +555,22 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   waiting lock of D-3's `lockStatementPeriods`, so every recheck after the lock sees the state after the wait: a second
   approver gets 409 `COMMISSION_PERIOD_CLOSED`, a statement returned to DRAFT 409 `COMMISSION_STATEMENT_NOT_REVIEWED`, a
   revoked permission the uniform 403). Two facts, not an isolation level, keep the frozen statement consistent: **(1)** the
-  freeze reads `EmployeeBranch` **once**, in one `INSERT … SELECT` into `commission_statement_attachments` (FR-033), and
+  freeze reads `EmployeeBranch` **once**, by one call to the staff reader (FR-033), inserts exactly the rows it returned
+  into `commission_statement_attachments`, and
   every `attached_branch_ids` of the statement is derived from those rows inside the transaction, never from a second
-  live read; **(2)** after the freeze the fingerprint is recomputed **from the frozen rows** (the attachment rows included,
-  §6 _Fingerprint_) and must equal `reviewed_fingerprint`, else the transaction rolls back, nothing is frozen, and the
+  live read; **(2)** after the freeze the **statement fingerprint** (D-6) is recomputed from the rows just frozen, read back in
+  the same transaction (the attachment rows included, §6 _Fingerprint_), and must equal `reviewed_statement_fingerprint`, else the transaction rolls back, nothing is frozen, and the
   answer is 409 `COMMISSION_FINGERPRINT_STALE`. A branch-link edit or any input change racing approval is therefore either
   in the frozen rows (refused) or entirely after the freeze (a post-freeze change), never half of the statement old and
   half new. The pre-freeze fingerprint check below stays as the cheap early refusal:
   `transaction_timestamp()` captured before the lock → lock → recheck ended month, permission, status REVIEWED, fingerprint =
   `reviewed_fingerprint` = `expected_fingerprint`, no blocking issue, no unresolved blocked correction, D-14, **every
-  bootstrapped input type (lines, tips, salaries, package sales) meets its coverage rule (D-15, FR-020)** → the count → freeze → the fingerprint recomputed from the frozen rows.
+  bootstrapped input type (lines, tips, salaries, package sales) meets its coverage rule (D-15, FR-020)** → the count → freeze → the statement fingerprint recomputed from the frozen rows.
 - **FR-033** Freezing writes `commission_statement_lines` (insert-only): per employee, one `COMMISSION` line per `line:<id>`
   source, one `SALE` per `sale:<id>`, one `TIP_CARD`/`TIP_CASH` per `tip:<session>:<method>`, one line per received
   correction (its own id as source) of kind `CORRECTION` (commission and sale corrections), `CORRECTION_TIP_CARD` or
-  `CORRECTION_TIP_CASH`, so the payable figure can be computed from the frozen kinds alone; zero amounts are frozen too, so the frozen set equals the fingerprinted set.
+  `CORRECTION_TIP_CASH`, so the payable figure can be computed from the frozen kinds alone; zero amounts are frozen too, so the frozen set equals the set the statement fingerprint covered at review. The rows
+  are exactly the statement builder's output (FR-026), inserted as built.
   **Every in-scope employee gets one `EMPLOYEE` row** (`source_ref = employee:<id>`, amount `0.000`, never part of any
   total), even with no source at all: in scope means an employee of the business whose employment overlaps the month
   (hire date ≤ the last day, contract end and deletion, if any, ≥ the first day, read through `EmployeeDirectoryPort`) or
@@ -570,9 +588,11 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   edited later. A closed statement's branch filter (CS-Q20, CS-Q23) and its export filter **only** on «`attached_branch_ids` overlaps the
   reader's effective branch set _R_», or on nothing for a reader whose _R_ is every branch (§6 _Permissions_), never on
   the live projection or the live branch links. **The attachment snapshot:** the approval transaction reads
-  `EmployeeBranch` once, through the staff reader bound at the root (D-16), in one `INSERT … SELECT` into
-  `commission_statement_attachments` (insert-only): for every in-scope employee, one row per link that overlaps the
-  month, with `branch_id`, `attached_from` and `attached_to` clipped to the month. Every `attached_branch_ids` of the
+  `EmployeeBranch` once, by **one** call to the staff reader bound at the root (D-16), which returns, on the approval
+  transaction, every link of the in-scope employees that overlaps the month; commissions then writes exactly those rows,
+  in one multi-row insert, into `commission_statement_attachments` (insert-only): one row per link, with `branch_id`,
+  `attached_from` and `attached_to` clipped to the month. No SQL statement spans the two modules (the reader returns rows,
+  it never writes, and commissions never joins a staff table). Every `attached_branch_ids` of the
   statement (source rows and the `EMPLOYEE` row) is derived from these rows, and they never change, even if
   `EmployeeBranch` is edited later; they are also what a source first seen after approval is attributed from (FR-040).
   A line-sourced frozen row also copies the line's detail identifiers from the projection head and the customer and
@@ -582,7 +602,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   is a line, the line's `service_id` and service names read through its projection head in the approval transaction, so
   every display CS-Q9 may choose (one row per corrected source with what it was, what it became and the difference, or one
   total per source month) is computed from the frozen rows alone; CS-Q9 decides only the display, in 53-3.
-- **FR-034** Status APPROVED, `approved_by`, `approved_at`, `input_fingerprint`; audit `commission_statement.approved` (SPEC §1:
+- **FR-034** Status APPROVED, `approved_by`, `approved_at`, `input_fingerprint`, `statement_fingerprint`; audit `commission_statement.approved` (SPEC §1:
   the approval actor and time are in the audit log).
 - **FR-035** 53-1 delivers the ADR-0012 function, role, grants, policies and index with the six types of D-9 and its addendum;
   53-2 the use case; 53-3 the race tests.
@@ -631,7 +651,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-043** Plan versions and overrides never reach a closed month (FR-007), so they never produce corrections; only the
   period repair (FR-046) does.
 - **FR-044** Corrections are tested on **seeded closed periods** (plan row 55): the seed freezes a month (its statement
-  rows and its attachment snapshot) directly through the storage layer, so 55 does not wait on 53.
+  rows and its attachment snapshot) directly through the storage layer into the tables 48a-2 creates, so 55 does not wait on
+  53. The seed does what the insert-only trigger accepts: in **one** transaction it takes the statement lock
+  (`lockStatementPeriods`, with the test's `IdGenerator`), sets the month to APPROVED and writes its statement rows and attachment rows; it never writes
+  them into a month approved in another transaction, and it does not call 53-2's use case.
 - **FR-045** Negative totals, departed employees and the display of corrections: `TODO(spec)` CS-Q7, CS-Q8, CS-Q9. If CS-Q7
   chooses to carry a negative commission into the next month, the carry is a new frozen line kind added by decision (SPEC
   §4's `kind` list grows), posted by approval into the next open month, never a silent netting of tips (BR-06).
@@ -738,17 +761,29 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 
 ### Fingerprint
 
-The canonical input of one business and month: for each employee in ascending id, the ACTIVE projected lines of the month
+Two fingerprints (D-6), both serialized by `canonicalJson`, hashed with SHA-256 and stored as lowercase hex.
+
+**The input fingerprint** (`current_fingerprint`, `reviewed_fingerprint`, `input_fingerprint`). The canonical input of one business and month: for each employee in ascending id, the ACTIVE projected lines of the month
 (`line_id`, `revision`, `occurred_at`, `recorded_at`, `business_date`, `net_share`, `share_bps`, `rule_snapshot`, `counts`),
 the sales (`sale_id`, `revision`, `price_paid`, `refunded_amount`), the tip rows (`session_id`, `revision`, `method`, `amount`),
 the salary entry selected for the month's last day (SPEC §5.5), the plan versions and overrides that can apply in the month,
 the corrections received by the month, the open blocked corrections that target it, and the **branch attribution** of the
-  month: for each employee, her `EmployeeBranch` attachments over the month's days (at approval, the rows frozen in
-  `commission_statement_attachments`, so the recompute of FR-032 hashes exactly what was frozen). Staff publishes no event for a
+  month: for each employee, her `EmployeeBranch` attachments over the month's days, read live. Staff publishes no event for a
 branch-link change, so no writer can return the statement to DRAFT when one happens; putting the attribution in the
 fingerprint makes such a change visible at the existing check: the view shows the statement as changed since review, and
 approval refuses it with 409 `COMMISSION_FINGERPRINT_STALE` until it is reviewed again (D-5's second line of defence). Every list sorted by its identity;
-money as KWD strings; serialized by `canonicalJson`, hashed with SHA-256, stored as lowercase hex.
+money as KWD strings.
+
+**The statement fingerprint** (`reviewed_statement_fingerprint`, `statement_fingerprint`). The canonical form of the rows
+approval freezes, built from the same columns on both sides: every statement row sorted by `(employee_id, source_ref)`
+with `kind`, `amount`, `previous_amount`, `new_amount`, `source_period`, `source_branch_id`, `source_business_date`,
+`attached_branch_ids` (sorted), the employee label (`employee_number`, `employee_name_ar`, `employee_name_en`) and, on a
+line source, `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`,
+`business_date`; then every attachment row sorted by `(employee_id, branch_id, attached_from)` with `attached_to`. Row
+ids, `statement_id`, `company_id`, `business_id` and timestamps are left out (they do not exist before the freeze). Money
+as KWD strings. At review it is computed from the statement builder's output (FR-026); after the freeze, from the rows
+read back (FR-032). Labels are in it because they are what the reviewer saw and what is frozen: a rename between review
+and approval refuses the approval until the statement is reviewed again, and never freezes a name nobody reviewed.
 
 ### Schema changes
 
@@ -758,7 +793,7 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 
 | Table | Columns (beyond company_id, id, business_id) | Constraints and grants |
 | --- | --- | --- |
-| `commission_statements` (48a) | `period char(7)`, `status`, `current_fingerprint`, `reviewed_fingerprint`, `reviewed_by`, `reviewed_membership_id`, `reviewed_at`, `input_fingerprint`, `approved_by`, `approved_at`, `revision`; the payment columns `paid_by`, `paid_at`, `paid_on date`, `paid_method` (and its note, CS-Q6) are added by 54-1 (expand-only), not 48a-2 | `UNIQUE (company_id, business_id, period)`; `CHECK` period format; FR-001 trigger; `SELECT, INSERT, UPDATE (status, …)` to `pospay_app` |
+| `commission_statements` (48a) | `period char(7)`, `status`, `current_fingerprint`, `reviewed_fingerprint`, `reviewed_statement_fingerprint`, `reviewed_by`, `reviewed_membership_id`, `reviewed_at`, `input_fingerprint`, `statement_fingerprint`, `approved_by`, `approved_at`, `revision`; the payment columns `paid_by`, `paid_at`, `paid_on date`, `paid_method` (and its note, CS-Q6) are added by 54-1 (expand-only), not 48a-2 | `UNIQUE (company_id, business_id, period)`; `CHECK` period format; FR-001 trigger; `SELECT, INSERT, UPDATE (status, …)` to `pospay_app` |
 | `commission_plan_versions` (48) | `employee_id`, `version`, `effective_from date`, `whole_period`, `repair_period char(7) NULL`, `plan jsonb`, `created_at`, `created_by` | `UNIQUE (company_id, employee_id, version)`; `CHECK NOT (whole_period AND repair_period IS NOT NULL)`; insert-only (`SELECT, INSERT`) |
 | `commission_service_overrides` (49) | `employee_id`, `service_id`, `rule_kind`, `rule_value`, `effective_from`, `created_at`, `created_by` | `CHECK` per kind (bps 0…10000, mills ≥ 0); index `(company_id, employee_id, service_id, effective_from)`; insert-only |
 | `commission_line_heads` (50) | `line_id`, `session_id`, `branch_id`, `service_id`, `customer_id`, `revision`, `status`, `business_date`, `period` | `UNIQUE (company_id, line_id)`; `SELECT, INSERT, UPDATE` |
@@ -766,8 +801,8 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 | `commission_tip_heads` / `commission_tips` (50) | head: `session_id`, `branch_id`, `revision`, `business_date`, `period`; rows: `session_id`, `employee_id`, `method`, `amount` | `UNIQUE (company_id, session_id)` / `UNIQUE (company_id, session_id, employee_id, method)`; projection grants |
 | `commission_salaries` (50) | `employee_id`, `effective_from`, `amount`, `revision` | `UNIQUE (company_id, employee_id, effective_from)`; projection grants; never logged (SPEC §12) |
 | `commission_sales` (50) | `sale_id`, `branch_id`, `seller_employee_id NULL`, `business_date`, `period`, `price_paid`, `refunded_amount`, `status`, `revision` | `UNIQUE (company_id, sale_id)`; projection grants |
-| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `employee_number`, `employee_name_ar`, `employee_name_en` (the label frozen at approval), `source_ref`, `kind`, `amount`, `previous_amount NULL`, `new_amount NULL` (on the three correction kinds only, copied from the correction, CS-Q9), `source_period NULL`, the **source's** `source_branch_id` (where the work was done, for display), `source_business_date` and `attached_branch_ids uuid[]` (the filter key: on a source row, every branch the employee was attached to on `source_business_date`; on the `EMPLOYEE` row, every branch she was attached to during the month; copied at freeze from the projection and the attachment snapshot for a line, a sale or a tip, and from the correction row for a correction; `source_branch_id` and `source_business_date` are NULL only on the `EMPLOYEE` row), and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; `CHECK` `previous_amount` and `new_amount` not null exactly on `CORRECTION`, `CORRECTION_TIP_CARD`, `CORRECTION_TIP_CASH`, and there `amount = new_amount − previous_amount`; GIN index on `attached_branch_ids` (the branch filter); insert-only (the erasure exception of D-21 is added by the deferred customer-erasure item, not here); a trigger refuses an insert unless the statement is being approved in the same transaction |
-| `commission_statement_attachments` (53) | `statement_id`, `employee_id`, `branch_id`, `attached_from date`, `attached_to date` (one `EmployeeBranch` link clipped to the month, read once in the approval transaction, FR-033) | `UNIQUE (company_id, statement_id, employee_id, branch_id, attached_from)`; index `(company_id, statement_id, employee_id)`; insert-only; a trigger refuses an insert unless the statement is being approved in the same transaction |
+| `commission_statement_lines` (48a) | `statement_id`, `employee_id`, `employee_number`, `employee_name_ar`, `employee_name_en` (the label frozen at approval), `source_ref`, `kind`, `amount`, `previous_amount NULL`, `new_amount NULL` (on the three correction kinds only, copied from the correction, CS-Q9), `source_period NULL`, the **source's** `source_branch_id` (where the work was done, for display), `source_business_date` and `attached_branch_ids uuid[]` (the filter key: on a source row, every branch the employee was attached to on `source_business_date`; on the `EMPLOYEE` row, every branch she was attached to during the month; copied at freeze from the projection and the attachment snapshot for a line, a sale or a tip, and from the correction row for a correction; `source_branch_id` and `source_business_date` are NULL only on the `EMPLOYEE` row), and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; `CHECK` `previous_amount` and `new_amount` not null exactly on `CORRECTION`, `CORRECTION_TIP_CARD`, `CORRECTION_TIP_CASH`, and there `amount = new_amount − previous_amount`; GIN index on `attached_branch_ids` (the branch filter); insert-only (the erasure exception of D-21 is added by the deferred customer-erasure item, not here); a trigger refuses an insert unless the statement is being approved in the same transaction |
+| `commission_statement_attachments` (48a) | `statement_id`, `employee_id`, `branch_id`, `attached_from date`, `attached_to date` (one `EmployeeBranch` link clipped to the month, read once in the approval transaction, FR-033) | `UNIQUE (company_id, statement_id, employee_id, branch_id, attached_from)`; index `(company_id, statement_id, employee_id)`; insert-only; a trigger refuses an insert unless the statement is being approved in the same transaction |
 | `commission_period_generations` (55) | `employee_id`, `period`, `generation` | `UNIQUE (company_id, employee_id, period)`; `SELECT, INSERT, UPDATE (generation)` |
 | `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed, the delta), `previous_amount`, `new_amount`, `generation`, `event_id`, `created_at`, `source_branch_id`, `source_business_date`, `attached_branch_ids uuid[]` (where the corrected line, sale or tip was done, its business date, and every branch the employee was attached to on that date; copied from the frozen row of that source when one exists, else resolved once by the first correction from the source month's frozen attachment snapshot, FR-040) | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; `CHECK (amount = new_amount − previous_amount)`; index `(company_id, business_id, target_period)`; GIN index on `attached_branch_ids`; insert-only |
 | `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; `SELECT, INSERT, UPDATE (code, resolved_at, resolved_generation)`; a trigger allows `code` to change (`NO_PLAN` ↔ `NO_SALARY`) only on an open row and refuses any change to a resolved row |
@@ -789,7 +824,7 @@ reads 0 of company A's rows and every insert or update of a row for A fails as B
 | CM-R06 | `commission_period_generations`, `commission_corrections` | 55-1 |
 | CM-R07 | `commission_blocked_corrections` | 55-2 |
 | CM-33c | `commission_statement_returns` | 52-1 |
-| CM-R08 | `commission_statement_lines`, `commission_statement_attachments` | 53-2 |
+| CM-R08 | `commission_statement_lines`, `commission_statement_attachments` | 48a-2 |
 | CM-R09 | `commission_statement_reminders` | 56b-1 |
 | CM-R10 | `commission_statement_exports` | 56-1 |
 
@@ -872,9 +907,9 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 
 | PR | Result | Subtasks | Blocked on | Size |
 | --- | --- | --- | --- | --- |
-| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1), the global `operational_recovery_flags` table and its grants (FR-053) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9; the fingerprint recomputed from the frozen rows after the freeze, FR-032), ADR-0049 addendum (binary output contract and the xlsx kind, D-18) | this spec; design advisors | 150–250 |
+| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1), the global `operational_recovery_flags` table and its grants (FR-053) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the two fingerprints (D-6). 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9; the statement fingerprint recomputed from the frozen rows after the freeze, FR-032), ADR-0049 addendum (binary output contract, the xlsx kind and the per-kind renderer admission, D-18) | this spec; design advisors | 150–250 |
 | **48a-1** | `packages/commissions-engine` (D-17) | 1. Package scaffold, `packages/domain` its only dependency, and the browser-safe `validation` entry point. 2. Move the engine and its tests unchanged. 3. Rewire the api imports; the boundaries rule (only the `commissions` modules may import it) and the module-map check | 59-0 | 150–300 (moves) |
-| **48a-2** | Statements and the lock | 1. `commission_statements` + RLS + grants + FR-001 trigger + negative tests. 2. `lockStatementPeriods` + typed errors. 3. Lock tests CM-01…CM-04 and the FR-004 check | 48a-1 | 300–420 |
+| **48a-2** | Statements and the lock | 1. `commission_statements` + RLS + grants + FR-001 trigger + negative tests, and the two frozen-statement tables `commission_statement_lines` and `commission_statement_attachments` (schema, RLS, grants, the insert-only trigger, CM-R08), so 55-1's seed (FR-044) and 53-2's freeze both find them. 2. `lockStatementPeriods` (with the injected `IdGenerator`, FR-002) + typed errors. 3. Lock tests CM-01…CM-04 and the FR-004 check | 48a-1 | 400–540 |
 | **48-1** | Plan storage and contracts | 1. Zod contracts and OpenAPI. 2. `commission_plan_versions` + RLS. 3. The plan permission (CS-Q1) and its role defaults | 48a-2; CS-Q1 | 250–380 |
 | **48-2** | Create and list plan versions | 1. Use case (FR-007/FR-008) and ports. 2. HTTP + list query + `EXPLAIN`. 3. CM-05…CM-08, CM-10 | 48-1 | 350–480 |
 | **48-3** | The builder screen | 1. Blocks with switches, validated before submit through `packages/commissions-engine/validation` (D-17). 2. History list. 3. ar/en keys, component tests (CM-06 builder half, CM-09) | 48-2 | 300–450 |
@@ -888,15 +923,15 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **50-4** | Package sales | 1. Sales table + RLS. 2. Handler and the root binding of `listCurrentPackageSales`. 3. CM-20, CM-20b (bootstrap, coverage, race) | 50-1; row 42 (producer with `business_date`, and its reader) | 250–380 |
 | **50-a** | Engine input assembly (FR-022) | 1. The pure assembly function in `packages/commissions-engine`. 2. Its types for lines, sales, salary, versions, overrides, tips and corrections. 3. Unit tests (every input kind, the selected salary, ACTIVE-only lines) | 48a-1 | 150–250 |
 | **50-5** | Estimate on read | 1. The read use case (D-7) over the 50-a assembly. 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b, CM-23c, CM-23d, CM-23e | 50-a, 50-1, 50-2, 50-4, 55-1; CS-Q25 (only the simultaneous two-branch case) | 300–420 |
-| **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29, and the statement-view part of CM-23d and CM-23e | 50-5; CS-Q7; CS-Q25 (only the simultaneous two-branch case) | 350–480 |
+| **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port, and the statement builder with its statement fingerprint (D-6, FR-026) and the round-trip unit test of CM-34e. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29, and the statement-view part of CM-23d and CM-23e | 50-5; CS-Q7; CS-Q25 (only the simultaneous two-branch case) | 350–480 |
 | **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations, its `docs/module-map.md` event row). 3. CM-51…CM-54 | 55-1; CS-Q11 | 400–550 |
-| **52-1** | Review | 1. Review use case + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
+| **52-1** | Review | 1. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
-| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check, the attachment snapshot table + RLS, the post-freeze fingerprint recompute, and correction rows frozen with `previous_amount`, `new_amount` and the delta (CS-Q9 then decides only the display, in 53-3). 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-34d, CM-35, CM-37, CM-38 | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q22 | 400–550 |
+| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check, the attachment snapshot write (its table comes from 48a-2), the post-freeze statement-fingerprint recompute, and correction rows frozen with `previous_amount`, `new_amount` and the delta (CS-Q9 then decides only the display, in 53-3). 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-34d, CM-34e (integration part), CM-35, CM-37, CM-38 | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q22 | 400–550 |
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to the employees of her effective branch set (CS-Q20 = PP-20.1, §6 _Permissions_). 3. ar/en keys, component tests | 53-2; CS-Q9; CS-Q25 (only the simultaneous two-branch case) | 400–550 |
 | **54-1** | Mark paid | 1. The payment columns on `commission_statements` in the shape CS-Q6 decides (expand-only migration, grants), the use case + HTTP. 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
-| **56-0** | Binary documents in the worker (D-18) | 1. Generalize the source/processor contract: a source returns HTML for the PDF renderer or bytes with a MIME type; no HTML → PDF step for bytes. 2. The xlsx MIME type, the 8 MiB cap (`DOCUMENT_TOO_LARGE`), the same Redis store and collect-once reply with the source's MIME type. 3. Tests: a bytes source never reaches the renderer, the cap, collect-once, the PDF kinds unchanged | 59-0's ADR-0049 addendum | 200–320 |
+| **56-0** | Binary documents in the worker (D-18) | 1. Generalize the source/processor contract: a source returns HTML for the PDF renderer or bytes with a MIME type; no HTML → PDF step for bytes. 2. The xlsx MIME type, the 8 MiB cap (`DOCUMENT_TOO_LARGE`), the same Redis store and collect-once reply with the source's MIME type; the API's request admission checks the Chromium liveness key only for kinds that declare the PDF renderer (D-18). 3. Tests: a bytes source never reaches the renderer, the cap, collect-once, the PDF kinds unchanged; with the liveness key absent, a bytes-kind request is queued (202) and its job completes, while a PDF-kind request still gets `503 RENDERER_UNAVAILABLE` | 59-0's ADR-0049 addendum | 200–320 |
 | **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-55e, CM-56, CM-R10, and the export part of CM-23d and CM-23e | 53-2, **56-0**; CS-Q10, CS-Q12; CS-Q25 (only the simultaneous two-branch case) | 350–480 |
 | **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the Redis-loss detection (start-up sentinel check before write, heartbeat, the `operational_recovery_flags` table and its operator clear command, `/ready` degraded, alert) and the runbook's mandatory `CompanyCreated` replay step, the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
 
@@ -936,6 +971,7 @@ notification events; they run one at a time. Everything else may run beside them
 - The 3rd and 5th are reminders, not locks (D-54). Whether approval stays allowed after the 5th, or is blocked until the
   owner extends it, is `TODO(spec)` CS-Q22; until answered, 53-2 does not start.
 - The REVIEWED → DRAFT return on any input change (D-5) is how SPEC §6 "a REVIEWED statement whose fingerprint changed
-  returns to DRAFT" is implemented; the fingerprint comparison at approval is the second line of defence.
+  returns to DRAFT" is implemented; the fingerprint comparisons at approval (input before the freeze, statement after it,
+  D-6) are the second line of defence.
 - Bell and reminder copy is proposed copy, fixed in the sub-PR that adds the template.
 - Phase 1 has no production data; the bootstrap (50-3) still runs on staging before approval opens there, with its runbook count.
