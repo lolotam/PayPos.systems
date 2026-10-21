@@ -103,13 +103,34 @@ export function restoreParked(lock, parked) {
   return true;
 }
 
+// على ويندوز الـ rename بيفشل لحظياً لو عملية تانية بتقرا owner.json أو الـ antivirus فاتح الفولدر.
+const BUSY = new Set(['EPERM', 'EACCES', 'EBUSY']);
+const RENAME_ATTEMPTS = 5;
+const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+function renameWithRetry(from, to) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      renameSync(from, to);
+      return;
+    } catch (error) {
+      if (!BUSY.has(error.code) || attempt === RENAME_ATTEMPTS) throw error;
+      sleepSync(50 * attempt);
+    }
+  }
+}
+
 // المسح بالاسم مش مشروط: ممكن يمسح جيل اتعمل بعد ما بصينا. فبنعمل rename ذري لاسم فريد، وبنمسح اللي اتنقل
-// بس لو هو الجيل المتوقع، وإلا بنرجّعه.
-function removeGeneration(dir, isExpected) {
+// بس لو هو الجيل المتوقع، وإلا بنرجّعه. لو الـ rename فشل بعد المحاولات بنقول؛ و required بيخليه يرمي.
+function removeGeneration(dir, isExpected, { required = false } = {}) {
   const parked = `${dir}.stale-${randomUUID()}`;
   try {
-    renameSync(dir, parked);
-  } catch {
+    renameWithRetry(dir, parked);
+  } catch (error) {
+    if (error.code === 'ENOENT') return;
+    console.log(`could not remove ${dir} (${error.code}); delete it once no lane start is running`);
+    if (required)
+      fail(`could not release ${dir} (${error.code}); delete it once no lane start is running`);
     return;
   }
   if (isExpected(inspect(parked))) rmSync(parked, { recursive: true, force: true });
@@ -151,8 +172,17 @@ function withTakeoverGuard(lock, fn) {
     clearStaleGuard(guard);
     return;
   }
+  const created = inspect(guard)?.ino;
   try {
     writeFileSync(join(guard, 'owner.json'), JSON.stringify({ token }));
+  } catch (error) {
+    // الـ token متكتبش، فـ releaseGuard مش هيعرفه: نشيله بالـ inode، بس لو لسه هو الجيل اللي عملناه.
+    if (created !== undefined && inspect(guard)?.ino === created) {
+      removeGeneration(guard, (parked) => parked?.ino === created);
+    }
+    throw error;
+  }
+  try {
     // لو الـ guard بتاعنا اتشال كقديم واتعمل غيره قبل ما نكتب، نرجع ونحاول تاني.
     if (inspect(guard)?.owner?.token === token) fn();
   } finally {
@@ -215,7 +245,7 @@ export async function withStartLock(lock, fn, { waitMs = WAIT_MS } = {}) {
     return await fn();
   } finally {
     if (inspect(lock)?.owner?.token === token) {
-      removeGeneration(lock, (parked) => parked?.owner?.token === token);
+      removeGeneration(lock, (parked) => parked?.owner?.token === token, { required: true });
     }
   }
 }
