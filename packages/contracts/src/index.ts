@@ -382,6 +382,7 @@ export * from './orders/recording-context.js';
 export * from './orders/service-session-options.js';
 export * from './orders/service-session-day.js';
 export * from './orders/service-session-edits.js';
+export * from './orders/service-session-performer-changes.js';
 export * from './orders/service-line-cancellation.js';
 export * from './orders/service-session-capabilities.js';
 export * from './orders/service-session-recovery.js';

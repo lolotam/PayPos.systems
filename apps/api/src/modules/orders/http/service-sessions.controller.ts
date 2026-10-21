@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query, Req, UseFilters, UseGuards } from '@nestjs/common';
-import { appendServiceSessionLinesInput, cancelServiceLineInput, editServiceLineInput, id, recordServiceSessionInput, serviceLineEditsQuery, serviceSessionDayQuery, type AppendServiceSessionLinesInput, type CancelServiceLineInput, type EditServiceLineInput, type RecordServiceSessionInput, type ServiceLineEditsQuery, type ServiceSessionDayQuery } from '@pospay/contracts';
+import { appendServiceSessionLinesInput, cancelServiceLineInput, editServiceLineInput, id, recordServiceSessionInput, serviceLineEditsQuery, serviceLinePerformerChangesQuery, serviceSessionDayQuery, type AppendServiceSessionLinesInput, type CancelServiceLineInput, type EditServiceLineInput, type RecordServiceSessionInput, type ServiceLineEditsQuery, type ServiceLinePerformerChangesQuery, type ServiceSessionDayQuery } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
 import { Authenticated, Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
@@ -17,6 +17,7 @@ import { BranchDayServiceSessionsQuery, SessionDayReadError } from '../queries/b
 import { ServiceLineCancellationQuery } from '../queries/service-line-cancellation.query.ts';
 import { ServiceSessionCapabilitiesQuery } from '../queries/service-session-capabilities.query.ts';
 import { ServiceLineEditHistoryQuery } from '../queries/service-line-edits.query.ts';
+import { ServiceLinePerformerChangeHistoryQuery } from '../queries/service-line-performer-changes.query.ts';
 
 function fingerprint(request: FastifyRequest, body: unknown, businessId: string, branchId: string, sessionId?: string, lineId?: string): string {
   const actor = actorOf(request);
@@ -35,6 +36,7 @@ export class ServiceSessionsController {
     @Inject(CancelServiceLineUseCase) private readonly cancelLine: CancelServiceLineUseCase | null,
     @Inject(BranchDayServiceSessionsQuery) private readonly dayList: BranchDayServiceSessionsQuery | null,
     @Inject(ServiceLineEditHistoryQuery) private readonly history: ServiceLineEditHistoryQuery | null,
+    @Inject(ServiceLinePerformerChangeHistoryQuery) private readonly performerHistory: ServiceLinePerformerChangeHistoryQuery | null,
     @Inject(ServiceLineCancellationQuery) private readonly cancellationRead: ServiceLineCancellationQuery | null,
     @Inject(ServiceSessionCapabilitiesQuery) private readonly capabilitiesRead: ServiceSessionCapabilitiesQuery | null) {}
   @Get()
@@ -78,6 +80,23 @@ export class ServiceSessionsController {
     @Req() request: FastifyRequest) {
     if (this.history === null) throw new ApiError('NOT_READY');
     try { return await this.history.execute({ ...actorOf(request), businessId, branchId, sessionId, lineId }, query); }
+    catch (error) {
+      if (error instanceof SessionDayReadError) throw new ApiError(error.code);
+      throw error;
+    }
+  }
+  @Get(':sessionId/lines/:lineId/performer-changes')
+  @Require('read:service-sessions:branch', { branch: 'branchId' })
+  @RequiresFeature('orders')
+  @UseGuards(SessionAdminGuard)
+  async performerChanges(@Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
+    @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
+    @Param('sessionId', new ZodValidationPipe(pathId)) sessionId: string,
+    @Param('lineId', new ZodValidationPipe(pathId)) lineId: string,
+    @Query(new ZodValidationPipe(serviceLinePerformerChangesQuery)) query: ServiceLinePerformerChangesQuery,
+    @Req() request: FastifyRequest) {
+    if (this.performerHistory === null) throw new ApiError('NOT_READY');
+    try { return await this.performerHistory.execute({ ...actorOf(request), businessId, branchId, sessionId, lineId }, query); }
     catch (error) {
       if (error instanceof SessionDayReadError) throw new ApiError(error.code);
       throw error;

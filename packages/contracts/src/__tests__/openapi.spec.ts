@@ -196,6 +196,10 @@ const expectedSchemas = [
   'CorrectAttendanceResult',
   'MyMembership',
   'MyMembershipsResponse',
+  'ServiceLinePerformerChangesQuery',
+  'ServiceLinePerformerChangePerformer',
+  'ServiceLinePerformerChangeItem',
+  'ServiceLinePerformerChangesPage',
 ].sort();
 
 describe('openapi/openapi.json', () => {
