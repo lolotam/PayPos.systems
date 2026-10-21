@@ -3,8 +3,8 @@
 > **Status:** Draft · 2026-10-21 · docs-only PR. Owner questions in [owner-questions.ar.md](owner-questions.ar.md):
 > the three permission/technical questions are **answered** by Waleed through the super agent on 2026-10-21 (DA-Q6 =
 > PP-15.1, DA-Q7 = PP-15.2, DA-Q8 = PP-15.3; DA-Q6 and DA-Q7 against the recommendation). A fourth permission
-> question raised in review, **DA-Q9** (which checks a rejection runs), is **open** with Waleed; FR-011 is written on its
-> recommended option and marked `TODO(spec)`. The five charges/money
+> question raised in review, **DA-Q9** (which checks a rejection runs), is **answered** too (DA-Q9 = PP-20.3, the
+> recommendation): a rejection needs only the approve permission at the branch. The five charges/money
 > questions DA-Q1…DA-Q5 are **open** on the decisions page (batch 34); every rule they govern is written on the
 > recommended option and marked `TODO(spec)`, and **no sub-PR that depends on an open question starts** (§7).
 > **Rows:** 38 `request-discount-approval` (proposal with terms hash) · 39 `approve-discount` by PIN on the device ·
@@ -68,7 +68,7 @@ what was approved, consuming the approval in the same transaction as the line (S
 | Where the PIN is typed (DA-Q6) | **answered (PP-15.1, against the recommendation):** the reception computer is paired as a branch device; recording and approval both happen on it; PIN lockout after failed tries; a new ADR | FR-015, D-9, D-15 |
 | Bell for a new request (DA-Q7) | **answered (PP-15.2, against the recommendation):** an in-app bell to **everyone** holding the approve permission at the branch, non-managers included, the requester excluded | FR-024 |
 | What the device shows before a PIN (DA-Q8) | **answered (PP-15.3, the recommendation):** the request details (service, amounts, requester and customer **first** names, time left), never a phone | FR-016 |
-| Checks on a rejection (DA-Q9) | ⭐ open with Waleed: a rejection needs only the approve permission at the branch (FR-012), not the limit (FR-013) or the self rules (FR-014, D-5), because it moves no money — `TODO(spec)` | FR-011 |
+| Checks on a rejection (DA-Q9) | **answered (PP-20.3, the recommendation):** any approver may reject: a rejection needs only the approve permission at the branch (FR-012), not the limit (FR-013) or the self rules (FR-014, D-5), because it moves no money | FR-011 |
 
 **Not in 057:** an approval used by a 35d edit (DA-Q5 ⭐ keeps it out); a discount on a **package** sale line (rows
 42/46: SPEC §4 checks a package's discount once on its sale line, and that writer adopts this consumption when it
@@ -272,9 +272,8 @@ second branch manager who also performs services.
   approval + 15 min. The 15 is a named constant in `orders/domain`, not a setting.
 - **FR-011** Approve and reject act on 1…20 proposals of **one** branch in one transaction: lock the rows `FOR UPDATE`
   in ascending id order → recheck status and expiry at the fresh instant → approver authority (FR-012) → **approve only:** limit
-  (FR-013) → self rules (FR-014, D-5) → CAS `UPDATE … WHERE status = 'PENDING'` → audit. (DA-Q9 ⭐, `TODO(spec)`: a
-  rejection runs FR-012 only, since it moves no money; option (ب) would run FR-013 and FR-014 on it too, option (ج)
-  FR-014 and D-5 only.) All-or-nothing (D-3). The
+  (FR-013) → self rules (FR-014, D-5) → CAS `UPDATE … WHERE status = 'PENDING'` → audit. (DA-Q9 = PP-20.3: a
+  rejection runs FR-012 only, since it moves no money; no limit check, no own-service check.) All-or-nothing (D-3). The
   approver's limit is read **after** the row locks; the line writers read the recorder's limit **before** locking
   proposals; neither path takes an `orders` lock after a proposal lock, so no cycle.
 - **FR-012** (DA-Q1 ⭐) Authority = `approve:discounts:branch` at the proposal's branch, DENY wins, `orders` feature on,
@@ -430,10 +429,10 @@ anything can approve, so no approval can exist that a line cannot consume. Sizes
 | **057-1** | Contracts, template, map, ADR; no behaviour | 1. Zod contracts and OpenAPI for every route of §6, the additive fields on the spec 050 line input/rejected/accepted shapes, `DiscountApprovalRequested` and `DiscountApprovalNoticeRequested`. 2. Template `discount_approval_requested` ar/en, admin bell render, registration in `NOTIFICATION_SOURCE_EVENTS` and the worker's known types. 3. Module-map rows + generated YAML + **the new ADR** (D-9: the reception computer paired as a branch device and how it coexists with SS-Q3's individual logins; the PIN as an approval proof on a paired device; the D-08 + D-15 lockout; the event) + SPEC §3 amendment | this spec merged (DA-Q6, DA-Q7 answered) | 280–400 |
 | **057-2** | Permission and storage | 1. `approve:discounts:branch` + default roles (DA-Q1). 2. `discount_proposals` and `discount_proposal_performers` with `CHECK`s, transition trigger, `FORCE` RLS, grants, indexes, negative tests, and the `devices (company_id, branch_id, id)` key. 3. `service_lines.discount_proposal_id` + the deferred composite FK + allowlist/inventory updates | 057-1; DA-Q1 | 360–500 |
 | **057-3** | The bell works for any `DiscountApprovalRequested` | 1. `discount_approval_notices` migration, `ENABLE` + `FORCE` RLS with tenant policies, grants, negative isolation test. 2. Worker identity reader `discountApproverRecipients` (PP-15.2) + worker `orders` use case, place adapter, consumer registration. 3. Delivery tests (once, isolation, non-manager holder in, DENY out, other branch out, requester excluded, groups ≤ 100, zero recipients) | 057-1, 057-2 | 380–520 |
-| **057-4a** | Pure rules | 1. `orders/domain` functions of FR-009 with Arabic JSDoc. 2. Error codes ar/en + `approval_refusal` labels. 3. Exhaustive unit tests | 057-1; DA-Q2, DA-Q3, DA-Q4, DA-Q9 | 260–360 |
+| **057-4a** | Pure rules | 1. `orders/domain` functions of FR-009 with Arabic JSDoc. 2. Error codes ar/en + `approval_refusal` labels. 3. Exhaustive unit tests | 057-1; DA-Q2, DA-Q3, DA-Q4 | 260–360 |
 | **057-4b** | Row 38: request writer and reads | 1. Proposal repository + ports/adapters. 2. `RequestDiscountApprovalUseCase` (FR-005), HTTP, idempotency. 3. Requester and branch reads (`queries/`, `EXPLAIN`), tests DP-01…DP-07 | 057-4a, 057-3 | 420–560 |
 | **057-5** | Row 41: consumption in create/append | 1. Proposal lock + CAS inside the spec 050 writers (FR-019/FR-020). 2. Contract fields FR-021. 3. Tests DP-20…DP-25 incl. the race and replay | 057-4b | 300–440 |
-| **057-6** | Row 40: remote approve/reject | 1. `DiscountApprovalAccessPort` (identity) + adapter. 2. `DecideDiscountProposalsUseCase` (FR-011…FR-014) + admin routes. 3. Tests DP-13…DP-19 | 057-5; DA-Q9 | 380–520 |
+| **057-6** | Row 40: remote approve/reject | 1. `DiscountApprovalAccessPort` (identity) + adapter. 2. `DecideDiscountProposalsUseCase` (FR-011…FR-014) + admin routes. 3. Tests DP-13…DP-19 | 057-5 | 380–520 |
 | **057-7** | Row 39: PIN on the paired device | 1. `DiscountPinApproverPort` over identity's PIN facility (no new hashing) + the device-wide cap of D-15. 2. Device list + approve/reject routes with membership selection, PP-7.1 declaration. 3. Tests DP-08…DP-12 (incl. DP-08b, DP-09b, DP-10b), PIN privacy (FR-023) | 057-6 | 340–460 |
 | **057-8a** | Reception and admin screens | 1. «اطلب موافقة» on refused lines + polling status + resend with the id (35c screen). 2. Admin pending list with approve/reject. 3. ar/en keys and component tests asserting what the user sees | 057-6 | 300–420 |
 | **057-8b** | Approval screen on the paired reception computer | 1. Pairing the reception computer through the existing POS pairing screen (desktop layout) + the pending list. 2. Phone + PIN approve/reject with the membership pick of DP-09b. 3. ar/en keys and component tests asserting what the user sees, incl. the lock message | 057-7, 057-8a | 260–380 |
