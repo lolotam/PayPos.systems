@@ -8,6 +8,7 @@ export {
   sumMoney,
   type Money,
 } from './money.js';
+export { canonicalJson } from './canonical-json.js';
 export { sumTipTotalsByMethod, type TipMethodAmount } from './tip-totals.js';
 export {
   performerNetWeights,
