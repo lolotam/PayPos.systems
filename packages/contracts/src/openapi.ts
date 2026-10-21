@@ -35,6 +35,7 @@ import {
   salaryHistoryPage,
 } from './staff/salary.js';
 import { settingsPaths } from './settings/settings-openapi.js';
+import { staffColumnsPaths, staffColumnsSchemas } from './settings/staff-columns-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
 import { employee, createdEmployee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
@@ -147,6 +148,7 @@ const SCHEMAS = [
   employeeListQuery,
   ...permissionSchemas,
   ...fileSchemas,
+  ...staffColumnsSchemas,
   employee, createdEmployee,
   createEmployeeInput,
   employeeRoleCode,
@@ -254,6 +256,7 @@ const PATHS = {
   ...employeeCardPaths,
   ...unbindPasskeyPaths,
   ...settingsPaths,
+  ...staffColumnsPaths,
   ...filePaths,
   ...staffPaths,
   ...leavePaths,

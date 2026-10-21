@@ -56,7 +56,7 @@ async function guardAllows(permission: string) {
   Reflect.defineMetadata(
     REQUIRE_ACCESS,
     {
-      permission,
+      permissions: [permission],
       target: permission.endsWith(':company') ? {} : { branch: 'branchId' },
     },
     handler,

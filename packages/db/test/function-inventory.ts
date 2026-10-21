@@ -1,4 +1,5 @@
 export const FUNCTION_INVENTORY = [
+  { proname: 'staff_columns_distinct', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
   { proname: 'orders_check_performers', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
   { proname: 'orders_performer_consistency', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
   {

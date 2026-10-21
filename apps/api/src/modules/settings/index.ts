@@ -10,3 +10,4 @@ export type {
   StatementLanguage,
   StoredBusinessIdentity,
 } from './domain/statement-identity.ts';
+export { readStaffColumns, type StaffColumnsSetting } from './persistence/staff-columns.ts';
