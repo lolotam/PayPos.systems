@@ -1114,6 +1114,13 @@
       "when": 1792468470150,
       "tag": "0160_2026-10-20_write-seal-system-id-uniques",
       "breakpoints": true
+    },
+    {
+      "idx": 161,
+      "version": "7",
+      "when": 1792580299769,
+      "tag": "0161_2026-10-21_staff-columns",
+      "breakpoints": true
     }
   ]
 }

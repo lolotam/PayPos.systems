@@ -7,6 +7,9 @@ import { SETTINGS_TEMPLATE } from './domain/business-settings.ts';
 import { IdentityCapabilityCompanyGuard } from './http/identity-capability-company.guard.ts';
 import { IdentityCapabilityController } from './http/identity-capability.controller.ts';
 import { SETTINGS_WIRING, SettingsController } from './http/settings.controller.ts';
+import { StaffColumnsController } from './http/staff-columns.controller.ts';
+import { createStaffColumnsTransactions } from './persistence/staff-columns.ts';
+import { ReplaceStaffColumns } from './use-cases/replace-staff-columns/replace-staff-columns.ts';
 import { identityCapabilityAccess } from './persistence/business-identity-access.adapter.ts';
 import { BUSINESS_IDENTITY_READER } from './queries/business-identity.query.ts';
 import { IDENTITY_CAPABILITY_ACCESS } from './queries/identity-capability.query.ts';
@@ -25,7 +28,11 @@ import { readBusinessDiscountDefault } from './queries/business-discount-default
 import { createDiscountSubjectReader } from './persistence/discount-subject-reader.adapter.ts';
 
 /** The controllers settings mounts. */
-export const settingsControllers = [SettingsController, IdentityCapabilityController];
+export const settingsControllers = [
+  SettingsController,
+  IdentityCapabilityController,
+  StaffColumnsController,
+];
 
 /**
  * The settings wiring — the one place its ports are bound to their adapters. Without a database or Redis the routes
@@ -45,6 +52,13 @@ export function settingsProviders(
     ...settingsWiring(database, ids, redis),
     ...identityCapabilityProviders(database),
     ...businessIdentityProviders(database),
+    {
+      provide: ReplaceStaffColumns,
+      useValue:
+        database === undefined
+          ? null
+          : new ReplaceStaffColumns(createStaffColumnsTransactions(database, ids)),
+    },
   ];
 }
 

@@ -34,17 +34,17 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `files`         | `tenancy`             | Storage keys are `{companyId}/{businessId}/…`.                                 |
 | `platform`      | `tenancy`             | Super-admin over tenants.                                                      |
 | `catalog`       | `tenancy`             |                                                                                |
-| `customers`     | `tenancy`             |                                                                                |
+| `customers`     | `tenancy`, `settings` | `StaffColumnsPort` reads the staff-app columns through settings' public reader (ADR-0010; arrow from A-0, #462). |
 | `expenses`      | `tenancy`             |                                                                                |
 | `inventory`     | `tenancy`             |                                                                                |
-| `staff`         | `tenancy`, `identity`, `files` | An employee may be linked to a user; a document binds a verified file (ADR-0031). |
+| `staff`         | `tenancy`, `identity`, `files`, `settings` | An employee may be linked to a user; a document binds a verified file (ADR-0031); `StaffColumnsPort` reads the months-back window (ADR-0010; arrow from A-0, #462). |
 | `realtime`      | `identity`            | Channel scope is resolved from the session.                                    |
 | `notifications` | —                     | Deliberately root-level: it is a service, it knows nothing about the business. |
 | `orders`        | `tenancy`, `catalog`, `customers`, `staff`, `identity`, `settings` | Consumer-owned ports call provider public readers on the same transaction (ADR-0041). |
 | `payments`      | `tenancy`             | Order totals arrive by **port**.                                               |
 | `cash`          | `identity`            | Payment tenders arrive by **port**.                                            |
 | `appointments`  | `tenancy`             | Catalog / staff / customers arrive by **port**.                                |
-| `commissions`   | `staff`               | Order data arrives by **event** only.                                          |
+| `commissions`   | `staff`, `settings`   | Order data arrives by **event** only; `StaffColumnsPort` reads the staff-app columns (ADR-0010; arrow from A-0, #462). |
 | `loyalty`       | `customers`           | Order data arrives by **event** only.                                          |
 | `channels`      | `tenancy`             | Order and expense effects are **events**.                                      |
 | `kitchen`       | —                     | Fed entirely by events from `orders`.                                          |
@@ -139,6 +139,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | worker `staff` | `BranchManagerRecipients.companyOpen` | worker `tenancy` | company eligibility before candidate paging and again under the employee lock, on the caller's tenant transaction (ADR-0037) |
 | worker `staff` | `BranchPlaceReader` | worker `tenancy` | both branch names and the effective timezone (branch, otherwise business) on the caller's tenant transaction; adapter bound at the staff composition root (ADR-0037) |
 | `staff`, `customers`, `commissions` | `AlertRulesPort`, `StaffColumnsPort`                                                    | `settings`  | alert rules (recipients, channels) and staff-app columns — reads (ADR-0010)                                                                                          |
+| `orders` | `StaffColumnsPort` | `settings` | the business's allowed staff-app columns and `staff_months_back`, read in the «شغلي» transaction so a hidden column never leaves the server (ADR-0010 addendum 2026-10-21, spec 060 D-A3, 57c-1) |
 
 ### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
 
@@ -263,17 +264,17 @@ imports:
   files: [tenancy]
   platform: [tenancy]
   catalog: [tenancy]
-  customers: [tenancy]
+  customers: [tenancy, settings]
   expenses: [tenancy]
   inventory: [tenancy]
   orders: [tenancy, catalog, customers, staff, identity, settings]
   payments: [tenancy]
   appointments: [tenancy]
   channels: [tenancy]
-  staff: [tenancy, identity, files]
+  staff: [tenancy, identity, files, settings]
   realtime: [identity]
   cash: [identity]
-  commissions: [staff]
+  commissions: [staff, settings]
   loyalty: [customers]
 
 packages_restricted:
@@ -325,6 +326,10 @@ reads:
   - orders -> customers.readSessionCustomer @ apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts
   - orders -> staff.readSessionPerformers @ apps/api/src/modules/orders/persistence/performer-check.adapter.ts
   - orders -> settings.readEffectiveDiscountLimit @ apps/api/src/modules/orders/persistence/discount-limit.adapter.ts
+  - orders -> settings.readStaffColumns @ apps/api/src/modules/orders/persistence/staff-columns.adapter.ts
+  - commissions -> settings.readStaffColumns @ apps/api/src/modules/commissions/persistence/staff-columns.adapter.ts
+  - customers -> settings.readStaffColumns @ apps/api/src/modules/customers/persistence/staff-columns.adapter.ts
+  - staff -> settings.readStaffColumns @ apps/api/src/modules/staff/persistence/staff-columns.adapter.ts
   - orders -> identity.lockServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/session-place.adapter.ts

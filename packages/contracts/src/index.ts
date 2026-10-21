@@ -154,6 +154,14 @@ export {
   type UpdateBusinessSettingsInput,
 } from './settings/business-settings.js';
 export {
+  replaceStaffColumnsInput,
+  staffColumnCode,
+  staffColumnsSettings,
+  type ReplaceStaffColumnsInput,
+  type StaffColumnCode,
+  type StaffColumnsSettings,
+} from './settings/staff-columns.js';
+export {
   notificationStatus,
   notificationFailureCode,
   notificationParameter,
