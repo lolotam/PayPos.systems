@@ -89,16 +89,16 @@ function dropAttempt(
 
 // قفل الحوار بيفك التركيب؛ المفتاح بيتحفظ مع الجسم لحد ما النتيجة تتأكد، عشان الإعادة ما تعملش تغيير تاني.
 // 403 على إعادة طلب نتيجته مجهولة مش معناه «ما اتحفظش»: الطلب الأول ممكن يكون اتحفظ قبل ما الصلاحية تتشال.
-// فاليوم بيتجاب الأول عشان اللي ظاهر يطابق السيرفر، وبعدها بس المفتاح بيتحرر؛ لو الجلب فشل المحاولة تفضل مجهولة.
+// فاليوم وسجل السطر بيتجابوا الأول عشان اللي ظاهر يطابق السيرفر، وبعدها بس المفتاح بيتحرر؛ لو الجلب فشل المحاولة تفضل مجهولة.
 async function settleReplayRefusal(
-  reconcile: () => Promise<void>,
+  reconcile: (attempt: PerformersAttempt) => Promise<unknown>,
   memory: AttemptMemory | undefined,
-  lineId: string,
+  attempt: PerformersAttempt,
   held: { current: Held | null },
 ) {
   try {
-    await reconcile();
-    dropAttempt(memory, lineId, held);
+    await reconcile(attempt);
+    dropAttempt(memory, attempt.lineId, held);
   } catch {
     // المحاولة تفضل محفوظة بمفتاحها؛ فتح الحوار تاني بيرجع لحالة «النتيجة مش معروفة».
   }
@@ -109,7 +109,7 @@ async function putPerformers(
   attempt: PerformersAttempt,
   held: { current: Held | null },
   memory: AttemptMemory | undefined,
-  reconcile: () => Promise<void>,
+  reconcile: (attempt: PerformersAttempt) => Promise<unknown>,
 ): Promise<ChangeLinePerformersResult> {
   const fingerprint = JSON.stringify(attempt);
   const { key, replay } = heldKey(memory, held, attempt, fingerprint);
@@ -133,7 +133,7 @@ async function putPerformers(
       typeof result.error === 'object' && result.error !== null ? result.error : {};
     const failure = { ...envelope, status: result.response.status };
     if (replay && failure.status === 403 && performersOutcomeKnown(failure))
-      await settleReplayRefusal(reconcile, memory, attempt.lineId, held);
+      await settleReplayRefusal(reconcile, memory, attempt, held);
     else if (performersOutcomeKnown(failure)) dropAttempt(memory, attempt.lineId, held);
     throw failure;
   }
@@ -158,11 +158,17 @@ export function useChangeLinePerformers(
     gcTime: 0,
     networkMode: 'always',
     mutationFn: (attempt: PerformersAttempt) =>
-      putPerformers(scope, attempt, held, memory, () =>
-        client.refetchQueries(
-          { queryKey: ['branch-day-sessions', ...place] },
-          { throwOnError: true },
-        ),
+      putPerformers(scope, attempt, held, memory, ({ sessionId, lineId }) =>
+        Promise.all([
+          client.refetchQueries(
+            { queryKey: ['branch-day-sessions', ...place] },
+            { throwOnError: true },
+          ),
+          client.invalidateQueries(
+            { queryKey: ['service-line-performer-changes', ...place, sessionId, lineId] },
+            { throwOnError: true },
+          ),
+        ]),
       ),
     onSuccess: (result, { sessionId, lineId }) => {
       // الرد من غير line معناه إن قراءة الفرع اتشالت؛ الجلب لو فشل كان هيسيب الأسماء في الكاش.

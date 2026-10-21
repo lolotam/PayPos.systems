@@ -343,22 +343,26 @@ it('locks the page and drops the cached history on an empty-body 403 from the hi
   );
 });
 
-it('refetches the day before reporting a 403 on a replay, so the list shows what the server saved', async () => {
+it('refetches the day and the open history before reporting a 403 on a replay', async () => {
   let dayReads = 0;
   const savedRana: Line = {
     ...line(20, '2026-10-21'),
-    revision: 3,
+    revision: 4,
     performers: [{ ...nada, employee_id: id(9), name_en: 'Rana' }],
   };
   day = () => {
     dayReads += 1;
-    return dayWith([line(20), line(21)]);
+    return dayWith([line(20, '2026-10-17'), line(21)]);
   };
   state.put.mockImplementationOnce(() => {
     day = () => {
       dayReads += 1;
       return dayWith([savedRana, line(21)]);
     };
+    history = () => ({
+      data: { items: [change(4, 'swap'), change(3, 'Rana did the rinse')], next_cursor: null },
+      response: { status: 200 },
+    });
     return Promise.reject(new TypeError('network down'));
   });
   state.put.mockResolvedValueOnce({
@@ -366,6 +370,12 @@ it('refetches the day before reporting a 403 on a replay, so the list shows what
     response: { status: 403 },
   });
   renderPage();
+  fireEvent.click(
+    await screen.findByRole('button', { name: t('en', 'serviceLinePerformers.history') }),
+  );
+  const reason = (text: string) => whole(`${t('en', 'serviceLinePerformers.reason')} ${text}`);
+  expect(await screen.findByText(reason('Rana did the rinse'))).toBeTruthy();
+  expect(screen.queryByText(reason('swap'))).toBeNull();
   await openEditor();
   expect(await screen.findByText(t('en', 'serviceLinePerformers.outcomeUnknown'))).toBeTruthy();
   const readsBeforeReplay = dayReads;
@@ -376,6 +386,8 @@ it('refetches the day before reporting a 403 on a replay, so the list shows what
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(screen.getByText(whole(`${changed} October 21, 2026`))).toBeTruthy();
   expect(screen.getByText('Rana')).toBeTruthy();
+  expect(screen.getByText(reason('swap'))).toBeTruthy();
+  expect(historyButton().getAttribute('aria-expanded')).toBe('true');
   expect(state.put.mock.calls[1]?.[1].params.header['Idempotency-Key']).toBe(
     state.put.mock.calls[0]?.[1].params.header['Idempotency-Key'],
   );
