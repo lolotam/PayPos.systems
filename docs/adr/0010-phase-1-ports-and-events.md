@@ -95,3 +95,80 @@ pointer), so `commissions` no longer reads plans from `staff`. The §3 row stays
   carries its consumers' fields and a `revision`, duplicate, reordered and replayed delivery converges (SPEC §6).
 - The Phase 1 event rows list their Phase 1 consumers only; the `realtime` publisher joins them when realtime
   ships (the PRD's Phase 1 exception, closed by P2-T8).
+
+## Addendum 2026-10-21 — spec 060 ports (docs PR A-0)
+
+Spec 060 (the staff app's "my" pages, ratings and alert rules) needs three ports that the Decision above does not
+list. `module-map.md` §7 and `CLAUDE.md` §4.1 require an ADR before a new port, so they are declared here before the
+sub-PRs that build them (spec 060 §9, amendment 5). Like every port above, each one is a **read**, owned by its
+consumer, on the caller's transaction; §3.1's one synchronous write keeps its monopoly.
+
+| Consumer | Port | Reads from | Why a port (a synchronous read) | Built in |
+|---|---|---|---|---|
+| `orders` | `StaffColumnsPort` | `settings` | «شغلي» is orders' own read of the employee's lines and tips (spec 060 D-A1, FR-A01, FR-A03); it must drop every column the business hid **before** the response leaves the server (D-A2) and bound the month by the business's months-back setting (D-A14) | 57c-1 |
+| worker `orders` | `AlertRulesPort` | worker `settings` (a new minimal module) | the late, price-edit, cancel and performers bells read the business's effective rule **when they emit**, instead of the ADR-0037 interim rule (D-B13, D-B14) | 62-3 |
+| worker `customers` | `BranchScheduleHoursPort` | worker `tenancy` | the rating request's day and closing time need the branch's opening hours and effective timezone **at scheduling and at claim time** (D-B3) | 59-1 (postponed) |
+
+### 1. Orders' `StaffColumnsPort` (spec 060 D-A3)
+
+The original row approves `StaffColumnsPort` for `staff`, `customers` and `commissions`. Orders is a fourth consumer
+because it serves «شغلي» itself: it owns the lines, the performers and the customer id, so no other module can serve
+that list (D-A1). Its port has the same two reads as the other consumers (FR-A08):
+
+- `allowed(tx, companyId, businessId)` → the saved column set, or the default when none is saved: her work and her
+  money only (MY-Q3, PP-18.3; `list_price`, `discount` and `net` hidden). `estimated_commission` is an ordinary column,
+  shown by default (MY-Q4, PP-18.4). `rating_average` is removed from what any consumer receives until the rating
+  track ships (D-A7; RT-Q1, PP-18.9 postponed it), and sub-PR 61-3 lifts that filter.
+- `monthsBack(tx, companyId, businessId)` → `staff_months_back`, where `NULL` means 1 (the current month only) and the
+  stored value is 1–24 (D-A14; MY-Q2, PP-18.2; MY-Q9, PP-21.1: «شهر، ولحد 24»).
+
+`settings` stays the owner of both values; they are edited under the existing `manage:settings:business` (MY-Q5,
+PP-18.5) and nobody else writes them. **No import arrow is added:** `orders` already imports `settings` (§2,
+ADR-0041's `DiscountLimitPort`). The orders adapter calls a public settings reader that 57c-1 adds; the
+`commissions`, `customers` and `staff` adapters, already approved above, call the same reader in the same sub-PR.
+
+### 2. Worker orders' `AlertRulesPort` (spec 060 D-B13, D-B14)
+
+`rule(tx, companyId, scope, kind)`, with `scope = { businessId, branchId | null }`, returns the effective rule with the
+business master switch applied: the branch's override when the event has a branch and an override exists, otherwise
+the business rule (AL-Q2, PP-18.22: «نشاط، والفرع يغيّر»). Recipients are role selectors (AL-Q3, PP-18.23). The master
+switch covers team alerts only (AL-Q4, PP-18.24). A kind with no saved rule uses the code-side default (AL-Q5,
+PP-18.25), and row 62 delivers in-app only (AL-Q6, PP-18.26). The rules are edited under `manage:settings:business`
+(AL-Q1, PP-18.21).
+
+- **A minimal worker `settings` module.** It exports this one read on the caller's transaction, in the shape of the
+  worker `tenancy` and `identity` readers that ADR-0037 §2 uses. The API never pushes rules to the worker. Built in 62-1
+  with the storage; worker `staff`'s use of it is already covered by the original `staff` row.
+- **No import arrow is added:** `orders: [..., settings]` already exists in §2, and `settings` imports nothing it
+  does not already list.
+- **Recipients still come from identity.** The rule supplies the roles; the user ids still come from identity's scoped
+  read (`branchManagerRecipients`) on the same transaction, replacing the roles of `interimNotClockedInRule`
+  (ADR-0037). `notifications` stays business-free: the emitter resolves the rule and puts recipients and channels in
+  the event, as the Decision above requires.
+
+### 3. Worker customers' `BranchScheduleHoursPort` (spec 060 D-B3)
+
+Defined in worker `customers/ports/`: `hours(tx, companyId, branchId)` → `{ opening_hours | null, time_zone }`, on the
+caller's transaction, where `time_zone` is the branch's effective zone (the branch's, otherwise the business's). It
+is bound to a new public reader of the worker `tenancy` module, `branchScheduleHours(tx, companyId, branchId)`, the
+same shape as its existing `branchPlace` and `businessTimeZone` readers.
+
+- It feeds two pure functions in `customers/domain`. `requestDayOf(occurredAt, zone, openingHours)` gives each session
+  exactly one request day: its branch-local date, or for a visit after midnight inside an overnight interval, the
+  day that interval started. `ratingSchedule` takes the last close of that day (RT-Q4, PP-18.12 for both rules).
+- The 59-1 consumer (D-B2) and the claim's reschedule (D-B5) both call it. Orders' `business_date` is not used: it is
+  in the business zone and can name the wrong day near midnight for a branch in another zone.
+- **No import arrow is added:** `customers: [tenancy]` already exists in §2.
+- **Declared now, built later.** The whole rating track is postponed to the end of the project (RT-Q1, PP-18.9), and
+  59-1 is part of it. The port is declared now so that 59-1 needs no further ADR when the track resumes.
+
+### Module map
+
+- `module-map.md` §3 gains the three rows above. §2 and the §6 `imports` are unchanged: no new compile-time edge.
+- **No cycle between adapters** (the Consequences warning above): `settings` and `tenancy` read neither `orders` nor
+  `customers` through any adapter.
+- As the Consequences above require, each adapter adds its `reads` line in the PR that writes it, one line per
+  symbol: 57c-1 adds the settings reader lines of all four `StaffColumnsPort` adapters, 62-3 adds the worker orders →
+  settings line, and 59-1 adds `customers -> tenancy.branchScheduleHours`.
+- **Not in this addendum:** customers' `RatingAlertRecipientsPort` (docs PR A-1, postponed with the rating track), and
+  the `NotificationDelivered` ⇒ `customers` event row (spec 060 D-B8, in 59b-3).
