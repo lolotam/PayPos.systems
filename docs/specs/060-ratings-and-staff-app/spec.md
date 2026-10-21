@@ -93,6 +93,7 @@ question (what staff earn, `CLAUDE.md` §1 5b) and goes to Abu Salem too; the ot
 | MY-Q7 | What the employee sees of a manager's attendance correction | **Answered (PP-18.7): every detail** (time before and after, reason, who edited) — against the recommended option (D-A10) |
 | MY-Q8 | Cancelled lines in «شغلي»: shown with a mark, or hidden | **Answered (PP-18.8): shown struck through** (MY-07) |
 | MY-Q9 | The months-back setting's default and allowed range (D-A14) | **Answered (PP-21.1): «شهر، ولحد 24»** — the current month by default, 1–24 — against the recommended option |
+| MY-Q10 | Who opens the staff-columns settings screen (FR-A07) | **Answered (PP-27.1): «أي واحدة منهم تكفي (المقترح)»** — `read:settings:business` or `manage:settings:business`; 57c-1 builds the any-of guard (spec 058 TD-13) |
 | RT-Q1 | How the rating link reaches the sender without storing the token (ADR-0011 open question 1) | **Answered (PP-18.9): rating messages are postponed to the end of the project**, so the whole rating track (Part B rows 58–61 and the low-rating part of 62-3) waits; against the recommended option |
 | RT-Q2 | Approval of the ar/en copy: WhatsApp message, page, completion, opt-out, unavailable link | **Answered (PP-18.10): approved as proposed** (§B.4 copy); used when the track resumes |
 | RT-Q3 | A per-business switch for sending rating requests, and its default | **Answered (PP-18.11): a switch, off at first** (D-B16); used when the track resumes |
