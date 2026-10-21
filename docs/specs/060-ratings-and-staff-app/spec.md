@@ -252,7 +252,7 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
   policy with no window check.
 - **FR-A07** `GET/PUT /v1/businesses/:businessId/settings/staff-columns` (settings): read and replace the set; the
   `PUT` is idempotent (`Idempotency-Key`), audited, guarded by `manage:settings:business` (MY-Q5, PP-18.5, also for
-  `staff_months_back`); the read is guarded by the same permission or `read:settings:business`.
+  `staff_months_back`); the read is guarded by the same permission or `read:settings:business` (`TODO(spec)` MY-Q10: confirm either-of versus read only; the guard accepts one code today).
 - **FR-A08** `StaffColumnsPort.allowed(tx, companyId, businessId): ReadonlySet<StaffColumnCode>` in each consumer's
   `ports/` (Arabic JSDoc), returning the saved set or the MY-Q3 default **with `rating_average` removed until the rating
   track ships** (D-A7, RT-Q1; 61-3 removes this filter: it stays in the stored default and the enum, but no consumer ever receives it), plus
