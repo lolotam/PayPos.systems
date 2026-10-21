@@ -237,9 +237,10 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
   takeover re-checks the lock inside it. It renames the lock to a unique name and deletes it only if it is
   exactly the generation inspected; anything else is put back with `mkdir` (never over a lock created in the
   meantime), or left as a `pospay-test-lane.lock.d.stale-*` orphan that is safe to delete when no start is
-  running. When the owner file cannot be moved back (a persistent Windows `EPERM`/`EBUSY`), the empty lock
-  directory it just made is removed (only if it is still the same empty directory) and the parked folder is
-  left as such an orphan, so an ownerless lock never blocks later starts. Only the owner's token releases the lock. The code is `scripts/test-db/lane-lock.mjs` and
+  running. When the owner file cannot be moved back (a persistent Windows `EPERM`/`EBUSY`), it is copied
+  into the new lock directory instead, so a live owner keeps its lock; only if the copy fails too is the empty
+  lock directory it just made removed (only if it is still the same directory: inode and creation time), and
+  the parked folder left as such an orphan, so an ownerless lock never blocks later starts. Only the owner's token releases the lock. The code is `scripts/test-db/lane-lock.mjs` and
   `lane-process.mjs`, tested by `lane-lock.test.mjs`.
 - `up` on a running lane waits for readiness, rewrites the override and reprints the port. A lane container
   that exists but is not plainly running (created, exited, paused, restarting) is removed and started fresh.

@@ -53,6 +53,22 @@ export function inspect(dir) {
   return { ino: stat.ino, age: Date.now() - Number(stat.mtimeMs), owner };
 }
 
+/**
+ * هوية الفولدر: الـ inode + وقت ميلاده. الـ inode لوحده مش كفاية، لأن النظام بيعيد استخدام رقم الـ inode
+ * فور ما يتشال فولدر، فالفولدر اللي اتعمل مكانه ممكن يبقى بنفس الرقم.
+ *
+ * @param dir مسار الفولدر
+ * @returns هوية الفولدر، أو undefined لو الفولدر مش موجود
+ */
+function identity(dir) {
+  try {
+    const stat = statSync(dir, { bigint: true });
+    return `${stat.ino}:${stat.birthtimeNs}`;
+  } catch {
+    return undefined;
+  }
+}
+
 // الـ pid عايش مش كفاية: لازم كمان يكون هو نفس العملية اللي مسكت الـ lock (#450).
 function ownerAlive(owner) {
   try {
@@ -101,16 +117,76 @@ function renameWithRetry(from, to) {
 }
 
 /**
+ * ينسخ owner.json من الفولدر اليتيم جوه الـ lock الجديد. النسخ (مش النقل) هو الصح هنا: صاحب الـ lock ممكن
+ * يكون لسه عايش، فبنحطه مكانه من غير ما نحرمه من الـ lock بتاعه. flag 'wx' يعني لو فيه owner.json
+ * جاهز مش هنكتب فوقه.
+ *
+ * @param parked الفولدر اللي الـ lock اتنقل له
+ * @param lock   مسار الـ lock
+ * @returns true لو الـ owner اتنسخ، false لو النسخ فشل
+ */
+function copyOwner(parked, lock) {
+  try {
+    writeFileSync(join(lock, 'owner.json'), readFileSync(join(parked, 'owner.json')), {
+      flag: 'wx',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * آخر حل: نشيل الفولدر الفاضي اللي عملناه، بس لو هو لسه نفس الفولدر (نفس الـ inode ووقت الميلاد).
+ * rmdirSync مش rmSync: الفولدر اللي فيه owner ما بيتشالش، واللي حد تاني لمسه ما بيتشالش خالص.
+ *
+ * @param lock     مسار الـ lock
+ * @param created هوية الفولدر اللي عملناه
+ */
+function removeEmptyLock(lock, created) {
+  if (created === undefined || identity(lock) !== created) return;
+  try {
+    rmdirSync(lock);
+  } catch (error) {
+    // حد تاني لمس الفولدر أو ملّاه: نسيبه زي ما هو من غير ما نطبع.
+    if (!['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(error.code)) {
+      console.log(
+        `could not remove empty ${lock} (${error.code}); delete it once no lane start is running`,
+      );
+    }
+  }
+}
+
+/**
+ * بيشيل الفولدر اليتيم بعد ما الـ lock رجع. المسح ممكن يفشل (الـ owner.json لسه متقفل عند اللي منع النقل)،
+ * فالفشل ما بيرميش: الـ lock رجع فعلاً، وسطر واحد بيقول مين يمسح البواقي بإيده.
+ *
+ * @param parked الفولدر اللي الـ lock اتنقل له
+ */
+function removeParked(parked) {
+  try {
+    rmSync(parked, { recursive: true, force: true, maxRetries: RENAME_ATTEMPTS, retryDelay: 50 });
+  } catch (error) {
+    console.log(
+      `left ${parked}: restored the lock but could not delete it (${error.code}); delete it once no lane start is running`,
+    );
+  }
+}
+
+/**
  * بيرجّع lock اتشال بالغلط لمكانه، من غير ما يستبدل lock تاني اتعمل في المكان ده.
  * rename على POSIX بيستبدل فولدر فاضي لسه متعمل بـ mkdir (#451)؛ mkdir بيفشل بدل ما يستبدل،
  * وبعده owner.json بيتنقل جوه. الـ inode بيتغير، لكن الفك بيبص على الـ token بس.
- * لو نقل الـ owner فشل، الفولدر الفاضي اللي عملناه بيتشال (بعد ما نتأكد من الـ inode إنه لسه بتاعنا)
- * والـ lock بيفضل يتيم في parked، والفشل ما بيرميش عشان ما يبقاش الـ lane كله يقع (#473).
+ * لو النقل فشل بننسخ الـ owner جوه (النسخة مش النقل: صاحب الـ lock ممكن يكون لسه عايش)، ولو النسخ كمان
+ * فشل بنشيل الفولدر الفاضي اللي عملناه (بس لو هو لسه نفس الفولدر) والـ lock يفضل يتيم في parked.
+ * مسح الفولدر الفاضي ده آمن: مفيش حاجة في الموديل ده بتمسح lock من غير صاحب قبل STALE_MS (takeOverIfStale
+ * بيشيله بعد الـ 15 دقيقة بس، وreleaseStartLock/releaseGuard بيشتغلوا على الـ token بس، وwithStartLock بيمسح
+ * فولدر mkdir هو عملها)؛ والفترة بين الـ mkdir والفحص والمسح جزء من الثانية، فـ identity طبقة تانية مش الدليل.
  *
  * @param lock         مسار الـ lock
  * @param parked       الفولدر اللي الـ lock اتنقل له
  * @param options.move دالة نقل owner.json (renameWithRetry افتراضياً)
- * @returns true لو رجع، false لو فضل يتيم في parked
+ * @returns true لما صاحب الـ lock يرجع جوه lock، false لما الـ lock يفضل يتيم في parked
  */
 export function restoreParked(lock, parked, { move = renameWithRetry } = {}) {
   try {
@@ -121,28 +197,24 @@ export function restoreParked(lock, parked, { move = renameWithRetry } = {}) {
     );
     return false;
   }
-  const created = inspect(lock)?.ino;
+  const created = identity(lock);
   try {
     move(join(parked, 'owner.json'), join(lock, 'owner.json'));
   } catch (error) {
     // الـ lock اللي رجع لسه صاحبه مكتبش owner.json: هيكتبه في مكانه الأصلي.
     if (error.code !== 'ENOENT') {
-      // الفولدر اللي عملناه فضل فاضي من غير صاحب، وهو بيسدّ الـ lock على الـ lanes الجاية لحد ما يبقى قديم.
-      // rmdirSync بيفشل على فولدر مش فاضي، فهو أأمن من rmSync: فولدر مش بتاعنا ما بيتشالش.
-      if (created !== undefined && inspect(lock)?.ino === created) {
-        try {
-          rmdirSync(lock);
-        } catch {
-          // اتبدل أو اتملا في النص: سيبه زي ما هو.
-        }
+      // النقل فشل بس صاحب الـ lock ممكن يكون لسه عايش، فالنسخة بترجّعه مكانه من غير ما نحرمه من الـ lock.
+      if (!copyOwner(parked, lock)) {
+        // آخر حل: نشيل الفولدر الفاضي اللي عملناه، والـ lock يفضل يتيم في parked.
+        removeEmptyLock(lock, created);
+        console.log(
+          `left ${parked}: could not move its owner back (${error.code}); delete it once no lane start is running`,
+        );
+        return false;
       }
-      console.log(
-        `left ${parked}: could not move its owner back (${error.code}); delete it once no lane start is running`,
-      );
-      return false;
     }
   }
-  rmSync(parked, { recursive: true, force: true, maxRetries: RENAME_ATTEMPTS, retryDelay: 50 });
+  removeParked(parked);
   return true;
 }
 
