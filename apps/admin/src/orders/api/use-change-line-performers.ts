@@ -70,12 +70,12 @@ function heldKey(
   held: { current: Held | null },
   attempt: PerformersAttempt,
   fingerprint: string,
-): Held {
+): { key: Held; replay: boolean } {
   const saved = memory?.current.get(attempt.lineId);
   if (saved && saved.sessionId === attempt.sessionId && saved.fingerprint === fingerprint)
-    return { key: saved.key, fingerprint };
-  if (held.current?.fingerprint === fingerprint) return held.current;
-  return { key: crypto.randomUUID(), fingerprint };
+    return { key: { key: saved.key, fingerprint }, replay: true };
+  if (held.current?.fingerprint === fingerprint) return { key: held.current, replay: true };
+  return { key: { key: crypto.randomUUID(), fingerprint }, replay: false };
 }
 
 function dropAttempt(
@@ -88,14 +88,31 @@ function dropAttempt(
 }
 
 // قفل الحوار بيفك التركيب؛ المفتاح بيتحفظ مع الجسم لحد ما النتيجة تتأكد، عشان الإعادة ما تعملش تغيير تاني.
+// 403 على إعادة طلب نتيجته مجهولة مش معناه «ما اتحفظش»: الطلب الأول ممكن يكون اتحفظ قبل ما الصلاحية تتشال.
+// فاليوم بيتجاب الأول عشان اللي ظاهر يطابق السيرفر، وبعدها بس المفتاح بيتحرر؛ لو الجلب فشل المحاولة تفضل مجهولة.
+async function settleReplayRefusal(
+  reconcile: () => Promise<void>,
+  memory: AttemptMemory | undefined,
+  lineId: string,
+  held: { current: Held | null },
+) {
+  try {
+    await reconcile();
+    dropAttempt(memory, lineId, held);
+  } catch {
+    // المحاولة تفضل محفوظة بمفتاحها؛ فتح الحوار تاني بيرجع لحالة «النتيجة مش معروفة».
+  }
+}
+
 async function putPerformers(
   scope: SessionServiceScope,
   attempt: PerformersAttempt,
   held: { current: Held | null },
   memory: AttemptMemory | undefined,
+  reconcile: () => Promise<void>,
 ): Promise<ChangeLinePerformersResult> {
   const fingerprint = JSON.stringify(attempt);
-  const key = heldKey(memory, held, attempt, fingerprint);
+  const { key, replay } = heldKey(memory, held, attempt, fingerprint);
   held.current = key;
   memory?.current.set(attempt.lineId, { ...key, ...attempt });
   const result = await apiClient().PUT(performersPath, {
@@ -115,7 +132,9 @@ async function putPerformers(
     const envelope: object =
       typeof result.error === 'object' && result.error !== null ? result.error : {};
     const failure = { ...envelope, status: result.response.status };
-    if (performersOutcomeKnown(failure)) dropAttempt(memory, attempt.lineId, held);
+    if (replay && failure.status === 403 && performersOutcomeKnown(failure))
+      await settleReplayRefusal(reconcile, memory, attempt.lineId, held);
+    else if (performersOutcomeKnown(failure)) dropAttempt(memory, attempt.lineId, held);
     throw failure;
   }
   const parsed = changeLinePerformersResponse.safeParse(result.data);
@@ -138,7 +157,13 @@ export function useChangeLinePerformers(
     retry: false,
     gcTime: 0,
     networkMode: 'always',
-    mutationFn: (attempt: PerformersAttempt) => putPerformers(scope, attempt, held, memory),
+    mutationFn: (attempt: PerformersAttempt) =>
+      putPerformers(scope, attempt, held, memory, () =>
+        client.refetchQueries(
+          { queryKey: ['branch-day-sessions', ...place] },
+          { throwOnError: true },
+        ),
+      ),
     onSuccess: (result, { sessionId, lineId }) => {
       // الرد من غير line معناه إن قراءة الفرع اتشالت؛ الجلب لو فشل كان هيسيب الأسماء في الكاش.
       if (!('line' in result.response)) {

@@ -342,3 +342,46 @@ it('locks the page and drops the cached history on an empty-body 403 from the hi
     ).toHaveLength(0),
   );
 });
+
+it('refetches the day before reporting a 403 on a replay, so the list shows what the server saved', async () => {
+  let dayReads = 0;
+  const savedRana: Line = {
+    ...line(20, '2026-10-21'),
+    revision: 3,
+    performers: [{ ...nada, employee_id: id(9), name_en: 'Rana' }],
+  };
+  day = () => {
+    dayReads += 1;
+    return dayWith([line(20), line(21)]);
+  };
+  state.put.mockImplementationOnce(() => {
+    day = () => {
+      dayReads += 1;
+      return dayWith([savedRana, line(21)]);
+    };
+    return Promise.reject(new TypeError('network down'));
+  });
+  state.put.mockResolvedValueOnce({
+    error: { code: 'FORBIDDEN', message_ar: 'Denied AR', message_en: 'Permission removed' },
+    response: { status: 403 },
+  });
+  renderPage();
+  await openEditor();
+  expect(await screen.findByText(t('en', 'serviceLinePerformers.outcomeUnknown'))).toBeTruthy();
+  const readsBeforeReplay = dayReads;
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLinePerformers.submit') }));
+  const notice = await screen.findByText('Permission removed');
+  expect(notice.getAttribute('role')).toBe('status');
+  expect(dayReads).toBeGreaterThan(readsBeforeReplay);
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.getByText(whole(`${changed} October 21, 2026`))).toBeTruthy();
+  expect(screen.getByText('Rana')).toBeTruthy();
+  expect(state.put.mock.calls[1]?.[1].params.header['Idempotency-Key']).toBe(
+    state.put.mock.calls[0]?.[1].params.header['Idempotency-Key'],
+  );
+  const [first] = screen.getAllByRole('button', { name: t('en', 'serviceLinePerformers.change') });
+  if (!first) throw new Error('missing change button');
+  fireEvent.click(first);
+  expect(await screen.findByLabelText(t('en', 'serviceLinePerformers.reason'))).toBeTruthy();
+  expect(screen.queryByText(t('en', 'serviceLinePerformers.outcomeUnknown'))).toBeNull();
+});
