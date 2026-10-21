@@ -650,3 +650,80 @@ Only the following template approval TODO and future design note remain:
 
 Q7 approval blocks live OTP activation. Q4 is a future design obligation before PR 20, not an open
 choice about PR 6's scope. This revision changes no implementation or other governing documents.
+
+## Addendum 2026-10-21 — private view on the reception device (spec 060 D-A13, docs PR 57-0)
+
+Waleed answered MY-Q1 on 2026-10-21 (PP-18.1, against the recommended option): an employee's «شغلي» (her work and
+earnings) and «حضوري» (her attendance) open on her personal phone **and** on the shared reception device after her PIN.
+On that device they would ride the `STAFF_POS` operator session, which lives 8 hours with no idle timeout (Q2 above),
+so any colleague at the counter could read her commission. Spec 060 D-A13 therefore adds a short **private-view
+window** on top of the session. This ADR has no idle rule, and ADR-0027 lists own reads for the personal purpose only,
+so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
+
+### What does not change
+
+- **The `STAFF_POS` session itself.** It stays 8 hours absolute, with no idle timeout and no renewal (Q2). The
+  Alternatives row that rejects a staff idle timeout or sliding renewal still holds for the session. The window is a
+  separate, shorter state that gates two screens only. When it lapses, the operator stays signed in and every other
+  staff route behaves as before.
+- **One operator per device, replacement and sign-out** (§1).
+- **«إجازاتي».** The ADR-0026 kiosk and personal leave routes keep `PERSONAL_ROUTE = 'staff'` with no window check
+  (spec 060 D-A11).
+- **The personal session (ADR-0027).** It needs no window: the phone is the employee's own.
+
+### Decision
+
+1. **Scope.** The window gates exactly the «شغلي» and «حضوري» reads (spec 060 FR-A01…FR-A04: her lines, her
+   commission estimate, her tips, her attendance) and their activity touch, and only on the `STAFF_POS` path. No other
+   route reads or extends it.
+2. **Fresh PIN proof.** Opening either screen asks for the PIN again. The PIN is the cashier PIN of the employee
+   linked to the session's user, so the operator proves herself and no one else. A manager's PIN never opens another
+   employee's window (Q8). `packages/auth` verifies the PIN against the session's own user and device context. The
+   window is granted only against a proof **at most 60 seconds old**, consumed once; a stale or reused proof opens
+   nothing. Step-up attempts count against the existing PIN attempt limit in Redis (`CLAUDE.md` §8), and the actual
+   actor is recorded, as for PIN sign-in.
+3. **The window record is auth-owned and global**, kept in the existing `verification` storage the way ADR-0027
+   keeps its 120-second attendance challenge. It holds the session id, the operator's user id, the device id,
+   `opened_at` and `last_activity_at`, and its stored expiry is `opened_at` + 5 minutes. It holds no tenant data, no
+   employee data, no column setting and no PIN material. A session has at most one window; opening it again replaces
+   it. **No new table and no new grant:** `pospay_auth` already reads and writes `verification` (migration 0008), so
+   ADR-0003 needs no new classification.
+4. **The server enforces the idle limit, not the tab.** On every gated request on the `STAFF_POS` path, after the
+   normal staff-session checks (§1 items 6–7: device, session purpose, deadline, membership), auth runs one atomic
+   conditional update with the request's single Clock sample `now` (spec 060 FR-A06):
+   - it passes only when the window exists for **this session and this operator**, `now − last_activity_at ≤ 60 s`
+     and `now − opened_at ≤ 5 min`;
+   - a passing request sets `last_activity_at = now`, so each request extends the window by 60 seconds from its own
+     time, never past 5 minutes from the opening;
+   - any other request is refused with 401 `UNAUTHENTICATED` and the record is deleted, which closes the window.
+
+   A killed tab, a lost connection or a bypassed client therefore never keeps the window open.
+5. **Activity touch.** While the screen has input, the POS sends a throttled touch, at most one every 20 seconds,
+   through the same route policy and the same check. It returns no private data. Its only effect is to keep the
+   server's clock in step with real use.
+6. **Closing and clearing.** Leaving the screen sends a best-effort close. Sign-out, operator replacement and the
+   session's 8-hour deadline close the window too: the auth operation that ends or replaces the session deletes its
+   window, and the check in item 4 also requires the bound session to be the live one, so a stale record never passes.
+   The POS clears the screen and the query cache of these reads in every tab, as §1 already requires for a replaced
+   operator. The server's idle expiry never depends on the close request arriving.
+7. **Nothing kept.** Responses carry `Cache-Control: no-store`, and the PWA persists nothing from these screens: no
+   IndexedDB, no offline queue (spec 060 S-19, `CLAUDE.md` §7).
+8. **Route policy, for 57-1 (spec 060 FR-A06b).** Today `PERSONAL_ROUTE = true` makes `SessionGuard`
+   (`apps/api/src/shared/session.guard.ts`) call `personalSessionRequest` at once, so a `STAFF_POS` request would be
+   refused before any window check. FR-A01…FR-A04 therefore use the combined `PERSONAL_ROUTE = 'staff'` policy the
+   ADR-0026 leave routes already use:
+   - with an `Authorization` header, the request takes the `STAFF_POS` operator path; without one, it takes the
+     personal session, and it never falls back to an admin session;
+   - a per-route private-view marker makes the `STAFF_POS` path call auth's window check after the staff session
+     resolves;
+   - the personal path and the leave routes never call it.
+
+   This addendum names the `SessionGuard` change and the auth window store; 57-1 builds both, with test MY-13b, its
+   killed-tab case included.
+
+### Not in this addendum
+
+- The four own permission codes and their place in ADR-0027's list of personal-purpose capabilities (spec 060 D-A4,
+  D-A5). They are 57-1's own ADR-0027 addendum.
+- The column setting (D-A2) and the months-back setting (D-A14). They apply the same way on both paths and are read
+  through `StaffColumnsPort` (ADR-0010 addendum 2026-10-21).
