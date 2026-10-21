@@ -275,3 +275,24 @@ it.each([
     expect(screen.getByRole('button', { name: t('en', 'serviceLineEdit.edit') })).toBeTruthy();
   },
 );
+
+it('shows Cancel, Change performers and Record tip together to a holder of all three permissions', async () => {
+  state.online = true;
+  state.get.mockImplementation((path: string) => {
+    const name = String(path);
+    if (name.includes('/capabilities')) {
+      return Promise.resolve({
+        data: { can_cancel_lines: true, can_change_performers: true, can_record_sessions: true },
+        response: { status: 200 },
+      });
+    }
+    if (name.includes('recording-context')) return Promise.resolve(recorded);
+    return Promise.resolve(day);
+  });
+  renderPage();
+  expect(await screen.findByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: t('en', 'serviceLinePerformers.change') }),
+  ).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'serviceLineCancel.cancel') })).toBeTruthy();
+});

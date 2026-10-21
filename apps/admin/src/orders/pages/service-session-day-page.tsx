@@ -15,7 +15,7 @@ import { ServiceSessionDayBody } from '../ui/service-session-day-body';
 import { useTipAttemptMemory } from '../ui/use-tip-attempt-memory';
 import { ServiceSessionDayFilters } from '../ui/service-session-day-filters';
 
-export function ServiceSessionDayPage({ scope, timezone, canCancel, canChangePerformers }: { scope: SessionServiceScope; timezone: string; canCancel?: boolean; canChangePerformers?: boolean }) {
+export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServiceScope; timezone: string }) {
   const locale = useLocale();
   const connectivity = useBrowserConnectivity();
   const online = connectivity === true;
@@ -25,15 +25,16 @@ export function ServiceSessionDayPage({ scope, timezone, canCancel, canChangePer
   const [date, setDate] = useState(() => sessionLocalTime(new Date().toISOString(), timezone).slice(0, 10));
   const [lateOnly, setLateOnly] = useState(false);
   const [denied, setDenied] = useState<{ message: string } | null>(null);
-  const asked = canCancel === undefined && online && denied === null;
+  // القدرات الثلاثة من نفس القراءة، فبتتجاب دايماً وهي online؛ تجاوز واحدة منها كان بيوقف الاتنين التانيين (PP-19).
+  const asked = online && denied === null;
   const capability = useServiceSessionCapabilities(scope, asked);
   // زرار البقشيش من can_record_sessions، مش من نجاح قراءة سياق التسجيل: القراءة دي بقت مفتوحة لصلاحية تغيير المنفّذين (PP-19).
   // البيانات بتفضل بعد فشل إعادة جلب، فانقطاع مؤقت ما بيخفيش الزرار؛ 401/403 بيقفل الصفحة كلها.
   const canRecord = capability.data?.can_record_sessions === true;
   const tipAttempts = useTipAttemptMemory(companyId, businessId, branchId, userId);
-  const cancelAllowed = canCancel ?? (capability.isSuccess && capability.data.can_cancel_lines === true);
+  const cancelAllowed = capability.isSuccess && capability.data.can_cancel_lines === true;
   // زرار تغيير المنفّذين بيختفي عند اللي معندوش الصلاحية (PP-19.2)؛ السيرفر لسه بيرفض لو الصلاحية اتشالت بعد القراءة.
-  const changeAllowed = canChangePerformers ?? (capability.isSuccess && capability.data.can_change_performers === true);
+  const changeAllowed = capability.isSuccess && capability.data.can_change_performers === true;
   const onAccessDenied = useCallback((message: string) => { setDenied({ message }); }, []);
   // رفض القدرة 401/403/FEATURE_DISABLED معناه إن قراءة اليوم نفسها اتسحبت، مش الإلغاء بس؛ الشاشة تتقفل زي باقي القراءات.
   const blocked = denied ?? (serviceSessionAccessRevoked(capability.error) ? { message: envelopeMessage(capability.error, locale) } : null);
