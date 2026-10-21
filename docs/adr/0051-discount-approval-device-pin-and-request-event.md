@@ -7,7 +7,8 @@
   the super agent). Waleed answered the money questions DA-Q1…DA-Q5 at 14:00 on 2026-10-21 (relayed by the
   orchestrator; written into spec 057 by PR #466): the four managers approve by default (DA-Q1), within the
   approver's own limit (DA-Q2); a manager **may** approve a discount on a service she performed and the owner gets a
-  bell (DA-Q3); an approval is valid **24 hours**, its start point still open — `TODO(spec)` DA-Q4; an edit of a saved
+  bell (DA-Q3); a request is valid **24 hours** from the request, and an approval resets `expires_at` to 24 hours from the
+  approval; `expires_at` is never NULL (DA-Q4 and DA-Q4b = PP-25.2, recorded in spec 057 by PR #471); an edit of a saved
   line may request and use an approval the same way (DA-Q5, `kind = EDIT`). Recorded in spec 057 by PR #466.
 - **Scope:** `orders` (owner of `discount_proposals`), `identity` (approver proof and authority), `notifications`
   (the bell), the POS app as the approval screen.

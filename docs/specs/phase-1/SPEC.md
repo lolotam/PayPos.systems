@@ -182,7 +182,7 @@ LinePerformer     line_id · employee_id · share_bps (Σ = 10000)
 Tip               session_id · employee_id · amount · method (CASH|CARD)
                   — entered per employee; for a shared session the screen pre-fills the split by commission shares
 DiscountProposal  terms_hash · terms · requested_by · status (PENDING|APPROVED|REJECTED|EXPIRED|CONSUMED)
-                  approver? · via (PIN|REMOTE)? · expires_at (24 h, DA-Q4; start TODO(spec)) · consumed_by_line?
+                  approver? · via (PIN|REMOTE)? · expires_at (request + 24 h; reset to approval + 24 h; never NULL — DA-Q4/DA-Q4b) · consumed_by_line?
 PackageEntitlement business_id · customer_id · package_type_id · provenance (SOLD|IMPORTED) · external_ref?
                   sold_line_id? · sold_at · seller_employee_id? · price_paid · paid_method? · expires_on · revision
 PackageComponent  entitlement_id · service_id · list_price_snapshot · sessions_total · component_value
