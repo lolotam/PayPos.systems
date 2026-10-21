@@ -1,7 +1,7 @@
 # Spec 059 — Commission plans, projection and statements (Phase 1 rows 48a–56b)
 
 > **Status:** Draft · 2026-10-21 · docs-only PR. Owner questions are recorded in [owner-questions.ar.md](owner-questions.ar.md):
-> the money list CS-Q1…CS-Q12 (Abu Salem, decisions page batch 36) is open; the permissions/technical list CS-Q13…CS-Q19 is
+> the money list CS-Q1…CS-Q12 (Abu Salem, decisions page batch 36) and the new money question CS-Q22 are open; the permissions/technical list CS-Q13…CS-Q19 is
 > answered by Waleed through his super agent (PP-17, 2026-10-21; CS-Q14, CS-Q15 and CS-Q16 against the recommendation),
 > and its follow-ups: CS-Q20 (a branch manager's scope) answered (PP-20.1, the recommended option), CS-Q21 (erasing a
 > frozen customer name) answered (PP-20.2, the recommended option). Every rule that waits on one is
@@ -21,7 +21,7 @@
 > not built yet).
 > **Design advisors:** required before 59-0 (the ADR), 48a-2 (the lock helper and the statement table), 50-1 (the
 > consumer transaction) and 53-1 (the definer function), as in spec 055 §7. Not needed for this docs-only PR.
-> **Largest slice of Phase 1:** split into 25 sub-PRs of at most three subtasks each (§7, owner rule 2026-10-12).
+> **Largest slice of Phase 1:** split into 26 sub-PRs of at most three subtasks each (§7, owner rule 2026-10-12).
 
 ## 1. What and why
 
@@ -97,7 +97,7 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 
 | Rule | Source |
 | --- | --- |
-| The period is the calendar month in the business timezone; the manager reviews, the owner approves (the first five days of the next month are the intended cadence, not a deadline: approval is allowed on any day after the month ends), paid with the salary | D-17, SPEC §5 _Dates_ |
+| The period is the calendar month in the business timezone; the manager reviews, the owner approves within the first five days, paid with the salary (what happens after day 5: `TODO(spec)` CS-Q22) | D-17, SPEC §5 _Dates_ |
 | Reminders to the owner on the 3rd and the 5th of the next month; reminders, not locks | D-54, SPEC §6 |
 | Approval only after the month has ended; atomic; refused while commission events are pending, with the retryable 409 «updates are still being calculated, try again shortly» | SPEC §6, ADR-0012 §3/§5 |
 | Review is bound to the inputs; the owner approves only the fingerprint that was reviewed | SPEC §6 |
@@ -184,6 +184,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   equals the projection after the ordered set (property test over a seeded set, SPEC §11).
 - **CM-22** A crash between the projection write and the correction insert leaves neither (the transaction is killed
   between them; SPEC §11).
+- **CM-22a** A crash between the projection write and the `consumed_events` mark leaves neither; the redelivered event
+  projects once (50-1, before corrections exist).
 - **CM-22b** A bootstrap page and a live delivery of the same line race (barrier): revision 2 commits first and the
   waiting revision-1 writer, rechecking under the identity lock, applies nothing and only marks its event consumed;
   the same test for a tip session, a salary entry and a sale.
@@ -417,7 +419,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   by later revisions: SPEC §3 lists only `sold_at`, so row 42's contract adds the field (a SPEC §3 amendment in that PR),
   and 50-4 refuses to start without it. The consumer never converts `sold_at` with a timezone read later.
 - **FR-018b** `SalaryChanged` names its business: sub-PR 21-a (owned by `staff`, before 50-2) adds `business_id` to the
-  event, taken from the salary row. An event published before 21-a (the ADR-0012 amendment backfill) has none; the
+  event, taken from the salary row. The field is optional in the contract so legacy events still parse, and every event produced after 21-a carries it.
+  An event published before 21-a (the ADR-0012 amendment backfill) has none; the
   consumer resolves it once through a staff-owned employee-business reader bound at the root (D-16), which is safe
   because an employee's business never changes (spec 017: business identity is immutable).
 - **FR-019** Registered in the worker's consumer registry; `KNOWN_EVENT_TYPES` already holds every type except
@@ -429,8 +432,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   per-source amounts, the total, sales, tips by method, corrections received, and `status: OK | NO_PLAN | NO_SALARY`; computed
   on read by a read-only use case (D-7), never stored. Permission `read:commissions:business` (CS-Q14 = PP-17.2; a branch manager's scope CS-Q20 = PP-20.1, §6 _Permissions_); the staff app's
   own estimate is row 57.
-- **FR-022** The engine input for one employee and month is assembled by a pure domain function from the projection rows
-  (ACTIVE lines, active sales, the salary entries, versions, overrides); tips and corrections pass through unpriced (D-1).
+- **FR-022** The engine input for one employee and month is assembled by **one** pure function, in
+  `packages/commissions-engine` (so the worker and the api share it), from the projection rows (ACTIVE lines, active sales,
+  the selected salary, versions, overrides); tips and corrections pass through unpriced (D-1). Sub-PR 50-a ships it before
+  both its users: the correction step (55-1) and the estimate/statement view (50-5, 51-1). No second assembly path exists.
 - **FR-023** Names for display come from `EmployeeDirectoryPort` (staff, ADR-0010) and a catalog service-name reader bound at
   the root (D-16).
 - **FR-024** An event for a business whose `commissions` feature is off is still projected and marked (turning the feature on
@@ -619,7 +624,7 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 
 | Table | Columns (beyond company_id, id, business_id) | Constraints and grants |
 | --- | --- | --- |
-| `commission_statements` (48a) | `period char(7)`, `status`, `current_fingerprint`, `reviewed_fingerprint`, `reviewed_by`, `reviewed_membership_id`, `reviewed_at`, `input_fingerprint`, `approved_by`, `approved_at`, `paid_by`, `paid_at`, `paid_on date`, `paid_method`, `revision` | `UNIQUE (company_id, business_id, period)`; `CHECK` period format; FR-001 trigger; `SELECT, INSERT, UPDATE (status, …)` to `pospay_app` |
+| `commission_statements` (48a) | `period char(7)`, `status`, `current_fingerprint`, `reviewed_fingerprint`, `reviewed_by`, `reviewed_membership_id`, `reviewed_at`, `input_fingerprint`, `approved_by`, `approved_at`, `revision`; the payment columns `paid_by`, `paid_at`, `paid_on date`, `paid_method` (and its note, CS-Q6) are added by 54-1 (expand-only), not 48a-2 | `UNIQUE (company_id, business_id, period)`; `CHECK` period format; FR-001 trigger; `SELECT, INSERT, UPDATE (status, …)` to `pospay_app` |
 | `commission_plan_versions` (48) | `employee_id`, `version`, `effective_from date`, `whole_period`, `repair_period char(7) NULL`, `plan jsonb`, `created_at`, `created_by` | `UNIQUE (company_id, employee_id, version)`; `CHECK NOT (whole_period AND repair_period IS NOT NULL)`; insert-only (`SELECT, INSERT`) |
 | `commission_service_overrides` (49) | `employee_id`, `service_id`, `rule_kind`, `rule_value`, `effective_from`, `created_at`, `created_by` | `CHECK` per kind (bps 0…10000, mills ≥ 0); index `(company_id, employee_id, service_id, effective_from)`; insert-only |
 | `commission_line_heads` (50) | `line_id`, `session_id`, `branch_id`, `service_id`, `customer_id`, `revision`, `status`, `business_date`, `period` | `UNIQUE (company_id, line_id)`; `SELECT, INSERT, UPDATE` |
@@ -662,7 +667,9 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
   `CommissionCorrectionBlockedNoticeRequested` (FR-049, registered in 55-2), to `notifications`,
   with recipients, channels and safe ar/en parameters (business, month; never an amount, never a name of a paid employee).
   Each has an Arabic doc comment in `events/published.ts` (CLAUDE.md §3.1).
-- **Arrows:** none new by default (D-16); the root-bound readers are: business timezone (tenancy), service names (catalog),
+- **Arrows:** two new **event** rows in `docs/module-map.md`: `CompanyCreated` (tenancy) consumed by worker `commissions`
+  (added by 56b-1) and `CommissionCorrectionBlockedNoticeRequested` commissions ⇒ notifications (added by 55-2);
+  `StatementAwaitingReview`/`StatementAwaitingApproval` are already declared. No new **import** arrow (D-16); the root-bound readers are: business timezone (tenancy), service names (catalog),
   recipients (identity), tips and lines bootstrap (orders). 59-0's ADR lists each binding.
 
 ### Permissions
@@ -711,7 +718,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 
 | PR | Result | Subtasks | Blocked on | Size |
 | --- | --- | --- | --- | --- |
-| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9), ADR-0049 addendum (export kind), the `CompanyCreated` → worker `commissions` event row (FR-053) and the `CommissionCorrectionBlockedNoticeRequested` row (FR-049) | this spec; design advisors | 150–250 |
+| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9), ADR-0049 addendum (export kind) | this spec; design advisors | 150–250 |
 | **48a-1** | `packages/commissions-engine` (D-17) | 1. Package scaffold, `packages/domain` its only dependency, and the browser-safe `validation` entry point. 2. Move the engine and its tests unchanged. 3. Rewire the api imports; the boundaries rule (only the `commissions` modules may import it) and the module-map check | 59-0 | 150–300 (moves) |
 | **48a-2** | Statements and the lock | 1. `commission_statements` + RLS + grants + FR-001 trigger + negative tests. 2. `lockStatementPeriods` + typed errors. 3. Lock tests CM-01…CM-04 and the FR-004 check | 48a-1 | 300–420 |
 | **48-1** | Plan storage and contracts | 1. Zod contracts and OpenAPI. 2. `commission_plan_versions` + RLS. 3. The plan permission (CS-Q1) and its role defaults | 48a-2; CS-Q1 | 250–380 |
@@ -720,22 +727,23 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **49-1** | Overrides | 1. Contracts + table + RLS. 2. Use case + HTTP + list. 3. CM-11…CM-13 | 48-2 | 350–480 |
 | **49-2** | Overrides screen | 1. Per-employee service table. 2. Edit dialog. 3. ar/en keys, component tests | 49-1, 48-3 | 200–320 |
 | **50-0** | Orders line bootstrap reader (orders module) | 1. `queries/` latest line revision + event ids, keyset paging. 2. Public export in orders `index.ts`. 3. Shape, `EXPLAIN`, paging tests | 59-0; the design advisors' choice (D-15) | 200–300 |
-| **50-1** | Line projection | 1. Line tables + RLS. 2. Consumer for the three line event types with guards, locks, mark (FR-015). 3. CM-14…CM-17, CM-21, CM-22, CM-26 | 48a-2, 48-2, 49-1 | 450–600 |
-| **21-a** | `SalaryChanged` carries `business_id` (staff producer amendment) | 1. Contract: add `business_id` (from the salary row, `employee_salaries.business_id`). 2. The set-salary writer fills it; its Arabic doc comment updated. 3. Tests that every new event carries it | this spec | 80–150 |
+| **50-1** | Line projection | 1. Line tables + RLS. 2. Consumer for the three line event types with guards, locks, mark (FR-015). 3. CM-14…CM-17, CM-21, CM-22a, CM-26 | 48a-2, 48-2, 49-1 | 450–600 |
+| **21-a** | `SalaryChanged` carries `business_id` (staff producer amendment) | 1. Contract: add `business_id` as an **optional** field (legacy events published before 21-a have none and must still parse for the backfill), from the salary row (`employee_salaries.business_id`). 2. The set-salary writer fills it; its Arabic doc comment updated. 3. Tests that every newly produced event carries it (the producer always sets it) and that a legacy event without it still parses | this spec | 80–150 |
 | **50-2** | Tips and salaries | 1. Tip and salary tables + RLS. 2. Their consumer handlers. 3. CM-18, CM-19, CM-25 (salary backfill) | 50-1, **21-a** | 350–480 |
 | **50-3** | Bootstrap | 1. Root bindings of 36-5 and 50-0. 2. The idempotent bootstrap job and the discharge of event ids. 3. CM-24 race and coverage tests, runbook | 50-1, 50-2, **36-5**, 50-0 | 300–420 |
 | **50-4** | Package sales | 1. Sales table + RLS. 2. Handler and the root binding of `listCurrentPackageSales`. 3. CM-20, CM-20b (bootstrap, coverage, race) | 50-1; row 42 (producer with `business_date`, and its reader) | 250–380 |
-| **50-5** | Estimate on read | 1. Input assembly (pure) and the read use case (D-7). 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b | 50-1, 50-2, 50-4, 55-1 | 300–420 |
+| **50-a** | Engine input assembly (FR-022) | 1. The pure assembly function in `packages/commissions-engine`. 2. Its types for lines, sales, salary, versions, overrides, tips and corrections. 3. Unit tests (every input kind, the selected salary, ACTIVE-only lines) | 48a-1 | 150–250 |
+| **50-5** | Estimate on read | 1. The read use case (D-7) over the 50-a assembly. 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b | 50-a, 50-1, 50-2, 50-4, 55-1 | 300–420 |
 | **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 | 50-5; CS-Q7 | 350–480 |
-| **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044) | 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
-| **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations). 3. CM-51…CM-54 | 55-1; CS-Q11 | 400–550 |
+| **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
+| **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations, its `docs/module-map.md` event row). 3. CM-51…CM-54 | 55-1; CS-Q11 | 400–550 |
 | **52-1** | Review | 1. Review use case + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
-| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-35, CM-37, CM-38 | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5 | 400–550 |
+| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-35, CM-37, CM-38 | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q22 | 400–550 |
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to her branch's employees for a branch-scoped reader (CS-Q20 = PP-20.1). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
-| **54-1** | Mark paid | 1. Use case + HTTP (CS-Q6). 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
+| **54-1** | Mark paid | 1. The payment columns on `commission_statements` in the shape CS-Q6 decides (expand-only migration, grants), the use case + HTTP. 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
 | **56-1** | Excel export | 1. Worker document source and workbook (D-18). 2. Request/collect routes, audit. 3. CM-55, CM-56 | 53-2; 59-0's ADR-0049 addendum; CS-Q10, CS-Q12 | 350–480 |
-| **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair, the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
+| **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
 
 **Deferred — «with the customer-erasure feature» (D-21, CS-Q21 = PP-20.2).** Not a sub-PR of this slice; it ships with the
 feature that erases a customer, which Phase 1 does not have. It must decide and deliver together: the erasure use case in
@@ -770,7 +778,8 @@ notification events; they run one at a time. Everything else may run beside them
   informational). A negative commission result is CS-Q7; tips and tip corrections never enter that carry (BR-06).
 - A month whose statement was never generated is generated on first demand (review, the correction target, or the plan
   lock); a statement row costs nothing and simplifies the lock (D-3).
-- The approver may approve on any day after the month ended; the 3rd and 5th are reminders, never deadlines (D-54).
+- The 3rd and 5th are reminders, not locks (D-54). Whether approval stays allowed after the 5th, or is blocked until the
+  owner extends it, is `TODO(spec)` CS-Q22; until answered, 53-2 does not start.
 - The REVIEWED → DRAFT return on any input change (D-5) is how SPEC §6 "a REVIEWED statement whose fingerprint changed
   returns to DRAFT" is implemented; the fingerprint comparison at approval is the second line of defence.
 - Bell and reminder copy is proposed copy, fixed in the sub-PR that adds the template.
