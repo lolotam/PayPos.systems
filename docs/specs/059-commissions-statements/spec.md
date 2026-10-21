@@ -21,7 +21,7 @@
 > not built yet).
 > **Design advisors:** required before 59-0 (the ADR), 48a-2 (the lock helper and the statement table), 50-1 (the
 > consumer transaction) and 53-1 (the definer function), as in spec 055 §7. Not needed for this docs-only PR.
-> **Largest slice of Phase 1:** split into 24 sub-PRs of at most three subtasks each (§7, owner rule 2026-10-12).
+> **Largest slice of Phase 1:** split into 25 sub-PRs of at most three subtasks each (§7, owner rule 2026-10-12).
 
 ## 1. What and why
 
@@ -29,7 +29,9 @@ Phase 1 replaces the salon's commission spreadsheet (SPEC §1). This slice turns
 functions, rows 29/30) into the working month: the manager writes each employee's plan, the system keeps every input of the
 month current from the orders and staff events, the employee's commission is visible as an estimate, the manager reviews
 the month, the owner approves it once, someone records that it was paid, and anything that changes a closed month later
-arrives as a correction in the next open month. Nothing in an approved statement ever changes.
+arrives as a correction in the earliest DRAFT month after it. Nothing in an approved statement ever changes, with one
+controlled exception decided by the owner: if a customer is later erased, her frozen name is replaced by a placeholder
+(CS-Q21 = PP-20.2, D-21).
 
 **Worked example (salon «صالون الأميرة», `Asia/Kuwait`).** سارة is the hair specialist, salary 500.000. Her plan (D-55):
 tiers on, MARGINAL, AMOUNT, one step from `SALARY_MULTIPLE 2.00` (1,000.000) at 5 %, no base. In October her net shares
@@ -88,13 +90,14 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 | D-17 | **The engine moves to a new shared package, `packages/commissions-engine`** (CS-Q13 = PP-17.1): pure TypeScript whose only dependency is `packages/domain`, the same import rules as a module's `domain/` (CLAUDE.architecture.md §3.1), imported only by the `commissions` modules of `apps/api` and `apps/worker` (a `packages_restricted` entry in `docs/module-map.md`, enforced by the boundaries lint). **One exception:** a browser-safe subpath entry point, `packages/commissions-engine/validation`, exports only `validateCommissionPlan`, its error codes and the plan types (pure, no dependency beyond `packages/domain`, no Node-only code), and `apps/admin/src/commissions` may import that entry point and nothing else of the package, so the builder runs the same validator as the API (CM-06); the ADR and the boundaries rule of 59-0 name both the restriction and this exception. 59-0 writes its ADR (a new package, CLAUDE.md §11) and the CLAUDE.md §2.1 / module-map rows; 48a-1 creates the package and moves the engine and its tests unchanged. ADR-0035 stands: commission kinds stay out of `packages/domain` | running the consumer in the api process; copying the engine into the worker |
 | D-18 | **The Excel export is a worker render** on the ADR-0049 transport (202 `{ render_id }`, poll, collect once, not stored), a new `kind` for the commission statement; the workbook is built with `exceljs` (already a dependency of `apps/api`), and generation over 200 ms never runs in a request (CLAUDE.md §6). An ADR-0049 addendum names the new kind | a synchronous download |
 | D-19 | **Money:** `numeric(14,3)` in Postgres, `bigint` mills in TypeScript, KWD strings on the wire (ADR-0035, ADR-0041 §4); one `roundKwd` per source inside the engine (SPEC §5.2, ADR-0005); every total is a plain sum of rounded sources and is never rounded again (`TODO(spec)` CS-Q12 for cash) | rounding a total |
-| D-20 | **Customer identity for the detail (CS-Q15):** the projection head keeps the event's `customer_id` (and `service_id`), and a line-sourced frozen statement row copies `line_id`, `session_id`, `service_id`, `customer_id` and `business_date`. While the month is open (DRAFT/REVIEWED) the customer's full name and the service names are read live by id through the readers bound at the root (D-16). **At approval they are frozen:** the line-sourced frozen row also stores `customer_name` and `service_name_ar`/`service_name_en` as read in the approval transaction, so an approved statement and every later export of it never change (BR-02, SPEC §6 "the frozen statement is never changed"). The name is the only personal data copied; no phone is ever read or stored here (SPEC §4). **Erasure (CS-Q21 = PP-20.2):** when a customer is erased, every frozen row that names her has **only** `customer_name` replaced by the fixed placeholder «عميلة محذوفة» / "Deleted customer", by one recorded operation (FR-034b); amounts, dates, services, ids and every other column stay as approved | reading names live for a closed statement (a renamed customer would change an approved export); resolving the line through orders (ADR-0041 §6 forbids commissions reading orders) |
+| D-20 | **Customer identity for the detail (CS-Q15):** the projection head keeps the event's `customer_id` (and `service_id`), and a line-sourced frozen statement row copies `line_id`, `session_id`, `service_id`, `customer_id` and `business_date`. While the month is open (DRAFT/REVIEWED) the customer's full name and the service names are read live by id through the readers bound at the root (D-16). **At approval they are frozen:** the line-sourced frozen row also stores `customer_name` and `service_name_ar`/`service_name_en` as read in the approval transaction, so an approved statement and every later export of it never change (BR-02, SPEC §6 "the frozen statement is never changed"). The name is the only personal data copied; no phone is ever read or stored here (SPEC §4). Erasure: D-21 | reading names live for a closed statement (a renamed customer would change an approved export); resolving the line through orders (ADR-0041 §6 forbids commissions reading orders) |
+| D-21 | **Customer erasure (CS-Q21 = PP-20.2), recorded now, built later.** The owner decided that when a customer is erased, every frozen statement row naming her has **only** its customer name replaced by a placeholder, by a recorded operation, and amounts, dates, services and ids never change. This is the **one controlled exception** to BR-02 and SC-002. Phase 1 has no customer-erasure feature, so this slice designs none of its mechanics; they are one deferred item, **«with the customer-erasure feature»** (§7 _Deferred_). Until then frozen rows are insert-only with no exception | designing the erasure use case, trigger and event inside this slice without the feature that drives them |
 
 ## 3. Rules already settled (cited, not asked again)
 
 | Rule | Source |
 | --- | --- |
-| The period is the calendar month in the business timezone; the manager reviews, the owner approves within the first five days, paid with the salary | D-17, SPEC §5 _Dates_ |
+| The period is the calendar month in the business timezone; the manager reviews, the owner approves (the first five days of the next month are the intended cadence, not a deadline: approval is allowed on any day after the month ends), paid with the salary | D-17, SPEC §5 _Dates_ |
 | Reminders to the owner on the 3rd and the 5th of the next month; reminders, not locks | D-54, SPEC §6 |
 | Approval only after the month has ended; atomic; refused while commission events are pending, with the retryable 409 «updates are still being calculated, try again shortly» | SPEC §6, ADR-0012 §3/§5 |
 | Review is bound to the inputs; the owner approves only the fingerprint that was reviewed | SPEC §6 |
@@ -193,7 +196,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   live event of the same or a lower revision is then ignored; a revision written between a page read and the first live
   delivery still ends in the projection; the readers' event ids are discharged in `consumed_events`; approval stays closed
   until both coverage conditions of spec 053 BR-08 hold (TP-15 race test, and the same test for lines).
-- **CM-25** Salary backfill (ADR-0012 amendment): a `SalaryChanged` published before the consumer existed is applied once;
+- **CM-25** Salary backfill (ADR-0012 amendment): a `SalaryChanged` published before the consumer existed (and before 21-a,
+  so without `business_id`) is applied once to the employee's business (FR-018b);
   a repeated backfill adds nothing; a failed projection leaves its mark absent.
 - **CM-26** The business-date boundary: a line at 21:30 UTC that is the next day in Kuwait belongs to the next month
   (SPEC §5 _Dates_); the consumer uses the event's `business_date` and never converts an instant itself.
@@ -316,10 +320,6 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   a new export of the same approved statement still shows the name frozen at approval and identical amounts, while an open
   month's view shows the corrected name; the same holds for the employee's name and number renamed or renumbered after
   approval.
-- **CM-55c** (CS-Q21 = PP-20.2) Erasing نورة after October was approved: every frozen October row naming her now shows
-  «عميلة محذوفة», one audit entry is written without her old name, and the amounts, dates, services, ids and the export
-  totals are bit-identical; a direct update of any other column of a frozen row, or of `customer_name` to any other
-  value, is refused by the trigger.
 - **CM-56** The amounts in the file equal the frozen statement bit for bit (KWD, three decimals, as text-safe numbers).
 
 ### Story 12 — Reminders (56b, P2)
@@ -416,6 +416,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   must carry `business_date`**, resolved by orders at the sale in the business timezone (SPEC §5 _Dates_) and never changed
   by later revisions: SPEC §3 lists only `sold_at`, so row 42's contract adds the field (a SPEC §3 amendment in that PR),
   and 50-4 refuses to start without it. The consumer never converts `sold_at` with a timezone read later.
+- **FR-018b** `SalaryChanged` names its business: sub-PR 21-a (owned by `staff`, before 50-2) adds `business_id` to the
+  event, taken from the salary row. An event published before 21-a (the ADR-0012 amendment backfill) has none; the
+  consumer resolves it once through a staff-owned employee-business reader bound at the root (D-16), which is safe
+  because an employee's business never changes (spec 017: business identity is immutable).
 - **FR-019** Registered in the worker's consumer registry; `KNOWN_EVENT_TYPES` already holds every type except
   `PackageSaleChanged`, which row 42 registers.
 - **FR-020** Bootstrap (D-15) in its own sub-PR, run once per tenant after the consumer is live, idempotent, with a runbook
@@ -470,7 +474,6 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `transaction_timestamp()` captured before the lock → lock → recheck ended month, permission, status REVIEWED, fingerprint =
   `reviewed_fingerprint` = `expected_fingerprint`, no blocking issue, no unresolved blocked correction, D-14, **every
   bootstrapped input type (lines, tips, salaries, package sales) meets its coverage rule (D-15, FR-020)** → the count → freeze.
-  The estimate and generate (50-5, 51-1) may ship before 50-4, because they freeze nothing; approval may not.
 - **FR-033** Freezing writes `commission_statement_lines` (insert-only): per employee, one `COMMISSION` line per `line:<id>`
   source, one `SALE` per `sale:<id>`, one `TIP_CARD`/`TIP_CASH` per `tip:<session>:<method>`, one line per received
   correction (its own id as source) of kind `CORRECTION` (commission and sale corrections), `CORRECTION_TIP_CARD` or
@@ -488,13 +491,6 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   projection or a live name to say which visit, service and customer a row is.
 - **FR-034** Status APPROVED, `approved_by`, `approved_at`, `input_fingerprint`; audit `commission_statement.approved` (SPEC §1:
   the approval actor and time are in the audit log).
-- **FR-034b** (CS-Q21 = PP-20.2) Erasing a customer's name from approved statements: one internal use case,
-  `erase-customer-name-in-statements(customer_id)`, in one transaction sets `customer_name` to the placeholder «عميلة
-  محذوفة» / "Deleted customer" on every frozen row of that customer and writes one audit entry
-  `commission_statement.customer_name_erased` (customer id, affected statements and row count; never the old name). No
-  other column can change (the FR-033 grant and trigger). What calls it is a customer-erasure event owned by `customers`,
-  which Phase 1 does not have yet: 53-2 ships the grant, the trigger and the use case with its test (CM-55c), and the event
-  arrow is added with the erasure feature. Open months need nothing: they read the name live.
 - **FR-035** 53-1 delivers the ADR-0012 function, role, grants, policies and index with the six types of D-9 and its addendum;
   53-2 the use case; 53-3 the race tests.
 - **FR-036** Permission `approve:commissions:business` (CS-Q5); reviewer rule CS-Q3.
@@ -596,7 +592,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 
 - **BR-01** Money moves only through the engine (SPEC §5); the consumer, the views, the export and the screens add and display,
   never price.
-- **BR-02** A closed month never changes; every later change is a correction in a later open month (SPEC §6).
+- **BR-02** A closed month never changes; every later change is a correction in the earliest DRAFT month after it (SPEC §6).
+  The one controlled exception is the owner's erasure rule (D-21): an erased customer's frozen name is replaced by a
+  placeholder, nothing else.
 - **BR-03** Every writer of a month's inputs and every status change takes the month's lock through one helper, ascending.
 - **BR-04** Missing configuration is never zero (D-57).
 - **BR-05** Commissions never reads an orders or staff table; it learns inputs from events and from root-bound readers
@@ -629,7 +627,7 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 | `commission_tip_heads` / `commission_tips` (50) | head: `session_id`, `revision`, `business_date`, `period`; rows: `session_id`, `employee_id`, `method`, `amount` | `UNIQUE (company_id, session_id)` / `UNIQUE (company_id, session_id, employee_id, method)`; projection grants |
 | `commission_salaries` (50) | `employee_id`, `effective_from`, `amount`, `revision` | `UNIQUE (company_id, employee_id, effective_from)`; projection grants; never logged (SPEC §12) |
 | `commission_sales` (50) | `sale_id`, `seller_employee_id NULL`, `business_date`, `period`, `price_paid`, `refunded_amount`, `status`, `revision` | `UNIQUE (company_id, sale_id)`; projection grants |
-| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `employee_number`, `employee_name_ar`, `employee_name_en` (the label frozen at approval), `source_ref`, `kind`, `amount`, `source_period NULL`, and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only except `UPDATE (customer_name)`, which a trigger allows only to the erasure placeholder (FR-034b); a trigger refuses an insert unless the statement is being approved in the same transaction |
+| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `employee_number`, `employee_name_ar`, `employee_name_en` (the label frozen at approval), `source_ref`, `kind`, `amount`, `source_period NULL`, and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only (the erasure exception of D-21 is added by the deferred customer-erasure item, not here); a trigger refuses an insert unless the statement is being approved in the same transaction |
 | `commission_period_generations` (55) | `employee_id`, `period`, `generation` | `UNIQUE (company_id, employee_id, period)`; `SELECT, INSERT, UPDATE (generation)` |
 | `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed), `generation`, `event_id`, `created_at` | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; index `(company_id, business_id, target_period)`; insert-only |
 | `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; `SELECT, INSERT, UPDATE (code, resolved_at, resolved_generation)`; a trigger allows `code` to change (`NO_PLAN` ↔ `NO_SALARY`) only on an open row and refuses any change to a resolved row |
@@ -657,9 +655,11 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
 
 ### Events and the module map
 
-- **Consumed:** the six input types (FR-014), consumer id `commissions.project-inputs`. `ServiceCompleted` is not consumed:
+- **Consumed:** the six input types (FR-014), consumer id `commissions.project-inputs`; and `CompanyCreated` (tenancy), by a
+  separate worker `commissions` consumer that only registers the reminder scheduler (FR-053, registered in 56b-1). `ServiceCompleted` is not consumed:
   it was replaced by `ServiceLineChanged` (ADR-0010) and the batch recording events (ADR-0041 §4).
-- **Published:** `StatementAwaitingReview`, `StatementAwaitingApproval` (SPEC §3, `docs/module-map.md`), to `notifications`,
+- **Published:** `StatementAwaitingReview`, `StatementAwaitingApproval` (SPEC §3, `docs/module-map.md`) and
+  `CommissionCorrectionBlockedNoticeRequested` (FR-049, registered in 55-2), to `notifications`,
   with recipients, channels and safe ar/en parameters (business, month; never an amount, never a name of a paid employee).
   Each has an Arabic doc comment in `events/published.ts` (CLAUDE.md §3.1).
 - **Arrows:** none new by default (D-16); the root-bound readers are: business timezone (tenancy), service names (catalog),
@@ -721,20 +721,30 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **49-2** | Overrides screen | 1. Per-employee service table. 2. Edit dialog. 3. ar/en keys, component tests | 49-1, 48-3 | 200–320 |
 | **50-0** | Orders line bootstrap reader (orders module) | 1. `queries/` latest line revision + event ids, keyset paging. 2. Public export in orders `index.ts`. 3. Shape, `EXPLAIN`, paging tests | 59-0; the design advisors' choice (D-15) | 200–300 |
 | **50-1** | Line projection | 1. Line tables + RLS. 2. Consumer for the three line event types with guards, locks, mark (FR-015). 3. CM-14…CM-17, CM-21, CM-22, CM-26 | 48a-2, 48-2, 49-1 | 450–600 |
-| **50-2** | Tips and salaries | 1. Tip and salary tables + RLS. 2. Their consumer handlers. 3. CM-18, CM-19, CM-25 (salary backfill) | 50-1 | 350–480 |
+| **21-a** | `SalaryChanged` carries `business_id` (staff producer amendment) | 1. Contract: add `business_id` (from the salary row, `employee_salaries.business_id`). 2. The set-salary writer fills it; its Arabic doc comment updated. 3. Tests that every new event carries it | this spec | 80–150 |
+| **50-2** | Tips and salaries | 1. Tip and salary tables + RLS. 2. Their consumer handlers. 3. CM-18, CM-19, CM-25 (salary backfill) | 50-1, **21-a** | 350–480 |
 | **50-3** | Bootstrap | 1. Root bindings of 36-5 and 50-0. 2. The idempotent bootstrap job and the discharge of event ids. 3. CM-24 race and coverage tests, runbook | 50-1, 50-2, **36-5**, 50-0 | 300–420 |
 | **50-4** | Package sales | 1. Sales table + RLS. 2. Handler and the root binding of `listCurrentPackageSales`. 3. CM-20, CM-20b (bootstrap, coverage, race) | 50-1; row 42 (producer with `business_date`, and its reader) | 250–380 |
-| **50-5** | Estimate on read | 1. Input assembly (pure) and the read use case (D-7). 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b | 50-1, 50-2 | 300–420 |
-| **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 | 50-5 | 350–480 |
-| **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044) | 51-1; CS-Q7, CS-Q8 | 450–600 |
+| **50-5** | Estimate on read | 1. Input assembly (pure) and the read use case (D-7). 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b | 50-1, 50-2, 50-4, 55-1 | 300–420 |
+| **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 | 50-5; CS-Q7 | 350–480 |
+| **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044) | 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations). 3. CM-51…CM-54 | 55-1; CS-Q11 | 400–550 |
 | **52-1** | Review | 1. Review use case + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
-| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-35, CM-37, CM-38, CM-55c (erasure, FR-034b) | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5 | 400–550 |
+| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-35, CM-37, CM-38 | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5 | 400–550 |
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to her branch's employees for a branch-scoped reader (CS-Q20 = PP-20.1). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
 | **54-1** | Mark paid | 1. Use case + HTTP (CS-Q6). 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
 | **56-1** | Excel export | 1. Worker document source and workbook (D-18). 2. Request/collect routes, audit. 3. CM-55, CM-56 | 53-2; 59-0's ADR-0049 addendum; CS-Q10, CS-Q12 | 350–480 |
 | **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair, the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
+
+**Deferred — «with the customer-erasure feature» (D-21, CS-Q21 = PP-20.2).** Not a sub-PR of this slice; it ships with the
+feature that erases a customer, which Phase 1 does not have. It must decide and deliver together: the erasure use case in
+commissions and its audit entry (never the old name); the column grant and trigger that allow only `customer_name` to
+change, only to the placeholder; the customers-owned erasure event, its ADR and its module-map arrow; the
+`(company_id, customer_id)` index on the frozen rows; the serialization with approval (an approval copying names must not
+commit an old name after the erasure, e.g. both take the same per-customer lock, or approval rechecks the erasure under
+its lock); the placeholder text per language for the one `customer_name` column; and how open months and later approvals
+show an erased customer (they can no longer read a live name).
 
 **File overlap:** 50-1, 50-2, 50-4 and 55-1 all touch the one consumer; they run one at a time. 52-1 and 56b-1 both register
 notification events; they run one at a time. Everything else may run beside them when its paths are disjoint (pipeline rule).
@@ -743,7 +753,8 @@ notification events; they run one at a time. Everything else may run beside them
 
 - **SC-001** The parallel month (SPEC §1): every employee's approved total equals the manager's hand calculation to 0.001 KWD,
   or each difference is traced to the manual sheet.
-- **SC-002** 0 changes to an approved or paid statement after approval; 100 % of later changes appear as corrections in a
+- **SC-002** 0 changes to an approved or paid statement after approval (except the erased-customer name placeholder of D-21,
+  once the erasure feature exists); 100 % of later changes appear as corrections in a
   later month, with their source month.
 - **SC-003** 0 events lost or counted twice under duplicate, reordered, replayed or crashed delivery (CM-21, CM-22, CM-36).
 - **SC-004** The owner approves a reviewed month in one action, and an approval with pending inputs is refused with the
