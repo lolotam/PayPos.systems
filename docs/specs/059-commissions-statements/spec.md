@@ -193,15 +193,18 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-23** The estimate equals `computePeriod` over the DRAFT projection for every employee (SPEC §11); an employee with
   no applicable version shows `NO_PLAN`, with a salary-multiple plan and no salary `NO_SALARY`, never zero (D-57).
 - **CM-23c** (CS-Q23 = PP-21.2) سارة is transferred from السالمية to حولي on 15 October: in ليلى's session (السالمية) the
-  estimate, the statement view and the export show only سارة's 1–14 October lines, tips and sales at السالمية; in هند's
-  session (حولي) only her 15–31 October ones at حولي; neither sees the other part, each subtotal is labelled partial, and
+  estimate, the statement view and the export show only سارة's 1–14 October lines, tips and sales (including one she
+  performed at حولي on 10 October, shown with its place حولي); in هند's session (حولي) only her 15–31 October ones; neither
+  sees the other part, each subtotal is labelled partial, and
   the business manager sees the whole month with its full total. **After approval** the same split holds on the closed
-  statement and in its export, read only from the frozen `source_branch_id` / `source_business_date` columns: ليلى sees
-  only the السالمية part (corrections of السالمية lines included), هند only the حولي part, even if the projection or the
-  branch links change after approval.
+  statement and in its export, filtered only on the frozen `attached_branch_id`: ليلى sees only the 1–14 October part
+  (corrections of those lines included), هند only the 15–31 October part, even if `EmployeeBranch` or the projection is
+  edited after approval (for example the transfer date moved to 20 October).
 - **CM-23b** (CS-Q20 = PP-20.1) ليلى, branch manager of السالمية, reads October: she sees سارة (attached to السالمية) with
   her full-month commission, including a line she performed in حولي, and does not see رنا (attached to حولي only); the
-  business manager sees both; the export as ليلى contains سارة only.
+  business manager sees both; the export as ليلى contains سارة only. After approval the same holds on the closed statement
+  and its export, filtered on the frozen `attached_branch_id` (the حولي line stays in ليلى's view, shown with its place
+  حولي), even if سارة's `EmployeeBranch` is edited after approval.
 - **CM-24** Bootstrap (D-15): tips recorded and lines saved before the consumer existed are projected from the readers; a
   live event of the same or a lower revision is then ignored; a revision written between a page read and the first live
   delivery still ends in the projection; the readers' event ids are discharged in `consumed_events`; approval stays closed
@@ -513,10 +516,12 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   **Every** frozen row also stores the employee's label as read in the approval transaction through
   `EmployeeDirectoryPort` (staff, ADR-0010): `employee_number` (row 8c), `employee_name_ar`, `employee_name_en`, so a later
   rename or renumbering of the employee never changes an approved statement or its export (D-20).
-  **Every** frozen row (except `EMPLOYEE`) also stores `source_branch_id` and `source_business_date`: the branch and the
-  business date of the original line, sale or tip, copied from the projection at freeze; a `CORRECTION` row copies them from
-  its correction, which took them from the line, sale or tip it corrects. They never change after insert. A closed
-  statement's branch filter (CS-Q20, CS-Q23) and its export read **only** these frozen columns, never the live projection.
+  **Every** frozen row (except `EMPLOYEE`) also stores `source_branch_id` (where the work was done, for display),
+  `source_business_date`, and `attached_branch_id`: the branch the employee was attached to on `source_business_date`,
+  resolved from `EmployeeBranch` (staff reader bound at the root, D-16) at freeze; a `CORRECTION` row copies all three from
+  its correction, which resolved them when it was posted. They never change after insert, even if `EmployeeBranch` is
+  edited later. A closed statement's branch filter (CS-Q20, CS-Q23) and its export filter **only** on `attached_branch_id`,
+  never on the live projection or the live branch links.
   A line-sourced frozen row also copies the line's detail identifiers from the projection head and the customer and
   service names read in the same transaction (D-20), so the frozen statement and its export never need orders, the live
   projection or a live name to say which visit, service and customer a row is.
@@ -540,8 +545,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `commission_period_generations` → recompute the month with current inputs (D-1) → for every source of that employee in
   the month (union of frozen, previously corrected and newly computed sources) post `delta = new − (frozen + corrections
   already posted)` when non-zero → into the target of D-13, rechecked under its lock (SPEC §6).
-- **FR-040** `commission_corrections` is insert-only and every row carries the `source_branch_id` and `source_business_date`
-  of the line, sale or tip it corrects (copied when posted, never changed); `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`,
+- **FR-040** `commission_corrections` is insert-only and every row carries the `source_branch_id`, `source_business_date`
+  and `attached_branch_id` of the line, sale or tip it corrects (resolved when posted, never changed); `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`,
   with `kind` `COMMISSION | SALE | TIP_CARD | TIP_CASH` (SPEC §6's kind TIP, split by method because the two are paid
   differently, D-36), the signed amount, the target month and statement, and the event id.
 - **FR-041** Tips: a newer `SessionTipsChanged` for a closed month posts `TIP_CARD` or `TIP_CASH` corrections per
@@ -686,9 +691,9 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 | `commission_tip_heads` / `commission_tips` (50) | head: `session_id`, `branch_id`, `revision`, `business_date`, `period`; rows: `session_id`, `employee_id`, `method`, `amount` | `UNIQUE (company_id, session_id)` / `UNIQUE (company_id, session_id, employee_id, method)`; projection grants |
 | `commission_salaries` (50) | `employee_id`, `effective_from`, `amount`, `revision` | `UNIQUE (company_id, employee_id, effective_from)`; projection grants; never logged (SPEC §12) |
 | `commission_sales` (50) | `sale_id`, `branch_id`, `seller_employee_id NULL`, `business_date`, `period`, `price_paid`, `refunded_amount`, `status`, `revision` | `UNIQUE (company_id, sale_id)`; projection grants |
-| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `employee_number`, `employee_name_ar`, `employee_name_en` (the label frozen at approval), `source_ref`, `kind`, `amount`, `source_period NULL`, the **source's** `source_branch_id` and `source_business_date` (copied at freeze from the projection for a line, a sale or a tip, and from the correction row for a correction; NULL only on the `EMPLOYEE` row), and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only (the erasure exception of D-21 is added by the deferred customer-erasure item, not here); a trigger refuses an insert unless the statement is being approved in the same transaction |
+| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `employee_number`, `employee_name_ar`, `employee_name_en` (the label frozen at approval), `source_ref`, `kind`, `amount`, `source_period NULL`, the **source's** `source_branch_id` (where the work was done, for display), `source_business_date` and `attached_branch_id` (the branch the employee was attached to on `source_business_date`, from `EmployeeBranch`, the filter key; all three copied at freeze from the projection and `EmployeeBranch` for a line, a sale or a tip, and from the correction row for a correction; NULL only on the `EMPLOYEE` row), and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only (the erasure exception of D-21 is added by the deferred customer-erasure item, not here); a trigger refuses an insert unless the statement is being approved in the same transaction |
 | `commission_period_generations` (55) | `employee_id`, `period`, `generation` | `UNIQUE (company_id, employee_id, period)`; `SELECT, INSERT, UPDATE (generation)` |
-| `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed), `generation`, `event_id`, `created_at`, `source_branch_id`, `source_business_date` (the branch and business date of the line, sale or tip it corrects, copied from the projection when it is posted) | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; index `(company_id, business_id, target_period)`; insert-only |
+| `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed), `generation`, `event_id`, `created_at`, `source_branch_id`, `source_business_date`, `attached_branch_id` (where the corrected line, sale or tip was done, its business date, and the branch the employee was attached to on that date from `EmployeeBranch`; copied when the correction is posted) | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; index `(company_id, business_id, target_period)`; insert-only |
 | `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; `SELECT, INSERT, UPDATE (code, resolved_at, resolved_generation)`; a trigger allows `code` to change (`NO_PLAN` ↔ `NO_SALARY`) only on an open row and refuses any change to a resolved row |
 | `commission_statement_returns` (52) | `statement_id`, `returned_by`, `returned_membership_id`, `reason`, `returned_at` | `CHECK` reason 1…500 trimmed; insert-only; reason never logged |
 | `commission_statement_exports` (56) | `render_id`, `statement_id`, `period`, `requested_by`, `requested_membership_id`, `scope` (`BUSINESS` / `BRANCH`), `branch_id NULL`, `employee_ids uuid[] NULL` (the branch-filtered set), `requested_at`, `collected_at NULL` | `UNIQUE (company_id, render_id)`; `CHECK` (`scope = 'BRANCH'`) = (`branch_id` and `employee_ids` not null); `SELECT, INSERT, UPDATE (collected_at)` |
@@ -744,10 +749,11 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
   lines she performed at another branch; other employees are absent, not zeroed. A business- or company-scoped holder sees
   every employee. The filter applies to the estimate, the statement view and the export alike. **An employee attached to
   two branches in the same month** (CS-Q23 = PP-21.2): each branch-scoped manager sees **only the days and the work of her
-  own branch**: the days the employee was attached to that branch (`EmployeeBranch` from/to) and, within them, the lines
-  performed at that branch (`branch_id` kept in the projection), the tips of sessions at that branch and the package sales
-  made there, each with the amount the full-month engine run gave it (tier positions are never recomputed per branch);
-  corrections follow the branch of the line they correct. Her visible figures are a subtotal of that part, labelled as
+  own branch**: every line, tip and package sale of the employee whose business date falls on a day she was **attached** to
+  that branch (`EmployeeBranch` from/to), wherever the work was performed (as in PP-20.1, a line she did at another branch
+  on such a day is included), each with the amount the full-month engine run gave it (tier positions are never
+  recomputed per branch); a correction follows the attachment day of the line, sale or tip it corrects. The attachment is
+  the filter key (`attached_branch_id`); where the work happened (`source_branch_id`) is shown, never filtered on. Her visible figures are a subtotal of that part, labelled as
   partial; the whole month is visible only to business- or company-scoped holders. This refines PP-20.1 for a transferred
   employee only; an employee attached to one branch all month is unchanged. `SessionTipsChanged` already carries
   `branch_id`; row 42's `PackageSaleChanged` must carry the sale's `branch_id` with its `business_date` (FR-018).
