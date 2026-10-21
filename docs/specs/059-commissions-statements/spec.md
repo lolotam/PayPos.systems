@@ -3,7 +3,8 @@
 > **Status:** Draft · 2026-10-21 · docs-only PR. Owner questions are recorded in [owner-questions.ar.md](owner-questions.ar.md):
 > the money list CS-Q1…CS-Q12 (Abu Salem, decisions page batch 36) is open; the permissions/technical list CS-Q13…CS-Q19 is
 > answered by Waleed through his super agent (PP-17, 2026-10-21; CS-Q14, CS-Q15 and CS-Q16 against the recommendation),
-> and its follow-ups CS-Q20 (a branch manager's scope) and CS-Q21 (erasing a frozen customer name) are open. Every rule that waits on one is
+> and its follow-ups: CS-Q20 (a branch manager's scope) answered (PP-20.1, the recommended option), CS-Q21 (erasing a
+> frozen customer name) open. Every rule that waits on one is
 > marked `TODO(spec)` with its number. **No code starts before this spec is merged**, and no sub-PR starts before the
 > questions it names in §7 are answered.
 > **Implements:** Phase 1 SPEC §4 (commission entities), §5 (the engine, already built), §6 (events, estimate, review,
@@ -185,6 +186,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   the same test for a tip session, a salary entry and a sale.
 - **CM-23** The estimate equals `computePeriod` over the DRAFT projection for every employee (SPEC §11); an employee with
   no applicable version shows `NO_PLAN`, with a salary-multiple plan and no salary `NO_SALARY`, never zero (D-57).
+- **CM-23b** (CS-Q20 = PP-20.1) ليلى, branch manager of السالمية, reads October: she sees سارة (attached to السالمية) with
+  her full-month commission, including a line she performed in حولي, and does not see رنا (attached to حولي only); the
+  business manager sees both; the export as ليلى contains سارة only.
 - **CM-24** Bootstrap (D-15): tips recorded and lines saved before the consumer existed are projected from the readers; a
   live event of the same or a lower revision is then ignored; a revision written between a page read and the first live
   delivery still ends in the projection; the readers' event ids are discharged in `consumed_events`; approval stays closed
@@ -414,7 +418,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `listCurrentPackageSales` (in 50-4). Approval stays closed until every bootstrapped input type meets the coverage rule.
 - **FR-021** Estimate: `GET /v1/businesses/:businessId/commissions/periods/:period/estimate?employee_id=` returns per employee:
   per-source amounts, the total, sales, tips by method, corrections received, and `status: OK | NO_PLAN | NO_SALARY`; computed
-  on read by a read-only use case (D-7), never stored. Permission `read:commissions:business` (CS-Q14 = PP-17.2; a branch manager's scope `TODO(spec)` CS-Q20); the staff app's
+  on read by a read-only use case (D-7), never stored. Permission `read:commissions:business` (CS-Q14 = PP-17.2; a branch manager's scope CS-Q20 = PP-20.1, §6 _Permissions_); the staff app's
   own estimate is row 57.
 - **FR-022** The engine input for one employee and month is assembled by a pure domain function from the projection rows
   (ACTIVE lines, active sales, the salary entries, versions, overrides); tips and corrections pass through unpriced (D-1).
@@ -433,7 +437,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-026** The fingerprint input (§6 _Fingerprint_) is built by a pure function; the hash by an injected port (D-6).
 - **FR-027** The view lists blocking issues per employee: `NO_PLAN`, `NO_SALARY`, unresolved blocked corrections; review and
   approval are refused while any exists.
-- **FR-028** Permission: `read:commissions:business` for `GET` (CS-Q20 for a branch manager); `review:commissions:business`
+- **FR-028** Permission: `read:commissions:business` for `GET` (a branch manager sees her branch's employees only, CS-Q20 = PP-20.1); `review:commissions:business`
   for `generate`. Detail rows show the customer's full name (CS-Q15 = PP-17.3), read through the customers reader bound at
   the root (D-16) from the `customer_id` the projection head holds while the month is open, and taken from the names frozen
   in the statement rows once it is closed (D-20); never a phone.
@@ -550,7 +554,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-051** Columns include, per employee: employee number (row 8c) and name, both taken from the frozen row (FR-033), commission, sales commission, corrections received,
   card tips, cash tips (informational), and the payable figure (CS-Q7); the content and states: CS-Q10; detail rows carry the customer's full name (CS-Q15 = PP-17.3).
   No phone ever (SPEC §4, R1).
-- **FR-052** Audit `commission_statement.exported` on each collected download. Permission: `read:commissions:business` (CS-Q14; CS-Q20 for a branch manager).
+- **FR-052** Audit `commission_statement.exported` on each collected download. Permission: `read:commissions:business` (CS-Q14; a branch-scoped holder exports only her branch's employees, CS-Q20 = PP-20.1).
 
 ### 56b — reminders
 
@@ -654,10 +658,16 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
 | Code | Who by default | Status |
 | --- | --- | --- |
 | `manage:commission-plans:business` (proposed) | `TODO(spec)` CS-Q1 | new; plan versions, overrides, period repair |
-| `read:commissions:business` | owner, general manager, business manager, accountant **and branch manager** (CS-Q14 = PP-17.2, against the recommendation); grantable | new; estimate of all employees, statement view, export. What a branch-scoped holder sees: `TODO(spec)` CS-Q20 |
+| `read:commissions:business` | owner, general manager, business manager, accountant **and branch manager** (CS-Q14 = PP-17.2, against the recommendation); grantable | new; estimate of all employees, statement view, export. A branch-scoped holder sees her branch's employees only (CS-Q20 = PP-20.1, below) |
 | `review:commissions:business` | `TODO(spec)` CS-Q2 | named by SPEC §6 |
 | `approve:commissions:business` | owner (D-17, SPEC §11); grantable `TODO(spec)` CS-Q5 | named by SPEC §6 |
 | `pay:commissions:business` | `TODO(spec)` CS-Q4 | named by SPEC §6 |
+
+**Branch scope (CS-Q20 = PP-20.1):** a holder whose `read:commissions:business` comes only from a branch-scoped membership
+  (the default branch manager) sees only the employees attached to that branch (an `EmployeeBranch` link to it on any day
+  of the month, read through the staff reader bound at the root, D-16), each with her **full-month** figures, including
+  lines she performed at another branch; other employees are absent, not zeroed. A business- or company-scoped holder sees
+  every employee. The filter applies to the estimate, the statement view and the export alike.
 
 All refused to devices; all behind the `commissions` feature (seeded flag, `packages/db/src/seed.ts`); each route has a guard
 and a refusal test (CLAUDE.md §6).
@@ -702,16 +712,16 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **50-2** | Tips and salaries | 1. Tip and salary tables + RLS. 2. Their consumer handlers. 3. CM-18, CM-19, CM-25 (salary backfill) | 50-1 | 350–480 |
 | **50-3** | Bootstrap | 1. Root bindings of 36-5 and 50-0. 2. The idempotent bootstrap job and the discharge of event ids. 3. CM-24 race and coverage tests, runbook | 50-1, 50-2, **36-5**, 50-0 | 300–420 |
 | **50-4** | Package sales | 1. Sales table + RLS. 2. Handler and the root binding of `listCurrentPackageSales`. 3. CM-20, CM-20b (bootstrap, coverage, race) | 50-1; row 42 (producer with `business_date`, and its reader) | 250–380 |
-| **50-5** | Estimate on read | 1. Input assembly (pure) and the read use case (D-7). 2. HTTP + permission (`read:commissions:business`, CS-Q20). 3. CM-23 | 50-1, 50-2; CS-Q20 | 300–420 |
+| **50-5** | Estimate on read | 1. Input assembly (pure) and the read use case (D-7). 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b | 50-1, 50-2 | 300–420 |
 | **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 | 50-5 | 350–480 |
 | **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044) | 51-1; CS-Q7, CS-Q8 | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations). 3. CM-51…CM-54 | 55-1; CS-Q11 | 400–550 |
 | **52-1** | Review | 1. Review use case + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
 | **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-35, CM-37, CM-38 | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q21 | 400–550 |
-| **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
+| **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to her branch's employees for a branch-scoped reader (CS-Q20 = PP-20.1). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
 | **54-1** | Mark paid | 1. Use case + HTTP (CS-Q6). 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
-| **56-1** | Excel export | 1. Worker document source and workbook (D-18). 2. Request/collect routes, audit. 3. CM-55, CM-56 | 53-2; 59-0's ADR-0049 addendum; CS-Q10, CS-Q12, CS-Q20, CS-Q21 | 350–480 |
+| **56-1** | Excel export | 1. Worker document source and workbook (D-18). 2. Request/collect routes, audit. 3. CM-55, CM-56 | 53-2; 59-0's ADR-0049 addendum; CS-Q10, CS-Q12, CS-Q21 | 350–480 |
 | **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair, the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
 
 **File overlap:** 50-1, 50-2, 50-4 and 55-1 all touch the one consumer; they run one at a time. 52-1 and 56b-1 both register
