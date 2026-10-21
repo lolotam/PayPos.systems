@@ -278,7 +278,10 @@ editor permission per MY-Q5 (`TODO(spec)`).
 
 ## B.1 Scope and decisions record
 
-> **POSTPONED (RT-Q1, PP-18.9, 2026-10-21): the whole rating track waits until the end of the project.** Rows
+> **POSTPONED (RT-Q1, PP-18.9, 2026-10-21): the whole rating track waits until the end of the project.** The answer
+> postpones the rating messages, and a rating comes only from the customer's link in that message: with no message
+> there is no input, so storage, the page, submission, averages and the low-rating alert would have nothing to work on,
+> and they wait with it. Rows
 > 58-1, 58-2, 58-3, 59-1, 59-2, 59b-1…59b-3, 60-1, 60-2, 61-1…61-3 and the low-rating part of 62-3 do not start now. Their
 > design below is kept as written, with RT-Q2 (copy approved as proposed), RT-Q3 (a switch, off at first) and RT-Q4
 > (the last close of the day; an overnight interval belongs to the day it started) recorded as decisions: wherever the
@@ -332,8 +335,11 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 - **RT-04** (R7) A claim after the deadline → `PAST_DEADLINE`; an event reaching notifications after it → attempt
   `EXPIRED`, not sent.
 - **RT-05** A branch with no opening hours → `send_deadline = NULL` (S-2). RT-Q5 (PP-18.13): a session recorded after
-  its request day ended (`recorded_at` past the end of that branch-local day, D-B3) is left out of the day's sessions
-  for scheduling and the claim, with or without opening hours; a day whose only sessions are such late entries gets no
+  its request day ended is left out of the day's sessions for scheduling and the claim. **The day ends at the close of
+  its last open interval** (02:00 for an 18:00–02:00 day, the overnight tail included, RT-Q4), or at the branch-local
+  midnight when the branch has no opening hours; one pure predicate `isLateEntry(recordedAt, requestDay, zone,
+  openingHours)` in `customers/domain`, applied inside `sessionsOfDay` so scheduling and the claim use the same rule.
+  A 00:30 visit in 18:00–02:00 recorded at 00:31 is on time; recorded at 02:05 it is late. This holds with or without opening hours; a day whose only sessions are such late entries gets no
   row; a late entry added to a day that already has a request does not move it.
 - **RT-01b** Two branches of one business, Kuwait (UTC+3) and Dubai (UTC+4), neither with an interval crossing
   midnight: a 23:30 Kuwait visit on day D and a
@@ -400,7 +406,7 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 - **RT-24** Both snapshotted performers get the rating; سارة's average is the mean of her attributed ratings in the
   last 90 days (RT-Q6); an employee with no rating in that window sees «لسه مفيش تقييمات»; one rating is enough to show it.
 - **RT-25** The staff app shows her average and count only (S-9, S-11); the admin list shows comments only to the
-  `read:service-sessions:branch` holders (RT-Q7, FR-B15's comment caveat); reception and staff reads never return a comment (ADR-0011 §6 "Comments").
+  owner and the three manager roles (FR-B15's safe default); any other holder of `read:service-sessions:branch`, reception and staff reads never return a comment (ADR-0011 §6 "Comments").
 
 ### Story B5 — Alert rules (row 62, P1)
 
@@ -455,10 +461,10 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 - **FR-B05** Claim transaction (D-B5) with the lock order customer → request, Clock sampled after the locks.
 - **FR-B06** `DaySessionsPort.activeLines(tx, companyId, businessId, customerId, fromInstant, toInstant)` → active lines of
   the customer's sessions in that business whose `occurred_at` is in the window, with performers, branch, the session's
-  `occurred_at` and `business_timezone`. Orders does not know branch zones, so the caller passes the widest window any
+  `occurred_at`, `recorded_at` (for RT-Q5's `isLateEntry`, RT-05) and `business_timezone`. Orders does not know branch zones, so the caller passes the widest window any
   zone and an overnight tail can map to the day (`[day 00:00 at UTC+14, day+1 24:00 at UTC−12)`) and the pure
   `customers/domain` function `sessionsOfDay(sessions, placeByBranch, day)` keeps only the sessions whose `requestDayOf`
-  is the day (D-B3, overnight ownership per RT-Q4), each branch's zone and hours read through
+  is the day (D-B3, overnight ownership per RT-Q4) and that are not `isLateEntry` (RT-05), each branch's zone and hours read through
   `BranchScheduleHoursPort` once per distinct branch; unit tests cover the two-branch midnight case (used by the 59-1 consumer and the claim), in orders' public reader, bound by injected callback (module-map §3 note, ADR-0041).
 - **FR-B07** `PerformerNamePort.firstNames(tx, companyId, employeeIds)` (staff) → ar/en first names, display-safe (the
   ADR-0037 §4 name rules).
@@ -477,9 +483,12 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 - **FR-B14** `GET /v1/staff/me/rating-summary` → `{ average, count }` in the RT-Q6 window, only with `rating_average`
   allowed and `read:ratings:own`.
 - **FR-B15** Admin ratings read, guarded by the existing `read:service-sessions:branch` (RT-Q7, PP-18.16; each holder in
-  their scope, no new permission). Comments: ADR-0011 shows them only to the owner/manager, while SS-Q12 lets this
-  permission be granted to any human role; whether a non-manager holder sees comments is `TODO(spec)`, raised to the
-  coordinator for when the track resumes. `GET /v1/businesses/:businessId/ratings?branch_id&from&to&employee_id&cursor`
+  their scope, no new permission). **Comments, safe default:** ADR-0011 shows them only to the owner/manager, while SS-Q12 lets this
+  permission be granted to any human role. Until the RT-Q7 follow-up is answered, the `comment` field is present only in
+  the DTO of a caller holding the owner, general manager, business manager or branch manager role in that scope
+  (checked from the membership in the read transaction, independently of the permission); every other holder gets the
+  ratings with no `comment` field at all. Test: a reception holder of `read:service-sessions:branch` gets stars, date,
+  branch and performers and no `comment` key. `GET /v1/businesses/:businessId/ratings?branch_id&from&to&employee_id&cursor`
   → rating list (stars, date, branch, performers, comment) and per-employee averages; `queries/` with `EXPLAIN`.
 - **FR-B16** Alert rules (row 62): `GET/PUT /v1/businesses/:businessId/alert-rules` and
   `PUT /v1/businesses/:businessId/alert-rules/master`; idempotent, audited, permission AL-Q1; validated per kind
@@ -550,7 +559,7 @@ customers, staff and commissions; **orders' `StaffColumnsPort`, worker orders' `
 ### Permissions
 
 - `read:ratings:own` (Part A D-A4).
-- The admin ratings read: `read:service-sessions:branch` (RT-Q7); comments for a non-manager holder `TODO(spec)` (FR-B15).
+- The admin ratings read: `read:service-sessions:branch` (RT-Q7); comments only for owner/manager roles until the RT-Q7 follow-up (FR-B15).
 - The alert-rules editor per AL-Q1 (`TODO(spec)`).
 - The public routes carry `@Public()` plus the token capability check; they pass route-access coverage (ADR-0011 §6).
 
