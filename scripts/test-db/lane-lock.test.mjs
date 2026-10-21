@@ -190,7 +190,7 @@ test('#473: when the copy fails too, the empty lock dir is removed and the lock 
 test('#473: a failed restore never removes a lock dir that replaced ours', (t) => {
   const lock = freshLock();
   const parked = `${lock}.stale-x`;
-  mkdirSync(join(parked, 'owner.json'), { recursive: true });
+  seedLock(parked, { pid: process.pid, startedAt: ownStartMs(), token: 'parked' });
   const lines = [];
   t.mock.method(console, 'log', (...args) => lines.push(args.join(' ')));
   const move = () => {
@@ -202,6 +202,28 @@ test('#473: a failed restore never removes a lock dir that replaced ours', (t) =
   assert.equal(restoreParked(lock, parked, { move }), false);
   assert.equal(existsSync(lock), true);
   assert.deepEqual(readdirSync(lock), []);
+  assert.equal(existsSync(parked), true);
+});
+
+test('#473: a copy that fails after creating owner.json leaves no partial file and releases the empty lock dir', (t) => {
+  const lock = freshLock();
+  const parked = `${lock}.stale-x`;
+  seedLock(parked, { pid: process.pid, startedAt: ownStartMs(), token: 'parked' });
+  const lines = [];
+  t.mock.method(console, 'log', (...args) => lines.push(args.join(' ')));
+  const move = () => {
+    throw eperm();
+  };
+  // الكتابة عملت الملف وفشلت بعد كده: لازم الجزء ده يتمسح وإلا الـ lock هيفضل مسدود من غير صاحب.
+  const write = (path, data, options) => {
+    writeFileSync(path, '{"tok', options);
+    throw Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' });
+  };
+  assert.equal(restoreParked(lock, parked, { move, write }), false);
+  assert.equal(existsSync(lock), false);
+  assert.equal(existsSync(parked), true);
+  assert.equal(lines.length, 1);
+  assert.ok(lines[0].includes(parked));
 });
 
 test('#473: a failed restore never removes a lock dir that got an owner meanwhile', (t) => {

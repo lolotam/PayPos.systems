@@ -119,19 +119,35 @@ function renameWithRetry(from, to) {
 /**
  * ينسخ owner.json من الفولدر اليتيم جوه الـ lock الجديد. النسخ (مش النقل) هو الصح هنا: صاحب الـ lock ممكن
  * يكون لسه عايش، فبنحطه مكانه من غير ما نحرمه من الـ lock بتاعه. flag 'wx' يعني لو فيه owner.json
- * جاهز مش هنكتب فوقه.
+ * جاهز مش هنكتب فوقه، والفولدر اللي مش الفولدر اللي عملناه (حد تاني عمل بديلنا في النص) بنرفضه خالص.
  *
- * @param parked الفولدر اللي الـ lock اتنقل له
- * @param lock   مسار الـ lock
+ * @param parked  الفولدر اللي الـ lock اتنقل له
+ * @param lock    مسار الـ lock
+ * @param created هوية الفولدر اللي عملناه
+ * @param write   دالة كتابة owner.json (writeFileSync افتراضياً)
  * @returns true لو الـ owner اتنسخ، false لو النسخ فشل
  */
-function copyOwner(parked, lock) {
+function copyOwner(parked, lock, created, write = writeFileSync) {
+  if (created === undefined || identity(lock) !== created) return false;
+  let owner;
   try {
-    writeFileSync(join(lock, 'owner.json'), readFileSync(join(parked, 'owner.json')), {
-      flag: 'wx',
-    });
-    return true;
+    owner = readFileSync(join(parked, 'owner.json'));
   } catch {
+    return false;
+  }
+  try {
+    write(join(lock, 'owner.json'), owner, { flag: 'wx' });
+    return true;
+  } catch (error) {
+    // الكتابة عملت الملف وفشلت بعد كده: الجزء اللي اتكتب لازم يتمسح، وإلا owner.json مش بيتقرا
+    // هيسدّ الـ lock لحد ما يبقى قديم. EEXIST معناه الملف ده لحد تاني، فمبنمسحهوش.
+    if (error.code !== 'EEXIST') {
+      try {
+        rmSync(join(lock, 'owner.json'), { force: true });
+      } catch {
+        // المسح فشل: نتركه، والـ lock هيبان في الفحص الجاي.
+      }
+    }
     return false;
   }
 }
@@ -186,9 +202,14 @@ function removeParked(parked) {
  * @param lock         مسار الـ lock
  * @param parked       الفولدر اللي الـ lock اتنقل له
  * @param options.move دالة نقل owner.json (renameWithRetry افتراضياً)
+ * @param options.write دالة كتابة owner.json (writeFileSync افتراضياً)
  * @returns true لما صاحب الـ lock يرجع جوه lock، false لما الـ lock يفضل يتيم في parked
  */
-export function restoreParked(lock, parked, { move = renameWithRetry } = {}) {
+export function restoreParked(
+  lock,
+  parked,
+  { move = renameWithRetry, write = writeFileSync } = {},
+) {
   try {
     mkdirSync(lock);
   } catch {
@@ -204,7 +225,7 @@ export function restoreParked(lock, parked, { move = renameWithRetry } = {}) {
     // الـ lock اللي رجع لسه صاحبه مكتبش owner.json: هيكتبه في مكانه الأصلي.
     if (error.code !== 'ENOENT') {
       // النقل فشل بس صاحب الـ lock ممكن يكون لسه عايش، فالنسخة بترجّعه مكانه من غير ما نحرمه من الـ lock.
-      if (!copyOwner(parked, lock)) {
+      if (!copyOwner(parked, lock, created, write)) {
         // آخر حل: نشيل الفولدر الفاضي اللي عملناه، والـ lock يفضل يتيم في parked.
         removeEmptyLock(lock, created);
         console.log(
