@@ -17,6 +17,8 @@ export interface SessionCapabilityAccess extends SessionDayAccess {
   cancel(tx: Tx, scope: SessionDayScope, at: Date): Promise<SessionCancelFacts>;
   /** قرار تغيير المنفّذين بنفس شكل الإلغاء ومن غير أقفال، عشان الزرار يختفي عند اللي معندوش الصلاحية (PP-19.2). */
   performers(tx: Tx, scope: SessionDayScope, at: Date): Promise<SessionCancelFacts>;
+  /** قرار التسجيل بنفس الشكل ومن غير أقفال؛ زرار البقشيش بيتبعه بدل مسبار سياق التسجيل (PP-19). */
+  record(tx: Tx, scope: SessionDayScope, at: Date): Promise<SessionCancelFacts>;
 }
 
 // فرع بلا عضوية مؤهلة قراره false؛ feature هنا بتبقى false كمان وممنوع تتحوّل لـ FEATURE_DISABLED.
@@ -52,9 +54,11 @@ export class ServiceSessionCapabilitiesQuery {
         const at = new Date(clock.at);
         const cancel = capabilityFlag(await this.access.cancel(tx, scope, at));
         const performers = capabilityFlag(await this.access.performers(tx, scope, at));
+        const record = capabilityFlag(await this.access.record(tx, scope, at));
         return serviceSessionCapabilities.parse({
           can_cancel_lines: cancel,
           can_change_performers: performers,
+          can_record_sessions: record,
         });
       },
       { userId: scope.userId },

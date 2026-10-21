@@ -41,7 +41,7 @@ async function expectFlag(cookie: string, flag: boolean, base = home()) {
 
 async function expectFlags(
   cookie: string,
-  flags: { cancel: boolean; change: boolean },
+  flags: { cancel: boolean; change: boolean; record: boolean },
   base = home(),
 ) {
   const response = await readHttp(cookie, base);
@@ -49,13 +49,18 @@ async function expectFlags(
   expect(serviceSessionCapabilities.parse(response.body)).toEqual({
     can_cancel_lines: flags.cancel,
     can_change_performers: flags.change,
+    can_record_sessions: flags.record,
   });
 }
 
 it('returns can_cancel_lines true for a holder and the query shape', async () => {
   await expectFlag(f.ownerCookie, true);
   const shape = await ordersCapabilitiesQuery(f.db).execute({ ...f.context(), userId: f.ownerId });
-  expect(shape).toEqual({ can_cancel_lines: true, can_change_performers: true });
+  expect(shape).toEqual({
+    can_cancel_lines: true,
+    can_change_performers: true,
+    can_record_sessions: true,
+  });
 });
 
 it('returns false when the day reader has no cancel permission', async () => {
@@ -63,7 +68,11 @@ it('returns false when the day reader has no cancel permission', async () => {
   await grant('read:service-sessions:branch', 'ALLOW', 'COMPANY', f.company);
   await expectFlag(f.cookie, false);
   const shape = await ordersCapabilitiesQuery(f.db).execute({ ...f.context(), userId: f.userId });
-  expect(shape).toEqual({ can_cancel_lines: false, can_change_performers: false });
+  expect(shape).toEqual({
+    can_cancel_lines: false,
+    can_change_performers: false,
+    can_record_sessions: false,
+  });
 });
 
 it('returns false when cancel is denied on the branch', async () => {
@@ -84,18 +93,32 @@ it('returns false for another branch while the home branch stays true', async ()
 it('returns can_change_performers from change:service-line-performers:branch alone (PP-19.2)', async () => {
   await role('staff');
   await grant('read:service-sessions:branch', 'ALLOW', 'COMPANY', f.company);
-  await expectFlags(f.cookie, { cancel: false, change: false });
+  await expectFlags(f.cookie, { cancel: false, change: false, record: false });
   await grant('change:service-line-performers:branch', 'ALLOW', 'BRANCH', f.branch);
-  await expectFlags(f.cookie, { cancel: false, change: true });
+  await expectFlags(f.cookie, { cancel: false, change: true, record: false });
   const other = `/v1/businesses/${f.secondBusiness}/branches/${f.secondBranch}/service-sessions/capabilities`;
-  await expectFlags(f.cookie, { cancel: false, change: false }, other);
+  await expectFlags(f.cookie, { cancel: false, change: false, record: false }, other);
 });
 
 it('returns can_change_performers false when change is denied while cancel stays true', async () => {
   await role('branch_manager');
-  await expectFlags(f.cookie, { cancel: true, change: true });
+  await expectFlags(f.cookie, { cancel: true, change: true, record: true });
   await grant('change:service-line-performers:branch', 'DENY', 'BRANCH', f.branch);
-  await expectFlags(f.cookie, { cancel: true, change: false });
+  await expectFlags(f.cookie, { cancel: true, change: false, record: true });
+});
+
+it('returns can_record_sessions from record:service-sessions:branch and false under its DENY', async () => {
+  await role('cashier');
+  await grant('read:service-sessions:branch', 'ALLOW', 'COMPANY', f.company);
+  await expectFlags(f.cookie, { cancel: false, change: false, record: true });
+  await grant('record:service-sessions:branch', 'DENY', 'BRANCH', f.branch);
+  await expectFlags(f.cookie, { cancel: false, change: false, record: false });
+  await role('staff');
+  await grant('read:service-sessions:branch', 'ALLOW', 'COMPANY', f.company);
+  await grant('record:service-sessions:branch', 'ALLOW', 'BRANCH', f.branch);
+  await expectFlags(f.cookie, { cancel: false, change: false, record: true });
+  const other = `/v1/businesses/${f.secondBusiness}/branches/${f.secondBranch}/service-sessions/capabilities`;
+  await expectFlags(f.cookie, { cancel: false, change: false, record: false }, other);
 });
 
 it('keeps a disabled orders feature as FEATURE_DISABLED', async () => {

@@ -70,7 +70,7 @@ const visit = {
   ],
 };
 const day = { data: { items: [visit], next_cursor: null }, response: { status: 200 } };
-const flags = (cancel: boolean) => ({ can_cancel_lines: cancel, can_change_performers: false });
+const flags = (cancel: boolean) => ({ can_cancel_lines: cancel, can_change_performers: false, can_record_sessions: false });
 const allowed = { data: flags(true), response: { status: 200 } };
 function answerGet(body: () => Promise<unknown>) {
   state.get.mockImplementation((path: string) =>

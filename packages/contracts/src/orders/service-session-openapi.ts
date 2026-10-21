@@ -39,10 +39,10 @@ export const serviceSessionPaths = {
   '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/capabilities': {
     get: {
       operationId: 'readServiceSessionCapabilities',
-      description: 'Lock-free branch capability for the manager day list. Requires read:service-sessions:branch and the orders feature. can_cancel_lines is the effective cancel:service-lines:branch and can_change_performers the effective change:service-line-performers:branch on this branch: ALLOW, no DENY, and an active membership. A missing permission, a DENY, or another branch makes that flag 200 false. Missing read is the route 403. A disabled orders feature stays FEATURE_DISABLED. No Idempotency-Key.',
+      description: 'Lock-free branch capability for the manager day list. Requires read:service-sessions:branch and the orders feature. can_cancel_lines is the effective cancel:service-lines:branch, can_change_performers the effective change:service-line-performers:branch and can_record_sessions the effective record:service-sessions:branch on this branch: ALLOW, no DENY, and an active membership. A missing permission, a DENY, or another branch makes that flag 200 false. Missing read is the route 403. A disabled orders feature stays FEATURE_DISABLED. No Idempotency-Key.',
       parameters: parameters.filter((p) => p.name !== 'Idempotency-Key'),
       responses: {
-        '200': { description: 'Whether the day list may offer Cancel and Change performers on this branch.', content: json('ServiceSessionCapabilities') },
+        '200': { description: 'Whether the day list may offer Cancel, Change performers and the recording actions (tips) on this branch.', content: json('ServiceSessionCapabilities') },
         '403': { description: 'Uniform scope/authority refusal or disabled orders feature.', content: json('ErrorEnvelope') },
         default: { description: 'Bilingual authentication/readiness refusal.', content: json('ErrorEnvelope') },
       },

@@ -13,6 +13,11 @@ export async function pickerAccess(tx: Tx, companyId: string, userId: string, bu
   return { ...record, feature: record.feature || performers.feature,
     change: !performers.denied && performers.eligible.length > 0 };
 }
+// قدرة التسجيل لقائمة اليوم: نفس قراءة الإذن من غير أقفال؛ العضويات بتتعد مؤهلة بس لما الإذن ساري بعد المنع.
+export async function sessionRecordCapability(tx: Tx, companyId: string, userId: string, businessId: string, branchId: string, at: Date) {
+  const access = await readServiceSessionAccess(tx, companyId, userId, businessId, branchId, at);
+  return { denied: access.denied, feature: access.feature, eligible: access.record ? access.membership_ids : [] };
+}
 export async function recordingLimit(tx: Tx, companyId: string, businessId: string, membershipId: string) {
   const limit = await readEffectiveDiscountLimit(tx, companyId, businessId, membershipId);
   switch (limit.status) {

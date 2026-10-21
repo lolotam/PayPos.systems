@@ -80,7 +80,11 @@ const context = {
 };
 let day: () => Answer;
 let history: (query: { cursor?: string }) => Answer;
-let capabilities: { can_cancel_lines: boolean; can_change_performers: boolean };
+let capabilities: {
+  can_cancel_lines: boolean;
+  can_change_performers: boolean;
+  can_record_sessions: boolean;
+};
 function route(
   path: string,
   options_: { params?: { query?: { cursor?: string } } },
@@ -134,7 +138,11 @@ beforeEach(() => {
   state.get.mockReset();
   state.put.mockReset();
   day = () => dayWith([line(20, '2026-10-17'), line(21)]);
-  capabilities = { can_cancel_lines: false, can_change_performers: true };
+  capabilities = {
+    can_cancel_lines: false,
+    can_change_performers: true,
+    can_record_sessions: false,
+  };
   history = () => ({
     data: { items: [change(3, 'Rana did the rinse')], next_cursor: null },
     response: { status: 200 },

@@ -81,7 +81,7 @@ function answer(capability: Promise<unknown> | 'allow') {
     if (!String(path).includes('/capabilities')) return Promise.resolve(day);
     if (capability === 'allow') {
       return Promise.resolve({
-        data: { can_cancel_lines: true, can_change_performers: false },
+        data: { can_cancel_lines: true, can_change_performers: false, can_record_sessions: false },
         response: { status: 200 },
       });
     }
@@ -120,7 +120,7 @@ it('hides Cancel while the capability is loading and after it is false, and stil
   expect(screen.getByRole('button', { name: t('en', 'serviceLineCancel.details') })).toBeTruthy();
   await act(async () => {
     gate.settle({
-      data: { can_cancel_lines: false, can_change_performers: false },
+      data: { can_cancel_lines: false, can_change_performers: false, can_record_sessions: false },
       response: { status: 200 },
     });
   });
@@ -184,7 +184,7 @@ it('keeps the day and hides Record tip for a reader without record permission', 
     const name = String(path);
     if (name.includes('/capabilities')) {
       return Promise.resolve({
-        data: { can_cancel_lines: false, can_change_performers: false },
+        data: { can_cancel_lines: false, can_change_performers: false, can_record_sessions: false },
         response: { status: 200 },
       });
     }
@@ -203,22 +203,52 @@ it('keeps the day and hides Record tip for a reader without record permission', 
   expect(state.get.mock.calls.some((call) => String(call[0]).includes('/tips'))).toBe(false);
 });
 
-it('shows Record tip when the recording context succeeds', async () => {
+it('shows Record tip from can_record_sessions, not from a successful recording-context read', async () => {
   state.online = true;
+  let record = true;
   state.get.mockImplementation((path: string) => {
     const name = String(path);
     if (name.includes('/capabilities')) {
       return Promise.resolve({
-        data: { can_cancel_lines: false, can_change_performers: false },
+        data: {
+          can_cancel_lines: false,
+          can_change_performers: false,
+          can_record_sessions: record,
+        },
         response: { status: 200 },
       });
     }
     if (name.includes('recording-context')) return Promise.resolve(recorded);
     return Promise.resolve(day);
   });
-  renderPage();
+  const view = renderPage();
   expect(await screen.findByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();
-  expect(screen.getByText('Synthetic customer')).toBeTruthy();
+  view.unmount();
+  record = false;
+  renderPage();
+  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: t('en', 'sessionTips.open') })).toBeNull();
+});
+
+it('shows Change performers but no Record tip to a manager who can only change performers (PP-19)', async () => {
+  state.online = true;
+  state.get.mockImplementation((path: string) => {
+    const name = String(path);
+    if (name.includes('/capabilities')) {
+      return Promise.resolve({
+        data: { can_cancel_lines: false, can_change_performers: true, can_record_sessions: false },
+        response: { status: 200 },
+      });
+    }
+    // سياق التسجيل بقى مفتوح لصلاحية التغيير، فبيرجع 200 هنا ومع ذلك زرار البقشيش لازم يفضل مستخبي.
+    if (name.includes('recording-context')) return Promise.resolve(recorded);
+    return Promise.resolve(day);
+  });
+  renderPage();
+  expect(
+    await screen.findByRole('button', { name: t('en', 'serviceLinePerformers.change') }),
+  ).toBeTruthy();
+  expect(screen.queryByRole('button', { name: t('en', 'sessionTips.open') })).toBeNull();
 });
 
 it.each([
@@ -229,7 +259,11 @@ it.each([
   async (allowed, count) => {
     answer(
       Promise.resolve({
-        data: { can_cancel_lines: true, can_change_performers: allowed },
+        data: {
+          can_cancel_lines: true,
+          can_change_performers: allowed,
+          can_record_sessions: false,
+        },
         response: { status: 200 },
       }),
     );

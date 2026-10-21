@@ -85,7 +85,7 @@ function answer(read: typeof cancellation | typeof refused) {
     const target = String(path);
     if (target.includes('/capabilities')) {
       return Promise.resolve({
-        data: { can_cancel_lines: false, can_change_performers: false },
+        data: { can_cancel_lines: false, can_change_performers: false, can_record_sessions: false },
         response: { status: 200 },
       });
     }

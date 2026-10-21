@@ -12,7 +12,7 @@ import { sessionServiceOptions } from './persistence/session-service-options.ada
 import { SessionPerformerOptionsQueryHandler } from './queries/session-performer-options.query.ts';
 import { sessionTime } from './domain/session-time.ts';
 import { sessionPerformerOptions } from './persistence/session-performer-options.adapter.ts';
-import { pickerAccess, recordingAccess, recordingLimit } from './persistence/recording-context.adapter.ts';
+import { pickerAccess, recordingAccess, recordingLimit, sessionRecordCapability } from './persistence/recording-context.adapter.ts';
 import { SessionAdminGuard, SessionAppendGuard } from './http/session-access.guard.ts';
 import { SessionErrorsFilter } from './http/session-errors.filter.ts';
 import { catalogReader } from './persistence/catalog-reader.adapter.ts';
@@ -110,6 +110,7 @@ export function ordersCapabilitiesQuery(database: TenantWrappers) {
     read: (tx, scope) => sessionReadAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
     cancel: (tx, scope, at) => sessionCancelCapability(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
     performers: (tx, scope, at) => sessionPerformersCapability(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
+    record: (tx, scope, at) => sessionRecordCapability(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
   });
 }
 export function ordersLineEdits(database: TenantWrappers) {

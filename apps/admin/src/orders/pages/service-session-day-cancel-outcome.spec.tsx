@@ -70,7 +70,7 @@ const day = {
   response: { status: 200 },
 };
 const allowed = {
-  data: { can_cancel_lines: true, can_change_performers: false },
+  data: { can_cancel_lines: true, can_change_performers: false, can_record_sessions: false },
   response: { status: 200 },
 };
 

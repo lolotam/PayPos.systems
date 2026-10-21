@@ -1644,7 +1644,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Lock-free branch capability for the manager day list. Requires read:service-sessions:branch and the orders feature. can_cancel_lines is the effective cancel:service-lines:branch and can_change_performers the effective change:service-line-performers:branch on this branch: ALLOW, no DENY, and an active membership. A missing permission, a DENY, or another branch makes that flag 200 false. Missing read is the route 403. A disabled orders feature stays FEATURE_DISABLED. No Idempotency-Key. */
+        /** @description Lock-free branch capability for the manager day list. Requires read:service-sessions:branch and the orders feature. can_cancel_lines is the effective cancel:service-lines:branch, can_change_performers the effective change:service-line-performers:branch and can_record_sessions the effective record:service-sessions:branch on this branch: ALLOW, no DENY, and an active membership. A missing permission, a DENY, or another branch makes that flag 200 false. Missing read is the route 403. A disabled orders feature stays FEATURE_DISABLED. No Idempotency-Key. */
         get: operations["readServiceSessionCapabilities"];
         put?: never;
         post?: never;
@@ -4747,6 +4747,7 @@ export interface components {
         ServiceSessionCapabilities: {
             can_cancel_lines: boolean;
             can_change_performers: boolean;
+            can_record_sessions: boolean;
         };
         RecordingContextQuery: {
             /** Format: uuid */
@@ -11540,7 +11541,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Whether the day list may offer Cancel and Change performers on this branch. */
+            /** @description Whether the day list may offer Cancel, Change performers and the recording actions (tips) on this branch. */
             200: {
                 headers: {
                     [name: string]: unknown;
