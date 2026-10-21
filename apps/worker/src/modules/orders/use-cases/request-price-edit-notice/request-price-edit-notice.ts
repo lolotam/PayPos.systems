@@ -54,25 +54,26 @@ export class RequestPriceEditNotice {
       },
       this.fallback,
     );
-    const { groups, recipientCount } = priceEditRecipientGroups(users);
+    const branch = await this.ports.place.branchPlace(input);
+    // فرع لم يعد موجودًا حالة نهائية لا تصلحها إعادة المحاولة: تُسجَّل كقرار بلا مستلمين
+    // مثل «لا مدير في النطاق» فلا يتكرر الحدث ولا يخرج جرس.
+    const { groups, recipientCount } = priceEditRecipientGroups(branch === null ? [] : users);
     const won = await this.ports.repository.claim(input, {
       id: this.ids.newId(),
       sourceEventId: input.sourceEventId,
       decidedAt,
       recipientCount,
     });
-    if (!won || recipientCount === 0) return;
-    await this.publish(input, editor, groups, rule.channel);
+    if (!won || branch === null || recipientCount === 0) return;
+    await this.publish(input, branch, editor, groups);
   }
 
   private async publish(
     input: PriceEditNoticeInput,
+    branch: Parameters<typeof priceEditNoticeParameters>[0]['branch'],
     editor: PriceEditEditorLabel,
     groups: readonly (readonly string[])[],
-    channel: 'IN_APP',
   ): Promise<void> {
-    const branch = await this.ports.place.branchPlace(input);
-    if (branch === null) throw new Error('PRICE_EDIT_PLACE_INVALID');
     const context = await this.ports.repository.readLineContext(input);
     if (context === null) throw new Error('PRICE_EDIT_EVENT_INVALID');
     const parameters = priceEditNoticeParameters({
@@ -85,16 +86,16 @@ export class RequestPriceEditNotice {
       fallback: this.fallback,
     });
     for (const group of groups)
-      await this.append(input, context.businessTimezone, group, channel, parameters);
+      await this.append(input, context.businessTimezone, group, parameters);
   }
 
   private async append(
     input: PriceEditNoticeInput,
     businessTimezone: string,
     group: readonly string[],
-    channel: 'IN_APP',
     parameters: PriceEditParameters,
   ): Promise<void> {
+    const channel = interimPriceEditNoticeRule().channel;
     await this.ports.outbox.append(this.ids.newId(), {
       schema_version: 1,
       session_id: input.sessionId,

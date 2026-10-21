@@ -42,23 +42,27 @@ export class RequestPerformersChangeNotice {
     );
     if (!performersChangeMatchesHistory(history, input))
       throw new Error('LINE_PERFORMERS_EVENT_INVALID');
-    const { groups, recipientCount } = performersChangeRecipientGroups(users);
+    const branch = await this.ports.place.branchPlace(input);
+    // فرع لم يعد موجودًا حالة نهائية لا تصلحها إعادة المحاولة: تُسجَّل كقرار بلا مستلمين
+    // مثل «لا مدير في النطاق» فلا يتكرر الحدث ولا يخرج جرس.
+    const { groups, recipientCount } = performersChangeRecipientGroups(
+      branch === null ? [] : users,
+    );
     const won = await this.ports.repository.claim(input, {
       id: this.ids.newId(),
       sourceEventId: input.sourceEventId,
       decidedAt,
       recipientCount,
     });
-    if (!won || recipientCount === 0) return;
-    await this.publish(input, groups);
+    if (!won || branch === null || recipientCount === 0) return;
+    await this.publish(input, branch, groups);
   }
 
   private async publish(
     input: PerformersChangeNoticeInput,
+    branch: Parameters<typeof performersChangeNoticeParameters>[0]['branch'],
     groups: readonly (readonly string[])[],
   ): Promise<void> {
-    const branch = await this.ports.place.branchPlace(input);
-    if (branch === null) throw new Error('LINE_PERFORMERS_PLACE_INVALID');
     const context = await this.ports.repository.readLineContext(input);
     if (context === null) throw new Error('LINE_PERFORMERS_EVENT_INVALID');
     const parameters = performersChangeNoticeParameters({

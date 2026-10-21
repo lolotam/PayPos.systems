@@ -4,6 +4,7 @@ import { createLogger } from '@pospay/observability';
 import { beforeAll, afterAll, expect, it } from 'vitest';
 import { TENANT } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
+import { failingBranchRead } from './failing-branch-read.ts';
 import type { LineCancelNameFallback } from '../domain/line-cancel-notice.ts';
 import { onLineCancelled } from '../events/handlers/on-line-cancelled.handler.ts';
 import { lineCancelRecipients } from '../persistence/line-cancel-recipients.adapter.ts';
@@ -91,7 +92,7 @@ it('a business date that disagrees with the session writes nothing', async () =>
   expect(await f.consumed(prepared.event.id)).toHaveLength(0);
 });
 
-it('a missing branch place is invalid and rolls the ledger back', async () => {
+it('a missing branch place is recorded with no recipients and is not retried', async () => {
   const prepared = await f.cancel();
   const deliver = createDeliverer(
     f.db,
@@ -99,12 +100,29 @@ it('a missing branch place is invalid and rolls the ledger back', async () => {
     createLogger('silent'),
     { knownEventTypes: f.consumer.eventTypes },
   );
-  expect((await deliver(prepared.event)).delivered).toBe(false);
-  await expect(
-    f.db.withTenant(prepared.companyId, (tx) => onLineCancelled(useCase(tx), prepared.event)),
-  ).rejects.toThrow('LINE_CANCEL_PLACE_INVALID');
+  expect(await deliver(prepared.event)).toEqual({ delivered: true });
+  expect(await f.notices(prepared.lineId)).toMatchObject([{ recipient_count: 0 }]);
+  expect(await f.requests(prepared.sessionId)).toHaveLength(0);
+  expect(await f.consumed(prepared.event.id)).toHaveLength(1);
+  expect(await f.deliver({ ...prepared.event, id: f.ids.newId() })).toEqual({ delivered: true });
+  expect(await f.notices(prepared.lineId)).toHaveLength(1);
+  expect(await f.requests(prepared.sessionId)).toHaveLength(0);
+});
+
+it('a transient failure reading the branch place rolls back and is retried', async () => {
+  const prepared = await f.cancel();
+  const flaky = createDeliverer(failingBranchRead(f.db), [f.consumer], createLogger('silent'), {
+    knownEventTypes: f.consumer.eventTypes,
+  });
+  expect(await flaky(prepared.event)).toMatchObject({
+    delivered: false,
+    retryInMs: expect.any(Number),
+  });
   expect(await f.notices(prepared.lineId)).toHaveLength(0);
   expect(await f.consumed(prepared.event.id)).toHaveLength(0);
+  expect(await f.deliver(prepared.event)).toEqual({ delivered: true });
+  expect(await f.notices(prepared.lineId)).toMatchObject([{ recipient_count: 1 }]);
+  expect(await f.requests(prepared.sessionId)).toHaveLength(1);
 });
 
 async function expectInvalid(prepared: PreparedCancel, event: ClaimedEvent = prepared.event) {

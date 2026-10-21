@@ -4,6 +4,7 @@ import { createLogger } from '@pospay/observability';
 import { beforeAll, afterAll, expect, it } from 'vitest';
 import { TENANT } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
+import { failingBranchRead } from './failing-branch-read.ts';
 import type { PriceEditNameFallback } from '../domain/price-edit-notice.ts';
 import { onServiceLineChanged } from '../events/handlers/on-service-line-changed.handler.ts';
 import { priceEditRecipients } from '../persistence/price-edit-recipients.adapter.ts';
@@ -85,7 +86,7 @@ it('test 8: a non-matching line stays invalid while the company is closed', asyn
   }
 });
 
-it('test 8: a missing branch place is invalid and rolls the ledger back', async () => {
+it('test 8: a missing branch place is recorded with no recipients and is not retried', async () => {
   const prepared = await f.edit();
   const deliver = createDeliverer(
     f.db,
@@ -93,12 +94,29 @@ it('test 8: a missing branch place is invalid and rolls the ledger back', async 
     createLogger('silent'),
     { knownEventTypes: f.consumer.eventTypes },
   );
-  expect((await deliver(prepared.event)).delivered).toBe(false);
-  await expect(
-    f.db.withTenant(prepared.companyId, (tx) => onServiceLineChanged(useCase(tx), prepared.event)),
-  ).rejects.toThrow('PRICE_EDIT_PLACE_INVALID');
+  expect(await deliver(prepared.event)).toEqual({ delivered: true });
+  expect(await f.notices(prepared.lineId)).toMatchObject([{ recipient_count: 0 }]);
+  expect(await f.requests(prepared.sessionId)).toHaveLength(0);
+  expect(await f.consumed(prepared.event.id)).toHaveLength(1);
+  expect(await f.deliver({ ...prepared.event, id: f.ids.newId() })).toEqual({ delivered: true });
+  expect(await f.notices(prepared.lineId)).toHaveLength(1);
+  expect(await f.requests(prepared.sessionId)).toHaveLength(0);
+});
+
+it('test 8: a transient failure reading the branch place rolls back and is retried', async () => {
+  const prepared = await f.edit();
+  const flaky = createDeliverer(failingBranchRead(f.db), [f.consumer], createLogger('silent'), {
+    knownEventTypes: f.consumer.eventTypes,
+  });
+  expect(await flaky(prepared.event)).toMatchObject({
+    delivered: false,
+    retryInMs: expect.any(Number),
+  });
   expect(await f.notices(prepared.lineId)).toHaveLength(0);
   expect(await f.consumed(prepared.event.id)).toHaveLength(0);
+  expect(await f.deliver(prepared.event)).toEqual({ delivered: true });
+  expect(await f.notices(prepared.lineId)).toMatchObject([{ recipient_count: 1 }]);
+  expect(await f.requests(prepared.sessionId)).toHaveLength(1);
 });
 
 it('test 8: a history row with no name and no role is invalid', async () => {
