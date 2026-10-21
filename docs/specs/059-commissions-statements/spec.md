@@ -5,7 +5,7 @@
 > answered by Waleed through his super agent (PP-17, 2026-10-21; CS-Q14, CS-Q15 and CS-Q16 against the recommendation),
 > and its follow-ups: CS-Q20 (a branch manager's scope) answered (PP-20.1, the recommended option), CS-Q21 (erasing a
 > frozen customer name) answered (PP-20.2, the recommended option), and the permissions question CS-Q23 (a mid-month
-> branch transfer) answered (PP-21.2, the recommended option); its follow-up CS-Q24 (work done at another branch) is open. Every rule that waits on one is
+> branch transfer) answered (PP-21.2, the recommended option); its follow-up CS-Q24 (work done at another branch) answered (PP-22.1, the recommended option). Every rule that waits on one is
 > marked `TODO(spec)` with its number. **No code starts before this spec is merged**, and no sub-PR starts before the
 > questions it names in §7 are answered.
 > **Implements:** Phase 1 SPEC §4 (commission entities), §5 (the engine, already built), §6 (events, estimate, review,
@@ -767,9 +767,8 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
   every employee. The filter applies to the estimate, the statement view and the export alike. **An employee attached to
   two branches in the same month** (CS-Q23 = PP-21.2): each branch-scoped manager sees **only the days and the work of her
   own branch**: every line, tip and package sale of the employee whose business date falls on a day she was **attached** to
-  that branch (`EmployeeBranch` from/to); whether work she performed **at another branch** on such a day is shown to her
-  attached branch's manager, to the manager of the branch where it was done, or to both is `TODO(spec)` CS-Q24 (the
-  columns `attached_branch_id` and `source_branch_id` support every answer; until answered, 50-5, 53-3 and 56-1 wait), each with the amount the full-month engine run gave it (tier positions are never
+  that branch (`EmployeeBranch` from/to); work she performed **at another branch** on such a day is shown to the manager of
+  the branch she is attached to, and not to the manager of the branch where it was done (CS-Q24 = PP-22.1), each with the amount the full-month engine run gave it (tier positions are never
   recomputed per branch); a correction follows the attachment day of the line, sale or tip it corrects. The attachment is
   the filter key (`attached_branch_id`); where the work happened (`source_branch_id`) is shown, never filtered on. Her visible figures are a subtotal of that part, labelled as
   partial; the whole month is visible only to business- or company-scoped holders. This refines PP-20.1 for a transferred
@@ -821,17 +820,17 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **50-3** | Bootstrap | 1. Root bindings of 36-5 and 50-0. 2. The idempotent bootstrap job and the discharge of event ids. 3. CM-24 race and coverage tests, runbook | 50-1, 50-2, **36-5**, 50-0 | 300–420 |
 | **50-4** | Package sales | 1. Sales table + RLS. 2. Handler and the root binding of `listCurrentPackageSales`. 3. CM-20, CM-20b (bootstrap, coverage, race) | 50-1; row 42 (producer with `business_date`, and its reader) | 250–380 |
 | **50-a** | Engine input assembly (FR-022) | 1. The pure assembly function in `packages/commissions-engine`. 2. Its types for lines, sales, salary, versions, overrides, tips and corrections. 3. Unit tests (every input kind, the selected salary, ACTIVE-only lines) | 48a-1 | 150–250 |
-| **50-5** | Estimate on read | 1. The read use case (D-7) over the 50-a assembly. 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b, CM-23c | 50-a, 50-1, 50-2, 50-4, 55-1; CS-Q24 | 300–420 |
+| **50-5** | Estimate on read | 1. The read use case (D-7) over the 50-a assembly. 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b, CM-23c | 50-a, 50-1, 50-2, 50-4, 55-1 | 300–420 |
 | **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 | 50-5; CS-Q7 | 350–480 |
 | **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations, its `docs/module-map.md` event row). 3. CM-51…CM-54 | 55-1; CS-Q11 | 400–550 |
 | **52-1** | Review | 1. Review use case + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
 | **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-35, CM-37, CM-38 | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q22 | 400–550 |
-| **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to her branch's employees for a branch-scoped reader (CS-Q20 = PP-20.1). 3. ar/en keys, component tests | 53-2; CS-Q9, CS-Q24 | 400–550 |
+| **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to her branch's employees for a branch-scoped reader (CS-Q20 = PP-20.1). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
 | **54-1** | Mark paid | 1. The payment columns on `commission_statements` in the shape CS-Q6 decides (expand-only migration, grants), the use case + HTTP. 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
 | **56-0** | Binary documents in the worker (D-18) | 1. Generalize the source/processor contract: a source returns HTML for the PDF renderer or bytes with a MIME type; no HTML → PDF step for bytes. 2. The xlsx MIME type, the 8 MiB cap (`DOCUMENT_TOO_LARGE`), the same Redis store and collect-once reply with the source's MIME type. 3. Tests: a bytes source never reaches the renderer, the cap, collect-once, the PDF kinds unchanged | 59-0's ADR-0049 addendum | 200–320 |
-| **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-55e, CM-56, CM-R10 | 53-2, **56-0**; CS-Q10, CS-Q12, CS-Q24 | 350–480 |
+| **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-55e, CM-56, CM-R10 | 53-2, **56-0**; CS-Q10, CS-Q12 | 350–480 |
 | **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the Redis-loss detection (start-up sentinel check before write, heartbeat, the `operational_recovery_flags` table and its operator clear command, `/ready` degraded, alert) and the runbook's mandatory `CompanyCreated` replay step, the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
 
 **Deferred — «with the customer-erasure feature» (D-21, CS-Q21 = PP-20.2).** Not a sub-PR of this slice; it ships with the
