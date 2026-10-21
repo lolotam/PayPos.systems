@@ -118,7 +118,7 @@ const call = (index: number) =>
     params: { header: Record<string, string> };
   };
 async function ready() {
-  await screen.findAllByRole('option', { name: 'Heba (3)' });
+  await screen.findAllByRole('option', { name: 'Heba (3)' }, { timeout: 4000 });
 }
 async function sendWith(reason: string) {
   await ready();

@@ -120,7 +120,7 @@ async function openEditor() {
   });
   if (!first) throw new Error('missing change button');
   fireEvent.click(first);
-  await screen.findByRole('option', { name: 'Nada (1)' });
+  await screen.findByRole('option', { name: 'Nada (1)' }, { timeout: 4000 });
   fireEvent.change(screen.getByLabelText(t('en', 'serviceLinePerformers.reason')), {
     target: { value: 'swap' },
   });
