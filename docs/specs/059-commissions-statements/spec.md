@@ -3,7 +3,7 @@
 > **Status:** Draft · 2026-10-21 · docs-only PR. Owner questions are recorded in [owner-questions.ar.md](owner-questions.ar.md):
 > the money list CS-Q1…CS-Q12 (Abu Salem, decisions page batch 36) is open; the permissions/technical list CS-Q13…CS-Q19 is
 > answered by Waleed through his super agent (PP-17, 2026-10-21; CS-Q14, CS-Q15 and CS-Q16 against the recommendation),
-> and its follow-up CS-Q20 (a branch manager's scope) is open. Every rule that waits on one is
+> and its follow-ups CS-Q20 (a branch manager's scope) and CS-Q21 (erasing a frozen customer name) are open. Every rule that waits on one is
 > marked `TODO(spec)` with its number. **No code starts before this spec is merged**, and no sub-PR starts before the
 > questions it names in §7 are answered.
 > **Implements:** Phase 1 SPEC §4 (commission entities), §5 (the engine, already built), §6 (events, estimate, review,
