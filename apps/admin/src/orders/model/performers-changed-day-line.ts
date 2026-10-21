@@ -7,7 +7,9 @@ export type PerformersChangedSource = Extract<
 >['line'];
 
 // صف اليوم بيعرض رد التغيير نفسه لو جلب اليوم التالي فشل، عشان العلامة وتاريخها يبانوا من غير ما المدير يحدّث.
+// إعادة رد قديم بنفس المفتاح ممكن توصل بعد تغيير أحدث؛ مراجعة الكاش الأعلى تكسب عشان السطر ما يرجعش لورا.
 export function applyPerformersChangedLine(line: DayLine, next: PerformersChangedSource): DayLine {
+  if (line.revision > next.revision) return line;
   return {
     ...line,
     revision: next.revision,

@@ -175,12 +175,10 @@ export function ChangeLinePerformersDialog(props: ChangeLinePerformersDialogProp
       <FormProvider {...form}>
         <PerformersForm form={form} attempt={attempt}>
           {root ? <p role="alert">{root}</p> : null}
-          <SessionPerformersField
-            scope={props.scope}
-            index={0}
-            occurredAt={props.occurredAt}
-            disabled={frozen || pending}
-          />
+          {/* القفل من الـ fieldset مش من disabled بتاع الـ picker، لأن disabled بيوقف قراءة الأسماء فالحوار المتجمد بيفتح على اختيارات فاضية. */}
+          <fieldset disabled={frozen || pending} className="contents">
+            <SessionPerformersField scope={props.scope} index={0} occurredAt={props.occurredAt} />
+          </fieldset>
           <ChangeLinePerformersFields
             form={form}
             locale={locale}

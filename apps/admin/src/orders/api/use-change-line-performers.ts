@@ -110,8 +110,11 @@ async function putPerformers(
     },
     body: requestBody(attempt.body),
   });
-  if (result.error) {
-    const failure = { ...result.error, status: result.response.status };
+  // جسم الرفض الفاضي بيوصل "" من غير envelope؛ الحالة وحدها هي اللي بتقول إن النتيجة معروفة.
+  if (result.error !== undefined || result.response.status >= 400) {
+    const envelope: object =
+      typeof result.error === 'object' && result.error !== null ? result.error : {};
+    const failure = { ...envelope, status: result.response.status };
     if (performersOutcomeKnown(failure)) dropAttempt(memory, attempt.lineId, held);
     throw failure;
   }

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ServiceSessionDayPage as DayPage } from '@pospay/contracts';
-import { formatDate, formatInstant, serviceSessionErrors, t } from '@pospay/i18n';
+import { formatInstant, serviceSessionErrors, t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -100,14 +100,10 @@ function renderPage() {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  return render(<ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />, { wrapper });
+  render(<ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />, { wrapper });
+  return client;
 }
-const mark = (date: string) =>
-  `${t('en', 'serviceLinePerformers.changed')} ${formatDate(new Date(`${date}T12:00:00Z`), {
-    locale: 'en',
-    calendar: 'gregorian',
-    timeZone: 'UTC',
-  })}`;
+const changed = t('en', 'serviceLinePerformers.changed');
 // النص متقسّم بين العنصر و<bdi>؛ المطابقة على أعمق عنصر نصه الكامل هو المطلوب.
 const whole = (text: string) => (_: string, element: Element | null) =>
   element?.textContent === text &&
@@ -143,7 +139,7 @@ beforeEach(() => {
 
 it('shows the changed mark with its business date and the history button only on a changed line', async () => {
   renderPage();
-  expect(await screen.findByText(whole(mark('2026-10-17')))).toBeTruthy();
+  expect(await screen.findByText(whole(`${changed} October 17, 2026`))).toBeTruthy();
   expect(
     screen.getAllByText(t('en', 'serviceLinePerformers.changed'), { exact: false }),
   ).toHaveLength(1);
@@ -165,7 +161,7 @@ it('opens the history newest first with the changer, reason and both sides, and 
     await screen.findByRole('button', { name: t('en', 'serviceLinePerformers.history') }),
   );
   expect(
-    await screen.findByText(`${t('en', 'serviceLinePerformers.reason')} Rana did the rinse`),
+    await screen.findByText(whole(`${t('en', 'serviceLinePerformers.reason')} Rana did the rinse`)),
   ).toBeTruthy();
   expect(historyButton().getAttribute('aria-expanded')).toBe('true');
   expect(
@@ -182,9 +178,13 @@ it('opens the history newest first with the changer, reason and both sides, and 
   ).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLinePerformers.more') }));
   expect(
-    await screen.findByText(`${t('en', 'serviceLinePerformers.reason')} first split`),
+    await screen.findByText(whole(`${t('en', 'serviceLinePerformers.reason')} first split`)),
   ).toBeTruthy();
-  const reasons = screen.getAllByText(new RegExp(`^${t('en', 'serviceLinePerformers.reason')} `));
+  const reasons = screen.getAllByText(
+    (_, element) =>
+      element?.tagName === 'P' &&
+      (element.textContent ?? '').startsWith(`${t('en', 'serviceLinePerformers.reason')} `),
+  );
   expect(reasons.map((node) => node.textContent)).toEqual([
     `${t('en', 'serviceLinePerformers.reason')} Rana did the rinse`,
     `${t('en', 'serviceLinePerformers.reason')} first split`,
@@ -227,7 +227,7 @@ it('shows the mark, closes the dialog and confirms after a saved change', async 
   expect(screen.queryByText(t('en', 'serviceLinePerformers.changed'), { exact: false })).toBeNull();
   await openEditor();
   expect(await screen.findByText(t('en', 'serviceLinePerformers.saved'))).toBeTruthy();
-  expect(await screen.findByText(whole(mark('2026-10-21')))).toBeTruthy();
+  expect(await screen.findByText(whole(`${changed} October 21, 2026`))).toBeTruthy();
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(state.put.mock.calls[0]?.[1].body.expected_revision).toBe(2);
 });
@@ -248,4 +248,70 @@ it('closes the dialog and shows the 403 refusal as a notice on the day list', as
   expect(notice.getAttribute('role')).toBe('status');
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(screen.getByText('Service 20')).toBeTruthy();
+});
+
+it.each([
+  [401, 'UNAUTHENTICATED'],
+  [403, 'FEATURE_DISABLED'],
+] as const)(
+  'locks the page on a %s %s change and drops the cached performer history',
+  async (status, code) => {
+    state.put.mockResolvedValue({
+      error: { code, message_ar: 'Locked AR', message_en: 'Access withdrawn' },
+      response: { status },
+    });
+    const client = renderPage();
+    fireEvent.click(
+      await screen.findByRole('button', { name: t('en', 'serviceLinePerformers.history') }),
+    );
+    expect(
+      await screen.findByText(
+        whole(`${t('en', 'serviceLinePerformers.reason')} Rana did the rinse`),
+      ),
+    ).toBeTruthy();
+    expect(
+      client.getQueryCache().findAll({ queryKey: ['service-line-performer-changes'] }),
+    ).not.toHaveLength(0);
+    await openEditor();
+    await waitFor(() =>
+      expect(screen.getAllByRole('alert').map((n) => n.textContent)).toEqual([
+        `Access withdrawn ${t('en', 'serviceLineEdit.retry')}`,
+      ]),
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByText('Service 20')).toBeNull();
+    expect(
+      screen.queryByText(whole(`${t('en', 'serviceLinePerformers.reason')} Rana did the rinse`)),
+    ).toBeNull();
+    await waitFor(() =>
+      expect(
+        client.getQueryCache().findAll({ queryKey: ['service-line-performer-changes'] }),
+      ).toHaveLength(0),
+    );
+  },
+);
+
+it('closes with a notice when the stale refresh finds the line cancelled meanwhile', async () => {
+  day = () => dayWith([line(20), line(21)]);
+  state.put.mockImplementation(() => {
+    day = () =>
+      dayWith([
+        { ...line(20), status: 'CANCELLED', revision: 3, cancelled_at: '2026-10-21T06:00:00.000Z' },
+        line(21),
+      ]);
+    return Promise.resolve({
+      error: {
+        code: 'SESSION_LINE_REVISION_STALE',
+        ...serviceSessionErrors.SESSION_LINE_REVISION_STALE,
+        details: { current_revision: 3 },
+      },
+      response: { status: 409 },
+    });
+  });
+  renderPage();
+  await openEditor();
+  const notice = await screen.findByText(t('en', 'serviceLinePerformers.cancelledMeanwhile'));
+  expect(notice.getAttribute('role')).toBe('status');
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(await screen.findByText(t('en', 'serviceLineCancel.cancelled'))).toBeTruthy();
 });

@@ -67,6 +67,8 @@ async function refreshChangedLine(input: PerformersSubmitInput) {
     const fresh = await load();
     if (!input.mounted.current || !fresh) return;
     if (fresh.status === 'CANCELLED') {
+      // قفل الحوار من غير كلمة كان هيخلي المدير فاكر إن التغيير اتحفظ.
+      input.props.onForbidden(t(input.locale, 'serviceLinePerformers.cancelledMeanwhile'));
       input.props.onClose();
       return;
     }

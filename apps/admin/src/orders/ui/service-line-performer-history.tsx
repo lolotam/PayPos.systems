@@ -21,7 +21,7 @@ function SideText({ label, side, locale }: { label: string; side: Side; locale: 
       {label}{' '}
       {side.map((row, index) => (
         <span key={index}>
-          {index > 0 ? ', ' : null}
+          {index > 0 ? t(locale, 'serviceLinePerformers.listSeparator') : null}
           {locale === 'ar' ? (row.name_ar ?? row.name_en) : row.name_en}{' '}
           <bdi>{percent(row.share_bps)}</bdi>
         </span>
@@ -39,7 +39,7 @@ function ChangeItem({ item, locale, timezone }: { item: Item; locale: Locale; ti
         {locale === 'ar' ? item.changer_label_ar : item.changer_label_en}
       </p>
       <p>
-        {t(locale, 'serviceLinePerformers.reason')} {item.reason}
+        {t(locale, 'serviceLinePerformers.reason')} <bdi>{item.reason}</bdi>
       </p>
       <SideText
         label={t(locale, 'serviceLinePerformers.before')}

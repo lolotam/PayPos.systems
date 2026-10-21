@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { id, instant, savedLine, scope } from '../model/session-recording-result.fixture';
+import type { UnresolvedPerformersChange } from '../api/use-change-line-performers';
 import { ChangeLinePerformersDialog } from './change-line-performers-dialog';
 
 const state = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn() }));
@@ -72,7 +73,12 @@ function refused(status: number, code: string, details?: unknown) {
       : errorMessages(code as Parameters<typeof errorMessages>[0]);
   return { error: { code, ...text, details }, response: { status } };
 }
-function shown(online = true, onRefresh = vi.fn().mockResolvedValue(null)) {
+type Attempts = { current: Map<string, UnresolvedPerformersChange> };
+function shown(
+  online = true,
+  onRefresh = vi.fn().mockResolvedValue(null),
+  attempts: Attempts = { current: new Map() },
+) {
   const handlers = {
     onSaved: vi.fn(),
     onForbidden: vi.fn(),
@@ -81,7 +87,7 @@ function shown(online = true, onRefresh = vi.fn().mockResolvedValue(null)) {
     onRefresh,
   };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
+  const view = render(
     <QueryClientProvider client={client}>
       <ChangeLinePerformersDialog
         scope={scope}
@@ -89,12 +95,12 @@ function shown(online = true, onRefresh = vi.fn().mockResolvedValue(null)) {
         line={line}
         occurredAt={instant}
         online={online}
-        attempts={{ current: new Map() }}
+        attempts={attempts}
         {...handlers}
       />
     </QueryClientProvider>,
   );
-  return handlers;
+  return { ...handlers, unmount: view.unmount };
 }
 const performerSelect = (n: number) =>
   screen.getByLabelText(
@@ -299,4 +305,66 @@ it('freezes the form on an unknown outcome and replays the same body under the s
   await waitFor(() => expect(view.onSaved).toHaveBeenCalled());
   expect(call(1).body).toEqual(call(0).body);
   expect(call(1).params.header['Idempotency-Key']).toBe(call(0).params.header['Idempotency-Key']);
+});
+
+const keyOf = (index: number) => call(index).params.header['Idempotency-Key'];
+
+it('reopens an unknown outcome with the saved performers named and replays the same key and body', async () => {
+  state.put.mockRejectedValueOnce(new TypeError('network down'));
+  state.put.mockResolvedValueOnce(saved);
+  const attempts: Attempts = { current: new Map() };
+  const first = shown(true, vi.fn().mockResolvedValue(null), attempts);
+  await sendWith('because');
+  expect(await screen.findByText(t('en', 'serviceLinePerformers.outcomeUnknown'))).toBeTruthy();
+  first.unmount();
+  const again = shown(true, vi.fn().mockResolvedValue(null), attempts);
+  expect(screen.getByText(t('en', 'serviceLinePerformers.outcomeUnknown'))).toBeTruthy();
+  await ready();
+  expect(performerSelect(1).selectedOptions[0]?.textContent).toBe('Nada (1)');
+  expect(performerSelect(2).selectedOptions[0]?.textContent).toBe('Rana (2)');
+  expect((reasonBox() as HTMLInputElement).value).toBe('because');
+  expect((reasonBox() as HTMLInputElement).disabled).toBe(true);
+  fireEvent.click(submitButton());
+  await waitFor(() => expect(again.onSaved).toHaveBeenCalled());
+  expect(call(1).body).toEqual(call(0).body);
+  expect(keyOf(1)).toBe(keyOf(0));
+});
+
+it('drops the key after a definite 422 so the same body is sent under a new key', async () => {
+  state.put.mockResolvedValue(refused(422, 'SESSION_PERFORMERS_NO_CHANGE'));
+  shown();
+  await sendWith('because');
+  const message = serviceSessionErrors.SESSION_PERFORMERS_NO_CHANGE.message_en;
+  expect(await screen.findByText(message)).toBeTruthy();
+  expect((reasonBox() as HTMLInputElement).disabled).toBe(false);
+  fireEvent.click(submitButton());
+  await waitFor(() => expect(state.put).toHaveBeenCalledTimes(2));
+  expect(call(1).body).toEqual(call(0).body);
+  expect(keyOf(1)).not.toBe(keyOf(0));
+});
+
+it('keeps the key while the first request is still in progress (non-stale 409)', async () => {
+  state.put.mockResolvedValueOnce({
+    error: { code: 'IDEMPOTENCY_KEY_IN_PROGRESS', message_ar: 'AR', message_en: 'Still running' },
+    response: { status: 409 },
+  });
+  state.put.mockResolvedValueOnce(saved);
+  const view = shown();
+  await sendWith('because');
+  expect(await screen.findByText(t('en', 'serviceLinePerformers.outcomeUnknown'))).toBeTruthy();
+  expect((reasonBox() as HTMLInputElement).disabled).toBe(true);
+  fireEvent.click(submitButton());
+  await waitFor(() => expect(view.onSaved).toHaveBeenCalled());
+  expect(keyOf(1)).toBe(keyOf(0));
+});
+
+it('treats an empty 4xx body as a known refusal and frees the key', async () => {
+  state.put.mockResolvedValue({ error: '', response: { status: 422 } });
+  shown();
+  await sendWith('because');
+  expect(await screen.findByText(t('en', 'admin.unexpected'))).toBeTruthy();
+  expect(screen.queryByText(t('en', 'serviceLinePerformers.outcomeUnknown'))).toBeNull();
+  fireEvent.click(submitButton());
+  await waitFor(() => expect(state.put).toHaveBeenCalledTimes(2));
+  expect(keyOf(1)).not.toBe(keyOf(0));
 });

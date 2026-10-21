@@ -18,6 +18,8 @@ export const serviceLinePerformersEn = {
   before: 'Before',
   after: 'After',
   more: 'More',
+  listSeparator: ', ',
+  cancelledMeanwhile: 'This line was cancelled meanwhile, so its performers cannot be changed.',
 };
 export const serviceLinePerformersAr: Record<keyof typeof serviceLinePerformersEn, string> = {
   change: 'تغيير المنفّذين',
@@ -39,4 +41,6 @@ export const serviceLinePerformersAr: Record<keyof typeof serviceLinePerformersE
   before: 'قبل',
   after: 'بعد',
   more: 'سجلات تانية',
+  listSeparator: '، ',
+  cancelledMeanwhile: 'السطر ده اتلغى في الوقت ده، فمينفعش المنفّذين يتغيّروا.',
 };
