@@ -117,6 +117,48 @@ export const serviceLinePerformersChangedRecipient = z.strictObject({
   template_key: z.literal('service_line_performers_changed'),
   safe_parameters: serviceLinePerformersChangedParameters,
 });
+// النسبة نص bps/100 بلا أصفار زائدة (2000 → 20، 2050 → 20.5)، لأن bps الخام 4 أرقام يرفضها فلتر الأمان.
+const maxPercentParameter = z.strictObject({
+  name: z.literal('max_percent'), type: z.literal('text'),
+  value: z.string().regex(/^(?:100|[1-9]?\d(?:\.\d?[1-9])?)$/).refine((value) => value !== '0'),
+});
+/**
+ * spec 057 FR-024: الخدمة هي أول خدمة في services الحدث (ترتيب الإدخال، بلا تكرار)، والعدد يوضّح أن في سطور غيرها.
+ * لا اسم عميل ولا هاتف.
+ */
+export const discountApprovalRequestedParameters = z.tuple([
+  displayParameter('branch_name_ar'),
+  displayParameter('branch_name_en'),
+  displayParameter('service_name_ar'),
+  displayParameter('service_name_en'),
+  z.strictObject({ name: z.literal('line_count'), type: z.literal('text'), value: z.string().regex(/^(?:[1-9]|1\d|20)$/) }),
+  maxPercentParameter,
+]);
+/** مراجعة القالب 1 لأن نص الطلب ثابت؛ تغيير النص لاحقًا مراجعة جديدة حتى لا يُعاد تفسير الصفوف المخزنة. */
+export const discountApprovalRequestedRecipient = z.strictObject({
+  ...inAppBase,
+  template_key: z.literal('discount_approval_requested'),
+  safe_parameters: discountApprovalRequestedParameters,
+});
+/**
+ * DA-Q3 (وليد، 2026-10-21): المدير يوافق على خصم خدمة نفّذها، والمالك يأخذ جرسًا بذلك.
+ * الموافِق اسمه أو اسم دوره عند غياب الاسم؛ الخدمة أول خدمة نفّذها في القرار؛ لا عميل ولا هاتف.
+ */
+export const discountSelfApprovedParameters = z.tuple([
+  displayParameter('branch_name_ar'),
+  displayParameter('branch_name_en'),
+  displayParameter('approver_name_ar'),
+  displayParameter('approver_name_en'),
+  displayParameter('service_name_ar'),
+  displayParameter('service_name_en'),
+  maxPercentParameter,
+]);
+/** مراجعة القالب 1 لأن النص ثابت؛ تغييره لاحقًا مراجعة جديدة حتى لا يُعاد تفسير الصفوف المخزنة. */
+export const discountSelfApprovedRecipient = z.strictObject({
+  ...inAppBase,
+  template_key: z.literal('discount_self_approved'),
+  safe_parameters: discountSelfApprovedParameters,
+});
 const changeParameter = z.strictObject({
   name: z.literal('change'),
   type: z.literal('text'),
@@ -143,6 +185,8 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
   serviceLinePriceEditedRecipient,
   serviceLineCancelledRecipient,
   serviceLinePerformersChangedRecipient,
+  discountApprovalRequestedRecipient,
+  discountSelfApprovedRecipient,
   z.strictObject({
     ...inAppBase,
     template_key: z.literal('break_returned_other_branch'),
@@ -205,6 +249,16 @@ export const inAppNotification = z
       ...inAppNotificationBase,
       template_key: z.literal('service_line_performers_changed'),
       safe_parameters: serviceLinePerformersChangedParameters,
+    }),
+    responseObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('discount_approval_requested'),
+      safe_parameters: discountApprovalRequestedParameters,
+    }),
+    responseObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('discount_self_approved'),
+      safe_parameters: discountSelfApprovedParameters,
     }),
     responseObject({
       ...inAppNotificationBase,

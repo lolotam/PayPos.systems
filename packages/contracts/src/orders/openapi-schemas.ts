@@ -1,3 +1,5 @@
+import { discountApprovalEventSchemas } from './discount-approval-events.js';
+import { discountApprovalSchemas } from './discount-approval.js';
 import { serviceSessionDaySchemas } from './service-session-day.js';
 import { serviceLineCancellationSchemas } from './service-line-cancellation.js';
 import { serviceSessionCapabilitiesSchemas } from './service-session-capabilities.js';
@@ -19,4 +21,6 @@ export const orderSchemas = [
   ...serviceSessionCapabilitiesSchemas,
   ...serviceSessionFormSchemas,
   ...serviceSessionRecoverySchemas,
+  ...discountApprovalSchemas,
+  ...discountApprovalEventSchemas,
 ];

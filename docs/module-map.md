@@ -107,6 +107,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `EmployeeCreationScope` | `identity` | locked employee-management access and active company membership eligibility for user links (ADR-0021, PR #79) |
 | `settings` | `BusinessDiscountAccess`, `DiscountSubjectReader` | `identity` | locked discount-management authority and scoped personal limit/active owner metadata (ADR-0023) |
 | `settings` | `BusinessIdentityAccess` | `identity` | locked recheck of `manage:business-identity:business` at the business after the settings row lock (spec 052, 27h-1) |
+| `settings` | `AlertRulesScope.access`, `AlertRulesReadAccess` | `identity` | locked `manage:settings:business` on the whole business, and on the branch for its override, so a branch DENY refuses it (spec 060 D-B13, 62-1), and the same decision, unlocked, for the branch read |
 | `settings` | `LogoFileReader` | `files` | `documentFileFacts` after the settings lock: ownership, image type, permission, purge (ADR-0046, 27h-4) |
 | worker `files` | `LogoReference` | `@pospay/db` | locks `business_settings` through `lockBusinessLogoReference` and reports whether the file is still the logo; the settings adapter calls the same function, and `files` does not import `settings` (ADR-0046, 27h-3) |
 | `settings` | `DiscountSubjectReader` | `tenancy` | business and branch scope confirmed before identity membership read (ADR-0023) |
@@ -115,7 +116,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `ScheduleScope`, `ScheduleReadAccess` | `tenancy` | branch ownership and effective timezone through describeWorkspaces, using PR 19 fallback (ADR-0024) |
 | `orders` | `CustomerLookupPort` | `customers` | company-scoped customer existence, name and already-masked phone; reception first finds/creates the customer through customers' own endpoint (ADR-0041) |
 | `orders` | `PerformerCheckPort` | `staff` | dated employee/branch eligibility, persisted user link and attendance/approved-leave warnings at occurredAt; staff owns the working-day calculation (ADR-0041) |
-| `orders` | `DiscountLimitPort` | `settings` | selected recorder's fresh effective limit, including explicit zero/unlimited/not-configured (ADR-0041) |
+| `orders` | `DiscountLimitPort` | `settings` | selected recorder's fresh effective limit, including explicit zero/unlimited/not-configured (ADR-0041); spec 057 reuses it for the selected approver membership's limit, read after the proposal locks (ADR-0051, 057-6) |
 | `orders` | `SessionRecordAccessPort` | `identity` | record authority, DENY, orders feature and caller-owned recorder memberships; 35c-2 own context reuses the read (ADR-0041) |
 | `orders` | `SessionDayAccess` (read-side callbacks) | `identity`, `tenancy` | fresh independent branch-read permission/orders feature and existing session-place ownership callback (ADR-0041 35b-1) |
 | `orders` | `SessionServiceOptionsReads` (read-side callbacks) | `catalog` | recording-form service names, list prices and revisions only; same-transaction public read under record permission (ADR-0041 35c-3) |
@@ -129,6 +130,12 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | worker `orders` | `PriceEditNoticePlace` | worker `tenancy` | branchPlace names only; the date comes from the event and the timezone from the saved session snapshot read by the orders repository (ADR-0044, 35d-2) |
 | worker `orders` | `PerformersChangeNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers by the ADR-0037 interim rule; the changer is not excluded (ADR-0044 addendum, spec 055, 37b-3) |
 | worker `orders` | `PerformersChangeNoticePlace` | worker `tenancy` | branchPlace names only; the date comes from the event and the timezone from the saved session snapshot read by the orders repository (ADR-0044 addendum, spec 055, 37b-3) |
+| `orders` | `DiscountApprovalAccessPort` | `identity` | `lock()` then `read(at)`: `approve:discounts:branch` at the proposal's branch, DENY, the orders feature and the caller's eligible approver memberships (remote: the user's; PIN: the holder's filtered to the device's branch) inside the decision transaction (ADR-0051, spec 057, 057-6) |
+| `orders` | `DiscountPinApproverPort` | `identity` | verifies phone + PIN through identity's existing staff PIN facility (reservation, D-08 lockout, placeholder hash) outside the transaction and returns only the holder's user id or `refused` / `locked` / `busy`; no session (ADR-0051, spec 057, 057-7) |
+| worker `orders` | `DiscountApprovalNoticeRecipients` | worker `identity`, `tenancy` | `discountApproverRecipients(branch)` and companyOpen on the consumer transaction: active users whose membership covering the branch effectively grants `approve:discounts:branch` (role defaults and ALLOW, minus any covering DENY), not the ADR-0037 manager rule; the requester is dropped (PP-15.2, ADR-0051, 057-3) |
+| worker `orders` | `DiscountApprovalNoticePlace` | worker `tenancy` | branchPlace names only; service names come from the event (ADR-0051, 057-3) |
+| worker `orders` | `DiscountSelfApprovalNoticeRecipients` | worker `identity`, `tenancy` | the scoped-role reader with roles = `owner`: every active owner membership covering the branch, the approver not excluded (spec 057 D-19, ADR-0051, 057-3b) |
+| worker `orders` | `DiscountSelfApprovalNoticePlace` | worker `tenancy` | branchPlace names only; service names come from the event (ADR-0051) |
 | `commissions`                       | `EmployeeDirectoryPort`                                                                 | `staff`     | employee names — statements, live estimate (ADR-0010)                                                                                                                |
 | `customers`                         | `PerformerNamePort`                                                                     | `staff`     | performer's first name, in the rating message (ADR-0010)                                                                                                             |
 | `customers`                         | `DaySessionsPort`                                                                       | `orders`    | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010)                     |
@@ -214,6 +221,10 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `ServiceLineEditNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, one bell per saved edit of a line (ledger `(line, revision)`), no realtime until Phase 2 (ADR-0044) |
 | `ServiceLineCancelNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, one bell per cancelled line (ledger `(line, revision)`), no realtime until Phase 2 (ADR-0044 addendum) |
 | `ServiceLinePerformersNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, one bell per changed line (ledger `(line, revision)`), no realtime until Phase 2 (ADR-0044 addendum) |
+| `DiscountApprovalRequested` | `orders` | worker `orders` (057-3 bell consumer `orders.discount-approval-notice-v1`, ledger `(company_id, request_id)`); emitted once per stored discount-approval request, in its transaction; rejects and consumption emit no event (ADR-0051) |
+| `DiscountApprovedByPerformer` | `orders` | worker `orders` (owner bell); emitted in the approval transaction only when the approver is linked to a performer of an approved proposal (DA-Q3, ADR-0051) |
+| `DiscountSelfApprovalNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, one owner bell per flagged approval transaction, every active owner covering the branch (spec 057 D-19, ADR-0051) |
+| `DiscountApprovalNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, one bell per request to every effective `approve:discounts:branch` holder at the branch except the requester (PP-15.2), no realtime until Phase 2 (ADR-0051) |
 | `ServiceSessionRecorded` | `orders` | `commissions` (50), `customers` (59); worker `orders` (35b-2 late bell); one batch of accepted revision-1 lines on creation (ADR-0041) |
 | `ServiceSessionLinesAdded` | `orders` | worker `orders` (35b-2 late bell); `commissions` (50), `customers` (59); newly appended revision-1 lines only for the same visit (ADR-0041) |
 | `PackageSaleChanged`                                                        | `orders`        | `commissions`                                                                                     |
@@ -318,6 +329,9 @@ reads:
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/performers-change-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/performers-change-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/performers-change-place.adapter.ts
+  - orders -> identity.discountApproverRecipients @ apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts
+  - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts
+  - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/discount-approval-place.adapter.ts
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/line-cancel-place.adapter.ts
@@ -332,6 +346,10 @@ reads:
   - orders -> customers.readSessionCustomer @ apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts
   - orders -> staff.readSessionPerformers @ apps/api/src/modules/orders/persistence/performer-check.adapter.ts
   - orders -> settings.readEffectiveDiscountLimit @ apps/api/src/modules/orders/persistence/discount-limit.adapter.ts
+  - orders -> settings.readStaffColumns @ apps/api/src/modules/orders/persistence/staff-columns.adapter.ts
+  - commissions -> settings.readStaffColumns @ apps/api/src/modules/commissions/persistence/staff-columns.adapter.ts
+  - customers -> settings.readStaffColumns @ apps/api/src/modules/customers/persistence/staff-columns.adapter.ts
+  - staff -> settings.readStaffColumns @ apps/api/src/modules/staff/persistence/staff-columns.adapter.ts
   - orders -> identity.lockServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/session-place.adapter.ts
@@ -374,6 +392,8 @@ reads:
   - settings -> identity.readBusinessDiscountAccess @ apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts
   - settings -> identity.lockBusinessIdentityAccess @ apps/api/src/modules/settings/persistence/business-identity-access.adapter.ts
   - settings -> identity.readBusinessIdentityAccess @ apps/api/src/modules/settings/persistence/business-identity-access.adapter.ts
+  - settings -> identity.lockAlertRulesAccess @ apps/api/src/modules/settings/persistence/alert-rules-store.ts
+  - settings -> identity.readAlertRulesAccess @ apps/api/src/modules/settings/persistence/alert-rules-read-access.adapter.ts
   - settings -> identity.lockMembershipDiscountSubject @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts
   - settings -> identity.readMembershipDiscountSubject @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts
   - settings -> tenancy.businessDiscountScope @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts
