@@ -84,10 +84,10 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 | D-14 | **"Lines without a performer" is satisfied by construction:** a line has 1…4 performers summing to 10000 (deferred consistency trigger, migration 0131). Approval still refuses if any projected ACTIVE line's rows do not sum to 10000 bps, as a defensive check of the projection | a second performer source in commissions |
 | D-15 | **Bootstrap before approval opens** (ADR-0041 §6, spec 053 BR-08): tips from orders' `listCurrentSessionTips` (36-5); lines from an orders-owned paged reader of the latest line revision with its event ids, built in the same shape as 36-5 (new orders sub-PR 50-0); salaries from the ADR-0012 amendment backfill of unconsumed `SalaryChanged` outbox rows; package sales from an orders-owned paged reader of the latest entitlement revision with its event ids (`listCurrentPackageSales`, same shape as 36-5), which row 42 must ship with its producer. Every reader is bound to a commissions-owned port **at the composition root** (no module-map arrow); the design advisors confirm the line reader versus a controlled outbox replay before 50-0 | reading orders tables from commissions (ADR-0041 §6 forbids it) |
 | D-16 | **Reads beyond SPEC §3's arrows** (the business timezone for "the period has ended", service names and customer full names for the statement detail and the export (CS-Q15), the owner and manager recipients of reminders and bells) use provider-owned readers bound to commissions-owned ports at the composition root, the BR-08 pattern; if one cannot be bound there, the sub-PR stops and adds an ADR and the module-map row first (IMPLEMENTATION-PLAN §4) | new import arrows by default |
-| D-17 | **The engine moves to a new shared package, `packages/commissions-engine`** (CS-Q13 = PP-17.1): pure TypeScript whose only dependency is `packages/domain`, the same import rules as a module's `domain/` (CLAUDE.architecture.md §3.1), imported only by the `commissions` modules of `apps/api` and `apps/worker` (a `packages_restricted` entry in `docs/module-map.md`, enforced by the boundaries lint). 59-0 writes its ADR (a new package, CLAUDE.md §11) and the CLAUDE.md §2.1 / module-map rows; 48a-1 creates the package and moves the engine and its tests unchanged. ADR-0035 stands: commission kinds stay out of `packages/domain` | running the consumer in the api process; copying the engine into the worker |
+| D-17 | **The engine moves to a new shared package, `packages/commissions-engine`** (CS-Q13 = PP-17.1): pure TypeScript whose only dependency is `packages/domain`, the same import rules as a module's `domain/` (CLAUDE.architecture.md §3.1), imported only by the `commissions` modules of `apps/api` and `apps/worker` (a `packages_restricted` entry in `docs/module-map.md`, enforced by the boundaries lint). **One exception:** a browser-safe subpath entry point, `packages/commissions-engine/validation`, exports only `validateCommissionPlan`, its error codes and the plan types (pure, no dependency beyond `packages/domain`, no Node-only code), and `apps/admin/src/commissions` may import that entry point and nothing else of the package, so the builder runs the same validator as the API (CM-06); the ADR and the boundaries rule of 59-0 name both the restriction and this exception. 59-0 writes its ADR (a new package, CLAUDE.md §11) and the CLAUDE.md §2.1 / module-map rows; 48a-1 creates the package and moves the engine and its tests unchanged. ADR-0035 stands: commission kinds stay out of `packages/domain` | running the consumer in the api process; copying the engine into the worker |
 | D-18 | **The Excel export is a worker render** on the ADR-0049 transport (202 `{ render_id }`, poll, collect once, not stored), a new `kind` for the commission statement; the workbook is built with `exceljs` (already a dependency of `apps/api`), and generation over 200 ms never runs in a request (CLAUDE.md §6). An ADR-0049 addendum names the new kind | a synchronous download |
 | D-19 | **Money:** `numeric(14,3)` in Postgres, `bigint` mills in TypeScript, KWD strings on the wire (ADR-0035, ADR-0041 §4); one `roundKwd` per source inside the engine (SPEC §5.2, ADR-0005); every total is a plain sum of rounded sources and is never rounded again (`TODO(spec)` CS-Q12 for cash) | rounding a total |
-| D-20 | **Customer identity for the detail (CS-Q15):** the projection head keeps the event's `customer_id` (and `service_id`), and a line-sourced frozen statement row copies `line_id`, `session_id`, `service_id`, `customer_id` and `business_date`. The customer's **name is not copied**: it is read at display and export time through the customers reader bound at the root (D-16), by id. Commissions then stores no personal data beyond an opaque id, a name correction or an erasure in `customers` applies everywhere, and no phone is ever read or stored here (SPEC §4). The money and the identifiers stay frozen; only the displayed name follows `customers` | an immutable name snapshot at freeze (a second copy of personal data in commissions, out of reach of a later correction or erasure); resolving the line through orders (ADR-0041 §6 forbids commissions reading orders) |
+| D-20 | **Customer identity for the detail (CS-Q15):** the projection head keeps the event's `customer_id` (and `service_id`), and a line-sourced frozen statement row copies `line_id`, `session_id`, `service_id`, `customer_id` and `business_date`. While the month is open (DRAFT/REVIEWED) the customer's full name and the service names are read live by id through the readers bound at the root (D-16). **At approval they are frozen:** the line-sourced frozen row also stores `customer_name` and `service_name_ar`/`service_name_en` as read in the approval transaction, so an approved statement and every later export of it never change (BR-02, SPEC §6 "the frozen statement is never changed"). The name is the only personal data copied; no phone is ever read or stored here (SPEC §4). What happens to a frozen name if a customer later asks to be erased is `TODO(spec)` CS-Q21 | reading names live for a closed statement (a renamed customer would change an approved export); resolving the line through orders (ADR-0041 §6 forbids commissions reading orders) |
 
 ## 3. Rules already settled (cited, not asked again)
 
@@ -133,7 +133,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-06** Every §5.7 combination the engine's validator accepts is accepted by the API; every rejection carries the
   engine's named code (`INVALID_COMBINATION`, `MIXED_THRESHOLDS`, `STEPS_NOT_ASCENDING`, `NO_STEPS`, `INVALID_CALC`,
   `INVALID_THRESHOLD`, `INVALID_PLAN`) as 422 `COMMISSION_PLAN_INVALID` with `details.code`; the builder shows the same message
-  before submit (same function, unit test over the full product).
+  before submit (the same function, imported from `packages/commissions-engine/validation` by `apps/admin/src/commissions`, D-17;
+  unit test over the full product, and a boundaries-lint test that the admin app imports nothing else of the package).
 - **CM-07** An ordinary version with `effective_from` before today (business timezone) → 422
   `COMMISSION_EFFECTIVE_FROM_PAST`; a `whole_period` version for a past month that is REVIEWED → accepted and that month
   returns to DRAFT (D-5); for a month that is APPROVED or PAID, or with a closed month after it → 409
@@ -216,6 +217,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-33b** (CS-Q18 = PP-17.6) The owner returns a REVIEWED October to DRAFT with the reason «خطة سوسن غلط»: status DRAFT,
   `reviewed_*` cleared, one return row holding the reason, one audit entry without it; an empty reason → 422
   `COMMISSION_RETURN_REASON_INVALID`; a DRAFT or closed statement → 409; a user with neither review nor approve → 403.
+- **CM-33c** RLS (negative isolation): company B reads 0 of company A's `commission_statement_returns` rows, and inserting a
+  return row for A's statement as B fails.
 - **CM-33** Without `review:commissions:business` (default roles `TODO(spec)` CS-Q2) → 403. Whether the reviewer may also
   be the approver is `TODO(spec)` CS-Q3.
 
@@ -278,7 +281,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-53** A `NO_SALARY` block is resolved by setting the salary for its date in staff (spec 021); the `SalaryChanged`
   recompute posts the correction and resolves the block; a repair request for a `NO_SALARY` block is refused.
 - **CM-54** (CS-Q19 = PP-17.7) When a blocked correction is first recorded, one in-app bell reaches the holders of the plan
-  permission (CS-Q1) in the business; a later event for the same open block rings nothing new; the block is always listed on
+  permission (CS-Q1) in the business; with 250 holders, three events of 100, 100 and 50 distinct recipients are appended in
+  the block's transaction, and a failure appending the third leaves no block and no event; a later event for the same open block rings nothing new; the block is always listed on
   the statement view of the target month as a blocking issue.
 
 ### Story 11 — Excel export (56, P2)
@@ -287,9 +291,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   only; the file has the card-tips and cash-tips columns (D-36) and never a phone (SPEC §4); every download is audited
   (who, when, business, period). Its sheets and which statuses can be exported: `TODO(spec)` CS-Q10. The detail rows carry the
   customer's **full name** (CS-Q15 = PP-17.3), never her phone.
-- **CM-55b** (D-20) Every line-sourced detail row of a frozen statement carries the `customer_id`, service and date copied at
-  approval; the export shows the customer's full name read by that id, never a phone; after the customer's name is
-  corrected in `customers`, a new export of the same frozen statement shows the corrected name and identical amounts.
+- **CM-55b** (D-20) Every line-sourced detail row of a frozen statement carries the `customer_id`, the customer's full name,
+  the service names and the date frozen at approval, never a phone; after the customer's name is corrected in `customers`,
+  a new export of the same approved statement still shows the name frozen at approval and identical amounts, while an open
+  month's view shows the corrected name.
 - **CM-56** The amounts in the file equal the frozen statement bit for bit (KWD, three decimals, as text-safe numbers).
 
 ### Story 12 — Reminders (56b, P2)
@@ -410,8 +415,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   approval are refused while any exists.
 - **FR-028** Permission: `read:commissions:business` for `GET` (CS-Q20 for a branch manager); `review:commissions:business`
   for `generate`. Detail rows show the customer's full name (CS-Q15 = PP-17.3), read through the customers reader bound at
-  the root (D-16) from the `customer_id` the projection head (DRAFT/REVIEWED) or the frozen row (closed) holds (D-20); never
-  a phone.
+  the root (D-16) from the `customer_id` the projection head holds while the month is open, and taken from the names frozen
+  in the statement rows once it is closed (D-20); never a phone.
 
 ### 52 — review-statement
 
@@ -419,7 +424,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   DRAFT, no blocking issue, recomputed fingerprint = `expected_fingerprint`; set REVIEWED with `reviewed_fingerprint`,
   reviewer user and membership, time; audit `commission_statement.reviewed`.
 - **FR-030** Emit `StatementAwaitingApproval` (SPEC §3) to notifications in the same transaction, recipients resolved by
-  commissions (SPEC §3 "emitting modules put recipients and channels in the event"; in-app, CS-Q17 = PP-17.5).
+  commissions (SPEC §3 "emitting modules put recipients and channels in the event"; in-app, CS-Q17 = PP-17.5). **Every
+  notification event of this slice** (this one, the reminders of FR-053/FR-055 and the blocked-correction notice of FR-049)
+  uses the same grouping: de-duplicated recipients, sorted by user id, consecutive groups of at most 100 (the
+  `notificationRequest` cap, ADR-0037 §5), one event per group, all appended in the writer's transaction.
 - **FR-031** (CS-Q18 = PP-17.6) `POST …/:period/return` `{ reason }` (Idempotency-Key): a holder of
   `review:commissions:business` or `approve:commissions:business` returns a REVIEWED statement to DRAFT under the lock,
   clearing `reviewed_*`; the reason is required (trimmed, 1…500 characters, else 422 `COMMISSION_RETURN_REASON_INVALID`)
@@ -438,8 +446,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   source, one `SALE` per `sale:<id>`, one `TIP_CARD`/`TIP_CASH` per `tip:<session>:<method>`, one line per received
   correction (its own id as source) of kind `CORRECTION` (commission and sale corrections), `CORRECTION_TIP_CARD` or
   `CORRECTION_TIP_CASH`, so the payable figure can be computed from the frozen kinds alone; zero amounts are frozen too, so the frozen set equals the fingerprinted set.
-  A line-sourced frozen row also copies the line's detail identifiers from the projection head (D-20), so the frozen
-  statement and its export never need orders or the live projection to say which visit, service and customer a row is.
+  A line-sourced frozen row also copies the line's detail identifiers from the projection head and the customer and
+  service names read in the same transaction (D-20), so the frozen statement and its export never need orders, the live
+  projection or a live name to say which visit, service and customer a row is.
 - **FR-034** Status APPROVED, `approved_by`, `approved_at`, `input_fingerprint`; audit `commission_statement.approved` (SPEC §1:
   the approval actor and time are in the audit log).
 - **FR-035** 53-1 delivers the ADR-0012 function, role, grants, policies and index with the six types of D-9 and its addendum;
@@ -492,8 +501,11 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-048** A target month with an open blocked correction for any employee cannot be reviewed or approved (SPEC §6).
 - **FR-049** The blocked correction is visible on the statement view and in a list `GET …/commission-blocked-corrections`
   (`queries/`). Notice (CS-Q19 = PP-17.7): when the consumer first records an open block it appends, in the same
-  transaction, one `CommissionCorrectionBlockedNoticeRequested` to `notifications` (IN_APP, recipients the holders of the
-  plan permission in the business, no amount and no customer data); a new commissions ⇒ notifications event row added by
+  transaction, `CommissionCorrectionBlockedNoticeRequested` events to `notifications` (IN_APP, recipients the holders of the
+  plan permission in the business, no amount and no customer data) in **groups of at most 100 recipients** (the
+  `notificationRequest` cap, ADR-0037 §5): recipients de-duplicated by user id, sorted ascending, cut into consecutive
+  groups, one event per group keyed `(block id, group index)`, all appended atomically with the block row (a failure rolls
+  back the block and every group); a new commissions ⇒ notifications event row added by
   59-0. Permission for the repair: CS-Q1.
 
 ### 56 — Excel export
@@ -562,12 +574,29 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 | `commission_tip_heads` / `commission_tips` (50) | head: `session_id`, `revision`, `business_date`, `period`; rows: `session_id`, `employee_id`, `method`, `amount` | `UNIQUE (company_id, session_id)` / `UNIQUE (company_id, session_id, employee_id, method)`; projection grants |
 | `commission_salaries` (50) | `employee_id`, `effective_from`, `amount`, `revision` | `UNIQUE (company_id, employee_id, effective_from)`; projection grants; never logged (SPEC §12) |
 | `commission_sales` (50) | `sale_id`, `seller_employee_id NULL`, `business_date`, `period`, `price_paid`, `refunded_amount`, `status`, `revision` | `UNIQUE (company_id, sale_id)`; projection grants |
-| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `source_ref`, `kind`, `amount`, `source_period NULL`, and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `customer_id`, `business_date` (NULL otherwise; D-20) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only; a trigger refuses an insert unless the statement is being approved in the same transaction |
+| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `source_ref`, `kind`, `amount`, `source_period NULL`, and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only; a trigger refuses an insert unless the statement is being approved in the same transaction |
 | `commission_period_generations` (55) | `employee_id`, `period`, `generation` | `UNIQUE (company_id, employee_id, period)`; `SELECT, INSERT, UPDATE (generation)` |
 | `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed), `generation`, `event_id`, `created_at` | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; index `(company_id, business_id, target_period)`; insert-only |
 | `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; `SELECT, INSERT, UPDATE (resolved_at, resolved_generation)` |
 | `commission_statement_returns` (52) | `statement_id`, `returned_by`, `returned_membership_id`, `reason`, `returned_at` | `CHECK` reason 1…500 trimmed; insert-only; reason never logged |
 | `commission_statement_reminders` (56b) | `statement_id`, `kind`, `reminder_date`, `recipient_count` | `UNIQUE (company_id, statement_id, kind, reminder_date)`; insert-only |
+
+**Named isolation tests** (each in the sub-PR that creates its table, as part of that sub-PR's test subtask; company B
+reads 0 of company A's rows and every insert or update of a row for A fails as B):
+
+| Test | Table | Sub-PR |
+| --- | --- | --- |
+| CM-04 | `commission_statements` | 48a-2 |
+| CM-R01 | `commission_plan_versions` | 48-1 |
+| CM-R02 | `commission_service_overrides` | 49-1 |
+| CM-R03 | `commission_line_heads`, `commission_lines` | 50-1 |
+| CM-R04 | `commission_tip_heads`, `commission_tips`, `commission_salaries` | 50-2 |
+| CM-R05 | `commission_sales` | 50-4 |
+| CM-R06 | `commission_period_generations`, `commission_corrections` | 55-1 |
+| CM-R07 | `commission_blocked_corrections` | 55-2 |
+| CM-33c | `commission_statement_returns` | 52-1 |
+| CM-R08 | `commission_statement_lines` | 53-2 |
+| CM-R09 | `commission_statement_reminders` | 56b-1 |
 
 Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, policies, outbox index) with the six types (D-9).
 
@@ -620,11 +649,11 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | PR | Result | Subtasks | Blocked on | Size |
 | --- | --- | --- | --- | --- |
 | **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9), ADR-0049 addendum (export kind), the `CompanyCreated` → worker `commissions` event row (FR-053) and the `CommissionCorrectionBlockedNoticeRequested` row (FR-049) | this spec; design advisors | 150–250 |
-| **48a-1** | `packages/commissions-engine` (D-17) | 1. Package scaffold, `packages/domain` its only dependency. 2. Move the engine and its tests unchanged. 3. Rewire the api imports; the boundaries rule (only the `commissions` modules may import it) and the module-map check | 59-0 | 150–300 (moves) |
+| **48a-1** | `packages/commissions-engine` (D-17) | 1. Package scaffold, `packages/domain` its only dependency, and the browser-safe `validation` entry point. 2. Move the engine and its tests unchanged. 3. Rewire the api imports; the boundaries rule (only the `commissions` modules may import it) and the module-map check | 59-0 | 150–300 (moves) |
 | **48a-2** | Statements and the lock | 1. `commission_statements` + RLS + grants + FR-001 trigger + negative tests. 2. `lockStatementPeriods` + typed errors. 3. Lock tests CM-01…CM-04 and the FR-004 check | 48a-1 | 300–420 |
 | **48-1** | Plan storage and contracts | 1. Zod contracts and OpenAPI. 2. `commission_plan_versions` + RLS. 3. The plan permission (CS-Q1) and its role defaults | 48a-2; CS-Q1 | 250–380 |
 | **48-2** | Create and list plan versions | 1. Use case (FR-007/FR-008) and ports. 2. HTTP + list query + `EXPLAIN`. 3. CM-05…CM-08, CM-10 | 48-1 | 350–480 |
-| **48-3** | The builder screen | 1. Blocks with switches. 2. History list. 3. ar/en keys, component tests (CM-09) | 48-2 | 300–450 |
+| **48-3** | The builder screen | 1. Blocks with switches, validated before submit through `packages/commissions-engine/validation` (D-17). 2. History list. 3. ar/en keys, component tests (CM-06 builder half, CM-09) | 48-2 | 300–450 |
 | **49-1** | Overrides | 1. Contracts + table + RLS. 2. Use case + HTTP + list. 3. CM-11…CM-13 | 48-2 | 350–480 |
 | **49-2** | Overrides screen | 1. Per-employee service table. 2. Edit dialog. 3. ar/en keys, component tests | 49-1, 48-3 | 200–320 |
 | **50-0** | Orders line bootstrap reader (orders module) | 1. `queries/` latest line revision + event ids, keyset paging. 2. Public export in orders `index.ts`. 3. Shape, `EXPLAIN`, paging tests | 59-0; the design advisors' choice (D-15) | 200–300 |
@@ -636,7 +665,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 | 50-5 | 350–480 |
 | **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044) | 51-1; CS-Q7, CS-Q8 | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations). 3. CM-51…CM-54 | 55-1; CS-Q11 | 400–550 |
-| **52-1** | Review | 1. Review use case + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
+| **52-1** | Review | 1. Review use case + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
 | **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-35, CM-37, CM-38, CM-34b | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage) | 400–550 |
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
