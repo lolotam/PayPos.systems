@@ -224,6 +224,7 @@ export const en = {
     PERMISSION_OWNER_ONLY: 'Only the company owner can grant this permission',
     PERMISSION_ROLE_FORBIDDEN: 'This system role cannot receive this permission',
     PERMISSION_OVERRIDE_ENDED: 'This override has already ended',
+    ALERT_RULE_REVISION_CONFLICT: 'Another manager changed this alert rule. Reload before saving.',
     TRANSACTION_RETRY_REQUIRED:
       'The change conflicted with another transaction and was not saved. Please retry.',
     INVALID_CUSTOMER_PHONE:

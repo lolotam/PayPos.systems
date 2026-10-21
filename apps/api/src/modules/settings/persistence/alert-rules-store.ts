@@ -6,6 +6,7 @@ import { transactionWriters } from '../../../shared/adapters/transaction-writers
 import { lockAlertRulesAccess } from '../../identity/index.ts';
 import type {
   AlertRulesScope,
+  AlertRulesSnapshot,
   AlertRulesTransactions,
   AlertRuleTarget,
   StoredAlertRule,
@@ -21,7 +22,10 @@ type Row = {
   revision: number;
 };
 
+type ScopedRow = Row & { branch_id: string | null };
+
 const COLUMNS = sql`kind, enabled, recipient_roles, channels, delay_minutes, lead_minutes, revision`;
+const SCOPED_COLUMNS = sql`branch_id, ${COLUMNS}`;
 
 export const toStoredAlertRule = (row: Row): StoredAlertRule => ({
   kind: row.kind,
@@ -58,11 +62,39 @@ export async function readStoredAlertRules(
   return new Map(rows.map((row) => [row.kind, toStoredAlertRule(row)]));
 }
 
+/**
+ * لقطة القواعد المخزنة والمفتاح العام: قواعد النشاط دايماً، وقواعد الفرع لو النطاق فيه فرع.
+ *
+ * @param tx        معاملة الشركة
+ * @param companyId الشركة
+ * @param target    النشاط والفرع
+ * @returns المفتاح العام وقواعد النشاط وقواعد الفرع
+ */
+async function readAlertRulesSnapshot(
+  tx: Tx,
+  companyId: string,
+  target: AlertRuleTarget,
+): Promise<AlertRulesSnapshot> {
+  const scope =
+    target.branchId === null
+      ? sql`branch_id IS NULL`
+      : sql`(branch_id IS NULL OR branch_id = ${target.branchId})`;
+  const rows = await tx.execute<ScopedRow>(sql`SELECT ${SCOPED_COLUMNS} FROM alert_rules
+    WHERE company_id = ${companyId} AND business_id = ${target.businessId} AND ${scope}`);
+  const [master] = await tx.execute<{ alerts_enabled: boolean | null }>(sql`SELECT alerts_enabled
+    FROM business_settings WHERE company_id = ${companyId} AND business_id = ${target.businessId}`);
+  return {
+    alertsEnabled: master?.alerts_enabled ?? null,
+    rules: rows.map((row) => ({ ...toStoredAlertRule(row), branchId: row.branch_id })),
+  };
+}
+
 function scopeFor(tx: Tx, companyId: string, userId: string, ids: IdGenerator): AlertRulesScope {
   return {
     audit: transactionWriters(tx, ids).audit,
     access: (target) => lockAlertRulesAccess(tx, companyId, userId, target),
     lockRules: (target) => readStoredAlertRules(tx, companyId, target, true),
+    snapshot: async (target) => readAlertRulesSnapshot(tx, companyId, target),
     saveRule: async (target, kind, settings, updatedBy) => {
       const conflict =
         target.branchId === null

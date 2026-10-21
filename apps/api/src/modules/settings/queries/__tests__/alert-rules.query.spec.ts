@@ -1,4 +1,3 @@
-import { alertRules as alertRulesSchema } from '@pospay/contracts';
 import { createDatabase, type Database, type Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 import postgres from 'postgres';
@@ -70,13 +69,11 @@ afterAll(async () => {
   await testDb.drop();
 });
 
-it('returns every kind in the response shape, the stored ones marked by source', async () => {
-  const view = await db.withTenant(A.company, (tx) =>
+it('returns the stored rows only: no rule and a null master switch before anything is saved', async () => {
+  const stored = await db.withTenant(A.company, (tx) =>
     alertRulesQuery(tx, A.company, A.business, A.branch),
   );
-  expect(alertRulesSchema.parse(view)).toEqual(view);
-  expect(view?.rules).toHaveLength(14);
-  expect(view?.rules.every((rule) => rule.source === 'DEFAULT')).toBe(true);
+  expect(stored).toEqual({ alertsEnabled: null, rules: [] });
 });
 
 it('EXPLAIN ANALYZE: the rules read uses an alert_rules index, never a sequential scan', async () => {
@@ -85,4 +82,44 @@ it('EXPLAIN ANALYZE: the rules read uses an alert_rules index, never a sequentia
   const rulesPlan = plans.find((plan) => plan.includes('"Relation Name":"alert_rules"')) ?? '';
   expect(rulesPlan).toMatch(/alert_rules_(branch_fk_idx|business_kind_key|branch_kind_key)/);
   expect(rulesPlan).not.toContain('Seq Scan');
+});
+
+it('returns one row per stored rule, with its scope and its revision', async () => {
+  const owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
+  try {
+    await owner`INSERT INTO alert_rules (company_id,id,business_id,branch_id,kind,enabled,recipient_roles,channels,
+        delay_minutes,lead_minutes,updated_by,revision)
+      VALUES (${A.company}, gen_random_uuid(), ${A.business}, NULL, 'SHIFT_NOT_CLOCKED_IN', true,
+        ARRAY['owner']::text[], ARRAY['IN_APP']::text[], 20, NULL, ${USER}, 3)`;
+  } finally {
+    await owner.end();
+  }
+  const stored = await db.withTenant(A.company, (tx) =>
+    alertRulesQuery(tx, A.company, A.business, A.branch),
+  );
+  expect(stored?.alertsEnabled).toBeNull();
+  expect(stored?.rules).toEqual([
+    {
+      branchId: null,
+      kind: 'SHIFT_NOT_CLOCKED_IN',
+      enabled: true,
+      recipientRoles: ['owner'],
+      channels: ['IN_APP'],
+      delayMinutes: 20,
+      leadMinutes: null,
+      revision: 3,
+    },
+  ]);
+});
+
+it("a business that is not the company's has no rules to return", async () => {
+  const unknown = '01920000-0000-7000-8000-0000000000ff';
+  const business = await db.withTenant(A.company, (tx) =>
+    alertRulesQuery(tx, A.company, unknown, null),
+  );
+  expect(business).toBeNull();
+  const branch = await db.withTenant(A.company, (tx) =>
+    alertRulesQuery(tx, A.company, unknown, A.branch),
+  );
+  expect(branch).toBeNull();
 });

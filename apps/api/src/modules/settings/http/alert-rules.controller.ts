@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   alertKind,
+  id,
   setAlertRulesInput,
   setAlertsMasterInput,
   type AlertRules,
@@ -26,6 +27,7 @@ import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { alertRulesQuery } from '../queries/alert-rules.query.ts';
+import { alertRulesView } from '../use-cases/alert-rules-view/alert-rules-view.ts';
 import type { ResetBranchAlertRule } from '../use-cases/reset-branch-alert-rule/reset-branch-alert-rule.ts';
 import type { SetAlertRules } from '../use-cases/set-alert-rules/set-alert-rules.ts';
 import type { SetAlertsMaster } from '../use-cases/set-alerts-master/set-alerts-master.ts';
@@ -60,14 +62,17 @@ export class AlertRulesController {
 
   @Get('businesses/:businessId/alert-rules')
   @Require('manage:settings:business', { business: 'businessId' })
-  readBusiness(@Param('businessId') businessId: string, @Req() request: FastifyRequest) {
+  readBusiness(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Req() request: FastifyRequest,
+  ): Promise<AlertRules> {
     return this.#read(request, businessId, null);
   }
 
   @Put('businesses/:businessId/alert-rules')
   @Require('manage:settings:business', { business: 'businessId' })
   async setBusiness(
-    @Param('businessId') businessId: string,
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Body(new ZodValidationPipe(setAlertRulesInput)) input: SetAlertRulesInput,
     @Req() request: FastifyRequest,
   ): Promise<AlertRules> {
@@ -77,31 +82,30 @@ export class AlertRulesController {
   @Put('businesses/:businessId/alert-rules/master')
   @Require('manage:settings:business', { business: 'businessId' })
   async setMaster(
-    @Param('businessId') businessId: string,
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Body(new ZodValidationPipe(setAlertsMasterInput)) input: SetAlertsMasterInput,
     @Req() request: FastifyRequest,
   ): Promise<AlertRules> {
     if (this.#wiring === null) throw new ApiError('NOT_READY');
     const business = businessId.toLowerCase();
-    await this.#wiring.master.execute(actorOf(request), business, input.alerts_enabled);
-    return this.#read(request, business, null);
+    return this.#wiring.master.execute(actorOf(request), business, input.alerts_enabled);
   }
 
   @Get('businesses/:businessId/branches/:branchId/alert-rules')
   @Require('manage:settings:business', { business: 'businessId' })
   readBranch(
-    @Param('businessId') businessId: string,
-    @Param('branchId') branchId: string,
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('branchId', new ZodValidationPipe(id)) branchId: string,
     @Req() request: FastifyRequest,
-  ) {
+  ): Promise<AlertRules> {
     return this.#read(request, businessId, branchId);
   }
 
   @Put('businesses/:businessId/branches/:branchId/alert-rules')
   @Require('manage:settings:business', { business: 'businessId' })
   async setBranch(
-    @Param('businessId') businessId: string,
-    @Param('branchId') branchId: string,
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('branchId', new ZodValidationPipe(id)) branchId: string,
     @Body(new ZodValidationPipe(setAlertRulesInput)) input: SetAlertRulesInput,
     @Req() request: FastifyRequest,
   ): Promise<AlertRules> {
@@ -112,8 +116,8 @@ export class AlertRulesController {
   @HttpCode(204)
   @Require('manage:settings:business', { business: 'businessId' })
   async resetBranch(
-    @Param('businessId') businessId: string,
-    @Param('branchId') branchId: string,
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('branchId', new ZodValidationPipe(id)) branchId: string,
     @Param('kind', new ZodValidationPipe(alertKind)) kind: SetAlertRulesInput['rules'][number]['kind'],
     @Req() request: FastifyRequest,
   ): Promise<void> {
@@ -130,8 +134,7 @@ export class AlertRulesController {
   ): Promise<AlertRules> {
     if (this.#wiring === null) throw new ApiError('NOT_READY');
     const target = { businessId: businessId.toLowerCase(), branchId: branchId?.toLowerCase() ?? null };
-    await this.#wiring.set.execute(actorOf(request), target, input);
-    return this.#read(request, target.businessId, target.branchId);
+    return this.#wiring.set.execute(actorOf(request), target, input);
   }
 
   async #read(
@@ -144,7 +147,7 @@ export class AlertRulesController {
     const business = businessId.toLowerCase();
     const branch = branchId?.toLowerCase() ?? null;
     const access = this.#wiring.branchAccess;
-    const view = await this.#db.withTenant(
+    const stored = await this.#db.withTenant(
       actor.companyId,
       async (tx) => {
         if (branch !== null) {
@@ -155,7 +158,7 @@ export class AlertRulesController {
       },
       { userId: actor.userId },
     );
-    if (view === null) throw new ApiError('FORBIDDEN');
-    return view;
+    if (stored === null) throw new ApiError('FORBIDDEN');
+    return alertRulesView({ businessId: business, branchId: branch }, stored);
   }
 }

@@ -15,6 +15,15 @@ export interface StoredAlertRule extends AlertRuleSettings {
 }
 
 /**
+ * لقطة القواعد المخزنة في لحظة واحدة: المفتاح العام وقواعد النشاط وقواعد الفرع.
+ * الـ branchId في كل سطر هو النطاق اللي اتخزنت فيه القاعدة (null = قاعدة النشاط).
+ */
+export interface AlertRulesSnapshot {
+  readonly alertsEnabled: boolean | null;
+  readonly rules: readonly (StoredAlertRule & { readonly branchId: string | null })[];
+}
+
+/**
  * القرايات والكتابات بتاعة قواعد التنبيه جوه transaction واحدة في الشركة.
  */
 export interface AlertRulesScope {
@@ -33,6 +42,13 @@ export interface AlertRulesScope {
    * @returns القواعد المخزنة حسب النوع
    */
   lockRules(target: AlertRuleTarget): Promise<ReadonlyMap<AlertKind, StoredAlertRule>>;
+  /**
+   * لقطة القواعد المخزنة والمفتاح العام على نفس الـ transaction، عشان الرد يطلع من نفس اللحظة اللي الكُتابة فيه.
+   *
+   * @param target النشاط والفرع
+   * @returns المفتاح العام وقواعد النشاط وقواعد الفرع المخزنة
+   */
+  snapshot(target: AlertRuleTarget): Promise<AlertRulesSnapshot>;
   /**
    * بيكتب قاعدة نوع واحد في النطاق (بيعملها لو مش موجودة) ويزوّد الـ revision.
    *

@@ -10005,6 +10005,348 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/alert-rules": {
+      "get": {
+        "operationId": "getBusinessAlertRules",
+        "description": "The alert rules of one business, one row per kind. Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. Every kind shows its source (DEFAULT, BUSINESS or BRANCH), the revision stored at this scope, and the master switch. Never writes.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The alert rules of the scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRules"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setBusinessAlertRules",
+        "description": "Replaces the business rules of the kinds in the request, each against its expected_revision (null means no rule is stored at this scope yet). Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. A value outside what the kind allows is ALERT_RULE_INVALID (422); a stale expected_revision is ALERT_RULE_REVISION_CONFLICT (409) and writes nothing. Every effective change is audited with before and after.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAlertRulesInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The alert rules of the scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRules"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/alert-rules/master": {
+      "put": {
+        "operationId": "setBusinessAlertsMaster",
+        "description": "Turns every team alert of the business on or off at once. Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. The change is audited; the same value writes no audit row.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAlertsMasterInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The alert rules of the scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRules"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/branches/{branchId}/alert-rules": {
+      "get": {
+        "operationId": "getBranchAlertRules",
+        "description": "The alert rules of one branch: the branch rule where it has one, the business rule otherwise, and the kind default where neither is stored. Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. Every kind shows its source (DEFAULT, BUSINESS or BRANCH), the revision stored at the branch scope, and the master switch. Never writes.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The alert rules of the scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRules"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setBranchAlertRules",
+        "description": "Replaces the branch rules of the kinds in the request, each against its expected_revision (null means no branch rule is stored yet). Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. A value outside what the kind allows is ALERT_RULE_INVALID (422), and so is a kind that has no branch rule (DOCUMENT_EXPIRING and the two STATEMENT_* kinds); a stale expected_revision is ALERT_RULE_REVISION_CONFLICT (409) and writes nothing. Every effective change is audited with before and after.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAlertRulesInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The alert rules of the scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRules"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/branches/{branchId}/alert-rules/{kind}": {
+      "delete": {
+        "operationId": "resetBranchAlertRule",
+        "description": "Deletes the branch rule of one kind, so the branch returns to the business rule. Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. Deleting a kind that has no branch rule writes nothing; the reset is audited with before and after.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AlertKind"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The branch rule was deleted"
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions": {
       "get": {
         "operationId": "listBranchDayServiceSessions",
@@ -19463,6 +19805,249 @@
           "items",
           "next_cursor"
         ]
+      },
+      "AlertKind": {
+        "type": "string",
+        "enum": [
+          "SHIFT_NOT_CLOCKED_IN",
+          "SHIFT_BREAK_NOT_RETURNED",
+          "SHIFT_BREAK_RETURNED_OTHER_BRANCH",
+          "SHIFT_ENDS_SOON",
+          "ATTENDANCE_EXCEPTION",
+          "DOCUMENT_EXPIRING",
+          "LATE_SERVICE_SESSION",
+          "SERVICE_LINE_EDITED",
+          "SERVICE_LINE_CANCELLED",
+          "SERVICE_LINE_PERFORMERS_CHANGED",
+          "ATTENDANCE_CHANGE_REQUESTED",
+          "ATTENDANCE_CHANGE_DECIDED",
+          "STATEMENT_AWAITING_REVIEW",
+          "STATEMENT_AWAITING_APPROVAL"
+        ]
+      },
+      "AlertRecipientRole": {
+        "type": "string",
+        "enum": [
+          "owner",
+          "general_manager",
+          "business_manager",
+          "branch_manager"
+        ]
+      },
+      "AlertChannel": {
+        "type": "string",
+        "enum": [
+          "IN_APP"
+        ]
+      },
+      "AlertFixedRecipient": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string",
+            "enum": [
+              "PERMISSION_HOLDERS",
+              "CONTEXT",
+              "EMPLOYEE_PUSH"
+            ]
+          },
+          "permission": {
+            "nullable": true,
+            "type": "string"
+          },
+          "who": {
+            "nullable": true,
+            "type": "string",
+            "enum": [
+              "REQUESTER",
+              "EMPLOYEE"
+            ]
+          }
+        },
+        "required": [
+          "selector",
+          "permission",
+          "who"
+        ]
+      },
+      "AlertRuleView": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AlertKind"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "DEFAULT",
+              "BUSINESS",
+              "BRANCH"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "recipient_roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertRecipientRole"
+            }
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertChannel"
+            }
+          },
+          "delay_minutes": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1440
+          },
+          "lead_minutes": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1440
+          },
+          "fixed_recipients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertFixedRecipient"
+            }
+          },
+          "revision": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          }
+        },
+        "required": [
+          "kind",
+          "source",
+          "enabled",
+          "recipient_roles",
+          "channels",
+          "delay_minutes",
+          "lead_minutes",
+          "fixed_recipients",
+          "revision"
+        ]
+      },
+      "AlertRules": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "branch_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "alerts_enabled": {
+            "type": "boolean"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertRuleView"
+            }
+          }
+        },
+        "required": [
+          "business_id",
+          "branch_id",
+          "alerts_enabled",
+          "rules"
+        ]
+      },
+      "AlertRuleInput": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AlertKind"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "recipient_roles": {
+            "maxItems": 4,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertRecipientRole"
+            }
+          },
+          "channels": {
+            "maxItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertChannel"
+            }
+          },
+          "delay_minutes": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1440
+          },
+          "lead_minutes": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1440
+          },
+          "expected_revision": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          }
+        },
+        "required": [
+          "kind",
+          "enabled",
+          "recipient_roles",
+          "channels",
+          "delay_minutes",
+          "lead_minutes",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "SetAlertRulesInput": {
+        "type": "object",
+        "properties": {
+          "rules": {
+            "minItems": 1,
+            "maxItems": 14,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertRuleInput"
+            }
+          }
+        },
+        "required": [
+          "rules"
+        ],
+        "additionalProperties": false
+      },
+      "SetAlertsMasterInput": {
+        "type": "object",
+        "properties": {
+          "alerts_enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "alerts_enabled"
+        ],
+        "additionalProperties": false
       },
       "SessionMoney": {
         "type": "string",

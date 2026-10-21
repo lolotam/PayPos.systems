@@ -53,6 +53,7 @@ export {
   alertKindAllowsBranchOverride,
   alertRuleViolation,
   effectiveAlertRule,
+  resolveAlertRule,
   sameAlertRuleSettings,
   type AlertChannel,
   type AlertKind,
@@ -63,4 +64,5 @@ export {
   type AlertRuleViolation,
   type EffectiveAlertRule,
   type FixedAlertRecipient,
+  type ResolvedAlertRule,
 } from './alert-rules.js';

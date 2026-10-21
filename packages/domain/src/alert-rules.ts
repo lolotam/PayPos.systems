@@ -141,9 +141,35 @@ export interface EffectiveAlertRule extends AlertRuleSettings {
   readonly masterOff: boolean;
 }
 
+/** القاعدة الفعلية لنوع واحد: مصدرها وقيمها، من غير المفتاح العام. */
+export interface ResolvedAlertRule {
+  readonly source: AlertRuleSource;
+  readonly settings: AlertRuleSettings;
+}
+
+/**
+ * بيحدد قاعدة النوع الواحد من القواعد المخزنة: قاعدة الفرع بتحل محل قاعدة النشاط بكل حقولها (AL-Q2)،
+ * وبعدين قاعدة النشاط، وبعدين افتراضي النوع (AL-Q5). المفتاح العام مش جزء من النتيجة — هو فوقها في effectiveAlertRule.
+ * الترتيب ده مكانه واحد عشان الشاشة والـ worker يقراوا نفس القاعدة من غير ما كل واحد فيهم يعملها لوحده.
+ *
+ * @param kind         نوع التنبيه
+ * @param businessRule قاعدة النشاط المخزنة أو null
+ * @param branchRule   قاعدة الفرع المخزنة أو null (null دايماً لنوع من غير فرع)
+ * @returns مصدر القاعدة وقيمها
+ */
+export function resolveAlertRule(
+  kind: AlertKind,
+  businessRule: AlertRuleSettings | null,
+  branchRule: AlertRuleSettings | null,
+): ResolvedAlertRule {
+  if (branchRule !== null) return { source: 'BRANCH', settings: branchRule };
+  if (businessRule !== null) return { source: 'BUSINESS', settings: businessRule };
+  return { source: 'DEFAULT', settings: ALERT_KIND_DEFINITIONS[kind].defaults };
+}
+
 /**
  * بيحسب القاعدة الفعلية لنوع واحد في نطاق حدث.
- * قاعدة الفرع بتحل محل قاعدة النشاط بكل حقولها (AL-Q2)، والغياب = الافتراضي، والمفتاح العام فوق الكل (AL-Q4).
+ * مصدر القاعدة بييجي من resolveAlertRule (قاعدة الفرع فوق قاعدة النشاط فوق الافتراضي، AL-Q2)، والمفتاح العام فوق الكل (AL-Q4).
  * لما القاعدة مقفولة بيرجّع مستلمين وقنوات فاضية، عشان مُرسِل نسي يبص على enabled مايبعتش حاجة برضه.
  *
  * @param kind           نوع التنبيه
@@ -159,9 +185,7 @@ export function effectiveAlertRule(
   alertsEnabled: boolean | null,
 ): EffectiveAlertRule {
   const definition = ALERT_KIND_DEFINITIONS[kind];
-  const source: AlertRuleSource =
-    branchRule !== null ? 'BRANCH' : businessRule !== null ? 'BUSINESS' : 'DEFAULT';
-  const stored = branchRule ?? businessRule ?? definition.defaults;
+  const { source, settings: stored } = resolveAlertRule(kind, businessRule, branchRule);
   const masterOff = alertsEnabled === false;
   const enabled = stored.enabled && !masterOff;
   return {

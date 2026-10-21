@@ -214,6 +214,7 @@ export const ar: Catalog = {
     ...employeeImportErrorsAr,
     ...serviceErrorsAr,
     ALERT_RULE_INVALID: 'قيمة القاعدة برّه المسموح لنوع التنبيه ده (المدة أو الأدوار أو القنوات).',
+    ALERT_RULE_REVISION_CONFLICT: 'عدّل مدير آخر قاعدة التنبيه. أعد التحميل قبل الحفظ.',
     ...packageTypeErrorsAr,
     PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',
     PERMISSION_SELF_EDIT: 'لا يمكنك تعديل صلاحيات عضويتك الشخصية',

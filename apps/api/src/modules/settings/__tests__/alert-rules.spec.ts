@@ -18,7 +18,8 @@ afterAll(async () => {
 });
 
 type Rule = SetAlertRulesInput['rules'][number];
-const notClockedIn = (delay: number, enabled = true): Rule => ({
+type RuleValues = Omit<Rule, 'expected_revision'>;
+const notClockedIn = (delay: number, enabled = true): RuleValues => ({
   kind: 'SHIFT_NOT_CLOCKED_IN',
   enabled,
   recipient_roles: ['owner', 'branch_manager'],
@@ -30,16 +31,44 @@ const path = (branch: string | null, business = f.business) =>
   branch === null
     ? `/v1/businesses/${business}/alert-rules`
     : `/v1/businesses/${business}/branches/${branch}/alert-rules`;
-const put = (branch: string | null, rules: Rule[], cookie = f.cookie, business = f.business) =>
-  f.h.send('PUT', path(branch, business), { cookie, company: f.company, body: { rules } });
+// رقم النسخة المخزنة لكل نطاق ونوع؛ كل حفظ يبعت النسخة اللي الشاشة قراها.
+const revisions = new Map<string, number | null>();
+const scopeKey = (branch: string | null, kind: AlertKind) => `${branch ?? 'business'}:${kind}`;
+const put = async (
+  branch: string | null,
+  rules: RuleValues[],
+  cookie = f.cookie,
+  business = f.business,
+) => {
+  const response = await f.h.send('PUT', path(branch, business), {
+    cookie,
+    company: f.company,
+    body: {
+      rules: rules.map((rule) => ({
+        ...rule,
+        expected_revision: revisions.get(scopeKey(branch, rule.kind)) ?? null,
+      })),
+    },
+  });
+  if (response.status === 200)
+    for (const rule of alertRules.parse(response.body).rules)
+      revisions.set(scopeKey(branch, rule.kind), rule.revision);
+  return response;
+};
 const master = (alerts_enabled: boolean, cookie = f.cookie) =>
   f.h.send('PUT', `/v1/businesses/${f.business}/alert-rules/master`, {
     cookie,
     company: f.company,
     body: { alerts_enabled },
   });
-const reset = (branch: string, kind: AlertKind, cookie = f.cookie) =>
-  f.h.send('DELETE', `${path(branch)}/${kind}`, { cookie, company: f.company });
+const reset = async (branch: string, kind: AlertKind, cookie = f.cookie) => {
+  const response = await f.h.send('DELETE', `${path(branch)}/${kind}`, {
+    cookie,
+    company: f.company,
+  });
+  if (response.status === 204) revisions.set(scopeKey(branch, kind), null);
+  return response;
+};
 const effective = (branch: string | null, kind: AlertKind) =>
   f.db.withTenant(f.company, (tx) =>
     readAlertRule(tx, f.company, { businessId: f.business, branchId: branch }, kind),
@@ -59,6 +88,7 @@ it('reads the AL-Q5 defaults for every kind before anything is saved', async () 
     source: 'DEFAULT',
     enabled: true,
     delay_minutes: 20,
+    revision: null,
   });
   expect((await effective(f.branch, 'SHIFT_NOT_CLOCKED_IN')).delayMinutes).toBe(20);
 });
@@ -69,7 +99,7 @@ it('RT-26b: a branch override wins for its branch only; deleting it returns to t
   expect(saved.status).toBe(200);
   expect(
     alertRules.parse(saved.body).rules.find((r) => r.kind === 'SHIFT_NOT_CLOCKED_IN'),
-  ).toMatchObject({ source: 'BRANCH', delay_minutes: 10 });
+  ).toMatchObject({ source: 'BRANCH', delay_minutes: 10, revision: 1 });
   expect(await effective(f.branch, 'SHIFT_NOT_CLOCKED_IN')).toMatchObject({
     source: 'BRANCH',
     delayMinutes: 10,
@@ -189,4 +219,29 @@ it('kinds without a branch refuse a branch override with ALERT_RULE_INVALID', as
     expect(response.status).toBe(422);
     expect(response.body).toMatchObject({ code: 'ALERT_RULE_INVALID' });
   }
+});
+
+it('a malformed branch id is a 400 and writes nothing', async () => {
+  const malformed = `/v1/businesses/${f.business}/branches/abc/alert-rules`;
+  const before = (await audits()).length;
+  const read = await f.h.send('GET', malformed, { cookie: f.cookie, company: f.company });
+  expect(read.status).toBe(400);
+  expect(read.body).toMatchObject({ code: 'VALIDATION_FAILED' });
+  const write = await f.h.send('PUT', malformed, {
+    cookie: f.cookie,
+    company: f.company,
+    body: { rules: [{ ...notClockedIn(20), expected_revision: null }] },
+  });
+  expect(write.status).toBe(400);
+  expect(write.body).toMatchObject({ code: 'VALIDATION_FAILED' });
+  expect((await audits()).length).toBe(before);
+});
+
+it('an unknown business id is a 403, not a screen of defaults', async () => {
+  const response = await f.h.send('GET', `/v1/businesses/${f.ids.newId()}/alert-rules`, {
+    cookie: f.cookie,
+    company: f.company,
+  });
+  expect(response.status).toBe(403);
+  expect(response.body).toMatchObject({ code: 'FORBIDDEN' });
 });

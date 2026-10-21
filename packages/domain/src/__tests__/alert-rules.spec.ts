@@ -5,6 +5,7 @@ import {
   ALERT_KINDS,
   alertRuleViolation,
   effectiveAlertRule,
+  resolveAlertRule,
   sameAlertRuleSettings,
   type AlertRuleSettings,
 } from '../alert-rules.js';
@@ -16,6 +17,35 @@ const rule = (patch: Partial<AlertRuleSettings> = {}): AlertRuleSettings => ({
   delayMinutes: null,
   leadMinutes: null,
   ...patch,
+});
+
+describe('resolveAlertRule', () => {
+  it('the branch rule wins whole, then the business rule, then the kind default', () => {
+    const business = rule({ delayMinutes: 20 });
+    const branch = rule({ delayMinutes: 10, enabled: false });
+    expect(resolveAlertRule('SHIFT_NOT_CLOCKED_IN', business, branch)).toEqual({
+      source: 'BRANCH',
+      settings: branch,
+    });
+    expect(resolveAlertRule('SHIFT_NOT_CLOCKED_IN', business, null)).toEqual({
+      source: 'BUSINESS',
+      settings: business,
+    });
+  });
+
+  it('no stored rule gives the AL-Q5 default of the kind', () => {
+    for (const kind of ALERT_KINDS) {
+      const resolved = resolveAlertRule(kind, null, null);
+      expect(resolved.source).toBe('DEFAULT');
+      expect(resolved.settings).toEqual(ALERT_KIND_DEFINITIONS[kind].defaults);
+    }
+  });
+
+  it('the master switch is not applied here — it sits above the resolved rule', () => {
+    const resolved = resolveAlertRule('SHIFT_NOT_CLOCKED_IN', rule({ enabled: true }), null);
+    expect(resolved.settings.enabled).toBe(true);
+    expect(resolved.source).toBe('BUSINESS');
+  });
 });
 
 describe('effectiveAlertRule', () => {

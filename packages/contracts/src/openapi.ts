@@ -35,6 +35,7 @@ import {
   salaryHistoryPage,
 } from './staff/salary.js';
 import { settingsPaths } from './settings/settings-openapi.js';
+import { alertRulePaths, alertRuleSchemas } from './settings/alert-rules-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
 import { employee, createdEmployee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
@@ -164,6 +165,7 @@ const SCHEMAS = [
   customer,
   findOrCreateCustomerInput,
   ...catalogSchemas,
+  ...alertRuleSchemas,
   ...orderSchemas,
   attendanceQrToken,
   attendanceQrBranch,
@@ -263,6 +265,7 @@ const PATHS = {
   ...permissionPaths,
   ...customerPaths,
   ...catalogPaths,
+  ...alertRulePaths,
   ...serviceSessionPaths,
   ...serviceSessionFormPaths, ...serviceSessionRecoveryPaths,
   '/v1/devices/me/attendance-qr': {

@@ -31,8 +31,10 @@ export const alertRecipientRole = z
 export const alertChannel = z.enum(['IN_APP']).meta({ id: 'AlertChannel' });
 
 const minutes = z.number().int().min(1).max(1440);
+// رقم النسخة: عدّاد القاعدة المخزنة، بيتزود مع كل حفظ.
+const revision = z.number().int().min(1).max(2_147_483_646);
 
-const fixedRecipient = responseObject({
+export const alertFixedRecipient = responseObject({
     selector: z.enum(['PERMISSION_HOLDERS', 'CONTEXT', 'EMPLOYEE_PUSH']),
     permission: z.string().nullable(),
     who: z.enum(['REQUESTER', 'EMPLOYEE']).nullable(),
@@ -49,7 +51,10 @@ export const alertRuleView = responseObject({
     delay_minutes: minutes.nullable(),
     lead_minutes: minutes.nullable(),
     // مستلمين ثابتين للنوع، للعرض بس.
-    fixed_recipients: z.array(fixedRecipient),
+    fixed_recipients: z.array(alertFixedRecipient),
+    // رقم النسخة المخزنة في نطاق العرض نفسه (قاعدة النشاط في شاشة النشاط، قاعدة الفرع في شاشة الفرع)؛
+    // null = مفيش قاعدة مخزنة في النطاق ده (الافتراضي، أو قاعدة النشاط في شاشة الفرع).
+    revision: revision.nullable(),
   })
   .meta({ id: 'AlertRuleView' });
 
@@ -71,6 +76,9 @@ export const alertRuleInput = z
     channels: z.array(alertChannel).max(1),
     delay_minutes: minutes.nullable(),
     lead_minutes: minutes.nullable(),
+    // رقم النسخة اللي العميل قراها قبل الحفظ (null = متوقع مفيش قاعدة مخزنة في النطاق ده بعد)؛
+    // لو غير كده يبقى حد تاني عدّل القاعدة في نفس الوقت والطلب يترفض.
+    expected_revision: revision.nullable(),
   })
   .strict()
   .meta({ id: 'AlertRuleInput' });
