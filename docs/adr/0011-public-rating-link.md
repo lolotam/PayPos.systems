@@ -94,9 +94,9 @@ opt-out accessible until expiry; do not return the submitted rating/comment to t
 
 The comment is **optional plain text, at most 1,000 Unicode characters**, with no images, attachments or links.
 Enforce the limit and reject link-bearing content on the server; render accepted text with escaping, never HTML,
-Markdown or automatic linkification. Comments are visible **only to the owner/manager**, within their authorized
-tenant/business scope; staff, reception and public responses never expose them (amended 2026-10-21 by §8: every holder
-of `read:service-sessions:branch` in scope reads them). The owner decided this policy;
+Markdown or automatic linkification. Comments are visible to **every holder of `read:service-sessions:branch`**, within that holder's authorized
+scope, reception included when granted it; the staff app, public responses and other tenants never expose them (§8,
+2026-10-21; until then the rule was owner/manager only, §7). The owner decided this policy;
 it overrides any earlier staff-comment visibility toggle. The orchestrator requires owner approval of ar/en
 submit, opt-out and unavailable/expired-link copy before PR 60; no extra profile fields.
 
@@ -137,8 +137,9 @@ CLAUDE.md amendment; companion-document synchronization belongs to the orchestra
   at 30 requests/minute, bilingual 429/Retry-After and trusted-proxy spoof rejection; unauthenticated routes still
   pass route-access coverage.
 - **Comments:** absent/empty and 1,000-character comments accepted, 1,001 rejected (including Unicode input),
-  links/images rejected and markup never executed; invalid input leaves the token unconsumed. Owner/manager
-  scope permits comment reads; staff/reception, public and cross-tenant reads cannot reveal comments (amended by §8).
+  links/images rejected and markup never executed; invalid input leaves the token unconsumed. A holder of
+  `read:service-sessions:branch` reads comments in its scope, reception included (§8); a caller without it, the staff
+  app, public and cross-tenant reads cannot reveal comments.
 
 ### 7. Owner decisions — 2026-10-02
 
