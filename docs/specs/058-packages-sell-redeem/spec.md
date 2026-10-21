@@ -260,6 +260,9 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 - **RC-05** Cancelling a redeemed line of an entitlement that has since expired frees the slot all the same; it can be
   used again only after an extension.
 - **RC-06** A price edit (35d) of a redeemed line → 422 `SESSION_LINE_PRICE_NOT_EDITABLE`, nothing written.
+- **RC-06b** A cancel that sets a redeemed line `CANCELLED` but omits the package updates (the redemption not
+  reversed, or reversed but its slot still `USED` by it) → the commit is refused; the line stays `ACTIVE` and nothing
+  is written.
 - **RC-07** (`TODO(spec)` PK-Q8) A performer change (055) of a redeemed line follows the 055 rules; the slot, the value
   and the redemption do not move.
 
@@ -312,6 +315,9 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   in one file → row error.
 - **IM-04** Remaining > original, sessions 0 or > 365, a duplicate service, a negative or 4-decimal price, an unknown
   service of the business, an invalid date → named row errors; one invalid row saves nothing. [M11]
+- **IM-04b** A business with two services named «مساج»: a row whose group names «مساج» → row error
+  `IMPORT_SERVICE_AMBIGUOUS` naming that group, nothing saved; after one service is renamed, the same file previews
+  clean and the component takes the remaining «مساج» service (FR-063b).
 - **IM-05** (PK-Q20, PP-16.9) A phone with no customer in the company → row error `IMPORT_CUSTOMER_NOT_FOUND`.
 - **IM-06** (PK-Q21) A past expiry date is accepted; the package is expired until extended.
 - **IM-07** Imported packages redeem, cancel, extend and refund like sold ones; they never emit `PackageSaleChanged`.
@@ -507,6 +513,11 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   valued by `allocatePackagePrice` over the **original** sessions, with `list_price_snapshot` = the service's price at
   the original sale when the row gives it (an optional column per service group), else its current list price;
   `createPackageSlots(…, remaining)` marks ordinals `1…original − remaining` `IMPORTED_USED`.
+- **FR-063b** Each group's service name is matched, trimmed and case-insensitive, against the `name_en` and `name_ar`
+  of the business's services (031 allows duplicate names, SV-02). No match → the unknown-service row error (IM-04);
+  more than one distinct service matching → row error `IMPORT_SERVICE_AMBIGUOUS` naming the group, and the file saves
+  nothing. The workbook carries no service id; the owner gives the services distinct names (031 allows renaming) and
+  uploads again.
 - **FR-064** (PK-Q20, PP-16.9) The phone is resolved through `CustomerLookupPort.findByPhone` (TD-11); unknown → row
   error.
 - **FR-065** (PK-Q21) Any valid expiry date is accepted, past included; `sold_business_date` is `NULL` and
@@ -569,14 +580,14 @@ DEFERRABLE INITIALLY DEFERRED` checked at commit, so the use cases' write order 
 | Table | Columns (beyond the common ones) | Grants / triggers | Keys and indexes |
 |---|---|---|---|
 | `package_types` (33b) | `selling_stopped_at timestamptz NULL` | column `UPDATE` grant gains it | — |
-| `package_entitlements` (42) | `customer_id`, `package_type_id NULL`, `provenance` (`SOLD`/`IMPORTED`), `name_en`, `name_ar`, `validity_days NULL`, `list_price NULL`, `price_paid`, `discount NULL`, `discount_bps NULL`, `paid_method NULL`, `seller_employee_id NULL`, `seller_linked_user_id NULL`, `sold_branch_id NULL`, `sold_at NULL`, `sold_business_date NULL`, `sold_timezone NULL`, `late`, `recorded_by`, `recorded_by_membership_id`, `external_ref NULL`, `import_id NULL`, `expires_on date`, `refunded_amount default 0`, `revision default 1`, `created_at` | `SELECT, INSERT`, `UPDATE (expires_on, refunded_amount, revision)`; immediate trigger: `expires_on` only increases, `refunded_amount` only increases and `≤ price_paid`; deferred triggers: `revision` +1 exactly with a refund row of the same transaction, and every change of `expires_on` paired with a `package_extensions` row of the same transaction for the same entitlement whose `previous_expires_on` and `new_expires_on` equal the old and new values (no `expires_on` change without its extension row); `CHECK`s: `SOLD` ⇒ type, seller, method, branch, sold fields NOT NULL and `external_ref` NULL; `IMPORTED` ⇒ seller, method NULL and `external_ref`, `import_id` NOT NULL; `SOLD` ⇒ `import_id` NULL; immediate `BEFORE INSERT` trigger: a non-NULL `import_id` names a preview whose `entity = 'packages'`; deferred entitlement value-conservation trigger (below) on insert of an entitlement, a component or a slot | `UNIQUE (company_id, business_id, id)`; `UNIQUE (company_id, external_ref)`; index `(company_id, business_id, customer_id, expires_on)` for the customer read; partial index `(company_id, business_id, import_id) WHERE import_id IS NOT NULL` for the import FK; FKs to customers, package types, employees, branches, memberships, and `(company_id, business_id, import_id)` → the shared `import_previews (company_id, business_id, id)`, so an imported entitlement can never name another business's preview |
-| `package_components` (42) | `entitlement_id`, `service_id`, `position 1…20`, `name_en`, `name_ar`, `list_price_snapshot`, `sessions_total 1…365`, `component_value` | `SELECT, INSERT`, and `UPDATE (lock_touch)` only: PostgreSQL needs an `UPDATE` privilege on one column for `SELECT … FOR UPDATE`. `lock_touch smallint NOT NULL DEFAULT 0` is never written, and a `BEFORE UPDATE` trigger refuses every update, so the row stays immutable. Locked `FOR UPDATE` by redemption, cancel and refund; the lock is tested as `pospay_app` | `UNIQUE (company_id, business_id, id)`, `UNIQUE (company_id, entitlement_id, service_id)`, `UNIQUE (company_id, entitlement_id, position)`; FKs entitlement, service |
-| `package_session_slots` (42) | `component_id`, `entitlement_id`, `ordinal`, `unit_value`, `state`, `current_redemption_id NULL` | `SELECT, INSERT`, `UPDATE (state, current_redemption_id)`; immediate trigger: TD-5b transitions and `state = 'USED' ⇔ current_redemption_id NOT NULL`; deferred trigger: a `FREE → USED` change needs `current_redemption_id` to name a redemption with `reversed_at IS NULL` and the same `slot_id`, `component_id` and `entitlement_id` (plus a deferred FK `(company_id, business_id, current_redemption_id)` → `package_redemptions`); a `USED → FREE` change needs that redemption reversed in the same transaction; any other change of `current_redemption_id` while the slot stays `USED` is checked the same way at commit (it must name a live redemption of this exact slot, component and entitlement); a `FREE → REFUNDED` change needs its `package_refund_slots` row | `UNIQUE (company_id, business_id, id)`; `UNIQUE (company_id, component_id, ordinal)`; partial index on `(company_id, component_id, ordinal) WHERE state = 'FREE'` for the lowest/highest pick |
+| `package_entitlements` (42) | `customer_id`, `package_type_id NULL`, `provenance` (`SOLD`/`IMPORTED`), `name_en`, `name_ar`, `validity_days NULL`, `list_price NULL`, `price_paid`, `discount NULL`, `discount_bps NULL`, `paid_method NULL`, `seller_employee_id NULL`, `seller_linked_user_id NULL`, `sold_branch_id NULL`, `sold_at NULL`, `sold_business_date NULL`, `sold_timezone NULL`, `late`, `recorded_by`, `recorded_by_membership_id`, `external_ref NULL`, `import_id NULL`, `expires_on date`, `refunded_amount default 0`, `revision default 1`, `created_at`, and three trigger-owned columns no caller writes (a `BEFORE` trigger overwrites whatever an `INSERT` or `UPDATE` supplies): `created_txid xid8` (the creating transaction, 42-2), `expires_on_changed_txid xid8 NULL` and `expires_on_before date NULL` (the transaction and the old value of the last `expires_on` change, 45) | `SELECT, INSERT`, `UPDATE (expires_on, refunded_amount, revision)`; immediate trigger: `expires_on` only increases and at most once per transaction (it records `expires_on_changed_txid` and `expires_on_before`), `refunded_amount` only increases and `≤ price_paid`; deferred triggers: `revision` +1 exactly with a refund row of the same transaction, and every change of `expires_on` paired with a `package_extensions` row of the same transaction for the same entitlement whose `previous_expires_on` and `new_expires_on` equal the old and new values (no `expires_on` change without its extension row); `CHECK`s: `SOLD` ⇒ type, seller, method, branch, sold fields NOT NULL and `external_ref` NULL; `IMPORTED` ⇒ seller, method NULL and `external_ref`, `import_id` NOT NULL; `SOLD` ⇒ `import_id` NULL; immediate `BEFORE INSERT` trigger: a non-NULL `import_id` names a preview whose `entity = 'packages'`; deferred entitlement value-conservation trigger (below) on insert of an entitlement, a component or a slot | `UNIQUE (company_id, business_id, id)`; `UNIQUE (company_id, external_ref)`; index `(company_id, business_id, customer_id, expires_on)` for the customer read; partial index `(company_id, business_id, import_id) WHERE import_id IS NOT NULL` for the import FK; FKs to customers, package types, employees, branches, memberships, and `(company_id, business_id, import_id)` → the shared `import_previews (company_id, business_id, id)`, so an imported entitlement can never name another business's preview |
+| `package_components` (42) | `entitlement_id`, `service_id`, `position 1…20`, `name_en`, `name_ar`, `list_price_snapshot`, `sessions_total 1…365`, `component_value` | `SELECT, INSERT`, and `UPDATE (lock_touch)` only: PostgreSQL needs an `UPDATE` privilege on one column for `SELECT … FOR UPDATE`. `lock_touch smallint NOT NULL DEFAULT 0` is never written, and a `BEFORE UPDATE` trigger refuses every update, so the row stays immutable. Composition seal: a `BEFORE INSERT` trigger refuses a component whose entitlement's `created_txid` is not the current transaction. Locked `FOR UPDATE` by redemption, cancel and refund; the lock is tested as `pospay_app` | `UNIQUE (company_id, business_id, id)`, `UNIQUE (company_id, entitlement_id, service_id)`, `UNIQUE (company_id, entitlement_id, position)`; FKs entitlement, service |
+| `package_session_slots` (42) | `component_id`, `entitlement_id`, `ordinal`, `unit_value`, `state`, `current_redemption_id NULL` | `SELECT, INSERT`, `UPDATE (state, current_redemption_id)`; immediate trigger: TD-5b transitions and `state = 'USED' ⇔ current_redemption_id NOT NULL`; deferred trigger: a `FREE → USED` change needs `current_redemption_id` to name a redemption with `reversed_at IS NULL` and the same `slot_id`, `component_id` and `entitlement_id` (plus a deferred FK `(company_id, business_id, current_redemption_id)` → `package_redemptions`); a `USED → FREE` change needs that redemption reversed in the same transaction; any other change of `current_redemption_id` while the slot stays `USED` is checked the same way at commit (it must name a live redemption of this exact slot, component and entitlement); a `FREE → REFUNDED` change needs its `package_refund_slots` row; composition seal: a `BEFORE INSERT` trigger refuses a slot whose entitlement's `created_txid` is not the current transaction | `UNIQUE (company_id, business_id, id)`; `UNIQUE (company_id, component_id, ordinal)`; partial index on `(company_id, component_id, ordinal) WHERE state = 'FREE'` for the lowest/highest pick |
 | `package_redemptions` (43) | `entitlement_id`, `component_id`, `slot_id`, `line_id`, `redeemed_at`, `recorded_by`, `recorded_by_membership_id`, `reversed_at NULL`, `reversal_cancellation_id NULL` | `SELECT, INSERT`, `UPDATE (reversed_at, reversal_cancellation_id)` one-way (an immediate trigger allows only `NULL → value` for both columns together; a **deferred** constraint trigger checks at commit that the cancellation row exists and belongs to the same line); deferred redemption-line integrity trigger (below) on insert; deferred redemption-slot integrity trigger (below) on insert and on the reversal update | `UNIQUE (company_id, business_id, id)`; `UNIQUE (company_id, line_id)`; partial `UNIQUE (company_id, slot_id) WHERE reversed_at IS NULL`; FKs slot, line (`DEFERRABLE INITIALLY DEFERRED`), and `(company_id, reversal_cancellation_id)` → `service_line_cancellations (company_id, id)` `DEFERRABLE INITIALLY DEFERRED`, because FR-031 writes the redemption before the inherited 054 sequence inserts its cancellation row |
-| `service_lines` (43) | `redemption_id uuid NULL`, insert-only | no new `UPDATE` grant; deferred redemption-line integrity trigger (below) on insert and on any update of `redemption_id`, `service_id`, `list_price`, `price`, `net`, `discount` or `effective_discount_bps` | deferred FK `(company_id, business_id, redemption_id)` → `package_redemptions`; partial index `WHERE redemption_id IS NOT NULL` |
+| `service_lines` (43) | `redemption_id uuid NULL`, insert-only | no new `UPDATE` grant; deferred redemption-line integrity trigger (below) on insert and on any update of `redemption_id`, `service_id`, `list_price`, `price`, `net`, `discount` or `effective_discount_bps`; deferred redeemed-line cancellation trigger (below) on a status change | deferred FK `(company_id, business_id, redemption_id)` → `package_redemptions`; partial index `WHERE redemption_id IS NOT NULL` |
 | `package_refunds` (46) | `entitlement_id`, `component_id`, `branch_id`, `sessions`, `amount`, `method`, `reason`, `refunded_by`, `refunded_by_membership_id`, `refunded_at`, `entitlement_revision` | `SELECT, INSERT`; deferred refund-integrity trigger (below) | `UNIQUE (company_id, business_id, id)`; `UNIQUE (company_id, entitlement_id, entitlement_revision)`; FKs |
 | `package_refund_slots` (46) | `refund_id`, `entitlement_id`, `component_id`, `slot_id`, `ordinal`, `unit_value` | `SELECT, INSERT`; deferred refund-integrity trigger (below) | `UNIQUE (company_id, slot_id)` (a slot is refunded once); FKs refund, slot |
-| `package_extensions` (45) | `entitlement_id`, `branch_id`, `previous_expires_on`, `new_expires_on`, `reason`, `extended_by`, `extended_by_membership_id`, `extended_at` | `SELECT, INSERT`; `CHECK new > previous` | index `(company_id, entitlement_id, extended_at)` |
+| `package_extensions` (45) | `entitlement_id`, `branch_id`, `previous_expires_on`, `new_expires_on`, `reason`, `extended_by`, `extended_by_membership_id`, `extended_at` | `SELECT, INSERT`; `CHECK new > previous`; deferred extension-history trigger (below) on insert | index `(company_id, entitlement_id, extended_at)` |
 | `import_previews` (42-2, existing, spec 030) | **no new table**: package previews are rows with `entity = 'packages'` (the framework is shared, spec 030 §Framework); `rows` JSONB holds the resolved `customer_id` and the phone's last 3 digits only, never the full phone (CLAUDE.md §8) | the existing grants | the existing keys **plus** the candidate key `UNIQUE (company_id, business_id, id)` (42-2, built `CONCURRENTLY` as a unique index then attached), which the entitlement's business-qualified import FK references |
 | `package_refund_notices` (46-3) | the bell ledger: `refund_id`, `source_event_id`, `decided_at`, `recipient_count ≥ 0` | `SELECT, INSERT` | `UNIQUE (company_id, refund_id)` |
 
@@ -612,7 +623,24 @@ wrong value would be wrong forever. A deferred constraint trigger fires on every
 transaction (sold or imported): it has at least one component; each component has exactly `sessions_total` slots;
 each component's slot `unit_value`s sum to its `component_value`; and the components' `component_value`s sum to the
 entitlement's `price_paid`. Any mismatch refuses the commit. Components and slots are insert-only with immutable value
-columns, so checking at creation covers the entitlement's whole life.
+columns, and the composition seal refuses a component or slot inserted in any transaction other than the one that
+created its entitlement, so a later write can never add sessions (not even a `0.000` component of a new service that
+keeps every sum true) and checking at creation covers the entitlement's whole life. `created_txid` is set by a
+`BEFORE INSERT` trigger from `pg_current_xact_id()`; it is compared only on insert, so a dump restore (data loaded
+before the triggers) is unaffected.
+
+**Redeemed-line cancellation (deferred, at commit).** The redemption-slot check fires only when a redemption or slot
+changes, so a cancel that set the line `CANCELLED` but forgot the package updates would pass it. A deferred constraint
+trigger on `service_lines` (WHEN `OLD.status IS DISTINCT FROM NEW.status`) checks at commit, for a line with
+`redemption_id`: its redemption has `reversed_at` set and `reversal_cancellation_id` = the line's
+`service_line_cancellations` row, and its slot is no longer held by it (`FREE`, or `USED` by another live redemption).
+Any mismatch refuses the commit, so a cancelled redeemed line always gives its session back.
+
+**Extension history (deferred, at commit).** The entitlement-side check proves every `expires_on` change has its
+extension row; this one proves the converse. For every `package_extensions` row inserted in the transaction, its
+entitlement has `expires_on_changed_txid` = the current transaction, `expires_on_before = previous_expires_on` and
+`expires_on = new_expires_on`. Any mismatch refuses the commit, so the history never shows an extension that did not
+happen.
 
 Expand-only; migration numbers are taken at merge. The privileges allowlist and `privileges.spec.ts` gain every grant.
 
@@ -662,6 +690,8 @@ migration, as 0084 did; never held by a device; grantable to any human role.
 - `PACKAGE_EXTENSION_NOT_LATER` / `PACKAGE_EXTENSION_TOO_LONG` 422, `PACKAGE_EXPIRY_STALE` 409, `PACKAGE_EXTENSION_REASON_INVALID` 422.
 - `INSUFFICIENT_SLOTS` 422 — «الجلسات الفاضية أقل من المطلوب، ومحدش اترجّع.» / "Fewer free sessions than requested; nothing was refunded." (spec 007 name)
 - `PACKAGE_COMPONENT_NOT_FOUND` 422, `PACKAGE_REFUND_REASON_INVALID` 422, `PACKAGE_NOT_FOUND` 404.
+- `IMPORT_SERVICE_AMBIGUOUS` (row error, new) — «فيه أكتر من خدمة بالاسم ده؛ غيّر اسم واحدة منهم وارفع الملف تاني.» /
+  "More than one service has this name; rename one of them and upload again."
 - Reused: the shared validator's codes (spec 007), `IMPORT_*` (spec 030), `IDEMPOTENCY_KEY_REUSED`, `FORBIDDEN`,
   `FEATURE_DISABLED`, and every 050/054 code on the visit and cancel paths. `SESSION_LINE_NOT_CANCELLABLE` and
   `SESSION_LINE_PERFORMERS_NOT_CHANGEABLE` stay reserved (FR-032, FR-035).
@@ -676,8 +706,8 @@ a handful of rows under row locks. Import: a worker job (spec 030 Stage B). Read
 - **Domain unit** (no database): sale discount and bps (FR-012), the seller self rule, expiry and "not yet valid" with the
   visit date, refund amount, the slot transition table, import row validation; the shared definition-case fixture
   (`apps/api/test/package-definition-cases.ts`) gains the import rows.
-- **Integration** (one cloned database per spec file, ADR-0006): ST-01…ST-04, SA-01…SA-12, RD-01…RD-09, RC-01…RC-07 (with RC-03b),
-  EX-01…EX-05, RF-01…RF-10, IM-01…IM-09, CP-01…CP-03; concurrency tests M5, M6, M9 with two real connections.
+- **Integration** (one cloned database per spec file, ADR-0006): ST-01…ST-04, SA-01…SA-12, RD-01…RD-09, RC-01…RC-07 (with RC-03b, RC-06b),
+  EX-01…EX-05, RF-01…RF-10, IM-01…IM-09 (with IM-04b), CP-01…CP-03; concurrency tests M5, M6, M9 with two real connections.
 - **RLS negative**, per new table, and the grant allowlist; trigger negative tests: every forbidden slot transition,
   each refund-integrity breach (a refund slot of another component or entitlement, a copied ordinal or value that
   differs from the slot, `sessions` ≠ the slot count, `amount` ≠ the sum, a `refunded_amount` delta ≠ `amount`, an entitlement `revision` that does not grow by exactly 1 — unchanged or +2 — and
@@ -695,8 +725,13 @@ a handful of rows under row locks. Import: a worker job (spec 030 Stage B). Read
   entitlement),
   each value-conservation breach on a sold and on an imported entitlement (a component with one slot fewer or one
   more than `sessions_total`; slot `unit_value`s that do not sum to `component_value`; `component_value`s that do not
-  sum to `price_paid`; an entitlement with no component; a slot or component added to an existing entitlement that
-  breaks a sum),
+  sum to `price_paid`; an entitlement with no component),
+  each composition-seal breach (a later transaction adding a `0.000` component of a new service with `0.000` slots, or
+  one more slot to an existing component; a caller-supplied `created_txid` is overwritten),
+  each redeemed-line cancellation breach (a redeemed line set `CANCELLED` with its redemption live, or reversed by
+  another cancellation, or with its slot still `USED` by it),
+  each extension-history breach (an extension row with no `expires_on` change, with a `previous_expires_on` or
+  `new_expires_on` that differs from the change, or a second `expires_on` change in one transaction),
   a second reversal, a lowered `expires_on`, `refunded_amount` above `price_paid`, an update of a value column.
 - **Queries:** result shape + `EXPLAIN ANALYZE` index assertions for FR-070, FR-071 and FR-072.
 - **UI** (assert what the user sees, CLAUDE.md §9): stop/resume toggle and badge; sale form (price, discount warning,
@@ -711,15 +746,15 @@ Every row waits on this spec's merge and on the owner answers named in its "Bloc
 |---|---|---|---|
 | **33b** | Stop / resume selling | 1. Contract + migration (`selling_stopped_at`, grant) + domain no-op rule. 2. Use cases, routes, ST tests. 3. Admin list toggle, badge, component tests | this spec merged |
 | **42-1** | Contracts and map | 1. Sale contracts, `PackageSaleChanged` schema, worker known types, OpenAPI. 2. `CatalogReaderPort` package-type read (TD-10), module-map §3 row. 3. Error codes ar/en, permission codes + i18n labels | PK-Q2, PK-Q4, PK-Q23 (the answer decides FR-010's snapshot fields and the `sold_at` contract) |
-| **42-2** | Storage | 1. Entitlements, components, slots: `CHECK`s, RLS, grants; the `import_previews` candidate key the import FK needs. 2. The entitlement and slot triggers (TD-5b, BR-03/04), the value-conservation one included. 3. Negative RLS and trigger tests, allowlist, permission seed migration | **design advisors**; 42-1 |
+| **42-2** | Storage | 1. Entitlements, components, slots: `CHECK`s, RLS, grants; the `import_previews` candidate key the import FK needs. 2. The entitlement and slot triggers (TD-5b, BR-03/04), the value-conservation and composition-seal ones included. 3. Negative RLS and trigger tests, allowlist, permission seed migration | **design advisors**; 42-1 |
 | **42-3** | Sell | 1. Pure domain (discount, seller rule, expiry). 2. `SellPackageUseCase`, adapters, route. 3. SA-01…SA-11 (SA-05b, SA-08b, SA-08c included) | 42-2; PK-Q3, PK-Q11, PK-Q23 |
 | **42-4** | Reception sale screen + customer packages read | 1. Customer packages list (FR-070) and the detail's sale and component part (FR-071), with `EXPLAIN`. 2. The sale picker query under `sell:packages:branch` (FR-072, SA-12) and the sale form on it. 3. ar/en keys, component tests | 42-3 |
-| **43-1** | Redemption storage and contracts | 1. `package_redemptions`, `service_lines.redemption_id`, deferred FKs, triggers (the redemption-line and redemption-slot integrity ones included), RLS. 2. Widen the line `package` member in the three event schemas and the draft union. 3. Negative tests | **design advisors**; 42-2 |
+| **43-1** | Redemption storage and contracts | 1. `package_redemptions`, `service_lines.redemption_id`, deferred FKs, triggers (the redemption-line, redemption-slot and redeemed-line cancellation ones included), RLS. 2. Widen the line `package` member in the three event schemas and the draft union. 3. Negative tests | **design advisors**; 42-2 |
 | **43-1b** | Guards before any redemption exists | 1. The 35d writer refuses a line with `redemption_id` (FR-034, RC-06). 2. The 054 cancel and 055 performer writers refuse it for now (`SESSION_LINE_NOT_CANCELLABLE`, `SESSION_LINE_PERFORMERS_NOT_CHANGEABLE`; 054 D-6, 055 D-8) until 44 lifts them. 3. Negative tests on a redeemed line forced in the database | 43-1 |
 | **43-2** | Redeem in the record/append writer | 1. Domain (draft kind, expiry by visit date, line values). 2. Writer changes (component locks, slot, redemption). 3. RD-01…RD-09 incl. the M5 race | 43-1, **43-1b merged and deployed**; PK-Q7 |
 | **43-3** | Reception «من الباقة» | 1. Line toggle with the customer's packages and remaining count; the detail's redemption history (FR-071). 2. Suggest the earliest expiry. 3. Component tests | 43-2, 42-4 (the detail query) |
 | **44** | Cancel / performers on redeemed lines | 1. 054 writer: lift the 43-1b refusal and reverse (FR-031), RC-01…RC-05. 2. 055 per PK-Q8 (lift or keep the 43-1b refusal), RC-07. 3. RC-06 re-run against the final writers | 43-2; PK-Q6, PK-Q8 |
-| **45** | Extend | 1. `package_extensions`, contracts, permission. 2. Use case, route, EX tests. 3. Admin dialog and the detail's extension history (FR-071) | 42-2, **42-4** (the detail query), after **43-3** on that file; PK-Q1 |
+| **45** | Extend | 1. `package_extensions`, the entitlement's `expires_on_*` columns and the extension-history trigger, contracts, permission. 2. Use case, route, EX tests. 3. Admin dialog and the detail's extension history (FR-071) | 42-2, **42-4** (the detail query), after **43-3** on that file; PK-Q1 |
 | **46-1** | Refund storage | 1. `package_refunds`, `package_refund_slots`, RLS, grants. 2. Contracts, error codes, permission. 3. Negative tests | **design advisors**; 43-1; PK-Q4, PK-Q5 |
 | **46-2** | Refund | 1. Use case (FR-051…FR-055). 2. Route. 3. RF-01…RF-10 incl. M6/M9 races | 46-1; PK-Q10 |
 | **46-3** | Refund bell + dialog | 1. Events, ADR-0044 addendum, module-map rows, template ar/en. 2. Consumer + ledger. 3. Admin refund dialog and the detail's refund history (FR-071) | 46-2, **42-4**, after **45** on the detail query file; PK-Q5 |
