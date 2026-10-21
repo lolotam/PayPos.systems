@@ -3,7 +3,8 @@
 > **Status:** Draft · 2026-10-21 · docs-only PR. **PP-18 batch 1 answered (Waleed, 2026-10-21):** RT-Q1 **postpones the whole rating track to the end of the
 > project**; RT-Q2…RT-Q10 and RT-Q12 are decided for the postponed track (RT-Q6 and RT-Q10 against the recommended
 > options); RT-Q11 and RT-Q13 are postponed with RT-Q1.
-> **14 owner questions remain open** (MY-Q1…MY-Q8, AL-Q1…AL-Q6), routed to Waleed as PP-18; **MY-Q6** (what an employee sees of her approved earnings) is also a money
+> PP-18 batch 4: MY-Q1…MY-Q4 answered (MY-Q1 and MY-Q2 against the recommended options).
+> **10 owner questions remain open** (MY-Q5…MY-Q8, AL-Q1…AL-Q6), routed to Waleed as PP-18; **MY-Q6** (what an employee sees of her approved earnings) is also a money
 > question and is in the money list for Abu Salem ([owner-questions.ar.md](owner-questions.ar.md)). Every rule that waits on an answer is marked `TODO(spec)` here and
 > blocks only the sub-PRs named in §3. **No code starts before this spec is merged.**
 > **Two parts:** **Part A** — the staff app (rows 57, 57b, 57c). **Part B** — ratings and alerts (rows 58, 59, 59b, 60,
@@ -79,10 +80,10 @@ question (what staff earn, `CLAUDE.md` §1 5b) and goes to Abu Salem too; the ot
 
 | ID | Subject | Blocks |
 |---|---|---|
-| MY-Q1 | My pages on the personal phone only, or also on the reception device after PIN | 57-1, 57b-1 |
-| MY-Q2 | How many months back the staff app shows | 57-2, 57-3, 57b-1 |
-| MY-Q3 | Default columns when the manager has not chosen | 57c-1 |
-| MY-Q4 | May the column setting hide the estimate | 57c-1 |
+| MY-Q1 | My pages on the personal phone only, or also on the reception device after PIN | **Answered (PP-18.1): both, the reception device after the PIN** — against the recommended option (D-A13, sub-PR 57-0) |
+| MY-Q2 | How many months back the staff app shows | **Answered (PP-18.2), custom: a per-business admin setting**; default the current month plus the previous one (D-A14) |
+| MY-Q3 | Default columns when the manager has not chosen | **Answered (PP-18.3): her work and her money only** (D-A6) |
+| MY-Q4 | May the column setting hide the estimate | **Answered (PP-18.4): yes, an ordinary column, shown by default** (MY-20) |
 | MY-Q5 | Who edits the staff-columns setting | 57c-1 |
 | MY-Q6 | What a closed (approved) month shows: the approved amount or the estimate | 57-3, 57-5 |
 | MY-Q7 | What the employee sees of a manager's attendance correction | 57b-1 |
@@ -127,12 +128,14 @@ the statement PDF or Excel (rows 56, 27g); anything about other employees.
 | D-A3 | `StaffColumnsPort` consumers: commissions and customers (approved in ADR-0010 §2) and **orders, which ADR-0010 does not list**: orders' port is a new port and needs an **ADR-0010 addendum before any code** (ADR-0010 requires an ADR before a new port), shipped as docs PR **A-0** (§A.5) together with worker orders' `AlertRulesPort` (D-B14). The adapter edges are then added to `module-map.md` §2/§3 and its YAML in the sub-PR that first uses them | a shared helper in `packages/` (settings data read outside the settings module) |
 | D-A4 | **New own permission codes**, following ADR-0026 (an own code is refused unless the actor's user is the subject employee's user; owner immunity and covering DENY as ADR-0026): `read:service-sessions:own` (orders), `read:commissions:own` (commissions), `read:attendance:own` (staff), `read:ratings:own` (customers). Defaults: every human role, like `read:leave:own` (`role-defaults.ts`, `humans`), which is what D-46 and S-11 say; devices forbidden. A per-person DENY hides one employee's page | reusing branch read codes (they would show colleagues' rows, against S-13) |
 | D-A5 | **ADR-0027 addendum** (sub-PR 57-1): ADR-0027 lists the personal purpose's own-scope capabilities as "schedule/leave; later attendance challenge/assertion". The four reads of D-A4 are added to that list explicitly, with the same live employee and membership recheck on every request | enabling them silently on `PERSONAL_ROUTE` |
-| D-A6 | Storage of the column setting: a nullable `staff_columns text[]` on `business_settings` (one row per business, D-47), `NULL` = the default of MY-Q3 (the `business_settings` "null = template" pattern), a `CHECK` that every element is an allowed code and there are no duplicates; every change audited (`CLAUDE.md` §8, settings) | a new table (one value per business does not need one) |
+| D-A6 | Storage of the column setting: a nullable `staff_columns text[]` on `business_settings` (one row per business, D-47), `NULL` = the MY-Q3 default (PP-18.3: `date, time, service, customer_name, share, estimated_commission, tip, rating_average`, without `list_price`, `discount` and `net`; `rating_average` stays hidden until the rating track ships, D-A7) (the `business_settings` "null = template" pattern), a `CHECK` that every element is an allowed code and there are no duplicates; every change audited (`CLAUDE.md` §8, settings) | a new table (one value per business does not need one) |
 | D-A7 | **Allowed codes:** `date, time, service, customer_name, list_price, discount, net, share, estimated_commission, tip, rating_average`. `rating_comments` is **not** an allowed code (S-9). **`rating_average` stays hidden until the rating track ships (RT-Q1, PP-18.9):** the code exists in the enum, but the column screen does not offer it, a saved set that names it is refused, and «شغلي» never returns it. `customer_phone` never exists as a code (S-12). **Context fields outside the setting:** every row of «شغلي» always carries `line_id` and the branch name (the employee's own workplace, needed to tell two branches apart); every other field is one of the codes above | keeping `rating_comments` because SPEC §4 lists it (the later owner decision in ADR-0011 overrides it) |
 | D-A8 | A line belongs to «شغلي» when the employee is a **current** performer of it (her `line_performers` row), in the line's business, in the month asked, by the session's `business_date`. Her **share** is her `share_bps` of the line; money fields are canonical KWD strings (spec 050) | listing every visit she touched (removed performers see nothing after a performer change, spec 055) |
 | D-A9 | The month is a business-timezone calendar month (`YYYY-MM`), like statements (SPEC §5). Default = the current month at the injected Clock | a rolling 30 days (does not match the statement) |
 | D-A10 | «حضوري» shows her attendance sessions by `working_date`: branch name, clock-in, clock-out, `late_minutes` (already stored on the session), source (QR / card), open exceptions by kind (no notes), and a «اتعدّل» mark per MY-Q7. Lateness is shown, never deducted (SPEC §7) | recomputing lateness on the phone |
 | D-A11 | «إجازاتي» uses the existing ADR-0026 routes unchanged; Part A adds only the POS screens and their tests | a second leave API |
+| D-A13 | **«شغلي» and «حضوري» also open on the shared reception device (MY-Q1, PP-18.1)**, through the ADR-0019 `STAFF_POS` operator session after her PIN, besides the ADR-0027 personal session. Because that device is shared and its session is 8 hours with no idle timeout, these private screens get their own short window: opening one asks for the PIN again (a fresh PIN proof, at most 60 s old), the server grants a **private-view window of at most 5 minutes** bound to that session and operator, and every FR-A read on `STAFF_POS` is refused without a live window; 60 s without input, leaving the screen, sign-out or operator replacement close it and clear the screen and the query cache in every tab (ADR-0019's replacement clearing). Responses are `no-store` and nothing is persisted (S-19). The window is a new rule for ADR-0019 (which has no idle timeout) and ADR-0027 (which lists own reads for the personal purpose only), so **sub-PR 57-0 adds the ADR-0019/0027 addendum before any code** | personal phone only (the recommended option, not chosen); the 8-hour operator session with no extra step (any colleague at the counter would see her commission) |
+| D-A14 | **How many months back (MY-Q2, PP-18.2, custom answer):** a per-business admin setting `staff_months_back smallint NULL` on `business_settings`, `CHECK (staff_months_back BETWEEN 1 AND 24)`, `NULL` = 2 (the current month plus the previous one, the orchestrator's default). It counts calendar months in the business timezone (D-A9), the current month included; every FR-A read and MY-13 use it; `StaffColumnsPort` returns it with the column set. It sits on the column-settings screen under the same permission, `TODO(spec)` MY-Q5; changes are audited `settings.staff_months_back_changed` | a fixed window (Waleed asked for an admin option) |
 | D-A12 | Plan order: **57c-1 (the column setting's storage and port) comes before 57-2**, because every "my" read needs `StaffColumnsPort`. IMPLEMENTATION-PLAN row 57c says "depends on 57"; the admin screen (57c-2) keeps that order | building 57-2 on a hard-coded column list and changing it later |
 
 ## A.2 User scenarios and acceptance criteria
@@ -163,7 +166,7 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
 
 ### Story A2 — Access (P1)
 
-- **MY-09** No personal session, an expired session (8-hour absolute life), a kiosk session (`TODO(spec)` MY-Q1), a
+- **MY-09** No personal session, an expired session (8-hour absolute life), a reception-device (`STAFF_POS`) session without a live private-view window (D-A13), a
   device, an admin cookie, or a session of another business → 401/403, nothing returned.
 - **MY-10** The employee was deleted, unlinked from the user, or her membership expired after sign-in → 403 at the
   recheck of that request (ADR-0027).
@@ -171,7 +174,12 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
   employee only; the owner's immunity follows ADR-0026.
 - **MY-12** A request naming another employee, a branch she is not attached to, or a foreign business → uniform 403;
   no client field selects the employee (the server takes it from the session).
-- **MY-13** A month before the MY-Q2 window → 422 `MY_PERIOD_OUT_OF_RANGE`; a malformed month → 400.
+- **MY-13** A month before the business's `staff_months_back` window (D-A14; `NULL` → the current and previous month) →
+  422 `MY_PERIOD_OUT_OF_RANGE`; a malformed month → 400; saving 3 lets the previous two months through and refuses the
+  fourth; a value outside 1–24 → 422.
+- **MY-13b** Reception device (D-A13): سارة on the shared device enters her PIN → «شغلي» shows her lines; after 60 s idle
+  the screen returns to the PIN step and the query cache is empty; a request after the 5-minute window or after منى
+  replaces her as operator → 401 and nothing returned; a stale PIN proof (over 60 s) does not open a window.
 
 ### Story A3 — My attendance and my leave (P1)
 
@@ -183,12 +191,14 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
 
 ### Story A4 — The staff-columns setting (P1/P2)
 
-- **MY-17** With nothing saved, every read uses the MY-Q3 default (`TODO(spec)`).
+- **MY-17** With nothing saved, every read uses the MY-Q3 default (D-A6): no `list_price`, `discount` or `net`; `rating_average`
+  not returned while the rating track is postponed.
 - **MY-18** A holder of the MY-Q5 permission saves a column set; the next read of every employee of that business
   follows it; one audit entry `settings.staff_columns_changed` with before/after codes.
 - **MY-19** An unknown code, a duplicate, `rating_comments` or `customer_phone` → 422 `STAFF_COLUMNS_INVALID`;
   nothing saved.
-- **MY-20** `TODO(spec)` MY-Q4: `estimated_commission` is either an ordinary toggle or always on.
+- **MY-20** MY-Q4 (PP-18.4): `estimated_commission` is an ordinary toggle, shown by default; saving a set without it hides
+  the estimate card (57-5).
 - **MY-21** A caller without the permission, a device, or another business → uniform 403.
 
 ### Edge cases
@@ -220,7 +230,7 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
   `PUT` is idempotent (`Idempotency-Key`), audited, guarded by the MY-Q5 permission; the read is guarded by the same
   permission or `read:settings:business`.
 - **FR-A08** `StaffColumnsPort.allowed(tx, companyId, businessId): ReadonlySet<StaffColumnCode>` in each consumer's
-  `ports/` (Arabic JSDoc), returning the saved set or the MY-Q3 default.
+  `ports/` (Arabic JSDoc), returning the saved set or the MY-Q3 default, plus `monthsBack(tx, companyId, businessId)` (D-A14).
 - **FR-A09** POS: «شغلي», «حضوري», «إجازاتي» screens in `apps/pos/src/my-work/`, `apps/pos/src/my-attendance/`,
   `apps/pos/src/my-leave/` (business-named folders, `CLAUDE.md` §7), reachable from the personal screen; generated
   client hooks, i18n keys, logical CSS; no fetch in components; nothing stored offline.
@@ -234,13 +244,13 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
 - **BR-A1** An employee sees only her own rows, chosen by the server from her session, never from a parameter (S-13).
 - **BR-A2** A hidden column never leaves the server (D-A2).
 - **BR-A3** The estimate is never stored and never shown as a number when the engine returns a named error (S-15).
-- **BR-A4** Nothing in Part A writes money, attendance or ratings; it is read-only except the column setting.
+- **BR-A4** Nothing in Part A writes money, attendance or ratings; it is read-only except the column and months settings.
 
 ### Schema
 
 | Table | Change | Notes |
 |---|---|---|
-| `business_settings` | add `staff_columns text[] NULL` with `CHECK` (allowed codes, no duplicates) | expand-only; `NULL` = default (D-A6); `UPDATE (staff_columns)` grant to `pospay_app`; allowlist and privileges test updated |
+| `business_settings` | add `staff_columns text[] NULL` with `CHECK` (allowed codes, no duplicates) and `staff_months_back smallint NULL` with `CHECK (1–24)` (D-A14) | expand-only; `NULL` = defaults (D-A6, D-A14); `UPDATE (staff_columns, staff_months_back)` grant to `pospay_app`; allowlist and privileges test updated |
 | access catalog | four own codes (D-A4) + the MY-Q5 permission | defaults in a custom migration like ADR-0026's leave codes; device cells forbidden |
 
 No new tenant table in Part A. The "my" queries add the indexes their `EXPLAIN` needs in the same migration (e.g.
@@ -262,15 +272,16 @@ editor permission per MY-Q5 (`TODO(spec)`).
 | PR | Result | Subtasks | Blocked on | Size |
 |---|---|---|---|---|
 | **A-0** | ADR-0010 addendum (docs only) | 1. Orders `StaffColumnsPort` (D-A3), worker orders `AlertRulesPort` (D-B14) and worker customers `BranchScheduleHoursPort` (D-B3). 2. module-map §3 rows + YAML | this spec merged | 60–120 |
-| **57c-1** | Column setting storage + port | 1. Contract (`StaffColumnCode` enum, GET/PUT schemas), migration (`staff_columns`, grant, permission). 2. Settings use case + routes + audit; `StaffColumnsPort` readers (orders, commissions, customers adapters + module-map rows). 3. Unit + integration tests MY-17…MY-21 | **A-0**; MY-Q3, MY-Q4, MY-Q5 | 260–380 |
-| **57-1** | Own access for the staff app | 1. Four own codes + defaults migration, catalog, inventory tests. 2. ADR-0027 addendum (D-A5). 3. Own-check helper reuse + refusal tests MY-09…MY-12 | MY-Q1 | 180–280 |
-| **57-2** | «شغلي» API | 1. Orders own query (FR-A01) + tips (FR-A03) with column projection + `EXPLAIN`. 2. Routes, guard, error mapping, OpenAPI + clients. 3. Tests MY-01…MY-04, MY-07, MY-08, MY-13 | 57-1, 57c-1, **A-0**; MY-Q2, MY-Q8 | 300–420 |
+| **57-0** | Reception-device private view: ADR addendum (docs only) | 1. ADR-0019/ADR-0027 addendum for D-A13 (fresh PIN proof ≤ 60 s, a private-view window ≤ 5 min bound to the `STAFF_POS` session and operator, 60 s idle close, clearing on leave/sign-out/replacement, `no-store`). 2. The auth-owned window store and its check named for 57-1. 3. — | this spec merged | 60–120 |
+| **57c-1** | Column setting storage + port | 1. Contract (`StaffColumnCode` enum, GET/PUT schemas), migration (`staff_columns`, `staff_months_back`, grant, permission). 2. Settings use case + routes + audit; `StaffColumnsPort` readers (orders, commissions, customers adapters + module-map rows). 3. Unit + integration tests MY-13 (window part), MY-17…MY-21 | **A-0**; MY-Q5 (MY-Q3, MY-Q4 decided) | 260–380 |
+| **57-1** | Own access for the staff app | 1. Four own codes + defaults migration, catalog, inventory tests. 2. ADR-0027 addendum (D-A5). 3. Own-check helper reuse + refusal tests MY-09…MY-12; the D-A13 reception-device path (PIN step-up and private-view window in `packages/auth`) + MY-13b | **57-0** (MY-Q1 decided) | 180–280 |
+| **57-2** | «شغلي» API | 1. Orders own query (FR-A01) + tips (FR-A03) with column projection + `EXPLAIN`. 2. Routes, guard, error mapping, OpenAPI + clients. 3. Tests MY-01…MY-04, MY-07, MY-08, MY-13 | 57-1, 57c-1, **A-0**; MY-Q8 (MY-Q2 decided) | 300–420 |
 | **57-3** | Estimate API | 1. Commissions own query over the DRAFT projection (FR-A02). 2. Route + OpenAPI. 3. Tests MY-05, MY-06 | **row 50**, 57-1, 57c-1; MY-Q6 | 200–320 |
-| **57-4** | «شغلي» screen | 1. POS screen + hooks + i18n. 2. Estimate card shell (renders "pending"; 57-5 wires it). 3. UI tests (visible columns, hidden column absent, pending card) | 57-2 | 240–360 |
+| **57-4** | «شغلي» screen | 1. POS screen + hooks + i18n. 2. Estimate card shell (renders "pending"; 57-5 wires it); the reception-device private view (PIN step, idle close, cache clearing, D-A13). 3. UI tests (visible columns, hidden column absent, pending card, the PIN step and the closed screen after idle) | 57-2 | 240–360 |
 | **57-5** | Estimate card wiring | 1. The card calls the generated `commission-estimate` hook (57-3) and replaces the pending state. 2. i18n for amount / «مفيش خطة» / recalculated note. 3. UI tests asserting the visible amount, the no-plan text and the hidden card when `estimated_commission` is not allowed (MY-05, MY-06 screen side) | 57-3, 57-4 | 120–200 |
-| **57b-1** | «حضوري» API | 1. Staff own query (FR-A04) + `EXPLAIN`. 2. Route + OpenAPI + clients. 3. Tests MY-14, MY-15 + access | 57-1; MY-Q2, MY-Q7 | 220–320 |
+| **57b-1** | «حضوري» API | 1. Staff own query (FR-A04) + `EXPLAIN`. 2. Route + OpenAPI + clients. 3. Tests MY-14, MY-15 + access | 57-1, 57c-1 (months window); MY-Q7 (MY-Q2 decided) | 220–320 |
 | **57b-2** | «حضوري» and «إجازاتي» screens | 1. Attendance screen. 2. Leave screen on the ADR-0026 routes. 3. UI tests MY-16 | 57b-1 | 260–380 |
-| **57c-2** | Admin column screen | 1. Settings page. 2. i18n. 3. UI tests | 57c-1 | 160–240 |
+| **57c-2** | Admin column screen | 1. Settings page: the columns and the months-back setting (D-A14). 2. i18n. 3. UI tests (saved columns and months visible) | 57c-1 | 160–240 |
 
 ---
 
