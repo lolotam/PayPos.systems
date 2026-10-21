@@ -130,12 +130,12 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 57c | staff-columns setting: the admin screen (spec 060 sub-PR 57c-2)                                                     | S            | 57, 57c-1          |
 |     | **M8 · ratings and alerts**                                                                                         |              |                    |
 | 58  | customer opt-out on the rating page                                                                                 | S            | 34, G3             |
-| 59  | rating scheduling (due time, send deadline)                                                                         | S            | 35, G3             |
+| 59  | rating scheduling (due time, send deadline)                                                                         | S            | 35, G3, spec 060 A-0 |
 | 59b | at-most-once rating send: authoritative claim through `DaySessionsPort`, attempt row under the phone lock           | S            | 59, 4, 5           |
 | 60  | rating page + `submit-rating`                                                                                       | S            | 59b                |
 | 61  | low-rating alert + averages                                                                                         | S            | 60                 |
-| 62  | alert-rules screen + master switch; replaces row 28's interim fixed rule (on, 20 min, managers, in-app) and owns row 28c's lead-time setting | S            | 4b, 15, 28         |
-| 62b | email and WhatsApp delivery of team alerts, after an ADR on reading team contacts (AL-Q6, PP-18.26)          | S            | 62                 |
+| 62  | alert-rules screen + master switch; replaces row 28's interim fixed rule (on, 20 min, managers, in-app) and owns row 28c's lead-time setting | S            | 4b, 15, 28, spec 060 A-0 |
+| 62b | email and WhatsApp delivery of team alerts, after an ADR on reading team contacts (AL-Q6, PP-18.26)          | S            | 62; the ADR on reading team contacts (ADR-0003 amendment, AL-Q6) |
 |     | **M9 · pilot**                                                                                                      |              |                    |
 | 63  | real data by import, dry-run week, parallel month, comparison (D-45); the salon pilot starts only on the new server (D-11, owner review 2026-10-09)                                                | S + calendar | every row except 58–61 (the rating track, postponed by RT-Q1, PP-18.9, with the low-rating bell of spec 060 sub-PR 62-3); the new server with point-in-time recovery (D-11) |
 
@@ -255,4 +255,5 @@ Row 57c is split: 57c-1 (the setting's storage and `StaffColumnsPort`) no longer
 and 57b's reads need that port (spec 060 D-A12), so rows 57 and 57b now depend on 57c-1; the rest of 57c (the admin
 screen) still depends on row 57. Row 62b is new:
 AL-Q6 (PP-18.26) keeps row 62 in-app only and moves team email and WhatsApp to 62b, after an ADR on reading team
-contacts (ADR-0003).
+contacts (ADR-0003). Rows 59 and 62 also wait for spec 060's docs PR A-0 (the ADR-0010 addendum for the new ports
+59-1 and 62-3 use), and row 62b for that contact-read ADR.
