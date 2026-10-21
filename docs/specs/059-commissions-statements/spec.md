@@ -280,7 +280,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   they are settled).
 - A month with no input at all for the business still has a statement when generated (all employees with zero), so the
   owner can approve an empty month.
-- A line whose `rule_snapshot` is `ZERO`, `PCT` or `FIXED` needs no plan (spec 012 §8); only `FOLLOW_PLAN` lines and sales
+- A line whose `rule_snapshot` is `ZERO`, `PCT` or `FIXED` needs no plan (spec 012, requirement 8); only `FOLLOW_PLAN` lines and sales
   can produce `NO_PLAN`.
 - An event of another company or business never touches this statement (tenant from the outbox envelope, `withTenant`).
 - A plan version created for a future date applies from that date; the current month's estimate does not change before it.
@@ -410,7 +410,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   period repair (FR-046) does.
 - **FR-044** Corrections are tested on **seeded closed periods** (plan row 55): the seed freezes a month directly through the
   storage layer, so 55 does not wait on 53.
-- **FR-045** Negative totals, departed employees and the display of corrections: `TODO(spec)` CS-Q7, CS-Q8, CS-Q9.
+- **FR-045** Negative totals, departed employees and the display of corrections: `TODO(spec)` CS-Q7, CS-Q8, CS-Q9. If CS-Q7
+  chooses to carry a negative commission into the next month, the carry is a new frozen line kind added by decision (SPEC
+  §4's `kind` list grows), posted by approval into the next open month, never a silent netting of tips (BR-06).
 
 ### 55b — blocked corrections and period repair
 
