@@ -168,7 +168,7 @@ describe('whether a line may consume an approval', () => {
     expect(consumptionRefusal(proposal({ status: 'REJECTED' }), TERMS, ACTOR, NOW, identityHasher)).toBe('NOT_APPROVED');
   });
 
-  it('refuses a request past its expiry, pending or approved', () => {
+  it('refuses a request at or past its expiry, pending or approved', () => {
     expect(consumptionRefusal(proposal({ status: 'PENDING' }), TERMS, ACTOR, EXPIRY, identityHasher)).toBe('EXPIRED');
     expect(consumptionRefusal(proposal(), TERMS, ACTOR, AFTER, identityHasher)).toBe('EXPIRED');
   });

@@ -1,4 +1,4 @@
-import { moneyToString } from '@pospay/domain';
+import { canonicalJson, moneyToString } from '@pospay/domain';
 import { effectiveDiscountBps, lineNet } from './session-pricing.ts';
 
 /** شروط الخصم التي وافقت عليها الموافقة: أي اختلاف في أي حقل يجعلها لا تصلح لسطر آخر. */
@@ -70,7 +70,8 @@ export function buildDiscountTerms(input: DiscountTermsInput): DiscountTermsV1 {
 }
 
 /**
- * يبني النص القانوني للشروط: مفاتيح مرتبة تصاعدياً في كل مستوى، بلا مسافات، والمصفوفات بترتيبها.
+ * يبني النص القانوني للشروط بنص JSON القانوني المشترك في النواة: مفاتيح مرتبة تصاعدياً في كل مستوى،
+ * بلا مسافات، والمصفوفات بترتيبها.
  * القاعدة: نفس الشروط تعطي نفس النص دائماً، والإصدار `v` جزء من النص، فتغييره يغيّر البصمة.
  *
  * @param terms شروط الخصم الموقّعة
@@ -86,7 +87,7 @@ export function canonicalDiscountTerms(terms: DiscountTermsV1): string {
  * المحوّل الذي سيهبط لاحقاً يمرّر تجزئة `node:crypto`، وهذا الاستثناء الوحيد على قائمة دوال المواصفة.
  *
  * @param terms شروط الخصم الموقّعة
- * @param sha256Hex دالة تُعيد تجزئة SHA-256 بستة وستين حرفاً hex صغير للنص المُعطى
+ * @param sha256Hex دالة تُعيد تجزئة SHA-256 بأربعة وستين حرفاً hex صغير للنص المُعطى
  * @returns البصمة (64 حرف hex) للشروط
  */
 export function discountTermsHash(
@@ -94,24 +95,6 @@ export function discountTermsHash(
   sha256Hex: (text: string) => string,
 ): string {
   return sha256Hex(canonicalDiscountTerms(terms));
-}
-
-/**
- * يكتب أي قيمة بنص JSON قانوني: المفاتيح مرتبة تصاعدياً في كل مستوى والمصفوفات بترتيبها.
- * القاعدة: نفس القيمة تعطي نفس النص دائماً، فالبصمة لا تتغيّر بإعادة ترتيب المفاتيح.
- *
- * @param value القيمة المراد كتابتها
- * @returns النص القانوني للقيمة
- */
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
-      left < right ? -1 : left > right ? 1 : 0,
-    );
-    return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
 }
 
 /**
