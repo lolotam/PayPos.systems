@@ -814,8 +814,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   them into a month approved in another transaction, and it does not call 53-2's use case.
 - **FR-045** Negative totals, departed employees and the display of corrections (CS-Q7, CS-Q8, CS-Q9). **CS-Q7:** an
   employee whose commission total is negative sees the negative figure (e.g. −25.000) in the statement, is paid 0
-  commission, and the negative carries by itself into the next month's commission; her card tips are paid in full. The
-  carry is a new frozen line kind added by decision (SPEC §4's `kind` list grows), posted by approval into the next open
+  commission, and the negative carries by itself into the next month's commission; her card tips are paid in full (payable = max(0, commission subtotal) + card tips + card-tip
+  corrections, §9). The carry is a new frozen line kind added by decision (SPEC §4's `kind` list grows), posted by approval into the next open
   month, never a silent netting of tips (BR-06). **CS-Q8:** a correction for an employee who left posts normally in the next
   open statement under her name and shows to the owner in the final settlement, owed to her or by her (`TODO(spec)` CS-Q28:
   what "the final settlement" is in the product). **CS-Q9:** corrections display in their own section (CM-50).
@@ -1159,9 +1159,12 @@ notification events; they run one at a time. Everything else may run beside them
 
 ## 9. Assumptions
 
-- **Payable = commission + sales commission + commission and sale corrections + card tips + card-tip corrections**; cash
-  tips and cash-tip corrections are shown, never added (D-36: card tips are paid with payroll, cash tips are
-  informational). A negative commission result is carried to the next month (CS-Q7); tips and tip corrections never enter that carry (BR-06).
+- **Commission subtotal = commission + sales commission + commission and sale corrections + the carry from the previous
+  month; Payable = max(0, commission subtotal) + card tips + card-tip corrections.** A negative commission subtotal is paid
+  as 0 and carried, whole, into the next open month (CS-Q7); card tips and card-tip corrections are always paid in full and
+  never enter or absorb the carry (BR-06). Example: commission subtotal −25.000 and card tips 6.000 → payable 6.000, carry
+  −25.000. Cash tips and cash-tip corrections are shown, never added (D-36: card tips are paid with payroll, cash tips are
+  informational).
 - A month whose statement was never generated is generated on first demand (review, the correction target, or the plan
   lock); a statement row costs nothing and simplifies the lock (D-3).
 - The 3rd and 5th are reminders, not locks (D-54). Approval stays allowed after the 5th, normally, and the reminders on the 3rd and 5th stay
