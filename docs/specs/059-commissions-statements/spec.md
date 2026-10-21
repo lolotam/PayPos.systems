@@ -323,9 +323,13 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   month's view shows the corrected name; the same holds for the employee's name and number renamed or renumbered after
   approval.
 - **CM-55d** The export request row is written with the requester's scope before the job is queued: ليلى (branch-scoped)
-  gets a workbook with only her branch's employees even if her membership changes before the worker runs; a job whose
+  gets a workbook with only her branch's employees; a job whose
   `render_id` has no request row fails without reading any statement; the xlsx bytes are returned with the xlsx MIME type
   and never pass through the PDF renderer.
+- **CM-55e** (privacy) ليلى requests the October export as branch manager of السالمية, then before she collects it she is
+  transferred to حولي (or her read permission or membership is revoked): the collect is refused with the uniform 403, no
+  workbook is returned, the stored bytes are discarded, no export audit entry is written and `collected_at` stays empty; a
+  different user cannot collect her `render_id` either.
 - **CM-56** The amounts in the file equal the frozen statement bit for bit (KWD, three decimals, as text-safe numbers).
 
 ### Story 12 — Reminders (56b, P2)
@@ -572,7 +576,11 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   (business-wide, or the branch and the exact employee set a branch-scoped reader may see, CS-Q20 = PP-20.1). The job
   payload stays `{ company_id, render_id, kind }` (ADR-0049 §1); the worker document source loads the request by `render_id`
   under `withTenant`, refuses a missing one, reads only the frozen rows of that statement and those employees, closes the
-  transaction, then builds the workbook (binary output, D-18); poll and collect once. The collect writes the audit entry
+  transaction, then builds the workbook (binary output, D-18); poll and collect once. **The saved scope is an upper bound, never a
+  grant:** at collection the API re-checks, in the collect transaction, that the collector is the requester and that her
+  **current** authorization (permission, membership, and for a branch-scoped reader her current branch and its employee
+  set) still covers the saved scope; if it does not (a branch transfer, a revoked permission or membership), the bytes are
+  discarded and the request is refused with the uniform 403, no workbook. Only a successful collect writes the audit entry
   (FR-052) and sets the request's `collected_at`.
 - **FR-051** Columns include, per employee: employee number (row 8c) and name, both taken from the frozen row (FR-033), commission, sales commission, corrections received,
   card tips, cash tips (informational), and the payable figure (CS-Q7); the content and states: CS-Q10; detail rows carry the customer's full name (CS-Q15 = PP-17.3).
@@ -755,7 +763,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to her branch's employees for a branch-scoped reader (CS-Q20 = PP-20.1). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
 | **54-1** | Mark paid | 1. The payment columns on `commission_statements` in the shape CS-Q6 decides (expand-only migration, grants), the use case + HTTP. 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
 | **56-0** | Binary documents in the worker (D-18) | 1. Generalize the source/processor contract: a source returns HTML for the PDF renderer or bytes with a MIME type; no HTML → PDF step for bytes. 2. The xlsx MIME type, the 8 MiB cap (`DOCUMENT_TOO_LARGE`), the same Redis store and collect-once reply with the source's MIME type. 3. Tests: a bytes source never reaches the renderer, the cap, collect-once, the PDF kinds unchanged | 59-0's ADR-0049 addendum | 200–320 |
-| **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-56, CM-R10 | 53-2, **56-0**; CS-Q10, CS-Q12 | 350–480 |
+| **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-55e, CM-56, CM-R10 | 53-2, **56-0**; CS-Q10, CS-Q12 | 350–480 |
 | **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
 
 **Deferred — «with the customer-erasure feature» (D-21, CS-Q21 = PP-20.2).** Not a sub-PR of this slice; it ships with the
