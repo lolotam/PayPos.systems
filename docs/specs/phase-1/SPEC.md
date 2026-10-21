@@ -120,6 +120,19 @@ shows the service, branch, date, «was X, now Y» (net) and the editor's name, o
 editor has no employee record (ED-Q9–ED-Q11, ED-Q13, Waleed 2026-10-16); the receptionist sees only an «edited» mark and
 the full history is the manager's (ED-Q12); zero recipients is a durable decision.
 
+057 (ADR-0051, spec 057, rows 38–41): `orders` ⇒ worker `orders` event **new** `DiscountApprovalRequested`, emitted once
+per stored discount-approval request in its transaction (`request_id`, `business_id`, `branch_id`, `requested_by`,
+`line_count`, `max_effective_bps`, the distinct `services` with name snapshots, `occurred_at`; never a customer, a
+phone or the terms). Worker orders claims a `(company_id, request_id)` ledger row, resolves every active user whose
+membership covering the branch effectively grants `approve:discounts:branch` (DENY excludes; PP-15.2, so **not** the
+ADR-0037 manager rule), drops the requester, and emits `DiscountApprovalNoticeRequested` to notifications for the IN_APP
+bell in groups of at most 100; zero recipients is a durable decision. Rejects and consumption emit no event; an approval
+emits `DiscountApprovedByPerformer` only when the approver performs one of its services (DA-Q3, Waleed 2026-10-21), and
+worker orders then emits `DiscountSelfApprovalNoticeRequested` to every active owner covering the branch (spec 057
+D-19). An edit of a saved line may request and consume an approval the same way (DA-Q5, `kind = EDIT`).
+The approver is proved by phone + PIN on a paired branch device (the reception computer, PP-15.1) or by an admin session;
+`identity` supplies that proof and the approver's authority through consumer-owned ports, with no new import arrow.
+
 ---
 
 ## 4. Domain model — Phase 1 subset
@@ -169,7 +182,7 @@ LinePerformer     line_id · employee_id · share_bps (Σ = 10000)
 Tip               session_id · employee_id · amount · method (CASH|CARD)
                   — entered per employee; for a shared session the screen pre-fills the split by commission shares
 DiscountProposal  terms_hash · terms · requested_by · status (PENDING|APPROVED|REJECTED|EXPIRED|CONSUMED)
-                  approver? · via (PIN|REMOTE)? · expires_at (15 min) · consumed_by_line?
+                  approver? · via (PIN|REMOTE)? · expires_at (request + 24 h; reset to approval + 24 h; never NULL — DA-Q4/DA-Q4b) · consumed_by_line?
 PackageEntitlement business_id · customer_id · package_type_id · provenance (SOLD|IMPORTED) · external_ref?
                   sold_line_id? · sold_at · seller_employee_id? · price_paid · paid_method? · expires_on · revision
 PackageComponent  entitlement_id · service_id · list_price_snapshot · sessions_total · component_value
