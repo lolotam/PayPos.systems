@@ -58,24 +58,6 @@ export async function readStoredAlertRules(
   return new Map(rows.map((row) => [row.kind, toStoredAlertRule(row)]));
 }
 
-/**
- * المفتاح العام المخزن للنشاط؛ null = شغّال أو لسه مفيش صف إعدادات.
- *
- * @param tx         معاملة الشركة
- * @param companyId  الشركة
- * @param businessId النشاط
- * @returns القيمة المخزنة
- */
-export async function readAlertsEnabled(
-  tx: Tx,
-  companyId: string,
-  businessId: string,
-): Promise<boolean | null> {
-  const [row] = await tx.execute<{ alerts_enabled: boolean | null }>(sql`SELECT alerts_enabled
-    FROM business_settings WHERE company_id = ${companyId} AND business_id = ${businessId}`);
-  return row?.alerts_enabled ?? null;
-}
-
 function scopeFor(tx: Tx, companyId: string, userId: string, ids: IdGenerator): AlertRulesScope {
   return {
     audit: transactionWriters(tx, ids).audit,

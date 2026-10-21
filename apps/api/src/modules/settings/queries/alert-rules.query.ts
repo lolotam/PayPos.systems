@@ -1,9 +1,30 @@
 import type { AlertRules } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import { ALERT_KIND_DEFINITIONS, ALERT_KINDS, type FixedAlertRecipient } from '@pospay/domain';
+import {
+  ALERT_KIND_DEFINITIONS,
+  ALERT_KINDS,
+  type AlertKind,
+  type AlertRuleSettings,
+  type FixedAlertRecipient,
+} from '@pospay/domain';
 
-import { readAlertsEnabled, readStoredAlertRules } from '../persistence/alert-rules-store.ts';
+type RuleRow = {
+  branch_id: string | null;
+  kind: AlertKind;
+  enabled: boolean;
+  recipient_roles: AlertRuleSettings['recipientRoles'];
+  channels: AlertRuleSettings['channels'];
+  delay_minutes: number | null;
+  lead_minutes: number | null;
+};
+const settingsOf = (row: RuleRow): AlertRuleSettings => ({
+  enabled: row.enabled,
+  recipientRoles: row.recipient_roles,
+  channels: row.channels,
+  delayMinutes: row.delay_minutes,
+  leadMinutes: row.lead_minutes,
+});
 
 const fixedView = (recipient: FixedAlertRecipient) => ({
   selector: recipient.selector,
@@ -23,12 +44,15 @@ export async function alertRulesQuery(
       WHERE company_id = ${companyId} AND business_id = ${businessId} AND id = ${branchId}`);
     if (owned === undefined) return null;
   }
-  const business = await readStoredAlertRules(tx, companyId, { businessId, branchId: null });
-  const branch =
-    branchId === null
-      ? new Map<never, never>()
-      : await readStoredAlertRules(tx, companyId, { businessId, branchId });
-  const alertsEnabled = await readAlertsEnabled(tx, companyId, businessId);
+  const rows = await tx.execute<RuleRow>(sql`SELECT branch_id, kind, enabled, recipient_roles, channels,
+      delay_minutes, lead_minutes
+    FROM alert_rules WHERE company_id = ${companyId} AND business_id = ${businessId}
+      AND (branch_id IS NULL OR branch_id = ${branchId})`);
+  const business = new Map(rows.filter((r) => r.branch_id === null).map((r) => [r.kind, settingsOf(r)]));
+  const branch = new Map(rows.filter((r) => r.branch_id !== null).map((r) => [r.kind, settingsOf(r)]));
+  const [master] = await tx.execute<{ alerts_enabled: boolean | null }>(sql`SELECT alerts_enabled
+    FROM business_settings WHERE company_id = ${companyId} AND business_id = ${businessId}`);
+  const alertsEnabled = master?.alerts_enabled ?? null;
   return {
     business_id: businessId,
     branch_id: branchId,

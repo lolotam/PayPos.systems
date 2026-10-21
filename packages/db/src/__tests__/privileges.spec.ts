@@ -18,6 +18,7 @@ import { SERVICE_LINE_EDIT_COLUMN_GRANTS } from '../../test/service-line-edit-gr
 import { SERVICE_LINE_CANCEL_COLUMN_GRANTS } from '../../test/service-line-cancel-grants.ts';
 import { SERVICE_LINE_PERFORMER_COLUMN_GRANTS } from '../../test/service-line-performer-grants.ts';
 import { ALERT_RULE_COLUMN_GRANTS } from '../../test/alert-rule-grants.ts';
+import { RECOVERY_COLUMN_GRANTS } from '../../test/recovery-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -204,14 +205,6 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   pospay_dispatcher: ['outbox:SELECT'],
 };
 // The dispatcher may change delivery metadata only — id, company_id and payload stay immutable to it.
-const RECOVERY_COLUMN_GRANTS = [
-  'service_session_recoveries.committed_at:pospay_app:UPDATE',
-  'service_session_recoveries.expires_at:pospay_app:UPDATE',
-  'service_session_recoveries.last_seen_at:pospay_app:UPDATE',
-  'service_session_recoveries.revoked_at:pospay_app:UPDATE',
-  'service_session_recoveries.revoked_outcome:pospay_app:UPDATE',
-  'service_session_recoveries.session_id:pospay_app:UPDATE',
-];
 const OUTBOX_COLUMN_GRANTS = [
   'outbox.attempts:pospay_dispatcher:UPDATE',
   'outbox.last_error:pospay_dispatcher:UPDATE',
