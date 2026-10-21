@@ -15,6 +15,7 @@
 >
 > **Changelog**
 >
+> - **V3.14 (2026-10-21)** — §1 5b: every owner question, money or not, goes on the decisions page, and the same rule binds all of them: when Waleed and Abu Salem differ, Abu Salem's pick wins; until he answers, work follows Waleed's pick. Questions still go to Waleed as super-agent cards, and his card answer is recorded on the page as his named pick. This replaces the 2026-10-18 routing that kept permission and technical questions off the page (Waleed, 2026-10-21, «زي الفلوس: أبو سالم (المقترح)»). Recorded in `docs/owner-decisions.ar.md`.
 > - **V3.13 (2026-10-20)** — Three rules adopted from Eng. Khaled's review (Waleed, PP-7.2, 2026-10-19): §5 `packages/db` throws a typed error, never a plain `Error`, on an expected path; §6 guards keep a connection budget (no nested or concurrent transactions, mergeable reads share one `withTenant`); §9 a UI test asserts a visible outcome, not only a mock call. His rule banning `@Authenticated()` on write routes was rejected; a CI declaration test will replace it (PP-7.1, in the code PR that follows), and §6 names that alternative to a permission guard. Recorded in `docs/owner-decisions.ar.md`.
 > - **V3.12 (2026-10-20)** — §1 5b/5c: the decisions page moved off claude.ai to the self-hosted site https://plan.pospay.systems (repo `lolotam/plan`). Question batches and `roadmap.json` are published by a git push to that repo; answers are read and owner decisions written through its HTTP API. The old artifact is retired. How-to: `docs/decisions-site.md` (Waleed, in chat, 2026-10-20).
 > - **V3.11 (2026-10-18)** — §1 5b: owner questions are routed by kind. Charges/money questions go to the decisions page for Abu Salem; permission and technical questions go to Waleed only through his super agent. Every answer is copied verbatim into the slice's `owner-questions.ar.md`, which is the audit record. When Abu Salem has answered, Waleed's own pick is not required (Waleed, PP-1.2, 2026-10-18). Both decisions are recorded in `docs/owner-decisions.ar.md`, with the PP batch index.
@@ -43,16 +44,11 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
 3. Then, in this order: **contract (Zod) → migration + RLS policy → domain functions + their tests → use case → adapters (persistence, http) → integration tests → UI.** Run `pnpm check` before declaring done.
 4. Do not touch modules outside the slice. If you must, say so and explain why.
 5. Every architectural decision → `docs/adr/NNNN-title.md` (context, decision, consequences).
-5b. **Every owner question is recorded in the slice, then routed by its kind.**
+5b. **Every owner question is recorded in the slice, then published on the decisions page.**
     - Always first, the slice's `docs/specs/NNN-…/owner-questions.ar.md`. It holds the question, the options, the recommended option, and the owner's answer verbatim, all in Arabic. **This file is the audit record** of every owner decision, whichever channel the answer came through. A question that belongs to no slice (a docs-only PR, a pipeline or process rule) is recorded the same way in `docs/owner-decisions.ar.md`.
-    - **Charges and money** (what a customer pays, what staff earn, how money moves or is recorded: prices, fees, discounts, tips, commissions, refunds, cancellations of paid lines): also the shared decisions page https://plan.pospay.systems, as a **new numbered batch** (published and read as `docs/decisions-site.md` describes). Batch 1 is the decisions made up to 2026-10-08; the next batch number is the highest batch on the page + 1 (one sequence for the whole project, whatever the slice). A money question Waleed already answered through his super agent still goes to the page, so the partner can pick, and work proceeds on Waleed's pick meanwhile.
-    - **Permissions and technical questions** (roles, who can see or edit what, access scope, screens' reach, design, CI, database, tooling): go to Waleed only, through his super agent (a Claude session that sits above the project managers and relays his answers; the orchestrator reaches it by cross-session message), as a numbered batch `PP-n` with items `PP-n.m`, numbered in order for this project and listed in the index of `docs/owner-decisions.ar.md` (next number = highest there + 1); never to the partner page. His answer is copied verbatim into the slice's `owner-questions.ar.md` with the date and «عن طريق الـ super agent» (Waleed, PP-4.3, 2026-10-18).
-    - **Overlap:** a question that is both (for example «may a cashier refund or cancel a paid line?») is a money
-      question: it goes to the page, because the answer changes how money moves.
-    - **Every other owner question** (product behaviour that moves no money, for example whether a break is mandatory) also goes to Waleed through his super agent, like the permission questions. Only charges/money questions reach the partner page.
-    - **Questions already on the page before 2026-10-18** keep the rule they were published under: an answer Abu Salem
-      gives to one of them still binds, and nothing is migrated. The routing above applies to every question asked
-      from 2026-10-18 on.
+    - **Every owner question goes on the shared decisions page** https://plan.pospay.systems, whatever its kind: charges and money, permissions and roles, technical, and product behaviour. It is published as a **new numbered batch**, as `docs/decisions-site.md` describes. Batch 1 is the decisions made up to 2026-10-08; the next batch number is the highest batch on the page + 1 (one sequence for the whole project, whatever the slice). Waleed and Abu Salem each pick on the page and see each other's pick (Waleed, 2026-10-21, «زي الفلوس: أبو سالم (المقترح)»).
+    - **Each new question is also sent to Waleed through his super agent** (a Claude session that sits above the project managers and relays his answers; the orchestrator reaches it by cross-session message), so he can answer it as a card. Those questions are numbered `PP-n` / `PP-n.m` in the index of `docs/owner-decisions.ar.md` (next number = highest there + 1). His card answer is copied verbatim into the slice's `owner-questions.ar.md` with the date and «عن طريق الـ super agent», and recorded on the page as **his own named pick** (a note under his user id), so Abu Salem sees it and picks too.
+    - **History:** from 2026-10-18 to 2026-10-21 permission and technical questions went to Waleed only (PP-4.3). All of them, PP-15 to PP-23, were published on 2026-10-21 as batch 40 with his picks; the rule below now applies to them like any other question.
     - On the page, Waleed and his partner (Abu Salem) pick. **When they differ, the partner's pick is binding.** When
       the partner has answered, his pick binds and Waleed's own pick is not required (PP-1.2); until the partner answers, work
       proceeds on Waleed's pick; if the partner later differs, his pick replaces it (the decision record, the slice's
@@ -63,9 +59,8 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
     - **Who writes where:** only the Claude Code orchestrator session can publish to that page. Any other agent (Codex,
       Grok, a subagent) writes the question into the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md` for a
       question that belongs to no slice) with the answer marked
-      `PENDING`, marks the rule `TODO(spec)`, and stops. The orchestrator then routes it by kind (the page for a
-      charges/money question, Waleed's super agent for every other question) and writes the owner's answer back into
-      the file.
+      `PENDING`, marks the rule `TODO(spec)`, and stops. The orchestrator then publishes it on the page, sends it to Waleed's super
+      agent, and writes the owners' answers back into the file.
 5c. **The project-status tab is always current.** The same decisions page has a tab «المشروع أول بأول» fed by
     `public/roadmap.json` in the `lolotam/plan` repo: every phase, gate, task and sub-task by its code, the product
     tracks, and every partner request, each marked done / in progress / not started. The orchestrator updates it and

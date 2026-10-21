@@ -63,7 +63,7 @@ curl -s "$B/health"
 
 `choice` is a 0-based index into the question's `options_ar`. A collection response is `{"docs":[{"id":…,"data":{…}}]}`.
 
-## A. Publish a new money/charges question batch
+## A. Publish a new question batch (every kind of owner question)
 
 1. **Record first** (`CLAUDE.md` §1 5b, "Always first"). Write each question into the slice's
    `owner-questions.ar.md`, or into `docs/owner-decisions.ar.md` when it belongs to no slice. Mark its answer `PENDING`.
@@ -80,7 +80,14 @@ curl -s "$B/health"
 7. Commit as `chore(questions): batch <n> — <topic>` and push to `main`.
 8. Confirm the deploy: `curl -s -u "$PLAN_AUTH" $B/decisions.en.json` must contain the new ids.
 
-Permission and technical questions still go to Waleed's super agent as `PP-n`. They never go to this site.
+Every question also goes to Waleed's super agent as `PP-n` (`CLAUDE.md` §1 5b). When his card answer comes back, record it on the site as his own pick, not as a final decision:
+
+```bash
+# Waleed's pick from a card: a note under his user id (choice = 0-based option index; omit it for a free-text answer)
+curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' \n  -d '{"qid":"XX-Q1","verdict":"ok","choice":0,"text":"<his words, verbatim>","updatedAt":"<ISO time>"}' \n  "$B/api/doc?path=reviews/u_kxawXFcE2cQIRRqI4Cn8Iw/notes/<docId>"
+```
+
+Read the note first; never overwrite a pick he made on the page himself.
 
 ## B. After every merge, and after any row change or new partner request
 
@@ -156,4 +163,4 @@ A `200` means it was sent. To check what went out, read the same topic you publi
 - Never edit `seed/db.seed.json` to change live answers. It only seeds the first run.
 - Never delete the `plan-data` volume or the Dokploy app.
 - Never put the password in git, in a doc or in a message.
-- Never publish a money question anywhere except this site. Never put a permission or technical question on it.
+- Never publish an owner question anywhere except this site (plus the card to Waleed through his super agent).
