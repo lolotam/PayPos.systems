@@ -123,9 +123,9 @@ that list (D-A1). Its port has the same two reads as the other consumers (FR-A08
   stored value is 1–24 (D-A14; MY-Q2, PP-18.2; MY-Q9, PP-21.1: «شهر، ولحد 24»).
 
 `settings` stays the owner of both values; they are edited under the existing `manage:settings:business` (MY-Q5,
-PP-18.5) and nobody else writes them. **No import arrow is added:** `orders` already imports `settings` (§2,
-ADR-0041's `DiscountLimitPort`). The orders adapter calls a public settings reader that 57c-1 adds; the
-`commissions`, `customers` and `staff` adapters, already approved above, call the same reader in the same sub-PR.
+PP-18.5) and nobody else writes them. `orders` already imports `settings` (§2, ADR-0041's `DiscountLimitPort`).
+The orders adapter calls a public settings reader that 57c-1 adds; the `commissions`, `customers` and `staff`
+adapters, whose ports are already approved above, call the same reader in the same sub-PR (see §4 for their arrows).
 
 ### 2. Worker orders' `AlertRulesPort` (spec 060 D-B13, D-B14)
 
@@ -139,8 +139,8 @@ PP-18.25), and row 62 delivers in-app only (AL-Q6, PP-18.26). The rules are edit
 - **A minimal worker `settings` module.** It exports this one read on the caller's transaction, in the shape of the
   worker `tenancy` and `identity` readers that ADR-0037 §2 uses. The API never pushes rules to the worker. Built in 62-1
   with the storage; worker `staff`'s use of it is already covered by the original `staff` row.
-- **No import arrow is added:** `orders: [..., settings]` already exists in §2, and `settings` imports nothing it
-  does not already list.
+- **No new arrow for orders:** `orders: [..., settings]` already exists in §2, and `settings` imports nothing it
+  does not already list. Worker `staff` reads the same module through the `staff → settings` arrow of §4.
 - **Recipients still come from identity.** The rule supplies the roles; the user ids still come from identity's scoped
   read (`branchManagerRecipients`) on the same transaction, replacing the roles of `interimNotClockedInRule`
   (ADR-0037). `notifications` stays business-free: the emitter resolves the rule and puts recipients and channels in
@@ -162,13 +162,38 @@ same shape as its existing `branchPlace` and `businessTimeZone` readers.
 - **Declared now, built later.** The whole rating track is postponed to the end of the project (RT-Q1, PP-18.9), and
   59-1 is part of it. The port is declared now so that 59-1 needs no further ADR when the track resumes.
 
+### 4. Three read-only arrows into `settings` (Codex review of PR #462)
+
+The original Decision says no Phase 1 module needs a new compile-time edge, but that holds only for the ports it
+lists by name, not for the adapters that implement them. The `StaffColumnsPort` and `AlertRulesPort` adapters of
+`customers`, `staff` and `commissions` live in each consumer's `persistence/` and call settings' public reader from
+`settings/index.ts`, which is a value import. `module-map.md` §2 lists none of these three modules as importing
+`settings`, so this addendum approves three arrows:
+
+| Arrow | Used by | Limit |
+|---|---|---|
+| `customers → settings` | its `StaffColumnsPort` adapter (57c-1) and, with the postponed rating track, its `AlertRulesPort` adapter for the low-rating alert (61-1) | `persistence/` adapters only; settings' public read functions only, on the caller's transaction |
+| `staff → settings` | its `StaffColumnsPort` adapter (`monthsBack` for «حضوري», 57c-1) and its `AlertRulesPort` adapters (worker 62-2, API 62-2b) | the same |
+| `commissions → settings` | its `StaffColumnsPort` adapter (the estimate column, 57c-1) and its `AlertRulesPort` adapter (62-2c) | the same |
+
+- **Reads only.** Each value import is a `reads` line in §6, one per symbol and adapter file, added by the PR that
+  writes the adapter. No arrow allows a write, an event, or an import of settings' `persistence/`, `domain/` or
+  `use-cases/`; the module-map gate already refuses any path other than `index.ts`.
+- **No cycle.** `settings` imports `tenancy`, `identity` and `files`, and none of those imports `customers`, `staff`
+  or `commissions` (§2). The new arrows point down that list, so the import graph stays acyclic and no
+  composition-root callback is needed. `settings` must never import any of the three; a future need for that
+  direction is an event or a root-bound callback, as with `DaySessionsPort` (ADR-0041).
+- **Why an import and not a root callback.** The adapter is the one file that knows both modules (§3 of
+  `module-map.md`), as for orders' `DiscountLimitPort`. A callback injected at the root would hide the same edge
+  from the gate without removing the dependency.
+
 ### Module map
 
-- `module-map.md` §3 gains the three rows above. §2 and the §6 `imports` are unchanged: no new compile-time edge.
-- **No cycle between adapters** (the Consequences warning above): `settings` and `tenancy` read neither `orders` nor
-  `customers` through any adapter.
+- `module-map.md` §3 gains the three port rows above; §2 and the §6 `imports` gain the three arrows of §4.
+- **No cycle between adapters** (the Consequences warning above): `settings` and `tenancy` read none of `orders`,
+  `customers`, `staff` or `commissions` through any adapter.
 - As the Consequences above require, each adapter adds its `reads` line in the PR that writes it, one line per
-  symbol: 57c-1 adds the settings reader lines of all four `StaffColumnsPort` adapters, 62-3 adds the worker orders →
-  settings line, and 59-1 adds `customers -> tenancy.branchScheduleHours`.
+  symbol: 57c-1 adds the settings reader lines of all four `StaffColumnsPort` adapters; 62-2, 62-2b, 62-2c and 62-3
+  add their `AlertRulesPort` lines; 59-1 adds `customers -> tenancy.branchScheduleHours`.
 - **Not in this addendum:** customers' `RatingAlertRecipientsPort` (docs PR A-1, postponed with the rating track), and
   the `NotificationDelivered` ⇒ `customers` event row (spec 060 D-B8, in 59b-3).

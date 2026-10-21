@@ -34,17 +34,17 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `files`         | `tenancy`             | Storage keys are `{companyId}/{businessId}/…`.                                 |
 | `platform`      | `tenancy`             | Super-admin over tenants.                                                      |
 | `catalog`       | `tenancy`             |                                                                                |
-| `customers`     | `tenancy`             |                                                                                |
+| `customers`     | `tenancy`, `settings` | `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). |
 | `expenses`      | `tenancy`             |                                                                                |
 | `inventory`     | `tenancy`             |                                                                                |
-| `staff`         | `tenancy`, `identity`, `files` | An employee may be linked to a user; a document binds a verified file (ADR-0031). |
+| `staff`         | `tenancy`, `identity`, `files`, `settings` | An employee may be linked to a user; a document binds a verified file (ADR-0031). `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). |
 | `realtime`      | `identity`            | Channel scope is resolved from the session.                                    |
 | `notifications` | —                     | Deliberately root-level: it is a service, it knows nothing about the business. |
 | `orders`        | `tenancy`, `catalog`, `customers`, `staff`, `identity`, `settings` | Consumer-owned ports call provider public readers on the same transaction (ADR-0041). |
 | `payments`      | `tenancy`             | Order totals arrive by **port**.                                               |
 | `cash`          | `identity`            | Payment tenders arrive by **port**.                                            |
 | `appointments`  | `tenancy`             | Catalog / staff / customers arrive by **port**.                                |
-| `commissions`   | `staff`               | Order data arrives by **event** only.                                          |
+| `commissions`   | `staff`, `settings`   | Order data arrives by **event** only. `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). |
 | `loyalty`       | `customers`           | Order data arrives by **event** only.                                          |
 | `channels`      | `tenancy`             | Order and expense effects are **events**.                                      |
 | `kitchen`       | —                     | Fed entirely by events from `orders`.                                          |
@@ -266,17 +266,17 @@ imports:
   files: [tenancy]
   platform: [tenancy]
   catalog: [tenancy]
-  customers: [tenancy]
+  customers: [tenancy, settings]
   expenses: [tenancy]
   inventory: [tenancy]
   orders: [tenancy, catalog, customers, staff, identity, settings]
   payments: [tenancy]
   appointments: [tenancy]
   channels: [tenancy]
-  staff: [tenancy, identity, files]
+  staff: [tenancy, identity, files, settings]
   realtime: [identity]
   cash: [identity]
-  commissions: [staff]
+  commissions: [staff, settings]
   loyalty: [customers]
 
 packages_restricted:
@@ -297,8 +297,8 @@ composition_roots:
 # Every VALUE a module imports from another module's index.ts is one of these (type-only imports need only the
 # arrow above). §3.1: the one synchronous write. A read port's adapter calling another module's exported read is
 # added under reads, one line per symbol, in the PR that introduces it.
-# ADR-0010 addendum 2026-10-21 (spec 060 A-0): orders StaffColumnsPort, worker orders AlertRulesPort and worker
-# customers BranchScheduleHoursPort add no import arrow; their reads lines land with their adapters (57c-1, 62-3, 59-1).
+# ADR-0010 addendum 2026-10-21 (spec 060 A-0): customers/staff/commissions -> settings are read-only arrows for the
+# StaffColumnsPort/AlertRulesPort adapters; every reads line lands with its adapter (57c-1, 62-1/62-3, 59-1).
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
