@@ -21,7 +21,7 @@
 > not built yet).
 > **Design advisors:** required before 59-0 (the ADR), 48a-2 (the lock helper and the statement table), 50-1 (the
 > consumer transaction) and 53-1 (the definer function), as in spec 055 §7. Not needed for this docs-only PR.
-> **Largest slice of Phase 1:** split into 26 sub-PRs of at most three subtasks each (§7, owner rule 2026-10-12).
+> **Largest slice of Phase 1:** split into 27 sub-PRs of at most three subtasks each (§7, owner rule 2026-10-12).
 
 ## 1. What and why
 
@@ -88,7 +88,7 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 | D-15 | **Bootstrap before approval opens** (ADR-0041 §6, spec 053 BR-08): tips from orders' `listCurrentSessionTips` (36-5); lines from an orders-owned paged reader of the latest line revision with its event ids, built in the same shape as 36-5 (new orders sub-PR 50-0); salaries from the ADR-0012 amendment backfill of unconsumed `SalaryChanged` outbox rows; package sales from an orders-owned paged reader of the latest entitlement revision with its event ids (`listCurrentPackageSales`, same shape as 36-5), which row 42 must ship with its producer. Every reader is bound to a commissions-owned port **at the composition root** (no module-map arrow); the design advisors confirm the line reader versus a controlled outbox replay before 50-0 | reading orders tables from commissions (ADR-0041 §6 forbids it) |
 | D-16 | **Reads beyond SPEC §3's arrows** (the business timezone for "the period has ended", service names and customer full names for the statement detail and the export (CS-Q15), the owner and manager recipients of reminders and bells) use provider-owned readers bound to commissions-owned ports at the composition root, the BR-08 pattern; if one cannot be bound there, the sub-PR stops and adds an ADR and the module-map row first (IMPLEMENTATION-PLAN §4) | new import arrows by default |
 | D-17 | **The engine moves to a new shared package, `packages/commissions-engine`** (CS-Q13 = PP-17.1): pure TypeScript whose only dependency is `packages/domain`, the same import rules as a module's `domain/` (CLAUDE.architecture.md §3.1), imported only by the `commissions` modules of `apps/api` and `apps/worker` (a `packages_restricted` entry in `docs/module-map.md`, enforced by the boundaries lint). **One exception:** a browser-safe subpath entry point, `packages/commissions-engine/validation`, exports only `validateCommissionPlan`, its error codes and the plan types (pure, no dependency beyond `packages/domain`, no Node-only code), and `apps/admin/src/commissions` may import that entry point and nothing else of the package, so the builder runs the same validator as the API (CM-06); the ADR and the boundaries rule of 59-0 name both the restriction and this exception. 59-0 writes its ADR (a new package, CLAUDE.md §11) and the CLAUDE.md §2.1 / module-map rows; 48a-1 creates the package and moves the engine and its tests unchanged. ADR-0035 stands: commission kinds stay out of `packages/domain` | running the consumer in the api process; copying the engine into the worker |
-| D-18 | **The Excel export is a worker render** on the ADR-0049 transport (202 `{ render_id }`, poll, collect once, not stored), a new `kind` for the commission statement; the workbook is built with `exceljs` (already a dependency of `apps/api`), and generation over 200 ms never runs in a request (CLAUDE.md §6). An ADR-0049 addendum names the new kind | a synchronous download |
+| D-18 | **The Excel export is a worker render** on the ADR-0049 transport (202 `{ render_id }`, poll, collect once, not stored), a new `kind` for the commission statement; the workbook is built with `exceljs` (already in the repo; the builder lives in `packages/documents`, which owns Excel rendering, CLAUDE.md §2.1), and generation over 200 ms never runs in a request (CLAUDE.md §6). Today every document source returns HTML that the worker sends to the PDF renderer (`apps/worker/src/documents/source-registry.ts`, `process-job.ts`), so sub-PR 56-0 first generalizes that contract to binary output: a source declares its output (HTML → PDF, or bytes with a MIME type), the xlsx kind has **no** HTML → PDF step, its MIME type is `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, its size cap is 8 MiB (the ADR-0049 PDF cap; larger → `DOCUMENT_TOO_LARGE`), and its bytes use the same tenant-prefixed Redis store and collect-once `GETDEL` as the PDF (ADR-0049 §1, PP-6.1). An ADR-0049 addendum (in 59-0) records the binary-output contract and the new kind | a synchronous download; converting the workbook through the PDF path |
 | D-19 | **Money:** `numeric(14,3)` in Postgres, `bigint` mills in TypeScript, KWD strings on the wire (ADR-0035, ADR-0041 §4); one `roundKwd` per source inside the engine (SPEC §5.2, ADR-0005); every total is a plain sum of rounded sources and is never rounded again (`TODO(spec)` CS-Q12 for cash) | rounding a total |
 | D-20 | **Customer identity for the detail (CS-Q15):** the projection head keeps the event's `customer_id` (and `service_id`), and a line-sourced frozen statement row copies `line_id`, `session_id`, `service_id`, `customer_id` and `business_date`. While the month is open (DRAFT/REVIEWED) the customer's full name and the service names are read live by id through the readers bound at the root (D-16). **At approval they are frozen:** the line-sourced frozen row also stores `customer_name` and `service_name_ar`/`service_name_en` as read in the approval transaction, so an approved statement and every later export of it never change (BR-02, SPEC §6 "the frozen statement is never changed"). The name is the only personal data copied; no phone is ever read or stored here (SPEC §4). Erasure: D-21 | reading names live for a closed statement (a renamed customer would change an approved export); resolving the line through orders (ADR-0041 §6 forbids commissions reading orders) |
 | D-21 | **Customer erasure (CS-Q21 = PP-20.2), recorded now, built later.** The owner decided that when a customer is erased, every frozen statement row naming her has **only** its customer name replaced by a placeholder, by a recorded operation, and amounts, dates, services and ids never change. This is the **one controlled exception** to BR-02 and SC-002. Phase 1 has no customer-erasure feature, so this slice designs none of its mechanics; they are one deferred item, **«with the customer-erasure feature»** (§7 _Deferred_). Until then frozen rows are insert-only with no exception | designing the erasure use case, trigger and event inside this slice without the feature that drives them |
@@ -322,6 +322,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   a new export of the same approved statement still shows the name frozen at approval and identical amounts, while an open
   month's view shows the corrected name; the same holds for the employee's name and number renamed or renumbered after
   approval.
+- **CM-55d** The export request row is written with the requester's scope before the job is queued: ليلى (branch-scoped)
+  gets a workbook with only her branch's employees even if her membership changes before the worker runs; a job whose
+  `render_id` has no request row fails without reading any statement; the xlsx bytes are returned with the xlsx MIME type
+  and never pass through the PDF renderer.
 - **CM-56** The amounts in the file equal the frozen statement bit for bit (KWD, three decimals, as text-safe numbers).
 
 ### Story 12 — Reminders (56b, P2)
@@ -562,8 +566,14 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 
 ### 56 — Excel export
 
-- **FR-050** `POST …/:period/exports` → 202 `{ render_id }` on the ADR-0049 transport (D-18); the worker document source reads
-  the frozen statement under `withTenant`, closes the transaction, then builds the workbook; poll and collect once.
+- **FR-050** `POST …/:period/exports` → 202 `{ render_id }` on the ADR-0049 transport (D-18). Before enqueueing, in its own
+  transaction, the use case persists one **export request** row keyed by `render_id` (`commission_statement_exports`, §6):
+  the statement id, business, period, requester user and membership, and the **authorized scope** resolved at request time
+  (business-wide, or the branch and the exact employee set a branch-scoped reader may see, CS-Q20 = PP-20.1). The job
+  payload stays `{ company_id, render_id, kind }` (ADR-0049 §1); the worker document source loads the request by `render_id`
+  under `withTenant`, refuses a missing one, reads only the frozen rows of that statement and those employees, closes the
+  transaction, then builds the workbook (binary output, D-18); poll and collect once. The collect writes the audit entry
+  (FR-052) and sets the request's `collected_at`.
 - **FR-051** Columns include, per employee: employee number (row 8c) and name, both taken from the frozen row (FR-033), commission, sales commission, corrections received,
   card tips, cash tips (informational), and the payable figure (CS-Q7); the content and states: CS-Q10; detail rows carry the customer's full name (CS-Q15 = PP-17.3).
   No phone ever (SPEC §4, R1).
@@ -637,6 +647,7 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 | `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed), `generation`, `event_id`, `created_at` | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; index `(company_id, business_id, target_period)`; insert-only |
 | `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; `SELECT, INSERT, UPDATE (code, resolved_at, resolved_generation)`; a trigger allows `code` to change (`NO_PLAN` ↔ `NO_SALARY`) only on an open row and refuses any change to a resolved row |
 | `commission_statement_returns` (52) | `statement_id`, `returned_by`, `returned_membership_id`, `reason`, `returned_at` | `CHECK` reason 1…500 trimmed; insert-only; reason never logged |
+| `commission_statement_exports` (56) | `render_id`, `statement_id`, `period`, `requested_by`, `requested_membership_id`, `scope` (`BUSINESS` / `BRANCH`), `branch_id NULL`, `employee_ids uuid[] NULL` (the branch-filtered set), `requested_at`, `collected_at NULL` | `UNIQUE (company_id, render_id)`; `CHECK` (`scope = 'BRANCH'`) = (`branch_id` and `employee_ids` not null); `SELECT, INSERT, UPDATE (collected_at)` |
 | `commission_statement_reminders` (56b) | `statement_id`, `kind`, `reminder_date`, `recipient_count` | `UNIQUE (company_id, statement_id, kind, reminder_date)`; insert-only |
 
 **Named isolation tests** (each in the sub-PR that creates its table, as part of that sub-PR's test subtask; company B
@@ -655,6 +666,7 @@ reads 0 of company A's rows and every insert or update of a row for A fails as B
 | CM-33c | `commission_statement_returns` | 52-1 |
 | CM-R08 | `commission_statement_lines` | 53-2 |
 | CM-R09 | `commission_statement_reminders` | 56b-1 |
+| CM-R10 | `commission_statement_exports` | 56-1 |
 
 Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, policies, outbox index) with the six types (D-9).
 
@@ -718,7 +730,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 
 | PR | Result | Subtasks | Blocked on | Size |
 | --- | --- | --- | --- | --- |
-| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9), ADR-0049 addendum (export kind) | this spec; design advisors | 150–250 |
+| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9), ADR-0049 addendum (binary output contract and the xlsx kind, D-18) | this spec; design advisors | 150–250 |
 | **48a-1** | `packages/commissions-engine` (D-17) | 1. Package scaffold, `packages/domain` its only dependency, and the browser-safe `validation` entry point. 2. Move the engine and its tests unchanged. 3. Rewire the api imports; the boundaries rule (only the `commissions` modules may import it) and the module-map check | 59-0 | 150–300 (moves) |
 | **48a-2** | Statements and the lock | 1. `commission_statements` + RLS + grants + FR-001 trigger + negative tests. 2. `lockStatementPeriods` + typed errors. 3. Lock tests CM-01…CM-04 and the FR-004 check | 48a-1 | 300–420 |
 | **48-1** | Plan storage and contracts | 1. Zod contracts and OpenAPI. 2. `commission_plan_versions` + RLS. 3. The plan permission (CS-Q1) and its role defaults | 48a-2; CS-Q1 | 250–380 |
@@ -742,7 +754,8 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-35, CM-37, CM-38 | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q22 | 400–550 |
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to her branch's employees for a branch-scoped reader (CS-Q20 = PP-20.1). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
 | **54-1** | Mark paid | 1. The payment columns on `commission_statements` in the shape CS-Q6 decides (expand-only migration, grants), the use case + HTTP. 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
-| **56-1** | Excel export | 1. Worker document source and workbook (D-18). 2. Request/collect routes, audit. 3. CM-55, CM-56 | 53-2; 59-0's ADR-0049 addendum; CS-Q10, CS-Q12 | 350–480 |
+| **56-0** | Binary documents in the worker (D-18) | 1. Generalize the source/processor contract: a source returns HTML for the PDF renderer or bytes with a MIME type; no HTML → PDF step for bytes. 2. The xlsx MIME type, the 8 MiB cap (`DOCUMENT_TOO_LARGE`), the same Redis store and collect-once reply with the source's MIME type. 3. Tests: a bytes source never reaches the renderer, the cap, collect-once, the PDF kinds unchanged | 59-0's ADR-0049 addendum | 200–320 |
+| **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-56, CM-R10 | 53-2, **56-0**; CS-Q10, CS-Q12 | 350–480 |
 | **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
 
 **Deferred — «with the customer-erasure feature» (D-21, CS-Q21 = PP-20.2).** Not a sub-PR of this slice; it ships with the
