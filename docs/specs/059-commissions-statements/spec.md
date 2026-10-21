@@ -84,7 +84,7 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 | D-10 | **Revision guards per input identity:** a line `(line_id)` by its per-line `revision` (ADR-0041 §4: a newer `ServiceLineChanged` wins over a delayed revision-1 recording); tips by the per-session `revision` (spec 053); a salary by `(employee_id, effective_from)` and its per-entry `revision` (spec 021); a sale by `(sale_id, revision)` (SPEC §3). Older or equal revisions are no-ops | last-write-wins |
 | D-11 | **A line is projected as one row per performer**, with `net_share` from the engine's `allocateLineShares` (floor, remainder mills by ascending `employee_id`, SPEC §5.2). A newer revision **replaces** every row of the line, so a performer change (spec 055) removes the old performers' rows and adds the new ones; money in events is a KWD string read with `parseMoney` (ADR-0041 §4) | storing the line once (the engine prices per performer) |
 | D-12 | **Period repair** is a plan version marked `repair_period = 'YYYY-MM'` that applies **only inside that month** and is ignored for every other month; the engine's `selectCommissionPlanVersion` gains that rule (a new kind of version by decision, SPEC §5.7's last sentence, never an `if` in a caller). Which lines of that month it may price is `TODO(spec)` CS-Q11 | reusing `whole_period` (it would also apply from its date onward, `plan-version.ts`) |
-| D-13 | **Correction target = the earliest DRAFT period after the source**, exactly as SPEC §6 says (a settled money rule): a REVIEWED month is skipped and keeps its review. The target is chosen from the statuses held under the locks **before** this event returns any REVIEWED month to DRAFT (FR-015 order), so a month the same event reopens is not a target of that event | retargeting into a REVIEWED month (would change which payroll month bears the correction without an owner answer) |
+| D-13 | **Correction target = the earliest DRAFT period after the source**, exactly as SPEC §6 says (a settled money rule): a REVIEWED month is skipped and keeps its review. **Every candidate is locked before the choice:** the writer locks every month from the source month through the business's current month (the last month that can be DRAFT, since a month that has not ended cannot be reviewed), in the same single ascending `lockStatementPeriods` call as its other periods (D-3), and only then chooses, from the statuses that call returned; no status is read before its lock, so a REVIEWED month returned to DRAFT concurrently is either seen as DRAFT (its return committed first) or returned only after the correction commits (the return waits on the lock). The target is chosen **before** this event returns any REVIEWED month to DRAFT (FR-015 order), so a month the same event reopens is not a target of that event | retargeting into a REVIEWED month (would change which payroll month bears the correction without an owner answer) |
 | D-14 | **"Lines without a performer" is satisfied by construction:** a line has 1…4 performers summing to 10000 (deferred consistency trigger, migration 0131). Approval still refuses if any projected ACTIVE line's rows do not sum to 10000 bps, as a defensive check of the projection | a second performer source in commissions |
 | D-15 | **Bootstrap before approval opens** (ADR-0041 §6, spec 053 BR-08): tips from orders' `listCurrentSessionTips` (36-5); lines from an orders-owned paged reader of the latest line revision with its event ids, built in the same shape as 36-5 (new orders sub-PR 50-0); salaries from the ADR-0012 amendment backfill of unconsumed `SalaryChanged` outbox rows; package sales from an orders-owned paged reader of the latest entitlement revision with its event ids (`listCurrentPackageSales`, same shape as 36-5), which row 42 must ship with its producer. Every reader is bound to a commissions-owned port **at the composition root** (no module-map arrow); the design advisors confirm the line reader versus a controlled outbox replay before 50-0 | reading orders tables from commissions (ADR-0041 §6 forbids it) |
 | D-16 | **Reads beyond SPEC §3's arrows** (the business timezone for "the period has ended", service names and customer full names for the statement detail and the export (CS-Q15), the owner and manager recipients of reminders and bells) use provider-owned readers bound to commissions-owned ports at the composition root, the BR-08 pattern; if one cannot be bound there, the sub-PR stops and adds an ADR and the module-map row first (IMPLEMENTATION-PLAN §4) | new import arrows by default |
@@ -345,7 +345,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   for the added, plus any tier-shifted lines of either employee.
 - **CM-46b** (FR-042) سارة has salary entries on 1 January (500.000) and 10 April (600.000); January and February are
   APPROVED, March is REVIEWED, April is DRAFT. A back-dated entry on 15 January (550.000) is the selected salary of
-  January, February and March only: one transaction locks January…March (and the correction target April), posts
+  January, February and March only: one transaction locks January…March and every candidate target month through the
+  current month (April included) in one ascending call, posts
   corrections for January and February into April (the earliest DRAFT month: March was REVIEWED when the targets were
   chosen, D-13), returns March to DRAFT, and leaves April's own month unchanged; a
   later revision of the 15 January entry repeats the same range.
@@ -353,8 +354,15 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   closed month → a `TIP_CARD` or `TIP_CASH` correction for that `tip:<session>:<method>` source; raising a cash tip of a
   closed month changes no payable figure, raising a card tip does.
 - **CM-47** A change to a PAID month posts a correction exactly like an APPROVED one (SPEC §11).
-- **CM-48** The target closes while a correction is being posted (barrier): the writer rechecks under the target's lock,
-  moves to the next DRAFT month and locks it (ascending order kept, SPEC §11); a REVIEWED month on the way is skipped.
+- **CM-48** (Codex 4335693293, barriers) September is APPROVED, October is REVIEWED, November is DRAFT, and a late
+  September change arrives while the owner returns October to DRAFT (FR-031). (a) The return holds October's lock first
+  (barrier before its commit): the consumer waits on October's lock, then sees it DRAFT and posts the correction into
+  **October**. (b) The consumer holds its locks first (barrier after its `lockStatementPeriods` call): the return waits on
+  October's lock; the consumer, which saw October REVIEWED under the lock, posts into November and commits; then the
+  return completes. In no interleaving is a correction posted into November while October was DRAFT when the target was
+  chosen, and no status is read before its lock. The chosen DRAFT target cannot be reviewed or approved before the
+  correction commits (a review of it waits on its lock and then sees the correction in its fingerprint), and the locks are
+  always taken in one ascending call, so this writer never deadlocks with another (CM-02).
 - **CM-49** A replayed event is deduped before it can bump the generation; a second real change bumps it again and posts only
   `new − (frozen + corrections already posted)` for each source.
 - **CM-50** Corrections received are inputs of the target: they enter its fingerprint and are frozen as `CORRECTION` lines at
@@ -494,8 +502,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   identities → **take a transaction advisory lock per input identity** (`(company, kind, line_id | session_id | sale_id |
   employee_id+effective_from)`, ascending; it also covers an identity with no projection row yet) → only then read the held
   revisions and drop stale ones → compute the affected `(employee, period)` pairs from that locked state (old and new
-  performers, old and new business dates) → `lockStatementPeriods` for every affected period plus the correction targets,
-  ascending → apply the projection change → for each affected closed period run the correction step (FR-039) → return each
+  performers, old and new business dates) → **one** `lockStatementPeriods` call, ascending, for every affected period and, for each
+  affected closed period, every candidate target month from it through the business's current month (D-13) → choose each
+  correction target from the statuses that call returned → apply the projection change → for each affected closed period run the correction step (FR-039) → return each
   affected REVIEWED period to DRAFT (D-5) → mark consumed. Any failure rolls everything back (SPEC §6). The bootstrap (FR-020)
   takes the same identity locks in the same order before it compares revisions, so a live delivery and a bootstrap page of
   one identity serialize: the lock order is always identity locks, then statement rows, and only the consumer and the
@@ -652,7 +661,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `commission_period_generations` → recompute the month with current inputs (D-1) → for every source of that employee in
   the month (union of frozen, previously corrected and newly computed sources) post `delta = new − (frozen + corrections
   already posted)` when non-zero, storing all three: `previous_amount` (frozen + corrections already posted), `new_amount`
-  (new) and `amount` (the delta) → into the target of D-13, rechecked under its lock (SPEC §6).
+  (new) and `amount` (the delta) → into the target of D-13, chosen from the statuses held after every candidate month
+  was locked (FR-015), never from a status read before its lock (SPEC §6).
 - **FR-040** `commission_corrections` is insert-only and every row carries the `source_branch_id`, `source_business_date`
   and `attached_branch_ids` of the line, sale or tip it corrects, never changed. The lookup key is the full
   triple **`(source_period, employee_id, source_ref)`**, never `source_ref` alone, because a shared line has one row per
@@ -674,7 +684,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   day falls in `[effective_from, next_from)`**, where `next_from` is the employee's next later entry in the projection (open
   ended when there is none, up to the current month). A new entry or a new revision of one therefore affects that whole
   range, not one month. Under the identity lock of FR-015 the consumer computes the range from the locked projection, calls
-  `lockStatementPeriods` for every month in it (plus the correction targets, ascending, one call), then for each month:
+  `lockStatementPeriods` for every month in it plus every candidate target month through the current month (D-13,
+  ascending, one call), then for each month:
   an open month (DRAFT/REVIEWED) is refreshed (its estimate recomputes on read; REVIEWED returns to DRAFT, D-5) and a closed
   month (APPROVED/PAID) runs the correction step (FR-039) for that employee. The fingerprint of a month includes only its
   selected salary (§6 _Fingerprint_), so months outside the range do not change.
@@ -706,8 +717,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   every recompute of an open block (after a repair, a salary, or a later event) sets its `code` to what the engine now
   returns, `NO_PLAN` ↔ `NO_SALARY` either way, on the same row; a resolved row never changes); the plan is validated
   like FR-006; stored as a plan version with `repair_period` (D-12, CS-Q11); audit `commission_plan.period_repaired`. In the
-  same transaction the month is recomputed and the correction posted (FR-039); the block is resolved when the recompute
-  succeeds.
+  same transaction the month is recomputed and the correction posted (FR-039) into the block's stored target (FR-046),
+  under one `lockStatementPeriods` call that locks the source month through that target in ascending order; the block is
+  resolved when the recompute succeeds.
 - **FR-048** A month that is the stored `target_statement_id` of an open blocked correction, for any employee, cannot be
   reviewed or approved (SPEC §6); the check reads the stored target, never recomputes it.
 - **FR-049** The blocked correction is visible on the view of its stored target statement and in a list `GET …/commission-blocked-corrections`
