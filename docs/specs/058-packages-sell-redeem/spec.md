@@ -13,9 +13,12 @@
 > (batch 40) a new permission `import:packages:business` for the owner, the general manager and the business manager, not
 > the package-type permission. **PK-Q22** (batch 37) an imported package's money is split **by session count only**: every
 > session of the package has the same value whatever its service, so the file carries no per-service price.
-> **Still open (8):** the charges/money questions PK-Q1, PK-Q3 and PK-Q5…PK-Q10 (decisions page, batch 35; Abu Salem binds). Every rule that waits on an open one
-> is marked `TODO(spec)` with its number and follows its recommended option, so only that rule moves if an owner picks
-> otherwise. **No code starts on a sub-PR whose rows name a pending question** (§7).
+> **Answered the same way by both owners (decisions page, batch 35, 2026-10-22; the recommended options):** PK-Q1 (an extension is free),
+> PK-Q3 (the recorder cannot name herself the seller), PK-Q5 (refund permission with reason, bell and audit), PK-Q6 (cancel
+> rules of a line), PK-Q7 (expiry by visit date), PK-Q8 (performer change by the 055 rules), PK-Q9 (an imported package's
+> price is what the customer actually paid) and PK-Q10 (an imported package refunds by the refund rules; one `TODO(spec)`
+> remains on Abu Salem's note). **No question is open.** Two `TODO(spec)` remain: PK-Q10's note (FR-053) and PK-Q22's
+> `list_price_snapshot` (FR-063); **no code starts on a sub-PR whose rows name a pending `TODO(spec)`** (§7).
 > **Implements:** SPEC §4 (`PackageEntitlement`, `PackageComponent`, `PackageSessionSlot`, `PackageRedemption`,
 > `PackageRefund`), §5.6, §8 and the M5–M14 behaviour tests of §11; PRD D-30, D-42, D-48, D-51, D-55; plan rows
 > 33b, 42, 43, 44, 45, 46, 47 (`docs/specs/phase-1/IMPLEMENTATION-PLAN.md`).
@@ -62,14 +65,14 @@ commission, it would fall in proportion to (22.500 − 18.000) ÷ 22.500 (SPEC �
 |---|---|---|
 | Stop / resume selling (33b) | a nullable `selling_stopped_at` on the type; stopped types are refused by the sale and hidden from its picker; everything already sold, and the import, are unaffected (PK-Q12, PP-16.1) | FR-001…FR-003 |
 | The sale record (42) | the **entitlement row is the sale**; it is not a service line (TD-1) | TD-1, FR-010 |
-| Sale price, discount, seller, method, back-dating | price and discount like a visit line (PK-Q2 answered); method `CASH` or `CARD` (PK-Q4, Abu Salem); back-dating like a visit (PK-Q11 answered); `TODO(spec)` PK-Q3 | FR-012…FR-016 |
+| Sale price, discount, seller, method, back-dating | price and discount like a visit line (PK-Q2 answered); method `CASH` or `CARD` (PK-Q4, Abu Salem); back-dating like a visit (PK-Q11 answered); the recorder cannot be the seller (PK-Q3 answered) | FR-012…FR-016 |
 | Valuation | spec 007's `allocatePackagePrice` and `createPackageSlots`, at sale, from the services' list prices **at sale time** | FR-017, BR-01 |
 | Redemption (43) | a **draft kind of the existing record and append routes** (TD-2), not a new endpoint; lowest `FREE` ordinal under a lock on the component row | TD-2, FR-020…FR-027 |
-| Cancel a redemption (44) | the 054 cancel writer accepts a redeemed line and reverses its redemption once in the same transaction (`TODO(spec)` PK-Q6) | TD-3, FR-030…FR-033 |
+| Cancel a redemption (44) | the 054 cancel writer accepts a redeemed line and reverses its redemption once in the same transaction (PK-Q6 answered) | TD-3, FR-030…FR-033 |
 | Price edit of a redeemed line | refused: its price is the slot value (SPEC §4, §8) | FR-034 |
-| Performer change of a redeemed line | `TODO(spec)` PK-Q8 | FR-035 |
-| Extend (45) | forward only, audited, compare-and-set on the current date (PK-Q16 answered; `TODO(spec)` PK-Q1) | FR-040…FR-044 |
-| Refund (46) | the manager picks one component and a count; highest `FREE` ordinals; exact or `INSUFFICIENT_SLOTS` (SPEC §8); the refund records its method, `CASH` or `CARD` (PK-Q4, Abu Salem) (`TODO(spec)` PK-Q5, PK-Q10) | FR-050…FR-057 |
+| Performer change of a redeemed line | allowed by the 055 rules, the slot does not move (PK-Q8 answered) | FR-035 |
+| Extend (45) | forward only, audited, compare-and-set on the current date (PK-Q16 and PK-Q1 answered: free) | FR-040…FR-044 |
+| Refund (46) | the manager picks one component and a count; highest `FREE` ordinals; exact or `INSUFFICIENT_SLOTS` (SPEC §8); the refund records its method, `CASH` or `CARD` (PK-Q4, Abu Salem) (PK-Q5 answered; PK-Q10 answered with one `TODO(spec)`, FR-053) | FR-050…FR-057 |
 | Import (47) | the spec 030 framework: template, preview, one all-or-nothing commit; `external_ref` unique per company; money split by session count only (PK-Q22, Abu Salem); the import permission is the new `import:packages:business` (PK-Q18, Abu Salem) (`TODO(spec)` PK-Q9) | FR-060…FR-068 |
 | Who sees a customer's packages | reception and managers alike see everything (PK-Q17, PP-16.6) | FR-070, FR-071 |
 
@@ -129,16 +132,16 @@ commission arithmetic and statements (rows 50–55); the staff app's view of pac
 
 | ID | Kind | Question (short) | ⭐ recommended | What moves if another option wins |
 |---|---|---|---|---|
-| PK-Q1 | money | Is an extension charged? | free: it moves only the date | 45 gains a fee field, its payment record and its effect on slot values and the seller's commission (a new rule, a new ADR) |
+| PK-Q1 | money | Is an extension charged? | **Answered (batch 35, 2026-10-22; Waleed and Abu Salem picked the same option, the recommended one):** «ببلاش: التمديد بيغيّر التاريخ بس، ومفيش فلوس بتتدفع ولا قيمة الجلسات بتتغيّر» (free: it moves only the date) | 45 gains a fee field, its payment record and its effect on slot values and the seller's commission (a new rule, a new ADR) |
 | PK-Q2 | money | Sale price against the type's price | **Answered (batch 35, Waleed's card, 2026-10-21):** as recommended («زي الزيارة»): like a visit line: editable, even above the type price (SS-Q4); discount counted against the type price within the recorder's limit, half-up (SS-Q5); above the limit refused until rows 38–41 | settled — FR-012, FR-013 |
-| PK-Q3 | money | May the person recording the sale name herself as the seller? | no, like SS-Q2 | FR-014 (one rule) |
+| PK-Q3 | money | May the person recording the sale name herself as the seller? | **Answered (batch 35, 2026-10-22; Waleed and Abu Salem picked the same option, the recommended one):** «لأ، زي SS-Q2: اللي بتسجّل ماتكتبش نفسها بائعة، حتى المالك» | settled — FR-014 |
 | PK-Q4 | money | Payment method of a sale and of a refund | **Answered by Abu Salem (batch 35, 2026-10-22, binding; replaces Waleed's card «وتحويل بنكي كمان» of 2026-10-21):** `CASH` or `CARD` (KNET) on the sale, and the refund records the way the money went back; no bank transfer | settled — the method enum of FR-015 and FR-054 |
-| PK-Q5 | money | Who refunds, and what is recorded | new permission, owner / general manager / business manager / branch manager, grantable; written reason; bell to the branch managers; audit | FR-050, FR-055, FR-056; 46-3 |
-| PK-Q6 | money | Cancelling a redeemed session | exactly the CX-Q1…CX-Q5 rules of a line, and the session goes back to the package | FR-030…FR-033 |
-| PK-Q7 | money | Expiry date of a late-recorded redemption | the visit's date (local to the serving branch, TD-4) | TD-4, FR-024 |
-| PK-Q8 | money | Changing the performers of a redeemed session | allowed, by the 055 rules; the slot does not move | FR-035; 055 D-8 lifted |
-| PK-Q9 | money | Price of an imported package | the amount the customer actually paid, required | FR-063 |
-| PK-Q10 | money | Can an imported package be refunded? | yes, by the same rules, amount = its unused slots' values | FR-053 |
+| PK-Q5 | money | Who refunds, and what is recorded | **Answered (batch 35, 2026-10-22; Waleed and Abu Salem picked the same option, the recommended one):** «صلاحية جديدة للمالك والمدير العام ومدير النشاط ومدير الفرع (وتتدّي لأي حد)، وسبب مكتوب، وجرس لمديرين الفرع، ويتسجّل في السجل» (new permission, owner / general manager / business manager / branch manager, grantable; written reason; bell to the branch managers; audit) | settled — FR-050, FR-055, FR-056; 46-3 |
+| PK-Q6 | money | Cancelling a redeemed session | **Answered (batch 35, 2026-10-22; Waleed and Abu Salem picked the same option, the recommended one):** «نفس قواعد إلغاء السطر بالظبط (CX-Q1 … CX-Q5)، والجلسة بترجع للباكدج» | settled — FR-030…FR-033 |
+| PK-Q7 | money | Expiry date of a late-recorded redemption | **Answered (batch 35, 2026-10-22; Waleed and Abu Salem picked the same option, the recommended one):** «العبرة بتاريخ الزيارة: الجلسة تتخصم لأنها اتعملت والباكدج لسه صالح» (the visit's date, local to the serving branch, TD-4) | settled — TD-4, FR-024 |
+| PK-Q8 | money | Changing the performers of a redeemed session | **Answered (batch 35, 2026-10-22; Waleed and Abu Salem picked the same option, the recommended one):** «مسموح بنفس قواعد 37b بالظبط، والجلسة وقيمتها مابيتحركوش» | settled — FR-035; 055 D-8 lifted |
+| PK-Q9 | money | Price of an imported package | **Answered (batch 35, 2026-10-22; Waleed and Abu Salem picked the same option, the recommended one):** «اللي العميلة دفعته فعلًا (20.000)، وإجباري في كل سطر» | settled — FR-063 |
+| PK-Q10 | money | Can an imported package be refunded? | **Answered (batch 35, 2026-10-22; Waleed and Abu Salem picked the same option, the recommended one):** «أيوه، بنفس قواعد المرتجع، والمبلغ = قيمة الجلسات الفاضية»; Abu Salem's note: «هل المقصود ارجاع الفلوس المتبقية من قيمة الباكج. هو المفروض لا ولكن تكون موجودة لو حبو تفعيلها» (`TODO(spec)` PK-Q10: the note reads as "not by default, but available if the business turns it on"; whether imported refunds are off until a switch enables them is unclear) | FR-053 |
 | PK-Q11 | money | Back-dating a sale | **Answered (batch 35, Waleed's card, 2026-10-21):** as recommended («زي الزيارة»): like a visit (SS-Q9): default now, back to the first of the previous month; expiry and commission month from the sale date | settled — FR-016 |
 | PK-Q12 | technical | Stop / resume selling | **Answered (PP-16.1):** as recommended: the holders of `manage:package-types:business`; no reason; audited; sold and imported packages untouched; still editable | settled |
 | PK-Q13 | permission | Who sells | **Answered (PP-16.2):** as recommended: new `sell:packages:branch`, defaulting to the five SS-Q2 roles (owner, general manager, business manager, branch manager, cashier) | settled |
@@ -188,7 +191,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 - **SA-04** (PK-Q2) Price 25.000 → discount 0; price 27.000 → accepted, discount 0, `discount_bps 0`; price
   21.000 (16%) with a 10% limit → 422 `PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT` with the limit and nothing written; the owner
   (unlimited) may sell at 0.000 → every slot 0.000. A percent discount rounds to the mill half-up (SS-Q5). [M13]
-- **SA-05** (`TODO(spec)` PK-Q3) Seller هبة must be active and attached to the branch on the sale date (the
+- **SA-05** (PK-Q3) Seller هبة must be active and attached to the branch on the sale date (the
   `PerformerCheckPort` facts of 050 FR-011, without the attendance warnings) → else 422 `PACKAGE_SELLER_NOT_ELIGIBLE`; a
   recorder linked to the named seller → 403 `PACKAGE_SELLER_SELF_FORBIDDEN`, even for the owner.
 - **SA-05b** A manager detaches هبة from the branch while منى's sale naming her is in flight (two real connections, both
@@ -240,7 +243,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   append route on an existing visit. Two drafts for the same component in one request take ordinals *k* and *k+1*.
 - **RD-03** Two concurrent visits redeem the last free slot: exactly one commits, the other → 409
   `PACKAGE_NO_FREE_SESSION` and its whole visit request rolls back (TD-2). [M5]
-- **RD-04** (`TODO(spec)` PK-Q7) A visit on 30 December redeems; one on 31 December → 422 `PACKAGE_EXPIRED`; a visit of
+- **RD-04** (PK-Q7) A visit on 30 December redeems; one on 31 December → 422 `PACKAGE_EXPIRED`; a visit of
   29 December recorded on 2 January (inside the window) redeems. A visit that occurred before the sale instant → 422
   `PACKAGE_NOT_YET_VALID`. [M7]
 - **RD-04b** Cross-timezone: sold at 00:10 on 2 October in a Kuwait branch (`sold_business_date` 2 October); a
@@ -257,7 +260,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 
 ### Story 4 — Cancel a redeemed session (44, P1)
 
-- **RC-01** (`TODO(spec)` PK-Q6) ليلى cancels نورة's second visit line through the 054 route with a reason. In 054's
+- **RC-01** (PK-Q6) ليلى cancels نورة's second visit line through the 054 route with a reason. In 054's
   transaction: the line is `CANCELLED`, the 054 history row, bell and mark exist as for any line; the redemption gets
   `reversed_at`; slot 2 goes `USED → FREE`; `ServiceLineChanged` (`LINE_CANCELLED`) carries the `package` block. [M8]
 - **RC-02** The next redemption of that component takes ordinal 2 (lowest free), not 4. [M8]
@@ -274,7 +277,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 - **RC-06b** A cancel that sets a redeemed line `CANCELLED` but omits the package updates (the redemption not
   reversed, or reversed but its slot still `USED` by it) → the commit is refused; the line stays `ACTIVE` and nothing
   is written.
-- **RC-07** (`TODO(spec)` PK-Q8) A performer change (055) of a redeemed line follows the 055 rules; the slot, the value
+- **RC-07** (PK-Q8) A performer change (055) of a redeemed line follows the 055 rules; the slot, the value
   and the redemption do not move.
 
 ### Story 5 — Extend (45, P2)
@@ -286,7 +289,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   calendar years (from 21 October 2026: 21 October 2028 accepted, 22 October refused; from 29 February the cap is 28
   February) → 422 `PACKAGE_EXTENSION_TOO_LONG`; stale `expected_expires_on` → 409 `PACKAGE_EXPIRY_STALE`.
 - **EX-03** An expired package can be extended; after it, redemption and refund work again. [M7]
-- **EX-04** (`TODO(spec)` PK-Q1) The request carries no amount; nothing about money changes.
+- **EX-04** (PK-Q1) The request carries no amount; nothing about money changes.
 - **EX-05** Without the permission, a device, or the feature off → 403; an imported package extends like a sold one.
 
 ### Story 6 — Refund (46, P1)
@@ -305,12 +308,12 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 - **RF-06** After the expiry day → 422 `PACKAGE_EXPIRED` until extended (D-51). [M7]
 - **RF-07** Count 0, negative or fractional → 400 by the contract; a component of another entitlement → 422
   `PACKAGE_COMPONENT_NOT_FOUND`.
-- **RF-08** (`TODO(spec)` PK-Q10) An imported package refunds by the same rules and emits no `PackageSaleChanged`.
+- **RF-08** (PK-Q10; `TODO(spec)` on Abu Salem's note, FR-053) An imported package refunds by the same rules and emits no `PackageSaleChanged`.
 - **RF-09** A zero-value package refunds slots worth 0.000 with amount 0.000 (spec 007 edge case).
 - **RF-09b** The refund-integrity check (§6) refuses, at commit, a refund written directly in the database with a slot
   of another component, a wrong copied value, a session count or amount that does not match its slots, or an
   entitlement whose `refunded_amount` moved by a different amount; nothing is committed in each case.
-- **RF-10** Without `refund:packages:branch` (`TODO(spec)` PK-Q5) at the acting branch, a device, or the `orders` feature
+- **RF-10** Without `refund:packages:branch` (PK-Q5) at the acting branch, a device, or the `orders` feature
   off → 403 / `FEATURE_DISABLED`; an entitlement of another business or company → the same 404 `PACKAGE_NOT_FOUND` as
   an unknown id; nothing written.
 
@@ -393,7 +396,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 - **FR-013** (PK-Q2) The recorder's limit is read through the existing `DiscountLimitPort` for the verified
   recorder membership (050 FR-007); above it → refused (`PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT`). Rows 38–41 later add the
   approval path to the sale exactly as to a line.
-- **FR-014** (`TODO(spec)` PK-Q3) The seller is required, eligible at the sale date (`PerformerCheckPort`), and not linked to
+- **FR-014** (PK-Q3) The seller is required, eligible at the sale date (`PerformerCheckPort`), and not linked to
   the recorder's user (snapshot of the link stored on the entitlement, as performers are, ADR-0045). The sale calls
   `PerformerCheckPort.lock([seller])` **before** `read`, as the visit writer does, so a concurrent detach, deactivation
   or relink of the seller either commits first (and the sale sees it) or waits for the sale's commit.
@@ -440,7 +443,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   in ascending id; per draft, in input order, `selectPackageRedemptionSlot` takes the lowest `FREE`.
 - **FR-023** The entitlement must belong to the visit's customer and business, and contain the draft's service;
   otherwise `PACKAGE_NOT_USABLE_HERE` (RD-05).
-- **FR-024** (`TODO(spec)` PK-Q7, TD-4) `assertPackageNotExpired(visitLocalDate, expires_on)`, where
+- **FR-024** (PK-Q7, TD-4) `assertPackageNotExpired(visitLocalDate, expires_on)`, where
   `visitLocalDate` is the visit's `occurred_at` in the serving branch's effective timezone; and
   the visit's `occurred_at ≥ sold_at`, compared as **instants** (imports: no lower bound), else `PACKAGE_NOT_YET_VALID`.
   Comparing local dates would mix the selling branch's timezone with the serving branch's (TD-4).
@@ -456,7 +459,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 
 ### 44 — cancel a redeemed line
 
-- **FR-030** (`TODO(spec)` PK-Q6) The 054 route and permission cancel a redeemed line; every 054 requirement holds.
+- **FR-030** (PK-Q6) The 054 route and permission cancel a redeemed line; every 054 requirement holds.
 - **FR-031** After 054's checks and before the status change, the transaction locks the line's component `FOR UPDATE`
   (TD-5), then `UPDATE package_redemptions SET reversed_at, reversal_cancellation_id WHERE id = :r AND reversed_at IS
   NULL` and `UPDATE package_session_slots SET state 'FREE', current_redemption_id NULL WHERE id = :s AND state 'USED' AND
@@ -467,7 +470,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 - **FR-033** The cancel's `ServiceLineChanged` carries the line's `package` block; the 054 bell and mark are unchanged.
 - **FR-034** The 35d price-edit writer refuses a line with `redemption_id` → 422 `SESSION_LINE_PRICE_NOT_EDITABLE`
   (SPEC §4/§8: its price is the slot value; an edit would break the conservation of the price paid).
-- **FR-035** (`TODO(spec)` PK-Q8) The 055 writer accepts a redeemed line under its own rules, touching no package row;
+- **FR-035** (PK-Q8) The 055 writer accepts a redeemed line under its own rules, touching no package row;
   `SESSION_LINE_PERFORMERS_NOT_CHANGEABLE` stays reserved for the "no" answer.
 
 ### 45 — extend
@@ -480,23 +483,23 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   stored value (compare-and-set). Reason trimmed 1…500 characters (the 054 rule).
 - **FR-042** Entitlement `FOR UPDATE` → extension row → `UPDATE expires_on` (an immediate trigger refuses any
   decrease; a deferred one requires the matching extension row, §6) → audit.
-- **FR-043** (`TODO(spec)` PK-Q1) No amount, no payment, no slot or value change, no event (TD-7).
+- **FR-043** (PK-Q1) No amount, no payment, no slot or value change, no event (TD-7).
 - **FR-044** The reason lives in the extension row only, never in the audit entry, an event or a log (054 D-8 rule).
 
 ### 46 — refund
 
 - **FR-050** `POST …/branches/{branchId}/packages/{entitlementId}/refunds`, body `{ component_id, sessions, method, reason }`,
-  Idempotency-Key (`refund-package`); guard `refund:packages:branch` (`TODO(spec)` PK-Q5).
+  Idempotency-Key (`refund-package`); guard `refund:packages:branch` (PK-Q5).
 - **FR-051** Entitlement `FOR UPDATE` → component `FOR UPDATE` (SPEC §8); `assertPackageNotExpired(today, expires_on)` with "today" local to the acting branch (TD-4);
   `selectPackageRefundSlots(slots, sessions)` → exact or `INSUFFICIENT_SLOTS`.
 - **FR-052** Slots → `REFUNDED`; one refund row and one `package_refund_slots` row per ordinal (ordinal, unit value);
   `amount = Σ unit_value`; `refunded_amount += amount`, `revision += 1` on the entitlement; audit; for `SOLD`,
   `PackageSaleChanged` with the committed snapshot (TD-7).
-- **FR-053** (`TODO(spec)` PK-Q10) `IMPORTED` entitlements refund by the same rules, with no event.
+- **FR-053** (PK-Q10) `IMPORTED` entitlements refund by the same rules, with no event. `TODO(spec)` PK-Q10: Abu Salem's note («المفروض لا ولكن تكون موجودة لو حبو تفعيلها»: not by default, available if the business turns it on) may mean imported refunds are off until a business setting enables them; this spec keeps them on, by the refund rules, until that is confirmed.
 - **FR-054** (PK-Q4, Abu Salem) `method ∈ {CASH, CARD}`, the way the money went back, stored on the refund; no
   payment is executed (Phase 2).
-- **FR-055** (`TODO(spec)` PK-Q5) Reason 1…500 trimmed, stored on the refund row only.
-- **FR-056** (`TODO(spec)` PK-Q5) A bell to the branch's four scoped manager roles, the refunder included, through an
+- **FR-055** (PK-Q5) Reason 1…500 trimmed, stored on the refund row only.
+- **FR-056** (PK-Q5) A bell to the branch's four scoped manager roles, the refunder included, through an
   orders worker consumer of a new orders event `PackageRefundRecorded` and a notice event to `notifications`, the 35d /
   054 pattern (ledger row per refund, zero recipients is a durable decision). Content: package name, sessions, amount,
   branch, date; never the reason, the customer's phone or name.
@@ -524,7 +527,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   money is split by session count only (PK-Q22, Abu Salem).
 - **FR-062** (PK-Q19) No package type is named; `package_type_id` is `NULL` for `IMPORTED`; the names are
   stored on the entitlement.
-- **FR-063** (`TODO(spec)` PK-Q9, PK-Q22) `price_paid` is the amount actually paid, required, `≥ 0`; components are
+- **FR-063** (PK-Q9; `TODO(spec)` PK-Q22) `price_paid` is the amount actually paid, required, `≥ 0`; components are
   valued over the **original** sessions **by session count only** (PK-Q22, Abu Salem): every original session of the
   package has the same value whatever its service (`allocatePackagePrice` already falls back to session-count weights
   when every weight is zero), so the file gives no per-service price. `TODO(spec)` PK-Q22: what `list_price_snapshot`
@@ -683,7 +686,7 @@ Expand-only; migration numbers are taken at merge. The privileges allowlist and 
 - **Published:** `PackageSaleChanged` (exists in ADR-0010 and module-map §4; its contract schema, ADR-0010's field list widened by `branch_id` and
   `business_date` (TD-7), and the worker's known types land in 42-1); `ServiceSessionRecorded`, `ServiceSessionLinesAdded` and `ServiceLineChanged` widen `package` from
   `null` to the optional object (43-1); `PackageRefundRecorded` (orders ⇒ orders worker) and `PackageRefundNoticeRequested`
-  (orders ⇒ notifications) for the bell (46-3, `TODO(spec)` PK-Q5), with an ADR-0044 addendum and module-map §4 rows;
+  (orders ⇒ notifications) for the bell (46-3, PK-Q5), with an ADR-0044 addendum and module-map §4 rows;
   `PackageImportCommitRequested` (orders ⇒ orders worker, 47-2), id-only `{ preview_id }`, appended by the commit request
   in the same transaction that sets the package preview `commit_requested`. It is its own type, not
   `EmployeeImportCommitRequested`: the staff worker consumes that one and runs the employee commit, so a package preview
@@ -699,7 +702,7 @@ Expand-only; migration numbers are taken at merge. The privileges allowlist and 
   row record it. Row 50 consumes `PackageSaleChanged` and the
   redeemed lines.
 
-### Permissions (PK-Q12…PK-Q17 answered by Waleed, PP-16; PK-Q18 by Abu Salem; PK-Q5 and PK-Q6 still `TODO(spec)`)
+### Permissions (PK-Q12…PK-Q17 answered by Waleed, PP-16; PK-Q18 by Abu Salem; PK-Q5 and PK-Q6 answered by both owners)
 
 | Code | Defaults | Question |
 |---|---|---|
@@ -806,19 +809,19 @@ Every row waits on this spec's merge and on the owner answers named in its "Bloc
 | **33b** | Stop / resume selling | 1. Contract + migration (`selling_stopped_at`, grant) + domain no-op rule. 2. Use cases, routes, ST tests. 3. Admin list toggle, badge, component tests | this spec merged |
 | **42-1** | Contracts and map | 1. Sale contracts, `PackageSaleChanged` schema with the sale's `branch_id` and `business_date` (TD-7; ADR-0010's field list widened), worker known types, OpenAPI. 2. `CatalogReaderPort` package-type read (TD-10), module-map §3 row. 3. Error codes ar/en, permission codes + i18n labels | this spec merged (PK-Q2, PK-Q4, PK-Q11 and PK-Q23 answered) |
 | **42-2** | Storage | 1. Entitlements, components, slots: `CHECK`s, RLS, grants; every FK with the child-side index its table row lists (on `package_entitlements` the seven: customer, package type, seller employee, seller user, sold branch, recorder, recorder membership), each index in its FK's column order; a catalog test (`pg_constraint` against `pg_index`) that fails when an FK of any slice table has no index whose leading columns equal the FK's columns in order (a partial index counts only when its predicate is that FK column's `IS NOT NULL`, so the redemptions' partial uniques never count). It covers the tables 42-2 creates, and 43 (`package_redemptions`, `service_lines.redemption_id`, the slots' redemption FK), 45 (`package_extensions`), 46 (`package_refunds`, `package_refund_slots`) and 46-3 (`package_refund_notices`) each add their tables to its list in the same PR. 2. The entitlement and slot triggers (TD-5b, BR-03/04), the value-conservation and composition-seal ones included. 3. Negative RLS and trigger tests, allowlist, permission seed migration | **design advisors**; 42-1 |
-| **42-3** | Sell | 1. Pure domain (discount, seller rule, expiry). 2. `SellPackageUseCase`, adapters, route. 3. SA-01…SA-11 (SA-05b, SA-08b, SA-08c included) | 42-2; PK-Q3 |
+| **42-3** | Sell | 1. Pure domain (discount, seller rule, expiry). 2. `SellPackageUseCase`, adapters, route. 3. SA-01…SA-11 (SA-05b, SA-08b, SA-08c included) | 42-2 (PK-Q3 answered) |
 | **42-4a** | Any-of access guard | 1. `RequireAny` and the `RequiredAccess` permissions list; `AccessGuard` and the identity authorizer read every listed grant in one `withTenant` transaction (TD-13). 2. ADR-0003 §4 addendum; `route-coverage.ts` and startup-check tests for the new shape. 3. Guard tests: either permission alone passes, neither → 403, a device → 403, the feature off → 403, a list of mixed scopes refused at module load | this spec merged |
 | **42-4** | Reception sale screen + customer packages read | 1. Customer packages list (FR-070) and the detail's sale and component part (FR-071), with `EXPLAIN`. 2. The sale picker query under `sell:packages:branch` (FR-072, SA-12) and the sale form on it. 3. ar/en keys, component tests | 42-3, 42-4a |
 | **43-1** | Redemption storage and contracts | 1. `package_redemptions`, `service_lines.redemption_id`, deferred FKs (the slots' `current_redemption_id` FK and its partial index included), triggers (the redemption-line, redemption-slot and redeemed-line cancellation ones included), RLS. 2. Widen the line `package` member in the three event schemas and the draft union. 3. Negative tests, among them a redemption paired in the database with a line from another customer's visit in the same business, refused at commit | **design advisors**; 42-2 |
 | **43-1b** | Guards before any redemption exists | 1. The 35d writer refuses a line with `redemption_id` (FR-034, RC-06). 2. The 054 cancel and 055 performer writers refuse it for now (`SESSION_LINE_NOT_CANCELLABLE`, `SESSION_LINE_PERFORMERS_NOT_CHANGEABLE`; 054 D-6, 055 D-8) until 44 lifts them. 3. Negative tests on a redeemed line forced in the database | 43-1 |
-| **43-2** | Redeem in the record/append writer | 1. Domain (draft kind, expiry by visit date, line values). 2. Writer changes (component locks, slot, redemption). 3. RD-01…RD-09 incl. the M5 race | 43-1, **43-1b merged and deployed**; PK-Q7 |
+| **43-2** | Redeem in the record/append writer | 1. Domain (draft kind, expiry by visit date, line values). 2. Writer changes (component locks, slot, redemption). 3. RD-01…RD-09 incl. the M5 race | 43-1, **43-1b merged and deployed** (PK-Q7 answered) |
 | **43-3** | Reception «من الباقة» | 1. Line toggle with the customer's packages and remaining count; the detail's redemption history (FR-071). 2. Suggest the earliest expiry. 3. Component tests | 43-2, 42-4 (the detail query) |
-| **44** | Cancel / performers on redeemed lines | 1. 054 writer: lift the 43-1b refusal and reverse (FR-031), RC-01…RC-05. 2. 055 per PK-Q8 (lift or keep the 43-1b refusal), RC-07. 3. RC-06 re-run against the final writers | 43-2; PK-Q6, PK-Q8 |
-| **45** | Extend | 1. `package_extensions`, the entitlement's `expires_on_*` columns and the extension-history trigger, contracts, permission. 2. Use case, route, EX tests. 3. Admin dialog and the detail's extension history (FR-071) | 42-2, **42-4** (the detail query), after **43-3** on that file; PK-Q1 |
-| **46-1** | Refund storage | 1. `package_refunds`, `package_refund_slots`, RLS, grants. 2. Contracts, error codes, permission. 3. Negative tests | **design advisors**; 43-1; PK-Q5 |
-| **46-2** | Refund | 1. Use case (FR-051…FR-055). 2. Route. 3. RF-01…RF-10 incl. M6/M9 races | 46-1; PK-Q10 |
+| **44** | Cancel / performers on redeemed lines | 1. 054 writer: lift the 43-1b refusal and reverse (FR-031), RC-01…RC-05. 2. 055 lifts the 43-1b refusal per PK-Q8, RC-07. 3. RC-06 re-run against the final writers | 43-2 (PK-Q6, PK-Q8 answered) |
+| **45** | Extend | 1. `package_extensions`, the entitlement's `expires_on_*` columns and the extension-history trigger, contracts, permission. 2. Use case, route, EX tests. 3. Admin dialog and the detail's extension history (FR-071) | 42-2, **42-4** (the detail query), after **43-3** on that file (PK-Q1 answered) |
+| **46-1** | Refund storage | 1. `package_refunds`, `package_refund_slots`, RLS, grants. 2. Contracts, error codes, permission. 3. Negative tests | **design advisors**; 43-1 (PK-Q5 answered) |
+| **46-2** | Refund | 1. Use case (FR-051…FR-055). 2. Route. 3. RF-01…RF-10 incl. M6/M9 races | 46-1; the PK-Q10 `TODO(spec)` (FR-053) |
 | **46-3** | Refund bell + dialog | 1. Events, ADR-0044 addendum, module-map rows, template ar/en. 2. Consumer + ledger. 3. Admin refund dialog and the detail's refund history (FR-071) | 46-2, **42-4**, after **45** on the detail query file; PK-Q5 |
-| **47-1** | Import framework for packages | 1. The workbook reader moved to `shared/import` with per-plug-in bounds (FR-060b); staff passes its own, unchanged; IM-09. 2. Package plug-in on the shared `import_previews` / `import-sheet.ts` framework: template, row validation, `CustomerLookupPort.findByPhone` (TD-11). 3. The new permission `import:packages:business` (catalog, role defaults, seeding migration, i18n names, PK-Q18) with the guard on it and its refusal tests | **design advisors**; 43-1; PK-Q9; the `list_price_snapshot` detail of PK-Q22 (FR-063 `TODO(spec)`) |
+| **47-1** | Import framework for packages | 1. The workbook reader moved to `shared/import` with per-plug-in bounds (FR-060b); staff passes its own, unchanged; IM-09. 2. Package plug-in on the shared `import_previews` / `import-sheet.ts` framework: template, row validation, `CustomerLookupPort.findByPhone` (TD-11). 3. The new permission `import:packages:business` (catalog, role defaults, seeding migration, i18n names, PK-Q18) with the guard on it and its refusal tests | **design advisors**; 43-1 (PK-Q9 answered); the `list_price_snapshot` detail of PK-Q22 (FR-063 `TODO(spec)`) |
 | **47-2** | Import commit | 1. Commit request route (202, `Idempotency-Key`, sets `commit_requested` and appends `PackageImportCommitRequested` in one transaction), the event's contract, worker known type, ADR-0034 addendum and module-map §4 row. 2. Orders worker: commit use case, `package-import-commit` processor and the recovery sweep, wired like staff's. 3. IM-01…IM-08, plus worker tests: the job is enqueued only after the claim commits, and a request left pending ten minutes is marked `failed` | 47-1 |
 | **47-3** | Import screen | 1. Upload/preview/commit screen. 2. Row errors. 3. Component tests | 47-2 |
 
