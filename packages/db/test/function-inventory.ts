@@ -137,6 +137,11 @@ export const FUNCTION_INVENTORY = [
   },
   { proname: 'slc_complete', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
   {
+    proname: 'discount_proposals_transition_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
     proname: 'session_tip_revisions_begin',
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],

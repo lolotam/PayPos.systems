@@ -126,6 +126,8 @@ export const ROLE_DEFAULTS = {
   'manage:document-types:company': ['owner'],
   'manage:discounts:company': ['owner'],
   'manage:discount-limits:business': managers,
+  // قرار المالك DA-Q1 بتاريخ 2026-10-21: الموافقة على الخصم للمديرين الأربعة افتراضياً، وتفويضها لأي دور بشري.
+  'approve:discounts:branch': [...managers, 'branch_manager'],
   'create:customers:company': ['owner', 'general_manager'],
   'create:customers:business': ['owner', 'business_manager'],
   'create:customers:branch': ['owner', 'branch_manager', 'cashier'],

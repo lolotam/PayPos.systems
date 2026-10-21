@@ -1114,6 +1114,27 @@
       "when": 1792468470150,
       "tag": "0160_2026-10-20_write-seal-system-id-uniques",
       "breakpoints": true
+    },
+    {
+      "idx": 161,
+      "version": "7",
+      "when": 1792581989660,
+      "tag": "0161_2026-10-21_discount-proposals",
+      "breakpoints": true
+    },
+    {
+      "idx": 162,
+      "version": "7",
+      "when": 1792582041083,
+      "tag": "0162_2026-10-21_discount-proposal-unique-indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1792582058309,
+      "tag": "0163_2026-10-21_discount-proposal-links",
+      "breakpoints": true
     }
   ]
 }
