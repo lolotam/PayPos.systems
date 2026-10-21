@@ -1,84 +1,53 @@
-// A throwaway Postgres cluster per lane, so several worktrees can run the DB integration tests at once.
-// Roles are cluster-wide: on one shared cluster every run waits on the `pospay:test-cluster-roles` advisory
-// lock (packages/db/test/role-lock.ts). A cluster of its own gives each lane its own roles and its own lock.
+// cluster Postgres مؤقت لكل lane، عشان كذا worktree يشغّلوا اختبارات الـ DB في نفس الوقت.
+// الـ roles على مستوى الـ cluster: على الـ cluster المشترك كل تشغيلة بتستنى الـ advisory lock
+// `pospay:test-cluster-roles` (packages/db/test/role-lock.ts). cluster خاص بالـ lane بيديها roles و lock بتوعها.
 //
 //   node scripts/test-db/lane.mjs up <lane> [--port N]
 //   node scripts/test-db/lane.mjs down <lane>
 //   node scripts/test-db/lane.mjs status
 //
-// The container copies the dev `postgres` service exactly: image, command flags, environment and memory limit
-// are read from `docker compose config` of deploy/docker-compose.dev.yml (read-only), so they cannot drift.
-// Roles and grants are created by the migration bootstrap at test time, as on a fresh CI cluster.
-// Passwords travel only through the docker process environment (`-e NAME` without a value), never argv or output.
-// A container belongs to the worktree that started it (label pospay.test-worktree): another worktree using the
-// same lane name is refused, never handed the first one's cluster. Choosing a port and binding it run under a
-// lock file in the shared git directory, and a publish collision moves on to the next free port.
+// الكونتينر نسخة من service الـ postgres بتاعة deploy/docker-compose.dev.yml (lane-docker.mjs)، والـ roles
+// بيعملها الـ migration bootstrap وقت الاختبارات زي cluster جديد في CI. اختيار البورت و docker run تحت
+// start lock مشترك (lane-lock.mjs)، ولو الـ publish اصطدم بنجرب البورت الفاضي اللي بعده.
+// القرار: ADR-0006، addendum 2026-10-21. الاستخدام: docs/runbook.md «Per-lane test Postgres».
 import { spawnSync } from 'node:child_process';
-import {
-  closeSync,
-  existsSync,
-  openSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { hostname } from 'node:os';
-import { join, resolve } from 'node:path';
-import { createConnection, createServer } from 'node:net';
-import { setTimeout as delay } from 'node:timers/promises';
-import { fileURLToPath } from 'node:url';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
+import { join } from 'node:path';
 
-const ROOT = fileURLToPath(new URL('../../', import.meta.url));
-const ROOT_ENV = `${ROOT}.env`;
+import {
+  HOST,
+  LABEL,
+  ROOT,
+  WORKTREE_LABEL,
+  assertOwned,
+  containerName,
+  devPostgresService,
+  dockerOk,
+  findContainer,
+  publishedPort,
+  removeContainer,
+  runContainer,
+  waitReady,
+} from './lane-docker.mjs';
+import { LaneError, fail } from './lane-error.mjs';
+import { withStartLock } from './lane-lock.mjs';
+
 const OVERRIDE = `${ROOT}.env.test.local`;
-const COMPOSE_FILE = `${ROOT}deploy/docker-compose.dev.yml`;
 const LANE = /^[a-z0-9-]{1,32}$/;
-const LABEL = 'pospay.test-lane';
-const WORKTREE_LABEL = 'pospay.test-worktree';
-const START_LABEL = 'pospay.test-start';
-// Windows paths are case-insensitive, so one worktree must get one label however it was spelled; elsewhere
-// /work/Lane and /work/lane are different worktrees and keep different labels.
-const ROOT_PATH = resolve(ROOT).replaceAll('\\', '/');
-const WORKTREE = process.platform === 'win32' ? ROOT_PATH.toLowerCase() : ROOT_PATH;
-const HOST = '127.0.0.1';
 const BASE_PORT = 55400;
 const PORT_SCAN = 99;
 const RESERVED_PORTS = new Set([5432, 6379]);
-const READY_TIMEOUT_MS = 90_000;
 const START_ATTEMPTS = 5;
-const LOCK_WAIT_MS = 120_000;
-const LOCK_STALE_MS = 15 * 60_000;
 const PORT_TAKEN = /port is already allocated|address already in use|ports are not available/i;
+const MARKER = '# pospay-test-lane=';
 
 const USAGE = [
   'usage: node scripts/test-db/lane.mjs up <lane> [--port N]',
   '       node scripts/test-db/lane.mjs down <lane>',
   '       node scripts/test-db/lane.mjs status',
 ].join('\n');
-
-class LaneError extends Error {}
-
-// Throws instead of exiting, so a `finally` (the start lock) always runs; the CLI entry turns it into exit 1.
-function fail(message) {
-  throw new LaneError(message);
-}
-
-function docker(args, options = {}) {
-  const result = spawnSync('docker', args, { encoding: 'utf8', ...options });
-  if (result.error) fail(`docker is not available (${result.error.message})`);
-  return result;
-}
-
-function dockerOk(args, what, options = {}) {
-  const result = docker(args, options);
-  // stderr from docker never carries the password: it is passed by name only.
-  if (result.status !== 0) fail(`${what} failed: ${result.stderr.trim()}`);
-  return result.stdout.trim();
-}
-
-const containerName = (lane) => `pospay-test-${lane}`;
 
 function validLane(lane) {
   if (lane === undefined || !LANE.test(lane)) fail(`lane name must match ${LANE}\n${USAGE}`);
@@ -95,75 +64,15 @@ function parsePort(args) {
   return port;
 }
 
-// The dev service definition with its environment resolved from .env. Read-only: `config` touches no container.
-function devPostgresService() {
-  if (!existsSync(ROOT_ENV))
-    fail(`${ROOT_ENV} is missing — copy the main checkout's .env into this worktree`);
-  const json = dockerOk(
-    ['compose', '--env-file', ROOT_ENV, '-f', COMPOSE_FILE, 'config', '--format', 'json'],
-    'reading deploy/docker-compose.dev.yml',
-  );
-  const service = JSON.parse(json).services?.postgres;
-  if (!service?.image || !Array.isArray(service.command))
-    fail('the dev compose file has no postgres service');
-  return service;
-}
-
-// Only containers carrying our label AND exactly our name: never pospay-dev-*, never anything else.
-function findContainer(lane) {
-  const id = dockerOk(
-    [
-      'ps',
-      '-a',
-      '-q',
-      '--filter',
-      `name=^${containerName(lane)}$`,
-      '--filter',
-      `label=${LABEL}=${lane}`,
-    ],
-    'listing lane containers',
-  );
-  if (id === '') return undefined;
-  // A paused or restarting container still reports Running=true; only a plainly running one is usable.
-  const usable = '{{and .State.Running (not .State.Paused) (not .State.Restarting)}}';
-  const labels = `{{index .Config.Labels "${WORKTREE_LABEL}"}}\t{{index .Config.Labels "${START_LABEL}"}}`;
-  const [running, worktree, start] = dockerOk(
-    ['inspect', '--format', `${usable}\t${labels}`, id],
-    'inspecting the lane container',
-  ).split('\t');
-  return { id, running: running === 'true', worktree: worktree ?? '', start: start ?? '' };
-}
-
-// Same lane name from another worktree: refuse, so neither shares nor removes the other's cluster.
-function assertOwned(container, lane) {
-  if (container.worktree === WORKTREE) return;
-  fail(
-    `${containerName(lane)} belongs to worktree ${container.worktree || '(unknown)'}, not ${WORKTREE}; ` +
-      'use another lane name here, or run down from that worktree',
-  );
-}
-
-function removeContainer(id, lane) {
-  // --volumes removes the anonymous data volume with it: nothing of the lane survives.
-  dockerOk(['rm', '--force', '--volumes', id], `removing ${containerName(lane)}`);
-}
-
-function publishedPort(id) {
-  const mapping = dockerOk(['port', id, '5432/tcp'], 'reading the published port');
-  const match = /^127\.0\.0\.1:(\d+)$/m.exec(mapping);
-  if (!match) fail(`container ${id} is not published on ${HOST} only (${mapping})`);
-  return Number(match[1]);
-}
-
 function portIsFree(port) {
-  return new Promise((resolve) => {
+  return new Promise((done) => {
     const server = createServer();
-    server.once('error', () => resolve(false));
-    server.listen({ host: HOST, port, exclusive: true }, () => server.close(() => resolve(true)));
+    server.once('error', () => done(false));
+    server.listen({ host: HOST, port, exclusive: true }, () => server.close(() => done(true)));
   });
 }
 
-// lane-7 → 55407 when free; otherwise the first free port from 55401. `tried` holds ports a publish lost.
+// lane-7 → 55407 لو فاضي، وإلا أول بورت فاضي من 55401. tried فيها البورتات اللي الـ publish خسرها.
 async function choosePort(lane, requested, tried) {
   if (requested !== undefined) {
     if (!(await portIsFree(requested))) fail(`port ${HOST}:${requested} is already in use`);
@@ -180,115 +89,23 @@ async function choosePort(lane, requested, tried) {
   return fail(`no free port in ${BASE_PORT + 1}–${BASE_PORT + PORT_SCAN}; pass --port`);
 }
 
-function runContainer(lane, port, service, start) {
-  const childEnv = { ...process.env };
-  const envFlags = [];
-  for (const [name, value] of Object.entries(service.environment ?? {})) {
-    childEnv[name] = String(value);
-    envFlags.push('-e', name);
-  }
-  const memory = service.mem_limit ? ['--memory', String(service.mem_limit)] : [];
-  return docker(
-    [
-      'run',
-      '--detach',
-      '--rm',
-      '--name',
-      containerName(lane),
-      '--label',
-      `${LABEL}=${lane}`,
-      '--label',
-      `${WORKTREE_LABEL}=${WORKTREE}`,
-      '--label',
-      `${START_LABEL}=${start}`,
-      '--publish',
-      `${HOST}:${port}:5432`,
-      ...memory,
-      ...envFlags,
-      service.image,
-      ...service.command,
-    ],
-    { env: childEnv },
-  );
-}
-
-function gitCommonDir() {
+// الـ git common dir واحد لكل الـ worktrees، فالـ lock اللي فيه واحد للكل.
+function startLockPath() {
   const result = spawnSync(
     'git',
     ['-C', ROOT, 'rev-parse', '--path-format=absolute', '--git-common-dir'],
     { encoding: 'utf8' },
   );
-  return result.status === 0 ? result.stdout.trim() : ROOT;
+  return join(result.status === 0 ? result.stdout.trim() : ROOT, 'pospay-test-lane.lock');
 }
 
-function readLock(path) {
-  try {
-    const text = readFileSync(path, 'utf8');
-    return { text, owner: JSON.parse(text), age: Date.now() - statSync(path).mtimeMs };
-  } catch {
-    // Missing, or created but not yet written: only its age can make it stale.
-    let age = 0;
-    try {
-      age = Date.now() - statSync(path).mtimeMs;
-    } catch {
-      // gone already
-    }
-    return { text: undefined, owner: undefined, age };
-  }
-}
-
-function ownerAlive(owner) {
-  if (owner?.host !== hostname() || !Number.isInteger(owner?.pid)) return true;
-  try {
-    process.kill(owner.pid, 0);
-    return true;
-  } catch (error) {
-    return error.code === 'EPERM';
-  }
-}
-
-// A lock is taken over only when its owner process on this host is gone, or it is far older than any start.
-function takeOverIfStale(path) {
-  const seen = readLock(path);
-  const dead = seen.owner !== undefined && !ownerAlive(seen.owner);
-  if (!dead && seen.age <= LOCK_STALE_MS) return;
-  // Remove only the lock we judged stale, not one another process created in between.
-  if (readLock(path).text === seen.text) rmSync(path, { force: true });
-}
-
-// One lock for every worktree of the repo (the git common dir is shared), held from the port probe until
-// docker has bound the port. It names its owner (host, pid, token) and is released only by that token.
-async function withStartLock(fn) {
-  const lock = join(gitCommonDir(), 'pospay-test-lane.lock');
-  const token = randomUUID();
-  const deadline = Date.now() + LOCK_WAIT_MS;
-  for (;;) {
-    try {
-      const descriptor = openSync(lock, 'wx');
-      writeFileSync(descriptor, JSON.stringify({ host: hostname(), pid: process.pid, token }));
-      closeSync(descriptor);
-      break;
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
-      if (Date.now() > deadline) fail(`another lane start holds ${lock}; retry later`);
-      takeOverIfStale(lock);
-      await delay(200 + Math.random() * 300);
-    }
-  }
-  try {
-    return await fn();
-  } finally {
-    if (readLock(lock).owner?.token === token) rmSync(lock, { force: true });
-  }
-}
-
-// Runs under the start lock. A concurrent `up` of the same lane may have started it while we waited.
+// بيشتغل تحت الـ start lock. ممكن `up` تاني لنفس الـ lane يكون شغّلها وإحنا مستنيين.
 async function startContainer(lane, requested, service) {
   const current = findContainer(lane);
   if (current !== undefined) {
     assertOwned(current, lane);
     if (current.running) return publishedPort(current.id);
-    // Not running, and no start is in flight (they all hold this lock): a leftover, start fresh.
+    // مش شغال، ومفيش start شغال دلوقتي (كلهم ماسكين الـ lock ده): ده بواقي، نبدأ من جديد.
     removeContainer(current.id, lane);
     console.log(`removed ${containerName(lane)}: it was not running`);
   }
@@ -298,7 +115,7 @@ async function startContainer(lane, requested, service) {
     const start = randomUUID();
     const result = runContainer(lane, port, service, start);
     if (result.status === 0) return port;
-    // A failed publish can leave this attempt's container in Created state; remove only that one.
+    // الـ publish الفاشل ممكن يسيب كونتينر المحاولة دي في حالة Created؛ بنمسحه هو بس.
     const leftover = findContainer(lane);
     if (leftover !== undefined && leftover.start === start) removeContainer(leftover.id, lane);
     if (requested !== undefined || !PORT_TAKEN.test(result.stderr)) {
@@ -309,45 +126,6 @@ async function startContainer(lane, requested, service) {
   }
   return fail(`no port could be bound after ${START_ATTEMPTS} attempts; pass --port`);
 }
-
-function tcpReachable(port) {
-  return new Promise((resolve) => {
-    const socket = createConnection({ host: HOST, port }, () => {
-      socket.end();
-      resolve(true);
-    });
-    socket.once('error', () => resolve(false));
-  });
-}
-
-// initdb runs a temporary server on the unix socket only, so a socket pg_isready says "ready" too early.
-// The final server is the first one listening on TCP.
-async function waitReady(lane, port, service) {
-  const { POSTGRES_USER: user, POSTGRES_DB: db } = service.environment ?? {};
-  const deadline = Date.now() + READY_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    const probe = docker([
-      'exec',
-      containerName(lane),
-      'pg_isready',
-      '-h',
-      HOST,
-      '-p',
-      '5432',
-      '-U',
-      String(user),
-      '-d',
-      String(db),
-    ]);
-    if (probe.status === 0 && (await tcpReachable(port))) return;
-    await delay(500);
-  }
-  fail(
-    `${containerName(lane)} was not ready within ${READY_TIMEOUT_MS / 1000}s — see \`docker logs ${containerName(lane)}\``,
-  );
-}
-
-const MARKER = '# pospay-test-lane=';
 
 function writeOverride(lane, port) {
   writeFileSync(
@@ -382,9 +160,10 @@ async function up(lane, requestedPort) {
     console.log(`port=${port}`);
     return;
   }
-  // Anything not plainly running is handled under the lock: outside it, a container in Created state may be
-  // another `up` halfway through `docker run`.
-  const port = await withStartLock(() => startContainer(lane, requestedPort, service));
+  // أي حالة غير "شغال" بتتعالج تحت الـ lock: براه، الكونتينر الـ Created ممكن يكون `up` تاني في نص docker run.
+  const port = await withStartLock(startLockPath(), () =>
+    startContainer(lane, requestedPort, service),
+  );
   await waitReady(lane, port, service);
   writeOverride(lane, port);
   console.log(`${containerName(lane)} ready on ${HOST}:${port}; wrote ${OVERRIDE}`);

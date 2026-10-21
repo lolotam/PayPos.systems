@@ -229,7 +229,8 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
   repository's shared git directory, so concurrent `up` calls from different worktrees get different ports;
   if a publish still collides, `up` retries on the next free port (up to five times), removing only the container
   its own failed attempt created. The lock records its owner (host, pid, token); it is taken over only when
-  that process is gone on this host or the lock is older than 15 minutes, and only its owner releases it.
+  that process is gone on this host or the lock is older than 15 minutes, by an atomic rename that only one
+  process can win, and only its owner releases it. The lock code is `scripts/test-db/lane-lock.mjs`.
 - `up` on a running lane waits for readiness, rewrites the override and reprints the port. A lane container
   that exists but is not plainly running (created, exited, paused, restarting) is removed and started fresh.
 - `up` writes `.env.test.local` at the worktree root (git-ignored by `.env.*`) with only
