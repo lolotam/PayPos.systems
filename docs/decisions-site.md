@@ -63,7 +63,7 @@ curl -s "$B/health"
 
 `choice` is a 0-based index into the question's `options_ar`. A collection response is `{"docs":[{"id":…,"data":{…}}]}`.
 
-## A. Publish a new money/charges question batch
+## A. Publish a new question batch (every kind of owner question)
 
 1. **Record first** (`CLAUDE.md` §1 5b, "Always first"). Write each question into the slice's
    `owner-questions.ar.md`, or into `docs/owner-decisions.ar.md` when it belongs to no slice. Mark its answer `PENDING`.
@@ -80,7 +80,16 @@ curl -s "$B/health"
 7. Commit as `chore(questions): batch <n> — <topic>` and push to `main`.
 8. Confirm the deploy: `curl -s -u "$PLAN_AUTH" $B/decisions.en.json` must contain the new ids.
 
-Permission and technical questions still go to Waleed's super agent as `PP-n`. They never go to this site.
+Every question also goes to Waleed's super agent as `PP-n` (`CLAUDE.md` §1 5b). When his card answer comes back, record it on the site as his own pick, not as a final decision:
+
+```bash
+# Waleed's pick from a card: a note under his user id, marked source "card" (choice = 0-based option index)
+curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' \
+  -d '{"qid":"XX-Q1","verdict":"ok","choice":0,"text":"<his words, verbatim>","source":"card","updatedAt":"<ISO time>"}' \
+  "$B/api/doc?path=reviews/u_kxawXFcE2cQIRRqI4Cn8Iw/notes/<docId>"
+```
+
+Before the PUT, GET the note: write only when it does not exist (`{"exists":false}`) or its `source` is `"card"`. A note without `source` was made on the page by Waleed himself and is not overwritten. The API has no conditional write yet, so the GET and the PUT are not atomic: a pick he saves on the page in the moment between them is overwritten, and a GET afterwards cannot detect it, because it returns the note you just wrote. This residual risk is accepted until #461 adds an atomic check. It needs Waleed to answer the same question on the page and by card within the same second. To keep it visible: do the GET and the PUT back to back; record the card answer in the audit record (`owner-questions.ar.md` or `docs/owner-decisions.ar.md`) before the PUT, so it is never lost; and when Waleed says he picked something else on the page, his page pick wins, and you correct the record. When his card answer matches no option (free text), store it as `"verdict":"change"` with his words in `text` and no `choice`, so the page shows it as his own answer and not as agreement with the recommended option.
 
 ## B. After every merge, and after any row change or new partner request
 
@@ -96,12 +105,14 @@ Do this at the start of each session, before starting a slice that waits on a pe
 
 1. Read `decisions` and the `notes` of both reviewers.
 2. Go through **every question on the site that Abu Salem has not answered yet**. That covers both kinds:
-   - the ones `owner-questions.ar.md` still marks `PENDING`;
+   - the ones the audit record (the slice's `owner-questions.ar.md`, or `docs/owner-decisions.ar.md` for a question that
+     belongs to no slice) still marks `PENDING`;
    - the ones that already carry Waleed's pick, but no answer from Abu Salem.
 
    Do not filter on `PENDING` alone. A question Waleed answered is still open until Abu Salem answers it, and his
    later pick replaces Waleed's.
-   - **Abu Salem gave a `choice`.** His pick binds (PP-1.2). Copy it, with any `text`, verbatim into `owner-questions.ar.md` with its date. If the code already followed a different pick from Waleed, keep the old answer as history and open a follow-up.
+   - **Abu Salem gave a `choice`.** His pick binds (PP-1.2). Copy it, with any `text`, verbatim into the same audit record §A wrote (the slice's `owner-questions.ar.md`, or
+     `docs/owner-decisions.ar.md` for a no-slice question) with its date. If the code already followed a different pick from Waleed, keep the old answer as history and open a follow-up.
    - **Only Waleed answered.** Work proceeds on Waleed's pick, and the question stays on this list until Abu Salem answers.
 3. A `verdict: "change"` with `text` on a question that is already decided is a change request. Bring it to Waleed and never act on it silently.
 4. Check `suggestions` for new partner requests, and add each one to `roadmap.json` under `partner[]`.
@@ -156,4 +167,4 @@ A `200` means it was sent. To check what went out, read the same topic you publi
 - Never edit `seed/db.seed.json` to change live answers. It only seeds the first run.
 - Never delete the `plan-data` volume or the Dokploy app.
 - Never put the password in git, in a doc or in a message.
-- Never publish a money question anywhere except this site. Never put a permission or technical question on it.
+- Never publish an owner question anywhere except this site (plus the card to Waleed through his super agent).
