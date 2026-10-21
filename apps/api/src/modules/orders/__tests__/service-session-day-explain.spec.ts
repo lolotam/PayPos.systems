@@ -124,6 +124,7 @@ it.each([false, true])('normal planner uses tenant day and child indexes, late=%
       expect(sessions.length).toBeGreaterThan(0);
       expect(sessions.every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
       const indexes = plan.map((node) => node['Index Name']);
+      const uses = (candidates: string[]) => candidates.some((name) => indexes.includes(name));
       expect(indexes).toContain('service_sessions_day_idx');
       if (late) expect(indexes).toContain('service_sessions_late_day_idx');
       expect(indexes).toContain('service_lines_late_session_idx');
@@ -131,8 +132,8 @@ it.each([false, true])('normal planner uses tenant day and child indexes, late=%
       expect(indexes).toContain('line_performers_ordinal_key');
       expect(indexes).toContain('service_line_edits_line_fk_idx');
       expect(indexes.includes('slc_line_uq') || indexes.includes('slc_line_fk_idx')).toBe(true);
-      // يوم العلامة يُقرأ من تاريخ التغيير بمؤشر السطر، لا بمسح الجدول كله.
-      expect(indexes).toContain('slpc_history_idx');
+      // يوم العلامة يُقرأ من تاريخ التغيير بأي مؤشر يخدم نفس البحث، لا بمسح الجدول كله.
+      expect(uses(['slpc_line_revision_uq', 'slpc_history_idx'])).toBe(true);
       for (const table of ['service_sessions', 'service_lines', 'line_performers', 'service_line_edits', 'service_line_cancellations',
         'service_line_performer_changes']) {
         expect(plan.filter((node) => node['Relation Name'] === table).every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
