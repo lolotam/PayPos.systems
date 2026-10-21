@@ -11,7 +11,8 @@ import { AT, ids, must, editFixture, type EditFixture } from './session.fixture.
 let f: EditFixture;
 const PHONE = '+999999998123';
 const CUSTOMER = 'Synthetic customer';
-const PERFORMER_NAME = 'Synthetic employee 1';
+const REMOVED_PERFORMER_NAME = 'Synthetic employee 0';
+const ADDED_PERFORMER_NAME = 'Synthetic employee 1';
 const clock = { now: () => AT };
 beforeAll(async () => {
   f = await editFixture({ ordersClock: { now: () => f?.clock.now() ?? AT } });
@@ -62,6 +63,21 @@ it('PC-17 one performer change rings the four scoped managers, including the cha
   expect(await ledger(visit.lineId)).toHaveLength(1);
 }, 60_000);
 
+it('PC-17 a second changed line of the same visit rings again', async () => {
+  const visit = await savedVisitLines([f.line(), f.line(must(f.services[3]), '15.000')]);
+  const first = { sessionId: visit.sessionId, lineId: must(visit.lines[0]) };
+  const second = { sessionId: visit.sessionId, lineId: must(visit.lines[1]) };
+  expect((await put(first, input())).status).toBe(200);
+  expect((await put(second, input())).status).toBe(200);
+  const firstSource = await deliver(first.sessionId, first.lineId);
+  const secondSource = await deliver(second.sessionId, second.lineId);
+  expect(firstSource).not.toBe(secondSource);
+  expect(await recipientIds(secondSource)).toEqual(await recipientIds(firstSource));
+  expect(await ledger(first.lineId)).toHaveLength(1);
+  expect(await ledger(second.lineId)).toHaveLength(1);
+  expect(await noticeRows(visit.sessionId, second.lineId)).toHaveLength(1);
+}, 60_000);
+
 it('PC-17 no manager in scope records a ledger row with count 0 and no notice', async () => {
   // نافذة الجرس قبل بداية عضويات المديرين، فالمستلمون صفر والقرار يُسجّل بلا جرس.
   const beforeMemberships = { now: () => new Date('2025-12-31T00:00:00.000Z') };
@@ -89,6 +105,15 @@ async function savedVisit() {
   expect(response.status).toBe(201);
   const session = recordServiceSessionResponse.parse(response.body).session;
   return { sessionId: session.id, lineId: must(session.lines[0]).id };
+}
+
+async function savedVisitLines(lines: Parameters<EditFixture['body']>[0]) {
+  const response = await f.h.send('POST', f.base, {
+    cookie: f.ownerCookie, company: f.company, key: ids.newId(), body: f.body(lines),
+  });
+  expect(response.status).toBe(201);
+  const session = recordServiceSessionResponse.parse(response.body).session;
+  return { sessionId: session.id, lines: session.lines.map((line) => line.id) };
 }
 
 async function put(
@@ -162,26 +187,27 @@ async function recipientIds(sourceId: string) {
   return rows.map((row) => row['recipient_user_id'] as string).sort();
 }
 
-// الحدث والتدقيق بلا سبب ولا اسم موظفة ولا هاتف ولا اسم عميلة؛ والجرس بلا هوية من غيّر.
+// الحدث والتدقيق بلا سبب ولا اسم موظفة (المشغولة والمنقولة) ولا هاتف ولا اسم عميلة؛ والجرس بلا هوية من غيّر.
 async function expectQuiet(sessionId: string, lineId: string, sourceId: string, reason: string) {
   const events = await f.h.owner`SELECT payload FROM outbox WHERE company_id=${f.company} AND aggregate_id=${sessionId}
     AND event_type='ServiceLineChanged' AND payload->>'line_id'=${lineId}`;
   const audits = await f.h.owner`SELECT before, after FROM audit_log
     WHERE company_id=${f.company} AND entity_id=${lineId} AND action='service_line.performers_changed'`;
   const requests = await noticeRows(sessionId, lineId);
+  expect(events).toHaveLength(1);
+  expect(audits).toHaveLength(1);
+  expect(requests).toHaveLength(1);
   const packed = JSON.stringify({ events, audits, requests });
-  expect(packed).not.toContain(reason);
-  expect(packed).not.toContain(PHONE);
-  expect(packed).not.toContain(CUSTOMER);
-  expect(packed).not.toContain(PERFORMER_NAME);
+  for (const hidden of [reason, PHONE, CUSTOMER, REMOVED_PERFORMER_NAME, ADDED_PERFORMER_NAME]) {
+    expect(packed).not.toContain(hidden);
+  }
   const [bell] = await f.h.owner`SELECT safe_parameters FROM in_app_notifications
     WHERE company_id=${f.company} AND source_event_id=${sourceId} LIMIT 1`;
+  expect(bell).toBeDefined();
   const parameters = JSON.stringify(bell?.['safe_parameters']);
-  expect(parameters).not.toContain(reason);
-  expect(parameters).not.toContain(PERFORMER_NAME);
-  expect(parameters).not.toContain(f.editorId);
-  expect(parameters).not.toContain(f.editorMembership);
-  expect(parameters).not.toContain('Layla Editor');
+  for (const hidden of [reason, REMOVED_PERFORMER_NAME, ADDED_PERFORMER_NAME, f.editorId, f.editorMembership, 'Layla Editor']) {
+    expect(parameters).not.toContain(hidden);
+  }
 }
 
 async function manager(

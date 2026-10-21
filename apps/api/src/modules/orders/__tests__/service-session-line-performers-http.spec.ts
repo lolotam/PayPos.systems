@@ -5,14 +5,17 @@ import {
   recordServiceSessionResponse,
 } from '@pospay/contracts';
 import { serviceSessionErrors } from '@pospay/i18n';
+import { SYSTEM_ROLES } from '@pospay/db';
 import { origin, paired } from '../../../../test/staff-otp-harness.ts';
 import { AT, ids, must, editFixture, type EditFixture } from './session.fixture.ts';
 
 let f: EditFixture;
 let narrowCookie = '';
+let secondManagerCookie = '';
 beforeAll(async () => {
   f = await editFixture({ ordersClock: { now: () => f?.clock.now() ?? AT } });
   narrowCookie = await performersOnlyCookie();
+  secondManagerCookie = await branchManagerCookie();
 });
 afterAll(async () => {
   await f?.close();
@@ -104,6 +107,35 @@ it('PC-07 the route refuses a caller without the permission, a device and a disa
   expect(await eventsOf(visit.sessionId)).toBe(0);
 });
 
+it('PC-07 a foreign line, visit, branch, business or company is the same 403 and writes nothing', async () => {
+  const visit = await savedVisit();
+  const other = await savedVisit();
+  const target = url(visit.sessionId, visit.lineId);
+  const unknownLineKey = ids.newId();
+  const otherVisitKey = ids.newId();
+  const unknownVisitKey = ids.newId();
+  const otherBranchKey = ids.newId();
+  const otherBusinessKey = ids.newId();
+  const otherCompanyKey = ids.newId();
+  const foreign = [
+    await put(url(visit.sessionId, ids.newId()), input(), f.editorCookie, unknownLineKey),
+    await put(url(visit.sessionId, other.lineId), input(), f.editorCookie, otherVisitKey),
+    await put(url(ids.newId(), visit.lineId), input(), f.editorCookie, unknownVisitKey),
+    await put(url(visit.sessionId, visit.lineId, f.secondBranch), input(), f.ownerCookie, otherBranchKey),
+    await put(url(visit.sessionId, visit.lineId, f.foreignBranch, f.foreignBusiness), input(), f.ownerCookie, otherBusinessKey),
+    await put(target, input(), f.ownerCookie, otherCompanyKey, f.otherCompany),
+  ];
+  const body = JSON.stringify(foreign[0]?.body);
+  expect(foreign.every((reply) => reply.status === 403 && JSON.stringify(reply.body) === body)).toBe(true);
+  expect(foreign[0]?.body['code']).toBe('FORBIDDEN');
+  for (const key of [unknownLineKey, otherVisitKey, unknownVisitKey, otherBranchKey, otherBusinessKey, otherCompanyKey]) {
+    expect(await keyRows(key)).toBe(0);
+  }
+  expect(await changesOf(visit.lineId)).toBe(0);
+  expect(await auditsOf(visit.lineId)).toBe(0);
+  expect(await eventsOf(visit.sessionId)).toBe(0);
+});
+
 it('PC-16 a missing, blank or long reason is 422 and the trimmed reason is kept in the history', async () => {
   const visit = await savedVisit();
   const target = url(visit.sessionId, visit.lineId);
@@ -149,6 +181,38 @@ it('PC-20 the route refuses a missing key, replays the same key and body, and re
   expect(await eventsOf(visit.sessionId)).toBe(1);
 });
 
+it('PC-20 the idempotency fingerprint binds the line and the actor, so one key on another line or another changer is reused', async () => {
+  const visit = await savedVisitLines([f.line(), f.line()]);
+  const first = must(visit.lineIds[0]);
+  const second = must(visit.lineIds[1]);
+  const key = ids.newId();
+  expect((await put(url(visit.sessionId, first), input(), f.editorCookie, key)).status).toBe(200);
+  const otherLine = await put(url(visit.sessionId, second), input(), f.editorCookie, key);
+  expect(otherLine.status).toBe(422);
+  expect(otherLine.body['code']).toBe('IDEMPOTENCY_KEY_REUSED');
+  expect(await changesOf(second)).toBe(0);
+  const otherBody = await put(url(visit.sessionId, first), input(1, 'Another synthetic reason'), f.editorCookie, key);
+  expect(otherBody.status).toBe(422);
+  expect(otherBody.body['code']).toBe('IDEMPOTENCY_KEY_REUSED');
+  const otherActor = await put(url(visit.sessionId, first), input(), secondManagerCookie, key);
+  expect(otherActor.status).toBe(422);
+  expect(otherActor.body['code']).toBe('IDEMPOTENCY_KEY_REUSED');
+  expect(await changesOf(first)).toBe(1);
+  expect(await eventsOf(visit.sessionId)).toBe(1);
+});
+
+it('the mark on the write path is the business-timezone day, not the UTC day', async () => {
+  const visit = await savedVisit();
+  f.setAt(new Date('2026-10-15T22:30:00.000Z'));
+  try {
+    const reply = await put(url(visit.sessionId, visit.lineId), input());
+    expect(reply.status).toBe(200);
+    expect(changeLinePerformersResponseFull.parse(reply.body).line.performers_changed_at).toBe('2026-10-16');
+  } finally {
+    f.setAt(AT);
+  }
+});
+
 it('a stale expected_revision is 409 with current_revision only', async () => {
   const visit = await savedVisit();
   const target = url(visit.sessionId, visit.lineId);
@@ -192,9 +256,29 @@ async function savedVisit(lines?: Parameters<EditFixture['body']>[0]) {
   return { sessionId: session.id, lineId: must(session.lines[0]).id };
 }
 
+async function savedVisitLines(lines: Parameters<EditFixture['body']>[0]) {
+  const response = await f.h.send('POST', f.base, {
+    cookie: f.ownerCookie, company: f.company, key: ids.newId(), body: f.body(lines),
+  });
+  expect(response.status).toBe(201);
+  const session = recordServiceSessionResponse.parse(response.body).session;
+  return { sessionId: session.id, lineIds: session.lines.map((line) => line.id) };
+}
+
 async function changesOf(lineId: string) {
   const rows = await f.h.owner`SELECT count(*)::int AS n FROM service_line_performer_changes
     WHERE company_id=${f.company} AND line_id=${lineId}`;
+  return Number(rows[0]?.['n']);
+}
+
+async function auditsOf(lineId: string) {
+  const rows = await f.h.owner`SELECT count(*)::int AS n FROM audit_log
+    WHERE company_id=${f.company} AND entity_id=${lineId} AND action='service_line.performers_changed'`;
+  return Number(rows[0]?.['n']);
+}
+
+async function keyRows(key: string) {
+  const rows = await f.h.owner`SELECT count(*)::int AS n FROM idempotency_keys WHERE key=${key}`;
   return Number(rows[0]?.['n']);
 }
 
@@ -215,6 +299,17 @@ async function performersOnlyCookie() {
     VALUES(${role},${f.company},${f.company},'change:service-line-performers:branch')`;
   await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,limit_bps,starts_at)
     VALUES(${f.company},${ids.newId()},${userId},${role},${f.company},'BRANCH',${f.branch},10000,'2026-01-01T00:00:00Z')`;
+  return cookie;
+}
+
+// مدير ثانٍ بنفس الإذن: البصمة تربط المفتاح بالفاعل، فمفتاح المدير الأول لا يُقبل منه.
+async function branchManagerCookie() {
+  const cookie = await f.h.signedInOperator('session-performers-manager@example.test');
+  const users = await f.h.owner`SELECT id FROM "user" WHERE email='session-performers-manager@example.test'`;
+  const userId = must(users[0])['id'] as string;
+  const role = must(SYSTEM_ROLES.find((item) => item.code === 'branch_manager')).id;
+  await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,limit_bps,starts_at)
+    VALUES(${f.company},${ids.newId()},${userId},${role},'global','BRANCH',${f.branch},10000,'2026-01-01T00:00:00Z')`;
   return cookie;
 }
 

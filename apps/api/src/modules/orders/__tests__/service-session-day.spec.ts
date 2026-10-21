@@ -11,6 +11,7 @@ import { ids, interceptDatabase, must, sessionFixture, type SessionFixture } fro
 let f: SessionFixture;
 beforeAll(async () => { f = await sessionFixture(); });
 afterAll(async () => { await f?.close(); });
+const CHANGER_NAME = 'Synthetic employee 3';
 const scope = () => ({ ...f.context(), userId: f.ownerId });
 const read = (date: string, extra = {}) => ordersDayQuery(f.db).execute(scope(), { date, limit: 20, ...extra });
 
@@ -175,21 +176,34 @@ it('projects the performer-change mark from the history, omits it on an untouche
   const saved = await f.create.execute({ ...f.context(), input: { ...f.body([f.line(), f.line()]), occurred_at: '2026-10-14T08:00:00.000Z' } });
   const changed = must(saved.session.lines[0]).id;
   const untouched = must(saved.session.lines[1]).id;
+  // صاحبة التغيير موظفة باسم، فاسمها يُحفظ في التاريخ ويجب أن يغيب عن سطر اليومية.
+  await f.h.owner`UPDATE employees SET user_id=${f.ownerId}
+    WHERE company_id=${f.company} AND id=${must(f.employees[3])}`;
   const lines = async () => {
     const visit = must(serviceSessionDayPage.parse(await read('2026-10-14')).items.find((row) => row.id === saved.session.id));
     return { changed: must(visit.lines.find((line) => line.id === changed)), untouched: must(visit.lines.find((line) => line.id === untouched)) };
   };
+  const reason = `sentinel-${ids.newId()}`;
+  const expectQuiet = (line: unknown) => {
+    const packed = JSON.stringify(line);
+    expect(packed).not.toContain(reason);
+    expect(packed).not.toContain('"reason"');
+    expect(packed).not.toContain(f.ownerId);
+    expect(packed).not.toContain(CHANGER_NAME);
+  };
   f.setAt(new Date('2026-10-15T22:30:00.000Z'));
   await change.execute({ ...f.context(ids.newId(), f.ownerId), sessionId: saved.session.id, lineId: changed,
-    input: { performers: [{ employee_id: must(f.employees[1]), share_bps: 10000 }], reason: 'Synthetic performer reason', expected_revision: 1 } });
+    input: { performers: [{ employee_id: must(f.employees[1]), share_bps: 10000 }], reason, expected_revision: 1 } });
   // الساعة 01:30 في الكويت من يوم 16، واليوم بتوقيت UTC هو 15، فالتاريخ يثبت توقيت النشاط.
   const first = await lines();
   expect(first.changed.performers_changed_at).toBe('2026-10-16');
   expect(Object.hasOwn(first.untouched, 'performers_changed_at')).toBe(false);
+  expectQuiet(first.changed);
   f.setAt(new Date('2026-10-18T22:30:00.000Z'));
   await change.execute({ ...f.context(ids.newId(), f.ownerId), sessionId: saved.session.id, lineId: changed,
-    input: { performers: [{ employee_id: must(f.employees[0]) }], reason: 'Synthetic performer reason again', expected_revision: 2 } });
+    input: { performers: [{ employee_id: must(f.employees[0]) }], reason: `${reason} again`, expected_revision: 2 } });
   const second = await lines();
   expect(second.changed.performers_changed_at).toBe('2026-10-19');
   expect(Object.hasOwn(second.untouched, 'performers_changed_at')).toBe(false);
+  expectQuiet(second.changed);
 });
