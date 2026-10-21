@@ -21372,14 +21372,14 @@
           "delay_minutes": {
             "nullable": true,
             "type": "integer",
-            "minimum": 1,
-            "maximum": 1440
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
           "lead_minutes": {
             "nullable": true,
             "type": "integer",
-            "minimum": 1,
-            "maximum": 1440
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
           "expected_revision": {
             "nullable": true,

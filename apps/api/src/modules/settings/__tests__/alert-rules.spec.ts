@@ -27,6 +27,15 @@ const notClockedIn = (delay: number, enabled = true): RuleValues => ({
   delay_minutes: delay,
   lead_minutes: null,
 });
+// نوع الموظفة نفسها: مفيش أدوار ولا قنوات تتختار، والوقت المسبق بس هو اللي بيتظبط.
+const endsSoon = (lead: number): RuleValues => ({
+  kind: 'SHIFT_ENDS_SOON',
+  enabled: true,
+  recipient_roles: [],
+  channels: [],
+  delay_minutes: null,
+  lead_minutes: lead,
+});
 const path = (branch: string | null, business = f.business) =>
   branch === null
     ? `/v1/businesses/${business}/alert-rules`
@@ -171,6 +180,26 @@ it('validates per kind with ALERT_RULE_INVALID and saves nothing', async () => {
     expect(response.body).toMatchObject({ code: 'ALERT_RULE_INVALID' });
   }
   expect((await audits()).length).toBe(before);
+});
+
+it('out-of-range minutes are ALERT_RULE_INVALID (422), not a 400 from the contract', async () => {
+  const before = (await audits()).length;
+  for (const rule of [notClockedIn(0), notClockedIn(1441), endsSoon(0), endsSoon(1441)]) {
+    const response = await put(null, [rule]);
+    expect(response.status).toBe(422);
+    expect(response.body).toMatchObject({ code: 'ALERT_RULE_INVALID' });
+  }
+  expect((await audits()).length).toBe(before);
+  // مش عدد صحيح: السكيما هي اللي بترفضه (شكلها هو)، فده 400 مش 422.
+  const notInteger = await put(null, [{ ...notClockedIn(20), delay_minutes: 20.5 }]);
+  expect(notInteger.status).toBe(400);
+  expect(notInteger.body).toMatchObject({ code: 'VALIDATION_FAILED' });
+  expect((await audits()).length).toBe(before);
+  // طرفَي المدى لسه بيتحفظوا.
+  expect((await put(null, [notClockedIn(1)])).status).toBe(200);
+  expect((await put(null, [notClockedIn(1440)])).status).toBe(200);
+  // نرجّع القيمة اللي الاختبار اللي بعده بيتوقعها.
+  expect((await put(null, [notClockedIn(20)])).status).toBe(200);
 });
 
 it('RT-29: audited with before/after; a repeated save writes nothing', async () => {

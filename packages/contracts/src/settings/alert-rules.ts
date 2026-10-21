@@ -31,6 +31,9 @@ export const alertRecipientRole = z
 export const alertChannel = z.enum(['IN_APP']).meta({ id: 'AlertChannel' });
 
 const minutes = z.number().int().min(1).max(1440);
+// الدومين هو اللي يملك مدى الدقايق (1..1440)، فالسكيما في الطلب بتفضل رقم صحيح بس:
+// القيمة برّه المدى لازم تطلع 422 ALERT_RULE_INVALID زي ما التوثيق بيقول، مش 400 من السكيما قبل ما الدومين يشوفها.
+const minutesInput = z.number().int();
 // رقم النسخة: عدّاد القاعدة المخزنة، بيتزود مع كل حفظ.
 const revision = z.number().int().min(1).max(2_147_483_646);
 
@@ -77,8 +80,8 @@ export const alertRuleInput = z
     enabled: z.boolean(),
     recipient_roles: z.array(alertRecipientRole).max(4),
     channels: z.array(alertChannel).max(1),
-    delay_minutes: minutes.nullable(),
-    lead_minutes: minutes.nullable(),
+    delay_minutes: minutesInput.nullable(),
+    lead_minutes: minutesInput.nullable(),
     // رقم النسخة اللي العميل قراها قبل الحفظ (null = متوقع مفيش قاعدة مخزنة في النطاق ده بعد)؛
     // لو غير كده يبقى حد تاني عدّل القاعدة في نفس الوقت والطلب يترفض.
     expected_revision: revision.nullable(),
