@@ -23,8 +23,13 @@ const START_TOLERANCE_MS = 5_000;
 const IDENTITY_TTL_MS = 60_000;
 const confirmedOwners = new Map();
 
-// جيل الـ lock: الـ inode بتاع الفولدر (بيفضل هو هو بعد الـ rename) والـ token لو اتكتب.
-function inspect(dir) {
+/**
+ * جيل الـ lock أو الـ guard: الـ inode بتاع الفولدر (بيفضل هو هو بعد الـ rename) والـ token لو اتكتب.
+ *
+ * @param dir مسار الفولدر
+ * @returns { ino, age, owner }، أو undefined لو الفولدر مش موجود
+ */
+export function inspect(dir) {
   let stat;
   try {
     stat = statSync(dir, { bigint: true });
@@ -52,9 +57,10 @@ function ownerAlive(owner) {
   const key = `${owner.pid}:${owner.startedAt}`;
   if (Date.now() - (confirmedOwners.get(key) ?? -Infinity) < IDENTITY_TTL_MS) return true;
   const startedAt = processStartMs(owner.pid);
-  // النظام مقالش: منسرقش lock على "مش عارف".
-  if (startedAt === undefined) return true;
-  if (Math.abs(startedAt - owner.startedAt) > START_TOLERANCE_MS) return false;
+  if (startedAt !== undefined && Math.abs(startedAt - owner.startedAt) > START_TOLERANCE_MS) {
+    return false;
+  }
+  // اتأكدنا إنه هو، أو النظام مقالش (ومنسرقش lock على "مش عارف"): في الحالتين منسألش تاني قبل الـ TTL.
   confirmedOwners.set(key, Date.now());
   return true;
 }
@@ -68,37 +74,6 @@ function isStale(seen) {
 
 const sameGeneration = (a, b) =>
   b !== undefined && a.ino === b.ino && a.owner?.token === b.owner?.token;
-
-// guard فضل من reaper مات: بنشيله بنفس حيلة الـ rename لاسم فريد، فاتنين ميشيلوش guard جديد مكانه.
-function clearStaleGuard(guard) {
-  const seen = inspect(guard);
-  if (seen === undefined || seen.age <= GUARD_STALE_MS) return;
-  const parked = `${guard}.stale-${randomUUID()}`;
-  try {
-    renameSync(guard, parked);
-  } catch {
-    return;
-  }
-  rmSync(parked, { recursive: true, force: true });
-}
-
-// اللي بيشيلوا lock ميت بيشتغلوا واحد واحد: من غيره اتنين يحكموا على نفس الـ lock إنه ميت، الأول يشيله
-// وحد جديد يمسك مكانه، والتاني يشيل الجديد ده وهو فاكره القديم (#449).
-function withTakeoverGuard(lock, fn) {
-  const guard = `${lock}.takeover`;
-  try {
-    mkdirSync(guard);
-  } catch (error) {
-    if (error.code !== 'EEXIST') throw error;
-    clearStaleGuard(guard);
-    return;
-  }
-  try {
-    fn();
-  } finally {
-    rmSync(guard, { recursive: true, force: true });
-  }
-}
 
 /**
  * بيرجّع lock اتشال بالغلط لمكانه، من غير ما يستبدل lock تاني اتعمل في المكان ده.
@@ -128,22 +103,68 @@ export function restoreParked(lock, parked) {
   return true;
 }
 
-// جوه الـ guard بنعيد الفحص: اللي شفناه بره ممكن reaper تاني يكون شاله، وواحد جديد مسك مكانه.
-// الـ rename ذري: بنمسح اللي اتنقل بس لو هو بالظبط الجيل اللي حكمنا عليه، وإلا بنرجّعه.
-function reap(lock) {
-  const seen = inspect(lock);
-  if (seen === undefined || !isStale(seen)) return;
-  const parked = `${lock}.stale-${randomUUID()}`;
+// المسح بالاسم مش مشروط: ممكن يمسح جيل اتعمل بعد ما بصينا. فبنعمل rename ذري لاسم فريد، وبنمسح اللي اتنقل
+// بس لو هو الجيل المتوقع، وإلا بنرجّعه.
+function removeGeneration(dir, isExpected) {
+  const parked = `${dir}.stale-${randomUUID()}`;
   try {
-    renameSync(lock, parked);
+    renameSync(dir, parked);
   } catch {
     return;
   }
-  if (sameGeneration(seen, inspect(parked))) {
-    rmSync(parked, { recursive: true, force: true });
+  if (isExpected(inspect(parked))) rmSync(parked, { recursive: true, force: true });
+  else restoreParked(dir, parked);
+}
+
+/**
+ * بيشيل guard فضل من reaper مات، بس لو لسه هو بالظبط الجيل اللي اتشاف قديم: اتنين ممكن يحكموا على نفس
+ * الـ guard إنه قديم، والأول يشيله ويعمل guard جديد قبل ما التاني يوصل.
+ *
+ * @param guard مسار الـ guard
+ * @param seen  الجيل اللي اتشاف (افتراضياً اللي موجود دلوقتي)
+ */
+export function clearStaleGuard(guard, seen = inspect(guard)) {
+  if (seen === undefined || seen.age <= GUARD_STALE_MS) return;
+  removeGeneration(guard, (parked) => sameGeneration(seen, parked));
+}
+
+/**
+ * بيفك الـ guard بس لو الـ token بتاعه لسه بتاعنا: لو اتشال واتعمل guard جديد مكانه، ده مش بتاعنا نمسحه.
+ *
+ * @param guard مسار الـ guard
+ * @param token الـ token اللي كتبناه وإحنا بنمسكه
+ */
+export function releaseGuard(guard, token) {
+  if (inspect(guard)?.owner?.token !== token) return;
+  removeGeneration(guard, (parked) => parked?.owner?.token === token);
+}
+
+// اللي بيشيلوا lock ميت بيشتغلوا واحد واحد: من غيره اتنين يحكموا على نفس الـ lock إنه ميت، الأول يشيله
+// وحد جديد يمسك مكانه، والتاني يشيل الجديد ده وهو فاكره القديم (#449).
+function withTakeoverGuard(lock, fn) {
+  const guard = `${lock}.takeover`;
+  const token = randomUUID();
+  try {
+    mkdirSync(guard);
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    clearStaleGuard(guard);
     return;
   }
-  restoreParked(lock, parked);
+  try {
+    writeFileSync(join(guard, 'owner.json'), JSON.stringify({ token }));
+    // لو الـ guard بتاعنا اتشال كقديم واتعمل غيره قبل ما نكتب، نرجع ونحاول تاني.
+    if (inspect(guard)?.owner?.token === token) fn();
+  } finally {
+    releaseGuard(guard, token);
+  }
+}
+
+// جوه الـ guard بنعيد الفحص: اللي شفناه بره ممكن reaper تاني يكون شاله، وواحد جديد مسك مكانه.
+function reap(lock) {
+  const seen = inspect(lock);
+  if (seen === undefined || !isStale(seen)) return;
+  removeGeneration(lock, (parked) => sameGeneration(seen, parked));
 }
 
 /**
@@ -193,6 +214,8 @@ export async function withStartLock(lock, fn, { waitMs = WAIT_MS } = {}) {
   try {
     return await fn();
   } finally {
-    if (inspect(lock)?.owner?.token === token) rmSync(lock, { recursive: true, force: true });
+    if (inspect(lock)?.owner?.token === token) {
+      removeGeneration(lock, (parked) => parked?.owner?.token === token);
+    }
   }
 }

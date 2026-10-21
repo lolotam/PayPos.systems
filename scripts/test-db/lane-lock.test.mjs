@@ -17,7 +17,14 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { LaneError } from './lane-error.mjs';
-import { restoreParked, takeOverIfStale, withStartLock } from './lane-lock.mjs';
+import {
+  clearStaleGuard,
+  inspect,
+  releaseGuard,
+  restoreParked,
+  takeOverIfStale,
+  withStartLock,
+} from './lane-lock.mjs';
 import { ownStartMs } from './lane-process.mjs';
 
 const root = mkdtempSync(join(tmpdir(), 'pospay-lane-lock-'));
@@ -167,4 +174,40 @@ test('#449: starts racing over a dead lock enter one at a time and leave nothing
     leftovers(lock).filter((name) => name !== 'inside'),
     [],
   );
+});
+
+function staleGuard(lock, token) {
+  const guard = `${lock}.takeover`;
+  mkdirSync(guard);
+  writeFileSync(join(guard, 'owner.json'), JSON.stringify({ token }));
+  const old = new Date(Date.now() - 5 * 60_000);
+  utimesSync(guard, old, old);
+  return guard;
+}
+
+test('#449: two contenders clearing one stale guard never remove the fresh guard that replaced it', () => {
+  const lock = freshLock();
+  const guard = staleGuard(lock, 'crashed');
+  // الاتنين شافوا نفس الـ guard القديم؛ الأول شاله وعمل guard جديد قبل ما التاني يوصل.
+  const seenByLate = inspect(guard);
+  clearStaleGuard(guard);
+  assert.equal(existsSync(guard), false);
+  mkdirSync(guard);
+  writeFileSync(join(guard, 'owner.json'), JSON.stringify({ token: 'fresh' }));
+  clearStaleGuard(guard, seenByLate);
+  assert.equal(ownerOf(guard).token, 'fresh');
+  assert.deepEqual(
+    leftovers(lock).filter((name) => name !== 'lock.d.takeover'),
+    [],
+  );
+});
+
+test('#449: a takeover whose guard was replaced does not release the new holder guard', () => {
+  const lock = freshLock();
+  const guard = staleGuard(lock, 'fresh');
+  releaseGuard(guard, 'crashed');
+  assert.equal(ownerOf(guard).token, 'fresh');
+  releaseGuard(guard, 'fresh');
+  assert.equal(existsSync(guard), false);
+  assert.deepEqual(leftovers(lock), []);
 });
