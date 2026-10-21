@@ -227,8 +227,12 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-34** The owner approves October: in **one** transaction the start time is captured before the lock, the statement is
   locked, the month has ended, the status is REVIEWED, the current fingerprint equals `reviewed_fingerprint`, no blocking
   issue, no unresolved blocked correction, no projected line with shares ≠ 10000 (D-14), the ADR-0012 count is 0; then every
-  `StatementLine` is frozen (one per employee × source: `COMMISSION`, `SALE`, `TIP_CARD`, `TIP_CASH`, `CORRECTION`), the
+  `StatementLine` is frozen (one per employee × source: `COMMISSION`, `SALE`, `TIP_CARD`, `TIP_CASH`, `CORRECTION`, and one
+  `EMPLOYEE` row per in-scope employee), the
   fingerprint is frozen as `input_fingerprint`, status APPROVED with approver and time, one audit entry.
+- **CM-34c** An empty month approved: the business had two employees and no session, tip, sale or correction in October;
+  approval freezes two `EMPLOYEE` rows (amount 0, frozen names and numbers) and nothing else; the statement view and the
+  export list both employees with zero totals; an employee hired in November is not listed.
 - **CM-34b** A company whose package sales are not yet covered by the 50-4 bootstrap (a sale whose applied revision is
   below the revision `listCurrentPackageSales` reports) cannot approve; nothing is frozen; after the bootstrap it can.
 - **CM-35** A pending commission event created before the start → 409 `COMMISSION_UPDATES_PENDING` with the ADR-0012 text;
@@ -259,6 +263,11 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   per source; October's frozen lines are unchanged.
 - **CM-45** A performer change on an approved line (spec 055): one negative correction for the removed performer, one positive
   for the added, plus any tier-shifted lines of either employee.
+- **CM-46b** (FR-042) سارة has salary entries on 1 January (500.000) and 10 April (600.000); January and February are
+  APPROVED, March is REVIEWED, April is DRAFT. A back-dated entry on 15 January (550.000) is the selected salary of
+  January, February and March only: one transaction locks January…March (and the correction target April), posts
+  corrections for January and February into April, returns March to DRAFT, and leaves April's own month unchanged; a
+  later revision of the 15 January entry repeats the same range.
 - **CM-46** A salary committed after approval → corrections on the lines whose threshold moved (SPEC §11); a tip changed in a
   closed month → a `TIP_CARD` or `TIP_CASH` correction for that `tip:<session>:<method>` source; raising a cash tip of a
   closed month changes no payable figure, raising a card tip does.
@@ -453,6 +462,11 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   source, one `SALE` per `sale:<id>`, one `TIP_CARD`/`TIP_CASH` per `tip:<session>:<method>`, one line per received
   correction (its own id as source) of kind `CORRECTION` (commission and sale corrections), `CORRECTION_TIP_CARD` or
   `CORRECTION_TIP_CASH`, so the payable figure can be computed from the frozen kinds alone; zero amounts are frozen too, so the frozen set equals the fingerprinted set.
+  **Every in-scope employee gets one `EMPLOYEE` row** (`source_ref = employee:<id>`, amount `0.000`, never part of any
+  total), even with no source at all: in scope means an employee of the business whose employment overlaps the month
+  (hire date ≤ the last day, contract end and deletion, if any, ≥ the first day, read through `EmployeeDirectoryPort`) or
+  who has any source or received correction in the month. It carries the frozen label, so an approved month always lists
+  the same employees with their zero totals.
   **Every** frozen row also stores the employee's label as read in the approval transaction through
   `EmployeeDirectoryPort` (staff, ADR-0010): `employee_number` (row 8c), `employee_name_ar`, `employee_name_en`, so a later
   rename or renumbering of the employee never changes an approved statement or its export (D-20).
@@ -486,8 +500,14 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `(employee, tip:<session>:<method>)`. A `TIP_CASH` correction is informational like a cash tip: it is shown and frozen,
   never added to the payable figure and never part of a negative-commission carry (CS-Q7); a `TIP_CARD` correction is
   paid or recovered with payroll like a card tip.
-- **FR-042** Salaries: a `SalaryChanged` whose date is on or before a closed month's last day, and which changes that month's
-  selected salary, recomputes that month for that employee.
+- **FR-042** Salaries: a salary entry `(employee, effective_from)` is the selected salary (SPEC §5.5) of **every month whose last
+  day falls in `[effective_from, next_from)`**, where `next_from` is the employee's next later entry in the projection (open
+  ended when there is none, up to the current month). A new entry or a new revision of one therefore affects that whole
+  range, not one month. Under the identity lock of FR-015 the consumer computes the range from the locked projection, calls
+  `lockStatementPeriods` for every month in it (plus the correction targets, ascending, one call), then for each month:
+  an open month (DRAFT/REVIEWED) is refreshed (its estimate recomputes on read; REVIEWED returns to DRAFT, D-5) and a closed
+  month (APPROVED/PAID) runs the correction step (FR-039) for that employee. The fingerprint of a month includes only its
+  selected salary (§6 _Fingerprint_), so months outside the range do not change.
 - **FR-043** Plan versions and overrides never reach a closed month (FR-007), so they never produce corrections; only the
   period repair (FR-046) does.
 - **FR-044** Corrections are tested on **seeded closed periods** (plan row 55): the seed freezes a month directly through the
@@ -568,7 +588,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 The canonical input of one business and month: for each employee in ascending id, the ACTIVE projected lines of the month
 (`line_id`, `revision`, `occurred_at`, `recorded_at`, `business_date`, `net_share`, `share_bps`, `rule_snapshot`, `counts`),
 the sales (`sale_id`, `revision`, `price_paid`, `refunded_amount`), the tip rows (`session_id`, `revision`, `method`, `amount`),
-the salary entries with `effective_from ≤` the month's last day, the plan versions and overrides that can apply in the month,
+the salary entry selected for the month's last day (SPEC §5.5), the plan versions and overrides that can apply in the month,
 the corrections received by the month, and the open blocked corrections that target it. Every list sorted by its identity;
 money as KWD strings; serialized by `canonicalJson`, hashed with SHA-256, stored as lowercase hex.
 
@@ -681,7 +701,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations). 3. CM-51…CM-54 | 55-1; CS-Q11 | 400–550 |
 | **52-1** | Review | 1. Review use case + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
-| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-35, CM-37, CM-38, CM-34b | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q21 | 400–550 |
+| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-35, CM-37, CM-38 | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q21 | 400–550 |
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
 | **54-1** | Mark paid | 1. Use case + HTTP (CS-Q6). 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
 | **56-1** | Excel export | 1. Worker document source and workbook (D-18). 2. Request/collect routes, audit. 3. CM-55, CM-56 | 53-2; 59-0's ADR-0049 addendum; CS-Q10, CS-Q12, CS-Q20, CS-Q21 | 350–480 |
