@@ -128,7 +128,7 @@ it('MY-13 months back: saved 3 and 24 reach every adapter; 0 and 25 are 422 and 
   expect((await put({ columns: null, months_back: 24 })).statusCode).toBe(200);
   expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 24));
   const before = await audits();
-  for (const months_back of [0, 25]) {
+  for (const months_back of [0, 25, 1001, -5000]) {
     const refused = await put({ columns: null, months_back });
     expect(refused.statusCode).toBe(422);
     expect(errorEnvelope.parse(refused.json()).code).toBe('STAFF_MONTHS_BACK_INVALID');
@@ -159,6 +159,7 @@ it('MY-19 an unknown, duplicate, rating_comments, customer_phone or rating_avera
     ['date', 'rating_comments'],
     ['customer_phone'],
     ['rating_average'],
+    ['x'.repeat(100)],
   ]) {
     const refused = await put({ columns, months_back: 5 });
     expect(refused.statusCode).toBe(422);

@@ -34,6 +34,8 @@ export interface StaffColumnsScope {
 /** بيفتح withTenant ومفتاح Idempotency-Key حوالين الاستبدال، فالإعادة بترجّع نفس الرد من غير كتابة تانية. */
 export interface StaffColumnsTransactions {
   /**
+   * بيشغّل الاستبدال جوه معاملة الشركة بعد ما يحجز المفتاح، فالإعادة بنفس المفتاح بترجّع الرد المتخزن.
+   *
    * @param command الشركة والمستخدم ومفتاح الطلب وبصمته
    * @param command.companyId   الشركة المتأكد منها
    * @param command.userId      المدير اللي بيغيّر

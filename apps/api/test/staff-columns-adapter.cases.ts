@@ -1,4 +1,5 @@
 import type { Tx } from '@pospay/db';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { permissionFixture, type PermissionFixture } from './permissions-fixture.ts';
@@ -55,6 +56,17 @@ export function staffColumnsAdapterCases(adapter: StaffColumnsReader): void {
     expect(await read()).toEqual({ columns: ['date', 'tip'], monthsBack: 3 });
     await store([], 24);
     expect(await read()).toEqual({ columns: [], monthsBack: 24 });
+  });
+
+  it('reads allowed and monthsBack from one snapshot inside a transaction', async () => {
+    await store(['date'], 2);
+    const seen = await f.db.withTenant(f.company, async (tx) => {
+      const columns = [...(await adapter.allowed(tx, f.company, f.business))];
+      await tx.execute(sql`UPDATE business_settings SET staff_columns = '{net}', staff_months_back = 9
+        WHERE company_id = ${f.company} AND business_id = ${f.business}`);
+      return { columns, monthsBack: await adapter.monthsBack(tx, f.company, f.business) };
+    });
+    expect(seen).toEqual({ columns: ['date'], monthsBack: 2 });
   });
 
   it('reads only the business asked for', async () => {

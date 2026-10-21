@@ -35,8 +35,8 @@ export const staffColumnsSettings = responseObject({
 // null = رجّعه للافتراضي.
 export const replaceStaffColumnsInput = z
   .object({
-    columns: z.array(z.string().max(64)).max(32).nullable(),
-    months_back: z.number().int().min(-1000).max(1000).nullable(),
+    columns: z.array(z.string()).max(32).nullable(),
+    months_back: z.number().int().nullable(),
   })
   .strict()
   .meta({ id: 'ReplaceStaffColumnsInput' });

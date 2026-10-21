@@ -18304,15 +18304,14 @@
             "maxItems": 32,
             "type": "array",
             "items": {
-              "type": "string",
-              "maxLength": 64
+              "type": "string"
             }
           },
           "months_back": {
             "nullable": true,
             "type": "integer",
-            "minimum": -1000,
-            "maximum": 1000
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [

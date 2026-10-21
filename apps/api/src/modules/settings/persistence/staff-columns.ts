@@ -45,25 +45,35 @@ async function readStoredStaffColumns(
   return toStored(row);
 }
 
+// One snapshot per transaction and business: a consumer that asks for both the columns and the months back (the
+// orders read checks the month and projects the fields) must not see two different saves between two SELECTs.
+const snapshots = new WeakMap<Tx, Map<string, Promise<StaffColumnsSetting>>>();
+
 /**
  * The public read the consumer adapters call on their own transaction: the effective columns, postponed codes
- * removed, and the effective months back.
+ * removed, and the effective months back, read once per transaction and business.
  *
  * @param tx         the caller's tenant transaction
  * @param companyId  the verified company
  * @param businessId the business of the staff member's session
  * @returns the allowed columns and months back
  */
-export async function readStaffColumns(
+export function readStaffColumns(
   tx: Tx,
   companyId: string,
   businessId: string,
 ): Promise<StaffColumnsSetting> {
-  const stored = await readStoredStaffColumns(tx, companyId, businessId);
-  return {
+  const perTx = snapshots.get(tx) ?? new Map<string, Promise<StaffColumnsSetting>>();
+  snapshots.set(tx, perTx);
+  const key = `${companyId}:${businessId}`;
+  const cached = perTx.get(key);
+  if (cached !== undefined) return cached;
+  const read = readStoredStaffColumns(tx, companyId, businessId).then((stored) => ({
     columns: effectiveStaffColumns(stored.columns),
     monthsBack: effectiveStaffMonthsBack(stored.monthsBack),
-  };
+  }));
+  perTx.set(key, read);
+  return read;
 }
 
 function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): StaffColumnsScope {
