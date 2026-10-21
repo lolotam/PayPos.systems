@@ -1121,6 +1121,27 @@
       "when": 1792580299769,
       "tag": "0161_2026-10-21_staff-columns",
       "breakpoints": true
+    },
+    {
+      "idx": 162,
+      "version": "7",
+      "when": 1792581989660,
+      "tag": "0162_2026-10-21_discount-proposals",
+      "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1792582041083,
+      "tag": "0163_2026-10-21_discount-proposal-unique-indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 164,
+      "version": "7",
+      "when": 1792582058309,
+      "tag": "0164_2026-10-21_discount-proposal-links",
+      "breakpoints": true
     }
   ]
 }

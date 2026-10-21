@@ -1,0 +1,31 @@
+// أعمدة القرار والاستهلاك وحدها؛ الشروط والطلب ولقطات D-18 بلا UPDATE، ولا UPDATE على service_lines.discount_proposal_id.
+export const DISCOUNT_PROPOSAL_COLUMN_GRANTS = [
+  'status',
+  'expires_at',
+  'decided_by',
+  'decided_by_membership_id',
+  'decided_via',
+  'decided_device_id',
+  'decider_name_ar',
+  'decider_name_en',
+  'decider_role',
+  'decider_role_is_system',
+  'decider_role_name_ar',
+  'decider_role_name_en',
+  'decided_at',
+  'approved_limit_source',
+  'approved_limit_bps',
+  'approver_is_performer',
+  'reject_reason',
+  'consumed_line_id',
+  'consumed_edit_id',
+  'consumed_at',
+].map((column) => `discount_proposals.${column}:pospay_app:UPDATE`);
+
+// جدول المنفذين للإدخال فقط؛ ترتيب القائمة هو ترتيب Postgres (C collation) لأن الاختبار يقارنها بـ ORDER BY.
+export const DISCOUNT_PROPOSAL_TABLE_GRANTS = [
+  'discount_proposal_performers:INSERT',
+  'discount_proposal_performers:SELECT',
+  'discount_proposals:INSERT',
+  'discount_proposals:SELECT',
+];
