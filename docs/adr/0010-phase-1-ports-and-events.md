@@ -149,16 +149,20 @@ PP-18.25), and row 62 delivers in-app only (AL-Q6, PP-18.26). The rules are edit
 ### 3. Worker customers' `BranchScheduleHoursPort` (spec 060 D-B3)
 
 Defined in worker `customers/ports/`: `hours(tx, companyId, branchId)` → `{ opening_hours | null, time_zone }`, on the
-caller's transaction, where `time_zone` is the branch's effective zone (the branch's, otherwise the business's). It
-is bound to a new public reader of the worker `tenancy` module, `branchScheduleHours(tx, companyId, branchId)`, the
-same shape as its existing `branchPlace` and `businessTimeZone` readers.
+caller's transaction, where `time_zone` is the branch's effective zone (the branch's, otherwise the business's).
+**It is bound at the worker composition root by an injected callback** (spec 060 D-B3, row 59-1), as `DaySessionsPort`
+is (ADR-0041). The root wires the port to a new public reader of the worker `tenancy` module,
+`branchScheduleHours(tx, companyId, branchId)`, which has the same shape as its existing `branchPlace` and
+`businessTimeZone` readers. Worker `customers` holds only the port and never imports `tenancy` for it.
 
 - It feeds two pure functions in `customers/domain`. `requestDayOf(occurredAt, zone, openingHours)` gives each session
   exactly one request day: its branch-local date, or for a visit after midnight inside an overnight interval, the
   day that interval started. `ratingSchedule` takes the last close of that day (RT-Q4, PP-18.12 for both rules).
 - The 59-1 consumer (D-B2) and the claim's reschedule (D-B5) both call it. Orders' `business_date` is not used: it is
   in the business zone and can name the wrong day near midnight for a branch in another zone.
-- **No import arrow is added:** `customers: [tenancy]` already exists in §2.
+- **No import arrow and no `reads` line.** No file in `customers` imports `tenancy` for this port, so §2 and the §6
+  `reads` list gain nothing. The root wiring is composition, the one place an interface meets a class (`CLAUDE.md`
+  §2.2), and it changes nothing in the map.
 - **Declared now, built later.** The whole rating track is postponed to the end of the project (RT-Q1, PP-18.9), and
   59-1 is part of it. The port is declared now so that 59-1 needs no further ADR when the track resumes.
 
@@ -194,6 +198,6 @@ lists by name, not for the adapters that implement them. The `StaffColumnsPort` 
   `customers`, `staff` or `commissions` through any adapter.
 - As the Consequences above require, each adapter adds its `reads` line in the PR that writes it, one line per
   symbol: 57c-1 adds the settings reader lines of all four `StaffColumnsPort` adapters; 62-2, 62-2b, 62-2c and 62-3
-  add their `AlertRulesPort` lines; 59-1 adds `customers -> tenancy.branchScheduleHours`.
+  add their `AlertRulesPort` lines. `BranchScheduleHoursPort` adds none (§3: a root-bound callback).
 - **Not in this addendum:** customers' `RatingAlertRecipientsPort` (docs PR A-1, postponed with the rating track), and
   the `NotificationDelivered` ⇒ `customers` event row (spec 060 D-B8, in 59b-3).

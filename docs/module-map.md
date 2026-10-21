@@ -141,7 +141,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff`, `customers`, `commissions` | `AlertRulesPort`, `StaffColumnsPort`                                                    | `settings`  | alert rules (recipients, channels) and staff-app columns — reads (ADR-0010)                                                                                          |
 | `orders` | `StaffColumnsPort` | `settings` | the business's allowed staff-app columns and `staff_months_back`, read in the «شغلي» transaction so a hidden column never leaves the server (ADR-0010 addendum 2026-10-21, spec 060 D-A3, 57c-1) |
 | worker `orders` | `AlertRulesPort` | worker `settings` | the effective alert rule (branch override, otherwise the business rule, master switch applied) for the late, edit, cancel and performers bells; its roles feed `branchManagerRecipients` (ADR-0010 addendum 2026-10-21, spec 060 D-B14, 62-3) |
-| worker `customers` | `BranchScheduleHoursPort` | worker `tenancy` | the branch's opening hours and effective timezone through `branchScheduleHours` on the caller's transaction, for the rating request day and closing time (ADR-0010 addendum 2026-10-21, spec 060 D-B3, 59-1, postponed by RT-Q1) |
+| worker `customers` | `BranchScheduleHoursPort` | worker `tenancy` | the branch's opening hours and effective timezone on the caller's transaction, for the rating request day and closing time; bound at the worker composition root by an injected callback, so `customers` imports nothing for it and it has no `reads` line (ADR-0010 addendum 2026-10-21, spec 060 D-B3, 59-1, postponed by RT-Q1) |
 
 ### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
 
@@ -298,7 +298,8 @@ composition_roots:
 # arrow above). §3.1: the one synchronous write. A read port's adapter calling another module's exported read is
 # added under reads, one line per symbol, in the PR that introduces it.
 # ADR-0010 addendum 2026-10-21 (spec 060 A-0): customers/staff/commissions -> settings are read-only arrows for the
-# StaffColumnsPort/AlertRulesPort adapters; every reads line lands with its adapter (57c-1, 62-1/62-3, 59-1).
+# StaffColumnsPort/AlertRulesPort adapters; every reads line lands with its adapter (57c-1, 62-2/62-2b/62-2c/62-3).
+# Worker customers' BranchScheduleHoursPort is a root-bound callback (59-1): no import, no reads line.
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
