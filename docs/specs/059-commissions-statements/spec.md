@@ -5,7 +5,7 @@
 > answered by Waleed through his super agent (PP-17, 2026-10-21; CS-Q14, CS-Q15 and CS-Q16 against the recommendation),
 > and its follow-ups: CS-Q20 (a branch manager's scope) answered (PP-20.1, the recommended option), CS-Q21 (erasing a
 > frozen customer name) answered (PP-20.2, the recommended option), and the permissions question CS-Q23 (a mid-month
-> branch transfer) answered (PP-21.2, the recommended option); its follow-up CS-Q24 (work done at another branch) answered (PP-22.1, the recommended option), and CS-Q25 (an employee attached to two branches at the same time) answered (PP-23.1, the recommended option). Every rule that waits on one is
+> branch transfer) answered (PP-21.2, the recommended option); its follow-up CS-Q24 (work done at another branch) answered (PP-22.1, the recommended option), and CS-Q25 (an employee attached to two branches at the same time) answered (PP-23.1, the recommended option). The permissions question CS-Q26 (whether a branch manager may review the business-wide statement, and what she then sees) is open and gates 52-1. Every rule that waits on one is
 > marked `TODO(spec)` with its number. **No code starts before this spec is merged**, and no sub-PR starts before the
 > questions it names in §7 are answered.
 > **Implements:** Phase 1 SPEC §4 (commission entities), §5 (the engine, already built), §6 (events, estimate, review,
@@ -283,7 +283,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   post-freeze change. No frozen row carries the new split while another carries the old one.
 - **CM-33c** RLS (negative isolation): company B reads 0 of company A's `commission_statement_returns` rows, and inserting a
   return row for A's statement as B fails.
-- **CM-33** Without `review:commissions:business` (default roles `TODO(spec)` CS-Q2) → 403. Whether the reviewer may also
+- **CM-33** Without `review:commissions:business` (default roles `TODO(spec)` CS-Q2) → 403. A branch-scoped reviewer
+  (ليلى, manager of السالمية, on an October with السالمية and حولي employees): `TODO(spec)` CS-Q26. Whether the reviewer may also
   be the approver is `TODO(spec)` CS-Q3.
 
 ### Story 7 — Approve, atomically (53, P1)
@@ -573,7 +574,12 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   the statement fingerprint the builder gives now = `expected_statement_fingerprint` (both as the reviewer's view showed
   them, so a label that changed after she loaded the view is refused, never reviewed unseen); set REVIEWED with `reviewed_fingerprint`, and
   `reviewed_statement_fingerprint` computed from the rows the statement builder (FR-026) would freeze now (the live
-  attachments and labels read in this transaction), reviewer user and membership, time; audit `commission_statement.reviewed`.
+  attachments and labels read in this transaction), reviewer user and membership, time; audit `commission_statement.reviewed`. **A reviewer whose effective branch set is not the whole business** (a
+  branch-scoped holder of review, if CS-Q2 grants it to branch managers): whether she may review at all, and if so whether
+  review shows her the unfiltered statement, is `TODO(spec)` CS-Q26. The statement is one per business and review
+  certifies all of it, so a fingerprint from her filtered view could not match the whole-statement builder, and returning
+  the whole-statement fingerprint would let her certify rows she never saw; until CS-Q26 is answered no read path or
+  review path gives a branch-scoped reader either, and 52-1 does not start.
 - **FR-030** Emit `StatementAwaitingApproval` (SPEC §3) to notifications in the same transaction, recipients resolved by
   commissions (SPEC §3 "emitting modules put recipients and channels in the event"; in-app, CS-Q17 = PP-17.5). **Every
   notification event of this slice** (this one, the reminders of FR-053/FR-055 and the blocked-correction notice of FR-049)
@@ -906,7 +912,7 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
 | --- | --- | --- |
 | `manage:commission-plans:business` (proposed) | `TODO(spec)` CS-Q1 | new; plan versions, overrides, period repair |
 | `read:commissions:business` | owner, general manager, business manager, accountant **and branch manager** (CS-Q14 = PP-17.2, against the recommendation); grantable | new; estimate of all employees, statement view, export. A holder sees only the employees of her effective branch set (CS-Q20 = PP-20.1, below) |
-| `review:commissions:business` | `TODO(spec)` CS-Q2 | named by SPEC §6 |
+| `review:commissions:business` | `TODO(spec)` CS-Q2; a branch-scoped reviewer `TODO(spec)` CS-Q26 | named by SPEC §6 |
 | `approve:commissions:business` | owner (D-17, SPEC §11); grantable `TODO(spec)` CS-Q5 | named by SPEC §6 |
 | `pay:commissions:business` | `TODO(spec)` CS-Q4 | named by SPEC §6 |
 
@@ -987,7 +993,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port, and the statement builder with its statement fingerprint (D-6, FR-026) and the round-trip unit test of CM-34e. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29, and the statement-view part of CM-23d, CM-23e, CM-23f, CM-23g and CM-23h | 50-5; CS-Q7 | 350–480 |
 | **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations, its `docs/module-map.md` event row). 3. CM-51…CM-54, CM-53b (the stored target, FR-046/FR-048) | 55-1; CS-Q11 | 400–550 |
-| **52-1** | Review | 1. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
+| **52-1** | Review | 1. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c | 51-1, 55-2; CS-Q2, CS-Q3, CS-Q26 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
 | **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check, the attachment snapshot write (its table comes from 48a-2), the post-freeze statement-fingerprint recompute, and correction rows frozen with `previous_amount`, `new_amount` and the delta (CS-Q9 then decides only the display, in 53-3). 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-34d, CM-34e (integration part), CM-35, CM-37, CM-38 | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q22 | 400–550 |
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to the employees of her effective branch set (CS-Q20 = PP-20.1, §6 _Permissions_). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
