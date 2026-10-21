@@ -3473,6 +3473,20 @@ export interface components {
         FileDownloadByKey: {
             storage_key: string;
         };
+        StaffColumnsSettings: {
+            /** Format: uuid */
+            business_id: string;
+            columns: components["schemas"]["StaffColumnCode"][];
+            columns_default: boolean;
+            months_back: number;
+            months_back_default: boolean;
+        };
+        ReplaceStaffColumnsInput: {
+            columns: string[] | null;
+            months_back: number | null;
+        };
+        /** @enum {string} */
+        StaffColumnCode: "date" | "time" | "service" | "customer_name" | "list_price" | "discount" | "net" | "share" | "estimated_commission" | "tip" | "rating_average";
         Employee: {
             /** Format: uuid */
             id: string;
@@ -5771,20 +5785,6 @@ export interface components {
             default_language?: components["schemas"]["Language"] | null;
             calendar?: components["schemas"]["Calendar"] | null;
         };
-        StaffColumnsSettings: {
-            /** Format: uuid */
-            business_id: string;
-            columns: components["schemas"]["StaffColumnCode"][];
-            columns_default: boolean;
-            months_back: number;
-            months_back_default: boolean;
-        };
-        ReplaceStaffColumnsInput: {
-            columns: string[] | null;
-            months_back: number | null;
-        };
-        /** @enum {string} */
-        StaffColumnCode: "date" | "time" | "service" | "customer_name" | "list_price" | "discount" | "net" | "share" | "estimated_commission" | "tip" | "rating_average";
         /** @enum {string} */
         VerticalType: "restaurant" | "salon" | "laundry" | "retail" | "services";
         /** @enum {string} */

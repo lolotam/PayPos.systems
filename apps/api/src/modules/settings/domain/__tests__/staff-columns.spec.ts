@@ -1,6 +1,8 @@
+import { staffColumnCode } from '@pospay/contracts';
 import { describe, expect, it } from 'vitest';
 
 import {
+  STAFF_COLUMN_CODES,
   DEFAULT_STAFF_COLUMNS,
   effectiveStaffColumns,
   effectiveStaffMonthsBack,
@@ -9,6 +11,10 @@ import {
 } from '../staff-columns.ts';
 
 describe('staff columns (spec 060 D-A6, D-A7)', () => {
+  it('D-A7 the domain codes are the contract enum, in the same order', () => {
+    expect([...staffColumnCode.options]).toEqual(STAFF_COLUMN_CODES);
+  });
+
   it('MY-17 nothing saved: her work and her money, without list_price, discount, net or rating_average', () => {
     expect(effectiveStaffColumns(null)).toEqual([
       'date',
@@ -23,7 +29,11 @@ describe('staff columns (spec 060 D-A6, D-A7)', () => {
   });
 
   it('MY-18 a saved set is returned in enum order', () => {
-    expect(effectiveStaffColumns(['net', 'date', 'list_price'])).toEqual(['date', 'list_price', 'net']);
+    expect(effectiveStaffColumns(['net', 'date', 'list_price'])).toEqual([
+      'date',
+      'list_price',
+      'net',
+    ]);
     expect(effectiveStaffColumns([])).toEqual([]);
   });
 

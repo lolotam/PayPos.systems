@@ -1,4 +1,5 @@
 import { errorEnvelope, staffColumnsSettings } from '@pospay/contracts';
+import type { Tx } from '@pospay/db';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import {
@@ -6,19 +7,29 @@ import {
   seedOverride,
   type PermissionFixture,
 } from '../../../../test/permissions-fixture.ts';
-import { staffColumns as commissionsColumns } from '../../commissions/persistence/staff-columns.adapter.ts';
-import { staffColumns as customersColumns } from '../../customers/persistence/staff-columns.adapter.ts';
-import { staffColumns as ordersColumns } from '../../orders/persistence/staff-columns.adapter.ts';
-import { staffColumns as staffAppColumns } from '../../staff/persistence/staff-columns.adapter.ts';
 import { deviceToken, foreignBusinessId } from './set-business-logo.support.ts';
 
+import { readStaffColumns } from '../index.ts';
+
+// The four consumer adapters are proven in their own modules (staff-columns.adapter.spec.ts); here the public
+// reader they all call stands for them.
 const ADAPTERS = {
-  orders: ordersColumns,
-  commissions: commissionsColumns,
-  customers: customersColumns,
-  staff: staffAppColumns,
+  reader: {
+    allowed: async (tx: Tx, company: string, business: string) =>
+      new Set((await readStaffColumns(tx, company, business)).columns),
+    monthsBack: async (tx: Tx, company: string, business: string) =>
+      (await readStaffColumns(tx, company, business)).monthsBack,
+  },
 };
-const DEFAULT = ['date', 'time', 'service', 'customer_name', 'share', 'estimated_commission', 'tip'];
+const DEFAULT = [
+  'date',
+  'time',
+  'service',
+  'customer_name',
+  'share',
+  'estimated_commission',
+  'tip',
+];
 const URL = (business: string) => `/v1/businesses/${business}/settings/staff-columns`;
 
 let f: PermissionFixture;
@@ -100,20 +111,15 @@ it('MY-18/MY-20 a saved set reaches every adapter, the estimate can be hidden, a
       actor_user_id: f.userId,
     },
   ]);
-  const replay = await put(
-    { columns: ['date', 'service', 'list_price'], months_back: null },
-    owner(),
-    f.business,
-    'staff-columns-replay',
-  );
-  const again = await put(
-    { columns: ['date', 'service', 'list_price'], months_back: null },
-    owner(),
-    f.business,
-    'staff-columns-replay',
-  );
+  const replayBody = { columns: ['date', 'tip'], months_back: null };
+  const replay = await put(replayBody, owner(), f.business, 'staff-columns-replay');
+  const again = await put(replayBody, owner(), f.business, 'staff-columns-replay');
+  expect(again.statusCode).toBe(200);
   expect(again.json()).toEqual(replay.json());
-  expect(await audits()).toHaveLength(1);
+  expect(await audits()).toHaveLength(2);
+  expect(
+    (await put({ columns: ['date', 'service', 'list_price'], months_back: null })).statusCode,
+  ).toBe(200);
 });
 
 it('MY-13 months back: saved 3 and 24 reach every adapter; 0 and 25 are 422 and the CHECK refuses them', async () => {
@@ -134,7 +140,9 @@ it('MY-13 months back: saved 3 and 24 reach every adapter; 0 and 25 are 422 and 
         WHERE company_id = ${f.company} AND business_id = ${f.business}`,
     ).rejects.toThrow(/business_settings_staff_months_back/);
   }
-  const months = (await audits()).filter((row) => row['action'] === 'settings.staff_months_back_changed');
+  const months = (await audits()).filter(
+    (row) => row['action'] === 'settings.staff_months_back_changed',
+  );
   expect(months.map((row) => [row['before'], row['after']])).toEqual([
     [{ staff_months_back: null }, { staff_months_back: 3 }],
     [{ staff_months_back: 3 }, { staff_months_back: 24 }],
@@ -178,10 +186,13 @@ it('MY-21 no permission, a device or another business is a uniform 403 and nothi
   ];
   const token = await deviceToken(f);
   refusals.push(
-    await put({ columns: ['date'], months_back: 2 }, {
-      authorization: `Device ${token}`,
-      'x-company-id': f.company,
-    }),
+    await put(
+      { columns: ['date'], months_back: 2 },
+      {
+        authorization: `Device ${token}`,
+        'x-company-id': f.company,
+      },
+    ),
   );
   const bodies = refusals.map((res) => [res.statusCode, errorEnvelope.parse(res.json()).code]);
   expect(bodies).toEqual(refusals.map(() => [403, 'FORBIDDEN']));

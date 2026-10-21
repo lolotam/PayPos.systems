@@ -40,7 +40,9 @@ export const DEFAULT_STAFF_COLUMNS: readonly StaffColumnCode[] = [
 ];
 
 /** أكواد موجودة في الـ enum بس مستخبية لحد ما التقييم يرجع (RT-Q1، D-A7)؛ 61-3 بتشيلها من هنا. */
-const POSTPONED_COLUMNS: ReadonlySet<StaffColumnCode> = new Set<StaffColumnCode>(['rating_average']);
+const POSTPONED_COLUMNS: ReadonlySet<StaffColumnCode> = new Set<StaffColumnCode>([
+  'rating_average',
+]);
 
 /** افتراضي MY-Q9 (PP-21.1): الشهر الحالي بس. */
 export const DEFAULT_STAFF_MONTHS_BACK = 1;

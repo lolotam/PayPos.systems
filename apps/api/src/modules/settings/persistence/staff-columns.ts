@@ -83,7 +83,10 @@ function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): StaffColumnsScop
       const columns =
         value.columns === null
           ? null
-          : sql`ARRAY[${sql.join(value.columns.map((code) => sql`${code}`), sql`,`)}]::text[]`;
+          : sql`ARRAY[${sql.join(
+              value.columns.map((code) => sql`${code}`),
+              sql`,`,
+            )}]::text[]`;
       const [row] = await tx.execute<Row>(sql`
         UPDATE business_settings
         SET staff_columns = ${columns}, staff_months_back = ${value.monthsBack},

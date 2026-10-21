@@ -24,7 +24,11 @@ export interface StaffColumnsScope {
    * @param updatedBy  المستخدم اللي غيّر
    * @returns المحفوظ بعد التغيير
    */
-  save(businessId: string, value: StoredStaffColumns, updatedBy: string): Promise<StoredStaffColumns>;
+  save(
+    businessId: string,
+    value: StoredStaffColumns,
+    updatedBy: string,
+  ): Promise<StoredStaffColumns>;
 }
 
 /** بيفتح withTenant ومفتاح Idempotency-Key حوالين الاستبدال، فالإعادة بترجّع نفس الرد من غير كتابة تانية. */

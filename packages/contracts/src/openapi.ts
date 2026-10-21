@@ -35,12 +35,7 @@ import {
   salaryHistoryPage,
 } from './staff/salary.js';
 import { settingsPaths } from './settings/settings-openapi.js';
-import { staffColumnsPaths } from './settings/staff-columns-openapi.js';
-import {
-  replaceStaffColumnsInput,
-  staffColumnCode,
-  staffColumnsSettings,
-} from './settings/staff-columns.js';
+import { staffColumnsPaths, staffColumnsSchemas } from './settings/staff-columns-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
 import { employee, createdEmployee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
@@ -153,6 +148,7 @@ const SCHEMAS = [
   employeeListQuery,
   ...permissionSchemas,
   ...fileSchemas,
+  ...staffColumnsSchemas,
   employee, createdEmployee,
   createEmployeeInput,
   employeeRoleCode,
@@ -216,9 +212,6 @@ const SCHEMAS = [
   workspaceCompany,
   businessIdentity, businessIdentityNames, businessLogo, businessSettings, identityCapability,
   setBusinessLogoInput, updateBusinessIdentityNamesInput, updateBusinessSettingsInput,
-  staffColumnsSettings,
-  replaceStaffColumnsInput,
-  staffColumnCode,
   // المكوّنات المتداخلة لازم تتسجل هي كمان، وإلا Zod بيحطها تحت __shared بدل components.
   verticalType,
   currency,

@@ -18262,6 +18262,81 @@
         ],
         "additionalProperties": false
       },
+      "StaffColumnsSettings": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffColumnCode"
+            }
+          },
+          "columns_default": {
+            "type": "boolean"
+          },
+          "months_back": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 24
+          },
+          "months_back_default": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "business_id",
+          "columns",
+          "columns_default",
+          "months_back",
+          "months_back_default"
+        ]
+      },
+      "ReplaceStaffColumnsInput": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "nullable": true,
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "months_back": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": -1000,
+            "maximum": 1000
+          }
+        },
+        "required": [
+          "columns",
+          "months_back"
+        ],
+        "additionalProperties": false
+      },
+      "StaffColumnCode": {
+        "type": "string",
+        "enum": [
+          "date",
+          "time",
+          "service",
+          "customer_name",
+          "list_price",
+          "discount",
+          "net",
+          "share",
+          "estimated_commission",
+          "tip",
+          "rating_average"
+        ]
+      },
       "Employee": {
         "type": "object",
         "properties": {
@@ -27969,81 +28044,6 @@
           }
         },
         "additionalProperties": false
-      },
-      "StaffColumnsSettings": {
-        "type": "object",
-        "properties": {
-          "business_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-          },
-          "columns": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/StaffColumnCode"
-            }
-          },
-          "columns_default": {
-            "type": "boolean"
-          },
-          "months_back": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 24
-          },
-          "months_back_default": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "business_id",
-          "columns",
-          "columns_default",
-          "months_back",
-          "months_back_default"
-        ]
-      },
-      "ReplaceStaffColumnsInput": {
-        "type": "object",
-        "properties": {
-          "columns": {
-            "nullable": true,
-            "maxItems": 32,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "maxLength": 64
-            }
-          },
-          "months_back": {
-            "nullable": true,
-            "type": "integer",
-            "minimum": -1000,
-            "maximum": 1000
-          }
-        },
-        "required": [
-          "columns",
-          "months_back"
-        ],
-        "additionalProperties": false
-      },
-      "StaffColumnCode": {
-        "type": "string",
-        "enum": [
-          "date",
-          "time",
-          "service",
-          "customer_name",
-          "list_price",
-          "discount",
-          "net",
-          "share",
-          "estimated_commission",
-          "tip",
-          "rating_average"
-        ]
       },
       "VerticalType": {
         "type": "string",

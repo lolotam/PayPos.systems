@@ -1,3 +1,16 @@
+import {
+  replaceStaffColumnsInput,
+  staffColumnCode,
+  staffColumnsSettings,
+} from './staff-columns.js';
+
+// تتسجل كـ components عشان الـ clients المولّدة تلاقي StaffColumnCode باسمه.
+export const staffColumnsSchemas = [
+  staffColumnsSettings,
+  replaceStaffColumnsInput,
+  staffColumnCode,
+];
+
 const json = (name: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${name}` } },
 });
@@ -17,7 +30,10 @@ const idem = {
   schema: { type: 'string', minLength: 1, maxLength: 255 },
 };
 const responses = {
-  '200': { description: 'The effective staff-app columns and months back', content: json('StaffColumnsSettings') },
+  '200': {
+    description: 'The effective staff-app columns and months back',
+    content: json('StaffColumnsSettings'),
+  },
   default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
 };
 
