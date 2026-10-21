@@ -65,6 +65,20 @@ it.each(CANCEL_422)('cancel refusal %s is 422 with both messages even when the f
   }
 });
 
+const PERFORMERS_422 = [
+  'SESSION_PERFORMERS_NO_CHANGE', 'SESSION_PERFORMERS_REASON_INVALID',
+  'SESSION_CHANGER_MEMBERSHIP_REQUIRED', 'SESSION_LINE_PERFORMERS_NOT_CHANGEABLE',
+] as const satisfies readonly SessionErrorCode[];
+
+it.each(PERFORMERS_422)('performer change refusal %s is 422 with both messages even when the filter default is 400', (code) => {
+  const details = code === 'SESSION_CHANGER_MEMBERSHIP_REQUIRED' ? { changer_membership_ids: ['m1'] } : undefined;
+  const sent = capture(new SessionError(code, details), 400);
+  expect(sent.status).toBe(422);
+  expect(sent.body).toMatchObject({ code, ...serviceSessionErrors[code] });
+  if (details === undefined) expect(sent.body).not.toHaveProperty('details');
+  else expect((sent.body as { details: object }).details).toEqual(details);
+});
+
 it('SESSION_TIME_TOO_OLD follows the caller status and is 422 by default', () => {
   expect(capture(new SessionError('SESSION_TIME_TOO_OLD')).status).toBe(422);
   expect(capture(new SessionError('SESSION_TIME_TOO_OLD'), 400).status).toBe(400);

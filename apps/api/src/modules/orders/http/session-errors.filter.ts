@@ -19,6 +19,11 @@ const CANCEL_UNPROCESSABLE = new Set<string>([
   'SESSION_LINE_ALREADY_CANCELLED', 'SESSION_CANCEL_REASON_INVALID', 'SESSION_CANCEL_BLOCKED_BY_TIP',
   'SESSION_LINE_IDENTITY_UNKNOWN', 'SESSION_CANCELLER_MEMBERSHIP_REQUIRED', 'SESSION_LINE_NOT_CANCELLABLE',
 ]);
+// رفض تغيير المنفّذين عضوي لا شكلي: سبب أو نسبة أو عضوية أو سطر غير قابل، فترد 422 حتى مع فلتر 400.
+const PERFORMERS_UNPROCESSABLE = new Set<string>([
+  'SESSION_PERFORMERS_NO_CHANGE', 'SESSION_PERFORMERS_REASON_INVALID',
+  'SESSION_CHANGER_MEMBERSHIP_REQUIRED', 'SESSION_LINE_PERFORMERS_NOT_CHANGEABLE',
+]);
 
 function sessionErrorHttpStatus(code: string, invalidStatus: number): number {
   if (code === 'SESSION_PERFORMER_SELF_FORBIDDEN') return 403;
@@ -26,7 +31,7 @@ function sessionErrorHttpStatus(code: string, invalidStatus: number): number {
   // جلسة مجهولة أو خارج الفرع 404 بلا تمييز، وتعارض مراجعة البقشيش 409 مثل تعارض سطر.
   if (code === 'SESSION_RECOVERY_NOT_FOUND' || code === 'SESSION_NOT_FOUND') return 404;
   if (code === 'SESSION_RECOVERY_NOT_YET' || code === 'SESSION_RECOVERY_CLOSED' || code === 'SESSION_LINE_REVISION_STALE' || code === 'TIP_REVISION_CONFLICT') return 409;
-  if (EDIT_UNPROCESSABLE.has(code) || TIP_UNPROCESSABLE.has(code) || CANCEL_UNPROCESSABLE.has(code)) return 422;
+  if (EDIT_UNPROCESSABLE.has(code) || TIP_UNPROCESSABLE.has(code) || CANCEL_UNPROCESSABLE.has(code) || PERFORMERS_UNPROCESSABLE.has(code)) return 422;
   return invalidStatus;
 }
 

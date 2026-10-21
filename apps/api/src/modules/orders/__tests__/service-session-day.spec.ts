@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { serviceSessionDayPage, type RecordServiceSessionInput } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
-import { ordersDayQuery } from '../orders.module.ts';
+import { ordersDayQuery, ordersLinePerformers } from '../orders.module.ts';
 import { branchDayServiceSessionsStatement } from '../queries/branch-day-service-sessions.query.ts';
+import { ChangeLinePerformersUseCase } from '../use-cases/change-line-performers/change-line-performers.usecase.ts';
 import { cancelServiceLine } from '../../../../../../packages/db/test/service-line-cancellation.ts';
 import { seedPriceEdit } from './line-edit.helpers.ts';
 import { ids, interceptDatabase, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
@@ -164,4 +165,31 @@ it('projects cancelled_at from the history row and omits it on an active sibling
   for (const hidden of ['Synthetic cancel reason', '+999999998123', 'canceller_name', 'cancelled_by']) {
     expect(linePayload).not.toContain(hidden);
   }
+});
+
+it('projects the performer-change mark from the history, omits it on an untouched line and takes the latest change', async () => {
+  const change = new ChangeLinePerformersUseCase(ordersLinePerformers(f.db), ids, f.clock);
+  // نشاط الكويت بعينه: يوم العلامة بتوقيت النشاط لا بتوقيت UTC.
+  await f.h.owner`UPDATE businesses SET timezone='Asia/Kuwait' WHERE company_id=${f.company} AND id=${f.business}`;
+  f.setAt(new Date('2026-10-14T08:00:00.000Z'));
+  const saved = await f.create.execute({ ...f.context(), input: { ...f.body([f.line(), f.line()]), occurred_at: '2026-10-14T08:00:00.000Z' } });
+  const changed = must(saved.session.lines[0]).id;
+  const untouched = must(saved.session.lines[1]).id;
+  const lines = async () => {
+    const visit = must(serviceSessionDayPage.parse(await read('2026-10-14')).items.find((row) => row.id === saved.session.id));
+    return { changed: must(visit.lines.find((line) => line.id === changed)), untouched: must(visit.lines.find((line) => line.id === untouched)) };
+  };
+  f.setAt(new Date('2026-10-15T22:30:00.000Z'));
+  await change.execute({ ...f.context(ids.newId(), f.ownerId), sessionId: saved.session.id, lineId: changed,
+    input: { performers: [{ employee_id: must(f.employees[1]), share_bps: 10000 }], reason: 'Synthetic performer reason', expected_revision: 1 } });
+  // الساعة 01:30 في الكويت من يوم 16، واليوم بتوقيت UTC هو 15، فالتاريخ يثبت توقيت النشاط.
+  const first = await lines();
+  expect(first.changed.performers_changed_at).toBe('2026-10-16');
+  expect(Object.hasOwn(first.untouched, 'performers_changed_at')).toBe(false);
+  f.setAt(new Date('2026-10-18T22:30:00.000Z'));
+  await change.execute({ ...f.context(ids.newId(), f.ownerId), sessionId: saved.session.id, lineId: changed,
+    input: { performers: [{ employee_id: must(f.employees[0]) }], reason: 'Synthetic performer reason again', expected_revision: 2 } });
+  const second = await lines();
+  expect(second.changed.performers_changed_at).toBe('2026-10-19');
+  expect(Object.hasOwn(second.untouched, 'performers_changed_at')).toBe(false);
 });
