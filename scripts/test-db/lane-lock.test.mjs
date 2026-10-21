@@ -215,8 +215,8 @@ test('#473: a copy that fails after creating owner.json leaves no partial file a
     throw eperm();
   };
   // الكتابة عملت الملف وفشلت بعد كده: لازم الجزء ده يتمسح وإلا الـ lock هيفضل مسدود من غير صاحب.
-  const write = (path, data, options) => {
-    writeFileSync(path, '{"tok', options);
+  const write = (fd) => {
+    writeFileSync(fd, '{"tok');
     throw Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' });
   };
   assert.equal(restoreParked(lock, parked, { move, write }), false);

@@ -3,7 +3,9 @@
 // الـ lock فولدر بيتعمل بـ mkdir (عملية ذرية)، وجواه owner.json فيه صاحبه (host, pid, startedAt, token).
 import { randomUUID } from 'node:crypto';
 import {
+  closeSync,
   mkdirSync,
+  openSync,
   readFileSync,
   renameSync,
   rmdirSync,
@@ -118,13 +120,14 @@ function renameWithRetry(from, to) {
 
 /**
  * ينسخ owner.json من الفولدر اليتيم جوه الـ lock الجديد. النسخ (مش النقل) هو الصح هنا: صاحب الـ lock ممكن
- * يكون لسه عايش، فبنحطه مكانه من غير ما نحرمه من الـ lock بتاعه. flag 'wx' يعني لو فيه owner.json
- * جاهز مش هنكتب فوقه، والفولدر اللي مش الفولدر اللي عملناه (حد تاني عمل بديلنا في النص) بنرفضه خالص.
+ * يكون لسه عايش، فبنحطه مكانه من غير ما نحرمه من الـ lock بتاعه. الملف بيتعمل حصرياً ('wx')، فـ owner.json
+ * بتاع حد تاني مش بنكتب فوقه ولا بنمسحه؛ واللي بنعمله إحنا بنقفله قبل المسح (ويندوز مش بيمسح ملف مفتوح)
+ * وبنمسحه بس طول ما الفولدر لسه هو الفولدر اللي عملناه.
  *
  * @param parked  الفولدر اللي الـ lock اتنقل له
  * @param lock    مسار الـ lock
  * @param created هوية الفولدر اللي عملناه
- * @param write   دالة كتابة owner.json (writeFileSync افتراضياً)
+ * @param write   دالة كتابة الـ owner: بتاخد الـ fd المفتوح ومحتوى الـ owner (writeFileSync افتراضياً)
  * @returns true لو الـ owner اتنسخ، false لو النسخ فشل
  */
 function copyOwner(parked, lock, created, write = writeFileSync) {
@@ -135,20 +138,46 @@ function copyOwner(parked, lock, created, write = writeFileSync) {
   } catch {
     return false;
   }
+  const ownerFile = join(lock, 'owner.json');
+  let fd;
   try {
-    write(join(lock, 'owner.json'), owner, { flag: 'wx' });
-    return true;
-  } catch (error) {
-    // الكتابة عملت الملف وفشلت بعد كده: الجزء اللي اتكتب لازم يتمسح، وإلا owner.json مش بيتقرا
-    // هيسدّ الـ lock لحد ما يبقى قديم. EEXIST معناه الملف ده لحد تاني، فمبنمسحهوش.
-    if (error.code !== 'EEXIST') {
-      try {
-        rmSync(join(lock, 'owner.json'), { force: true });
-      } catch {
-        // المسح فشل: نتركه، والـ lock هيبان في الفحص الجاي.
-      }
-    }
+    fd = openSync(ownerFile, 'wx');
+  } catch {
+    // الملف موجود من قبل (بتاع حد تاني) أو اتعملش: مش بنكتب فوقه ومش بنمسحه.
     return false;
+  }
+  let failed = false;
+  try {
+    write(fd, owner);
+  } catch {
+    failed = true;
+  }
+  try {
+    closeSync(fd);
+  } catch {
+    failed = true;
+  }
+  if (!failed) return true;
+  discardPartialOwner(lock, created);
+  return false;
+}
+
+/**
+ * بيشيل owner.json الجزئي اللي عملناه، بس لو الفولدر لسه بتاعنا؛ والمسح بيتكرر لأن ويندوز ممكن يقفل
+ * الملف لحظة، والـ owner اللي مش بيتقرا هيسدّ الـ lock لحد ما يبقى قديم.
+ *
+ * @param lock     مسار الـ lock
+ * @param created هوية الفولدر اللي عملناه
+ */
+function discardPartialOwner(lock, created) {
+  if (identity(lock) !== created) return;
+  const ownerFile = join(lock, 'owner.json');
+  try {
+    rmSync(ownerFile, { force: true, maxRetries: RENAME_ATTEMPTS, retryDelay: 50 });
+  } catch (error) {
+    console.log(
+      `could not remove partial ${ownerFile} (${error.code}); delete it once no lane start is running`,
+    );
   }
 }
 
