@@ -411,7 +411,7 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 ### Story B4 — Low rating and averages (row 61, P1/P2)
 
 - **RT-22** A 2-star rating with the alert on emits one `LowRatingReceived` with recipients and channels from the rule
-  (before row 62: on, in-app, the four managers in the visit branch's scope, RT-Q8); 3 stars emits nothing; the alert off emits nothing.
+  (the `LOW_RATING` rule of row 62, whose default is RT-Q8's: on, in-app, the four managers in the visit branch's scope); 3 stars emits nothing; the alert off emits nothing.
 - **RT-23** RT-Q9 (decided): stars, branch, date, performers' first names, the customer's name and last 3 phone digits; the
   comment only in the in-app notice, WhatsApp/email carry «فيه تقييم منخفض، افتح PosPay» only; never the phone beyond the last 3 digits (S-12), never the token.
 - **RT-24** Both snapshotted performers get the rating; سارة's average is the mean of her attributed ratings in the
@@ -521,9 +521,9 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 - **BR-B2** Who is rated is fixed at the claim and never changes afterwards (S-4).
 - **BR-B3** A rating never moves money (D-14).
 - **BR-B4** A comment is read only by the owner and the three manager roles (S-9, FR-B15's safe default). So the
-  `LOW_RATING` rule, whose in-app notice carries the comment (RT-Q9), accepts only those roles as recipients: if AL-Q3
-  allows named persons, a named user must hold one of them in the rule's scope, checked when the rule is saved and again
-  at emission (a user who lost the role is skipped).
+  `LOW_RATING` in-app notice carries the comment (RT-Q9) only for a recipient who holds one of those roles in the visit
+  branch's scope, checked at emission; any other recipient (for example a person named under AL-Q3) gets the same notice
+  without the comment.
 - **BR-B5** A switched-off alert stores and sends nothing for events emitted while it is off (D-B15).
 
 ### Schema
@@ -612,7 +612,7 @@ The message uses the customer's stored name only as a greeting inside her own Wh
 | **59b-3** | Send — **POSTPONED (RT-Q1)** | 1. Template `rating_request` ar/en + link rendering in the sender + deadline. 2. SENT tracking (D-B8) + module-map/ADR addendum. 3. Tests RT-04 (send side), RT-14 | 59b-2 (RT-Q2, RT-Q12 decided). May merge with sending disabled; **live activation** (template enabled; and, only if RT-Q3 keeps a switch, the business's switch on through 59-2; with RT-Q3's «no switch» answer the enabled template alone) waits until **60-1 and 60-2 are deployed and verified on staging**, so no customer gets a link before the page and submit work | 260–380 |
 | **60-1** | Submit API — **POSTPONED (RT-Q1)** | 1. `view` + `submit-rating` use cases (D-B9). 2. Routes + OpenAPI. 3. Tests RT-15…RT-18, RT-21 | 58-2 | 360–480 |
 | **60-2** | Public page — **POSTPONED (RT-Q1)** | 1. App shell or route per RT-Q11, headers, no trackers. 2. Page states ar/en/RTL + opt-out control. 3. UI tests (only business name and form visible; completion; reopening a consumed, unexpired link shows the completion state and the opt-out control, not the form; unavailable) | 60-1; **RT-Q2**, RT-Q11 | 280–420 |
-| **61-1** | Low-rating alert — **POSTPONED (RT-Q1)** | 1. `LowRatingReceived` with recipients taken from `AlertRulesPort` (kind `LOW_RATING`, its default = RT-Q8's four managers in-app); the fixed RT-Q8 interim rule is built only if 62-1 is not merged when the track resumes, and is then deleted by the low-rating part of 62-3. 2. Template `low_rating` + bell render. 3. Tests RT-22, RT-23, and a non-manager named recipient refused (BR-B4) | 60-1, 62-1 (or the interim rule) (RT-Q8, RT-Q9 decided) | 260–360 |
+| **61-1** | Low-rating alert — **POSTPONED (RT-Q1)** | 1. `LowRatingReceived` with recipients taken from `AlertRulesPort` (kind `LOW_RATING`, its default = RT-Q8's four managers in-app); no interim fixed rule is built. 2. Template `low_rating` + bell render; the comment only in the notices of owner/manager recipients (BR-B4). 3. Tests RT-22, RT-23, and a named non-manager recipient who gets the notice without the comment | 60-1, **62-1** (RT-Q8, RT-Q9 decided) | 260–360 |
 | **61-2** | Averages — **POSTPONED (RT-Q1)** | 1. Staff summary read (FR-B14) + admin list/averages (FR-B15) with `EXPLAIN`. 2. Permission (RT-Q7) + routes. 3. Tests RT-24, RT-25 + admin screen UI test | 61-1, 57c-1 (RT-Q6, RT-Q7 decided) | 340–460 |
 | **61-3** | Rating summary on «شغلي» — **POSTPONED (RT-Q1)** | 1. The work screen's card calls the generated `rating-summary` hook (61-2) when `rating_average` is allowed. 2. i18n for average / count / the «no ratings yet» text (RT-Q6: shown from the first rating). 3. UI tests asserting the visible average and count, the below-minimum text, and no card when `rating_average` is not allowed | 61-2, 57-4 | 120–200 |
 | **62-1** | Alert-rule storage and port | 1. Migration (`alert_rules`, master switch), permission, defaults table. 2. Settings use cases + routes + audit; `AlertRulesPort` (api) + worker settings module. 3. Tests RT-26, RT-29 | AL-Q1…**AL-Q6** (no longer waits on 61-1: `LOW_RATING` joins the rules with the postponed track) (AL-Q6 fixes the channel set 62-1 validates and stores: if team email/WhatsApp is deferred to 62b, 62-1 accepts `IN_APP` only and 62b widens it) | 360–480 |
