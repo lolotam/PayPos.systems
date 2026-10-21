@@ -56,6 +56,7 @@ reads:
   - { from: orders, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/line-cancel-place.adapter.ts }
+  - { from: orders, to: settings, symbol: alertRule, file: apps/worker/src/modules/orders/persistence/alert-rule.adapter.ts }
   - { from: orders, to: staff, symbol: employeeNamesByUser, file: apps/api/src/modules/orders/persistence/editor-name.adapter.ts }
   - { from: orders, to: identity, symbol: lockServiceSessionEditAccess, file: apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts }
   - { from: orders, to: identity, symbol: readServiceSessionEditAccess, file: apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts }

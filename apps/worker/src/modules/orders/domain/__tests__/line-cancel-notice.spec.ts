@@ -1,7 +1,6 @@
 import { safeDisplayName } from '@pospay/i18n';
 import { expect, it } from 'vitest';
 import {
-  interimLineCancelNoticeRule,
   lineCancelNoticeParameters,
   lineCancelRecipientGroups,
   type LineCancelParameterInput,
@@ -20,12 +19,6 @@ const base = {
   fallback,
 } satisfies LineCancelParameterInput;
 
-it('LC-11 keeps the four manager roles and does not name a canceller exclusion', () => {
-  expect(interimLineCancelNoticeRule()).toEqual({
-    channel: 'IN_APP',
-    roles: ['owner', 'general_manager', 'business_manager', 'branch_manager'],
-  });
-});
 it.each([0, 1, 100, 101, 201])('stable groups cover %s users exactly once', (n) => {
   const users = Array.from({ length: n }, (_, i) => String(i).padStart(3, '0'));
   const { groups, recipientCount } = lineCancelRecipientGroups([...users].reverse().concat(users));

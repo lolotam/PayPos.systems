@@ -124,11 +124,11 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `orders` | `SessionPlacePort` | `tenancy` | business timezone and active branch/business relationship (ADR-0041) |
 | worker `orders` | `LateNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers, including recorder/performer (ADR-0041 35b-2) |
 | worker `orders` | `LateNoticePlace` | worker `tenancy` | branchPlace names only; the date/timezone remains the saved session snapshot (ADR-0041 35b-2) |
-| worker `orders` | `PriceEditNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers by the ADR-0037 interim rule; the editor is not excluded (ED-Q10) (ADR-0044, 35d-2) |
+| worker `orders` | `PriceEditNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers by the effective alert rule (`AlertRulesPort`, spec 060 D-B14, 62-3); the editor is not excluded (ED-Q10) (ADR-0044, 35d-2) |
 | `orders` | `EditorNamePort` | `staff` | the editor's active linked employee names (name_ar, name_en) by company, business and user id, read in the edit transaction and stored as a snapshot in the edit-history row; no linked employee ⇒ null names (ADR-0044 §5, 35d-4) |
 | `orders` | `SessionEditAccessPort` | `identity` | locked recheck of the editor membership, the edit permission, DENY state and the orders feature inside the edit transaction and before an idempotency replay (ADR-0044 §6, 35d-4) |
 | worker `orders` | `PriceEditNoticePlace` | worker `tenancy` | branchPlace names only; the date comes from the event and the timezone from the saved session snapshot read by the orders repository (ADR-0044, 35d-2) |
-| worker `orders` | `PerformersChangeNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers by the ADR-0037 interim rule; the changer is not excluded (ADR-0044 addendum, spec 055, 37b-3) |
+| worker `orders` | `PerformersChangeNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers by the effective alert rule (`AlertRulesPort`, spec 060 D-B14, 62-3); the changer is not excluded (ADR-0044 addendum, spec 055, 37b-3) |
 | worker `orders` | `PerformersChangeNoticePlace` | worker `tenancy` | branchPlace names only; the date comes from the event and the timezone from the saved session snapshot read by the orders repository (ADR-0044 addendum, spec 055, 37b-3) |
 | `orders` | `DiscountApprovalAccessPort` | `identity` | `lock()` then `read(at)`: `approve:discounts:branch` at the proposal's branch, DENY, the orders feature and the caller's eligible approver memberships (remote: the user's; PIN: the holder's filtered to the device's branch) inside the decision transaction (ADR-0051, spec 057, 057-6) |
 | `orders` | `DiscountPinApproverPort` | `identity` | verifies phone + PIN through identity's existing staff PIN facility (reservation, D-08 lockout, placeholder hash) outside the transaction and returns only the holder's user id or `refused` / `locked` / `busy`; no session (ADR-0051, spec 057, 057-7) |
@@ -335,6 +335,7 @@ reads:
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/line-cancel-place.adapter.ts
+  - orders -> settings.alertRule @ apps/worker/src/modules/orders/persistence/alert-rule.adapter.ts
   - orders -> staff.employeeNamesByUser @ apps/api/src/modules/orders/persistence/editor-name.adapter.ts
   - orders -> identity.lockServiceSessionEditAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> identity.readServiceSessionEditAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts

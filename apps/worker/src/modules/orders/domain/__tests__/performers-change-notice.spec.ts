@@ -2,7 +2,6 @@ import { safeDisplayName } from '@pospay/i18n';
 import { expect, it } from 'vitest';
 import {
   assertPerformersChangeEventValues,
-  interimPerformersChangeNoticeRule,
   performersChangeMatchesHistory,
   performersChangeNoticeParameters,
   performersChangeRecipientGroups,
@@ -38,12 +37,6 @@ const event = {
   performers: history.after,
 };
 
-it('keeps the four manager roles and does not exclude the changer', () => {
-  expect(interimPerformersChangeNoticeRule()).toEqual({
-    channel: 'IN_APP',
-    roles: ['owner', 'general_manager', 'business_manager', 'branch_manager'],
-  });
-});
 it.each([0, 1, 100, 101, 201])('stable groups cover %s users exactly once', (n) => {
   const users = Array.from({ length: n }, (_, i) => String(i).padStart(3, '0'));
   const { groups, recipientCount } = performersChangeRecipientGroups(

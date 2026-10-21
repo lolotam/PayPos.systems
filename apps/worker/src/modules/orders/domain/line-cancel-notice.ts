@@ -1,8 +1,3 @@
-/** القاعدة المؤقتة حتى يضيف البند 62 مفاتيح تعطيل التنبيه؛ المُلغي لا يُستثنى (LC-11). */
-export interface LineCancelNoticeRule {
-  readonly channel: 'IN_APP';
-  readonly roles: readonly string[];
-}
 /**
  * تسميات الكتالوج ودالة الاسم الآمن المحقونتان؛ domain لا يستورد i18n فتُحقن safeDisplayName من التوصيل.
  */
@@ -30,17 +25,6 @@ export interface LineCancelParameterInput {
 }
 const CANONICAL_MONEY = /^(0|[1-9]\d{0,10})\.\d{3}$/;
 
-/**
- * يحدد قناة الجرس وأدوار المديرين الأربعة كما في جرس تعديل السعر.
- *
- * @returns القاعدة الثابتة التي يستبدلها البند 62
- */
-export function interimLineCancelNoticeRule(): LineCancelNoticeRule {
-  return {
-    channel: 'IN_APP',
-    roles: ['owner', 'general_manager', 'business_manager', 'branch_manager'],
-  };
-}
 /**
  * يرتب المستخدمين ويسقط التكرار ويقسمهم مجموعات لا تتجاوز مئة؛ صفر مستلمين لا ينتج مجموعة.
  *

@@ -7,6 +7,7 @@ import { beforeAll, afterAll, expect, it } from 'vitest';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import type { PerformersChangeNameFallback } from '../domain/performers-change-notice.ts';
 import { onPerformersChanged } from '../events/handlers/on-performers-changed.handler.ts';
+import { alertRules } from '../persistence/alert-rule.adapter.ts';
 import { performersChangePlace } from '../persistence/performers-change-place.adapter.ts';
 import { performersChangeRecipients } from '../persistence/performers-change-recipients.adapter.ts';
 import {
@@ -169,6 +170,7 @@ function withoutManagers() {
                 place: performersChangePlace(tx),
                 repository: performersChangeRepository(tx),
                 outbox: performersChangeOutbox(tx),
+                rules: alertRules(tx),
               },
               f.ids,
               { now: () => f.at },
