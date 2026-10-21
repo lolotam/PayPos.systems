@@ -105,14 +105,19 @@ function lateQuery(init: unknown): boolean {
 function answer() {
   state.get.mockImplementation((path: string, init?: unknown) => {
     const name = String(path);
+    // زرار البقشيش بيتبع can_record_sessions (PP-19)؛ «down» فشل إعادة جلب، و«denied» الصلاحية اتشالت.
     if (name.includes('/capabilities')) {
-      return Promise.resolve({ data: { can_cancel_lines: false }, response: { status: 200 } });
-    }
-    if (name.includes('recording-context')) {
       if (state.recording === 'down') return Promise.resolve(unavailable);
-      if (state.recording === 'denied') return Promise.resolve(forbidden);
-      return Promise.resolve(recorded);
+      return Promise.resolve({
+        data: {
+          can_cancel_lines: false,
+          can_change_performers: false,
+          can_record_sessions: state.recording !== 'denied',
+        },
+        response: { status: 200 },
+      });
     }
+    if (name.includes('recording-context')) return Promise.resolve(recorded);
     if (name === sessionTipsPath) {
       if (state.tips === 'forbidden') return Promise.resolve(forbidden);
       return Promise.resolve({ data: emptyTips, response: { status: 200 } });
@@ -178,20 +183,20 @@ it('keeps the day list when saving tips is forbidden', async () => {
   expect(screen.queryByRole('alert')).toBeNull();
 });
 
-it('keeps record tip through a failed recording refetch and hides it after 403', async () => {
+it('keeps Record tip through a failed capability refetch and hides it once recording is withdrawn', async () => {
   const { client } = renderPage();
   fireEvent.click(await screen.findByRole('button', { name: t('en', 'sessionTips.open') }));
   expect(await screen.findByLabelText(t('en', 'sessionTips.total'))).toBeTruthy();
   state.recording = 'down';
   await act(async () => {
-    await client.refetchQueries({ queryKey: ['session-recording-context'] });
+    await client.refetchQueries({ queryKey: ['service-session-capabilities'] });
   });
   expect(screen.getByLabelText(t('en', 'sessionTips.total'))).toBeTruthy();
   expect(tipsButton()).toBeTruthy();
   expect(screen.getByText('Synthetic customer')).toBeTruthy();
   state.recording = 'denied';
   await act(async () => {
-    await client.refetchQueries({ queryKey: ['session-recording-context'] });
+    await client.refetchQueries({ queryKey: ['service-session-capabilities'] });
   });
   await waitFor(() => expect(tipsButton()).toBeNull());
   expect(screen.getByText('Synthetic customer')).toBeTruthy();

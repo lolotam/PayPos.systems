@@ -80,7 +80,10 @@ function answer(capability: Promise<unknown> | 'allow') {
   state.get.mockImplementation((path: string) => {
     if (!String(path).includes('/capabilities')) return Promise.resolve(day);
     if (capability === 'allow') {
-      return Promise.resolve({ data: { can_cancel_lines: true }, response: { status: 200 } });
+      return Promise.resolve({
+        data: { can_cancel_lines: true, can_change_performers: false, can_record_sessions: false },
+        response: { status: 200 },
+      });
     }
     return capability;
   });
@@ -116,7 +119,10 @@ it('hides Cancel while the capability is loading and after it is false, and stil
   expect(cancel()).toBeNull();
   expect(screen.getByRole('button', { name: t('en', 'serviceLineCancel.details') })).toBeTruthy();
   await act(async () => {
-    gate.settle({ data: { can_cancel_lines: false }, response: { status: 200 } });
+    gate.settle({
+      data: { can_cancel_lines: false, can_change_performers: false, can_record_sessions: false },
+      response: { status: 200 },
+    });
   });
   expect(cancel()).toBeNull();
   expect(screen.getByRole('button', { name: t('en', 'serviceLineCancel.details') })).toBeTruthy();
@@ -171,40 +177,121 @@ const recorded = {
 };
 const tipsButton = () => screen.queryByRole('button', { name: t('en', 'sessionTips.open') });
 
-it('keeps the day and hides Record tip for a reader without record permission', async () => {
+it('keeps the day and hides Record tip for a reader without record permission, never reading recording-context', async () => {
   state.online = true;
-  const gate = deferred();
   state.get.mockImplementation((path: string) => {
     const name = String(path);
     if (name.includes('/capabilities')) {
-      return Promise.resolve({ data: { can_cancel_lines: false }, response: { status: 200 } });
+      return Promise.resolve({
+        data: { can_cancel_lines: true, can_change_performers: false, can_record_sessions: false },
+        response: { status: 200 },
+      });
     }
-    if (name.includes('recording-context')) return gate.promise;
+    if (name.includes('recording-context')) return Promise.resolve(refused);
     return Promise.resolve(day);
   });
   renderPage();
   expect(await screen.findByText('Synthetic customer')).toBeTruthy();
+  // زرار الإلغاء بيظهر بس بعد ما رد /capabilities يوصل، فالـ assertions اللي بعده بتتحقق على القرار نفسه.
+  await waitFor(() => expect(cancel()).toBeTruthy());
   expect(tipsButton()).toBeNull();
-  await act(async () => {
-    gate.settle(refused);
-  });
-  expect(screen.getByText('Synthetic customer')).toBeTruthy();
   expect(screen.queryByRole('alert')).toBeNull();
-  expect(tipsButton()).toBeNull();
+  expect(state.get.mock.calls.some((call) => String(call[0]).includes('recording-context'))).toBe(
+    false,
+  );
   expect(state.get.mock.calls.some((call) => String(call[0]).includes('/tips'))).toBe(false);
 });
 
-it('shows Record tip when the recording context succeeds', async () => {
+it('shows Record tip from can_record_sessions, not from a successful recording-context read', async () => {
+  state.online = true;
+  let record = true;
+  state.get.mockImplementation((path: string) => {
+    const name = String(path);
+    if (name.includes('/capabilities')) {
+      return Promise.resolve({
+        data: {
+          can_cancel_lines: false,
+          can_change_performers: false,
+          can_record_sessions: record,
+        },
+        response: { status: 200 },
+      });
+    }
+    if (name.includes('recording-context')) return Promise.resolve(recorded);
+    return Promise.resolve(day);
+  });
+  const view = renderPage();
+  expect(await screen.findByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();
+  view.unmount();
+  record = false;
+  renderPage();
+  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: t('en', 'sessionTips.open') })).toBeNull();
+});
+
+it('shows Change performers but no Record tip to a manager who can only change performers (PP-19)', async () => {
   state.online = true;
   state.get.mockImplementation((path: string) => {
     const name = String(path);
     if (name.includes('/capabilities')) {
-      return Promise.resolve({ data: { can_cancel_lines: false }, response: { status: 200 } });
+      return Promise.resolve({
+        data: { can_cancel_lines: false, can_change_performers: true, can_record_sessions: false },
+        response: { status: 200 },
+      });
+    }
+    // سياق التسجيل بقى مفتوح لصلاحية التغيير، فبيرجع 200 هنا ومع ذلك زرار البقشيش لازم يفضل مستخبي.
+    if (name.includes('recording-context')) return Promise.resolve(recorded);
+    return Promise.resolve(day);
+  });
+  renderPage();
+  expect(
+    await screen.findByRole('button', { name: t('en', 'serviceLinePerformers.change') }),
+  ).toBeTruthy();
+  expect(screen.queryByRole('button', { name: t('en', 'sessionTips.open') })).toBeNull();
+});
+
+it.each([
+  [true, 1],
+  [false, 0],
+] as const)(
+  'shows Change performers on the active line only when can_change_performers is %s (PP-19.2)',
+  async (allowed, count) => {
+    answer(
+      Promise.resolve({
+        data: {
+          can_cancel_lines: true,
+          can_change_performers: allowed,
+          can_record_sessions: false,
+        },
+        response: { status: 200 },
+      }),
+    );
+    renderPage();
+    await waitFor(() => expect(cancel()).toBeTruthy());
+    expect(
+      screen.queryAllByRole('button', { name: t('en', 'serviceLinePerformers.change') }),
+    ).toHaveLength(count);
+    expect(screen.getByRole('button', { name: t('en', 'serviceLineEdit.edit') })).toBeTruthy();
+  },
+);
+
+it('shows Cancel, Change performers and Record tip together to a holder of all three permissions', async () => {
+  state.online = true;
+  state.get.mockImplementation((path: string) => {
+    const name = String(path);
+    if (name.includes('/capabilities')) {
+      return Promise.resolve({
+        data: { can_cancel_lines: true, can_change_performers: true, can_record_sessions: true },
+        response: { status: 200 },
+      });
     }
     if (name.includes('recording-context')) return Promise.resolve(recorded);
     return Promise.resolve(day);
   });
   renderPage();
   expect(await screen.findByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();
-  expect(screen.getByText('Synthetic customer')).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: t('en', 'serviceLinePerformers.change') }),
+  ).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'serviceLineCancel.cancel') })).toBeTruthy();
 });

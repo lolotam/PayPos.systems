@@ -80,12 +80,17 @@ const context = {
 };
 let day: () => Answer;
 let history: (query: { cursor?: string }) => Answer;
+let capabilities: {
+  can_cancel_lines: boolean;
+  can_change_performers: boolean;
+  can_record_sessions: boolean;
+};
 function route(
   path: string,
   options_: { params?: { query?: { cursor?: string } } },
 ): Promise<Answer> {
   if (path.endsWith('/capabilities'))
-    return Promise.resolve({ data: { can_cancel_lines: false }, response: { status: 200 } });
+    return Promise.resolve({ data: capabilities, response: { status: 200 } });
   if (path.endsWith('/recording-context'))
     return Promise.resolve({ data: context, response: { status: 200 } });
   if (path.endsWith('/performer-options')) return Promise.resolve({ data: options });
@@ -133,6 +138,11 @@ beforeEach(() => {
   state.get.mockReset();
   state.put.mockReset();
   day = () => dayWith([line(20, '2026-10-17'), line(21)]);
+  capabilities = {
+    can_cancel_lines: false,
+    can_change_performers: true,
+    can_record_sessions: false,
+  };
   history = () => ({
     data: { items: [change(3, 'Rana did the rinse')], next_cursor: null },
     response: { status: 200 },

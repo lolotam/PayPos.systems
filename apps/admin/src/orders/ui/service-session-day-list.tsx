@@ -29,6 +29,7 @@ export type ServiceSessionDayListProps = {
   online: boolean;
   timezone: string;
   canCancel: boolean;
+  canChangePerformers: boolean;
   canRecord: boolean;
   loadError: string | null;
   empty: boolean;
@@ -119,6 +120,7 @@ function ServiceSessionDayVisitSlot({
       locale={list.locale}
       zoneFallback={list.timezone}
       canCancel={list.canCancel}
+      canChangePerformers={list.canChangePerformers}
       activeLineId={open?.line.id ?? null}
       historyLineId={historyLineId}
       detailsLineId={detailsLineId}

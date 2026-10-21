@@ -70,27 +70,30 @@ const visit = {
   ],
 };
 const day = { data: { items: [visit], next_cursor: null }, response: { status: 200 } };
-const allowed = { data: { can_cancel_lines: true }, response: { status: 200 } };
+const flags = (cancel: boolean) => ({
+  can_cancel_lines: cancel,
+  can_change_performers: false,
+  can_record_sessions: false,
+});
+const allowed = { data: flags(true), response: { status: 200 } };
+let cancelAllowed = true;
 function answerGet(body: () => Promise<unknown>) {
   state.get.mockImplementation((path: string) =>
-    String(path).includes('/capabilities') ? Promise.resolve(allowed) : body(),
+    String(path).includes('/capabilities')
+      ? Promise.resolve({ data: flags(cancelAllowed), response: { status: 200 } })
+      : body(),
   );
 }
-function renderPage(canCancel?: boolean) {
+// الصفحة مبقاش ليها override للقدرات؛ الإخفاء بييجي من رد /capabilities زي الـ production.
+function renderPage(canCancel = true) {
+  cancelAllowed = canCancel;
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  return render(
-    <ServiceSessionDayPage
-      scope={scope}
-      timezone="Asia/Kuwait"
-      {...(canCancel === undefined ? {} : { canCancel })}
-    />,
-    { wrapper },
-  );
+  return render(<ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />, { wrapper });
 }
 const cancelButton = (locale: 'ar' | 'en') =>
   screen.getAllByRole('button', { name: t(locale, 'serviceLineCancel.cancel') });
@@ -365,9 +368,7 @@ it('shows the 403 notice and keeps the day list', async () => {
   let posted = false;
   state.get.mockImplementation((path: string) => {
     if (!String(path).includes('/capabilities')) return Promise.resolve(day);
-    return Promise.resolve(
-      posted ? { data: { can_cancel_lines: false }, response: { status: 200 } } : allowed,
-    );
+    return Promise.resolve(posted ? { data: flags(false), response: { status: 200 } } : allowed);
   });
   state.post.mockImplementation(() => {
     posted = true;

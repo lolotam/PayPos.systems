@@ -15,6 +15,17 @@ export interface SessionCancelFacts {
 export interface SessionCapabilityAccess extends SessionDayAccess {
   /** قرار الإلغاء نفسه من غير قفل الشركة حتى لا تنتظر قائمة اليوم صف companies. */
   cancel(tx: Tx, scope: SessionDayScope, at: Date): Promise<SessionCancelFacts>;
+  /** قرار تغيير المنفّذين بنفس شكل الإلغاء ومن غير أقفال، عشان الزرار يختفي عند اللي معندوش الصلاحية (PP-19.2). */
+  performers(tx: Tx, scope: SessionDayScope, at: Date): Promise<SessionCancelFacts>;
+  /** قرار التسجيل بنفس الشكل ومن غير أقفال؛ زرار البقشيش بيتبعه بدل مسبار سياق التسجيل (PP-19). */
+  record(tx: Tx, scope: SessionDayScope, at: Date): Promise<SessionCancelFacts>;
+}
+
+// فرع بلا عضوية مؤهلة قراره false؛ feature هنا بتبقى false كمان وممنوع تتحوّل لـ FEATURE_DISABLED.
+function capabilityFlag(facts: SessionCancelFacts): boolean {
+  if (facts.denied || facts.eligible.length === 0) return false;
+  if (!facts.feature) throw new SessionDayReadError('FEATURE_DISABLED');
+  return true;
 }
 
 // شاشة يوم الفرع تقرأ ظهور زر إلغاء السطر من غير أقفال الكتابة.
@@ -40,13 +51,15 @@ export class ServiceSessionCapabilitiesQuery {
           serviceSessionCapabilityClockStatement(),
         );
         if (!clock) throw new SessionDayReadError('NOT_READY');
-        const facts = await this.access.cancel(tx, scope, new Date(clock.at));
-        // فرع بلا عضوية مؤهلة قراره false؛ feature هنا بتبقى false كمان وممنوع تتحوّل لـ FEATURE_DISABLED.
-        if (facts.denied || facts.eligible.length === 0) {
-          return serviceSessionCapabilities.parse({ can_cancel_lines: false });
-        }
-        if (!facts.feature) throw new SessionDayReadError('FEATURE_DISABLED');
-        return serviceSessionCapabilities.parse({ can_cancel_lines: true });
+        const at = new Date(clock.at);
+        const cancel = capabilityFlag(await this.access.cancel(tx, scope, at));
+        const performers = capabilityFlag(await this.access.performers(tx, scope, at));
+        const record = capabilityFlag(await this.access.record(tx, scope, at));
+        return serviceSessionCapabilities.parse({
+          can_cancel_lines: cancel,
+          can_change_performers: performers,
+          can_record_sessions: record,
+        });
       },
       { userId: scope.userId },
     );
