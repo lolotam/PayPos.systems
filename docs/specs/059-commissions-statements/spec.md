@@ -456,7 +456,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-55e** (privacy) ليلى requests the October export as branch manager of السالمية, then before she collects it she is
   transferred to حولي (or her read permission or membership is revoked, or a DENY on السالمية is added): the collect is refused with the uniform 403, no
   workbook is returned, the stored bytes are discarded, no export audit entry is written and `collected_at` stays empty.
-  Separately, a different user trying to collect her `render_id` gets the uniform 403 and the stored bytes stay as they
+  Separately, a different user presenting her `render_id` gets the transport's uniform 404 (ADR-0049 §1: another user,
+  another company, an unknown or an expired id all answer the same 404; Codex 4336446486) and the stored bytes stay as they
   were, so ليلى can still collect them while she is authorized.
 - **CM-56** The amounts in the file equal the frozen statement bit for bit (KWD, three decimals, as text-safe numbers).
 
@@ -1020,7 +1021,9 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
   by a current DENY of that permission, at any scope and from any of her memberships. An empty _R_ (no grant, or a
   business-wide ALLOW with a business-wide DENY) is the uniform 403, never an empty list. She sees the employees attached
   to **any** branch of _R_ (an `EmployeeBranch` link to one of them on any day of the month, read through the staff reader
-  bound at the root, D-16), each with the rows of the days she was attached to a branch of _R_, under the per-day rule
+  bound at the root, D-16), **or who received a correction in the month whose `attached_branch_ids` overlaps _R_** (so an
+  open month lists the same employees its frozen statement will, FR-033; Codex 4336446480), each with the rows of the days
+  she was attached to a branch of _R_ and those corrections, under the per-day rule
   below (the whole month only when those attachments cover every day of it), including lines she performed at another
   branch on those days; other employees are absent, not zeroed. **No branch filter applies only to a business-wide reader**: one who holds a current
   company- or business-scoped grant of `read:commissions:business` (a membership or an ALLOW) **and** has no current DENY
