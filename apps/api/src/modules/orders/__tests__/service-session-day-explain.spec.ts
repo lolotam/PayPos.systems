@@ -133,7 +133,7 @@ it.each([false, true])('normal planner uses tenant day and child indexes, late=%
       expect(indexes).toContain('service_line_edits_line_fk_idx');
       expect(indexes.includes('slc_line_uq') || indexes.includes('slc_line_fk_idx')).toBe(true);
       // يوم العلامة يُقرأ من تاريخ التغيير بأي مؤشر يخدم نفس البحث، لا بمسح الجدول كله.
-      expect(uses(['slpc_line_revision_uq', 'slpc_history_idx'])).toBe(true);
+      expect(uses(['slpc_line_revision_uq', 'slpc_line_xid_uq', 'slpc_history_idx'])).toBe(true);
       for (const table of ['service_sessions', 'service_lines', 'line_performers', 'service_line_edits', 'service_line_cancellations',
         'service_line_performer_changes']) {
         expect(plan.filter((node) => node['Relation Name'] === table).every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
