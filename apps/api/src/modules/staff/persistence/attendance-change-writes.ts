@@ -8,6 +8,7 @@ import {
   attendanceChangeNoticeText,
   type AttendanceChangePlan,
 } from '../domain/attendance-change-request.ts';
+import { attendanceChangeNoticeParameters } from '../domain/attendance-change-alert-rule.ts';
 import type {
   AttendanceChangeKindInput,
   AttendanceChangeKindValues,
@@ -194,7 +195,7 @@ async function events(
     aggregateId: row.id,
     eventType: pending ? 'AttendanceChangeRequested' : 'AttendanceChangeDecided',
   };
-  const parameters = noticeParameters(row);
+  const safe = noticeText(row);
   await appendOutboxEvents(
     tx,
     (groups.length ? groups : [[]]).map((group) => ({
@@ -213,7 +214,7 @@ async function events(
                   template_key: pending
                     ? 'attendance_change_requested'
                     : 'attendance_change_decided',
-                  safe_parameters: parameters,
+                  safe_parameters: attendanceChangeNoticeParameters(safe, row, user_id),
                 })),
               }
             : {}),
@@ -222,19 +223,10 @@ async function events(
     })),
   );
 }
-function noticeParameters(row: AttendanceChangeRequest) {
-  const safe = attendanceChangeNoticeText(
+function noticeText(row: AttendanceChangeRequest) {
+  return attendanceChangeNoticeText(
     row.employee,
     { ar: t('ar', 'inApp.generic_employee'), en: t('en', 'inApp.generic_employee') },
     row.decision_reason,
   );
-  const parameter = (name: string, value: string) => ({ name, type: 'text', value });
-  return [
-    parameter('employee_name_ar', safe.employee_name_ar),
-    parameter('employee_name_en', safe.employee_name_en),
-    parameter('change', row.kind),
-    ...(row.status === 'PENDING'
-      ? []
-      : [parameter('decision', row.status), parameter('reason', safe.reason)]),
-  ];
 }

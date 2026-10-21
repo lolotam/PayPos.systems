@@ -26,7 +26,8 @@ export interface AttendanceChangeNotice {
 
 /**
  * بيحسب مستلمي الحدث وقناته من القاعدة الفعلية للنوع: المستلم الثابت (حازمو صلاحية القرار أو صاحب الطلب)
- * وأدوار القاعدة اللي بتزود مستلمين فوقيه. القاعدة المقفولة ما بتقراش سلطة خالص، والحدث بيفضل موجود.
+ * وأدوار القاعدة اللي بتزود مستلمين فوقيه. كل واحد بيتحسب لوحده: القاعدة اللي ما جابتش المستلم الثابت
+ * ما بتقراش حازمين القرار، والقاعدة المقفولة ما بتقراش حاجة خالص، والحدث بيفضل موجود.
  *
  * @param tx              معاملة الشركة بتاعة المُرسِل
  * @param actor           الفاعل بتاع الحدث
@@ -53,8 +54,7 @@ export async function attendanceChangeNoticeRecipients(
     kind,
   );
   const plan = attendanceChangeAlertPlan(rule, kind);
-  if (!plan.resolveRecipients) return { users: [], channel: plan.channel };
-  const fixed = await fixedRecipients(tx, actor, row, now, employeeUserId);
+  const fixed = plan.fixed ? await fixedRecipients(tx, actor, row, now, employeeUserId) : [];
   const holders =
     plan.roles.length === 0
       ? []

@@ -80,3 +80,22 @@ it('a company role that copies a system code is not a system role, and one user 
   expect(await holders(['owner'])).toEqual([{ userId: f.userId, owner: true }]);
   expect(await holders(['branch_manager'])).toEqual([{ userId: both, owner: false }]);
 });
+
+it('the owner flag is the canonical company owner, whichever role matched her', async () => {
+  const canonical = await newUser('role-canonical-owner@example.test');
+  await membership(canonical, 'owner', 'COMPANY', f.company);
+  await membership(canonical, 'business_manager', 'BUSINESS', f.business);
+  const plain = await newUser('role-plain@example.test');
+  await membership(plain, 'business_manager', 'BUSINESS', f.business);
+  const managers = await holders(['business_manager']);
+  expect(managers).toContainEqual({ userId: canonical, owner: true });
+  expect(managers).toContainEqual({ userId: plain, owner: false });
+});
+
+it('an owner membership outside the company scope is not the canonical owner', async () => {
+  const scoped = await newUser('role-scoped-owner@example.test');
+  await membership(scoped, 'owner', 'BUSINESS', f.business);
+  const owners = await holders(['owner']);
+  expect(owners).toContainEqual({ userId: scoped, owner: false });
+  expect(owners).toContainEqual({ userId: f.userId, owner: true });
+});

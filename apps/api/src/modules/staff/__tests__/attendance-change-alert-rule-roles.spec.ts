@@ -9,6 +9,7 @@ import {
   type ChangeFixture,
 } from './attendance-change.fixture.ts';
 import { asRole } from './attendance-exception.fixture.ts';
+import { linkEmployee } from './attendance-correction.fixture.ts';
 import { leaveIds } from './leave.fixture.ts';
 
 let f: ChangeFixture;
@@ -24,8 +25,16 @@ afterAll(async () => {
 
 const file = (employeeId = f.employee.id) =>
   f.fileChange.execute(changeActor(f), { ...changeInput(f), employee_id: employeeId });
-const approve = (id: string) =>
-  f.decideChange.execute(changeActor(f, id, f.owner), { decision: 'APPROVED', revision: 0 });
+const approve = (id: string, reason?: string) =>
+  f.decideChange.execute(changeActor(f, id, f.owner), {
+    decision: 'APPROVED',
+    revision: 0,
+    ...(reason === undefined ? {} : { reason }),
+  });
+const notices = async (id: string, eventType: string) =>
+  (await changeEvents(f, id))
+    .filter((event) => event['event_type'] === eventType)
+    .flatMap((event) => event['payload'].notification_recipients ?? []);
 const recipients = async (id: string, eventType: string) =>
   (await changeEvents(f, id))
     .filter((event) => event['event_type'] === eventType)
@@ -103,6 +112,61 @@ it('62-2b: the decided kind adds the role holders beside the requester and leave
     const notified = await recipients(request.id, 'AttendanceChangeDecided');
     expect(notified).toEqual([f.approverId, holder].sort());
     expect(notified).not.toContain(f.owner);
+  } finally {
+    await clearRules();
+    await clearMemberships();
+  }
+});
+
+it('62-2b: the decision reason reaches the requester only', async () => {
+  const holder = await newUser('alert-reason-holder@example.test');
+  await membership(holder, 'branch_manager', 'BRANCH', f.branch);
+  await saveRule('ATTENDANCE_CHANGE_DECIDED', ['branch_manager']);
+  const reason = 'synthetic wrong attendance day';
+  try {
+    const request = await file();
+    await approve(request.id, reason);
+    const entries = await notices(request.id, 'AttendanceChangeDecided');
+    const forRequester = entries.find((entry) => entry.user_id === f.approverId);
+    const forSelected = entries.find((entry) => entry.user_id === holder);
+    expect(forRequester.safe_parameters.find((p: { name: string }) => p.name === 'reason')).toEqual({
+      name: 'reason',
+      type: 'text',
+      value: reason,
+    });
+    expect(forSelected.safe_parameters.find((p: { name: string }) => p.name === 'reason')).toEqual({
+      name: 'reason',
+      type: 'text',
+      value: '-',
+    });
+    expect(JSON.stringify(forSelected)).not.toContain(reason);
+  } finally {
+    await clearRules();
+    await clearMemberships();
+  }
+});
+
+it('62-2b: the owner exemption follows the canonical owner, not the matched role', async () => {
+  const canonical = await newUser('alert-canonical-owner@example.test');
+  await membership(canonical, 'owner', 'COMPANY', f.company);
+  await membership(canonical, 'branch_manager', 'BRANCH', f.branch);
+  const scoped = await newUser('alert-scoped-owner@example.test');
+  await membership(scoped, 'owner', 'BUSINESS', f.business);
+  const canonicalEmployee = await linkEmployee(f, canonical);
+  const scopedEmployee = await linkEmployee(f, scoped);
+  try {
+    await saveRule('ATTENDANCE_CHANGE_REQUESTED', ['branch_manager']);
+    const forCanonical = await file(canonicalEmployee);
+    // `scoped` عندها عضوية owner على مستوى النشاط، فدور المالك بيخليها حاملة لصلاحية القرار هنا.
+    expect(await recipients(forCanonical.id, 'AttendanceChangeRequested')).toEqual(
+      [canonical, f.owner, scoped].sort(),
+    );
+    await clearRules();
+    await saveRule('ATTENDANCE_CHANGE_REQUESTED', ['owner']);
+    const forScoped = await file(scopedEmployee);
+    const notified = await recipients(forScoped.id, 'AttendanceChangeRequested');
+    expect(notified).toEqual([canonical, f.owner].sort());
+    expect(notified).not.toContain(scoped);
   } finally {
     await clearRules();
     await clearMemberships();
