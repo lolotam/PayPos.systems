@@ -122,6 +122,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    on status and collect (ADR-0049 §1.5).
 3. An employee who has no session and no contracted minutes at the branch in the period, or who belongs to another
    business or company: `404 ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND`.
+   A route whose branch belongs to another business of the same company: `404 ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`,
+   no request row, no job (FR-003).
 4. `from > to`, a period longer than 366 days, or `to` after the last day of the current month in the branch time
    zone (so the current month can be asked for on any day; its future dates show the date only, Story 2.2):
    `422 ATTENDANCE_STATEMENT_PERIOD_INVALID`.
@@ -177,14 +179,21 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 - **FR-002** The route is guarded by `@Require('read:attendance:branch', { branch: 'branchId' })` and
   `@RequiresFeature('staff')`, like `attendance-monthly-report.controller.ts` (BR-08).
 - **FR-003** The use case validates the period (FR-001, Story 3.4), checks the renderer liveness key, the per-user rate
-  limit, then in **one** `withTenant(companyId, …, { userId })` transaction confirms the employee (when given) and
-  inserts the request row (§6.2). After commit it writes the status hash `QUEUED` (`requested_by`, `filename`) with its
+  limit, then in **one** `withTenant(companyId, …, { userId })` transaction confirms that the route's branch belongs to
+  the route's business (`branches` row with `(company_id, business_id, id)`; otherwise `404
+  ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`, nothing written), confirms the employee (when given) in that business, and
+  inserts the request row (§6.2). The `branch` guard authorizes the branch by its own stored business, so this check is
+  what stops a business A route with a business B branch from mixing A's identity with B's attendance. After commit it writes the status hash `QUEUED` (`requested_by`, `filename`) with its
   900-second TTL, then adds the BullMQ job `{ company_id, render_id, kind: 'attendance-statement' }` with
   `jobId = render_id` (ADR-0049 §1.1–§1.3), and answers `202 { render_id }`. `render_id` comes from the injected
   `IdGenerator`; the clock from the injected `Clock`.
 - **FR-004** If the enqueue fails after the status hash was written, the use case sets the status `FAILED` with
   `DOCUMENT_RENDER_FAILED` and answers `503 RENDERER_UNAVAILABLE`. The request row stays (it records the attempt).
-- **FR-005** `GET …/attendance-statements/:renderId` returns `{ state, error_code? }` (`QUEUED | RENDERING | READY |
+- **FR-005** `GET …/attendance-statements/:renderId` is a **read**, so it goes through `queries/`, not a use case
+  (`CLAUDE.md` §6): `queries/attendance-statement-status.query.ts` reads the request-row binding with SQL (result-shape
+  test and `EXPLAIN` assertion), and the Redis status hash through a read port the module owns
+  (`ports/document-status.port.ts`, adapter in `persistence/`, the same Redis keys ADR-0049 §1.3 names). It writes
+  nothing and imports no `domain/` or `use-cases/`. It returns `{ state, error_code? }` (`QUEUED | RENDERING | READY |
   FAILED | EXPIRED | CONSUMED`) with `Cache-Control: no-store`. It answers `404` unless the request row exists in the
   tenant, its branch is the route branch, and `requested_by` is the caller (ADR-0049 §1.5).
 - **FR-006** `POST …/attendance-statements/:renderId/download` collects the PDF once (§6.4) and replies
@@ -195,8 +204,9 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   it, so the name never travels in a header).
 - **FR-008** The rate limit is a Redis counter per `company_id` + `user_id`: at most 20 requests in a rolling hour
   (`CLAUDE.md` §8 "rate-limit in Redis"). It is a technical guard against filling the render queue, not an owner rule.
-- **FR-009** Every route is read through `queries/` or a use case as `CLAUDE.md` §6 says: the request is a use case (it
-  writes the request row); status and collect are use cases (collect writes the audit). No arithmetic in any of them.
+- **FR-009** Reads go through `queries/` and writes through use cases (`CLAUDE.md` §6): the request is a use case (it
+  writes the request row), collect is a use case (it consumes the bytes and writes the audit), and status (FR-005) and
+  the shift options (FR-001a) are `queries/` reads. No arithmetic in any of them.
 
 ### Worker (`apps/worker`)
 
@@ -268,17 +278,17 @@ admin ── POST …/:renderId/download ──▶ api: one withTenant: binding 
 | `company_id` | uuid NOT NULL | tenant; RLS predicate |
 | `id` | uuid NOT NULL | = `render_id` (UUID v7); PK `(company_id, id)` (ADR-0007) |
 | `business_id` | uuid NOT NULL | FK `(company_id, business_id)` → `businesses` |
-| `branch_id` | uuid NOT NULL | FK `(company_id, branch_id)` → `branches` |
+| `branch_id` | uuid NOT NULL | FK `(company_id, business_id, branch_id)` → `branches (company_id, business_id, id)` (the `branches_company_business_id_key` key, as `employee_branches` does), so the branch always belongs to the row's business |
 | `form` | text NOT NULL | CHECK `IN ('BRANCH','EMPLOYEE')` |
-| `employee_id` | uuid NULL | FK `(company_id, employee_id)` → `employees`; CHECK NOT NULL when `form = 'EMPLOYEE'` |
+| `employee_id` | uuid NULL | FK `(company_id, business_id, employee_id)` → `employees (company_id, business_id, id)` (`employees_company_business_id_key`); CHECK NOT NULL when `form = 'EMPLOYEE'` |
 | `period_from`, `period_to` | date NOT NULL | branch-local working dates; CHECK `period_from <= period_to` and at most 366 days |
 | `language` | text NOT NULL | CHECK `IN ('ar','en')` |
 | `shift_start`, `shift_end` | time NULL | the BR-11 pair; CHECK both null or both set, and set only when `form = 'BRANCH'` |
 | `requested_by` | uuid NOT NULL | the user; the binding of ADR-0049 §1.5 |
 | `requested_at` | timestamptz NOT NULL | from the injected clock |
 
-Indexes (one for every foreign key and every list filter, `CLAUDE.md` §5): `(company_id, business_id)`,
-`(company_id, branch_id, requested_at)` (also covers the branch foreign key), `(company_id, employee_id)`,
+Indexes (one for every foreign key and every list filter, `CLAUDE.md` §5): `(company_id, business_id, branch_id,
+requested_at)` (covers the business and the branch foreign keys), `(company_id, business_id, employee_id)`,
 `(company_id, requested_by, requested_at)`. The rows are kept; they hold ids, dates and times only. A cleanup is out of
 scope.
 
@@ -332,6 +342,7 @@ no `files` or `settings` permission to see the logo in her statement (ADR-0046 �
 |---|---|---|
 | `ATTENDANCE_STATEMENT_PERIOD_INVALID` | 422 | Story 3.4 |
 | `ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` | 404 | Story 3.3 |
+| `ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND` | 404 | Story 3.3, FR-003: the route's branch is not in the route's business |
 | `ATTENDANCE_STATEMENT_RATE_LIMITED` | 429 | FR-008 |
 | `ATTENDANCE_STATEMENT_SHIFT_FILTER_INVALID` | 422 | FR-001: a shift on the employee form |
 | `RENDERER_UNAVAILABLE` | 503 | ADR-0049 §3.6, FR-004 |
@@ -353,10 +364,12 @@ and no module index: `apps/worker/src/main.ts` injects the `staff` reader into t
   for full months with no filter.
 - **Contracts:** request body (forms, `employee_id` rule, `strictObject`), status reply, the template data schema.
 - **API integration (T2 Postgres, one cloned DB per file, ADR-0006):** 202 and the request row; every refusal of
-  Story 3 including `403` without the permission and `404` cross-tenant/other-user/other-branch; collect once, expired,
+  Story 3 including `403` without the permission, `404` cross-tenant/other-user/other-branch, and `404` for a business A
+  route with a business B branch the caller may read (no row, no job); collect once, expired,
   not ready; the audit entry's fields; no audit when nothing is delivered.
 - **RLS:** negative isolation test for `attendance_statement_requests` (cross-tenant read = 0 rows, write = error), and
-  that `pospay_app` cannot `UPDATE` or `DELETE` it.
+  that `pospay_app` cannot `UPDATE` or `DELETE` it. A negative constraint test: inserting a row whose branch (or
+  employee) belongs to another business of the same company fails on the composite foreign key.
 - **Queries:** every new or moved `queries/` statement has a result-shape test and an `EXPLAIN` assertion.
 - **Worker:** the source against the T2 Redis with a fake renderer: data read, logo resolve + access audit as
   `pospay_app`, a retry after the logo was replaced embeds the first audited file and adds no row, logo fetch outside
@@ -381,7 +394,7 @@ and no module index: `apps/worker/src/main.ts` injects the `staff` reader into t
 | 1 | shared reads + logo reader | move the identity read statement to `@pospay/db` and `statementIdentity` to `packages/domain` (settings re-exports both, no behaviour change); move the 27b inputs statement to `@pospay/db` (27b unchanged, its EXPLAIN and shape tests follow it); worker `files` `resolveStatementLogo` / `fetchStatementLogo` with the once-per-render access audit (ADR-0051 §2–§3) |
 | 2 | schema, contracts, domain | migration + RLS + negative test for `attendance_statement_requests` (with the shift columns); contracts (request body, status, `attendanceStatementDocument`); `packages/domain` period, day-by-day and BR-11 shift-day functions with unit tests |
 | 3 | worker | worker `staff` `readAttendanceStatement` and the OPEN-sessions query (FR-011a); template; source and its registration in `main.ts` |
-| 4 | API | request (with the shift filter), status and collect endpoints, the shift-options query (FR-001a), the guard, the rate limit, the audit entry and every refusal test |
+| 4 | API | request and collect use cases (with the shift filter and the business–branch check), the status and shift-options `queries/` reads with their read port (FR-005, FR-001a), the guard, the rate limit, the audit entry and every refusal test |
 | 5 | admin | the download screen (form, period, employee, shift picker, language, waiting state, download, refusals), i18n ar/en, RTL |
 
 The worker source (3) ships **before** the API that admits requests (4), so every request the API accepts has a
