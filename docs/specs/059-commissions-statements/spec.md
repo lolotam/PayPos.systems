@@ -100,7 +100,7 @@ ratings (they never change commission, D-41); attendance (never changes commissi
 
 | Rule | Source |
 | --- | --- |
-| The period is the calendar month in the business timezone; the manager reviews (by default the owner holds review and grants it to whom he chooses, CS-Q2), the owner approves within the first five days, paid with the salary (what happens after day 5: `TODO(spec)` CS-Q22) | D-17, SPEC §5 _Dates_ |
+| The period is the calendar month in the business timezone; the manager reviews (review is a permission the owner grants and revokes as he chooses, CS-Q2; the spec reads Waleed's free-text answer as «only the owner holds it by default», and that reading is being confirmed with him, CS-Q2b), the owner approves within the first five days, paid with the salary (what happens after day 5: `TODO(spec)` CS-Q22) | D-17, SPEC §5 _Dates_ |
 | Reminders to the owner on the 3rd and the 5th of the next month; reminders, not locks | D-54, SPEC §6 |
 | Approval only after the month has ended; atomic; refused while commission events are pending, with the retryable 409 «updates are still being calculated, try again shortly» | SPEC §6, ADR-0012 §3/§5 |
 | Review is bound to the inputs; the owner approves only the fingerprint that was reviewed, and the rows frozen are the rows that were reviewed | SPEC §6 |
@@ -443,9 +443,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `render_id` has no request row fails without reading any statement; the xlsx bytes are returned with the xlsx MIME type
   and never pass through the PDF renderer.
 - **CM-55f** (Codex 4336086349, CS-Q23 = PP-21.2) سارة is transferred from السالمية to حولي on 15 October and October is
-  APPROVED with a correction of one of her 3 October lines. ليلى (السالمية) exports October: the workbook holds سارة's
+  APPROVED and also carries a correction (D-13: it lands in the first DRAFT month after its source) of her 3 September line,
+  done at السالمية, so its `attached_branch_ids` = {السالمية}. ليلى (السالمية) exports October: the workbook holds سارة's
   `EMPLOYEE` row and only her rows of 1–14 October (the 10 October line she did at حولي included, with its place حولي,
-  and the correction of the 3 October line), and none of 15–31 October, neither their amounts nor their customer names,
+  and the correction of the 3 September line), and none of 15–31 October, neither their amounts nor their customer names,
   although سارة is in the saved employee set; هند (حولي) gets only 15–31 October. A test whose worker filtered by the
   employee set alone would fail on this file. After approval سارة's October السالمية attachment is then removed: a new
   export by ليلى still lists سارة with the same rows, as her closed view does (CM-23b), because the employee set comes
@@ -480,7 +481,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `approve:commissions:business` (as the owner may grant them, CS-Q2 and CS-Q5), and a business manager holds both with a DENY of
   `read:commissions:business` on حولي: neither receives the day-3 `StatementAwaitingReview`, the 3rd/5th
   `StatementAwaitingApproval` reminders, or the `StatementAwaitingApproval` sent when October is reviewed; the owner and
-  a business manager with no DENY receive them. A unit test proves the recipient filter and the review and approve
+  a business manager with no DENY receive them. An accountant granted both codes with a DENY of
+  `approve:commissions:business` receives the review notices but none of the `StatementAwaitingApproval` ones (FR-030:
+  each recipient passes the endpoint's own check). A unit test proves the recipient filter and the review and approve
   guards call the same predicate.
 
 ### Edge cases
@@ -1081,7 +1084,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port, and the statement builder with its statement fingerprint (D-6, FR-026) and the round-trip unit test of CM-34e. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 (CM-28c included), and the statement-view part of CM-23d, CM-23e, CM-23f, CM-23g and CM-23h | 50-5; CS-Q7 | 350–480 |
 | **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044; CM-48c's concurrent approval is the FR-044 seed transaction under the lock), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations, its `docs/module-map.md` event row). 3. CM-51…CM-54, CM-53b (the stored target, FR-046/FR-048) | 55-1; CS-Q11 | 400–550 |
-| **52-1** | Review | 1. The statement permissions `review:commissions:business` and `approve:commissions:business` with their decided defaults (owner only) and owner-only granting (CS-Q2, CS-Q5), and the grant-screen warning (FR-029b), so `StatementAwaitingApproval`, first emitted here, has a defined recipient set from its first release; 53-2 adds only the approval guard (FR-036). 2. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS), and the `StatementAwaitingApproval` contract, template and registrations it emits (Codex 4336152050: three subtasks). 3. CM-30…CM-33, CM-33b, CM-33c, CM-33d | 51-1, 55-2 | 350–480 |
+| **52-1** | Review | 1. The statement permissions `review:commissions:business` and `approve:commissions:business` with their decided defaults (owner only) and owner-only granting (CS-Q2, CS-Q5), and the grant-screen warning (FR-029b), so `StatementAwaitingApproval`, first emitted here, has a defined recipient set from its first release; 53-2 adds only the approval guard (FR-036). 2. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS), and the `StatementAwaitingApproval` contract, template and registrations it emits (Codex 4336152050: three subtasks). 3. CM-30…CM-33, CM-33b, CM-33c, CM-33d and the FR-029b grant-screen UI test | 51-1, 55-2; CS-Q2b | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
 | **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check, the attachment snapshot write (its table comes from 48a-2), the post-freeze statement-fingerprint recompute, and correction rows frozen with `previous_amount`, `new_amount` and the delta (CS-Q9 then decides only the display, in 53-3). 2. HTTP and the approval guard (FR-036) on the permission 52-1 registers. 3. CM-34, CM-34b, CM-34c, CM-34d, CM-34e (integration part), CM-35, CM-37, CM-38, CM-38b | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q22 | 400–550 |
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to the employees of her effective branch set (CS-Q20 = PP-20.1, §6 _Permissions_). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
