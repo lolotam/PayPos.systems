@@ -83,7 +83,8 @@ without letting that voice touch commission (D-41, D-14).
 All are in [owner-questions.ar.md](owner-questions.ar.md) with options and a recommended option. MY-Q6 is a money
 question (what staff earn, `CLAUDE.md` §1 5b) and goes to Abu Salem too; the others went to Waleed. Since PP-23.2
 (`CLAUDE.md` V3.14, 2026-10-21) every question is on the shared decisions page for both owners and Abu Salem's pick binds
-on a difference: PP-18 (MY-Q1…MY-Q9, RT-Q1…RT-Q12, AL-Q1…AL-Q6) was republished in batch 40 with Waleed's picks, and AL-Q7
+on a difference: PP-15…PP-23 were republished in batch 40 with Waleed's picks (here PP-18 = MY-Q1…MY-Q8, RT-Q1…RT-Q12,
+AL-Q1…AL-Q6; PP-20.4 = RT-Q13; PP-21.1 = MY-Q9), and AL-Q7
 is in batch 45. Until an answer arrives the rule is `TODO(spec)` and only the sub-PRs listed here wait.
 
 | ID | Subject | Blocks |
