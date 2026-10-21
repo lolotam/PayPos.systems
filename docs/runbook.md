@@ -240,3 +240,6 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
   `DATABASE_URL`-style variables. Only the test harness moves.
 - Run one lane per worktree: the override file is per worktree. Bring the lane down when the slice is done;
   `docker ps` should show only `pospay-dev-*` again.
+- The container does not survive a Docker Desktop restart. If the tests then report that Postgres is not
+  reachable on a 554xx port (the hint to run `pnpm infra:up` is for the shared cluster), rerun
+  `node scripts/test-db/lane.mjs up <lane>`, or `down <lane>` to fall back to the shared cluster.
