@@ -137,9 +137,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   before submit (the same function, imported from `packages/commissions-engine/validation` by `apps/admin/src/commissions`, D-17;
   unit test over the full product, and a boundaries-lint test that the admin app imports nothing else of the package).
 - **CM-07** An ordinary version with `effective_from` before today (business timezone) → 422
-  `COMMISSION_EFFECTIVE_FROM_PAST`; a `whole_period` version for a month that is REVIEWED, or with a REVIEWED month after it
-  → 409 `COMMISSION_PERIOD_NOT_DRAFT`; for a month that is APPROVED or PAID, or with a closed month after it → 409
-  `COMMISSION_PERIOD_CLOSED`.
+  `COMMISSION_EFFECTIVE_FROM_PAST`; a `whole_period` version whose own month is REVIEWED → 409 `COMMISSION_PERIOD_NOT_DRAFT`;
+  whose own month is APPROVED or PAID, or with a closed month after it → 409 `COMMISSION_PERIOD_CLOSED`; a `whole_period`
+  version for a DRAFT September while October is REVIEWED → accepted, and October returns to DRAFT in the same transaction.
 - **CM-07b** On 2 November هبة's October shows `NO_PLAN`; ليلى adds a `whole_period` version dated 1 October while October
   is still DRAFT: October's estimate prices her lines, review is no longer blocked, and November follows the same version.
 - **CM-08** A plan write racing an approval of the month it affects: the approval wins the lock, the writer sees APPROVED and
@@ -372,9 +372,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   §5.7); its codes become 422 `COMMISSION_PLAN_INVALID` with `details.code`.
 - **FR-007** Under `lockStatementPeriods` for every month from the month of `effective_from` through the current month: an
   ordinary version needs `effective_from ≥ today`; a `whole_period` version may name a past month (SPEC §6: "or `whole_period`
-  only for a DRAFT period") when that month and every later month up to today are DRAFT, because the version then also
-  applies from its date onward (`plan-version.ts`); a REVIEWED month in that range → 409 `COMMISSION_PERIOD_NOT_DRAFT`, a
-  closed one → 409 `COMMISSION_PERIOD_CLOSED`. This is how a `NO_PLAN` found after a month ended, before its approval, is fixed.
+  only for a DRAFT period") when **that month is DRAFT** (its target month; REVIEWED → 409 `COMMISSION_PERIOD_NOT_DRAFT`,
+  closed → 409 `COMMISSION_PERIOD_CLOSED`). Because the version then also applies from its date onward (`plan-version.ts`),
+  every later month up to today is locked too: a later REVIEWED month returns to DRAFT in the same transaction (D-5), and a
+  later closed month refuses the write with 409 `COMMISSION_PERIOD_CLOSED` (plan versions never reach a closed month, FR-043). This is how a `NO_PLAN` found after a month ended, before its approval, is fixed.
 - **FR-008** Insert-only `commission_plan_versions`; `version` is the next integer per employee, allocated under the employee's
   row lock; `created_at` from the injected `Clock`, the id from `IdGenerator` (CLAUDE.md §4.3); one audit entry
   `commission_plan.version_created` with the plan JSON (no salary figure in the audit text).
