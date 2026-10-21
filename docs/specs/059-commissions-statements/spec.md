@@ -333,6 +333,11 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `COMMISSION_STATEMENT_NOT_REVIEWED`, and a permission revoked while it waits gives it the uniform 403.
 - **CM-38** Only holders of `approve:commissions:business` approve (default owner; grantable `TODO(spec)` CS-Q5); the reviewer
   rule CS-Q3 applies; a month not ended → 422 `COMMISSION_PERIOD_NOT_ENDED`.
+- **CM-38b** (FR-036, negative; Codex 4335896943) ليلى, manager of السالمية, is given `approve:commissions:business` (as CS-Q5
+  may allow) on a REVIEWED October with السالمية and حولي employees: her approval and her return to DRAFT are refused with
+  the uniform 403 `FORBIDDEN`, no fingerprint is computed or returned, nothing is frozen, the statement stays REVIEWED and
+  no audit entry is written; the same with branch grants covering every branch of a two-branch business, and for a
+  business-wide holder with a DENY of `read:commissions:business` on حولي. The owner approves the same October.
 - **CM-39** The ADR-0012 §4 groups 1–4 and 7 (catalogue, context isolation, predicate fixtures over the **six** types of
   D-9, search-path attacks, result shape and `EXPLAIN`) pass in 53-1.
 
@@ -429,7 +434,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 ### Story 12 — Reminders (56b, P2)
 
 - **CM-57** On the 3rd and on the 5th of November, if October is not APPROVED, one `StatementAwaitingApproval` request per
-  statement per day reaches the approvers as an in-app bell at 09:00 business time (CS-Q17 = PP-17.5); none once it is
+  statement per day reaches the approvers who are business-wide readers (FR-030) as an in-app bell at 09:00 business time (CS-Q17 = PP-17.5); none once it is
   approved; a rerun of the
   job the same day sends nothing new (ledger, SPEC §11 "reminders on the 3rd and 5th"). Never a lock (D-54).
 - **CM-57c** A quiet business (no session, plan or generate in October) still gets its reminder on 3 November: the job
@@ -443,8 +448,14 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-57b** A company created after the release gets its scheduler from `CompanyCreated`; a company whose Redis schedule
   was lost gets it back on the next commission input delivery; an existing company gets it from the operator replay.
 - **CM-58** (CS-Q16 = PP-17.4) On the 3rd, in the same 09:00 run as the owner's reminder, if October is still DRAFT one
-  `StatementAwaitingReview` reaches the holders of `review:commissions:business`; none on the 5th; none if it is already
-  REVIEWED or closed.
+  `StatementAwaitingReview` reaches the holders of `review:commissions:business` who are business-wide readers; none on
+  the 5th; none if it is already REVIEWED or closed.
+- **CM-58b** (FR-030; Codex 4335896948) ليلى, manager of السالمية, holds `review:commissions:business` and
+  `approve:commissions:business` (as CS-Q2 and CS-Q5 may grant them), and a business manager holds both with a DENY of
+  `read:commissions:business` on حولي: neither receives the day-3 `StatementAwaitingReview`, the 3rd/5th
+  `StatementAwaitingApproval` reminders, or the `StatementAwaitingApproval` sent when October is reviewed; the owner and
+  a business manager with no DENY receive them. A unit test proves the recipient filter and the review and approve
+  guards call the same predicate.
 
 ### Edge cases
 
@@ -590,7 +601,12 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   guards `generate` (it returns the whole view, FR-025) and a reviewer's return to DRAFT (FR-031); an approver's return
   follows FR-036.
 - **FR-030** Emit `StatementAwaitingApproval` (SPEC §3) to notifications in the same transaction, recipients resolved by
-  commissions (SPEC §3 "emitting modules put recipients and channels in the event"; in-app, CS-Q17 = PP-17.5). **Every
+  commissions (SPEC §3 "emitting modules put recipients and channels in the event"; in-app, CS-Q17 = PP-17.5).
+  **Recipients pass the endpoint's own check** (Codex 4335896948): an approval prompt or reminder goes only to the
+  holders of `approve:commissions:business` who are business-wide readers (FR-036), and a review reminder only to the
+  holders of `review:commissions:business` who are business-wide readers (FR-029), evaluated with the same predicate
+  (one function, shared with the guards) at the time the event is appended, so nobody is prompted to do what the endpoint
+  would refuse her. **Every
   notification event of this slice** (this one, the reminders of FR-053/FR-055 and the blocked-correction notice of FR-049)
   uses the same grouping: de-duplicated recipients, sorted by user id, consecutive groups of at most 100 (the
   `notificationRequest` cap, ADR-0037 §5), one event per group, all appended in the writer's transaction.
@@ -665,7 +681,14 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   the approval actor and time are in the audit log).
 - **FR-035** 53-1 delivers the ADR-0012 function, role, grants, policies and index with the six types of D-9 and its addendum;
   53-2 the use case; 53-3 the race tests.
-- **FR-036** Permission `approve:commissions:business` (CS-Q5); reviewer rule CS-Q3.
+- **FR-036** Permission `approve:commissions:business` (CS-Q5); reviewer rule CS-Q3. **Only a business-wide reader
+  approves**, for the reason of PP-24.1 (whoever certifies the figures must have seen all of them; derived from CS-Q26 =
+  PP-24.1, not a new owner question): besides `approve:commissions:business`, the caller must be a business-wide reader
+  (§6 _Permissions_: a current company- or business-scoped grant of `read:commissions:business` and no DENY of it at any
+  scope), checked under the lock in the approval transaction. An approver to whom approval is delegated (CS-Q5) but whose
+  read is branch-scoped, even with branch grants covering every branch, or who has any DENY, is refused with the uniform
+  403 `FORBIDDEN` before any fingerprint is computed or returned and before anything is frozen; the same guard covers an
+  approver's return to DRAFT (FR-031).
 
 ### 54 — mark-statement-paid
 
@@ -806,11 +829,12 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   the grouped notice events (FR-030); a business is never skipped for having no statement row. Zero recipients is a durable
   decision.
 - **FR-054** Recipients and channels are put in the event by commissions (SPEC §3); until row 62 the interim rule is an
-  in-app bell at 09:00 business time to the approvers (CS-Q17 = PP-17.5, the ADR-0037 precedent), and row 62 must list both
+  in-app bell at 09:00 business time to the approvers who are business-wide readers (FR-030, CS-Q17 = PP-17.5, the
+  ADR-0037 precedent), and row 62 must list both
   kinds in its switches.
 - **FR-055** (CS-Q16 = PP-17.4) `StatementAwaitingReview` is emitted by the same job on the 3rd only, in the same run as the
-  owner's reminder, while the previous month is still DRAFT, to the holders of `review:commissions:business` (ledger kind
-  `REVIEW_DAY3`). Both events are registered in `NOTIFICATION_SOURCE_EVENTS` and the worker's
+  owner's reminder, while the previous month is still DRAFT, to the holders of `review:commissions:business` who are business-wide
+  readers (FR-030; ledger kind `REVIEW_DAY3`). Both events are registered in `NOTIFICATION_SOURCE_EVENTS` and the worker's
   known types, with ar/en templates, before any producer (the 35d order).
 
 ## 6. Slice design
@@ -922,7 +946,7 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
 | `manage:commission-plans:business` (proposed) | `TODO(spec)` CS-Q1 | new; plan versions, overrides, period repair |
 | `read:commissions:business` | owner, general manager, business manager, accountant **and branch manager** (CS-Q14 = PP-17.2, against the recommendation); grantable | new; estimate of all employees, statement view, export. A holder sees only the employees of her effective branch set (CS-Q20 = PP-20.1, below) |
 | `review:commissions:business` | `TODO(spec)` CS-Q2; usable only by a business-wide reader (CS-Q26 = PP-24.1, FR-029) | named by SPEC §6 |
-| `approve:commissions:business` | owner (D-17, SPEC §11); grantable `TODO(spec)` CS-Q5 | named by SPEC §6 |
+| `approve:commissions:business` | owner (D-17, SPEC §11); grantable `TODO(spec)` CS-Q5; usable only by a business-wide reader (FR-036, from PP-24.1) | named by SPEC §6 |
 | `pay:commissions:business` | `TODO(spec)` CS-Q4 | named by SPEC §6 |
 
 **Branch scope (CS-Q20 = PP-20.1):** every read and export first resolves, in the read's own transaction, the reader's
@@ -1004,12 +1028,12 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations, its `docs/module-map.md` event row). 3. CM-51…CM-54, CM-53b (the stored target, FR-046/FR-048) | 55-1; CS-Q11 | 400–550 |
 | **52-1** | Review | 1. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c, CM-33d | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
-| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check, the attachment snapshot write (its table comes from 48a-2), the post-freeze statement-fingerprint recompute, and correction rows frozen with `previous_amount`, `new_amount` and the delta (CS-Q9 then decides only the display, in 53-3). 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-34d, CM-34e (integration part), CM-35, CM-37, CM-38 | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q22 | 400–550 |
+| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check, the attachment snapshot write (its table comes from 48a-2), the post-freeze statement-fingerprint recompute, and correction rows frozen with `previous_amount`, `new_amount` and the delta (CS-Q9 then decides only the display, in 53-3). 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-34d, CM-34e (integration part), CM-35, CM-37, CM-38, CM-38b | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q22 | 400–550 |
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to the employees of her effective branch set (CS-Q20 = PP-20.1, §6 _Permissions_). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
 | **54-1** | Mark paid | 1. The payment columns on `commission_statements` in the shape CS-Q6 decides (expand-only migration, grants), the use case + HTTP. 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
 | **56-0** | Binary documents in the worker (D-18) | 1. Generalize the source/processor contract: a source returns HTML for the PDF renderer or bytes with a MIME type; no HTML → PDF step for bytes. 2. The xlsx MIME type, the 8 MiB cap (`DOCUMENT_TOO_LARGE`), the same Redis store and collect-once reply with the source's MIME type; the API's request admission checks the Chromium liveness key only for kinds that declare the PDF renderer (D-18). 3. Tests: a bytes source never reaches the renderer, the cap, collect-once, the PDF kinds unchanged; with the liveness key absent, a bytes-kind request is queued (202) and its job completes, while a PDF-kind request still gets `503 RENDERER_UNAVAILABLE` | 59-0's ADR-0049 addendum | 200–320 |
 | **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-55e, CM-56, CM-R10, and the export part of CM-23d, CM-23e, CM-23f, CM-23g and CM-23h | 53-2, **56-0**; CS-Q10, CS-Q12 | 350–480 |
-| **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the Redis-loss detection (start-up sentinel check before write, heartbeat, the `operational_recovery_flags` table and its operator clear command, `/ready` degraded, alert) and the runbook's mandatory `CompanyCreated` replay step, the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
+| **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the Redis-loss detection (start-up sentinel check before write, heartbeat, the `operational_recovery_flags` table and its operator clear command, `/ready` degraded, alert) and the runbook's mandatory `CompanyCreated` replay step, the job and recipients (FR-053). 3. CM-57, CM-58, CM-58b, CM-57b, runbook replay | 52-1 | 300–420 |
 
 **Deferred — «with the customer-erasure feature» (D-21, CS-Q21 = PP-20.2).** Not a sub-PR of this slice; it ships with the
 feature that erases a customer, which Phase 1 does not have. It must decide and deliver together: the erasure use case in
