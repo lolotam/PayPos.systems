@@ -281,9 +281,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-33b** (CS-Q18 = PP-17.6) The owner returns a REVIEWED October to DRAFT with the reason «خطة سوسن غلط»: status DRAFT,
   `reviewed_*` cleared, one return row holding the reason, one audit entry without it; an empty reason → 422
   `COMMISSION_RETURN_REASON_INVALID`; a DRAFT or closed statement → 409; a user with neither review nor approve → 403.
-- **CM-32b** October is REVIEWED; سارة's transfer date to حولي is edited from 15 to 20 October: the view now shows the
+- **CM-32b** October is REVIEWED; سارة gets a new dated attachment to الفروانية from 20 October (an allowed staff change, spec
+  017; closed intervals are never rewritten, Codex 4336865762): the view now shows the
   statement as changed since review, approval is refused with 409 `COMMISSION_FINGERPRINT_STALE` (`return_required`), and
-  after the return to DRAFT (FR-031) and a new review (with the new branch split) it can be approved. **Concurrency:** the transfer-date edit commits while the approval
+  after the return to DRAFT (FR-031) and a new review (with the new branch split) it can be approved. **Concurrency:** the new attachment commits while the approval
   transaction is running (barriers before and after the freeze's one read of the branch links): if that read sees the
   edit, the statement fingerprint of the frozen rows differs from `reviewed_statement_fingerprint` and approval is refused with 409
   `COMMISSION_FINGERPRINT_STALE`, nothing frozen; if it does not, the old split is frozen whole and the edit is a
@@ -491,8 +492,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 
 ### Edge cases
 
-- An employee who left the business still gets her month computed and her corrections posted (`TODO(spec)` CS-Q8 for how
-  they are settled).
+- An employee who left the business still gets her month computed; whether corrections are posted for her after she
+  leaves, and how they are settled, is `TODO(spec)` CS-Q8 (Codex 4336865747).
 - A month with no input at all for the business still has a statement when generated (all employees with zero), so the
   owner can approve an empty month.
 - A line whose `rule_snapshot` is `ZERO`, `PCT` or `FIXED` needs no plan (spec 012, requirement 8); only `FOLLOW_PLAN` lines and sales
@@ -1004,7 +1005,8 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
 - **Arrows:** two new **event** rows in `docs/module-map.md`: `CompanyCreated` (identity) consumed by worker `commissions`
   (added by 56b-1) and `CommissionCorrectionBlockedNoticeRequested` commissions ⇒ notifications (added by 55-2);
   `StatementAwaitingReview`/`StatementAwaitingApproval` are already declared. No new **import** arrow (D-16); the root-bound readers are: business timezone (tenancy), service names (catalog),
-  recipients (identity), customer full names (customers, D-16/D-20), tips, lines and package-sales bootstrap (orders,
+  recipients (identity), the employee's business and dated branch attachments (staff, FR-018b, FR-033; Codex
+  4336865773), customer full names (customers, D-16/D-20), tips, lines and package-sales bootstrap (orders,
   D-15). 59-0's ADR lists each binding, and 59-0 adds each as a **Port** row in `docs/module-map.md` §3 (and the generated
   YAML), as the root-bound `DaySessionsPort` is declared there (Codex 4336601176). A root-bound read adds a Port row but
   no **import** arrow; that is what D-15/D-16's "no module-map arrow" means.
