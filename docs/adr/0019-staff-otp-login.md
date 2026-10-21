@@ -700,7 +700,8 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
    `verification` record for that session, whose expiry is the session's 8-hour deadline. Unlike the window record,
    this counter is not deleted when a window closes. The opening reads and increments it in the same transaction,
    under the same session-row lock, so every later opening of that session gets a strictly greater `window_seq`. The
-   opening response returns it with the `window_id`. The session-ending and replacement operations delete the counter
+   opening response returns it with the `window_id` and a `session_ref`: the session's opaque row id, never its token,
+   which names the session the window belongs to. The session-ending and replacement operations delete the counter
    with the window.
    **Every opening gets a new `window_id`:** 128 random bits from the injected entropy source, never derived from the
    session, the user or the time. The opening response returns it to the POS, and every request inside that window
@@ -762,11 +763,18 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
      passing response (item 4), counted from the moment the tab **sent** that request. The browser therefore always
      expires no later than the server does, and a reload or a new tab never rebuilds a deadline from a stored instant
      alone.
-   - **The shared key.** The POS keeps one key in `localStorage` holding the `window_id`, its `window_seq` and the
-     two wall-clock expiry instants (`Date.now()` at send + each remaining time), and nothing else.
-     - It writes an opening response only when that response's `window_seq` is **strictly greater** than the stored
-       one, or no key exists. The server never issues two openings of one session with the same `window_seq`
-       (item 3), so an older opening whose response arrives late never overwrites a newer window.
+   - **The shared key.** The POS keeps one key in `localStorage` holding the `window_id`, its `session_ref` and
+     `window_seq`, and the two wall-clock expiry instants (`Date.now()` at send + each remaining time), and nothing
+     else.
+     - **Order is `(session_ref, window_seq)`.** `window_seq` counts per session, but the key is device-wide. An
+       opening for a **different** `session_ref` than the key's always overwrites the key: the session that wrote it
+       has ended or been replaced, because a device has one operator at a time. Within one session, an opening
+       overwrites the key only when its `window_seq` is **strictly greater**. The server never issues two openings of
+       one session with the same `window_seq` (item 3), so an older opening whose response arrives late never
+       overwrites a newer window.
+     - **An expired key counts as absent.** A key whose wall-clock deadlines have passed never blocks an opening,
+       whatever its `session_ref` or `window_seq`. So a stale key left by an ended session, or by a replacement whose
+       tab crashed before clearing it, can never outrank a new opening or loop the PIN step.
      - A passing read or touch updates the key only when its `window_id` equals the stored one.
      - **A newer window retires the older ones at once.** When a tab sees a greater `window_seq` in the key (a
        `storage` event or its own read), it immediately hides and clears its private screen if that screen belongs to
@@ -822,7 +830,8 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
    (60 seconds or 5 minutes). Closing early costs the employee one PIN entry; closing late would show her data.
 7. **No private data kept.** Responses carry `Cache-Control: no-store`, and the PWA persists no private data from these
    screens: no IndexedDB, no offline queue (spec 060 S-19, `CLAUDE.md` §7). The ban covers private data, not window
-   metadata. The only stored item is item 6's key: the `window_id`, its `window_seq` and the two expiry instants. It holds no personal
+   metadata. The only stored item is item 6's key: the `window_id`, its `session_ref` and `window_seq`, and the two
+   expiry instants. It holds no personal
    data, is useless without the operator's session and Device credentials, and is removed when the window closes.
    ADR-0027's addendum says the same.
 8. **Route policy, for 57-1 (spec 060 FR-A06b).** Today `PERSONAL_ROUTE = true` makes `SessionGuard`
@@ -864,6 +873,11 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
      touch passes, and its deadlines come from that touch's `cap_remaining_ms`, never past the server's 5-minute cap;
    - **out-of-order openings:** the response of an older opening arrives after a newer one → the key keeps the newer
      `window_id` and its greater `window_seq`;
+   - **stale key from an ended session:** the key still holds a window of a session that signed out, with a higher
+     `window_seq` → a new operator's opening has a different `session_ref`, overwrites the key and shows her data with
+     no PIN loop; the same holds when the old key has merely expired;
+   - **replacement after a crash:** an operator is replaced while her tab has crashed and never cleared the key → the
+     new operator's opening overwrites it, and the old window's data is never shown;
    - **discarded response:** a tab's passing response names a `window_id` that is no longer the key's → the tab
      discards it, clears its screen and cache and shows the PIN step; the fresh opening rewrites the key;
    - **idle tab beside an active tab:** tab B is idle past its own monotonic deadline while tab A keeps sending
