@@ -6,3 +6,5 @@ export type { ServiceLineEditNoticeRequested } from '@pospay/contracts';
 export type { ServiceLineCancelNoticeRequested } from '@pospay/contracts';
 /** يلحقه عامل orders مرة لكل مجموعة مستلمين بحد أقصى 100، داخل معاملة المستهلك التي تحجز صف دفتر (line, revision)، وفقط عندما يحمل التغيير المحفوظ change من نوع PERFORMERS_CHANGE ويوجد مدير مؤهل واحد على الأقل. */
 export type { ServiceLinePerformersNoticeRequested } from '@pospay/contracts';
+/** يلحقه عامل orders مرة لكل مجموعة مستلمين بحد أقصى 100، داخل معاملة المستهلك التي تحجز صف دفتر الطلب (request_id)، وفقط عندما يوجد مستلم واحد على الأقل غير الطالبة. */
+export type { DiscountApprovalNoticeRequested } from '@pospay/contracts';

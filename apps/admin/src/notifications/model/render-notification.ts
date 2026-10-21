@@ -1,10 +1,16 @@
 import type { InAppNotification } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 
-/** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات وتعديل السعر والإلغاء وتغيير المنفّذين تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
+/** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات وتعديل السعر والإلغاء وتغيير المنفّذين وطلب موافقة الخصم تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
 export function renderNotification(item: InAppNotification, viewerLocale?: Locale): string {
   const serviceLine = renderServiceLineNotice(item, viewerLocale);
   if (serviceLine !== null) return serviceLine;
+  if (item.template_key === 'discount_approval_requested') {
+    return fill(
+      t(viewerLocale ?? item.locale, 'inApp.discount_approval_requested'),
+      discountApprovalValues(item.safe_parameters),
+    );
+  }
   if (item.template_key === 'late_service_session') {
     const values = Object.fromEntries(
       item.safe_parameters.map((parameter) => [parameter.name, parameter.value]),
@@ -133,6 +139,26 @@ function performersChangedValues(
     branch_name_ar: arabic('branch_name_ar', branchEn),
     business_date: read('business_date'),
     line_net: read('line_net'),
+  };
+}
+
+function discountApprovalValues(
+  parameters: InAppNotification['safe_parameters'],
+): Record<string, string> {
+  const read = (name: string) => parameters.find((item) => item.name === name)?.value ?? '';
+  const arabic = (name: string, english: string) => {
+    const value = read(name).trim();
+    return value.length > 0 ? value : english;
+  };
+  const branchEn = read('branch_name_en');
+  const serviceEn = read('service_name_en');
+  return {
+    branch_name_en: branchEn,
+    branch_name_ar: arabic('branch_name_ar', branchEn),
+    service_name_en: serviceEn,
+    service_name_ar: arabic('service_name_ar', serviceEn),
+    line_count: read('line_count'),
+    max_percent: read('max_percent'),
   };
 }
 
