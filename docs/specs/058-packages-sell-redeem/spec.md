@@ -3,8 +3,11 @@
 > **Status:** Draft · 2026-10-21 · docs-only PR. 23 owner questions in [owner-questions.ar.md](owner-questions.ar.md).
 > **Answered:** PK-Q12…PK-Q21 by Waleed (PP-16, fully answered, through his super agent, 2026-10-21); PK-Q17 and PK-Q18
 > went against the recommendation (reception sees everything; the import uses the package-type permission).
-> **Still open (13):** the charges/money questions PK-Q1…PK-Q11, PK-Q22 and PK-Q23 (decisions page, batches 35, 37 and
-> 38; Abu Salem binds). Every rule that waits on an open one
+> PK-Q2 and PK-Q4 by Waleed (cards through his super agent, 2026-10-21, batch 35; Abu Salem's pick replaces them if it
+> differs): PK-Q2 the recommendation (the sale price behaves like a visit line); PK-Q4 not exactly an option (cash, card
+> or bank transfer, recorded on the sale and on the refund).
+> **Still open (11):** the charges/money questions PK-Q1, PK-Q3, PK-Q5…PK-Q11, PK-Q22 and PK-Q23 (decisions page,
+> batches 35, 37 and 38; Abu Salem binds). Every rule that waits on an open one
 > is marked `TODO(spec)` with its number and follows its recommended option, so only that rule moves if an owner picks
 > otherwise. **No code starts on a sub-PR whose rows name a pending question** (§7).
 > **Implements:** SPEC §4 (`PackageEntitlement`, `PackageComponent`, `PackageSessionSlot`, `PackageRedemption`,
@@ -53,14 +56,14 @@ commission, it would fall in proportion to (22.500 − 18.000) ÷ 22.500 (SPEC �
 |---|---|---|
 | Stop / resume selling (33b) | a nullable `selling_stopped_at` on the type; stopped types are refused by the sale and hidden from its picker; everything already sold, and the import, are unaffected (PK-Q12, PP-16.1) | FR-001…FR-003 |
 | The sale record (42) | the **entitlement row is the sale**; it is not a service line (TD-1) | TD-1, FR-010 |
-| Sale price, discount, seller, method, back-dating | `TODO(spec)` PK-Q2, PK-Q3, PK-Q4, PK-Q11 | FR-012…FR-016 |
+| Sale price, discount, seller, method, back-dating | price and discount like a visit line (PK-Q2 answered); method `CASH`, `CARD` or `BANK_TRANSFER` (PK-Q4 answered); `TODO(spec)` PK-Q3, PK-Q11 | FR-012…FR-016 |
 | Valuation | spec 007's `allocatePackagePrice` and `createPackageSlots`, at sale, from the services' list prices **at sale time** | FR-017, BR-01 |
 | Redemption (43) | a **draft kind of the existing record and append routes** (TD-2), not a new endpoint; lowest `FREE` ordinal under a lock on the component row | TD-2, FR-020…FR-027 |
 | Cancel a redemption (44) | the 054 cancel writer accepts a redeemed line and reverses its redemption once in the same transaction (`TODO(spec)` PK-Q6) | TD-3, FR-030…FR-033 |
 | Price edit of a redeemed line | refused: its price is the slot value (SPEC §4, §8) | FR-034 |
 | Performer change of a redeemed line | `TODO(spec)` PK-Q8 | FR-035 |
 | Extend (45) | forward only, audited, compare-and-set on the current date (PK-Q16 answered; `TODO(spec)` PK-Q1) | FR-040…FR-044 |
-| Refund (46) | the manager picks one component and a count; highest `FREE` ordinals; exact or `INSUFFICIENT_SLOTS` (SPEC §8) (`TODO(spec)` PK-Q4, PK-Q5, PK-Q10) | FR-050…FR-057 |
+| Refund (46) | the manager picks one component and a count; highest `FREE` ordinals; exact or `INSUFFICIENT_SLOTS` (SPEC §8); the refund records its method (PK-Q4 answered) (`TODO(spec)` PK-Q5, PK-Q10) | FR-050…FR-057 |
 | Import (47) | the spec 030 framework: template, preview, one all-or-nothing commit; `external_ref` unique per company (`TODO(spec)` PK-Q9, PK-Q22) | FR-060…FR-068 |
 | Who sees a customer's packages | reception and managers alike see everything (PK-Q17, PP-16.6) | FR-070, FR-071 |
 
@@ -121,9 +124,9 @@ commission arithmetic and statements (rows 50–55); the staff app's view of pac
 | ID | Kind | Question (short) | ⭐ recommended | What moves if another option wins |
 |---|---|---|---|---|
 | PK-Q1 | money | Is an extension charged? | free: it moves only the date | 45 gains a fee field, its payment record and its effect on slot values and the seller's commission (a new rule, a new ADR) |
-| PK-Q2 | money | Sale price against the type's price | like a visit line: editable, even above the type price (SS-Q4); discount counted against the type price within the recorder's limit, half-up (SS-Q5); above the limit refused until rows 38–41 | FR-012, FR-013 |
+| PK-Q2 | money | Sale price against the type's price | **Answered (batch 35, Waleed's card, 2026-10-21):** as recommended («زي الزيارة»): like a visit line: editable, even above the type price (SS-Q4); discount counted against the type price within the recorder's limit, half-up (SS-Q5); above the limit refused until rows 38–41 | settled — FR-012, FR-013 |
 | PK-Q3 | money | May the person recording the sale name herself as the seller? | no, like SS-Q2 | FR-014 (one rule) |
-| PK-Q4 | money | Payment method of a sale and of a refund | `CASH` or `CARD`, recorded on both | the method enum of FR-015 and FR-054 |
+| PK-Q4 | money | Payment method of a sale and of a refund | **Answered (batch 35, Waleed's card, 2026-10-21):** not exactly an option («وتحويل بنكي كمان»): `CASH`, `CARD` (KNET) or `BANK_TRANSFER`, recorded on the sale and on the refund | settled — the method enum of FR-015 and FR-054 |
 | PK-Q5 | money | Who refunds, and what is recorded | new permission, owner / general manager / business manager / branch manager, grantable; written reason; bell to the branch managers; audit | FR-050, FR-055, FR-056; 46-3 |
 | PK-Q6 | money | Cancelling a redeemed session | exactly the CX-Q1…CX-Q5 rules of a line, and the session goes back to the package | FR-030…FR-033 |
 | PK-Q7 | money | Expiry date of a late-recorded redemption | the visit's date (local to the serving branch, TD-4) | TD-4, FR-024 |
@@ -176,7 +179,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   spec 007 PKG-01/PKG-02 exactly (unit, shared fixture table).
 - **SA-03** The component list prices are the services' prices **at sale time**; editing the type or a service afterwards
   changes no sold component, slot or expiry (PT-Q4; re-read after an edit).
-- **SA-04** (`TODO(spec)` PK-Q2) Price 25.000 → discount 0; price 27.000 → accepted, discount 0, `discount_bps 0`; price
+- **SA-04** (PK-Q2) Price 25.000 → discount 0; price 27.000 → accepted, discount 0, `discount_bps 0`; price
   21.000 (16%) with a 10% limit → 422 `PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT` with the limit and nothing written; the owner
   (unlimited) may sell at 0.000 → every slot 0.000. A percent discount rounds to the mill half-up (SS-Q5). [M13]
 - **SA-05** (`TODO(spec)` PK-Q3) Seller هبة must be active and attached to the branch on the sale date (the
@@ -186,7 +189,8 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   orders): detach first → the sale, reading after `PerformerCheckPort.lock`, gets `PACKAGE_SELLER_NOT_ELIGIBLE`; sale
   first → the detach waits for the lock and the sale commits with هبة eligible. The same holds for a relink of هبة's user
   and the self rule.
-- **SA-06** (`TODO(spec)` PK-Q4) `paid_method` is `CASH` or `CARD`; missing or other → 400 by the contract.
+- **SA-06** (PK-Q4) `paid_method` is `CASH`, `CARD` or `BANK_TRANSFER`; missing or other → 400 by the contract. A
+  refund's `method` takes the same three values, with the same 400 (FR-054).
 - **SA-07** (`TODO(spec)` PK-Q11) `sold_at` omitted → now; back-dated inside the window → accepted, `late = true`,
   expiry from the sale date; before the first of the previous month → 422 `PACKAGE_SALE_TOO_OLD`; in the future beyond
   the 120 s allowance → 422 `PACKAGE_SALE_IN_FUTURE` (050 FR-014 values). (`TODO(spec)` PK-Q23) A sale back-dated to
@@ -376,17 +380,18 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   201 `{ entitlement }`. The entitlement is the sale (TD-1).
 - **FR-011** Guard `sell:packages:branch` (PK-Q13) and the `orders` feature, individual admin login, rechecked
   inside the transaction after waits (the 050 pattern).
-- **FR-012** (`TODO(spec)` PK-Q2) `price_paid ≥ 0`, any amount within `numeric(14,3)`, even above the type price;
+- **FR-012** (PK-Q2) `price_paid ≥ 0`, any amount within `numeric(14,3)`, even above the type price;
   `discount = max(type price − price_paid, 0)`; `discount_bps = ceil(discount × 10000 / type price)`, 0 at a type price
   of 0 (050 FR-008).
-- **FR-013** (`TODO(spec)` PK-Q2) The recorder's limit is read through the existing `DiscountLimitPort` for the verified
+- **FR-013** (PK-Q2) The recorder's limit is read through the existing `DiscountLimitPort` for the verified
   recorder membership (050 FR-007); above it → refused (`PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT`). Rows 38–41 later add the
   approval path to the sale exactly as to a line.
 - **FR-014** (`TODO(spec)` PK-Q3) The seller is required, eligible at the sale date (`PerformerCheckPort`), and not linked to
   the recorder's user (snapshot of the link stored on the entitlement, as performers are, ADR-0045). The sale calls
   `PerformerCheckPort.lock([seller])` **before** `read`, as the visit writer does, so a concurrent detach, deactivation
   or relink of the seller either commits first (and the sale sees it) or waits for the sale's commit.
-- **FR-015** (`TODO(spec)` PK-Q4) `paid_method ∈ {CASH, CARD}`, stored; no payment is captured (Phase 2).
+- **FR-015** (PK-Q4) `paid_method ∈ {CASH, CARD, BANK_TRANSFER}` (`CARD` is KNET), stored; no payment is captured
+  (Phase 2).
 - **FR-016** (`TODO(spec)` PK-Q11) `sold_at` default now, editable within 050 FR-014's window; `sold_business_date` (local to the selling branch, TD-4)
   and `sold_timezone` stored; `late` stored like a visit's.
 - **FR-017** (`TODO(spec)` PK-Q23) The type and components are read through `CatalogReaderPort` (TD-10) as they are when
@@ -481,7 +486,8 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   `amount = Σ unit_value`; `refunded_amount += amount`, `revision += 1` on the entitlement; audit; for `SOLD`,
   `PackageSaleChanged` with the committed snapshot (TD-7).
 - **FR-053** (`TODO(spec)` PK-Q10) `IMPORTED` entitlements refund by the same rules, with no event.
-- **FR-054** (`TODO(spec)` PK-Q4) `method ∈ {CASH, CARD}` stored on the refund; no payment is executed (Phase 2).
+- **FR-054** (PK-Q4) `method ∈ {CASH, CARD, BANK_TRANSFER}`, the way the money went back, stored on the refund; no
+  payment is executed (Phase 2).
 - **FR-055** (`TODO(spec)` PK-Q5) Reason 1…500 trimmed, stored on the refund row only.
 - **FR-056** (`TODO(spec)` PK-Q5) A bell to the branch's four scoped manager roles, the refunder included, through an
   orders worker consumer of a new orders event `PackageRefundRecorded` and a notice event to `notifications`, the 35d /
@@ -788,7 +794,7 @@ Every row waits on this spec's merge and on the owner answers named in its "Bloc
 | PR | Result | Subtasks | Blocked on |
 |---|---|---|---|
 | **33b** | Stop / resume selling | 1. Contract + migration (`selling_stopped_at`, grant) + domain no-op rule. 2. Use cases, routes, ST tests. 3. Admin list toggle, badge, component tests | this spec merged |
-| **42-1** | Contracts and map | 1. Sale contracts, `PackageSaleChanged` schema with the sale's `branch_id` and `business_date` (TD-7; ADR-0010's field list widened), worker known types, OpenAPI. 2. `CatalogReaderPort` package-type read (TD-10), module-map §3 row. 3. Error codes ar/en, permission codes + i18n labels | PK-Q2, PK-Q4, PK-Q11, PK-Q23 (PK-Q11 decides whether the request carries `sold_at` at all, PK-Q23 FR-010's snapshot fields) |
+| **42-1** | Contracts and map | 1. Sale contracts, `PackageSaleChanged` schema with the sale's `branch_id` and `business_date` (TD-7; ADR-0010's field list widened), worker known types, OpenAPI. 2. `CatalogReaderPort` package-type read (TD-10), module-map §3 row. 3. Error codes ar/en, permission codes + i18n labels | PK-Q11, PK-Q23 (PK-Q11 decides whether the request carries `sold_at` at all, PK-Q23 FR-010's snapshot fields) |
 | **42-2** | Storage | 1. Entitlements, components, slots: `CHECK`s, RLS, grants; every FK with the child-side index its table row lists (on `package_entitlements` the seven: customer, package type, seller employee, seller user, sold branch, recorder, recorder membership), each index in its FK's column order; a catalog test (`pg_constraint` against `pg_index`) that fails when an FK of any slice table has no index whose leading columns equal the FK's columns in order (a partial index counts only when its predicate is that FK column's `IS NOT NULL`, so the redemptions' partial uniques never count). It covers the tables 42-2 creates, and 43 (`package_redemptions`, `service_lines.redemption_id`, the slots' redemption FK), 45 (`package_extensions`), 46 (`package_refunds`, `package_refund_slots`) and 46-3 (`package_refund_notices`) each add their tables to its list in the same PR. 2. The entitlement and slot triggers (TD-5b, BR-03/04), the value-conservation and composition-seal ones included. 3. Negative RLS and trigger tests, allowlist, permission seed migration | **design advisors**; 42-1 |
 | **42-3** | Sell | 1. Pure domain (discount, seller rule, expiry). 2. `SellPackageUseCase`, adapters, route. 3. SA-01…SA-11 (SA-05b, SA-08b, SA-08c included) | 42-2; PK-Q3, PK-Q11, PK-Q23 |
 | **42-4a** | Any-of access guard | 1. `RequireAny` and the `RequiredAccess` permissions list; `AccessGuard` and the identity authorizer read every listed grant in one `withTenant` transaction (TD-13). 2. ADR-0003 §4 addendum; `route-coverage.ts` and startup-check tests for the new shape. 3. Guard tests: either permission alone passes, neither → 403, a device → 403, the feature off → 403, a list of mixed scopes refused at module load | this spec merged |
@@ -799,7 +805,7 @@ Every row waits on this spec's merge and on the owner answers named in its "Bloc
 | **43-3** | Reception «من الباقة» | 1. Line toggle with the customer's packages and remaining count; the detail's redemption history (FR-071). 2. Suggest the earliest expiry. 3. Component tests | 43-2, 42-4 (the detail query) |
 | **44** | Cancel / performers on redeemed lines | 1. 054 writer: lift the 43-1b refusal and reverse (FR-031), RC-01…RC-05. 2. 055 per PK-Q8 (lift or keep the 43-1b refusal), RC-07. 3. RC-06 re-run against the final writers | 43-2; PK-Q6, PK-Q8 |
 | **45** | Extend | 1. `package_extensions`, the entitlement's `expires_on_*` columns and the extension-history trigger, contracts, permission. 2. Use case, route, EX tests. 3. Admin dialog and the detail's extension history (FR-071) | 42-2, **42-4** (the detail query), after **43-3** on that file; PK-Q1 |
-| **46-1** | Refund storage | 1. `package_refunds`, `package_refund_slots`, RLS, grants. 2. Contracts, error codes, permission. 3. Negative tests | **design advisors**; 43-1; PK-Q4, PK-Q5 |
+| **46-1** | Refund storage | 1. `package_refunds`, `package_refund_slots`, RLS, grants. 2. Contracts, error codes, permission. 3. Negative tests | **design advisors**; 43-1; PK-Q5 |
 | **46-2** | Refund | 1. Use case (FR-051…FR-055). 2. Route. 3. RF-01…RF-10 incl. M6/M9 races | 46-1; PK-Q10 |
 | **46-3** | Refund bell + dialog | 1. Events, ADR-0044 addendum, module-map rows, template ar/en. 2. Consumer + ledger. 3. Admin refund dialog and the detail's refund history (FR-071) | 46-2, **42-4**, after **45** on the detail query file; PK-Q5 |
 | **47-1** | Import framework for packages | 1. The workbook reader moved to `shared/import` with per-plug-in bounds (FR-060b); staff passes its own, unchanged; IM-09. 2. Package plug-in on the shared `import_previews` / `import-sheet.ts` framework: template, row validation, `CustomerLookupPort.findByPhone` (TD-11). 3. Guard on `manage:package-types:business` and its refusal tests | **design advisors**; 43-1; PK-Q9, PK-Q22 |
