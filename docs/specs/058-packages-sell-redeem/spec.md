@@ -188,9 +188,12 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   unknown → 404 `PACKAGE_TYPE_NOT_FOUND`; a type whose current definition fails the shared validator (a service removed
   from the business is impossible today, spec 037) → 422 with the validator's named code. [M11]
 - **SA-08b** The manager edits «سشوار ×10» (price 25.000 → 27.500, revision 1 → 2) while منى's sale screen still shows
-  revision 1: her sale with `expected_type_revision 1` → 409 `PACKAGE_TYPE_REVISION_CONFLICT` with
-  `current_revision 2`, nothing written; after reloading she sells revision 2. The edit and the sale race on the type
-  row lock (FR-018b), so either order gives this result.
+  revision 1, and she sells with `expected_type_revision 1`. The two race on the type row lock (FR-018b); two real
+  connections test both orders:
+  - **edit first:** the edit commits revision 2; the sale, rechecking under its `FOR SHARE` lock, gets 409
+    `PACKAGE_TYPE_REVISION_CONFLICT` with `current_revision 2`, nothing written; after reloading she sells revision 2.
+  - **sale first:** the sale commits with the revision-1 snapshot (price 25.000, its components and validity); the
+    edit waits for the lock, then commits revision 2, and the sold package keeps its revision-1 values (PT-Q4).
 - **SA-09** Same key, same body, same actor → the original 201 replays, no second entitlement or slot [M10]; changed
   body or actor → 422 `IDEMPOTENCY_KEY_REUSED`.
 - **SA-10** A type of 20 components × 365 sessions (7,300 slots) sells inside the 200 ms budget with one multi-row insert
@@ -589,7 +592,8 @@ a handful of rows under row locks. Import: a worker job (spec 030 Stage B). Read
   EX-01…EX-05, RF-01…RF-10, IM-01…IM-08, CP-01…CP-03; concurrency tests M5, M6, M9 with two real connections.
 - **RLS negative**, per new table, and the grant allowlist; trigger negative tests: every forbidden slot transition,
   each refund-integrity breach (a refund slot of another component or entitlement, a copied ordinal or value that
-  differs from the slot, `sessions` ≠ the slot count, `amount` ≠ the sum, a `refunded_amount` delta ≠ `amount`),
+  differs from the slot, `sessions` ≠ the slot count, `amount` ≠ the sum, a `refunded_amount` delta ≠ `amount`, an entitlement `revision` that does not grow by exactly 1 — unchanged or +2 — and
+  a `refund.entitlement_revision` that differs from the entitlement's new revision),
   a `FREE → USED` naming a reversed or another slot's redemption, an `expires_on` change with no or a mismatched
   extension row,
   a second reversal, a lowered `expires_on`, `refunded_amount` above `price_paid`, an update of a value column.
