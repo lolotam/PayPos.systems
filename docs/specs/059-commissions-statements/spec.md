@@ -852,8 +852,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   grant:** at collection the API re-checks, in the collect transaction, that the collector is the requester and that her
   **current** authorization still covers the saved scope: the collect transaction recomputes her effective branch set _R'_
   with the same rules, and the saved `branch_ids` must be a subset of _R'_ (a `BUSINESS` request needs her to still be a
-  business-wide reader) and every saved employee must still be in the set _R'_ lets her see. If the collector is **not** the requester, the request is refused with the uniform
-  403 and the stored bytes are left untouched (the requester can still collect them). If the collector **is** the requester
+  business-wide reader) and every saved employee must still be in the set _R'_ lets her see. If the collector is **not** the requester, the request gets the transport's uniform 404 (ADR-0049 §1: another
+  user, another company, an unknown or an expired id all answer the same 404) and the stored bytes are left untouched (the requester can still collect them). If the collector **is** the requester
   but her current authorization no longer covers the scope (a branch transfer, a revoked permission or membership, a new
   DENY on one of the saved branches), the
   bytes are discarded and the request is refused with the uniform 403, no workbook. Only a successful collect writes the audit entry
