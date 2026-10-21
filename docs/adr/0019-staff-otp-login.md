@@ -683,20 +683,35 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
    nothing. Step-up attempts count against the existing PIN attempt limit in Redis (`CLAUDE.md` §8), and the actual
    actor is recorded, as for PIN sign-in.
 3. **The window record is auth-owned and global**, kept in the existing `verification` storage the way ADR-0027
-   keeps its 120-second attendance challenge. It holds the session id, the operator's user id, the device id,
-   `opened_at` and `last_activity_at`, and its stored expiry is `opened_at` + 5 minutes. It holds no tenant data, no
-   employee data, no column setting and no PIN material. A session has at most one window; opening it again replaces
-   it. **No new table and no new grant:** `pospay_auth` already reads and writes `verification` (migration 0008), so
+   keeps its 120-second attendance challenge. It holds a `window_id`, the session id, the operator's user id, the
+   device id, `opened_at` and `last_activity_at`, and its stored expiry is `opened_at` + 5 minutes. It holds no tenant
+   data, no employee data, no column setting and no PIN material. A session has at most one window; opening it again
+   replaces it.
+   **Every opening gets a new `window_id`:** 128 random bits from the injected entropy source, never derived from the
+   session, the user or the time. The opening response returns it to the POS, and every request inside that window
+   carries it in a dedicated request header (57-1's contract names it). Like the session token, it is never logged and
+   never put in a URL. On its own it grants nothing: it is checked only together with the live session and Device
+   credentials. **No new table and no new grant:** `pospay_auth` already reads and writes `verification` (migration 0008), so
    ADR-0003 needs no new classification.
 4. **The server enforces the idle limit, not the tab.** On every gated request on the `STAFF_POS` path, after the
    normal staff-session checks (§1 items 6–7: device, session purpose, deadline, membership), auth runs one atomic
    conditional update with the request's single Clock sample `now` (spec 060 FR-A06):
-   - it passes only when the window exists for **this session and this operator**, `now − last_activity_at ≤ 60 s`
-     and `now − opened_at ≤ 5 min`;
+   - it passes only when the window exists for **this session, this operator and this `window_id`**,
+     `now − last_activity_at ≤ 60 s` and `now − opened_at ≤ 5 min`. The `window_id` match is part of the same
+     conditional update, never a separate read before it;
    - a passing request sets `last_activity_at = now`, so each request extends the window by 60 seconds from its own
      time, never past 5 minutes from the opening;
-   - any other request is refused with **403 `PRIVATE_VIEW_EXPIRED`** and the record is deleted, which closes the
+   - any other request is refused with **403 `PRIVATE_VIEW_EXPIRED`**. When the `window_id` matches but a limit has
+     passed, the record is deleted, which closes the window; that delete is conditional on the same `window_id`. A
+     request with a missing or different `window_id` changes nothing: it neither extends nor deletes the current
      window.
+
+   **A late request never reaches a newer window.** Take a request sent inside one window that arrives after that
+   window has closed and a new one has opened. It carries the old `window_id`, so it is refused with 403: it reads no
+   data from the new window and does not extend it. The same rule covers every write to the record. Touch (item 5),
+   close and cleanup (item 6) each match the `window_id` inside their own conditional statement, so a late close or
+   cleanup for an old window can never delete the new one. Only the end or replacement of the session deletes a window
+   whatever its id.
 
    A killed tab, a lost connection or a bypassed client therefore never keeps the window open.
 
@@ -714,7 +729,7 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
 5. **Activity touch.** While the screen has input, the POS sends a throttled touch, at most one every 20 seconds,
    through the same route policy and the same check. It returns no private data. Its only effect is to keep the
    server's clock in step with real use.
-6. **Closing and clearing.** Leaving the screen sends a best-effort close. Sign-out, operator replacement and the
+6. **Closing and clearing.** Leaving the screen sends a best-effort close carrying the `window_id`. Sign-out, operator replacement and the
    session's 8-hour deadline close the window too: the auth operation that ends or replaces the session deletes its
    window, and the check in item 4 also requires the bound session to be the live one, so a stale record never passes.
    The POS clears the screen and the query cache of these reads in every tab, as §1 already requires for a replaced
@@ -723,7 +738,7 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
    from the opening). The POS turns them into two wall-clock expiry instants, `Date.now()` plus the limit:
    - the idle expiry is counted from the moment the POS **sent** the last passing request, and the cap from the moment
      it sent the opening request, so the browser always expires no later than the server does;
-   - the POS stores the two instants, and nothing else, in `localStorage` under one key. Every tab sees the same
+   - the POS stores the two instants and the `window_id`, and nothing else, in `localStorage` under one key. Every tab sees the same
      deadlines, and a tab that sleeps or reloads still finds them;
    - it compares them with `Date.now()` on a periodic tick, on `visibilitychange`, `focus` and `pageshow` (so a device
      that wakes from sleep, or a tab restored from the back-forward cache, checks before it shows anything), and before
@@ -740,8 +755,9 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
    `Date.now()` earlier than the stored send instant, and a stored deadline further away than the limit allows
    (60 seconds or 5 minutes). Closing early costs the employee one PIN entry; closing late would show her data.
 7. **Nothing kept.** Responses carry `Cache-Control: no-store`, and the PWA persists nothing from these screens: no
-   IndexedDB, no offline queue (spec 060 S-19, `CLAUDE.md` §7). The only stored item is item 6's pair of expiry
-   instants, which holds no private data and is removed when the window closes.
+   IndexedDB, no offline queue (spec 060 S-19, `CLAUDE.md` §7). The only stored item is item 6's key: the two expiry
+   instants and the `window_id`. It holds no private data, is useless without the operator's session and Device
+   credentials, and is removed when the window closes.
 8. **Route policy, for 57-1 (spec 060 FR-A06b).** Today `PERSONAL_ROUTE = true` makes `SessionGuard`
    (`apps/api/src/shared/session.guard.ts`) call `personalSessionRequest` at once, so a `STAFF_POS` request would be
    refused before any window check. FR-A01…FR-A04 therefore use the combined `PERSONAL_ROUTE = 'staff'` policy the
@@ -769,6 +785,10 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
    - **another tab:** the deadline is noticed in one tab → a second open tab receives the `BroadcastChannel` (or
      `storage`) close, removes its private screen and empties its cache;
    - **clock moved back:** `Date.now()` earlier than the stored send instant → the screen closes at once;
+   - **late request:** a request sent in window A arrives after A closed and window B opened → 403
+     `PRIVATE_VIEW_EXPIRED`, no data, and B's `last_activity_at` is unchanged;
+   - **late close:** a close or cleanup for window A arrives after window B opened → B stays open and its next request
+     passes;
    - a route test asserts that each FR-A01…FR-A04 handler carries both `STAFF_ROUTE = 'staff'` and
      `PERSONAL_ROUTE = 'staff'`.
 
