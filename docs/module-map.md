@@ -298,8 +298,9 @@ composition_roots:
 # arrow above). §3.1: the one synchronous write. A read port's adapter calling another module's exported read is
 # added under reads, one line per symbol, in the PR that introduces it.
 # ADR-0010 addendum 2026-10-21 (spec 060 A-0): customers/staff/commissions -> settings are read-only arrows for the
-# StaffColumnsPort/AlertRulesPort adapters; every reads line lands with its adapter (57c-1, 62-2/62-2b/62-2c/62-3).
-# Worker customers' BranchScheduleHoursPort is a root-bound callback (59-1): no import, no reads line.
+# StaffColumnsPort/AlertRulesPort adapters; each reads line lands with its adapter: 57c-1 (all four StaffColumnsPort
+# adapters), 62-2, 62-2b, 62-2c, 62-3 and 61-1 (AlertRulesPort adapters); 62-1 adds the storage and reader only.
+# Worker customers' BranchScheduleHoursPort is a composition-root callback: no import, no reads line.
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:

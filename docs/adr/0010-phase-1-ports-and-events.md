@@ -90,7 +90,9 @@ pointer), so `commissions` no longer reads plans from `staff`. The §3 row stays
 - **OTP wiring stays at the composition root.** No module arrow, so §2 and the CI gate are unaffected; the binding
   lives in `apps/api`'s module wiring, the one place an interface meets a class (`CLAUDE.md` §2.2).
 - §6 — the machine-readable source — does not change: imports are untouched and `reads: []` stays empty; each
-  adapter adds its `reads` line in the PR that writes it, one line per symbol.
+  adapter adds its `reads` line in the PR that writes it, one line per symbol. *(The "imports are untouched" part is
+  superseded by the addendum of 2026-10-21, §4: `customers → settings`, `staff → settings` and
+  `commissions → settings` are added to §2 and to the §6 `imports`. The `reads` rule still holds.)*
 - Consumers can be added to any Phase 1 event with zero producer changes, and because every projected event
   carries its consumers' fields and a `revision`, duplicate, reordered and replayed delivery converges (SPEC §6).
 - The Phase 1 event rows list their Phase 1 consumers only; the `realtime` publisher joins them when realtime
@@ -193,7 +195,9 @@ lists by name, not for the adapters that implement them. The `StaffColumnsPort` 
 
 ### Module map
 
-- `module-map.md` §3 gains the three port rows above; §2 and the §6 `imports` gain the three arrows of §4.
+- `module-map.md` §3 gains the three port rows above; §2 and the §6 `imports` gain the three arrows of §4, and the
+  generated `docs/module-map.yaml` is regenerated. This supersedes the original Consequences' "imports are
+  untouched", as noted there.
 - **No cycle between adapters** (the Consequences warning above): `settings` and `tenancy` read none of `orders`,
   `customers`, `staff` or `commissions` through any adapter.
 - As the Consequences above require, each adapter adds its `reads` line in the PR that writes it, one line per
