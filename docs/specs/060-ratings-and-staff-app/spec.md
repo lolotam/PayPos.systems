@@ -46,8 +46,8 @@ without letting that voice touch commission (D-41, D-14).
   close) the job claims her request, reads her active lines through `DaySessionsPort`, snapshots سارة and رنا, and sends
   one WhatsApp message with a link. نورة opens it: the page shows only «صالون الأميرة» and five stars (ADR-0011 §4). She
   gives 2 stars and writes «الصبغة طلعت غامقة». Both سارة and رنا get the 2 stars in their average (SPEC §10); ليلى
-  gets a low-rating bell (≤ 2 stars, D-41); the comment is visible to ليلى and the owner only, never to سارة or رنا
-  (ADR-0011 §4, §7). Their commission does not move (D-14).
+  gets a low-rating bell (≤ 2 stars, D-41); the comment is visible to whoever holds `read:service-sessions:branch` for that
+  branch (ليلى, the owner, and reception if granted it), never to سارة or رنا in the staff app (ADR-0011 §8, FR-B15). Their commission does not move (D-14).
 - **Alert rules.** The owner opens «التنبيهات»: one row per alert kind with on/off, recipients, channels and the delay
   or lead time, plus one master switch (D-47). Turning «تقييم منخفض» off stops the bell to ليلى from the next rating on.
 
