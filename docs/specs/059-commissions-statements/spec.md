@@ -211,8 +211,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   October, and only then a 17 October line of سارة arrives for the first time (never frozen): its correction takes
   `attached_branch_ids` = {حولي} from October's frozen attachment snapshot, not {السالمية} from the edited link, and
   lands in هند's part of November.
-- **CM-23b** (CS-Q20 = PP-20.1) ليلى, branch manager of السالمية, reads October: she sees سارة (attached to السالمية) with
-  her full-month commission, including a line she performed in حولي, and does not see رنا (attached to حولي only); the
+- **CM-23b** (CS-Q20 = PP-20.1) ليلى, branch manager of السالمية, reads October: she sees سارة (attached to السالمية for all
+  of October) with her full-month commission (the per-day rule with an attachment covering the whole month), including a line she performed in حولي, and does not see رنا (attached to حولي only); the
   business manager sees both; the export as ليلى contains سارة only. After approval the same holds on the closed statement
   and its export, filtered on the frozen `attached_branch_ids` (the حولي line stays in ليلى's view, shown with its place
   حولي), even if سارة's `EmployeeBranch` is edited after approval.
@@ -262,6 +262,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   over each input kind, and an integration test per writer).
 - **CM-28b** `GET` of a month that was never generated returns the computed view with `generated: false` and leaves no
   statement row, no fingerprint and no lock behind (asserted in the database after the call).
+- **CM-28c** (FR-025; Codex 4335954771) ليلى, branch manager of السالمية, `GET`s a REVIEWED October: the response matches
+  the branch-scoped contract shape and has no fingerprint, `reviewed_*` or changed-since-review field; after a حولي
+  employee's customer is renamed, her response is unchanged (her rows unaffected), while the business manager's response
+  (no DENY) carries both fingerprints and shows the statement changed since review (`STATEMENT`).
 - **CM-29** Generating a month that has not ended → 422 `COMMISSION_PERIOD_NOT_ENDED`; the estimate is still readable.
 
 ### Story 6 — Review (52, P1)
@@ -569,11 +573,17 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   (business timezone, D-16) with 422 `COMMISSION_PERIOD_NOT_ENDED`; under the lock it ensures the DRAFT row, computes the view
   (CM-27) and the fingerprint, stores `current_fingerprint` and returns the view. `GET …/:period` **writes nothing and takes
   no lock**: it computes the same view and fingerprint on read (D-7), returns `generated: false` when no statement row exists,
-  and for a closed month returns its frozen lines. For an open month the view returns **both** fingerprints (D-6), the
-  input fingerprint and the statement fingerprint of the rows the builder would freeze now; a REVIEWED statement is shown
-  as **changed since review** when either differs from its reviewed value, with the cause (`INPUTS` or `STATEMENT`) and,
-  for a holder of review or approve, the return to DRAFT (FR-031) as the next step, since a REVIEWED statement whose labels
-  or branch links changed has no writer to return it.
+  and for a closed month returns its frozen lines. **Only for a business-wide reader** (§6 _Permissions_), the open
+  month's view returns **both** fingerprints (D-6), the input fingerprint and the statement fingerprint of the rows the
+  builder would freeze now; a REVIEWED statement is shown as **changed since review** when either differs from its
+  reviewed value, with the cause (`INPUTS` or `STATEMENT`) and, for a holder of review or approve, the return to DRAFT
+  (FR-031) as the next step, since a REVIEWED statement whose labels or branch links changed has no writer to return it.
+  For any other reader the response carries **no** whole-statement field: no `current_fingerprint`,
+  `current_statement_fingerprint`, `reviewed_*` or `input_fingerprint`/`statement_fingerprint`, and no changed-since-review
+  flag or cause, since each is computed over branches she may not see and would let her observe changes there; she gets
+  the status and her filtered rows only. The Zod contract has two response shapes, the business-wide one with these
+  fields and the branch-scoped one without them (not optional fields on one shape), and the use case picks the shape from
+  the same predicate as the guards (CM-28c).
 - **FR-026** The input fingerprint's input and the statement builder (§6 _Fingerprint_) are pure functions; the hash is
   an injected port (D-6). The builder is the one the freeze uses (FR-033) to produce the frozen rows, never a copy.
 - **FR-027** The view lists blocking issues per employee: `NO_PLAN`, `NO_SALARY`, unresolved blocked corrections; review and
@@ -957,8 +967,9 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
   by a current DENY of that permission, at any scope and from any of her memberships. An empty _R_ (no grant, or a
   business-wide ALLOW with a business-wide DENY) is the uniform 403, never an empty list. She sees the employees attached
   to **any** branch of _R_ (an `EmployeeBranch` link to one of them on any day of the month, read through the staff reader
-  bound at the root, D-16), each with her **full-month** figures, including lines she performed at another branch; other
-  employees are absent, not zeroed. **No branch filter applies only to a business-wide reader**: one who holds a current
+  bound at the root, D-16), each with the rows of the days she was attached to a branch of _R_, under the per-day rule
+  below (the whole month only when those attachments cover every day of it), including lines she performed at another
+  branch on those days; other employees are absent, not zeroed. **No branch filter applies only to a business-wide reader**: one who holds a current
   company- or business-scoped grant of `read:commissions:business` (a membership or an ALLOW) **and** has no current DENY
   of it at any scope. She sees every employee and every frozen row, including one whose `attached_branch_ids` is empty.
   Every other reader keeps the overlap filter on _R_ and never sees an empty-set row, **including a reader whose
@@ -1023,12 +1034,12 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **50-4** | Package sales | 1. Sales table + RLS. 2. Handler and the root binding of `listCurrentPackageSales`. 3. CM-20, CM-20b (bootstrap, coverage, race) | 50-1; row 42 (producer with `business_date`, and its reader) | 250–380 |
 | **50-a** | Engine input assembly (FR-022) | 1. The pure assembly function in `packages/commissions-engine`. 2. Its types for lines, sales, salary, versions, overrides, tips and corrections. 3. Unit tests (every input kind, the selected salary, ACTIVE-only lines) | 48a-1 | 150–250 |
 | **50-5** | Estimate on read | 1. The read use case (D-7) over the 50-a assembly. 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b, CM-23c, CM-23d, CM-23e, CM-23f, CM-23g, CM-23h | 50-a, 50-1, 50-2, 50-4, 55-1 | 300–420 |
-| **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port, and the statement builder with its statement fingerprint (D-6, FR-026) and the round-trip unit test of CM-34e. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29, and the statement-view part of CM-23d, CM-23e, CM-23f, CM-23g and CM-23h | 50-5; CS-Q7 | 350–480 |
+| **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port, and the statement builder with its statement fingerprint (D-6, FR-026) and the round-trip unit test of CM-34e. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 (CM-28c included), and the statement-view part of CM-23d, CM-23e, CM-23f, CM-23g and CM-23h | 50-5; CS-Q7 | 350–480 |
 | **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations, its `docs/module-map.md` event row). 3. CM-51…CM-54, CM-53b (the stored target, FR-046/FR-048) | 55-1; CS-Q11 | 400–550 |
-| **52-1** | Review | 1. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c, CM-33d | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
+| **52-1** | Review | 0. The statement permissions `review:commissions:business` and `approve:commissions:business` with their decided role defaults and grants (CS-Q2, CS-Q5), so `StatementAwaitingApproval`, first emitted here, has a defined recipient set from its first release; 53-2 adds only the approval guard (FR-036). 1. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c, CM-33d | 51-1, 55-2; CS-Q2, CS-Q3, CS-Q5 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
-| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check, the attachment snapshot write (its table comes from 48a-2), the post-freeze statement-fingerprint recompute, and correction rows frozen with `previous_amount`, `new_amount` and the delta (CS-Q9 then decides only the display, in 53-3). 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-34d, CM-34e (integration part), CM-35, CM-37, CM-38, CM-38b | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q22 | 400–550 |
+| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check, the attachment snapshot write (its table comes from 48a-2), the post-freeze statement-fingerprint recompute, and correction rows frozen with `previous_amount`, `new_amount` and the delta (CS-Q9 then decides only the display, in 53-3). 2. HTTP and the approval guard (FR-036) on the permission 52-1 registers. 3. CM-34, CM-34b, CM-34c, CM-34d, CM-34e (integration part), CM-35, CM-37, CM-38, CM-38b | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q22 | 400–550 |
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to the employees of her effective branch set (CS-Q20 = PP-20.1, §6 _Permissions_). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
 | **54-1** | Mark paid | 1. The payment columns on `commission_statements` in the shape CS-Q6 decides (expand-only migration, grants), the use case + HTTP. 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
 | **56-0** | Binary documents in the worker (D-18) | 1. Generalize the source/processor contract: a source returns HTML for the PDF renderer or bytes with a MIME type; no HTML → PDF step for bytes. 2. The xlsx MIME type, the 8 MiB cap (`DOCUMENT_TOO_LARGE`), the same Redis store and collect-once reply with the source's MIME type; the API's request admission checks the Chromium liveness key only for kinds that declare the PDF renderer (D-18). 3. Tests: a bytes source never reaches the renderer, the cap, collect-once, the PDF kinds unchanged; with the liveness key absent, a bytes-kind request is queued (202) and its job completes, while a PDF-kind request still gets `503 RENDERER_UNAVAILABLE` | 59-0's ADR-0049 addendum | 200–320 |
