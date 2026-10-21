@@ -2,7 +2,15 @@
 // عشان اتنين `up` في نفس اللحظة ميختاروش نفس البورت.
 // الـ lock فولدر بيتعمل بـ mkdir (عملية ذرية)، وجواه owner.json فيه صاحبه (host, pid, startedAt, token).
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -96,12 +104,15 @@ function renameWithRetry(from, to) {
  * بيرجّع lock اتشال بالغلط لمكانه، من غير ما يستبدل lock تاني اتعمل في المكان ده.
  * rename على POSIX بيستبدل فولدر فاضي لسه متعمل بـ mkdir (#451)؛ mkdir بيفشل بدل ما يستبدل،
  * وبعده owner.json بيتنقل جوه. الـ inode بيتغير، لكن الفك بيبص على الـ token بس.
+ * لو نقل الـ owner فشل، الفولدر الفاضي اللي عملناه بيتشال (بعد ما نتأكد من الـ inode إنه لسه بتاعنا)
+ * والـ lock بيفضل يتيم في parked، والفشل ما بيرميش عشان ما يبقاش الـ lane كله يقع (#473).
  *
- * @param lock   مسار الـ lock
- * @param parked الفولدر اللي الـ lock اتنقل له
+ * @param lock         مسار الـ lock
+ * @param parked       الفولدر اللي الـ lock اتنقل له
+ * @param options.move دالة نقل owner.json (renameWithRetry افتراضياً)
  * @returns true لو رجع، false لو فضل يتيم في parked
  */
-export function restoreParked(lock, parked) {
+export function restoreParked(lock, parked, { move = renameWithRetry } = {}) {
   try {
     mkdirSync(lock);
   } catch {
@@ -110,11 +121,26 @@ export function restoreParked(lock, parked) {
     );
     return false;
   }
+  const created = inspect(lock)?.ino;
   try {
-    renameWithRetry(join(parked, 'owner.json'), join(lock, 'owner.json'));
+    move(join(parked, 'owner.json'), join(lock, 'owner.json'));
   } catch (error) {
     // الـ lock اللي رجع لسه صاحبه مكتبش owner.json: هيكتبه في مكانه الأصلي.
-    if (error.code !== 'ENOENT') throw error;
+    if (error.code !== 'ENOENT') {
+      // الفولدر اللي عملناه فضل فاضي من غير صاحب، وهو بيسدّ الـ lock على الـ lanes الجاية لحد ما يبقى قديم.
+      // rmdirSync بيفشل على فولدر مش فاضي، فهو أأمن من rmSync: فولدر مش بتاعنا ما بيتشالش.
+      if (created !== undefined && inspect(lock)?.ino === created) {
+        try {
+          rmdirSync(lock);
+        } catch {
+          // اتبدل أو اتملا في النص: سيبه زي ما هو.
+        }
+      }
+      console.log(
+        `left ${parked}: could not move its owner back (${error.code}); delete it once no lane start is running`,
+      );
+      return false;
+    }
   }
   rmSync(parked, { recursive: true, force: true, maxRetries: RENAME_ATTEMPTS, retryDelay: 50 });
   return true;

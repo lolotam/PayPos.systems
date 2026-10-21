@@ -153,6 +153,67 @@ test('#451: restoring a parked lock puts its owner back when the path is free', 
   assert.equal(existsSync(parked), false);
 });
 
+const eperm = () => Object.assign(new Error('EPERM'), { code: 'EPERM' });
+
+test('#473: a failed owner move removes the empty lock dir and leaves the lock parked', (t) => {
+  const lock = freshLock();
+  const parked = `${lock}.stale-x`;
+  seedLock(parked, { pid: process.pid, startedAt: ownStartMs(), token: 'parked' });
+  const lines = [];
+  t.mock.method(console, 'log', (...args) => lines.push(args.join(' ')));
+  const move = () => {
+    throw eperm();
+  };
+  assert.equal(restoreParked(lock, parked, { move }), false);
+  assert.equal(existsSync(lock), false);
+  assert.equal(ownerOf(parked).token, 'parked');
+  assert.equal(lines.length, 1);
+  assert.ok(lines[0].includes(parked));
+});
+
+test('#473: a failed owner move never removes a lock dir that replaced ours', (t) => {
+  const lock = freshLock();
+  const parked = `${lock}.stale-x`;
+  seedLock(parked, { pid: process.pid, startedAt: ownStartMs(), token: 'parked' });
+  t.mock.method(console, 'log', () => {});
+  const move = () => {
+    // الـ lock اتشال واتعمل تاني في نفس المكان (الـ inode اتغير).
+    rmSync(lock, { recursive: true, force: true });
+    mkdirSync(lock);
+    throw eperm();
+  };
+  assert.equal(restoreParked(lock, parked, { move }), false);
+  assert.equal(existsSync(lock), true);
+  assert.deepEqual(readdirSync(lock), []);
+});
+
+test('#473: a failed owner move never removes a lock dir that got an owner meanwhile', (t) => {
+  const lock = freshLock();
+  const parked = `${lock}.stale-x`;
+  seedLock(parked, { pid: process.pid, startedAt: ownStartMs(), token: 'parked' });
+  t.mock.method(console, 'log', () => {});
+  const move = () => {
+    // starter تاني مسك الفولدر وكتب صاحبه قبل ما النقل يفشل.
+    writeFileSync(
+      join(lock, 'owner.json'),
+      JSON.stringify({ host: hostname(), pid: process.pid, startedAt: ownStartMs(), token: 'new' }),
+    );
+    throw eperm();
+  };
+  assert.equal(restoreParked(lock, parked, { move }), false);
+  assert.equal(existsSync(lock), true);
+  assert.equal(ownerOf(lock).token, 'new');
+});
+
+test('#473: a parked lock without owner.json still restores to an empty lock dir', () => {
+  const lock = freshLock();
+  const parked = `${lock}.stale-x`;
+  mkdirSync(parked);
+  assert.equal(restoreParked(lock, parked), true);
+  assert.equal(existsSync(lock), true);
+  assert.equal(existsSync(parked), false);
+});
+
 test('#449: starts racing over a dead lock enter one at a time and leave nothing behind', async () => {
   const lock = freshLock();
   seedLock(lock, { pid: deadPid(), startedAt: ownStartMs(), token: 'dead' });
