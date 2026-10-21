@@ -187,6 +187,10 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 - **SA-08** Customer of another company or unknown → 422 `PACKAGE_CUSTOMER_NOT_FOUND`; type of another business or
   unknown → 404 `PACKAGE_TYPE_NOT_FOUND`; a type whose current definition fails the shared validator (a service removed
   from the business is impossible today, spec 037) → 422 with the validator's named code. [M11]
+- **SA-08b** The manager edits «سشوار ×10» (price 25.000 → 27.500, revision 1 → 2) while منى's sale screen still shows
+  revision 1: her sale with `expected_type_revision 1` → 409 `PACKAGE_TYPE_REVISION_CONFLICT` with
+  `current_revision 2`, nothing written; after reloading she sells revision 2. The edit and the sale race on the type
+  row lock (FR-018b), so either order gives this result.
 - **SA-09** Same key, same body, same actor → the original 201 replays, no second entitlement or slot [M10]; changed
   body or actor → 422 `IDEMPOTENCY_KEY_REUSED`.
 - **SA-10** A type of 20 components × 365 sessions (7,300 slots) sells inside the 200 ms budget with one multi-row insert
@@ -269,6 +273,9 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   `PACKAGE_COMPONENT_NOT_FOUND`.
 - **RF-08** (`TODO(spec)` PK-Q10) An imported package refunds by the same rules and emits no `PackageSaleChanged`.
 - **RF-09** A zero-value package refunds slots worth 0.000 with amount 0.000 (spec 007 edge case).
+- **RF-09b** The refund-integrity check (§6) refuses, at commit, a refund written directly in the database with a slot
+  of another component, a wrong copied value, a session count or amount that does not match its slots, or an
+  entitlement whose `refunded_amount` moved by a different amount; nothing is committed in each case.
 - **RF-10** Without `refund:packages:branch` (`TODO(spec)` PK-Q5) at the acting branch, a device, or the `orders` feature
   off → 403 / `FEATURE_DISABLED`; an entitlement of another business or company → the same 404 `PACKAGE_NOT_FOUND` as
   an unknown id; nothing written.
@@ -330,7 +337,8 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 ### 42 — sell
 
 - **FR-010** `POST /v1/businesses/{businessId}/branches/{branchId}/package-sales`, body
-  `{ customer_id, package_type_id, price_paid, paid_method, seller_employee_id, sold_at?, recorder_membership_id? }`;
+  `{ customer_id, package_type_id, expected_type_revision, price_paid, paid_method, seller_employee_id, sold_at?,
+  recorder_membership_id? }` (`expected_type_revision` = the revision the picker showed);
   201 `{ entitlement }`. The entitlement is the sale (TD-1).
 - **FR-011** Guard `sell:packages:branch` (PK-Q13) and the `orders` feature, individual admin login, rechecked
   inside the transaction after waits (the 050 pattern).
@@ -354,7 +362,10 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 - **FR-018b** The sale locks the package type row `FOR SHARE` through a catalog-owned public lock function behind
   `CatalogReaderPort` (TD-10), and reads `selling_stopped_at`, the price and the components **after** the lock, so
   stop/resume (FR-002, `FOR UPDATE`) and type edits serialize with the sale. `package_types` already has column
-  `UPDATE` grants (spec 037), which PostgreSQL requires for a row lock.
+  `UPDATE` grants (spec 037), which PostgreSQL requires for a row lock. Under the lock, in this order: a stopped type →
+  422 `PACKAGE_TYPE_NOT_SELLABLE`; then `revision ≠ expected_type_revision` → 409 `PACKAGE_TYPE_REVISION_CONFLICT`
+  (spec 037's code, with `details.current_revision`), so the customer is never sold a definition other than the one
+  reception showed her.
 - **FR-019** `ServiceSessionRecorded` is not involved: a sale is not a visit and adds no line.
 
 ### 43 — redeem
@@ -500,11 +511,18 @@ DEFERRABLE INITIALLY DEFERRED` checked at commit, so the use cases' write order 
 | `package_session_slots` (42) | `component_id`, `entitlement_id`, `ordinal`, `unit_value`, `state`, `current_redemption_id NULL` | `SELECT, INSERT`, `UPDATE (state, current_redemption_id)`; immediate trigger: TD-5b transitions and `state = 'USED' ⇔ current_redemption_id NOT NULL`; deferred trigger: a `FREE → USED` change needs `current_redemption_id` to name a redemption with `reversed_at IS NULL` and the same `slot_id`, `component_id` and `entitlement_id` (plus a deferred FK `(company_id, business_id, current_redemption_id)` → `package_redemptions`); a `USED → FREE` change needs that redemption reversed in the same transaction; a `FREE → REFUNDED` change needs its `package_refund_slots` row | `UNIQUE (company_id, business_id, id)`; `UNIQUE (company_id, component_id, ordinal)`; partial index on `(company_id, component_id, ordinal) WHERE state = 'FREE'` for the lowest/highest pick |
 | `package_redemptions` (43) | `entitlement_id`, `component_id`, `slot_id`, `line_id`, `redeemed_at`, `recorded_by`, `recorded_by_membership_id`, `reversed_at NULL`, `reversal_cancellation_id NULL` | `SELECT, INSERT`, `UPDATE (reversed_at, reversal_cancellation_id)` one-way (an immediate trigger allows only `NULL → value` for both columns together; a **deferred** constraint trigger checks at commit that the cancellation row exists and belongs to the same line) | `UNIQUE (company_id, business_id, id)`; `UNIQUE (company_id, line_id)`; partial `UNIQUE (company_id, slot_id) WHERE reversed_at IS NULL`; FKs slot, line (`DEFERRABLE INITIALLY DEFERRED`), and `(company_id, reversal_cancellation_id)` → `service_line_cancellations (company_id, id)` `DEFERRABLE INITIALLY DEFERRED`, because FR-031 writes the redemption before the inherited 054 sequence inserts its cancellation row |
 | `service_lines` (43) | `redemption_id uuid NULL`, insert-only | no new `UPDATE` grant | deferred FK `(company_id, business_id, redemption_id)` → `package_redemptions`; partial index `WHERE redemption_id IS NOT NULL` |
-| `package_refunds` (46) | `entitlement_id`, `component_id`, `branch_id`, `sessions`, `amount`, `method`, `reason`, `refunded_by`, `refunded_by_membership_id`, `refunded_at`, `entitlement_revision` | `SELECT, INSERT` | `UNIQUE (company_id, business_id, id)`; `UNIQUE (company_id, entitlement_id, entitlement_revision)`; FKs |
-| `package_refund_slots` (46) | `refund_id`, `slot_id`, `ordinal`, `unit_value` | `SELECT, INSERT` | `UNIQUE (company_id, slot_id)` (a slot is refunded once) |
+| `package_refunds` (46) | `entitlement_id`, `component_id`, `branch_id`, `sessions`, `amount`, `method`, `reason`, `refunded_by`, `refunded_by_membership_id`, `refunded_at`, `entitlement_revision` | `SELECT, INSERT`; deferred refund-integrity trigger (below) | `UNIQUE (company_id, business_id, id)`; `UNIQUE (company_id, entitlement_id, entitlement_revision)`; FKs |
+| `package_refund_slots` (46) | `refund_id`, `entitlement_id`, `component_id`, `slot_id`, `ordinal`, `unit_value` | `SELECT, INSERT`; deferred refund-integrity trigger (below) | `UNIQUE (company_id, slot_id)` (a slot is refunded once); FKs refund, slot |
 | `package_extensions` (45) | `entitlement_id`, `branch_id`, `previous_expires_on`, `new_expires_on`, `reason`, `extended_by`, `extended_by_membership_id`, `extended_at` | `SELECT, INSERT`; `CHECK new > previous` | index `(company_id, entitlement_id, extended_at)` |
 | `import_previews` (47, existing, spec 030) | **no new table**: package previews are rows with `entity = 'packages'` (the framework is shared, spec 030 §Framework); `rows` JSONB holds the resolved `customer_id` and the phone's last 3 digits only, never the full phone (CLAUDE.md §8) | the existing grants | the existing keys |
 | `package_refund_notices` (46-3) | the bell ledger: `refund_id`, `source_event_id`, `decided_at`, `recipient_count ≥ 0` | `SELECT, INSERT` | `UNIQUE (company_id, refund_id)` |
+
+**Refund integrity (deferred, at commit).** For every refund written in the transaction: each of its
+`package_refund_slots` rows names a slot of the refund's own entitlement and component (`entitlement_id`,
+`component_id` equal on refund, refund slot and slot), its copied `ordinal` and `unit_value` equal the slot's, and the
+slot is now `REFUNDED`; `refund.sessions = count(refund slots)` and `refund.amount = Σ unit_value`; the entitlement's
+`refunded_amount` grew by exactly `refund.amount` and its `revision` by exactly 1, with
+`refund.entitlement_revision` = the new revision. Any mismatch refuses the commit.
 
 Expand-only; migration numbers are taken at merge. The privileges allowlist and `privileges.spec.ts` gain every grant.
 
@@ -570,6 +588,8 @@ a handful of rows under row locks. Import: a worker job (spec 030 Stage B). Read
 - **Integration** (one cloned database per spec file, ADR-0006): ST-01…ST-04, SA-01…SA-11, RD-01…RD-09, RC-01…RC-07 (with RC-03b),
   EX-01…EX-05, RF-01…RF-10, IM-01…IM-08, CP-01…CP-03; concurrency tests M5, M6, M9 with two real connections.
 - **RLS negative**, per new table, and the grant allowlist; trigger negative tests: every forbidden slot transition,
+  each refund-integrity breach (a refund slot of another component or entitlement, a copied ordinal or value that
+  differs from the slot, `sessions` ≠ the slot count, `amount` ≠ the sum, a `refunded_amount` delta ≠ `amount`),
   a `FREE → USED` naming a reversed or another slot's redemption, an `expires_on` change with no or a mismatched
   extension row,
   a second reversal, a lowered `expires_on`, `refunded_amount` above `price_paid`, an update of a value column.
