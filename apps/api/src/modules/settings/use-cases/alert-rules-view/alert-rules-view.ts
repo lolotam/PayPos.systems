@@ -44,6 +44,7 @@ export function alertRulesView(
         lead_minutes: settings.leadMinutes,
         fixed_recipients: ALERT_KIND_DEFINITIONS[kind].fixedRecipients.map(fixedView),
         revision: scopeRule?.revision ?? null,
+        rule_id: scopeRule?.id ?? null,
       };
     }),
   };

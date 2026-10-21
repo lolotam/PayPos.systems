@@ -9,8 +9,9 @@ export interface AlertRuleTarget {
   readonly branchId: string | null;
 }
 
-/** قاعدة مخزنة لنوع واحد في نطاق واحد. */
+/** قاعدة مخزنة لنوع واحد في نطاق واحد؛ الـ id معرّف الصف الثابت (صف اتمسح واتعمل من جديد ليه id تاني). */
 export interface StoredAlertRule extends AlertRuleSettings {
+  readonly id: string;
   readonly kind: AlertKind;
   readonly revision: number;
 }

@@ -13,6 +13,7 @@ import type {
 } from '../ports/alert-rules.port.ts';
 
 type Row = {
+  id: string;
   kind: AlertKind;
   enabled: boolean;
   recipient_roles: AlertRuleSettings['recipientRoles'];
@@ -24,10 +25,11 @@ type Row = {
 
 type ScopedRow = Row & { branch_id: string | null };
 
-const COLUMNS = sql`kind, enabled, recipient_roles, channels, delay_minutes, lead_minutes, revision`;
+const COLUMNS = sql`id, kind, enabled, recipient_roles, channels, delay_minutes, lead_minutes, revision`;
 const SCOPED_COLUMNS = sql`branch_id, ${COLUMNS}`;
 
 export const toStoredAlertRule = (row: Row): StoredAlertRule => ({
+  id: row.id,
   kind: row.kind,
   enabled: row.enabled,
   recipientRoles: row.recipient_roles,

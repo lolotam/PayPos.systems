@@ -55,6 +55,9 @@ export const alertRuleView = responseObject({
     // رقم النسخة المخزنة في نطاق العرض نفسه (قاعدة النشاط في شاشة النشاط، قاعدة الفرع في شاشة الفرع)؛
     // null = مفيش قاعدة مخزنة في النطاق ده (الافتراضي، أو قاعدة النشاط في شاشة الفرع).
     revision: revision.nullable(),
+    // معرّف صف القاعدة المخزنة (ثابت طول عمر الصف، فالصف اللي اتمسح واتعمل من جديد ليه id تاني)؛
+    // null مع revision null بالظبط: مفيش قاعدة مخزنة في النطاق ده.
+    rule_id: id.nullable(),
   })
   .meta({ id: 'AlertRuleView' });
 
@@ -79,6 +82,9 @@ export const alertRuleInput = z
     // رقم النسخة اللي العميل قراها قبل الحفظ (null = متوقع مفيش قاعدة مخزنة في النطاق ده بعد)؛
     // لو غير كده يبقى حد تاني عدّل القاعدة في نفس الوقت والطلب يترفض.
     expected_revision: revision.nullable(),
+    // معرّف صف القاعدة اللي العميل قراها (null = متوقع مفيش قاعدة مخزنة في النطاق ده بعد)؛
+    // معاه النسخة بيتأكدوا إن الطلب على نفس الصف، فالصف اللي اتمسح واتعمل من جديد ما يبقاش نفس الصف.
+    expected_rule_id: id.nullable(),
   })
   .strict()
   .meta({ id: 'AlertRuleInput' });
@@ -98,3 +104,13 @@ export const setAlertsMasterInput = z
   .strict()
   .meta({ id: 'SetAlertsMasterInput' });
 export type SetAlertsMasterInput = z.infer<typeof setAlertsMasterInput>;
+
+// قيم القاعدة اللي العميل قراها قبل المسح؛ لازم تتفق مع الصف المخزن وإلا الطلب يترفض.
+export const resetBranchAlertRuleQuery = z
+  .object({
+    expected_rule_id: id,
+    expected_revision: z.coerce.number().int().min(1).max(2_147_483_646),
+  })
+  .strict()
+  .meta({ id: 'ResetBranchAlertRuleQuery' });
+export type ResetBranchAlertRuleQuery = z.infer<typeof resetBranchAlertRuleQuery>;

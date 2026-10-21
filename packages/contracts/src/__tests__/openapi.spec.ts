@@ -100,6 +100,7 @@ const expectedSchemas = [
   'ServiceListQuery',
   'ServicePage',
   'ServicePrice',
+  'ResetBranchAlertRuleQuery',
   'SetAlertRulesInput',
   'SetAlertsMasterInput',
   'UpdateServiceInput',

@@ -7,14 +7,17 @@ import {
   Inject,
   Param,
   Put,
+  Query,
   Req,
 } from '@nestjs/common';
 import {
   alertKind,
   id,
+  resetBranchAlertRuleQuery,
   setAlertRulesInput,
   setAlertsMasterInput,
   type AlertRules,
+  type ResetBranchAlertRuleQuery,
   type SetAlertRulesInput,
   type SetAlertsMasterInput,
 } from '@pospay/contracts';
@@ -121,11 +124,12 @@ export class AlertRulesController {
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Param('branchId', new ZodValidationPipe(id)) branchId: string,
     @Param('kind', new ZodValidationPipe(alertKind)) kind: SetAlertRulesInput['rules'][number]['kind'],
+    @Query(new ZodValidationPipe(resetBranchAlertRuleQuery)) expected: ResetBranchAlertRuleQuery,
     @Req() request: FastifyRequest,
   ): Promise<void> {
     if (this.#wiring === null) throw new ApiError('NOT_READY');
     const target = { businessId: businessId.toLowerCase(), branchId: branchId.toLowerCase() };
-    await this.#wiring.reset.execute(actorOf(request), target, kind);
+    await this.#wiring.reset.execute(actorOf(request), target, kind, expected);
   }
 
   async #set(

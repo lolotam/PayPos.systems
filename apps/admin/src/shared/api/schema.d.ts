@@ -1628,7 +1628,7 @@ export interface paths {
         };
         /** @description The alert rules of one business, one row per kind. Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. Every kind shows its source (DEFAULT, BUSINESS or BRANCH), the revision stored at this scope, and the master switch. Never writes. */
         get: operations["getBusinessAlertRules"];
-        /** @description Replaces the business rules of the kinds in the request, each against its expected_revision (null means no rule is stored at this scope yet). Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. A value outside what the kind allows is ALERT_RULE_INVALID (422); a stale expected_revision is ALERT_RULE_REVISION_CONFLICT (409) and writes nothing. Every effective change is audited with before and after. */
+        /** @description Replaces the business rules of the kinds in the request, each against its expected_rule_id and expected_revision (both null mean no rule is stored at this scope yet). Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. A value outside what the kind allows is ALERT_RULE_INVALID (422); a stale expected_rule_id or expected_revision is ALERT_RULE_REVISION_CONFLICT (409) and writes nothing. Every effective change is audited with before and after. */
         put: operations["setBusinessAlertRules"];
         post?: never;
         delete?: never;
@@ -1663,7 +1663,7 @@ export interface paths {
         };
         /** @description The alert rules of one branch: the branch rule where it has one, the business rule otherwise, and the kind default where neither is stored. Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. Every kind shows its source (DEFAULT, BUSINESS or BRANCH), the revision stored at the branch scope, and the master switch. Never writes. */
         get: operations["getBranchAlertRules"];
-        /** @description Replaces the branch rules of the kinds in the request, each against its expected_revision (null means no branch rule is stored yet). Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. A value outside what the kind allows is ALERT_RULE_INVALID (422), and so is a kind that has no branch rule (DOCUMENT_EXPIRING and the two STATEMENT_* kinds); a stale expected_revision is ALERT_RULE_REVISION_CONFLICT (409) and writes nothing. Every effective change is audited with before and after. */
+        /** @description Replaces the branch rules of the kinds in the request, each against its expected_rule_id and expected_revision (both null mean no branch rule is stored yet). Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. A value outside what the kind allows is ALERT_RULE_INVALID (422), and so is a kind that has no branch rule (DOCUMENT_EXPIRING and the two STATEMENT_* kinds); a stale expected_rule_id or expected_revision is ALERT_RULE_REVISION_CONFLICT (409) and writes nothing. Every effective change is audited with before and after. */
         put: operations["setBranchAlertRules"];
         post?: never;
         delete?: never;
@@ -1682,7 +1682,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** @description Deletes the branch rule of one kind, so the branch returns to the business rule. Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. Deleting a kind that has no branch rule writes nothing; the reset is audited with before and after. */
+        /** @description Deletes the branch rule of one kind, so the branch returns to the business rule. The query carries the expected_rule_id and expected_revision the caller read; both must match the stored row. Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. A stale expected_rule_id or expected_revision, or a kind with no branch rule, is ALERT_RULE_REVISION_CONFLICT (409) and deletes nothing; the reset is audited with before and after. */
         delete: operations["resetBranchAlertRule"];
         options?: never;
         head?: never;
@@ -3839,6 +3839,8 @@ export interface components {
             lead_minutes: number | null;
             fixed_recipients: components["schemas"]["AlertFixedRecipient"][];
             revision: number | null;
+            /** Format: uuid */
+            rule_id: string | null;
         };
         AlertRules: {
             /** Format: uuid */
@@ -3856,12 +3858,19 @@ export interface components {
             delay_minutes: number | null;
             lead_minutes: number | null;
             expected_revision: number | null;
+            /** Format: uuid */
+            expected_rule_id: string | null;
         };
         SetAlertRulesInput: {
             rules: components["schemas"]["AlertRuleInput"][];
         };
         SetAlertsMasterInput: {
             alerts_enabled: boolean;
+        };
+        ResetBranchAlertRuleQuery: {
+            /** Format: uuid */
+            expected_rule_id: string;
+            expected_revision: number;
         };
         SessionMoney: string;
         SessionPerformerInput: {
@@ -11694,7 +11703,10 @@ export interface operations {
     };
     resetBranchAlertRule: {
         parameters: {
-            query?: never;
+            query: {
+                expected_rule_id: string;
+                expected_revision: number;
+            };
             header: {
                 "x-company-id": string;
             };
@@ -11713,6 +11725,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description The branch rule changed since it was read */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
             };
             /** @description The API error envelope */
             default: {

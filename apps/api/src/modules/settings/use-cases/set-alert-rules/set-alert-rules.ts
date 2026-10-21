@@ -27,6 +27,7 @@ export class SetAlertRules {
     const requested = input.rules.map((rule) => ({
       kind: rule.kind,
       settings: settingsOf(rule),
+      expectedRuleId: rule.expected_rule_id,
       expectedRevision: rule.expected_revision,
     }));
     return this.transactions.run(actor.companyId, actor.userId, async (scope) => {
@@ -39,10 +40,16 @@ export class SetAlertRules {
         )
           throw new ApiError('ALERT_RULE_INVALID');
       const stored = await scope.lockRules(target);
-      // مراجعة النسخة قبل أي كتابة: طلب قديم مايمسحش تعديل مدير تاني.
-      for (const { kind, expectedRevision } of requested)
-        if ((stored.get(kind)?.revision ?? null) !== expectedRevision)
+      // مراجعة صف القاعدة قبل أي كتابة: طلب قديم مايمسحش تعديل مدير تاني، وصف اتمسح واتعمل
+      // من جديد له id تاني فالطلب القديم مايلقاش الصف بتاعه.
+      for (const { kind, expectedRuleId, expectedRevision } of requested) {
+        const current = stored.get(kind);
+        if (
+          !sameId(current?.id ?? null, expectedRuleId) ||
+          (current?.revision ?? null) !== expectedRevision
+        )
           throw new ApiError('ALERT_RULE_REVISION_CONFLICT');
+      }
       for (const { kind, settings } of requested) {
         const before = stored.get(kind) ?? null;
         if (before !== null && sameAlertRuleSettings(before, settings)) continue;
@@ -68,6 +75,12 @@ function settingsOf(rule: SetAlertRulesInput['rules'][number]): AlertRuleSetting
     delayMinutes: rule.delay_minutes,
     leadMinutes: rule.lead_minutes,
   };
+}
+
+/** مقارنة معرّف صف القاعدة: الـ UUID ممكن يوصل بحروف كبيرة، فالمقارنة على الحروف الصغيرة. */
+function sameId(left: string | null, right: string | null): boolean {
+  if (left === null || right === null) return left === right;
+  return left.toLowerCase() === right.toLowerCase();
 }
 
 /**

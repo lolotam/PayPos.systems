@@ -26,7 +26,7 @@ export async function readAlertRule(
   kind: AlertKind,
 ): Promise<EffectiveAlertRule> {
   const rows = await tx.execute<Row & { alerts_enabled: boolean | null }>(sql`
-    SELECT r.branch_id, r.kind, r.enabled, r.recipient_roles, r.channels, r.delay_minutes, r.lead_minutes, r.revision,
+    SELECT r.id, r.branch_id, r.kind, r.enabled, r.recipient_roles, r.channels, r.delay_minutes, r.lead_minutes, r.revision,
       (SELECT s.alerts_enabled FROM business_settings s
         WHERE s.company_id = ${companyId} AND s.business_id = ${scope.businessId}) AS alerts_enabled
     FROM (SELECT 1) AS one

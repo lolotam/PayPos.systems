@@ -7,6 +7,7 @@ type Role = AlertRuleView['recipient_roles'][number];
 type Channel = AlertRuleView['channels'][number];
 
 type RuleRow = {
+  id: string;
   branch_id: string | null;
   kind: AlertKindCode;
   enabled: boolean;
@@ -17,8 +18,9 @@ type RuleRow = {
   revision: number;
 };
 
-/** قاعدة مخزنة لنوع واحد، ومعاها النطاق اللي اتخزنت فيه. */
+/** قاعدة مخزنة لنوع واحد، ومعاها معرّف صفها والنطاق اللي اتخزنت فيه. */
 export interface StoredAlertRuleRow {
+  readonly id: string;
   readonly branchId: string | null;
   readonly kind: AlertKindCode;
   readonly enabled: boolean;
@@ -52,7 +54,7 @@ export async function alertRulesQuery(
     if (owned === undefined) return null;
   }
   const rows =
-    await tx.execute<RuleRow>(sql`SELECT branch_id, kind, enabled, recipient_roles, channels,
+    await tx.execute<RuleRow>(sql`SELECT id, branch_id, kind, enabled, recipient_roles, channels,
       delay_minutes, lead_minutes, revision
     FROM alert_rules WHERE company_id = ${companyId} AND business_id = ${businessId}
       AND (branch_id IS NULL OR branch_id = ${branchId})`);
@@ -61,6 +63,7 @@ export async function alertRulesQuery(
   return {
     alertsEnabled: master?.alerts_enabled ?? null,
     rules: rows.map((row) => ({
+      id: row.id,
       branchId: row.branch_id,
       kind: row.kind,
       enabled: row.enabled,

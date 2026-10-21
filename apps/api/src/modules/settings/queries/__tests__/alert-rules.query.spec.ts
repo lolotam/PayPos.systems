@@ -16,6 +16,7 @@ import { alertRulesQuery } from '../alert-rules.query.ts';
 
 // CLAUDE.md §9: the alert-rules read has a result-shape test and an EXPLAIN ANALYZE assertion on a seeded dataset.
 const { A } = TENANT;
+const RULE_ID = '01920000-0000-7000-8000-0000000000c1';
 let testDb: TestDatabase;
 let db: Database;
 const plans: string[] = [];
@@ -84,12 +85,12 @@ it('EXPLAIN ANALYZE: the rules read uses an alert_rules index, never a sequentia
   expect(rulesPlan).not.toContain('Seq Scan');
 });
 
-it('returns one row per stored rule, with its scope and its revision', async () => {
+it('returns one row per stored rule, with its scope, its row id and its revision', async () => {
   const owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   try {
     await owner`INSERT INTO alert_rules (company_id,id,business_id,branch_id,kind,enabled,recipient_roles,channels,
         delay_minutes,lead_minutes,updated_by,revision)
-      VALUES (${A.company}, gen_random_uuid(), ${A.business}, NULL, 'SHIFT_NOT_CLOCKED_IN', true,
+      VALUES (${A.company}, ${RULE_ID}, ${A.business}, NULL, 'SHIFT_NOT_CLOCKED_IN', true,
         ARRAY['owner']::text[], ARRAY['IN_APP']::text[], 20, NULL, ${USER}, 3)`;
   } finally {
     await owner.end();
@@ -100,6 +101,7 @@ it('returns one row per stored rule, with its scope and its revision', async () 
   expect(stored?.alertsEnabled).toBeNull();
   expect(stored?.rules).toEqual([
     {
+      id: RULE_ID,
       branchId: null,
       kind: 'SHIFT_NOT_CLOCKED_IN',
       enabled: true,

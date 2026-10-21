@@ -18,7 +18,7 @@ afterAll(async () => {
 });
 
 type Rule = SetAlertRulesInput['rules'][number];
-type RuleValues = Omit<Rule, 'expected_revision'>;
+type RuleValues = Omit<Rule, 'expected_revision' | 'expected_rule_id'>;
 const notClockedIn = (delay: number, enabled = true): RuleValues => ({
   kind: 'SHIFT_NOT_CLOCKED_IN',
   enabled,
@@ -31,8 +31,9 @@ const path = (branch: string | null, business = f.business) =>
   branch === null
     ? `/v1/businesses/${business}/alert-rules`
     : `/v1/businesses/${business}/branches/${branch}/alert-rules`;
-// رقم النسخة المخزنة لكل نطاق ونوع؛ كل حفظ يبعت النسخة اللي الشاشة قراها.
-const revisions = new Map<string, number | null>();
+// معرّف صف القاعدة ورقم نسختها لكل نطاق ونوع؛ كل حفظ يبعت اللي الشاشة قرته بالظبط.
+type Token = { readonly ruleId: string; readonly revision: number };
+const tokens = new Map<string, Token | null>();
 const scopeKey = (branch: string | null, kind: AlertKind) => `${branch ?? 'business'}:${kind}`;
 const put = async (
   branch: string | null,
@@ -44,15 +45,26 @@ const put = async (
     cookie,
     company: f.company,
     body: {
-      rules: rules.map((rule) => ({
-        ...rule,
-        expected_revision: revisions.get(scopeKey(branch, rule.kind)) ?? null,
-      })),
+      rules: rules.map((rule) => {
+        const token = tokens.get(scopeKey(branch, rule.kind));
+        return {
+          ...rule,
+          expected_rule_id: token?.ruleId ?? null,
+          expected_revision: token?.revision ?? null,
+        };
+      }),
     },
   });
   if (response.status === 200)
-    for (const rule of alertRules.parse(response.body).rules)
-      revisions.set(scopeKey(branch, rule.kind), rule.revision);
+    for (const rule of alertRules.parse(response.body).rules) {
+      const key = scopeKey(branch, rule.kind);
+      tokens.set(
+        key,
+        rule.rule_id === null || rule.revision === null
+          ? null
+          : { ruleId: rule.rule_id, revision: rule.revision },
+      );
+    }
   return response;
 };
 const master = (alerts_enabled: boolean, cookie = f.cookie) =>
@@ -62,11 +74,13 @@ const master = (alerts_enabled: boolean, cookie = f.cookie) =>
     body: { alerts_enabled },
   });
 const reset = async (branch: string, kind: AlertKind, cookie = f.cookie) => {
-  const response = await f.h.send('DELETE', `${path(branch)}/${kind}`, {
+  const token = tokens.get(scopeKey(branch, kind));
+  const query = `expected_rule_id=${token?.ruleId ?? f.ids.newId()}&expected_revision=${token?.revision ?? 1}`;
+  const response = await f.h.send('DELETE', `${path(branch)}/${kind}?${query}`, {
     cookie,
     company: f.company,
   });
-  if (response.status === 204) revisions.set(scopeKey(branch, kind), null);
+  if (response.status === 204) tokens.set(scopeKey(branch, kind), null);
   return response;
 };
 const effective = (branch: string | null, kind: AlertKind) =>
@@ -89,6 +103,7 @@ it('reads the AL-Q5 defaults for every kind before anything is saved', async () 
     enabled: true,
     delay_minutes: 20,
     revision: null,
+    rule_id: null,
   });
   expect((await effective(f.branch, 'SHIFT_NOT_CLOCKED_IN')).delayMinutes).toBe(20);
 });
@@ -114,7 +129,8 @@ it('RT-26b: a branch override wins for its branch only; deleting it returns to t
     source: 'BUSINESS',
     delayMinutes: 20,
   });
-  expect((await reset(f.branch, 'SHIFT_NOT_CLOCKED_IN')).status).toBe(204);
+  // المسح تاني من غير صف مخزن: القيم مش بتتفق، فالنظام يرفض ويكتبش حاجة.
+  expect((await reset(f.branch, 'SHIFT_NOT_CLOCKED_IN')).status).toBe(409);
 });
 
 it('RT-26: one kind off carries no recipients; the master switch stops every kind and both branches', async () => {
@@ -230,7 +246,7 @@ it('a malformed branch id is a 400 and writes nothing', async () => {
   const write = await f.h.send('PUT', malformed, {
     cookie: f.cookie,
     company: f.company,
-    body: { rules: [{ ...notClockedIn(20), expected_revision: null }] },
+    body: { rules: [{ ...notClockedIn(20), expected_rule_id: null, expected_revision: null }] },
   });
   expect(write.status).toBe(400);
   expect(write.body).toMatchObject({ code: 'VALIDATION_FAILED' });
