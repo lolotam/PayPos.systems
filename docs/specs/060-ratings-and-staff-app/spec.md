@@ -258,7 +258,7 @@ editor permission per MY-Q5 (`TODO(spec)`).
 | PR | Result | Subtasks | Blocked on | Size |
 |---|---|---|---|---|
 | **A-0** | ADR-0010 addendum (docs only) | 1. Orders `StaffColumnsPort` (D-A3) and worker orders `AlertRulesPort` (D-B14). 2. module-map §3 rows + YAML | this spec merged | 60–120 |
-| **57c-1** | Column setting storage + port | 1. Contract (`StaffColumnCode` enum, GET/PUT schemas), migration (`staff_columns`, grant, permission). 2. Settings use case + routes + audit; `StaffColumnsPort` readers (orders, commissions, customers adapters + module-map rows). 3. Unit + integration tests MY-17…MY-21 | MY-Q3, MY-Q4, MY-Q5 | 260–380 |
+| **57c-1** | Column setting storage + port | 1. Contract (`StaffColumnCode` enum, GET/PUT schemas), migration (`staff_columns`, grant, permission). 2. Settings use case + routes + audit; `StaffColumnsPort` readers (orders, commissions, customers adapters + module-map rows). 3. Unit + integration tests MY-17…MY-21 | **A-0**; MY-Q3, MY-Q4, MY-Q5 | 260–380 |
 | **57-1** | Own access for the staff app | 1. Four own codes + defaults migration, catalog, inventory tests. 2. ADR-0027 addendum (D-A5). 3. Own-check helper reuse + refusal tests MY-09…MY-12 | MY-Q1 | 180–280 |
 | **57-2** | «شغلي» API | 1. Orders own query (FR-A01) + tips (FR-A03) with column projection + `EXPLAIN`. 2. Routes, guard, error mapping, OpenAPI + clients. 3. Tests MY-01…MY-04, MY-07, MY-08, MY-13 | 57-1, 57c-1, **A-0**; MY-Q2, MY-Q8 | 300–420 |
 | **57-3** | Estimate API | 1. Commissions own query over the DRAFT projection (FR-A02). 2. Route + OpenAPI. 3. Tests MY-05, MY-06 | **row 50**, 57-1; MY-Q6 | 200–320 |
@@ -544,7 +544,7 @@ both add templates in `packages/notifications` — one at a time. 62-3 touches t
 - **Amendment 4 (IMPLEMENTATION-PLAN):** 57c-1 before 57-2 (D-A12); rows 59b and 60 wait on RT-Q1 and RT-Q2; rating
   sends go live only after 60-1 and 60-2 are deployed and verified.
 - **Amendment 5 (ADR-0010 addendum, docs PR A-0):** orders as a `StaffColumnsPort` consumer (D-A3) and worker orders as
-  an `AlertRulesPort` consumer (D-B14), with their module-map §3 rows; before 57-2 and 62-3.
+  an `AlertRulesPort` consumer (D-B14), with their module-map §3 rows; before 57c-1, 57-2 and 62-3.
 - **New ADR:** the rating token codec and key custody (RT-Q1, 59b-1). Row 60-2 may need one if RT-Q11 adds a new app
   (`apps/menu` is planned in `06` §2, so Next.js itself needs no new-framework ADR, but its deploy target does).
 - This spec builds no per-message cap or metering for rating messages; who bears the WhatsApp cost is outside this
