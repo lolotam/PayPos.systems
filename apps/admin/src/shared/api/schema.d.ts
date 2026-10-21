@@ -1637,6 +1637,76 @@ export interface paths {
         patch: operations["updatePackageType"];
         trace?: never;
     };
+    "/v1/businesses/{businessId}/alert-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The alert rules of one business, one row per kind. Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. Every kind shows its source (DEFAULT, BUSINESS or BRANCH), the revision stored at this scope, and the master switch. Never writes. */
+        get: operations["getBusinessAlertRules"];
+        /** @description Replaces the business rules of the kinds in the request, each against its expected_rule_id and expected_revision (both null mean no rule is stored at this scope yet). Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. A value outside what the kind allows is ALERT_RULE_INVALID (422); a stale expected_rule_id or expected_revision is ALERT_RULE_REVISION_CONFLICT (409) and writes nothing. Every effective change is audited with before and after. */
+        put: operations["setBusinessAlertRules"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/alert-rules/master": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Turns every team alert of the business on or off at once. Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. The change is audited; the same value writes no audit row. */
+        put: operations["setBusinessAlertsMaster"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/alert-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The alert rules of one branch: the branch rule where it has one, the business rule otherwise, and the kind default where neither is stored. Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. Every kind shows its source (DEFAULT, BUSINESS or BRANCH), the revision stored at the branch scope, and the master switch. Never writes. */
+        get: operations["getBranchAlertRules"];
+        /** @description Replaces the branch rules of the kinds in the request, each against its expected_rule_id and expected_revision (both null mean no branch rule is stored yet). Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. A value outside what the kind allows is ALERT_RULE_INVALID (422), and so is a kind that has no branch rule (DOCUMENT_EXPIRING and the two STATEMENT_* kinds); a stale expected_rule_id or expected_revision is ALERT_RULE_REVISION_CONFLICT (409) and writes nothing. Every effective change is audited with before and after. */
+        put: operations["setBranchAlertRules"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/alert-rules/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Deletes the branch rule of one kind, so the branch returns to the business rule. The query carries the expected_rule_id and expected_revision the caller read; both must match the stored row. Requires manage:settings:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. A stale expected_rule_id or expected_revision, or a kind with no branch rule, is ALERT_RULE_REVISION_CONFLICT (409) and deletes nothing; the reset is audited with before and after. */
+        delete: operations["resetBranchAlertRule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions": {
         parameters: {
             query?: never;
@@ -3914,6 +3984,63 @@ export interface components {
         PackageServiceOptionPage: {
             items: components["schemas"]["PackageServiceOption"][];
             next_cursor: string | null;
+        };
+        /** @enum {string} */
+        AlertKind: "SHIFT_NOT_CLOCKED_IN" | "SHIFT_BREAK_NOT_RETURNED" | "SHIFT_BREAK_RETURNED_OTHER_BRANCH" | "SHIFT_ENDS_SOON" | "ATTENDANCE_EXCEPTION" | "DOCUMENT_EXPIRING" | "LATE_SERVICE_SESSION" | "SERVICE_LINE_EDITED" | "SERVICE_LINE_CANCELLED" | "SERVICE_LINE_PERFORMERS_CHANGED" | "ATTENDANCE_CHANGE_REQUESTED" | "ATTENDANCE_CHANGE_DECIDED" | "STATEMENT_AWAITING_REVIEW" | "STATEMENT_AWAITING_APPROVAL";
+        /** @enum {string} */
+        AlertRecipientRole: "owner" | "general_manager" | "business_manager" | "branch_manager";
+        /** @enum {string} */
+        AlertChannel: "IN_APP";
+        AlertFixedRecipient: {
+            /** @enum {string} */
+            selector: "PERMISSION_HOLDERS" | "CONTEXT" | "EMPLOYEE_PUSH";
+            permission: string | null;
+            /** @enum {string|null} */
+            who: "REQUESTER" | "EMPLOYEE" | null;
+        };
+        AlertRuleView: {
+            kind: components["schemas"]["AlertKind"];
+            /** @enum {string} */
+            source: "DEFAULT" | "BUSINESS" | "BRANCH";
+            enabled: boolean;
+            recipient_roles: components["schemas"]["AlertRecipientRole"][];
+            channels: components["schemas"]["AlertChannel"][];
+            delay_minutes: number | null;
+            lead_minutes: number | null;
+            fixed_recipients: components["schemas"]["AlertFixedRecipient"][];
+            revision: number | null;
+            /** Format: uuid */
+            rule_id: string | null;
+        };
+        AlertRules: {
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string | null;
+            alerts_enabled: boolean;
+            rules: components["schemas"]["AlertRuleView"][];
+        };
+        AlertRuleInput: {
+            kind: components["schemas"]["AlertKind"];
+            enabled: boolean;
+            recipient_roles: components["schemas"]["AlertRecipientRole"][];
+            channels: components["schemas"]["AlertChannel"][];
+            delay_minutes: number | null;
+            lead_minutes: number | null;
+            expected_revision: number | null;
+            /** Format: uuid */
+            expected_rule_id: string | null;
+        };
+        SetAlertRulesInput: {
+            rules: components["schemas"]["AlertRuleInput"][];
+        };
+        SetAlertsMasterInput: {
+            alerts_enabled: boolean;
+        };
+        ResetBranchAlertRuleQuery: {
+            /** Format: uuid */
+            expected_rule_id: string;
+            expected_revision: number;
         };
         SessionMoney: string;
         SessionPerformerInput: {
@@ -12255,6 +12382,230 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getBusinessAlertRules: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The alert rules of the scope */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRules"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setBusinessAlertRules: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetAlertRulesInput"];
+            };
+        };
+        responses: {
+            /** @description The alert rules of the scope */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRules"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setBusinessAlertsMaster: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetAlertsMasterInput"];
+            };
+        };
+        responses: {
+            /** @description The alert rules of the scope */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRules"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getBranchAlertRules: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The alert rules of the scope */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRules"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setBranchAlertRules: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetAlertRulesInput"];
+            };
+        };
+        responses: {
+            /** @description The alert rules of the scope */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRules"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resetBranchAlertRule: {
+        parameters: {
+            query: {
+                expected_rule_id: string;
+                expected_revision: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                kind: components["schemas"]["AlertKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The branch rule was deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The branch rule changed since it was read */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
             default: {
                 headers: {
                     [name: string]: unknown;

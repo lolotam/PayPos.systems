@@ -1142,6 +1142,13 @@
       "when": 1792582058309,
       "tag": "0164_2026-10-21_discount-proposal-links",
       "breakpoints": true
+    },
+    {
+      "idx": 165,
+      "version": "7",
+      "when": 1792582059309,
+      "tag": "0165_2026-10-21_alert-rules",
+      "breakpoints": true
     }
   ]
 }

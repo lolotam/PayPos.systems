@@ -5,6 +5,9 @@ import { SCHEDULE_TABLE_GRANTS } from './schedule-grants.ts';
 // منح الجداول المراجَع (plan v4 T5، closes #16): أي صلاحية جدول جديدة من هجرة لازم تُكتب هنا، وإلا فشل الاختبار.
 export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   pospay_app: [
+    'alert_rules:DELETE',
+    'alert_rules:INSERT',
+    'alert_rules:SELECT',
     ...ATTENDANCE_TABLE_GRANTS,
     'audit_log:INSERT',
     'audit_log:SELECT',
