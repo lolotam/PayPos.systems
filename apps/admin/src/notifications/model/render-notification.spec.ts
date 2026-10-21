@@ -365,3 +365,37 @@ it('renders a discount approval request in the viewer locale and falls back to E
     ),
   ).toBe('طلب موافقة على خصم في فرع Salmiya: Colour، عدد السطور 3، الخصم حتى 20.5%.');
 });
+
+it('renders a performer approval for the owner in the viewer locale with the English fallback', () => {
+  const parameters = [
+    { name: 'branch_name_ar', type: 'text', value: 'السالمية' },
+    { name: 'branch_name_en', type: 'text', value: 'Salmiya' },
+    { name: 'approver_name_ar', type: 'text', value: 'هبة' },
+    { name: 'approver_name_en', type: 'text', value: 'Heba' },
+    { name: 'service_name_ar', type: 'text', value: 'صبغة' },
+    { name: 'service_name_en', type: 'text', value: 'Colour' },
+    { name: 'max_percent', type: 'text', value: '30' },
+  ];
+  const item = {
+    ...shift('ar'),
+    template_key: 'discount_approved_by_performer',
+    safe_parameters: parameters,
+  } as InAppNotification;
+  expect(renderNotification(item, 'ar')).toBe(
+    'وافق هبة على خصم حتى 30% على خدمة صبغة نفّذها بنفسه في فرع السالمية.',
+  );
+  expect(renderNotification(item, 'en')).toBe(
+    'Heba approved a discount of up to 30% on Colour, a service they performed, at Salmiya.',
+  );
+  expect(
+    renderNotification(
+      {
+        ...item,
+        safe_parameters: parameters.map((parameter) =>
+          parameter.name.endsWith('_ar') ? { ...parameter, value: ' ' } : parameter,
+        ),
+      } as InAppNotification,
+      'ar',
+    ),
+  ).toBe('وافق Heba على خصم حتى 30% على خدمة Colour نفّذها بنفسه في فرع Salmiya.');
+});

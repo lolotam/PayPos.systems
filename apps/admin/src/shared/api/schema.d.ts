@@ -1870,7 +1870,7 @@ export interface paths {
         /** @description The caller own proposals of one request (record:service-sessions:branch and the orders feature). Another recorder request id returns an empty list. EXPIRED is derived from expires_at. */
         get: operations["listMyDiscountProposals"];
         put?: never;
-        /** @description Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash, valid 15 minutes. A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201. */
+        /** @description Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; an approval is valid 24 hours (DA-Q4; when the 24 hours start is still open). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201. */
         post: operations["requestDiscountApproval"];
         delete?: never;
         options?: never;
@@ -1904,7 +1904,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Approves 1–20 proposals of the route branch, all or nothing, as an admin user with approve:discounts:branch and the orders feature. terms_hashes must equal the stored hashes in the same order. The approver membership limit must cover each proposal; the requester and any performer may not approve. Actor-bound Idempotency-Key. */
+        /** @description Approves 1–20 proposals of the route branch, all or nothing, as an admin user with approve:discounts:branch and the orders feature. terms_hashes must equal the stored hashes in the same order. The approver membership limit must cover each proposal (DA-Q2); the requester may not approve. A performer of the line may approve (DA-Q3), and the owners then get a bell. Actor-bound Idempotency-Key. */
         post: operations["approveDiscountProposals"];
         delete?: never;
         options?: never;
@@ -4049,6 +4049,8 @@ export interface components {
             expected_revision: number;
             /** Format: uuid */
             editor_membership_id?: string;
+            /** Format: uuid */
+            discount_proposal_id?: string;
         };
         EditServiceLineResponseFull: {
             line: {
@@ -5282,6 +5284,97 @@ export interface components {
                 })[];
             }[];
         };
+        DiscountApprovedByPerformer: {
+            /** @enum {number} */
+            schema_version: 1;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            approved_by: string;
+            /** Format: uuid */
+            approved_by_membership_id: string;
+            /** @enum {string} */
+            decided_via: "PIN" | "REMOTE";
+            /** Format: date-time */
+            decided_at: string;
+            proposals: {
+                /** Format: uuid */
+                proposal_id: string;
+                /** Format: uuid */
+                request_id: string;
+                /** Format: uuid */
+                service_id: string;
+                name_en: string;
+                name_ar: string | null;
+                effective_bps: number;
+            }[];
+        };
+        DiscountApprovedByPerformerNoticeRequested: {
+            /** @enum {number} */
+            schema_version: 1;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            proposal_ids: string[];
+            notification_recipients: {
+                /** @enum {string} */
+                channel: "IN_APP";
+                /** Format: uuid */
+                user_id: string;
+                /** @enum {string} */
+                locale: "ar";
+                /** @enum {number} */
+                template_revision: 1;
+                /** @enum {string} */
+                template_key: "discount_approved_by_performer";
+                safe_parameters: ({
+                    /** @enum {string} */
+                    name: "branch_name_ar";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "branch_name_en";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "approver_name_ar";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "approver_name_en";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "service_name_ar";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "service_name_en";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "max_percent";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                })[];
+            }[];
+        };
         AttendanceQrToken: {
             /** Format: uuid */
             branch_id: string;
@@ -5649,6 +5742,70 @@ export interface components {
             } | {
                 /** @enum {string} */
                 name: "line_count";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "max_percent";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            })[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "discount_approved_by_performer";
+            safe_parameters: ({
+                /** @enum {string} */
+                name: "branch_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "approver_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "approver_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "service_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "service_name_en";
                 /** @enum {string} */
                 type: "text";
                 value: string;
@@ -13213,7 +13370,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER, DISCOUNT_APPROVER_IS_PERFORMER. */
+            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13288,7 +13445,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER, DISCOUNT_APPROVER_IS_PERFORMER. */
+            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13431,7 +13588,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER, DISCOUNT_APPROVER_IS_PERFORMER. */
+            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13527,7 +13684,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER, DISCOUNT_APPROVER_IS_PERFORMER. */
+            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER. */
             403: {
                 headers: {
                     [name: string]: unknown;

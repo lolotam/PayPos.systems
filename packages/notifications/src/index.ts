@@ -24,6 +24,7 @@ export { serviceLinePriceEdited } from './templates/service-line-price-edited.ts
 export { serviceLineCancelled } from './templates/service-line-cancelled.ts';
 export { serviceLinePerformersChanged } from './templates/service-line-performers-changed.ts';
 export { discountApprovalRequested } from './templates/discount-approval-requested.ts';
+export { discountApprovedByPerformer } from './templates/discount-approved-by-performer.ts';
 export { shiftNotClockedIn } from './templates/shift-not-clocked-in.ts';
 export { breakNotReturned } from './templates/break-not-returned.ts';
 export { validateParameters, templateComponents } from './templates/definition.ts';

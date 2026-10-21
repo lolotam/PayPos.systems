@@ -31,6 +31,7 @@ export const requestDiscountApprovalInput = z.strictObject({
 }).refine((input) => input.session_id === undefined || input.occurred_at === undefined, {
   path: ['occurred_at'],
 }).meta({ id: 'RequestDiscountApprovalInput' });
+// TODO(spec) DA-Q4: الموافقة صالحة 24 ساعة (وليد، 2026-10-21)؛ من أين تبدأ لم يُحسم بعد، وexpires_at لحظة في الحالتين.
 export const requestedDiscountProposal = responseObject({
   id, input_index: inputIndex, status: discountProposalStatus, expires_at: timestamp,
   effective_bps: effectiveBps, terms_hash: termsHash,

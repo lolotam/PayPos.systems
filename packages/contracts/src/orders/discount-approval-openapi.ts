@@ -13,10 +13,10 @@ const errors = (codes: string) => ({
 const decided = { description: 'The decided proposals with their status and expiry. Never a PIN or a phone.', content: json('DecideDiscountProposalsResponse') };
 const adminDecision = (operationId: string, input: string, reject: boolean) => ({
   operationId,
-  description: `${reject ? 'Rejects' : 'Approves'} 1–20 proposals of the route branch, all or nothing, as an admin user with approve:discounts:branch and the orders feature. terms_hashes must equal the stored hashes in the same order. ${reject ? 'A rejection checks the approve permission only (DA-Q9); the optional reason is up to 500 characters.' : 'The approver membership limit must cover each proposal; the requester and any performer may not approve.'} Actor-bound Idempotency-Key.`,
+  description: `${reject ? 'Rejects' : 'Approves'} 1–20 proposals of the route branch, all or nothing, as an admin user with approve:discounts:branch and the orders feature. terms_hashes must equal the stored hashes in the same order. ${reject ? 'A rejection checks the approve permission only (DA-Q9); the optional reason is up to 500 characters.' : 'The approver membership limit must cover each proposal (DA-Q2); the requester may not approve. A performer of the line may approve (DA-Q3), and the owners then get a bell.'} Actor-bound Idempotency-Key.`,
   parameters: [...branchPath, idempotency],
   requestBody: { required: true, content: json(input) },
-  responses: { '200': decided, ...errors('DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER, DISCOUNT_APPROVER_IS_PERFORMER.') },
+  responses: { '200': decided, ...errors('DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER.') },
 });
 const deviceDecision = (operationId: string, input: string, reject: boolean) => ({
   operationId,
@@ -28,7 +28,7 @@ const deviceDecision = (operationId: string, input: string, reject: boolean) => 
     '401': { description: 'PIN_INVALID, with the same timing for an unknown phone.', content: json('ErrorEnvelope') },
     '423': { description: 'PIN_LOCKED for the holder or for the device.', content: json('ErrorEnvelope') },
     '429': { description: 'TOO_MANY_REQUESTS while comparisons are in flight.', content: json('ErrorEnvelope') },
-    ...errors('DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER, DISCOUNT_APPROVER_IS_PERFORMER.'),
+    ...errors('DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER.'),
   },
 });
 
@@ -43,7 +43,7 @@ export const discountApprovalPaths = {
     },
     post: {
       operationId: 'requestDiscountApproval',
-      description: 'Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash, valid 15 minutes. A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201.',
+      description: 'Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; an approval is valid 24 hours (DA-Q4; when the 24 hours start is still open). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201.',
       parameters: [...branchPath, idempotency],
       requestBody: { required: true, content: json('RequestDiscountApprovalInput') },
       responses: { '201': { description: 'The stored proposals and the normalized occurred_at.', content: json('RequestDiscountApprovalResponse') }, ...errors('') },

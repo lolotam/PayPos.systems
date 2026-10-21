@@ -8,8 +8,19 @@ import {
   requestDiscountApprovalInput,
   requestDiscountApprovalResponse,
 } from './discount-approval.js';
-import { discountApprovalNoticeRequested, discountApprovalRequested } from './discount-approval-events.js';
-import { appendServiceSessionLinesInput, rejectedServiceLine, savedServiceLine } from './service-session.js';
+import { notificationRequest } from '../notifications.js';
+import {
+  discountApprovalNoticeRequested,
+  discountApprovalRequested,
+  discountApprovedByPerformer,
+  discountApprovedByPerformerNoticeRequested,
+} from './discount-approval-events.js';
+import {
+  appendServiceSessionLinesInput,
+  editServiceLineInput,
+  rejectedServiceLine,
+  savedServiceLine,
+} from './service-session.js';
 
 const A = '01990000-0000-7000-8000-00000000000a';
 const B = '01990000-0000-7000-8000-00000000000b';
@@ -115,3 +126,42 @@ it.each([['0', '20'], ['21', '20'], ['1', '2000'], ['1', '20.50'], ['1', '0'], [
     expect(discountApprovalNoticeRequested.safeParse(notice).success).toBe(false);
   },
 );
+
+it('passes the notifications consumer parser for both bells', () => {
+  const notice = { schema_version: 1, request_id: A, business_id: B, branch_id: C, notification_recipients: [recipient('3', '20')] };
+  expect(notificationRequest.safeParse(notice).success).toBe(true);
+  const owner = {
+    schema_version: 1, business_id: B, branch_id: C, proposal_ids: [A],
+    notification_recipients: [{
+      channel: 'IN_APP', user_id: A, locale: 'ar', template_revision: 1, template_key: 'discount_approved_by_performer',
+      safe_parameters: [
+        { name: 'branch_name_ar', type: 'text', value: 'السالمية' },
+        { name: 'branch_name_en', type: 'text', value: 'Salmiya' },
+        { name: 'approver_name_ar', type: 'text', value: 'هبة' },
+        { name: 'approver_name_en', type: 'text', value: 'Heba' },
+        { name: 'service_name_ar', type: 'text', value: 'صبغة' },
+        { name: 'service_name_en', type: 'text', value: 'Colour' },
+        { name: 'max_percent', type: 'text', value: '30' },
+      ],
+    }],
+  };
+  expect(discountApprovedByPerformerNoticeRequested.safeParse(owner).success).toBe(true);
+  expect(notificationRequest.safeParse(owner).success).toBe(true);
+});
+
+it('names the performer approval for the owner bell with distinct proposals only', () => {
+  const proposal = { proposal_id: A, request_id: B, service_id: C, name_en: 'Colour', name_ar: 'صبغة', effective_bps: 3000 };
+  const event = {
+    schema_version: 1, business_id: B, branch_id: C, approved_by: A, approved_by_membership_id: B,
+    decided_via: 'PIN', decided_at: '2026-10-21T10:05:00.000Z', proposals: [proposal],
+  };
+  expect(discountApprovedByPerformer.safeParse(event).success).toBe(true);
+  expect(discountApprovedByPerformer.safeParse({ ...event, proposals: [proposal, proposal] }).success).toBe(false);
+  expect(discountApprovedByPerformer.safeParse({ ...event, decided_via: 'DEVICE' }).success).toBe(false);
+});
+
+it('lets a saved-line edit carry an approval like recording does (DA-Q5)', () => {
+  const edit = { price: '25.000', discount: { kind: 'AMOUNT', amount: '5.000' }, reason: 'x', expected_revision: 1 };
+  expect(editServiceLineInput.safeParse({ ...edit, discount_proposal_id: A }).success).toBe(true);
+  expect(editServiceLineInput.safeParse(edit).success).toBe(true);
+});

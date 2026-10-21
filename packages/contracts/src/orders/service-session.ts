@@ -82,6 +82,8 @@ export const editServiceLineInput = z.strictObject({
   reason: z.string().optional(),
   expected_revision: z.number().int().min(1),
   editor_membership_id: id.optional(),
+  // DA-Q5 (وليد، 2026-10-21): تعديل سطر محفوظ فوق حد المعدِّل يستهلك موافقة بنفس طريقة التسجيل؛ الغياب يعني رفض اليوم.
+  discount_proposal_id: id.optional(),
 }).meta({ id: 'EditServiceLineInput' });
 const editedServiceLine = savedServiceLine.safeExtend({ edited: z.literal(true) });
 export const editServiceLineResponseFull = responseObject({

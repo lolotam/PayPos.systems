@@ -1,5 +1,10 @@
 import { expect, it } from 'vitest';
-import { discountApprovalRequested, validInAppTemplate, type SafeParameter } from '../index.ts';
+import {
+  discountApprovalRequested,
+  discountApprovedByPerformer,
+  validInAppTemplate,
+  type SafeParameter,
+} from '../index.ts';
 
 const parameters: SafeParameter[] = [
   { name: 'branch_name_ar', type: 'text', value: 'السالمية' },
@@ -35,4 +40,26 @@ it('copy placeholders are exactly the parameter names and carry no customer or r
     'max_percent',
   ]);
   expect(names.join(' ')).not.toMatch(/customer|phone|requester|pin/);
+});
+
+const performerApproval: SafeParameter[] = [
+  { name: 'branch_name_ar', type: 'text', value: 'السالمية' },
+  { name: 'branch_name_en', type: 'text', value: 'Salmiya' },
+  { name: 'approver_name_ar', type: 'text', value: 'هبة' },
+  { name: 'approver_name_en', type: 'text', value: 'Heba' },
+  { name: 'service_name_ar', type: 'text', value: 'صبغة' },
+  { name: 'service_name_en', type: 'text', value: 'Colour' },
+  { name: 'max_percent', type: 'text', value: '30' },
+];
+it.each(['ar', 'en'])('the owner bell for a performer approval renders %s', (locale) => {
+  expect(validInAppTemplate('discount_approved_by_performer', 1, locale, performerApproval)).toBe(true);
+});
+it('the owner bell placeholders are exactly its parameters and carry no customer', () => {
+  const names = discountApprovedByPerformer.parameters.map((parameter) => parameter.name);
+  const placeholders = [
+    ...discountApprovedByPerformer.copy.ar.matchAll(/\{\{([a-z_]+)\}\}/g),
+    ...discountApprovedByPerformer.copy.en.matchAll(/\{\{([a-z_]+)\}\}/g),
+  ].map((match) => match[1]);
+  expect([...new Set(placeholders)].sort()).toEqual([...names].sort());
+  expect(names.join(' ')).not.toMatch(/customer|phone|pin/);
 });

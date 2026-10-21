@@ -9,3 +9,12 @@ it('registers the discount approval bell copy in both locales', () => {
     'Discount approval requested at {{branch_name_en}}: {{service_name_en}}, {{line_count}} line(s), discount up to {{max_percent}}%.',
   );
 });
+
+it('registers the performer approval bell copy in both locales', () => {
+  expect(t('ar', 'inApp.discount_approved_by_performer')).toBe(
+    'وافق {{approver_name_ar}} على خصم حتى {{max_percent}}% على خدمة {{service_name_ar}} نفّذها بنفسه في فرع {{branch_name_ar}}.',
+  );
+  expect(t('en', 'inApp.discount_approved_by_performer')).toBe(
+    '{{approver_name_en}} approved a discount of up to {{max_percent}}% on {{service_name_en}}, a service they performed, at {{branch_name_en}}.',
+  );
+});
