@@ -130,7 +130,7 @@ it.each([false, true])('normal planner uses tenant day and child indexes, late=%
       expect(indexes).toContain('service_lines_late_session_idx');
       expect(indexes).toContain('service_lines_session_ordinal_key');
       expect(indexes).toContain('line_performers_ordinal_key');
-      expect(indexes).toContain('service_line_edits_line_fk_idx');
+      expect(uses(['service_line_edits_line_fk_idx', 'service_line_edits_line_id_key'])).toBe(true);
       expect(indexes.includes('slc_line_uq') || indexes.includes('slc_line_fk_idx')).toBe(true);
       // يوم العلامة يُقرأ من تاريخ التغيير بأي مؤشر يخدم نفس البحث، لا بمسح الجدول كله.
       expect(uses(['slpc_line_revision_uq', 'slpc_line_xid_uq', 'slpc_history_idx'])).toBe(true);

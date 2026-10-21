@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { orderSchemas } from './orders/openapi-schemas.js';
 import { serviceSessionFormPaths } from './orders/service-session-form-openapi.js';
 import { serviceSessionPaths } from './orders/service-session-openapi.js';
+import { discountApprovalPaths } from './orders/discount-approval-openapi.js';
 import { serviceSessionRecoveryPaths } from './orders/service-session-recovery-openapi.js';
 import { attendanceMonthlyReportPaths } from './staff/attendance-monthly-report-openapi.js';
 import { employeeIbanSchemas } from './staff/employee-iban.js';
@@ -36,6 +37,7 @@ import {
 } from './staff/salary.js';
 import { settingsPaths } from './settings/settings-openapi.js';
 import { alertRulePaths, alertRuleSchemas } from './settings/alert-rules-openapi.js';
+import { staffColumnsPaths, staffColumnsSchemas } from './settings/staff-columns-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
 import { employee, createdEmployee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
@@ -148,6 +150,7 @@ const SCHEMAS = [
   employeeListQuery,
   ...permissionSchemas,
   ...fileSchemas,
+  ...staffColumnsSchemas,
   employee, createdEmployee,
   createEmployeeInput,
   employeeRoleCode,
@@ -256,6 +259,7 @@ const PATHS = {
   ...employeeCardPaths,
   ...unbindPasskeyPaths,
   ...settingsPaths,
+  ...staffColumnsPaths,
   ...filePaths,
   ...staffPaths,
   ...leavePaths,
@@ -267,7 +271,7 @@ const PATHS = {
   ...catalogPaths,
   ...alertRulePaths,
   ...serviceSessionPaths,
-  ...serviceSessionFormPaths, ...serviceSessionRecoveryPaths,
+  ...serviceSessionFormPaths, ...serviceSessionRecoveryPaths, ...discountApprovalPaths,
   '/v1/devices/me/attendance-qr': {
     post: {
       ...operation(

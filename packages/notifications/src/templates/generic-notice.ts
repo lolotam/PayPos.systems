@@ -3,6 +3,8 @@ import { breakNotReturned } from './break-not-returned.ts';
 import { lateServiceSession } from './late-service-session.ts';
 import { serviceLineCancelled } from './service-line-cancelled.ts';
 import { serviceLinePerformersChanged } from './service-line-performers-changed.ts';
+import { discountApprovalRequested } from './discount-approval-requested.ts';
+import { discountSelfApproved } from './discount-self-approved.ts';
 import { serviceLinePriceEdited } from './service-line-price-edited.ts';
 import { shiftNotClockedIn } from './shift-not-clocked-in.ts';
 import { attendanceChangeRequested } from './attendance-change-requested.ts';
@@ -42,6 +44,8 @@ export function validInAppTemplate(
       serviceLinePriceEdited,
       serviceLineCancelled,
       serviceLinePerformersChanged,
+      discountApprovalRequested,
+      discountSelfApproved,
       shiftNotClockedIn,
       breakNotReturned,
       breakReturnedOtherBranch,

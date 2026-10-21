@@ -13,9 +13,9 @@ Read these files fully, in this order, before any task or any review:
 The names say "CLAUDE", but the rules apply to every agent equally.
 
 **Owner questions.** An owner question is never guessed (`CLAUDE.md` §1 step 5b, §11). Every question and its answer
-are recorded verbatim in the slice's `owner-questions.ar.md`, which is the audit record. Only charges/money questions
-also go to the decisions page https://plan.pospay.systems as a new numbered batch (`docs/decisions-site.md`); permission,
-technical and other product questions go to Waleed through his super agent. Only the Claude Code orchestrator routes a
+are recorded verbatim in the slice's `owner-questions.ar.md`, which is the audit record. Every owner question, money or
+not, also goes on the decisions page https://plan.pospay.systems as a new numbered batch (`docs/decisions-site.md`), and
+to Waleed as a card through his super agent; when Waleed and Abu Salem differ, Abu Salem's pick wins (`CLAUDE.md` V3.14). Only the Claude Code orchestrator routes a
 question. Codex, Grok and other agents write the question into the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md`
 when it belongs to no slice) with its answer marked `PENDING`,
 mark the rule `TODO(spec)`, and stop. The orchestrator routes it and writes the answer back.

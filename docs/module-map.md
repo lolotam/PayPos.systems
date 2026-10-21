@@ -34,17 +34,17 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `files`         | `tenancy`             | Storage keys are `{companyId}/{businessId}/…`.                                 |
 | `platform`      | `tenancy`             | Super-admin over tenants.                                                      |
 | `catalog`       | `tenancy`             |                                                                                |
-| `customers`     | `tenancy`             |                                                                                |
+| `customers`     | `tenancy`, `settings` | `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). |
 | `expenses`      | `tenancy`             |                                                                                |
 | `inventory`     | `tenancy`             |                                                                                |
-| `staff`         | `tenancy`, `identity`, `files` | An employee may be linked to a user; a document binds a verified file (ADR-0031). |
+| `staff`         | `tenancy`, `identity`, `files`, `settings` | An employee may be linked to a user; a document binds a verified file (ADR-0031). `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). |
 | `realtime`      | `identity`            | Channel scope is resolved from the session.                                    |
 | `notifications` | —                     | Deliberately root-level: it is a service, it knows nothing about the business. |
 | `orders`        | `tenancy`, `catalog`, `customers`, `staff`, `identity`, `settings` | Consumer-owned ports call provider public readers on the same transaction (ADR-0041). |
 | `payments`      | `tenancy`             | Order totals arrive by **port**.                                               |
 | `cash`          | `identity`            | Payment tenders arrive by **port**.                                            |
 | `appointments`  | `tenancy`             | Catalog / staff / customers arrive by **port**.                                |
-| `commissions`   | `staff`               | Order data arrives by **event** only.                                          |
+| `commissions`   | `staff`, `settings`   | Order data arrives by **event** only. `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). |
 | `loyalty`       | `customers`           | Order data arrives by **event** only.                                          |
 | `channels`      | `tenancy`             | Order and expense effects are **events**.                                      |
 | `kitchen`       | —                     | Fed entirely by events from `orders`.                                          |
@@ -116,7 +116,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `ScheduleScope`, `ScheduleReadAccess` | `tenancy` | branch ownership and effective timezone through describeWorkspaces, using PR 19 fallback (ADR-0024) |
 | `orders` | `CustomerLookupPort` | `customers` | company-scoped customer existence, name and already-masked phone; reception first finds/creates the customer through customers' own endpoint (ADR-0041) |
 | `orders` | `PerformerCheckPort` | `staff` | dated employee/branch eligibility, persisted user link and attendance/approved-leave warnings at occurredAt; staff owns the working-day calculation (ADR-0041) |
-| `orders` | `DiscountLimitPort` | `settings` | selected recorder's fresh effective limit, including explicit zero/unlimited/not-configured (ADR-0041) |
+| `orders` | `DiscountLimitPort` | `settings` | selected recorder's fresh effective limit, including explicit zero/unlimited/not-configured (ADR-0041); spec 057 reuses it for the selected approver membership's limit, read after the proposal locks (ADR-0051, 057-6) |
 | `orders` | `SessionRecordAccessPort` | `identity` | record authority, DENY, orders feature and caller-owned recorder memberships; 35c-2 own context reuses the read (ADR-0041) |
 | `orders` | `SessionDayAccess` (read-side callbacks) | `identity`, `tenancy` | fresh independent branch-read permission/orders feature and existing session-place ownership callback (ADR-0041 35b-1) |
 | `orders` | `SessionServiceOptionsReads` (read-side callbacks) | `catalog` | recording-form service names, list prices and revisions only; same-transaction public read under record permission (ADR-0041 35c-3) |
@@ -130,6 +130,12 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | worker `orders` | `PriceEditNoticePlace` | worker `tenancy` | branchPlace names only; the date comes from the event and the timezone from the saved session snapshot read by the orders repository (ADR-0044, 35d-2) |
 | worker `orders` | `PerformersChangeNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers by the ADR-0037 interim rule; the changer is not excluded (ADR-0044 addendum, spec 055, 37b-3) |
 | worker `orders` | `PerformersChangeNoticePlace` | worker `tenancy` | branchPlace names only; the date comes from the event and the timezone from the saved session snapshot read by the orders repository (ADR-0044 addendum, spec 055, 37b-3) |
+| `orders` | `DiscountApprovalAccessPort` | `identity` | `lock()` then `read(at)`: `approve:discounts:branch` at the proposal's branch, DENY, the orders feature and the caller's eligible approver memberships (remote: the user's; PIN: the holder's filtered to the device's branch) inside the decision transaction (ADR-0051, spec 057, 057-6) |
+| `orders` | `DiscountPinApproverPort` | `identity` | verifies phone + PIN through identity's existing staff PIN facility (reservation, D-08 lockout, placeholder hash) outside the transaction and returns only the holder's user id or `refused` / `locked` / `busy`; no session (ADR-0051, spec 057, 057-7) |
+| worker `orders` | `DiscountApprovalNoticeRecipients` | worker `identity`, `tenancy` | `discountApproverRecipients(branch)` and companyOpen on the consumer transaction: active users whose membership covering the branch effectively grants `approve:discounts:branch` (role defaults and ALLOW, minus any covering DENY), not the ADR-0037 manager rule; the requester is dropped (PP-15.2, ADR-0051, 057-3) |
+| worker `orders` | `DiscountApprovalNoticePlace` | worker `tenancy` | branchPlace names only; service names come from the event (ADR-0051, 057-3) |
+| worker `orders` | `DiscountSelfApprovalNoticeRecipients` | worker `identity`, `tenancy` | the scoped-role reader with roles = `owner`: every active owner membership covering the branch, the approver not excluded (spec 057 D-19, ADR-0051, 057-3b) |
+| worker `orders` | `DiscountSelfApprovalNoticePlace` | worker `tenancy` | branchPlace names only; service names come from the event (ADR-0051) |
 | `commissions`                       | `EmployeeDirectoryPort`                                                                 | `staff`     | employee names — statements, live estimate (ADR-0010)                                                                                                                |
 | `customers`                         | `PerformerNamePort`                                                                     | `staff`     | performer's first name, in the rating message (ADR-0010)                                                                                                             |
 | `customers`                         | `DaySessionsPort`                                                                       | `orders`    | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010)                     |
@@ -140,6 +146,9 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | worker `staff` | `BranchManagerRecipients.companyOpen` | worker `tenancy` | company eligibility before candidate paging and again under the employee lock, on the caller's tenant transaction (ADR-0037) |
 | worker `staff` | `BranchPlaceReader` | worker `tenancy` | both branch names and the effective timezone (branch, otherwise business) on the caller's tenant transaction; adapter bound at the staff composition root (ADR-0037) |
 | `staff`, `customers`, `commissions` | `AlertRulesPort`, `StaffColumnsPort`                                                    | `settings`  | alert rules (recipients, channels) and staff-app columns — reads (ADR-0010)                                                                                          |
+| `orders` | `StaffColumnsPort` | `settings` | the business's allowed staff-app columns and `staff_months_back`, read in the «شغلي» transaction so a hidden column never leaves the server (ADR-0010 addendum 2026-10-21, spec 060 D-A3, 57c-1) |
+| worker `orders` | `AlertRulesPort` | worker `settings` | the effective alert rule (branch override, otherwise the business rule, master switch applied) for the late, edit, cancel and performers bells; its roles feed `branchManagerRecipients` (ADR-0010 addendum 2026-10-21, spec 060 D-B14, 62-3) |
+| worker `customers` | `BranchScheduleHoursPort` | worker `tenancy` | the branch's opening hours and effective timezone through `branchScheduleHours` on the caller's transaction, for the rating request day and closing time; adapter bound at the customers composition root, not an injected callback (ADR-0010 addendum 2026-10-21, spec 060 D-B3, 59-1, postponed by RT-Q1) |
 
 ### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
 
@@ -212,6 +221,10 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `ServiceLineEditNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, one bell per saved edit of a line (ledger `(line, revision)`), no realtime until Phase 2 (ADR-0044) |
 | `ServiceLineCancelNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, one bell per cancelled line (ledger `(line, revision)`), no realtime until Phase 2 (ADR-0044 addendum) |
 | `ServiceLinePerformersNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, one bell per changed line (ledger `(line, revision)`), no realtime until Phase 2 (ADR-0044 addendum) |
+| `DiscountApprovalRequested` | `orders` | worker `orders` (057-3 bell consumer `orders.discount-approval-notice-v1`, ledger `(company_id, request_id)`); emitted once per stored discount-approval request, in its transaction; rejects and consumption emit no event (ADR-0051) |
+| `DiscountApprovedByPerformer` | `orders` | worker `orders` (owner bell); emitted in the approval transaction only when the approver is linked to a performer of an approved proposal (DA-Q3, ADR-0051) |
+| `DiscountSelfApprovalNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, one owner bell per flagged approval transaction, every active owner covering the branch (spec 057 D-19, ADR-0051) |
+| `DiscountApprovalNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, one bell per request to every effective `approve:discounts:branch` holder at the branch except the requester (PP-15.2), no realtime until Phase 2 (ADR-0051) |
 | `ServiceSessionRecorded` | `orders` | `commissions` (50), `customers` (59); worker `orders` (35b-2 late bell); one batch of accepted revision-1 lines on creation (ADR-0041) |
 | `ServiceSessionLinesAdded` | `orders` | worker `orders` (35b-2 late bell); `commissions` (50), `customers` (59); newly appended revision-1 lines only for the same visit (ADR-0041) |
 | `PackageSaleChanged`                                                        | `orders`        | `commissions`                                                                                     |
@@ -264,17 +277,17 @@ imports:
   files: [tenancy]
   platform: [tenancy]
   catalog: [tenancy]
-  customers: [tenancy]
+  customers: [tenancy, settings]
   expenses: [tenancy]
   inventory: [tenancy]
   orders: [tenancy, catalog, customers, staff, identity, settings]
   payments: [tenancy]
   appointments: [tenancy]
   channels: [tenancy]
-  staff: [tenancy, identity, files]
+  staff: [tenancy, identity, files, settings]
   realtime: [identity]
   cash: [identity]
-  commissions: [staff]
+  commissions: [staff, settings]
   loyalty: [customers]
 
 packages_restricted:
@@ -295,6 +308,10 @@ composition_roots:
 # Every VALUE a module imports from another module's index.ts is one of these (type-only imports need only the
 # arrow above). §3.1: the one synchronous write. A read port's adapter calling another module's exported read is
 # added under reads, one line per symbol, in the PR that introduces it.
+# ADR-0010 addendum 2026-10-21 (spec 060 A-0): customers/staff/commissions -> settings are read-only arrows for the
+# StaffColumnsPort/AlertRulesPort adapters; each reads line lands with its adapter: 57c-1 (all four StaffColumnsPort
+# adapters), 62-2, 62-2b, 62-2c, 62-3 and 61-1 (AlertRulesPort adapters); 62-1 adds the storage and reader only.
+# 59-1 adds customers -> tenancy.branchScheduleHours with worker customers' BranchScheduleHoursPort adapter.
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
@@ -312,6 +329,9 @@ reads:
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/performers-change-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/performers-change-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/performers-change-place.adapter.ts
+  - orders -> identity.discountApproverRecipients @ apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts
+  - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts
+  - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/discount-approval-place.adapter.ts
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/line-cancel-place.adapter.ts
@@ -326,6 +346,10 @@ reads:
   - orders -> customers.readSessionCustomer @ apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts
   - orders -> staff.readSessionPerformers @ apps/api/src/modules/orders/persistence/performer-check.adapter.ts
   - orders -> settings.readEffectiveDiscountLimit @ apps/api/src/modules/orders/persistence/discount-limit.adapter.ts
+  - orders -> settings.readStaffColumns @ apps/api/src/modules/orders/persistence/staff-columns.adapter.ts
+  - commissions -> settings.readStaffColumns @ apps/api/src/modules/commissions/persistence/staff-columns.adapter.ts
+  - customers -> settings.readStaffColumns @ apps/api/src/modules/customers/persistence/staff-columns.adapter.ts
+  - staff -> settings.readStaffColumns @ apps/api/src/modules/staff/persistence/staff-columns.adapter.ts
   - orders -> identity.lockServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/session-place.adapter.ts

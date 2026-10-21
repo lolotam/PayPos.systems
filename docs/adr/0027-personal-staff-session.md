@@ -90,3 +90,20 @@ Those identifiers are routing hints, never eligibility. A manager supplies the w
 the UI does not ask staff to type identifiers. Missing/invalid hints show a request-link instruction.
 Session replacement invalidates earlier personal sessions for the same verified global user, and
 client tabs clear private caches on replacement, logout, failed session probes and offline transitions.
+
+## Addendum 2026-10-21 — own reads on the reception device (spec 060 D-A13, docs PR 57-0)
+
+Waleed answered MY-Q1 on 2026-10-21 (PP-18.1, against the recommended option): «شغلي» and «حضوري» open on the
+personal phone **and** on the shared reception device after the employee's PIN. This ADR's personal purpose is
+unchanged: it keeps its 8-hour absolute session, needs no PIN step and gets no private-view window, because the
+phone is the employee's own. On the reception device the same reads go through the ADR-0019 `STAFF_POS` operator
+session instead, behind the private-view window recorded in ADR-0019's addendum of the same date: a fresh PIN proof
+at most 60 seconds old, at most 5 minutes from the opening, a server-enforced 60-second idle expiry, and clearing on
+leave, sign-out and replacement.
+
+The same routes serve both paths through `STAFF_ROUTE = 'staff'` plus `PERSONAL_ROUTE = 'staff'`, as the ADR-0026
+leave routes do (spec 060 FR-A06b). A personal request never receives `PRIVATE_VIEW_EXPIRED`. Both paths send `no-store`
+responses and persist no private data in the PWA, and the cache clearing above applies to both. The one stored item
+is the reception device's window metadata (ADR-0019 addendum, item 7): the `window_id`, its `session_ref` and `window_seq`, and two expiry instants, with
+no personal data, removed when the window closes. The personal path stores nothing. Adding the four own reads to
+this ADR's list of personal-purpose capabilities is a separate addendum in sub-PR 57-1 (spec 060 D-A5).

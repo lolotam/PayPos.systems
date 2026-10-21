@@ -4,8 +4,8 @@ imports:
   cash: [identity]
   catalog: [tenancy]
   channels: [tenancy]
-  commissions: [staff]
-  customers: [tenancy]
+  commissions: [staff, settings]
+  customers: [tenancy, settings]
   expenses: [tenancy]
   files: [tenancy]
   identity: [tenancy]
@@ -19,7 +19,7 @@ imports:
   realtime: [identity]
   reporting: []
   settings: [tenancy, identity, files]
-  staff: [tenancy, identity, files]
+  staff: [tenancy, identity, files, settings]
   tenancy: []
 packages_restricted:
   auth: [identity]
@@ -50,6 +50,9 @@ reads:
   - { from: orders, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/orders/persistence/performers-change-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/performers-change-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/performers-change-place.adapter.ts }
+  - { from: orders, to: identity, symbol: discountApproverRecipients, file: apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts }
+  - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts }
+  - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/discount-approval-place.adapter.ts }
   - { from: orders, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/line-cancel-place.adapter.ts }
@@ -64,6 +67,10 @@ reads:
   - { from: orders, to: customers, symbol: readSessionCustomer, file: apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts }
   - { from: orders, to: staff, symbol: readSessionPerformers, file: apps/api/src/modules/orders/persistence/performer-check.adapter.ts }
   - { from: orders, to: settings, symbol: readEffectiveDiscountLimit, file: apps/api/src/modules/orders/persistence/discount-limit.adapter.ts }
+  - { from: orders, to: settings, symbol: readStaffColumns, file: apps/api/src/modules/orders/persistence/staff-columns.adapter.ts }
+  - { from: commissions, to: settings, symbol: readStaffColumns, file: apps/api/src/modules/commissions/persistence/staff-columns.adapter.ts }
+  - { from: customers, to: settings, symbol: readStaffColumns, file: apps/api/src/modules/customers/persistence/staff-columns.adapter.ts }
+  - { from: staff, to: settings, symbol: readStaffColumns, file: apps/api/src/modules/staff/persistence/staff-columns.adapter.ts }
   - { from: orders, to: identity, symbol: lockServiceSessionAccess, file: apps/api/src/modules/orders/persistence/session-record-access.adapter.ts }
   - { from: orders, to: identity, symbol: readServiceSessionAccess, file: apps/api/src/modules/orders/persistence/session-record-access.adapter.ts }
   - { from: orders, to: tenancy, symbol: activeBusinessTimeZone, file: apps/api/src/modules/orders/persistence/session-place.adapter.ts }

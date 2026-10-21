@@ -14,6 +14,13 @@ const expectedSchemas = [
   'ChangeLinePerformersInput', 'ChangeLinePerformersResponseFull', 'ChangeLinePerformersResponseNarrow', 'ChangeLinePerformersResponse',
   'RejectedServiceLine', 'RecordServiceSessionResponse', 'AppendServiceSessionLinesResponse',
   'ServiceLineChanged', 'RecordedServiceLine', 'ServiceSessionRecorded', 'ServiceSessionLinesAdded', 'LateServiceSessionNoticeRequested', 'ServiceLineEditNoticeRequested', 'ServiceLineCancelNoticeRequested', 'ServiceLinePerformersNoticeRequested',
+  'DiscountProposalStatus', 'DiscountRequestLineInput', 'RequestDiscountApprovalInput', 'RequestDiscountApprovalEditInput', 'RequestedDiscountProposal',
+  'RequestDiscountApprovalResponse', 'DiscountProposalRequestQuery', 'RequesterDiscountProposal', 'RequesterDiscountProposalList',
+  'PendingDiscountProposalQuery', 'DiscountProposalPerformer', 'PendingDiscountProposal', 'PendingDiscountProposalPage',
+  'DeviceDiscountProposal', 'DeviceDiscountProposalQuery', 'DeviceDiscountProposalList', 'ApproveDiscountProposalsInput', 'RejectDiscountProposalsInput',
+  'DeviceApproveDiscountProposalsInput', 'DeviceRejectDiscountProposalsInput', 'DecidedDiscountProposal',
+  'DecideDiscountProposalsResponse', 'DiscountApprovalRequested', 'DiscountApprovalNoticeRequested', 'DiscountApprovedByPerformer',
+  'DiscountSelfApprovalNoticeRequested',
   'SessionTipEntry', 'RecordSessionTipsInput', 'SessionTips', 'SessionTipsChanged',
   'CreateDocumentTypeInput',
   'DocumentType',
@@ -59,6 +66,9 @@ const expectedSchemas = [
   'SetScheduleInput',
   'SetScheduleSettingsInput',
   'ShiftTemplate',
+  'ReplaceStaffColumnsInput',
+  'StaffColumnCode',
+  'StaffColumnsSettings',
   'StaffSchedule',
   'TemplateListQuery',
   'TemplatePage',
@@ -294,4 +304,9 @@ it('publishes both change kinds of a changed line', () => {
   expect(document).toContain('PRICE_DISCOUNT_EDIT');
   expect(document).toContain('LINE_CANCELLED');
   expect(document).toContain('PERFORMERS_CHANGE');
+});
+
+// مفيش z.never في سكيما منشورة: صيغته not: {} هي اللي توليدنا بيطلعها والـ toolchain بتاع OpenAPI 3.0 مش بيعرفها (service-session.ts).
+it('publishes no "not" schema: z.never() output our OpenAPI 3.0 generator cannot represent', () => {
+  expect(JSON.stringify(buildOpenApiDocument())).not.toContain('"not":');
 });

@@ -13,6 +13,9 @@ import { createAlertRulesReadAccess } from './persistence/alert-rules-read-acces
 import { ResetBranchAlertRule } from './use-cases/reset-branch-alert-rule/reset-branch-alert-rule.ts';
 import { SetAlertRules } from './use-cases/set-alert-rules/set-alert-rules.ts';
 import { SetAlertsMaster } from './use-cases/set-alerts-master/set-alerts-master.ts';
+import { StaffColumnsController } from './http/staff-columns.controller.ts';
+import { createStaffColumnsTransactions } from './persistence/staff-columns.ts';
+import { ReplaceStaffColumns } from './use-cases/replace-staff-columns/replace-staff-columns.ts';
 import { identityCapabilityAccess } from './persistence/business-identity-access.adapter.ts';
 import { BUSINESS_IDENTITY_READER } from './queries/business-identity.query.ts';
 import { IDENTITY_CAPABILITY_ACCESS } from './queries/identity-capability.query.ts';
@@ -35,6 +38,7 @@ export const settingsControllers = [
   SettingsController,
   IdentityCapabilityController,
   AlertRulesController,
+  StaffColumnsController,
 ];
 
 /**
@@ -55,6 +59,16 @@ export function settingsProviders(
     ...settingsWiring(database, ids, redis),
     ...identityCapabilityProviders(database),
     ...businessIdentityProviders(database),
+    {
+      provide: ReplaceStaffColumns,
+      useValue:
+        database === undefined || redis === undefined
+          ? null
+          : new ReplaceStaffColumns(
+              createStaffColumnsTransactions(database, ids),
+              createRedisSettingsCache(redis, ids),
+            ),
+    },
     ...alertRulesProviders(database, ids),
   ];
 }

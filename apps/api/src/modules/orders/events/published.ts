@@ -7,3 +7,7 @@ export type ServiceSessionLinesAdded = Added;
 export type ServiceLineChanged = Changed;
 /** يصدر في نفس معاملة كل مراجعة بقشيش. */
 export type SessionTipsChanged = TipsChanged;
+/** يصدر مرة لكل طلب موافقة خصم محفوظ، في نفس معاملة الطلب، ليصل الجرس لكل من يملك صلاحية الموافقة على الفرع ما عدا الطالبة. */
+export type { DiscountApprovalRequested } from '@pospay/contracts';
+/** يصدر مرة لكل قرار موافقة يكون الموافِق فيه منفّذًا لخدمة في مقترح واحد على الأقل، في نفس معاملة القرار، ليصل جرس للمالك (DA-Q3). */
+export type { DiscountApprovedByPerformer } from '@pospay/contracts';

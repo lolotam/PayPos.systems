@@ -1,5 +1,5 @@
 {
-  "id": "3647b65a-2983-424f-9964-f898baaf6af9",
+  "id": "c710f308-fde8-46df-a960-3fc37dfd9f32",
   "prevId": "4aa7b305-8edf-4c6c-9c0f-5f17ee3e2595",
   "version": "7",
   "dialect": "postgresql",
@@ -5136,280 +5136,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.alert_rules": {
-      "name": "alert_rules",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "business_id": {
-          "name": "business_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "branch_id": {
-          "name": "branch_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "enabled": {
-          "name": "enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "recipient_roles": {
-          "name": "recipient_roles",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "channels": {
-          "name": "channels",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "delay_minutes": {
-          "name": "delay_minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "lead_minutes": {
-          "name": "lead_minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "alert_rules_business_kind_key": {
-          "name": "alert_rules_business_kind_key",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "kind",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"alert_rules\".\"branch_id\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "alert_rules_branch_kind_key": {
-          "name": "alert_rules_branch_kind_key",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "branch_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "kind",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"alert_rules\".\"branch_id\" IS NOT NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "alert_rules_branch_fk_idx": {
-          "name": "alert_rules_branch_fk_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "branch_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "alert_rules_updated_by_idx": {
-          "name": "alert_rules_updated_by_idx",
-          "columns": [
-            {
-              "expression": "updated_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "alert_rules_updated_by_user_id_fk": {
-          "name": "alert_rules_updated_by_user_id_fk",
-          "tableFrom": "alert_rules",
-          "tableTo": "user",
-          "columnsFrom": [
-            "updated_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "alert_rules_business_fk": {
-          "name": "alert_rules_business_fk",
-          "tableFrom": "alert_rules",
-          "tableTo": "businesses",
-          "columnsFrom": [
-            "company_id",
-            "business_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "alert_rules_branch_fk": {
-          "name": "alert_rules_branch_fk",
-          "tableFrom": "alert_rules",
-          "tableTo": "branches",
-          "columnsFrom": [
-            "company_id",
-            "business_id",
-            "branch_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "business_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "alert_rules_pkey": {
-          "name": "alert_rules_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "alert_rules_kind": {
-          "name": "alert_rules_kind",
-          "value": "\"alert_rules\".\"kind\" IN ('SHIFT_NOT_CLOCKED_IN','SHIFT_BREAK_NOT_RETURNED','SHIFT_BREAK_RETURNED_OTHER_BRANCH','SHIFT_ENDS_SOON','ATTENDANCE_EXCEPTION','DOCUMENT_EXPIRING','LATE_SERVICE_SESSION','SERVICE_LINE_EDITED','SERVICE_LINE_CANCELLED','SERVICE_LINE_PERFORMERS_CHANGED','ATTENDANCE_CHANGE_REQUESTED','ATTENDANCE_CHANGE_DECIDED','STATEMENT_AWAITING_REVIEW','STATEMENT_AWAITING_APPROVAL')"
-        },
-        "alert_rules_recipient_roles": {
-          "name": "alert_rules_recipient_roles",
-          "value": "\"alert_rules\".\"recipient_roles\" <@ ARRAY['owner','general_manager','business_manager','branch_manager']::text[]"
-        },
-        "alert_rules_channels": {
-          "name": "alert_rules_channels",
-          "value": "\"alert_rules\".\"channels\" <@ ARRAY['IN_APP']::text[]"
-        },
-        "alert_rules_delay_minutes": {
-          "name": "alert_rules_delay_minutes",
-          "value": "\"alert_rules\".\"delay_minutes\" IS NULL OR \"alert_rules\".\"delay_minutes\" BETWEEN 1 AND 1440"
-        },
-        "alert_rules_lead_minutes": {
-          "name": "alert_rules_lead_minutes",
-          "value": "\"alert_rules\".\"lead_minutes\" IS NULL OR \"alert_rules\".\"lead_minutes\" BETWEEN 1 AND 1440"
-        },
-        "alert_rules_document_lead": {
-          "name": "alert_rules_document_lead",
-          "value": "\"alert_rules\".\"kind\" <> 'DOCUMENT_EXPIRING' OR \"alert_rules\".\"lead_minutes\" IS NULL"
-        },
-        "alert_rules_revision": {
-          "name": "alert_rules_revision",
-          "value": "\"alert_rules\".\"revision\" >= 1"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.business_settings": {
       "name": "business_settings",
       "schema": "",
@@ -5468,9 +5194,15 @@
           "primaryKey": false,
           "notNull": false
         },
-        "alerts_enabled": {
-          "name": "alerts_enabled",
-          "type": "boolean",
+        "staff_columns": {
+          "name": "staff_columns",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "staff_months_back": {
+          "name": "staff_months_back",
+          "type": "smallint",
           "primaryKey": false,
           "notNull": false
         },
@@ -5603,6 +5335,14 @@
         "business_settings_official_name_en": {
           "name": "business_settings_official_name_en",
           "value": "\"business_settings\".\"official_name_en\" IS NULL OR char_length(\"business_settings\".\"official_name_en\") BETWEEN 1 AND 255"
+        },
+        "business_settings_staff_columns": {
+          "name": "business_settings_staff_columns",
+          "value": "\"business_settings\".\"staff_columns\" IS NULL OR (\"business_settings\".\"staff_columns\" <@ ARRAY['date', 'time', 'service', 'customer_name', 'list_price', 'discount', 'net', 'share', 'estimated_commission', 'tip', 'rating_average']::text[] AND array_position(\"business_settings\".\"staff_columns\", NULL) IS NULL AND staff_columns_distinct(\"business_settings\".\"staff_columns\"))"
+        },
+        "business_settings_staff_months_back": {
+          "name": "business_settings_staff_months_back",
+          "value": "\"business_settings\".\"staff_months_back\" IS NULL OR \"business_settings\".\"staff_months_back\" BETWEEN 1 AND 24"
         }
       },
       "isRLSEnabled": false

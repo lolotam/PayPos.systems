@@ -33,6 +33,7 @@ it.each(['ar', 'en'] as const)(
       'edit:service-line-prices:branch',
       'change:service-line-performers:branch',
       'cancel:service-lines:branch',
+      'approve:discounts:branch',
     ])
       expect(permissionName(locale, code)).not.toBe(code);
     expect(permissionName('ar', 'edit:service-line-prices:branch')).toBe('تعديل سعر/خصم جلسة');
@@ -45,6 +46,8 @@ it.each(['ar', 'en'] as const)(
     );
     expect(permissionName('ar', 'cancel:service-lines:branch')).toBe('إلغاء بنود الخدمة');
     expect(permissionName('en', 'cancel:service-lines:branch')).toBe('Cancel service lines');
+    expect(permissionName('ar', 'approve:discounts:branch')).toBe('الموافقة على خصم فوق الحد');
+    expect(permissionName('en', 'approve:discounts:branch')).toBe('Approve discounts above the limit');
     expect(permissionName('ar', 'manage:business-identity:business')).toBe('إدارة هوية النشاط');
     expect(permissionName('en', 'manage:business-identity:business')).toBe(
       'Manage business identity',

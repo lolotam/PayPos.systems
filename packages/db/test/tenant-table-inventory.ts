@@ -6,6 +6,8 @@ export const TENANT_TABLES = [
   'service_session_recoveries',
   'service_lines',
   'service_line_cancellations',
+  'discount_proposals',
+  'discount_proposal_performers',
   'service_line_cancel_notices',
   'service_line_edits',
   'service_line_performer_changes',

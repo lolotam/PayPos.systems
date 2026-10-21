@@ -6,6 +6,7 @@ import {
   index,
   integer,
   jsonb,
+  smallint,
   pgTable,
   primaryKey,
   text,
@@ -40,6 +41,10 @@ export const businessSettings = pgTable(
     logoFileId: uuid('logo_file_id'),
     // مفتاح كل تنبيهات الفريق للنشاط (D-B13، AL-Q4)؛ null = شغّال، ورسايل التقييم للزباين ليها مفتاحها لوحدها.
     alertsEnabled: boolean('alerts_enabled'),
+    // أعمدة تطبيق الموظفات اللي المدير اختارها؛ null = افتراضي MY-Q3 (spec 060 D-A6).
+    staffColumns: text('staff_columns').array(),
+    // كام شهر لورا الموظفة تشوف في «شغلي» و«حضوري»؛ null = الشهر الحالي بس (D-A14، MY-Q9).
+    staffMonthsBack: smallint('staff_months_back'),
     updatedBy: uuid('updated_by').references(() => user.id),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -69,6 +74,15 @@ export const businessSettings = pgTable(
     check(
       'business_settings_official_name_en',
       sql`${t.officialNameEn} IS NULL OR char_length(${t.officialNameEn}) BETWEEN 1 AND 255`,
+    ),
+    // الأكواد المسموحة بس، من غير null ومن غير تكرار (D-A6، D-A7)؛ التكرار بتفحصه دالة لأن الـ CHECK ما بيقبلش subquery.
+    check(
+      'business_settings_staff_columns',
+      sql`${t.staffColumns} IS NULL OR (${t.staffColumns} <@ ARRAY['date', 'time', 'service', 'customer_name', 'list_price', 'discount', 'net', 'share', 'estimated_commission', 'tip', 'rating_average']::text[] AND array_position(${t.staffColumns}, NULL) IS NULL AND staff_columns_distinct(${t.staffColumns}))`,
+    ),
+    check(
+      'business_settings_staff_months_back',
+      sql`${t.staffMonthsBack} IS NULL OR ${t.staffMonthsBack} BETWEEN 1 AND 24`,
     ),
     foreignKey({
       name: 'business_settings_logo_file_fk',
