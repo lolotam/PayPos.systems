@@ -177,9 +177,8 @@ const recorded = {
 };
 const tipsButton = () => screen.queryByRole('button', { name: t('en', 'sessionTips.open') });
 
-it('keeps the day and hides Record tip for a reader without record permission', async () => {
+it('keeps the day and hides Record tip for a reader without record permission, never reading recording-context', async () => {
   state.online = true;
-  const gate = deferred();
   state.get.mockImplementation((path: string) => {
     const name = String(path);
     if (name.includes('/capabilities')) {
@@ -188,18 +187,21 @@ it('keeps the day and hides Record tip for a reader without record permission', 
         response: { status: 200 },
       });
     }
-    if (name.includes('recording-context')) return gate.promise;
+    if (name.includes('recording-context')) return Promise.resolve(refused);
     return Promise.resolve(day);
   });
   renderPage();
   expect(await screen.findByText('Synthetic customer')).toBeTruthy();
+  await waitFor(() =>
+    expect(state.get.mock.calls.some((call) => String(call[0]).includes('/capabilities'))).toBe(
+      true,
+    ),
+  );
   expect(tipsButton()).toBeNull();
-  await act(async () => {
-    gate.settle(refused);
-  });
-  expect(screen.getByText('Synthetic customer')).toBeTruthy();
   expect(screen.queryByRole('alert')).toBeNull();
-  expect(tipsButton()).toBeNull();
+  expect(state.get.mock.calls.some((call) => String(call[0]).includes('recording-context'))).toBe(
+    false,
+  );
   expect(state.get.mock.calls.some((call) => String(call[0]).includes('/tips'))).toBe(false);
 });
 

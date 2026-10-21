@@ -6,7 +6,8 @@ import { sessionPerformersCapability } from './session-edit-access.adapter.ts';
 export function recordingAccess(tx: Tx, companyId: string, userId: string, businessId: string, branchId: string, at: Date) {
   return readServiceSessionAccess(tx, companyId, userId, businessId, branchId, at);
 }
-// قايمة محرر المنفّذين بتقبل صلاحية التغيير كمان (PP-19.1)؛ القراءتين في نفس المعاملة وورا بعض عشان معاملة واحدة ما تشتغلش بالتوازي.
+// قايمة محرر المنفّذين بتقبل صلاحية التغيير كمان (PP-19.1). القراءتين على نفس المعاملة، وبيتعملوا ورا بعض: كل واحدة
+// فيهم بتشغّل استعلاماتها بالتوازي جواها، والـ await هنا بيرتّب القراءتين بس، مش بيمنع التوازي جوه كل واحدة.
 export async function pickerAccess(tx: Tx, companyId: string, userId: string, businessId: string, branchId: string, at: Date) {
   const record = await readServiceSessionAccess(tx, companyId, userId, businessId, branchId, at);
   const performers = await sessionPerformersCapability(tx, companyId, userId, businessId, branchId, at);

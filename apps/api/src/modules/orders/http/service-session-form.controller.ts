@@ -2,6 +2,7 @@ import { Controller, Get, Inject, Param, Query, Req, UseFilters, UseGuards } fro
 import { id, recordingContextQuery, sessionServiceOptionsQuery, sessionPerformerOptionsQuery, type RecordingContextQuery,
   type SessionServiceOptionsQuery, type SessionPerformerOptionsQuery } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
+import { updateRequestContext } from '@pospay/observability';
 import { Authenticated, Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
@@ -29,6 +30,8 @@ export class ServiceSessionFormController {
     @Query(new ZodValidationPipe(sessionPerformerOptionsQuery)) query: SessionPerformerOptionsQuery,
     @Req() request: FastifyRequest) {
     if (this.performerOptions === null) throw new ApiError('NOT_READY');
+    // @Require كان بيحط الفرع في سياق اللوج؛ @Authenticated ما بيحطوش، فسطور اللوج تفضل فيها branch_id (CLAUDE.md §8).
+    updateRequestContext({ branchId });
     try { return await this.performerOptions.execute({ ...actorOf(request), businessId, branchId }, query); }
     catch (error) {
       if (error instanceof RangeError && error.message === 'SESSION_PERFORMER_CURSOR_INVALID') throw new ApiError('VALIDATION_FAILED');
@@ -61,6 +64,7 @@ export class ServiceSessionFormController {
     @Query(new ZodValidationPipe(recordingContextQuery)) query: RecordingContextQuery,
     @Req() request: FastifyRequest) {
     if (this.context === null) throw new ApiError('NOT_READY');
+    updateRequestContext({ branchId });
     try { return await this.context.execute({ ...actorOf(request), businessId, branchId }, query); }
     catch (error) {
       if (error instanceof RecordingContextReadError) throw new ApiError(error.code);
