@@ -383,6 +383,12 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   chosen, and no status is read before its lock. The chosen DRAFT target cannot be reviewed or approved before the
   correction commits (a review of it waits on its lock and then sees the correction in its fingerprint), and the locks are
   always taken in one ascending call, so this writer never deadlocks with another (CM-02).
+- **CM-48c** (MergePilot 5598705384, barrier) September is REVIEWED, October and November are DRAFT, and a late September
+  change arrives while the owner approves September. The approval holds September's lock first (barrier before its
+  commit); the consumer's one ascending call already includes October and November, because the candidates of every
+  affected period are locked whatever its status before the call; after the wait it sees September APPROVED, runs the
+  correction step and posts into October, chosen from the statuses that call returned, with no second lock call and no
+  status read before its lock.
 - **CM-49** A replayed event is deduped before it can bump the generation; a second real change bumps it again and posts only
   `new − (frozen + corrections already posted)` for each source.
 - **CM-50** Corrections received are inputs of the target: they enter its fingerprint and are frozen as `CORRECTION` lines at
@@ -407,7 +413,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-53b** (Codex 4335542716) October is REVIEWED when a September recompute for هبة fails: the block stores
   `target_period = 2026-11` and November's statement id. October is then returned to DRAFT (FR-031): November stays
   blocked (its review and approval are refused, the block is on November's view and in its fingerprint), October is not
-  blocked and can be reviewed and approved, and when the block is resolved its correction is posted into November.
+  blocked and can be reviewed and approved. When the block is resolved, its correction is posted normally into the
+  earliest DRAFT month after September at that moment (D-13, MergePilot 5598705384): into **October** if October is still
+  DRAFT, into **November** if October was reviewed or approved meanwhile; November, held DRAFT until then, guarantees that
+  a DRAFT target exists, and its hold ends with the resolution.
 - **CM-54** (CS-Q19 = PP-17.7) When a blocked correction is first recorded, one in-app bell reaches the holders of the plan
   permission (CS-Q1) in the business; with 250 holders, three events of 100, 100 and 50 distinct recipients are appended in
   the block's transaction, and a failure appending the third leaves no block and no event; a later event for the same open block rings nothing new; the block is always listed on
@@ -528,9 +537,12 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   identities → **take a transaction advisory lock per input identity** (`(company, kind, line_id | session_id | sale_id |
   employee_id+effective_from)`, ascending; it also covers an identity with no projection row yet) → only then read the held
   revisions and drop stale ones → compute the affected `(employee, period)` pairs from that locked state (old and new
-  performers, old and new business dates) → **one** `lockStatementPeriods` call, ascending, for every affected period and, for each
-  affected closed period, every candidate target month from it through the business's current month (D-13) → choose each
-  correction target from the statuses that call returned → apply the projection change → for each affected closed period run the correction step (FR-039) → return each
+  performers, old and new business dates) → **one** `lockStatementPeriods` call, ascending, for every affected period and, for **each
+  affected period whatever its status before the call**, every candidate target month from it through the business's
+  current month (D-13): a period's status is authoritative only under its lock, and an approval can close a REVIEWED
+  period while this call waits, so the candidates are never selected from a status read before the lock (CM-48c) → only
+  then classify each affected period as open or closed and choose each correction target, both from the statuses that
+  call returned → apply the projection change → for each affected closed period run the correction step (FR-039) → return each
   affected REVIEWED period to DRAFT (D-5) → mark consumed. Any failure rolls everything back (SPEC §6). The bootstrap (FR-020)
   takes the same identity locks in the same order before it compares revisions, so a live delivery and a bootstrap page of
   one identity serialize: the lock order is always identity locks, then statement rows, and only the consumer and the
@@ -760,19 +772,24 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-046** When the recompute of a closed month returns `NO_PLAN`/`NO_SALARY`, the consumer still marks the event consumed,
   records `commission_blocked_corrections (employee, source_period, code, first_event_id, target_period,
   target_statement_id)` (one open row per employee and month, later events reuse it) and posts nothing for that employee
-  and month (SPEC §6). The target is chosen **once**, when the block is first recorded, by D-13 under the locks of that
-  event, and stored; it is never derived again from the statuses of the moment, and later events, a code change or a
-  REVIEWED month going back to DRAFT never move it. The stored target stays DRAFT while the block is open (FR-048 refuses
-  its review), and the correction the resolution posts goes into it.
+  and month (SPEC §6). The stored `target_period`/`target_statement_id` is the **held month**: chosen **once**, when
+  the block is first recorded, by D-13 under the locks of that event; it is never derived again, and later events, a code
+  change or a REVIEWED month going back to DRAFT never move it. It is what FR-048 refuses to review or approve and where
+  FR-049 shows the block, so it stays DRAFT while the block is open, and a DRAFT month after the source therefore always
+  exists when the block is resolved. **The correction the resolution posts is not tied to it:** it is posted normally
+  (SPEC §6), into the target D-13 chooses at posting time from the statuses its own lock call returned, which is the held
+  month or an earlier month that is DRAFT by then (CM-53b). A stored posting target would put the correction in a later
+  month than SPEC §6's earliest DRAFT period and so change which payroll month bears it.
 - **FR-047** `POST /v1/businesses/:businessId/employees/:employeeId/commission-period-repairs` `{ period, plan }`
   (Idempotency-Key): allowed only while an open blocked correction **with code `NO_PLAN`** exists for that employee and month
   (a `NO_SALARY` block is resolved only by the dated salary, SPEC §6, and refused here with `COMMISSION_REPAIR_NOT_ALLOWED`;
   every recompute of an open block (after a repair, a salary, or a later event) sets its `code` to what the engine now
   returns, `NO_PLAN` ↔ `NO_SALARY` either way, on the same row; a resolved row never changes); the plan is validated
   like FR-006; stored as a plan version with `repair_period` (D-12, CS-Q11); audit `commission_plan.period_repaired`. In the
-  same transaction the month is recomputed and the correction posted (FR-039) into the block's stored target (FR-046),
-  under one `lockStatementPeriods` call that locks the source month through that target in ascending order; the block is
-  resolved when the recompute succeeds.
+  same transaction the month is recomputed and the correction posted (FR-039) into the target D-13 chooses then (FR-046),
+  under one `lockStatementPeriods` call that locks the source month through the business's current month in ascending
+  order (every candidate, the held month among them); the block is resolved when the recompute succeeds and the held
+  month is released.
 - **FR-048** A month that is the stored `target_statement_id` of an open blocked correction, for any employee, cannot be
   reviewed or approved (SPEC §6); the check reads the stored target, never recomputes it.
 - **FR-049** The blocked correction is visible on the view of its stored target statement and in a list `GET …/commission-blocked-corrections`
@@ -910,7 +927,7 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 | `commission_statement_attachments` (48a) | `statement_id`, `employee_id`, `branch_id`, `attached_from date`, `attached_to date` (one `EmployeeBranch` link clipped to the month, read once in the approval transaction, FR-033) | `UNIQUE (company_id, statement_id, employee_id, branch_id, attached_from)`; index `(company_id, statement_id, employee_id)`; insert-only; the same insert trigger as `commission_statement_lines` |
 | `commission_period_generations` (55) | `employee_id`, `period`, `generation` | `UNIQUE (company_id, employee_id, period)`; `SELECT, INSERT, UPDATE (generation)` |
 | `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed, the delta), `previous_amount`, `new_amount`, `generation`, `event_id`, `created_at`, `source_branch_id`, `source_business_date`, `attached_branch_ids uuid[]` (where the corrected line, sale or tip was done, its business date, and every branch the employee was attached to on that date; copied from the frozen row of that source when one exists, else resolved once by the first correction from the source month's frozen attachment snapshot, FR-040) | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; `CHECK (amount = new_amount − previous_amount)`; index `(company_id, business_id, target_period)`; GIN index on `attached_branch_ids`; insert-only |
-| `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `target_period char(7)`, `target_statement_id` (chosen once by D-13 when the block is recorded, FR-046), `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; tenant-qualified FK `target_statement_id` → `commission_statements`; partial index `(company_id, target_statement_id) WHERE resolved_at IS NULL` (FR-048); `SELECT, INSERT, UPDATE (code, resolved_at, resolved_generation)` (never the target); a trigger allows `code` to change (`NO_PLAN` ↔ `NO_SALARY`) only on an open row and refuses any change to a resolved row |
+| `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `target_period char(7)`, `target_statement_id` (the held month, chosen once by D-13 when the block is recorded; not the posting target, FR-046), `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; tenant-qualified FK `target_statement_id` → `commission_statements`; partial index `(company_id, target_statement_id) WHERE resolved_at IS NULL` (FR-048); `SELECT, INSERT, UPDATE (code, resolved_at, resolved_generation)` (never the target); a trigger allows `code` to change (`NO_PLAN` ↔ `NO_SALARY`) only on an open row and refuses any change to a resolved row |
 | `commission_statement_returns` (52) | `statement_id`, `returned_by`, `returned_membership_id`, `reason`, `returned_at` | `CHECK` reason 1…500 trimmed; insert-only; reason never logged |
 | `commission_statement_exports` (56) | `render_id`, `statement_id`, `period`, `requested_by`, `requested_membership_id`, `scope` (`BUSINESS` / `BRANCHES`), `branch_ids uuid[] NULL` (the reader's effective branch set at request time: a business-wide holder with a DENY on one branch is `BRANCHES` with every other branch), `employee_ids uuid[] NULL` (the employee set it lets her see), `requested_at`, `collected_at NULL` | `UNIQUE (company_id, render_id)`; `CHECK` (`scope = 'BRANCHES'`) = (`branch_ids` and `employee_ids` not null) and `cardinality(branch_ids) > 0` when not null; `SELECT, INSERT, UPDATE (collected_at)` |
 | `commission_statement_reminders` (56b) | `statement_id`, `kind`, `reminder_date`, `recipient_count` | `UNIQUE (company_id, statement_id, kind, reminder_date)`; insert-only |
@@ -1035,7 +1052,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **50-a** | Engine input assembly (FR-022) | 1. The pure assembly function in `packages/commissions-engine`. 2. Its types for lines, sales, salary, versions, overrides, tips and corrections. 3. Unit tests (every input kind, the selected salary, ACTIVE-only lines) | 48a-1 | 150–250 |
 | **50-5** | Estimate on read | 1. The read use case (D-7) over the 50-a assembly. 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b, CM-23c, CM-23d, CM-23e, CM-23f, CM-23g, CM-23h | 50-a, 50-1, 50-2, 50-4, 55-1 | 300–420 |
 | **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port, and the statement builder with its statement fingerprint (D-6, FR-026) and the round-trip unit test of CM-34e. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 (CM-28c included), and the statement-view part of CM-23d, CM-23e, CM-23f, CM-23g and CM-23h | 50-5; CS-Q7 | 350–480 |
-| **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
+| **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044; CM-48c's concurrent approval is the FR-044 seed transaction under the lock), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations, its `docs/module-map.md` event row). 3. CM-51…CM-54, CM-53b (the stored target, FR-046/FR-048) | 55-1; CS-Q11 | 400–550 |
 | **52-1** | Review | 0. The statement permissions `review:commissions:business` and `approve:commissions:business` with their decided role defaults and grants (CS-Q2, CS-Q5), so `StatementAwaitingApproval`, first emitted here, has a defined recipient set from its first release; 53-2 adds only the approval guard (FR-036). 1. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c, CM-33d | 51-1, 55-2; CS-Q2, CS-Q3, CS-Q5 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
