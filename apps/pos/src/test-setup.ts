@@ -1,5 +1,11 @@
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterEach } from 'vitest';
+
+// أول اختبار في كل ملف بيدفع تكلفة أول رندر (jsdom + React + أول استعلامات) وتحت ضغط الـ CI بياخد
+// أكتر من مهلة Testing Library الافتراضية (1000ms) فيفشل findBy* قبل ما العنصر يظهر (#436).
+// المهلة سقف للانتظار مش sleep: findBy* بيرجع أول ما العنصر يظهر، و4000ms أقل من مهلة vitest (5000ms)
+// عشان الفشل الحقيقي يطلع برسالة Testing Library وشجرة الـ DOM.
+configure({ asyncUtilTimeout: 4000 });
 
 afterEach(() => {
   cleanup();
