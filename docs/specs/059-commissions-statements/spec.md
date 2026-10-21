@@ -887,9 +887,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   would need such a read and therefore an ADR and Waleed's approval before it is built. The job reads the
   company's businesses and their timezones under `withTenant` through the tenancy reader bound at the root (D-16) and,
   for each business whose local time has passed 09:00 (CS-Q17 = PP-17.5), emits `StatementAwaitingApproval` on
-  the 3rd and the 5th for the previous month while it is not APPROVED or PAID. For each business whose `commissions` feature is on (a business with the feature off is skipped **before** any
-  transaction: no statement row, no ledger row, no event; Codex 4336601165, 4336673731), in **one** transaction, the
-  job first calls `lockStatementPeriods` for the previous month, which **creates the DRAFT row if the business was quiet**
+  the 3rd and the 5th for the previous month while it is not APPROVED or PAID. For each business, in **one** transaction, the job first reads the business's `commissions` feature under
+  `withTenant` and, when it is off, ends the transaction without writing anything (no statement row, no ledger row, no
+  event; Codex 4336601165, 4336673731, 4336788662); otherwise it calls `lockStatementPeriods` for the previous month
+  in that same transaction, which **creates the DRAFT row if the business was quiet**
   (no input, no plan write, no generate) and locks it, then rechecks the status under the lock, then inserts the
   `commission_statement_reminders` ledger row (`UNIQUE (company_id, statement_id, kind, reminder_date)`, once per day) and
   the grouped notice events (FR-030); a business is never skipped for having no statement row. Zero recipients is a durable
