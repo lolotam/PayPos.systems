@@ -133,7 +133,7 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 59b | at-most-once rating send: authoritative claim through `DaySessionsPort`, attempt row under the phone lock           | S            | 59, 4, 5           |
 | 60  | rating page + `submit-rating`                                                                                       | S            | 59b                |
 | 61  | low-rating alert + averages                                                                                         | S            | 60                 |
-| 62  | alert-rules screen + master switch; replaces row 28's interim fixed rule (on, 20 min, managers, in-app) and owns row 28c's lead-time setting | S            | 4b, 15, 28, 61     |
+| 62  | alert-rules screen + master switch; replaces row 28's interim fixed rule (on, 20 min, managers, in-app) and owns row 28c's lead-time setting | S            | 4b, 15, 28         |
 |     | **M9 · pilot**                                                                                                      |              |                    |
 | 63  | real data by import, dry-run week, parallel month, comparison (D-45); the salon pilot starts only on the new server (D-11, owner review 2026-10-09)                                                | S + calendar | all; the new server with point-in-time recovery (D-11)                |
 
@@ -241,3 +241,8 @@ accepted with a stated reason, and no P1 remains open.
 PR 6 remains dependent on PRs 3/4/5 and implements existing global users on a paired POS, with active device-scoped membership plus explicit login:staff:branch. Staff/cashier bundles are explicit; Owner/admin authority alone is insufficient. OTP defaults disabled and incomplete activation closes only its capability; production API/worker stay ready with empty notification settings. Auth-owned deterministic derivation uses independent verification MACs, a hash-only global ledger, acknowledged PREPARED→PENDING release, bounded worker wait outside DB connections, at-most-once execution and shared Redis admission. All admitted outcomes share the 200 ms 202 window. Sessions use Better Auth with isolated staff cookie and original eight-hour deadline, without idle timeout or renewal, and are revalidated online on every request. Recovery uses the employee's own PIN with manager assistance; no impersonation or STOP bypass. Login does not open a shift or record attendance.
 
 The slice includes contracts/schema and exact grants, auth facade/guards, both composition roots, POS generated client/i18n/cache clearing, secret-free observability, environment/deploy injection and independent readiness smoke. ADR-0019 §7 is the complete test obligation. Before PR 20, resolve personal-phone/passkey enrollment and use the scoped staff verification contract; never auto-enroll the shared kiosk. PR 22 still requires per-clock UV, QR and presence proof. Final bilingual Meta copy/names/components and recovery copy remain TODO(spec), blocking live activation until approved.
+
+## Spec 060 amendment — row 62, 2026-10-21
+
+Row 62 no longer depends on row 61: RT-Q1 (PP-18.9) postpones the rating track to the end of the project, and the
+alert rules proceed without it; the `LOW_RATING` kind joins them when the track resumes (spec 060 §B, sub-PR 61-1).

@@ -2,9 +2,10 @@
 
 > **Status:** Draft · 2026-10-21 · docs-only PR. **PP-18 batch 1 answered (Waleed, 2026-10-21):** RT-Q1 **postpones the whole rating track to the end of the
 > project**; RT-Q2…RT-Q10 and RT-Q12 are decided for the postponed track (RT-Q6 and RT-Q10 against the recommended
-> options); RT-Q11 and RT-Q13 are postponed with RT-Q1.
-> PP-18 batch 4: MY-Q1…MY-Q4 answered (MY-Q1 and MY-Q2 against the recommended options).
-> **10 owner questions remain open** (MY-Q5…MY-Q8, AL-Q1…AL-Q6), routed to Waleed as PP-18; **MY-Q6** (what an employee sees of her approved earnings) is also a money
+> options); RT-Q11 is postponed with RT-Q1.
+> PP-18 batch 4: MY-Q1…MY-Q4 answered (MY-Q1 and MY-Q2 against the recommended options). Batch 5: MY-Q5, MY-Q7, MY-Q8
+> and RT-Q13 (PP-20.4, for the postponed track) answered (MY-Q5, MY-Q7 and RT-Q13 against the recommended options).
+> **8 owner questions remain open** (MY-Q6, MY-Q9, AL-Q1…AL-Q6), routed to Waleed as PP-18; **MY-Q6** (what an employee sees of her approved earnings) is also a money
 > question and is in the money list for Abu Salem ([owner-questions.ar.md](owner-questions.ar.md)). Every rule that waits on an answer is marked `TODO(spec)` here and
 > blocks only the sub-PRs named in §3. **No code starts before this spec is merged.**
 > **Two parts:** **Part A** — the staff app (rows 57, 57b, 57c). **Part B** — ratings and alerts (rows 58, 59, 59b, 60,
@@ -84,10 +85,11 @@ question (what staff earn, `CLAUDE.md` §1 5b) and goes to Abu Salem too; the ot
 | MY-Q2 | How many months back the staff app shows | **Answered (PP-18.2), custom: a per-business admin setting**; default the current month plus the previous one (D-A14) |
 | MY-Q3 | Default columns when the manager has not chosen | **Answered (PP-18.3): her work and her money only** (D-A6) |
 | MY-Q4 | May the column setting hide the estimate | **Answered (PP-18.4): yes, an ordinary column, shown by default** (MY-20) |
-| MY-Q5 | Who edits the staff-columns setting | 57c-1 |
+| MY-Q5 | Who edits the staff-columns setting | **Answered (PP-18.5): the existing `manage:settings:business`**, for the columns and the months-back setting — against the recommended option |
 | MY-Q6 | What a closed (approved) month shows: the approved amount or the estimate | 57-3, 57-5 |
-| MY-Q7 | What the employee sees of a manager's attendance correction | 57b-1 |
-| MY-Q8 | Cancelled lines in «شغلي»: shown with a mark, or hidden | 57-2 |
+| MY-Q7 | What the employee sees of a manager's attendance correction | **Answered (PP-18.7): every detail** (time before and after, reason, who edited) — against the recommended option (D-A10) |
+| MY-Q8 | Cancelled lines in «شغلي»: shown with a mark, or hidden | **Answered (PP-18.8): shown struck through** (MY-07) |
+| MY-Q9 | The months-back setting's default and allowed range (D-A14) | 57c-1, 57-2, 57b-1 |
 | RT-Q1 | How the rating link reaches the sender without storing the token (ADR-0011 open question 1) | **Answered (PP-18.9): rating messages are postponed to the end of the project**, so the whole rating track (Part B rows 58–61 and the low-rating part of 62-3) waits; against the recommended option |
 | RT-Q2 | Approval of the ar/en copy: WhatsApp message, page, completion, opt-out, unavailable link | **Answered (PP-18.10): approved as proposed** (§B.4 copy); used when the track resumes |
 | RT-Q3 | A per-business switch for sending rating requests, and its default | **Answered (PP-18.11): a switch, off at first** (D-B16); used when the track resumes |
@@ -100,7 +102,7 @@ question (what staff earn, `CLAUDE.md` §1 5b) and goes to Abu Salem too; the ot
 | RT-Q10 | May reception or a manager undo a customer's opt-out | **Answered (PP-18.19): reception and the manager may turn a customer's rating messages back on, logged with who and when** — against the recommended option; new postponed sub-PR 58-3 |
 | RT-Q11 | Where the public rating page is hosted | **Postponed with RT-Q1, not asked now** (was: 60-2) |
 | RT-Q12 | The message names the performers (first names) when there are several | **Answered (PP-18.20): all first names; more than 3 → «the team of <business>»** (the recommended option; D-B6) |
-| RT-Q13 | Who may switch rating requests on or off for a business (D-B16) | **Postponed with RT-Q1, not asked now** (was: 59-2) |
+| RT-Q13 | Who may switch rating requests on or off for a business (D-B16) | **Answered (PP-20.4): the alert-rules permission (AL-Q1)** — against the recommended option; a decision for the postponed track (59-2) |
 | AL-Q1 | Who edits the alert rules | 62-1 |
 | AL-Q2 | Alert rules per business or per branch | 62-1 |
 | AL-Q3 | Recipients chosen by role or by named person | 62-1 |
@@ -132,10 +134,10 @@ the statement PDF or Excel (rows 56, 27g); anything about other employees.
 | D-A7 | **Allowed codes:** `date, time, service, customer_name, list_price, discount, net, share, estimated_commission, tip, rating_average`. `rating_comments` is **not** an allowed code (S-9). **`rating_average` stays hidden until the rating track ships (RT-Q1, PP-18.9):** the code exists in the enum, but the column screen does not offer it, a saved set that names it is refused, and «شغلي» never returns it. `customer_phone` never exists as a code (S-12). **Context fields outside the setting:** every row of «شغلي» always carries `line_id` and the branch name (the employee's own workplace, needed to tell two branches apart); every other field is one of the codes above | keeping `rating_comments` because SPEC §4 lists it (the later owner decision in ADR-0011 overrides it) |
 | D-A8 | A line belongs to «شغلي» when the employee is a **current** performer of it (her `line_performers` row), in the line's business, in the month asked, by the session's `business_date`. Her **share** is her `share_bps` of the line; money fields are canonical KWD strings (spec 050) | listing every visit she touched (removed performers see nothing after a performer change, spec 055) |
 | D-A9 | The month is a business-timezone calendar month (`YYYY-MM`), like statements (SPEC §5). Default = the current month at the injected Clock | a rolling 30 days (does not match the statement) |
-| D-A10 | «حضوري» shows her attendance sessions by `working_date`: branch name, clock-in, clock-out, `late_minutes` (already stored on the session), source (QR / card), open exceptions by kind (no notes), and a «اتعدّل» mark per MY-Q7. Lateness is shown, never deducted (SPEC §7) | recomputing lateness on the phone |
+| D-A10 | «حضوري» shows her attendance sessions by `working_date`: branch name, clock-in, clock-out, `late_minutes` (already stored on the session), source (QR / card), open exceptions by kind (no notes), and, for a session a manager corrected (spec 035), every detail (MY-Q7, PP-18.7, against the recommended option): the time before and after, the written reason and the name of who made the edit. Lateness is shown, never deducted (SPEC §7) | recomputing lateness on the phone |
 | D-A11 | «إجازاتي» uses the existing ADR-0026 routes unchanged; Part A adds only the POS screens and their tests | a second leave API |
-| D-A13 | **«شغلي» and «حضوري» also open on the shared reception device (MY-Q1, PP-18.1)**, through the ADR-0019 `STAFF_POS` operator session after her PIN, besides the ADR-0027 personal session. Because that device is shared and its session is 8 hours with no idle timeout, these private screens get their own short window: opening one asks for the PIN again (a fresh PIN proof, at most 60 s old), the server grants a **private-view window of at most 5 minutes** bound to that session and operator, and every FR-A read on `STAFF_POS` is refused without a live window; 60 s without input, leaving the screen, sign-out or operator replacement close it and clear the screen and the query cache in every tab (ADR-0019's replacement clearing). Responses are `no-store` and nothing is persisted (S-19). The window is a new rule for ADR-0019 (which has no idle timeout) and ADR-0027 (which lists own reads for the personal purpose only), so **sub-PR 57-0 adds the ADR-0019/0027 addendum before any code** | personal phone only (the recommended option, not chosen); the 8-hour operator session with no extra step (any colleague at the counter would see her commission) |
-| D-A14 | **How many months back (MY-Q2, PP-18.2, custom answer):** a per-business admin setting `staff_months_back smallint NULL` on `business_settings`, `CHECK (staff_months_back BETWEEN 1 AND 24)`, `NULL` = 2 (the current month plus the previous one, the orchestrator's default). It counts calendar months in the business timezone (D-A9), the current month included; every FR-A read and MY-13 use it; `StaffColumnsPort` returns it with the column set. It sits on the column-settings screen under the same permission, `TODO(spec)` MY-Q5; changes are audited `settings.staff_months_back_changed` | a fixed window (Waleed asked for an admin option) |
+| D-A13 | **«شغلي» and «حضوري» also open on the shared reception device (MY-Q1, PP-18.1)**, through the ADR-0019 `STAFF_POS` operator session after her PIN, besides the ADR-0027 personal session. Because that device is shared and its session is 8 hours with no idle timeout, these private screens get their own short window: opening one asks for the PIN again (a fresh PIN proof, at most 60 s old), the server grants a **private-view window of at most 5 minutes** bound to that session and operator, and every «شغلي» or «حضوري» read (FR-A01…FR-A04) on `STAFF_POS` is refused without a live window (route policy FR-A06b); 60 s without input, leaving the screen, sign-out or operator replacement close it and clear the screen and the query cache in every tab (ADR-0019's replacement clearing). Responses are `no-store` and nothing is persisted (S-19). The window is a new rule for ADR-0019 (which has no idle timeout) and ADR-0027 (which lists own reads for the personal purpose only), so **sub-PR 57-0 adds the ADR-0019/0027 addendum before any code**. «إجازاتي» is not affected: its ADR-0026 kiosk and personal routes (D-A11) need no window and keep their behaviour | personal phone only (the recommended option, not chosen); the 8-hour operator session with no extra step (any colleague at the counter would see her commission) |
+| D-A14 | **How many months back (MY-Q2, PP-18.2, custom answer):** a per-business admin setting `staff_months_back smallint NULL` on `business_settings`, with a range `CHECK` and a `NULL` default, both **`TODO(spec)` MY-Q9** (the recommended option: `NULL` = 2, the current month plus the previous one, range 1–12). It counts calendar months in the business timezone (D-A9), the current month included; the «شغلي» and «حضوري» reads (FR-A01…FR-A04) and MY-13 use it, and «إجازاتي» (D-A11) is not limited by it; `StaffColumnsPort` returns it with the column set. It sits on the column-settings screen under `manage:settings:business` (MY-Q5, PP-18.5); changes are audited `settings.staff_months_back_changed` | a fixed window (Waleed asked for an admin option) |
 | D-A12 | Plan order: **57c-1 (the column setting's storage and port) comes before 57-2**, because every "my" read needs `StaffColumnsPort`. IMPLEMENTATION-PLAN row 57c says "depends on 57"; the admin screen (57c-2) keeps that order | building 57-2 on a hard-coded column list and changing it later |
 
 ## A.2 User scenarios and acceptance criteria
@@ -160,7 +162,8 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
   total nor per line) and the card is not shown; it equals the engine on the DRAFT projection (SPEC §6). `NO_PLAN` / `NO_SALARY` show
   «مفيش خطة عمولة لسه» and no number (D-57). A whole-period version shows «الحساب اتغيّر» (D-38).
 - **MY-06** `TODO(spec)` MY-Q6: a closed month shows the approved amount or the estimate.
-- **MY-07** `TODO(spec)` MY-Q8: a cancelled line is shown with «اتلغت» and its date, or omitted.
+- **MY-07** MY-Q8 (PP-18.8): a cancelled line is shown struck through with «اتلغت» and its cancellation date, and no
+  commission.
 - **MY-08** Tips: with `tip` allowed, her own tips of the month by method (cash / card) from her own tip rows; never a
   colleague's tip.
 
@@ -174,18 +177,22 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
   employee only; the owner's immunity follows ADR-0026.
 - **MY-12** A request naming another employee, a branch she is not attached to, or a foreign business → uniform 403;
   no client field selects the employee (the server takes it from the session).
-- **MY-13** A month before the business's `staff_months_back` window (D-A14; `NULL` → the current and previous month) →
+- **MY-13** A month before the business's `staff_months_back` window (D-A14; the `NULL` default per MY-Q9) →
   422 `MY_PERIOD_OUT_OF_RANGE`; a malformed month → 400; saving 3 lets the previous two months through and refuses the
-  fourth; a value outside 1–24 → 422.
+  fourth; a value outside the MY-Q9 range → 422; «إجازاتي» lists are not limited.
 - **MY-13b** Reception device (D-A13): سارة on the shared device enters her PIN → «شغلي» shows her lines; after 60 s idle
   the screen returns to the PIN step and the query cache is empty; a request after the 5-minute window or after منى
-  replaces her as operator → 401 and nothing returned; a stale PIN proof (over 60 s) does not open a window.
+  replaces her as operator → 401 and nothing returned; a stale PIN proof (over 60 s) does not open a window. The same
+  for «حضوري»: after her PIN it shows her sessions, after 60 s idle the screen returns to the PIN step with an empty
+  cache, and `GET /v1/staff/me/attendance` outside a live window → 401. «إجازاتي» on the same device opens with no PIN
+  step, as today (D-A11).
 
 ### Story A3 — My attendance and my leave (P1)
 
 - **MY-14** «حضوري» lists her sessions of the month by `working_date` with D-A10's fields; an open session shows
   «لسه ما بصمتيش خروج»; a `MISSED_OUT` session shows «خروج ناقص»; a voided session (row 26c) is not shown.
-- **MY-15** `TODO(spec)` MY-Q7: a corrected session shows the agreed level of detail.
+- **MY-15** MY-Q7 (PP-18.7): a corrected session shows «اتعدّل», the time before and after, the reason and who edited
+  it; an uncorrected session shows none of these.
 - **MY-16** «إجازاتي» requests, cancels a pending request and lists her requests through the ADR-0026 routes; errors
   are the existing named errors; a UI test asserts the visible status of each request.
 
@@ -193,7 +200,7 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
 
 - **MY-17** With nothing saved, every read uses the MY-Q3 default (D-A6): no `list_price`, `discount` or `net`; `rating_average`
   not returned while the rating track is postponed.
-- **MY-18** A holder of the MY-Q5 permission saves a column set; the next read of every employee of that business
+- **MY-18** A holder of `manage:settings:business` (MY-Q5) saves a column set; the next read of every employee of that business
   follows it; one audit entry `settings.staff_columns_changed` with before/after codes.
 - **MY-19** An unknown code, a duplicate, `rating_comments` or `customer_phone` → 422 `STAFF_COLUMNS_INVALID`;
   nothing saved.
@@ -226,9 +233,16 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
 - **FR-A05** **POSTPONED with the rating track (RT-Q1):** `GET /v1/staff/me/rating-summary` (customers, Part B FR-B14): only with `rating_average` allowed.
 - **FR-A06** Every FR-A route resolves the employee from the session server-side (ADR-0027), samples the Clock once,
   rechecks the employee, membership and own permission inside the read transaction, and returns `no-store`.
+- **FR-A06b** Route policy of FR-A01…FR-A04 (D-A13): today `PERSONAL_ROUTE = true` makes `SessionGuard` call
+  `personalSessionRequest` at once (`apps/api/src/shared/session.guard.ts`), so a `STAFF_POS` session would be refused
+  before any window check. These routes use the combined `PERSONAL_ROUTE = 'staff'` policy the ADR-0026 leave routes
+  already use (Authorization supplied → the `STAFF_POS` operator path, otherwise the personal session; never an admin
+  fallback), plus one more check on the `STAFF_POS` path: a live private-view window for that session and operator,
+  otherwise 401. The `SessionGuard` change is named in the 57-0 addendum and built in 57-1; the leave routes keep their
+  policy with no window check.
 - **FR-A07** `GET/PUT /v1/businesses/:businessId/settings/staff-columns` (settings): read and replace the set; the
-  `PUT` is idempotent (`Idempotency-Key`), audited, guarded by the MY-Q5 permission; the read is guarded by the same
-  permission or `read:settings:business`.
+  `PUT` is idempotent (`Idempotency-Key`), audited, guarded by `manage:settings:business` (MY-Q5, PP-18.5, also for
+  `staff_months_back`); the read is guarded by the same permission or `read:settings:business`.
 - **FR-A08** `StaffColumnsPort.allowed(tx, companyId, businessId): ReadonlySet<StaffColumnCode>` in each consumer's
   `ports/` (Arabic JSDoc), returning the saved set or the MY-Q3 default, plus `monthsBack(tx, companyId, businessId)` (D-A14).
 - **FR-A09** POS: «شغلي», «حضوري», «إجازاتي» screens in `apps/pos/src/my-work/`, `apps/pos/src/my-attendance/`,
@@ -250,8 +264,8 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
 
 | Table | Change | Notes |
 |---|---|---|
-| `business_settings` | add `staff_columns text[] NULL` with `CHECK` (allowed codes, no duplicates) and `staff_months_back smallint NULL` with `CHECK (1–24)` (D-A14) | expand-only; `NULL` = defaults (D-A6, D-A14); `UPDATE (staff_columns, staff_months_back)` grant to `pospay_app`; allowlist and privileges test updated |
-| access catalog | four own codes (D-A4) + the MY-Q5 permission | defaults in a custom migration like ADR-0026's leave codes; device cells forbidden |
+| `business_settings` | add `staff_columns text[] NULL` with `CHECK` (allowed codes, no duplicates) and `staff_months_back smallint NULL` with the MY-Q9 range `CHECK` (D-A14) | expand-only; `NULL` = defaults (D-A6, D-A14); `UPDATE (staff_columns, staff_months_back)` grant to `pospay_app`; allowlist and privileges test updated |
+| access catalog | four own codes (D-A4); no new settings code (MY-Q5: `manage:settings:business`) | defaults in a custom migration like ADR-0026's leave codes; device cells forbidden |
 
 No new tenant table in Part A. The "my" queries add the indexes their `EXPLAIN` needs in the same migration (e.g.
 `line_performers (company_id, employee_id)` if missing).
@@ -259,7 +273,7 @@ No new tenant table in Part A. The "my" queries add the indexes their `EXPLAIN` 
 ### Permissions
 
 `read:service-sessions:own`, `read:commissions:own`, `read:attendance:own`, `read:ratings:own` (D-A4); the staff-columns
-editor permission per MY-Q5 (`TODO(spec)`).
+and months-back editor is the existing `manage:settings:business` (MY-Q5, PP-18.5).
 
 ### Error codes (`message_ar` / `message_en`, in `src/shared/errors.ts`)
 
@@ -272,15 +286,15 @@ editor permission per MY-Q5 (`TODO(spec)`).
 | PR | Result | Subtasks | Blocked on | Size |
 |---|---|---|---|---|
 | **A-0** | ADR-0010 addendum (docs only) | 1. Orders `StaffColumnsPort` (D-A3), worker orders `AlertRulesPort` (D-B14) and worker customers `BranchScheduleHoursPort` (D-B3). 2. module-map §3 rows + YAML | this spec merged | 60–120 |
-| **57-0** | Reception-device private view: ADR addendum (docs only) | 1. ADR-0019/ADR-0027 addendum for D-A13 (fresh PIN proof ≤ 60 s, a private-view window ≤ 5 min bound to the `STAFF_POS` session and operator, 60 s idle close, clearing on leave/sign-out/replacement, `no-store`). 2. The auth-owned window store and its check named for 57-1. 3. — | this spec merged | 60–120 |
-| **57c-1** | Column setting storage + port | 1. Contract (`StaffColumnCode` enum, GET/PUT schemas), migration (`staff_columns`, `staff_months_back`, grant, permission). 2. Settings use case + routes + audit; `StaffColumnsPort` readers (orders, commissions, customers adapters + module-map rows). 3. Unit + integration tests MY-13 (window part), MY-17…MY-21 | **A-0**; MY-Q5 (MY-Q3, MY-Q4 decided) | 260–380 |
-| **57-1** | Own access for the staff app | 1. Four own codes + defaults migration, catalog, inventory tests. 2. ADR-0027 addendum (D-A5). 3. Own-check helper reuse + refusal tests MY-09…MY-12; the D-A13 reception-device path (PIN step-up and private-view window in `packages/auth`) + MY-13b | **57-0** (MY-Q1 decided) | 180–280 |
-| **57-2** | «شغلي» API | 1. Orders own query (FR-A01) + tips (FR-A03) with column projection + `EXPLAIN`. 2. Routes, guard, error mapping, OpenAPI + clients. 3. Tests MY-01…MY-04, MY-07, MY-08, MY-13 | 57-1, 57c-1, **A-0**; MY-Q8 (MY-Q2 decided) | 300–420 |
+| **57-0** | Reception-device private view: ADR addendum (docs only) | 1. ADR-0019/ADR-0027 addendum for D-A13 (fresh PIN proof ≤ 60 s, a private-view window ≤ 5 min bound to the `STAFF_POS` session and operator, 60 s idle close, clearing on leave/sign-out/replacement, `no-store`; «شغلي» and «حضوري» only, leave unchanged). 2. The auth-owned window store and its check, and the FR-A06b `SessionGuard` policy, named for 57-1. 3. — | this spec merged | 60–120 |
+| **57c-1** | Column setting storage + port | 1. Contract (`StaffColumnCode` enum, GET/PUT schemas), migration (`staff_columns`, `staff_months_back`, grant, permission). 2. Settings use case + routes + audit; `StaffColumnsPort` readers (orders, commissions, customers adapters + module-map rows). 3. Unit + integration tests MY-13 (window part), MY-17…MY-21 | **A-0**; MY-Q9 (MY-Q3, MY-Q4, MY-Q5 decided) | 260–380 |
+| **57-1** | Own access for the staff app | 1. Four own codes + defaults migration, catalog, inventory tests. 2. ADR-0027 addendum (D-A5). 3. Own-check helper reuse + refusal tests MY-09…MY-12; the D-A13 reception-device path (PIN step-up and private-view window in `packages/auth`, the FR-A06b `SessionGuard` policy) + MY-13b | **57-0** (MY-Q1 decided) | 180–280 |
+| **57-2** | «شغلي» API | 1. Orders own query (FR-A01) + tips (FR-A03) with column projection + `EXPLAIN`. 2. Routes, guard, error mapping, OpenAPI + clients. 3. Tests MY-01…MY-04, MY-07, MY-08, MY-13 | 57-1, 57c-1, **A-0**; MY-Q9 (MY-Q2, MY-Q8 decided) | 300–420 |
 | **57-3** | Estimate API | 1. Commissions own query over the DRAFT projection (FR-A02). 2. Route + OpenAPI. 3. Tests MY-05, MY-06 | **row 50**, 57-1, 57c-1; MY-Q6 | 200–320 |
 | **57-4** | «شغلي» screen | 1. POS screen + hooks + i18n. 2. Estimate card shell (renders "pending"; 57-5 wires it); the reception-device private view (PIN step, idle close, cache clearing, D-A13). 3. UI tests (visible columns, hidden column absent, pending card, the PIN step and the closed screen after idle) | 57-2 | 240–360 |
 | **57-5** | Estimate card wiring | 1. The card calls the generated `commission-estimate` hook (57-3) and replaces the pending state. 2. i18n for amount / «مفيش خطة» / recalculated note. 3. UI tests asserting the visible amount, the no-plan text and the hidden card when `estimated_commission` is not allowed (MY-05, MY-06 screen side) | 57-3, 57-4 | 120–200 |
-| **57b-1** | «حضوري» API | 1. Staff own query (FR-A04) + `EXPLAIN`. 2. Route + OpenAPI + clients. 3. Tests MY-14, MY-15 + access | 57-1, 57c-1 (months window); MY-Q7 (MY-Q2 decided) | 220–320 |
-| **57b-2** | «حضوري» and «إجازاتي» screens | 1. Attendance screen. 2. Leave screen on the ADR-0026 routes. 3. UI tests MY-16 | 57b-1 | 260–380 |
+| **57b-1** | «حضوري» API | 1. Staff own query (FR-A04, with the MY-Q7 correction details) + `EXPLAIN`. 2. Route (FR-A06b policy) + OpenAPI + clients. 3. Tests MY-14, MY-15, the API part of MY-13b for attendance + access | 57-1, 57c-1 (months window); MY-Q9 (MY-Q2, MY-Q7 decided) | 220–320 |
+| **57b-2** | «حضوري» and «إجازاتي» screens | 1. Attendance screen, opened on the reception device through the private-view flow built in 57-4 (PIN step, idle close, cache clearing; reused, not rebuilt). 2. Leave screen on the ADR-0026 routes, with no PIN step (D-A11). 3. UI tests MY-16 and MY-13b's «حضوري» case (the PIN step, the closed screen after idle) | 57b-1, 57-4 | 260–380 |
 | **57c-2** | Admin column screen | 1. Settings page: the columns and the months-back setting (D-A14). 2. i18n. 3. UI tests (saved columns and months visible) | 57c-1 | 160–240 |
 
 ---
@@ -301,7 +315,7 @@ editor permission per MY-Q5 (`TODO(spec)`).
 > (`read:service-sessions:branch`). RT-Q8 (the four managers, in-app), RT-Q9 (the recommended content, the comment in-app only), RT-Q10 (reception and the
 > manager may restore a customer's rating messages, audited; sub-PR 58-3) and RT-Q12 (all first names) are decided too;
 > RT-Q1 itself (how the link
-> reaches the sender), RT-Q11 and RT-Q13 are asked when the track resumes. **The alert rules proceed now:** 62-1,
+> reaches the sender) and RT-Q11 are asked when the track resumes (RT-Q13 is answered: PP-20.4). **The alert rules proceed now:** 62-1,
 > 62-2, 62-2b, 62-2c, 62-4 and 62-3 without the low-rating part; the `LOW_RATING` kind joins them with the track.
 
 **In:** the rating request lifecycle (schedule, claim, send, expire), the public page with submit and opt-out, the
@@ -329,7 +343,7 @@ members if AL-Q6 defers it.
 | D-B13 | **Alert rules** live in settings: `alert_rules` (one row per **scope** and kind once saved — the scope is the business by AL-Q2's recommended option and is `TODO(spec)` until AL-Q2 is answered; the recipient shape is roles by AL-Q3's recommended option and is `TODO(spec)` until AL-Q3 is answered. **Provisional design under the roles option, so today's defaults survive:** a rule's recipients are a list of selectors, `ROLE` (owner, general manager, business manager, branch manager; editable), `PERMISSION_HOLDERS` (for example `read:files:business` for `DOCUMENT_EXPIRING`, `decide:attendance-change:company` for `ATTENDANCE_CHANGE_REQUESTED`) and `CONTEXT` (the requester, the employee herself). The last two come from the code defaults table per kind, are shown read-only on the screen and can only be switched with the rule; `PERMISSION_HOLDERS` resolves through identity's effective-permission reader, so personal ALLOWs, custom roles and DENY precedence apply exactly as today (ADR-0040); absent = the AL-Q5 default from one code-side defaults table) and the master switch (`NULL` = on), **whose storage scope is `TODO(spec)` AL-Q2 alongside the rule scope**: by AL-Q2's recommended per-business option it is `business_settings.alerts_enabled boolean NULL`; by the per-branch option it is one switch per branch (column or table fixed with AL-Q2), and `AlertRulesPort` applies the switch of the event's branch (a kind without a branch applies the business's). `AlertRulesPort.rule(tx, companyId, scope, kind)` with `scope = { businessId, branchId \| null }` returns the effective rule with the master switch applied; the emitter always passes the event's branch when it has one (kinds without a branch, such as statements and document expiry, pass `null`). With AL-Q2's recommended per-business option the branch is ignored; with the per-branch option the branch rule wins over the business rule; the exact lookup is `TODO(spec)` AL-Q2 | a JSON blob per business (no per-kind audit, no `CHECK`s) |
 | D-B14 | Worker emitters read rules through a **minimal worker `settings` module** exporting a read function on the caller's transaction (the worker `tenancy` / `identity` shape, ADR-0037 §2); recipient user ids still come from identity's scoped-role read (`forBranch(…, roles)`), with roles now from the rule instead of `interimNotClockedInRule`. Worker **orders** reading `AlertRulesPort` is a port ADR-0010 does not list: it lands in the ADR-0010 addendum of docs PR A-0 before 62-3 | the API pushing rules to the worker |
 | D-B15 | A rule change applies to events emitted **after** it commits; nothing is re-sent or back-filled, except the one-time document-expiry attachment spec 033 already contracts (S-17, S-18). **Periodic alerts record suppression:** when the not-clocked-in or break-not-returned job finds a candidate while its rule or the master switch is off, it writes the same ledger row it writes for a sent notice (`attendance_not_clocked_in_notices`, the break ledger) with `suppressed_at` set, no recipients and no notification, so that candidate is never emitted later when the rule turns back on | replaying past events when a rule turns on |
-| D-B16 | **Rating-request switch (RT-Q3), separate from `alerts_enabled`:** customers owns `rating_settings` (one row per business once saved, `requests_enabled boolean NULL`). `NULL` means off (RT-Q3, PP-18.11: a switch, off at first), read from one code constant. Written by `PUT /v1/businesses/:businessId/rating-settings` (customers/http, idempotent, audited `customer.rating_requests_switched`, permission = RT-Q13's answer, `TODO(spec)` RT-Q13: not AL-Q1's alert-rules permission, since AL-Q4 keeps customer messages a separate control), read by `GET` on the same path; the toggle sits on the settings page from 59-2 and moves into the alerts screen with 62-4 (RT-Q3's recommended place). The AL-Q4 master switch never changes it. 59-1 reads it before inserting a request (off → no row); the claim (D-B5) rechecks it, and a request found switched off is `CANCELLED` with `cancel_reason = 'REQUESTS_OFF'` | one flag in `business_settings` (settings module; customers may import only `tenancy`, so it would need a new port and an ADR-0010 change), or reusing `alerts_enabled` (AL-Q4 keeps customer messages outside the staff master switch) |
+| D-B16 | **Rating-request switch (RT-Q3), separate from `alerts_enabled`:** customers owns `rating_settings` (one row per business once saved, `requests_enabled boolean NULL`). `NULL` means off (RT-Q3, PP-18.11: a switch, off at first), read from one code constant. Written by `PUT /v1/businesses/:businessId/rating-settings` (customers/http, idempotent, audited `customer.rating_requests_switched`, permission = the alert-rules permission of AL-Q1 (RT-Q13, PP-20.4, against the recommended option; whatever AL-Q1 decides, the switch follows it)), read by `GET` on the same path; the toggle sits on the settings page from 59-2 and moves into the alerts screen with 62-4 (RT-Q3's recommended place). The AL-Q4 master switch never changes it. 59-1 reads it before inserting a request (off → no row); the claim (D-B5) rechecks it, and a request found switched off is `CANCELLED` with `cancel_reason = 'REQUESTS_OFF'` | one flag in `business_settings` (settings module; customers may import only `tenancy`, so it would need a new port and an ADR-0010 change), or reusing `alerts_enabled` (AL-Q4 keeps customer messages outside the staff master switch) |
 
 ## B.2 User scenarios and acceptance criteria
 
@@ -558,7 +572,7 @@ customers, staff and commissions; **orders' `StaffColumnsPort`, worker orders' `
 
 | Kind | Event | Proposed default (until the owner changes it) | Source of the default |
 |---|---|---|---|
-| `SHIFT_NOT_CLOCKED_IN` | `ShiftNotClockedIn` | on · 20 min · four scoped manager roles · in-app | D-47, NC-Q1/Q2/Q4 |
+| `SHIFT_NOT_CLOCKED_IN` | `ShiftNotClockedIn` | on · 20 min · four scoped manager roles · in-app; **plus the absent employee herself by push, fixed** (like `SHIFT_ENDS_SOON`: not a selectable channel and not in `channels`; the screen shows «إشعار على الموبايل للموظفة» read-only; sent only once row 28b is merged; it follows this kind's `enabled` toggle and the master switch, so switching the kind off stops the managers' notice and her push together) | D-47, NC-Q1/Q2/Q3/Q4, row 28b |
 | `SHIFT_BREAK_NOT_RETURNED` | `ShiftBreakNotReturned` | on · as `interimBreakNotReturnedRule` today · same roles · in-app | spec 041 BW-Q5 |
 | `SHIFT_BREAK_RETURNED_OTHER_BRANCH` | `ShiftBreakNotReturned` with `notice_kind = 'break_returned_other_branch'` | on · the branch's managers · in-app | row 16b-3 (BW-Q10) |
 | `SHIFT_ENDS_SOON` (employee) | row 28c event | on · 30 min before shift end · the employee · **push, fixed** (not a selectable channel: the rule row holds only `enabled` and `lead_minutes`; its `channels` is empty and the screen shows «إشعار على الموبايل» read-only, so the SPEC §4 channel set WHATSAPP/EMAIL/IN_APP is unchanged) | NC-Q1 answer, row 28c, 28b |
@@ -606,7 +620,7 @@ The message uses the customer's stored name only as a greeting inside her own Wh
 | **58-2** | Opt-out API + public-route base — **POSTPONED (RT-Q1)** | 1. Token parser and hash (pure), per-IP limiter (D-B11). 2. `opt-out` use case + `@Public()` route + audit. 3. Tests RT-17 (opt-out part), RT-19, RT-20 (limits) | 58-1 | 300–420 |
 | **58-3** | Restore rating messages — **POSTPONED (RT-Q1)** | 1. ADR-0011 addendum (a staff restore is a separate audited capability; the token flow still never re-subscribes; WhatsApp STOP is never reversed, ADR-0013) + a new permission granted by default to reception and the four manager roles (RT-Q10). 2. `restore-rating-messages` use case + route (idempotent, audited `customer.rating_messages_restored` with actor and time) + the button on the customer screen with the STOP note. 3. Tests RT-17b + UI test (restored state and the STOP note visible) | 58-2 | 220–320 |
 | **59-1** | Scheduling — **POSTPONED (RT-Q1)** | 1. `ratingSchedule` pure function + unit tests; `DaySessionsPort` reader in orders + worker root callback (FR-B06); `BranchScheduleHoursPort` in worker customers bound at the root to the worker tenancy `branchScheduleHours` reader (D-B3); `requestDayOf` + unit tests. 2. Worker customers module: the three consumers reading `DaySessionsPort` on every delivery (D-B2), insert-or-lock, reopen; bootstrap job + orders `sessionsSince`/`countSince` paged reader + runbook entry (FR-B02b). 3. Tests RT-01…RT-08 (RT-07 scheduling part only, and only if RT-Q3 keeps the switch), RT-01b scheduling part, the FR-B02 reorder/replay tests and the differing-date consumer test | 58-1, 59-2 (or RT-Q3 answered «no switch»), **A-0**; RT-Q3, **RT-Q4** (both decided) | 360–500 |
-| **59-2** | Rating-request switch — **POSTPONED (RT-Q1)** | 1. Migration `rating_settings` (RLS, grant, negative tests) + the `REQUESTS_OFF` cancel reason in contracts, then `set-rating-requests` use case + `GET/PUT …/rating-settings` routes, audit, permission (D-B16); nothing of this is built if RT-Q3 drops the switch. 2. Admin toggle on the settings page (i18n, RTL). 3. Tests of the switch itself only: persistence (`NULL` default, on/off round trip), audit, uniform 403, UI test (switch state visible); RT-07's scheduling and claim tests live in 59-1 and 59b-2 | 58-1; **RT-Q3**, **RT-Q13** | 220–320 |
+| **59-2** | Rating-request switch — **POSTPONED (RT-Q1)** | 1. Migration `rating_settings` (RLS, grant, negative tests) + the `REQUESTS_OFF` cancel reason in contracts, then `set-rating-requests` use case + `GET/PUT …/rating-settings` routes, audit, permission (D-B16); nothing of this is built if RT-Q3 drops the switch. 2. Admin toggle on the settings page (i18n, RTL). 3. Tests of the switch itself only: persistence (`NULL` default, on/off round trip), audit, uniform 403, UI test (switch state visible); RT-07's scheduling and claim tests live in 59-1 and 59b-2 | 58-1; AL-Q1 (RT-Q3, RT-Q13 decided) | 220–320 |
 | **59b-1** | Token codec — **POSTPONED (RT-Q1)** | 1. ADR (RT-Q1) + codec in its owning package, keys from env only. 2. Root injection (api + worker). 3. Unit tests (determinism, domain separation, key ids) | **RT-Q1** | 160–260 |
 | **59b-2** | Claim — **POSTPONED (RT-Q1)** | 1. `PerformerNamePort` (the `DaySessionsPort` of 59-1 reused). 2. Claim use case (D-B5), discovery scheduler (D-B4), `RatingRequestReady`. 3. Tests RT-09…RT-13, RT-01b claim attribution, RT-07 claim part (`REQUESTS_OFF`, only if RT-Q3 keeps the switch) | 59-1, 59b-1 | 380–520 |
 | **59b-3** | Send — **POSTPONED (RT-Q1)** | 1. Template `rating_request` ar/en + link rendering in the sender + deadline. 2. SENT tracking (D-B8) + module-map/ADR addendum. 3. Tests RT-04 (send side), RT-14 | 59b-2 (RT-Q2, RT-Q12 decided). May merge with sending disabled; **live activation** (template enabled; and, only if RT-Q3 keeps a switch, the business's switch on through 59-2; with RT-Q3's «no switch» answer the enabled template alone) waits until **60-1 and 60-2 are deployed and verified on staging**, so no customer gets a link before the page and submit work | 260–380 |
@@ -616,7 +630,7 @@ The message uses the customer's stored name only as a greeting inside her own Wh
 | **61-2** | Averages — **POSTPONED (RT-Q1)** | 1. Staff summary read (FR-B14) + admin list/averages (FR-B15) with `EXPLAIN`. 2. Permission (RT-Q7) + routes. 3. Tests RT-24, RT-25 + admin screen UI test | 61-1, 57c-1 (RT-Q6, RT-Q7 decided) | 340–460 |
 | **61-3** | Rating summary on «شغلي» — **POSTPONED (RT-Q1)** | 1. The work screen's card calls the generated `rating-summary` hook (61-2) when `rating_average` is allowed. 2. i18n for average / count / the «no ratings yet» text (RT-Q6: shown from the first rating). 3. UI tests asserting the visible average and count, the below-minimum text, and no card when `rating_average` is not allowed | 61-2, 57-4 | 120–200 |
 | **62-1** | Alert-rule storage and port | 1. Migration (`alert_rules`, master switch), permission, defaults table. 2. Settings use cases + routes + audit; `AlertRulesPort` (api) + worker settings module. 3. Tests RT-26, RT-29 | AL-Q1…**AL-Q6** (no longer waits on 61-1: `LOW_RATING` joins the rules with the postponed track) (AL-Q6 fixes the channel set 62-1 validates and stores: if team email/WhatsApp is deferred to 62b, 62-1 accepts `IN_APP` only and 62b widens it) | 360–480 |
-| **62-2** | Staff worker emitters on the rules | 1. Not-clocked-in + break rules read the port; `interimNotClockedInRule` and `interimBreakNotReturnedRule` deleted; their ledgers gain `suppressed_at` and the off path writes it (D-B15). 2. Attendance exceptions and document expiry (spec 033 contract); 28c lead time. 3. Tests RT-27, RT-27b, RT-28 | 62-1 |
+| **62-2** | Staff worker emitters on the rules | 1. Not-clocked-in + break rules read the port; `interimNotClockedInRule` and `interimBreakNotReturnedRule` deleted; the employee's own not-clocked-in push (NC-Q3) is kept as the kind's fixed push recipient, under the same toggle and master switch; their ledgers gain `suppressed_at` and the off path writes it (D-B15). 2. Attendance exceptions and document expiry (spec 033 contract); 28c lead time. 3. Tests RT-27, RT-27b, RT-28 | 62-1 |
 | **62-2b** | Staff API emitters on the rules | 1. `AttendanceChangeRequested` / `AttendanceChangeDecided` (`apps/api/src/modules/staff/persistence/attendance-change-writes.ts`, ADR-0040) take recipients and channels from `AlertRulesPort` (api, on the same transaction) instead of resolving them inline. 2. The rule's role set maps to today's recipients (holders of `decide:attendance-change:company` / the requester) so the defaults change nothing. 3. Tests: each kind off → event with no recipients; master switch off → none; defaults → today's recipients (RT-26), including an approver who holds `decide:attendance-change:company` only by a personal ALLOW or a custom role (still a recipient) and one with a DENY (not a recipient), under the provisional `PERMISSION_HOLDERS` selector (D-B13, `TODO(spec)` AL-Q3) | 62-1 | 200–300 | 320–440 |
 | **62-2c** | Commissions emitters on the rules | 1. Whichever of rows 52/53 (`STATEMENT_AWAITING_REVIEW` / `_APPROVAL`) and 56b (the owner's reminders) is merged when 62-1 lands: its emitter or reminder scheduler takes recipients and channels from `AlertRulesPort` instead of resolving them inline; one merged after 62-1 consumes the port in its own slice (the §Relates rule), and this sub-PR then only adds its tests. 2. Defaults map to today's recipients (holders of `review:commissions:business` / the owner), so nothing changes until a rule is edited. 3. Tests: each kind off → no recipients; master switch off → none; defaults → today's recipients (RT-26) | 62-1; rows 52/53 or 56b merged | 160–260 |
 | **62-3** | Orders bells on the rules | 1. Late, edit, cancel, performers bells read the port. 2. ~~Low rating reads the port~~ **POSTPONED with the rating track (RT-Q1)**: when 61-1 ships, its low-rating emitter reads the port in its own slice. 3. Tests | 62-1, **A-0**; AL-Q6 | 260–380 |
