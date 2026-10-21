@@ -73,6 +73,8 @@ export { readServiceSessionReadAccess } from './persistence/service-session-read
 export {
   lockServiceSessionCancelAccess,
   lockServiceSessionEditAccess,
+  lockServiceSessionPerformersAccess,
   readServiceSessionCancelAccess,
   readServiceSessionEditAccess,
+  readServiceSessionPerformersAccess,
 } from './persistence/service-session-edit-access.ts';

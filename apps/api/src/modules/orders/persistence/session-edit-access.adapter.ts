@@ -2,8 +2,10 @@ import type { Tx } from '@pospay/db';
 import {
   lockServiceSessionCancelAccess,
   lockServiceSessionEditAccess,
+  lockServiceSessionPerformersAccess,
   readServiceSessionCancelAccess,
   readServiceSessionEditAccess,
+  readServiceSessionPerformersAccess,
 } from '../../identity/index.ts';
 import type { SessionEditAccessPort } from '../ports/line-edit.port.ts';
 
@@ -37,6 +39,19 @@ export function sessionCancelAccess(
   return sessionLineAccess(
     () => lockServiceSessionCancelAccess(tx, companyId),
     (at) => readServiceSessionCancelAccess(tx, companyId, userId, businessId, branchId, at),
+  );
+}
+
+export function sessionPerformersAccess(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  branchId: string,
+): SessionEditAccessPort {
+  return sessionLineAccess(
+    () => lockServiceSessionPerformersAccess(tx, companyId),
+    (at) => readServiceSessionPerformersAccess(tx, companyId, userId, businessId, branchId, at),
   );
 }
 
