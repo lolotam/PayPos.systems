@@ -206,3 +206,22 @@ export function alertRuleViolation(kind: AlertKind, rule: AlertRuleSettings): Al
   if (new Set(rule.channels).size !== rule.channels.length) return 'DUPLICATE_VALUE';
   return null;
 }
+
+/**
+ * بيقارن قيمتين لقاعدة، عشان حفظ نفس القيم تاني مايزوّدش revision ولا يكتب تدقيق (الحفظ idempotent).
+ *
+ * @param a القاعدة الأولى
+ * @param b القاعدة التانية
+ * @returns true لو كل الحقول متساوية (ترتيب الأدوار والقنوات مش فارق)
+ */
+export function sameAlertRuleSettings(a: AlertRuleSettings, b: AlertRuleSettings): boolean {
+  const sameSet = (x: readonly string[], y: readonly string[]) =>
+    x.length === y.length && x.every((value) => y.includes(value));
+  return (
+    a.enabled === b.enabled &&
+    a.delayMinutes === b.delayMinutes &&
+    a.leadMinutes === b.leadMinutes &&
+    sameSet(a.recipientRoles, b.recipientRoles) &&
+    sameSet(a.channels, b.channels)
+  );
+}

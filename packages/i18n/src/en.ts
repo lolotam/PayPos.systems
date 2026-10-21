@@ -215,6 +215,7 @@ export const en = {
     EMPLOYEE_CARD_CODE_UNAVAILABLE: "This card code can't be used. Choose another code.",
     ...employeeImportErrorsEn,
     ...serviceErrorsEn,
+    ALERT_RULE_INVALID: 'A value is outside what this alert kind allows (minutes, roles or channels).',
     ...packageTypeErrorsEn,
     PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',

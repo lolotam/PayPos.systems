@@ -7,6 +7,11 @@ import { SETTINGS_TEMPLATE } from './domain/business-settings.ts';
 import { IdentityCapabilityCompanyGuard } from './http/identity-capability-company.guard.ts';
 import { IdentityCapabilityController } from './http/identity-capability.controller.ts';
 import { SETTINGS_WIRING, SettingsController } from './http/settings.controller.ts';
+import { ALERT_RULES_WIRING, AlertRulesController } from './http/alert-rules.controller.ts';
+import { createAlertRulesTransactions } from './persistence/alert-rules-store.ts';
+import { ResetBranchAlertRule } from './use-cases/reset-branch-alert-rule/reset-branch-alert-rule.ts';
+import { SetAlertRules } from './use-cases/set-alert-rules/set-alert-rules.ts';
+import { SetAlertsMaster } from './use-cases/set-alerts-master/set-alerts-master.ts';
 import { identityCapabilityAccess } from './persistence/business-identity-access.adapter.ts';
 import { BUSINESS_IDENTITY_READER } from './queries/business-identity.query.ts';
 import { IDENTITY_CAPABILITY_ACCESS } from './queries/identity-capability.query.ts';
@@ -25,7 +30,11 @@ import { readBusinessDiscountDefault } from './queries/business-discount-default
 import { createDiscountSubjectReader } from './persistence/discount-subject-reader.adapter.ts';
 
 /** The controllers settings mounts. */
-export const settingsControllers = [SettingsController, IdentityCapabilityController];
+export const settingsControllers = [
+  SettingsController,
+  IdentityCapabilityController,
+  AlertRulesController,
+];
 
 /**
  * The settings wiring — the one place its ports are bound to their adapters. Without a database or Redis the routes
@@ -45,6 +54,22 @@ export function settingsProviders(
     ...settingsWiring(database, ids, redis),
     ...identityCapabilityProviders(database),
     ...businessIdentityProviders(database),
+    ...alertRulesProviders(database, ids),
+  ];
+}
+
+function alertRulesProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
+  if (database === undefined) return [{ provide: ALERT_RULES_WIRING, useValue: null }];
+  const transactions = createAlertRulesTransactions(database, ids);
+  return [
+    {
+      provide: ALERT_RULES_WIRING,
+      useValue: {
+        set: new SetAlertRules(transactions),
+        reset: new ResetBranchAlertRule(transactions),
+        master: new SetAlertsMaster(transactions),
+      },
+    },
   ];
 }
 

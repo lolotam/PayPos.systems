@@ -10,3 +10,4 @@ export type {
   StatementLanguage,
   StoredBusinessIdentity,
 } from './domain/statement-identity.ts';
+export { readAlertRule } from './persistence/read-alert-rule.ts';

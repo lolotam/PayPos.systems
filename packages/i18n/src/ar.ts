@@ -213,6 +213,7 @@ export const ar: Catalog = {
     EMPLOYEE_CARD_CODE_UNAVAILABLE: 'لا يمكن استخدام كود الكارت هذا. اختر كودًا آخر.',
     ...employeeImportErrorsAr,
     ...serviceErrorsAr,
+    ALERT_RULE_INVALID: 'قيمة القاعدة برّه المسموح لنوع التنبيه ده (المدة أو الأدوار أو القنوات).',
     ...packageTypeErrorsAr,
     PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',
     PERMISSION_SELF_EDIT: 'لا يمكنك تعديل صلاحيات عضويتك الشخصية',

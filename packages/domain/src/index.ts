@@ -52,6 +52,7 @@ export {
   ALERT_RECIPIENT_ROLES,
   alertRuleViolation,
   effectiveAlertRule,
+  sameAlertRuleSettings,
   type AlertChannel,
   type AlertKind,
   type AlertKindDefinition,

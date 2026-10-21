@@ -4,6 +4,7 @@ import {
   ALERT_KINDS,
   alertRuleViolation,
   effectiveAlertRule,
+  sameAlertRuleSettings,
   type AlertRuleSettings,
 } from '../alert-rules.js';
 
@@ -106,5 +107,16 @@ describe('alertRuleViolation', () => {
     expect(
       alertRuleViolation('ATTENDANCE_EXCEPTION', rule({ channels: ['IN_APP', 'IN_APP'] })),
     ).toBe('DUPLICATE_VALUE');
+  });
+});
+
+describe('sameAlertRuleSettings', () => {
+  it('ignores role order and sees every field change', () => {
+    expect(sameAlertRuleSettings(rule(), rule({ recipientRoles: ['branch_manager', 'owner'] }))).toBe(true);
+    expect(sameAlertRuleSettings(rule(), rule({ enabled: false }))).toBe(false);
+    expect(sameAlertRuleSettings(rule(), rule({ recipientRoles: ['owner'] }))).toBe(false);
+    expect(sameAlertRuleSettings(rule(), rule({ channels: [] }))).toBe(false);
+    expect(sameAlertRuleSettings(rule({ delayMinutes: 10 }), rule({ delayMinutes: 20 }))).toBe(false);
+    expect(sameAlertRuleSettings(rule({ leadMinutes: 10 }), rule({ leadMinutes: null }))).toBe(false);
   });
 });
