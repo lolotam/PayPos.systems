@@ -16,6 +16,8 @@ export interface PgTestEnv {
 }
 
 const ROOT_ENV = fileURLToPath(new URL('../../../.env', import.meta.url));
+// ملف اختياري بيكتبه `scripts/test-db/lane.mjs up <lane>`: بيوجّه اختبارات الـ worktree ده لـ cluster خاص بيه.
+const LANE_ENV = fileURLToPath(new URL('../../../.env.test.local', import.meta.url));
 
 function required(name: string): string {
   const value = process.env[name];
@@ -27,14 +29,19 @@ function required(name: string): string {
 
 /**
  * بيقرا الـ .env ويرجّع بيانات الاتصال بالـ cluster بتاع T2.
+ * لو فيه `POSPAY_TEST_PG_HOST`/`POSPAY_TEST_PG_PORT` (من الـ environment أو من `.env.test.local`)
+ * الاختبارات بتروح لـ cluster الـ lane بدل الـ cluster المشترك، عشان كل cluster ليه الـ roles والـ locks بتاعته.
+ * من غيرهم السلوك زي ما هو: `POSTGRES_HOST`/`POSTGRES_PORT` ثم `127.0.0.1:5432`.
  *
  * @returns بيانات الاتصال
  */
 export function readPgTestEnv(): PgTestEnv {
+  // loadEnvFile مبيكتبش فوق متغير موجود، فالـ environment الحقيقي (CI أو shell) بيكسب الملفين.
+  if (existsSync(LANE_ENV)) process.loadEnvFile(LANE_ENV);
   if (existsSync(ROOT_ENV)) process.loadEnvFile(ROOT_ENV);
   return {
-    host: process.env['POSTGRES_HOST'] ?? '127.0.0.1',
-    port: process.env['POSTGRES_PORT'] ?? '5432',
+    host: process.env['POSPAY_TEST_PG_HOST'] ?? process.env['POSTGRES_HOST'] ?? '127.0.0.1',
+    port: process.env['POSPAY_TEST_PG_PORT'] ?? process.env['POSTGRES_PORT'] ?? '5432',
     ownerUser: process.env['POSTGRES_OWNER_USER'] ?? 'pospay_owner',
     ownerPassword: required('POSTGRES_OWNER_PASSWORD'),
     appPassword: required('POSTGRES_APP_PASSWORD'),

@@ -201,3 +201,59 @@ Each run leaves two tenants, three users, two grants, three memberships, and one
 cleanup. The leave covers the seed's business date from the day before through the day after. Reseed
 before every suite run, and again when that business date has changed, because a suite started on a later
 day no longer matches the performer who was on leave. Also reseed when the state file is missing.
+
+## Per-lane test Postgres (parallel DB integration tests)
+
+Postgres roles are cluster-wide. On the shared dev cluster (`pospay-dev-postgres-1`, `127.0.0.1:5432`) every
+test run takes the advisory lock `pospay:test-cluster-roles` (`packages/db/test/role-lock.ts`) for the
+migration bootstrap and the role/privilege suites, so runs from several worktrees wait on each other and can
+fail with `55P03` when a wait outlives `lock_timeout`. A separate database on the same cluster does not help;
+a separate cluster does. `scripts/test-db/lane.mjs` starts one per lane.
+
+From the lane's worktree root, after copying `.env` from the main checkout:
+
+```sh
+node scripts/test-db/lane.mjs up <lane>            # e.g. lane-7 → 127.0.0.1:55407; prints port=<n>
+pnpm --filter @pospay/db exec vitest run src/__tests__/privileges.spec.ts   # or any DB suite
+node scripts/test-db/lane.mjs down <lane>          # container, data volume and override are gone
+node scripts/test-db/lane.mjs status               # lane containers, and which lane this worktree uses
+```
+
+- `up` runs a container `pospay-test-<lane>` (label `pospay.test-lane=<lane>`) with the image, `command`
+  flags, environment and memory limit read from the `postgres` service of `deploy/docker-compose.dev.yml`
+  through `docker compose config` (read-only), so it cannot drift from dev or CI. There are no init scripts:
+  the roles are created by the migration bootstrap when the tests start, as on a fresh CI cluster. The
+  container is `--rm` with an anonymous data volume, published on `127.0.0.1` only. The port is
+  `55400 + <trailing digits of the lane>` when free, otherwise the first free port from 55401; `--port N`
+  picks one. Choosing the port and `docker run` happen under a lock directory `pospay-test-lane.lock.d` (atomic
+  `mkdir`, with an `owner.json` naming host, pid and token) in the repository's shared git directory, so
+  concurrent `up` calls from different worktrees get different ports; if a publish still collides, `up`
+  retries on the next free port (up to five times), removing only the container its own failed attempt
+  created. A lock whose owner is on this host is taken over only when that pid is gone; the 15-minute age
+  limit applies only when liveness cannot be checked (another host, or no readable owner). Takeover renames
+  the directory to a unique name and deletes it only if it is exactly the generation inspected; anything else
+  is put back, or left as a `pospay-test-lane.lock.d.stale-*` orphan that is safe to delete when no start is
+  running. Only the owner's token releases the lock. The code is `scripts/test-db/lane-lock.mjs`.
+- `up` on a running lane waits for readiness, rewrites the override and reprints the port. A lane container
+  that exists but is not plainly running (created, exited, paused, restarting) is removed and started fresh.
+- `up` writes `.env.test.local` at the worktree root (git-ignored by `.env.*`) with only
+  `POSPAY_TEST_PG_HOST` and `POSPAY_TEST_PG_PORT`; passwords stay in `.env`. `down` deletes the file only
+  when its marker names that lane.
+- `readPgTestEnv` (`packages/db/test/pg-env.ts`) takes `POSPAY_TEST_PG_HOST` / `POSPAY_TEST_PG_PORT` from the
+  process environment first, then `.env.test.local`, and falls back to `POSTGRES_HOST` / `POSTGRES_PORT`, then
+  `127.0.0.1:5432`. Unset, nothing changes: the shared cluster stays the default, and CI is unaffected.
+  The vitest global setup of `packages/db`, `packages/auth`, `apps/api` and `apps/worker` all read it.
+- The lane name must match `^[a-z0-9-]{1,32}$`. The script only ever removes the container that has both
+  the exact name `pospay-test-<lane>` and the lane label; it never touches `pospay-dev-*` or any other
+  container, and it refuses ports 5432 and 6379.
+- A lane container belongs to the worktree that started it (label `pospay.test-worktree`). `up` or `down` of
+  the same lane name from another worktree is refused, so two worktrees never share or remove each other's
+  cluster; pick a different lane name per worktree. `status` shows each container's worktree.
+- ADR-0006, addendum 2026-10-21, records that a lane cluster is the T2 compose service run a second time.
+- Not redirected: Redis (tests still use the shared `127.0.0.1:6379`), `pnpm db:migrate`, and the apps'
+  `DATABASE_URL`-style variables. Only the test harness moves.
+- Run one lane per worktree: the override file is per worktree. Bring the lane down when the slice is done;
+  `docker ps` should show only `pospay-dev-*` again.
+- The container does not survive a Docker Desktop restart. If the tests then report that Postgres is not
+  reachable on a 554xx port (the hint to run `pnpm infra:up` is for the shared cluster), rerun
+  `node scripts/test-db/lane.mjs up <lane>`, or `down <lane>` to fall back to the shared cluster.

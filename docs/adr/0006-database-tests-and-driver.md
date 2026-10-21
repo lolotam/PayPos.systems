@@ -71,3 +71,30 @@ per-database migration; grants can, and do.
 - The container's `pospay_owner` is the image's bootstrap superuser and therefore has `BYPASSRLS`. It never
   runs application code (ADR-0003 §3). T5's "no role has BYPASSRLS" assertion must scope itself to the
   application roles, or T5 must replace the bootstrap owner with a non-superuser — decided in T5.
+
+## Addendum 2026-10-21 — per-lane copies of the T2 cluster (local, opt-in)
+
+Proposed in PR #444 (sprint lane 7). It applies once the orchestrator merges that PR.
+
+Roles are cluster-global (decision 1, "trade-off accepted"), so on the one shared cluster every run waits on
+the `pospay:test-cluster-roles` advisory lock, and parallel worktrees serialise or fail with `55P03`. A lane
+may therefore run its tests against its own copy of the T2 cluster:
+
+- **An exact copy of the T2 compose service, not a second topology.** `scripts/test-db/lane.mjs up <lane>` reads
+  the `postgres` service of `deploy/docker-compose.dev.yml` through `docker compose config` and starts
+  `pospay-test-<lane>` with the same image, `command` flags (`statement_timeout`, `lock_timeout`,
+  `synchronous_commit=off` and the rest), environment and memory limit. Nothing is configured by hand, so it
+  cannot drift from dev or CI.
+- **Everything else in decision 1 is unchanged.** The same `globalSetup` bootstraps the roles and migrates one
+  template per run, each spec file clones its own database, tests run as `pospay_app`, and a test still never
+  starts Docker. Only the host and port the harness connects to change.
+- **Opt-in and local only.** `readPgTestEnv` uses `POSPAY_TEST_PG_HOST` / `POSPAY_TEST_PG_PORT` (from the
+  environment or the git-ignored `.env.test.local` that `up` writes) and otherwise falls back to the compose
+  cluster on `127.0.0.1:5432`. CI sets neither and keeps running `pnpm infra:up` and the compose cluster.
+- **Throwaway and contained.** The container is `--rm` with an anonymous volume, published on `127.0.0.1` only,
+  labelled with its lane and the worktree that started it. `down` removes the container and its volume, and
+  refuses a container that another worktree started. The script never touches `pospay-dev-*`.
+
+`CLAUDE.md` §9 ("the T2 compose stack, one cloned database per spec file") still holds: a lane cluster is that
+compose service, run a second time. No change to `CLAUDE.md` is needed. Usage is in `docs/runbook.md`,
+"Per-lane test Postgres".
