@@ -297,8 +297,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   It runs inside the caller's `withTenant` transaction and never opens its own (CLAUDE.md §6, PP-7.2).
 - **FR-003** Typed errors from `packages/db`: `StatementPeriodClosedError` (mapped to 409 `COMMISSION_PERIOD_CLOSED`) and
   `StatementPeriodFormatError` for a malformed period (500, a broken invariant); never a plain `Error` on an expected path.
-- **FR-004** A CI grep refuses any write to a commission input table outside a function that called `lockStatementPeriods`
-  in the same transaction (a test that each writer's persistence adapter takes the lock first).
+- **FR-004** Each writer's persistence adapter has a test proving it calls `lockStatementPeriods` in the same transaction
+  before its first write to a commission input table (a grep cannot check call order, so the test is the gate).
 
 ### 48 — plan versions
 
