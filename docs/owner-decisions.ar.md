@@ -27,9 +27,9 @@
 | PP-13 | 2026-10-20 | PP-13 قنوات الإشعارات؛ PP-13.1 صلاحية `pospay-features` (اتلغت وبعدين رجعت)؛ PP-13.2 المميزات تروح على `pospay-features` | هنا (البند 18) |
 | PP-14 | 2026-10-20 | PP-14.1 الاختبارات بتشغّل كود MiniMax بحساب وليد: مستخدم منفصل ولا لأ؟ («(ب) نشيل الباسوردات بس»)؛ PP-14.2 نغيّر باسوردات موقع القرارات اللي اتسرّبت؟ («لأ، بعدين»)؛ PP-14.3 نمسحها من تاريخ الريبو؟ («لأ، مش لازم») | هنا (البند 19) |
 | PP-15 | 2026-10-21 | PP-15.1 موافقة الخصم بتتسجل فين («نسجّل كمبيوتر الاستقبال باسم الفرع»)؛ PP-15.2 الجرس يوصل لمين («كل اللي عندهم صلاحية»)؛ PP-15.3 الجرس فيه إيه («تفاصيل الطلب من غير أرقام موبايل»)؛ PP-15.4 فلتر الشيفت في كشف الحضور («وقت بداية ونهاية») | PP-15.1…15.3: `docs/specs/057-orders-discount-approval/owner-questions.ar.md` (DA-Q6…Q8، PR #438)؛ PP-15.4: `docs/specs/061-staff-attendance-statement-pdf/owner-questions.ar.md` (ST-Q6، PR #439) |
-| PP-16 | 2026-10-21 | صلاحيات وتقنية الباقات (PK-Q12…Q21) | `docs/specs/058-packages-sell-redeem/owner-questions.ar.md` (PR #440) |
-| PP-17 | 2026-10-21 | صلاحيات وتقنية كشوف العمولة (CS-Q13…Q19) | `docs/specs/059-commissions-statements/owner-questions.ar.md` (PR #441) |
-| PP-18 | 2026-10-21 | التقييمات وتطبيق الموظف والتنبيهات (MY-Q1…Q8، RT-Q1…Q12، AL-Q1…Q6) | `docs/specs/060-ratings-and-staff-app/owner-questions.ar.md` (PR #442) |
+| PP-16 | 2026-10-21 | PP-16.1…PP-16.10 صلاحيات وتقنية الباقات (PP-16.n = PK-Q(11+n)، يعني PK-Q12…Q21) | `docs/specs/058-packages-sell-redeem/owner-questions.ar.md` (PR #440) |
+| PP-17 | 2026-10-21 | PP-17.1…PP-17.7 صلاحيات وتقنية كشوف العمولة (PP-17.n = CS-Q(12+n)، يعني CS-Q13…Q19) | `docs/specs/059-commissions-statements/owner-questions.ar.md` (PR #441) |
+| PP-18 | 2026-10-21 | PP-18.1…PP-18.26 التقييمات وتطبيق الموظف والتنبيهات (PP-18.1…18.8 = MY-Q1…Q8، PP-18.9…18.20 = RT-Q1…Q12، PP-18.21…18.26 = AL-Q1…Q6؛ MY-Q6 = PP-18.6 سؤال فلوس كمان واتنشر لأبو سالم في دفعة 37) | `docs/specs/060-ratings-and-staff-app/owner-questions.ar.md` (PR #442) |
 
 ### 1. أسئلة المالك تروح فين؟ (PP-4.3)
 
