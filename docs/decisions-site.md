@@ -84,7 +84,9 @@ Every question also goes to Waleed's super agent as `PP-n` (`CLAUDE.md` §1 5b).
 
 ```bash
 # Waleed's pick from a card: a note under his user id (choice = 0-based option index; omit it for a free-text answer)
-curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' \n  -d '{"qid":"XX-Q1","verdict":"ok","choice":0,"text":"<his words, verbatim>","updatedAt":"<ISO time>"}' \n  "$B/api/doc?path=reviews/u_kxawXFcE2cQIRRqI4Cn8Iw/notes/<docId>"
+curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' \
+  -d '{"qid":"XX-Q1","verdict":"ok","choice":0,"text":"<his words, verbatim>","updatedAt":"<ISO time>"}' \
+  "$B/api/doc?path=reviews/u_kxawXFcE2cQIRRqI4Cn8Iw/notes/<docId>"
 ```
 
 Read the note first; never overwrite a pick he made on the page himself.
