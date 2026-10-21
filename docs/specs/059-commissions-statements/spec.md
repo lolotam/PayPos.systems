@@ -210,6 +210,14 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   business manager sees both; the export as ليلى contains سارة only. After approval the same holds on the closed statement
   and its export, filtered on the frozen `attached_branch_ids` (the حولي line stays in ليلى's view, shown with its place
   حولي), even if سارة's `EmployeeBranch` is edited after approval.
+- **CM-23d** (effective branch set, union) ليلى holds two branch-manager memberships, السالمية and حولي: the estimate, the
+  statement view and the export show سارة's whole October (both parts, the total not labelled partial) and رنا, the union
+  of the two branches and not one of them; the export request row stores `branch_ids` = {السالمية, حولي}.
+- **CM-23e** (DENY wins) the business manager holds a business-wide `read:commissions:business` and a DENY of it on حولي:
+  the estimate, the statement view and the export no longer show رنا nor سارة's 15–31 October part (her 1–14 part is
+  labelled partial), and no customer name of a حولي-attached row appears; the export request stores `scope = BRANCHES`
+  with every branch but حولي. A DENY on the whole business leaves her set empty: every read is the uniform 403, not an
+  empty list.
 - **CM-24** Bootstrap (D-15): tips recorded and lines saved before the consumer existed are projected from the readers; a
   live event of the same or a lower revision is then ignored; a revision written between a page read and the first live
   delivery still ends in the projection; the readers' event ids are discharged in `consumed_events`; approval stays closed
@@ -273,7 +281,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   nothing frozen; a manual retry after processing approves (ADR-0012 §4 group 5).
 - **CM-36** Approval races a session, a redemption, a refund, a tip, a salary, a plan version and an override: each lands in
   the frozen result or in a correction, never lost and never twice (SPEC §11, ADR-0012 §4 group 6, barriers not sleeps).
-- **CM-37** Two approvers at once: one approves, the other sees APPROVED and gets 409 `COMMISSION_PERIOD_CLOSED`.
+- **CM-37** Two approvers at once: one approves, the other's lock fails at once (`NOWAIT`, no wait on the lock), its one
+  retry sees APPROVED and gets 409 `COMMISSION_PERIOD_CLOSED`, never `COMMISSION_UPDATES_PENDING`; a review returned to
+  DRAFT while an approval runs gives that approval 409 `COMMISSION_STATEMENT_NOT_REVIEWED` the same way.
 - **CM-38** Only holders of `approve:commissions:business` approve (default owner; grantable `TODO(spec)` CS-Q5); the reviewer
   rule CS-Q3 applies; a month not ended → 422 `COMMISSION_PERIOD_NOT_ENDED`.
 - **CM-39** The ADR-0012 §4 groups 1–4 and 7 (catalogue, context isolation, predicate fixtures over the **six** types of
@@ -346,12 +356,12 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   a new export of the same approved statement still shows the name frozen at approval and identical amounts, while an open
   month's view shows the corrected name; the same holds for the employee's name and number renamed or renumbered after
   approval.
-- **CM-55d** The export request row is written with the requester's scope before the job is queued: ليلى (branch-scoped)
-  gets a workbook with only her branch's employees; a job whose
+- **CM-55d** The export request row is written with the requester's scope before the job is queued: ليلى (branch-scoped) gets a workbook with only her branch's employees, and the request row stores `scope = BRANCHES` with
+  her whole effective set in `branch_ids` (never a single id); a job whose
   `render_id` has no request row fails without reading any statement; the xlsx bytes are returned with the xlsx MIME type
   and never pass through the PDF renderer.
 - **CM-55e** (privacy) ليلى requests the October export as branch manager of السالمية, then before she collects it she is
-  transferred to حولي (or her read permission or membership is revoked): the collect is refused with the uniform 403, no
+  transferred to حولي (or her read permission or membership is revoked, or a DENY on السالمية is added): the collect is refused with the uniform 403, no
   workbook is returned, the stored bytes are discarded, no export audit entry is written and `collected_at` stays empty.
   Separately, a different user trying to collect her `render_id` gets the uniform 403 and the stored bytes stay as they
   were, so ليلى can still collect them while she is authorized.
@@ -489,7 +499,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-026** The fingerprint input (§6 _Fingerprint_) is built by a pure function; the hash by an injected port (D-6).
 - **FR-027** The view lists blocking issues per employee: `NO_PLAN`, `NO_SALARY`, unresolved blocked corrections; review and
   approval are refused while any exists.
-- **FR-028** Permission: `read:commissions:business` for `GET` (a branch manager sees her branch's employees only, CS-Q20 = PP-20.1); `review:commissions:business`
+- **FR-028** Permission: `read:commissions:business` for `GET` (a reader sees only the employees of her effective branch set, CS-Q20 = PP-20.1, §6 _Permissions_); `review:commissions:business`
   for `generate`. Detail rows show the customer's full name (CS-Q15 = PP-17.3), read through the customers reader bound at
   the root (D-16) from the `customer_id` the projection head holds while the month is open, and taken from the names frozen
   in the statement rows once it is closed (D-20); never a phone.
@@ -514,12 +524,19 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 ### 53 — approve-statement
 
 - **FR-032** `POST …/:period/approve` `{ expected_fingerprint }` (Idempotency-Key), the ADR-0012 §3 transaction, run at
-  **`REPEATABLE READ`** (an ADR-0012 addendum in 59-0 records the isolation change): the fingerprint, the branch links
-  frozen into the rows and the pending count all read **one snapshot**, and the fingerprint recomputed from what was
-  frozen must equal `reviewed_fingerprint`; a serialization failure (a writer changed the statement row meanwhile) is the
+  **`REPEATABLE READ`** (an ADR-0012 addendum in 59-0 records the isolation change, the no-wait lock and the retry): the
+  fingerprint, the branch links frozen into the rows, the permission and membership recheck and the pending count all read
+  **one snapshot**, and the fingerprint recomputed from what was frozen must equal `reviewed_fingerprint`. The snapshot is
+  taken by the transaction's first query (`withTenant`'s `set_config`), before the lock, so the lock never waits: it is
+  `SELECT … FOR UPDATE NOWAIT` on the statement row, and the gap between snapshot and lock is one statement; a
+  revocation or a projection mark committed in it is ordered after the approval, as with any permission check. A lock
+  held by another transaction (`55P03`) or a serialization failure (`40001`, a writer committed a change to the statement
+  row after the snapshot) rolls the attempt back and the use case runs the whole transaction **once more** on a fresh
+  snapshot, whose rechecks give the precise refusal (already APPROVED → 409 `COMMISSION_PERIOD_CLOSED`, back to DRAFT →
+  409 `COMMISSION_STATEMENT_NOT_REVIEWED`, a revoked permission → the uniform 403); only a second `55P03`/`40001` is the
   retryable 409 `COMMISSION_UPDATES_PENDING`. A branch-link edit racing approval is therefore either seen before the
   freeze (409) or committed after it (a post-freeze change), never half of the statement old and half new:
-  `transaction_timestamp()` captured before the lock → lock → recheck ended month, permission, status REVIEWED, fingerprint =
+  `transaction_timestamp()` captured with the snapshot, before the lock → lock (no wait) → recheck ended month, permission, status REVIEWED, fingerprint =
   `reviewed_fingerprint` = `expected_fingerprint`, no blocking issue, no unresolved blocked correction, D-14, **every
   bootstrapped input type (lines, tips, salaries, package sales) meets its coverage rule (D-15, FR-020)** → the count → freeze.
 - **FR-033** Freezing writes `commission_statement_lines` (insert-only): per employee, one `COMMISSION` line per `line:<id>`
@@ -530,8 +547,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   total), even with no source at all: in scope means an employee of the business whose employment overlaps the month
   (hire date ≤ the last day, contract end and deletion, if any, ≥ the first day, read through `EmployeeDirectoryPort`) or
   who has any source or received correction in the month. It carries the frozen label and **`attached_branch_ids`**: every
-  branch she was attached to on any day of the month (`EmployeeBranch`, resolved at freeze, never changed), so a
-  branch-scoped reader of a closed month still finds her, with a zero total when she has no row in that branch's part, and
+  branch she was attached to on any day of the month (`EmployeeBranch`, resolved at freeze, never changed), so a reader whose effective branch set (§6 _Permissions_) overlaps it still finds her in a closed month, with a zero total
+  when she has no row in that part, and
   an approved month always lists the same employees with their zero totals.
   **Every** frozen row also stores the employee's label as read in the approval transaction through
   `EmployeeDirectoryPort` (staff, ADR-0010): `employee_number` (row 8c), `employee_name_ar`, `employee_name_en`, so a later
@@ -540,8 +557,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `source_business_date`, and `attached_branch_ids uuid[]`: **every** branch the employee was attached to on
   `source_business_date`, resolved from `EmployeeBranch` (staff reader bound at the root, D-16) at freeze; a `CORRECTION` row copies all three from
   its correction, which resolved them when it was posted. They never change after insert, even if `EmployeeBranch` is
-  edited later. A closed statement's branch filter (CS-Q20, CS-Q23) and its export filter **only** on «the manager's branch is in
-  `attached_branch_ids`»,
+  edited later. A closed statement's branch filter (CS-Q20, CS-Q23) and its export filter **only** on «`attached_branch_ids` overlaps the
+  reader's effective branch set _R_» (§6 _Permissions_),
   never on the live projection or the live branch links.
   A line-sourced frozen row also copies the line's detail identifiers from the projection head and the customer and
   service names read in the same transaction (D-20), so the frozen statement and its export never need orders, the live
@@ -623,21 +640,24 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-050** `POST …/:period/exports` → 202 `{ render_id }` on the ADR-0049 transport (D-18). Before enqueueing, in its own
   transaction, the use case persists one **export request** row keyed by `render_id` (`commission_statement_exports`, §6):
   the statement id, business, period, requester user and membership, and the **authorized scope** resolved at request time
-  (business-wide, or the branch and the exact employee set a branch-scoped reader may see, CS-Q20 = PP-20.1). The job
+  (`BUSINESS` when the reader's effective branch set _R_ is every branch of the business, else `BRANCHES` with
+  `branch_ids` = _R_ and the exact employee set _R_ lets her see, CS-Q20 = PP-20.1, §6 _Permissions_). The job
   payload stays `{ company_id, render_id, kind }` (ADR-0049 §1); the worker document source loads the request by `render_id`
   under `withTenant`, refuses a missing one, reads only the frozen rows of that statement and those employees, closes the
   transaction, then builds the workbook (binary output, D-18); poll and collect once. **The saved scope is an upper bound, never a
   grant:** at collection the API re-checks, in the collect transaction, that the collector is the requester and that her
-  **current** authorization (permission, membership, and for a branch-scoped reader her current branch and its employee
-  set) still covers the saved scope. If the collector is **not** the requester, the request is refused with the uniform
+  **current** authorization still covers the saved scope: the collect transaction recomputes her effective branch set _R'_
+  with the same rules, and the saved `branch_ids` must be a subset of _R'_ (a `BUSINESS` request needs _R'_ to be every
+  branch) and every saved employee must still be in the set _R'_ lets her see. If the collector is **not** the requester, the request is refused with the uniform
   403 and the stored bytes are left untouched (the requester can still collect them). If the collector **is** the requester
-  but her current authorization no longer covers the scope (a branch transfer, a revoked permission or membership), the
+  but her current authorization no longer covers the scope (a branch transfer, a revoked permission or membership, a new
+  DENY on one of the saved branches), the
   bytes are discarded and the request is refused with the uniform 403, no workbook. Only a successful collect writes the audit entry
   (FR-052) and sets the request's `collected_at`.
 - **FR-051** Columns include, per employee: employee number (row 8c) and name, both taken from the frozen row (FR-033), commission, sales commission, corrections received,
   card tips, cash tips (informational), and the payable figure (CS-Q7); the content and states: CS-Q10; detail rows carry the customer's full name (CS-Q15 = PP-17.3).
   No phone ever (SPEC §4, R1).
-- **FR-052** Audit `commission_statement.exported` on each collected download. Permission: `read:commissions:business` (CS-Q14; a branch-scoped holder exports only her branch's employees, CS-Q20 = PP-20.1).
+- **FR-052** Audit `commission_statement.exported` on each collected download. Permission: `read:commissions:business` (CS-Q14; a reader exports only the employees of her effective branch set, CS-Q20 = PP-20.1).
 
 ### 56b — reminders
 
@@ -721,12 +741,12 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 | `commission_tip_heads` / `commission_tips` (50) | head: `session_id`, `branch_id`, `revision`, `business_date`, `period`; rows: `session_id`, `employee_id`, `method`, `amount` | `UNIQUE (company_id, session_id)` / `UNIQUE (company_id, session_id, employee_id, method)`; projection grants |
 | `commission_salaries` (50) | `employee_id`, `effective_from`, `amount`, `revision` | `UNIQUE (company_id, employee_id, effective_from)`; projection grants; never logged (SPEC §12) |
 | `commission_sales` (50) | `sale_id`, `branch_id`, `seller_employee_id NULL`, `business_date`, `period`, `price_paid`, `refunded_amount`, `status`, `revision` | `UNIQUE (company_id, sale_id)`; projection grants |
-| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `employee_number`, `employee_name_ar`, `employee_name_en` (the label frozen at approval), `source_ref`, `kind`, `amount`, `source_period NULL`, the **source's** `source_branch_id` (where the work was done, for display), `source_business_date` and `attached_branch_ids uuid[]` (the filter key: on a source row, every branch the employee was attached to on `source_business_date`; on the `EMPLOYEE` row, every branch she was attached to during the month; copied at freeze from the projection and `EmployeeBranch` for a line, a sale or a tip, and from the correction row for a correction; `source_branch_id` and `source_business_date` are NULL only on the `EMPLOYEE` row), and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only (the erasure exception of D-21 is added by the deferred customer-erasure item, not here); a trigger refuses an insert unless the statement is being approved in the same transaction |
+| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `employee_number`, `employee_name_ar`, `employee_name_en` (the label frozen at approval), `source_ref`, `kind`, `amount`, `source_period NULL`, the **source's** `source_branch_id` (where the work was done, for display), `source_business_date` and `attached_branch_ids uuid[]` (the filter key: on a source row, every branch the employee was attached to on `source_business_date`; on the `EMPLOYEE` row, every branch she was attached to during the month; copied at freeze from the projection and `EmployeeBranch` for a line, a sale or a tip, and from the correction row for a correction; `source_branch_id` and `source_business_date` are NULL only on the `EMPLOYEE` row), and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; GIN index on `attached_branch_ids` (the branch filter); insert-only (the erasure exception of D-21 is added by the deferred customer-erasure item, not here); a trigger refuses an insert unless the statement is being approved in the same transaction |
 | `commission_period_generations` (55) | `employee_id`, `period`, `generation` | `UNIQUE (company_id, employee_id, period)`; `SELECT, INSERT, UPDATE (generation)` |
-| `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed), `generation`, `event_id`, `created_at`, `source_branch_id`, `source_business_date`, `attached_branch_ids uuid[]` (where the corrected line, sale or tip was done, its business date, and every branch the employee was attached to on that date; copied from the frozen row of that source when one exists, else resolved once from `EmployeeBranch` by the first correction, FR-040) | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; index `(company_id, business_id, target_period)`; insert-only |
+| `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed), `generation`, `event_id`, `created_at`, `source_branch_id`, `source_business_date`, `attached_branch_ids uuid[]` (where the corrected line, sale or tip was done, its business date, and every branch the employee was attached to on that date; copied from the frozen row of that source when one exists, else resolved once from `EmployeeBranch` by the first correction, FR-040) | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; index `(company_id, business_id, target_period)`; GIN index on `attached_branch_ids`; insert-only |
 | `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; `SELECT, INSERT, UPDATE (code, resolved_at, resolved_generation)`; a trigger allows `code` to change (`NO_PLAN` ↔ `NO_SALARY`) only on an open row and refuses any change to a resolved row |
 | `commission_statement_returns` (52) | `statement_id`, `returned_by`, `returned_membership_id`, `reason`, `returned_at` | `CHECK` reason 1…500 trimmed; insert-only; reason never logged |
-| `commission_statement_exports` (56) | `render_id`, `statement_id`, `period`, `requested_by`, `requested_membership_id`, `scope` (`BUSINESS` / `BRANCH`), `branch_id NULL`, `employee_ids uuid[] NULL` (the branch-filtered set), `requested_at`, `collected_at NULL` | `UNIQUE (company_id, render_id)`; `CHECK` (`scope = 'BRANCH'`) = (`branch_id` and `employee_ids` not null); `SELECT, INSERT, UPDATE (collected_at)` |
+| `commission_statement_exports` (56) | `render_id`, `statement_id`, `period`, `requested_by`, `requested_membership_id`, `scope` (`BUSINESS` / `BRANCHES`), `branch_ids uuid[] NULL` (the reader's effective branch set at request time: a business-wide holder with a DENY on one branch is `BRANCHES` with every other branch), `employee_ids uuid[] NULL` (the employee set it lets her see), `requested_at`, `collected_at NULL` | `UNIQUE (company_id, render_id)`; `CHECK` (`scope = 'BRANCHES'`) = (`branch_ids` and `employee_ids` not null) and `cardinality(branch_ids) > 0` when not null; `SELECT, INSERT, UPDATE (collected_at)` |
 | `commission_statement_reminders` (56b) | `statement_id`, `kind`, `reminder_date`, `recipient_count` | `UNIQUE (company_id, statement_id, kind, reminder_date)`; insert-only |
 
 **Named isolation tests** (each in the sub-PR that creates its table, as part of that sub-PR's test subtask; company B
@@ -768,24 +788,30 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
 | Code | Who by default | Status |
 | --- | --- | --- |
 | `manage:commission-plans:business` (proposed) | `TODO(spec)` CS-Q1 | new; plan versions, overrides, period repair |
-| `read:commissions:business` | owner, general manager, business manager, accountant **and branch manager** (CS-Q14 = PP-17.2, against the recommendation); grantable | new; estimate of all employees, statement view, export. A branch-scoped holder sees her branch's employees only (CS-Q20 = PP-20.1, below) |
+| `read:commissions:business` | owner, general manager, business manager, accountant **and branch manager** (CS-Q14 = PP-17.2, against the recommendation); grantable | new; estimate of all employees, statement view, export. A holder sees only the employees of her effective branch set (CS-Q20 = PP-20.1, below) |
 | `review:commissions:business` | `TODO(spec)` CS-Q2 | named by SPEC §6 |
 | `approve:commissions:business` | owner (D-17, SPEC §11); grantable `TODO(spec)` CS-Q5 | named by SPEC §6 |
 | `pay:commissions:business` | `TODO(spec)` CS-Q4 | named by SPEC §6 |
 
-**Branch scope (CS-Q20 = PP-20.1):** a holder whose `read:commissions:business` comes only from a branch-scoped membership
-  (the default branch manager) sees only the employees attached to that branch (an `EmployeeBranch` link to it on any day
-  of the month, read through the staff reader bound at the root, D-16), each with her **full-month** figures, including
-  lines she performed at another branch; other employees are absent, not zeroed. A business- or company-scoped holder sees
-  every employee. The filter applies to the estimate, the statement view and the export alike. **An employee attached to
+**Branch scope (CS-Q20 = PP-20.1):** every read and export first resolves, in the read's own transaction, the reader's
+  **effective branch set** _R_ with the existing guard's rules (spec 009: union of active memberships, DENY wins, expired
+  overrides ignored), through the identity reader bound at the root (D-16): _R_ is the union of the branches of the
+  business covered by every active membership and current ALLOW that grants `read:commissions:business` (a company- or
+  business-scoped grant covers every branch of the business, a branch-scoped one that branch), minus every branch covered
+  by a current DENY of that permission, at any scope and from any of her memberships. An empty _R_ (no grant, or a
+  business-wide ALLOW with a business-wide DENY) is the uniform 403, never an empty list. She sees the employees attached
+  to **any** branch of _R_ (an `EmployeeBranch` link to one of them on any day of the month, read through the staff reader
+  bound at the root, D-16), each with her **full-month** figures, including lines she performed at another branch; other
+  employees are absent, not zeroed. When _R_ is every branch of the business she sees every employee. The filter applies
+  to the estimate, the statement view and the export alike. **An employee attached to
   two branches in the same month** (CS-Q23 = PP-21.2): each branch-scoped manager sees **only the days and the work of her
   own branch**: every line, tip and package sale of the employee whose business date falls on a day she was **attached** to
   that branch (`EmployeeBranch` from/to); work she performed **at another branch** on such a day is shown to the manager of
   the branch she is attached to, and not to the manager of the branch where it was done (CS-Q24 = PP-22.1), each with the amount the full-month engine run gave it (tier positions are never
-  recomputed per branch); a correction follows the attachment day of the line, sale or tip it corrects. The attachment is
-  the filter key (the manager's branch in `attached_branch_ids`); where the work happened (`source_branch_id`) is shown, never filtered on. Her visible figures are a subtotal of that part, labelled as
-  partial; the whole month is visible only to business- or company-scoped holders. **An employee attached to two branches at the same time** (not a transfer): who sees her is `TODO(spec)` CS-Q25; the
-  array column already supports every answer, and only this case waits (53-3 and 56-1 for it). This refines PP-20.1 for a transferred
+  recomputed per branch); a correction follows the attachment day of the line, sale or tip it corrects. The attachment is the filter key (`attached_branch_ids` overlaps _R_); where the work happened (`source_branch_id`) is shown, never filtered on. Her visible figures are a subtotal of that part, labelled as
+  partial; the whole month is visible only to a reader whose _R_ holds every branch the employee was attached to that month. **An employee attached to two branches at the same time** (not a transfer): who sees her is `TODO(spec)` CS-Q25. The array column supports every answer, but the overlap filter would answer it
+  silently (her rows carry both branches, so each manager would see her whole month), so no read path applies it to this
+  case before the answer: 50-5, 51-1, 53-3 and 56-1 wait on CS-Q25 for this case only. This refines PP-20.1 for a transferred
   employee only; an employee attached to one branch all month is unchanged. `SessionTipsChanged` already carries
   `branch_id`; row 42's `PackageSaleChanged` must carry the sale's `branch_id` with its `business_date` (FR-018).
 
@@ -819,7 +845,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 
 | PR | Result | Subtasks | Blocked on | Size |
 | --- | --- | --- | --- | --- |
-| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1), the global `operational_recovery_flags` table and its grants (FR-053) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9), ADR-0049 addendum (binary output contract and the xlsx kind, D-18) | this spec; design advisors | 150–250 |
+| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1), the global `operational_recovery_flags` table and its grants (FR-053) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9; approval at `REPEATABLE READ` with the no-wait lock and one retry, FR-032), ADR-0049 addendum (binary output contract and the xlsx kind, D-18) | this spec; design advisors | 150–250 |
 | **48a-1** | `packages/commissions-engine` (D-17) | 1. Package scaffold, `packages/domain` its only dependency, and the browser-safe `validation` entry point. 2. Move the engine and its tests unchanged. 3. Rewire the api imports; the boundaries rule (only the `commissions` modules may import it) and the module-map check | 59-0 | 150–300 (moves) |
 | **48a-2** | Statements and the lock | 1. `commission_statements` + RLS + grants + FR-001 trigger + negative tests. 2. `lockStatementPeriods` + typed errors. 3. Lock tests CM-01…CM-04 and the FR-004 check | 48a-1 | 300–420 |
 | **48-1** | Plan storage and contracts | 1. Zod contracts and OpenAPI. 2. `commission_plan_versions` + RLS. 3. The plan permission (CS-Q1) and its role defaults | 48a-2; CS-Q1 | 250–380 |
@@ -834,17 +860,17 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **50-3** | Bootstrap | 1. Root bindings of 36-5 and 50-0. 2. The idempotent bootstrap job and the discharge of event ids. 3. CM-24 race and coverage tests, runbook | 50-1, 50-2, **36-5**, 50-0 | 300–420 |
 | **50-4** | Package sales | 1. Sales table + RLS. 2. Handler and the root binding of `listCurrentPackageSales`. 3. CM-20, CM-20b (bootstrap, coverage, race) | 50-1; row 42 (producer with `business_date`, and its reader) | 250–380 |
 | **50-a** | Engine input assembly (FR-022) | 1. The pure assembly function in `packages/commissions-engine`. 2. Its types for lines, sales, salary, versions, overrides, tips and corrections. 3. Unit tests (every input kind, the selected salary, ACTIVE-only lines) | 48a-1 | 150–250 |
-| **50-5** | Estimate on read | 1. The read use case (D-7) over the 50-a assembly. 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b, CM-23c | 50-a, 50-1, 50-2, 50-4, 55-1 | 300–420 |
-| **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 | 50-5; CS-Q7 | 350–480 |
+| **50-5** | Estimate on read | 1. The read use case (D-7) over the 50-a assembly. 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b, CM-23c, CM-23d, CM-23e | 50-a, 50-1, 50-2, 50-4, 55-1; CS-Q25 (only the simultaneous two-branch case) | 300–420 |
+| **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29, and the statement-view part of CM-23d and CM-23e | 50-5; CS-Q7; CS-Q25 (only the simultaneous two-branch case) | 350–480 |
 | **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations, its `docs/module-map.md` event row). 3. CM-51…CM-54 | 55-1; CS-Q11 | 400–550 |
 | **52-1** | Review | 1. Review use case + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
 | **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-35, CM-37, CM-38 | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q22 | 400–550 |
-| **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to her branch's employees for a branch-scoped reader (CS-Q20 = PP-20.1). 3. ar/en keys, component tests | 53-2; CS-Q9; CS-Q25 (only the simultaneous two-branch case) | 400–550 |
+| **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to the employees of her effective branch set (CS-Q20 = PP-20.1, §6 _Permissions_). 3. ar/en keys, component tests | 53-2; CS-Q9; CS-Q25 (only the simultaneous two-branch case) | 400–550 |
 | **54-1** | Mark paid | 1. The payment columns on `commission_statements` in the shape CS-Q6 decides (expand-only migration, grants), the use case + HTTP. 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
 | **56-0** | Binary documents in the worker (D-18) | 1. Generalize the source/processor contract: a source returns HTML for the PDF renderer or bytes with a MIME type; no HTML → PDF step for bytes. 2. The xlsx MIME type, the 8 MiB cap (`DOCUMENT_TOO_LARGE`), the same Redis store and collect-once reply with the source's MIME type. 3. Tests: a bytes source never reaches the renderer, the cap, collect-once, the PDF kinds unchanged | 59-0's ADR-0049 addendum | 200–320 |
-| **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-55e, CM-56, CM-R10 | 53-2, **56-0**; CS-Q10, CS-Q12; CS-Q25 (only the simultaneous two-branch case) | 350–480 |
+| **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-55e, CM-56, CM-R10, and the export part of CM-23d and CM-23e | 53-2, **56-0**; CS-Q10, CS-Q12; CS-Q25 (only the simultaneous two-branch case) | 350–480 |
 | **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the Redis-loss detection (start-up sentinel check before write, heartbeat, the `operational_recovery_flags` table and its operator clear command, `/ready` degraded, alert) and the runbook's mandatory `CompanyCreated` replay step, the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
 
 **Deferred — «with the customer-erasure feature» (D-21, CS-Q21 = PP-20.2).** Not a sub-PR of this slice; it ships with the
