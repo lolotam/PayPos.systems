@@ -121,16 +121,15 @@ function renameWithRetry(from, to) {
 }
 
 // المسح بالاسم مش مشروط: ممكن يمسح جيل اتعمل بعد ما بصينا. فبنعمل rename ذري لاسم فريد، وبنمسح اللي اتنقل
-// بس لو هو الجيل المتوقع، وإلا بنرجّعه. لو الـ rename فشل بعد المحاولات بنقول؛ و required بيخليه يرمي.
-function removeGeneration(dir, isExpected, { required = false } = {}) {
+// بس لو هو الجيل المتوقع، وإلا بنرجّعه. لو الـ rename فشل بعد المحاولات بنقوله سطر واحد، والفشل نفسه مش
+// بنرميه: الرمي وقت فك الـ start lock كان هيضيع نتيجة الشغل اللي اشتغل تحته.
+function removeGeneration(dir, isExpected) {
   const parked = `${dir}.stale-${randomUUID()}`;
   try {
     renameWithRetry(dir, parked);
   } catch (error) {
     if (error.code === 'ENOENT') return;
     console.log(`could not remove ${dir} (${error.code}); delete it once no lane start is running`);
-    if (required)
-      fail(`could not release ${dir} (${error.code}); delete it once no lane start is running`);
     return;
   }
   if (isExpected(inspect(parked))) rmSync(parked, { recursive: true, force: true });
@@ -180,6 +179,9 @@ function withTakeoverGuard(lock, fn) {
     if (created !== undefined && inspect(guard)?.ino === created) {
       removeGeneration(guard, (parked) => parked?.ino === created);
     }
+    // الـ guard راح من تحتنا (cleaner قديم شاله بين الـ mkdir والكتابة ورجّعه مكانه): ده مش فشل، الـ lock
+    // لسه متاح، وwithStartLock جوه حلقة الانتظار هيعيد المحاولة في دورته الجاية.
+    if (error.code === 'ENOENT') return;
     throw error;
   }
   try {
@@ -206,6 +208,19 @@ export function takeOverIfStale(lock) {
   const seen = inspect(lock);
   if (seen === undefined || !isStale(seen)) return;
   withTakeoverGuard(lock, () => reap(lock));
+}
+
+// فك الـ start lock ما لازمش يرمي: فشله بينطبع سطر وخلاص، عشان ما يبقاش بيلغي نتيجة الشغل اللي جوه.
+// removeGeneration أصلاً بيقول سطره لما الـ rename يفشل، فالـ catch هنا بيغطي غير المتوقع بس.
+function releaseStartLock(lock, token) {
+  if (inspect(lock)?.owner?.token !== token) return;
+  try {
+    removeGeneration(lock, (parked) => parked?.owner?.token === token);
+  } catch (error) {
+    console.log(
+      `could not release ${lock} (${error.code}); delete it once no lane start is running`,
+    );
+  }
 }
 
 /**
@@ -241,11 +256,14 @@ export async function withStartLock(lock, fn, { waitMs = WAIT_MS } = {}) {
       throw error;
     }
   }
+  let result;
   try {
-    return await fn();
-  } finally {
-    if (inspect(lock)?.owner?.token === token) {
-      removeGeneration(lock, (parked) => parked?.owner?.token === token, { required: true });
-    }
+    result = await fn();
+  } catch (error) {
+    // فك الـ lock ما بيغيّرش نتيجة الشغل: الخطأ اللي رميه fn هو اللي بيطلع، وخطأ فك الـ lock سطر تحذير بس.
+    releaseStartLock(lock, token);
+    throw error;
   }
+  releaseStartLock(lock, token);
+  return result;
 }
