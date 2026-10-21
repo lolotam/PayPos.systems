@@ -135,7 +135,7 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 61  | low-rating alert + averages                                                                                         | S            | 60                 |
 | 62  | alert-rules screen + master switch; replaces row 28's interim fixed rule (on, 20 min, managers, in-app) and owns row 28c's lead-time setting | S            | 4b, 15, 28         |
 |     | **M9 · pilot**                                                                                                      |              |                    |
-| 63  | real data by import, dry-run week, parallel month, comparison (D-45); the salon pilot starts only on the new server (D-11, owner review 2026-10-09)                                                | S + calendar | all; the new server with point-in-time recovery (D-11)                |
+| 63  | real data by import, dry-run week, parallel month, comparison (D-45); the salon pilot starts only on the new server (D-11, owner review 2026-10-09)                                                | S + calendar | every row except 58–61 (the rating track, postponed by RT-Q1, PP-18.9, with the low-rating bell of spec 060 sub-PR 62-3); the new server with point-in-time recovery (D-11) |
 
 ---
 
@@ -246,3 +246,5 @@ The slice includes contracts/schema and exact grants, auth facade/guards, both c
 
 Row 62 no longer depends on row 61: RT-Q1 (PP-18.9) postpones the rating track to the end of the project, and the
 alert rules proceed without it; the `LOW_RATING` kind joins them when the track resumes (spec 060 §B, sub-PR 61-1).
+Row 63 (the salon pilot) depends on every row except 58–61 and that low-rating part of row 62, so the pilot does not
+wait for the postponed track.

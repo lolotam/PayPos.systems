@@ -343,7 +343,7 @@ members if AL-Q6 defers it.
 | D-B13 | **Alert rules** live in settings: `alert_rules` (one row per **scope** and kind once saved — the scope is the business by AL-Q2's recommended option and is `TODO(spec)` until AL-Q2 is answered; the recipient shape is roles by AL-Q3's recommended option and is `TODO(spec)` until AL-Q3 is answered. **Provisional design under the roles option, so today's defaults survive:** a rule's recipients are a list of selectors, `ROLE` (owner, general manager, business manager, branch manager; editable), `PERMISSION_HOLDERS` (for example `read:files:business` for `DOCUMENT_EXPIRING`, `decide:attendance-change:company` for `ATTENDANCE_CHANGE_REQUESTED`) and `CONTEXT` (the requester, the employee herself). The last two come from the code defaults table per kind, are shown read-only on the screen and can only be switched with the rule; `PERMISSION_HOLDERS` resolves through identity's effective-permission reader, so personal ALLOWs, custom roles and DENY precedence apply exactly as today (ADR-0040); absent = the AL-Q5 default from one code-side defaults table) and the master switch (`NULL` = on), **whose storage scope is `TODO(spec)` AL-Q2 alongside the rule scope**: by AL-Q2's recommended per-business option it is `business_settings.alerts_enabled boolean NULL`; by the per-branch option it is one switch per branch (column or table fixed with AL-Q2), and `AlertRulesPort` applies the switch of the event's branch (a kind without a branch applies the business's). `AlertRulesPort.rule(tx, companyId, scope, kind)` with `scope = { businessId, branchId \| null }` returns the effective rule with the master switch applied; the emitter always passes the event's branch when it has one (kinds without a branch, such as statements and document expiry, pass `null`). With AL-Q2's recommended per-business option the branch is ignored; with the per-branch option the branch rule wins over the business rule; the exact lookup is `TODO(spec)` AL-Q2 | a JSON blob per business (no per-kind audit, no `CHECK`s) |
 | D-B14 | Worker emitters read rules through a **minimal worker `settings` module** exporting a read function on the caller's transaction (the worker `tenancy` / `identity` shape, ADR-0037 §2); recipient user ids still come from identity's scoped-role read (`forBranch(…, roles)`), with roles now from the rule instead of `interimNotClockedInRule`. Worker **orders** reading `AlertRulesPort` is a port ADR-0010 does not list: it lands in the ADR-0010 addendum of docs PR A-0 before 62-3 | the API pushing rules to the worker |
 | D-B15 | A rule change applies to events emitted **after** it commits; nothing is re-sent or back-filled, except the one-time document-expiry attachment spec 033 already contracts (S-17, S-18). **Periodic alerts record suppression:** when the not-clocked-in or break-not-returned job finds a candidate while its rule or the master switch is off, it writes the same ledger row it writes for a sent notice (`attendance_not_clocked_in_notices`, the break ledger) with `suppressed_at` set, no recipients and no notification, so that candidate is never emitted later when the rule turns back on | replaying past events when a rule turns on |
-| D-B16 | **Rating-request switch (RT-Q3), separate from `alerts_enabled`:** customers owns `rating_settings` (one row per business once saved, `requests_enabled boolean NULL`). `NULL` means off (RT-Q3, PP-18.11: a switch, off at first), read from one code constant. Written by `PUT /v1/businesses/:businessId/rating-settings` (customers/http, idempotent, audited `customer.rating_requests_switched`, permission = the alert-rules permission of AL-Q1 (RT-Q13, PP-20.4, against the recommended option; whatever AL-Q1 decides, the switch follows it)), read by `GET` on the same path; the toggle sits on the settings page from 59-2 and moves into the alerts screen with 62-4 (RT-Q3's recommended place). The AL-Q4 master switch never changes it. 59-1 reads it before inserting a request (off → no row); the claim (D-B5) rechecks it, and a request found switched off is `CANCELLED` with `cancel_reason = 'REQUESTS_OFF'` | one flag in `business_settings` (settings module; customers may import only `tenancy`, so it would need a new port and an ADR-0010 change), or reusing `alerts_enabled` (AL-Q4 keeps customer messages outside the staff master switch) |
+| D-B16 | **Rating-request switch (RT-Q3), separate from `alerts_enabled`:** customers owns `rating_settings` (one row per business once saved, `requests_enabled boolean NULL`). `NULL` means off (RT-Q3, PP-18.11: a switch, off at first), read from one code constant. Written by `PUT /v1/businesses/:businessId/rating-settings` (customers/http, idempotent, audited `customer.rating_requests_switched`, permission = the alert-rules permission of AL-Q1 (RT-Q13, PP-20.4, against the recommended option; whatever AL-Q1 decides, the switch follows it)), read by `GET` on the same path; the toggle sits on the settings page from 59-2 and moves into the alerts screen with 62-4 (RT-Q3's recommended place). Whether the master switch also stops rating requests is **`TODO(spec)` AL-Q4** (pending): if AL-Q4 leaves customer messages outside it, this switch alone governs them; if AL-Q4 covers them, 59-1 and the claim also read `alerts_enabled` (off → no row / `CANCELLED`). 59-1 reads it before inserting a request (off → no row); the claim (D-B5) rechecks it, and a request found switched off is `CANCELLED` with `cancel_reason = 'REQUESTS_OFF'` | one flag in `business_settings` (settings module; customers may import only `tenancy`, so it would need a new port and an ADR-0010 change), or reusing `alerts_enabled` (one flag could not express AL-Q4's option that keeps customer messages outside the master switch, and a separate row serves either answer) |
 
 ## B.2 User scenarios and acceptance criteria
 
@@ -360,15 +360,14 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 - **RT-04** (R7) A claim after the deadline → `PAST_DEADLINE`; an event reaching notifications after it → attempt
   `EXPIRED`, not sent.
 - **RT-05** A branch with no opening hours → `send_deadline = NULL` (S-2). RT-Q5 (PP-18.13): a session recorded after
-  its request day ended is left out of the day's sessions for scheduling and the claim. **A late entry is a backdated
-  one: both `recordedAt` is past the day's end and `recordedAt − occurredAt` is more than 30 minutes** (the same
-  30-minute window as the send deadline, S-2, so no new number). **The day ends at the close of its last open
+  its request day ended is left out of the day's sessions for scheduling and the claim. **The day ends at the close of its last open
   interval** (02:00 for an 18:00–02:00 day, the overnight tail included, RT-Q4), or at the branch-local midnight when
-  the branch has no opening hours; one pure predicate `isLateEntry(occurredAt, recordedAt, requestDay, zone,
-  openingHours)` in `customers/domain`, applied inside `sessionsOfDay` so scheduling and the claim use the same rule.
-  A 00:30 visit in 18:00–02:00 recorded at 00:31 is on time; recorded at 02:05 it is late. A real after-close visit
-  recorded as it happens is never late: 22:15 at a 22:00 close, recorded at 22:15, stays in the day (RT-06); the same
-  visit recorded at 22:50 is late. This holds with or without opening hours; a day whose only sessions are such late entries gets no
+  the branch has no opening hours; no recording-delay allowance exists. One pure predicate `isLateEntry(recordedAt,
+  requestDay, zone, openingHours)` in `customers/domain`, applied inside `sessionsOfDay` so scheduling and the claim
+  use the same rule. A 00:30 visit in 18:00–02:00 recorded at 00:31 is on time; recorded at 02:05 it is late.
+  **`TODO(spec)` (issue #452, postponed track):** a visit that really happens after the close and is recorded as it
+  happens (22:15 at a 22:00 close, recorded at 22:15) is late by this rule, while RT-06 (S-2) lets it be claimed until
+  22:30; which rule wins is settled when the track resumes. This holds with or without opening hours; a day whose only sessions are such late entries gets no
   row; a late entry added to a day that already has a request does not move it.
 - **RT-01b** Two branches of one business, Kuwait (UTC+3) and Dubai (UTC+4), neither with an interval crossing
   midnight: a 23:30 Kuwait visit on day D and a
@@ -378,7 +377,8 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 - **RT-06** RT-Q4 (decided): a split day (10:00–13:00, 16:00–22:00) and an overnight interval (18:00–02:00), including
   a 23:00 and a 00:30 visit in that interval: one request on the start day with the 02:00 close (D-B3, RT-Q4), and
   `requestDayOf` unit tests. Settled
-  either way (S-2): a 22:15 visit at a 22:00 close is due at once and claimable until 22:30; at 22:31 → `PAST_DEADLINE`.
+  either way (S-2): a 22:15 visit at a 22:00 close is due at once and claimable until 22:30; at 22:31 → `PAST_DEADLINE` (whether such a
+  visit recorded after the close is a late entry is the RT-05 `TODO(spec)`, issue #452).
 - **RT-07** RT-Q3 (decided: a switch, off at first): a business with rating requests switched off schedules nothing (59-1), and a request
   found switched off at the claim is `CANCELLED` with `REQUESTS_OFF` (59b-2). Both exist only if RT-Q3 keeps the switch.
 - **RT-08** Bootstrap (FR-B02b): sessions recorded before 59 ships schedule only requests whose deadline is still ahead;
@@ -440,7 +440,7 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 ### Story B5 — Alert rules (row 62, P1)
 
 - **RT-26** Every kind of §B.4's table can be switched off alone (the next event of that kind carries no recipients and
-  stores nothing) and all at once by the master switch (SPEC §12).
+  sends nothing; nothing is stored except the `suppressed_at` ledger row a periodic alert writes, D-B15, RT-27b) and all at once by the master switch (SPEC §12).
 - **RT-27** Changing a rule's recipients or delay changes the next emission only (D-B15); the not-clocked-in job, the
   break job, the four orders bells and the low-rating emitter all read the rule, and `interimNotClockedInRule` and
   `interimBreakNotReturnedRule` are deleted.
@@ -490,7 +490,7 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 - **FR-B05** Claim transaction (D-B5) with the lock order customer → request, Clock sampled after the locks.
 - **FR-B06** `DaySessionsPort.activeLines(tx, companyId, businessId, customerId, fromInstant, toInstant)` → active lines of
   the customer's sessions in that business whose `occurred_at` is in the window, with performers, branch, the session's
-  `occurred_at`, `recorded_at` (with `occurred_at`, for RT-Q5's `isLateEntry`, RT-05) and `business_timezone`. Orders does not know branch zones, so the caller passes the widest window any
+  `occurred_at`, `recorded_at` (for RT-Q5's `isLateEntry`, RT-05) and `business_timezone`. Orders does not know branch zones, so the caller passes the widest window any
   zone and an overnight tail can map to the day (`[day 00:00 at UTC+14, day+1 24:00 at UTC−12)`) and the pure
   `customers/domain` function `sessionsOfDay(sessions, placeByBranch, day)` keeps only the sessions whose `requestDayOf`
   is the day (D-B3, overnight ownership per RT-Q4) and that are not `isLateEntry` (RT-05), each branch's zone and hours read through
@@ -542,7 +542,8 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
   `LOW_RATING` in-app notice carries the comment (RT-Q9) only for a recipient who holds one of those roles in the visit
   branch's scope, checked at emission; any other recipient (for example a person named under AL-Q3) gets the same notice
   without the comment.
-- **BR-B5** A switched-off alert stores and sends nothing for events emitted while it is off (D-B15).
+- **BR-B5** A switched-off alert sends nothing for events emitted while it is off, and stores nothing except the
+  `suppressed_at` ledger row of a periodic alert (D-B15, RT-27b).
 
 ### Schema
 
@@ -552,7 +553,7 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 | `rating_performers` (new) | `company_id`, `id`, `request_id`, `employee_id` | the claim snapshot; `UNIQUE (company_id, request_id, employee_id)`; insert-only |
 | `ratings` (new) | `company_id`, `id`, `request_id`, `business_id`, `branch_id`, `stars smallint`, `comment text NULL`, `submitted_at` | `UNIQUE (company_id, request_id)` (ADR-0011 §2); `CHECK (stars BETWEEN 1 AND 5)`, comment ≤ 1,000 characters; insert-only |
 | `rating_attributions` (new) | `company_id`, `id`, `rating_id`, `employee_id`, `business_id`, `branch_id`, `stars`, `submitted_at` | one row per snapshotted performer; index `(company_id, employee_id, submitted_at)` for averages; insert-only |
-| `alert_rules` (new, row 62) | `company_id`, `id`, `business_id`, **scope column(s) `TODO(spec)` AL-Q2** (a `branch_id` if rules are per branch), `kind`, `enabled`, **recipients `TODO(spec)` AL-Q3** (by role: `recipient_roles text[]` plus the kind's fixed `PERMISSION_HOLDERS` / `CONTEXT` selectors from the code defaults table, D-B13; a child table of user ids if by person; both if both), `channels text[]` (`WHATSAPP`, `EMAIL`, `IN_APP` only, SPEC §4; `IN_APP` alone until 62b if AL-Q6 defers team email/WhatsApp), `delay_minutes NULL`, `lead_minutes NULL`, `updated_by`, `updated_at`, `revision` | `UNIQUE (company_id, <scope>, kind)` fixed with AL-Q2; `CHECK`s per kind; FORCE RLS. **62-1 does not start until AL-Q2 and AL-Q3 are answered** (already in its Blocked-on column) |
+| `alert_rules` (new, row 62) | `company_id`, `id`, `business_id`, **scope column(s) `TODO(spec)` AL-Q2** (a `branch_id` if rules are per branch), `kind`, `enabled`, **recipients `TODO(spec)` AL-Q3** (by role: `recipient_roles text[]` plus the kind's fixed `PERMISSION_HOLDERS` / `CONTEXT` selectors from the code defaults table, D-B13; a child table of user ids if by person; both if both), `channels text[]` (`WHATSAPP`, `EMAIL`, `IN_APP` only, SPEC §4; `IN_APP` alone until 62b if AL-Q6 defers team email/WhatsApp), `delay_minutes NULL`, `lead_minutes NULL`, `updated_by`, `updated_at`, `revision` | `UNIQUE (company_id, <scope>, kind)` fixed with AL-Q2; `CHECK`s per kind (`DOCUMENT_EXPIRING`: `lead_minutes IS NULL`, its lead is the type's `alert_days`); FORCE RLS. **62-1 does not start until AL-Q2 and AL-Q3 are answered** (already in its Blocked-on column) |
 | `business_settings` | add `alerts_enabled boolean NULL` (master switch) **by AL-Q2's recommended option; scope `TODO(spec)` AL-Q2** (per-branch storage if AL-Q2 picks branches) | `NULL` = on |
 | `rating_settings` (new, row 59-2; RT-Q3 decided) | `company_id`, `id`, `business_id`, `requests_enabled boolean NULL`, `updated_by`, `updated_at`, `revision` | `UNIQUE (company_id, business_id)`; `NULL` = the RT-Q3 default (D-B16); FORCE RLS |
 
@@ -581,7 +582,7 @@ customers, staff and commissions; **orders' `StaffColumnsPort`, worker orders' `
 | `SHIFT_BREAK_RETURNED_OTHER_BRANCH` | `ShiftBreakNotReturned` with `notice_kind = 'break_returned_other_branch'` | on · the branch's managers · in-app | row 16b-3 (BW-Q10) |
 | `SHIFT_ENDS_SOON` (employee) | row 28c event | on · 30 min before shift end · the employee · **push, fixed** (not a selectable channel: the rule row holds only `enabled` and `lead_minutes`; its `channels` is empty and the screen shows «إشعار على الموبايل» read-only, so the SPEC §4 channel set WHATSAPP/EMAIL/IN_APP is unchanged) | NC-Q1 answer, row 28c, 28b |
 | `ATTENDANCE_EXCEPTION` | `AttendanceExceptionRaised` | on · four scoped manager roles · in-app | `TODO(spec)` AL-Q5 |
-| `DOCUMENT_EXPIRING` | `DocumentExpiring` | on · 30 days (the type's `alert_days`) · holders of `read:files:business` · in-app | D-39, OD-Q3 |
+| `DOCUMENT_EXPIRING` | `DocumentExpiring` | on · the type's `alert_days` (30 days by default, editable per document type, D-39) — the lead is **not** a rule field: `lead_minutes` stays `NULL` for this kind and the alerts screen shows the window read-only with a link to the document-types screen, because spec 033's PR 62 contract selects and attaches by that same window · holders of `read:files:business` · in-app | D-39, OD-Q3 |
 | `LATE_SERVICE_SESSION` | `LateServiceSessionNoticeRequested` | on · four scoped manager roles · in-app | SS-Q11, ADR-0041 |
 | `SERVICE_LINE_EDITED` / `_CANCELLED` / `_PERFORMERS_CHANGED` | the three orders notice events | on · four scoped manager roles, the actor included · in-app | ED-Q6, spec 054, PF-Q4 |
 | `ATTENDANCE_CHANGE_REQUESTED` / `_DECIDED` | ADR-0040 events | on · holders of `decide:attendance-change:company` / the requester · in-app | ADR-0040 |
