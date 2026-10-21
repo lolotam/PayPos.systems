@@ -764,14 +764,19 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
        later-committed opening never carries an earlier `opened_at`. On an exact tie the stored key wins. If that
        key's window lost on the server, its next request gets 403 and the PIN step: a safe failure.
      - A passing read or touch updates the key only when its `window_id` equals the stored one.
+     - **A newer window retires the older ones at once.** When a tab sees a newer `window_id` in the key (a `storage`
+       event or its own read), it immediately hides and clears its private screen if that screen belongs to an older
+       window. A tab renders a response only if the response's `window_id` still equals the key's current one;
+       otherwise it discards the response.
    - **The per-tab monotonic deadlines.** Each tab keeps its own `performance.now()` deadlines in memory, never stored
-     or shared. It sets them from its own passing responses. It also refreshes them when it observes a shared-key
-     update for its current window: the new remaining times are clamped to at most 60 seconds idle and never past the
-     tab's current monotonic cap, so a rolled-back wall clock in another tab can never lengthen them.
+     or shared. **Only the tab's own passing server response sets or extends them**, from that response's
+     `idle_remaining_ms` and `cap_remaining_ms`. A shared-key update written by another tab may only **shorten** them,
+     never lengthen them, so every tab is bounded by deadlines the server gave that tab itself.
    - **Two kinds of expiry, two scopes.**
      - When a tab's **own monotonic deadline** passes, that tab hides only its own private screen and clears its own
        query cache. It does not remove the key or tell other tabs, so an idle tab B never closes the window while tab
-       A is in use. On new input it may send a touch and show the data again if the touch passes.
+       A is in use. Before it shows the data again it sends one touch, and it shows the data only if that touch
+       passes; the touch's response then sets its new deadlines.
      - When the **shared wall-clock deadline** passes, or the server refuses with 403, the window is closed for all
        tabs, as described next.
    - **Checks.** A tab compares its deadlines on a periodic tick, on `visibilitychange`, `focus` and `pageshow`, and
@@ -792,7 +797,14 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
      is ignored.
    - **The fallback** is the `storage` event, and only a removal counts (`newValue` is null). The removed key's
      `oldValue` carries the `window_id`, which the closer checked before removing it. A tab acts on it only when that
-     id is its current one. A `storage` event that replaces the key with a newer window is not a close.
+     id is its current one. A `storage` event that replaces the key with a newer window is not a close, though it
+     still retires every tab showing an older window (above).
+
+   **The cross-tab fence is best-effort, and every race it loses fails safe.** `localStorage` has no atomic
+   compare-and-set: two tabs can interleave a read with a write or a removal. Such a race can only close a window
+   early, or skip an extension that the key would have recorded. Either way, the PIN is asked again sooner. It can
+   never keep data on a screen longer, because every tab is bounded by its own server-derived monotonic deadlines,
+   which no other tab can lengthen. The server check of item 4 stays the authority on every request.
 
    **A changed device clock.** The server check runs on the server's Clock, so a device clock moved forward or back
    cannot keep a window open on the server. In the browser, the monotonic deadlines catch a partial rollback, and an
@@ -835,13 +847,17 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
      after the send instant and inside both limits → the tab's monotonic deadline still closes the screen on time;
      after sleep or a restore, the tab shows nothing private until a fresh touch passes on the server;
    - **fenced cross-tab close:** a `BroadcastChannel` or `storage` close naming window A reaches a tab already showing
-     window B → that tab keeps B open; a closing tab whose key now holds window B leaves the key in place;
+     window B → that tab keeps B open; a closing tab that finds window B in the key does not remove it, and if a
+     race removes it anyway, window B is not extended and at worst asks for the PIN again;
+   - **newer window retires older tabs:** tab A shows window A, and tab B opens window B → tab A hides and clears at
+     once, and a late response for window A is never rendered;
    - **reload after a partial rollback:** the clock is moved back, then the tab reloads → it shows nothing until a
      touch passes, and its deadlines come from that touch's `cap_remaining_ms`, never past the server's 5-minute cap;
    - **out-of-order openings:** the response of an older opening arrives after a newer one → the key keeps the newer
      `window_id` and `opened_at`;
    - **idle tab beside an active tab:** tab B is idle past its own monotonic deadline while tab A keeps sending
-     requests → B hides only its own screen, and A's window stays open;
+     requests → B hides only its own screen, and A's window stays open; B shows data again only after its own touch
+     passes, and a shared-key update from A never lengthens B's deadlines;
    - **late request:** a request sent in window A arrives after A closed and window B opened → 403
      `PRIVATE_VIEW_EXPIRED`, no data, and B's `last_activity_at` is unchanged;
    - **late close:** a close or cleanup for window A arrives after window B opened → B stays open and its next request
