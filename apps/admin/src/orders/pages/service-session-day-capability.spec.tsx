@@ -183,7 +183,7 @@ it('keeps the day and hides Record tip for a reader without record permission, n
     const name = String(path);
     if (name.includes('/capabilities')) {
       return Promise.resolve({
-        data: { can_cancel_lines: false, can_change_performers: false, can_record_sessions: false },
+        data: { can_cancel_lines: true, can_change_performers: false, can_record_sessions: false },
         response: { status: 200 },
       });
     }
@@ -192,11 +192,8 @@ it('keeps the day and hides Record tip for a reader without record permission, n
   });
   renderPage();
   expect(await screen.findByText('Synthetic customer')).toBeTruthy();
-  await waitFor(() =>
-    expect(state.get.mock.calls.some((call) => String(call[0]).includes('/capabilities'))).toBe(
-      true,
-    ),
-  );
+  // زرار الإلغاء بيظهر بس بعد ما رد /capabilities يوصل، فالـ assertions اللي بعده بتتحقق على القرار نفسه.
+  await waitFor(() => expect(cancel()).toBeTruthy());
   expect(tipsButton()).toBeNull();
   expect(screen.queryByRole('alert')).toBeNull();
   expect(state.get.mock.calls.some((call) => String(call[0]).includes('recording-context'))).toBe(

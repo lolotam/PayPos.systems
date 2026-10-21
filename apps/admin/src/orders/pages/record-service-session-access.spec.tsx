@@ -1,14 +1,14 @@
 import { t } from '@pospay/i18n';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createSessionAttemptJournal } from '../model/session-attempt-journal';
 import { id, instant, scope } from '../model/session-recording-result.fixture';
 import { RecordServiceSessionPage } from './record-service-session-page';
 
-const state = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
+const state = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), locale: 'en' as 'ar' | 'en' }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get, POST: state.post }) }));
-vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' as const }));
+vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 
 const context = {
   generated_at: instant,
@@ -48,15 +48,17 @@ function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  render(
+  const ui = () => (
     <QueryClientProvider client={client}>
       <RecordServiceSessionPage scope={scope} />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  return { ...render(ui()), ui };
 }
 const save = () => screen.queryByRole('button', { name: t('en', 'serviceSessions.save') });
 
 beforeEach(() => {
+  state.locale = 'en';
   Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => true });
   state.get.mockReset();
   state.post.mockReset();
@@ -93,4 +95,37 @@ it('shows the recording form to a cashier who can record', async () => {
   expect(await screen.findByRole('button', { name: t('en', 'serviceSessions.save') })).toBeTruthy();
   expect(screen.getByLabelText(t('en', 'serviceSessions.name'))).toBeTruthy();
   expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('keeps an unsaved draft when only the language changes', async () => {
+  reads(true);
+  let answerArabic: (value: unknown) => void = () => undefined;
+  const english = state.get.getMockImplementation();
+  state.get.mockImplementation((path: string, init?: { params?: { query?: { lang?: string } } }) =>
+    String(path).endsWith('/service-options') && init?.params?.query?.lang === 'ar'
+      ? new Promise((resolve) => (answerArabic = resolve))
+      : english?.(path, init),
+  );
+  const view = renderPage();
+  const name = (await screen.findByLabelText(t('en', 'serviceSessions.name'))) as HTMLInputElement;
+  fireEvent.change(name, { target: { value: 'Draft customer' } });
+  state.locale = 'ar';
+  view.rerender(view.ui());
+  await waitFor(() =>
+    expect(
+      state.get.mock.calls.some(
+        ([path, init]) =>
+          String(path).endsWith('/service-options') && init?.params?.query?.lang === 'ar',
+      ),
+    ).toBe(true),
+  );
+  expect((screen.getByLabelText(t('ar', 'serviceSessions.name')) as HTMLInputElement).value).toBe(
+    'Draft customer',
+  );
+  await act(async () =>
+    answerArabic({ data: { items: [service], next_cursor: null }, response: { status: 200 } }),
+  );
+  expect((screen.getByLabelText(t('ar', 'serviceSessions.name')) as HTMLInputElement).value).toBe(
+    'Draft customer',
+  );
 });
