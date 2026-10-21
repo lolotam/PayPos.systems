@@ -1,8 +1,8 @@
 # Spec 060 — The staff app "my" pages, customer ratings and the alert rules (Phase 1 rows 57, 57b, 57c, 58–62)
 
 > **Status:** Draft · 2026-10-21 · docs-only PR. **26 owner questions are open** (MY-Q1…MY-Q8, RT-Q1…RT-Q12,
-> AL-Q1…AL-Q6), all permissions/technical/product questions for Waleed; the money list is empty (reason in
-> [owner-questions.ar.md](owner-questions.ar.md)). Every rule that waits on an answer is marked `TODO(spec)` here and
+> AL-Q1…AL-Q6), routed to Waleed as PP-18; **MY-Q6** (what an employee sees of her approved earnings) is also a money
+> question and is in the money list for Abu Salem ([owner-questions.ar.md](owner-questions.ar.md)). Every rule that waits on an answer is marked `TODO(spec)` here and
 > blocks only the sub-PRs named in §3. **No code starts before this spec is merged.**
 > **Two parts:** **Part A** — the staff app (rows 57, 57b, 57c). **Part B** — ratings and alerts (rows 58, 59, 59b, 60,
 > 61, 62). Each part has its own decisions, tests, requirements and sub-PR plan; §1–§3 and §8–§9 are shared.
@@ -71,8 +71,8 @@ without letting that voice touch commission (D-41, D-14).
 
 ## 3. Open owner questions and what each blocks
 
-All are in [owner-questions.ar.md](owner-questions.ar.md) with options and a recommended option. None is a money
-question. Until an answer arrives the rule is `TODO(spec)` and only the sub-PRs listed here wait.
+All are in [owner-questions.ar.md](owner-questions.ar.md) with options and a recommended option. MY-Q6 is a money
+question (what staff earn, `CLAUDE.md` §1 5b) and goes to Abu Salem too; the others are Waleed's. Until an answer arrives the rule is `TODO(spec)` and only the sub-PRs listed here wait.
 
 | ID | Subject | Blocks |
 |---|---|---|
@@ -120,11 +120,11 @@ the statement PDF or Excel (rows 56, 27g); anything about other employees.
 |---|---|---|
 | D-A1 | **Each module serves its own "my" read**: orders serves my lines (it owns lines, performers, customer id and already reads catalog, customers and settings by port, ADR-0041), commissions serves the estimate per line and in total, customers serves my rating average, staff serves my attendance. The POS screen calls them side by side and joins the estimate to a line by `line_id` for display only | one aggregating endpoint (it would need a module reading three others, an arrow nobody declared); commissions serving the whole line list (customer names and prices are not in its projection and must not be, SPEC §4 `CommissionLine`) |
 | D-A2 | **Columns are enforced on the server.** Every "my" read loads the business's staff columns through `StaffColumnsPort` in its own transaction and omits a disallowed field from the response; the client only renders what it receives (`CLAUDE.md` §8: never only in the UI) | filtering in the POS (a hidden column would still travel to the phone) |
-| D-A3 | `StaffColumnsPort` consumers: orders (new port row on the existing `orders → settings` arrow), commissions, customers (the two arrows SPEC §3 / ADR-0010 already approved). Each adapter edge is added to `module-map.md` §2/§3 and its YAML in the sub-PR that first uses it | a shared helper in `packages/` (settings data read outside the settings module) |
+| D-A3 | `StaffColumnsPort` consumers: commissions and customers (approved in ADR-0010 §2) and **orders, which ADR-0010 does not list**: orders' port is a new port and needs an **ADR-0010 addendum before any code** (ADR-0010 requires an ADR before a new port), shipped as docs PR **A-0** (§A.5) together with worker orders' `AlertRulesPort` (D-B14). The adapter edges are then added to `module-map.md` §2/§3 and its YAML in the sub-PR that first uses them | a shared helper in `packages/` (settings data read outside the settings module) |
 | D-A4 | **New own permission codes**, following ADR-0026 (an own code is refused unless the actor's user is the subject employee's user; owner immunity and covering DENY as ADR-0026): `read:service-sessions:own` (orders), `read:commissions:own` (commissions), `read:attendance:own` (staff), `read:ratings:own` (customers). Defaults: every human role, like `read:leave:own` (`role-defaults.ts`, `humans`), which is what D-46 and S-11 say; devices forbidden. A per-person DENY hides one employee's page | reusing branch read codes (they would show colleagues' rows, against S-13) |
 | D-A5 | **ADR-0027 addendum** (sub-PR 57-1): ADR-0027 lists the personal purpose's own-scope capabilities as "schedule/leave; later attendance challenge/assertion". The four reads of D-A4 are added to that list explicitly, with the same live employee and membership recheck on every request | enabling them silently on `PERSONAL_ROUTE` |
 | D-A6 | Storage of the column setting: a nullable `staff_columns text[]` on `business_settings` (one row per business, D-47), `NULL` = the default of MY-Q3 (the `business_settings` "null = template" pattern), a `CHECK` that every element is an allowed code and there are no duplicates; every change audited (`CLAUDE.md` §8, settings) | a new table (one value per business does not need one) |
-| D-A7 | **Allowed codes:** `date, time, service, customer_name, list_price, discount, net, share, estimated_commission, tip, rating_average`. `rating_comments` is **not** an allowed code (S-9). `customer_phone` never exists as a code (S-12) | keeping `rating_comments` because SPEC §4 lists it (the later owner decision in ADR-0011 overrides it) |
+| D-A7 | **Allowed codes:** `date, time, service, customer_name, list_price, discount, net, share, estimated_commission, tip, rating_average`. `rating_comments` is **not** an allowed code (S-9). `customer_phone` never exists as a code (S-12). **Context fields outside the setting:** every row of «شغلي» always carries `line_id` and the branch name (the employee's own workplace, needed to tell two branches apart); every other field is one of the codes above | keeping `rating_comments` because SPEC §4 lists it (the later owner decision in ADR-0011 overrides it) |
 | D-A8 | A line belongs to «شغلي» when the employee is a **current** performer of it (her `line_performers` row), in the line's business, in the month asked, by the session's `business_date`. Her **share** is her `share_bps` of the line; money fields are canonical KWD strings (spec 050) | listing every visit she touched (removed performers see nothing after a performer change, spec 055) |
 | D-A9 | The month is a business-timezone calendar month (`YYYY-MM`), like statements (SPEC §5). Default = the current month at the injected Clock | a rolling 30 days (does not match the statement) |
 | D-A10 | «حضوري» shows her attendance sessions by `working_date`: branch name, clock-in, clock-out, `late_minutes` (already stored on the session), source (QR / card), open exceptions by kind (no notes), and a «اتعدّل» mark per MY-Q7. Lateness is shown, never deducted (SPEC §7) | recomputing lateness on the phone |
@@ -141,14 +141,16 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
 - **MY-01** سارة signed in with a personal session asks for this month: she gets exactly the lines whose current
   performers include her, newest first, with only the allowed columns. رنا's lines that سارة did not perform never
   appear; a line shared by both appears for both, each with her own share.
-- **MY-02** A field outside the allowed columns is **absent** from the response (not `null`), for every code of D-A7.
+- **MY-02** A field outside the allowed columns is **absent** from the response (not `null`), for every code of D-A7;
+  the D-A7 context fields (`line_id`, branch name) are always present.
   A UI test asserts the hidden column is not on the screen (`CLAUDE.md` §9).
 - **MY-03** No response, log line or error of these routes contains a customer phone, a colleague's id or name, or a
   comment (S-9, S-12). A contract test checks the response schema has no such field.
 - **MY-04** `customer_name` shows the customer's name only; a customer with an opt-out still appears (opt-out concerns
   ratings, spec 050).
-- **MY-05** (row 50, blocked) The estimate card shows the total of the current DRAFT month for her and, if the column is
-  allowed, the estimate per line; it equals the engine on the DRAFT projection (SPEC §6). `NO_PLAN` / `NO_SALARY` show
+- **MY-05** (row 50, blocked) With `estimated_commission` allowed, the estimate card shows the total of the current
+  DRAFT month for her and the estimate per line; with it hidden the response carries **no figure at all** (neither
+  total nor per line) and the card is not shown; it equals the engine on the DRAFT projection (SPEC §6). `NO_PLAN` / `NO_SALARY` show
   «مفيش خطة عمولة لسه» and no number (D-57). A whole-period version shows «الحساب اتغيّر» (D-38).
 - **MY-06** `TODO(spec)` MY-Q6: a closed month shows the approved amount or the estimate.
 - **MY-07** `TODO(spec)` MY-Q8: a cancelled line is shown with «اتلغت» and its date, or omitted.
@@ -201,8 +203,8 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
   feature `orders`.
 - **FR-A02** (blocked on row 50) `GET /v1/staff/me/commission-estimate?month=YYYY-MM` (commissions, `queries/`):
   `{ status: 'ESTIMATE' | 'NO_PLAN' | 'NO_SALARY' | TODO(spec) MY-Q6, total?, per_line?: [{ line_id, amount }],
-  recalculated?: boolean }`, computed on read by the engine (S-15); `per_line` only with `estimated_commission`
-  allowed; `read:commissions:own`, feature `commissions`.
+  recalculated?: boolean }`, computed on read by the engine (S-15); `total` **and** `per_line` only with
+  `estimated_commission` allowed, otherwise `{ status: 'HIDDEN' }` with no amount (D-A2); `read:commissions:own`, feature `commissions`.
 - **FR-A03** `GET /v1/staff/me/tips?month=YYYY-MM` (orders): her tips of the month by method, only with `tip` allowed,
   under `read:service-sessions:own`.
 - **FR-A04** `GET /v1/staff/me/attendance?month=YYYY-MM` (staff, `queries/`): D-A10's fields; `read:attendance:own`,
@@ -255,9 +257,10 @@ editor permission per MY-Q5 (`TODO(spec)`).
 
 | PR | Result | Subtasks | Blocked on | Size |
 |---|---|---|---|---|
+| **A-0** | ADR-0010 addendum (docs only) | 1. Orders `StaffColumnsPort` (D-A3) and worker orders `AlertRulesPort` (D-B14). 2. module-map §3 rows + YAML | this spec merged | 60–120 |
 | **57c-1** | Column setting storage + port | 1. Contract (`StaffColumnCode` enum, GET/PUT schemas), migration (`staff_columns`, grant, permission). 2. Settings use case + routes + audit; `StaffColumnsPort` readers (orders, commissions, customers adapters + module-map rows). 3. Unit + integration tests MY-17…MY-21 | MY-Q3, MY-Q4, MY-Q5 | 260–380 |
 | **57-1** | Own access for the staff app | 1. Four own codes + defaults migration, catalog, inventory tests. 2. ADR-0027 addendum (D-A5). 3. Own-check helper reuse + refusal tests MY-09…MY-12 | MY-Q1 | 180–280 |
-| **57-2** | «شغلي» API | 1. Orders own query (FR-A01) + tips (FR-A03) with column projection + `EXPLAIN`. 2. Routes, guard, error mapping, OpenAPI + clients. 3. Tests MY-01…MY-04, MY-07, MY-08, MY-13 | 57-1, 57c-1; MY-Q2, MY-Q8 | 300–420 |
+| **57-2** | «شغلي» API | 1. Orders own query (FR-A01) + tips (FR-A03) with column projection + `EXPLAIN`. 2. Routes, guard, error mapping, OpenAPI + clients. 3. Tests MY-01…MY-04, MY-07, MY-08, MY-13 | 57-1, 57c-1, **A-0**; MY-Q2, MY-Q8 | 300–420 |
 | **57-3** | Estimate API | 1. Commissions own query over the DRAFT projection (FR-A02). 2. Route + OpenAPI. 3. Tests MY-05, MY-06 | **row 50**, 57-1; MY-Q6 | 200–320 |
 | **57-4** | «شغلي» screen | 1. POS screen + hooks + i18n. 2. Estimate card (renders "pending" until 57-3). 3. UI tests (visible columns, hidden column absent, no-plan text) | 57-2 | 240–360 |
 | **57b-1** | «حضوري» API | 1. Staff own query (FR-A04) + `EXPLAIN`. 2. Route + OpenAPI + clients. 3. Tests MY-14, MY-15 + access | 57-1; MY-Q2, MY-Q7 | 220–320 |
@@ -285,15 +288,15 @@ members if AL-Q6 defers it.
 | D-B3 | The rating **day** is the session's `business_date` as orders stored it with its `business_timezone` (spec 050); the closing time is read from the branch's `opening_hours` (ISO weekday intervals, `packages/contracts/src/tenancy/opening-hours.ts`) for that date's weekday, in the branch's effective timezone (D-10). The pilot is all `Asia/Kuwait`; the function takes both zones as inputs and tests a branch whose zone differs from its business's. The pure function `ratingSchedule(lastSession, openingHours, tz)` → `{ due_at, send_deadline \| null }` lives in `customers/domain` with exhaustive unit tests; the choice among several intervals is `TODO(spec)` RT-Q4 | re-deriving the date from `occurred_at` in the customer's locale |
 | D-B4 | **Discovery** of due work follows ADR-0037: a per-company BullMQ scheduler `rating-claims-<companyId>` registered on the first scheduling event of the company and repaired on every later one; job data `{ companyId }` only; the job pages due rows with `FOR UPDATE SKIP LOCKED` inside `withTenant` | a cross-tenant query (`pospay_app` has no such access, ADR-0003) |
 | D-B5 | **Claim** (one transaction per request, 59b): lock the customer row (the lock order ADR-0011 §3 shares with page opt-out), then the request; recheck `opted_out_at` (→ `OPTED_OUT`), the deadline (→ `PAST_DEADLINE`), read `DaySessionsPort` (orders, injected callback at the worker root, module-map §3): a newer session moved `due_at` → reschedule; no active line → `NO_ACTIVE_LINE`; else snapshot the performers, read their first names through `PerformerNamePort`, store `token_hash` and `expires_at = claim instant + 7 days`, set SENDING and append `RatingRequestReady` | reading the projection (it may be stale by design, ADR-0010) |
-| D-B6 | `RatingRequestReady` carries what ADR-0018 §1 requires: stable event id, the customer's canonical E.164 phone and `locale`, channel WHATSAPP, template `rating_request` and revision, safe parameters (business name, the performers' first names per RT-Q12, `rating_request_id`), and `send_deadline`. **Never the token** (ADR-0018 §1, ADR-0011 §1) | putting the link in the event |
+| D-B6 | `RatingRequestReady` carries what ADR-0018 §1 requires: stable event id, the customer's canonical E.164 phone and `locale`, channel WHATSAPP, template `rating_request` and revision, safe parameters (`customer_first_name` — the first word of `customers.name`, passed through the ADR-0037 §4 display-name rules and omitted if RT-Q2 picks the no-name option —, business name, the performers' first names per RT-Q12, `rating_request_id`), and `send_deadline`. **Never the token** (ADR-0018 §1, ADR-0011 §1) | putting the link in the event |
 | D-B7 | **Token transport** = RT-Q1 (`TODO(spec)`). The recommended design is ADR-0011's proposal: the token's random part is a keyed, domain-separated 256-bit HMAC of `(company_id, rating_request_id)`, derived only in the sender's memory by a restricted codec injected at both roots; the key lives only in Dokploy secrets; customers stores only the full-token hash. A new ADR records it. **Until RT-Q1 is answered no `rating_request` template is enabled and no rating message is sent** | storing the plaintext or an encrypted token (ADR-0011 forbids it silently) |
-| D-B8 | `SENT` is recorded when worker `customers` consumes the notification outcome of its own `rating_request` attempt (`NotificationDelivered`); a failed or expired attempt leaves the request SENDING, never resent (S-5). This adds a `notifications ⇒ customers` event row to module-map §4 and an ADR-0010 addendum | dropping SENT (SPEC §10 names it) |
+| D-B8 | `SENT` is recorded when worker `customers` consumes the notification outcome of its own `rating_request` attempt (`NotificationDelivered`). **Correlation:** the claim stores the `RatingRequestReady` outbox event id in `rating_requests.ready_event_id` (unique per company); the consumer matches the result's `source_event_id` and `template_key = 'rating_request'` (`notificationResult` in `packages/contracts/src/notifications.ts`) inside `withTenant(company_id)` and ignores every other result. A `FAILED`, `EXPIRED` or `SUPPRESSED` outcome leaves the request SENDING, never resent (S-5). This adds a `notifications ⇒ customers` event row to module-map §4 and an ADR-0010 addendum | dropping SENT (SPEC §10 names it) |
 | D-B9 | **Submit** follows ADR-0011 §2 exactly: validate stars/comment, `withTenant(candidate)`, lock the request, sample the Clock, atomic consume `UPDATE … RETURNING`, insert the rating and one `rating_attributions` row per snapshotted performer, and append `LowRatingReceived` only when stars ≤ 2 and the alert is on — all in one transaction | attributing at submit time from the current lines (S-4) |
 | D-B10 | The public routes are API routes in `customers/http` with one `@Public()` each and the explicit token capability check (ADR-0011 §4): `GET /v1/ratings/view` (returns `{ business_name }` only), `POST /v1/ratings/submit`, `POST /v1/ratings/opt-out`. The token travels in a dedicated, redacted header; the link carries it in the URL fragment | the token in a query string (proxy logs) |
 | D-B11 | The per-IP limiter runs **before** token parsing, in Redis, keyed by the verified proxy-derived IP, shared by the three routes; missing Redis fails closed (ADR-0011 §4) | in-memory limits (several API containers) |
 | D-B12 | Averages are computed on read from `rating_attributions` (no stored average), within the RT-Q6 window, rounded half up to one decimal for display only | a stored running average (drifts, needs repair) |
 | D-B13 | **Alert rules** live in settings: `alert_rules` (one row per business and kind once saved; absent = the AL-Q5 default from one code-side defaults table) and `business_settings.alerts_enabled boolean NULL` (the master switch; `NULL` = on). `AlertRulesPort.rule(tx, companyId, businessId, kind)` returns the effective rule with the master switch applied | a JSON blob per business (no per-kind audit, no `CHECK`s) |
-| D-B14 | Worker emitters read rules through a **minimal worker `settings` module** exporting a read function on the caller's transaction (the worker `tenancy` / `identity` shape, ADR-0037 §2); recipient user ids still come from identity's scoped-role read (`forBranch(…, roles)`), with roles now from the rule instead of `interimNotClockedInRule` | the API pushing rules to the worker |
+| D-B14 | Worker emitters read rules through a **minimal worker `settings` module** exporting a read function on the caller's transaction (the worker `tenancy` / `identity` shape, ADR-0037 §2); recipient user ids still come from identity's scoped-role read (`forBranch(…, roles)`), with roles now from the rule instead of `interimNotClockedInRule`. Worker **orders** reading `AlertRulesPort` is a port ADR-0010 does not list: it lands in the ADR-0010 addendum of docs PR A-0 before 62-3 | the API pushing rules to the worker |
 | D-B15 | A rule change applies to events emitted **after** it commits; nothing is re-sent or back-filled, except the one-time document-expiry attachment spec 033 already contracts (S-17, S-18) | replaying past events when a rule turns on |
 
 ## B.2 User scenarios and acceptance criteria
@@ -348,7 +351,9 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
   that and the form, ar/en, RTL; `no-store`, `no-referrer`; 30 requests/IP/minute across the three routes and all
   prefixes before lookup; bilingual 429 with `Retry-After`; a spoofed forwarded header is ignored.
 - **RT-21** (ADR-0011 §6 "Comments") empty, absent and 1,000-character comments accepted; 1,001 (Unicode) rejected;
-  a link or markup rejected or never executed; invalid input leaves the token unconsumed.
+  a comment containing a link (URL, `www.`, a bare domain) or an image is **rejected on the server** with
+  `RATING_INPUT_INVALID` (ADR-0011 §4); accepted text with markup characters is stored as text and rendered
+  escaped, never as HTML, Markdown or a link; every invalid input leaves the token unconsumed.
 
 ### Story B4 — Low rating and averages (row 61, P1/P2)
 
@@ -427,7 +432,7 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 
 | Table | Change | Notes |
 |---|---|---|
-| `rating_requests` (new) | `company_id`, `id`, `business_id`, `customer_id`, `business_date`, `branch_id`, `due_at`, `send_deadline NULL`, `status`, `cancel_reason NULL`, `token_hash bytea NULL` (32 bytes), `expires_at NULL`, `claimed_at NULL`, `sent_at NULL`, `consumed_at NULL`, `created_at`, `updated_at` | `UNIQUE (company_id, business_id, customer_id, business_date)` (SPEC §4); `UNIQUE (company_id, token_hash)` where not null (ADR-0011 §1); `CHECK`s on status/reason pairs and on token/expiry together; partial index `(company_id, due_at) WHERE status = 'SCHEDULED'` for the claim page; column `UPDATE` grants only |
+| `rating_requests` (new) | `company_id`, `id`, `business_id`, `customer_id`, `business_date`, `branch_id`, `due_at`, `send_deadline NULL`, `status`, `cancel_reason NULL`, `token_hash bytea NULL` (32 bytes), `expires_at NULL`, `claimed_at NULL`, `ready_event_id uuid NULL` (D-B8), `sent_at NULL`, `consumed_at NULL`, `created_at`, `updated_at` | `UNIQUE (company_id, business_id, customer_id, business_date)` (SPEC §4); `UNIQUE (company_id, ready_event_id)` where not null; `UNIQUE (company_id, token_hash)` where not null (ADR-0011 §1); `CHECK`s on status/reason pairs and on token/expiry together; partial index `(company_id, due_at) WHERE status = 'SCHEDULED'` for the claim page; column `UPDATE` grants only |
 | `rating_performers` (new) | `company_id`, `id`, `request_id`, `employee_id` | the claim snapshot; `UNIQUE (company_id, request_id, employee_id)`; insert-only |
 | `ratings` (new) | `company_id`, `id`, `request_id`, `business_id`, `branch_id`, `stars smallint`, `comment text NULL`, `submitted_at` | `UNIQUE (company_id, request_id)` (ADR-0011 §2); `CHECK (stars BETWEEN 1 AND 5)`, comment ≤ 1,000 characters; insert-only |
 | `rating_attributions` (new) | `company_id`, `id`, `rating_id`, `employee_id`, `business_id`, `branch_id`, `stars`, `submitted_at` | one row per snapshotted performer; index `(company_id, employee_id, submitted_at)` for averages; insert-only |
@@ -446,8 +451,9 @@ read/write/re-home/FK negative tests and pooled-context leak tests (ADR-0011 §6
 | `LowRatingReceived` | customers ⇒ notifications | listed; payload in 61-1 |
 | `NotificationDelivered` (source `rating_request`) | notifications ⇒ customers | **new row** (D-B8), ADR-0010 addendum in 59b-3 |
 
-Ports: `DaySessionsPort`, `PerformerNamePort`, `AlertRulesPort`, `StaffColumnsPort` (all approved in ADR-0010; adapter
-edges added to module-map §2/§3 when first used).
+Ports: `DaySessionsPort`, `PerformerNamePort`, `AlertRulesPort`, `StaffColumnsPort` — approved in ADR-0010 for
+customers, staff and commissions; **orders' `StaffColumnsPort` and worker orders' `AlertRulesPort` are not, and wait
+for the ADR-0010 addendum (docs PR A-0)**. Adapter edges are added to module-map §2/§3 when first used.
 
 ### Alert kinds and their proposed defaults (AL-Q5)
 
@@ -502,14 +508,14 @@ The message uses the customer's stored name only as a greeting inside her own Wh
 | **59-1** | Scheduling | 1. `ratingSchedule` pure function + unit tests. 2. Worker customers module: the three consumers, upsert, reopen, bootstrap. 3. Tests RT-01…RT-08 | 58-1; RT-Q3, RT-Q4, RT-Q5 | 360–500 |
 | **59b-1** | Token codec | 1. ADR (RT-Q1) + codec in its owning package, keys from env only. 2. Root injection (api + worker). 3. Unit tests (determinism, domain separation, key ids) | **RT-Q1** | 160–260 |
 | **59b-2** | Claim | 1. `DaySessionsPort` reader + root callback, `PerformerNamePort`. 2. Claim use case (D-B5), discovery scheduler (D-B4), `RatingRequestReady`. 3. Tests RT-09…RT-13 | 59-1, 59b-1 | 380–520 |
-| **59b-3** | Send | 1. Template `rating_request` ar/en + link rendering in the sender + deadline. 2. SENT tracking (D-B8) + module-map/ADR addendum. 3. Tests RT-04 (send side), RT-14 | 59b-2; **RT-Q2**, RT-Q12 | 260–380 |
+| **59b-3** | Send | 1. Template `rating_request` ar/en + link rendering in the sender + deadline. 2. SENT tracking (D-B8) + module-map/ADR addendum. 3. Tests RT-04 (send side), RT-14 | 59b-2; **RT-Q2**, RT-Q12. May merge with sending disabled; **live activation** (template enabled, RT-Q3 switch on) waits until **60-1 and 60-2 are deployed and verified on staging**, so no customer gets a link before the page and submit work | 260–380 |
 | **60-1** | Submit API | 1. `view` + `submit-rating` use cases (D-B9). 2. Routes + OpenAPI. 3. Tests RT-15…RT-18, RT-21 | 58-2 | 360–480 |
 | **60-2** | Public page | 1. App shell or route per RT-Q11, headers, no trackers. 2. Page states ar/en/RTL + opt-out control. 3. UI tests (only business name and form visible; completion; unavailable) | 60-1; **RT-Q2**, RT-Q11 | 280–420 |
 | **61-1** | Low-rating alert | 1. Interim rule (RT-Q8) + `LowRatingReceived` with recipients. 2. Template `low_rating` + bell render. 3. Tests RT-22, RT-23 | 60-1; RT-Q8, RT-Q9 | 260–360 |
 | **61-2** | Averages | 1. Staff summary read (FR-B14) + admin list/averages (FR-B15) with `EXPLAIN`. 2. Permission (RT-Q7) + routes. 3. Tests RT-24, RT-25 + admin screen UI test | 61-1, 57c-1; RT-Q6, RT-Q7 | 340–460 |
 | **62-1** | Alert-rule storage and port | 1. Migration (`alert_rules`, master switch), permission, defaults table. 2. Settings use cases + routes + audit; `AlertRulesPort` (api) + worker settings module. 3. Tests RT-26, RT-29 | 61-1; AL-Q1…AL-Q5 | 360–480 |
 | **62-2** | Staff emitters on the rules | 1. Not-clocked-in + break rules read the port; `interimNotClockedInRule` and `interimBreakNotReturnedRule` deleted. 2. Attendance exceptions and document expiry (spec 033 contract); 28c lead time. 3. Tests RT-27, RT-28 | 62-1 | 320–440 |
-| **62-3** | Orders bells and low rating on the rules | 1. Late, edit, cancel, performers bells read the port. 2. Low rating reads the port (interim rule deleted). 3. Tests | 62-1; AL-Q6 | 260–380 |
+| **62-3** | Orders bells and low rating on the rules | 1. Late, edit, cancel, performers bells read the port. 2. Low rating reads the port (interim rule deleted). 3. Tests | 62-1, **A-0**; AL-Q6 | 260–380 |
 | **62-4** | Alert-rules screen | 1. Admin page: one row per kind + master switch. 2. i18n. 3. UI tests (switch states visible) | 62-1 | 240–340 |
 
 **File overlap:** 57c-1 and 62-1 both touch `business_settings` and the settings module — one at a time. 59b-3 and 61-1
@@ -535,7 +541,10 @@ both add templates in `packages/notifications` — one at a time. 62-3 touches t
   orchestrator applies it with this spec or in a docs PR; Part A already follows it.
 - **Amendment 2 (ADR-0027):** the own-scope capability list gains the four reads of D-A4 (sub-PR 57-1).
 - **Amendment 3 (ADR-0010 / module-map §4):** the `notifications ⇒ customers` outcome row (D-B8).
-- **Amendment 4 (IMPLEMENTATION-PLAN):** 57c-1 before 57-2 (D-A12); rows 59b and 60 wait on RT-Q1 and RT-Q2.
+- **Amendment 4 (IMPLEMENTATION-PLAN):** 57c-1 before 57-2 (D-A12); rows 59b and 60 wait on RT-Q1 and RT-Q2; rating
+  sends go live only after 60-1 and 60-2 are deployed and verified.
+- **Amendment 5 (ADR-0010 addendum, docs PR A-0):** orders as a `StaffColumnsPort` consumer (D-A3) and worker orders as
+  an `AlertRulesPort` consumer (D-B14), with their module-map §3 rows; before 57-2 and 62-3.
 - **New ADR:** the rating token codec and key custody (RT-Q1, 59b-1). Row 60-2 may need one if RT-Q11 adds a new app
   (`apps/menu` is planned in `06` §2, so Next.js itself needs no new-framework ADR, but its deploy target does).
 - This spec builds no per-message cap or metering for rating messages; who bears the WhatsApp cost is outside this
