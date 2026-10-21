@@ -140,9 +140,11 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 
 1. A business with no logo: the header has the name only (BR-01); no `file_access_audit` row is written.
 2. A business with a logo: exactly one `file_access_audit` row (`outcome = 'ALLOW'`, actor = the requester, `id =
-   render_id`) and one `file`/`access` audit entry per render, even when the job's attempt is retried (ADR-0051 §3).
-3. A logo replaced or purged between the request and the render: the statement uses the logo bound at render time, or
-   the name only if none is bound or its object is gone.
+   render_id`) and one `file`/`access` audit entry per render, even when the job's attempt is retried; a retry embeds
+   the file that row names, never a logo bound after it (ADR-0051 §3).
+3. A logo replaced or purged between the request and the render: the statement uses the logo bound at the render's
+   first attempt (the one its access row names, also on a retry), or the name only if none was bound or that file is
+   gone.
 4. With no official names written, the header follows spec 052 BR-11 (the display name).
 
 ### Edge cases
@@ -207,8 +209,9 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   `apps/worker/src/modules/staff/index.ts`) runs one `withTenant(companyId, …, { userId: requested_by })` transaction that
   reads the request row, the business and branch names, the employees with `employee_number`, the period inputs through
   the shared 27b inputs statement (ADR-0051 §2), the employee's OPEN sessions in the period for the employee form
-  (FR-011a), the stored identity (ADR-0051 §2) and resolves the logo through the
-  `files` reader, which writes its access audit (ADR-0051 §3). It commits, then fetches the logo bytes outside any
+  (FR-011a), the stored identity (ADR-0051 §2) and resolves the logo through its own `StatementLogoReader` port, whose
+  adapter calls the worker `files` reader; that reader writes the access audit on the first attempt and reuses the
+  audited file on a retry (ADR-0051 §3). It commits, then fetches the logo bytes outside any
   transaction (ADR-0051 §3), then computes the figures with `packages/domain` and returns. No transaction is open while
   Chromium runs (spec 056 FR-003).
 - **FR-011a** The 27b inputs statement leaves OPEN sessions out (`s.status<>'OPEN'` in
@@ -337,8 +340,8 @@ no `files` or `settings` permission to see the logo in her statement (ADR-0046 �
 
 ### 6.9 Module map
 
-ADR-0051: no new import arrow. The worker `staff` reader calls worker `files` (`staff → files` is already declared,
-ADR-0031) and two shared `@pospay/db` reads; `apps/worker/src/documents/` imports `@pospay/documents` (already allowed)
+ADR-0051: no new import arrow. The worker `staff` reader reaches worker `files` only through its `StatementLogoReader`
+port and adapter (`staff → files` is already declared, ADR-0031) and uses two shared `@pospay/db` reads; `apps/worker/src/documents/` imports `@pospay/documents` (already allowed)
 and no module index: `apps/worker/src/main.ts` injects the `staff` reader into the source factory. The code PRs add the matching `reads:` entries and port rows.
 
 ## 7. Tests
@@ -355,8 +358,9 @@ and no module index: `apps/worker/src/main.ts` injects the `staff` reader into t
 - **RLS:** negative isolation test for `attendance_statement_requests` (cross-tenant read = 0 rows, write = error), and
   that `pospay_app` cannot `UPDATE` or `DELETE` it.
 - **Queries:** every new or moved `queries/` statement has a result-shape test and an `EXPLAIN` assertion.
-- **Worker:** the source against the T2 Redis with a fake renderer: data read, logo resolve + access audit, logo fetch
-  outside the transaction, missing request row fails, no figure or HTML in a log line; one end-to-end run with the real
+- **Worker:** the source against the T2 Redis with a fake renderer: data read, logo resolve + access audit as
+  `pospay_app`, a retry after the logo was replaced embeds the first audited file and adds no row, logo fetch outside
+  the transaction, missing request row fails, no figure or HTML in a log line; one end-to-end run with the real
   renderer that checks `%PDF-`, `dir`/`lang`, and the escaped employee names.
 - **Template:** escaping of names with `<script>`, quotes and `&`; no external URL; signature places and footer present
   in both languages.

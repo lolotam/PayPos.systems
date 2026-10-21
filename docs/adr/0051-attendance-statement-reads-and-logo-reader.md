@@ -64,15 +64,23 @@ still owns the table and the rule; the shared package is only where the one copy
 Worker `files` exports, from `apps/worker/src/modules/files/index.ts`:
 
 1. `resolveStatementLogo(tx, { companyId, businessId, requesterUserId, renderId })`, called **inside** the reader's
-   tenant transaction. It reads the business's currently bound `logo_file_id` and its `file_objects` row (READY,
-   `owner_module = 'settings'`, `purge_started_at IS NULL`). When there is one, it inserts one `file_access_audit` row
-   (`id = renderId`, `outcome = 'ALLOW'`, `actor_user_id` = the requester) with `ON CONFLICT (company_id, id) DO
-   NOTHING RETURNING id`, and only when that insert returned a row it appends the `file`/`access` audit-log entry, as the
-   API files repository does for a download. A retried attempt of the same render (spec 056 FR-006) therefore writes
-   nothing new: the access audit is **once per render**, and it names the logo the first attempt resolved. `render_id`
-   is a fresh UUID v7, so it never collides with another access row; `ON CONFLICT DO NOTHING` needs only the `INSERT`
-   grant `pospay_app` already has. It returns an opaque handle (file id, storage key, content type), or `null` and
-   writes nothing.
+   tenant transaction. The access row it writes is keyed by the render (`file_access_audit.id = renderId`), and that
+   files-owned row is also the record of which logo the render uses, so a retry embeds the same file it audited:
+   - **First attempt** (no access row with `id = renderId`): it reads the business's currently bound `logo_file_id` and
+     its `file_objects` row (READY, `owner_module = 'settings'`, `purge_started_at IS NULL`). When there is one, it
+     inserts the access row (`id = renderId`, `file_id`, `outcome = 'ALLOW'`, `actor_user_id` = the requester) with
+     `ON CONFLICT (company_id, id) DO NOTHING RETURNING id`, and only when the insert returned a row it appends the
+     `file`/`access` audit-log entry, as the API files repository does for a download.
+   - **Retry** (spec 056 FR-006; the access row with `id = renderId` exists): it does **not** look at the current logo.
+     It reuses that row's `file_id` and reads its `file_objects` row with the same conditions; it writes nothing. A
+     logo replaced between attempts therefore never reaches the PDF without its own access row. If the audited file has
+     been purged meanwhile, the statement prints the name only (spec 052 BR-04) and reads no other file.
+
+   So every logo embedded in a PDF has exactly one access row for that render, naming that file. `render_id` is a fresh
+   UUID v7, so it never collides with another access row. `pospay_app` holds `SELECT, INSERT` on `file_access_audit`
+   (`packages/db/migrations/0042_2026-10-03_files-rls.sql`), which covers both the retry's read and `RETURNING id`; an
+   integration test runs the first attempt and the retry as `pospay_app`. It returns an opaque handle (file id, storage
+   key, content type), or `null` and writes nothing.
 2. `fetchStatementLogo(handle, signal)`, called **after commit**, outside any transaction. It reads the object through
    `packages/storage`, and re-encodes it with the same `sharp` setup as upload inspection to fit 512 × 512 px, PNG for a
    PNG and JPEG for a JPEG, at most 512 KiB. A 10 MiB logo (spec 052 BR-10) would otherwise take most of the 4 MiB HTML
@@ -81,8 +89,12 @@ Worker `files` exports, from `apps/worker/src/modules/files/index.ts`:
 
 The requester needs no `files` or `settings` permission: the statement's permission (`read:attendance:branch`) was
 checked when the request was made, and the stored permission of a settings file gates only the admin preview (ADR-0046
-§5). The worker `staff` reader imports worker `files`; `staff → files` is already declared (ADR-0031), so this adds
-`reads:` entries only.
+§5). The worker `staff` module reads the logo through a port it owns, `StatementLogoReader` (`resolve`, `fetch`) in
+`apps/worker/src/modules/staff/ports/`, as the module map's consumer-owned ports require (ADR-0010, ADR-0041). Its only
+implementation, `apps/worker/src/modules/staff/persistence/statement-logo.adapter.ts`, is the one file that imports the
+worker `files` index. The import arrow `staff → files` is already declared (ADR-0031); the code PR adds the port row
+(`worker staff | StatementLogoReader | worker files`) and the two `reads:` entries
+(`staff -> files.resolveStatementLogo`, `staff -> files.fetchStatementLogo`, each `@` that adapter).
 
 ### 4. The template stays inside the documents boundary
 
