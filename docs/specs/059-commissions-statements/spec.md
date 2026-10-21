@@ -278,6 +278,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-52** ليلى adds a period repair for هبة in September (allowed only while a `NO_PLAN` blocked correction exists, else 422
   `COMMISSION_REPAIR_NOT_ALLOWED`, including for a `NO_SALARY` block): one audited repair version that applies only inside September (D-12); the recompute posts
   the correction normally and resolves the blocked correction. Which September lines it prices: `TODO(spec)` CS-Q11.
+- **CM-52b** A repair for an open `NO_PLAN` block whose recompute then needs a salary that is missing: the same open block's
+  `code` becomes `NO_SALARY` (one row, not two), nothing is posted, and a later repair request is refused; any other `code`
+  change (`NO_SALARY` → `NO_PLAN`, or on a resolved row) is refused by the table's trigger.
 - **CM-53** A `NO_SALARY` block is resolved by setting the salary for its date in staff (spec 021); the `SalaryChanged`
   recompute posts the correction and resolves the block; a repair request for a `NO_SALARY` block is refused.
 - **CM-54** (CS-Q19 = PP-17.7) When a blocked correction is first recorded, one in-app bell reaches the holders of the plan
@@ -294,7 +297,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-55b** (D-20) Every line-sourced detail row of a frozen statement carries the `customer_id`, the customer's full name,
   the service names and the date frozen at approval, never a phone; after the customer's name is corrected in `customers`,
   a new export of the same approved statement still shows the name frozen at approval and identical amounts, while an open
-  month's view shows the corrected name.
+  month's view shows the corrected name; the same holds for the employee's name and number renamed or renumbered after
+  approval.
 - **CM-56** The amounts in the file equal the frozen statement bit for bit (KWD, three decimals, as text-safe numbers).
 
 ### Story 12 — Reminders (56b, P2)
@@ -303,6 +307,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   statement per day reaches the approvers as an in-app bell at 09:00 business time (CS-Q17 = PP-17.5); none once it is
   approved; a rerun of the
   job the same day sends nothing new (ledger, SPEC §11 "reminders on the 3rd and 5th"). Never a lock (D-54).
+- **CM-57c** A quiet business (no session, plan or generate in October) still gets its reminder on 3 November: the job
+  creates October's DRAFT statement, writes the ledger row and the events in one transaction; a rerun that day adds
+  nothing.
 - **CM-57b** A company created after the release gets its scheduler from `CompanyCreated`; a company whose Redis schedule
   was lost gets it back on the next commission input delivery; an existing company gets it from the operator replay.
 - **CM-58** (CS-Q16 = PP-17.4) On the 3rd, in the same 09:00 run as the owner's reminder, if October is still DRAFT one
@@ -446,6 +453,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   source, one `SALE` per `sale:<id>`, one `TIP_CARD`/`TIP_CASH` per `tip:<session>:<method>`, one line per received
   correction (its own id as source) of kind `CORRECTION` (commission and sale corrections), `CORRECTION_TIP_CARD` or
   `CORRECTION_TIP_CASH`, so the payable figure can be computed from the frozen kinds alone; zero amounts are frozen too, so the frozen set equals the fingerprinted set.
+  **Every** frozen row also stores the employee's label as read in the approval transaction through
+  `EmployeeDirectoryPort` (staff, ADR-0010): `employee_number` (row 8c), `employee_name_ar`, `employee_name_en`, so a later
+  rename or renumbering of the employee never changes an approved statement or its export (D-20).
   A line-sourced frozen row also copies the line's detail identifiers from the projection head and the customer and
   service names read in the same transaction (D-20), so the frozen statement and its export never need orders, the live
   projection or a live name to say which visit, service and customer a row is.
@@ -512,7 +522,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 
 - **FR-050** `POST …/:period/exports` → 202 `{ render_id }` on the ADR-0049 transport (D-18); the worker document source reads
   the frozen statement under `withTenant`, closes the transaction, then builds the workbook; poll and collect once.
-- **FR-051** Columns include, per employee: employee number (row 8c), name, commission, sales commission, corrections received,
+- **FR-051** Columns include, per employee: employee number (row 8c) and name, both taken from the frozen row (FR-033), commission, sales commission, corrections received,
   card tips, cash tips (informational), and the payable figure (CS-Q7); the content and states: CS-Q10; detail rows carry the customer's full name (CS-Q15 = PP-17.3).
   No phone ever (SPEC §4, R1).
 - **FR-052** Audit `commission_statement.exported` on each collected download. Permission: `read:commissions:business` (CS-Q14; CS-Q20 for a branch manager).
@@ -525,8 +535,12 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   one-time controlled operator replay of `CompanyCreated` after the worker rolls out (runbook). The job reads the
   company's businesses and their timezones under `withTenant` through the tenancy reader bound at the root (D-16) and,
   for each business whose local time has passed 09:00 (CS-Q17 = PP-17.5), emits `StatementAwaitingApproval` on
-  the 3rd and the 5th for the previous month while it is not APPROVED or PAID; a `commission_statement_reminders` ledger
-  `UNIQUE (company_id, statement_id, kind, reminder_date)` makes it once per day; zero recipients is a durable decision.
+  the 3rd and the 5th for the previous month while it is not APPROVED or PAID. For each business, in **one** transaction, the
+  job first calls `lockStatementPeriods` for the previous month, which **creates the DRAFT row if the business was quiet**
+  (no input, no plan write, no generate) and locks it, then rechecks the status under the lock, then inserts the
+  `commission_statement_reminders` ledger row (`UNIQUE (company_id, statement_id, kind, reminder_date)`, once per day) and
+  the grouped notice events (FR-030); a business is never skipped for having no statement row. Zero recipients is a durable
+  decision.
 - **FR-054** Recipients and channels are put in the event by commissions (SPEC §3); until row 62 the interim rule is an
   in-app bell at 09:00 business time to the approvers (CS-Q17 = PP-17.5, the ADR-0037 precedent), and row 62 must list both
   kinds in its switches.
@@ -574,10 +588,10 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 | `commission_tip_heads` / `commission_tips` (50) | head: `session_id`, `revision`, `business_date`, `period`; rows: `session_id`, `employee_id`, `method`, `amount` | `UNIQUE (company_id, session_id)` / `UNIQUE (company_id, session_id, employee_id, method)`; projection grants |
 | `commission_salaries` (50) | `employee_id`, `effective_from`, `amount`, `revision` | `UNIQUE (company_id, employee_id, effective_from)`; projection grants; never logged (SPEC §12) |
 | `commission_sales` (50) | `sale_id`, `seller_employee_id NULL`, `business_date`, `period`, `price_paid`, `refunded_amount`, `status`, `revision` | `UNIQUE (company_id, sale_id)`; projection grants |
-| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `source_ref`, `kind`, `amount`, `source_period NULL`, and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only; a trigger refuses an insert unless the statement is being approved in the same transaction |
+| `commission_statement_lines` (53) | `statement_id`, `employee_id`, `employee_number`, `employee_name_ar`, `employee_name_en` (the label frozen at approval), `source_ref`, `kind`, `amount`, `source_period NULL`, and for a line source (`COMMISSION`, or a `CORRECTION` of a `line:<id>`) the frozen detail `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`, `business_date` (NULL otherwise; D-20; never a phone) | `UNIQUE (company_id, statement_id, employee_id, source_ref)`; insert-only; a trigger refuses an insert unless the statement is being approved in the same transaction |
 | `commission_period_generations` (55) | `employee_id`, `period`, `generation` | `UNIQUE (company_id, employee_id, period)`; `SELECT, INSERT, UPDATE (generation)` |
 | `commission_corrections` (55) | `employee_id`, `source_period`, `target_period`, `target_statement_id`, `source_ref`, `kind`, `amount` (signed), `generation`, `event_id`, `created_at` | `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; index `(company_id, business_id, target_period)`; insert-only |
-| `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; `SELECT, INSERT, UPDATE (resolved_at, resolved_generation)` |
+| `commission_blocked_corrections` (55b) | `employee_id`, `source_period`, `code`, `first_event_id`, `created_at`, `resolved_at NULL`, `resolved_generation NULL` | partial `UNIQUE (company_id, employee_id, source_period) WHERE resolved_at IS NULL`; `SELECT, INSERT, UPDATE (code, resolved_at, resolved_generation)`; a trigger allows `code` only `NO_PLAN` → `NO_SALARY` on an open row |
 | `commission_statement_returns` (52) | `statement_id`, `returned_by`, `returned_membership_id`, `reason`, `returned_at` | `CHECK` reason 1…500 trimmed; insert-only; reason never logged |
 | `commission_statement_reminders` (56b) | `statement_id`, `kind`, `reminder_date`, `recipient_count` | `UNIQUE (company_id, statement_id, kind, reminder_date)`; insert-only |
 
@@ -667,10 +681,10 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations). 3. CM-51…CM-54 | 55-1; CS-Q11 | 400–550 |
 | **52-1** | Review | 1. Review use case + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
-| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-35, CM-37, CM-38, CM-34b | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage) | 400–550 |
+| **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-35, CM-37, CM-38, CM-34b | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q21 | 400–550 |
 | **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
 | **54-1** | Mark paid | 1. Use case + HTTP (CS-Q6). 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
-| **56-1** | Excel export | 1. Worker document source and workbook (D-18). 2. Request/collect routes, audit. 3. CM-55, CM-56 | 53-2; 59-0's ADR-0049 addendum; CS-Q10, CS-Q12, CS-Q20 | 350–480 |
+| **56-1** | Excel export | 1. Worker document source and workbook (D-18). 2. Request/collect routes, audit. 3. CM-55, CM-56 | 53-2; 59-0's ADR-0049 addendum; CS-Q10, CS-Q12, CS-Q20, CS-Q21 | 350–480 |
 | **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair, the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
 
 **File overlap:** 50-1, 50-2, 50-4 and 55-1 all touch the one consumer; they run one at a time. 52-1 and 56b-1 both register
