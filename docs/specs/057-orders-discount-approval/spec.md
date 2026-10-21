@@ -14,8 +14,8 @@
 > approval to save). **Abu Salem answered both on 2026-10-22 and his pick binds** (CLAUDE.md §1 5b): **DA-Q4b = 24 hours
 > from the request for everything** (the approver decides and the requester saves before `requested_at` + 24 h; an
 > approval does **not** start a fresh window, FR-010), the recommended option; his DA-Q4 pick (a 15-minute window with a
-> fresh 15 minutes after the approval) is **superseded by DA-Q4b** (Waleed, in chat 2026-10-22: «24 ساعة من الطلب
-> (المقترح)»). Merged code written for the old reset rule changes in issue #494. A follow-up of DA-Q3, **DA-Q10** (does an
+> fresh 15 minutes after the approval) **conflicts with his DA-Q4b**; this spec works on DA-Q4b (his later, more specific pick) until he confirms it himself in the pending question **DA-Q12** (Waleed's chat line of 2026-10-22, «24 ساعة من الطلب
+> (المقترح)», agrees with DA-Q4b; DA-Q12 blocks no sub-PR). Merged code written for the old reset rule changes in issue #494. A follow-up of DA-Q3, **DA-Q10** (does an
 > owner who approves on her own work get the owner bell herself), is **answered** too (card PP-26.1, batch 43, the
 > recommendation): the bell goes to every active owner covering the branch, the approving owner included (D-19). Abu
 > Salem's pick replaces Waleed's wherever it differs (DA-Q4b only here). **DA-Q11** is answered too (PP-29.2, batch 45, the recommendation; Waleed «جرس الطلب شغال دايماً (المقترح)»
@@ -74,7 +74,7 @@ what was approved, consuming the approval in the same transaction as the line (S
 | Item | Decision | Where |
 |---|---|---|
 | Which discounts need approval | **settled, not asked:** every line whose effective discount is above the recorder's effective limit (D-56; spec 016 "any fraction above the limit … needs approval"; spec 050 FR-007/FR-008: `NOT_CONFIGURED` = 0, owner unlimited) | FR-003 |
-| How long an approval lives (DA-Q4) | **answered (batch 34; Waleed typed «24 hours», not an option; Abu Salem's 15-minute pick is superseded by DA-Q4b):** 24 hours, replacing SPEC §4's `expires_at (15 min)` (SPEC §4 amendment in 057-1). **What the 24 hours count from (DA-Q4b): answered by Abu Salem (batch 42, 2026-10-22, binding; the recommended option, replacing Waleed's «fresh 24 hours after the approval»):** 24 hours from the request for everything: the approver decides and the requester saves before `requested_at` + 24 h, and an approval does not reset `expires_at`. Merged code written for the reset: issue #494 | FR-010, D-7 |
+| How long an approval lives (DA-Q4) | **answered (batch 34; Waleed typed «24 hours», not an option; Abu Salem's 15-minute pick conflicts with his DA-Q4b; working rule = DA-Q4b until DA-Q12 is answered):** 24 hours, replacing SPEC §4's `expires_at (15 min)` (SPEC §4 amendment in 057-1). **What the 24 hours count from (DA-Q4b): answered by Abu Salem (batch 42, 2026-10-22, binding; the recommended option, replacing Waleed's «fresh 24 hours after the approval»):** 24 hours from the request for everything: the approver decides and the requester saves before `requested_at` + 24 h, and an approval does not reset `expires_at`. Merged code written for the reset: issue #494 | FR-010, D-7 |
 | One approval ↔ one line | **settled, not asked:** SPEC §4 `consumed_by_line?` is singular; one proposal is consumed by exactly one line (an `EDIT` proposal by exactly one `service_line_edits` row, D-20) | D-3, FR-019 |
 | Terms or price change after approval | **settled, not asked:** M2 "exactly matching terms … changed terms, replay and cross-branch use fail": a new proposal is needed | D-4, FR-020 |
 | Consumption | **settled, not asked:** M2 compare-and-set in the line's own transaction; two concurrent uses of one approval: one wins | FR-019, DP-20 |
@@ -201,8 +201,10 @@ second branch manager who also performs services.
   (D-17); منى sees the reason and who decided. A second
   approve or reject of a decided proposal → 409 `DISCOUNT_PROPOSAL_NOT_PENDING`.
 - **DP-14b** (FR-010, DA-Q4b = Abu Salem) منى requests at 17:00; ليلى approves remotely the next day at 16:00 → `APPROVED`
-  with `expires_at` **unchanged** at 17:00 that day (`requested_at` + 24 h): منى saves at 16:30 and the line is saved, but
-  at 18:00 the proposal reads `EXPIRED` (the approval gave no fresh window) and she must request again. A request still
+  with `expires_at` **unchanged** at 17:00 that day (`requested_at` + 24 h). Two alternative branches from that `APPROVED`
+  state: (a) منى saves at 16:30 → the line is saved and the proposal moves `APPROVED → CONSUMED` (terminal; it never reads
+  `EXPIRED` afterwards); (b) منى tries at 18:00 instead → the proposal reads `EXPIRED` (the approval gave no fresh window),
+  the save is refused with `approval_refusal = EXPIRED`, and she must request again. A request still
   `PENDING` at 17:00 the next day (`requested_at` + 24 h) is listed as `EXPIRED` and dropped from the pending lists;
   approving or rejecting it → 409 `DISCOUNT_PROPOSAL_NOT_PENDING`. `expires_at` is never `NULL` and never changes after
   the request (approve, reject and consume all leave it as the request wrote it).
@@ -590,7 +592,7 @@ open PR on those files; 057-9 touches the 35d edit writer and runs alone the sam
   replaces Waleed's where it differs (CLAUDE.md §1 5b). Each is confined to the FR it names, so a different pick changes
   one rule, not the design. The follow-up DA-Q4b (batch 42, PP-25.2) was Waleed's «a fresh 24 hours from the approval to
   save»; **Abu Salem picked «24 hours from the request for everything» on 2026-10-22 and that binds** (FR-010; his DA-Q4
-  15-minute pick is superseded by DA-Q4b, Waleed's chat clarification of 2026-10-22). DA-Q10 (batch 43, PP-26.1: the owner
+  15-minute pick conflicts with it, so the pending DA-Q12 asks him to confirm; Waleed's chat line of 2026-10-22 agrees with DA-Q4b). DA-Q10 (batch 43, PP-26.1: the owner
   bell reaches every active owner, the approving owner included) is Waleed's card of 2026-10-21, no difference.
 - 057-1 and 057-2 are merged with the old DA-Q4b rule (the `expires_at` reset on approval in the `discount_proposals`
   trigger and `UPDATE` grant, the contracts text and ADR-0051); issue #494 brings them in line with FR-010 and §6.
