@@ -93,7 +93,7 @@ is quarantined; P2-T9); WhatsApp or email for the request (tenant outbound stays
 | D-14 | Orders emits one new event, `DiscountApprovalRequested`, only for the bell (DA-Q7). Approvals, rejects and consumption emit **no** event: commissions read the line's `net` from the existing line events, and nothing else consumes an approval | events for every transition (no consumer) |
 | D-15 | (DA-Q6: Waleed asked for lockout after failed tries) Two counters guard the device PIN path: the existing **per-holder** lockout of D-08 (5 failures → 15 min; an unknown phone has its own per-phone counter, `pinCounterKey`), and a **per-device** cap so one paired computer cannot walk through many phones: 10 failures across all phones within 15 minutes lock the device's PIN approval for 15 minutes (423 `PIN_LOCKED`), audited `device.pin_approval_locked`. Both live in Redis on Redis's clock, like D-08; the numbers are fixed in the ADR | the per-holder counter alone (a device could try 4 PINs on every bound phone) |
 | D-16 | **Request-time identity snapshot.** At request time each performer's linked user is read `FOR SHARE` through the existing performer port and stored per proposal (`discount_proposal_performers`); the approver self rule (FR-014) checks that snapshot **∪** the performer's current link, so relinking between request and approval never lets a formerly linked performer approve | checking only the current link (the line does not exist yet, so a relink would open a gap) |
-| D-17 | **Neutral decision fields.** Approve and reject write the same columns (`decided_by`, `decided_by_membership_id`, `decided_via` PIN/REMOTE, `decided_device_id`, the decider role and name snapshots, `decided_at`); only an approval also writes `approved_limit_source` / `approved_limit_bps`; only a reject may write `reject_reason` | separate approve/reject column sets (twice the columns and `CHECK`s for one fact: who decided, how, when) |
+| D-17 | **Neutral decision fields.** Approve and reject write the same columns (`decided_by`, `decided_by_membership_id`, `decided_via` PIN/REMOTE, `decided_device_id` — set for `PIN`, `NULL` for `REMOTE` —, the decider role and name snapshots, `decided_at`); only an approval also writes `approved_limit_source` / `approved_limit_bps`; only a reject may write `reject_reason` | separate approve/reject column sets (twice the columns and `CHECK`s for one fact: who decided, how, when) |
 
 ## 3. Settled rules this spec builds on (cited, not asked)
 
@@ -225,8 +225,8 @@ second branch manager who also performs services.
 - The approver's permission or limit changes after approval → the approval stands (it was valid when given; audit
   shows the limit used); the line still checks only the hash.
 - A visit at 23:55 approved at 00:05 local → the occurred business date in the terms stays the request's; a create
-  after midnight with an omitted `occurred_at` computes a new date → `TERMS_MISMATCH` (send the original
-  `occurred_at`).
+  after midnight with an omitted `occurred_at` computes a new date → `TERMS_MISMATCH`; the screen therefore resends the
+  normalized `occurred_at` returned by the request (FR-007) and by the requester read (FR-008).
 - Opted-out customers, late visits, PARTIAL visits: none changes the right to ask or approve.
 
 ## 5. Requirements
@@ -245,14 +245,22 @@ second branch manager who also performs services.
   performer reads → limit read → insert the proposals → audit → outbox `DiscountApprovalRequested` → store the 201.
 - **FR-006** Idempotency-Key required, COMPANY scope, operation `request-discount-approval`; fingerprint with the shared
   helper over `{method, route, query, body, params:{businessId, branchId, companyId, actorUserId}}`.
-- **FR-007** Response 201: `{ request_id, proposals: [{ id, input_index, status, expires_at, effective_bps,
-  terms_hash }] }`; no approver data yet.
+- **FR-007** Response 201: `{ request_id, occurred_at, proposals: [{ id, input_index, status, expires_at,
+  effective_bps, terms_hash }] }`; no approver data yet. `occurred_at` is the **normalized** visit instant the terms were
+  built from (the injected now when the request omitted it), so a later create for a fresh visit resends exactly that
+  instant and keeps the same business date (edge case «23:55 / 00:05»).
 - **FR-008** Read for the requester: `GET …/discount-proposals?request_id=` under
   `@Require('record:service-sessions:branch', { branch: 'branchId' })`, filtered to `requested_by` = the caller inside
-  its tenant transaction (own proposals only, DP-07); the branch list
-  `GET …/discount-proposals?status=PENDING&cursor&limit` under `approve:discounts:branch`; both are `queries/` files
-  (read-only, no `domain/` or `use-cases/` import) with result-shape and `EXPLAIN` tests. Status `EXPIRED` is computed
-  in the SQL from `expires_at` and the injected now (D-7).
+  its tenant transaction (own proposals only, DP-07); items `{ id, request_id, input_index, status, session_id,
+  occurred_at, service_id, service name ar/en, list_price, price, discount, net, effective_bps, expires_at, terms_hash,
+  decided_label_ar/en?, decided_via?, decided_at?, reject_reason?, consumed_line_id? }` — `occurred_at` is the
+  normalized instant of FR-007. The branch list `GET …/discount-proposals?status=PENDING&cursor&limit` under
+  `approve:discounts:branch`, newest first, items `{ id, request_id, session_id, occurred_at, service_id, service name
+  ar/en, list_price, price, discount, net, effective_bps, performers [{ employee_id, first name ar/en }], requester
+  label ar/en, customer first name, requested_at, expires_at, terms_hash }` — everything the approver must see to
+  decide and the `terms_hash` FR-017 sends back; never a phone. Both are `queries/` files (read-only, no `domain/` or
+  `use-cases/` import) with result-shape and `EXPLAIN` tests. Status `EXPIRED` is computed in the SQL from `expires_at`
+  and the injected now (D-7).
 - **FR-009** Pure domain (`orders/domain`, Arabic JSDoc, no DB): `buildDiscountTerms`, `discountTermsHash` (canonical,
   versioned), `needsApproval`, `proposalState(status, expiresAt, now)`, `canApprove(approverLimit, terms)`,
   `approverSelfRule`, `consumptionRefusal(proposal, lineTerms, actor, now)`; exhaustive unit tests incl. ceil bps,
@@ -326,15 +334,22 @@ second branch manager who also performs services.
 
 | Table | Change | Notes |
 |---|---|---|
-| `discount_proposals` (new) | `company_id`, `id` (UUID v7), `business_id`, `branch_id`, `request_id uuid`, `session_id uuid NULL`, `customer_id`, `service_id`, `terms jsonb`, `terms_hash char(64)`, `effective_bps int`, `requested_by` (user), `requested_by_membership_id`, `requester_limit_source`, `requester_limit_bps NULL`, `requested_at`, `status` (`PENDING`/`APPROVED`/`REJECTED`/`CONSUMED`), `expires_at`, the decision fields of D-17: `decided_by NULL`, `decided_by_membership_id NULL`, `decided_via` (`PIN`/`REMOTE`) `NULL`, `decided_device_id NULL`, the decider role and name snapshot columns of `service_line_edits` (35d-3b) `NULL`, `decided_at NULL`; `approved_limit_source NULL`, `approved_limit_bps NULL` (approval only), `reject_reason NULL` (reject only), `consumed_line_id NULL`, `consumed_at NULL` | PK `(company_id, id)`; `UNIQUE (company_id, id, consumed_line_id)` (target of the line's FK); partial `UNIQUE (company_id, consumed_line_id) WHERE consumed_line_id IS NOT NULL`; `CHECK`s: status/field coherence per status (decision fields all set iff status ≠ `PENDING`; limit pair iff approved or consumed; reason only when `REJECTED`), `effective_bps` 1…10000, limit source/bps pairs as `service_lines_limit`, reason 1…500 trimmed when present, `terms_hash ~ '^[0-9a-f]{64}$'`; tenant-and-business-qualified FKs to branch, customer, service, session, memberships, device; `consumed_line_id` FK to `service_lines (company_id, id)` `DEFERRABLE INITIALLY DEFERRED`; `ENABLE` + `FORCE` RLS with explicit `USING`/`WITH CHECK`; grants `SELECT, INSERT` and `UPDATE (status, expires_at, decided_by, decided_by_membership_id, decided_via, decided_device_id`, the decider snapshot columns, `decided_at, approved_limit_source, approved_limit_bps, reject_reason, consumed_line_id, consumed_at)` to `pospay_app`; a `BEFORE UPDATE` trigger allows only `PENDING→APPROVED`, `PENDING→REJECTED`, `APPROVED→CONSUMED` and refuses any change to the terms columns |
+| `discount_proposals` (new) | `company_id`, `id` (UUID v7), `business_id`, `branch_id`, `request_id uuid`, `session_id uuid NULL`, `occurred_at timestamptz` (the normalized visit instant: the saved session's when `session_id` is set, otherwise the request's `occurred_at` or the injected now when it was omitted), `customer_id`, `service_id`, `terms jsonb`, `terms_hash char(64)`, `effective_bps int`, `requested_by` (user), `requested_by_membership_id`, `requester_limit_source`, `requester_limit_bps NULL`, `requested_at`, `status` (`PENDING`/`APPROVED`/`REJECTED`/`CONSUMED`), `expires_at`, the decision fields of D-17: `decided_by NULL`, `decided_by_membership_id NULL`, `decided_via` (`PIN`/`REMOTE`) `NULL`, `decided_device_id NULL`, the decider role and name snapshot columns of `service_line_edits` (35d-3b) `NULL`, `decided_at NULL`; `approved_limit_source NULL`, `approved_limit_bps NULL` (approval only), `reject_reason NULL` (reject only), `consumed_line_id NULL`, `consumed_at NULL` | PK `(company_id, id)`; `UNIQUE (company_id, id, consumed_line_id)` (target of the line's FK); partial `UNIQUE (company_id, consumed_line_id) WHERE consumed_line_id IS NOT NULL`; `CHECK`s: status/field coherence per status (`decided_by`, `decided_by_membership_id`, `decided_via`, `decided_at` and the decider snapshots all set iff status ≠ `PENDING`; **channel-specific device:** `decided_device_id IS NOT NULL` iff `decided_via = 'PIN'`, so it is `NULL` for `REMOTE` and while `PENDING`; limit pair iff approved or consumed; reason only when `REJECTED`), `effective_bps` 1…10000, limit source/bps pairs as `service_lines_limit`, reason 1…500 trimmed when present, `terms_hash ~ '^[0-9a-f]{64}$'`; tenant-and-business-qualified FKs to branch, customer, service, session, memberships, device; `consumed_line_id` FK to `service_lines (company_id, id)` `DEFERRABLE INITIALLY DEFERRED`; `ENABLE` + `FORCE` RLS with explicit `USING`/`WITH CHECK`; grants `SELECT, INSERT` and `UPDATE (status, expires_at, decided_by, decided_by_membership_id, decided_via, decided_device_id`, the decider snapshot columns, `decided_at, approved_limit_source, approved_limit_bps, reject_reason, consumed_line_id, consumed_at)` to `pospay_app`; a `BEFORE UPDATE` trigger allows only `PENDING→APPROVED`, `PENDING→REJECTED`, `APPROVED→CONSUMED` and refuses any change to the terms columns |
 | `service_lines` | add `discount_proposal_id uuid NULL`; composite FK `(company_id, discount_proposal_id, id)` → `discount_proposals (company_id, id, consumed_line_id)` `DEFERRABLE INITIALLY DEFERRED` (at commit the proposal must name this line); partial `UNIQUE (company_id, discount_proposal_id)` | expand-only `ADD COLUMN`; the unique index is built `CONCURRENTLY` in its own migration (ADR-0033); the table-level `INSERT` grant covers the column; no `UPDATE` grant on it (DA-Q5 ⭐) |
-| `discount_proposal_performers` (new) | `company_id`, `id`, `business_id`, `proposal_id`, `employee_id`, `linked_user_id NULL` (the performer's user link at request time, D-16) | `UNIQUE (company_id, proposal_id, employee_id)`; tenant-and-business-qualified FKs to the proposal and to `employees`; FK to the global user for `linked_user_id` with a partial index; `ENABLE` + `FORCE` RLS; grants `SELECT, INSERT` only (insert-only) |
+| `discount_proposal_performers` (new) | `company_id`, `id`, `business_id`, `proposal_id`, `employee_id`, `linked_user_id NULL` (the performer's user link at request time, D-16) | `UNIQUE (company_id, proposal_id, employee_id)`; tenant-and-business-qualified FKs `(company_id, business_id, proposal_id)` → `discount_proposals (company_id, business_id, id)` (the parent adds that `UNIQUE`) and `(company_id, business_id, employee_id)` → `employees`, each with its own index (*Indexes* below); FK to the global user for `linked_user_id` with a partial index; `ENABLE` + `FORCE` RLS; grants `SELECT, INSERT` only (insert-only) |
 | `discount_approval_notices` (new, consumer PR) | the bell ledger: `company_id`, `id`, `business_id`, `request_id`, `source_event_id`, `decided_at`, `recipient_count >= 0` | `UNIQUE (company_id, request_id)`; `FORCE` RLS; `SELECT, INSERT` |
 
 **Indexes** (the migration that adds a query adds its index): `(company_id, branch_id, status, expires_at)` for the
 pending lists (device and admin); `(company_id, request_id)` for the requester's read; `(company_id, requested_by,
-requested_at DESC)`; FK indexes on `session_id`, `customer_id`, `service_id`, `requested_by_membership_id`,
-`decided_by_membership_id`, `decided_device_id`. Every new tenant table ships its **negative isolation test**
+requested_at DESC)`; **every composite FK gets an index whose leading columns are exactly the FK's columns**
+(CLAUDE.md §5): on `discount_proposals` `(company_id, business_id, branch_id)`, `(company_id, business_id,
+session_id)`, `(company_id, customer_id)`, `(company_id, business_id, service_id)`, `(company_id,
+requested_by_membership_id)`, `(company_id, decided_by_membership_id)`, `(company_id, decided_device_id)` (partial,
+not null) — each matched to the exact column list of its FK in the migration; on `discount_proposal_performers`
+`(company_id, business_id, proposal_id)` for the proposal FK and `(company_id, business_id, employee_id)` for the
+employee FK, plus the partial `(linked_user_id) WHERE linked_user_id IS NOT NULL` for the global-user FK; the
+`UNIQUE (company_id, proposal_id, employee_id)` does not serve either FK because `business_id` is not in its prefix.
+Every new tenant table ships its **negative isolation test**
 (cross-tenant read = 0 rows, write = error) and is added to the grants allowlist and `privileges.spec.ts`.
 
 ### API contracts (Zod in `packages/contracts/src/orders/discount-approval.ts`)
