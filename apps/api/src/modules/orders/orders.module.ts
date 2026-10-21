@@ -12,7 +12,7 @@ import { sessionServiceOptions } from './persistence/session-service-options.ada
 import { SessionPerformerOptionsQueryHandler } from './queries/session-performer-options.query.ts';
 import { sessionTime } from './domain/session-time.ts';
 import { sessionPerformerOptions } from './persistence/session-performer-options.adapter.ts';
-import { recordingAccess, recordingLimit } from './persistence/recording-context.adapter.ts';
+import { pickerAccess, recordingAccess, recordingLimit } from './persistence/recording-context.adapter.ts';
 import { SessionAdminGuard, SessionAppendGuard } from './http/session-access.guard.ts';
 import { SessionErrorsFilter } from './http/session-errors.filter.ts';
 import { catalogReader } from './persistence/catalog-reader.adapter.ts';
@@ -21,7 +21,7 @@ import { performerCheck } from './persistence/performer-check.adapter.ts';
 import { discountLimit } from './persistence/discount-limit.adapter.ts';
 import { sessionBranchBelongs, sessionPlace } from './persistence/session-place.adapter.ts';
 import { sessionRecordAccess } from './persistence/session-record-access.adapter.ts';
-import { sessionCancelCapability } from './persistence/session-edit-access.adapter.ts';
+import { sessionCancelCapability, sessionPerformersCapability } from './persistence/session-edit-access.adapter.ts';
 import { sessionReadAccess } from './persistence/session-read-access.adapter.ts';
 import { BranchDayServiceSessionsQuery } from './queries/branch-day-service-sessions.query.ts';
 import { ServiceSessionCapabilitiesQuery } from './queries/service-session-capabilities.query.ts';
@@ -53,7 +53,7 @@ export function ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clo
   return new SessionPerformerOptionsQueryHandler(database, {
     time: (occurredAt, at, timezone) => sessionTime(new Date(occurredAt), at, timezone).occurred_at.toISOString(),
     place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).read(),
-    access: (tx, scope, at) => recordingAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
+    access: (tx, scope, at) => pickerAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
     options: (tx, scope, query, normalizeTime) => sessionPerformerOptions(tx, scope.companyId, scope.businessId, scope.branchId, query, normalizeTime),
   }, clock);
 }
@@ -67,7 +67,7 @@ export function ordersServiceOptionsQuery(database: TenantWrappers, clock: Clock
 export function ordersRecordingContextQuery(database: TenantWrappers, clock: Clock = systemClock) {
   return new RecordingContextQueryHandler(database, {
     place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).read(),
-    access: (tx, scope, at) => recordingAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
+    access: (tx, scope, at) => pickerAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
     limit: (tx, scope, membershipId) => recordingLimit(tx, scope.companyId, scope.businessId, membershipId),
   }, clock);
 }
@@ -109,6 +109,7 @@ export function ordersCapabilitiesQuery(database: TenantWrappers) {
     place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
     read: (tx, scope) => sessionReadAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
     cancel: (tx, scope, at) => sessionCancelCapability(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
+    performers: (tx, scope, at) => sessionPerformersCapability(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
   });
 }
 export function ordersLineEdits(database: TenantWrappers) {

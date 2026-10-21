@@ -12,8 +12,8 @@ export type DayVisitHandlers = {
 };
 export type DayVisitPanels = { editor: ReactNode; historyPanel: ReactNode; detailsPanel: ReactNode; performerHistoryPanel: ReactNode };
 
-export function ServiceSessionDayVisit({ visit, locale, zoneFallback, canCancel, activeLineId, historyLineId, detailsLineId, performerHistoryLineId, handlers, panels, tipAction = null }: {
-  visit: Visit; locale: Locale; zoneFallback: string; canCancel: boolean; activeLineId: string | null; historyLineId: string | null; detailsLineId: string | null;
+export function ServiceSessionDayVisit({ visit, locale, zoneFallback, canCancel, canChangePerformers, activeLineId, historyLineId, detailsLineId, performerHistoryLineId, handlers, panels, tipAction = null }: {
+  visit: Visit; locale: Locale; zoneFallback: string; canCancel: boolean; canChangePerformers: boolean; activeLineId: string | null; historyLineId: string | null; detailsLineId: string | null;
   performerHistoryLineId: string | null; handlers: DayVisitHandlers; panels: DayVisitPanels; tipAction?: ReactNode;
 }) {
   return <Card className="grid gap-3 p-3 text-start">
@@ -22,7 +22,7 @@ export function ServiceSessionDayVisit({ visit, locale, zoneFallback, canCancel,
     <p>{formatInstant(new Date(visit.occurred_at), locale, visit.business_timezone)}</p>
     {visit.late || visit.lines.some((line) => line.late) ? <Badge variant="warning">{t(locale, 'serviceSessions.late')}</Badge> : null}
     {visit.lines.map((line) => <div key={line.id} className="grid gap-2">
-      <ServiceSessionDayLine line={line} locale={locale} timezone={visit.business_timezone || zoneFallback} canCancel={canCancel}
+      <ServiceSessionDayLine line={line} locale={locale} timezone={visit.business_timezone || zoneFallback} canCancel={canCancel} canChangePerformers={canChangePerformers}
         historyOpen={historyLineId === line.id} detailsOpen={detailsLineId === line.id} performerHistoryOpen={performerHistoryLineId === line.id}
         handlers={{
           onEdit: () => handlers.onEdit(line.id), onCancel: () => handlers.onCancel(line.id), onChangePerformers: () => handlers.onChangePerformers(line.id),

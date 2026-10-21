@@ -70,7 +70,8 @@ const visit = {
   ],
 };
 const day = { data: { items: [visit], next_cursor: null }, response: { status: 200 } };
-const allowed = { data: { can_cancel_lines: true }, response: { status: 200 } };
+const flags = (cancel: boolean) => ({ can_cancel_lines: cancel, can_change_performers: false });
+const allowed = { data: flags(true), response: { status: 200 } };
 function answerGet(body: () => Promise<unknown>) {
   state.get.mockImplementation((path: string) =>
     String(path).includes('/capabilities') ? Promise.resolve(allowed) : body(),
@@ -365,9 +366,7 @@ it('shows the 403 notice and keeps the day list', async () => {
   let posted = false;
   state.get.mockImplementation((path: string) => {
     if (!String(path).includes('/capabilities')) return Promise.resolve(day);
-    return Promise.resolve(
-      posted ? { data: { can_cancel_lines: false }, response: { status: 200 } } : allowed,
-    );
+    return Promise.resolve(posted ? { data: flags(false), response: { status: 200 } } : allowed);
   });
   state.post.mockImplementation(() => {
     posted = true;

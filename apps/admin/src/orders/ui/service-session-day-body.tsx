@@ -15,6 +15,7 @@ type ServiceSessionDayBodyProps = {
   online: boolean;
   timezone: string;
   canCancel: boolean;
+  canChangePerformers: boolean;
   canRecord: boolean;
   onAccessDenied: (message: string) => void;
   tipAttempts: RefObject<Map<string, UnresolvedTip>>;
@@ -27,6 +28,7 @@ export function ServiceSessionDayBody({
   online,
   timezone,
   canCancel,
+  canChangePerformers,
   canRecord,
   onAccessDenied,
   tipAttempts,
@@ -56,6 +58,7 @@ export function ServiceSessionDayBody({
       online={online}
       timezone={timezone}
       canCancel={canCancel}
+      canChangePerformers={canChangePerformers}
       canRecord={canRecord}
       loadError={query.isError ? envelopeMessage(query.error, locale) : null}
       empty={query.isSuccess && visits.length === 0}

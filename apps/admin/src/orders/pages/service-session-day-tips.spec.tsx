@@ -106,7 +106,10 @@ function answer() {
   state.get.mockImplementation((path: string, init?: unknown) => {
     const name = String(path);
     if (name.includes('/capabilities')) {
-      return Promise.resolve({ data: { can_cancel_lines: false }, response: { status: 200 } });
+      return Promise.resolve({
+        data: { can_cancel_lines: false, can_change_performers: false },
+        response: { status: 200 },
+      });
     }
     if (name.includes('recording-context')) {
       if (state.recording === 'down') return Promise.resolve(unavailable);

@@ -80,7 +80,10 @@ function answer(capability: Promise<unknown> | 'allow') {
   state.get.mockImplementation((path: string) => {
     if (!String(path).includes('/capabilities')) return Promise.resolve(day);
     if (capability === 'allow') {
-      return Promise.resolve({ data: { can_cancel_lines: true }, response: { status: 200 } });
+      return Promise.resolve({
+        data: { can_cancel_lines: true, can_change_performers: false },
+        response: { status: 200 },
+      });
     }
     return capability;
   });
@@ -116,7 +119,10 @@ it('hides Cancel while the capability is loading and after it is false, and stil
   expect(cancel()).toBeNull();
   expect(screen.getByRole('button', { name: t('en', 'serviceLineCancel.details') })).toBeTruthy();
   await act(async () => {
-    gate.settle({ data: { can_cancel_lines: false }, response: { status: 200 } });
+    gate.settle({
+      data: { can_cancel_lines: false, can_change_performers: false },
+      response: { status: 200 },
+    });
   });
   expect(cancel()).toBeNull();
   expect(screen.getByRole('button', { name: t('en', 'serviceLineCancel.details') })).toBeTruthy();
@@ -177,7 +183,10 @@ it('keeps the day and hides Record tip for a reader without record permission', 
   state.get.mockImplementation((path: string) => {
     const name = String(path);
     if (name.includes('/capabilities')) {
-      return Promise.resolve({ data: { can_cancel_lines: false }, response: { status: 200 } });
+      return Promise.resolve({
+        data: { can_cancel_lines: false, can_change_performers: false },
+        response: { status: 200 },
+      });
     }
     if (name.includes('recording-context')) return gate.promise;
     return Promise.resolve(day);
@@ -199,7 +208,10 @@ it('shows Record tip when the recording context succeeds', async () => {
   state.get.mockImplementation((path: string) => {
     const name = String(path);
     if (name.includes('/capabilities')) {
-      return Promise.resolve({ data: { can_cancel_lines: false }, response: { status: 200 } });
+      return Promise.resolve({
+        data: { can_cancel_lines: false, can_change_performers: false },
+        response: { status: 200 },
+      });
     }
     if (name.includes('recording-context')) return Promise.resolve(recorded);
     return Promise.resolve(day);
@@ -208,3 +220,24 @@ it('shows Record tip when the recording context succeeds', async () => {
   expect(await screen.findByRole('button', { name: t('en', 'sessionTips.open') })).toBeTruthy();
   expect(screen.getByText('Synthetic customer')).toBeTruthy();
 });
+
+it.each([
+  [true, 1],
+  [false, 0],
+] as const)(
+  'shows Change performers on the active line only when can_change_performers is %s (PP-19.2)',
+  async (allowed, count) => {
+    answer(
+      Promise.resolve({
+        data: { can_cancel_lines: true, can_change_performers: allowed },
+        response: { status: 200 },
+      }),
+    );
+    renderPage();
+    await waitFor(() => expect(cancel()).toBeTruthy());
+    expect(
+      screen.queryAllByRole('button', { name: t('en', 'serviceLinePerformers.change') }),
+    ).toHaveLength(count);
+    expect(screen.getByRole('button', { name: t('en', 'serviceLineEdit.edit') })).toBeTruthy();
+  },
+);

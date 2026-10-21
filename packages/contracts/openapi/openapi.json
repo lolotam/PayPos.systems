@@ -10243,7 +10243,7 @@
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/capabilities": {
       "get": {
         "operationId": "readServiceSessionCapabilities",
-        "description": "Lock-free branch capability for the manager day list. Requires read:service-sessions:branch and the orders feature. can_cancel_lines is the effective cancel:service-lines:branch on this branch: ALLOW, no DENY, and an active membership. Missing cancel permission, a DENY, or another branch is 200 false. Missing read is the route 403. A disabled orders feature stays FEATURE_DISABLED. No Idempotency-Key.",
+        "description": "Lock-free branch capability for the manager day list. Requires read:service-sessions:branch and the orders feature. can_cancel_lines is the effective cancel:service-lines:branch and can_change_performers the effective change:service-line-performers:branch on this branch: ALLOW, no DENY, and an active membership. A missing permission, a DENY, or another branch makes that flag 200 false. Missing read is the route 403. A disabled orders feature stays FEATURE_DISABLED. No Idempotency-Key.",
         "parameters": [
           {
             "in": "header",
@@ -10275,7 +10275,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Whether the day list may offer Cancel on this branch.",
+            "description": "Whether the day list may offer Cancel and Change performers on this branch.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11393,7 +11393,7 @@
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/performer-options": {
       "get": {
         "operationId": "getServiceSessionPerformerOptions",
-        "description": "Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. Uses the POST time window and future-tolerance normalization. Required UI lang orders globally by the displayed name (selected language with fallback to the other name) COLLATE \"und-x-icu\", then id. Opaque base64url cursor contains the exact displayed name, id, lang, hash of normalized q, canonical requested_at, first-page effective_at and hash of company/business/branch scope. Later pages keep the requested instant unchanged and reuse effective_at after rechecking the recording window; malformed or mismatched cursors return 400. Case-insensitive search matches either name. A digits-only q also matches the employee number exactly (number OR name). No private HR fields or wider staff permission.",
+        "description": "Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch or change:service-line-performers:branch (the performer editor picker, PP-19.1) and the orders feature, checked inside the read transaction; business/branch ownership rechecked on every page. Uses the POST time window and future-tolerance normalization. Required UI lang orders globally by the displayed name (selected language with fallback to the other name) COLLATE \"und-x-icu\", then id. Opaque base64url cursor contains the exact displayed name, id, lang, hash of normalized q, canonical requested_at, first-page effective_at and hash of company/business/branch scope. Later pages keep the requested instant unchanged and reuse effective_at after rechecking the recording window; malformed or mismatched cursors return 400. Case-insensitive search matches either name. A digits-only q also matches the employee number exactly (number OR name). No private HR fields or wider staff permission.",
         "parameters": [
           {
             "in": "header",
@@ -11649,7 +11649,7 @@
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/recording-context": {
       "get": {
         "operationId": "getServiceSessionRecordingContext",
-        "description": "Admin recording-form context under record:service-sessions:branch and orders feature (SS-Q13). Own active branch-covering memberships only. Sole or explicit selection resolves its fresh advisory discount limit; ambiguity returns null selection/limit. No wider read authority.",
+        "description": "Admin recording-form context under record:service-sessions:branch or change:service-line-performers:branch (the performer editor picker, PP-19.1) and the orders feature, checked inside the read transaction (SS-Q13). Own active branch-covering memberships only. Sole or explicit selection resolves its fresh advisory discount limit; ambiguity returns null selection/limit. No wider read authority.",
         "parameters": [
           {
             "in": "header",
@@ -23641,10 +23641,14 @@
         "properties": {
           "can_cancel_lines": {
             "type": "boolean"
+          },
+          "can_change_performers": {
+            "type": "boolean"
           }
         },
         "required": [
-          "can_cancel_lines"
+          "can_cancel_lines",
+          "can_change_performers"
         ]
       },
       "RecordingContextQuery": {

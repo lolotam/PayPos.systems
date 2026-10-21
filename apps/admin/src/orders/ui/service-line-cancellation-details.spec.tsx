@@ -84,7 +84,10 @@ function answer(read: typeof cancellation | typeof refused) {
   state.get.mockImplementation((path: string) => {
     const target = String(path);
     if (target.includes('/capabilities')) {
-      return Promise.resolve({ data: { can_cancel_lines: false }, response: { status: 200 } });
+      return Promise.resolve({
+        data: { can_cancel_lines: false, can_change_performers: false },
+        response: { status: 200 },
+      });
     }
     if (target.includes('/cancellation')) return Promise.resolve(read);
     return Promise.resolve(day);

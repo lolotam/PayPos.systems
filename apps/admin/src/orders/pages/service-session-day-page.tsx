@@ -17,7 +17,7 @@ import { ServiceSessionDayBody } from '../ui/service-session-day-body';
 import { useTipAttemptMemory } from '../ui/use-tip-attempt-memory';
 import { ServiceSessionDayFilters } from '../ui/service-session-day-filters';
 
-export function ServiceSessionDayPage({ scope, timezone, canCancel }: { scope: SessionServiceScope; timezone: string; canCancel?: boolean }) {
+export function ServiceSessionDayPage({ scope, timezone, canCancel, canChangePerformers }: { scope: SessionServiceScope; timezone: string; canCancel?: boolean; canChangePerformers?: boolean }) {
   const locale = useLocale();
   const connectivity = useBrowserConnectivity();
   const online = connectivity === true;
@@ -34,6 +34,8 @@ export function ServiceSessionDayPage({ scope, timezone, canCancel }: { scope: S
   const canRecord = useStickyCanRecord(recording);
   const tipAttempts = useTipAttemptMemory(companyId, businessId, branchId, userId);
   const cancelAllowed = canCancel ?? (capability.isSuccess && capability.data.can_cancel_lines === true);
+  // زرار تغيير المنفّذين بيختفي عند اللي معندوش الصلاحية (PP-19.2)؛ السيرفر لسه بيرفض لو الصلاحية اتشالت بعد القراءة.
+  const changeAllowed = canChangePerformers ?? (capability.isSuccess && capability.data.can_change_performers === true);
   const onAccessDenied = useCallback((message: string) => { setDenied({ message }); }, []);
   // رفض القدرة 401/403/FEATURE_DISABLED معناه إن قراءة اليوم نفسها اتسحبت، مش الإلغاء بس؛ الشاشة تتقفل زي باقي القراءات.
   const blocked = denied ?? (serviceSessionAccessRevoked(capability.error) ? { message: envelopeMessage(capability.error, locale) } : null);
@@ -52,6 +54,6 @@ export function ServiceSessionDayPage({ scope, timezone, canCancel }: { scope: S
     {connectivity === false ? <p role="status">{t(locale, 'serviceSessions.offline')}</p> : null}
     <ServiceSessionDayFilters date={date} lateOnly={lateOnly} onDate={setDate} onLate={setLateOnly} />
     {blocked ? <p role="alert">{blocked.message} <Button type="button" variant="outline" onClick={() => { setDenied(null); void capability.refetch(); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p>
-      : <ServiceSessionDayBody scope={scope} date={date} lateOnly={lateOnly} online={online} timezone={timezone} canCancel={cancelAllowed} canRecord={canRecord} tipAttempts={tipAttempts} onAccessDenied={onAccessDenied} />}
+      : <ServiceSessionDayBody scope={scope} date={date} lateOnly={lateOnly} online={online} timezone={timezone} canCancel={cancelAllowed} canChangePerformers={changeAllowed} canRecord={canRecord} tipAttempts={tipAttempts} onAccessDenied={onAccessDenied} />}
   </section>;
 }

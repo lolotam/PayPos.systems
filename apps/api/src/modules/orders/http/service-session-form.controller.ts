@@ -2,7 +2,7 @@ import { Controller, Get, Inject, Param, Query, Req, UseFilters, UseGuards } fro
 import { id, recordingContextQuery, sessionServiceOptionsQuery, sessionPerformerOptionsQuery, type RecordingContextQuery,
   type SessionServiceOptionsQuery, type SessionPerformerOptionsQuery } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
-import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
+import { Authenticated, Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts';
@@ -18,10 +18,11 @@ export class ServiceSessionFormController {
   constructor(@Inject(RecordingContextQueryHandler) private readonly context: RecordingContextQueryHandler | null,
     @Inject(SessionServiceOptionsQueryHandler) private readonly options: SessionServiceOptionsQueryHandler | null,
     @Inject(SessionPerformerOptionsQueryHandler) private readonly performerOptions: SessionPerformerOptionsQueryHandler | null) {}
+  // قايمة المحرر تقبل التسجيل أو تغيير المنفّذين (PP-19.1)، و@Require بياخد صلاحية واحدة؛ فالإذن والميزة
+  // بيتفحصوا جوه معاملة القراءة نفسها (pickerAccess ثم pickerAllowed)، وده إعلان الوصول بتاع المسار ده.
   @Get('performer-options')
   @UseFilters(new SessionErrorsFilter(400))
-  @Require('record:service-sessions:branch', { branch: 'branchId' })
-  @RequiresFeature('orders')
+  @Authenticated()
   @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
   async performers(@Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
     @Param('branchId', new ZodValidationPipe(id.toLowerCase())) branchId: string,
@@ -51,9 +52,9 @@ export class ServiceSessionFormController {
       throw error;
     }
   }
+  // نفس إعلان قايمة المحرر: الإذن (تسجيل أو تغيير منفّذين) والميزة بيتفحصوا جوه المعاملة (PP-19.1).
   @Get('recording-context')
-  @Require('record:service-sessions:branch', { branch: 'branchId' })
-  @RequiresFeature('orders')
+  @Authenticated()
   @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
   async read(@Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
     @Param('branchId', new ZodValidationPipe(id.toLowerCase())) branchId: string,

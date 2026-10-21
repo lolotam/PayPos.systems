@@ -17,8 +17,8 @@ export type DayLineHandlers = {
 
 // العلامة من edited فقط؛ إعادة توزيع المؤديات بترفع revision من غير ما تعلم السطر اتعدّل سعره (FR-019).
 // علامة المنفّذين من performers_changed_at اللي السيرفر بيشتقها من السجل، مش من revision (FR-015).
-export function ServiceSessionDayLine({ line, locale, timezone, canCancel, historyOpen, detailsOpen, performerHistoryOpen, handlers }: {
-  line: DayLine; locale: Locale; timezone: string; canCancel: boolean; historyOpen: boolean; detailsOpen: boolean; performerHistoryOpen: boolean;
+export function ServiceSessionDayLine({ line, locale, timezone, canCancel, canChangePerformers, historyOpen, detailsOpen, performerHistoryOpen, handlers }: {
+  line: DayLine; locale: Locale; timezone: string; canCancel: boolean; canChangePerformers: boolean; historyOpen: boolean; detailsOpen: boolean; performerHistoryOpen: boolean;
   handlers: DayLineHandlers;
 }) {
   const cancelledAt = line.status === 'CANCELLED' && line.cancelled_at ? formatInstant(new Date(line.cancelled_at), locale, timezone) : null;
@@ -34,7 +34,7 @@ export function ServiceSessionDayLine({ line, locale, timezone, canCancel, histo
     {cancelledAt ? <p>{cancelledAt}</p> : null}
     <div className="flex flex-wrap gap-2">
       {active ? <Button type="button" variant="outline" onClick={handlers.onEdit}>{t(locale, 'serviceLineEdit.edit')}</Button> : null}
-      {active ? <Button type="button" variant="outline" onClick={handlers.onChangePerformers}>{t(locale, 'serviceLinePerformers.change')}</Button> : null}
+      {canChangePerformers && active ? <Button type="button" variant="outline" onClick={handlers.onChangePerformers}>{t(locale, 'serviceLinePerformers.change')}</Button> : null}
       {canCancel && active ? <Button type="button" variant="outline" onClick={handlers.onCancel}>{t(locale, 'serviceLineCancel.cancel')}</Button> : null}
       {line.edited ? <Button type="button" variant="outline" aria-expanded={historyOpen} onClick={handlers.onToggleHistory}>{t(locale, 'serviceLineEdit.history')}</Button> : null}
       {line.performers_changed_at ? <Button type="button" variant="outline" aria-expanded={performerHistoryOpen} onClick={handlers.onTogglePerformerHistory}>{t(locale, 'serviceLinePerformers.history')}</Button> : null}

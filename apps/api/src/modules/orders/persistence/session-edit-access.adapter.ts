@@ -66,3 +66,15 @@ export function sessionCancelCapability(
 ): Promise<{ denied: boolean; feature: boolean; eligible: readonly unknown[] }> {
   return readServiceSessionCancelAccess(tx, companyId, userId, businessId, branchId, at);
 }
+
+// زي قدرة الإلغاء: قراءة من غير FOR SHARE عشان قائمة اليوم ما تستناش قفل الشركة (PP-19.2).
+export function sessionPerformersCapability(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  branchId: string,
+  at: Date,
+): Promise<{ denied: boolean; feature: boolean; eligible: readonly unknown[] }> {
+  return readServiceSessionPerformersAccess(tx, companyId, userId, businessId, branchId, at);
+}

@@ -69,7 +69,10 @@ const day = {
   },
   response: { status: 200 },
 };
-const allowed = { data: { can_cancel_lines: true }, response: { status: 200 } };
+const allowed = {
+  data: { can_cancel_lines: true, can_change_performers: false },
+  response: { status: 200 },
+};
 
 function renderPage() {
   const client = new QueryClient({

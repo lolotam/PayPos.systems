@@ -6,16 +6,30 @@ export interface RecordingScope { companyId: string; userId: string; businessId:
 export interface RecordingContextReads {
   /** يثبت الفرع النشط ويعيد منطقة النشاط لنموذج التسجيل فقط. */
   place(tx: Tx, scope: RecordingScope): Promise<{ timezone: string } | null>;
-  /** يعيد إذن التسجيل وعضويات المتصلة بالفرع دون كشف حدود غيرها. */
-  access(tx: Tx, scope: RecordingScope, at: Date): Promise<{ record: boolean; denied: boolean; feature: boolean; membership_ids: string[] }>;
+  /**
+   * يعيد إذن التسجيل وعضويات المتصلة بالفرع دون كشف حدود غيرها، و`change` لما الإذن جاي من تغيير المنفّذين
+   * (قايمة المحرر، PP-19.1) بعد منعه هو؛ قراءة الخدمات بتسيبه فاضي فبتفضل للتسجيل بس.
+   */
+  access(tx: Tx, scope: RecordingScope, at: Date): Promise<RecordingAccessFacts>;
   /** يقرأ حد العضوية المتحقق منها بنفس معاملة الشركة وأقفال settings. */
   limit(tx: Tx, scope: RecordingScope, membershipId: string): Promise<RecordingDiscountLimit | null>;
+}
+export interface RecordingAccessFacts {
+  record: boolean;
+  denied: boolean;
+  feature: boolean;
+  membership_ids: string[];
+  change?: boolean;
+}
+// القايمة بتظهر لصلاحية التسجيل أو تغيير المنفّذين (PP-19.1)؛ منع التسجيل ما يقفلش اللي معاه تغيير مسموح.
+export function pickerAllowed(access: RecordingAccessFacts): boolean {
+  return (access.record && !access.denied) || access.change === true;
 }
 export class RecordingContextReadError extends Error {
   constructor(readonly code: 'FORBIDDEN' | 'FEATURE_DISABLED') { super(code); }
 }
 function authorize(access: Awaited<ReturnType<RecordingContextReads['access']>>, selected?: string) {
-  if (!access.record || access.denied || access.membership_ids.length === 0 ||
+  if (!pickerAllowed(access) || access.membership_ids.length === 0 ||
     (selected !== undefined && !access.membership_ids.includes(selected))) throw new RecordingContextReadError('FORBIDDEN');
   if (!access.feature) throw new RecordingContextReadError('FEATURE_DISABLED');
 }
