@@ -4,7 +4,8 @@
 > the money list CS-Q1…CS-Q12 (Abu Salem, decisions page batch 36) and the new money question CS-Q22 are open; the permissions/technical list CS-Q13…CS-Q19 is
 > answered by Waleed through his super agent (PP-17, 2026-10-21; CS-Q14, CS-Q15 and CS-Q16 against the recommendation),
 > and its follow-ups: CS-Q20 (a branch manager's scope) answered (PP-20.1, the recommended option), CS-Q21 (erasing a
-> frozen customer name) answered (PP-20.2, the recommended option). Every rule that waits on one is
+> frozen customer name) answered (PP-20.2, the recommended option), and the new permissions question CS-Q23 (a mid-month
+> branch transfer) is open. Every rule that waits on one is
 > marked `TODO(spec)` with its number. **No code starts before this spec is merged**, and no sub-PR starts before the
 > questions it names in §7 are answered.
 > **Implements:** Phase 1 SPEC §4 (commission entities), §5 (the engine, already built), §6 (events, estimate, review,
@@ -191,6 +192,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   the same test for a tip session, a salary entry and a sale.
 - **CM-23** The estimate equals `computePeriod` over the DRAFT projection for every employee (SPEC §11); an employee with
   no applicable version shows `NO_PLAN`, with a salary-multiple plan and no salary `NO_SALARY`, never zero (D-57).
+- **CM-23c** (`TODO(spec)` CS-Q23) سارة is transferred from السالمية to حولي on 15 October: what each branch manager sees of
+  her October follows the CS-Q23 answer, tested from both managers' sessions.
 - **CM-23b** (CS-Q20 = PP-20.1) ليلى, branch manager of السالمية, reads October: she sees سارة (attached to السالمية) with
   her full-month commission, including a line she performed in حولي, and does not see رنا (attached to حولي only); the
   business manager sees both; the export as ليلى contains سارة only.
@@ -328,8 +331,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   and never pass through the PDF renderer.
 - **CM-55e** (privacy) ليلى requests the October export as branch manager of السالمية, then before she collects it she is
   transferred to حولي (or her read permission or membership is revoked): the collect is refused with the uniform 403, no
-  workbook is returned, the stored bytes are discarded, no export audit entry is written and `collected_at` stays empty; a
-  different user cannot collect her `render_id` either.
+  workbook is returned, the stored bytes are discarded, no export audit entry is written and `collected_at` stays empty.
+  Separately, a different user trying to collect her `render_id` gets the uniform 403 and the stored bytes stay as they
+  were, so ليلى can still collect them while she is authorized.
 - **CM-56** The amounts in the file equal the frozen statement bit for bit (KWD, three decimals, as text-safe numbers).
 
 ### Story 12 — Reminders (56b, P2)
@@ -340,7 +344,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   job the same day sends nothing new (ledger, SPEC §11 "reminders on the 3rd and 5th"). Never a lock (D-54).
 - **CM-57c** A quiet business (no session, plan or generate in October) still gets its reminder on 3 November: the job
   creates October's DRAFT statement, writes the ledger row and the events in one transaction; a rerun that day adds
-  nothing.
+  nothing. If Redis lost that quiet company's scheduler, the next worker start (or the daily reconcile) registers it again
+  and the 3 November reminder is still sent.
 - **CM-57b** A company created after the release gets its scheduler from `CompanyCreated`; a company whose Redis schedule
   was lost gets it back on the next commission input delivery; an existing company gets it from the operator replay.
 - **CM-58** (CS-Q16 = PP-17.4) On the 3rd, in the same 09:00 run as the owner's reminder, if October is still DRAFT one
@@ -579,8 +584,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   transaction, then builds the workbook (binary output, D-18); poll and collect once. **The saved scope is an upper bound, never a
   grant:** at collection the API re-checks, in the collect transaction, that the collector is the requester and that her
   **current** authorization (permission, membership, and for a branch-scoped reader her current branch and its employee
-  set) still covers the saved scope; if it does not (a branch transfer, a revoked permission or membership), the bytes are
-  discarded and the request is refused with the uniform 403, no workbook. Only a successful collect writes the audit entry
+  set) still covers the saved scope. If the collector is **not** the requester, the request is refused with the uniform
+  403 and the stored bytes are left untouched (the requester can still collect them). If the collector **is** the requester
+  but her current authorization no longer covers the scope (a branch transfer, a revoked permission or membership), the
+  bytes are discarded and the request is refused with the uniform 403, no workbook. Only a successful collect writes the audit entry
   (FR-052) and sets the request's `collected_at`.
 - **FR-051** Columns include, per employee: employee number (row 8c) and name, both taken from the frozen row (FR-033), commission, sales commission, corrections received,
   card tips, cash tips (informational), and the payable figure (CS-Q7); the content and states: CS-Q10; detail rows carry the customer's full name (CS-Q15 = PP-17.3).
@@ -592,7 +599,12 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-053** Discovery follows ADR-0037: a worker `commissions` consumer of `CompanyCreated` upserts the BullMQ job scheduler
   `commissions-statement-reminders-<companyId>` (hourly, job data `{ companyId }` only, outside any transaction); every
   `commissions.project-inputs` delivery upserts the same scheduler (repair of a lost Redis schedule); existing companies get a
-  one-time controlled operator replay of `CompanyCreated` after the worker rolls out (runbook). The job reads the
+  one-time controlled operator replay of `CompanyCreated` after the worker rolls out (runbook). **Reconcile, so a quiet
+  company is never lost:** at every worker start and once a day, one global job (fixed scheduler id, upserted at start, so
+  it cannot stay lost) lists the active company ids through a narrow company-id reader (a `SECURITY DEFINER` function
+  that returns only `companies.id`, the ADR-0012 pattern, recorded in 59-0's ADR with its grants and tests; no tenant
+  data) and upserts the per-company scheduler of every company that lacks one. A company with no commission input at all
+  therefore gets its scheduler back even when Redis lost it. The job reads the
   company's businesses and their timezones under `withTenant` through the tenancy reader bound at the root (D-16) and,
   for each business whose local time has passed 09:00 (CS-Q17 = PP-17.5), emits `StatementAwaitingApproval` on
   the 3rd and the 5th for the previous month while it is not APPROVED or PAID. For each business, in **one** transaction, the
@@ -706,7 +718,10 @@ Plus, in 53-1, the ADR-0012 objects (role `pospay_approval_reader`, function, po
   (the default branch manager) sees only the employees attached to that branch (an `EmployeeBranch` link to it on any day
   of the month, read through the staff reader bound at the root, D-16), each with her **full-month** figures, including
   lines she performed at another branch; other employees are absent, not zeroed. A business- or company-scoped holder sees
-  every employee. The filter applies to the estimate, the statement view and the export alike.
+  every employee. The filter applies to the estimate, the statement view and the export alike. **An employee attached to
+  two branches in the same month** (a transfer on the 15th): which branch managers see which part of her month is
+  `TODO(spec)` CS-Q23; until it is answered, "attached on any day of the month" is not implemented for her and 50-5,
+  53-3 and 56-1 wait on it.
 
 All refused to devices; all behind the `commissions` feature (seeded flag, `packages/db/src/seed.ts`); each route has a guard
 and a refusal test (CLAUDE.md §6).
@@ -738,7 +753,7 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 
 | PR | Result | Subtasks | Blocked on | Size |
 | --- | --- | --- | --- | --- |
-| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9), ADR-0049 addendum (binary output contract and the xlsx kind, D-18) | this spec; design advisors | 150–250 |
+| **59-0** | ADR and map, no behaviour | 1. ADR: the `packages/commissions-engine` package (D-17, CS-Q13 = PP-17.1), the reminder reconcile's company-id reader (FR-053) and its CLAUDE.md §2.1 / module-map rows, consumer id, root-bound readers (D-15/D-16), the read-use-case exception (D-7), the fingerprint. 2. `docs/module-map.md` rows and YAML. 3. ADR-0012 addendum (six types, D-9), ADR-0049 addendum (binary output contract and the xlsx kind, D-18) | this spec; design advisors | 150–250 |
 | **48a-1** | `packages/commissions-engine` (D-17) | 1. Package scaffold, `packages/domain` its only dependency, and the browser-safe `validation` entry point. 2. Move the engine and its tests unchanged. 3. Rewire the api imports; the boundaries rule (only the `commissions` modules may import it) and the module-map check | 59-0 | 150–300 (moves) |
 | **48a-2** | Statements and the lock | 1. `commission_statements` + RLS + grants + FR-001 trigger + negative tests. 2. `lockStatementPeriods` + typed errors. 3. Lock tests CM-01…CM-04 and the FR-004 check | 48a-1 | 300–420 |
 | **48-1** | Plan storage and contracts | 1. Zod contracts and OpenAPI. 2. `commission_plan_versions` + RLS. 3. The plan permission (CS-Q1) and its role defaults | 48a-2; CS-Q1 | 250–380 |
@@ -753,18 +768,18 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **50-3** | Bootstrap | 1. Root bindings of 36-5 and 50-0. 2. The idempotent bootstrap job and the discharge of event ids. 3. CM-24 race and coverage tests, runbook | 50-1, 50-2, **36-5**, 50-0 | 300–420 |
 | **50-4** | Package sales | 1. Sales table + RLS. 2. Handler and the root binding of `listCurrentPackageSales`. 3. CM-20, CM-20b (bootstrap, coverage, race) | 50-1; row 42 (producer with `business_date`, and its reader) | 250–380 |
 | **50-a** | Engine input assembly (FR-022) | 1. The pure assembly function in `packages/commissions-engine`. 2. Its types for lines, sales, salary, versions, overrides, tips and corrections. 3. Unit tests (every input kind, the selected salary, ACTIVE-only lines) | 48a-1 | 150–250 |
-| **50-5** | Estimate on read | 1. The read use case (D-7) over the 50-a assembly. 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b | 50-a, 50-1, 50-2, 50-4, 55-1 | 300–420 |
+| **50-5** | Estimate on read | 1. The read use case (D-7) over the 50-a assembly. 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b, CM-23c | 50-a, 50-1, 50-2, 50-4, 55-1; CS-Q23 | 300–420 |
 | **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 | 50-5; CS-Q7 | 350–480 |
 | **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2; CS-Q7, CS-Q8 | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations, its `docs/module-map.md` event row). 3. CM-51…CM-54 | 55-1; CS-Q11 | 400–550 |
 | **52-1** | Review | 1. Review use case + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS). 2. `StatementAwaitingApproval` contract, template, registrations. 3. CM-30…CM-33, CM-33b, CM-33c | 51-1, 55-2; CS-Q2, CS-Q3 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
 | **53-2** | Approve | 1. Use case + freeze (FR-032…FR-034) with the bootstrap coverage check. 2. HTTP, permission (CS-Q5). 3. CM-34, CM-34b, CM-34c, CM-35, CM-37, CM-38 | 52-1, 53-1, 55-2, **50-3, 50-4** (D-15 coverage); CS-Q5, CS-Q22 | 400–550 |
-| **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to her branch's employees for a branch-scoped reader (CS-Q20 = PP-20.1). 3. ar/en keys, component tests | 53-2; CS-Q9 | 400–550 |
+| **53-3** | Approval races and screens | 1. CM-36 barrier tests. 2. Statement screen (view, review, approve, blocking issues, corrections section CS-Q9), filtered to her branch's employees for a branch-scoped reader (CS-Q20 = PP-20.1). 3. ar/en keys, component tests | 53-2; CS-Q9, CS-Q23 | 400–550 |
 | **54-1** | Mark paid | 1. The payment columns on `commission_statements` in the shape CS-Q6 decides (expand-only migration, grants), the use case + HTTP. 2. Permission (CS-Q4). 3. CM-40…CM-42 and the screen button | 53-2; CS-Q4, CS-Q6, CS-Q12 | 250–350 |
 | **56-0** | Binary documents in the worker (D-18) | 1. Generalize the source/processor contract: a source returns HTML for the PDF renderer or bytes with a MIME type; no HTML → PDF step for bytes. 2. The xlsx MIME type, the 8 MiB cap (`DOCUMENT_TOO_LARGE`), the same Redis store and collect-once reply with the source's MIME type. 3. Tests: a bytes source never reaches the renderer, the cap, collect-once, the PDF kinds unchanged | 59-0's ADR-0049 addendum | 200–320 |
-| **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-55e, CM-56, CM-R10 | 53-2, **56-0**; CS-Q10, CS-Q12 | 350–480 |
-| **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
+| **56-1** | Excel export | 1. `commission_statement_exports` + RLS + grants, and the request use case that writes it before enqueueing (FR-050). 2. The worker source that loads the request by `render_id` and the workbook builder in `packages/documents`; the collect route and audit. 3. CM-55, CM-55d, CM-55e, CM-56, CM-R10 | 53-2, **56-0**; CS-Q10, CS-Q12, CS-Q23 | 350–480 |
+| **56b-1** | Reminders | 1. Ledger table + RLS. 2. `CompanyCreated` scheduler registration and repair (with its `docs/module-map.md` event row), the start-up and daily reconcile over the company-id reader, the job and recipients (FR-053). 3. CM-57, CM-58, CM-57b, runbook replay | 52-1 | 300–420 |
 
 **Deferred — «with the customer-erasure feature» (D-21, CS-Q21 = PP-20.2).** Not a sub-PR of this slice; it ships with the
 feature that erases a customer, which Phase 1 does not have. It must decide and deliver together: the erasure use case in
