@@ -24,22 +24,28 @@ const service = {
   price: '7.125',
   revision: 1,
 };
+const down = {
+  error: { code: 'INTERNAL_ERROR', message_ar: 'Down AR', message_en: 'Services unavailable' },
+  response: { status: 500 },
+};
 const refused = {
   error: { code: 'FORBIDDEN', message_ar: 'Refusal AR', message_en: 'Recording not allowed' },
   response: { status: 403 },
 };
 
 // recording-context بيرجع 200 للاتنين (PP-19.1)؛ قايمة الخدمات هي اللي بتفرّق بين اللي بيسجّل واللي بيغيّر المنفّذين بس.
-function reads(servicesAllowed: boolean) {
+function reads(servicesAllowed: boolean | 'down') {
   state.get.mockImplementation((path: string) => {
     const name = String(path);
     if (name.endsWith('/recording-context'))
       return Promise.resolve({ data: context, response: { status: 200 } });
     if (name.endsWith('/service-options'))
       return Promise.resolve(
-        servicesAllowed
-          ? { data: { items: [service], next_cursor: null }, response: { status: 200 } }
-          : refused,
+        servicesAllowed === 'down'
+          ? down
+          : servicesAllowed
+            ? { data: { items: [service], next_cursor: null }, response: { status: 200 } }
+            : refused,
       );
     return Promise.resolve({ data: { items: [], next_cursor: null }, response: { status: 200 } });
   });
@@ -128,4 +134,23 @@ it('keeps an unsaved draft when only the language changes', async () => {
   expect((screen.getByLabelText(t('ar', 'serviceSessions.name')) as HTMLInputElement).value).toBe(
     'Draft customer',
   );
+});
+
+it('does not open the form when the first service read fails with 500, and offers a retry', async () => {
+  reads('down');
+  renderPage();
+  const retry = await screen.findByRole('button', {
+    name: t('en', 'serviceSessions.retryServices'),
+  });
+  expect(screen.getByRole('alert').textContent).toContain('Services unavailable');
+  await waitFor(() =>
+    expect(
+      state.get.mock.calls.some((call) => String(call[0]).endsWith('/recording-context')),
+    ).toBe(true),
+  );
+  expect(save()).toBeNull();
+  reads(true);
+  fireEvent.click(retry);
+  expect(await screen.findByRole('button', { name: t('en', 'serviceSessions.save') })).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
 });

@@ -40,6 +40,8 @@ export function RecordServiceSessionPage({ scope }: { scope: SessionServiceScope
     <PageHeader title={t(locale, 'serviceSessions.title')} />
     {connectivity === false ? <p role="status">{t(locale, 'serviceSessions.offline')}</p> : null}
     {refusal ? <p role="alert">{envelopeMessage(refusal, locale)}</p> : null}
+    {permission.failed && !refusal ? <p role="alert">{envelopeMessage(permission.failed, locale)} <Button type="button" variant="outline"
+      disabled={!online} onClick={permission.retry}>{t(locale, 'serviceSessions.retryServices')}</Button></p> : null}
     {contextRetry ? <Button type="button" variant="outline" onClick={() => { void context.refetch(); }}>{t(locale, 'serviceSessions.retryContext')}</Button> : null}
     {editor ? <RecordServiceSessionForm scope={scope} context={editor} online={online} recording={recording}
       onRefreshScope={() => { void context.refetch(); }} /> : null}
