@@ -18,7 +18,7 @@
 > if it differs. **DA-Q11** is answered too (PP-29.2, batch 45, the recommendation; Waleed «جرس الطلب شغال دايماً (المقترح)»
 > and Abu Salem the same): the request bell (057-3) always rings and is outside the team-alerts master switch and rules; the
 > owner's self-approval bell (057-3b) follows the master switch and has its own per-kind rule like every team alert, so
-> 057-3b also waits on 62-1 (issue #485). No sub-PR waits on an owner question.
+> 057-3b also waits on 62-1, 62-3 (the worker `orders` read of `AlertRulesPort`) and A-0 (issue #485). No sub-PR waits on an owner question.
 > **Rows:** 38 `request-discount-approval` (proposal with terms hash) · 39 `approve-discount` by PIN on the device ·
 > 40 `approve-discount` remotely · 41 above-limit discounts consume the approval in the line's transaction (SPEC M2).
 > **Extends:** [spec 050](../050-orders-record-service-session/spec.md) (the create and append routes, SS-Q6 partial
