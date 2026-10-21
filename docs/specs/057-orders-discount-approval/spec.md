@@ -1,9 +1,10 @@
 # Spec 057 — Discount approval: request, approve by PIN or remotely, consume (Phase 1 rows 38–41)
 
-> **Status:** Draft · 2026-10-21 · docs-only PR. Eight owner questions are open (DA-Q1…DA-Q8) in
-> [owner-questions.ar.md](owner-questions.ar.md): five charges/money questions for the decisions page and three
-> permission/technical questions for Waleed. Until they are answered, every rule they govern is written on the
-> recommended option and marked `TODO(spec)`; **no sub-PR that depends on an open question starts** (§7).
+> **Status:** Draft · 2026-10-21 · docs-only PR. Owner questions in [owner-questions.ar.md](owner-questions.ar.md):
+> the three permission/technical questions are **answered** by Waleed through the super agent on 2026-10-21 (DA-Q6 =
+> PP-15.1, DA-Q7 = PP-15.2, DA-Q8 = PP-15.3; DA-Q6 and DA-Q7 against the recommendation). The five charges/money
+> questions DA-Q1…DA-Q5 are **open** on the decisions page (batch 34); every rule they govern is written on the
+> recommended option and marked `TODO(spec)`, and **no sub-PR that depends on an open question starts** (§7).
 > **Rows:** 38 `request-discount-approval` (proposal with terms hash) · 39 `approve-discount` by PIN on the device ·
 > 40 `approve-discount` remotely · 41 above-limit discounts consume the approval in the line's transaction (SPEC M2).
 > **Extends:** [spec 050](../050-orders-record-service-session/spec.md) (the create and append routes, SS-Q6 partial
@@ -16,8 +17,10 @@
 > bell family, self rule).
 > **Depends on:** row 35 (35a create/append, merged), rows 7/7b/7c (permissions, per-person and business limits,
 > merged), 35b-2 (the worker `orders` bell pattern, merged).
-> **Needs, before code:** a new ADR (PIN as an approval credential on a paired device, and the request event; §6) and a
-> SPEC §3 amendment for the new event (plan §4: "any module arrow or event not in SPEC §3" stops for a decision).
+> **Needs, before code:** a new ADR in 057-1 (D-9: the reception computer paired as a branch device, the PIN as an
+> approval proof on a paired device with lockout per D-08, and the request event) and a SPEC §3 amendment for the new
+> event (plan §4: "any module arrow or event not in SPEC §3" stops for a decision; DA-Q7 answered that a bell is
+> wanted).
 
 ## 1. What and why
 
@@ -34,10 +37,11 @@ what was approved, consuming the approval in the same transaction as the line (S
    (spec 050 §8).
 2. منى presses «اطلب موافقة» on the returned صبغة draft. One proposal is stored: terms = branch السالمية, نورة, the
    visit just saved, صبغة, list 25.000, price 25.000, discount 5.000, net 20.000, 2000 bps, performer سارة, requester
-   منى; its `terms_hash` is the SHA-256 of those terms. Status `PENDING`, valid 15 minutes (SPEC §4). The branch
-   managers get a bell (DA-Q7).
-3. ليلى walks to the branch tablet, picks the request, types her phone and PIN. Her limit (2000) covers 2000 bps, she
-   is not منى and not سارة: the proposal becomes `APPROVED`, `via = PIN`, with a fresh 15-minute validity (DA-Q4).
+   منى; its `terms_hash` is the SHA-256 of those terms. Status `PENDING`, valid 15 minutes (SPEC §4). Everyone at the
+   branch who may approve discounts, except منى, gets a bell (DA-Q7).
+3. ليلى comes to the reception computer, which is paired as the branch's device (DA-Q6), opens the branch approval
+   screen beside منى's recording screen, picks the request, types her phone and PIN. Her limit (2000) covers 2000 bps,
+   she is not منى and not سارة: the proposal becomes `APPROVED`, `via = PIN`, with a fresh 15-minute validity (DA-Q4).
 4. منى's screen (polling) shows «اتوافق». She re-sends صبغة on the append route with the proposal id. In **one**
    transaction the line is inserted and the proposal moves `APPROVED → CONSUMED` with `consumed_line_id` = the new line
    (compare-and-set). Had she changed the discount to 5.500, the hash would differ and صبغة would come back again,
@@ -59,9 +63,9 @@ what was approved, consuming the approval in the same transaction as the line (S
 | Approver on her own line (DA-Q3) | ⭐ refused, like ED-Q4 / PF-Q2, owner included — `TODO(spec)` | FR-014 |
 | The 15-minute clock (DA-Q4) | ⭐ 15 min to decide from the request; on approval a fresh 15 min to use — `TODO(spec)` | FR-010 |
 | Approval on an edit of a saved line (DA-Q5) | ⭐ not in Phase 1: 35d keeps the editor's own limit — `TODO(spec)` | §2 *Not in* |
-| Where the PIN is typed (DA-Q6) | ⭐ on the branch's paired POS device, never on the admin reception computer — `TODO(spec)` | FR-015, D-9 |
-| Bell for a new request (DA-Q7) | ⭐ in-app bell to the four scoped manager roles of the branch — `TODO(spec)` | FR-024 |
-| What the device shows before a PIN (DA-Q8) | ⭐ service, amounts, requester and customer **first** names, age of the request; never a phone — `TODO(spec)` | FR-016 |
+| Where the PIN is typed (DA-Q6) | **answered (PP-15.1, against the recommendation):** the reception computer is paired as a branch device; recording and approval both happen on it; PIN lockout after failed tries; a new ADR | FR-015, D-9, D-15 |
+| Bell for a new request (DA-Q7) | **answered (PP-15.2, against the recommendation):** an in-app bell to **everyone** holding the approve permission at the branch, non-managers included, the requester excluded | FR-024 |
+| What the device shows before a PIN (DA-Q8) | **answered (PP-15.3, the recommendation):** the request details (service, amounts, requester and customer **first** names, time left), never a phone | FR-016 |
 
 **Not in 057:** an approval used by a 35d edit (DA-Q5 ⭐ keeps it out); a discount on a **package** sale line (rows
 42/46: SPEC §4 checks a package's discount once on its sale line, and that writer adopts this consumption when it
@@ -81,12 +85,15 @@ is quarantined; P2-T9); WhatsApp or email for the request (tenant outbound stays
 | D-6 | A request is refused unless **every** line is above the requester's own effective limit at request time (`DISCOUNT_APPROVAL_NOT_NEEDED`, with the input indexes). A line inside the limit with a proposal id at consumption is saved on the recorder's own limit and the proposal is **not** consumed (it lapses) | consuming an unneeded approval (it would record an approval that authorised nothing) |
 | D-7 | `EXPIRED` is **derived**, never written: a `PENDING` or `APPROVED` row whose `expires_at ≤ now` (injected clock, the fresh instant after every lock wait) reads and behaves as `EXPIRED`. No sweeper job | a status-writing job (one more writer to race the approver and the consumer) |
 | D-8 | Approval does not change the line row's limit columns: `limit_source` / `limit_bps_applied` stay the **recorder's** own (what she really had); the line gains a nullable `discount_proposal_id` and a deferred composite FK proves the proposal points back at it (§6) | a new `limit_source = 'APPROVAL'` (rewrites the `service_lines_limit` CHECK on a live table and hides the recorder's real limit) |
-| D-9 | (DA-Q6 ⭐) **PIN on the paired branch device**, ADR-0003 §4 path B: the device is already approved and bound to one branch; the PIN identifies the approver for **this one action**, opens no session and never opens `app.`. The PIN is verified by identity's existing facility (hash in `packages/auth`, Redis reservation and lockout: 5 failures → 15 min, D-08; an unknown holder is compared against the placeholder hash) **outside** the database transaction; the approval transaction then rechecks authority under locks | typing the manager's PIN into the receptionist's admin session (a PIN outside a paired device: any logged-in user could probe any manager's PIN and lock it; needs its own ADR) |
-| D-10 | The approver is identified on the device by **phone + PIN**, the shape of the existing staff PIN sign-in (`staffPinInput`, `SignInStaffPin`): the phone resolves to a user through auth's **approved global phone binding** (`candidate(phone)`; a binding is a platform-reviewed operation, `approvePhoneBinding`, ADR-0019), then that user's PIN record (`cashier_pins` user holder, set through `staff-pins/reset`) is compared under the same reservation/lockout. Only the lookup, compare and counters are reused: **no** staff session is issued and `login:staff:branch` eligibility is not required. The approver's authority is that user's memberships **filtered to scopes covering the device's branch** (ADR-0003 path B); DENY wins. **Prerequisite:** an approver needs both an approved phone binding and a PIN (§9, DA-Q6) | picking a name from a list (it would list every manager on a shared tablet) |
-| D-11 | Remote approval (row 40) is an ordinary admin user session with `approve:discounts:branch` on the proposal's branch; the approver membership is chosen like 35a's recorder (optional `approver_membership_id`; one eligible picked automatically; several → `DISCOUNT_APPROVER_MEMBERSHIP_REQUIRED`; never the highest limit) | the principal-wide limit (a membership without the grant would lend its higher limit, 35d D-9) |
+| D-9 | (DA-Q6 = PP-15.1) **The reception computer is paired as a branch device**, through the existing device pairing and approval of ADR-0003 §4 path B, using the POS app's pairing screen in that computer's browser; it is then an ordinary approved device bound to one branch, revocable like any other. The **approval screen** (DP-08) is the POS app on that computer; the **recording screen** stays the admin app with each recorder's own login (SS-Q3 unchanged). The two run side by side with **separate credentials**: the device credential never accompanies an admin request and an admin session never authorises a device route, so a recording is still attributed to the logged-in recorder with her own limit (spec 050 FR-002, DP-06) and an approval to the PIN holder. The PIN identifies the approver for **this one action**, opens no session and never opens `app.`. It is verified by identity's existing facility (hash in `packages/auth`, Redis reservation and lockout: 5 failures → 15 min, D-08; an unknown holder is compared against the placeholder hash) **outside** the database transaction; the approval transaction then rechecks authority under locks. **The new ADR (057-1)** records: pairing a reception computer as a branch device, the PIN as an approval proof on a paired device, the lockout of D-15, and the request event. Any active paired device of the branch can serve the approval routes; the reception computer is the one Waleed chose to deploy for it | the recommended option, approval only on the branch tablet (PP-15.1 chose the reception computer); typing the manager's PIN into the receptionist's admin session (a PIN outside a paired device: any logged-in user could probe any manager's PIN) |
+| D-10 | The approver is identified on the device by **phone + PIN**, the shape of the existing staff PIN sign-in (`staffPinInput`, `SignInStaffPin`): the phone resolves to a user through auth's **approved global phone binding** (`candidate(phone)`; a binding is a platform-reviewed operation, `approvePhoneBinding`, ADR-0019), then that user's PIN record (`cashier_pins` user holder, set through `staff-pins/reset`) is compared under the same reservation/lockout. Only the lookup, compare and counters are reused: **no** staff session is issued and `login:staff:branch` eligibility is not required. The approver's authority is that user's memberships **filtered to scopes covering the device's branch** (ADR-0003 path B); DENY wins. The approver membership is selected as in D-11 (optional `approver_membership_id`; FR-015). **Prerequisite:** an approver needs both an approved phone binding and a PIN (§9) | picking a name from a list (it would list every approver on the reception screen) |
+| D-11 | Remote approval (row 40) is an ordinary admin user session with `approve:discounts:branch` on the proposal's branch. On **both** channels the approver membership is chosen like 35a's recorder: an eligible membership is active, covers the branch and **itself** grants `approve:discounts:branch` (35d D-9); one eligible is picked automatically; several without `approver_membership_id` → `DISCOUNT_APPROVER_MEMBERSHIP_REQUIRED` with the eligible ids and their role/scope labels; a supplied one that is not eligible → uniform 403; never the highest limit | the principal-wide limit (a membership without the grant would lend its higher limit, 35d D-9) |
 | D-12 | Reject is allowed by the same authority on both channels, with an optional reason (≤ 500 characters, trimmed) shown to the requester; a rejected proposal is final | requiring a reason (slows a manager at the till; nothing moves money on a reject) |
 | D-13 | A consumption failure inside a create/append is an **above-limit** refusal of that line under SS-Q6 (the line returns for editing with `approval_refusal`), never a whole-request 403, so the other lines still save (SS-26). A proposal id that is unknown, foreign, of another branch or of another requester returns the same `NOT_FOUND` refusal (no oracle) | rolling back the whole visit for one stale approval (contradicts SS-Q6) |
 | D-14 | Orders emits one new event, `DiscountApprovalRequested`, only for the bell (DA-Q7). Approvals, rejects and consumption emit **no** event: commissions read the line's `net` from the existing line events, and nothing else consumes an approval | events for every transition (no consumer) |
+| D-15 | (DA-Q6: Waleed asked for lockout after failed tries) Two counters guard the device PIN path: the existing **per-holder** lockout of D-08 (5 failures → 15 min; an unknown phone has its own per-phone counter, `pinCounterKey`), and a **per-device** cap so one paired computer cannot walk through many phones: 10 failures across all phones within 15 minutes lock the device's PIN approval for 15 minutes (423 `PIN_LOCKED`), audited `device.pin_approval_locked`. Both live in Redis on Redis's clock, like D-08; the numbers are fixed in the ADR | the per-holder counter alone (a device could try 4 PINs on every bound phone) |
+| D-16 | **Request-time identity snapshot.** At request time each performer's linked user is read `FOR SHARE` through the existing performer port and stored per proposal (`discount_proposal_performers`); the approver self rule (FR-014) checks that snapshot **∪** the performer's current link, so relinking between request and approval never lets a formerly linked performer approve | checking only the current link (the line does not exist yet, so a relink would open a gap) |
+| D-17 | **Neutral decision fields.** Approve and reject write the same columns (`decided_by`, `decided_by_membership_id`, `decided_via` PIN/REMOTE, `decided_device_id`, the decider role and name snapshots, `decided_at`); only an approval also writes `approved_limit_source` / `approved_limit_bps`; only a reject may write `reject_reason` | separate approve/reject column sets (twice the columns and `CHECK`s for one fact: who decided, how, when) |
 
 ## 3. Settled rules this spec builds on (cited, not asked)
 
@@ -97,7 +104,8 @@ is quarantined; P2-T9); WhatsApp or email for the request (tenant outbound stays
 - **Above the limit needs approval** (spec 016 business rules: "any fraction above the limit counts as over the limit
   and needs approval"); until rows 38–41 the line is refused (SS-Q6 background, spec 050 owner-questions §6).
 - **Recording** is on the admin app at the reception computer, each recorder with her own login (SS-Q3); the recorder
-  is never a performer of the line (SS-Q2, SS-25).
+  is never a performer of the line (SS-Q2, SS-25). Pairing that computer as a branch device (DA-Q6, D-9) adds the
+  approval screen beside it and changes nothing in recording.
 - **PIN:** 4 digits, locked after 5 failures for 15 minutes (D-08, ADR-0003 §4.2); a manager's PIN never signs in
   someone else (ADR-0019 Q8).
 
@@ -110,7 +118,8 @@ second branch manager who also performs services.
 
 - **DP-01** منى posts the صبغة draft (2000 bps, her limit 1000) with the saved visit's id. One proposal: status
   `PENDING`, `request_id`, `terms` and `terms_hash` as D-2, `expires_at = requested_at + 15 min`, requester user and
-  membership, the requester's limit source and bps at request time; one audit entry; one `DiscountApprovalRequested`
+  membership, the requester's limit source and bps at request time, and one `discount_proposal_performers` row per
+  performer with her linked user at request time (D-16); one audit entry; one `DiscountApprovalRequested`
   in the outbox; the idempotent 201 is stored.
 - **DP-02** A fresh visit refused in full (all lines above the limit, spec 050 §8: 422, no session) → the request
   carries `session_id: null` and the visit fields (`customer_id`, `occurred_at`); the proposal can then be consumed
@@ -124,24 +133,36 @@ second branch manager who also performs services.
 - **DP-06** Authority: `record:service-sessions:branch` at the branch, the `orders` feature, individual admin login (not
   a device); otherwise uniform 403. A supplied `session_id` that is foreign, of another branch or outside the
   back-dating window → uniform 403 / `SESSION_TIME_TOO_OLD` as the append route.
-- **DP-07** منى reads her request (`GET …/discount-proposals?request_id=`) and sees each line's status
-  (`PENDING`/`APPROVED`/`REJECTED`/`EXPIRED`/`CONSUMED`), the approver's label and `via` once decided, the reject
-  reason if any. She cannot read another recorder's proposals.
+- **DP-07** منى reads her request (`GET …/discount-proposals?request_id=`, guarded by `record:service-sessions:branch`)
+  and sees each line's status (`PENDING`/`APPROVED`/`REJECTED`/`EXPIRED`/`CONSUMED`), the decider's label and `via`
+  once decided, the reject reason if any. Another recorder's request id returns an empty list (the read filters on
+  `requested_by` = the caller inside its tenant transaction; no existence oracle).
 
-### Story 2 — Approve by PIN on the branch device (row 39, P1)
+### Story 2 — Approve by PIN on the paired reception computer (row 39, P1)
 
-- **DP-08** (DA-Q8 ⭐) The paired device at السالمية lists the branch's live `PENDING` proposals: service name, list,
-  price, discount, net, percent, requester first name, customer first name, minutes left. No phone, no other branch.
+- **DP-08** (DA-Q8 = PP-15.3) The reception computer at السالمية, paired as the branch's device (DA-Q6), lists the
+  branch's live `PENDING` proposals: service name, list, price, discount, net, percent, requester first name, customer
+  first name, minutes left. No phone, no other branch.
+- **DP-08b** (D-9) منى is logged into the admin app on the same computer: her recording requests carry only her admin
+  session and are attributed to her with her own limit; the device credential on that computer authorises none of
+  them, and her admin session authorises no device route (both refused, uniform 403).
 - **DP-09** ليلى selects the request, enters phone + PIN. PIN verified (identity facility, outside the transaction);
   then one transaction: lock the proposals `FOR UPDATE` ascending → still `PENDING`, not expired (fresh instant) →
   ليلى's memberships covering the device's branch grant `approve:discounts:branch`, no DENY, `orders` on → her limit
-  (2000) ≥ 2000 bps → she is not the requester, not a performer → `APPROVED`, `approved_by` = ليلى's user and
-  membership, `via = PIN`, `approved_device_id`, `approved_limit_source/bps`, `expires_at = approved_at + 15 min`
+  (2000) ≥ 2000 bps → she is not the requester, not a performer → `APPROVED`, `decided_by` = ليلى's user and
+  membership, `decided_via = PIN`, `decided_device_id`, `approved_limit_source/bps`, `expires_at = decided_at + 15 min`
   (DA-Q4 ⭐); one audit entry per proposal.
+- **DP-09b** (D-11) ليلى holds two memberships covering السالمية that both grant the approve permission (business
+  manager with 2000, branch manager with 1500) and sends no `approver_membership_id` → after a **successful** PIN
+  check, 422 `DISCOUNT_APPROVER_MEMBERSHIP_REQUIRED` with both ids and labels; the screen asks her to pick and resends
+  with the PIN it kept in memory for that one retry only. The chosen membership's limit applies, never the higher.
 - **DP-10** Wrong PIN → 401 `PIN_INVALID`, nothing changes; the fifth failure → 423 `PIN_LOCKED` for 15 minutes; five
   comparisons in flight → 429 `TOO_MANY_REQUESTS` (the facility's existing outcomes). A phone with no approved binding,
   or a bound user with no PIN, is compared against the placeholder hash and counted on its own per-phone counter
   (`pinCounterKey`), so it answers `PIN_INVALID` with the same timing as a wrong PIN.
+- **DP-10b** (D-15) Ten failures across different phones from one device within 15 minutes → that device's PIN
+  approval answers 423 `PIN_LOCKED` for 15 minutes, for every phone; another paired device and remote approval still
+  work; the lock is audited.
 - **DP-11** A proposal of another branch, a device of another branch, an unpaired or revoked device → uniform 403.
 - **DP-12** The PIN holder has the permission only at another branch → uniform 403 (path B filters to the device's
   branch).
@@ -150,7 +171,8 @@ second branch manager who also performs services.
 
 - **DP-13** The owner, logged into the admin app at home, opens the branch's pending list (`approve:discounts:branch`)
   and approves the 3000 bps صبغة: same transaction as DP-09 with `via = REMOTE`, no device.
-- **DP-14** ليلى rejects with «الخصم كبير» → `REJECTED`, `rejected_by`, reason stored; منى sees the reason. A second
+- **DP-14** ليلى rejects with «الخصم كبير» → `REJECTED`, `decided_by`/`decided_via`/`decided_at` and the reason stored
+  (D-17); منى sees the reason and who decided. A second
   approve or reject of a decided proposal → 409 `DISCOUNT_PROPOSAL_NOT_PENDING`.
 - **DP-15** Two approvers race on one proposal (PIN and remote): the row lock serialises them; the second gets 409
   `DISCOUNT_PROPOSAL_NOT_PENDING`.
@@ -163,8 +185,11 @@ second branch manager who also performs services.
   the proposal's bps; a membership with `NOT_CONFIGURED` approves nothing; the owner approves any.
 - **DP-18** (D-5) The requester tries to approve her own request (she holds the permission) → 403
   `DISCOUNT_APPROVER_IS_REQUESTER`, even as owner.
-- **DP-19** (DA-Q3 ⭐) هبة is a performer in the terms → 403 `DISCOUNT_APPROVER_IS_PERFORMER` (snapshot ∪ current link,
-  the 35d self rule), even as owner.
+- **DP-19** (DA-Q3 ⭐) هبة is a performer in the terms → 403 `DISCOUNT_APPROVER_IS_PERFORMER` (request-time snapshot ∪
+  current link, the 35d self rule, D-16), even as owner.
+- **DP-19b** (D-16) سارة, a performer in the terms, was linked to user U at request time; her link is removed (or moved
+  to another user) before approval; U tries to approve → 403 `DISCOUNT_APPROVER_IS_PERFORMER` from the snapshot. A
+  user linked to سارة **after** the request is refused through the current link.
 
 ### Story 5 — The line consumes the approval (row 41, P1)
 
@@ -183,11 +208,14 @@ second branch manager who also performs services.
 - **DP-25** (D-6) The line is within the recorder's own limit when written (her limit was raised meanwhile) → saved on
   her own limit, the proposal not consumed.
 
-### Story 6 — Bell (DA-Q7, P2)
+### Story 6 — Bell (DA-Q7 = PP-15.2, P2)
 
-- **DP-26** One bell per request (`request_id`) to the four scoped manager roles of the branch (the recipient rule of
-  the 35b, 35d, 054 and 055 bells), the requester **excluded** (she asked); zero recipients → a ledger row with count
-  0, no error. Bell content: branch, service name(s), the largest percent, number of lines; no customer name, no phone.
+- **DP-26** One bell per request (`request_id`) to **every active user whose membership covering the branch effectively
+  grants `approve:discounts:branch`** (role defaults and ALLOW overrides, any DENY covering the branch excludes, active
+  window only), managers or not, the requester **excluded**; zero recipients → a ledger row with count 0, no error.
+  Bell content: branch, service name(s), the largest percent, number of lines; no customer name, no phone.
+- **DP-26b** A cashier granted the permission by name gets the bell; a branch manager with a DENY on it at that branch
+  does not; a holder at another branch does not.
 
 ### Edge cases
 
@@ -219,7 +247,9 @@ second branch manager who also performs services.
   helper over `{method, route, query, body, params:{businessId, branchId, companyId, actorUserId}}`.
 - **FR-007** Response 201: `{ request_id, proposals: [{ id, input_index, status, expires_at, effective_bps,
   terms_hash }] }`; no approver data yet.
-- **FR-008** Read for the requester: `GET …/discount-proposals?request_id=` (own proposals only) and the branch list
+- **FR-008** Read for the requester: `GET …/discount-proposals?request_id=` under
+  `@Require('record:service-sessions:branch', { branch: 'branchId' })`, filtered to `requested_by` = the caller inside
+  its tenant transaction (own proposals only, DP-07); the branch list
   `GET …/discount-proposals?status=PENDING&cursor&limit` under `approve:discounts:branch`; both are `queries/` files
   (read-only, no `domain/` or `use-cases/` import) with result-shape and `EXPLAIN` tests. Status `EXPIRED` is computed
   in the SQL from `expires_at` and the injected now (D-7).
@@ -238,20 +268,22 @@ second branch manager who also performs services.
   through a new consumer-owned `DiscountApprovalAccessPort` (identity) with `lock()` then `read(at)` like
   `SessionEditAccessPort`. Remote: the user's memberships (D-11). PIN: the PIN holder's memberships covering the
   device's branch (D-10).
-- **FR-013** (DA-Q2 ⭐) The approver membership's effective limit (`DiscountLimitPort.read`): `OWNER` → any;
+- **FR-013** (DA-Q2 ⭐) The selected approver membership's effective limit (`DiscountLimitPort.read`): `OWNER` → any;
   `NOT_CONFIGURED` → 0; otherwise `terms.effective_bps ≤ limit_bps` (inclusive). Stored as `approved_limit_source` /
   `approved_limit_bps`.
-- **FR-014** (DA-Q3 ⭐) The approver's user must not be linked to any performer in `terms.performer_ids` (snapshot of
-  the line when one exists, the current link otherwise, read `FOR SHARE` through the existing performer port); D-5:
-  never the requester's user.
-- **FR-015** (DA-Q6 ⭐, row 39) Device routes, `@Authenticated()` device-only (PP-7.1: the write declares where its
-  permission check lives): `GET /v1/devices/me/discount-proposals` (the device branch's live `PENDING` list, DP-08) and
+- **FR-014** (DA-Q3 ⭐) The approver's user must not be linked to any performer in `terms.performer_ids`: neither by
+  the request-time snapshot in `discount_proposal_performers` (D-16) nor by the performer's current link, read
+  `FOR SHARE` through the existing performer port under the proposal locks; D-5: never the requester's user.
+- **FR-015** (DA-Q6 = PP-15.1, row 39) Device routes, `@Authenticated()` device-only (PP-7.1: the write declares where
+  its permission check lives), served to any active paired device of the branch, the paired reception computer
+  included (D-9): `GET /v1/devices/me/discount-proposals` (the device branch's live `PENDING` list, DP-08) and
   `POST /v1/devices/me/discount-proposals/approve` and `/reject`, body `{ proposal_ids (1…20), phone, pin,
-  terms_hashes (same order), reason? }`. The PIN is verified first by a new consumer-owned `DiscountPinApproverPort`
-  (identity), which returns the holder's user id or `refused` / `locked` / `busy`; then FR-011. `terms_hashes` must
-  equal the stored ones (the approver approves what the tablet showed) → otherwise 409
+  terms_hashes (same order), approver_membership_id?, reason? }`. The device-wide cap of D-15 is checked first; then
+  the PIN is verified by a new consumer-owned `DiscountPinApproverPort` (identity), which returns the holder's user id
+  or `refused` / `locked` / `busy`; then the approver membership is selected (D-11) and FR-011 runs. `terms_hashes`
+  must equal the stored ones (the approver approves what the screen showed) → otherwise 409
   `DISCOUNT_PROPOSAL_CHANGED`.
-- **FR-016** (DA-Q8 ⭐) The device list projects only: proposal id, `request_id`, service name ar/en, list, price,
+- **FR-016** (DA-Q8 = PP-15.3) The device list projects only: proposal id, `request_id`, service name ar/en, list, price,
   discount, net, effective bps, requester first name, customer first name, `requested_at`, `expires_at`, `terms_hash`.
 - **FR-017** (row 40) Admin routes under `@Require('approve:discounts:branch', { branch: 'branchId' })` and
   `@RequiresFeature('orders')`: `POST …/discount-proposals/approve` and `/reject`, body `{ proposal_ids (1…20),
@@ -273,10 +305,10 @@ second branch manager who also performs services.
   `.consumed` (line id). No phone, no PIN, no customer name.
 - **FR-023** The PIN never enters a log, an audit entry, an event, a response or the idempotency store (the device
   routes take no Idempotency-Key: a retried PIN approve of a decided proposal answers 409, and the screen re-reads).
-- **FR-024** (DA-Q7 ⭐) The request transaction appends `DiscountApprovalRequested` (`request_id`, `business_id`,
+- **FR-024** (DA-Q7 = PP-15.2) The request transaction appends `DiscountApprovalRequested` (`request_id`, `business_id`,
   `branch_id`, `requested_by`, `line_count`, `max_effective_bps`, service ids, `occurred_at`); a worker `orders`
-  consumer resolves the recipients and appends `DiscountApprovalNoticeRequested` to `notifications` in groups of at
-  most 100 (§6 *Events*).
+  consumer resolves the recipients of DP-26 and appends `DiscountApprovalNoticeRequested` to `notifications` in groups
+  of at most 100 (§6 *Events*).
 
 ## 6. Slice design
 
@@ -294,14 +326,15 @@ second branch manager who also performs services.
 
 | Table | Change | Notes |
 |---|---|---|
-| `discount_proposals` (new) | `company_id`, `id` (UUID v7), `business_id`, `branch_id`, `request_id uuid`, `session_id uuid NULL`, `customer_id`, `service_id`, `terms jsonb`, `terms_hash char(64)`, `effective_bps int`, `requested_by` (user), `requested_by_membership_id`, `requester_limit_source`, `requester_limit_bps NULL`, `requested_at`, `status` (`PENDING`/`APPROVED`/`REJECTED`/`CONSUMED`), `expires_at`, `approved_by NULL`, `approved_by_membership_id NULL`, `approved_via` (`PIN`/`REMOTE`) `NULL`, `approved_device_id NULL`, the approver role and name snapshot columns of `service_line_edits` (35d-3b) `NULL`, `approved_limit_source NULL`, `approved_limit_bps NULL`, `decided_at NULL`, `reject_reason NULL`, `consumed_line_id NULL`, `consumed_at NULL` | PK `(company_id, id)`; `UNIQUE (company_id, id, consumed_line_id)` (target of the line's FK); partial `UNIQUE (company_id, consumed_line_id) WHERE consumed_line_id IS NOT NULL`; `CHECK`s: status/field coherence per status, `effective_bps` 1…10000, limit source/bps pairs as `service_lines_limit`, reason 1…500 trimmed when present, `terms_hash ~ '^[0-9a-f]{64}$'`; tenant-and-business-qualified FKs to branch, customer, service, session, memberships, device; `consumed_line_id` FK to `service_lines (company_id, id)` `DEFERRABLE INITIALLY DEFERRED`; `ENABLE` + `FORCE` RLS with explicit `USING`/`WITH CHECK`; grants `SELECT, INSERT` and `UPDATE (status, expires_at, approved_by, approved_by_membership_id, approved_via, approved_device_id`, the approver snapshot columns, `approved_limit_source, approved_limit_bps, decided_at, reject_reason, consumed_line_id, consumed_at)` to `pospay_app`; a `BEFORE UPDATE` trigger allows only `PENDING→APPROVED`, `PENDING→REJECTED`, `APPROVED→CONSUMED` and refuses any change to the terms columns |
+| `discount_proposals` (new) | `company_id`, `id` (UUID v7), `business_id`, `branch_id`, `request_id uuid`, `session_id uuid NULL`, `customer_id`, `service_id`, `terms jsonb`, `terms_hash char(64)`, `effective_bps int`, `requested_by` (user), `requested_by_membership_id`, `requester_limit_source`, `requester_limit_bps NULL`, `requested_at`, `status` (`PENDING`/`APPROVED`/`REJECTED`/`CONSUMED`), `expires_at`, the decision fields of D-17: `decided_by NULL`, `decided_by_membership_id NULL`, `decided_via` (`PIN`/`REMOTE`) `NULL`, `decided_device_id NULL`, the decider role and name snapshot columns of `service_line_edits` (35d-3b) `NULL`, `decided_at NULL`; `approved_limit_source NULL`, `approved_limit_bps NULL` (approval only), `reject_reason NULL` (reject only), `consumed_line_id NULL`, `consumed_at NULL` | PK `(company_id, id)`; `UNIQUE (company_id, id, consumed_line_id)` (target of the line's FK); partial `UNIQUE (company_id, consumed_line_id) WHERE consumed_line_id IS NOT NULL`; `CHECK`s: status/field coherence per status (decision fields all set iff status ≠ `PENDING`; limit pair iff approved or consumed; reason only when `REJECTED`), `effective_bps` 1…10000, limit source/bps pairs as `service_lines_limit`, reason 1…500 trimmed when present, `terms_hash ~ '^[0-9a-f]{64}$'`; tenant-and-business-qualified FKs to branch, customer, service, session, memberships, device; `consumed_line_id` FK to `service_lines (company_id, id)` `DEFERRABLE INITIALLY DEFERRED`; `ENABLE` + `FORCE` RLS with explicit `USING`/`WITH CHECK`; grants `SELECT, INSERT` and `UPDATE (status, expires_at, decided_by, decided_by_membership_id, decided_via, decided_device_id`, the decider snapshot columns, `decided_at, approved_limit_source, approved_limit_bps, reject_reason, consumed_line_id, consumed_at)` to `pospay_app`; a `BEFORE UPDATE` trigger allows only `PENDING→APPROVED`, `PENDING→REJECTED`, `APPROVED→CONSUMED` and refuses any change to the terms columns |
 | `service_lines` | add `discount_proposal_id uuid NULL`; composite FK `(company_id, discount_proposal_id, id)` → `discount_proposals (company_id, id, consumed_line_id)` `DEFERRABLE INITIALLY DEFERRED` (at commit the proposal must name this line); partial `UNIQUE (company_id, discount_proposal_id)` | expand-only `ADD COLUMN`; the unique index is built `CONCURRENTLY` in its own migration (ADR-0033); the table-level `INSERT` grant covers the column; no `UPDATE` grant on it (DA-Q5 ⭐) |
+| `discount_proposal_performers` (new) | `company_id`, `id`, `business_id`, `proposal_id`, `employee_id`, `linked_user_id NULL` (the performer's user link at request time, D-16) | `UNIQUE (company_id, proposal_id, employee_id)`; tenant-and-business-qualified FKs to the proposal and to `employees`; FK to the global user for `linked_user_id` with a partial index; `ENABLE` + `FORCE` RLS; grants `SELECT, INSERT` only (insert-only) |
 | `discount_approval_notices` (new, consumer PR) | the bell ledger: `company_id`, `id`, `business_id`, `request_id`, `source_event_id`, `decided_at`, `recipient_count >= 0` | `UNIQUE (company_id, request_id)`; `FORCE` RLS; `SELECT, INSERT` |
 
 **Indexes** (the migration that adds a query adds its index): `(company_id, branch_id, status, expires_at)` for the
 pending lists (device and admin); `(company_id, request_id)` for the requester's read; `(company_id, requested_by,
 requested_at DESC)`; FK indexes on `session_id`, `customer_id`, `service_id`, `requested_by_membership_id`,
-`approved_by_membership_id`, `approved_device_id`. Every new tenant table ships its **negative isolation test**
+`decided_by_membership_id`, `decided_device_id`. Every new tenant table ships its **negative isolation test**
 (cross-tenant read = 0 rows, write = error) and is added to the grants allowlist and `privileges.spec.ts`.
 
 ### API contracts (Zod in `packages/contracts/src/orders/discount-approval.ts`)
@@ -309,10 +342,10 @@ requested_at DESC)`; FK indexes on `session_id`, `customer_id`, `service_id`, `r
 | Route | Guard | Body → response |
 |---|---|---|
 | `POST /v1/businesses/:businessId/branches/:branchId/discount-proposals` | `@Require('record:service-sessions:branch')`, `orders` feature, admin user | FR-002 → 201 FR-007 |
-| `GET …/discount-proposals?request_id=` · `?status=PENDING&cursor&limit` | requester own read · `@Require('approve:discounts:branch')` | → `{ items, next_cursor }` |
+| `GET …/discount-proposals?request_id=` · `?status=PENDING&cursor&limit` | `@Require('record:service-sessions:branch')` + `requested_by` = caller · `@Require('approve:discounts:branch')` | → `{ items, next_cursor }` |
 | `POST …/discount-proposals/approve` · `/reject` | `@Require('approve:discounts:branch')`, `orders` feature, admin user, `Idempotency-Key` | FR-017 → 200 FR-018 |
 | `GET /v1/devices/me/discount-proposals` | `@Authenticated()`, device only | → FR-016 list |
-| `POST /v1/devices/me/discount-proposals/approve` · `/reject` | `@Authenticated()`, device only, declared write | FR-015 → 200 FR-018 |
+| `POST /v1/devices/me/discount-proposals/approve` · `/reject` | `@Authenticated()`, device only (any paired device of the branch, the reception computer included), declared write | FR-015 → 200 FR-018 |
 | `POST …/service-sessions` and `…/service-sessions/:sessionId/lines` (spec 050) | unchanged | line input + `discount_proposal_id?`; FR-021 response fields |
 
 Money in contracts is canonical three-decimal KWD strings; `bigint` mills inside; never `number`.
@@ -323,16 +356,18 @@ Money in contracts is canonical three-decimal KWD strings; `bigint` mills inside
   grantable to any human role; evaluated for a device **only** through the PIN holder's memberships, never the `Device`
   role). Independent of `manage:discounts:company` (which governs setting limits, spec 016) and of the record
   permission.
-- The request uses the existing `record:service-sessions:branch`. The requester's own read needs nothing more.
+- The request and the requester's own read use the existing `record:service-sessions:branch`; the read is further
+  filtered to the caller's own requests.
 
 ### Events, module map and the bell (consumer before writer)
 
 - **Published (new, `orders/events/published.ts`, Arabic one-line doc):** `DiscountApprovalRequested` — emitted once
   per stored request, in its transaction. **SPEC §3 amendment and the new ADR** (§7, 057-1).
-- **Consumed:** worker `orders` consumer `orders.discount-approval-notice-v1` claims the ledger row, resolves recipients
-  through `identity.branchManagerRecipients` (the ADR-0037 interim rule; the requester excluded) and appends
-  `DiscountApprovalNoticeRequested` to `notifications` (existing IN_APP storage, admin bell). Row 62 later replaces the
-  interim rule.
+- **Consumed:** worker `orders` consumer `orders.discount-approval-notice-v1` claims the ledger row, resolves the DP-26
+  recipients through a **new** worker identity reader `discountApproverRecipients(branch)` (identity owns permission
+  resolution: active memberships covering the branch whose role defaults or ALLOW overrides grant
+  `approve:discounts:branch`, minus any covering DENY; PP-15.2, so **not** the ADR-0037 manager rule), drops the
+  requester, and appends `DiscountApprovalNoticeRequested` to `notifications` (existing IN_APP storage, admin bell).
 - **Ports (module-map §3 rows, no new import arrow — `orders → identity, settings` exists, map line 43):**
   `DiscountApprovalAccessPort` (identity: approve permission, DENY, feature, approver memberships, locked),
   `DiscountPinApproverPort` (identity: PIN verify by phone through the existing facility, outcome only),
@@ -371,16 +406,16 @@ anything can approve, so no approval can exist that a line cannot consume. Sizes
 
 | PR | Result | Subtasks | Blocked on | Size |
 |---|---|---|---|---|
-| **057-1** | Contracts, template, map, ADR; no behaviour | 1. Zod contracts and OpenAPI for every route of §6, the additive fields on the spec 050 line input/rejected/accepted shapes, `DiscountApprovalRequested` and `DiscountApprovalNoticeRequested`. 2. Template `discount_approval_requested` ar/en, admin bell render, registration in `NOTIFICATION_SOURCE_EVENTS` and the worker's known types. 3. Module-map rows + generated YAML + the new ADR (PIN approval on a paired device; the event) + SPEC §3 amendment | this spec merged; DA-Q6, DA-Q7 | 260–380 |
-| **057-2** | Permission and storage | 1. `approve:discounts:branch` + default roles (DA-Q1). 2. `discount_proposals` with `CHECK`s, transition trigger, `FORCE` RLS, grants, indexes, negative tests. 3. `service_lines.discount_proposal_id` + the deferred composite FK + allowlist/inventory updates | 057-1; DA-Q1 | 320–460 |
-| **057-3** | The bell works for any `DiscountApprovalRequested` | 1. `discount_approval_notices` migration, RLS, grants. 2. Worker `orders` use case, recipient/place adapters, consumer registration. 3. Delivery tests (once, isolation, no manager, groups ≤ 100, requester excluded) | 057-1, 057-2 | 340–480 |
+| **057-1** | Contracts, template, map, ADR; no behaviour | 1. Zod contracts and OpenAPI for every route of §6, the additive fields on the spec 050 line input/rejected/accepted shapes, `DiscountApprovalRequested` and `DiscountApprovalNoticeRequested`. 2. Template `discount_approval_requested` ar/en, admin bell render, registration in `NOTIFICATION_SOURCE_EVENTS` and the worker's known types. 3. Module-map rows + generated YAML + **the new ADR** (D-9: the reception computer paired as a branch device and how it coexists with SS-Q3's individual logins; the PIN as an approval proof on a paired device; the D-08 + D-15 lockout; the event) + SPEC §3 amendment | this spec merged (DA-Q6, DA-Q7 answered) | 280–400 |
+| **057-2** | Permission and storage | 1. `approve:discounts:branch` + default roles (DA-Q1). 2. `discount_proposals` and `discount_proposal_performers` with `CHECK`s, transition trigger, `FORCE` RLS, grants, indexes, negative tests. 3. `service_lines.discount_proposal_id` + the deferred composite FK + allowlist/inventory updates | 057-1; DA-Q1 | 360–500 |
+| **057-3** | The bell works for any `DiscountApprovalRequested` | 1. `discount_approval_notices` migration, RLS, grants. 2. Worker identity reader `discountApproverRecipients` (PP-15.2) + worker `orders` use case, place adapter, consumer registration. 3. Delivery tests (once, isolation, non-manager holder in, DENY out, other branch out, requester excluded, groups ≤ 100, zero recipients) | 057-1, 057-2 | 380–520 |
 | **057-4a** | Pure rules | 1. `orders/domain` functions of FR-009 with Arabic JSDoc. 2. Error codes ar/en + `approval_refusal` labels. 3. Exhaustive unit tests | 057-1; DA-Q2, DA-Q3, DA-Q4 | 260–360 |
 | **057-4b** | Row 38: request writer and reads | 1. Proposal repository + ports/adapters. 2. `RequestDiscountApprovalUseCase` (FR-005), HTTP, idempotency. 3. Requester and branch reads (`queries/`, `EXPLAIN`), tests DP-01…DP-07 | 057-4a, 057-3 | 420–560 |
 | **057-5** | Row 41: consumption in create/append | 1. Proposal lock + CAS inside the spec 050 writers (FR-019/FR-020). 2. Contract fields FR-021. 3. Tests DP-20…DP-25 incl. the race and replay | 057-4b | 300–440 |
 | **057-6** | Row 40: remote approve/reject | 1. `DiscountApprovalAccessPort` (identity) + adapter. 2. `DecideDiscountProposalsUseCase` (FR-011…FR-014) + admin routes. 3. Tests DP-13…DP-19 | 057-5 | 380–520 |
-| **057-7** | Row 39: PIN on the device | 1. `DiscountPinApproverPort` over identity's PIN facility (no new hashing). 2. Device list + approve/reject routes, PP-7.1 declaration. 3. Tests DP-08…DP-12, PIN privacy (FR-023) | 057-6; DA-Q6, DA-Q8 | 300–420 |
+| **057-7** | Row 39: PIN on the paired device | 1. `DiscountPinApproverPort` over identity's PIN facility (no new hashing) + the device-wide cap of D-15. 2. Device list + approve/reject routes with membership selection, PP-7.1 declaration. 3. Tests DP-08…DP-12 (incl. DP-08b, DP-09b, DP-10b), PIN privacy (FR-023) | 057-6 | 340–460 |
 | **057-8a** | Reception and admin screens | 1. «اطلب موافقة» on refused lines + polling status + resend with the id (35c screen). 2. Admin pending list with approve/reject. 3. ar/en keys and component tests asserting what the user sees | 057-6 | 300–420 |
-| **057-8b** | POS device screen | 1. Pending list on the paired device. 2. Phone + PIN approve/reject. 3. ar/en keys and component tests | 057-7, 057-8a | 240–340 |
+| **057-8b** | Approval screen on the paired reception computer | 1. Pairing the reception computer through the existing POS pairing screen (desktop layout) + the pending list. 2. Phone + PIN approve/reject with the membership pick of DP-09b. 3. ar/en keys and component tests asserting what the user sees, incl. the lock message | 057-7, 057-8a | 260–380 |
 
 **Design advisors** review 057-2 before it starts (a new tenant table with an `UPDATE` grant and a deferred FK into a
 money table). **File overlap:** 057-5 touches the spec 050 writers and contracts; it runs alone against any other
@@ -389,7 +424,8 @@ open PR on those files.
 ## 8. Success criteria
 
 - **SC-001** A receptionist gets a discount above her limit approved and saved in under two minutes when the manager is
-  at the branch, without the manager logging into the reception computer.
+  at the branch: the manager types her phone and PIN on the paired reception computer without logging into the admin
+  app there.
 - **SC-002** 0 lines are saved above the recorder's limit without a consumed approval whose terms hash equals the
   line's; every such line names its proposal, and every consumed proposal names its line.
 - **SC-003** 0 approvals by the requester, by an approver whose limit is below the discount (DA-Q2 ⭐), or (DA-Q3 ⭐) by
@@ -399,10 +435,13 @@ open PR on those files.
 
 ## 9. Assumptions
 
-- All answers marked ⭐ are assumed until the owners answer; each is confined to the FR it names, so a different pick
-  changes one rule, not the design (DA-Q6 is the exception: a PIN on the admin reception computer needs a different
-  ADR and replaces 057-7 and 057-8b).
-- (DA-Q6 ⭐) A PIN approver needs **two** things this spec does not create: an **approved global phone binding** (a
+- The money answers marked ⭐ (DA-Q1…DA-Q5) are assumed until the owners answer; each is confined to the FR it names,
+  so a different pick changes one rule, not the design.
+- Any active paired device of the branch can serve the approval routes (D-9); only the reception computer is deployed
+  for it. If Waleed wants approval limited to that one computer, a device role/flag is added in 057-7.
+- The device-wide cap of D-15 (10 failures / 15 minutes) is a technical number answering Waleed's request for a
+  lockout; the ADR may tune it.
+- A PIN approver needs **two** things this spec does not create: an **approved global phone binding** (a
   platform operation, `approvePhoneBinding`, ADR-0019; there is no tenant endpoint for it today) and a PIN set by a
   manager (`POST /v1/staff-pins/reset`, `manage:memberships:company`). Owners and admin-only managers sign in with
   email + TOTP and may have neither; until both exist for them they can approve **remotely** (row 40) only. Adding a
