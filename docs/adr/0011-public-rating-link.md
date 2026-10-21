@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-02
+- **Amended:** 2026-10-21 (§8, comment visibility)
 - **Slice:** Phase 1 · G3 · before PRs 58–60
 
 ## Context
@@ -93,8 +94,9 @@ opt-out accessible until expiry; do not return the submitted rating/comment to t
 
 The comment is **optional plain text, at most 1,000 Unicode characters**, with no images, attachments or links.
 Enforce the limit and reject link-bearing content on the server; render accepted text with escaping, never HTML,
-Markdown or automatic linkification. Comments are visible **only to the owner/manager**, within their authorized
-tenant/business scope; staff, reception and public responses never expose them. The owner decided this policy;
+Markdown or automatic linkification. Comments are visible to **every holder of `read:service-sessions:branch`**, within that holder's authorized
+scope, reception included when granted it; the staff app, public responses and other tenants never expose them (§8,
+2026-10-21; until then the rule was owner/manager only, §7). The owner decided this policy;
 it overrides any earlier staff-comment visibility toggle. The orchestrator requires owner approval of ar/en
 submit, opt-out and unavailable/expired-link copy before PR 60; no extra profile fields.
 
@@ -135,8 +137,9 @@ CLAUDE.md amendment; companion-document synchronization belongs to the orchestra
   at 30 requests/minute, bilingual 429/Retry-After and trusted-proxy spoof rejection; unauthenticated routes still
   pass route-access coverage.
 - **Comments:** absent/empty and 1,000-character comments accepted, 1,001 rejected (including Unicode input),
-  links/images rejected and markup never executed; invalid input leaves the token unconsumed. Owner/manager
-  scope permits comment reads; staff/reception, public and cross-tenant reads cannot reveal comments.
+  links/images rejected and markup never executed; invalid input leaves the token unconsumed. A holder of
+  `read:service-sessions:branch` reads comments in its scope, reception included (§8); a caller without it, the staff
+  app, public and cross-tenant reads cannot reveal comments.
 
 ### 7. Owner decisions — 2026-10-02
 
@@ -146,6 +149,18 @@ CLAUDE.md amendment; companion-document synchronization belongs to the orchestra
   public-form copy before PR 60, as recorded in §4.
 - **Deferred to the ratings slice:** token delivery remains open below; acceptance does not authorize an
   unresolved bearer-token transport or enable rating sends.
+
+### 8. Amendment — 2026-10-21: comment visibility (spec 060, RT-Q7 follow-up)
+
+Spec 060 guards the admin ratings read with the existing `read:service-sessions:branch` (RT-Q7, PP-18.16), which
+SS-Q12 lets the owner grant to any human role. Asked whether a non-manager holder, such as reception, sees the
+customers' written comments, Waleed answered through the super agent on 2026-10-21: «أي حد معاه الصلاحية».
+
+This replaces the owner/manager-only rule of §4 and §7: a comment is visible to every holder of
+`read:service-sessions:branch` within that holder's authorized scope (spec 060 FR-B15, BR-B4). The staff app, the
+public page and cross-tenant reads still never expose a comment, and it is still never returned to the browser that
+submitted it. The §6 comment test changes accordingly: a holder of that permission, reception included, reads comments
+in scope; a caller without it, the staff app, the public page and another tenant cannot.
 
 ## Alternatives considered
 
