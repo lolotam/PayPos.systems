@@ -29,6 +29,8 @@ export const serviceSessionDayLine = responseObject({
   edited: z.boolean(),
   // الغياب يعني أن السطر لم يُلغَ؛ اللحظة من صف التاريخ لأن السطر نفسه لا يخزّنها.
   cancelled_at: timestamp.optional(),
+  // الغياب يعني أن المنفّذين لم يتغيّروا؛ اليوم من صف التغيير لأن السطر نفسه لا يخزّنه.
+  performers_changed_at: date.optional(),
   list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney,
   effective_discount_bps: z.number().int().min(0).max(10000), recorded_by: id,
   recorded_at: timestamp, late: z.boolean(), has_performer_warning: z.boolean(),

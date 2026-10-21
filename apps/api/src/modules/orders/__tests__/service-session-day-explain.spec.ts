@@ -22,8 +22,10 @@ beforeAll(async () => {
     late: n % 23 === 0, append_late: n % 29 === 0,
   })));
   await seed(data, sample.session.id, must(sample.session.lines[0]).id);
+  await seedChangeHistory(sample.session.id);
   await seedCancellations(data);
-  for (const table of ['service_sessions', 'service_lines', 'line_performers', 'service_line_edits', 'service_line_cancellations']) await f.h.owner.unsafe(`ANALYZE ${table}`);
+  for (const table of ['service_sessions', 'service_lines', 'line_performers', 'service_line_edits', 'service_line_cancellations',
+    'service_line_performer_changes', 'service_line_performer_change_rows']) await f.h.owner.unsafe(`ANALYZE ${table}`);
 });
 afterAll(async () => { await f?.close(); });
 
@@ -75,6 +77,38 @@ async function seedCancellations(data: string) {
   });
 }
 
+// تاريخ تغيير المنفّذين لازم يكون صفاً حقيقياً برأس وصفوف قبل وبعد: بدونه يبقى جدول التاريخ فاضياً
+// وتُقرأ الخطة على جدول بلا سطور، فيستحيل الحكم على الفهرس الذي يقرأ يوم العلامة.
+async function seedChangeHistory(sampleSession: string) {
+  const [membership] = await f.h.owner`SELECT id FROM memberships WHERE company_id=${f.company} AND user_id=${f.ownerId}`;
+  const membershipId = String(must(membership)['id']);
+  await f.h.owner.begin(async (tx) => {
+    await tx`CREATE TEMP TABLE explain_changed_lines ON COMMIT DROP AS
+      SELECT id FROM service_lines WHERE company_id=${f.company} AND session_id<>${sampleSession} ORDER BY id LIMIT 1000`;
+    await tx`INSERT INTO service_line_performer_changes(company_id,id,business_id,line_id,revision,previous_revision,reason,changed_at,
+      changed_by,changed_by_membership_id,changer_name_en,changer_role,changer_role_is_system,changer_role_name_en,write_xid)
+      SELECT l.company_id,gen_random_uuid(),l.business_id,l.id,2,1,'Synthetic explain change',clock_timestamp(),
+        ${f.ownerId},${membershipId},'Synthetic changer','owner',true,'Owner',pg_current_xact_id()
+      FROM service_lines l JOIN explain_changed_lines e ON e.id=l.id`;
+    await tx`INSERT INTO service_line_performer_change_rows(company_id,id,business_id,change_id,side,employee_id,performer_ordinal,share_bps,
+      name_en,name_ar,linked_user_id,linked_user_snapshotted,not_clocked_in_warning,approved_leave_warning)
+      SELECT p.company_id,gen_random_uuid(),p.business_id,c.id,'BEFORE',p.employee_id,p.performer_ordinal,p.share_bps,
+        p.name_en,p.name_ar,p.linked_user_id,p.linked_user_snapshotted,p.not_clocked_in_warning,p.approved_leave_warning
+      FROM service_line_performer_changes c
+      JOIN line_performers p ON p.company_id=c.company_id AND p.business_id=c.business_id AND p.line_id=c.line_id
+      JOIN explain_changed_lines e ON e.id=c.line_id`;
+    await tx`UPDATE service_lines SET revision=2
+      FROM explain_changed_lines e WHERE service_lines.id=e.id AND service_lines.company_id=${f.company}`;
+    await tx`INSERT INTO service_line_performer_change_rows(company_id,id,business_id,change_id,side,employee_id,performer_ordinal,share_bps,
+      name_en,name_ar,linked_user_id,linked_user_snapshotted,not_clocked_in_warning,approved_leave_warning)
+      SELECT p.company_id,gen_random_uuid(),p.business_id,c.id,'AFTER',p.employee_id,p.performer_ordinal,p.share_bps,
+        p.name_en,p.name_ar,p.linked_user_id,p.linked_user_snapshotted,p.not_clocked_in_warning,p.approved_leave_warning
+      FROM service_line_performer_changes c
+      JOIN line_performers p ON p.company_id=c.company_id AND p.business_id=c.business_id AND p.line_id=c.line_id
+      JOIN explain_changed_lines e ON e.id=c.line_id`;
+  });
+}
+
 it.each([false, true])('normal planner uses tenant day and child indexes, late=%s, first and cursor pages', async (late) => {
   const scope = { ...f.context(), userId: f.ownerId };
   const page = { date, limit: 20, ...(late ? { late: 'true' as const } : {}) };
@@ -90,6 +124,7 @@ it.each([false, true])('normal planner uses tenant day and child indexes, late=%
       expect(sessions.length).toBeGreaterThan(0);
       expect(sessions.every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
       const indexes = plan.map((node) => node['Index Name']);
+      const uses = (candidates: string[]) => candidates.some((name) => indexes.includes(name));
       expect(indexes).toContain('service_sessions_day_idx');
       if (late) expect(indexes).toContain('service_sessions_late_day_idx');
       expect(indexes).toContain('service_lines_late_session_idx');
@@ -97,7 +132,10 @@ it.each([false, true])('normal planner uses tenant day and child indexes, late=%
       expect(indexes).toContain('line_performers_ordinal_key');
       expect(indexes).toContain('service_line_edits_line_fk_idx');
       expect(indexes.includes('slc_line_uq') || indexes.includes('slc_line_fk_idx')).toBe(true);
-      for (const table of ['service_sessions', 'service_lines', 'line_performers', 'service_line_edits', 'service_line_cancellations']) {
+      // يوم العلامة يُقرأ من تاريخ التغيير بأي مؤشر يخدم نفس البحث، لا بمسح الجدول كله.
+      expect(uses(['slpc_line_revision_uq', 'slpc_line_xid_uq', 'slpc_history_idx'])).toBe(true);
+      for (const table of ['service_sessions', 'service_lines', 'line_performers', 'service_line_edits', 'service_line_cancellations',
+        'service_line_performer_changes']) {
         expect(plan.filter((node) => node['Relation Name'] === table).every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
       }
       const pageLimit = plan.find((node) => node['Node Type'] === 'Limit');
