@@ -4,10 +4,12 @@ import { describe, expect, it } from 'vitest';
 import {
   STAFF_COLUMN_CODES,
   DEFAULT_STAFF_COLUMNS,
+  canonicalStaffColumns,
   effectiveStaffColumns,
   effectiveStaffMonthsBack,
   invalidStaffColumns,
   isValidStaffMonthsBack,
+  sameStaffColumns,
 } from '../staff-columns.ts';
 
 describe('staff columns (spec 060 D-A6, D-A7)', () => {
@@ -65,5 +67,21 @@ describe('staff columns (spec 060 D-A6, D-A7)', () => {
     expect(effectiveStaffMonthsBack(3)).toBe(3);
     for (const valid of [1, 3, 24]) expect(isValidStaffMonthsBack(valid)).toBe(true);
     for (const invalid of [0, 25, -1, 1.5]) expect(isValidStaffMonthsBack(invalid)).toBe(false);
+  });
+});
+
+describe('the staff columns set: one order, one change (spec 060 MY-18)', () => {
+  it('canonicalStaffColumns returns the codes in enum order, each once', () => {
+    expect(canonicalStaffColumns(['tip', 'date'])).toEqual(['date', 'tip']);
+    expect(canonicalStaffColumns(['tip', 'date', 'tip'])).toEqual(['date', 'tip']);
+    expect(canonicalStaffColumns([])).toEqual([]);
+  });
+
+  it('sameStaffColumns compares the set, not the order', () => {
+    expect(sameStaffColumns(['tip', 'date'], ['date', 'tip'])).toBe(true);
+    expect(sameStaffColumns(['date'], ['date', 'tip'])).toBe(false);
+    expect(sameStaffColumns(null, null)).toBe(true);
+    expect(sameStaffColumns(null, [])).toBe(false);
+    expect(sameStaffColumns([], null)).toBe(false);
   });
 });

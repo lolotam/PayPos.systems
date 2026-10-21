@@ -18301,7 +18301,6 @@
         "properties": {
           "columns": {
             "nullable": true,
-            "maxItems": 32,
             "type": "array",
             "items": {
               "type": "string"

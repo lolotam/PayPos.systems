@@ -2,18 +2,17 @@ import type { ReplaceStaffColumnsInput, StaffColumnsSettings } from '@pospay/con
 
 import { ApiError } from '../../../../shared/errors.ts';
 import {
+  canonicalStaffColumns,
   effectiveStaffColumns,
   effectiveStaffMonthsBack,
   invalidStaffColumns,
   isValidStaffMonthsBack,
+  sameStaffColumns,
 } from '../../domain/staff-columns.ts';
 import type {
   StaffColumnsTransactions,
   StoredStaffColumns,
 } from '../../ports/staff-columns-settings.port.ts';
-
-const sameColumns = (a: readonly string[] | null, b: readonly string[] | null) =>
-  a === null || b === null ? a === b : a.length === b.length && a.every((code, i) => code === b[i]);
 
 /**
  * The response every caller of the setting sees: what the "my" reads apply, and whether it is the default.
@@ -67,11 +66,18 @@ export class ReplaceStaffColumns {
     if (input.months_back !== null && !isValidStaffMonthsBack(input.months_back)) {
       throw new ApiError('STAFF_MONTHS_BACK_INVALID');
     }
-    const next: StoredStaffColumns = { columns: input.columns, monthsBack: input.months_back };
+    const next: StoredStaffColumns = {
+      columns: input.columns === null ? null : canonicalStaffColumns(input.columns),
+      monthsBack: input.months_back,
+    };
     return this.#transactions.run(command, async (scope) => {
       const before = await scope.lock(businessId);
+      // الأعمدة مجموعة مش ترتيب: تكرار نفس الأعمدة بترتيب تاني مش تغيير، فمفيش كتابة ولا سطر audit.
+      if (sameStaffColumns(before.columns, next.columns) && before.monthsBack === next.monthsBack) {
+        return staffColumnsView(businessId, before);
+      }
       const after = await scope.save(businessId, next, userId);
-      if (!sameColumns(before.columns, after.columns)) {
+      if (!sameStaffColumns(before.columns, after.columns)) {
         await scope.audit.record({
           entity: 'business_settings',
           entityId: businessId,

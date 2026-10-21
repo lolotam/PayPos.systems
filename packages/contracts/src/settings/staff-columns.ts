@@ -32,10 +32,12 @@ export const staffColumnsSettings = responseObject({
 }).meta({ id: 'StaffColumnsSettings' });
 
 // الأكواد نصوص هنا مش enum: كود غلط أو مكرر أو شهور برّه 1–24 لازم يرجع 422 من الدومين مش 400 (MY-19، MY-13).
+// ومفيش حد أقصى لعدد الأعمدة: أي مصفوفة أطول من قائمة الأكواد (11 كود) فيها أكواد مش معروفة أو مكررة،
+// فالقرار لازم يبقى عند الدومين (422) مش عند الـ schema (400).
 // null = رجّعه للافتراضي.
 export const replaceStaffColumnsInput = z
   .object({
-    columns: z.array(z.string()).max(32).nullable(),
+    columns: z.array(z.string()).nullable(),
     months_back: z.number().int().nullable(),
   })
   .strict()

@@ -79,6 +79,14 @@ const stored = async () => {
     WHERE company_id = ${f.company} AND business_id = ${f.business}`;
   return row ?? { staff_columns: null, staff_months_back: null };
 };
+const storedRow = async () => {
+  const [row] = await f.h
+    .owner`SELECT staff_columns, staff_months_back, updated_at, updated_by FROM business_settings
+    WHERE company_id = ${f.company} AND business_id = ${f.business}`;
+  return (
+    row ?? { staff_columns: null, staff_months_back: null, updated_at: null, updated_by: null }
+  );
+};
 
 it('MY-17 nothing saved: every adapter gets the MY-Q3 default and one month, rating_average hidden', async () => {
   expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 1));
@@ -160,6 +168,7 @@ it('MY-19 an unknown, duplicate, rating_comments, customer_phone or rating_avera
     ['customer_phone'],
     ['rating_average'],
     ['x'.repeat(100)],
+    Array.from({ length: 33 }, () => 'date'),
   ]) {
     const refused = await put({ columns, months_back: 5 });
     expect(refused.statusCode).toBe(422);
@@ -174,6 +183,20 @@ it('MY-19 an unknown, duplicate, rating_comments, customer_phone or rating_avera
         WHERE company_id = ${f.company} AND business_id = ${f.business}`,
     ).rejects.toThrow(/business_settings_staff_columns/);
   }
+});
+
+it('MY-18 the same columns in another order are not a change: the row and the audit log stay as they were', async () => {
+  const first = await put({ columns: ['tip', 'date'], months_back: 2 });
+  expect(first.statusCode).toBe(200);
+  const afterFirst = await storedRow();
+  expect(afterFirst.staff_columns).toEqual(['date', 'tip']);
+  const auditsAfterFirst = await audits();
+
+  const second = await put({ columns: ['date', 'tip'], months_back: 2 });
+  expect(second.statusCode).toBe(200);
+  expect(second.json()).toEqual(first.json());
+  expect(await storedRow()).toEqual(afterFirst);
+  expect(await audits()).toEqual(auditsAfterFirst);
 });
 
 it('MY-21 no permission, a device or another business is a uniform 403 and nothing is saved', async () => {

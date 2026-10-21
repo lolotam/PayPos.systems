@@ -69,6 +69,38 @@ export function invalidStaffColumns(codes: readonly string[]): string[] {
 }
 
 /**
+ * بيرجّع الأعمدة بالترتيب الرسمي (ترتيب الـ enum) مرة واحدة كل كود.
+ * القاعدة: الأعمدة مجموعة مش ترتيب، وكل قراية بترجّعها دايماً بترتيب الـ enum (MY-18).
+ *
+ * @param codes الأكواد زي ما المدير بعتها (بعد التحقق)
+ * @returns الأكواد بترتيب الـ enum، كل كود مرة واحدة
+ */
+export function canonicalStaffColumns(codes: readonly string[]): StaffColumnCode[] {
+  const chosen = new Set(codes);
+  return STAFF_COLUMN_CODES.filter((code) => chosen.has(code));
+}
+
+/**
+ * بيقارن مجموعتي أعمدة: نفس الأكواد بترتيب مختلف هي نفس الإعداد.
+ * القاعدة: الأعمدة مجموعة مش ترتيب، فإعادة حفظ نفس الأعمدة بترتيب تاني مش تغيير تستاهل سطر audit (MY-18).
+ *
+ * @param a المحفوظ قبل التغيير
+ * @param b المحفوظ بعد التغيير
+ * @returns true لو الاتنين نفس الإعداد
+ */
+export function sameStaffColumns(
+  a: readonly string[] | null,
+  b: readonly string[] | null,
+): boolean {
+  if (a === null || b === null) return a === null && b === null;
+  const left = new Set(a);
+  const right = new Set(b);
+  if (left.size !== right.size) return false;
+  for (const code of left) if (!right.has(code)) return false;
+  return true;
+}
+
+/**
  * بيحدد هل عدد الشهور اللي المدير اختاره مسموح.
  * القاعدة: من 1 لـ 24 شهر، والشهر الحالي محسوب منهم (MY-Q9، D-A14).
  *
