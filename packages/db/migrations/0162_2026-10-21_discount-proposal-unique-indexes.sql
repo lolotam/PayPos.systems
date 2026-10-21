@@ -4,3 +4,5 @@ CREATE UNIQUE INDEX CONCURRENTLY "devices_company_branch_id_key" ON "devices" ("
 CREATE UNIQUE INDEX CONCURRENTLY "service_lines_discount_proposal_key" ON "service_lines" ("company_id","id","discount_proposal_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX CONCURRENTLY "service_lines_discount_proposal_uq" ON "service_lines" ("company_id","discount_proposal_id") WHERE "discount_proposal_id" IS NOT NULL;
+--> statement-breakpoint
+CREATE UNIQUE INDEX CONCURRENTLY "service_line_edits_line_id_key" ON "service_line_edits" ("company_id","line_id","id");

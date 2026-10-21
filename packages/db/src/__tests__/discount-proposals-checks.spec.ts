@@ -42,14 +42,16 @@ function pgError(error: unknown): { code?: string; constraint_name?: string } {
   return {};
 }
 
-async function refused(work: Promise<unknown>, code: string, constraint?: string) {
+async function refused(work: Promise<unknown>, code: string, constraint?: string | string[]) {
   const error = await work.then(
     () => null,
     (caught: unknown) => caught,
   );
   expect(error).toBeInstanceOf(Error);
   expect(pgError(error).code).toBe(code);
-  if (constraint !== undefined) expect(pgError(error).constraint_name).toBe(constraint);
+  if (constraint === undefined) return;
+  const expected = Array.isArray(constraint) ? constraint : [constraint];
+  expect(expected).toContain(pgError(error).constraint_name);
 }
 
 // غائب يعني "القيمة الافتراضية" وصريح null يعني SQL NULL.
@@ -130,11 +132,29 @@ it('refuses a record proposal that names a line', async () => {
   );
 });
 
+it('accepts a record proposal with no base amounts', async () => {
+  const id = ids.newId();
+  await as(A.company, insertProposal({ id }));
+  const rows = await as(
+    A.company,
+    sql`SELECT kind,base_price,base_discount,base_net FROM discount_proposals WHERE id=${id}`,
+  );
+  expect(rows).toEqual([{ kind: 'RECORD', base_price: null, base_discount: null, base_net: null }]);
+});
+
 it('refuses an edit proposal without its base net', async () => {
-  await refused(
-    as(A.company, editProposal(ids.newId(), { baseNet: null })),
-    '23514',
+  // The per-kind rule and the amount rule both reject the row, so either name is the refusal.
+  await refused(as(A.company, editProposal(ids.newId(), { baseNet: null })), '23514', [
     'dp_kind_shape_ck',
+    'dp_base_amounts_ck',
+  ]);
+});
+
+it('refuses an edit proposal whose net contradicts its price and discount', async () => {
+  await refused(
+    as(A.company, editProposal(ids.newId(), { baseNet: '999.000' })),
+    '23514',
+    'dp_base_amounts_ck',
   );
 });
 

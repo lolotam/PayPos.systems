@@ -69,7 +69,7 @@ export const discountProposals = pgTable('discount_proposals', {
   decidedAt: timestamp('decided_at', { withTimezone: true }),
   approvedLimitSource: text('approved_limit_source'),
   approvedLimitBps: integer('approved_limit_bps'),
-  // علم أن الوافقة جاءت من منفّذ البند نفسه؛ لا يمنع الموافقة بل يوقظ المالك (D-19).
+  // علم أن الموافقة جاءت من منفّذ البند نفسه؛ لا يمنع الموافقة بل يوقظ المالك (D-19).
   approverIsPerformer: boolean('approver_is_performer'),
   rejectReason: text('reject_reason'),
   consumedLineId: uuid('consumed_line_id'),
@@ -97,6 +97,7 @@ export const discountProposals = pgTable('discount_proposals', {
   index('dp_branch_fk_idx').on(t.companyId, t.businessId, t.branchId),
   index('dp_session_fk_idx').on(t.companyId, t.businessId, t.sessionId).where(sql`${t.sessionId} IS NOT NULL`),
   index('dp_line_fk_idx').on(t.companyId, t.businessId, t.lineId).where(sql`${t.lineId} IS NOT NULL`),
+  index('dp_consumed_edit_fk_idx').on(t.companyId, t.lineId, t.consumedEditId).where(sql`${t.consumedEditId} IS NOT NULL`),
   index('dp_customer_fk_idx').on(t.companyId, t.customerId),
   index('dp_service_fk_idx').on(t.companyId, t.businessId, t.serviceId),
   index('dp_requester_membership_idx').on(t.companyId, t.requestedBy, t.requestedByMembershipId),
@@ -106,7 +107,7 @@ export const discountProposals = pgTable('discount_proposals', {
   check('dp_kind_ck', sql`(${t.kind} IN ('RECORD','EDIT')) IS TRUE`),
   // شكل الطلب حسب نوعه: طلب التسجيل بلا بند ولا لقطة سعر، وطلب التعديل باسم بند ومراجعة ولقطة سعر كاملة.
   check('dp_kind_shape_ck', sql`(((${t.kind} = 'RECORD' AND ${t.lineId} IS NULL AND ${t.baseRevision} IS NULL AND ${t.basePrice} IS NULL AND ${t.baseDiscount} IS NULL AND ${t.baseNet} IS NULL AND ${t.consumedEditId} IS NULL) OR (${t.kind} = 'EDIT' AND ${t.lineId} IS NOT NULL AND ${t.baseRevision} IS NOT NULL AND ${t.baseRevision} >= 1 AND ${t.basePrice} IS NOT NULL AND ${t.baseDiscount} IS NOT NULL AND ${t.baseNet} IS NOT NULL AND ${t.sessionId} IS NOT NULL AND ${t.inputIndex} = 0 AND ${t.consumedLineId} IS NULL))) IS TRUE`),
-  check('dp_base_amounts_ck', sql`(((${t.basePrice} IS NULL AND ${t.baseDiscount} IS NULL) OR (${t.basePrice} >= 0 AND ${t.baseDiscount} >= 0 AND ${t.baseDiscount} <= ${t.basePrice})) IS TRUE`),
+  check('dp_base_amounts_ck', sql`((${t.basePrice} IS NULL AND ${t.baseDiscount} IS NULL AND ${t.baseNet} IS NULL) OR (${t.basePrice} >= 0 AND ${t.baseDiscount} >= 0 AND ${t.baseDiscount} <= ${t.basePrice} AND ${t.baseNet} >= 0 AND ${t.baseNet} = ${t.basePrice} - ${t.baseDiscount})) IS TRUE`),
   check('dp_input_index_ck', sql`${t.inputIndex} BETWEEN 0 AND 19`),
   check('dp_effective_bps_ck', sql`${t.effectiveBps} BETWEEN 1 AND 10000`),
   check('dp_terms_hash_ck', sql`${t.termsHash} ~ '^[0-9a-f]{64}$'`),

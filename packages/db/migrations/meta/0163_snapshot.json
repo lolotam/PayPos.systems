@@ -18800,6 +18800,34 @@
           "method": "btree",
           "with": {}
         },
+        "dp_consumed_edit_fk_idx": {
+          "name": "dp_consumed_edit_fk_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "line_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "consumed_edit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"discount_proposals\".\"consumed_edit_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "dp_customer_fk_idx": {
           "name": "dp_customer_fk_idx",
           "columns": [
@@ -19127,7 +19155,7 @@
         },
         "dp_base_amounts_ck": {
           "name": "dp_base_amounts_ck",
-          "value": "(((\"discount_proposals\".\"base_price\" IS NULL AND \"discount_proposals\".\"base_discount\" IS NULL) OR (\"discount_proposals\".\"base_price\" >= 0 AND \"discount_proposals\".\"base_discount\" >= 0 AND \"discount_proposals\".\"base_discount\" <= \"discount_proposals\".\"base_price\")) IS TRUE"
+          "value": "((\"discount_proposals\".\"base_price\" IS NULL AND \"discount_proposals\".\"base_discount\" IS NULL AND \"discount_proposals\".\"base_net\" IS NULL) OR (\"discount_proposals\".\"base_price\" >= 0 AND \"discount_proposals\".\"base_discount\" >= 0 AND \"discount_proposals\".\"base_discount\" <= \"discount_proposals\".\"base_price\" AND \"discount_proposals\".\"base_net\" >= 0 AND \"discount_proposals\".\"base_net\" = \"discount_proposals\".\"base_price\" - \"discount_proposals\".\"base_discount\")) IS TRUE"
         },
         "dp_input_index_ck": {
           "name": "dp_input_index_ck",
