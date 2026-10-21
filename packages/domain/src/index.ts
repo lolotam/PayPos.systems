@@ -44,3 +44,21 @@ export {
   nextEmployeeNumberCounter,
   parseEmployeeNumber,
 } from './employee-number.js';
+export {
+  ALERT_CHANNELS,
+  ALERT_KIND_DEFINITIONS,
+  ALERT_KINDS,
+  ALERT_MAX_MINUTES,
+  ALERT_RECIPIENT_ROLES,
+  alertRuleViolation,
+  effectiveAlertRule,
+  type AlertChannel,
+  type AlertKind,
+  type AlertKindDefinition,
+  type AlertRecipientRole,
+  type AlertRuleSettings,
+  type AlertRuleSource,
+  type AlertRuleViolation,
+  type EffectiveAlertRule,
+  type FixedAlertRecipient,
+} from './alert-rules.js';

@@ -17,6 +17,7 @@ import { SERVICE_COLUMN_GRANTS, PACKAGE_TYPE_COLUMN_GRANTS } from '../../test/ca
 import { SERVICE_LINE_EDIT_COLUMN_GRANTS } from '../../test/service-line-edit-grants.ts';
 import { SERVICE_LINE_CANCEL_COLUMN_GRANTS } from '../../test/service-line-cancel-grants.ts';
 import { SERVICE_LINE_PERFORMER_COLUMN_GRANTS } from '../../test/service-line-performer-grants.ts';
+import { ALERT_RULE_COLUMN_GRANTS } from '../../test/alert-rule-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -27,6 +28,9 @@ import { createTestDatabase, type TestDatabase } from '../../test/test-database.
 // is not written here fails the suite, so a broad grant cannot authorise itself.
 const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   pospay_app: [
+    'alert_rules:DELETE',
+    'alert_rules:INSERT',
+    'alert_rules:SELECT',
     ...ATTENDANCE_TABLE_GRANTS,
     'audit_log:INSERT',
     'audit_log:SELECT',
@@ -297,6 +301,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...SERVICE_LINE_EDIT_COLUMN_GRANTS,
         ...SERVICE_LINE_PERFORMER_COLUMN_GRANTS,
         ...SERVICE_LINE_CANCEL_COLUMN_GRANTS,
+        ...ALERT_RULE_COLUMN_GRANTS,
       ].sort(),
     );
   });

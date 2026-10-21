@@ -52,6 +52,7 @@ export const TENANT_TABLES = [
   'devices',
   'cashier_pins',
   'business_settings',
+  'alert_rules',
   'memberships',
   'permission_overrides',
   'roles',
