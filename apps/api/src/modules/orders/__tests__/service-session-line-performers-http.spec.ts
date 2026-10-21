@@ -247,6 +247,16 @@ it('a bad shape stays 400', async () => {
   expect((await put(target, { ...input(), performers: [{ employee_id: 'not-an-id' }] })).status).toBe(400);
 });
 
+it('shares that do not sum to 10000 are 422 on this route, while the record form keeps its own 400', async () => {
+  const visit = await savedVisit();
+  const reply = await put(url(visit.sessionId, visit.lineId), {
+    ...input(), performers: [{ employee_id: must(f.employees[1]), share_bps: 5000 }],
+  });
+  expect(reply.status).toBe(422);
+  expect(reply.body['code']).toBe('SESSION_PERFORMER_SHARES_INVALID');
+  expect(await changesOf(visit.lineId)).toBe(0);
+});
+
 async function savedVisit(lines?: Parameters<EditFixture['body']>[0]) {
   const response = await f.h.send('POST', f.base, {
     cookie: f.ownerCookie, company: f.company, key: ids.newId(), body: f.body(lines ?? [f.line()]),
