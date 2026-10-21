@@ -16,7 +16,8 @@
 > work get the owner bell herself), is **answered** too (card PP-26.1, batch 43, the recommendation): the bell goes to
 > every active owner covering the branch, the approving owner included (D-19). Abu Salem's pick replaces either answer
 > if it differs. One question is open: DA-Q11 (PP-29.2, batch 45), whether the two discount bells follow the team-alerts
-> master switch and per-kind rules; it blocks only 057-3 and 057-3b (`TODO(spec)` DA-Q11).
+> master switch and per-kind rules (`TODO(spec)` DA-Q11). It blocks 057-3 and 057-3b directly and, through them, every later
+> sub-PR except 057-4a (057-4b, 057-5, 057-6, 057-7, 057-8a, 057-8b, 057-9, 057-9b), so most of rows 38–41 wait on it.
 > **Rows:** 38 `request-discount-approval` (proposal with terms hash) · 39 `approve-discount` by PIN on the device ·
 > 40 `approve-discount` remotely · 41 above-limit discounts consume the approval in the line's transaction (SPEC M2).
 > **Extends:** [spec 050](../050-orders-record-service-session/spec.md) (the create and append routes, SS-Q6 partial

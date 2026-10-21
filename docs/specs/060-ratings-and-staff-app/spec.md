@@ -8,7 +8,7 @@
 > PP-18's last batch (2026-10-21): AL-Q1…AL-Q6 and the RT-Q7 follow-up answered (AL-Q1, AL-Q2 and the follow-up against
 > the recommended options); MY-Q9 answered as PP-21.1 (against the recommended option).
 > **2 owner questions remain open**: AL-Q7 (PP-29.1, batch 45: who «مدير الفرع» means on an alert kind with no branch;
-> blocks 62-2 and 62-2c) and MY-Q6 (PP-18.6); **MY-Q6** (what an employee sees of her approved earnings) is also a money
+> blocks 62-2 and 62-2c, and 62-4 through 62-2) and MY-Q6 (PP-18.6); **MY-Q6** (what an employee sees of her approved earnings) is also a money
 > question and is in the money list for Abu Salem ([owner-questions.ar.md](owner-questions.ar.md)). Every rule that waits on an answer is marked `TODO(spec)` here and
 > blocks only the sub-PRs named in §3. **No code starts before this spec is merged.**
 > **Two parts:** **Part A** — the staff app (rows 57, 57b, 57c). **Part B** — ratings and alerts (rows 58, 59, 59b, 60,
@@ -81,7 +81,9 @@ without letting that voice touch commission (D-41, D-14).
 ## 3. Open owner questions and what each blocks
 
 All are in [owner-questions.ar.md](owner-questions.ar.md) with options and a recommended option. MY-Q6 is a money
-question (what staff earn, `CLAUDE.md` §1 5b) and goes to Abu Salem too; the others are Waleed's. Until an answer arrives the rule is `TODO(spec)` and only the sub-PRs listed here wait.
+question (what staff earn, `CLAUDE.md` §1 5b) and goes to Abu Salem too; the older others were Waleed's. Since PP-23.2
+(`CLAUDE.md` V3.14, 2026-10-21) every new question, AL-Q7 included, is on the shared decisions page for both owners, and
+Abu Salem's pick binds on a difference. Until an answer arrives the rule is `TODO(spec)` and only the sub-PRs listed here wait.
 
 | ID | Subject | Blocks |
 |---|---|---|
@@ -114,7 +116,7 @@ question (what staff earn, `CLAUDE.md` §1 5b) and goes to Abu Salem too; the ot
 | AL-Q4 | What the master switch covers | **Answered (PP-18.24): team alerts only** (recommended); rating requests keep their own switch (D-B16) |
 | AL-Q5 | The default of every alert kind (the table in §B.4) | **Answered (PP-18.25): approved** (recommended) |
 | AL-Q6 | Email/WhatsApp to team members: in row 62, or later after a contact-read ADR | **Answered (PP-18.26): later, in row 62b** (recommended); row 62 is in-app only |
-| AL-Q7 | Who a «مدير الفرع» recipient means on alert kinds with no branch (document expiring, statements) | **Open (PP-29.1, batch 45)**: `TODO(spec)`, blocks 62-2 and 62-2c (issue #476) |
+| AL-Q7 | Who a «مدير الفرع» recipient means on alert kinds with no branch (document expiring, statements) | **Open (PP-29.1, batch 45)**: `TODO(spec)`, blocks 62-2 and 62-2c, and 62-4 through 62-2 (issue #476). 62-1 is not blocked: it accepts the four recipient roles on every kind and only stores them; both AL-Q7 options keep «مدير الفرع» off the `STATEMENT_*` kinds and the second keeps it off `DOCUMENT_EXPIRING` too, so the narrowing of the per-kind validator lands with 62-2 / 62-2c, which wait on the answer anyway |
 
 ---
 
@@ -334,7 +336,8 @@ and months-back editor is the existing `manage:settings:business` (MY-Q5, PP-18.
 > manager may restore a customer's rating messages, audited; sub-PR 58-3) and RT-Q12 (all first names) are decided too;
 > RT-Q1 itself (how the link
 > reaches the sender) and RT-Q11 are asked when the track resumes (RT-Q13 is answered: PP-20.4). **The alert rules proceed now:** 62-1,
-> 62-2b, 62-4 and 62-3 without the low-rating part; 62-2 and 62-2c wait on AL-Q7 (`TODO(spec)`, PP-29.1); the `LOW_RATING` kind joins them with the track.
+> 62-2b and 62-3 without the low-rating part; 62-2 and 62-2c wait on AL-Q7 (`TODO(spec)`, PP-29.1), and 62-4 waits
+> through 62-2; the `LOW_RATING` kind joins them with the track.
 
 **In:** the rating request lifecycle (schedule, claim, send, expire), the public page with submit and opt-out, the
 attribution and averages, the low-rating alert, and the alert-rules screen with its master switch, which replaces every
