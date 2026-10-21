@@ -33,8 +33,10 @@ drift apart, which is exactly the failure the statement must not have: its figur
 ### 1. All statement data is read in the worker; the API only records which logo the render will use
 
 The API side of 27g (request, status, collect) reads `staff`'s own request table, the permission through the existing
-guard, Redis, and one stored fact: the business's bound `logo_file_id`, read in the request transaction through the
-shared `@pospay/db` `readBusinessIdentity` (§2) and written on the request row (§5). That makes the logo decision of a
+guard, Redis, and one stored fact: the business's bound `logo_file_id`, read in the request transaction through a
+port the API `staff` module owns (`StatementLogoReferenceReader` in `staff/ports/`), whose `persistence/` adapter calls
+the shared `@pospay/db` `readBusinessIdentity` (§2); the use case depends only on the port. The id is written on the
+request row (§5). That makes the logo decision of a
 render, a file **or none**, durable before any attempt, so a retry can never change it (§3). This is a read of a shared
 statement, not a `settings` import: **no API `staff → settings` arrow** is added, and the API's `staff → files` arrow
 keeps its ADR-0031 purpose only.
@@ -62,39 +64,42 @@ The worker `staff` module reads identity through a port it owns (`StatementIdent
 arrow is added**; the module map gains a port row (`worker staff | StatementIdentityReader | @pospay/db`). Settings
 still owns the table and the rule; the shared package is only where the one copy lives.
 
-### 3. The logo bytes reader is owned by worker `files`, in two steps
+### 3. The logo is read and audited by worker `files` in its own step, called by the documents source
 
-Worker `files` exports, from `apps/worker/src/modules/files/index.ts`:
+The logo read writes an access audit, so a call into it from `staff` would be a second synchronous cross-module write,
+which the module map forbids (§3.1: one recorded exception). Instead no business module calls it: the documents source
+(`apps/worker/src/documents/sources/attendance-statement.source.ts`, infrastructure wired by `apps/worker/src/main.ts`,
+§4) calls the `staff` data reader first and the `files` logo reader second. Each runs its **own** `withTenant`
+transaction, one after the other, never nested (PP-7.2). `staff` never imports `files` for this, and `files` never
+imports `staff`.
 
-1. `resolveStatementLogo(tx, { companyId, businessId, fileId, requesterUserId, renderId })`, called **inside** the
-   reader's tenant transaction with the `logo_file_id` recorded on the request row (§1, §5); it never looks up the logo
-   bound now. When the request row recorded no logo, the reader does not call it and the statement prints the name only
-   (spec 052 BR-04), on every attempt, even if a logo is bound in between. Otherwise it reads that file's `file_objects`
-   row (READY, `owner_module = 'settings'`, owner = the business, `purge_started_at IS NULL`); if the file no longer
-   qualifies it returns `null` (name only) and writes nothing. When it qualifies, it inserts one access row
-   (`file_access_audit.id = renderId`, `file_id`, `outcome = 'ALLOW'`, `actor_user_id` = the requester) with
-   `ON CONFLICT (company_id, id) DO NOTHING RETURNING id`, and only when the insert returned a row it appends the
-   `file`/`access` audit-log entry, as the API files repository does for a download. A retry (spec 056 FR-006) passes
-   the same `fileId`, so it embeds the same file and writes nothing new: every logo embedded in a PDF has exactly one
-   access row for that render, naming that file. `render_id` is a fresh UUID v7, so it never collides with another
-   access row. `pospay_app` holds `SELECT, INSERT` on `file_access_audit`
-   (`packages/db/migrations/0042_2026-10-03_files-rls.sql`), which covers `RETURNING id`; an integration test runs a
-   first attempt and a retry as `pospay_app`. It returns an opaque handle (file id, storage key, content type), or
-   `null`.
-2. `fetchStatementLogo(handle, signal)`, called **after commit**, outside any transaction. It reads the object through
-   `packages/storage`, and re-encodes it with the same `sharp` setup as upload inspection to fit 512 × 512 px, PNG for a
-   PNG and JPEG for a JPEG, at most 512 KiB. A 10 MiB logo (spec 052 BR-10) would otherwise take most of the 4 MiB HTML
-   cap as base64. A missing object returns `null` (the header shows the name only, spec 052 BR-04). A storage error or a
-   timeout of 5 seconds throws, so the job's attempt fails and BullMQ retries it once (spec 056 FR-006).
+Worker `files` exports one function, `readStatementLogo(companyId, { businessId, fileId, requesterUserId, renderId },
+signal)`, from `apps/worker/src/modules/files/index.ts`. The source passes the `logo_file_id` the `staff` reader returned
+from the request row (§1, §5); when that is `null` the source does not call it and the statement prints the name only
+(spec 052 BR-04) on every attempt, even if a logo is bound in between. The function has two phases:
 
+1. **Its own transaction** (`withTenant(companyId, …, { userId: requesterUserId })`): it reads that file's
+   `file_objects` row (READY, `owner_module = 'settings'`, owner = the business, `purge_started_at IS NULL`); if the
+   file no longer qualifies it returns `null` (name only) and writes nothing. It never looks up the logo bound now.
+   When the file qualifies, it inserts one access row (`file_access_audit.id = renderId`, `file_id`, `outcome =
+   'ALLOW'`, `actor_user_id` = the requester) with `ON CONFLICT (company_id, id) DO NOTHING RETURNING id`, and only when
+   the insert returned a row it appends the `file`/`access` audit-log entry, as the API files repository does for a
+   download. It commits. A retry (spec 056 FR-006) passes the same `fileId`, so it embeds the same file and writes
+   nothing new: every logo embedded in a PDF has exactly one access row for that render, naming that file. `render_id`
+   is a fresh UUID v7, so it never collides with another access row. `pospay_app` holds `SELECT, INSERT` on
+   `file_access_audit` (`packages/db/migrations/0042_2026-10-03_files-rls.sql`), which covers `RETURNING id`; an
+   integration test runs a first attempt and a retry as `pospay_app`.
+2. **After commit**, outside any transaction: it reads the object through `packages/storage` and re-encodes it with the
+   same `sharp` setup as upload inspection to fit 512 × 512 px, PNG for a PNG and JPEG for a JPEG, at most 512 KiB. A
+   10 MiB logo (spec 052 BR-10) would otherwise take most of the 4 MiB HTML cap as base64. A missing object returns
+   `null` (name only). A storage error or a timeout of 5 seconds throws, so the job's attempt fails and BullMQ retries
+   it once (spec 056 FR-006). It returns `{ content_type, bytes }` or `null`.
+
+The write stays inside the module that owns `file_access_audit`, in that module's own transaction, so it is not a
+cross-module write and needs no `sync_writes` row; the module map gains no port row and no `reads:` entry for the logo.
 The requester needs no `files` or `settings` permission: the statement's permission (`read:attendance:branch`) was
 checked when the request was made, and the stored permission of a settings file gates only the admin preview (ADR-0046
-§5). The worker `staff` module reads the logo through a port it owns, `StatementLogoReader` (`resolve`, `fetch`) in
-`apps/worker/src/modules/staff/ports/`, as the module map's consumer-owned ports require (ADR-0010, ADR-0041). Its only
-implementation, `apps/worker/src/modules/staff/persistence/statement-logo.adapter.ts`, is the one file that imports the
-worker `files` index. The import arrow `staff → files` is already declared (ADR-0031); the code PR adds the port row
-(`worker staff | StatementLogoReader | worker files`) and the two `reads:` entries
-(`staff -> files.resolveStatementLogo`, `staff -> files.fetchStatementLogo`, each `@` that adapter).
+§5).
 
 ### 4. The template stays inside the documents boundary
 
@@ -102,8 +107,8 @@ worker `files` index. The import arrow `staff → files` is already declared (AD
 ADR-0049 §5). So the worker `staff` module returns **typed data** (`attendanceStatementDocument`, Zod in
 `packages/contracts`), not HTML. The template lives in `packages/documents/src/templates/attendance-statement.ts`, and
 `apps/worker/src/documents/sources/attendance-statement.source.ts` turns the data into HTML. `main.ts` builds that
-source with the worker `staff` reader injected (so `sources/` imports no module index) and registers it for the kind
-`attendance-statement`. A business module still never imports `packages/documents`.
+source with the worker `staff` reader and the worker `files` `readStatementLogo` injected (so `sources/` imports no
+module index) and registers it for the kind `attendance-statement`. A business module still never imports `packages/documents`.
 
 ### 5. The request record is a `staff` table
 
@@ -117,8 +122,9 @@ statement request; the files reader re-checks the file at render time (§3). The
 
 ## Consequences
 
-- No new import arrow and no new runtime role, grant beyond the new table, or RLS exception. The module map gains a port
-  row and `reads:` entries; `packages/documents` keeps its two allowed importers.
+- No new import arrow, no `sync_writes` row, and no new runtime role, grant beyond the new table, or RLS exception. The
+  module map gains two port rows for the identity reads (worker `StatementIdentityReader`, API
+  `StatementLogoReferenceReader`, both through `@pospay/db`); `packages/documents` keeps its two allowed importers.
 - `settings/index.ts`'s public surface is unchanged; two of its exports become re-exports.
 - The 27b report and the statement read the same SQL and compute with the same `packages/domain` functions, so a parity
   test can hold them equal.

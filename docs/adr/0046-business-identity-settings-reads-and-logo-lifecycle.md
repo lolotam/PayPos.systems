@@ -41,7 +41,7 @@ and `identity` today. ADR-0031 already solved "a module stores a file reference"
    preview. The `staff → settings` arrow for 27g is that row's own ADR.
    **Amended by ADR-0051 (27g):** the statement is read in the worker, so `readBusinessIdentity` moves to `@pospay/db`
    and `statementIdentity` to `packages/domain` (both still exported by `settings/index.ts`); no `staff → settings`
-   import arrow is added. The logo bytes reader is the worker `files` pair `resolveStatementLogo` / `fetchStatementLogo`.
+   import arrow is added. The logo bytes reader is the worker `files` export `readStatementLogo`, called by the documents source.
 
 ## Consequences
 
