@@ -7,7 +7,8 @@
 > and RT-Q13 (PP-20.4, for the postponed track) answered (MY-Q5, MY-Q7 and RT-Q13 against the recommended options).
 > PP-18's last batch (2026-10-21): AL-Q1…AL-Q6 and the RT-Q7 follow-up answered (AL-Q1, AL-Q2 and the follow-up against
 > the recommended options); MY-Q9 answered as PP-21.1 (against the recommended option).
-> **1 owner question remains open** (MY-Q6, PP-18.6); **MY-Q6** (what an employee sees of her approved earnings) is also a money
+> **2 owner questions remain open**: AL-Q7 (PP-29.1, batch 45: who «مدير الفرع» means on an alert kind with no branch;
+> blocks 62-2 and 62-2c) and MY-Q6 (PP-18.6); **MY-Q6** (what an employee sees of her approved earnings) is also a money
 > question and is in the money list for Abu Salem ([owner-questions.ar.md](owner-questions.ar.md)). Every rule that waits on an answer is marked `TODO(spec)` here and
 > blocks only the sub-PRs named in §3. **No code starts before this spec is merged.**
 > **Two parts:** **Part A** — the staff app (rows 57, 57b, 57c). **Part B** — ratings and alerts (rows 58, 59, 59b, 60,
@@ -333,7 +334,7 @@ and months-back editor is the existing `manage:settings:business` (MY-Q5, PP-18.
 > manager may restore a customer's rating messages, audited; sub-PR 58-3) and RT-Q12 (all first names) are decided too;
 > RT-Q1 itself (how the link
 > reaches the sender) and RT-Q11 are asked when the track resumes (RT-Q13 is answered: PP-20.4). **The alert rules proceed now:** 62-1,
-> 62-2, 62-2b, 62-2c, 62-4 and 62-3 without the low-rating part; the `LOW_RATING` kind joins them with the track.
+> 62-2b, 62-4 and 62-3 without the low-rating part; 62-2 and 62-2c wait on AL-Q7 (`TODO(spec)`, PP-29.1); the `LOW_RATING` kind joins them with the track.
 
 **In:** the rating request lifecycle (schedule, claim, send, expire), the public page with submit and opt-out, the
 attribution and averages, the low-rating alert, and the alert-rules screen with its master switch, which replaces every
