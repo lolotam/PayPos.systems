@@ -1,8 +1,8 @@
 # Spec 058 — Packages: stop selling, sell, redeem, cancel a redemption, extend, refund, import (Phase 1 rows 33b, 42–47)
 
-> **Status:** Draft · 2026-10-21 · docs-only PR. **22 owner questions are open** (PK-Q1…PK-Q22), recorded in
+> **Status:** Draft · 2026-10-21 · docs-only PR. **21 owner questions are open** (PK-Q1…PK-Q21), recorded in
 > [owner-questions.ar.md](owner-questions.ar.md): PK-Q1…PK-Q11 are charges/money (decisions page, Abu Salem binds) and
-> PK-Q12…PK-Q22 are permissions/technical (Waleed, through his super agent). Every rule that waits on one is marked
+> PK-Q12…PK-Q21 are permissions/technical (Waleed, through his super agent). Every rule that waits on one is marked
 > `TODO(spec)` with its question number; the design below follows the recommended option of each, so only the marked
 > rule moves if an owner picks otherwise. **No code starts on a sub-PR whose rows name a pending question** (§7).
 > **Implements:** SPEC §4 (`PackageEntitlement`, `PackageComponent`, `PackageSessionSlot`, `PackageRedemption`,
@@ -135,10 +135,9 @@ commission arithmetic and statements (rows 50–55); the staff app's view of pac
 | PK-Q16 | permission | Extension: who and its limits | new `extend:packages:branch` for the four managers; written reason; later only; at most today + 730 days; allowed after expiry; repeatable; no bell | FR-040…FR-044 |
 | PK-Q17 | permission | Who sees a customer's packages | reception sees remaining sessions and expiry; amounts and history only with `read:service-sessions:branch` | FR-070, FR-071 |
 | PK-Q18 | permission | Who imports | new `import:packages:business` for owner, general manager, business manager | FR-060 |
-| PK-Q19 | technical | Imported package without a matching type | rows give a name, services and sessions directly; no type link | FR-062; `package_type_id` nullable for `IMPORTED` |
+| PK-Q19 | technical | Imported package without a matching type | rows give a name, services and sessions directly; no type link | FR-062; `package_type_id` nullable for `IMPORTED`; if «the type must exist» wins, the import also accepts a stopped type (stopping is about new sales only) |
 | PK-Q20 | technical | Import row whose customer phone is unknown | the row is refused; customers are imported first (row 34b) | FR-064 |
 | PK-Q21 | technical | Import row already expired | accepted as it is (a manager can extend it later) | FR-065 |
-| PK-Q22 | technical | Can a stopped type still be imported? | yes; stopping is about new sales only | FR-003 |
 
 ## 4. User scenarios and acceptance criteria *(mandatory)*
 
@@ -154,7 +153,7 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 - **ST-02** The type list and detail carry `selling_stopped_at`; the sale picker (42-4) lists only active types; a sale
   of a stopped type → 422 `PACKAGE_TYPE_NOT_SELLABLE`, nothing written.
 - **ST-03** Packages already sold or imported from a stopped type redeem, extend and refund as before; the type stays
-  editable while stopped (PT-Q4); a stopped type can still be named by an import (PK-Q22).
+  editable while stopped (PT-Q4); the import names no type (PK-Q19), so stopping never blocks it.
 - **ST-04** Without the permission, a device, or the `catalog` feature off → 403 / `FEATURE_DISABLED`, nothing written.
 
 ### Story 2 — Sell a package (42, P1)
@@ -258,6 +257,9 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   `PACKAGE_COMPONENT_NOT_FOUND`.
 - **RF-08** (`TODO(spec)` PK-Q10) An imported package refunds by the same rules and emits no `PackageSaleChanged`.
 - **RF-09** A zero-value package refunds slots worth 0.000 with amount 0.000 (spec 007 edge case).
+- **RF-10** Without `refund:packages:branch` (`TODO(spec)` PK-Q5) at the acting branch, a device, or the `orders` feature
+  off → 403 / `FEATURE_DISABLED`; an entitlement of another business or company → the same 404 `PACKAGE_NOT_FOUND` as
+  an unknown id; nothing written.
 
 ### Story 7 — Import open packages (47, P1)
 
@@ -274,6 +276,9 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 - **IM-05** (`TODO(spec)` PK-Q20) A phone with no customer in the company → row error `IMPORT_CUSTOMER_NOT_FOUND`.
 - **IM-06** (`TODO(spec)` PK-Q21) A past expiry date is accepted; the package is expired until extended.
 - **IM-07** Imported packages redeem, cancel, extend and refund like sold ones; they never emit `PackageSaleChanged`.
+- **IM-08** Without `import:packages:business` (`TODO(spec)` PK-Q18), a device, or the `orders` feature off → 403 /
+  `FEATURE_DISABLED` on the template, the preview and the commit; a preview of another business or company answers
+  like an unknown one (spec 030 IM-06); nothing written.
 
 ### Story 8 — A customer's packages (42-4, P1)
 
@@ -281,6 +286,9 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   service the remaining, used and refunded counts; with `read:service-sessions:branch` also price paid, refunds and the
   extension history. Expired and fully used packages are listed last, marked.
 - **CP-02** Another business's or company's packages never appear; a foreign customer id answers like unknown.
+- **CP-03** A caller with neither `record:service-sessions:branch` nor `read:service-sessions:branch` at the branch, a
+  device, or the feature off → 403 on the list and the detail; a caller with `record:` only gets the list without any
+  amount field and 403 on the detail (FR-071).
 
 ### Edge cases
 
@@ -303,8 +311,8 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   `PackageTypeDetail` (now with `selling_stopped_at`).
 - **FR-002** One transaction: row `FOR UPDATE`, compare-and-set on `revision`, set or clear `selling_stopped_at`, audit
   entry with before/after. No event (spec 037 TD-3).
-- **FR-003** The flag affects only new sales (42) and the sale picker. Redemption, extension, refund, import (PK-Q22)
-  and type edits ignore it.
+- **FR-003** The flag affects only new sales (42) and the sale picker. Redemption, extension, refund, the import
+  (which names no type, PK-Q19) and type edits ignore it.
 
 ### 42 — sell
 
@@ -523,7 +531,7 @@ a handful of rows under row locks. Import: a worker job (spec 030 Stage B). Read
   visit date, refund amount, the slot transition table, import row validation; the shared definition-case fixture
   (`apps/api/test/package-definition-cases.ts`) gains the import rows.
 - **Integration** (one cloned database per spec file, ADR-0006): ST-01…ST-04, SA-01…SA-11, RD-01…RD-09, RC-01…RC-07,
-  EX-01…EX-05, RF-01…RF-09, IM-01…IM-07, CP-01…CP-02; concurrency tests M5, M6, M9 with two real connections.
+  EX-01…EX-05, RF-01…RF-10, IM-01…IM-08, CP-01…CP-03; concurrency tests M5, M6, M9 with two real connections.
 - **RLS negative**, per new table, and the grant allowlist; trigger negative tests: every forbidden slot transition,
   a second reversal, a lowered `expires_on`, `refunded_amount` above `price_paid`, an update of a value column.
 - **Queries:** result shape + `EXPLAIN ANALYZE` index assertions for FR-070 and FR-071.
@@ -537,7 +545,7 @@ Every row waits on this spec's merge and on the owner answers named in its "Bloc
 
 | PR | Result | Subtasks | Blocked on |
 |---|---|---|---|
-| **33b** | Stop / resume selling | 1. Contract + migration (`selling_stopped_at`, grant) + domain no-op rule. 2. Use cases, routes, ST tests. 3. Admin list toggle, badge, component tests | PK-Q12, PK-Q22 |
+| **33b** | Stop / resume selling | 1. Contract + migration (`selling_stopped_at`, grant) + domain no-op rule. 2. Use cases, routes, ST tests. 3. Admin list toggle, badge, component tests | PK-Q12 |
 | **42-1** | Contracts and map | 1. Sale contracts, `PackageSaleChanged` schema, worker known types, OpenAPI. 2. `CatalogReaderPort` package-type read (TD-10), module-map §3 row. 3. Error codes ar/en, permission codes + i18n labels | PK-Q2, PK-Q4, PK-Q13 |
 | **42-2** | Storage | 1. Entitlements, components, slots: `CHECK`s, RLS, grants. 2. The entitlement and slot triggers (TD-5b, BR-03/04). 3. Negative RLS and trigger tests, allowlist, permission seed migration | **design advisors**; 42-1 |
 | **42-3** | Sell | 1. Pure domain (discount, seller rule, expiry). 2. `SellPackageUseCase`, adapters, route. 3. SA-01…SA-11 | 42-2; PK-Q3, PK-Q11 |
@@ -548,10 +556,10 @@ Every row waits on this spec's merge and on the owner answers named in its "Bloc
 | **44** | Cancel / edit / performers on redeemed lines | 1. 054 writer: reversal (FR-031) + RC-01…RC-05. 2. 35d refusal (FR-034), RC-06. 3. 055 per PK-Q8, RC-07 | 43-2; PK-Q6, PK-Q8 |
 | **45** | Extend | 1. `package_extensions`, contracts, permission. 2. Use case, route, EX tests. 3. Admin dialog | 42-2; PK-Q1, PK-Q16 |
 | **46-1** | Refund storage | 1. `package_refunds`, `package_refund_slots`, RLS, grants. 2. Contracts, error codes, permission. 3. Negative tests | **design advisors**; 43-1; PK-Q4, PK-Q5 |
-| **46-2** | Refund | 1. Use case (FR-051…FR-055). 2. Route. 3. RF-01…RF-09 incl. M6/M9 races | 46-1; PK-Q10 |
+| **46-2** | Refund | 1. Use case (FR-051…FR-055). 2. Route. 3. RF-01…RF-10 incl. M6/M9 races | 46-1; PK-Q10 |
 | **46-3** | Refund bell + dialog | 1. Events, ADR-0044 addendum, module-map rows, template ar/en. 2. Consumer + ledger. 3. Admin refund dialog | 46-2; PK-Q5 |
 | **47-1** | Import framework for packages | 1. `package_imports`, template, parser and row validation. 2. `CustomerLookupPort.findByPhone` (TD-11). 3. Permission | **design advisors**; 43-1; PK-Q18…PK-Q21, PK-Q9 |
-| **47-2** | Import commit | 1. Worker commit use case. 2. Routes. 3. IM-01…IM-07 | 47-1 |
+| **47-2** | Import commit | 1. Worker commit use case. 2. Routes. 3. IM-01…IM-08 | 47-1 |
 | **47-3** | Import screen | 1. Upload/preview/commit screen. 2. Row errors. 3. Component tests | 47-2 |
 
 **File overlap:** 43-1 touches the line contracts of 050/054/055 (`packages/contracts/src/orders/service-session.ts` and
