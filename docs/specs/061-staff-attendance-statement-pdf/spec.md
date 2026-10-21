@@ -121,7 +121,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 2. Another user, another company, an unknown `render_id` and an id requested for another branch all get the same `404`
    on status and collect (ADR-0049 §1.5).
 3. An employee who has no session and no contracted minutes at the branch in the period, or who belongs to another
-   business or company: `404 ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND`.
+   business or company: `404 ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND`, no request row, no job (FR-003). This is the
+   same rule that decides who has a row in the branch table (Story 1.4).
    A route whose branch belongs to another business of the same company: `404 ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`,
    no request row, no job (FR-003).
 4. `from > to`, a period longer than 366 days, or `to` after the last day of the current month in the branch time
@@ -181,8 +182,14 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 - **FR-003** The use case validates the period (FR-001, Story 3.4), checks the renderer liveness key, the per-user rate
   limit, then in **one** `withTenant(companyId, …, { userId })` transaction confirms that the route's branch belongs to
   the route's business (`branches` row with `(company_id, business_id, id)`; otherwise `404
-  ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`, nothing written), confirms the employee (when given) in that business, and
-  inserts the request row (§6.2). The `branch` guard authorizes the branch by its own stored business, so this check is
+  ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`, nothing written), confirms the employee (when given) with the **same
+  candidate rule the branch table uses** (Story 1.4, Story 3.3): she belongs to that business and has a counted
+  session or contracted minutes at that branch in the period. The check is the `candidates` part of the shared 27b
+  inputs statement (ADR-0051 §2) limited to that one employee, exposed from `@pospay/db` beside it, so the request
+  refuses exactly the employees the statement would show nothing for; otherwise `404
+  ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` before any insert (no request row, no job). An employee whose only activity
+  is an OPEN session is refused too: an OPEN session is not counted until it closes (AB-Q9g). Then it inserts the
+  request row (§6.2). The `branch` guard authorizes the branch by its own stored business, so this check is
   what stops a business A route with a business B branch from mixing A's identity with B's attendance. After commit it writes the status hash `QUEUED` (`requested_by`, `filename`) with its
   900-second TTL, then adds the BullMQ job `{ company_id, render_id, kind: 'attendance-statement' }` with
   `jobId = render_id` (ADR-0049 §1.1–§1.3), and answers `202 { render_id }`. `render_id` comes from the injected
@@ -365,7 +372,9 @@ and no module index: `apps/worker/src/main.ts` injects the `staff` reader into t
 - **Contracts:** request body (forms, `employee_id` rule, `strictObject`), status reply, the template data schema.
 - **API integration (T2 Postgres, one cloned DB per file, ADR-0006):** 202 and the request row; every refusal of
   Story 3 including `403` without the permission, `404` cross-tenant/other-user/other-branch, and `404` for a business A
-  route with a business B branch the caller may read (no row, no job); collect once, expired,
+  route with a business B branch the caller may read (no row, no job), and `404` for an employee of the business with
+  no counted session and no contracted minutes at the branch in the period, or only an OPEN session (no row, no job),
+  while one with only contracted minutes is accepted; collect once, expired,
   not ready; the audit entry's fields; no audit when nothing is delivered.
 - **RLS:** negative isolation test for `attendance_statement_requests` (cross-tenant read = 0 rows, write = error), and
   that `pospay_app` cannot `UPDATE` or `DELETE` it. A negative constraint test: inserting a row whose branch (or
