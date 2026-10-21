@@ -1870,7 +1870,7 @@ export interface paths {
         /** @description The caller own proposals of one request (record:service-sessions:branch and the orders feature). Another recorder request id returns an empty list. EXPIRED is derived from expires_at. */
         get: operations["listMyDiscountProposals"];
         put?: never;
-        /** @description Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; an approval is valid 24 hours (DA-Q4; when the 24 hours start is still open). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201. */
+        /** @description Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; the expiry rule is set by spec 057 (DA-Q4: 24 hours; its start point is still open). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201. */
         post: operations["requestDiscountApproval"];
         delete?: never;
         options?: never;
@@ -1921,8 +1921,26 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Rejects 1–20 proposals of the route branch, all or nothing, as an admin user with approve:discounts:branch and the orders feature. terms_hashes must equal the stored hashes in the same order. A rejection checks the approve permission only (DA-Q9); the optional reason is up to 500 characters. Actor-bound Idempotency-Key. */
+        /** @description Rejects 1–20 proposals of the route branch, all or nothing, as an admin user with approve:discounts:branch and the orders feature. terms_hashes must equal the stored hashes in the same order. A rejection checks the approve permission only (DA-Q9), never the limit or the self rules. The reason is optional (FR-017, D-12); when present it is trimmed and must be 1–500 characters, otherwise 422 DISCOUNT_REJECT_REASON_INVALID. Actor-bound Idempotency-Key. */
         post: operations["rejectDiscountProposals"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/discount-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The caller own EDIT proposals of one request for this line (edit:service-line-prices:branch and the orders feature), each with kind, line_id, base_revision and the base price, discount and net. Another editor request id returns an empty list. */
+        get: operations["listMyEditDiscountProposals"];
+        put?: never;
+        /** @description Asks approval for one edit of a saved line above the editor limit (DA-Q5; edit:service-line-prices:branch, orders feature, admin login). The body is the price/discount edit body without the reason; expected_revision becomes the proposal base_revision. One EDIT proposal; the expiry rule is set by spec 057 (DA-Q4: 24 hours; its start point is still open). Actor-bound Idempotency-Key; replayable 201. */
+        post: operations["requestDiscountApprovalForEdit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1955,7 +1973,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Approves 1–20 proposals of the device branch on a paired device by the approver phone and PIN. The PIN identifies the approver for this one action, opens no session, and is never stored, logged or returned. A device-wide cap and the per-holder lockout apply. No Idempotency-Key: a retry of a decided proposal answers 409. */
+        /** @description Approves 1–20 proposals of the device branch on a paired device by the approver phone and PIN. The PIN identifies the approver for this one action, opens no session, and is never stored, logged or returned. A device-wide cap and the per-holder lockout apply. The approver membership limit must cover each proposal (DA-Q2); the requester may not approve. A performer of the line may approve (DA-Q3), and the owners then get a bell. No Idempotency-Key: a retry of a decided proposal answers 409. */
         post: operations["approveDeviceDiscountProposals"];
         delete?: never;
         options?: never;
@@ -1972,7 +1990,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Rejects 1–20 proposals of the device branch on a paired device by the approver phone and PIN. The PIN identifies the approver for this one action, opens no session, and is never stored, logged or returned. A device-wide cap and the per-holder lockout apply. No Idempotency-Key: a retry of a decided proposal answers 409. */
+        /** @description Rejects 1–20 proposals of the device branch on a paired device by the approver phone and PIN. The PIN identifies the approver for this one action, opens no session, and is never stored, logged or returned. A device-wide cap and the per-holder lockout apply. A rejection checks the approve permission only (DA-Q9), never the limit or the self rules. The reason is optional (FR-017, D-12); when present it is trimmed and must be 1–500 characters, otherwise 422 DISCOUNT_REJECT_REASON_INVALID. No Idempotency-Key: a retry of a decided proposal answers 409. */
         post: operations["rejectDeviceDiscountProposals"];
         delete?: never;
         options?: never;
@@ -5038,6 +5056,21 @@ export interface components {
             /** Format: uuid */
             requester_membership_id?: string;
         };
+        RequestDiscountApprovalEditInput: {
+            price: components["schemas"]["SessionMoney"];
+            discount: {
+                /** @enum {string} */
+                kind: "AMOUNT";
+                amount: components["schemas"]["SessionMoney"];
+            } | {
+                /** @enum {string} */
+                kind: "PERCENT";
+                bps: number;
+            };
+            expected_revision: number;
+            /** Format: uuid */
+            editor_membership_id?: string;
+        };
         RequestedDiscountProposal: {
             /** Format: uuid */
             id: string;
@@ -5066,6 +5099,14 @@ export interface components {
             request_id: string;
             input_index: number;
             status: components["schemas"]["DiscountProposalStatus"];
+            /** @enum {string} */
+            kind: "RECORD" | "EDIT";
+            /** Format: uuid */
+            line_id?: string;
+            base_revision?: number;
+            base_price?: components["schemas"]["SessionMoney"];
+            base_discount?: components["schemas"]["SessionMoney"];
+            base_net?: components["schemas"]["SessionMoney"];
             /** Format: uuid */
             session_id: string | null;
             /** Format: date-time */
@@ -5111,6 +5152,14 @@ export interface components {
             id: string;
             /** Format: uuid */
             request_id: string;
+            /** @enum {string} */
+            kind: "RECORD" | "EDIT";
+            /** Format: uuid */
+            line_id?: string;
+            base_revision?: number;
+            base_price?: components["schemas"]["SessionMoney"];
+            base_discount?: components["schemas"]["SessionMoney"];
+            base_net?: components["schemas"]["SessionMoney"];
             /** Format: uuid */
             session_id: string | null;
             /** Format: date-time */
@@ -5143,6 +5192,14 @@ export interface components {
             id: string;
             /** Format: uuid */
             request_id: string;
+            /** @enum {string} */
+            kind: "RECORD" | "EDIT";
+            /** Format: uuid */
+            line_id?: string;
+            base_revision?: number;
+            base_price?: components["schemas"]["SessionMoney"];
+            base_discount?: components["schemas"]["SessionMoney"];
+            base_net?: components["schemas"]["SessionMoney"];
             service_name_en: string;
             service_name_ar: string | null;
             list_price: components["schemas"]["SessionMoney"];
@@ -5292,18 +5349,14 @@ export interface components {
             /** Format: uuid */
             branch_id: string;
             /** Format: uuid */
-            approved_by: string;
-            /** Format: uuid */
-            approved_by_membership_id: string;
+            decided_by: string;
+            decider_label_en: string;
+            decider_label_ar: string;
             /** @enum {string} */
             decided_via: "PIN" | "REMOTE";
-            /** Format: date-time */
-            decided_at: string;
             proposals: {
                 /** Format: uuid */
-                proposal_id: string;
-                /** Format: uuid */
-                request_id: string;
+                id: string;
                 /** Format: uuid */
                 service_id: string;
                 name_en: string;
@@ -5311,7 +5364,7 @@ export interface components {
                 effective_bps: number;
             }[];
         };
-        DiscountApprovedByPerformerNoticeRequested: {
+        DiscountSelfApprovalNoticeRequested: {
             /** @enum {number} */
             schema_version: 1;
             /** Format: uuid */
@@ -5329,7 +5382,7 @@ export interface components {
                 /** @enum {number} */
                 template_revision: 1;
                 /** @enum {string} */
-                template_key: "discount_approved_by_performer";
+                template_key: "discount_self_approved";
                 safe_parameters: ({
                     /** @enum {string} */
                     name: "branch_name_ar";
@@ -5772,7 +5825,7 @@ export interface components {
             /** Format: date-time */
             read_at: string | null;
             /** @enum {string} */
-            template_key: "discount_approved_by_performer";
+            template_key: "discount_self_approved";
             safe_parameters: ({
                 /** @enum {string} */
                 name: "branch_name_ar";
@@ -13445,7 +13498,158 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER. */
+            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description DISCOUNT_PROPOSAL_NOT_PENDING, DISCOUNT_PROPOSAL_CHANGED, or an idempotent request still in progress. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Domain refusal with bilingual messages and details. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listMyEditDiscountProposals: {
+        parameters: {
+            query: {
+                request_id: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+                lineId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request proposals. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequesterDiscountProposalList"];
+                };
+            };
+            /** @description Shape error, or a missing Idempotency-Key on an admin write. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description DISCOUNT_PROPOSAL_NOT_PENDING, DISCOUNT_PROPOSAL_CHANGED, or an idempotent request still in progress. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Domain refusal with bilingual messages and details. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestDiscountApprovalForEdit: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+                lineId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestDiscountApprovalEditInput"];
+            };
+        };
+        responses: {
+            /** @description The stored EDIT proposal. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequestDiscountApprovalResponse"];
+                };
+            };
+            /** @description Shape error, or a missing Idempotency-Key on an admin write. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13684,7 +13888,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER. */
+            /** @description Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. */
             403: {
                 headers: {
                     [name: string]: unknown;

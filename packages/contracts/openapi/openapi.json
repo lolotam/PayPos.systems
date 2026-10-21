@@ -12074,7 +12074,7 @@
       },
       "post": {
         "operationId": "requestDiscountApproval",
-        "description": "Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; an approval is valid 24 hours (DA-Q4; when the 24 hours start is still open). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201.",
+        "description": "Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; the expiry rule is set by spec 057 (DA-Q4: 24 hours; its start point is still open). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201.",
         "parameters": [
           {
             "in": "header",
@@ -12429,7 +12429,7 @@
     "/v1/businesses/{businessId}/branches/{branchId}/discount-proposals/reject": {
       "post": {
         "operationId": "rejectDiscountProposals",
-        "description": "Rejects 1–20 proposals of the route branch, all or nothing, as an admin user with approve:discounts:branch and the orders feature. terms_hashes must equal the stored hashes in the same order. A rejection checks the approve permission only (DA-Q9); the optional reason is up to 500 characters. Actor-bound Idempotency-Key.",
+        "description": "Rejects 1–20 proposals of the route branch, all or nothing, as an admin user with approve:discounts:branch and the orders feature. terms_hashes must equal the stored hashes in the same order. A rejection checks the approve permission only (DA-Q9), never the limit or the self rules. The reason is optional (FR-017, D-12); when present it is trimmed and must be 1–500 characters, otherwise 422 DISCOUNT_REJECT_REASON_INVALID. Actor-bound Idempotency-Key.",
         "parameters": [
           {
             "in": "header",
@@ -12502,7 +12502,265 @@
             }
           },
           "403": {
-            "description": "Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER.",
+            "description": "Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "DISCOUNT_PROPOSAL_NOT_PENDING, DISCOUNT_PROPOSAL_CHANGED, or an idempotent request still in progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Domain refusal with bilingual messages and details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual authentication or readiness refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/discount-proposals": {
+      "get": {
+        "operationId": "listMyEditDiscountProposals",
+        "description": "The caller own EDIT proposals of one request for this line (edit:service-line-prices:branch and the orders feature), each with kind, line_id, base_revision and the base price, discount and net. Another editor request id returns an empty list.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "lineId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request proposals.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequesterDiscountProposalList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Shape error, or a missing Idempotency-Key on an admin write.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "DISCOUNT_PROPOSAL_NOT_PENDING, DISCOUNT_PROPOSAL_CHANGED, or an idempotent request still in progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Domain refusal with bilingual messages and details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual authentication or readiness refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "requestDiscountApprovalForEdit",
+        "description": "Asks approval for one edit of a saved line above the editor limit (DA-Q5; edit:service-line-prices:branch, orders feature, admin login). The body is the price/discount edit body without the reason; expected_revision becomes the proposal base_revision. One EDIT proposal; the expiry rule is set by spec 057 (DA-Q4: 24 hours; its start point is still open). Actor-bound Idempotency-Key; replayable 201.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "lineId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[!-~]+$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestDiscountApprovalEditInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The stored EDIT proposal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestDiscountApprovalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Shape error, or a missing Idempotency-Key on an admin write.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. ",
             "content": {
               "application/json": {
                 "schema": {
@@ -12620,7 +12878,7 @@
     "/v1/devices/me/discount-proposals/approve": {
       "post": {
         "operationId": "approveDeviceDiscountProposals",
-        "description": "Approves 1–20 proposals of the device branch on a paired device by the approver phone and PIN. The PIN identifies the approver for this one action, opens no session, and is never stored, logged or returned. A device-wide cap and the per-holder lockout apply. No Idempotency-Key: a retry of a decided proposal answers 409.",
+        "description": "Approves 1–20 proposals of the device branch on a paired device by the approver phone and PIN. The PIN identifies the approver for this one action, opens no session, and is never stored, logged or returned. A device-wide cap and the per-holder lockout apply. The approver membership limit must cover each proposal (DA-Q2); the requester may not approve. A performer of the line may approve (DA-Q3), and the owners then get a bell. No Idempotency-Key: a retry of a decided proposal answers 409.",
         "security": [
           {
             "DeviceToken": []
@@ -12733,7 +12991,7 @@
     "/v1/devices/me/discount-proposals/reject": {
       "post": {
         "operationId": "rejectDeviceDiscountProposals",
-        "description": "Rejects 1–20 proposals of the device branch on a paired device by the approver phone and PIN. The PIN identifies the approver for this one action, opens no session, and is never stored, logged or returned. A device-wide cap and the per-holder lockout apply. No Idempotency-Key: a retry of a decided proposal answers 409.",
+        "description": "Rejects 1–20 proposals of the device branch on a paired device by the approver phone and PIN. The PIN identifies the approver for this one action, opens no session, and is never stored, logged or returned. A device-wide cap and the per-holder lockout apply. A rejection checks the approve permission only (DA-Q9), never the limit or the self rules. The reason is optional (FR-017, D-12); when present it is trimmed and must be 1–500 characters, otherwise 422 DISCOUNT_REJECT_REASON_INVALID. No Idempotency-Key: a retry of a decided proposal answers 409.",
         "security": [
           {
             "DeviceToken": []
@@ -12781,7 +13039,7 @@
             }
           },
           "403": {
-            "description": "Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER.",
+            "description": "Uniform refusal: permission, DENY, orders feature, scope, device principal or branch. ",
             "content": {
               "application/json": {
                 "schema": {
@@ -25234,6 +25492,74 @@
         ],
         "additionalProperties": false
       },
+      "RequestDiscountApprovalEditInput": {
+        "type": "object",
+        "properties": {
+          "price": {
+            "$ref": "#/components/schemas/SessionMoney"
+          },
+          "discount": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "AMOUNT"
+                    ]
+                  },
+                  "amount": {
+                    "$ref": "#/components/schemas/SessionMoney"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "amount"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "PERCENT"
+                    ]
+                  },
+                  "bps": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  }
+                },
+                "required": [
+                  "kind",
+                  "bps"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "editor_membership_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "price",
+          "discount",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
       "RequestedDiscountProposal": {
         "type": "object",
         "properties": {
@@ -25337,6 +25663,44 @@
           "status": {
             "$ref": "#/components/schemas/DiscountProposalStatus"
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "RECORD",
+              "EDIT"
+            ]
+          },
+          "line_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "base_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "base_price": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            ]
+          },
+          "base_discount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            ]
+          },
+          "base_net": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            ]
+          },
           "session_id": {
             "nullable": true,
             "type": "string",
@@ -25420,6 +25784,7 @@
           "request_id",
           "input_index",
           "status",
+          "kind",
           "session_id",
           "occurred_at",
           "service_id",
@@ -25502,6 +25867,44 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "RECORD",
+              "EDIT"
+            ]
+          },
+          "line_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "base_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "base_price": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            ]
+          },
+          "base_discount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            ]
+          },
+          "base_net": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            ]
+          },
           "session_id": {
             "nullable": true,
             "type": "string",
@@ -25577,6 +25980,7 @@
         "required": [
           "id",
           "request_id",
+          "kind",
           "session_id",
           "occurred_at",
           "service_id",
@@ -25630,6 +26034,44 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "RECORD",
+              "EDIT"
+            ]
+          },
+          "line_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "base_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "base_price": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            ]
+          },
+          "base_discount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            ]
+          },
+          "base_net": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            ]
+          },
           "service_name_en": {
             "type": "string"
           },
@@ -25682,6 +26124,7 @@
         "required": [
           "id",
           "request_id",
+          "kind",
           "service_name_en",
           "service_name_ar",
           "list_price",
@@ -26282,15 +26725,20 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
-          "approved_by": {
+          "decided_by": {
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
-          "approved_by_membership_id": {
+          "decider_label_en": {
             "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "decider_label_ar": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
           },
           "decided_via": {
             "type": "string",
@@ -26299,11 +26747,6 @@
               "REMOTE"
             ]
           },
-          "decided_at": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-          },
           "proposals": {
             "minItems": 1,
             "maxItems": 20,
@@ -26311,12 +26754,7 @@
             "items": {
               "type": "object",
               "properties": {
-                "proposal_id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                },
-                "request_id": {
+                "id": {
                   "type": "string",
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
@@ -26344,8 +26782,7 @@
                 }
               },
               "required": [
-                "proposal_id",
-                "request_id",
+                "id",
                 "service_id",
                 "name_en",
                 "name_ar",
@@ -26359,15 +26796,15 @@
           "schema_version",
           "business_id",
           "branch_id",
-          "approved_by",
-          "approved_by_membership_id",
+          "decided_by",
+          "decider_label_en",
+          "decider_label_ar",
           "decided_via",
-          "decided_at",
           "proposals"
         ],
         "additionalProperties": false
       },
-      "DiscountApprovedByPerformerNoticeRequested": {
+      "DiscountSelfApprovalNoticeRequested": {
         "type": "object",
         "properties": {
           "schema_version": {
@@ -26429,7 +26866,7 @@
                 "template_key": {
                   "type": "string",
                   "enum": [
-                    "discount_approved_by_performer"
+                    "discount_self_approved"
                   ]
                 },
                 "safe_parameters": {
@@ -28278,7 +28715,7 @@
               "template_key": {
                 "type": "string",
                 "enum": [
-                  "discount_approved_by_performer"
+                  "discount_self_approved"
                 ]
               },
               "safe_parameters": {

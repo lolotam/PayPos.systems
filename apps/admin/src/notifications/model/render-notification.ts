@@ -7,7 +7,7 @@ export function renderNotification(item: InAppNotification, viewerLocale?: Local
   if (serviceLine !== null) return serviceLine;
   if (
     item.template_key === 'discount_approval_requested' ||
-    item.template_key === 'discount_approved_by_performer'
+    item.template_key === 'discount_self_approved'
   ) {
     return fill(
       t(viewerLocale ?? item.locale, `inApp.${item.template_key}`),

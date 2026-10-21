@@ -4,7 +4,7 @@ import { responseObject } from '../response-object.js';
 import { id as sharedId } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { pageQuery } from '../pagination/cursor.js';
-import { sessionLineInput, sessionMoney } from './service-session.js';
+import { editServiceLineInput, sessionLineInput, sessionMoney } from './service-session.js';
 
 const id = sharedId.toLowerCase();
 const termsHash = z.string().regex(/^[0-9a-f]{64}$/);
@@ -14,6 +14,11 @@ const proposalIds = z.array(id).min(1).max(20);
 const termsHashes = z.array(termsHash).min(1).max(20);
 const serviceNames = { service_id: id, service_name_en: z.string(), service_name_ar: z.string().nullable() };
 const amounts = { list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney };
+// FR-027 (DA-Q5): التعديل يحمل السطر والنسخة التي يعدّلها وقيمها قبل التعديل، والحقول موجودة فقط حين kind = EDIT.
+const kindFields = {
+  kind: z.enum(['RECORD', 'EDIT']), line_id: id.optional(), base_revision: z.number().int().min(1).optional(),
+  base_price: sessionMoney.optional(), base_discount: sessionMoney.optional(), base_net: sessionMoney.optional(),
+};
 // EXPIRED مشتق من expires_at والساعة المحقونة ولا يُكتب في الصف أبدًا (D-7).
 export const discountProposalStatus = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'EXPIRED', 'CONSUMED'])
   .meta({ id: 'DiscountProposalStatus' });
@@ -31,7 +36,7 @@ export const requestDiscountApprovalInput = z.strictObject({
 }).refine((input) => input.session_id === undefined || input.occurred_at === undefined, {
   path: ['occurred_at'],
 }).meta({ id: 'RequestDiscountApprovalInput' });
-// TODO(spec) DA-Q4: الموافقة صالحة 24 ساعة (وليد، 2026-10-21)؛ من أين تبدأ لم يُحسم بعد، وexpires_at لحظة في الحالتين.
+// TODO(spec) DA-Q4: الموافقة صالحة 24 ساعة (FR-010)؛ بدايتها لم تُحسم، والعقد لا يثبّتها: expires_at لحظة في الحالتين.
 export const requestedDiscountProposal = responseObject({
   id, input_index: inputIndex, status: discountProposalStatus, expires_at: timestamp,
   effective_bps: effectiveBps, terms_hash: termsHash,
@@ -41,11 +46,16 @@ export const requestDiscountApprovalResponse = responseObject({
   request_id: id, occurred_at: timestamp, proposals: z.array(requestedDiscountProposal).min(1).max(20),
 }).meta({ id: 'RequestDiscountApprovalResponse' });
 
+/** FR-025 (DA-Q5): جسم تعديل 35d بلا السبب، لأن السبب لا يحرّك مالًا وليس في الشروط؛ الرد هو رد FR-007. */
+export const requestDiscountApprovalEditInput = z.strictObject(
+  editServiceLineInput.omit({ reason: true, discount_proposal_id: true }).shape,
+).meta({ id: 'RequestDiscountApprovalEditInput' });
+
 export const discountProposalRequestQuery = z.strictObject({ request_id: id })
   .meta({ id: 'DiscountProposalRequestQuery' });
 // حقول القرار تظهر بعد القرار فقط، والسبب للرفض فقط، وسطر الاستهلاك بعد الاستهلاك فقط.
 export const requesterDiscountProposal = responseObject({
-  id, request_id: id, input_index: inputIndex, status: discountProposalStatus,
+  id, request_id: id, input_index: inputIndex, status: discountProposalStatus, ...kindFields,
   session_id: id.nullable(), occurred_at: timestamp, ...serviceNames, ...amounts,
   effective_bps: effectiveBps, expires_at: timestamp, terms_hash: termsHash,
   decided_label_ar: z.string().optional(), decided_label_en: z.string().optional(),
@@ -69,7 +79,7 @@ export const discountProposalPerformer = responseObject({
 }).meta({ id: 'DiscountProposalPerformer' });
 // كل الأسماء لقطات وقت الطلب (D-18): الاسم الأول للعميل فقط، ولا هاتف أبدًا.
 export const pendingDiscountProposal = responseObject({
-  id, request_id: id, session_id: id.nullable(), occurred_at: timestamp, ...serviceNames, ...amounts,
+  id, request_id: id, ...kindFields, session_id: id.nullable(), occurred_at: timestamp, ...serviceNames, ...amounts,
   effective_bps: effectiveBps, performers: z.array(discountProposalPerformer).min(1).max(4),
   requester_label_ar: z.string(), requester_label_en: z.string(), customer_first_name: z.string(),
   requested_at: timestamp, expires_at: timestamp, terms_hash: termsHash,
@@ -80,7 +90,7 @@ export const pendingDiscountProposalPage = responseObject({
 
 /** القائمة على جهاز الفرع قبل الرقم السري (DA-Q8): بلا هاتف وبلا مؤدّين، والاسم الأول للطالبة يرجع لاسم الدور عند غيابه. */
 export const deviceDiscountProposal = responseObject({
-  id, request_id: id, service_name_en: z.string(), service_name_ar: z.string().nullable(), ...amounts,
+  id, request_id: id, ...kindFields, service_name_en: z.string(), service_name_ar: z.string().nullable(), ...amounts,
   effective_bps: effectiveBps, requester_first_name_en: z.string(), requester_first_name_ar: z.string().nullable(),
   customer_first_name: z.string(), requested_at: timestamp, expires_at: timestamp, terms_hash: termsHash,
 }).meta({ id: 'DeviceDiscountProposal' });
@@ -93,7 +103,7 @@ const sameOrder = (input: { proposal_ids: string[]; terms_hashes: string[] }) =>
   input.proposal_ids.length === input.terms_hashes.length
   && new Set(input.proposal_ids).size === input.proposal_ids.length;
 const decisionFields = { proposal_ids: proposalIds, terms_hashes: termsHashes, approver_membership_id: id.optional() };
-// السبب الغائب أو الطويل يصل للنطاق ليرد 422 DISCOUNT_REJECT_REASON_INVALID، لا 400 من التحقق الشكلي.
+// السبب اختياري (FR-017، D-12)؛ بلا حد شكلي حتى يصل السبب الفارغ بعد القص أو الأطول من 500 للنطاق فيرد 422 DISCOUNT_REJECT_REASON_INVALID لا 400.
 const reasonField = { reason: z.string().optional() };
 export const approveDiscountProposalsInput = z.strictObject(decisionFields).refine(sameOrder, { path: ['terms_hashes'] })
   .meta({ id: 'ApproveDiscountProposalsInput' });
@@ -113,6 +123,7 @@ export const decideDiscountProposalsResponse = responseObject({
 }).meta({ id: 'DecideDiscountProposalsResponse' });
 
 export const discountApprovalSchemas = [discountProposalStatus, discountRequestLineInput, requestDiscountApprovalInput,
+  requestDiscountApprovalEditInput,
   requestedDiscountProposal, requestDiscountApprovalResponse, discountProposalRequestQuery, requesterDiscountProposal,
   requesterDiscountProposalList, pendingDiscountProposalQuery, discountProposalPerformer, pendingDiscountProposal,
   pendingDiscountProposalPage, deviceDiscountProposal, deviceDiscountProposalList, approveDiscountProposalsInput,
@@ -120,6 +131,7 @@ export const discountApprovalSchemas = [discountProposalStatus, discountRequestL
   decidedDiscountProposal, decideDiscountProposalsResponse];
 export type DiscountProposalStatus = z.infer<typeof discountProposalStatus>;
 export type RequestDiscountApprovalInput = z.infer<typeof requestDiscountApprovalInput>;
+export type RequestDiscountApprovalEditInput = z.infer<typeof requestDiscountApprovalEditInput>;
 export type RequestDiscountApprovalResponse = z.infer<typeof requestDiscountApprovalResponse>;
 export type RequesterDiscountProposalList = z.infer<typeof requesterDiscountProposalList>;
 export type PendingDiscountProposalQuery = z.infer<typeof pendingDiscountProposalQuery>;

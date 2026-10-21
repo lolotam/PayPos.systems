@@ -7,8 +7,8 @@ const display = (name: string) =>
  * جرس المالك حين يوافق مدير على خصم خدمة نفّذها هو (DA-Q3، وليد 2026-10-21): الفرع والموافِق وأول خدمة وأعلى نسبة.
  * لا اسم عميل ولا هاتف؛ تفاصيل القرار تُقرأ من قوائم الموافقات المحروسة فقط.
  */
-export const discountApprovedByPerformer: TemplateDefinition = {
-  key: 'discount_approved_by_performer',
+export const discountSelfApproved: TemplateDefinition = {
+  key: 'discount_self_approved',
   revision: 1,
   locales: ['ar', 'en'],
   category: 'UTILITY',

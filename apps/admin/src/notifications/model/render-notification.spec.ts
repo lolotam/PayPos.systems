@@ -378,7 +378,7 @@ it('renders a performer approval for the owner in the viewer locale with the Eng
   ];
   const item = {
     ...shift('ar'),
-    template_key: 'discount_approved_by_performer',
+    template_key: 'discount_self_approved',
     safe_parameters: parameters,
   } as InAppNotification;
   expect(renderNotification(item, 'ar')).toBe(

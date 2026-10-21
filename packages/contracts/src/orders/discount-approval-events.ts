@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { discountApprovalRequestedRecipient, discountApprovedByPerformerRecipient } from '../in-app-notifications.js';
+import { discountApprovalRequestedRecipient, discountSelfApprovedRecipient } from '../in-app-notifications.js';
 import { id as sharedId } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 
@@ -44,36 +44,37 @@ export const discountApprovalNoticeRequested = z.strictObject({
 export type DiscountApprovalNoticeRequested = z.infer<typeof discountApprovalNoticeRequested>;
 
 /**
- * DA-Q3 (وليد، 2026-10-21): حدث واحد لكل قرار موافقة يكون الموافِق فيه مرتبطًا بمنفّذ في شروط مقترح واحد على الأقل
- * (لقطة وقت الطلب ∪ الربط الحالي)، في معاملة القرار نفسها؛ proposals هي هذه المقترحات فقط. الرفض لا يُصدره.
+ * DA-Q3 (وليد، 2026-10-21؛ spec 057 D-19): حدث واحد لكل معاملة موافقة فيها مقترح واحد على الأقل approver_is_performer
+ * (لقطة وقت الطلب ∪ الربط الحالي)؛ proposals هي المقترحات الموسومة فقط. الرفض والموافقة بلا وسم لا يُصدرانه.
  */
 export const discountApprovedByPerformer = z.strictObject({
   schema_version: z.literal(1),
   business_id: id,
   branch_id: id,
-  approved_by: id,
-  approved_by_membership_id: id,
+  decided_by: id,
+  // لقطة تسمية الموافِق وقت القرار (اسمه أو اسم دوره، editorLabel)، فالجرس لا يقرأ identity ولا staff.
+  decider_label_en: z.string().min(1).max(255),
+  decider_label_ar: z.string().min(1).max(255),
   decided_via: z.enum(['PIN', 'REMOTE']),
-  decided_at: timestamp,
   proposals: z.array(z.strictObject({
-    proposal_id: id, request_id: id, ...serviceName.shape, effective_bps: z.number().int().min(1).max(10000),
+    id, ...serviceName.shape, effective_bps: z.number().int().min(1).max(10000),
   })).min(1).max(20),
-}).refine((event) => new Set(event.proposals.map((proposal) => proposal.proposal_id)).size === event.proposals.length)
+}).refine((event) => new Set(event.proposals.map((proposal) => proposal.id)).size === event.proposals.length)
   .meta({ id: 'DiscountApprovedByPerformer' });
 export type DiscountApprovedByPerformer = z.infer<typeof discountApprovedByPerformer>;
 
-/** جرس المالك (DA-Q3) في مجموعات ≤ 100؛ المستلمون الملاك النشطون — TODO(spec) DA-Q3: نطاق «المالك» يُثبَّت في تحديث المواصفة. */
-export const discountApprovedByPerformerNoticeRequested = z.strictObject({
+/** جرس المالك (D-19) في مجموعات ≤ 100: كل عضوية owner نشطة تغطي الفرع، والموافِق غير مستبعد (ED-Q10). */
+export const discountSelfApprovalNoticeRequested = z.strictObject({
   schema_version: z.literal(1),
   business_id: id,
   branch_id: id,
   proposal_ids: z.array(id).min(1).max(20),
   notification_recipients: z
-    .array(discountApprovedByPerformerRecipient.extend({ locale: z.literal('ar') }))
+    .array(discountSelfApprovedRecipient.extend({ locale: z.literal('ar') }))
     .min(1)
     .max(100),
-}).meta({ id: 'DiscountApprovedByPerformerNoticeRequested' });
-export type DiscountApprovedByPerformerNoticeRequested = z.infer<typeof discountApprovedByPerformerNoticeRequested>;
+}).meta({ id: 'DiscountSelfApprovalNoticeRequested' });
+export type DiscountSelfApprovalNoticeRequested = z.infer<typeof discountSelfApprovalNoticeRequested>;
 
 export const discountApprovalEventSchemas = [discountApprovalRequested, discountApprovalNoticeRequested,
-  discountApprovedByPerformer, discountApprovedByPerformerNoticeRequested];
+  discountApprovedByPerformer, discountSelfApprovalNoticeRequested];

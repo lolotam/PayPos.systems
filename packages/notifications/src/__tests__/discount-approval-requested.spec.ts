@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   discountApprovalRequested,
-  discountApprovedByPerformer,
+  discountSelfApproved,
   validInAppTemplate,
   type SafeParameter,
 } from '../index.ts';
@@ -52,13 +52,13 @@ const performerApproval: SafeParameter[] = [
   { name: 'max_percent', type: 'text', value: '30' },
 ];
 it.each(['ar', 'en'])('the owner bell for a performer approval renders %s', (locale) => {
-  expect(validInAppTemplate('discount_approved_by_performer', 1, locale, performerApproval)).toBe(true);
+  expect(validInAppTemplate('discount_self_approved', 1, locale, performerApproval)).toBe(true);
 });
 it('the owner bell placeholders are exactly its parameters and carry no customer', () => {
-  const names = discountApprovedByPerformer.parameters.map((parameter) => parameter.name);
+  const names = discountSelfApproved.parameters.map((parameter) => parameter.name);
   const placeholders = [
-    ...discountApprovedByPerformer.copy.ar.matchAll(/\{\{([a-z_]+)\}\}/g),
-    ...discountApprovedByPerformer.copy.en.matchAll(/\{\{([a-z_]+)\}\}/g),
+    ...discountSelfApproved.copy.ar.matchAll(/\{\{([a-z_]+)\}\}/g),
+    ...discountSelfApproved.copy.en.matchAll(/\{\{([a-z_]+)\}\}/g),
   ].map((match) => match[1]);
   expect([...new Set(placeholders)].sort()).toEqual([...names].sort());
   expect(names.join(' ')).not.toMatch(/customer|phone|pin/);

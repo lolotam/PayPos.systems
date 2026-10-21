@@ -10,17 +10,18 @@ const errors = (codes: string) => ({
   '422': { description: 'Domain refusal with bilingual messages and details.', content: json('ErrorEnvelope') },
   default: { description: 'Bilingual authentication or readiness refusal.', content: json('ErrorEnvelope') },
 });
+const approveCodes = 'DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER.';
 const decided = { description: 'The decided proposals with their status and expiry. Never a PIN or a phone.', content: json('DecideDiscountProposalsResponse') };
 const adminDecision = (operationId: string, input: string, reject: boolean) => ({
   operationId,
-  description: `${reject ? 'Rejects' : 'Approves'} 1–20 proposals of the route branch, all or nothing, as an admin user with approve:discounts:branch and the orders feature. terms_hashes must equal the stored hashes in the same order. ${reject ? 'A rejection checks the approve permission only (DA-Q9); the optional reason is up to 500 characters.' : 'The approver membership limit must cover each proposal (DA-Q2); the requester may not approve. A performer of the line may approve (DA-Q3), and the owners then get a bell.'} Actor-bound Idempotency-Key.`,
+  description: `${reject ? 'Rejects' : 'Approves'} 1–20 proposals of the route branch, all or nothing, as an admin user with approve:discounts:branch and the orders feature. terms_hashes must equal the stored hashes in the same order. ${reject ? 'A rejection checks the approve permission only (DA-Q9), never the limit or the self rules. The reason is optional (FR-017, D-12); when present it is trimmed and must be 1–500 characters, otherwise 422 DISCOUNT_REJECT_REASON_INVALID.' : 'The approver membership limit must cover each proposal (DA-Q2); the requester may not approve. A performer of the line may approve (DA-Q3), and the owners then get a bell.'} Actor-bound Idempotency-Key.`,
   parameters: [...branchPath, idempotency],
   requestBody: { required: true, content: json(input) },
-  responses: { '200': decided, ...errors('DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER.') },
+  responses: { '200': decided, ...errors(reject ? '' : approveCodes) },
 });
 const deviceDecision = (operationId: string, input: string, reject: boolean) => ({
   operationId,
-  description: `${reject ? 'Rejects' : 'Approves'} 1–20 proposals of the device branch on a paired device by the approver phone and PIN. The PIN identifies the approver for this one action, opens no session, and is never stored, logged or returned. A device-wide cap and the per-holder lockout apply. No Idempotency-Key: a retry of a decided proposal answers 409.`,
+  description: `${reject ? 'Rejects' : 'Approves'} 1–20 proposals of the device branch on a paired device by the approver phone and PIN. The PIN identifies the approver for this one action, opens no session, and is never stored, logged or returned. A device-wide cap and the per-holder lockout apply. ${reject ? 'A rejection checks the approve permission only (DA-Q9), never the limit or the self rules. The reason is optional (FR-017, D-12); when present it is trimmed and must be 1–500 characters, otherwise 422 DISCOUNT_REJECT_REASON_INVALID.' : 'The approver membership limit must cover each proposal (DA-Q2); the requester may not approve. A performer of the line may approve (DA-Q3), and the owners then get a bell.'} No Idempotency-Key: a retry of a decided proposal answers 409.`,
   security: [{ DeviceToken: [] }],
   requestBody: { required: true, content: json(input) },
   responses: {
@@ -28,7 +29,7 @@ const deviceDecision = (operationId: string, input: string, reject: boolean) => 
     '401': { description: 'PIN_INVALID, with the same timing for an unknown phone.', content: json('ErrorEnvelope') },
     '423': { description: 'PIN_LOCKED for the holder or for the device.', content: json('ErrorEnvelope') },
     '429': { description: 'TOO_MANY_REQUESTS while comparisons are in flight.', content: json('ErrorEnvelope') },
-    ...errors('DISCOUNT_APPROVER_LIMIT_TOO_LOW, DISCOUNT_APPROVER_IS_REQUESTER.'),
+    ...errors(reject ? '' : approveCodes),
   },
 });
 
@@ -43,7 +44,7 @@ export const discountApprovalPaths = {
     },
     post: {
       operationId: 'requestDiscountApproval',
-      description: 'Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; an approval is valid 24 hours (DA-Q4; when the 24 hours start is still open). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201.',
+      description: 'Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; the expiry rule is set by spec 057 (DA-Q4: 24 hours; its start point is still open). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201.',
       parameters: [...branchPath, idempotency],
       requestBody: { required: true, content: json('RequestDiscountApprovalInput') },
       responses: { '201': { description: 'The stored proposals and the normalized occurred_at.', content: json('RequestDiscountApprovalResponse') }, ...errors('') },
@@ -64,6 +65,21 @@ export const discountApprovalPaths = {
   },
   '/v1/businesses/{businessId}/branches/{branchId}/discount-proposals/reject': {
     post: adminDecision('rejectDiscountProposals', 'RejectDiscountProposalsInput', true),
+  },
+  '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/discount-proposals': {
+    get: {
+      operationId: 'listMyEditDiscountProposals',
+      description: 'The caller own EDIT proposals of one request for this line (edit:service-line-prices:branch and the orders feature), each with kind, line_id, base_revision and the base price, discount and net. Another editor request id returns an empty list.',
+      parameters: [...branchPath, uuidPath('sessionId'), uuidPath('lineId'), { in: 'query', name: 'request_id', required: true, schema: { type: 'string', format: 'uuid' } }],
+      responses: { '200': { description: 'The request proposals.', content: json('RequesterDiscountProposalList') }, ...errors('') },
+    },
+    post: {
+      operationId: 'requestDiscountApprovalForEdit',
+      description: 'Asks approval for one edit of a saved line above the editor limit (DA-Q5; edit:service-line-prices:branch, orders feature, admin login). The body is the price/discount edit body without the reason; expected_revision becomes the proposal base_revision. One EDIT proposal; the expiry rule is set by spec 057 (DA-Q4: 24 hours; its start point is still open). Actor-bound Idempotency-Key; replayable 201.',
+      parameters: [...branchPath, uuidPath('sessionId'), uuidPath('lineId'), idempotency],
+      requestBody: { required: true, content: json('RequestDiscountApprovalEditInput') },
+      responses: { '201': { description: 'The stored EDIT proposal.', content: json('RequestDiscountApprovalResponse') }, ...errors('') },
+    },
   },
   '/v1/devices/me/discount-proposals': {
     get: {

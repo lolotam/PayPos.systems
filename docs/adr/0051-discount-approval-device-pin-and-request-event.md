@@ -5,10 +5,10 @@
 - **Spec:** [057 discount approval](../specs/057-orders-discount-approval/spec.md) (Phase 1 rows 38–41), sub-PR 057-1
 - **Owner answers:** DA-Q6 = PP-15.1, DA-Q7 = PP-15.2, DA-Q8 = PP-15.3, DA-Q9 = PP-20.3 (Waleed, 2026-10-21, through
   the super agent). Waleed answered the money questions DA-Q1…DA-Q5 at 14:00 on 2026-10-21 (relayed by the
-  orchestrator; the spec update is a separate PR): the four managers approve by default (DA-Q1), within the
+  orchestrator; written into spec 057 by PR #466): the four managers approve by default (DA-Q1), within the
   approver's own limit (DA-Q2); a manager **may** approve a discount on a service she performed and the owner gets a
   bell (DA-Q3); an approval is valid **24 hours**, its start point still open — `TODO(spec)` DA-Q4; an edit of a saved
-  line may use an approval the same way (DA-Q5). Only DA-Q3 and DA-Q5 change this ADR's contracts.
+  line may request and use an approval the same way (DA-Q5, `kind = EDIT`). Recorded in spec 057 by PR #466.
 - **Scope:** `orders` (owner of `discount_proposals`), `identity` (approver proof and authority), `notifications`
   (the bell), the POS app as the approval screen.
 
@@ -60,8 +60,9 @@ session would let any logged-in user probe any manager's PIN, and SPEC §3 has n
    phone or the terms. Rejects and consumption emit **no** event: commissions read the line's `net` from the existing
    line events. An approval emits no event either, **except** (DA-Q3) when the approver is linked to a performer of at
    least one approved proposal (request-time snapshot ∪ current link): the decision transaction then appends
-   `DiscountApprovedByPerformer` (`business_id`, `branch_id`, `approved_by`, `approved_by_membership_id`,
-   `decided_via`, `decided_at`, and only those proposals with their request, service names and bps).
+   `DiscountApprovedByPerformer` (spec 057 D-19: `business_id`, `branch_id`, `decided_by`, the decider label snapshot
+   `decider_label_en` / `decider_label_ar`, `decided_via`, and `proposals [{id, service_id, name_en, name_ar, effective_bps}]`
+   for the flagged proposals only). The flag `approver_is_performer` never refuses; it is stored and audited.
 7. **The bell.** A worker `orders` consumer (`orders.discount-approval-notice-v1`, 057-3) claims a ledger row keyed
    `(company_id, request_id)`, resolves the recipients through a new worker identity reader
    `discountApproverRecipients(branch)` — every active user whose membership covering the branch effectively grants
@@ -73,14 +74,14 @@ session would let any logged-in user probe any manager's PIN, and SPEC §3 has n
    zeros, so a raw four-digit bps never reaches the safe-text filter). It never shows a customer, a phone or the
    requester; the details are read only through the guarded approval lists.
    The owner bell of DA-Q3 follows the same shape: a worker `orders` consumer of `DiscountApprovedByPerformer`
-   resolves the company's active owners and appends `DiscountApprovedByPerformerNoticeRequested` in groups of at most
-   100, template `discount_approved_by_performer` (revision 1, ar/en: branch, approver name or role label, the first
-   such service, the largest percent). Which owners exactly (company owners only, or also the business's) is
-   `TODO(spec)` DA-Q3 until the spec update fixes it.
+   (`orders.discount-self-approval-notice-v1`, 057-3b) resolves every active `owner` membership covering the branch
+   through the worker identity scoped-role reader (roles = `owner`; the approver is **not** excluded, ED-Q10) and
+   appends `DiscountSelfApprovalNoticeRequested` in groups of at most 100, template `discount_self_approved`
+   (revision 1, ar/en: branch, the approver's label, the first flagged service, the largest percent).
 8. **No new import arrow.** `orders → identity, settings` already exists; the new consumer-owned ports
    (`DiscountApprovalAccessPort`, `DiscountPinApproverPort`, worker `DiscountApprovalNoticeRecipients`, worker
-   `DiscountApprovalNoticePlace`, and for the owner bell worker `PerformerApprovalNoticeRecipients` and
-   `PerformerApprovalNoticePlace`) and the reuse of `DiscountLimitPort` for the approver are listed in
+   `DiscountApprovalNoticePlace`, and for the owner bell worker `DiscountSelfApprovalNoticeRecipients` and
+   `DiscountSelfApprovalNoticePlace`) and the reuse of `DiscountLimitPort` for the approver are listed in
    `docs/module-map.md` §3.
 
 ## Consequences

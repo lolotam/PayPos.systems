@@ -128,8 +128,8 @@ membership covering the branch effectively grants `approve:discounts:branch` (DE
 ADR-0037 manager rule), drops the requester, and emits `DiscountApprovalNoticeRequested` to notifications for the IN_APP
 bell in groups of at most 100; zero recipients is a durable decision. Rejects and consumption emit no event; an approval
 emits `DiscountApprovedByPerformer` only when the approver performs one of its services (DA-Q3, Waleed 2026-10-21), and
-worker orders then emits `DiscountApprovedByPerformerNoticeRequested` to the owners' IN_APP bell (owner scope
-`TODO(spec)` DA-Q3).
+worker orders then emits `DiscountSelfApprovalNoticeRequested` to every active owner covering the branch (spec 057
+D-19). An edit of a saved line may request and consume an approval the same way (DA-Q5, `kind = EDIT`).
 The approver is proved by phone + PIN on a paired branch device (the reception computer, PP-15.1) or by an admin session;
 `identity` supplies that proof and the approver's authority through consumer-owned ports, with no new import arrow.
 
@@ -182,7 +182,7 @@ LinePerformer     line_id · employee_id · share_bps (Σ = 10000)
 Tip               session_id · employee_id · amount · method (CASH|CARD)
                   — entered per employee; for a shared session the screen pre-fills the split by commission shares
 DiscountProposal  terms_hash · terms · requested_by · status (PENDING|APPROVED|REJECTED|EXPIRED|CONSUMED)
-                  approver? · via (PIN|REMOTE)? · expires_at (15 min) · consumed_by_line?
+                  approver? · via (PIN|REMOTE)? · expires_at (24 h, DA-Q4; start TODO(spec)) · consumed_by_line?
 PackageEntitlement business_id · customer_id · package_type_id · provenance (SOLD|IMPORTED) · external_ref?
                   sold_line_id? · sold_at · seller_employee_id? · price_paid · paid_method? · expires_on · revision
 PackageComponent  entitlement_id · service_id · list_price_snapshot · sessions_total · component_value

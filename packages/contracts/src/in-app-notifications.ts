@@ -144,7 +144,7 @@ export const discountApprovalRequestedRecipient = z.strictObject({
  * DA-Q3 (وليد، 2026-10-21): المدير يوافق على خصم خدمة نفّذها، والمالك يأخذ جرسًا بذلك.
  * الموافِق اسمه أو اسم دوره عند غياب الاسم؛ الخدمة أول خدمة نفّذها في القرار؛ لا عميل ولا هاتف.
  */
-export const discountApprovedByPerformerParameters = z.tuple([
+export const discountSelfApprovedParameters = z.tuple([
   displayParameter('branch_name_ar'),
   displayParameter('branch_name_en'),
   displayParameter('approver_name_ar'),
@@ -154,10 +154,10 @@ export const discountApprovedByPerformerParameters = z.tuple([
   maxPercentParameter,
 ]);
 /** مراجعة القالب 1 لأن النص ثابت؛ تغييره لاحقًا مراجعة جديدة حتى لا يُعاد تفسير الصفوف المخزنة. */
-export const discountApprovedByPerformerRecipient = z.strictObject({
+export const discountSelfApprovedRecipient = z.strictObject({
   ...inAppBase,
-  template_key: z.literal('discount_approved_by_performer'),
-  safe_parameters: discountApprovedByPerformerParameters,
+  template_key: z.literal('discount_self_approved'),
+  safe_parameters: discountSelfApprovedParameters,
 });
 const changeParameter = z.strictObject({
   name: z.literal('change'),
@@ -186,7 +186,7 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
   serviceLineCancelledRecipient,
   serviceLinePerformersChangedRecipient,
   discountApprovalRequestedRecipient,
-  discountApprovedByPerformerRecipient,
+  discountSelfApprovedRecipient,
   z.strictObject({
     ...inAppBase,
     template_key: z.literal('break_returned_other_branch'),
@@ -257,8 +257,8 @@ export const inAppNotification = z
     }),
     responseObject({
       ...inAppNotificationBase,
-      template_key: z.literal('discount_approved_by_performer'),
-      safe_parameters: discountApprovedByPerformerParameters,
+      template_key: z.literal('discount_self_approved'),
+      safe_parameters: discountSelfApprovedParameters,
     }),
     responseObject({
       ...inAppNotificationBase,

@@ -5,6 +5,7 @@ import {
   deviceDiscountProposal,
   deviceRejectDiscountProposalsInput,
   rejectDiscountProposalsInput,
+  requestDiscountApprovalEditInput,
   requestDiscountApprovalInput,
   requestDiscountApprovalResponse,
 } from './discount-approval.js';
@@ -13,7 +14,7 @@ import {
   discountApprovalNoticeRequested,
   discountApprovalRequested,
   discountApprovedByPerformer,
-  discountApprovedByPerformerNoticeRequested,
+  discountSelfApprovalNoticeRequested,
 } from './discount-approval-events.js';
 import {
   appendServiceSessionLinesInput,
@@ -133,7 +134,7 @@ it('passes the notifications consumer parser for both bells', () => {
   const owner = {
     schema_version: 1, business_id: B, branch_id: C, proposal_ids: [A],
     notification_recipients: [{
-      channel: 'IN_APP', user_id: A, locale: 'ar', template_revision: 1, template_key: 'discount_approved_by_performer',
+      channel: 'IN_APP', user_id: A, locale: 'ar', template_revision: 1, template_key: 'discount_self_approved',
       safe_parameters: [
         { name: 'branch_name_ar', type: 'text', value: 'السالمية' },
         { name: 'branch_name_en', type: 'text', value: 'Salmiya' },
@@ -145,15 +146,15 @@ it('passes the notifications consumer parser for both bells', () => {
       ],
     }],
   };
-  expect(discountApprovedByPerformerNoticeRequested.safeParse(owner).success).toBe(true);
+  expect(discountSelfApprovalNoticeRequested.safeParse(owner).success).toBe(true);
   expect(notificationRequest.safeParse(owner).success).toBe(true);
 });
 
 it('names the performer approval for the owner bell with distinct proposals only', () => {
-  const proposal = { proposal_id: A, request_id: B, service_id: C, name_en: 'Colour', name_ar: 'صبغة', effective_bps: 3000 };
+  const proposal = { id: A, service_id: C, name_en: 'Colour', name_ar: 'صبغة', effective_bps: 3000 };
   const event = {
-    schema_version: 1, business_id: B, branch_id: C, approved_by: A, approved_by_membership_id: B,
-    decided_via: 'PIN', decided_at: '2026-10-21T10:05:00.000Z', proposals: [proposal],
+    schema_version: 1, business_id: B, branch_id: C, decided_by: A, decider_label_en: 'Heba', decider_label_ar: 'هبة',
+    decided_via: 'PIN', proposals: [proposal],
   };
   expect(discountApprovedByPerformer.safeParse(event).success).toBe(true);
   expect(discountApprovedByPerformer.safeParse({ ...event, proposals: [proposal, proposal] }).success).toBe(false);
@@ -165,3 +166,11 @@ it('lets a saved-line edit carry an approval like recording does (DA-Q5)', () =>
   expect(editServiceLineInput.safeParse({ ...edit, discount_proposal_id: A }).success).toBe(true);
   expect(editServiceLineInput.safeParse(edit).success).toBe(true);
 });
+
+it('asks an edit approval with the 35d edit body minus the reason (DA-Q5, FR-025)', () => {
+  const body = { price: '25.000', discount: { kind: 'PERCENT', bps: 3000 }, expected_revision: 2 };
+  expect(requestDiscountApprovalEditInput.safeParse(body).success).toBe(true);
+  expect(requestDiscountApprovalEditInput.safeParse({ ...body, reason: 'x' }).success).toBe(false);
+  expect(requestDiscountApprovalEditInput.safeParse({ ...body, discount_proposal_id: A }).success).toBe(false);
+});
+

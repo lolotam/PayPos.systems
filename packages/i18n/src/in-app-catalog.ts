@@ -21,7 +21,7 @@ export const inAppEn = {
     '{{service_name_en}} was cancelled at {{branch_name_en}} dated {{business_date}}: the line net was {{cancelled_net}} KWD.',
   service_line_performers_changed:
     'The performers of {{service_name_en}} at {{branch_name_en}} dated {{business_date}} were changed: the line net is {{line_net}} KWD.',
-  discount_approved_by_performer:
+  discount_self_approved:
     '{{approver_name_en}} approved a discount of up to {{max_percent}}% on {{service_name_en}}, a service they performed, at {{branch_name_en}}.',
   discount_approval_requested:
     'Discount approval requested at {{branch_name_en}}: {{service_name_en}}, {{line_count}} line(s), discount up to {{max_percent}}%.',
@@ -56,7 +56,7 @@ export const inAppAr = {
     'أُلغيت خدمة {{service_name_ar}} في فرع {{branch_name_ar}} بتاريخ {{business_date}}: كان صافي السطر {{cancelled_net}} دينار.',
   service_line_performers_changed:
     'تغيّر منفّذو خدمة {{service_name_ar}} في فرع {{branch_name_ar}} بتاريخ {{business_date}}: صافي السطر {{line_net}} دينار.',
-  discount_approved_by_performer:
+  discount_self_approved:
     'وافق {{approver_name_ar}} على خصم حتى {{max_percent}}% على خدمة {{service_name_ar}} نفّذها بنفسه في فرع {{branch_name_ar}}.',
   discount_approval_requested:
     'طلب موافقة على خصم في فرع {{branch_name_ar}}: {{service_name_ar}}، عدد السطور {{line_count}}، الخصم حتى {{max_percent}}%.',
