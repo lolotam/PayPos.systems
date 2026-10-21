@@ -105,12 +105,14 @@ Do this at the start of each session, before starting a slice that waits on a pe
 
 1. Read `decisions` and the `notes` of both reviewers.
 2. Go through **every question on the site that Abu Salem has not answered yet**. That covers both kinds:
-   - the ones `owner-questions.ar.md` still marks `PENDING`;
+   - the ones the audit record (the slice's `owner-questions.ar.md`, or `docs/owner-decisions.ar.md` for a question that
+     belongs to no slice) still marks `PENDING`;
    - the ones that already carry Waleed's pick, but no answer from Abu Salem.
 
    Do not filter on `PENDING` alone. A question Waleed answered is still open until Abu Salem answers it, and his
    later pick replaces Waleed's.
-   - **Abu Salem gave a `choice`.** His pick binds (PP-1.2). Copy it, with any `text`, verbatim into `owner-questions.ar.md` with its date. If the code already followed a different pick from Waleed, keep the old answer as history and open a follow-up.
+   - **Abu Salem gave a `choice`.** His pick binds (PP-1.2). Copy it, with any `text`, verbatim into the same audit record §A wrote (the slice's `owner-questions.ar.md`, or
+     `docs/owner-decisions.ar.md` for a no-slice question) with its date. If the code already followed a different pick from Waleed, keep the old answer as history and open a follow-up.
    - **Only Waleed answered.** Work proceeds on Waleed's pick, and the question stays on this list until Abu Salem answers.
 3. A `verdict: "change"` with `text` on a question that is already decided is a change request. Bring it to Waleed and never act on it silently.
 4. Check `suggestions` for new partner requests, and add each one to `roadmap.json` under `partner[]`.
