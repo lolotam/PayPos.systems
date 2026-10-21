@@ -89,7 +89,7 @@ curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' \
   "$B/api/doc?path=reviews/u_kxawXFcE2cQIRRqI4Cn8Iw/notes/<docId>"
 ```
 
-Before the PUT, GET the note: write only when it does not exist (`{"exists":false}`) or its `source` is `"card"`. A note without `source` was made on the page by Waleed himself and is never overwritten. When his card answer matches no option (free text), store it as `"verdict":"change"` with his words in `text` and no `choice`, so the page shows it as his own answer and not as agreement with the recommended option.
+Before the PUT, GET the note: write only when it does not exist (`{"exists":false}`) or its `source` is `"card"`. A note without `source` was made on the page by Waleed himself and is not overwritten. The API has no conditional write yet, so the GET and the PUT are not atomic: a pick he saves on the page between them could be lost. Until #461 adds an atomic check, do the GET and the PUT back to back, then GET again; if the note is not the one you wrote, tell Waleed and the super agent instead of writing again. When his card answer matches no option (free text), store it as `"verdict":"change"` with his words in `text` and no `choice`, so the page shows it as his own answer and not as agreement with the recommended option.
 
 ## B. After every merge, and after any row change or new partner request
 
