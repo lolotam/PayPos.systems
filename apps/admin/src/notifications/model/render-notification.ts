@@ -1,10 +1,19 @@
 import type { InAppNotification } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 
-/** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات وتعديل السعر والإلغاء وتغيير المنفّذين تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
+/** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات وتعديل السعر والإلغاء وتغيير المنفّذين وطلب موافقة الخصم وموافقة المنفّذ تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
 export function renderNotification(item: InAppNotification, viewerLocale?: Locale): string {
   const serviceLine = renderServiceLineNotice(item, viewerLocale);
   if (serviceLine !== null) return serviceLine;
+  if (
+    item.template_key === 'discount_approval_requested' ||
+    item.template_key === 'discount_self_approved'
+  ) {
+    return fill(
+      t(viewerLocale ?? item.locale, `inApp.${item.template_key}`),
+      discountApprovalValues(item.safe_parameters),
+    );
+  }
   if (item.template_key === 'late_service_session') {
     const values = Object.fromEntries(
       item.safe_parameters.map((parameter) => [parameter.name, parameter.value]),
@@ -134,6 +143,23 @@ function performersChangedValues(
     business_date: read('business_date'),
     line_net: read('line_net'),
   };
+}
+
+function discountApprovalValues(
+  parameters: InAppNotification['safe_parameters'],
+): Record<string, string> {
+  const read = (name: string) => parameters.find((item) => item.name === name)?.value ?? '';
+  const arabic = (name: string, english: string) => {
+    const value = read(name).trim();
+    return value.length > 0 ? value : english;
+  };
+  const values: Record<string, string> = Object.fromEntries(
+    parameters.map((parameter) => [parameter.name, parameter.value]),
+  );
+  for (const name of ['branch_name', 'service_name', 'approver_name']) {
+    values[`${name}_ar`] = arabic(`${name}_ar`, read(`${name}_en`));
+  }
+  return values;
 }
 
 function shiftValues(parameters: InAppNotification['safe_parameters']): Record<string, string> {

@@ -9,6 +9,7 @@ const expectations: Record<string, readonly string[]> = {
     (p) => !p.endsWith(':platform') && p !== 'login:staff:branch' && !p.includes(':salaries:'),
   ),
   general_manager: [
+    'approve:discounts:branch',
     'edit:service-line-prices:branch',
     'change:service-line-performers:branch',
     'cancel:service-lines:branch',
@@ -42,6 +43,7 @@ const expectations: Record<string, readonly string[]> = {
     'manage:schedules:business',
   ],
   business_manager: [
+    'approve:discounts:branch',
     'edit:service-line-prices:branch',
     'change:service-line-performers:branch',
     'cancel:service-lines:branch',
@@ -74,6 +76,7 @@ const expectations: Record<string, readonly string[]> = {
   ],
   accountant: ['read:businesses:company', 'read:branches:branch', 'read:attendance:branch'],
   branch_manager: [
+    'approve:discounts:branch',
     'edit:service-line-prices:branch',
     'change:service-line-performers:branch',
     'cancel:service-lines:branch',
@@ -213,4 +216,16 @@ it.each(SYSTEM_ROLES)('AB-Q2 attendance read eligibility for $code excludes devi
   expect(systemRolePolicy(role.id, 'global')?.permissions.includes('read:attendance:branch')).toBe(
     role.code !== 'device',
   );
+});
+
+it('DA-Q1 approve:discounts:branch defaults to the four managers, is delegable to humans and never to the device', () => {
+  const defaults = ['owner', 'general_manager', 'business_manager', 'branch_manager'];
+  const holders: readonly string[] = ROLE_DEFAULTS['approve:discounts:branch'];
+  expect(holders).toEqual(defaults);
+  expect(OWNER_GRANTED_PERMISSIONS as readonly string[]).not.toContain('approve:discounts:branch');
+  for (const role of SYSTEM_ROLES) {
+    expect(
+      systemRolePolicy(role.id, 'global')?.permissions.includes('approve:discounts:branch'),
+    ).toBe(role.code !== 'device');
+  }
 });
