@@ -10,6 +10,10 @@ import {
   attendanceChangeNoticeText,
   type AttendanceChangePlan,
 } from '../domain/attendance-change-request.ts';
+import {
+  attendanceChangeAlertPlan,
+  type AttendanceChangeAlertKind,
+} from '../domain/attendance-change-alert-rule.ts';
 import type {
   AttendanceChangeKindInput,
   AttendanceChangeKindValues,
@@ -20,6 +24,7 @@ import {
   attendanceChangeApprovers,
   attendanceChangeAuthority,
 } from './attendance-change-context.adapter.ts';
+import { attendanceChangeAlertRule } from './attendance-change-alert-rule.adapter.ts';
 
 interface SaveContext {
   requestId: string;
@@ -171,20 +176,33 @@ async function eventRecipients(
   actor: AttendanceChangeActor,
   context: SaveContext,
   row: AttendanceChangeRequest,
-) {
+): Promise<{ users: string[]; channel: 'IN_APP' | null }> {
+  const kind: AttendanceChangeAlertKind =
+    row.status === 'PENDING' ? 'ATTENDANCE_CHANGE_REQUESTED' : 'ATTENDANCE_CHANGE_DECIDED';
+  const rule = await attendanceChangeAlertRule(
+    tx,
+    actor.companyId,
+    { businessId: row.business_id, branchId: row.branch_id },
+    kind,
+  );
+  const plan = attendanceChangeAlertPlan(rule, kind);
+  if (!plan.resolveRecipients) return { users: [], channel: plan.channel };
   if (row.status === 'PENDING')
-    return attendanceChangeRecipients(
-      await attendanceChangeApprovers(
-        tx,
-        actor.companyId,
-        row.business_id,
-        row.branch_id,
-        context.now,
+    return {
+      users: attendanceChangeRecipients(
+        await attendanceChangeApprovers(
+          tx,
+          actor.companyId,
+          row.business_id,
+          row.branch_id,
+          context.now,
+        ),
+        actor.userId,
+        context.employeeUserId,
       ),
-      actor.userId,
-      context.employeeUserId,
-    );
-  if (row.requested_by === actor.userId) return [];
+      channel: plan.channel,
+    };
+  if (row.requested_by === actor.userId) return { users: [], channel: plan.channel };
   const requester = await attendanceChangeAuthority(
     tx,
     actor.companyId,
@@ -193,11 +211,14 @@ async function eventRecipients(
     row.branch_id,
     context.now,
   );
-  return attendanceDecisionRecipients(
-    { ...requester, userId: row.requested_by },
-    actor.userId,
-    context.employeeUserId,
-  );
+  return {
+    users: attendanceDecisionRecipients(
+      { ...requester, userId: row.requested_by },
+      actor.userId,
+      context.employeeUserId,
+    ),
+    channel: plan.channel,
+  };
 }
 async function events(
   tx: Tx,
@@ -207,7 +228,7 @@ async function events(
   row: AttendanceChangeRequest,
 ) {
   const pending = row.status === 'PENDING';
-  const users = await eventRecipients(tx, actor, context, row);
+  const { users, channel } = await eventRecipients(tx, actor, context, row);
   const groups = attendanceChangeRecipientGroups(users);
   const facts = {
     request_id: row.id,
@@ -231,10 +252,10 @@ async function events(
         ...event,
         payload: {
           ...facts,
-          ...(group.length
+          ...(group.length && channel === 'IN_APP'
             ? {
                 notification_recipients: group.map((user_id) => ({
-                  channel: 'IN_APP',
+                  channel,
                   user_id,
                   locale: 'ar',
                   template_revision: 1,

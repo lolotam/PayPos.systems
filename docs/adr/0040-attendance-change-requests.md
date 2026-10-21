@@ -77,3 +77,15 @@ one-step, so the row the session points at always exists (045 research R1). A pa
 index gives each request at most one session, and the CHECK
 `attendance_change_requests_add_linked` requires an APPROVED ADD_SESSION to name its session.
 VOID_SESSION remains unavailable until 26c. Manual sessions cannot be corrected.
+
+## Addendum 2026-10-21 — the two emitters read the effective alert rule (sub-PR 62-2b)
+
+`AttendanceChangeRequested` and `AttendanceChangeDecided` take their recipients and their channel from the
+effective alert rule of their kind, read through settings' public reader on the same transaction (spec 060
+D-B13, FR-B17, row 62-2b). The rule gates and filters only: `attendanceChangeRecipients`,
+`attendanceDecisionRecipients` and `attendanceChangeRecipientGroups` stay as they are, so with no stored rule
+and the master switch null the recipients, the groups of a hundred and the payload are exactly what they were.
+A closed rule (the kind off, its branch override off, or the master switch off) skips the approver and
+requester authority reads entirely and leaves the event in the outbox with its facts and no
+`notification_recipients`: the event stays for the rest of the system and only the bell goes away. The rule's
+`recipientRoles` are not read for these two fixed-recipient kinds (`TODO(spec)`).
