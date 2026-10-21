@@ -94,9 +94,8 @@ function scopeFor(tx: Tx, companyId: string, userId: string, ids: IdGenerator): 
         FROM business_settings WHERE company_id = ${companyId} AND business_id = ${businessId} FOR UPDATE`);
       return row?.alerts_enabled ?? null;
     },
-    saveMaster: async (businessId, enabled, updatedBy) => {
-      await tx.execute(sql`UPDATE business_settings
-        SET alerts_enabled = ${enabled}, updated_by = ${updatedBy}, updated_at = now()
+    saveMaster: async (businessId, enabled) => {
+      await tx.execute(sql`UPDATE business_settings SET alerts_enabled = ${enabled}
         WHERE company_id = ${companyId} AND business_id = ${businessId}`);
     },
   };

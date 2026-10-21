@@ -63,13 +63,12 @@ export interface AlertRulesScope {
    */
   lockMaster(businessId: string): Promise<boolean | null>;
   /**
-   * بيكتب المفتاح العام للنشاط (بيعمل صف الإعدادات لو مش موجود).
+   * بيكتب المفتاح العام للنشاط بعد lockMaster. مابيلمسش updated_at بتاع الإعدادات المتخزنة في الـ cache؛ مين ومتى في التدقيق.
    *
    * @param businessId النشاط
    * @param enabled    القيمة الجديدة
-   * @param updatedBy  المستخدم اللي غيّر
    */
-  saveMaster(businessId: string, enabled: boolean, updatedBy: string): Promise<void>;
+  saveMaster(businessId: string, enabled: boolean): Promise<void>;
 }
 
 /**

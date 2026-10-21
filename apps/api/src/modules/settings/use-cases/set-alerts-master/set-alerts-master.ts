@@ -15,7 +15,7 @@ export class SetAlertsMaster {
         throw new ApiError('FORBIDDEN');
       const before = await scope.lockMaster(businessId);
       if ((before ?? true) === alertsEnabled) return;
-      await scope.saveMaster(businessId, alertsEnabled, actor.userId);
+      await scope.saveMaster(businessId, alertsEnabled);
       await scope.audit.record({
         entity: 'alert_rules_master',
         entityId: businessId,
