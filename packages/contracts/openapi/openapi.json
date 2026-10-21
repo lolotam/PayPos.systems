@@ -2836,7 +2836,7 @@
             }
           }
         ],
-        "description": "Staff-app columns screen. The effective columns (the saved set, or the default when nothing is saved) and months back (1 when nothing is saved). rating_average is never returned while the rating track is postponed. Requires read:settings:business on that business. No Idempotency-Key.",
+        "description": "Staff-app columns screen. The effective columns (the saved set, or the default when nothing is saved) and months back (1 when nothing is saved). rating_average is never returned while the rating track is postponed. Requires read:settings:business or manage:settings:business on that business (MY-Q10). No Idempotency-Key.",
         "responses": {
           "200": {
             "description": "The effective staff-app columns and months back",

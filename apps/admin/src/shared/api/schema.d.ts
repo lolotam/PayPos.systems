@@ -612,7 +612,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Staff-app columns screen. The effective columns (the saved set, or the default when nothing is saved) and months back (1 when nothing is saved). rating_average is never returned while the rating track is postponed. Requires read:settings:business on that business. No Idempotency-Key. */
+        /** @description Staff-app columns screen. The effective columns (the saved set, or the default when nothing is saved) and months back (1 when nothing is saved). rating_average is never returned while the rating track is postponed. Requires read:settings:business or manage:settings:business on that business (MY-Q10). No Idempotency-Key. */
         get: operations["getStaffColumns"];
         /** @description Replaces the staff-app columns and months back of the business; null returns a value to its default. An unknown, duplicate or not-offered code is 422 STAFF_COLUMNS_INVALID with details.codes; months back outside 1–24 is 422 STAFF_MONTHS_BACK_INVALID. Requires manage:settings:business on that business. Each changed value is audited. */
         put: operations["replaceStaffColumns"];
