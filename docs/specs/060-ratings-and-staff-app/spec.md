@@ -1,8 +1,9 @@
 # Spec 060 — The staff app "my" pages, customer ratings and the alert rules (Phase 1 rows 57, 57b, 57c, 58–62)
 
 > **Status:** Draft · 2026-10-21 · docs-only PR. **PP-18 batch 1 answered (Waleed, 2026-10-21):** RT-Q1 **postpones the whole rating track to the end of the
-> project**; RT-Q2…RT-Q4 are decided (the recommended options); RT-Q5…RT-Q13 are postponed with RT-Q1 and not asked now.
-> **14 owner questions remain open** (MY-Q1…MY-Q8, AL-Q1…AL-Q6), routed to Waleed as PP-18; **MY-Q6** (what an employee sees of her approved earnings) is also a money
+> project**; RT-Q2…RT-Q7 are decided for the postponed track (RT-Q6 against the recommended options); RT-Q8, RT-Q9,
+> RT-Q10 and RT-Q12 are being answered; RT-Q11 and RT-Q13 are postponed with RT-Q1.
+> **18 owner questions remain open** (MY-Q1…MY-Q8, RT-Q8, RT-Q9, RT-Q10, RT-Q12, AL-Q1…AL-Q6), routed to Waleed as PP-18; **MY-Q6** (what an employee sees of her approved earnings) is also a money
 > question and is in the money list for Abu Salem ([owner-questions.ar.md](owner-questions.ar.md)). Every rule that waits on an answer is marked `TODO(spec)` here and
 > blocks only the sub-PRs named in §3. **No code starts before this spec is merged.**
 > **Two parts:** **Part A** — the staff app (rows 57, 57b, 57c). **Part B** — ratings and alerts (rows 58, 59, 59b, 60,
@@ -90,14 +91,14 @@ question (what staff earn, `CLAUDE.md` §1 5b) and goes to Abu Salem too; the ot
 | RT-Q2 | Approval of the ar/en copy: WhatsApp message, page, completion, opt-out, unavailable link | **Answered (PP-18.10): approved as proposed** (§B.4 copy); used when the track resumes |
 | RT-Q3 | A per-business switch for sending rating requests, and its default | **Answered (PP-18.11): a switch, off at first** (D-B16); used when the track resumes |
 | RT-Q4 | Which closing time counts when a day has two opening periods, and which day an overnight interval (its close and its post-midnight visits) belongs to (after-close behaviour is settled by S-2) | **Answered (PP-18.12): the last close of the day; an overnight interval belongs to the day it started** (D-B3); used when the track resumes |
-| RT-Q5 | A visit recorded after its day ended (late entry): rated or not | **Postponed with RT-Q1, not asked now** (was: 59-1) |
-| RT-Q6 | The average's window and the minimum count before an employee sees it | **Postponed with RT-Q1, not asked now** (was: 61-2) |
-| RT-Q7 | Who reads ratings, averages and comments in the admin | **Postponed with RT-Q1, not asked now** (was: 61-2) |
-| RT-Q8 | The low-rating alert before the alert-rules screen exists | **Postponed with RT-Q1, not asked now** (was: 61-1) |
-| RT-Q9 | What the low-rating alert shows | **Postponed with RT-Q1, not asked now** (was: 61-1) |
-| RT-Q10 | May reception or a manager undo a customer's opt-out | **Postponed with RT-Q1, not asked now** (was: none now (if yes: a new sub-PR 58-3)) |
+| RT-Q5 | A visit recorded after its day ended (late entry): rated or not | **Answered (PP-18.13): no message**, with or without opening hours (RT-05) |
+| RT-Q6 | The average's window and the minimum count before an employee sees it | **Answered (PP-18.14, PP-18.15): the last 90 days; shown from the first rating** — both against the recommended options (D-B12) |
+| RT-Q7 | Who reads ratings, averages and comments in the admin | **Answered (PP-18.16): the existing `read:service-sessions:branch`**, no new permission (FR-B15) |
+| RT-Q8 | The low-rating alert before the alert-rules screen exists | **Asked in PP-18, answer pending**; for the postponed track (61-1) |
+| RT-Q9 | What the low-rating alert shows | **Asked in PP-18, answer pending**; for the postponed track (61-1) |
+| RT-Q10 | May reception or a manager undo a customer's opt-out | **Asked in PP-18, answer pending**; for the postponed track (none now (if yes: a new sub-PR 58-3)) |
 | RT-Q11 | Where the public rating page is hosted | **Postponed with RT-Q1, not asked now** (was: 60-2) |
-| RT-Q12 | The message names the performers (first names) when there are several | **Postponed with RT-Q1, not asked now** (was: 59b-3) |
+| RT-Q12 | The message names the performers (first names) when there are several | **Asked in PP-18, answer pending**; for the postponed track (59b-3) |
 | RT-Q13 | Who may switch rating requests on or off for a business (D-B16) | **Postponed with RT-Q1, not asked now** (was: 59-2) |
 | AL-Q1 | Who edits the alert rules | 62-1 |
 | AL-Q2 | Alert rules per business or per branch | 62-1 |
@@ -281,8 +282,10 @@ editor permission per MY-Q5 (`TODO(spec)`).
 > 58-1, 58-2, 59-1, 59-2, 59b-1…59b-3, 60-1, 60-2, 61-1…61-3 and the low-rating part of 62-3 do not start now. Their
 > design below is kept as written, with RT-Q2 (copy approved as proposed), RT-Q3 (a switch, off at first) and RT-Q4
 > (the last close of the day; an overnight interval belongs to the day it started) recorded as decisions: wherever the
-> text below offers a branch for another answer of those three, the answered branch applies. RT-Q1 itself (how the
-> link reaches the sender) and RT-Q5…RT-Q13 are asked when the track resumes. **The alert rules proceed now:** 62-1,
+> text below offers a branch for another answer of those three, the answered branch applies. Also decided for the track: RT-Q5 (a
+> visit recorded after its day ended gets no message), RT-Q6 (the last 90 days; shown from the first rating) and RT-Q7
+> (`read:service-sessions:branch`). RT-Q8, RT-Q9, RT-Q10 and RT-Q12 are being answered; RT-Q1 itself (how the link
+> reaches the sender), RT-Q11 and RT-Q13 are asked when the track resumes. **The alert rules proceed now:** 62-1,
 > 62-2, 62-2b, 62-2c, 62-4 and 62-3 without the low-rating part; the `LOW_RATING` kind joins them with the track.
 
 **In:** the rating request lifecycle (schedule, claim, send, expire), the public page with submit and opt-out, the
@@ -306,7 +309,7 @@ members if AL-Q6 defers it.
 | D-B9 | **Submit** follows ADR-0011 §2 exactly: validate stars/comment, `withTenant(candidate)`, lock the request, sample the Clock, atomic consume `UPDATE … RETURNING`, insert the rating and one `rating_attributions` row per snapshotted performer, and append `LowRatingReceived` only when stars ≤ 2 and the alert is on — all in one transaction | attributing at submit time from the current lines (S-4) |
 | D-B10 | The public routes are API routes in `customers/http` with one `@Public()` each and the explicit token capability check (ADR-0011 §4): `GET /v1/ratings/view` (returns `{ business_name, state: 'open' \| 'submitted' }` only: `submitted` when `consumed_at` is set, so a reloaded used link renders the completion state ADR-0011 §4 requires, with opt-out still offered until expiry; never the stars or the comment), `POST /v1/ratings/submit`, `POST /v1/ratings/opt-out`. The token travels in a dedicated, redacted header; the link carries it in the URL fragment | the token in a query string (proxy logs) |
 | D-B11 | The per-IP limiter runs **before** token parsing, in Redis, keyed by the verified proxy-derived IP, shared by the three routes; missing Redis fails closed (ADR-0011 §4) | in-memory limits (several API containers) |
-| D-B12 | Averages are computed on read from `rating_attributions` (no stored average), within the RT-Q6 window, rounded half up to one decimal for display only | a stored running average (drifts, needs repair) |
+| D-B12 | Averages are computed on read from `rating_attributions` (no stored average), within the RT-Q6 window (**the last 90 days**, PP-18.14, against the recommended current month), shown from the **first** rating (PP-18.15, against the recommended minimum of 3), rounded half up to one decimal for display only | a stored running average (drifts, needs repair) |
 | D-B13 | **Alert rules** live in settings: `alert_rules` (one row per **scope** and kind once saved — the scope is the business by AL-Q2's recommended option and is `TODO(spec)` until AL-Q2 is answered; the recipient shape is roles by AL-Q3's recommended option and is `TODO(spec)` until AL-Q3 is answered. **Provisional design under the roles option, so today's defaults survive:** a rule's recipients are a list of selectors, `ROLE` (owner, general manager, business manager, branch manager; editable), `PERMISSION_HOLDERS` (for example `read:files:business` for `DOCUMENT_EXPIRING`, `decide:attendance-change:company` for `ATTENDANCE_CHANGE_REQUESTED`) and `CONTEXT` (the requester, the employee herself). The last two come from the code defaults table per kind, are shown read-only on the screen and can only be switched with the rule; `PERMISSION_HOLDERS` resolves through identity's effective-permission reader, so personal ALLOWs, custom roles and DENY precedence apply exactly as today (ADR-0040); absent = the AL-Q5 default from one code-side defaults table) and the master switch (`NULL` = on), **whose storage scope is `TODO(spec)` AL-Q2 alongside the rule scope**: by AL-Q2's recommended per-business option it is `business_settings.alerts_enabled boolean NULL`; by the per-branch option it is one switch per branch (column or table fixed with AL-Q2), and `AlertRulesPort` applies the switch of the event's branch (a kind without a branch applies the business's). `AlertRulesPort.rule(tx, companyId, scope, kind)` with `scope = { businessId, branchId \| null }` returns the effective rule with the master switch applied; the emitter always passes the event's branch when it has one (kinds without a branch, such as statements and document expiry, pass `null`). With AL-Q2's recommended per-business option the branch is ignored; with the per-branch option the branch rule wins over the business rule; the exact lookup is `TODO(spec)` AL-Q2 | a JSON blob per business (no per-kind audit, no `CHECK`s) |
 | D-B14 | Worker emitters read rules through a **minimal worker `settings` module** exporting a read function on the caller's transaction (the worker `tenancy` / `identity` shape, ADR-0037 §2); recipient user ids still come from identity's scoped-role read (`forBranch(…, roles)`), with roles now from the rule instead of `interimNotClockedInRule`. Worker **orders** reading `AlertRulesPort` is a port ADR-0010 does not list: it lands in the ADR-0010 addendum of docs PR A-0 before 62-3 | the API pushing rules to the worker |
 | D-B15 | A rule change applies to events emitted **after** it commits; nothing is re-sent or back-filled, except the one-time document-expiry attachment spec 033 already contracts (S-17, S-18). **Periodic alerts record suppression:** when the not-clocked-in or break-not-returned job finds a candidate while its rule or the master switch is off, it writes the same ledger row it writes for a sent notice (`attendance_not_clocked_in_notices`, the break ledger) with `suppressed_at` set, no recipients and no notification, so that candidate is never emitted later when the rule turns back on | replaying past events when a rule turns on |
@@ -326,7 +329,10 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 - **RT-03** (R10) All her lines cancelled → `NO_ACTIVE_LINE`; a new active session before the deadline reopens it.
 - **RT-04** (R7) A claim after the deadline → `PAST_DEADLINE`; an event reaching notifications after it → attempt
   `EXPIRED`, not sent.
-- **RT-05** A branch with no opening hours → `send_deadline = NULL` (S-2); `TODO(spec)` RT-Q5 decides a late entry.
+- **RT-05** A branch with no opening hours → `send_deadline = NULL` (S-2). RT-Q5 (PP-18.13): a session recorded after
+  its request day ended (`recorded_at` past the end of that branch-local day, D-B3) is left out of the day's sessions
+  for scheduling and the claim, with or without opening hours; a day whose only sessions are such late entries gets no
+  row; a late entry added to a day that already has a request does not move it.
 - **RT-01b** Two branches of one business, Kuwait (UTC+3) and Dubai (UTC+4), neither with an interval crossing
   midnight: a 23:30 Kuwait visit on day D and a
   00:10 Dubai visit on D+1 (20 minutes earlier as an instant) make two requests; D is due from the Kuwait session at
@@ -383,9 +389,9 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
   (before row 62: `TODO(spec)` RT-Q8); 3 stars emits nothing; the alert off emits nothing.
 - **RT-23** `TODO(spec)` RT-Q9: the alert's content; never the phone beyond the last 3 digits (S-12), never the token.
 - **RT-24** Both snapshotted performers get the rating; سارة's average is the mean of her attributed ratings in the
-  RT-Q6 window; an employee with fewer than the RT-Q6 minimum sees «لسه مفيش تقييمات كفاية».
+  last 90 days (RT-Q6); an employee with no rating in that window sees «لسه مفيش تقييمات»; one rating is enough to show it.
 - **RT-25** The staff app shows her average and count only (S-9, S-11); the admin list shows comments only to the
-  RT-Q7 holders; reception and staff reads never return a comment (ADR-0011 §6 "Comments").
+  `read:service-sessions:branch` holders (RT-Q7, FR-B15's comment caveat); reception and staff reads never return a comment (ADR-0011 §6 "Comments").
 
 ### Story B5 — Alert rules (row 62, P1)
 
@@ -461,7 +467,10 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
   (kind `LOW_RATING`), groups of at most 100 recipients (ADR-0037 §5); template `low_rating` (ar/en, RT-Q9).
 - **FR-B14** `GET /v1/staff/me/rating-summary` → `{ average, count }` in the RT-Q6 window, only with `rating_average`
   allowed and `read:ratings:own`.
-- **FR-B15** Admin ratings read (RT-Q7): `GET /v1/businesses/:businessId/ratings?branch_id&from&to&employee_id&cursor`
+- **FR-B15** Admin ratings read, guarded by the existing `read:service-sessions:branch` (RT-Q7, PP-18.16; each holder in
+  their scope, no new permission). Comments: ADR-0011 shows them only to the owner/manager, while SS-Q12 lets this
+  permission be granted to any human role; whether a non-manager holder sees comments is `TODO(spec)`, raised to the
+  coordinator for when the track resumes. `GET /v1/businesses/:businessId/ratings?branch_id&from&to&employee_id&cursor`
   → rating list (stars, date, branch, performers, comment) and per-employee averages; `queries/` with `EXPLAIN`.
 - **FR-B16** Alert rules (row 62): `GET/PUT /v1/businesses/:businessId/alert-rules` and
   `PUT /v1/businesses/:businessId/alert-rules/master`; idempotent, audited, permission AL-Q1; validated per kind
@@ -532,7 +541,7 @@ customers, staff and commissions; **orders' `StaffColumnsPort`, worker orders' `
 ### Permissions
 
 - `read:ratings:own` (Part A D-A4).
-- The admin ratings read per RT-Q7 (`TODO(spec)`).
+- The admin ratings read: `read:service-sessions:branch` (RT-Q7); comments for a non-manager holder `TODO(spec)` (FR-B15).
 - The alert-rules editor per AL-Q1 (`TODO(spec)`).
 - The public routes carry `@Public()` plus the token capability check; they pass route-access coverage (ADR-0011 §6).
 
@@ -563,7 +572,7 @@ The message uses the customer's stored name only as a greeting inside her own Wh
 |---|---|---|---|---|
 | **58-1** | Rating storage — **POSTPONED (RT-Q1)** | 1. Migration: the four tables of D-B1, RLS, grants, indexes (not `rating_settings` and not the `REQUESTS_OFF` reason: both wait for RT-Q3 in 59-2). 2. Contracts (statuses, reasons, DTOs). 3. RLS/privilege negative tests | this spec merged | 280–400 |
 | **58-2** | Opt-out API + public-route base — **POSTPONED (RT-Q1)** | 1. Token parser and hash (pure), per-IP limiter (D-B11). 2. `opt-out` use case + `@Public()` route + audit. 3. Tests RT-17 (opt-out part), RT-19, RT-20 (limits) | 58-1 | 300–420 |
-| **59-1** | Scheduling — **POSTPONED (RT-Q1)** | 1. `ratingSchedule` pure function + unit tests; `DaySessionsPort` reader in orders + worker root callback (FR-B06); `BranchScheduleHoursPort` in worker customers bound at the root to the worker tenancy `branchScheduleHours` reader (D-B3); `requestDayOf` + unit tests. 2. Worker customers module: the three consumers reading `DaySessionsPort` on every delivery (D-B2), insert-or-lock, reopen; bootstrap job + orders `sessionsSince`/`countSince` paged reader + runbook entry (FR-B02b). 3. Tests RT-01…RT-08 (RT-07 scheduling part only, and only if RT-Q3 keeps the switch), RT-01b scheduling part, the FR-B02 reorder/replay tests and the differing-date consumer test | 58-1, 59-2 (or RT-Q3 answered «no switch»), **A-0**; RT-Q3, **RT-Q4** (overnight day ownership and closing), RT-Q5 | 360–500 |
+| **59-1** | Scheduling — **POSTPONED (RT-Q1)** | 1. `ratingSchedule` pure function + unit tests; `DaySessionsPort` reader in orders + worker root callback (FR-B06); `BranchScheduleHoursPort` in worker customers bound at the root to the worker tenancy `branchScheduleHours` reader (D-B3); `requestDayOf` + unit tests. 2. Worker customers module: the three consumers reading `DaySessionsPort` on every delivery (D-B2), insert-or-lock, reopen; bootstrap job + orders `sessionsSince`/`countSince` paged reader + runbook entry (FR-B02b). 3. Tests RT-01…RT-08 (RT-07 scheduling part only, and only if RT-Q3 keeps the switch), RT-01b scheduling part, the FR-B02 reorder/replay tests and the differing-date consumer test | 58-1, 59-2 (or RT-Q3 answered «no switch»), **A-0**; RT-Q3, **RT-Q4** (both decided) | 360–500 |
 | **59-2** | Rating-request switch — **POSTPONED (RT-Q1)** | 1. Migration `rating_settings` (RLS, grant, negative tests) + the `REQUESTS_OFF` cancel reason in contracts, then `set-rating-requests` use case + `GET/PUT …/rating-settings` routes, audit, permission (D-B16); nothing of this is built if RT-Q3 drops the switch. 2. Admin toggle on the settings page (i18n, RTL). 3. Tests of the switch itself only: persistence (`NULL` default, on/off round trip), audit, uniform 403, UI test (switch state visible); RT-07's scheduling and claim tests live in 59-1 and 59b-2 | 58-1; **RT-Q3**, **RT-Q13** | 220–320 |
 | **59b-1** | Token codec — **POSTPONED (RT-Q1)** | 1. ADR (RT-Q1) + codec in its owning package, keys from env only. 2. Root injection (api + worker). 3. Unit tests (determinism, domain separation, key ids) | **RT-Q1** | 160–260 |
 | **59b-2** | Claim — **POSTPONED (RT-Q1)** | 1. `PerformerNamePort` (the `DaySessionsPort` of 59-1 reused). 2. Claim use case (D-B5), discovery scheduler (D-B4), `RatingRequestReady`. 3. Tests RT-09…RT-13, RT-01b claim attribution, RT-07 claim part (`REQUESTS_OFF`, only if RT-Q3 keeps the switch) | 59-1, 59b-1 | 380–520 |
@@ -571,8 +580,8 @@ The message uses the customer's stored name only as a greeting inside her own Wh
 | **60-1** | Submit API — **POSTPONED (RT-Q1)** | 1. `view` + `submit-rating` use cases (D-B9). 2. Routes + OpenAPI. 3. Tests RT-15…RT-18, RT-21 | 58-2 | 360–480 |
 | **60-2** | Public page — **POSTPONED (RT-Q1)** | 1. App shell or route per RT-Q11, headers, no trackers. 2. Page states ar/en/RTL + opt-out control. 3. UI tests (only business name and form visible; completion; reopening a consumed, unexpired link shows the completion state and the opt-out control, not the form; unavailable) | 60-1; **RT-Q2**, RT-Q11 | 280–420 |
 | **61-1** | Low-rating alert — **POSTPONED (RT-Q1)** | 1. Interim rule (RT-Q8) + `LowRatingReceived` with recipients. 2. Template `low_rating` + bell render. 3. Tests RT-22, RT-23 | 60-1; RT-Q8, RT-Q9 | 260–360 |
-| **61-2** | Averages — **POSTPONED (RT-Q1)** | 1. Staff summary read (FR-B14) + admin list/averages (FR-B15) with `EXPLAIN`. 2. Permission (RT-Q7) + routes. 3. Tests RT-24, RT-25 + admin screen UI test | 61-1, 57c-1; RT-Q6, RT-Q7 | 340–460 |
-| **61-3** | Rating summary on «شغلي» — **POSTPONED (RT-Q1)** | 1. The work screen's card calls the generated `rating-summary` hook (61-2) when `rating_average` is allowed. 2. i18n for average / count / the RT-Q6 «not enough ratings yet» text. 3. UI tests asserting the visible average and count, the below-minimum text, and no card when `rating_average` is not allowed | 61-2, 57-4 | 120–200 |
+| **61-2** | Averages — **POSTPONED (RT-Q1)** | 1. Staff summary read (FR-B14) + admin list/averages (FR-B15) with `EXPLAIN`. 2. Permission (RT-Q7) + routes. 3. Tests RT-24, RT-25 + admin screen UI test | 61-1, 57c-1 (RT-Q6, RT-Q7 decided) | 340–460 |
+| **61-3** | Rating summary on «شغلي» — **POSTPONED (RT-Q1)** | 1. The work screen's card calls the generated `rating-summary` hook (61-2) when `rating_average` is allowed. 2. i18n for average / count / the «no ratings yet» text (RT-Q6: shown from the first rating). 3. UI tests asserting the visible average and count, the below-minimum text, and no card when `rating_average` is not allowed | 61-2, 57-4 | 120–200 |
 | **62-1** | Alert-rule storage and port | 1. Migration (`alert_rules`, master switch), permission, defaults table. 2. Settings use cases + routes + audit; `AlertRulesPort` (api) + worker settings module. 3. Tests RT-26, RT-29 | AL-Q1…**AL-Q6** (no longer waits on 61-1: `LOW_RATING` joins the rules with the postponed track) (AL-Q6 fixes the channel set 62-1 validates and stores: if team email/WhatsApp is deferred to 62b, 62-1 accepts `IN_APP` only and 62b widens it) | 360–480 |
 | **62-2** | Staff worker emitters on the rules | 1. Not-clocked-in + break rules read the port; `interimNotClockedInRule` and `interimBreakNotReturnedRule` deleted; their ledgers gain `suppressed_at` and the off path writes it (D-B15). 2. Attendance exceptions and document expiry (spec 033 contract); 28c lead time. 3. Tests RT-27, RT-27b, RT-28 | 62-1 |
 | **62-2b** | Staff API emitters on the rules | 1. `AttendanceChangeRequested` / `AttendanceChangeDecided` (`apps/api/src/modules/staff/persistence/attendance-change-writes.ts`, ADR-0040) take recipients and channels from `AlertRulesPort` (api, on the same transaction) instead of resolving them inline. 2. The rule's role set maps to today's recipients (holders of `decide:attendance-change:company` / the requester) so the defaults change nothing. 3. Tests: each kind off → event with no recipients; master switch off → none; defaults → today's recipients (RT-26), including an approver who holds `decide:attendance-change:company` only by a personal ALLOW or a custom role (still a recipient) and one with a DENY (not a recipient), under the provisional `PERMISSION_HOLDERS` selector (D-B13, `TODO(spec)` AL-Q3) | 62-1 | 200–300 | 320–440 |
