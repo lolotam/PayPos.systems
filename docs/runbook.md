@@ -225,12 +225,15 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
   the roles are created by the migration bootstrap when the tests start, as on a fresh CI cluster. The
   container is `--rm` with an anonymous data volume, published on `127.0.0.1` only. The port is
   `55400 + <trailing digits of the lane>` when free, otherwise the first free port from 55401; `--port N`
-  picks one. Choosing the port and `docker run` happen under a lock file `pospay-test-lane.lock` in the
-  repository's shared git directory, so concurrent `up` calls from different worktrees get different ports;
-  if a publish still collides, `up` retries on the next free port (up to five times), removing only the container
-  its own failed attempt created. The lock records its owner (host, pid, token); it is taken over only when
-  that process is gone on this host or the lock is older than 15 minutes, by an atomic rename that only one
-  process can win, and only its owner releases it. The lock code is `scripts/test-db/lane-lock.mjs`.
+  picks one. Choosing the port and `docker run` happen under a lock directory `pospay-test-lane.lock.d` (atomic
+  `mkdir`, with an `owner.json` naming host, pid and token) in the repository's shared git directory, so
+  concurrent `up` calls from different worktrees get different ports; if a publish still collides, `up`
+  retries on the next free port (up to five times), removing only the container its own failed attempt
+  created. A lock whose owner is on this host is taken over only when that pid is gone; the 15-minute age
+  limit applies only when liveness cannot be checked (another host, or no readable owner). Takeover renames
+  the directory to a unique name and deletes it only if it is exactly the generation inspected; anything else
+  is put back, or left as a `pospay-test-lane.lock.d.stale-*` orphan that is safe to delete when no start is
+  running. Only the owner's token releases the lock. The code is `scripts/test-db/lane-lock.mjs`.
 - `up` on a running lane waits for readiness, rewrites the override and reprints the port. A lane container
   that exists but is not plainly running (created, exited, paused, restarting) is removed and started fresh.
 - `up` writes `.env.test.local` at the worktree root (git-ignored by `.env.*`) with only

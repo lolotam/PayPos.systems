@@ -96,7 +96,7 @@ function startLockPath() {
     ['-C', ROOT, 'rev-parse', '--path-format=absolute', '--git-common-dir'],
     { encoding: 'utf8' },
   );
-  return join(result.status === 0 ? result.stdout.trim() : ROOT, 'pospay-test-lane.lock');
+  return join(result.status === 0 ? result.stdout.trim() : ROOT, 'pospay-test-lane.lock.d');
 }
 
 // بيشتغل تحت الـ start lock. ممكن `up` تاني لنفس الـ lane يكون شغّلها وإحنا مستنيين.
