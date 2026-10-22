@@ -1,5 +1,5 @@
 import { installationHash } from '@pospay/notifications';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { pushFixture, type PushFixture } from './push-subscription.fixture.ts';
 
@@ -78,7 +78,9 @@ describe('two employees on one endpoint', () => {
     expect(results.map((result) => result.status)).toEqual([204, 204]);
     expect((await liveFor(endpoint))[0]?.['count']).toBe(1);
   });
+});
 
+describe('two employees crossing endpoints', () => {
   it('crossing registrations move both endpoints without a 5xx', async () => {
     const colleague = await f.seedStaff('Synthetic colleague');
     const mine = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
@@ -105,7 +107,7 @@ describe('two employees on one endpoint', () => {
   });
 
   it('a revoke and a PUT of the same install never leave a broken row', async () => {
-    const colleague = await f.seedStaff('Synthetic colleague');
+    const colleague = await f.seedStaff('Synthetic revoking');
     const installation = nextId();
     await f.send('PUT', '/v1/staff/push/subscription', {
       body: body({ installation_id: installation }),
@@ -128,7 +130,7 @@ describe('two employees on one endpoint', () => {
   });
 });
 
-describe('the life of one row', () => {
+describe('a row that comes back', () => {
   it('a revoked install comes back as the same row, live again', async () => {
     const colleague = await f.seedStaff('Synthetic returning');
     const installation = nextId();
@@ -146,8 +148,7 @@ describe('the life of one row', () => {
       body: body({ installation_id: installation }),
       headers: colleague.headers,
     });
-    const [again] =
-      await f.owner`SELECT id,endpoint,p256dh,auth,delivery_token,generation,revoked_at,revoked_reason
+    const [again] = await f.owner`SELECT id,endpoint,p256dh,auth,delivery_token,generation,revoked_at,revoked_reason
       FROM push_subscriptions WHERE company_id=${f.companyId} AND user_id=${colleague.userId}`;
     expect(again?.['id']).toBe(first?.['id']);
     expect(again?.['endpoint']).not.toBeNull();
@@ -158,7 +159,9 @@ describe('the life of one row', () => {
     expect(again?.['revoked_reason']).toBeNull();
     expect(again?.['generation']).toBe(3);
   });
+});
 
+describe('a row that is replaced or counted', () => {
   it('a second install on the same endpoint replaces the first', async () => {
     const colleague = await f.seedStaff('Synthetic replacing');
     const endpoint = `https://fcm.googleapis.com/fcm/send/${nextId()}`;

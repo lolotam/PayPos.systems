@@ -162,7 +162,9 @@ describe('pushSubscriptionInput', () => {
       ).success,
     ).toBe(false);
   });
+});
 
+describe('the refused pushSubscriptionInput', () => {
   it('refuses a bad installation id, key id, token, locale or key length', () => {
     expect(pushSubscriptionInput.safeParse(body({ installation_id: 'not-a-uuid' })).success).toBe(
       false,

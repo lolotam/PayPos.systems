@@ -82,7 +82,7 @@ export class RegisterPushSubscription {
   }
 }
 
-// الققراءة الأولى قبل القفل: بتجمع المفاتيح اللي لازم تتقفل. القراءة الثانية بعد القفل: بتقرر.
+// القراءة الأولى قبل القفل: بتجمع المفاتيح اللي لازم تتقفل. القراءة الثانية بعد القفل: بتقرر.
 async function readRows(
   store: PushSubscriptionStore,
   userId: string,
