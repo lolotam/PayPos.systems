@@ -8,7 +8,11 @@ import {
   breakReturnDeadline,
   dueBreakCutoff,
   graceElapsed,
+  suppressedBreakDisposition,
+  type BreakNotReturnedDecision,
   type BreakNotReturnedFacts,
+  type SuppressedBreakDisposition,
+  type SuppressedBreakKind,
 } from '../break-not-returned.ts';
 import type { LeaveInterval } from '../not-clocked-in.ts';
 
@@ -161,6 +165,58 @@ describe('graceElapsed', () => {
   it('follows the grace it is given, so the other-branch rule delay moves it', () => {
     expect(graceElapsed(at('14:00'), at('14:05'), 5 * 60 * 1000)).toBe(true);
     expect(graceElapsed(at('14:00'), at('14:05'), 20 * 60 * 1000)).toBe(false);
+  });
+});
+
+describe('suppressedBreakDisposition', () => {
+  const KINDS: readonly SuppressedBreakKind[] = ['NOT_RETURNED', 'RETURNED_OTHER_BRANCH'];
+  const DECISIONS: readonly BreakNotReturnedDecision[] = [
+    'ALERT',
+    'WAIT',
+    'NO_BREAK_OUT',
+    'RETURNED',
+    'RETURNED_OTHER_BRANCH',
+    'EXCUSED',
+    'STALE',
+    'INELIGIBLE',
+  ];
+  /** الجدول مكتوب بالحروف: أول قيمة والقاعدة مقفولة، والتانية والقاعدة شغّالة. */
+  const EXPECTED: Record<
+    SuppressedBreakKind,
+    Record<BreakNotReturnedDecision, readonly [SuppressedBreakDisposition, SuppressedBreakDisposition]>
+  > = {
+    NOT_RETURNED: {
+      ALERT: ['NONE', 'NONE'],
+      WAIT: ['NONE', 'NONE'],
+      NO_BREAK_OUT: ['NONE', 'NONE'],
+      RETURNED: ['NONE', 'NONE'],
+      RETURNED_OTHER_BRANCH: ['CLOSE', 'CONVERT'],
+      EXCUSED: ['NONE', 'NONE'],
+      STALE: ['NONE', 'NONE'],
+      INELIGIBLE: ['NONE', 'NONE'],
+    },
+    RETURNED_OTHER_BRANCH: {
+      ALERT: ['NONE', 'NONE'],
+      WAIT: ['NONE', 'NONE'],
+      NO_BREAK_OUT: ['NONE', 'NONE'],
+      RETURNED: ['NONE', 'NONE'],
+      RETURNED_OTHER_BRANCH: ['NONE', 'NONE'],
+      EXCUSED: ['NONE', 'NONE'],
+      STALE: ['NONE', 'NONE'],
+      INELIGIBLE: ['NONE', 'NONE'],
+    },
+  };
+
+  it.each(KINDS)('decides every decision for a %s suppressed row', (kind) => {
+    for (const decision of DECISIONS) {
+      const [closed, open] = EXPECTED[kind][decision];
+      expect(
+        suppressedBreakDisposition({ suppressedKind: kind, decision, otherBranchEnabled: false }),
+      ).toBe(closed);
+      expect(
+        suppressedBreakDisposition({ suppressedKind: kind, decision, otherBranchEnabled: true }),
+      ).toBe(open);
+    }
   });
 });
 

@@ -95,6 +95,33 @@ export function breakNotReturnedDecision(facts: BreakNotReturnedFacts): BreakNot
   return 'ALERT';
 }
 
+/** نوع التنبيه اللي اتكبح فيه سطر دفتر البريك. */
+export type SuppressedBreakKind = 'NOT_RETURNED' | 'RETURNED_OTHER_BRANCH';
+
+/** قرار سطر الدفتر المكبوح: يتحول لإشعار، يتقفل بنوع تاني، أو ما يحصلش. */
+export type SuppressedBreakDisposition = 'CONVERT' | 'CLOSE' | 'NONE';
+
+/**
+ * بيقرر إيه اللي يحصل لسطر دفتر البريك المكبوح.
+ * سطر «عدم الرجوع» المكبوح بيتحوّل بس لإشعار «رجعت لفرع آخر»؛ والعكس سطره نهائي ما يتغيّرش
+ * (D-B15: ما فيش إشعار متأخر عن وقت القاعدة). والقاعدة المقفولة بتقفل السطر نهائيًا عشان ما يتحوّلش بعدها.
+ *
+ * @param facts الحقائق الثلاث التالية
+ * @param facts.suppressedKind نوع التنبيه اللي اتكبح فيه السطر
+ * @param facts.decision قرار الوظيفة بعد إعادة القراءة تحت القفل
+ * @param facts.otherBranchEnabled هل قاعدة «رجعت لفرع آخر» الفعلية شغالة (القاعدة والمفتاح العام)
+ * @returns CONVERT للتحويل، CLOSE للقفل النهائي، NONE إن السطر ما يتغيّرش
+ */
+export function suppressedBreakDisposition(facts: {
+  readonly suppressedKind: SuppressedBreakKind;
+  readonly decision: BreakNotReturnedDecision;
+  readonly otherBranchEnabled: boolean;
+}): SuppressedBreakDisposition {
+  if (facts.suppressedKind !== 'NOT_RETURNED') return 'NONE';
+  if (facts.decision !== 'RETURNED_OTHER_BRANCH') return 'NONE';
+  return facts.otherBranchEnabled ? 'CONVERT' : 'CLOSE';
+}
+
 /**
  * أحدث نهاية بريك يمكن أن تكون مستحقة الآن، ليقرأ التخزين صفحة أصغر.
  *

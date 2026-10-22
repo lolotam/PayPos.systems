@@ -12,6 +12,7 @@ import { branchManagerRecipientsAdapter } from './branch-manager-recipients.adap
 import { alertRules } from './alert-rule.adapter.ts';
 import { recordBreakNotReturned, suppressBreakNotReturned } from './break-not-returned-writes.ts';
 import {
+  closeBreakSuppressed,
   convertBreakNotReturned,
   readBreakLedger,
 } from './break-not-returned-conversion.ts';
@@ -83,7 +84,8 @@ export function dueBreaksStatement(
             AND r.status IN ('OPEN','CLOSED','MISSED_OUT') AND r.voided_at IS NULL
             AND r.clock_in > n.suppressed_at
           WHERE n.company_id = sh.company_id AND n.employee_id = sh.employee_id
-            AND n.shift_starts_at = sh.starts_at AND n.suppressed_at IS NOT NULL)
+            AND n.shift_starts_at = sh.starts_at AND n.suppressed_kind = 'NOT_RETURNED'
+            AND n.suppressed_at IS NOT NULL)
       )
       AND EXISTS (SELECT 1 FROM attendance_sessions a
         WHERE a.company_id = sh.company_id AND a.employee_id = sh.employee_id
@@ -192,6 +194,7 @@ function locked(
       branchManagerRecipientsAdapter.forBranch(tx, companyId, businessId, branchId, at, roles),
     record: (notice) => recordBreakNotReturned(tx, ids, companyId, notice),
     convert: (notice) => convertBreakNotReturned(tx, ids, companyId, notice),
+    closeSuppressed: (shift) => closeBreakSuppressed(tx, companyId, shift),
     suppress: (notice) => suppressBreakNotReturned(tx, ids, companyId, notice),
   };
 }

@@ -62,9 +62,9 @@ export async function notClockedInLedger(context: RuleContext, company: string, 
     WHERE company_id=${company} AND employee_id=${employeeId} ORDER BY shift_starts_at`;
 }
 
-/** سطور دفتر عدم الرجوع من البريك: المستلمون وعلامة الكبح. */
+/** سطور دفتر عدم الرجوع من البريك: المستلمون وعلامة الكبح ونوعه. */
 export async function breakLedger(context: RuleContext, company: string, employeeId: string) {
-  return context.owner`SELECT id, recipient_count, suppressed_at, notified_at, shift_starts_at, break_ends_at, alert_due_at
+  return context.owner`SELECT id, recipient_count, suppressed_at, suppressed_kind, notified_at, shift_starts_at, break_ends_at, alert_due_at
     FROM attendance_break_not_returned_notices
     WHERE company_id=${company} AND employee_id=${employeeId} ORDER BY shift_starts_at`;
 }

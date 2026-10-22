@@ -114,11 +114,11 @@ export async function suppressBreakNotReturned(
   const inserted = await tx.execute<{ id: string }>(sql`
     INSERT INTO attendance_break_not_returned_notices(
       company_id,id,business_id,branch_id,employee_id,shift_starts_at,shift_ends_at,break_ends_at,break_out_at,
-      alert_due_at,notified_at,recipient_count,suppressed_at)
+      alert_due_at,notified_at,recipient_count,suppressed_at,suppressed_kind)
     VALUES(${companyId},${id},${shift.businessId},${shift.branchId},${shift.employeeId},
       ${shift.startsAt.toISOString()},${shift.endsAt.toISOString()},${notice.breakEndsAt.toISOString()},
       ${notice.breakOutAt.toISOString()},${notice.alertAt.toISOString()},${notice.detectedAt.toISOString()},
-      0,${notice.detectedAt.toISOString()})
+      0,${notice.detectedAt.toISOString()},${notice.kind})
     ON CONFLICT (company_id, employee_id, shift_starts_at) DO NOTHING RETURNING id`);
   return inserted.length === 1;
 }

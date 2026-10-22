@@ -11461,6 +11461,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "suppressed_kind": {
+          "name": "suppressed_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -11595,6 +11601,14 @@
         "attendance_break_not_returned_notices_suppressed": {
           "name": "attendance_break_not_returned_notices_suppressed",
           "value": "\"attendance_break_not_returned_notices\".\"suppressed_at\" IS NULL OR \"attendance_break_not_returned_notices\".\"recipient_count\" = 0"
+        },
+        "attendance_break_not_returned_notices_suppressed_kind": {
+          "name": "attendance_break_not_returned_notices_suppressed_kind",
+          "value": "\"attendance_break_not_returned_notices\".\"suppressed_kind\" IN ('NOT_RETURNED', 'RETURNED_OTHER_BRANCH')"
+        },
+        "attendance_break_not_returned_notices_suppressed_pair": {
+          "name": "attendance_break_not_returned_notices_suppressed_pair",
+          "value": "(\"attendance_break_not_returned_notices\".\"suppressed_at\" IS NULL) = (\"attendance_break_not_returned_notices\".\"suppressed_kind\" IS NULL)"
         }
       },
       "isRLSEnabled": false

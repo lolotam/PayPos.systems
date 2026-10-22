@@ -16,6 +16,7 @@ import {
   eventRecipients,
   outboxRows,
   saveRule,
+  setMaster,
   type RuleContext,
 } from './alert-rule.helpers.ts';
 
@@ -51,10 +52,15 @@ async function onBreak() {
   return { tenant, manager, employee };
 }
 
-/** رجوع لفرع تاني بعد لحظة الكبح. */
-async function returnedElsewhere(tenant: Tenant, employee: string, at: Date) {
+/** رجوع لفرع تاني في لحظة. */
+async function returnedElsewhere(
+  tenant: Tenant,
+  employee: string,
+  at: Date,
+  clockOut: Date | null = null,
+) {
   const other = await f.branch(tenant);
-  await f.session(tenant, employee, { clockIn: at, branch: other });
+  await f.session(tenant, employee, { clockIn: at, clockOut, branch: other });
   return other;
 }
 
@@ -66,6 +72,7 @@ it('a suppressed missing-return row converts to the other-branch notice when she
   const suppressed = await breakLedger(ctx, tenant.company, employee);
   expect(suppressed).toHaveLength(1);
   expect(suppressed[0]?.['suppressed_at']).not.toBeNull();
+  expect(suppressed[0]?.['suppressed_kind']).toBe('NOT_RETURNED');
   expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
 
   await returnedElsewhere(tenant, employee, minute(BREAK_ALERT_AT, 2));
@@ -76,6 +83,7 @@ it('a suppressed missing-return row converts to the other-branch notice when she
   expect(rows).toHaveLength(1);
   expect(rows[0]?.['id']).toBe(suppressed[0]?.['id']);
   expect(rows[0]?.['suppressed_at']).toBeNull();
+  expect(rows[0]?.['suppressed_kind']).toBeNull();
   expect(rows[0]).toMatchObject({ recipient_count: 1 });
   expect(new Date(rows[0]?.['alert_due_at'] as string | Date).toISOString()).toBe(
     '2026-10-04T11:10:00.000Z',
@@ -96,7 +104,7 @@ it('a suppressed missing-return row converts to the other-branch notice when she
   });
 });
 
-it('with both rules off the suppressed row stays exactly as it is', async () => {
+it('with both rules off the suppressed row is closed for good', async () => {
   const { tenant, employee } = await onBreak();
   await saveRule(ctx, tenant, NOT_RETURNED, { enabled: false, roles: MANAGER_ROLES });
   await saveRule(ctx, tenant, OTHER_BRANCH, { enabled: false, roles: MANAGER_ROLES });
@@ -104,17 +112,53 @@ it('with both rules off the suppressed row stays exactly as it is', async () => 
   expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
   const before = await breakLedger(ctx, tenant.company, employee);
   expect(before).toHaveLength(1);
+  expect(before[0]?.['suppressed_kind']).toBe('NOT_RETURNED');
 
   await returnedElsewhere(tenant, employee, minute(BREAK_ALERT_AT, 2));
   f.setNow(minute(BREAK_ALERT_AT, 10));
   expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
-  const after = await breakLedger(ctx, tenant.company, employee);
-  expect(after).toHaveLength(1);
-  expect(after[0]).toMatchObject({
+  const closed = await breakLedger(ctx, tenant.company, employee);
+  expect(closed).toHaveLength(1);
+  expect(closed[0]).toMatchObject({
     suppressed_at: before[0]?.['suppressed_at'],
     alert_due_at: before[0]?.['alert_due_at'],
     notified_at: before[0]?.['notified_at'],
+    suppressed_kind: 'RETURNED_OTHER_BRANCH',
   });
+  expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
+  expect(await auditRows(ctx, tenant.company)).toHaveLength(0);
+
+  await clearRules(ctx, tenant, OTHER_BRANCH);
+  f.setNow(minute(BREAK_ALERT_AT, 20));
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
+  expect((await breakLedger(ctx, tenant.company, employee))[0]?.['suppressed_kind']).toBe(
+    'RETURNED_OTHER_BRANCH',
+  );
+  expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
+});
+
+it('the master switch off closes the row, and turning it back on converts nothing', async () => {
+  const { tenant, employee } = await onBreak();
+  await setMaster(ctx, tenant, false);
+  f.setNow(BREAK_ALERT_AT);
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
+  expect((await breakLedger(ctx, tenant.company, employee))[0]?.['suppressed_kind']).toBe(
+    'NOT_RETURNED',
+  );
+
+  await returnedElsewhere(tenant, employee, minute(BREAK_ALERT_AT, 2));
+  f.setNow(minute(BREAK_ALERT_AT, 10));
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
+  expect((await breakLedger(ctx, tenant.company, employee))[0]?.['suppressed_kind']).toBe(
+    'RETURNED_OTHER_BRANCH',
+  );
+
+  await setMaster(ctx, tenant, null);
+  f.setNow(minute(BREAK_ALERT_AT, 20));
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
+  expect((await breakLedger(ctx, tenant.company, employee))[0]?.['suppressed_kind']).toBe(
+    'RETURNED_OTHER_BRANCH',
+  );
   expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
   expect(await auditRows(ctx, tenant.company)).toHaveLength(0);
 });
@@ -130,22 +174,87 @@ it('turning the missing-return rule back on never back-fills the suppressed shif
   const rows = await breakLedger(ctx, tenant.company, employee);
   expect(rows).toHaveLength(1);
   expect(rows[0]?.['suppressed_at']).not.toBeNull();
+  expect(rows[0]?.['suppressed_kind']).toBe('NOT_RETURNED');
   expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
 });
 
-it('a row the other-branch rule suppressed never converts, because the return came before it', async () => {
+it('a row the other-branch rule suppressed stays terminal', async () => {
   const { tenant, employee } = await onBreak();
   await returnedElsewhere(tenant, employee, minute(BREAK_END, 5));
   await saveRule(ctx, tenant, OTHER_BRANCH, { enabled: false, roles: MANAGER_ROLES });
   f.setNow(BREAK_ALERT_AT);
   expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
-  expect((await breakLedger(ctx, tenant.company, employee))[0]?.['suppressed_at']).not.toBeNull();
+  expect((await breakLedger(ctx, tenant.company, employee))[0]?.['suppressed_kind']).toBe(
+    'RETURNED_OTHER_BRANCH',
+  );
 
   await clearRules(ctx, tenant, OTHER_BRANCH);
   f.setNow(minute(BREAK_ALERT_AT, 10));
   expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
-  expect((await breakLedger(ctx, tenant.company, employee))[0]?.['suppressed_at']).not.toBeNull();
+  expect((await breakLedger(ctx, tenant.company, employee))[0]?.['suppressed_kind']).toBe(
+    'RETURNED_OTHER_BRANCH',
+  );
   expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
+});
+
+it('a voided return after a terminal close never converts', async () => {
+  const { tenant, employee } = await onBreak();
+  const returnedAt = minute(BREAK_END, 5);
+  await returnedElsewhere(tenant, employee, returnedAt, minute(returnedAt, 1));
+  await saveRule(ctx, tenant, OTHER_BRANCH, { enabled: false, roles: MANAGER_ROLES });
+  f.setNow(BREAK_ALERT_AT);
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
+  expect((await breakLedger(ctx, tenant.company, employee))[0]?.['suppressed_kind']).toBe(
+    'RETURNED_OTHER_BRANCH',
+  );
+
+  const [session] = await f.owner`SELECT id FROM attendance_sessions
+    WHERE company_id=${tenant.company} AND employee_id=${employee} AND clock_in=${returnedAt}`;
+  await f.voidSession(tenant, String(session?.['id']), BREAK_ALERT_AT);
+  await returnedElsewhere(tenant, employee, minute(BREAK_ALERT_AT, 3));
+  await clearRules(ctx, tenant, OTHER_BRANCH);
+  f.setNow(minute(BREAK_ALERT_AT, 10));
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
+  const rows = await breakLedger(ctx, tenant.company, employee);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.['suppressed_kind']).toBe('RETURNED_OTHER_BRANCH');
+  expect(rows[0]?.['suppressed_at']).not.toBeNull();
+  expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
+  expect(await auditRows(ctx, tenant.company)).toHaveLength(0);
+});
+
+it('the first return decides: a same-branch return first leaves the row alone', async () => {
+  const { tenant, employee } = await onBreak();
+  await saveRule(ctx, tenant, NOT_RETURNED, { enabled: false, roles: MANAGER_ROLES });
+  f.setNow(BREAK_ALERT_AT);
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
+  await f.session(tenant, employee, {
+    clockIn: minute(BREAK_ALERT_AT, 2),
+    clockOut: minute(BREAK_ALERT_AT, 3),
+  });
+  await returnedElsewhere(tenant, employee, minute(BREAK_ALERT_AT, 4));
+  f.setNow(minute(BREAK_ALERT_AT, 10));
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
+  const rows = await breakLedger(ctx, tenant.company, employee);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.['suppressed_kind']).toBe('NOT_RETURNED');
+  expect(rows[0]?.['suppressed_at']).not.toBeNull();
+  expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
+});
+
+it('the first return decides: another-branch return first converts even if she goes back', async () => {
+  const { tenant, employee } = await onBreak();
+  await saveRule(ctx, tenant, NOT_RETURNED, { enabled: false, roles: MANAGER_ROLES });
+  f.setNow(BREAK_ALERT_AT);
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
+  await returnedElsewhere(tenant, employee, minute(BREAK_ALERT_AT, 2), minute(BREAK_ALERT_AT, 3));
+  await f.session(tenant, employee, { clockIn: minute(BREAK_ALERT_AT, 4) });
+  f.setNow(minute(BREAK_ALERT_AT, 10));
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 1 });
+  const events = await outboxRows(ctx, tenant.company, EVENT);
+  expect(events).toHaveLength(1);
+  expect(events[0]?.['payload']).toMatchObject({ notice_kind: 'break_returned_other_branch' });
+  expect((await breakLedger(ctx, tenant.company, employee))[0]?.['suppressed_kind']).toBeNull();
 });
 
 it('a converted notice is written once and never again', async () => {
@@ -171,25 +280,9 @@ it('a return at the same branch after the suppression changes nothing', async ()
   await f.session(tenant, employee, { clockIn: minute(BREAK_ALERT_AT, 2) });
   f.setNow(minute(BREAK_ALERT_AT, 10));
   expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
-  expect((await breakLedger(ctx, tenant.company, employee))[0]?.['suppressed_at']).not.toBeNull();
-  expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
-});
-
-it('a later session at another branch cannot convert a row the other-branch rule suppressed', async () => {
-  const { tenant, employee } = await onBreak();
-  const other = await f.branch(tenant);
-  await f.session(tenant, employee, {
-    clockIn: minute(BREAK_END, 5),
-    clockOut: minute(BREAK_END, 8),
-    branch: other,
-  });
-  await saveRule(ctx, tenant, OTHER_BRANCH, { enabled: false, roles: MANAGER_ROLES });
-  f.setNow(BREAK_ALERT_AT);
-  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
-  await clearRules(ctx, tenant, OTHER_BRANCH);
-  await f.session(tenant, employee, { clockIn: minute(BREAK_ALERT_AT, 3), branch: other });
-  f.setNow(minute(BREAK_ALERT_AT, 10));
-  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
-  expect((await breakLedger(ctx, tenant.company, employee))[0]?.['suppressed_at']).not.toBeNull();
+  const rows = await breakLedger(ctx, tenant.company, employee);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.['suppressed_kind']).toBe('NOT_RETURNED');
+  expect(rows[0]?.['suppressed_at']).not.toBeNull();
   expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
 });

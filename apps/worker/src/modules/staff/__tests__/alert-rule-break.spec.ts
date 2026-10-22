@@ -68,7 +68,7 @@ it('RT-26 the break kind switched off writes one suppressed ledger row and sends
   expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
   const rows = await breakLedger(ctx, tenant.company, employee);
   expect(rows).toHaveLength(1);
-  expect(rows[0]).toMatchObject({ recipient_count: 0 });
+  expect(rows[0]).toMatchObject({ recipient_count: 0, suppressed_kind: 'NOT_RETURNED' });
   expect(rows[0]?.['suppressed_at']).not.toBeNull();
   expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
   expect(await auditRows(ctx, tenant.company)).toHaveLength(0);
@@ -81,7 +81,7 @@ it('RT-26 the master switch off suppresses the break notice the same way', async
   expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
   const rows = await breakLedger(ctx, tenant.company, employee);
   expect(rows).toHaveLength(1);
-  expect(rows[0]).toMatchObject({ recipient_count: 0 });
+  expect(rows[0]).toMatchObject({ recipient_count: 0, suppressed_kind: 'NOT_RETURNED' });
   expect(rows[0]?.['suppressed_at']).not.toBeNull();
   expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
   expect(await auditRows(ctx, tenant.company)).toHaveLength(0);
@@ -94,7 +94,7 @@ it('RT-26 the other-branch kind switched off writes one suppressed ledger row', 
   expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
   const rows = await breakLedger(ctx, tenant.company, employee);
   expect(rows).toHaveLength(1);
-  expect(rows[0]).toMatchObject({ recipient_count: 0 });
+  expect(rows[0]).toMatchObject({ recipient_count: 0, suppressed_kind: 'RETURNED_OTHER_BRANCH' });
   expect(rows[0]?.['suppressed_at']).not.toBeNull();
   expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
   expect(await auditRows(ctx, tenant.company)).toHaveLength(0);
@@ -202,6 +202,7 @@ it('RT-27b a suppressed break is never alerted later, and the next overdue break
   const rows = await breakLedger(ctx, tenant.company, employee);
   expect(rows).toHaveLength(1);
   expect(rows[0]?.['suppressed_at']).not.toBeNull();
+  expect(rows[0]?.['suppressed_kind']).toBe('NOT_RETURNED');
   expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
   const next = await f.employee(tenant, { nameEn: 'Next', nameAr: 'التالية' });
   await f.breakShift(tenant, next);

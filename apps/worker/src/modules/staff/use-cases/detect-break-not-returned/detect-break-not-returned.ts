@@ -12,7 +12,9 @@ import {
   breakReturnedOtherBranchParameters,
   dueBreakCutoff,
   graceElapsed,
+  suppressedBreakDisposition,
   type BreakReturn,
+  type SuppressedBreakKind,
 } from '../../domain/break-not-returned.ts';
 import {
   formatLocalShiftStart,
@@ -119,11 +121,16 @@ export class DetectBreakNotReturned {
     const decision = await this.decide(tx, companyId, shift, breakEndsAt, breakStartsAt, at);
     if (decision === null) return false;
     const { plan, moments, returned } = decision;
-    // سطر مكبوح بيتحوّل بس لإشعار «رجعت لفرع آخر»؛ عدم الرجوع ما بيتبعتش متأخر (D-B15).
+    // سطر مكبوح بيتحوّل لإشعار «رجعت لفرع آخر» بس، ويتقفل نهائيًا لو القاعدة كانت مقفولة (D-B15).
     if (ledger !== null)
-      return this.convertNotice(tx, shift, decision, at, ledger.suppressedAt);
+      return this.convertNotice(tx, shift, decision, at, ledger.suppressedKind);
     if (!plan.enabled) {
-      await tx.suppress({ shift, ...moments, detectedAt: at });
+      await tx.suppress({
+        shift,
+        ...moments,
+        detectedAt: at,
+        kind: decision.kind === 'ALERT' ? 'NOT_RETURNED' : 'RETURNED_OTHER_BRANCH',
+      });
       return false;
     }
     return this.record(tx, shift, moments, at, plan, decision.kind === 'ALERT' ? null : returned);
@@ -187,12 +194,22 @@ export class DetectBreakNotReturned {
     shift: LockedBreakShift,
     decision: BreakDecision,
     at: Date,
-    suppressedAt: Date | null,
+    suppressedKind: SuppressedBreakKind | null,
   ): Promise<boolean> {
     const { kind, plan, moments, returned } = decision;
-    if (kind !== 'RETURNED_OTHER_BRANCH' || returned === null) return false;
-    if (suppressedAt === null || returned.clockIn.getTime() <= suppressedAt.getTime()) return false;
-    if (!plan.enabled) return false;
+    if (suppressedKind === null) return false;
+    const disposition = suppressedBreakDisposition({
+      suppressedKind,
+      decision: kind,
+      otherBranchEnabled: plan.enabled,
+    });
+    if (disposition === 'NONE') return false;
+    // القفل النهائي مش إشعار، فما بيتعدّش في «اتبعت».
+    if (disposition === 'CLOSE') {
+      await tx.closeSuppressed(shift);
+      return false;
+    }
+    if (returned === null) return false;
     const notice = await this.notice(tx, shift, moments, at, plan, returned);
     return tx.convert(notice);
   }

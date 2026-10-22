@@ -6,6 +6,7 @@ import {
   integer,
   pgTable,
   primaryKey,
+  text,
   timestamp,
   unique,
   uuid,
@@ -86,6 +87,8 @@ export const attendanceBreakNotReturnedNotices = pgTable(
     recipientCount: integer('recipient_count').notNull(),
     // سطر دفتر اتكتب والقاعدة أو المفتاح العام مقفولين وقتئه: من غير إشعار (spec 060 D-B15).
     suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
+    // نوع التنبيه اللي اتكبح فيه السطر: NOT_RETURNED أو RETURNED_OTHER_BRANCH؛ والاثنان موجودين أو لا واحد.
+    suppressedKind: text('suppressed_kind'),
   },
   (t) => [
     primaryKey({
@@ -121,6 +124,14 @@ export const attendanceBreakNotReturnedNotices = pgTable(
     check(
       'attendance_break_not_returned_notices_suppressed',
       sql`${t.suppressedAt} IS NULL OR ${t.recipientCount} = 0`,
+    ),
+    check(
+      'attendance_break_not_returned_notices_suppressed_kind',
+      sql`${t.suppressedKind} IN ('NOT_RETURNED', 'RETURNED_OTHER_BRANCH')`,
+    ),
+    check(
+      'attendance_break_not_returned_notices_suppressed_pair',
+      sql`(${t.suppressedAt} IS NULL) = (${t.suppressedKind} IS NULL)`,
     ),
   ],
 );

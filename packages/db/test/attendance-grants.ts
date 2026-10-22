@@ -56,6 +56,7 @@ export const ATTENDANCE_CHANGE_COLUMN_GRANTS = [
 // بند 62-2: سطر الكبح في دفتر البريك بيتحوّل مرة واحدة لإشعار «رجعت لفرع آخر»؛ الأعمدة دي بس هي اللي بتتغيّر.
 export const BREAK_LEDGER_COLUMN_GRANTS = [
   'suppressed_at',
+  'suppressed_kind',
   'recipient_count',
   'alert_due_at',
   'notified_at',
