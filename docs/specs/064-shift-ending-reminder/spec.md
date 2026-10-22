@@ -6,7 +6,7 @@
 
 **Status**: Draft — waiting for the owner's answers SE-Q1…SE-Q6
 ([owner-questions.ar.md](owner-questions.ar.md)). Every unanswered rule below carries a `TODO(spec)` and the
-implementation sub-PRs do not start until it is answered **and** row 28b (staff web push, spec 061 / ADR-0052) is merged.
+implementation sub-PRs do not start until it is answered **and** row 28b (staff web push, spec 061 / ADR-0052) (through 28b-3: adapter, processor, VAPID keys) is merged.
 
 **Input**: User description: "28c — «your shift ends soon» reminder to the employee by push, default 30 minutes before
 shift end, lead time editable from the dashboard."
@@ -26,14 +26,15 @@ serialization); ADR-0010 addendum 2026-10-21 (worker staff `AlertRulesPort`); PR
 ## Dependency on row 28b (push channel)
 
 This spec **does not build** a push channel, a subscription store, a service worker or a language preference. It
-emits one event, `ShiftEndsSoon`, whose single recipient is the employee on the **push** channel, in the recipient
-shape that spec 061 / ADR-0052 defines. Everything that touches that shape (the event payload's recipient entry, the
-template renderer, the end-to-end test through the push sender) is isolated in sub-PR **062-2**, written after 28b is
-merged. **The detector is wired into the company job last (062-3)**, after the template, the contract and the
+emits one event, `ShiftEndsSoon`, whose single recipient is the employee on the **PUSH** channel. The PUSH recipient entry (settled with the 28b session,
+spec 061 / ADR-0052) holds only `user_id`, `template_key` / `revision`, the safe parameters and an optional
+`send_deadline` — no phone and no locale; notifications finds the user's push subscriptions and renders the text in each
+subscription's language. Everything that touches that shape (the event payload's recipient entry, the
+template renderer, the end-to-end test through the push sender) is isolated in sub-PR **064-2**, written after 28b is
+merged. **The detector is wired into the company job last (064-3)**, after the template, the contract and the
 notifications consumer registration are on `main`, so a deployed detector never emits an event that nothing can
-deliver. Sub-PR 062-1 (rules and ledger, no behaviour) may be written first only if the orchestrator confirms 28b's
-recipient shape in time; otherwise all three wait. `TODO(28b)`: confirm with spec 061 the
-channel code, the recipient entry fields and where the per-user language is stored.
+deliver. **Implementation of this row starts after 28b-3 is merged** (the web-push adapter, the worker processor and the VAPID
+keys). Sub-PR 064-1 (rules and ledger, no behaviour) is the only one that could start earlier.
 
 ## Owner questions
 
@@ -222,7 +223,7 @@ No change to `staff_schedule_shifts` or `attendance_sessions` (existing indexes 
 - No endpoint, request schema or `Idempotency-Key`.
 - `packages/contracts`: the notification-request template key `shift_ends_soon` (revision 1) with its strict
   parameter tuple (`shift_end` `HH:MM`, `branch_name_ar`, `branch_name_en`) passing the existing safe-text checks; the
-  push recipient entry is 28b's schema (`TODO(28b)`). The job data is unchanged (`{ companyId }`).
+  PUSH recipient entry is 28b's schema (above). The job data is unchanged (`{ companyId }`).
 - `packages/notifications`: template `shift_ends_soon` rev 1, ar/en.
 - `packages/i18n`: no admin UI copy (the alerts screen already lists the kind).
 
@@ -235,8 +236,8 @@ None new. The job runs as `pospay_app` inside `withTenant(companyId)`; the recip
 - **Published**: `ShiftEndsSoon` — emitted once per (employee, shift end) when the reminder moment has passed, she is
   at work and the rule is on, in the same transaction as the ledger row and the audit entry. Payload: `notice_id,
   employee_id, business_id, branch_id, shift_starts_at, shift_ends_at, remind_at, detected_at`, plus
-  `notification_recipients` (one push recipient, carrying the preformatted template inputs and a delivery deadline equal
-  to `shift_ends_at`; `TODO(28b)` confirm the deadline field) when the employee has a linked user. Declared in
+  `notification_recipients` (one push recipient, carrying the preformatted template inputs and `send_deadline` equal to
+  `shift_ends_at`) when the employee has a linked user. Declared in
   `apps/worker/src/modules/staff/events/published.ts` with its Arabic one-liner.
 - **Consumed**: none new. notifications gains `ShiftEndsSoon` in its source-event list.
 - Audit: `attendance_notice` / `shift_ending_soon.detected`, actor NULL (system).
@@ -252,9 +253,9 @@ RETURNING`, and only an inserted row writes audit and outbox.
 
 | # | Title | Subtasks | Waits for | Size |
 |---|---|---|---|---|
-| **062-1** | Rules and ledger | 1. `domain/shift-ending-soon.ts` with its exhaustive unit tests (BR-001…BR-006, DST, overnight, clamp). 2. Migration + Drizzle schema for `attendance_shift_ending_notices`, grants allowlist in `privileges.spec.ts`. 3. RLS negative tests (cross-tenant read 0 rows, insert rejected, FKs rejected, UPDATE/DELETE refused). | SE-Q3 and SE-Q5 answered (they set the key and the clamp) | 220–320 |
-| **062-2** | Template and delivery | 1. Template `shift_ends_soon` rev 1 (ar/en) in `packages/notifications` + the contracts parameter tuple and the `ShiftEndsSoon` event/recipient schema (with the delivery deadline). 2. `ShiftEndsSoon` in the notifications consumer list, `known-event-types.md` coverage gate, module-map §4 event row. 3. End-to-end test with a hand-made event: outbox → transport → 28b's push sender stub; language follows 28b's stored preference. | 062-1; **28b merged** | 200–300 |
-| **062-3** | Detector in the company job | 1. Port `ShiftEndingSoonTransactions`, persistence (paged candidates with the presence column, locked reads, writes) and the staff `AlertRulesPort` adapter over worker `settings` (reused if 62-2 created it); module-map §3 row and YAML. 2. Use case `detect-shift-ending-soon`; `ShiftEndsSoon` in `published.ts`; wired as the **last** step of the processor. 3. Integration tests SEN-01…SEN-14 and EXPLAIN assertions. | 062-2; SE-Q1, SE-Q2, SE-Q4, SE-Q6 answered | 360–480 |
+| **064-1** | Rules and ledger | 1. `domain/shift-ending-soon.ts` with its exhaustive unit tests (BR-001…BR-006, DST, overnight, clamp). 2. Migration + Drizzle schema for `attendance_shift_ending_notices`, grants allowlist in `privileges.spec.ts`. 3. RLS negative tests (cross-tenant read 0 rows, insert rejected, FKs rejected, UPDATE/DELETE refused). | SE-Q3 and SE-Q5 answered (they set the key and the clamp) | 220–320 |
+| **064-2** | Template and delivery | 1. Template `shift_ends_soon` rev 1 (ar/en) in `packages/notifications` + the contracts parameter tuple and the `ShiftEndsSoon` event/recipient schema (with the delivery deadline). 2. `ShiftEndsSoon` in the notifications consumer list, `known-event-types.md` coverage gate, module-map §4 event row. 3. End-to-end test with a hand-made event: outbox → transport → 28b's push sender stub; language follows 28b's stored preference. | 064-1; **28b merged** | 200–300 |
+| **064-3** | Detector in the company job | 1. Port `ShiftEndingSoonTransactions`, persistence (paged candidates with the presence column, locked reads, writes) and the staff `AlertRulesPort` adapter over worker `settings` (reused if 62-2 created it); module-map §3 row and YAML. 2. Use case `detect-shift-ending-soon`; `ShiftEndsSoon` in `published.ts`; wired as the **last** step of the processor. 3. Integration tests SEN-01…SEN-14 and EXPLAIN assertions. | 064-2; SE-Q1, SE-Q2, SE-Q4, SE-Q6 answered | 360–480 |
 
 ### Test plan
 
@@ -281,9 +282,9 @@ RETURNING`, and only an inserted row writes audit and outbox.
 ### Documents to update in the same PRs
 
 - This docs PR: `docs/specs/phase-1/SPEC.md` §3 (`ShiftEndsSoon` added to the `staff ⇒ notifications` events).
-- 062-2: `docs/module-map.md` §4 (the `ShiftEndsSoon` event row) and `docs/module-map.yaml`;
+- 064-2: `docs/module-map.md` §4 (the `ShiftEndsSoon` event row) and `docs/module-map.yaml`;
   `docs/specs/worker/known-event-types.md`.
-- 062-3: `docs/module-map.md` §3 (the staff `AlertRulesPort` → worker `settings` row, only if 62-2 has not added it) and
+- 064-3: `docs/module-map.md` §3 (the staff `AlertRulesPort` → worker `settings` row, only if 62-2 has not added it) and
   `docs/module-map.yaml`; ADR-0053 final status; `docs/specs/phase-1/IMPLEMENTATION-PLAN.md` row 28c marked done with
   the PR numbers.
 
@@ -307,7 +308,7 @@ RETURNING`, and only an inserted row writes audit and outbox.
   should show the resolution (follow-up issue).
 - The text states the end time, not a countdown (ADR-0053 §10); the wording is Arabic-first and goes through the
   template, not hard-coded.
-- The employee's language comes from the preference row 28b adds; this row stores none.
+- The employee's language is decided per push subscription by notifications (ADR-0052); this row stores and sends none.
 - A reminder never goes to a manager; managers keep the not-clocked-in and break alerts.
 - Out of this row: the push channel and subscriptions (28b), the alerts screen (62-4), the employee's «you have not
   clocked in» push (28b), WhatsApp or email variants (62b).

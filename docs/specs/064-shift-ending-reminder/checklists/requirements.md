@@ -34,7 +34,7 @@
 ## Notes
 
 - The spec is **not ready for implementation** until the owner answers SE-Q1…SE-Q6 and row 28b is merged
-  (`TODO(28b)`: channel code, recipient entry, language preference).
+  (after 28b-3: web-push adapter, worker processor, VAPID keys).
 - Owner questions are recorded in Arabic in `owner-questions.ar.md`; publishing them is the orchestrator's job.
 - Technical decisions (third detector in the company job, rule from `AlertRulesPort`, presence = OPEN session, ledger
   key and suppression row) are in ADR-0053, number provisional.

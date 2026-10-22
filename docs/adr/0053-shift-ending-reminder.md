@@ -1,8 +1,8 @@
 # ADR-0053 — Shift-ending reminder: discovery, presence, once-only ledger and rule
 
 Status: Proposed (draft for row 28c; number provisional, renumbered at merge). The owner-dependent points are
-marked `TODO(spec)` and listed in [the owner questions](../specs/062-shift-ending-reminder/owner-questions.ar.md).
-Date: 2026-10-22. Scope: spec 062, Phase 1 row 28c. Owner decisions already taken: spec 036 NC-Q1 and its
+marked `TODO(spec)` and listed in [the owner questions](../specs/064-shift-ending-reminder/owner-questions.ar.md).
+Date: 2026-10-22. Scope: spec 064, Phase 1 row 28c. Owner decisions already taken: spec 036 NC-Q1 and its
 question 6 (Waleed, 2026-10-08: «30 دقيقة، وتتغير من اللوحة»), spec 060 D-B13/D-B14/D-B15 and the
 `SHIFT_ENDS_SOON` kind (PP-18.25).
 
@@ -97,14 +97,16 @@ existing decision:
    transaction, declared in `apps/worker/src/modules/staff/events/published.ts` and added to the notifications
    consumer list and to `docs/specs/worker/known-event-types.md`. Payload: `notice_id, employee_id, business_id,
    branch_id, shift_starts_at, shift_ends_at, remind_at, detected_at`, plus `notification_recipients` with exactly
-   one recipient: the employee's own `user_id` (`employees.user_id`), on the **push** channel in the shape row 28b
-   defines (spec 061, ADR-0052). **The template inputs travel inside that recipient entry, preformatted**, as in
-   ADR-0037 §4 (the business-free notifications consumer cannot look them up): `template_key` `shift_ends_soon`,
-   revision 1, and the strict parameter tuple of decision 10. The shift end is formatted by the detector with the
+   one recipient: the employee's own `user_id` (`employees.user_id`), on the **PUSH** channel of row 28b (spec 061,
+   ADR-0052; settled with that session on 2026-10-22). The PUSH recipient entry holds **only** `user_id`, `template_key`
+   / `revision`, the safe parameters and an optional `send_deadline`: no phone and no locale. This emitter touches no
+   sending code: notifications looks up the user's push subscriptions and renders the text in each subscription's own
+   language. **The template inputs travel inside that recipient entry, preformatted**, as in ADR-0037 §4 (the
+   business-free notifications consumer cannot look them up): `template_key` `shift_ends_soon`, revision 1, and the
+   strict parameter tuple of decision 10. The shift end is formatted by the detector with the
    schedule's saved timezone; the branch names come from the existing `BranchPlaceReader` (ADR-0037 §6) on the same
-   transaction. **The recipient also carries a delivery deadline equal to `shift_ends_at`** (the existing
-   `send_deadline` of the recipient contracts; `TODO(28b)`: confirm that the push recipient supports it, otherwise
-   062-2 asks 28b to add it), so an outbox or queue delay past the end drops the reminder instead of sending «your
+   transaction. **The recipient also carries `send_deadline` equal to `shift_ends_at`** (the optional field of the PUSH
+   recipient), so an outbox or queue delay past the end drops the reminder instead of sending «your
    shift ends» after it ended. An employee without a linked user still gets a ledger row, with
    `recipient_count = 0` and an event without recipients, acknowledged unsent (the ADR-0037 precedent for a branch
    without managers). No manager is notified (managers have the not-clocked-in alert). No email, no WhatsApp.
@@ -113,8 +115,8 @@ existing decision:
     (`HH:MM`, formatted in the schedule's saved timezone as ADR-0037 §4 does, so a later timezone change cannot
     relabel it) and `branch_name_ar` / `branch_name_en` (the same safe-text rules and generic fallbacks). The text
     states the **end time** («دوامك بينتهي الساعة 6:00 م»), never a countdown, because a late-sent reminder
-    (SE-Q2) would make «بعد 30 دقيقة» false. Language: 28b renders push in the employee's stored language
-    preference; this row adds none.
+    (SE-Q2) would make «بعد 30 دقيقة» false. Language: notifications renders the push in the language of each of the employee's subscriptions (ADR-0052);
+    this row stores and sends no language.
 11. **Time.** `starts_at`/`ends_at` are the resolved UTC instants of ADR-0024; the lead is elapsed time, so
     overnight shifts and DST need no reinterpretation. No quiet hours (NC-Q11 precedent). A lead longer than the
     shift gives `remindAt < starts_at`; the detector clamps `remindAt` to `max(endsAt − lead, startsAt)` so the
