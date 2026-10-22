@@ -12,7 +12,7 @@
 > cash or card (KNET) on the sale, and the refund records the way the money went back; **no bank transfer**. **PK-Q18**
 > (batch 40) a new permission `import:packages:business` for the owner, the general manager and the business manager, not
 > the package-type permission. **PK-Q22** (batch 37) an imported package's money is split **by session count only**: every
-> session of the package has the same value whatever its service (to the fil: the indivisible fils go one each to the first sessions, FR-063), so the file carries no per-service price.
+> session of the package has the same value whatever its service (to the fil: the indivisible fils all go to the last session, as in a sold package, FR-063), so the file carries no per-service price.
 > **Answered the same way by both owners (decisions page, batch 35, 2026-10-22; the recommended options):** PK-Q1 (an extension is free),
 > PK-Q3 (the recorder cannot name herself the seller), PK-Q5 (refund permission with reason, bell and audit), PK-Q6 (cancel
 > rules of a line), PK-Q7 (expiry by visit date), PK-Q8 (performer change by the 055 rules), PK-Q9 (an imported package's
@@ -157,7 +157,7 @@ commission arithmetic and statements (rows 50–55); the staff app's view of pac
 | PK-Q22 | money | How an imported package with several services is split between them | **Answered by Abu Salem (batch 37, 2026-10-22, binding; replaces Waleed's «the file may give each service's price at the original sale, else today's menu price»):** by session count only: every session of the package has the same value whatever its service, to the fil (remainder rule in FR-063) | settled — FR-061, FR-063, IM-02, IM-02b |
 | PK-Q23 | money | A back-dated sale: which package definition and prices apply | **Answered (Waleed's card, 2026-10-21):** as recommended («أسعار يوم التسجيل»): the definition and service prices current when the sale is recorded, shown on the sale screen before saving | settled — FR-017, SA-07 |
 | PK-Q24 | money | Are refunds of imported packages on by default? (follow-up of PK-Q10, from Abu Salem's note) | **Answered (Waleed, card, 2026-10-22, batch 46):** «مقفول لحد ما المالك يشغّله» — off by default, switched on per business, then the same refund rules. Abu Salem's pick replaces it if it differs | FR-053, RF-08, TD-14, 46-2a, 46-2 |
-| PK-Q25 | money | How the indivisible fils of an imported package are split (follow-up of PK-Q22) | **Answered by Waleed (card, 2026-10-22, PP-30.1; batch 46, Abu Salem not yet):** «موافق على توزيع الفلوس الفاضلة فلس فلس على أول الجلسات.» — one fil each to the first sessions. A sold package keeps its own rule (ordinal *n* takes the remainder, §3.1); under this rule up to *n − 1* fils sit on already-used imported sessions, so an imported package's refundable value can be up to *n − 1* fils lower than the sold-package rule would give (disclosed to both owners 2026-10-22). If Abu Salem picks «all on the last session» or «refuse», FR-063 and IM-02b change | FR-063, IM-02b |
+| PK-Q25 | money | How the indivisible fils of an imported package are split (follow-up of PK-Q22) | **Answered by Waleed (card, 2026-10-22, PP-30.1; batch 46, Abu Salem not yet):** «آخر الجلسات زي PosPay» — every session gets the floor share and the last session takes the remainder, the same placement as a sold package (§3.1). He first picked «one each to the first sessions» and changed it after a worked example (a 10.001 package of 3 sessions with 2 used refunds 3.335, not 3.333). Abu Salem's pick replaces it if it differs | FR-063, IM-02b |
 | PK-Q26 | permission | Who besides the owner may switch imported refunds on (follow-up of PK-Q24) | **Answered (Waleed, card, 2026-10-22, batch 47):** «المالك بس من الأول، ويقدر يدّيها لأي حد» — a new permission `manage:imported-refunds:business`, owner only, grantable. Abu Salem's pick replaces it if it differs | TD-14, 46-2a |
 
 ## 4. User scenarios and acceptance criteria *(mandatory)*
@@ -329,10 +329,10 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 - **IM-02** A clean preview commits all rows in one worker transaction (spec 030 IM-03…IM-05): per row one entitlement
   `IMPORTED` with no seller, components valued over the **original** sessions **by session count only** (PK-Q22, Abu Salem): every
   original session of the package has the same value whatever its service, to the fil (remainder rule of FR-063; `list_price_snapshot` of an imported component is display-only), slots `1…used` `IMPORTED_USED` and the rest `FREE`; one audit entry per commit. [M11]
-- **IM-02b** (PK-Q22, FR-063) Remainder: `price_paid 10.001` over one component of 3 original sessions → session values 3.334,
-  3.334, 3.333 (sum 10.001 exactly); the same price over service A with 1 session and service B with 2 sessions → A's session
-  3.334, B's sessions 3.334 and 3.333, component values 3.334 and 6.667; a price that divides evenly (9.000 over 3) gives 3.000 each;
-  `price_paid 0.000` gives 0.000 each. In every case the session values sum to `price_paid` and differ by at most 0.001.
+- **IM-02b** (PK-Q22, FR-063) Remainder: `price_paid 10.001` over one component of 3 original sessions → session values 3.333,
+  3.333, 3.335 (sum 10.001 exactly); the same price over service A with 1 session and service B with 2 sessions → A's session
+  3.333, B's sessions 3.333 and 3.335, component values 3.333 and 6.668; a price that divides evenly (9.000 over 3) gives 3.000 each;
+  `price_paid 0.000` gives 0.000 each. In every case the session values sum to `price_paid`, and only the last session can exceed the others (by at most *n − 1* fils).
 - **IM-03** An `external_ref` already imported → the row is a no-op on re-import (reported "already imported"); twice
   in one file → row error.
 - **IM-04** Remaining > original, sessions 0 or > 365, a duplicate service, a negative or 4-decimal price, an unknown
@@ -538,9 +538,12 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   valued over the **original** sessions **by session count only** (PK-Q22, Abu Salem): every original session of the
   package has the same value whatever its service, to the fil, so the file gives no per-service price.
   **Remainder rule (PK-Q25, Waleed's card 2026-10-22, PP-30.1; Abu Salem not yet):** the price is split in fils by session count: every
-  session gets `floor(price_in_fils / total_original_sessions)` and the remainder fils go one each to the first sessions,
-  in component order (the order of the groups in the row) and then session order inside a component, so the sum of the
-  session values always equals `price_paid` exactly and no two sessions differ by more than one fil. This session-count mode is deliberately separate from a sold package's rule (§3.1: ordinal *n* takes the remainder). Its money effect: up to *n − 1* fils sit on the first sessions, which are the already-used ones when `remaining < original`, so an imported package's refundable value can be up to *n − 1* fils below what the sold-package rule would give (PK-Q25; disclosed to both owners on the decisions page, 2026-10-22). A component's value is
+  session gets `floor(price_in_fils / total_original_sessions)` and **the last session takes all the remainder fils** (the
+  last session of the last component, in component order, the order of the groups in the row), so the sum of the session
+  values always equals `price_paid` exactly; only that last session can be higher, by at most *n − 1* fils. This is the
+  same placement as a sold package (§3.1: ordinal *n* takes the remainder); the session-count mode differs from a sale only
+  in weighting by sessions instead of list price. Because the last session is the one still unused longest, a refund of an
+  imported package returns the remainder fils to the customer (PK-Q25). A component's value is
   the sum of its sessions' values, and the slot values are those session values (47-1 passes them to the slot builder, it
   does not re-split).
   **Invariant (technical decision, orchestrator 2026-10-22):** for an imported component `list_price_snapshot` is the

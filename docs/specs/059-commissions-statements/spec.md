@@ -1,7 +1,7 @@
 # Spec 059 — Commission plans, projection and statements (Phase 1 rows 48a–56b)
 
 > **Status:** Draft · 2026-10-21 · docs-only PR. Owner questions are recorded in [owner-questions.ar.md](owner-questions.ar.md):
-> the money list CS-Q1…CS-Q12 (decisions page batch 36) and the money question CS-Q22 (batch 39) are all answered; **CS-Q27** (from Abu Salem's note on CS-Q1), **CS-Q28** (from CS-Q8) and **CS-Q29** (a negative card-tip side) were answered by Waleed (cards through his super agent, 2026-10-22, batch 46; Abu Salem's pick replaces them if it differs). A new question, **CS-Q30** (batch 48: whether the employee sees correction details, CS-Q9 against spec 060's MY-Q6), is open. **CS-Q4,
+> the money list CS-Q1…CS-Q12 (decisions page batch 36) and the money question CS-Q22 (batch 39) are all answered; **CS-Q27** (from Abu Salem's note on CS-Q1), **CS-Q28** (from CS-Q8) and **CS-Q29** (a negative card-tip side) were answered by Waleed (cards through his super agent, 2026-10-22, batch 46; Abu Salem's pick replaces them if it differs). **CS-Q30** (batch 48: CS-Q9 against spec 060's MY-Q6) is answered by Waleed: the employee sees full correction details like the manager, never the customer's name (card, 2026-10-22, PP-32.1; Abu Salem's pick replaces it if it differs). **CS-Q4,
 > CS-Q6…CS-Q12 and CS-Q22 were answered the same way by Waleed and Abu Salem on the decisions page (2026-10-22; the
 > recommended options): CS-Q4** the pay permission goes to the owner, the general manager and the accountant, grantable;
 > **CS-Q6** the payment method is picked from «مع المرتب» / «تحويل بنكي» / «كاش» with an optional note; **CS-Q7** a negative
@@ -10,7 +10,7 @@
 > **CS-Q9** a separate section «تصحيحات شهور سابقة», one row per affected service; **CS-Q10** export only after approval, a
 > summary sheet and a detail sheet; **CS-Q11** a repair plan prices only the days that had no plan; **CS-Q12** the payable
 > is rounded to the nearest 5 fils when paid in cash; **CS-Q22** approval stays allowed after the 5th and the reminders on
-> the 3rd and 5th stay. One `TODO(spec)` remains: CS-Q30 (CM-50's employee view; it blocks only the employee-visible correction part of spec 060's 57-3). CS-Q27 settles the plan permission (the owner only, and only the owner grants or revokes it; FR-010), CS-Q28 (the final settlement) and CS-Q29 (the card-tip carry) are settled in FR-045 and §9. CS-Q12's storage is settled
+> the 3rd and 5th stay. No `TODO(spec)` remains: CS-Q30 settles CM-50's employee view (full details, never the customer's name), CS-Q27 settles the plan permission (the owner only, and only the owner grants or revokes it; FR-010), CS-Q28 (the final settlement) and CS-Q29 (the card-tip carry) are settled in FR-045 and §9. CS-Q12's storage is settled
 > (D-19). CS-Q1 and CS-Q2 were answered by Abu Salem (below); CS-Q3 and CS-Q5 by Waleed through his super agent (2026-10-21, cards; still on batch 36, and Abu
 > Salem's pick replaces them if it differs), and the follow-up CS-Q2b (who holds review by default, batch 42) by Waleed
 > (PP-25.1, the recommended option). **Abu Salem answered on the decisions page (batch 36, 2026-10-22) and his pick binds**
@@ -416,7 +416,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-49** A replayed event is deduped before it can bump the generation; a second real change bumps it again and posts only
   `new − (frozen + corrections already posted)` for each source.
 - **CM-50** Corrections received are inputs of the target: they enter its fingerprint and are frozen as `CORRECTION` lines at
-  its approval; they display in their own section «تصحيحات شهور سابقة»: one row per affected service (date, service, original month, was, became, difference) and a total for the section, and the employee sees it as the manager does (CS-Q9; `TODO(spec)` CS-Q30: spec 060's MY-Q6 answer shows the employee only the word «تصحيح» and the amount, and her only surface is the staff app; until CS-Q30 is answered the staff app follows MY-Q6, and this full view is the manager's). An employee who left shows the flag «سابت الشغل» on her rows and her section total labelled owed to her or by her (CS-Q28).
+  its approval; they display in their own section «تصحيحات شهور سابقة»: one row per affected service (date, service, original month, was, became, difference) and a total for the section, and the employee sees it as the manager does (CS-Q9, confirmed by CS-Q30 over spec 060's MY-Q6: in the staff app too, never with the customer's name). An employee who left shows the flag «سابت الشغل» on her rows and her section total labelled owed to her or by her (CS-Q28).
 
 ### Story 10 — Blocked corrections and period repair (55b, P1)
 
