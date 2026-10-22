@@ -22,7 +22,7 @@ const liveFor = async (endpoint: string) =>
   await f.owner`SELECT count(*)::int AS count FROM push_subscriptions
     WHERE company_id=${f.companyId} AND endpoint=${endpoint} AND revoked_at IS NULL`;
 const generationOf = async (userId: string, installation: string) => {
-  const hash = installationHash(f.companyId, installation);
+  const hash = installationHash(f.companyId, installation).toString('hex');
   const [row] = await f.owner`SELECT generation FROM push_subscriptions
     WHERE company_id=${f.companyId} AND user_id=${userId}
       AND encode(installation_hash,'hex')=${hash}`;
@@ -44,7 +44,7 @@ afterAll(async () => {
 
 describe('two employees on one endpoint', () => {
   it('one registers while the other does: no 5xx and one live row', async () => {
-    const colleague = await f.seedStaff('Synthetic colleague');
+    const colleague = await f.seedStaff('Synthetic race colleague');
     const endpoint = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
     const results = await Promise.all([
       f.send('PUT', '/v1/staff/push/subscription', {
@@ -63,7 +63,7 @@ describe('two employees on one endpoint', () => {
   });
 
   it('one employee registering the same endpoint twice keeps one live row', async () => {
-    const colleague = await f.seedStaff('Synthetic twice');
+    const colleague = await f.seedStaff('Synthetic twice colleague');
     const endpoint = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
     const results = await Promise.all([
       f.send('PUT', '/v1/staff/push/subscription', {
@@ -82,7 +82,7 @@ describe('two employees on one endpoint', () => {
 
 describe('two employees crossing endpoints', () => {
   it('crossing registrations move both endpoints without a 5xx', async () => {
-    const colleague = await f.seedStaff('Synthetic colleague');
+    const colleague = await f.seedStaff('Synthetic crossing colleague');
     const mine = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
     const theirs = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
     await f.send('PUT', '/v1/staff/push/subscription', {
@@ -107,7 +107,7 @@ describe('two employees crossing endpoints', () => {
   });
 
   it('a revoke and a PUT of the same install never leave a broken row', async () => {
-    const colleague = await f.seedStaff('Synthetic revoking');
+    const colleague = await f.seedStaff('Synthetic revoking colleague');
     const installation = nextId();
     await f.send('PUT', '/v1/staff/push/subscription', {
       body: body({ installation_id: installation }),
@@ -132,7 +132,7 @@ describe('two employees crossing endpoints', () => {
 
 describe('a row that comes back', () => {
   it('a revoked install comes back as the same row, live again', async () => {
-    const colleague = await f.seedStaff('Synthetic returning');
+    const colleague = await f.seedStaff('Synthetic returning colleague');
     const installation = nextId();
     await f.send('PUT', '/v1/staff/push/subscription', {
       body: body({ installation_id: installation }),
@@ -164,7 +164,7 @@ describe('a row that comes back', () => {
 
 describe('a row that is replaced or counted', () => {
   it('a second install on the same endpoint replaces the first', async () => {
-    const colleague = await f.seedStaff('Synthetic replacing');
+    const colleague = await f.seedStaff('Synthetic replacing colleague');
     const endpoint = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
     await f.send('PUT', '/v1/staff/push/subscription', {
       body: body({ subscription: subscription(endpoint) }),
@@ -182,7 +182,7 @@ describe('a row that is replaced or counted', () => {
   });
 
   it('the generation moves only when the endpoint, the keys or the token change', async () => {
-    const colleague = await f.seedStaff('Synthetic counting');
+    const colleague = await f.seedStaff('Synthetic counting colleague');
     const installation = nextId();
     const endpoint = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
     const other = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
