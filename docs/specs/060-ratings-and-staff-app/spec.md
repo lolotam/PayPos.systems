@@ -2,7 +2,7 @@
 
 > **Status:** Draft · 2026-10-21 · docs-only PR. **PP-18 batch 1 answered (Waleed, 2026-10-21):** RT-Q1 postponed the whole rating track to the end of the
 > project, **but Abu Salem's pick (2026-10-22) replaced it and the track resumes** (below); RT-Q2…RT-Q10 and RT-Q12 are decided for the track (RT-Q6 and RT-Q10 against the recommended
-> options, both since replaced by Abu Salem); RT-Q11 was never asked (it was postponed with RT-Q1) and is asked before 60-2 starts (`TODO(spec)` RT-Q11).
+> options, both since replaced by Abu Salem); RT-Q11 (where the public page is hosted) is answered: a small copy of `apps/menu` that holds only the rating page, on its own address (Waleed, card through his super agent, 2026-10-22, batch 46; Abu Salem's pick replaces it if it differs).
 > PP-18 batch 4: MY-Q1…MY-Q4 answered (MY-Q1 and MY-Q2 against the recommended options). Batch 5: MY-Q5, MY-Q7, MY-Q8
 > and RT-Q13 (PP-20.4) answered (MY-Q5, MY-Q7 and RT-Q13 against the recommended options).
 > PP-18's last batch (2026-10-21): AL-Q1…AL-Q6 and the RT-Q7 follow-up answered (AL-Q1, AL-Q2 and the follow-up against
@@ -16,9 +16,9 @@
 > branch manager, each in their scope, grantable only to a membership whose role is one of those four (the grant use case refuses it otherwise, 61-2); **RT-Q7b** comments show only to the owner and those three managers, which is every possible holder, so a "holder without comments" never arises.
 > **RT-Q10** no, not in this phase: a customer who opted out stays opted out (sub-PR 58-3 is not built). **AL-Q1** a new permission «إدارة التنبيهات» for the owner, the general manager and the business manager, grantable (the merged 62-1
 > uses `manage:settings:business`: issue #495). **RT-Q13** its own permission «إدارة رسايل التقييم» (`manage:rating-requests:business`), the owner only at first, grantable.
-> **Two owner questions are open: RT-Q11 (where the public rating page is hosted; it blocks 60-2) and RT-Q14** (does a visit recorded live just after the close get a rating message; issue #452, it blocks 59-1). MY-Q10's guard is settled. **MY-Q6** (what an employee sees of her approved earnings; a money question) was answered the same way by Waleed and Abu Salem on the decisions page
-> (batch 37, 2026-10-22; the recommended option): an approved month shows «معتمد» and the approved amount, and a correction shows in the month it landed in with the word «تصحيح» and no details.
-> AL-Q7 (PP-29.1) is answered, see §3. Every rule that still waits on a `TODO(spec)` is marked here (RT-Q11 for 60-2 and RT-Q14 for 59-1) and
+> **No owner question is open.** CS-Q30 (spec 059, batch 48) is answered: the employee sees full correction details, never the customer's name (MY-06). **RT-Q11** (where the public rating page is hosted) is answered: a separate rating-only copy of `apps/menu` (60-2 waits for its ADR, §11). **RT-Q14** (issue #452) is answered: a visit recorded live up to 30 minutes after the close is rated (Waleed, card through his super agent, 2026-10-22, batch 46; Abu Salem's pick replaces it if it differs). MY-Q10's guard is settled. **MY-Q6** (what an employee sees of her approved earnings; a money question) was answered the same way by Waleed and Abu Salem on the decisions page
+> (batch 37, 2026-10-22; the recommended option): an approved month shows «معتمد» and the approved amount, and a correction shows in the month it landed in under «تصحيح»; its detail was replaced by **CS-Q30** (Waleed's card, 2026-10-22): full details as the manager sees them, never the customer's name.
+> AL-Q7 (PP-29.1) is answered, see §3. No rule waits on a `TODO(spec)`; a rule that waits on something else is marked here and
 > blocks only the sub-PRs named in §3. **No code starts before this spec is merged.**
 > **Two parts:** **Part A** — the staff app (rows 57, 57b, 57c). **Part B** — ratings and alerts (rows 58, 59, 59b, 60,
 > 61, 62). Each part has its own decisions, tests, requirements and sub-PR plan; §1–§3 and §8–§9 are shared.
@@ -87,14 +87,14 @@ without letting that voice touch commission (D-41, D-14).
 | S-19 | Staff private access is online only: no private data persisted or synced in the PWA; caches cleared on logout/replacement | `CLAUDE.md` §7 (ADR-0019), ADR-0027 |
 | S-20 | Leave: request, cancel and list own requests already exist (`staff/me/leave-requests`, kiosk and personal sessions); no leave balance in Phase 1 | ADR-0026 |
 
-## 3. Open owner questions and what each blocks
+## 3. Owner questions (all answered) and what each blocked
 
 All are in [owner-questions.ar.md](owner-questions.ar.md) with options and a recommended option. MY-Q6 is a money
 question (what staff earn, `CLAUDE.md` §1 5b) and went to Abu Salem too (both owners picked the same); the others went to Waleed. Since PP-23.2
 (`CLAUDE.md` V3.14, 2026-10-21) every question is on the shared decisions page for both owners and Abu Salem's pick binds
 on a difference: the product questions among PP-15…PP-23 were republished in batch 40 with Waleed's picks (here PP-18 = MY-Q1…MY-Q8,
-RT-Q1…RT-Q10 and RT-Q12, AL-Q1…AL-Q6; PP-20.4 = RT-Q13; PP-21.1 = MY-Q9; RT-Q11 was never asked), and AL-Q7
-is in batch 45. Until an answer arrives the rule is `TODO(spec)` and only the sub-PRs listed here wait.
+RT-Q1…RT-Q10 and RT-Q12, AL-Q1…AL-Q6; PP-20.4 = RT-Q13; PP-21.1 = MY-Q9; RT-Q11 was asked in batch 46), and AL-Q7
+is in batch 45. All are answered (the last ones on 2026-10-22: RT-Q11, RT-Q14, and CS-Q30 in spec 059); none leaves a `TODO(spec)`. If Abu Salem picks differently, his pick replaces the answer and the rule it names.
 
 | ID | Subject | Blocks |
 |---|---|---|
@@ -103,7 +103,7 @@ is in batch 45. Until an answer arrives the rule is `TODO(spec)` and only the su
 | MY-Q3 | Default columns when the manager has not chosen | **Answered (PP-18.3): her work and her money only** (D-A6) |
 | MY-Q4 | May the column setting hide the estimate | **Answered (PP-18.4): yes, an ordinary column, shown by default** (MY-20) |
 | MY-Q5 | Who edits the staff-columns setting | **Answered by Abu Salem (batch 40, 2026-10-22, binding; the recommended option, replacing Waleed's PP-18.5 «نفس إدارة الإعدادات»):** a new permission «أعمدة تطبيق الموظفين» (proposed code `manage:staff-app-columns:business`) for the owner, the general manager and the business manager, grantable to anyone; it covers the columns and the months-back setting. Merged code: issue #496 |
-| MY-Q6 | What a closed (approved) month shows: the approved amount or the estimate | **Answered (batch 37, 2026-10-22; Waleed and Abu Salem picked the same option, the recommended one):** «الشهر المعتمد يبان عليه «معتمد» والمبلغ المعتمد، والتصحيح يبان في الشهر اللي نزل فيه بكلمة «تصحيح» من غير تفاصيل» (MY-06, FR-A02) |
+| MY-Q6 | What a closed (approved) month shows: the approved amount or the estimate | **Correction detail replaced by CS-Q30 (Waleed's card, 2026-10-22): full details, never the customer's name.** **Answered (batch 37, 2026-10-22; Waleed and Abu Salem picked the same option, the recommended one):** «الشهر المعتمد يبان عليه «معتمد» والمبلغ المعتمد، والتصحيح يبان في الشهر اللي نزل فيه بكلمة «تصحيح» من غير تفاصيل» (MY-06, FR-A02) |
 | MY-Q7 | What the employee sees of a manager's attendance correction | **Answered by Abu Salem (batch 40, 2026-10-22, binding; the recommended option, replacing Waleed's PP-18.7 «كل التفاصيل»):** the new time and the «اتعدّل» mark only, without the reason and without who edited (D-A10) |
 | MY-Q8 | Cancelled lines in «شغلي»: shown with a mark, or hidden | **Answered (PP-18.8): shown struck through** (MY-07) |
 | MY-Q9 | The months-back setting's default and allowed range (D-A14) | **Answered by Abu Salem (batch 40, 2026-10-22, binding; the recommended option, replacing Waleed's PP-21.1 «شهر، ولحد 24»):** the default is two months (the current and the previous), and the manager picks from 1 to 12. Merged code: issue #497 |
@@ -112,16 +112,16 @@ is in batch 45. Until an answer arrives the rule is `TODO(spec)` and only the su
 | RT-Q2 | Approval of the ar/en copy: WhatsApp message, page, completion, opt-out, unavailable link | **Answered (PP-18.10): approved as proposed** (§B.4 copy); used when the track resumes |
 | RT-Q3 | A per-business switch for sending rating requests, and its default | **Answered (PP-18.11): a switch, off at first** (D-B16); used when the track resumes |
 | RT-Q4 | Which closing time counts when a day has two opening periods, and which day an overnight interval (its close and its post-midnight visits) belongs to (after-close behaviour is settled by S-2) | **Answered (PP-18.12): the last close of the day; an overnight interval belongs to the day it started** (D-B3); used when the track resumes |
-| RT-Q5 | A visit recorded after its day ended (late entry): rated or not | **Answered (PP-18.13): no message**, with or without opening hours (RT-05) |
+| RT-Q5 | A visit recorded after its day ended (late entry): rated or not | **Answered (PP-18.13): no message**, with or without opening hours (RT-05); "after its day ended" means more than 30 minutes after the day end (RT-Q14) |
 | RT-Q6 | The average's window and the minimum count before an employee sees it | **Window (RT-Q6a): answered by Abu Salem (batch 40, 2026-10-22, binding; the recommended option, replacing Waleed's PP-18.14 «آخر 90 يوم»): the current month, with the number of ratings beside it. Minimum count (RT-Q6b, PP-18.15): shown from the first rating** (Waleed; no difference recorded) (D-B12) |
 | RT-Q7 | Who reads ratings, averages and comments in the admin | **Answered by Abu Salem (batch 40, 2026-10-22, binding; the recommended option, replacing Waleed's PP-18.16 «نفس صلاحية جلسات الفرع»):** a new permission «قراءة التقييمات» (proposed code `read:ratings:branch`) for the owner, the general manager, the business manager and the branch manager, each in their scope, grantable only to a membership whose role is owner, general manager, business manager or branch manager (enforced in the permission grant use case, 61-2). **Follow-up RT-Q7b: answered by Abu Salem (batch 40, 2026-10-22, binding; the recommended option, replacing Waleed's «أي حد معاه الصلاحية»):** comments show only to the owner and the three managers. RT-Q7b was asked about holders of `read:service-sessions:branch`, which no longer gates ratings; with RT-Q7's grant rule every holder of `read:ratings:branch` is the owner or one of the three managers, so the "holder without comments" branch does not arise (FR-B15, BR-B4; ADR-0011 §8's amendment is withdrawn) |
 | RT-Q8 | The low-rating alert before the alert-rules screen exists | **Answered (PP-18.17): on, in-app, the four managers in the visit branch's scope** (the recommended interim rule; RT-22) |
 | RT-Q9 | What the low-rating alert shows | **Answered (PP-18.18): stars, branch, date, performers' names, the customer's name and the last 3 phone digits; the comment in-app only**, WhatsApp/email say «there is a low rating, open PosPay» (the recommended option; RT-23) |
 | RT-Q10 | May reception or a manager undo a customer's opt-out | **Answered by Abu Salem (batch 40, 2026-10-22, binding; the recommended option, replacing Waleed's PP-18.19 «الريسبشن والمدير»):** no, not in this phase; whoever opted out stays opted out. Sub-PR 58-3 and RT-17b are not built in this phase |
-| RT-Q11 | Where the public rating page is hosted | **Never asked; the rating track now resumes (RT-Q1), so it is asked before 60-2 starts** (`TODO(spec)` RT-Q11; blocks 60-2) |
+| RT-Q11 | Where the public rating page is hosted | **Answered (Waleed, card, 2026-10-22, batch 46):** «نعمل نسخة صغيرة من `apps/menu` فيها صفحة التقييم بس، على عنوان لوحده» — a separate rating-only deployable with its own address; it needs an ADR for the deploy target before 60-2 (§11). Abu Salem's pick replaces it if it differs |
 | RT-Q12 | The message names the performers (first names) when there are several | **Answered (PP-18.20): all first names; more than 3 → «the team of <business>»** (the recommended option; D-B6) |
 | RT-Q13 | Who may switch rating requests on or off for a business (D-B16) | **Answered by Abu Salem (batch 40, 2026-10-22, binding; the recommended option, replacing Waleed's PP-20.4 «نفس صلاحية التنبيهات»):** its own permission «إدارة رسايل التقييم» (`manage:rating-requests:business`), held by the owner only at first, grantable to anyone (59-2) |
-| RT-Q14 | A visit recorded live after the close (22:15 at a 22:00 close): late entry (no message) or on time (rated), issue #452 | **Pending** (new question, 2026-10-22). Recommended: on time within the 30-minute allowance of S-2 | `TODO(spec)` — blocks 59-1 (RT-05, RT-06) |
+| RT-Q14 | A visit recorded live after the close (22:15 at a 22:00 close): late entry (no message) or on time (rated), issue #452 | **Answered (Waleed, card, 2026-10-22, batch 46):** «تتحسب» — recorded up to 30 minutes after the day end, the visit belongs to the day and is rated; later it is a late entry. Abu Salem's pick replaces it if it differs (RT-05, RT-06; 59-1) |
 | AL-Q1 | Who edits the alert rules | **Answered by Abu Salem (batch 40, 2026-10-22, binding; the recommended option, replacing Waleed's PP-18.21 «نفس إدارة الإعدادات»):** a new permission «إدارة التنبيهات» (proposed code `manage:alert-rules:business`) for the owner, the general manager and the business manager, grantable to anyone. Merged code (62-1, #467) guards with `manage:settings:business`: issue #495 |
 | AL-Q2 | Alert rules per business or per branch | **Answered (PP-18.22): «نشاط، والفرع يغيّر»**, business rules a branch may override (D-B13) — against the recommended option |
 | AL-Q3 | Recipients chosen by role or by named person | **Answered (PP-18.23): by role** (recommended) |
@@ -181,7 +181,7 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
   DRAFT month for her and the estimate per line; with it hidden the response carries **no figure at all** (neither
   total nor per line) and the card is not shown; it equals the engine on the DRAFT projection (SPEC §6). `NO_PLAN` / `NO_SALARY` show
   «مفيش خطة عمولة لسه» and no number (D-57). A whole-period version shows «الحساب اتغيّر» (D-38).
-- **MY-06** MY-Q6 (both owners, 2026-10-22): a month whose statement is approved shows «معتمد» and the approved amount, the same figure that will be paid, never the estimate; a correction posted into a later month shows in that month with the word «تصحيح» and its amount, without details (no service, date or customer); a month still DRAFT keeps showing the estimate (MY-05).
+- **MY-06** MY-Q6 (both owners, 2026-10-22): a month whose statement is approved shows «معتمد» and the approved amount, the same figure that will be paid, never the estimate; a correction posted into a later month shows in that month under «تصحيح» with its full details as the manager sees them (date, service, original month, was, became, difference) and never the customer's name (CS-Q30, Waleed's card 2026-10-22, PP-32.1, replacing MY-Q6's «without details»; Abu Salem's pick replaces it if it differs); a month still DRAFT keeps showing the estimate (MY-05).
 - **MY-07** MY-Q8 (PP-18.8): a cancelled line is shown struck through with «اتلغت» and its cancellation date, and no
   commission.
 - **MY-08** Tips: with `tip` allowed, her own tips of the month by method (cash / card) from her own tip rows; never a
@@ -251,7 +251,7 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
   Guarded by `@Authenticated()` + `PERSONAL_ROUTE` + an explicit own check of `read:service-sessions:own` (ADR-0026),
   feature `orders`.
 - **FR-A02** (blocked on row 50) `GET /v1/staff/me/commission-estimate?month=YYYY-MM` (commissions, `queries/`):
-  `{ status: 'ESTIMATE' | 'NO_PLAN' | 'NO_SALARY' | 'APPROVED' (MY-Q6: the statement is approved; `total` is the approved amount, and corrections posted into the month show as «تصحيح» with an amount only; the exact fields are fixed in 57-3), total?, per_line?: [{ line_id, amount }],
+  `{ status: 'ESTIMATE' | 'NO_PLAN' | 'NO_SALARY' | 'APPROVED' (MY-Q6: the statement is approved; `total` is the approved amount, and corrections posted into the month show under «تصحيح» with the manager's detail fields (date, service, original month, was, became, difference) and never the customer's name, CS-Q30; the exact fields are fixed in 57-3), total?, per_line?: [{ line_id, amount }], corrections?: [{ kind (LINE | SALE | TIP_CARD | TIP_CASH), source_period, business_date | null, service_name_ar | null, service_name_en | null, previous_amount, new_amount, amount }] (in every month with corrections, DRAFT or APPROVED; the service fields only on a `LINE` correction, as spec 059 FR-033 freezes a sale or tip correction without line detail; CS-Q30: the manager's detail fields, never a customer field),
   recalculated?: boolean }`, computed on read by the engine (S-15); `total` **and** `per_line` only with
   `estimated_commission` allowed, otherwise `{ status: 'HIDDEN' }` with no amount (D-A2); `read:commissions:own`, feature `commissions`.
 - **FR-A03** `GET /v1/staff/me/tips?month=YYYY-MM` (orders): her tips of the month by method, only with `tip` allowed,
@@ -323,7 +323,7 @@ and months-back editor is the new staff-app-columns permission, proposed `manage
 | **57c-1** | Column setting storage + port | 1. Contract (`StaffColumnCode` enum, GET/PUT schemas), migration (`staff_columns`, `staff_months_back` with `CHECK … BETWEEN 1 AND 12`, grant; one new permission, proposed `manage:staff-app-columns:business`, MY-Q5, Abu Salem; the PUT uses it, and the GET `RequireAny(['read:settings:business', <the new permission>], { business: 'businessId' })`, MY-Q10). The merged 57c-1 (#468) uses `manage:settings:business` and `BETWEEN 1 AND 24` with `NULL` = one month: issues #496 and #497 change them. 2. Settings use case + routes + audit; the `RequireAny` guard exactly as spec 058 TD-13 specifies it (built here if 42-4a has not merged yet, otherwise reused); `StaffColumnsPort` readers (orders, commissions, customers and staff adapters — staff's serves the «حضوري» window of 57b-1 — + their module-map rows and YAML edges). 3. Unit + integration tests MY-13 (window part, through each adapter, staff's included), MY-17…MY-21, and the GET guard: a read-only holder and a manage-only holder each succeed, a holder of neither gets 403 | **A-0** (MY-Q3, MY-Q4, MY-Q5, MY-Q9 decided; the follow-up issues #496 and #497 align the merged code) | 260–380 |
 | **57-1** | Own access for the staff app | 1. Four own codes + defaults migration, catalog, inventory tests. 2. ADR-0027 addendum (D-A5). 3. Own-check helper reuse + refusal tests MY-09…MY-12; the D-A13 reception-device path (PIN step-up and private-view window in `packages/auth`, the FR-A06b `SessionGuard` policy) + MY-13b, its killed-tab case included | **57-0** (MY-Q1 decided) | 180–280 |
 | **57-2** | «شغلي» API | 1. Orders own query (FR-A01) + tips (FR-A03) with column projection + `EXPLAIN`. 2. Routes, guard, error mapping, OpenAPI + clients. 3. Tests MY-01…MY-04, MY-07, MY-08, MY-13 | 57-1, 57c-1, **A-0** (MY-Q2, MY-Q8, MY-Q9 decided) | 300–420 |
-| **57-3** | Estimate API | 1. Commissions own query over the DRAFT projection (FR-A02). 2. Route + OpenAPI. 3. Tests MY-05, MY-06 | **row 50**, 57-1, 57c-1 (MY-Q6 answered) | 200–320 |
+| **57-3** | Estimate API | 1. Commissions own query over the DRAFT projection (FR-A02). 2. Route + OpenAPI. 3. Tests MY-05, MY-06 | **row 50**, 57-1, 57c-1 (MY-Q6 and CS-Q30 answered) | 200–320 |
 | **57-4** | «شغلي» screen | 1. POS screen + hooks + i18n. 2. Estimate card shell (renders "pending"; 57-5 wires it); the reception-device private view (PIN step, idle close, the throttled activity touch, cache clearing, D-A13). 3. UI tests (visible columns, hidden column absent, pending card, the PIN step and the closed screen after idle) | 57-2 | 240–360 |
 | **57-5** | Estimate card wiring | 1. The card calls the generated `commission-estimate` hook (57-3) and replaces the pending state. 2. i18n for amount / «مفيش خطة» / recalculated note. 3. UI tests asserting the visible amount, the no-plan text and the hidden card when `estimated_commission` is not allowed (MY-05, MY-06 screen side) | 57-3, 57-4 | 120–200 |
 | **57b-1** | «حضوري» API | 1. Staff own query (FR-A04, with the MY-Q7 correction shown as the new time and the «اتعدّل» mark only) + `EXPLAIN`. 2. Route (FR-A06b policy) + OpenAPI + clients. 3. Tests MY-14, MY-15, the API part of MY-13b for attendance + access | 57-1, 57c-1 (months window) (MY-Q2, MY-Q7, MY-Q9 decided) | 220–320 |
@@ -343,11 +343,11 @@ and months-back editor is the new staff-app-columns permission, proposed `manage
 > RT-Q10 below). Their design below is the plan, with RT-Q2 (copy approved as proposed), RT-Q3 (a switch, off at first) and RT-Q4
 > (the last close of the day; an overnight interval belongs to the day it started) recorded as decisions: wherever the
 > text below offers a branch for another answer of those three, the answered branch applies. Also decided for the track: RT-Q5 (a
-> visit recorded after its day ended gets no message), RT-Q6 (the current month with its count; shown from the first rating) and RT-Q7
+> visit recorded more than 30 minutes after its day ended gets no message, RT-Q14), RT-Q6 (the current month with its count; shown from the first rating) and RT-Q7
 > (a new ratings-read permission for the owner and the three managers; comments only for them, RT-Q7b). RT-Q8 (the four managers, in-app), RT-Q9 (the recommended content, the comment in-app only),
 > RT-Q10 (**no** restore in this phase; sub-PR 58-3 is not built) and RT-Q12 (all first names) are decided too;
-> RT-Q1 is answered (the link design above) and RT-Q13 too (its own permission); **RT-Q11 (where the public page is hosted) was never asked and
-> is asked before 60-2 starts** (`TODO(spec)` RT-Q11). **The alert rules proceed as before:** 62-1,
+> RT-Q1 is answered (the link design above) and RT-Q13 too (its own permission); **RT-Q11 (where the public page is hosted) is answered:
+> a rating-only copy of `apps/menu` on its own address** (batch 46). **The alert rules proceed as before:** 62-1,
 > 62-2, 62-2b, 62-2c, 62-4 and 62-3 (AL-Q7 answered, PP-29.1); the `LOW_RATING` kind joins them with 61-1.
 
 **In:** the rating request lifecycle (schedule, claim, send, expire), the public page with submit and opt-out, the
@@ -394,13 +394,14 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 - **RT-05** A branch with no opening hours → `send_deadline = NULL` (S-2). RT-Q5 (PP-18.13): a session recorded after
   its request day ended is left out of the day's sessions for scheduling and the claim. **The day ends at the close of its last open
   interval** (02:00 for an 18:00–02:00 day, the overnight tail included, RT-Q4), or at the branch-local midnight when
-  the branch has no opening hours; no recording-delay allowance exists. One pure predicate `isLateEntry(recordedAt,
-  requestDay, zone, openingHours)` in `customers/domain`, applied inside `sessionsOfDay` so scheduling and the claim
-  use the same rule. A 00:30 visit in 18:00–02:00 recorded at 00:31 is on time; recorded at 02:05 it is late.
-  **`TODO(spec)` RT-Q14 (issue #452; a product choice, pending; it blocks 59-1):** a visit that really happens after the close and is recorded as it
-  happens (22:15 at a 22:00 close, recorded at 22:15) is late by this rule, while RT-06 (S-2) lets it be claimed until
-  22:30; whether such a visit gets a rating message is the question RT-Q14. This holds with or without opening hours; a day whose only sessions are such late entries gets no
-  row; a late entry added to a day that already has a request does not move it.
+  the branch has no opening hours. **RT-Q14 (Waleed, 2026-10-22, batch 46; issue #452):** a session whose request day (by its
+  `occurred_at`, D-B3) is D and that is recorded 30 minutes or less after D's end is on time and rated, the same
+  allowance as S-2's send window; recorded later it is a late entry. The allowance never moves a session's request day. One pure predicate `isLateEntry(recordedAt, requestDay, zone, openingHours)` in
+  `customers/domain` (late = recorded more than 30 minutes after the day end), applied inside `sessionsOfDay` so
+  scheduling and the claim use the same rule. A 00:30 visit in 18:00–02:00 recorded at 00:31 or at 02:30 is on time;
+  recorded at 02:31 it is late. A 22:15 visit at a 22:00 close recorded at 22:15 is on time and rated; in a branch with no opening hours a 23:50 visit recorded at 00:15 is on time for its own day, while a visit at 00:15 belongs to the next day. This holds with
+  or without opening hours; a day whose only sessions are late entries gets no row; a late entry added to a day that
+  already has a request does not move it.
 - **RT-01b** Two branches of one business, Kuwait (UTC+3) and Dubai (UTC+4), neither with an interval crossing
   midnight: a 23:30 Kuwait visit on day D and a
   00:10 Dubai visit on D+1 (20 minutes earlier as an instant) make two requests; D is due from the Kuwait session at
@@ -409,8 +410,8 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
 - **RT-06** RT-Q4 (decided): a split day (10:00–13:00, 16:00–22:00) and an overnight interval (18:00–02:00), including
   a 23:00 and a 00:30 visit in that interval: one request on the start day with the 02:00 close (D-B3, RT-Q4), and
   `requestDayOf` unit tests. Settled
-  either way (S-2): a 22:15 visit at a 22:00 close is due at once and claimable until 22:30; at 22:31 → `PAST_DEADLINE` (whether such a
-  visit recorded after the close is a late entry is the RT-05 `TODO(spec)` RT-Q14, issue #452).
+  either way (S-2): a 22:15 visit at a 22:00 close is due at once and claimable until 22:30; at 22:31 → `PAST_DEADLINE` (recorded at 22:15 it
+  is on time, RT-05, RT-Q14).
 - **RT-07** RT-Q3 (decided: a switch, off at first): a business with rating requests switched off schedules nothing (59-1), and a request
   found switched off at the claim is `CANCELLED` with `REQUESTS_OFF` (59b-2). Both exist only if RT-Q3 keeps the switch.
 - **RT-08** Bootstrap (FR-B02b): sessions recorded before 59 ships schedule only requests whose deadline is still ahead;
@@ -572,13 +573,18 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
   `GET/PUT/DELETE /v1/businesses/:businessId/branches/:branchId/alert-rules` (a branch's overrides; `DELETE` of a kind
   returns the branch to the business rule, AL-Q2) and `PUT /v1/businesses/:businessId/alert-rules/master`; idempotent,
   audited, all guarded by the alert-rules permission on the business (AL-Q1, Abu Salem, D-B13); validated per kind (delay/lead
-  ranges, allowed recipient roles, `IN_APP` only until row 62b, AL-Q6).
+  ranges, allowed recipient roles, `IN_APP` only until row 62b, AL-Q6). Concurrency (as built in 62-1, PR #467): every
+  view shows, per kind, the `rule_id` and `revision` stored at that scope (both `null` when none is stored); a `PUT`
+  carries `expected_rule_id` and `expected_revision` per kind, and a branch `DELETE` carries both in the query. Any
+  mismatch is `409 ALERT_RULE_REVISION_CONFLICT` and writes nothing. The `rule_id` makes a request read before a
+  delete-and-recreate stale even when the new row's `revision` matches. A `PUT` returns the state it wrote, from the same
+  transaction.
 - **FR-B17** `AlertRulesPort` read in the API (customers) and worker (staff, orders) per D-B13/D-B14; every interim rule
   is replaced: `interimNotClockedInRule` (ADR-0037 §3), `interimBreakNotReturnedRule` (spec 041, both in
   `apps/worker/src/modules/staff/domain/`), the late-session,
   price-edit, cancel and performers bells (ADR-0041 35b-2, ADR-0044 and addenda), `AttendanceExceptionRaised`
   (no recipients until now, ADR-0032), `DocumentExpiring` (spec 033 contract), and the row 28c lead time, and the API staff emitters of `AttendanceChangeRequested` / `AttendanceChangeDecided` (ADR-0040, sub-PR 62-2b).
-- **FR-B18** Public page (row 60, host per RT-Q11): business name, five stars, optional comment, submit, opt-out,
+- **FR-B18** Public page (row 60, hosted in a rating-only copy of `apps/menu` on its own address, RT-Q11): business name, five stars, optional comment, submit, opt-out,
   completion and unavailable states; generated client hooks, i18n, RTL; the token read from the fragment and sent in
   the header; nothing stored in the browser.
 
@@ -679,13 +685,13 @@ The message uses the customer's stored name only as a greeting inside her own Wh
 | **58-1** | Rating storage | 1. Migration: the four tables of D-B1, RLS, grants, indexes (not `rating_settings` and not the `REQUESTS_OFF` reason: both wait for RT-Q3 in 59-2). 2. Contracts (statuses, reasons, DTOs). 3. RLS/privilege negative tests | this spec merged | 280–400 |
 | **58-2** | Opt-out API + public-route base | 1. Token parser and hash (pure), per-IP limiter (D-B11). 2. `opt-out` use case + `@Public()` route + audit. 3. Tests RT-17 (opt-out part), RT-19, RT-20 (limits) | 58-1 | 300–420 |
 | **58-3** | Restore rating messages — **NOT BUILT in this phase (RT-Q10, Abu Salem 2026-10-22: no restore; an opt-out stays)** | (the dropped design, kept for history:) 1. ADR-0011 addendum (a staff restore is a separate audited capability; the token flow still never re-subscribes; WhatsApp STOP is never reversed, ADR-0013) + a new permission granted by default to reception and the four manager roles (RT-Q10). 2. `restore-rating-messages` use case + route (idempotent, audited `customer.rating_messages_restored` with actor and time) + the button on the customer screen with the STOP note. 3. Tests RT-17b + UI test (restored state and the STOP note visible) | — (not built; RT-17b) | 220–320 |
-| **59-1** | Scheduling | 1. `ratingSchedule` pure function + unit tests; `DaySessionsPort` reader in orders + worker root callback (FR-B06); `BranchScheduleHoursPort` in worker customers with its `persistence/` adapter, bound at the root, over the worker tenancy `branchScheduleHours` reader and its `reads` line (D-B3, ADR-0010 addendum §3); `requestDayOf` + unit tests. 2. Worker customers module: the three consumers reading `DaySessionsPort` on every delivery (D-B2), insert-or-lock, reopen; bootstrap job + orders `sessionsSince`/`countSince` paged reader + runbook entry (FR-B02b). 3. Tests RT-01…RT-08 (RT-07 scheduling part only, and only if RT-Q3 keeps the switch), RT-01b scheduling part, the FR-B02 reorder/replay tests and the differing-date consumer test | 58-1, 59-2 (or RT-Q3 answered «no switch»), **A-0**; RT-Q3, **RT-Q4** (both decided); **RT-Q14** (issue #452: a visit recorded live after the close, RT-05/RT-06; pending) | 360–500 |
+| **59-1** | Scheduling | 1. `ratingSchedule` pure function + unit tests; `DaySessionsPort` reader in orders + worker root callback (FR-B06); `BranchScheduleHoursPort` in worker customers with its `persistence/` adapter, bound at the root, over the worker tenancy `branchScheduleHours` reader and its `reads` line (D-B3, ADR-0010 addendum §3); `requestDayOf` + unit tests. 2. Worker customers module: the three consumers reading `DaySessionsPort` on every delivery (D-B2), insert-or-lock, reopen; bootstrap job + orders `sessionsSince`/`countSince` paged reader + runbook entry (FR-B02b). 3. Tests RT-01…RT-08 (RT-07 scheduling part only, and only if RT-Q3 keeps the switch), RT-01b scheduling part, the FR-B02 reorder/replay tests and the differing-date consumer test | 58-1, 59-2 (or RT-Q3 answered «no switch»), **A-0**; RT-Q3, **RT-Q4** (both decided); RT-Q14 (answered: the 30-minute recording allowance, RT-05) | 360–500 |
 | **59-2** | Rating-request switch | 1. Migration `rating_settings` (RLS, grant, negative tests) + the `REQUESTS_OFF` cancel reason in contracts, then `set-rating-requests` use case + `GET/PUT …/rating-settings` routes, audit, the new permission `manage:rating-requests:business` (RT-Q13, Abu Salem: catalog, owner-only default, grantable, seeding migration; D-B16); nothing of this is built if RT-Q3 drops the switch. 2. Admin toggle on the settings page (i18n, RTL). 3. Tests of the switch itself only: persistence (`NULL` default, on/off round trip), audit, uniform 403, UI test (switch state visible); RT-07's scheduling and claim tests live in 59-1 and 59b-2 | 58-1 (RT-Q3, RT-Q13, AL-Q1 decided) | 220–320 |
 | **59b-1** | Token codec | 1. ADR (RT-Q1) + codec in its owning package, keys from env only. 2. Root injection (api + worker). 3. Unit tests (determinism, domain separation, key ids, derivation by a stored version after a rotation) | this spec merged (RT-Q1 answered by Abu Salem) | 160–260 |
 | **59b-2** | Claim | 1. `PerformerNamePort` (the `DaySessionsPort` of 59-1 reused). 2. Claim use case (D-B5), discovery scheduler (D-B4), `RatingRequestReady`; on rollout, a registered ADR-0038 data step reads `companies.id` and, per company under `withTenant`, emits one outbox `RatingClaimsDiscoveryRequested` when it already has unclaimed requests (written by 59-1 or its bootstrap), whose consumer registers `rating-claims-<companyId>` exactly as the first scheduling event would (idempotent; no new session needed). 3. Tests RT-09…RT-13, RT-14b (claim, rotate, send), a company whose requests exist before 59b-2 deploys is claimed with no new event, RT-01b claim attribution, RT-07 claim part (`REQUESTS_OFF`, only if RT-Q3 keeps the switch) | 59-1, 59b-1 | 380–520 |
 | **59b-3** | Send | 1. Template `rating_request` ar/en + link rendering in the sender + deadline. 2. SENT tracking (D-B8) + module-map/ADR addendum. 3. Tests RT-04 (send side), RT-14 | 59b-2 (RT-Q2, RT-Q12 decided). May merge with sending disabled; **live activation** (template enabled; and, only if RT-Q3 keeps a switch, the business's switch on through 59-2; with RT-Q3's «no switch» answer the enabled template alone) waits until **60-1, 60-2 and 61-1 are deployed and verified on staging**, so no customer gets a link before the page and submit work, and no rating of two stars or less is submitted before its low-rating alert exists (SC-004; `LowRatingReceived` has no replay path) | 260–380 |
 | **60-1** | Submit API | 1. `view` + `submit-rating` use cases (D-B9). 2. Routes + OpenAPI. 3. Tests RT-15…RT-18, RT-21 | 58-2 | 360–480 |
-| **60-2** | Public page | 1. App shell or route per RT-Q11, headers, no trackers. 2. Page states ar/en/RTL + opt-out control. 3. UI tests (only business name and form visible; completion; reopening a consumed, unexpired link shows the completion state and the opt-out control, not the form; unavailable) | 60-1; **RT-Q2**, RT-Q11 | 280–420 |
+| **60-2** | Public page | 1. The rating-only `apps/menu` app shell (RT-Q11, its ADR), headers, no trackers. 2. Page states ar/en/RTL + opt-out control. 3. UI tests (only business name and form visible; completion; reopening a consumed, unexpired link shows the completion state and the opt-out control, not the form; unavailable) | 60-1; **RT-Q2**, RT-Q11 | 280–420 |
 | **61-1** | Low-rating alert | 1. `LowRatingReceived` with recipients taken from `AlertRulesPort` (kind `LOW_RATING`, its default = RT-Q8's four managers in-app) and resolved to users through `RatingAlertRecipientsPort` (A-1; its identity adapter is built here); no interim fixed rule is built. 2. Template `low_rating` + bell render; the comment only in the notices of recipients who are the owner or a general, business or branch manager and whose effective ratings-read permission in the visit branch's scope allows it, DENY first (BR-B4, RT-Q7b, `RatingAlertRecipientsPort.commentReaders`). 3. Tests RT-22, RT-23, a manager-role recipient with a DENY on the ratings-read permission for the visit branch who gets the notice without the comment, and one holding it who gets the comment | 60-1, **62-1**, **A-1** (RT-Q8, RT-Q9 decided) | 260–360 |
 | **61-2** | Averages | 1. Staff summary read (FR-B14) + admin list/averages (FR-B15) with `EXPLAIN`. 2. The new ratings-read permission `read:ratings:branch` (RT-Q7, Abu Salem: catalog, role defaults, seeding migration) and its grant rule: the permission grant use case (spec 009's flow) refuses this code for a membership whose role is not owner, general manager, business manager or branch manager, and the ratings read re-checks the role; + routes. 3. Tests RT-24, RT-25, the grant refusal (a cashier or reception membership → refused, nothing written) + admin screen UI test | 61-1, 57c-1 (RT-Q6, RT-Q7 decided) | 340–460 |
 | **61-3** | Rating summary on «شغلي» | 1. Lift the `rating_average` gate: `StaffColumnsPort` stops removing it (FR-A08), the D-A7 validator accepts it in a saved set, and the column-settings screen offers it. 2. The work screen's card calls the generated `rating-summary` hook (61-2) when `rating_average` is allowed; i18n for average / count / the «no ratings yet» text (RT-Q6: shown from the first rating). 3. Tests: a saved set naming `rating_average` is accepted and reaches the staff response through every adapter, the MY-Q3 default now includes it, the settings screen shows its checkbox, and UI tests asserting the visible average and count, the «no ratings yet» text, and no card when `rating_average` is not allowed | 61-2, 57-4, 57c-2 | 120–200 |
@@ -719,7 +725,7 @@ both add templates in `packages/notifications` — one at a time. 62-3 touches t
   orchestrator applies it with this spec or in a docs PR; Part A already follows it.
 - **Amendment 2 (ADR-0027):** the own-scope capability list gains the four reads of D-A4 (sub-PR 57-1).
 - **Amendment 3 (ADR-0010 / module-map §4):** the `notifications ⇒ customers` outcome row (D-B8).
-- **Amendment 4 (IMPLEMENTATION-PLAN):** 57c-1 before 57-2 (D-A12); rows 59b and 60 follow RT-Q1 (answered by Abu Salem), RT-Q2 (approved) and RT-Q11 (to be asked); rating
+- **Amendment 4 (IMPLEMENTATION-PLAN):** 57c-1 before 57-2 (D-A12); rows 59b and 60 follow RT-Q1 (answered by Abu Salem), RT-Q2 (approved) and RT-Q11 (answered: a rating-only `apps/menu`); rating
   sends go live only after 60-1, 60-2 and 61-1 are deployed and verified.
 - **Amendment 5 (ADR-0010 addendum, docs PR A-0):** orders as a `StaffColumnsPort` consumer (D-A3), worker orders as
   an `AlertRulesPort` consumer (D-B14) and worker customers' new `BranchScheduleHoursPort` (D-B3), with their module-map §3
@@ -731,8 +737,9 @@ both add templates in `packages/notifications` — one at a time. 62-3 touches t
   (the months-back values 1–24 and the `manage:settings:business` editor, MY-Q2, MY-Q5, MY-Q9; its alert-rules lines, AL-Q1) and
   ADR-0011 §8 (comments for every holder of `read:service-sessions:branch`, RT-Q7b) are amended by the sub-PR that touches them
   (57c-1's follow-ups #496/#497, 62-1's follow-up #495, and A-1 / 61-2 for ADR-0011); this PR does not edit an accepted ADR.
-- **New ADR:** the rating token codec and key custody (RT-Q1, 59b-1). Row 60-2 may need one if RT-Q11 adds a new app
-  (`apps/menu` is planned in `06` §2, so Next.js itself needs no new-framework ADR, but its deploy target does).
+- **New ADR:** the rating token codec and key custody (RT-Q1, 59b-1). Row 60-2 needs one before its code: RT-Q11 adds a new
+  deployable, a rating-only copy of `apps/menu` on its own address (`apps/menu` is planned in `06` §2, so Next.js itself
+  needs no new-framework ADR, but its deploy target does); running it on staging is a server change and needs Waleed's typed yes.
 - This spec builds no per-message cap or metering for rating messages; who bears the WhatsApp cost is outside this
   slice (per-tenant usage metering is PRD P5-T4.9).
 - Rating requests and alerts are polled screens (SPEC §2: no realtime in Phase 1).

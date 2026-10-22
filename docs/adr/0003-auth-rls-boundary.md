@@ -388,6 +388,16 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 
 ## 6a. Revisions
 
+**2026-10-21, spec 058 TD-13 (first used by PR #468):** a route may be guarded by `@RequireAny([permission, …], target)`. The
+caller passes when at least one listed permission is held at the target with no covering DENY on **that** permission; a
+DENY on one listed permission does not refuse access through another. Every listed permission has the same scope, so the
+target is validated once when the module loads and a list of mixed scopes fails there. `@Require(p)` is the one-element
+case and writes the same `REQUIRE_ACCESS` metadata (`permissions`), so route coverage and the startup checks are
+unchanged. The grants are read once, by one `accessIn` read whatever the number of listed permissions; the guard's reads
+(membership list, target, grants) run one after another, never nested or concurrent (PP-7.2); merging the target and
+grants reads into one `withTenant` transaction is issue #506. First use: `GET` staff columns accepts
+`read:settings:business` or `manage:settings:business` as built (MY-Q10, PP-27.1); issue #496 replaces the second with the new staff-app-columns permission (MY-Q5, Abu Salem) (MY-Q10, PP-27.1).
+
 **2026-10-20, PP-7.1:** flow A may run as one transaction — membership proof in user context, then the company GUC is set in the same transaction only after the proof; a failed membership proof never sets `app.company_id` (it stays `''`).
 
 **2026-10-19, PP-7.1/PP-7.2:** every `@Authenticated()` write is declared in `apps/api/src/modules/identity/http/authenticated-writes.ts` with its kind (`RECORD_SCOPED`, `PERSONAL`, or `DEVICE_ONLY`) and the symbol that performs the check. A write is any method other than GET, HEAD, OPTIONS or SEARCH, including a missing method. `createApp` refuses to start when a mounted write is missing from that list, or when two mounted controllers share a name and either has such a write. A spec keeps the list equal to the mounted writes and checks each symbol is declared in its file. Banning `@Authenticated()` on writes was rejected: a record-scoped or personal decision cannot be expressed as one static permission.
