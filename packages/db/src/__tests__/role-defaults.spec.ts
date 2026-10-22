@@ -27,6 +27,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:settings:business',
     'manage:settings:business',
     'manage:alert-rules:business',
+    'manage:staff-app-columns:business',
     'view:notifications:business',
     'manage:employees:business',
     'read:services:business',
@@ -60,6 +61,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:settings:business',
     'manage:settings:business',
     'manage:alert-rules:business',
+    'manage:staff-app-columns:business',
     'view:notifications:business',
     'manage:employees:business',
     'read:services:business',
@@ -240,6 +242,22 @@ it('AL-Q1 manage:alert-rules:business defaults to the three managers, is delegab
   for (const role of SYSTEM_ROLES) {
     expect(
       systemRolePolicy(role.id, 'global')?.permissions.includes('manage:alert-rules:business'),
+    ).toBe(role.code !== 'device');
+  }
+});
+
+it('MY-Q5 manage:staff-app-columns:business defaults to the three managers, is delegable to humans and never the device', () => {
+  const defaults = ['owner', 'general_manager', 'business_manager'];
+  const holders: readonly string[] = ROLE_DEFAULTS['manage:staff-app-columns:business'];
+  expect(holders).toEqual(defaults);
+  expect(OWNER_GRANTED_PERMISSIONS as readonly string[]).not.toContain(
+    'manage:staff-app-columns:business',
+  );
+  for (const role of SYSTEM_ROLES) {
+    expect(
+      systemRolePolicy(role.id, 'global')?.permissions.includes(
+        'manage:staff-app-columns:business',
+      ),
     ).toBe(role.code !== 'device');
   }
 });

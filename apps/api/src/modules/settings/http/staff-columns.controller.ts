@@ -25,8 +25,10 @@ export class StaffColumnsController {
   ) {}
 
   @Get()
-  // القراءة مقبولة بصلاحية القراءة أو بصلاحية الإدارة (MY-Q10، PP-27.1).
-  @RequireAny(['read:settings:business', 'manage:settings:business'], { business: 'businessId' })
+  // القراءة مقبولة بصلاحية القراءة أو بصلاحية أعمدة تطبيق الموظفين (MY-Q10، PP-27.1، MY-Q5 أبو سالم).
+  @RequireAny(['read:settings:business', 'manage:staff-app-columns:business'], {
+    business: 'businessId',
+  })
   async read(
     @Param('businessId') businessId: string,
     @Req() request: FastifyRequest,
@@ -43,7 +45,7 @@ export class StaffColumnsController {
   }
 
   @Put()
-  @Require('manage:settings:business', { business: 'businessId' })
+  @Require('manage:staff-app-columns:business', { business: 'businessId' })
   async save(
     @Param('businessId') businessId: string,
     @Body(new ZodValidationPipe(replaceStaffColumnsInput)) input: ReplaceStaffColumnsInput,
