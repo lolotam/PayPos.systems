@@ -16,7 +16,7 @@ export interface StaffColumnsPort {
    */
   allowed(tx: Tx, companyId: string, businessId: string): Promise<ReadonlySet<StaffColumnCode>>;
   /**
-   * بيرجّع كام شهر لورا الموظفة تشوف، والشهر الحالي منهم؛ مفيش إعداد = 1 (MY-Q9، D-A14).
+   * بيرجّع كام شهر لورا الموظفة تشوف، والشهر الحالي منهم؛ مفيش إعداد = 2، الشهر الحالي والشهر اللي قبله (MY-Q2، MY-Q9، D-A14).
    *
    * @param tx         معاملة القراية
    * @param companyId  الشركة

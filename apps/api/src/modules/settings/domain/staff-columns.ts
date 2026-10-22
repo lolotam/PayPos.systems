@@ -125,11 +125,12 @@ export function effectiveStaffColumns(stored: readonly string[] | null): StaffCo
 
 /**
  * بيحسب كام شهر لورا الموظفة تقدر تشوف في «شغلي» و«حضوري».
- * القاعدة: المحفوظ، أو شهرين (الشهر الحالي والشهر اللي قبله) لو المدير ما اختارش (MY-Q2، MY-Q9، D-A14).
+ * القاعدة: المحفوظ حتى 12، وأي قيمة فوقه (محفوظة تحت المدى القديم) بتتقري 12 لحد ما الـ CHECK يتضيّق (issue #519)،
+ * أو شهرين (الشهر الحالي والشهر اللي قبله) لو المدير ما اختارش (MY-Q2، MY-Q9، D-A14).
  *
  * @param stored العدد المحفوظ، أو null
  * @returns عدد الشهور، والشهر الحالي منهم
  */
 export function effectiveStaffMonthsBack(stored: number | null): number {
-  return stored ?? DEFAULT_STAFF_MONTHS_BACK;
+  return stored === null ? DEFAULT_STAFF_MONTHS_BACK : Math.min(stored, MAX_STAFF_MONTHS_BACK);
 }

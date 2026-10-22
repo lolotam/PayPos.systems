@@ -65,6 +65,9 @@ describe('staff columns (spec 060 D-A6, D-A7)', () => {
   it('MY-13 months back: unset is 2, saved values from 1 to 12 pass, 0, 13 and fractions do not', () => {
     expect(effectiveStaffMonthsBack(null)).toBe(2);
     expect(effectiveStaffMonthsBack(3)).toBe(3);
+    expect(effectiveStaffMonthsBack(12)).toBe(12);
+    expect(effectiveStaffMonthsBack(13)).toBe(12);
+    expect(effectiveStaffMonthsBack(24)).toBe(12);
     for (const valid of [1, 2, 3, 12]) expect(isValidStaffMonthsBack(valid)).toBe(true);
     for (const invalid of [0, 13, 24, 25, -1, 1.5])
       expect(isValidStaffMonthsBack(invalid)).toBe(false);

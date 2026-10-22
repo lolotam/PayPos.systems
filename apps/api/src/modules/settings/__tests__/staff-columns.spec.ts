@@ -130,7 +130,7 @@ it('MY-18/MY-20 a saved set reaches every adapter, the estimate can be hidden, a
   ).toBe(200);
 });
 
-it('MY-13 months back: saved 1, 3 and 12 reach every adapter; 0 and 13 are 422 and the CHECK refuses them', async () => {
+it('MY-13 months back: saved 1, 3 and 12 reach every adapter; 0 and 13 are 422 and the CHECK refuses 0 and 25', async () => {
   expect((await put({ columns: null, months_back: 1 })).statusCode).toBe(200);
   expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 1));
   expect((await put({ columns: null, months_back: 3 })).statusCode).toBe(200);
@@ -144,7 +144,8 @@ it('MY-13 months back: saved 1, 3 and 12 reach every adapter; 0 and 13 are 422 a
     expect(errorEnvelope.parse(refused.json()).code).toBe('STAFF_MONTHS_BACK_INVALID');
   }
   expect(await audits()).toEqual(before);
-  for (const months of [0, 13]) {
+  // الـ CHECK لسه بيسمح بـ 13 لـ 24 في الإصدار ده، والتضييق جاي مع issue #519.
+  for (const months of [0, 25]) {
     await expect(
       f.h.owner`UPDATE business_settings SET staff_months_back = ${months}
         WHERE company_id = ${f.company} AND business_id = ${f.business}`,
@@ -160,6 +161,22 @@ it('MY-13 months back: saved 1, 3 and 12 reach every adapter; 0 and 13 are 422 a
   ]);
   expect((await put({ columns: null, months_back: null })).statusCode).toBe(200);
   expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 2));
+});
+
+it('MY-13 a value saved under the old 1-24 range is read as 12 by the GET and every adapter', async () => {
+  // قيمة اتحفظت تحت المدى القديم: الداتابيز لسه بتقبلها، والقراية بتقصّرها لحد 12 (issue #519).
+  await f.h.owner`INSERT INTO business_settings (company_id, business_id, staff_months_back)
+    VALUES (${f.company}, ${f.business}, 24)
+    ON CONFLICT (company_id, business_id)
+    DO UPDATE SET staff_months_back = EXCLUDED.staff_months_back`;
+  const read = await get();
+  expect(read.statusCode).toBe(200);
+  expect(staffColumnsSettings.parse(read.json())).toMatchObject({
+    months_back: 12,
+    months_back_default: false,
+  });
+  expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 12));
+  expect((await put({ columns: null, months_back: null })).statusCode).toBe(200);
 });
 
 it('MY-19 an unknown, duplicate, rating_comments, customer_phone or rating_average code is 422 and nothing is saved', async () => {

@@ -51,10 +51,12 @@ export function staffColumnsAdapterCases(adapter: StaffColumnsReader): void {
     expect(await read()).toEqual({ columns: DEFAULT, monthsBack: 2 });
   });
 
-  it('MY-18/MY-13 the saved set and months back (3, 12) arrive; a stored rating_average does not', async () => {
+  it('MY-18/MY-13 the saved set and months back (3, 12, and a stored 24 read as 12) arrive; a stored rating_average does not', async () => {
     await store(['tip', 'date', 'rating_average'], 3);
     expect(await read()).toEqual({ columns: ['date', 'tip'], monthsBack: 3 });
     await store([], 12);
+    expect(await read()).toEqual({ columns: [], monthsBack: 12 });
+    await store([], 24);
     expect(await read()).toEqual({ columns: [], monthsBack: 12 });
   });
 
