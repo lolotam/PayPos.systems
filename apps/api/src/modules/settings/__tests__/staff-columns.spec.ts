@@ -244,6 +244,9 @@ it('MY-21 no permission, a device or another business is a uniform 403 and nothi
   expect((await put({ columns: ['date'], months_back: 2 }, manager)).statusCode).toBe(403);
   expect({ row: await stored(), audits: await audits() }).toEqual(before);
   await seedOverride(f, f.managerMember, { permission_code: 'manage:settings:business' });
+  expect((await put({ columns: ['date'], months_back: 2 }, manager)).statusCode).toBe(403);
+  expect({ row: await stored(), audits: await audits() }).toEqual(before);
+  await seedOverride(f, f.managerMember, { permission_code: 'manage:staff-app-columns:business' });
   expect((await put({ columns: ['date'], months_back: 2 }, manager)).statusCode).toBe(200);
   expect(await throughAdapters()).toEqual(everyAdapter(['date'], 2));
 });

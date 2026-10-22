@@ -36,6 +36,8 @@ const deviceForbidden = [
   'manage:business-identity:business',
   // الجهاز لا يعدّل قواعد التنبيهات أبداً.
   'manage:alert-rules:business',
+  // الجهاز لا يعدّل أعمدة تطبيق الموظفين أبداً.
+  'manage:staff-app-columns:business',
   'manage:employee-number:company',
   'view:notifications:business',
   'create:companies:platform',
@@ -97,6 +99,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
           code === 'cancel:service-lines:branch' ||
           code === 'approve:discounts:branch' ||
           code === 'manage:alert-rules:business' ||
+          code === 'manage:staff-app-columns:business' ||
           optional[role.code]?.includes(code),
     ),
   };

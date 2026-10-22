@@ -124,8 +124,8 @@ that list (D-A1). Its port has the same two reads as the other consumers (FR-A08
 - `monthsBack(tx, companyId, businessId)` → `staff_months_back`, where `NULL` means 1 (the current month only) and the
   stored value is 1–24 (D-A14; MY-Q2, PP-18.2; MY-Q9, PP-21.1: «شهر، ولحد 24»).
 
-`settings` stays the owner of both values; they are edited under the existing `manage:settings:business` (MY-Q5,
-PP-18.5) and nobody else writes them. `orders` already imports `settings` (§2, ADR-0041's `DiscountLimitPort`).
+`settings` stays the owner of both values; they are edited under `manage:staff-app-columns:business` (MY-Q5, Abu
+Salem's binding pick, replacing PP-18.5's `manage:settings:business`; built by issue #496, migration 0168) and nobody else writes them. `orders` already imports `settings` (§2, ADR-0041's `DiscountLimitPort`).
 The orders adapter calls a public settings reader that 57c-1 adds; the `commissions`, `customers` and `staff`
 adapters, whose ports are already approved above, call the same reader in the same sub-PR (see §4 for their arrows).
 

@@ -60,3 +60,14 @@ it.each(['ar', 'en'] as const)(
     expect(permissionName(locale, 'read:future:business')).toBe('read:future:business');
   },
 );
+
+it('MY-Q5 manage:staff-app-columns:business has an Arabic and an English name', () => {
+  expect(permissionName('ar', 'manage:staff-app-columns:business')).toBe('أعمدة تطبيق الموظفين');
+  expect(permissionName('en', 'manage:staff-app-columns:business')).toBe(
+    'Manage staff app columns',
+  );
+  for (const locale of ['ar', 'en'] as const)
+    expect(permissionName(locale, 'manage:staff-app-columns:business')).not.toBe(
+      'manage:staff-app-columns:business',
+    );
+});

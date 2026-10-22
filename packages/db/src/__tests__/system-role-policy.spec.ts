@@ -97,6 +97,7 @@ it.each([
   'cancel:service-lines:branch',
   'approve:discounts:branch',
   'manage:alert-rules:business',
+  'manage:staff-app-columns:business',
 ])('Device cannot acquire spec 009 forbidden %s', (permission) => {
   expect(
     systemRolePolicy(role('device'), 'global')?.permissions.some((code) => code === permission),
@@ -183,5 +184,14 @@ it('alert rules management is grantable to every human role and never a device',
   for (const entry of SYSTEM_ROLES)
     expect(
       systemRolePolicy(entry.id, 'global')?.permissions.includes('manage:alert-rules:business'),
+    ).toBe(entry.code !== 'device');
+});
+
+it('staff-app columns management is grantable to every human role and never a device', () => {
+  for (const entry of SYSTEM_ROLES)
+    expect(
+      systemRolePolicy(entry.id, 'global')?.permissions.includes(
+        'manage:staff-app-columns:business',
+      ),
     ).toBe(entry.code !== 'device');
 });
