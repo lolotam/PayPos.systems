@@ -15,6 +15,7 @@ const PERMISSION = 'approve:discounts:branch';
 /**
  * مستخدمو العضويات النشطة التي تغطي الفرع: ثلاثة أذرع (شركة ونشاط وفرع) مع OFFSET 0
  * ليبقى شرط النطاق مسار وصول على جدول العضويات، فلا يقود فهرس الدور العام مسحاً.
+ * وأذرع أخرى لمنح ALLOW باسمها: نطاق المنحة هو نطاقها هي، فلا تشترط أن تغطي عضويتها الفرع.
  *
  * @param companyId الشركة
  * @param businessId النشاط
@@ -37,26 +38,37 @@ export function discountApproverCandidatesStatement(
     OFFSET 0`;
   // كل ذراع في استعلام مستقل، فالـ OFFSET يبقى داخل الاستعلام الداخلي لا قبل UNION.
   const arm = (scope: SQL) => sql`SELECT s.user_id FROM (${covered(scope)}) s`;
+  // منح ALLOW باسمها: العضوية النشطة حاملة المنحة، ونطاق المنحة هو نطاقها هي لا نطاق العضوية.
+  const allowed = (scope: SQL) => sql`SELECT s.user_id FROM (
+    SELECT m.user_id FROM memberships m
+    JOIN permission_overrides o ON o.company_id = m.company_id AND o.membership_id = m.id
+    WHERE m.company_id = ${companyId} AND m.user_id IS NOT NULL
+      AND m.starts_at <= ${moment}::timestamptz
+      AND (m.ends_at IS NULL OR m.ends_at > ${moment}::timestamptz)
+      AND o.permission_code = ${PERMISSION} AND o.effect = 'ALLOW'
+      AND (o.expires_at IS NULL OR o.expires_at > ${moment}::timestamptz)
+      AND ${systemRoleOverrideAllowedSql('m', 'o')}
+      AND ${scope}
+    OFFSET 0) s`;
   return sql`${arm(sql`scope_type = 'COMPANY' AND scope_id = ${companyId}`)}
     UNION ${arm(sql`scope_business_id = ${businessId}`)}
-    UNION ${arm(sql`scope_branch_id = ${branchId}`)}`;
+    UNION ${arm(sql`scope_branch_id = ${branchId}`)}
+    UNION ${allowed(sql`o.scope_type = 'COMPANY' AND o.scope_id = ${companyId}`)}
+    UNION ${allowed(sql`o.scope_business_id = ${businessId}`)}
+    UNION ${allowed(sql`o.scope_branch_id = ${branchId}`)}`;
 }
 
 /**
- * عضويات المرشحين كلها في الشركة مع علم التغطية وعلم المالك، ومنح الصلاحية: منح الدور بنطاق العضوية
+ * عضويات المرشحين كلها في الشركة مع علم المالك، ومنح الصلاحية: منح الدور بنطاق العضوية
  * ومنح الـ override بنطاقه هو، والـ override المنتهي يُهمل.
  *
  * @param companyId الشركة
- * @param businessId النشاط
- * @param branchId الفرع
  * @param at لحظة نافذة العضوية
  * @param userIds المرشحون من الجملة الأولى
  * @returns جملة SQL تُرجع العضويات والمنح
  */
 export function discountApproverGrantsStatement(
   companyId: string,
-  businessId: string,
-  branchId: string,
   at: Date,
   userIds: readonly string[],
 ) {
@@ -65,9 +77,6 @@ export function discountApproverGrantsStatement(
     userIds.map((userId) => sql`${userId}::uuid`),
     sql`, `,
   )}]::uuid[]`;
-  const covers = sql`((m.scope_type = 'COMPANY' AND m.scope_id = ${companyId}::uuid)
-    OR (m.scope_type = 'BUSINESS' AND m.scope_id = ${businessId}::uuid)
-    OR (m.scope_type = 'BRANCH' AND m.scope_id = ${branchId}::uuid))`;
   const granted = sql`(
     SELECT g_m.id AS membership_id, 'ALLOW'::text AS effect,
       g_m.scope_type AS scope_type, g_m.scope_id AS scope_id
@@ -89,7 +98,7 @@ export function discountApproverGrantsStatement(
       AND (o.expires_at IS NULL OR o.expires_at > ${moment}::timestamptz)
       AND ${systemRoleOverrideAllowedSql('o_m', 'o')}
   )`;
-  return sql`SELECT m.user_id, m.id AS membership_id, ${covers} AS covers,
+  return sql`SELECT m.user_id, m.id AS membership_id,
       (${canonicalOwnerSql('m', companyId)})::boolean AS owner,
       g.effect, g.scope_type, g.scope_id
     FROM memberships m
@@ -103,6 +112,7 @@ export function discountApproverGrantsStatement(
 /**
  * من يصل جرس طلب الموافقة في الشركة: مستخدمو approve:discounts:branch الفعالة على الفرع
  * ما عدا من عليه DENY يغطي الفرع، والمالك يتجاهل الـ DENY (DP-26 وDP-26b).
+ * ومنح الـ override يصل بنطاقه هو، فممنوح الصلاحية على فرع يصله الجرس وإن كانت عضويته على غيره.
  *
  * @param tx معاملة المستأجر
  * @param companyId الشركة
@@ -123,16 +133,9 @@ export async function discountApproverRecipients(
   );
   const userIds = [...new Set(candidates.map((row) => row.user_id))].sort();
   if (userIds.length === 0) return [];
-  const rows = await tx.execute<GrantRow>(
-    discountApproverGrantsStatement(companyId, businessId, branchId, at, userIds),
-  );
+  const rows = await tx.execute<GrantRow>(discountApproverGrantsStatement(companyId, at, userIds));
   return decideDiscountApprovers({
     branch: { companyId, businessId, branchId },
-    memberships: rows.map((row) => ({
-      userId: row.user_id,
-      membershipId: row.membership_id,
-      covers: row.covers === true,
-    })),
     owners: [...new Set(rows.filter((row) => row.owner === true).map((row) => row.user_id))],
     grants: rows.flatMap((row) => {
       const grant = toGrant(row);
@@ -144,7 +147,6 @@ export async function discountApproverRecipients(
 type GrantRow = Record<string, unknown> & {
   user_id: string;
   membership_id: string;
-  covers: boolean;
   owner: boolean;
   effect: string | null;
   scope_type: string | null;

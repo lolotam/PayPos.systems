@@ -154,7 +154,97 @@ it('an owner ignores a DENY on her own membership', async () => {
 });
 
 it('the requester never receives the bell even when she holds the permission', async () => {
+  const scope = await f.otherCompany();
+  const requester = await f.user();
+  const requesterMembership = await f.member(
+    requester,
+    'branch_manager',
+    'BRANCH',
+    scope.branch,
+    undefined,
+    null,
+    scope.company,
+  );
+  const approver = await f.user();
+  await f.member(
+    approver,
+    'branch_manager',
+    'BRANCH',
+    scope.branch,
+    undefined,
+    null,
+    scope.company,
+  );
+  const request = await f.request({
+    scope,
+    lines: 1,
+    requester: { userId: requester, membershipId: requesterMembership },
+  });
+  expect(await f.deliver(request.event)).toEqual({ delivered: true });
+  const recipients = await bellRecipients(request.requestId);
+  expect(recipients).toEqual([approver]);
+  expect(recipients).not.toContain(requester);
+  expect(await ledger(request.requestId)).toMatchObject([{ recipient_count: 1 }]);
+});
+
+it('a cashier allowed by name on another branch gets the bell for the target branch only', async () => {
   const scope = await f.otherScope();
+  const other = await f.otherScope();
+  const cashier = await f.user();
+  const membership = await f.member(cashier, 'cashier', 'BRANCH', other.branch);
+  await f.allow(membership, 'BRANCH', scope.branch, scope.company);
+  expect(await approvers(scope)).toEqual([cashier]);
+  await expectNoBell(other);
+});
+
+it('a business-scope membership receives the bell for a branch of that business', async () => {
+  const scope = await f.otherScope();
+  const manager = await f.user();
+  await f.member(manager, 'business_manager', 'BUSINESS', scope.business);
+  expect(await approvers(scope)).toEqual([manager]);
+});
+
+it('a DENY scoped to the business excludes the holder of that branch', async () => {
+  const scope = await f.otherScope();
+  const manager = await f.user();
+  const membership = await f.member(manager, 'business_manager', 'BUSINESS', scope.business);
+  await f.deny(membership, 'BUSINESS', scope.business, scope.company);
+  await expectNoBell(scope);
+});
+
+it('a DENY scoped to the company excludes too', async () => {
+  const scope = await f.otherCompany();
+  const manager = await f.user();
+  const membership = await f.member(
+    manager,
+    'general_manager',
+    'COMPANY',
+    scope.company,
+    undefined,
+    null,
+    scope.company,
+  );
+  await f.deny(membership, 'COMPANY', scope.company, scope.company);
+  const requester = await f.user();
+  const requesterMembership = await f.member(
+    requester,
+    'branch_manager',
+    'BRANCH',
+    scope.branch,
+    undefined,
+    null,
+    scope.company,
+  );
+  await expectNoBell(scope, { userId: requester, membershipId: requesterMembership });
+});
+
+it('a DENY on a sibling membership that does not cover the branch still excludes', async () => {
+  const scope = await f.otherScope();
+  const other = await f.otherScope();
+  const manager = await f.user();
+  await f.member(manager, 'branch_manager', 'BRANCH', scope.branch);
+  const sibling = await f.member(manager, 'branch_manager', 'BRANCH', other.branch);
+  await f.deny(sibling, 'BRANCH', scope.branch, scope.company);
   await expectNoBell(scope);
 });
 

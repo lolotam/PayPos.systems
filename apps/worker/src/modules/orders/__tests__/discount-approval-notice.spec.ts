@@ -4,7 +4,6 @@ import { safeDisplayName, t } from '@pospay/i18n';
 import { createLogger } from '@pospay/observability';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createDeliverer } from '../../../outbox/deliver.ts';
-import { USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import type { DiscountApprovalNoticeNameFallback } from '../domain/discount-approval-notice.ts';
 import { onDiscountApprovalRequested } from '../events/handlers/on-discount-approval-requested.handler.ts';
 import { discountApprovalRecipients } from '../persistence/discount-approval-recipients.adapter.ts';
@@ -27,18 +26,42 @@ afterAll(async () => {
 });
 
 it('one request with two lines rings once for every approver and never for the requester', async () => {
-  const scope = await f.otherScope();
+  const scope = await f.otherCompany();
+  const requester = await f.user();
+  const requesterMembership = await f.member(
+    requester,
+    'branch_manager',
+    'BRANCH',
+    scope.branch,
+    undefined,
+    null,
+    scope.company,
+  );
   const approver = await f.user();
-  await f.member(approver, 'branch_manager', 'BRANCH', scope.branch);
-  const request = await f.request({ scope, lines: 2 });
+  await f.member(
+    approver,
+    'branch_manager',
+    'BRANCH',
+    scope.branch,
+    undefined,
+    null,
+    scope.company,
+  );
+  const request = await f.request({
+    scope,
+    lines: 2,
+    requester: { userId: requester, membershipId: requesterMembership },
+  });
   expect(await f.deliver(request.event)).toEqual({ delivered: true });
-  expect(await f.notices(request.requestId)).toMatchObject([{ recipient_count: 1 }]);
-  const rows = await f.requests(request.requestId);
+  expect(await ledger(request.requestId)).toMatchObject([{ recipient_count: 1 }]);
+  const rows = await bellRows(request.requestId);
   expect(rows).toHaveLength(1);
   const payload = discountApprovalNoticeRequested.parse(rows[0]?.['payload']);
   expect(payload.request_id).toBe(request.requestId);
   expect(payload.notification_recipients.map((recipient) => recipient.user_id)).toEqual([approver]);
-  expect(payload.notification_recipients.map((recipient) => recipient.user_id)).not.toContain(USER);
+  expect(payload.notification_recipients.map((recipient) => recipient.user_id)).not.toContain(
+    requester,
+  );
   expect(payload.notification_recipients[0]).toMatchObject({
     channel: 'IN_APP',
     locale: 'ar',
@@ -90,12 +113,26 @@ it('a second event for the same request rings no second bell', async () => {
 });
 
 it('only the requester holds the permission, so the ledger records zero recipients and no bell', async () => {
-  const scope = await f.otherScope();
-  const request = await f.request({ scope, lines: 1 });
+  const scope = await f.otherCompany();
+  const requester = await f.user();
+  const requesterMembership = await f.member(
+    requester,
+    'branch_manager',
+    'BRANCH',
+    scope.branch,
+    undefined,
+    null,
+    scope.company,
+  );
+  const request = await f.request({
+    scope,
+    lines: 1,
+    requester: { userId: requester, membershipId: requesterMembership },
+  });
   expect(await f.deliver(request.event)).toEqual({ delivered: true });
-  expect(await f.notices(request.requestId)).toMatchObject([{ recipient_count: 0 }]);
-  expect(await f.requests(request.requestId)).toHaveLength(0);
-  expect(await f.consumed(request.event.id)).toHaveLength(1);
+  expect(await ledger(request.requestId)).toMatchObject([{ recipient_count: 0 }]);
+  expect(await bellRows(request.requestId)).toHaveLength(0);
+  expect(await consumedRows(request.event.id)).toHaveLength(1);
 });
 
 it('a closed company claims nothing', async () => {
@@ -128,6 +165,22 @@ it('a missing branch place is recorded with no recipients and is not retried', a
   expect(await f.requests(request.requestId)).toHaveLength(0);
   expect(await f.consumed(request.event.id)).toHaveLength(1);
 });
+
+/** الدفتر والجرس والاستهلاك في أي شركة: مساعدات البذرة تقيّد بالشركة الأولى. */
+function ledger(requestId: string) {
+  return f.owner`SELECT recipient_count FROM discount_approval_notices
+    WHERE request_id=${requestId} ORDER BY id`;
+}
+
+function bellRows(requestId: string) {
+  return f.owner`SELECT payload FROM outbox
+    WHERE event_type='DiscountApprovalNoticeRequested' AND payload->>'request_id'=${requestId} ORDER BY seq`;
+}
+
+function consumedRows(eventId: string) {
+  return f.owner`SELECT event_id FROM consumed_events
+    WHERE consumer_id=${f.consumer.id} AND event_id=${eventId}`;
+}
 
 function useCase(tx: Tx) {
   return new RequestDiscountApprovalNotice(
