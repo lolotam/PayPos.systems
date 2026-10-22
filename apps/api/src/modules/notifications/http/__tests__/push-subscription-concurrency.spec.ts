@@ -146,7 +146,8 @@ describe('the life of one row', () => {
       body: body({ installation_id: installation }),
       headers: colleague.headers,
     });
-    const [again] = await f.owner`SELECT id,endpoint,p256dh,auth,delivery_token,generation,revoked_at,revoked_reason
+    const [again] =
+      await f.owner`SELECT id,endpoint,p256dh,auth,delivery_token,generation,revoked_at,revoked_reason
       FROM push_subscriptions WHERE company_id=${f.companyId} AND user_id=${colleague.userId}`;
     expect(again?.['id']).toBe(first?.['id']);
     expect(again?.['endpoint']).not.toBeNull();

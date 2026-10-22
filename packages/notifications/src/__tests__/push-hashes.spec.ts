@@ -59,8 +59,10 @@ describe('vapidKeyId', () => {
 describe('the known answers', () => {
   it('hashes the installation tuple with its domain tag', () => {
     expect(
-      installationHash('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222')
-        .toString('hex'),
+      installationHash(
+        '11111111-1111-4111-8111-111111111111',
+        '22222222-2222-4222-8222-222222222222',
+      ).toString('hex'),
     ).toBe('430654adf08d5b3efa798a398399e17e41485a6a0ce1b8d74ed706424015524f');
   });
 
@@ -77,7 +79,9 @@ describe('the known answers', () => {
   });
 
   it('derives the key id from the public key bytes', () => {
-    const publicKey = Buffer.concat([Buffer.from([0x04]), Buffer.alloc(64, 7)]).toString('base64url');
+    const publicKey = Buffer.concat([Buffer.from([0x04]), Buffer.alloc(64, 7)]).toString(
+      'base64url',
+    );
     expect(vapidKeyId(publicKey)).toBe('2f3758f6e67f33c4');
   });
 });

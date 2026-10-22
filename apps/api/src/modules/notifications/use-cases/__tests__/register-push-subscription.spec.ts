@@ -74,8 +74,7 @@ function transactionsFake(reads: Reads, state: State): PushSubscriptionTransacti
           round += 1;
           return round === 1 ? reads.first.callerRows : reads.second.callerRows;
         },
-        findLiveByEndpoint: async () =>
-          round === 1 ? reads.first.holders : reads.second.holders,
+        findLiveByEndpoint: async () => (round === 1 ? reads.first.holders : reads.second.holders),
         revoke: async () => {
           state.revokes += 1;
         },
@@ -109,13 +108,7 @@ function useCase(
   limiter: RateLimiter | null,
   reads: Reads = { first: EMPTY, second: EMPTY },
 ): RegisterPushSubscription {
-  return new RegisterPushSubscription(
-    transactionsFake(reads, state),
-    hashes,
-    ids,
-    clock,
-    limiter,
-  );
+  return new RegisterPushSubscription(transactionsFake(reads, state), hashes, ids, clock, limiter);
 }
 
 describe('the registration use case', () => {
@@ -123,8 +116,7 @@ describe('the registration use case', () => {
     const state: State = { transactions: 0, locked: [], revokes: 0, upserts: 0 };
     const { limiter } = fakeLimiter();
     const register = useCase(state, limiter);
-    for (let attempt = 0; attempt < 20; attempt += 1)
-      await register.execute(SCOPE, INPUT, CONFIG);
+    for (let attempt = 0; attempt < 20; attempt += 1) await register.execute(SCOPE, INPUT, CONFIG);
     await expect(register.execute(SCOPE, INPUT, CONFIG)).rejects.toMatchObject({
       code: 'RATE_LIMITED',
     });
@@ -134,8 +126,7 @@ describe('the registration use case', () => {
   it('skips the limit when there is no limiter', async () => {
     const state: State = { transactions: 0, locked: [], revokes: 0, upserts: 0 };
     const register = useCase(state, null);
-    for (let attempt = 0; attempt < 25; attempt += 1)
-      await register.execute(SCOPE, INPUT, CONFIG);
+    for (let attempt = 0; attempt < 25; attempt += 1) await register.execute(SCOPE, INPUT, CONFIG);
     expect(state.transactions).toBe(25);
   });
 
