@@ -45,17 +45,19 @@ export function staffColumnsAdapterCases(adapter: StaffColumnsReader): void {
     ON CONFLICT (company_id, business_id)
     DO UPDATE SET staff_columns = EXCLUDED.staff_columns, staff_months_back = EXCLUDED.staff_months_back`;
 
-  it('MY-17 no row and NULL values: the MY-Q3 default without rating_average, and one month', async () => {
-    expect(await read()).toEqual({ columns: DEFAULT, monthsBack: 1 });
+  it('MY-17 no row and NULL values: the MY-Q3 default without rating_average, and two months', async () => {
+    expect(await read()).toEqual({ columns: DEFAULT, monthsBack: 2 });
     await store(null, null);
-    expect(await read()).toEqual({ columns: DEFAULT, monthsBack: 1 });
+    expect(await read()).toEqual({ columns: DEFAULT, monthsBack: 2 });
   });
 
-  it('MY-18/MY-13 the saved set and months back (3, 24) arrive; a stored rating_average does not', async () => {
+  it('MY-18/MY-13 the saved set and months back (3, 12, and a stored 24 read as 12) arrive; a stored rating_average does not', async () => {
     await store(['tip', 'date', 'rating_average'], 3);
     expect(await read()).toEqual({ columns: ['date', 'tip'], monthsBack: 3 });
+    await store([], 12);
+    expect(await read()).toEqual({ columns: [], monthsBack: 12 });
     await store([], 24);
-    expect(await read()).toEqual({ columns: [], monthsBack: 24 });
+    expect(await read()).toEqual({ columns: [], monthsBack: 12 });
   });
 
   it('reads allowed and monthsBack from one snapshot inside a transaction', async () => {
@@ -75,6 +77,6 @@ export function staffColumnsAdapterCases(adapter: StaffColumnsReader): void {
       columns: [...(await adapter.allowed(tx, f.company, f.otherBusiness))],
       monthsBack: await adapter.monthsBack(tx, f.company, f.otherBusiness),
     }));
-    expect(other).toEqual({ columns: DEFAULT, monthsBack: 1 });
+    expect(other).toEqual({ columns: DEFAULT, monthsBack: 2 });
   });
 }
