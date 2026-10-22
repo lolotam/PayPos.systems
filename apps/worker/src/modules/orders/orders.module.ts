@@ -2,6 +2,7 @@ import type { Tx } from '@pospay/db';
 import { editorLabel, safeDisplayName, t } from '@pospay/i18n';
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import type { Clock, IdGenerator } from './ports/late-service-session-notice.port.ts';
+import { alertRules } from './persistence/alert-rule.adapter.ts';
 import { lateNoticeRecipients } from './persistence/branch-manager-recipients.adapter.ts';
 import { lateNoticePlace } from './persistence/branch-place.adapter.ts';
 import {
@@ -49,6 +50,7 @@ export function createLateServiceSessionNoticeConsumer(
         place: lateNoticePlace(tx),
         repository: lateNoticeRepository(tx),
         outbox: lateNoticeOutbox(tx),
+        rules: alertRules(tx),
       },
       ids,
       clock,
@@ -68,6 +70,7 @@ export function createPriceEditNoticeConsumer(ids: IdGenerator, clock: Clock): O
         place: priceEditPlace(tx),
         repository: priceEditRepository(tx),
         outbox: priceEditOutbox(tx),
+        rules: alertRules(tx),
       },
       ids,
       clock,
@@ -87,6 +90,7 @@ export function createLineCancelNoticeConsumer(ids: IdGenerator, clock: Clock): 
         place: lineCancelPlace(tx),
         repository: lineCancelRepository(tx),
         outbox: lineCancelOutbox(tx),
+        rules: alertRules(tx),
       },
       ids,
       clock,
@@ -109,6 +113,7 @@ export function createPerformersChangeNoticeConsumer(
         place: performersChangePlace(tx),
         repository: performersChangeRepository(tx),
         outbox: performersChangeOutbox(tx),
+        rules: alertRules(tx),
       },
       ids,
       clock,

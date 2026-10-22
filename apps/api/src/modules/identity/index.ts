@@ -65,6 +65,7 @@ export {
   readAttendanceChangeAccess,
   readAttendanceChangeApprovers,
 } from './persistence/attendance-change-access.ts';
+export { readBranchRoleHolders } from './persistence/branch-role-holders.ts';
 export { lockEmployeeHoursAccess, readEmployeeHoursAccess } from './persistence/employee-hours-access.ts';
 export { lockEmployeeNumberAccess, readEmployeeNumberAccess } from './persistence/employee-number-access.ts';
 export { readEmployeeNumberCompanyAccess } from './persistence/employee-number-access.ts';
@@ -78,3 +79,4 @@ export {
   readServiceSessionEditAccess,
   readServiceSessionPerformersAccess,
 } from './persistence/service-session-edit-access.ts';
+export { lockAlertRulesAccess, readAlertRulesAccess } from './persistence/alert-rules-access.ts';

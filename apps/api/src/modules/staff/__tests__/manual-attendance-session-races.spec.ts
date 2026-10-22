@@ -7,6 +7,7 @@ import {
   type CardFixture,
 } from './clock-by-card.fixture.ts';
 import { createAttendanceChangeTransactions } from '../persistence/drizzle-attendance-change-transactions.ts';
+import { attendanceChangeAlertRules } from '../persistence/attendance-change-alert-rule.adapter.ts';
 import { createAttendanceChangeKinds } from '../persistence/attendance-change-kinds.ts';
 import { createAddSessionKind } from '../persistence/add-session-kind.ts';
 import { createCardClockTransactions } from '../persistence/card-clock-transactions.ts';
@@ -41,7 +42,7 @@ const actor = (requestId?: string) => ({
 });
 async function setup(day: string) {
   const kinds = createAttendanceChangeKinds([createAddSessionKind(f.ids)]);
-  const tx = createAttendanceChangeTransactions(f.database, f.ids, kinds);
+  const tx = createAttendanceChangeTransactions(f.database, f.ids, attendanceChangeAlertRules, kinds);
   const clock = { now: () => new Date(`${day}T09:00:00Z`) };
   const row = await new RequestAttendanceChangeUseCase(tx, clock, kinds, f.ids).execute(actor(), {
     kind: 'ADD_SESSION',

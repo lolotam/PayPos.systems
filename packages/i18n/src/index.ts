@@ -16,3 +16,7 @@ export { editorLabel, type EditorLabelSnapshot } from './editor-label.js';
 export { formatRemainingMinutes } from './remaining-minutes.js';
 export { permissionName } from './permission-name.js';
 export { serviceSessionErrors, type ServiceSessionErrorCode } from './service-session-errors.js';
+export {
+  discountApprovalRefusals,
+  type DiscountApprovalRefusalCode,
+} from './discount-approval-errors.js';

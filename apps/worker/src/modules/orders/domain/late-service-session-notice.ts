@@ -1,8 +1,3 @@
-/** القاعدة المؤقتة حتى يضيف البند 62 مفاتيح تعطيل التنبيه؛ لا إرسال خارجي. */
-export interface LateNoticeRule {
-  readonly channel: 'IN_APP';
-  readonly roles: readonly string[];
-}
 /** أسماء عامة مترجمة يحقنها جذر الوحدة عند رفض اسم الفرع. */
 export interface BranchNameFallback {
   readonly ar: string;
@@ -17,17 +12,6 @@ export type LateNoticeParameters = [
 const UNSAFE_NAME =
   /(?:https?:|[a-z][a-z\d+.-]*:\/\/|\b[a-z\d-]+\.[a-z]{2,}\b|\p{Nd}(?:[\s().+-]*\p{Nd}){6,}|\b(?:bearer|token|otp|code)\b|^\p{Nd}{4,8}$)/iu;
 
-/**
- * يحدد قناة الجرس وأدوار المديرين حسب SS-Q11 وADR-0037.
- *
- * @returns القاعدة الثابتة التي يستبدلها البند 62
- */
-export function interimLateNoticeRule(): LateNoticeRule {
-  return {
-    channel: 'IN_APP',
-    roles: ['owner', 'general_manager', 'business_manager', 'branch_manager'],
-  };
-}
 /**
  * يقرأ دليل التأخير المحفوظ دون إعادة حساب التاريخ عند المعالجة.
  *

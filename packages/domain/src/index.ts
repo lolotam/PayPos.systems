@@ -8,6 +8,7 @@ export {
   sumMoney,
   type Money,
 } from './money.js';
+export { canonicalJson } from './canonical-json.js';
 export { sumTipTotalsByMethod, type TipMethodAmount } from './tip-totals.js';
 export {
   performerNetWeights,
@@ -44,3 +45,25 @@ export {
   nextEmployeeNumberCounter,
   parseEmployeeNumber,
 } from './employee-number.js';
+export {
+  ALERT_CHANNELS,
+  ALERT_KIND_DEFINITIONS,
+  ALERT_KINDS,
+  ALERT_MAX_MINUTES,
+  ALERT_RECIPIENT_ROLES,
+  alertKindAllowsBranchOverride,
+  alertRuleViolation,
+  effectiveAlertRule,
+  resolveAlertRule,
+  sameAlertRuleSettings,
+  type AlertChannel,
+  type AlertKind,
+  type AlertKindDefinition,
+  type AlertRecipientRole,
+  type AlertRuleSettings,
+  type AlertRuleSource,
+  type AlertRuleViolation,
+  type EffectiveAlertRule,
+  type FixedAlertRecipient,
+  type ResolvedAlertRule,
+} from './alert-rules.js';

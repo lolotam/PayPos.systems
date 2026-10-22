@@ -6,6 +6,7 @@ const keys: Readonly<Record<string, MessageKey>> = {
   'edit:service-line-prices:branch': 'permissionCodes.editServiceLinePricesBranch',
   'change:service-line-performers:branch': 'permissionCodes.changeServiceLinePerformersBranch',
   'cancel:service-lines:branch': 'permissionCodes.cancelServiceLinesBranch',
+  'approve:discounts:branch': 'permissionCodes.approveDiscountsBranch',
   'read:passkeys:branch': 'passkeyAdmin.permissionRead',
   'unbind:passkeys:branch': 'passkeyAdmin.permissionUnbind',
   'create:leave:own': 'leave.createOwn',

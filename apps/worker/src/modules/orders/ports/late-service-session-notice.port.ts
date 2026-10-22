@@ -1,4 +1,5 @@
 import type { LateNoticeParameters } from '../domain/late-service-session-notice.ts';
+import type { AlertRulesPort } from './alert-rule.port.ts';
 
 /** هوية الزيارة من الحدث، تؤكدها قراءة أوامر ضمن المستأجر نفسه. */
 export interface LateNoticeSession {
@@ -103,4 +104,5 @@ export interface LateNoticePorts {
   readonly place: LateNoticePlace;
   readonly repository: LateNoticeRepository;
   readonly outbox: LateNoticeOutbox;
+  readonly rules: AlertRulesPort;
 }

@@ -50,6 +50,8 @@ const deviceForbidden = [
   'create:customers:branch',
   'manage:discounts:company',
   'manage:discount-limits:business',
+  // الجهاز لا يوافق أبداً بدوره؛ موافقة الـ PIN تُقيَّم بعضويات صاحب الـ PIN وحده (spec 057).
+  'approve:discounts:branch',
   'resolve:attendance:branch',
   'read:attendance:branch',
   'correct:attendance:branch',
@@ -91,6 +93,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
           code === 'edit:service-line-prices:branch' ||
           code === 'change:service-line-performers:branch' ||
           code === 'cancel:service-lines:branch' ||
+          code === 'approve:discounts:branch' ||
           optional[role.code]?.includes(code),
     ),
   };

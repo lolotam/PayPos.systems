@@ -1,7 +1,6 @@
 import { editorLabel, safeDisplayName } from '@pospay/i18n';
 import { expect, it } from 'vitest';
 import {
-  interimPriceEditNoticeRule,
   priceEditEditorLabel,
   priceEditNoticeParameters,
   priceEditRecipientGroups,
@@ -24,12 +23,6 @@ const base = {
   fallback,
 } satisfies PriceEditParameterInput;
 
-it('ED-Q10 keeps the four manager roles and does not name an editor exclusion', () => {
-  expect(interimPriceEditNoticeRule()).toEqual({
-    channel: 'IN_APP',
-    roles: ['owner', 'general_manager', 'business_manager', 'branch_manager'],
-  });
-});
 it.each([0, 1, 100, 101, 201])('stable groups cover %s users exactly once', (n) => {
   const users = Array.from({ length: n }, (_, i) => String(i).padStart(3, '0'));
   const { groups, recipientCount } = priceEditRecipientGroups([...users].reverse().concat(users));

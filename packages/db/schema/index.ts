@@ -38,3 +38,4 @@ export * from './staff-attendance-change-requests.ts';
 export { employeeDefaultShifts } from './staff-default-shifts.ts';
 export { employeeNumberSequences } from './staff-employee-numbers.ts';
 export * from './orders.ts';
+export * from './orders-discount-proposals.ts';

@@ -6,6 +6,7 @@ import { createDeliverer } from '../../../outbox/deliver.ts';
 import { failingBranchRead } from './failing-branch-read.ts';
 import type { PerformersChangeNameFallback } from '../domain/performers-change-notice.ts';
 import { onPerformersChanged } from '../events/handlers/on-performers-changed.handler.ts';
+import { alertRules } from '../persistence/alert-rule.adapter.ts';
 import { performersChangeRecipients } from '../persistence/performers-change-recipients.adapter.ts';
 import {
   performersChangeOutbox,
@@ -132,6 +133,7 @@ function useCase(tx: Tx) {
       place: { branchPlace: async () => null },
       repository: performersChangeRepository(tx),
       outbox: performersChangeOutbox(tx),
+      rules: alertRules(tx),
     },
     f.ids,
     { now: () => f.at },

@@ -50,9 +50,13 @@ reads:
   - { from: orders, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/orders/persistence/performers-change-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/performers-change-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/performers-change-place.adapter.ts }
+  - { from: orders, to: identity, symbol: discountApproverRecipients, file: apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts }
+  - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts }
+  - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/discount-approval-place.adapter.ts }
   - { from: orders, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/line-cancel-place.adapter.ts }
+  - { from: orders, to: settings, symbol: alertRule, file: apps/worker/src/modules/orders/persistence/alert-rule.adapter.ts }
   - { from: orders, to: staff, symbol: employeeNamesByUser, file: apps/api/src/modules/orders/persistence/editor-name.adapter.ts }
   - { from: orders, to: identity, symbol: lockServiceSessionEditAccess, file: apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts }
   - { from: orders, to: identity, symbol: readServiceSessionEditAccess, file: apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts }
@@ -68,6 +72,7 @@ reads:
   - { from: commissions, to: settings, symbol: readStaffColumns, file: apps/api/src/modules/commissions/persistence/staff-columns.adapter.ts }
   - { from: customers, to: settings, symbol: readStaffColumns, file: apps/api/src/modules/customers/persistence/staff-columns.adapter.ts }
   - { from: staff, to: settings, symbol: readStaffColumns, file: apps/api/src/modules/staff/persistence/staff-columns.adapter.ts }
+  - { from: staff, to: settings, symbol: readAlertRule, file: apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts }
   - { from: orders, to: identity, symbol: lockServiceSessionAccess, file: apps/api/src/modules/orders/persistence/session-record-access.adapter.ts }
   - { from: orders, to: identity, symbol: readServiceSessionAccess, file: apps/api/src/modules/orders/persistence/session-record-access.adapter.ts }
   - { from: orders, to: tenancy, symbol: activeBusinessTimeZone, file: apps/api/src/modules/orders/persistence/session-place.adapter.ts }
@@ -78,6 +83,7 @@ reads:
   - { from: staff, to: identity, symbol: lockAttendanceExceptionAccess, file: apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts }
   - { from: staff, to: identity, symbol: readAttendanceChangeAccess, file: apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts }
   - { from: staff, to: identity, symbol: readAttendanceChangeApprovers, file: apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts }
+  - { from: staff, to: identity, symbol: readBranchRoleHolders, file: apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts }
   - { from: staff, to: identity, symbol: personalMemberships, file: apps/api/src/modules/staff/persistence/attendance-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: attendanceBranch, file: apps/api/src/modules/staff/persistence/attendance-context.adapter.ts }
@@ -110,6 +116,8 @@ reads:
   - { from: settings, to: identity, symbol: readBusinessDiscountAccess, file: apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts }
   - { from: settings, to: identity, symbol: lockBusinessIdentityAccess, file: apps/api/src/modules/settings/persistence/business-identity-access.adapter.ts }
   - { from: settings, to: identity, symbol: readBusinessIdentityAccess, file: apps/api/src/modules/settings/persistence/business-identity-access.adapter.ts }
+  - { from: settings, to: identity, symbol: lockAlertRulesAccess, file: apps/api/src/modules/settings/persistence/alert-rules-store.ts }
+  - { from: settings, to: identity, symbol: readAlertRulesAccess, file: apps/api/src/modules/settings/persistence/alert-rules-read-access.adapter.ts }
   - { from: settings, to: identity, symbol: lockMembershipDiscountSubject, file: apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts }
   - { from: settings, to: identity, symbol: readMembershipDiscountSubject, file: apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts }
   - { from: settings, to: tenancy, symbol: businessDiscountScope, file: apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts }

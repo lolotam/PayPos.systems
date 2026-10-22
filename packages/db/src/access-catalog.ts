@@ -53,6 +53,7 @@ export const PERMISSIONS = [
   'manage:memberships:business',
   'manage:discounts:company',
   'manage:discount-limits:business',
+  'approve:discounts:branch',
   'read:businesses:company',
   'create:businesses:company',
   'create:branches:business',
