@@ -234,16 +234,16 @@ it('RT-29: no permission, a branch-only grant, a branch DENY and another busines
   await forbidden(await put(null, [notClockedIn(15)], f.managerCookie));
   await forbidden(await master(false, f.managerCookie));
   const branchGrant = await seedOverride(f, f.managerMember, {
-    permission_code: 'manage:settings:business',
+    permission_code: 'manage:alert-rules:business',
     scope_type: 'BRANCH',
     scope_id: f.branch,
   });
   await forbidden(await put(f.branch, [notClockedIn(15)], f.managerCookie));
   await forbidden(await reset(f.branch, 'SHIFT_NOT_CLOCKED_IN', f.managerCookie));
   await dropOverride(branchGrant);
-  await seedOverride(f, f.managerMember, { permission_code: 'manage:settings:business' });
+  await seedOverride(f, f.managerMember, { permission_code: 'manage:alert-rules:business' });
   await seedOverride(f, f.managerMember, {
-    permission_code: 'manage:settings:business',
+    permission_code: 'manage:alert-rules:business',
     effect: 'DENY',
     scope_type: 'BRANCH',
     scope_id: f.branch,

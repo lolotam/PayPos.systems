@@ -34,6 +34,8 @@ const deviceForbidden = [
   'read:settings:business',
   'manage:settings:business',
   'manage:business-identity:business',
+  // الجهاز لا يعدّل قواعد التنبيهات أبداً.
+  'manage:alert-rules:business',
   'manage:employee-number:company',
   'view:notifications:business',
   'create:companies:platform',
@@ -94,6 +96,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
           code === 'change:service-line-performers:branch' ||
           code === 'cancel:service-lines:branch' ||
           code === 'approve:discounts:branch' ||
+          code === 'manage:alert-rules:business' ||
           optional[role.code]?.includes(code),
     ),
   };

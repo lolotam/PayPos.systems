@@ -30,7 +30,7 @@ export interface AlertRulesSnapshot {
  */
 export interface AlertRulesReadAccess {
   /**
-   * بيقرر `manage:settings:business` على النشاط كله وعلى الفرع ليه، عشان شاشة الفرع ما تقرايش قاعدة مش مسموحة.
+   * بيقرر `manage:alert-rules:business` على النشاط كله وعلى الفرع ليه، عشان شاشة الفرع ما تقرايش قاعدة مش مسموحة.
    *
    * @param tx        معاملة الشركة
    * @param companyId الشركة
@@ -54,7 +54,7 @@ export interface AlertRulesReadAccess {
 export interface AlertRulesScope {
   readonly audit: AuditTrail;
   /**
-   * بيقفل الشركة والعضويات والنشاط والفرع ويقرر `manage:settings:business` على النشاط كله (وعلى الفرع لقاعدته).
+   * بيقفل الشركة والعضويات والنشاط والفرع ويقرر `manage:alert-rules:business` على النشاط كله (وعلى الفرع لقاعدته).
    *
    * @param target النشاط والفرع
    * @returns FORBIDDEN أو null عند السماح

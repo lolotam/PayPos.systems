@@ -66,7 +66,7 @@ export class AlertRulesController {
   }
 
   @Get('businesses/:businessId/alert-rules')
-  @Require('manage:settings:business', { business: 'businessId' })
+  @Require('manage:alert-rules:business', { business: 'businessId' })
   readBusiness(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Req() request: FastifyRequest,
@@ -75,7 +75,7 @@ export class AlertRulesController {
   }
 
   @Put('businesses/:businessId/alert-rules')
-  @Require('manage:settings:business', { business: 'businessId' })
+  @Require('manage:alert-rules:business', { business: 'businessId' })
   async setBusiness(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Body(new ZodValidationPipe(setAlertRulesInput)) input: SetAlertRulesInput,
@@ -85,7 +85,7 @@ export class AlertRulesController {
   }
 
   @Put('businesses/:businessId/alert-rules/master')
-  @Require('manage:settings:business', { business: 'businessId' })
+  @Require('manage:alert-rules:business', { business: 'businessId' })
   async setMaster(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Body(new ZodValidationPipe(setAlertsMasterInput)) input: SetAlertsMasterInput,
@@ -97,7 +97,7 @@ export class AlertRulesController {
   }
 
   @Get('businesses/:businessId/branches/:branchId/alert-rules')
-  @Require('manage:settings:business', { business: 'businessId' })
+  @Require('manage:alert-rules:business', { business: 'businessId' })
   readBranch(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Param('branchId', new ZodValidationPipe(id)) branchId: string,
@@ -107,7 +107,7 @@ export class AlertRulesController {
   }
 
   @Put('businesses/:businessId/branches/:branchId/alert-rules')
-  @Require('manage:settings:business', { business: 'businessId' })
+  @Require('manage:alert-rules:business', { business: 'businessId' })
   async setBranch(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Param('branchId', new ZodValidationPipe(id)) branchId: string,
@@ -119,7 +119,7 @@ export class AlertRulesController {
 
   @Delete('businesses/:businessId/branches/:branchId/alert-rules/:kind')
   @HttpCode(204)
-  @Require('manage:settings:business', { business: 'businessId' })
+  @Require('manage:alert-rules:business', { business: 'businessId' })
   async resetBranch(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Param('branchId', new ZodValidationPipe(id)) branchId: string,
