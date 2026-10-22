@@ -115,6 +115,8 @@ const ROUTE_MARKERS: Readonly<
   'PasskeysController.registrationOptions': { personal: true },
   'PasskeysController.verify': { personal: true },
   'PersonalOtpController.signOut': { personal: true },
+  'PushSubscriptionController.register': { personal: true },
+  'PushSubscriptionController.revoke': { personal: true },
   'StaffOtpController.request': { staff: 'device' },
   'StaffOtpController.signOut': { staff: 'staff' },
   'StaffOtpController.verify': { staff: 'device' },

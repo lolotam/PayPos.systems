@@ -191,6 +191,18 @@ export {
   type InAppNotificationQuery,
   type InAppNotificationPage,
 } from './in-app-notifications.js';
+export {
+  pushEndpoint,
+  pushSubscriptionInput,
+  pushRevokeInput,
+  pushConfig,
+  PUSH_ENDPOINT_HOST_RULES,
+  isAllowedPushHost,
+  isAllowedPushEndpoint,
+  type PushSubscriptionInput,
+  type PushRevokeInput,
+  type PushConfig,
+} from './push-subscription.js';
 export { whatsappEnvelope, whatsappHandshake, type WhatsAppEnvelope } from './whatsapp-webhook.js';
 
 export {

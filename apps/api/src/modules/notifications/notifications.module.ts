@@ -28,17 +28,32 @@ import type { Logger } from '@pospay/observability';
 import { createWhatsappEnvelopeAdapter } from './persistence/whatsapp-envelope.adapter.ts';
 import { createWhatsappInboxRepository } from './persistence/drizzle-whatsapp-inbox.repository.ts';
 import { ReceiveWhatsappStop } from './use-cases/receive-whatsapp-stop/receive-whatsapp-stop.ts';
-import { notificationRedisOptions } from '@pospay/notifications';
+import { notificationRedisOptions, subscriberRef, type PushApiConfiguration } from '@pospay/notifications';
+import { systemClock } from '../../shared/adapters/system-clock.ts';
+import { RATE_LIMITER } from '../../shared/device-authenticator.ts';
+import type { RateLimiter } from '../../shared/ports/rate-limiter.port.ts';
+import {
+  PUSH_CONFIG,
+  PUSH_SUBSCRIBER_REF,
+  PUSH_SUBSCRIPTION_WRITES,
+  PushSubscriptionController,
+} from './http/push-subscription.controller.ts';
+import { createPushSubscriptionTransactions } from './persistence/drizzle-push-subscriptions.repository.ts';
+import { createPushHashes } from './persistence/push-hashes.adapter.ts';
+import { RegisterPushSubscription } from './use-cases/register-push-subscription/register-push-subscription.ts';
+import { RevokePushSubscription } from './use-cases/revoke-push-subscription/revoke-push-subscription.ts';
 
 export const notificationsControllers = [
   NotificationsController,
   InAppNotificationsController,
   WhatsappWebhookController,
+  PushSubscriptionController,
 ];
 
 export function notificationsProviders(
   database: TenantWrappers | undefined,
   whatsapp?: WhatsappIntake,
+  push?: PushApiConfiguration | null,
 ): Provider[] {
   const repository = database === undefined ? null : createInAppRepository(database);
   const clock = { now: () => new Date() };
@@ -54,6 +69,27 @@ export function notificationsProviders(
               read: new MarkNotificationRead(repository, clock),
               readAll: new MarkAllNotificationsRead(repository, clock),
             },
+    },
+    { provide: PUSH_CONFIG, useValue: push ?? null },
+    { provide: PUSH_SUBSCRIBER_REF, useValue: subscriberRef },
+    {
+      provide: PUSH_SUBSCRIPTION_WRITES,
+      useFactory: (limiter: RateLimiter | null) => {
+        const transactions =
+          database === undefined ? null : createPushSubscriptionTransactions(database);
+        if (transactions === null) return null;
+        return {
+          register: new RegisterPushSubscription(
+            transactions,
+            createPushHashes(),
+            systemUuidV7(),
+            systemClock,
+            limiter,
+          ),
+          revoke: new RevokePushSubscription(transactions, createPushHashes(), systemClock),
+        };
+      },
+      inject: [RATE_LIMITER],
     },
   ];
 }

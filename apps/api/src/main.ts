@@ -10,7 +10,12 @@ import {
   type PersonalWorkspace,
   passkeyPolicy,
 } from '@pospay/auth';
-import { createPhoneIdentity, phoneLockKey, readOtpTemplateApproval } from '@pospay/notifications';
+import {
+  createPhoneIdentity,
+  phoneLockKey,
+  readOtpTemplateApproval,
+  readPushApiConfiguration,
+} from '@pospay/notifications';
 import { createDatabase, createPlatformWhatsappDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
@@ -325,6 +330,7 @@ try {
       files,
       redis,
       corsOrigins: config.AUTH_TRUSTED_ORIGINS,
+      push: readPushApiConfiguration(process.env),
       ...(whatsapp === undefined ? {} : { whatsapp }),
       trustedProxy: config.TRUSTED_PROXY_CIDRS,
     },

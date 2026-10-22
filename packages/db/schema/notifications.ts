@@ -12,6 +12,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -169,5 +170,65 @@ export const notificationAttempts = pgTable(
     index('notification_attempts_branch_idx').on(t.companyId, t.branchId),
     index('notification_attempts_log_idx').on(t.companyId, t.createdAt.desc(), t.id.desc()),
     index('notification_attempts_status_idx').on(t.companyId, t.status, t.createdAt, t.id),
+  ],
+);
+
+// اشتراكات الدفع الشخصية (ADR-0052 §3): صف لكل تثبيت متصفح في شركة؛ الأسرار بتمسح كلها أو ما بتمسحش.
+export const pushSubscriptions = pgTable(
+  'push_subscriptions',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id),
+    // hash خاص بالشركة لمعرّف التثبيت الخام؛ المعرّف نفسه ما بيتخزّنش في أي عمود.
+    installationHash: bytea('installation_hash').notNull(),
+    // وجهة الدفع ومفاتيحها؛ بتتمسح كلها لحظة السحب.
+    endpoint: text('endpoint'),
+    p256dh: text('p256dh'),
+    auth: text('auth'),
+    // hash الوجهة: يفضل بعد السحب للتشخيص، وبيمنع وجود وجبتين حيّتين لنفس العنوان.
+    endpointHash: bytea('endpoint_hash').notNull(),
+    // رمز تسليم عشوائي يميّز اشتراك الجهاز عن إشعار قديم وصل بعد تغيير الشخص.
+    deliveryToken: uuid('delivery_token'),
+    // العدّاد: كل تغيير في الوجهة أو المفتاح أو الرمز، وكل سحب، بيزوّد واحد.
+    generation: integer('generation').notNull().default(1),
+    locale: text('locale').notNull(),
+    vapidKeyId: text('vapid_key_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedReason: text('revoked_reason'),
+  },
+  (t) => [
+    primaryKey({ name: 'push_subscriptions_pkey', columns: [t.companyId, t.id] }),
+    unique('push_subscriptions_install_key').on(t.companyId, t.userId, t.installationHash),
+    uniqueIndex('push_subscriptions_endpoint_key')
+      .on(t.companyId, t.endpointHash)
+      .where(sql`${t.revokedAt} IS NULL`),
+    index('push_subscriptions_active_user_idx')
+      .on(t.companyId, t.userId)
+      .where(sql`${t.revokedAt} IS NULL`),
+    index('push_subscriptions_user_idx').on(t.userId),
+    check('push_subscriptions_locale', sql`${t.locale} IN ('ar','en')`),
+    check(
+      'push_subscriptions_revoked_reason',
+      sql`${t.revokedReason} IS NULL OR ${t.revokedReason} IN ('UNSUBSCRIBED','GONE','REPLACED','OWNER_CHANGED','KEY_ROTATED','CAP_EXCEEDED')`,
+    ),
+    check('push_subscriptions_generation', sql`${t.generation} >= 1`),
+    check(
+      'push_subscriptions_endpoint_length',
+      sql`${t.endpoint} IS NULL OR char_length(${t.endpoint}) <= 2048`,
+    ),
+    check('push_subscriptions_vapid_key_id', sql`${t.vapidKeyId} ~ '^[0-9a-f]{16}$'`),
+    // صف حيّ يحمل كل الأسرار وصف مسحوب ما يحملش ولا واحد: السحب بيمسح الكل أو ما بيمسحش.
+    check(
+      'push_subscriptions_state',
+      sql`(${t.revokedAt} IS NULL AND ${t.revokedReason} IS NULL AND ${t.endpoint} IS NOT NULL AND ${t.p256dh} IS NOT NULL AND ${t.auth} IS NOT NULL AND ${t.deliveryToken} IS NOT NULL) OR (${t.revokedAt} IS NOT NULL AND ${t.revokedReason} IS NOT NULL AND ${t.endpoint} IS NULL AND ${t.p256dh} IS NULL AND ${t.auth} IS NULL AND ${t.deliveryToken} IS NULL)`,
+    ),
   ],
 );

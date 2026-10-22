@@ -233,6 +233,7 @@ export const ar: Catalog = {
     PASSKEY_INVALID: 'تعذر التحقق من مفتاح المرور.',
     PASSKEY_SELF_UNBIND: 'لا يمكنك فك ربط مفتاح مرورك بنفسك. اطلب من مدير آخر لديه الصلاحية.',
     PASSKEY_REVISION_CONFLICT: 'تغير ربط مفتاح المرور. حدّث الحالة قبل المحاولة من جديد.',
+    PUSH_KEY_STALE: 'مفتاح الإشعارات اتغيّر، فعّل الإشعارات من جديد.',
     OTP_INVALID: 'رمز الدخول غير صحيح.',
     VALIDATION_FAILED: 'البيانات المرسلة غير صحيحة',
     INVALID_CUSTOMER_PHONE:
@@ -247,6 +248,7 @@ export const ar: Catalog = {
     DEVICE_NOT_PENDING: 'لا يوجد جهاز في انتظار الموافقة بهذا المعرّف في هذا الفرع',
     PIN_INVALID: 'الرقم السري غير صحيح',
     PIN_LOCKED: 'الرقم السري مقفول بعد محاولات خاطئة كثيرة، حاول بعد 15 دقيقة',
+    RATE_LIMITED: 'محاولات كتير، جرّب بعد شوية.',
     NOT_FOUND: 'المسار غير موجود',
     METHOD_NOT_ALLOWED: 'الطريقة غير مسموحة',
     PAYLOAD_TOO_LARGE: 'حجم الطلب كبير جداً',
