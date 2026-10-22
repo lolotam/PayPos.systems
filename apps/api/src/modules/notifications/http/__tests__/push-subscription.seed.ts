@@ -2,7 +2,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { AuthService } from '@pospay/auth';
 import { PROVISIONAL_PLAN_ID } from '@pospay/db';
 import { employeeNameMatchKey } from '@pospay/domain';
-import postgres from 'postgres';
+import type postgres from 'postgres';
 
 import { takeTestEmployeeNumber } from '../../../../../test/test-employee-number.ts';
 
@@ -47,6 +47,23 @@ export interface StaffSession {
 
 /**
  * @param seed      اتصال المالك ومولّد المعرفات
+ * @param companyId الشركة
+ * @param userId    المستخدم
+ * @param branchId  الفرع اللي بتغطيه العضوية
+ */
+export async function seedMembership(
+  seed: SeedContext,
+  companyId: string,
+  userId: string,
+  branchId: string,
+): Promise<void> {
+  await seed.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+    SELECT ${companyId},${seed.ids.newId()},${userId},id,'global','BRANCH',${branchId}
+    FROM roles WHERE code='staff' AND company_id IS NULL`;
+}
+
+/**
+ * @param seed      اتصال المالك ومولّد المعرفات
  * @param label     اسم الشركة
  * @param ownerUserId صاحب الشركة
  * @returns الشركة والنشاط والفرع
@@ -65,9 +82,7 @@ export async function seedCompanyRows(
     VALUES(${companyId},${businessId},${label},'salon')`;
   await seed.owner`INSERT INTO branches(company_id,id,business_id,name_en)
     VALUES(${companyId},${branchId},${businessId},${label})`;
-  await seed.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
-    SELECT ${companyId},${seed.ids.newId()},${ownerUserId},id,'global','BRANCH',${branchId}
-    FROM roles WHERE code='staff' AND company_id IS NULL`;
+  await seedMembership(seed, companyId, ownerUserId, branchId);
   return { companyId, businessId, branchId };
 }
 

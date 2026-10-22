@@ -18,6 +18,7 @@ import {
   receptionCookie,
   seedCompanyRows,
   seedEmployee,
+  seedMembership,
   seedUser,
   type StaffSession,
 } from './push-subscription.seed.ts';
@@ -153,6 +154,7 @@ export async function pushFixture(options: { configured?: boolean } = {}): Promi
     seedStaff: async (label) => {
       const staffUserId = await seedUser(seed, label, seed.nextPhone());
       await seedEmployee(seed, label, staffUserId, first);
+      await seedMembership(seed, first.companyId, staffUserId, first.branchId);
       return issueSession(auth, staffUserId, first);
     },
     seedCompany: async (label) => {
