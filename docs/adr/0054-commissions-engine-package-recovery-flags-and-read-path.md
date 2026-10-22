@@ -61,70 +61,7 @@ nothing else of the package, so the builder screen runs the same validator as th
   block instead of merging them, so one commissions override cannot work: placed last it drops the `use-cases/` and
   `domain/` bans for commissions files, placed first the `use-cases/` block replaces it and lets every module's use cases
   import the engine (Codex on #517). The rule is therefore composed per layer:
-  - `boundaries.js` exports one pattern, `COMMISSIONS_ENGINE_BAN` (`^@pospay/commissions-engine(/.*)?# ADR-0054 — The commissions engine package, the recovery-flag ledger, the read use cases and the two fingerprints
-
-Status: Proposed (draft for spec 059, sub-PR 59-0; number provisional, renumbered at merge). Sections 1, 3, 4, 5 and 6 are decided by the spec and the design advisors; section 2's role choice waits for the owner (CS-Q31, TODO(spec)).
-Date: 2026-10-22. Scope: spec 059, Phase 1 rows 48a to 56b. Owner decisions already taken: CS-Q13 = PP-17.1 (the new package), spec 059 D-6 to D-9, D-15 to D-18.
-
-## Context
-
-Spec 059 leaves four points to an ADR, and this is that ADR (sub-PR 59-0, docs only — no code, no migration, no lint change lands here):
-
-1. **A new shared package.** The commission engine is pure TypeScript that lives today inside the API's commissions
-   module, but the worker needs it too (the projection consumer). A package is the only way to share it without
-   copying money rules (D-17, CS-Q13 = PP-17.1).
-2. **A global operational table.** The reminder scheduler's loss must be recorded outside Redis (FR-053), and a table
-   that no runtime role may clear is a different shape from the one the spec sketched.
-3. **The read path of two use cases.** The estimate and the statement view must run the engine, and `queries/` may not
-   import `domain/` (D-7).
-4. **The fingerprints and the consumer id.** Two hashes with different inputs, one consumer id for six event types, and
-   the rule that says which of the two an approval compares (D-6, D-8, D-9).
-
-Everything else in this slice is already decided by the spec, by ADR-0003, ADR-0012, ADR-0041 and ADR-0049. This ADR
-records the shape those decisions force, and names the one point that still needs the owner (CS-Q31, section 2).
-
-## Decision
-
-### 1. The package `packages/commissions-engine` (D-17)
-
-**What it holds.** The pure engine that today lives in `apps/api/src/modules/commissions/domain/`: the plan types and
-the plan validation (`validateCommissionPlan` in `plan-validation.ts`), the period computation (`computePeriod` in
-`period-commission.ts`) with its helpers, and the plan-version selection (`selectCommissionPlanVersion` in
-`plan-version.ts`). Sub-PR 48a-1 moves those files **unchanged**, with their tests. Sub-PR 50-a adds the input
-assembly (FR-022), and the two pure fingerprint builders of section 6 live there too. ADR-0035 stands: commission kinds
-stay out of `packages/domain`.
-
-**Its dependency.** `@pospay/domain` only. The package follows the same purity rules as a module's `domain/`
-(CLAUDE.architecture.md §3.1): no Drizzle, no NestJS, no Zod runtime, no `node:*`.
-
-**Who may import it.** The root entry `@pospay/commissions-engine` only from the `commissions` modules of `apps/api`
-and `apps/worker` — their `use-cases/`, `ports/` and `persistence/`, exactly the layers CLAUDE.architecture.md §3.1
-lets import a module's own `domain/`, because the engine stands in for the commissions `domain/`. `events/handlers/`,
-`jobs/`, `queries/` and `http/` never import it. The worker's `commissions`
-module does not exist yet (it arrives with 50-1).
-
-The ESLint rule for a module's `domain/` (`packages/config/eslint/boundaries.js`, the `**/modules/*/domain/**/*.ts`
-block) allows only `@pospay/domain` and the folder's own relative files, so a commissions `domain/` file can **never**
-import the package. 48a-1 therefore leaves `apps/api/src/modules/commissions/domain/` empty — everything in it today is
-the engine — and changes no regex. Code that needs an engine type belongs in the package or in a use case.
-
-**The subpath.** The package's `package.json` `"exports"` lists exactly `"."` and `"./validation"`, no wildcard.
-`"./validation"` exports only `validateCommissionPlan`, its error codes and the plan types: browser-safe, no Node API,
-no import beyond `@pospay/domain`. `apps/admin/src/commissions` (created by 48-3) may import `"./validation"` and
-nothing else of the package, so the builder screen runs the same validator as the API (CM-06).
-
-**Enforcement, in three layers.** It is DECLARED by 59-0 and DELIVERED by 48a-1:
-
-- **(a) The module-map check.** `docs/module-map.md` §6 gains `packages_restricted: commissions-engine: [commissions]`.
-  `scripts/module-map/module-map.mjs` matches the module **name** (`from.module`), so one entry covers the API's and the
-  worker's `commissions` modules. The check in `checkModules` fires only when `from.module !== null`, and `place()`
-  returns `module: null` for everything that is not under `apps/<app>/src/modules/<module>/…` — so it cannot see
-  `apps/admin`, `apps/api/src/shared`, `apps/worker/src/documents` or `packages/*`.
-- **(b) ESLint `no-restricted-imports`.** Flat config **replaces** a rule's options with those of the last matching
-  block instead of merging them, so one commissions override cannot work: placed last it drops the `use-cases/` and
-  `domain/` bans for commissions files, placed first the `use-cases/` block replaces it and lets every module's use cases
-  import the engine (Codex on #517). The rule is therefore composed per layer:
-  - `boundaries.js` exports one pattern, , plus any relative specifier that
+  - `boundaries.js` exports one pattern, `COMMISSIONS_ENGINE_BAN` (`^@pospay/commissions-engine(/.*)?$`, plus any relative specifier that
     reaches `packages/commissions-engine/`, so a `../../packages/commissions-engine/src/…` path cannot skip the `exports`
     map), and **every**
     block that sets `no-restricted-imports` includes it: the base block, the `domain/` block, the `use-cases/` block and
