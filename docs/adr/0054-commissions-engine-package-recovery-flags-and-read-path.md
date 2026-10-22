@@ -55,13 +55,24 @@ nothing else of the package, so the builder screen runs the same validator as th
   worker's `commissions` modules. The check in `checkModules` fires only when `from.module !== null`, and `place()`
   returns `module: null` for everything that is not under `apps/<app>/src/modules/<module>/…` — so it cannot see
   `apps/admin`, `apps/api/src/shared`, `apps/worker/src/documents` or `packages/*`.
-- **(b) ESLint `no-restricted-imports`.** Everywhere: refuse `^@pospay/commissions-engine(/.*)?$`. An override for
-  `**/modules/commissions/**` (API and worker) allows the root; an override for `apps/admin/src/commissions/**` allows
-  exactly `@pospay/commissions-engine/validation`. Flat config **replaces** a rule's patterns instead of merging them,
-  so each override re-lists the credential patterns, the way `boundaries.js` already does for `use-cases/`.
+- **(b) ESLint `no-restricted-imports`.** Flat config **replaces** a rule's options with those of the last matching
+  block instead of merging them, so one commissions override cannot work: placed last it drops the `use-cases/` and
+  `domain/` bans for commissions files, placed first the `use-cases/` block replaces it and lets every module's use cases
+  import the engine (Codex on #517). The rule is therefore composed per layer:
+  - `boundaries.js` exports one pattern, `COMMISSIONS_ENGINE_BAN` (`^@pospay/commissions-engine(/.*)?$`), and **every**
+    block that sets `no-restricted-imports` includes it: the base block, the `domain/` block, the `use-cases/` block and
+    any later one.
+  - The exceptions are intersection blocks placed **after** those, each re-listing its own layer's patterns without the
+    ban: `**/modules/commissions/use-cases/**` keeps the credential and infrastructure patterns of `use-cases/`;
+    `**/modules/commissions/domain/**` keeps the domain rule widened to `@pospay/domain` and `@pospay/commissions-engine`;
+    the rest of `**/modules/commissions/**` keeps the base patterns; `apps/admin/src/commissions/**` keeps the base
+    patterns and bans only the root `^@pospay/commissions-engine$` (so `/validation` is allowed).
+  - 48a-1 adds negative lint tests: a non-commissions use case importing the engine fails; a commissions use case
+    importing `@pospay/db` or `node:fs` still fails; a commissions use case and a commissions domain file importing the
+    engine pass; `apps/admin` importing the root fails and `/validation` passes.
 - **(c) The `"exports"` map** above: a deep path into the package is not resolvable at all.
 
-48a-1 adds a lint test: admin importing the root fails, importing `/validation` passes. It also extends the
+48a-1 also extends the
 `lint:docs` JSDoc rule (`packages/config/eslint/jsdoc.js`, `requireArabicJsdoc`, today scoped to `**/domain/**/*.ts`,
 `**/ports/**/*.ts` and `packages/domain/src/**/*.ts`) to the package's `src/**`, so the moved functions keep the Arabic
 JSDoc gate (CLAUDE.md §3.1).
