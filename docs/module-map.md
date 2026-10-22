@@ -51,7 +51,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `reporting`     | —                     | **Imports nothing.** Read-only SQL across contexts (§5).                       |
 
 **Every module may import:** `packages/domain`, `packages/contracts`, `packages/db` (from `persistence/` and `queries/` only), `packages/observability`.
-**Only the owning module may import:** `packages/auth` (→ `identity`), `packages/payments` (→ `payments`), `packages/storage` (→ `files`), `packages/notifications` (→ `notifications`), `packages/documents` (→ `reporting`; the worker composition root `apps/worker/src/main.ts` wires it, and only `apps/worker/src/documents/` uses it).
+**Only the owning module may import:** `packages/auth` (→ `identity`), `packages/payments` (→ `payments`), `packages/storage` (→ `files`), `packages/notifications` (→ `notifications`), `packages/documents` (→ `reporting`; the worker composition root `apps/worker/src/main.ts` wires it, and only `apps/worker/src/documents/` uses it), `packages/commissions-engine` (→ `commissions`, in `apps/api` and `apps/worker`; its root entry only. `apps/admin/src/commissions` may import the `/validation` entry point and nothing else, which the module-map check cannot see, so sub-PR 48a-1 enforces it with an ESLint scope and the package `exports`; the row is declared by 59-0, ADR-0054 §1).
 
 Application composition roots (`apps/api/src/{app,main}.ts`, `apps/worker/src/{main,worker}.ts`) may wire
 notifications and restricted auth facades for ADR-0019 staff OTP. This is wiring
@@ -137,6 +137,12 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | worker `orders` | `DiscountSelfApprovalNoticeRecipients` | worker `identity`, `tenancy` | the scoped-role reader with the roles of the kind's effective alert rule (by default `owner`, DA-Q11): every active membership in those roles covering the branch, the approver not excluded (spec 057 D-19, ADR-0051, 057-3b) |
 | worker `orders` | `DiscountSelfApprovalNoticePlace` | worker `tenancy` | branchPlace names only; service names come from the event (ADR-0051) |
 | `commissions`                       | `EmployeeDirectoryPort`                                                                 | `staff`     | employee names — statements, live estimate (ADR-0010)                                                                                                                |
+| `commissions` | business-timezone reader (port named by the sub-PR that adds it) | `tenancy` | "the period has ended" and the month boundaries of a statement; bound at the composition root, no import arrow (spec 059 D-16, ADR-0054 §4) |
+| `commissions` | service-names reader (port named by the sub-PR that adds it) | `catalog` | service names for the statement detail and the export, read live while the month is open and frozen at approval (spec 059 D-16, D-20; no import arrow) |
+| `commissions` | notification-recipients reader (port named by the sub-PR that adds it) | `identity` | owners and managers who receive the reminders and bells, filtered by the endpoint's own permission predicate (spec 059 D-16, FR-030; no import arrow) |
+| `commissions` | employee-business-and-branch-attachments reader (port named by the sub-PR that adds it) | `staff` | the employee's business and her dated branch attachments, read once in the approval transaction for the frozen attachment snapshot (spec 059 D-16, FR-018b, FR-033; no import arrow) |
+| `commissions` | customer-names reader (port named by the sub-PR that adds it) | `customers` | the customer's full name for the statement detail and the export, never a phone (spec 059 D-16, D-20; no import arrow) |
+| `commissions` | tips, lines and package-sales bootstrap readers (ports named by 50-0, 50-3 and 50-4) | `orders` | the latest revision of each input with its event ids, in paged form, for the bootstrap before approval opens; bound at the composition root, never read from commissions code (spec 059 D-15, ADR-0041 §6; no import arrow) |
 | `customers`                         | `PerformerNamePort`                                                                     | `staff`     | performer's first name, in the rating message (ADR-0010)                                                                                                             |
 | `customers`                         | `DaySessionsPort`                                                                       | `orders`    | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010)                     |
 | `staff` | `EmployeeDocumentScope.file` | `files` | a READY file uploaded by the recorder for this employee and business, read in the same tenant transaction; staff keeps the verified key only (ADR-0031) |
@@ -298,6 +304,7 @@ packages_restricted:
   storage: [files]
   notifications: [notifications]
   documents: [reporting]
+  commissions-engine: [commissions]
 
 # Application composition roots may wire restricted packages (ADR-0018); never a business-module permission.
 composition_roots:

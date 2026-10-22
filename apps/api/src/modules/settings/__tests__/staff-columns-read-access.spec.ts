@@ -45,7 +45,7 @@ it('a member with only read:settings:business reads the staff columns', async ()
   expect(staffColumnsSettings.parse(res.json())).toMatchObject({
     business_id: f.business,
     columns_default: true,
-    months_back: 1,
+    months_back: 2,
   });
 });
 

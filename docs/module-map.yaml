@@ -23,6 +23,7 @@ imports:
   tenancy: []
 packages_restricted:
   auth: [identity]
+  commissions-engine: [commissions]
   documents: [reporting]
   notifications: [notifications]
   payments: [payments]

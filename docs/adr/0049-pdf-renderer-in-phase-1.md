@@ -158,3 +158,40 @@ amended to say so.
 - A Chromium crash costs one retry of the job in flight, never the worker's readiness.
 - `06` §2's "PDF/Excel" row becomes confirmed for PDF; Excel is still Phase 5.
 - 27g adds the first real template and source, the API endpoints, the download audit and the logo bytes reader.
+
+## Addendum — 2026-10-22: binary output and per-kind admission (spec 059 D-18, ADR-0054)
+
+**Why.** Sub-PR 56-0 adds the commission statement Excel export on this transport. Excel is pulled forward from
+Phase 5 for this one kind, so the "Consequences" line above ("Excel is still Phase 5") is amended accordingly: the
+Excel renderer is pulled forward for this kind only; `06` §2 keeps its "Excel ⏳ Phase 5" cell until 56-0 ships and updates it.
+
+**Section 1 (transport).** The job payload stays id-only (`{ company_id, render_id, kind }`). The reply carries the
+MIME type and the file name of the **kind**. The stored bytes are "the document bytes", not "the PDF": the same
+tenant-prefixed Redis key (`documents:bytes:{company_id}:{render_id}`), the same TTL, the same collect-once `GETDEL`,
+the same requester binding and the same uniform 404. Nothing about the transport changes; only what the bytes are.
+
+**Section 2 (renderer).** A document source declares its **output**, a discriminated type: HTML for the PDF renderer, or
+bytes plus a MIME type. A bytes kind has **no** HTML → PDF step. The xlsx MIME type is
+`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` and its size cap is 8 MiB (above it:
+`DOCUMENT_TOO_LARGE`). The workbook is built with `exceljs` in `packages/documents` (CLAUDE.md §2.1 owns Excel there);
+`exceljs` is added to `packages/documents` by 56-0 or 56-1 (it is in the stack of `docs/06_Tech_Stack_Architecture_EN.md`
+§2 and today only `apps/api` lists it). `packages/documents` stays a dependency of the worker only (§4 item 5 stands)
+and `packages_restricted: documents: [reporting]` stands, so the `commissions` module never imports it: the workbook
+renderer is injected at `apps/worker/src/main.ts` like the PDF renderer, and 56-0 fixes the exact seam.
+
+**Section 3 item 6 (admission).** The API's `503 RENDERER_UNAVAILABLE` check of the Chromium liveness key applies
+**only** to kinds whose output is the PDF renderer. The kind → output map must be readable by the API without the
+worker's registry: it lives in `packages/contracts` (`packages/contracts/src/documents-render.ts` has `kind` as a free
+`z.string()` today).
+
+**Risk found by the design advisors.** Today the worker opens its BullMQ `Worker` only **after** the renderer starts
+and its liveness key is written (`apps/worker/src/documents/start-documents.ts`), and `process-job.ts` checks
+`renderer.isAvailable()` before it loads any source. With Chromium down **no consumer exists for any kind**. So "a
+bytes kind is queued and built while Chromium is down" is false unless 56-0 decouples them: the BullMQ `Worker` opens
+independently of the renderer, `isAvailable()` is checked only on the PDF branch, and 56-0 tests that with Chromium down
+an xlsx job completes, while a PDF job is still refused with `503 RENDERER_UNAVAILABLE` at admission and
+`DocumentRendererUnavailableError` in the worker.
+
+**Section 5 (module map).** Unchanged: `composition_roots: documents: [apps/worker/src/main.ts]` and
+`packages_restricted: documents: [reporting]` stand. No source is registered yet; the commissions source is the first
+bytes kind.
