@@ -47,8 +47,11 @@ session would let any logged-in user probe any manager's PIN, and SPEC §3 has n
    `approve:discounts:branch`, and a DENY covering the branch wins, **except that an active owner's DENY is ignored**
    (`protectOwnerAccess`). That recheck (057-5, 057-6, 057-7) must go through the same evaluation as the generic guard
    path (`access-reader.ts`): `evaluateAccess` over grants passed through `protectOwnerAccess`, with the D-11
-   eligible-approver rule (the granting membership itself covers the branch), so the bell (§7) and the approval agree and
-   a user the bell reaches is never refused. The PIN never enters a log, an audit entry, an event, a response or the
+   eligible-approver rule (the granting membership itself covers the branch). The bell (§7) uses that permission rule,
+   with a DENY on any of the user's active memberships that covers the branch as in `evaluateAccess`, so it never reaches
+   someone the permission check refuses. The approval still applies the approver's own limit (FR-013), so a bell recipient
+   whose limit is below the line's effective bps is refused with `DISCOUNT_APPROVER_LIMIT_TOO_LOW`, by design: the bell
+   says who may approve, not who can approve every amount. The PIN never enters a log, an audit entry, an event, a response or the
    idempotency store; the device routes take no Idempotency-Key.
 4. **Lockout: two counters, both in Redis on Redis's clock.**
    - **Per holder** (D-08, ADR-0003 §4.2): 5 failures lock that holder's PIN for 15 minutes (423 `PIN_LOCKED`). An
