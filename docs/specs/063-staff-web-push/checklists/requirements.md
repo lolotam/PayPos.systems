@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain — WP-Q1, WP-Q2 and WP-Q3 answered by Waleed on 2026-10-22 (PP-33.1…PP-33.3); Abu Salem has not picked, and his pick replaces these if it differs.
+- [ ] No [NEEDS CLARIFICATION] markers remain — WP-Q1, WP-Q2 and WP-Q3 are answered by Waleed (2026-10-22; Abu Salem has not picked). **WP-Q4 (two companies on one phone) is open** and gates only the cross-company part of 28b-4.
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
