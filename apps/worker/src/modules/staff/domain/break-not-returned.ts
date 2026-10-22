@@ -108,11 +108,12 @@ export function dueBreakCutoff(now: Date, graceMs: number): Date {
 
 /**
  * هل مضت مهلة الرجوع عن آخر البريك؟
- * الدالة تحرس توقيت إشعار «رجعت لفرع آخر» بعد ما حد المرشحين نزل دقيقة، فالتوقيت ما يتحركش مع القاعدة.
+ * الدالة تحرس توقيت إشعار «رجعت لفرع آخر»، والمهلة هي مهلة قاعدة النوع نفسه
+ * (SHIFT_BREAK_RETURNED_OTHER_BRANCH، عشر دقائق لو مفيش قاعدة مخزّنة) ولا تعتمد على قاعدة عدم الرجوع.
  *
  * @param breakEndsAt آخر البريك
  * @param at لحظة القرار
- * @param graceMs مهلة الرجوع بالمللي ثانية
+ * @param graceMs مهلة قاعدة النوع اللي بيتقرر، بالمللي ثانية
  * @returns true لو المهلة مضت عند لحظة القرار
  */
 export function graceElapsed(breakEndsAt: Date, at: Date, graceMs: number): boolean {

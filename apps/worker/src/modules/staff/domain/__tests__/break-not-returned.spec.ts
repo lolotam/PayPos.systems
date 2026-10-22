@@ -158,7 +158,7 @@ describe('graceElapsed', () => {
     expect(graceElapsed(at('14:00'), at('14:30'), GRACE)).toBe(true);
   });
 
-  it('follows the grace the rule carries', () => {
+  it('follows the grace it is given, so the other-branch rule delay moves it', () => {
     expect(graceElapsed(at('14:00'), at('14:05'), 5 * 60 * 1000)).toBe(true);
     expect(graceElapsed(at('14:00'), at('14:05'), 20 * 60 * 1000)).toBe(false);
   });
