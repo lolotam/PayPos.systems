@@ -61,19 +61,23 @@ nothing else of the package, so the builder screen runs the same validator as th
   block instead of merging them, so one commissions override cannot work: placed last it drops the `use-cases/` and
   `domain/` bans for commissions files, placed first the `use-cases/` block replaces it and lets every module's use cases
   import the engine (Codex on #517). The rule is therefore composed per layer:
-  - `boundaries.js` exports two patterns, and **every** block that sets `no-restricted-imports` includes both (the base
-    block, the `domain/` block, the `use-cases/` block and any later one):
-    - `COMMISSIONS_ENGINE_BAN` (`^@pospay/commissions-engine(/.*)?$`), the package name, which the exceptions below lift;
-    - `COMMISSIONS_ENGINE_PATH_BAN`, any relative specifier that reaches `packages/commissions-engine/`, which **no** block
-      lifts, so a `../../packages/commissions-engine/src/…` path can never skip the `exports` map, in an exception block
-      or anywhere else.
-  - The exceptions are intersection blocks placed **after** those, each re-listing its own layer's patterns with `COMMISSIONS_ENGINE_PATH_BAN` but without
-    `COMMISSIONS_ENGINE_BAN`, only for the three allowed layers: `**/modules/commissions/use-cases/**` keeps the credential and
+  - `boundaries.js` exports three `no-restricted-imports` pattern entries, written with the `regex` key the file already
+    uses (`boundaries.js:115`), and **every** block that sets the rule includes all three (the base block, the `domain/`
+    block, the `use-cases/` block and any later one):
+    - `COMMISSIONS_ENGINE_ROOT_BAN` (`^@pospay/commissions-engine$`), lifted only by the backend exceptions below;
+    - `COMMISSIONS_ENGINE_SUBPATH_BAN` (`^@pospay/commissions-engine/.+$`), lifted by **no** backend block; the admin
+      block replaces it with one that allows exactly `@pospay/commissions-engine/validation`, so a future subpath in the
+      `exports` map stays refused everywhere until an ADR names it;
+    - `COMMISSIONS_ENGINE_PATH_BAN`, any relative specifier (`./` or `../`) with a `commissions-engine` path segment, which
+      **no** block lifts. It matches `../../packages/commissions-engine/src/…` from an app and `../commissions-engine/src/…`
+      from a sibling package alike, so no relative path can skip the `exports` map.
+  - The exceptions are intersection blocks placed **after** those, each re-listing its own layer's patterns with the subpath and path bans but without
+    `COMMISSIONS_ENGINE_ROOT_BAN`, only for the three allowed layers: `**/modules/commissions/use-cases/**` keeps the credential and
     infrastructure patterns of `use-cases/`; `**/modules/commissions/ports/**` and `**/modules/commissions/persistence/**`
     keep the base patterns. No other commissions layer gets an exception: `domain/`, `queries/`, `http/`, `events/` and
     `jobs/` keep the ban, and every module `domain/` imports only `@pospay/domain` (D-23). The admin exception lives in
     `apps/admin/eslint.config.js` with the app-relative glob `src/commissions/**` (each app lints from its own folder,
-    `boundaries.js` lines 32–33): it keeps the base patterns and `COMMISSIONS_ENGINE_PATH_BAN`, and of the package name
+    `boundaries.js` lines 32–33): it keeps the base patterns, the root ban and the path ban, and of the package
     allows exactly `@pospay/commissions-engine/validation`.
   - 48a-1 adds negative lint tests: a non-commissions use case importing the engine fails; a commissions use case
     importing `@pospay/db` or `node:fs` still fails; a commissions use case importing the engine passes; a commissions
@@ -81,15 +85,16 @@ nothing else of the package, so the builder screen runs the same validator as th
   - `no-restricted-imports` sees static imports only, so the same ban also covers `import()` and `require()`, as
     `credentials.js` does for credential modules: `boundaries.js` exports `COMMISSIONS_ENGINE_SYNTAX`, the
     `no-restricted-syntax` selectors for an `ImportExpression` or a `require` call whose literal specifier matches
-    either pattern. They join `restrictedSyntax()` in `packages/config/eslint/index.js`, the one builder every
+    any of the three. They join `restrictedSyntax()` in `packages/config/eslint/index.js`, the one builder every
     block uses for that rule (it is replaced the same way), and the same exception blocks set the rule from that builder
-    without the package-name selector only; the path selector stays in every block, and the admin block allows exactly
+    without the root selector only; the subpath and path selectors stay in every backend block, and the admin block allows exactly
     `@pospay/commissions-engine/validation`. Because a later block replaces the whole rule, each exception
     block comes as a pair, one for source files and one for test files that calls `restrictedSyntax({ userText: true, … })`,
     so commissions tests keep the Arabic-text exemption. A non-literal specifier is already refused by `CREDENTIAL_SYNTAX`.
     48a-1 adds negative tests for `import()` and `require()` of the root and of a relative `packages/commissions-engine`
     path from a non-commissions file, from a commissions `domain/`, `queries/` and `http/` file, and from `apps/admin`, and
-    of a relative path from a commissions use case and from `apps/admin/src/commissions` (all must fail),
+    of a relative path from a commissions use case, from `apps/admin/src/commissions` and from a sibling package under
+    `packages/*`, and of any subpath other than `/validation` from a commissions use case (all must fail),
     plus a passing lint test of a commissions use-case spec that holds Arabic text.
 - **(c) The `"exports"` map** above: a deep path into the package is not resolvable at all.
 
