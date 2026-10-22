@@ -310,7 +310,7 @@ declared per PP-7.1). ADR-0027 gets an addendum listing "own push subscription" 
   keeps it; on sign-in the record is suspended first and restored only when `subscriber_ref` matches, deleted when it
   differs, and stays suspended when the call fails (restart + expired session + a different person);
   opening a second company with the same person changes nothing and sends no `PUT`; an open with no established session
-  (expired or replaced) leaves the record untouched and unsuspended; a failed comparison keeps the record suspended;
+  (expired or replaced) leaves the record untouched (its suspended state unchanged); a failed comparison keeps the record suspended;
   `INSTALLATION_STORAGE_BLOCKED` shows the unsupported text and recovers; an offline transition and a failed session probe keep the token (its IndexedDB
   database is outside the private-cache clearing); the raw installation id appears in no URL (a request-recording test).
   The installed-launch destination is the 28b-4 spike's output, with a test that a reception installation still opens `/`.
