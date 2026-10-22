@@ -2,6 +2,7 @@ import { TENANT_TABLES } from '../../test/tenant-table-inventory.ts';
 import { PASSKEY_COLUMN_GRANTS } from '../../test/passkey-grants.ts';
 import {
   ATTENDANCE_CHANGE_COLUMN_GRANTS,
+  BREAK_LEDGER_COLUMN_GRANTS,
   testAttendanceDecisionPrivileges,
 } from '../../test/attendance-grants.ts';
 import { EMPLOYEE_COLUMN_GRANTS } from '../../test/employee-grants.ts';
@@ -107,6 +108,7 @@ describe('direct privileges match the reviewed allowlist', () => {
       [
         ...OTP_COLUMN_GRANTS,
         ...ATTENDANCE_CHANGE_COLUMN_GRANTS,
+        ...BREAK_LEDGER_COLUMN_GRANTS,
         ...LEAVE_COLUMN_GRANTS,
         ...FILE_COLUMN_GRANTS,
         ...OUTBOX_COLUMN_GRANTS,

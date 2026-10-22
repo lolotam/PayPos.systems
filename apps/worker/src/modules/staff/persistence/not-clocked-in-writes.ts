@@ -1,7 +1,7 @@
 import { appendAuditLog, appendOutboxEvents, type IdGenerator, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { inAppRecipientGroups, type NoticeParameter } from '../domain/not-clocked-in.ts';
-import type { NoticeWrite } from '../ports/not-clocked-in.port.ts';
+import type { NoticeWrite, SuppressedWrite } from '../ports/not-clocked-in.port.ts';
 
 export async function recordNotClockedIn(
   tx: Tx,
@@ -41,13 +41,27 @@ function outboxEntries(
     aggregateId: notice.shift.employeeId,
     eventType: 'ShiftNotClockedIn',
   };
-  if (groups.length === 0) return [{ id: ids.newId(), event: { ...event, payload: facts } }];
   const parameters = notice.parameters;
-  return groups.map((group) => ({
+  if (groups.length === 0)
+    return [
+      {
+        id: ids.newId(),
+        event: {
+          ...event,
+          payload: { ...facts, employee_push_user_id: notice.employeePushUserId },
+        },
+      },
+    ];
+  // هدف الإشعار الثابت للموظفة بيسافر مرة واحدة على أول حدث من التنبيه، عشان 28b-5 ما يبعتش لها أكتر من إشعار واحد.
+  return groups.map((group, index) => ({
     id: ids.newId(),
     event: {
       ...event,
-      payload: { ...facts, notification_recipients: recipientsFor(group, parameters) },
+      payload: {
+        ...facts,
+        employee_push_user_id: index === 0 ? notice.employeePushUserId : null,
+        notification_recipients: recipientsFor(group, parameters),
+      },
     },
   }));
 }
@@ -74,4 +88,21 @@ function noticeFacts(id: string, notice: NoticeWrite) {
     alert_due_at: notice.alertAt.toISOString(),
     detected_at: notice.detectedAt.toISOString(),
   };
+}
+
+export async function suppressNotClockedIn(
+  tx: Tx,
+  ids: IdGenerator,
+  companyId: string,
+  notice: SuppressedWrite,
+): Promise<boolean> {
+  const id = ids.newId();
+  const inserted = await tx.execute<{ id: string }>(sql`
+    INSERT INTO attendance_not_clocked_in_notices(
+      company_id,id,business_id,branch_id,employee_id,shift_starts_at,shift_ends_at,alert_due_at,notified_at,recipient_count,suppressed_at)
+    VALUES(${companyId},${id},${notice.shift.businessId},${notice.shift.branchId},${notice.shift.employeeId},
+      ${notice.shift.startsAt.toISOString()},${notice.shift.endsAt.toISOString()},${notice.alertAt.toISOString()},
+      ${notice.detectedAt.toISOString()},0,${notice.detectedAt.toISOString()})
+    ON CONFLICT (company_id, employee_id, shift_starts_at) DO NOTHING RETURNING id`);
+  return inserted.length === 1;
 }

@@ -1,5 +1,5 @@
 {
-  "id": "b4d9d994-e579-4aca-a368-405ad2b1034f",
+  "id": "9dabfdf2-0920-4d22-bace-1c0bce00f5e7",
   "prevId": "37a67535-9c58-4887-b3f6-1b8216c52a30",
   "version": "7",
   "dialect": "postgresql",
@@ -11455,6 +11455,18 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "suppressed_at": {
+          "name": "suppressed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suppressed_kind": {
+          "name": "suppressed_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -11585,6 +11597,18 @@
         "attendance_break_not_returned_notices_span": {
           "name": "attendance_break_not_returned_notices_span",
           "value": "\"attendance_break_not_returned_notices\".\"shift_ends_at\" > \"attendance_break_not_returned_notices\".\"shift_starts_at\" AND \"attendance_break_not_returned_notices\".\"break_ends_at\" > \"attendance_break_not_returned_notices\".\"shift_starts_at\" AND \"attendance_break_not_returned_notices\".\"break_ends_at\" < \"attendance_break_not_returned_notices\".\"shift_ends_at\""
+        },
+        "attendance_break_not_returned_notices_suppressed": {
+          "name": "attendance_break_not_returned_notices_suppressed",
+          "value": "\"attendance_break_not_returned_notices\".\"suppressed_at\" IS NULL OR \"attendance_break_not_returned_notices\".\"recipient_count\" = 0"
+        },
+        "attendance_break_not_returned_notices_suppressed_kind": {
+          "name": "attendance_break_not_returned_notices_suppressed_kind",
+          "value": "\"attendance_break_not_returned_notices\".\"suppressed_kind\" IN ('NOT_RETURNED', 'RETURNED_OTHER_BRANCH')"
+        },
+        "attendance_break_not_returned_notices_suppressed_pair": {
+          "name": "attendance_break_not_returned_notices_suppressed_pair",
+          "value": "(\"attendance_break_not_returned_notices\".\"suppressed_at\" IS NULL) = (\"attendance_break_not_returned_notices\".\"suppressed_kind\" IS NULL)"
         }
       },
       "isRLSEnabled": false
@@ -11652,6 +11676,12 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "suppressed_at": {
+          "name": "suppressed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -11782,6 +11812,10 @@
         "attendance_not_clocked_in_notices_span": {
           "name": "attendance_not_clocked_in_notices_span",
           "value": "\"attendance_not_clocked_in_notices\".\"shift_ends_at\" > \"attendance_not_clocked_in_notices\".\"shift_starts_at\""
+        },
+        "attendance_not_clocked_in_notices_suppressed": {
+          "name": "attendance_not_clocked_in_notices_suppressed",
+          "value": "\"attendance_not_clocked_in_notices\".\"suppressed_at\" IS NULL OR \"attendance_not_clocked_in_notices\".\"recipient_count\" = 0"
         }
       },
       "isRLSEnabled": false
@@ -18323,134 +18357,6 @@
         "session_tips_amount_ck": {
           "name": "session_tips_amount_ck",
           "value": "\"session_tips\".\"amount\" > 0 AND \"session_tips\".\"amount\" <= 99999999999.999"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.discount_approval_notices": {
-      "name": "discount_approval_notices",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "business_id": {
-          "name": "business_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "request_id": {
-          "name": "request_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_event_id": {
-          "name": "source_event_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "decided_at": {
-          "name": "decided_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "recipient_count": {
-          "name": "recipient_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "discount_approval_notices_business_fk_idx": {
-          "name": "discount_approval_notices_business_fk_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "discount_approval_notices_company_fk": {
-          "name": "discount_approval_notices_company_fk",
-          "tableFrom": "discount_approval_notices",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "discount_approval_notices_business_fk": {
-          "name": "discount_approval_notices_business_fk",
-          "tableFrom": "discount_approval_notices",
-          "tableTo": "businesses",
-          "columnsFrom": [
-            "company_id",
-            "business_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "discount_approval_notices_pkey": {
-          "name": "discount_approval_notices_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "discount_approval_notices_request_key": {
-          "name": "discount_approval_notices_request_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "company_id",
-            "request_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "discount_approval_notices_recipient_count": {
-          "name": "discount_approval_notices_recipient_count",
-          "value": "\"discount_approval_notices\".\"recipient_count\" >= 0"
         }
       },
       "isRLSEnabled": false

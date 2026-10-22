@@ -44,9 +44,9 @@ const POSTPONED_COLUMNS: ReadonlySet<StaffColumnCode> = new Set<StaffColumnCode>
   'rating_average',
 ]);
 
-/** افتراضي MY-Q9 (PP-21.1): الشهر الحالي بس. */
-export const DEFAULT_STAFF_MONTHS_BACK = 1;
-const MAX_STAFF_MONTHS_BACK = 24;
+/** افتراضي MY-Q2/MY-Q9 (أبو سالم): الشهر الحالي والشهر اللي قبله. */
+export const DEFAULT_STAFF_MONTHS_BACK = 2;
+const MAX_STAFF_MONTHS_BACK = 12;
 
 const KNOWN: ReadonlySet<string> = new Set(STAFF_COLUMN_CODES);
 
@@ -102,7 +102,7 @@ export function sameStaffColumns(
 
 /**
  * بيحدد هل عدد الشهور اللي المدير اختاره مسموح.
- * القاعدة: من 1 لـ 24 شهر، والشهر الحالي محسوب منهم (MY-Q9، D-A14).
+ * القاعدة: من 1 لـ 12 شهر، والشهر الحالي محسوب منهم (MY-Q9، D-A14).
  *
  * @param monthsBack العدد اللي المدير بعته
  * @returns true لو العدد صحيح وجوه المدى
@@ -125,11 +125,12 @@ export function effectiveStaffColumns(stored: readonly string[] | null): StaffCo
 
 /**
  * بيحسب كام شهر لورا الموظفة تقدر تشوف في «شغلي» و«حضوري».
- * القاعدة: المحفوظ، أو الشهر الحالي بس لو المدير ما اختارش (MY-Q9، D-A14).
+ * القاعدة: المحفوظ حتى 12، وأي قيمة فوقه (محفوظة تحت المدى القديم) بتتقري 12 لحد ما الـ CHECK يتضيّق (issue #519)،
+ * أو شهرين (الشهر الحالي والشهر اللي قبله) لو المدير ما اختارش (MY-Q2، MY-Q9، D-A14).
  *
  * @param stored العدد المحفوظ، أو null
  * @returns عدد الشهور، والشهر الحالي منهم
  */
 export function effectiveStaffMonthsBack(stored: number | null): number {
-  return stored ?? DEFAULT_STAFF_MONTHS_BACK;
+  return stored === null ? DEFAULT_STAFF_MONTHS_BACK : Math.min(stored, MAX_STAFF_MONTHS_BACK);
 }

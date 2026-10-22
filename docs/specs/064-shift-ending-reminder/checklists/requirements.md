@@ -13,11 +13,11 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — **open**: SE-Q1…SE-Q6 are `PENDING` (each is a `TODO(spec)` in the spec)
-- [ ] Requirements are testable and unambiguous — open until SE-Q1…SE-Q6 are answered (draft coverage is complete)
+- [x] No [NEEDS CLARIFICATION] markers remain — SE-Q1…SE-Q6 decided by Waleed on 2026-10-22 (Abu Salem's pick, if different, would win)
+- [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
-- [ ] All acceptance scenarios are defined — scenarios tagged `TODO(spec)` wait for the owner's answers
+- [x] All acceptance scenarios are defined
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded (28c here; the push channel 28b and the alerts screen 62-4 out)
 - [x] Dependencies and assumptions identified (row 28b push channel recorded as a hard dependency)
@@ -26,15 +26,15 @@
 
 ## Feature Readiness
 
-- [ ] All functional requirements have clear acceptance criteria — FR-003/004/005/011/012 wait for SE-Q answers
-- [ ] User scenarios cover primary flows — final after the answers
+- [x] All functional requirements have clear acceptance criteria
+- [x] User scenarios cover primary flows
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
 ## Notes
 
-- The spec is **not ready for implementation** until the owner answers SE-Q1…SE-Q6 and row 28b is merged
-  (after 28b-3: web-push adapter, worker processor, VAPID keys).
+- SE-Q1…SE-Q6 are decided (Waleed, 22 October 2026; Abu Salem's picks pending on the decisions page). The spec is
+  **not ready for implementation** until row 28b is merged through 28b-3 (web-push adapter, worker processor, VAPID keys).
 - Owner questions are recorded in Arabic in `owner-questions.ar.md`; publishing them is the orchestrator's job.
 - Technical decisions (third detector in the company job, rule from `AlertRulesPort`, presence = OPEN session, ledger
   key and suppression row) are in ADR-0053, number provisional.

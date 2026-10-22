@@ -128,6 +128,30 @@ it('101 managers become two contract-valid events and each gets one in-app row',
   expect(rows.map((row) => String(row['recipient_user_id']))).toEqual([...managers].sort());
 }, 60_000);
 
+it('the employee push target rides on the first event of the notice only', async () => {
+  const tenant = await f.tenant();
+  await seedManagers(tenant);
+  const userId = await f.user('absent');
+  const employee = await f.employee(tenant, { nameEn: 'Laila', userId });
+  await f.shift(tenant, employee);
+  f.setNow(ALERT_AT);
+  expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
+  const events = await f.events(tenant.company);
+  expect(events).toHaveLength(2);
+  const targets = events.map((event) => {
+    const payload = event['payload'] as {
+      employee_push_user_id?: string | null;
+      notification_recipients?: { user_id: string }[];
+    };
+    expect('employee_push_user_id' in payload).toBe(true);
+    return [payload.employee_push_user_id ?? null, payload.notification_recipients?.length ?? 0];
+  });
+  expect(targets).toEqual([
+    [userId, 100],
+    [null, 1],
+  ]);
+}, 60_000);
+
 it('NCI-11 no managers still publishes the event, and the consumer stores nothing', async () => {
   const tenant = await f.tenant();
   const employee = await f.employee(tenant, { nameEn: 'Alone' });
