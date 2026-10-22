@@ -116,6 +116,9 @@ NestJS, Drizzle, Fastify, BullMQ, React — none of these appear in a folder nam
 
 **A violation of this table is a CI failure, not a code-review comment.** See §10.
 
+`packages/commissions-engine` counts as the `commissions` module's own `domain/` in this table: only that module's
+`use-cases/`, `ports/` and `persistence/` may import it (ADR-0054 §1).
+
 ---
 
 ## 4. Enterprise vs Application business rules — where does this logic go?

@@ -35,7 +35,9 @@ stay out of `packages/domain`.
 (CLAUDE.architecture.md §3.1): no Drizzle, no NestJS, no Zod runtime, no `node:*`.
 
 **Who may import it.** The root entry `@pospay/commissions-engine` only from the `commissions` modules of `apps/api`
-and `apps/worker` — their `use-cases/`, `ports/`, `persistence/`, `events/` and `jobs/`. The worker's `commissions`
+and `apps/worker` — their `use-cases/`, `ports/` and `persistence/`, exactly the layers CLAUDE.architecture.md §3.1
+lets import a module's own `domain/`, because the engine stands in for the commissions `domain/`. `events/handlers/`,
+`jobs/`, `queries/` and `http/` never import it. The worker's `commissions`
 module does not exist yet (it arrives with 50-1).
 
 The ESLint rule for a module's `domain/` (`packages/config/eslint/boundaries.js`, the `**/modules/*/domain/**/*.ts`
@@ -63,12 +65,16 @@ nothing else of the package, so the builder screen runs the same validator as th
     block that sets `no-restricted-imports` includes it: the base block, the `domain/` block, the `use-cases/` block and
     any later one.
   - The exceptions are intersection blocks placed **after** those, each re-listing its own layer's patterns without the
-    ban: `**/modules/commissions/use-cases/**` keeps the credential and infrastructure patterns of `use-cases/`; the rest of `**/modules/commissions/**` keeps the base patterns with `ignores: ['**/domain/**', '**/use-cases/**']`, so the `domain/` block still decides a commissions `domain/` file, and `domain/` gets **no** exception: every module `domain/`, commissions included, imports only
-    `@pospay/domain`, lines above and spec D-23); `apps/admin/src/commissions/**` keeps the base
-    patterns and bans only the root `^@pospay/commissions-engine$` (so `/validation` is allowed).
+    ban, only for the three allowed layers: `**/modules/commissions/use-cases/**` keeps the credential and
+    infrastructure patterns of `use-cases/`; `**/modules/commissions/ports/**` and `**/modules/commissions/persistence/**`
+    keep the base patterns. No other commissions layer gets an exception: `domain/`, `queries/`, `http/`, `events/` and
+    `jobs/` keep the ban, and every module `domain/` imports only `@pospay/domain` (D-23). The admin exception lives in
+    `apps/admin/eslint.config.js` with the app-relative glob `src/commissions/**` (each app lints from its own folder,
+    `boundaries.js` lines 32–33): it keeps the base patterns and bans only the root `^@pospay/commissions-engine$`, so
+    `/validation` is allowed.
   - 48a-1 adds negative lint tests: a non-commissions use case importing the engine fails; a commissions use case
     importing `@pospay/db` or `node:fs` still fails; a commissions use case importing the engine passes; a commissions
-    `domain/` file importing the engine fails; `apps/admin` importing the root fails and `/validation` passes.
+    `domain/`, `queries/` or `http/` file importing the engine fails; `apps/admin` importing the root fails and `/validation` passes (these two run from `apps/admin`).
 - **(c) The `"exports"` map** above: a deep path into the package is not resolvable at all.
 
 48a-1 also extends the
@@ -91,7 +97,7 @@ hold `UPDATE` on a row it must not be able to clear:
 
 | Column | Type | Note |
 | --- | --- | --- |
-| `id` | `uuid` | UUID v7 from the injected `IdGenerator`; no database default |
+| `id` | `uuid` | UUID v7 from the injected `IdGenerator`; no database default; `PRIMARY KEY (id)` |
 | `code` | `text` | the incident code, e.g. `COMMISSION_REMINDER_SCHEDULES_LOST` |
 | `raised_at` | `timestamptz` | when the flag was raised |
 | `cleared_at` | `timestamptz` NULL | set only by the operator's confirmation |
