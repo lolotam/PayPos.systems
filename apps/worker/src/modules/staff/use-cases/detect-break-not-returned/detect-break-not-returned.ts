@@ -103,11 +103,20 @@ export class DetectBreakNotReturned {
     if (shift === null || shift.startsAt.getTime() !== candidate.startsAt.getTime()) return false;
     const breakEndsAt = shift.breakEndsAt;
     if (breakEndsAt === null) return false;
+    const breakStartsAt = shift.breakStartsAt;
+    if (breakStartsAt === null) return false;
+    const breakOutAt = await tx.breakOut(
+      shift, breakOutWindowStart(breakStartsAt, BREAK_OUT_LEAD_MS),
+    );
+    if (breakOutAt === null) return false;
+    const returned = await tx.returned(shift, breakOutAt, at);
+    const otherBranch = returned !== null && returned.branchId !== shift.branchId;
+    // النوعان مستقلان في التوقيت: إشعار الرجوع لفرع آخر بياخد قاعدة نفسه، مش قاعدة عدم الرجوع.
     const plan = periodicAlertPlan(
       await tx.rules.rule(
         companyId,
         { businessId: shift.businessId, branchId: shift.branchId },
-        'SHIFT_BREAK_NOT_RETURNED',
+        otherBranch ? 'SHIFT_BREAK_RETURNED_OTHER_BRANCH' : 'SHIFT_BREAK_NOT_RETURNED',
       ),
     );
     const leaves = await tx.approvedLeaves(
@@ -118,12 +127,6 @@ export class DetectBreakNotReturned {
       leaves,
       plan.delayMs,
     );
-    const breakStartsAt = shift.breakStartsAt;
-    if (breakStartsAt === null) return false;
-    const breakOutAt = await tx.breakOut(
-      shift, breakOutWindowStart(breakStartsAt, BREAK_OUT_LEAD_MS),
-    );
-    const returned = breakOutAt === null ? null : await tx.returned(shift, breakOutAt, at);
     const decision = breakNotReturnedDecision({
       now: at,
       shiftEndsAt: shift.endsAt,
@@ -136,42 +139,15 @@ export class DetectBreakNotReturned {
       shiftBranchId: shift.branchId,
       returnedBranchId: returned?.branchId ?? null,
     });
-    if (breakOutAt === null || (decision !== 'ALERT' && decision !== 'RETURNED_OTHER_BRANCH'))
+    if (decision !== 'ALERT' && decision !== 'RETURNED_OTHER_BRANCH') return false;
+    if (decision === 'RETURNED_OTHER_BRANCH' && !graceElapsed(breakEndsAt, at, plan.delayMs))
       return false;
     const moments: BreakMoments = { breakEndsAt, breakOutAt, alertAt: deadline.alertAt };
-    if (decision === 'ALERT') {
-      if (!plan.enabled) {
-        await tx.suppress({ shift, ...moments, detectedAt: at });
-        return false;
-      }
-      return this.record(tx, shift, moments, at, plan, null);
-    }
-    return this.alertOtherBranch(tx, companyId, shift, moments, at, plan.delayMs, returned);
-  }
-
-  private async alertOtherBranch(
-    tx: LockedBreakNotReturned,
-    companyId: string,
-    shift: LockedBreakShift,
-    moments: BreakMoments,
-    at: Date,
-    graceMs: number,
-    returned: BreakReturn | null,
-  ): Promise<boolean> {
-    // إشعار الرجوع لفرع آخر ينتظر مهلة عدم الرجوع نفسها، فالتوقيت ما يتحركش مع القاعدة.
-    if (!graceElapsed(moments.breakEndsAt, at, graceMs)) return false;
-    const plan = periodicAlertPlan(
-      await tx.rules.rule(
-        companyId,
-        { businessId: shift.businessId, branchId: shift.branchId },
-        'SHIFT_BREAK_RETURNED_OTHER_BRANCH',
-      ),
-    );
     if (!plan.enabled) {
       await tx.suppress({ shift, ...moments, detectedAt: at });
       return false;
     }
-    return this.record(tx, shift, moments, at, plan, returned);
+    return this.record(tx, shift, moments, at, plan, decision === 'ALERT' ? null : returned);
   }
 
   private async record(

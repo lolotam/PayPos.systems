@@ -41,13 +41,15 @@ function outboxEntries(
     aggregateId: notice.shift.employeeId,
     eventType: 'ShiftNotClockedIn',
   };
-  if (groups.length === 0) return [{ id: ids.newId(), event: { ...event, payload: facts } }];
+  // هدف الإشعار الثابت للموظفة بيسافر مع الحدث لحد بند 28b-5، والتدقيق بيفضل على حقايق الدفتر بس.
+  const payload = { ...facts, employee_push_user_id: notice.employeePushUserId };
+  if (groups.length === 0) return [{ id: ids.newId(), event: { ...event, payload } }];
   const parameters = notice.parameters;
   return groups.map((group) => ({
     id: ids.newId(),
     event: {
       ...event,
-      payload: { ...facts, notification_recipients: recipientsFor(group, parameters) },
+      payload: { ...payload, notification_recipients: recipientsFor(group, parameters) },
     },
   }));
 }

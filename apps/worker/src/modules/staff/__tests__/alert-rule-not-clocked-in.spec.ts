@@ -170,6 +170,14 @@ it('RT-27b a suppressed shift is never alerted later, and the next overdue shift
 it('the notice carries the absent employee user id the fixed push needs', async () => {
   const tenant = await f.tenant();
   const userId = await f.user('absent');
+  const manager = await f.user('manager');
+  await f.member({
+    tenant,
+    userId: manager,
+    roleId: ROLE.branch_manager,
+    scopeType: 'BRANCH',
+    scopeId: tenant.branch,
+  });
   const employee = await f.employee(tenant, { nameEn: 'Laila', userId });
   await f.shift(tenant, employee);
   const written: NoticeWrite[] = [];
@@ -179,6 +187,26 @@ it('the notice carries the absent employee user id the fixed push needs', async 
   });
   expect(written).toHaveLength(1);
   expect(written[0]?.employeePushUserId).toBe(userId);
+  const events = await outboxRows(ctx, tenant.company, EVENT);
+  expect(events).toHaveLength(1);
+  expect(events[0]?.['payload']).toMatchObject({ employee_push_user_id: userId });
+  const audit = await auditRows(ctx, tenant.company);
+  expect(audit).toHaveLength(1);
+  expect(audit[0]?.['after']).not.toHaveProperty('employee_push_user_id');
+});
+
+it('an employee without a linked user leaves the push target empty and the event still goes out', async () => {
+  const tenant = await f.tenant();
+  const employee = await f.employee(tenant, { nameEn: 'Laila' });
+  await f.shift(tenant, employee);
+  f.setNow(ALERT_AT);
+  expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
+  const events = await outboxRows(ctx, tenant.company, EVENT);
+  expect(events).toHaveLength(1);
+  const payload = events[0]?.['payload'] as { employee_push_user_id?: string | null };
+  expect(payload.employee_push_user_id).toBeNull();
+  expect('employee_push_user_id' in payload).toBe(true);
+  expect(payload).not.toHaveProperty('notification_recipients');
 });
 
 it('with no stored rule the defaults alert at twenty minutes to the four manager roles', async () => {

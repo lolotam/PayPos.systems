@@ -77,7 +77,7 @@ export async function outboxRows(context: RuleContext, company: string, eventTyp
 
 /** سطور التدقيق كلها للنشاط. */
 export async function auditRows(context: RuleContext, company: string) {
-  return context.owner`SELECT id, entity, entity_id, action FROM audit_log
+  return context.owner`SELECT id, entity, entity_id, action, after FROM audit_log
     WHERE company_id=${company} ORDER BY at, id`;
 }
 

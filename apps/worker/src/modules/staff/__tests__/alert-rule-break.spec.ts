@@ -113,6 +113,42 @@ it('a return at another branch before the grace passes waits for the grace', asy
   expect(events[0]?.['payload']).toMatchObject({ notice_kind: 'break_returned_other_branch' });
 });
 
+it('the other-branch notice keeps its own delay when the missing-return delay reaches past the shift end', async () => {
+  const { tenant, employee } = await onBreakReturnedElsewhere();
+  // مهلة عدم الرجوع هنا بتعدّي نهاية الوردية، بس إشعار الرجوع لفرع آخر بياخد مهلته هو.
+  await saveRule(ctx, tenant, KIND, { enabled: true, roles: MANAGER_ROLES, delayMinutes: 600 });
+  f.setNow(BREAK_ALERT_AT);
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 1 });
+  const rows = await breakLedger(ctx, tenant.company, employee);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.['suppressed_at']).toBeNull();
+  expect(new Date(rows[0]?.['alert_due_at'] as string | Date).toISOString()).toBe(
+    '2026-10-04T11:10:00.000Z',
+  );
+  const events = await outboxRows(ctx, tenant.company, EVENT);
+  expect(events).toHaveLength(1);
+  expect(events[0]?.['payload']).toMatchObject({ notice_kind: 'break_returned_other_branch' });
+});
+
+it('a stored delay on the other-branch kind moves its notice to break end plus twenty', async () => {
+  const { tenant, employee } = await onBreakReturnedElsewhere();
+  // المحقق بيمنع المهلة على هذا النوع، بس الصف المخزّن يبقى ليه حق يمشي، والوظيفة بتحترمه.
+  await saveRule(ctx, tenant, OTHER_KIND, { enabled: true, roles: MANAGER_ROLES, delayMinutes: 20 });
+  f.setNow(BREAK_ALERT_AT);
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
+  expect(await breakLedger(ctx, tenant.company, employee)).toHaveLength(0);
+  f.setNow(minute(BREAK_END, 20));
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 1 });
+  const rows = await breakLedger(ctx, tenant.company, employee);
+  expect(rows).toHaveLength(1);
+  expect(new Date(rows[0]?.['alert_due_at'] as string | Date).toISOString()).toBe(
+    '2026-10-04T11:20:00.000Z',
+  );
+  const events = await outboxRows(ctx, tenant.company, EVENT);
+  expect(events).toHaveLength(1);
+  expect(events[0]?.['payload']).toMatchObject({ notice_kind: 'break_returned_other_branch' });
+});
+
 it('with no stored rule the break notice goes out at the break end plus ten minutes', async () => {
   const { tenant, employee } = await onBreak();
   f.setNow(minute(BREAK_ALERT_AT, -1));
