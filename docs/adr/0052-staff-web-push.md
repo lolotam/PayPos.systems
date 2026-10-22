@@ -139,7 +139,8 @@ Owned by the API `notifications` module (`http/`), under `/v1/staff/push`, all `
   vapid_key_id, delivery_token, subscription: { endpoint, keys: { p256dh, auth } }, locale }`; `PUSH_KEY_STALE` (409)
   when `vapid_key_id` is not the current key. The server hashes the install id (decision 3) and stores only the hash. It is naturally idempotent (upsert on the unique key), so
   it takes no `Idempotency-Key` (§6 asks for one on money and stock effects only). It is also the "I opened the app"
-  refresh: it updates `locale` and `last_seen_at`.
+  refresh: it updates `locale` and `last_seen_at`. The app sends it **only from a session of the company it enabled
+  notifications for** (the local record names that company, decision 7); an open in any other company sends nothing.
 - `POST /v1/staff/push/subscription/revoke` → body `{ installation_id }`; revoke the caller's own subscription for that
   install (`UNSUBSCRIBED`). An unknown or foreign id answers the same as an own one, as the in-app read does
   (ADR-0018 §6). It is a `POST` with a body (so the route coverage guard classes it as a write and it is declared), **not** a `DELETE` with a query string: the raw install id must never be part
@@ -250,20 +251,23 @@ so the push service never sees the text, but the text is still treated as visibl
   `notificationclick`: close it, focus an open client or open `data.url`. The worker holds **no business logic and no
   translation catalog**.
 - **The delivery token and who owns it.** The local state is one record in its **own IndexedDB database
-  (`pospay-push`)**: `{ token, subscriber_ref, vapid_key_id, suspended }`. The ADR-0027 private-cache clearing (replacement,
-  failed probe, offline transition) does **not** touch it because it holds nothing private: the token is random, the
-  `subscriber_ref` is the non-reversible reference of decision 4 and the key id is public. ADR-0027 gets a matching
-  addendum in 28b-1 (it says the personal path stores nothing today); the record is deleted on explicit sign-out and on
-  switching notifications off.
-- **Who is signed in — fail-closed.** On every personal sign-in and app open the app first sets `suspended = true` (a
-  suspended record makes the service worker show only the neutral notice), then reads `GET config` and compares the
-  returned `subscriber_ref` with the stored one. **Equal** → `suspended = false`, and if the served `vapid_key_id` differs
-  from the stored one, run the rotation repair. **Different** → delete the record and unsubscribe the browser
-  subscription, so a notice queued for the previous person can never match. **The call fails or times out** → the
-  record stays suspended and the control shows "off, reconnecting" until a later open succeeds (stale answers from an
-  earlier sign-in are discarded). Because the reference is the same across a person's companies, simply opening another
-  salon does not disturb her subscription. Between a restart and the next sign-in the phone still belongs to the person
-  who enabled it, which is what the neutral notice and the personal-phone assumption cover.
+  (`pospay-push`)**: `{ token, subscriber_ref, company_id, vapid_key_id, suspended }`, where `company_id` is the company the
+  person enabled notifications for. The ADR-0027 private-cache clearing (replacement, failed probe, offline transition) does
+  **not** touch it because it holds nothing private: the token is random, the `subscriber_ref` is the non-reversible
+  reference of decision 4, and the company and key ids are not secrets. ADR-0027 gets a matching addendum in 28b-1 (it says
+  the personal path stores nothing today); the record is deleted on explicit sign-out and on switching notifications off.
+- **Who signed in — fail-closed, at sign-in only.** When a personal session is **newly established** (a verified sign-in),
+  the app first sets `suspended = true` (a suspended record makes the service worker show only the neutral notice), then
+  reads `GET config` and compares the returned `subscriber_ref` with the stored one. **Equal** → `suspended = false`.
+  **Different** (a confirmed mismatch) → delete the record and unsubscribe the browser subscription, so a notice queued for
+  the previous person can never match. **The call fails or times out** → the record is **kept, suspended**, and the control
+  shows "off, reconnecting" until a later sign-in or successful open compares it (stale answers from an earlier sign-in are
+  discarded); nothing is deleted on a transient failure. An open **without** an established session (the sign-in screen
+  after the eight-hour session ended, or after a replacement by a sign-in on her other phone) touches nothing: nobody new
+  has identified, so the record stays as it was and the owner keeps receiving (scenario 6 of the spec). Because the
+  reference is the same across a person's companies, signing in to another salon does not disturb her subscription. Between
+  a restart and the next sign-in the phone still belongs to the person who enabled it, which is what the neutral notice and
+  the personal-phone assumption cover.
 - **The control.** On the personal staff screen (`apps/pos/src/personal-staff/`), a toggle that calls
   `PushManager.subscribe({ userVisibleOnly: true, applicationServerKey })` from a user gesture, then `PUT`s the result with
   the install id, the key id, the new token and the locale, and stores the record with the current `subscriber_ref`.
@@ -275,11 +279,14 @@ so the push service never sees the text, but the text is still treated as visibl
 - **One subscriber per phone (WP-Q4).** A browser holds one push subscription per service worker. When a person
   **enables** notifications in a company, the app replaces the browser subscription first, so the company she enabled last
   is the one that receives; the earlier company's row dies at its next 410. Merely opening another company changes
-  nothing. In the same company the server also moves an endpoint to a new person (decision 3).
-- **Rotation repair.** When the served `vapid_key_id` differs from the stored one (a browser does not expose the key it
+  nothing: the open-time refresh and the rotation repair run only in the session of `company_id` from the record, and in any
+  other company the control shows "off" and sends nothing until she enables it there. In the same company the server also moves an endpoint to a new person (decision 3).
+- **Rotation repair.** When, in the session of the record's company, the served `vapid_key_id` differs from the stored one (a browser does not expose the key it
   was made with, so it is kept in the record) and permission is already granted, the app unsubscribes the browser
   subscription, subscribes with the new key and `PUT`s it with the new key id and a new token. This does not depend on the
-  server row, which the worker may already have revoked `KEY_ROTATED`. With permission not granted it shows "off".
+  server row, which the worker may already have revoked `KEY_ROTATED`. With permission not granted it shows "off". If `attendanceInstallationId()` throws `INSTALLATION_STORAGE_BLOCKED`
+  (storage disabled, private browsing) the control shows the "unsupported" state with its own text ("this browser blocks
+  storage, notifications cannot be turned on"), makes no request, and recovers on the next open when storage is available.
 - **iOS and iPadOS** deliver web push only to a PWA **added to the home screen** (16.4 or later); in a Safari tab the
   `PushManager` is absent. The control detects that and shows an install instruction instead of a dead toggle (WP-Q3).
 - **Launch destination — a constraint, not a mechanism.** An installed app opens at the manifest's `start_url` (`/`, the

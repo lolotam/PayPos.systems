@@ -175,7 +175,9 @@ the subscription state of each.
   as the manager notice (leave, presence, deleted/ended employee, once per shift) and **only while the linked user's personal access is current**, on the same toggle and master switch once
   row 62 ships.
 - **FR-010**: The staff app MUST show exactly one of five states for the control (unsupported, install-first on iPhone,
-  blocked, off, on) and MUST NOT persist notice content or subscription secrets of its own.
+  blocked, off, on) and MUST NOT persist notice content or subscription secrets of its own. When the install id cannot be
+  read (`INSTALLATION_STORAGE_BLOCKED`) the state is "unsupported" with its own text, no request is made, and the next
+  open recovers once storage is available.
 - **FR-011**: Registration MUST be offered only when the API holds a valid public key and subject; delivery MUST be enabled
   only when the worker holds all three variables and the private key matches the public one, and no attempt MUST be written
   while delivery is disabled. Neither state may affect any other feature. Fake mode MUST work without any key and
@@ -183,8 +185,12 @@ the subscription state of each.
 - **FR-012**: A revoked VAPID key id MUST revoke the subscriptions made under it without any send.
 - **FR-014**: A push MUST carry a random delivery token and the app MUST show the text only when it matches the token it
   holds; otherwise only a neutral notice (shared or reassigned phone).
-- **FR-018**: On every sign-in the app MUST suspend text display, compare the signed-in person's `subscriber_ref` with the
-  stored one, restore display only when equal, and discard the record when they differ or the comparison cannot complete.
+- **FR-018**: When a personal session is newly established the app MUST suspend text display, compare the signed-in
+  person's `subscriber_ref` with the stored one, restore display only when they are equal, delete the record only on a
+  confirmed mismatch, and keep it suspended (not delete it) when the comparison cannot complete. An open without an
+  established session MUST change nothing.
+- **FR-019**: The open-time refresh and the rotation repair MUST run only in the session of the company the record names;
+  enabling notifications in another company is the only thing that moves the subscription (WP-Q4).
 - **FR-015**: A change to a subscription (new endpoint, revoke) driven by a provider answer MUST apply only to the
   generation that answer was for.
 - **FR-016**: The raw installation id MUST NOT be stored; only a company-scoped hash (ADR-0029).
@@ -303,7 +309,9 @@ declared per PP-7.1). ADR-0027 gets an addendum listing "own push subscription" 
   stale-token push shows the neutral notice with no body; an explicit sign-out deletes the token while a replaced session
   keeps it; on sign-in the record is suspended first and restored only when `subscriber_ref` matches, deleted when it
   differs, and stays suspended when the call fails (restart + expired session + a different person);
-  opening a second company with the same person changes nothing; an offline transition and a failed session probe keep the token (its IndexedDB
+  opening a second company with the same person changes nothing and sends no `PUT`; an open with no established session
+  (expired or replaced) leaves the record untouched and unsuspended; a failed comparison keeps the record suspended;
+  `INSTALLATION_STORAGE_BLOCKED` shows the unsupported text and recovers; an offline transition and a failed session probe keep the token (its IndexedDB
   database is outside the private-cache clearing); the raw installation id appears in no URL (a request-recording test).
   The installed-launch destination is the 28b-4 spike's output, with a test that a reception installation still opens `/`.
   Also: each of the five control states asserts its visible text and the disabled/enabled state of the
@@ -332,7 +340,7 @@ declared per PP-7.1). ADR-0027 gets an addendum listing "own push subscription" 
 
 | PR | Scope (subtasks) | Depends on | Notes |
 | --- | --- | --- | --- |
-| **28b-1** | 1. Contract + `push_subscriptions` migration, RLS, grants, negative test. 2. `PUT` and `revoke` use cases and the `GET config` query, with endpoint validation and route declarations. 3. ADR-0027 addendum (the personal capability and the local `pospay-push` record) + tests PW-01…PW-04, PW-13, PW-16, PW-18, PW-19, PW-20 (key-id part) | ADR-0052 + this spec merged (no open question: WP-Q2 decides only the consumer rule in 28b-2) | database review mandatory |
+| **28b-1** | 1. Contract + `push_subscriptions` migration, RLS, grants, negative test. 2. `PUT` and `revoke` use cases and the `GET config` query, with endpoint validation and route declarations. 3. ADR-0027 addendum (the personal capability and the local `pospay-push` record) + tests PW-01…PW-04, PW-13, PW-16, PW-18, PW-19, PW-20 (key-id part), PW-21 | ADR-0052 + this spec merged (no open question: WP-Q2 decides only the consumer rule in 28b-2) | database review mandatory |
 | **28b-2** | 1. `push_attempts` migration, RLS, grants, negative test. 2. Pure push templates, allowlist and mapping + unit tests. 3. Consumer for `PUSH` recipients + `PushSendAuthorized` + tests PW-05, PW-06, PW-17 (consumer side) | 28b-1; **WP-Q2 answered** (the consumer selects **every** live subscription of the user) | database review mandatory |
 | **28b-3** | 1. Channel adapter (real and fake) + `web-push` pin + config/readiness. 2. `push-send` processor with the fence, result mapping, revoke + VAPID rotation. 3. `push:generate-vapid`, runbook, tests PW-07…PW-10, PW-14, PW-15, PW-20 (readiness part) | 28b-2 | dependency gate: Node 24 and CI |
 | **28b-4** | 1. Service worker via `injectManifest` + handlers + the suspended-record check. 2. The five-state control, subscribe/unsubscribe, locale refresh, the `subscriber_ref` comparison and rotation repair from the stored key id. 3. The installed-launch spike (what Add to Home Screen launches on a real iPhone and Android, the reception launch unchanged, ADR-0027 addendum if a hint must be stored) and UI tests (and the iPhone instruction if WP-Q3 says yes) | 28b-1; WP-Q1, WP-Q3 answered | a mockup is attached to WP-Q3 |
