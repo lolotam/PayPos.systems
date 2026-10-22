@@ -77,13 +77,14 @@ session would let any logged-in user probe any manager's PIN, and SPEC §3 has n
    zeros, so a raw four-digit bps never reaches the safe-text filter). It never shows a customer, a phone or the
    requester; the details are read only through the guarded approval lists.
    The owner bell of DA-Q3 follows the same shape: a worker `orders` consumer of `DiscountApprovedByPerformer`
-   (`orders.discount-self-approval-notice-v1`, 057-3b) resolves every active `owner` membership covering the branch
-   through the worker identity scoped-role reader (roles = `owner`; the approver is **not** excluded, ED-Q10) and
+   (`orders.discount-self-approval-notice-v1`, 057-3b) resolves every active membership covering the branch
+   whose role is in the kind's effective alert rule (by default `owner`; DA-Q11), through the worker identity scoped-role
+   reader (the approver is **not** excluded, ED-Q10) and
    appends `DiscountSelfApprovalNoticeRequested` in groups of at most 100, template `discount_self_approved`
    (revision 1, ar/en: branch, the approver's label, the first flagged service, the largest percent).
-   Neither bell is an alert-rule kind yet (spec 060 FR-B16): whether the master switch (AL-Q4 = PP-18.24, "team
-   alerts only") and per-kind rules apply to the request bell and the owner bell is `TODO(spec)`, pending an owner
-   question tracked in issue #476. 057-3 and 057-3b read that answer before they ship.
+   **Addendum (2026-10-22, DA-Q11 = PP-29.2, both owners; closes the question of issue #476):** the request bell (057-3)
+   always rings and is outside the team-alerts master switch and rules; the owner bell (057-3b) follows the master switch
+   (AL-Q4 = PP-18.24) and its own per-kind alert rule, whose roles replace the fixed `owner` set above (spec 057 D-19).
 8. **No new import arrow.** `orders → identity, settings` already exists; the new consumer-owned ports
    (`DiscountApprovalAccessPort`, `DiscountPinApproverPort`, worker `DiscountApprovalNoticeRecipients`, worker
    `DiscountApprovalNoticePlace`, and for the owner bell worker `DiscountSelfApprovalNoticeRecipients` and
