@@ -107,3 +107,20 @@ responses and persist no private data in the PWA, and the cache clearing above a
 is the reception device's window metadata (ADR-0019 addendum, item 7): the `window_id`, its `session_ref` and `window_seq`, and two expiry instants, with
 no personal data, removed when the window closes. The personal path stores nothing. Adding the four own reads to
 this ADR's list of personal-purpose capabilities is a separate addendum in sub-PR 57-1 (spec 060 D-A5).
+
+## Addendum 2026-10-22 — own web-push subscription (spec 063, ADR-0052, sub-PR 28b-1)
+
+The personal purpose gains one more own-scope capability: the employee registers, refreshes and revokes **her own**
+web-push subscription for the company of her session (`GET /v1/staff/push/config`, `PUT /v1/staff/push/subscription`,
+`POST /v1/staff/push/subscription/revoke`). The company and the user come from the session, never from the body; a
+`STAFF_POS` reception session, an admin session, a device key and a platform principal are refused. The two writes are
+declared in `AUTHENTICATED_WRITES` as `PERSONAL` with this guard as their check.
+
+The server keeps the subscription's endpoint and keys under RLS and scrubs them on revocation, and keeps only a
+company-scoped hash of the installation id (ADR-0029). The statement above that the personal path stores nothing stays true
+of private data. The one thing the PWA keeps from sub-PR 28b-4 is a single non-private local record in its own IndexedDB
+database (`pospay-push`): a random delivery token, the person's `subscriber_ref` (a SHA-256 of a fixed tag and the global
+user id, the same in every company), the company id it was enabled for, the public VAPID key id and a `suspended` flag. It
+holds no phone, code, challenge, credential, name or notice text, is outside the private-cache clearing described above,
+and is deleted on an explicit sign-out and when notifications are switched off. A session that is merely replaced or
+expired does not delete it (ADR-0052 §7).
