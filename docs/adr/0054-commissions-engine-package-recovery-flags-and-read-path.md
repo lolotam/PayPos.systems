@@ -75,6 +75,14 @@ nothing else of the package, so the builder screen runs the same validator as th
   - 48a-1 adds negative lint tests: a non-commissions use case importing the engine fails; a commissions use case
     importing `@pospay/db` or `node:fs` still fails; a commissions use case importing the engine passes; a commissions
     `domain/`, `queries/` or `http/` file importing the engine fails; `apps/admin` importing the root fails and `/validation` passes (these two run from `apps/admin`).
+  - `no-restricted-imports` sees static imports only, so the same ban also covers `import()` and `require()`, as
+    `credentials.js` does for credential modules: `boundaries.js` exports `COMMISSIONS_ENGINE_SYNTAX`, the
+    `no-restricted-syntax` selectors for an `ImportExpression` or a `require` call whose literal specifier matches
+    `COMMISSIONS_ENGINE_BAN`. They join `restrictedSyntax()` in `packages/config/eslint/index.js`, the one builder every
+    block uses for that rule (it is replaced the same way), and the same exception blocks set the rule from that builder
+    without them; the admin block keeps a root-only selector. A non-literal specifier
+    is already refused by `CREDENTIAL_SYNTAX`. 48a-1 adds negative tests for `import('@pospay/commissions-engine')` and
+    `require('@pospay/commissions-engine')` from a non-commissions file and from `apps/admin`.
 - **(c) The `"exports"` map** above: a deep path into the package is not resolvable at all.
 
 48a-1 also extends the
