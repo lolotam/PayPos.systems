@@ -32,7 +32,7 @@ export interface ShiftNotClockedIn {
   readonly shift_ends_at: string;
   readonly alert_due_at: string;
   readonly detected_at: string;
-  /** مستخدم الموظفة للإشعار الثابت: غير null لما الإشعار الثابت للنوع مفعّل والموظفة ليها حساب مرتبط، وبند 28b-5 هو اللي يبعت الـ PUSH منه. */
+  /** مستخدم الموظفة للإشعار الثابت: غير null على أول حدث من التنبيه بس (أحداث المجموعات التانية null)، لما الإشعار الثابت للنوع مفعّل والموظفة ليها حساب مرتبط، وبند 28b-5 يبعت الـ PUSH من ذلك الحدث. */
   readonly employee_push_user_id: string | null;
 }
 
