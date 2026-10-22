@@ -1,7 +1,7 @@
 // أعمدة القرار والاستهلاك وحدها؛ الشروط والطلب ولقطات D-18 بلا UPDATE، ولا UPDATE على service_lines.discount_proposal_id.
+// وexpires_at مش فيها: الطلب هو اللي بيكتبها مرة واحدة، والتريغر بيمنع أي تغيير بعد كده.
 export const DISCOUNT_PROPOSAL_COLUMN_GRANTS = [
   'status',
-  'expires_at',
   'decided_by',
   'decided_by_membership_id',
   'decided_via',

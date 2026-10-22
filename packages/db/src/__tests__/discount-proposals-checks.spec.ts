@@ -103,6 +103,33 @@ const decide = (id: string, status: 'APPROVED' | 'REJECTED', extra = sql``) =>
     decided_via='REMOTE',decider_role='owner',decider_role_is_system=true,decider_role_name_en='Owner',
     decided_at=clock_timestamp() ${extra} WHERE id=${id}`;
 
+// بنقارن النص مش اللحظة: فرق المنطقة الزمنية بين قراءتين ما يخلّيش المقارنة غلط.
+const expiryOf = async (id: string) => {
+  const [row] = await as(
+    A.company,
+    sql`SELECT expires_at::text AS expires_at FROM discount_proposals WHERE id=${id}`,
+  );
+  return row?.expires_at;
+};
+
+// pospay_app بقى من غير UPDATE على expires_at، فالطلب اللي بيحرّكها لازم يروح من المالك والتريغر هو اللي بيرفض.
+const ownerReject = (id: string) =>
+  owner`UPDATE discount_proposals SET status='REJECTED',decided_by=${USER},decided_by_membership_id=${ORDER_IDS.membership},
+    decided_via='REMOTE',decider_role='owner',decider_role_is_system=true,decider_role_name_en='Owner',
+    decided_at=clock_timestamp(),expires_at=clock_timestamp() + interval '24 hours'
+    WHERE company_id=${A.company} AND id=${id}`;
+
+const ownerApprove = (id: string) =>
+  owner`UPDATE discount_proposals SET status='APPROVED',decided_by=${USER},decided_by_membership_id=${ORDER_IDS.membership},
+    decided_via='REMOTE',decider_role='owner',decider_role_is_system=true,decider_role_name_en='Owner',
+    decided_at=clock_timestamp(),approved_limit_source='OWNER',approver_is_performer=true,
+    expires_at=clock_timestamp() + interval '24 hours' WHERE company_id=${A.company} AND id=${id}`;
+
+const ownerConsume = (id: string) =>
+  owner`UPDATE discount_proposals SET status='CONSUMED',consumed_line_id=${ORDER_IDS.line},
+    consumed_at=clock_timestamp(),expires_at=clock_timestamp() + interval '24 hours'
+    WHERE company_id=${A.company} AND id=${id}`;
+
 it('refuses a requester limit whose bps is missing', async () => {
   await refused(
     as(A.company, insertProposal({ id: ids.newId(), limitSource: 'PERSON', limitBps: null })),
@@ -204,30 +231,62 @@ it('refuses to change the kind or the base amounts of a pending proposal', async
 it('refuses a reject that moves the expiry and accepts one that keeps it', async () => {
   const id = ids.newId();
   await as(A.company, insertProposal({ id }));
-  await refused(
-    as(A.company, decide(id, 'REJECTED', sql`,expires_at=clock_timestamp() + interval '48 hours'`)),
-    '23514',
-    'discount_proposals_transition_guard',
-  );
+  await refused(ownerReject(id), '23514', 'discount_proposals_transition_guard');
   await as(A.company, decide(id, 'REJECTED'));
   const rows = await as(A.company, sql`SELECT status FROM discount_proposals WHERE id=${id}`);
   expect(rows).toEqual([{ status: 'REJECTED' }]);
 });
 
-it('accepts an approval that flags the performer and moves the expiry', async () => {
+it('accepts an approval that flags the performer and keeps the expiry', async () => {
   const id = ids.newId();
   await as(A.company, insertProposal({ id }));
+  const requested = await expiryOf(id);
   await as(
     A.company,
-    decide(
-      id,
-      'APPROVED',
-      sql`,approved_limit_source='OWNER',approver_is_performer=true,expires_at=clock_timestamp() + interval '24 hours'`,
-    ),
+    decide(id, 'APPROVED', sql`,approved_limit_source='OWNER',approver_is_performer=true`),
   );
   const rows = await as(
     A.company,
     sql`SELECT status,approver_is_performer FROM discount_proposals WHERE id=${id}`,
   );
   expect(rows).toEqual([{ status: 'APPROVED', approver_is_performer: true }]);
+  expect(await expiryOf(id)).toBe(requested);
+});
+
+it('refuses an approval that moves the expiry', async () => {
+  const id = ids.newId();
+  await as(A.company, insertProposal({ id }));
+  const requested = await expiryOf(id);
+  await refused(ownerApprove(id), '23514', 'discount_proposals_transition_guard');
+  const rows = await as(A.company, sql`SELECT status FROM discount_proposals WHERE id=${id}`);
+  expect(rows).toEqual([{ status: 'PENDING' }]);
+  expect(await expiryOf(id)).toBe(requested);
+});
+
+it('refuses a consumption that moves the expiry', async () => {
+  const id = ids.newId();
+  await as(A.company, insertProposal({ id }));
+  await as(
+    A.company,
+    decide(id, 'APPROVED', sql`,approved_limit_source='OWNER',approver_is_performer=false`),
+  );
+  await refused(ownerConsume(id), '23514', 'discount_proposals_transition_guard');
+  const rows = await as(A.company, sql`SELECT status FROM discount_proposals WHERE id=${id}`);
+  expect(rows).toEqual([{ status: 'APPROVED' }]);
+});
+
+it('pospay_app cannot update expires_at', async () => {
+  const id = ids.newId();
+  await as(A.company, insertProposal({ id }));
+  const requested = await expiryOf(id);
+  await refused(
+    as(
+      A.company,
+      sql`UPDATE discount_proposals SET expires_at=clock_timestamp() + interval '24 hours' WHERE id=${id}`,
+    ),
+    '42501',
+  );
+  const rows = await as(A.company, sql`SELECT status FROM discount_proposals WHERE id=${id}`);
+  expect(rows).toEqual([{ status: 'PENDING' }]);
+  expect(await expiryOf(id)).toBe(requested);
 });

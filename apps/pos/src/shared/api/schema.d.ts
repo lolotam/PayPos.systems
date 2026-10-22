@@ -1958,7 +1958,7 @@ export interface paths {
         /** @description The caller own proposals of one request (record:service-sessions:branch and the orders feature). Another recorder request id returns an empty list. EXPIRED is derived from expires_at. */
         get: operations["listMyDiscountProposals"];
         put?: never;
-        /** @description Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; a RECORD proposal terms use the fresh catalog list price (D-4). expires_at is never null: 24 hours from the request, reset to 24 hours from the approval (DA-Q4, DA-Q4b). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201. */
+        /** @description Asks approval for 1–20 draft lines above the recorder limit (record:service-sessions:branch, orders feature, admin login). Each line becomes one PENDING proposal with its terms hash; a RECORD proposal terms use the fresh catalog list price (D-4). expires_at is never null: 24 hours from the request, and approval or rejection never changes it (DA-Q4, DA-Q4b). A line within the recorder limit refuses the whole request with DISCOUNT_APPROVAL_NOT_NEEDED. occurred_at with session_id is a shape error. Actor-bound Idempotency-Key; replayable 201. */
         post: operations["requestDiscountApproval"];
         delete?: never;
         options?: never;
@@ -2027,7 +2027,7 @@ export interface paths {
         /** @description The caller own EDIT proposals of one request for this line (edit:service-line-prices:branch and the orders feature), each with kind, line_id, base_revision and the base price, discount and net. Another editor request id returns an empty list. */
         get: operations["listMyEditDiscountProposals"];
         put?: never;
-        /** @description Asks approval for one edit of a saved line above the editor limit (DA-Q5; edit:service-line-prices:branch, orders feature, admin login). The body is the price/discount edit body without the reason; expected_revision becomes the proposal base_revision. The EDIT terms use the line stored list_price, never a fresh catalog price (D-20). One EDIT proposal; expires_at is never null: 24 hours from the request, reset to 24 hours from the approval (DA-Q4, DA-Q4b). Actor-bound Idempotency-Key; replayable 201. */
+        /** @description Asks approval for one edit of a saved line above the editor limit (DA-Q5; edit:service-line-prices:branch, orders feature, admin login). The body is the price/discount edit body without the reason; expected_revision becomes the proposal base_revision. The EDIT terms use the line stored list_price, never a fresh catalog price (D-20). One EDIT proposal; expires_at is never null: 24 hours from the request, and approval or rejection never changes it (DA-Q4, DA-Q4b). Actor-bound Idempotency-Key; replayable 201. */
         post: operations["requestDiscountApprovalForEdit"];
         delete?: never;
         options?: never;
@@ -4025,7 +4025,9 @@ export interface components {
             enabled: boolean;
             recipient_roles: components["schemas"]["AlertRecipientRole"][];
             channels: components["schemas"]["AlertChannel"][];
+            /** @description Whole minutes, 1..1440; the domain enforces the range, so a value outside it is 422 ALERT_RULE_INVALID */
             delay_minutes: number | null;
+            /** @description Whole minutes, 1..1440; the domain enforces the range, so a value outside it is 422 ALERT_RULE_INVALID */
             lead_minutes: number | null;
             expected_revision: number | null;
             /** Format: uuid */
