@@ -66,6 +66,8 @@ export const pushSubscriptionInput = z
     delivery_token: z.uuid({ version: 'v4' }).toLowerCase(),
     subscription: z.strictObject({
       endpoint: pushEndpoint,
+      // المتصفح بيبعت expirationTime مع كل اشتراك (غالبًا null)؛ السيرفر بيقراه وبيتجاهله.
+      expirationTime: z.number().nullable().optional(),
       keys: z.strictObject({
         p256dh: z.string().regex(/^[A-Za-z0-9_-]{87}$/),
         auth: z.string().regex(/^[A-Za-z0-9_-]{22}$/),

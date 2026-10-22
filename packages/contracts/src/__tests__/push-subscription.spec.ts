@@ -136,6 +136,33 @@ describe('pushSubscriptionInput', () => {
     ).toBe(false);
   });
 
+  it('accepts the browser subscription shape, with or without an expiry', () => {
+    const shaped = (expirationTime: number | null) =>
+      pushSubscriptionInput.safeParse(
+        body({
+          subscription: {
+            endpoint: 'https://fcm.googleapis.com/x',
+            expirationTime,
+            keys: { p256dh: P256DH, auth: AUTH },
+          },
+        }),
+      ).success;
+    expect(shaped(null)).toBe(true);
+    expect(shaped(1_700_000_000_000)).toBe(true);
+    expect(
+      pushSubscriptionInput.safeParse(
+        body({
+          subscription: {
+            endpoint: 'https://fcm.googleapis.com/x',
+            expirationTime: null,
+            keys: { p256dh: P256DH, auth: AUTH },
+            unknown: 1,
+          },
+        }),
+      ).success,
+    ).toBe(false);
+  });
+
   it('refuses a bad installation id, key id, token, locale or key length', () => {
     expect(pushSubscriptionInput.safeParse(body({ installation_id: 'not-a-uuid' })).success).toBe(
       false,

@@ -241,6 +241,7 @@ export const en = {
     PASSKEY_REVISION_CONFLICT:
       'The passkey binding changed. Refresh its status before trying again.',
     PUSH_KEY_STALE: 'The notification key changed. Turn notifications on again.',
+    PUSH_REGISTRATION_BUSY: 'Another registration for this device is in progress. Try again.',
     OTP_INVALID: 'The sign-in code is not valid.',
     VALIDATION_FAILED: 'The request is not valid',
     BAD_REQUEST: 'The request is malformed',

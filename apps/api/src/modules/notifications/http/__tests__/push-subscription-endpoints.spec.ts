@@ -19,13 +19,14 @@ const body = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const liveCount = async () =>
+const liveCountFor = async (userId: string) =>
   Number(
     (
       await f.owner`SELECT count(*)::int AS count FROM push_subscriptions
-        WHERE company_id=${f.companyId} AND user_id=${f.userId} AND revoked_at IS NULL`
+        WHERE company_id=${f.companyId} AND user_id=${userId} AND revoked_at IS NULL`
     )[0]?.['count'],
   );
+const liveCount = async () => liveCountFor(f.userId);
 const ownCount = async () =>
   Number(
     (
@@ -177,24 +178,19 @@ it('answers NOT_READY and stores nothing when push is not configured', async () 
   }
 });
 
-it('keeps at most five live rows when registrations race and one live row per endpoint', async () => {
+it('keeps five live rows when eight registrations race, and never leaves a duplicate endpoint', async () => {
+  const racer = await f.seedStaff('Synthetic racer');
   const bodies = Array.from({ length: 8 }, () => body());
-  await Promise.all(
-    bodies.map((value) => f.send('PUT', '/v1/staff/push/subscription', { body: value })),
+  const results = await Promise.all(
+    bodies.map((value) =>
+      f.send('PUT', '/v1/staff/push/subscription', { body: value, headers: racer.headers }),
+    ),
   );
-  expect(await liveCount()).toBeLessThanOrEqual(5);
-  const endpoint = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
-  await Promise.all([
-    f.send('PUT', '/v1/staff/push/subscription', {
-      body: body({ subscription: subscription(endpoint) }),
-    }),
-    f.send('PUT', '/v1/staff/push/subscription', {
-      body: body({ subscription: subscription(endpoint) }),
-    }),
-  ]);
-  const holders = await f.owner`SELECT count(*)::int AS count FROM push_subscriptions
-    WHERE company_id=${f.companyId} AND endpoint=${endpoint} AND revoked_at IS NULL`;
-  expect(holders[0]?.['count']).toBe(1);
+  expect(results.map((result) => result.status)).toEqual(Array(8).fill(204));
+  expect(await liveCountFor(racer.userId)).toBe(5);
+  const revoked = await f.owner`SELECT count(*)::int AS count FROM push_subscriptions
+    WHERE company_id=${f.companyId} AND user_id=${racer.userId} AND revoked_reason='CAP_EXCEEDED'`;
+  expect(revoked[0]?.['count']).toBe(3);
 });
 
 it('stores no raw installation id and scopes the hash to the company', async () => {

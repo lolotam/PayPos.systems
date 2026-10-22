@@ -24,11 +24,11 @@ export interface PushSubscriptionWrite {
 /** عمليات اشتراكات الدفع جوه معاملة شركة واحدة. */
 export interface PushSubscriptionStore {
   /**
-   * بيقفل المستخدمين بأقفال تعاونية بترتيب المعرف الصاعد، عشان تسجيلين متسابقين ما يسيبوش اتنين صفوف حيّين.
+   * بيقفل المفاتيح بأقفال تعاونية بترتيب تصاعدي، عشان تسجيلين متسابقين ما ياخدوش الأقفال بترتيبين معاكسين.
    *
-   * @param userIds المعرفات اللي تتقفل
+   * @param keys المفاتيح اللي تتقفل
    */
-  lockUsers(userIds: readonly string[]): Promise<void>;
+  lockKeys(keys: readonly string[]): Promise<void>;
   /**
    * بيجيب كل الاشتراكات الحيّة للمستخدم في الشركة.
    *

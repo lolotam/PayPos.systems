@@ -234,6 +234,7 @@ export const ar: Catalog = {
     PASSKEY_SELF_UNBIND: 'لا يمكنك فك ربط مفتاح مرورك بنفسك. اطلب من مدير آخر لديه الصلاحية.',
     PASSKEY_REVISION_CONFLICT: 'تغير ربط مفتاح المرور. حدّث الحالة قبل المحاولة من جديد.',
     PUSH_KEY_STALE: 'مفتاح الإشعارات اتغيّر، فعّل الإشعارات من جديد.',
+    PUSH_REGISTRATION_BUSY: 'فيه تسجيل تاني شغال على نفس الجهاز، جرّب تاني.',
     OTP_INVALID: 'رمز الدخول غير صحيح.',
     VALIDATION_FAILED: 'البيانات المرسلة غير صحيحة',
     INVALID_CUSTOMER_PHONE:

@@ -54,3 +54,30 @@ describe('vapidKeyId', () => {
     expect(vapidKeyId('BPublicKey2')).not.toBe(id);
   });
 });
+
+// إجابات ثابتة محسوبة بره الكود: وسم النطاق أو ترتيب البايتات لو اتغيّروا، الاختبار ده يقع.
+describe('the known answers', () => {
+  it('hashes the installation tuple with its domain tag', () => {
+    expect(
+      installationHash('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222')
+        .toString('hex'),
+    ).toBe('430654adf08d5b3efa798a398399e17e41485a6a0ce1b8d74ed706424015524f');
+  });
+
+  it('hashes the endpoint bytes', () => {
+    expect(endpointHash('https://fcm.googleapis.com/fcm/send/abc').toString('hex')).toBe(
+      '4e9bdab8bbe7189c00aebb0922fc49fe40e00594c400f3e1b5dcf97a35c79f85',
+    );
+  });
+
+  it('derives the subscriber reference from the user id', () => {
+    expect(subscriberRef('33333333-3333-4333-8333-333333333333')).toBe(
+      '8c33415375f448c931d0892793be1ec67dfc877cade6ebf2079976c88e2e60b8',
+    );
+  });
+
+  it('derives the key id from the public key bytes', () => {
+    const publicKey = Buffer.concat([Buffer.from([0x04]), Buffer.alloc(64, 7)]).toString('base64url');
+    expect(vapidKeyId(publicKey)).toBe('2f3758f6e67f33c4');
+  });
+});

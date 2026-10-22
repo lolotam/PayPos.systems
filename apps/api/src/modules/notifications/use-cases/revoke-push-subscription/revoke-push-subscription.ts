@@ -18,6 +18,9 @@ export class RevokePushSubscription {
   ): Promise<void> {
     const installationHash = this.hashes.installationHash(scope.companyId, input.installation_id);
     await this.transactions.run(scope, async (store) => {
+      // قفل صاحب الطلب هو نفسه قفل التسجيل، فالإلغاء والتسجيل لنفس التثبيت ما يبقاش فيهم تسجيل
+      // بيرجّع الصف بعد ما الإلغاء مسحه.
+      await store.lockKeys([`user:${scope.userId}`]);
       await store.revokeByInstallation(
         scope.userId,
         installationHash,

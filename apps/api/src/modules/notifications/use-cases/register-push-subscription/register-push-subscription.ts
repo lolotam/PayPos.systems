@@ -44,15 +44,24 @@ export class RegisterPushSubscription {
     await this.transactions.run(scope, async (store) => {
       const installationHash = this.hashes.installationHash(scope.companyId, input.installation_id);
       const endpointHash = this.hashes.endpointHash(input.subscription.endpoint);
-      await store.lockUsers([scope.userId]);
-      const { callerRows, holders } = await this.readLocked(store, scope, endpointHash);
+      const before = await readRows(store, scope.userId, endpointHash);
+      // مفاتيح واحدة وبترتيب واحد: صاحب الطلب والوجهة وأصحاب الوجهة التانيين؛ كده مفيش تسجيلين
+      // ياخدوا الأقفال بترتيبين معاكسين، والوجهة الواحدة ليها قفل واحد.
+      const keys = new Set<string>([`user:${scope.userId}`, `endpoint:${endpointHash}`]);
+      for (const holder of before.holders)
+        if (holder.userId !== scope.userId) keys.add(`user:${holder.userId}`);
+      await store.lockKeys([...keys]);
+      const after = await readRows(store, scope.userId, endpointHash);
+      for (const holder of after.holders)
+        if (holder.userId !== scope.userId && !keys.has(`user:${holder.userId}`))
+          throw new ApiError('PUSH_REGISTRATION_BUSY');
       const plan = planPushRegistration({
         callerUserId: scope.userId,
         installationHash,
         endpointHash,
         cap: CAP,
-        callerRows,
-        endpointHolders: holders,
+        callerRows: after.callerRows,
+        endpointHolders: after.holders,
       });
       const now = this.clock.now();
       for (const revocation of plan.revoke)
@@ -71,26 +80,19 @@ export class RegisterPushSubscription {
       });
     });
   }
+}
 
-  // القفل الأول على صاحب الطلب بس؛ لو فيه صاحب تاني للوجهة بينقفل الاتنين بترتيب المعرف الصاعد
-  // والصفوف بتتقري تاني عشان السحب والعدّ يبانوا على الحالة المقفولة.
-  private async readLocked(
-    store: PushSubscriptionStore,
-    scope: { companyId: string; userId: string },
-    endpointHash: string,
-  ): Promise<{
-    callerRows: readonly LivePushSubscription[];
-    holders: readonly LivePushSubscription[];
-  }> {
-    let callerRows = await store.findCallerLive(scope.userId);
-    let holders = await store.findLiveByEndpoint(endpointHash);
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const others = holders.filter((row) => row.userId !== scope.userId).map((row) => row.userId);
-      if (others.length === 0) break;
-      await store.lockUsers([...new Set([scope.userId, ...others])].sort());
-      callerRows = await store.findCallerLive(scope.userId);
-      holders = await store.findLiveByEndpoint(endpointHash);
-    }
-    return { callerRows, holders };
-  }
+// الققراءة الأولى قبل القفل: بتجمع المفاتيح اللي لازم تتقفل. القراءة الثانية بعد القفل: بتقرر.
+async function readRows(
+  store: PushSubscriptionStore,
+  userId: string,
+  endpointHash: string,
+): Promise<{
+  callerRows: readonly LivePushSubscription[];
+  holders: readonly LivePushSubscription[];
+}> {
+  return {
+    callerRows: await store.findCallerLive(userId),
+    holders: await store.findLiveByEndpoint(endpointHash),
+  };
 }

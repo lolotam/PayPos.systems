@@ -31,10 +31,10 @@ const toLive = (row: Row): LivePushSubscription => ({
 
 function storeFor(tx: Tx, companyId: string, ownerId: string): PushSubscriptionStore {
   return {
-    lockUsers: async (userIds) => {
-      for (const userId of [...new Set(userIds)].sort())
+    lockKeys: async (keys) => {
+      for (const key of [...new Set(keys)].sort())
         await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtextextended(${companyId + ':' + userId},0))`,
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${companyId + ':' + key},0))`,
         );
     },
     findCallerLive: async (userId) => {
@@ -70,7 +70,7 @@ function storeFor(tx: Tx, companyId: string, ownerId: string): PushSubscriptionS
   };
 }
 
-// العدّاد بيتزوّد بس لما الوجهة أو رمز التسليم يتغيّروا أو الصف يكون متسحوب؛ التحديث العادي بيخليّه زي ما هو.
+// العدّاد بيتزوّد بس لما الوجهة أو المفاتيح أو رمز التسليم يتغيّروا أو الصف يكون متسحوب؛ التحديث العادي بيخليّه زي ما هو.
 function upsertStatement(companyId: string, userId: string, row: PushSubscriptionWrite) {
   const at = row.now.toISOString();
   return sql`INSERT INTO push_subscriptions(company_id,id,user_id,installation_hash,endpoint,p256dh,auth,
@@ -84,6 +84,8 @@ function upsertStatement(companyId: string, userId: string, row: PushSubscriptio
       vapid_key_id=EXCLUDED.vapid_key_id,last_seen_at=EXCLUDED.last_seen_at,updated_at=EXCLUDED.updated_at,
       revoked_at=NULL,revoked_reason=NULL,
       generation=CASE WHEN push_subscriptions.endpoint_hash IS DISTINCT FROM EXCLUDED.endpoint_hash
+          OR push_subscriptions.p256dh IS DISTINCT FROM EXCLUDED.p256dh
+          OR push_subscriptions.auth IS DISTINCT FROM EXCLUDED.auth
           OR push_subscriptions.delivery_token IS DISTINCT FROM EXCLUDED.delivery_token
           OR push_subscriptions.revoked_at IS NOT NULL
         THEN push_subscriptions.generation+1 ELSE push_subscriptions.generation END`;
