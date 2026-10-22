@@ -3,7 +3,7 @@
 Status: Proposed (draft for Phase 1 row 28b; number provisional, renumbered at merge).
 Date: 2026-10-22. Scope: spec 063, rows 28b and (as a consumer of the channel) 28c. Owner decisions it rests on: spec 036
 NC-Q3 / NC-Q4 and the language request of 2026-10-08, `owner-questions.ar.md` of spec 036 (Waleed); the questions
-WP-Q1…WP-Q3 (spec 063, answered by Waleed on 2026-10-22; Abu Salem's pick binds if it differs).
+WP-Q1…WP-Q4 (spec 063, answered by Waleed on 2026-10-22; Abu Salem's pick binds if it differs).
 
 ## Context
 
@@ -267,8 +267,7 @@ so the push service never sees the text, but the text is still treated as visibl
   still matches. The state it can show is exactly one of: unsupported, install-first (iOS), blocked-in-browser, off, on.
 - **One subscriber per phone.** A browser holds one push subscription per service worker. When a person enables
   notifications and the `check` answer shows the stored token is not hers, the app replaces the browser subscription first.
-  So someone working in two companies from one phone gets push for the company she enabled last (WP-Q4 asks the owners
-  to confirm this); in the same company the server also moves the endpoint to the new person (decision 3).
+  So someone working in two companies from one phone gets push for the company she enabled last (WP-Q4, answered by Waleed on 2026-10-22: the first option); in the same company the server also moves the endpoint to the new person (decision 3).
 - **Rotation repair.** When `check` returns a `vapid_key_id` that is not the served one, the app (permission already
   granted) unsubscribes the browser subscription, subscribes with the new key, `PUT`s it with the new key id and a new
   token; with permission not granted it shows the "off" state.

@@ -4,9 +4,9 @@
 
 **Created**: 2026-10-22
 
-**Status**: Ready for planning — owner questions WP-Q1…WP-Q3 answered by Waleed on 2026-10-22, see
-[owner-questions.ar.md](owner-questions.ar.md); Abu Salem's pick, if different, replaces them. Sub-PRs 28b-1…28b-3 wait for
-no question; 28b-4 waits for WP-Q4 only for its two-companies part; 28b-5 waits for 62-2.
+**Status**: Ready for planning — owner questions WP-Q1…WP-Q4 answered by Waleed on 2026-10-22, see
+[owner-questions.ar.md](owner-questions.ar.md); Abu Salem's pick, if different, replaces them. Sub-PRs 28b-1…28b-4 wait for
+no question; 28b-5 waits for 62-2.
 
 **Input**: User description: "staff-web-push — row 28b: staff web push (Web Push/VAPID), subscriptions per user+device,
 worker delivery, employee's own not-clocked-in notice."
@@ -31,7 +31,7 @@ quiet hours (NC-Q11); a deleted employee or ended contract gets nothing (NC-Q12)
 
 Example used below: Mona, shift at 10:00 at Salmiya branch.
 
-Answered by Waleed on 2026-10-22 on the decisions page, final decisions (PP-33.1…PP-33.3, batch 49, the first option of
+Answered by Waleed on 2026-10-22 (WP-Q1…WP-Q3 on the decisions page, final decisions, PP-33.1…PP-33.3, batch 49, the first option of
 each; Abu Salem has not picked yet and his pick binds if it differs, `CLAUDE.md` §1 5b). The rules, now part of this spec:
 
 - **WP-Q1 — How Mona turns notifications on.** Browsers only allow it if Mona herself taps allow on her own phone, so no
@@ -44,10 +44,10 @@ each; Abu Salem has not picked yet and his pick binds if it differs, `CLAUDE.md`
   toggle is replaced by a short instruction "add the app to the Home Screen to receive notifications" with simple steps.
   The screen's look is reviewed in the 28b-4 PR before it merges.
 
-- **WP-Q4 — Mona works in two salons (two companies) on one phone.** [NEEDS CLARIFICATION: WP-Q4] (TODO(spec)) A phone
-  holds one notification subscription for the app, so it can serve one company at a time. Options: ⭐ the company she
-  turned notifications on for **last** gets them (she turns it on again to switch); or do not support two companies on one
-  phone in this row. Gates only the cross-company part of 28b-4.
+- **WP-Q4 — Mona works in two salons (two companies) on one phone.** A phone holds one notification subscription for the
+  app, so it serves one company at a time: the notices come from the company she turned notifications on for **last**; to
+  switch to the other salon she turns them on there again (answered by Waleed, PP-33.4, batch 50, the first option; Abu
+  Salem has not picked yet and his pick binds if it differs).
 
 ## User Scenarios & Testing *(mandatory)*
 
