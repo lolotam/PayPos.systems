@@ -63,13 +63,12 @@ nothing else of the package, so the builder screen runs the same validator as th
     block that sets `no-restricted-imports` includes it: the base block, the `domain/` block, the `use-cases/` block and
     any later one.
   - The exceptions are intersection blocks placed **after** those, each re-listing its own layer's patterns without the
-    ban: `**/modules/commissions/use-cases/**` keeps the credential and infrastructure patterns of `use-cases/`;
-    `**/modules/commissions/domain/**` keeps the domain rule widened to `@pospay/domain` and `@pospay/commissions-engine`;
-    the rest of `**/modules/commissions/**` keeps the base patterns; `apps/admin/src/commissions/**` keeps the base
+    ban: `**/modules/commissions/use-cases/**` keeps the credential and infrastructure patterns of `use-cases/`; the rest of `**/modules/commissions/**` keeps the base patterns with `ignores: ['**/domain/**', '**/use-cases/**']`, so the `domain/` block still decides a commissions `domain/` file, and `domain/` gets **no** exception: every module `domain/`, commissions included, imports only
+    `@pospay/domain`, lines above and spec D-23); `apps/admin/src/commissions/**` keeps the base
     patterns and bans only the root `^@pospay/commissions-engine$` (so `/validation` is allowed).
   - 48a-1 adds negative lint tests: a non-commissions use case importing the engine fails; a commissions use case
-    importing `@pospay/db` or `node:fs` still fails; a commissions use case and a commissions domain file importing the
-    engine pass; `apps/admin` importing the root fails and `/validation` passes.
+    importing `@pospay/db` or `node:fs` still fails; a commissions use case importing the engine passes; a commissions
+    `domain/` file importing the engine fails; `apps/admin` importing the root fails and `/validation` passes.
 - **(c) The `"exports"` map** above: a deep path into the package is not resolvable at all.
 
 48a-1 also extends the
