@@ -6473,6 +6473,7 @@ export interface components {
             delivery_token: string;
             subscription: {
                 endpoint: components["schemas"]["PushEndpoint"];
+                expirationTime?: number | null;
                 keys: {
                     p256dh: string;
                     auth: string;
@@ -15130,7 +15131,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Registers or refreshes the caller subscription, answered no-store. VALIDATION_ERROR 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; RATE_LIMITED 429 after twenty registrations an hour; NOT_READY 503 when push is not configured. */
+            /** @description Registers or refreshes the caller subscription, answered no-store. VALIDATION_ERROR 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; PUSH_REGISTRATION_BUSY 409 when another registration for the same device is in progress; RATE_LIMITED 429 after twenty registrations an hour; NOT_READY 503 when push is not configured. */
             204: {
                 headers: {
                     [name: string]: unknown;
