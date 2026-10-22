@@ -4,11 +4,11 @@ import { sql } from 'drizzle-orm';
 import { evaluateAccess } from '../domain/access.ts';
 import { readAccessTransaction } from './access-reader.ts';
 
-const PERMISSION = 'manage:settings:business';
+const PERMISSION = 'manage:alert-rules:business';
 
 /**
  * بيقفل الشركة النشطة ثم العضويات ثم النشاط (والفرع لو موجود) قبل كتابة قاعدة تنبيه، وبيقرر تحت الأقفال.
- * الصلاحية لازم تغطي النشاط كله (AL-Q1)، ولقاعدة فرع لازم كمان تغطي الفرع، فمنع (DENY) على الفرع بيرفض قاعدته
+ * الصلاحية لازم تغطي النشاط كله (`manage:alert-rules:business`)، ولقاعدة فرع لازم كمان تغطي الفرع، فمنع (DENY) على الفرع بيرفض قاعدته
  * (spec 060 D-B13). فرع من نشاط تاني أو نشاط غايب بيرجعوا نفس FORBIDDEN عشان الوجود ما يتكشفش.
  *
  * @param tx معاملة تعديل القواعد

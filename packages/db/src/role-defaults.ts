@@ -113,6 +113,8 @@ export const ROLE_DEFAULTS = {
   'manage:settings:business': settings,
   // قرار المالك BI-Q1 بتاريخ 2026-10-17: إدارة هوية النشاط للمالك وحده افتراضياً، ويمنحها لأي دور بشري.
   'manage:business-identity:business': ['owner'],
+  // قرار المالك AL-Q1 بتاريخ 2026-10-22: إدارة التنبيهات للمالك والمدير العام ومدير النشاط افتراضياً، وتفويضها لأي دور بشري.
+  'manage:alert-rules:business': managers,
   'view:notifications:business': managers,
   'manage:employees:business': managers,
   'read:services:business': managers,
