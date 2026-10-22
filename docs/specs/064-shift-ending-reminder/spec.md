@@ -4,9 +4,10 @@
 
 **Created**: 2026-10-22
 
-**Status**: Draft — waiting for the owner's answers SE-Q1…SE-Q6
-([owner-questions.ar.md](owner-questions.ar.md)). Every unanswered rule below carries a `TODO(spec)` and the
-implementation sub-PRs do not start until it is answered **and** row 28b (staff web push, spec 061 / ADR-0052) (through 28b-3: adapter, processor, VAPID keys) is merged.
+**Status**: Ready for planning — owner questions SE-Q1…SE-Q6 decided by Waleed on 2026-10-22 («المقترح في الكل»,
+PP-34.1…PP-34.6, batch 49; Abu Salem has not picked yet and his pick would win,
+[owner-questions.ar.md](owner-questions.ar.md)). Implementation sub-PRs do not start until row 28b (staff web push,
+spec 063 / ADR-0052) is merged through 28b-3 (the web-push adapter, the worker processor and the VAPID keys).
 
 **Input**: User description: "28c — «your shift ends soon» reminder to the employee by push, default 30 minutes before
 shift end, lead time editable from the dashboard."
@@ -27,7 +28,7 @@ serialization); ADR-0010 addendum 2026-10-21 (worker staff `AlertRulesPort`); PR
 
 This spec **does not build** a push channel, a subscription store, a service worker or a language preference. It
 emits one event, `ShiftEndsSoon`, whose single recipient is the employee on the **PUSH** channel. The PUSH recipient entry (settled with the 28b session,
-spec 061 / ADR-0052) holds only `user_id`, `template_key` / `revision`, the safe parameters and an optional
+spec 063 / ADR-0052) holds only `user_id`, `template_key` / `revision`, the safe parameters and an optional
 `send_deadline` — no phone and no locale; notifications finds the user's push subscriptions and renders the text in each
 subscription's language. Everything that touches that shape (the event payload's recipient entry, the
 template renderer, the end-to-end test through the push sender) is isolated in sub-PR **064-2**, written after 28b is
@@ -43,17 +44,17 @@ the shift end and the lead is editable from the alerts screen (spec 036 NC-Q1 an
 no email (NC-Q1); the kind has its own on/off and obeys the business master switch (spec 060 D-B13, AL-Q4); a rule
 change applies to reminders after it, with no back-filling (D-B15); no quiet hours (NC-Q11 precedent).
 
-Asked now, in [owner-questions.ar.md](owner-questions.ar.md), each with a recommended option:
+Asked in [owner-questions.ar.md](owner-questions.ar.md) and decided by Waleed (the recommended option in all six):
 
-- **SE-Q1 — Who is «in the shift».** Recommended: only an employee whose clock-in is open at the reminder moment; one
+- **SE-Q1 — Who is «in the shift».** Decided: only an employee whose clock-in is open at the reminder moment; one
   who left early gets nothing; one on a break gets it when she is back, if the shift has not ended.
 - **SE-Q2 — The moment passed while the shift is still running** (the system was down, or she clocked in late).
-  Recommended: send at once with the real end time, as long as the shift has not ended.
-- **SE-Q3 — The end time was changed after the reminder.** Recommended: a new reminder for the new end.
-- **SE-Q4 — Partial leave at the end of the shift.** Recommended: no reminder when approved leave reaches the shift end.
-- **SE-Q5 — A shift shorter than the lead time.** Recommended: remind from the shift start.
+  Decided: send at once with the real end time, as long as the shift has not ended.
+- **SE-Q3 — The end time was changed after the reminder.** Decided: a new reminder for the new end.
+- **SE-Q4 — Partial leave at the end of the shift.** Decided: no reminder when approved leave reaches the shift end.
+- **SE-Q5 — A shift shorter than the lead time.** Decided: remind from the shift start.
 - **SE-Q6 — An employee who cannot receive push** (no linked account, or notifications never enabled).
-  Recommended: nothing else happens; nobody else is told.
+  Decided: nothing else happens; nobody else is told.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -94,11 +95,11 @@ Sara left at 16:00 with approval; Heba never came; Nour is on a 17:00–17:30 br
 **Acceptance Scenarios**:
 
 1. **Given** no OPEN session (clocked out, or never clocked in), **Then** no row and no event; the not-clocked-in alert
-   is unchanged (spec 036). **TODO(spec) SE-Q1.**
+   is unchanged (spec 036). (SE-Q1)
 2. **Given** an employee on a break (clocked out inside the break) at the reminder moment, **Then** nothing now; if she
-   clocks back in before the shift ends, the reminder goes out at the next run. **TODO(spec) SE-Q1.**
+   clocks back in before the shift ends, the reminder goes out at the next run. (SE-Q1)
 3. **Given** approved leave that reaches the shift end, **Then** no row; **Given** pending, rejected or cancelled
-   leave, **Then** the reminder goes out. **TODO(spec) SE-Q4.**
+   leave, **Then** the reminder goes out. (SE-Q4)
 4. **Given** a deleted employee, or one whose contract ended before the working date, **Then** no row and no event.
 5. **Given** the kind is switched off, or the business master switch is off, **When** an employee's reminder
    moment arrives (at work or, for example, on a break), **Then** a ledger row with `suppressed_at` is written and **no** event; switching the rule back on
@@ -122,13 +123,12 @@ moves Mona's end from 18:00 to 20:00 at 17:40, after her reminder.
 2. **Given** Rana's overnight shift, **Then** the reminder is due at 05:30 local time on the next calendar day; no quiet
    hours.
 3. **Given** the job was down until 17:45 for a 18:00 end and a 30-minute lead, **Then** it sends at 17:45 with the
-   real end time, or not, as SE-Q2 decides. **TODO(spec) SE-Q2.**
+   real end time (SE-Q2). (SE-Q2)
 4. **Given** Mona's reminder was recorded for an 18:00 end and the end is moved to 20:00, **Then** a new reminder
-   is due at 19:30. **TODO(spec) SE-Q3.**
-5. **Given** a 1-hour shift and a 90-minute lead, **Then** the reminder is due at the shift start, or never, as SE-Q5
-   decides. **TODO(spec) SE-Q5.**
+   is due at 19:30. (SE-Q3)
+5. **Given** a 1-hour shift and a 90-minute lead, **Then** the reminder is due at the shift start (SE-Q5). (SE-Q5)
 6. **Given** a clock-in at 17:40 on an 18:00 end (she was late), **Then** the reminder goes out at the next run, with
-   «6:00 م». **TODO(spec) SE-Q2.**
+   «6:00 م». (SE-Q2)
 
 ---
 
@@ -140,7 +140,7 @@ moves Mona's end from 18:00 to 20:00 at 17:40, after her reminder.
 - A week re-saved with the same end after the reminder: no second reminder (the once-only key is the employee and the
   end instant, not the shift row; ADR-0024 replaces rows).
 - An employee with no linked user: the ledger row is written with `recipient_count = 0` and the event carries no
-  recipient; it is acknowledged unsent. **TODO(spec) SE-Q6.**
+  recipient; it is acknowledged unsent. (SE-Q6)
 - An employee with a linked user who never enabled push: the event is delivered by 28b's channel, which owns the
   silent no-op; nothing else happens.
 - A company deleted or closed: skipped entirely at the eligibility read (ADR-0037 §2).
@@ -150,18 +150,19 @@ moves Mona's end from 18:00 to 20:00 at 17:40, after her reminder.
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST detect, for every running scheduled shift whose employee has an OPEN attendance session at
-  any branch, that `max(shift end − the rule's lead, shift start)` has arrived, comparing UTC instants (ADR-0053 §3, §11).
+- **FR-001**: The system MUST detect, for every running scheduled shift, that `max(shift end − the rule's lead, shift start)` has arrived,
+  comparing UTC instants (ADR-0053 §3, §11), and MUST send the reminder only when the employee has an OPEN attendance
+  session at any branch at that instant (FR-004); with the rule off, FR-006 applies whether or not she is present.
 - **FR-002**: The lead MUST come from the effective `SHIFT_ENDS_SOON` rule of the shift's business and branch (branch
   override, else business rule, else the default of 30 minutes; spec 060 D-B13), read once per run per pair and again
   by the decision; there is no interim fixed rule.
 - **FR-003**: A shift whose end has passed MUST be skipped; a deleted employee or one whose contract ended before the
   working date MUST be skipped; approved leave that reaches the shift end MUST skip it; pending, rejected and cancelled
-  leave MUST NOT (ADR-0053 §5, §6). **TODO(spec) SE-Q4.**
+  leave MUST NOT (ADR-0053 §5, §6). (SE-Q4)
 - **FR-004**: An employee without an OPEN session MUST write nothing, so a later clock-in before the end can still
-  trigger the reminder (ADR-0053 §4). **TODO(spec) SE-Q1.**
+  trigger the reminder (ADR-0053 §4). (SE-Q1)
 - **FR-005**: The system MUST record the reminder once per employee per shift-end instant, whatever re-runs, restarts,
-  concurrent workers or schedule re-saves happen (ADR-0053 §7). **TODO(spec) SE-Q3.**
+  concurrent workers or schedule re-saves happen (ADR-0053 §7). (SE-Q3)
 - **FR-006**: A due reminder found while the kind or the business master switch is off MUST write the ledger row with
   `suppressed_at` and no event **whether or not the employee has an OPEN session at that instant**, so enabling the rule
   later never back-fills it (D-B15, ADR-0053 §8). The rule used is the one read under the employee lock.
@@ -172,10 +173,9 @@ moves Mona's end from 18:00 to 20:00 at 17:40, after her reminder.
 - **FR-009**: Each recorded reminder MUST leave an audit entry with the system as actor.
 - **FR-010**: The reminder MUST run as a third detector of the existing company job and MUST NOT require a new scheduler
   or a replay of any event (ADR-0053 §1).
-- **FR-011**: A reminder whose moment has already passed while the shift is running MUST follow the rule the owner picks
-  in SE-Q2. **TODO(spec) SE-Q2.**
-- **FR-012**: A lead longer than the shift MUST follow the rule the owner picks in SE-Q5; the reminder MUST NOT precede
-  the shift start. **TODO(spec) SE-Q5.**
+- **FR-011**: A reminder whose moment has already passed while the shift is running MUST be sent at once, with the real end
+  time, as long as the shift has not ended (SE-Q2). (SE-Q2)
+- **FR-012**: A lead longer than the shift MUST make the reminder due at the shift start, never before it (SE-Q5). (SE-Q5)
 
 ### Key Entities
 
@@ -200,12 +200,13 @@ template. **No HTTP endpoint and no new screen.** The lead and the switches are 
   `startsAt ≤ now < endsAt`.
 - **BR-002**: decision order → `STALE` when `now ≥ endsAt`; `INELIGIBLE` for a deleted employee or `contract_end`
   before the working date; `EXCUSED` by approved full-day leave on the working date, or by approved partial leave with
-  `leave.starts_at < endsAt ≤ leave.ends_at`; `WAIT` when `now < remindAt`; `NOT_PRESENT` when no OPEN session exists;
-  `TOO_LATE` only if SE-Q2 sets a minimum remaining time; otherwise `REMIND`.
+  `leave.starts_at < endsAt ≤ leave.ends_at`; `WAIT` when `now < remindAt`; `SUPPRESS` when the effective rule is off (kind switch or business master switch), whether
+  or not she is present (D-B15); `NOT_PRESENT` when no OPEN session exists; otherwise `REMIND`. There is no minimum
+  remaining time: a late reminder is sent while the shift runs (SE-Q2).
 - **BR-003**: presence = an OPEN session of the employee at the sampled instant, at any branch, not voided.
 - **BR-004**: the once-only key is `(company_id, employee_id, shift_ends_at)`, not the shift row id (ADR-0024 replaces
-  rows). **TODO(spec) SE-Q3** — «once per shift» changes the key to `shift_starts_at`.
-- **BR-005**: a lead larger than the shift length makes the reminder due at the shift start. **TODO(spec) SE-Q5.**
+  rows). A changed end time is a new key and a new reminder (SE-Q3).
+- **BR-005**: a lead larger than the shift length makes the reminder due at the shift start. (SE-Q5)
 - **BR-006**: the only recipient is `employees.user_id`; no managers; no other channel.
 - Pure functions in `apps/worker/src/modules/staff/domain/shift-ending-soon.ts`, Arabic JSDoc: `remindMoment`,
   `shiftEndingSoonDecision`, `endsSoonLeave`, `shiftEndsSoonParameters`. The lead and the switch are parameters.
@@ -253,9 +254,9 @@ RETURNING`, and only an inserted row writes audit and outbox.
 
 | # | Title | Subtasks | Waits for | Size |
 |---|---|---|---|---|
-| **064-1** | Rules and ledger | 1. `domain/shift-ending-soon.ts` with its exhaustive unit tests (BR-001…BR-006, DST, overnight, clamp). 2. Migration + Drizzle schema for `attendance_shift_ending_notices`, grants allowlist in `privileges.spec.ts`. 3. RLS negative tests (cross-tenant read 0 rows, insert rejected, FKs rejected, UPDATE/DELETE refused). | SE-Q3 and SE-Q5 answered (they set the key and the clamp) | 220–320 |
+| **064-1** | Rules and ledger | 1. `domain/shift-ending-soon.ts` with its exhaustive unit tests (BR-001…BR-006, DST, overnight, clamp). 2. Migration + Drizzle schema for `attendance_shift_ending_notices`, grants allowlist in `privileges.spec.ts`. 3. RLS negative tests (cross-tenant read 0 rows, insert rejected, FKs rejected, UPDATE/DELETE refused). | — | 220–320 |
 | **064-2** | Template and delivery | 1. Template `shift_ends_soon` rev 1 (ar/en) in `packages/notifications` + the contracts parameter tuple and the `ShiftEndsSoon` event/recipient schema (with the delivery deadline). 2. `ShiftEndsSoon` in the notifications consumer list, `known-event-types.md` coverage gate, module-map §4 event row. 3. End-to-end test with a hand-made event: outbox → transport → 28b's push sender stub; language follows 28b's stored preference. | 064-1; **28b merged** | 200–300 |
-| **064-3** | Detector in the company job | 1. Port `ShiftEndingSoonTransactions`, persistence (paged candidates with the presence column, locked reads, writes) and the staff `AlertRulesPort` adapter over worker `settings` (reused if 62-2 created it); module-map §3 row and YAML. 2. Use case `detect-shift-ending-soon`; `ShiftEndsSoon` in `published.ts`; wired as the **last** step of the processor. 3. Integration tests SEN-01…SEN-14 and EXPLAIN assertions. | 064-2; SE-Q1, SE-Q2, SE-Q4, SE-Q6 answered | 360–480 |
+| **064-3** | Detector in the company job | 1. Port `ShiftEndingSoonTransactions`, persistence (paged candidates with the presence column, locked reads, writes) and the staff `AlertRulesPort` adapter over worker `settings` (reused if 62-2 created it); module-map §3 row and YAML. 2. Use case `detect-shift-ending-soon`; `ShiftEndsSoon` in `published.ts`; wired as the **last** step of the processor. 3. Integration tests SEN-01…SEN-14 and EXPLAIN assertions. | 064-2 | 360–480 |
 
 ### Test plan
 
@@ -269,7 +270,7 @@ RETURNING`, and only an inserted row writes audit and outbox.
   sent · `SEN-06` approved leave to the end suppresses, pending does not · `SEN-07` re-saved week, same end → none ·
   `SEN-08` end moved → new reminder (SE-Q3) · `SEN-09` kind off and master off → `suppressed_at` row, no event, and
   switching on does not send it · `SEN-10` branch override lead · `SEN-11` clock-in at another branch counts ·
-  `SEN-12` late detection per SE-Q2 · `SEN-13` no linked user → row with zero recipients, event without recipients ·
+  `SEN-12` late detection: sent while the shift runs, with the real end time (SE-Q2) · `SEN-13` no linked user → row with zero recipients, event without recipients ·
   `SEN-14` deleted employee / ended contract / deleted company → none; the third detector still runs after the first
   two fail.
 - **RLS negative**: cross-tenant read of the notices table = 0 rows; cross-tenant insert rejected; cross-tenant FKs

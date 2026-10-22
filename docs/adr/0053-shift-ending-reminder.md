@@ -1,7 +1,8 @@
 # ADR-0053 — Shift-ending reminder: discovery, presence, once-only ledger and rule
 
-Status: Proposed (draft for row 28c; number provisional, renumbered at merge). The owner-dependent points are
-marked `TODO(spec)` and listed in [the owner questions](../specs/064-shift-ending-reminder/owner-questions.ar.md).
+Status: Proposed (draft for row 28c; number provisional, renumbered at merge). The owner-dependent points were decided
+by Waleed on 2026-10-22, the recommended option in all six (SE-Q1…SE-Q6, PP-34.1…PP-34.6; see
+[the owner questions](../specs/064-shift-ending-reminder/owner-questions.ar.md)).
 Date: 2026-10-22. Scope: spec 064, Phase 1 row 28c. Owner decisions already taken: spec 036 NC-Q1 and its
 question 6 (Waleed, 2026-10-08: «30 دقيقة، وتتغير من اللوحة»), spec 060 D-B13/D-B14/D-B15 and the
 `SHIFT_ENDS_SOON` kind (PP-18.25).
@@ -20,7 +21,7 @@ existing decision:
 3. **Rule source.** Spec 060 already created the kind `SHIFT_ENDS_SOON` (default on, lead 30 minutes, fixed
    recipient `EMPLOYEE_PUSH`, branch-scoped) and a worker `settings` read, `alertRule(tx, companyId, scope, kind)`.
    Unlike rows 28 and 41, this row has no interim fixed rule to replace later.
-4. **Delivery.** The channel is staff web push, built by row 28b (spec 061, ADR-0052). This ADR defines no channel:
+4. **Delivery.** The channel is staff web push, built by row 28b (spec 063, ADR-0052). This ADR defines no channel:
    it emits an event whose recipient shape is 28b's.
 
 ## Decision
@@ -43,9 +44,12 @@ existing decision:
    `channels` and `recipientRoles` stay empty by definition. **The run caches rules per (business, branch) pair for
    pre-filtering only. The decision re-reads the effective rule inside the candidate's locked transaction** (D-B15: a
    change applies to events emitted after it commits), and a disagreement with the cache is resolved in favour of the
-   locked read.
+   locked read. The employee and attendance locks are **not** a fence against a settings writer: a rule change that
+   commits between the locked read and the ledger insert can still apply to that one reminder. The window is the
+   length of one short transaction and is the same for every emitter that reads `AlertRulesPort` (ADR-0010
+   addendum); it is accepted, nothing is re-sent or retracted.
 3. **Due moment and candidate pages.** `remindAt = max(endsAt − lead, startsAt)` (decision 11). The detector pages
-   through **all** running shifts with a keyset cursor until the page comes back short, never one page per run, so
+   through **all** running shifts with a keyset cursor over `(starts_at, shift id)` — the id is the immutable tie-breaker, because many employees share a start — until the page comes back short, never one page per run, so
    not-yet-due rows cannot hide due ones. A page is read without locks and holds the shifts that are **running**
    (`starts_at ≤ now < ends_at`, plus the 16-hour lower bound of ADR-0037 §6, which the
    `staff_schedule_shifts_duration` check makes sufficient) and that have no ledger row (`NOT EXISTS` on the
@@ -62,23 +66,21 @@ existing decision:
    if she returns before the shift ends; one who never came is covered by the not-clocked-in alert. Because nothing
    is recorded for a skip, a later clock-in makes her a locked candidate on a later run by itself. A session that is OPEN but
    belongs to another branch counts: the reminder is about the employee's day, not a place (the NC-Q8 precedent).
-   `TODO(spec)` SE-Q1 (who is "in the shift"), SE-Q2 (late sending).
+   Decided: SE-Q1 (who is "in the shift"), SE-Q2 (late sending).
 5. **Decision order (pure domain function).** `shiftEndingSoonDecision(facts)` returns, in this order:
    `STALE` (now ≥ ends_at) → `INELIGIBLE` (deleted employee, or `contract_end` before the working date) →
-   `EXCUSED` (approved leave that covers the shift end, below) → `WAIT` (now < remindAt) → `SUPPRESS` (rule off, decision 8) → `NOT_PRESENT` (no OPEN session) → `TOO_LATE` (only if
-   SE-Q2 sets a minimum remaining time) → `REMIND`. Only `REMIND` and `SUPPRESS` write a ledger row. The rule flag is
+   `EXCUSED` (approved leave that covers the shift end, below) → `WAIT` (now < remindAt) → `SUPPRESS` (rule off, decision 8) → `NOT_PRESENT` (no OPEN session) → `REMIND`; there is no minimum remaining time, a late reminder is sent while the shift runs (SE-Q2). Only `REMIND` and `SUPPRESS` write a ledger row. The rule flag is
    a fact read under the lock (decision 2).
 6. **Leave.** An approved `FULL_DAY` leave with `from ≤ working date ≤ to` excuses the shift, overnight ones
    included (ADR-0037 §8). An approved partial leave excuses it when it reaches or passes the shift end
    (`leave.starts_at < ends_at ≤ leave.ends_at`): she is leaving before the end, and the reminder would be
    wrong. A partial leave that ends before the shift end changes nothing. Pending, rejected and cancelled leaves
-   never excuse. `TODO(spec)` SE-Q4.
+   never excuse (SE-Q4).
 7. **Once-only ledger and lock protocol.** A new table `attendance_shift_ending_notices` with UNIQUE
    `(company_id, employee_id, shift_ends_at)`, `SELECT + INSERT` for `pospay_app`, no FK to the shift row (rows are
    replaced on re-save, ADR-0024). Keying on the end instant means: re-saving the week with the same end
    never repeats the reminder, and moving the end to a new instant makes a new reminder possible before the new end.
-   `TODO(spec)` SE-Q3: if the owner chooses «once per shift», the key becomes `(company_id, employee_id,
-   shift_starts_at)` and nothing else in this ADR changes. Each decision runs after the first lock of scans and
+   Decided (SE-Q3): a changed end is a new reminder. Each decision runs after the first lock of scans and
    jobs: the employee's `attendance_states` row (ADR-0028/0032), then `employees … FOR SHARE` (ADR-0037 §7),
    then one Clock sample, then re-reads of the shift, leave, eligibility and the OPEN session; the ledger insert
    uses `ON CONFLICT … DO NOTHING RETURNING id` and only an inserted row writes audit and outbox. A clock-out
@@ -97,7 +99,7 @@ existing decision:
    transaction, declared in `apps/worker/src/modules/staff/events/published.ts` and added to the notifications
    consumer list and to `docs/specs/worker/known-event-types.md`. Payload: `notice_id, employee_id, business_id,
    branch_id, shift_starts_at, shift_ends_at, remind_at, detected_at`, plus `notification_recipients` with exactly
-   one recipient: the employee's own `user_id` (`employees.user_id`), on the **PUSH** channel of row 28b (spec 061,
+   one recipient: the employee's own `user_id` (`employees.user_id`), on the **PUSH** channel of row 28b (spec 063,
    ADR-0052; settled with that session on 2026-10-22). The PUSH recipient entry holds **only** `user_id`, `template_key`
    / `revision`, the safe parameters and an optional `send_deadline`: no phone and no locale. This emitter touches no
    sending code: notifications looks up the user's push subscriptions and renders the text in each subscription's own
@@ -110,7 +112,7 @@ existing decision:
    shift ends» after it ended. An employee without a linked user still gets a ledger row, with
    `recipient_count = 0` and an event without recipients, acknowledged unsent (the ADR-0037 precedent for a branch
    without managers). No manager is notified (managers have the not-clocked-in alert). No email, no WhatsApp.
-   `TODO(spec)` SE-Q6.
+   Decided (SE-Q6): nobody else is told.
 10. **Template.** `packages/notifications` gains `shift_ends_soon` rev 1 (ar/en). Safe parameters: `shift_end`
     (`HH:MM`, formatted in the schedule's saved timezone as ADR-0037 §4 does, so a later timezone change cannot
     relabel it) and `branch_name_ar` / `branch_name_en` (the same safe-text rules and generic fallbacks). The text
@@ -120,7 +122,7 @@ existing decision:
 11. **Time.** `starts_at`/`ends_at` are the resolved UTC instants of ADR-0024; the lead is elapsed time, so
     overnight shifts and DST need no reinterpretation. No quiet hours (NC-Q11 precedent). A lead longer than the
     shift gives `remindAt < starts_at`; the detector clamps `remindAt` to `max(endsAt − lead, startsAt)` so the
-    reminder never precedes the shift start. `TODO(spec)` SE-Q5. The job runs every 5 minutes and skips ended shifts, so a lead shorter than the cadence
+    reminder never precedes the shift start (SE-Q5). The job runs every 5 minutes and skips ended shifts, so a lead shorter than the cadence
     (the rule allows 1…1440) is observed only if a run lands inside the last `lead` minutes; such a reminder is
     best-effort and can be missed while the system is healthy. This is a known limit, not a defect of the detector;
     the alerts screen (62-4) should state the 5-minute resolution beside the lead field (follow-up issue).
@@ -138,5 +140,5 @@ across several branches are reminded once per shift end, whichever branch they c
 store exist; the spec splits the work so the pure rules and the ledger can be reviewed first, the template and the consumer
 registration land second, and the detector is wired into the company job last, so a deployed detector never emits an
 event nothing can deliver; the implementation sub-PRs start only after 28b is merged. A shift whose end moves earlier than «now plus lead» after being recorded
-can produce a second reminder (SE-Q3 recommended answer); that is intended. Push to an employee who has no
+can produce a second reminder (SE-Q3); that is intended. Push to an employee who has no
 subscription is a silent no-op owned by 28b's delivery, not by this job.
