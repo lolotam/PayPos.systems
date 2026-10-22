@@ -103,7 +103,11 @@ five states; API integration tests assert the stored rows.
 7. **Given** another employee subscribes from the same browser in the same company (same endpoint), **Then** the endpoint
    moves to her and the first employee's row is revoked (`OWNER_CHANGED`). **Given** a push queued for the first employee
    arrives after the second signed in (the unsubscribe failed, or the company differs), **Then** the phone shows a neutral
-   "PosPay" notice with none of its text, because the payload's token does not match the token the app now holds.
+   "PosPay" notice with none of its text, because the app discarded the old record when the second person's
+   `subscriber_ref` differed, and until the comparison finished (or if it could not) the record stayed suspended.
+8. **Given** Mona works in two salons and has notifications on for the first, **When** she merely signs in to the second,
+   **Then** nothing changes (same `subscriber_ref`); **when** she enables them there, **Then** the second salon receives
+   from then on and the first no longer does (WP-Q4).
 
 ---
 
@@ -124,8 +128,9 @@ the subscription state of each.
 2. **Given** 401/403, **Then** attempt `FAILED/PROVIDER_4XX`, a visible diagnostic, subscription untouched.
 3. **Given** 5xx or a timeout, **Then** `FAILED` with `outcome_known = false`, no second call (at-most-once).
 4. **Given** the VAPID key was rotated, **Then** subscriptions of the old key id are revoked `KEY_ROTATED` with zero HTTP
-   calls, and on the next app open (permission already granted) the app unsubscribes the old browser subscription,
-   subscribes with the new key and registers it; a `PUT` that still carries the old key id is refused `PUSH_KEY_STALE`.
+   calls, and on the next app open (permission already granted, whether or not the server row was already revoked) the app sees the
+   served key id differs from the one it stored, unsubscribes the old browser subscription, subscribes with the new key
+   and registers it; a `PUT` that still carries the old key id is refused `PUSH_KEY_STALE`.
 5. **Given** a send to endpoint E1 is in flight while the same install registers E2 (the generation moves on), **When** E1
    answers 410, **Then** the E2 subscription stays live and the attempt ends `FAILED`; an attempt authorized for the old
    generation and not yet sent ends `FAILED/SUBSCRIPTION_CHANGED` with zero HTTP calls.
@@ -167,7 +172,7 @@ the subscription state of each.
   `PENDING → SENDING` fence is committed, exactly once (ADR-0018).
 - **FR-008**: A 404/410 MUST revoke the subscription; other failures MUST be recorded and never retried.
 - **FR-009**: The not-clocked-in job (spec 036) MUST add the absent employee as a `PUSH` recipient under the same decision
-  as the manager notice (leave, presence, deleted/ended employee, once per shift), on the same toggle and master switch once
+  as the manager notice (leave, presence, deleted/ended employee, once per shift) and **only while the linked user's personal access is current**, on the same toggle and master switch once
   row 62 ships.
 - **FR-010**: The staff app MUST show exactly one of five states for the control (unsupported, install-first on iPhone,
   blocked, off, on) and MUST NOT persist notice content or subscription secrets of its own.
@@ -178,14 +183,14 @@ the subscription state of each.
 - **FR-012**: A revoked VAPID key id MUST revoke the subscriptions made under it without any send.
 - **FR-014**: A push MUST carry a random delivery token and the app MUST show the text only when it matches the token it
   holds; otherwise only a neutral notice (shared or reassigned phone).
-- **FR-018**: On every sign-in with a stored token the app MUST ask the server whether the token is the signed-in person's
-  and MUST discard it when it is not.
+- **FR-018**: On every sign-in the app MUST suspend text display, compare the signed-in person's `subscriber_ref` with the
+  stored one, restore display only when equal, and discard the record when they differ or the comparison cannot complete.
 - **FR-015**: A change to a subscription (new endpoint, revoke) driven by a provider answer MUST apply only to the
   generation that answer was for.
 - **FR-016**: The raw installation id MUST NOT be stored; only a company-scoped hash (ADR-0029).
 - **FR-017**: A registration MUST state the key id it was made under and MUST be refused when that is not the current key.
-- **FR-013**: Nothing in a log, API response, outbox event or job payload MUST contain an endpoint, a subscription key, a
-  VAPID key or a notice body.
+- **FR-013**: Nothing in a log, API response, outbox event or job payload MUST contain an endpoint, a subscription key,
+  the VAPID private key or a notice body (the VAPID **public** key and key id are served by the config route by design).
 
 ### Key Entities
 
@@ -238,14 +243,14 @@ the subscription state of each.
 ### API contract
 
 All routes `@Authenticated()` + `PERSONAL_ROUTE`, personal session only, `Cache-Control: no-store`. The `PUT` and the
-`revoke` `POST` are declared in `AUTHENTICATED_WRITES` (access `PERSONAL`); the `GET` and the `check` `POST` are reads and
-are not (the route-declarations test requires the allowlist to equal the mounted authenticated writes).
+`revoke` `POST` are declared in `AUTHENTICATED_WRITES` (access `PERSONAL`); the `GET` is a read, served from `queries/`, and is not (the route-declarations test requires the allowlist to equal the
+mounted authenticated writes; the route coverage guard classes every `POST` as a write, so `revoke` is declared).
 
-- `GET /v1/staff/push/config` → `{ vapid_public_key, vapid_key_id }` · `NOT_READY` when unconfigured.
+- `GET /v1/staff/push/config` → `{ vapid_public_key, vapid_key_id, subscriber_ref }` · `NOT_READY` when unconfigured ·
+  `subscriber_ref` = SHA-256 hex of `pospay.push.subscriber.v1` and the caller's global user id: equal across companies,
+  never another person's.
 - `PUT /v1/staff/push/subscription` · body `pushSubscriptionInput` `{ installation_id, vapid_key_id, delivery_token, subscription:
   { endpoint, keys: { p256dh, auth } }, locale }` · naturally idempotent, no `Idempotency-Key` · response `204`.
-- `POST /v1/staff/push/subscription/check` · body `{ installation_id, delivery_token }` · response `{ state: OWNED |
-  OWNED_BY_OTHER | NOT_REGISTERED, vapid_key_id? }`.
 - `POST /v1/staff/push/subscription/revoke` · body `{ installation_id }` · response `204`, identical for own, foreign and
   absent ids. The raw installation id travels only in bodies, never in a URL (FR-016).
 - Zod schemas in `packages/contracts/src/push-subscription.ts`; registered in `notifications-openapi.ts`, OpenAPI regenerated (`pnpm contracts:openapi`).
@@ -285,7 +290,8 @@ declared per PP-7.1). ADR-0027 gets an addendum listing "own push subscription" 
   cap of 5 and one live row per endpoint · `PW-17` the employee push appears exactly once with 99, 100 and 101 managers
   · `PW-18` the raw installation id is nowhere in the rows (only the hash), and the same install gives different hashes in
   two companies · `PW-19` the `CHECK` refuses every partially cleared combination of the secrets · `PW-20` a `PUT`
-  with an old key id is refused `PUSH_KEY_STALE`; worker readiness: a private key that does not derive the public key
+  with an old key id is refused `PUSH_KEY_STALE`; `PW-21` `GET config` returns the caller's own `subscriber_ref`, equal in
+  two companies and different for two people; worker readiness: a private key that does not derive the public key
   disables push with a visible reason while the API config route stays ready.
 - **RLS negative**: both tables — cross-tenant read = 0 rows, write rejected, tenant-qualified FK across tenants rejected.
   `privileges.spec.ts` updated; `route-declarations.spec.ts` covers the three routes.
@@ -295,8 +301,9 @@ declared per PP-7.1). ADR-0027 gets an addendum listing "own push subscription" 
   JSON or job payload contains an endpoint, key or body.
 - **UI (apps/pos)**: the rotation repair (old browser subscription removed, new one registered, visible state "on"); a
   stale-token push shows the neutral notice with no body; an explicit sign-out deletes the token while a replaced session
-  keeps it; after a restart with an expired session the `check` answer `OWNED_BY_OTHER` or `NOT_REGISTERED` deletes the token and
-  shows "off" while `OWNED` keeps it; an offline transition and a failed session probe keep the token (its IndexedDB
+  keeps it; on sign-in the record is suspended first and restored only when `subscriber_ref` matches, deleted when it
+  differs, and stays suspended when the call fails (restart + expired session + a different person);
+  opening a second company with the same person changes nothing; an offline transition and a failed session probe keep the token (its IndexedDB
   database is outside the private-cache clearing); the raw installation id appears in no URL (a request-recording test).
   The installed-launch destination is the 28b-4 spike's output, with a test that a reception installation still opens `/`.
   Also: each of the five control states asserts its visible text and the disabled/enabled state of the
@@ -314,8 +321,8 @@ declared per PP-7.1). ADR-0027 gets an addendum listing "own push subscription" 
 - 28b-2: `packages/db/schema/notifications.ts` (`push_attempts`) + migration, `packages/notifications/src/push/` (templates,
   allowlist, mapping, pure), `apps/worker/src/modules/notifications/` consumer for `PUSH` recipients, `module-map.md` row.
 - 28b-3: `web-push` dependency (exact pin), `packages/notifications/src/adapters/web-push.channel.ts` and the fake,
-  `apps/worker/src/modules/notifications/jobs/push-send.processor.ts` + publisher routing + queue wiring, config module and
-  `.env.example`, `pnpm push:generate-vapid`, runbook entry.
+  `apps/worker/src/modules/notifications/jobs/push-send.processor.ts` + publisher routing + queue wiring, config module,
+  `.env.example` and the deployment compose files (`deploy/docker-compose.staging-shared.yml` and the production one: the API receives the public key and subject, the worker all three), `pnpm push:generate-vapid`, runbook entry.
 - 28b-4: `apps/pos/vite.config.ts` (`injectManifest`), `apps/pos/src/sw.ts`, `apps/pos/src/personal-staff/` push control,
   hooks and clients, i18n keys, UI tests.
 - 28b-5: `apps/worker/src/modules/staff/` not-clocked-in handling (the recipient and the template parameters), push
@@ -325,11 +332,11 @@ declared per PP-7.1). ADR-0027 gets an addendum listing "own push subscription" 
 
 | PR | Scope (subtasks) | Depends on | Notes |
 | --- | --- | --- | --- |
-| **28b-1** | 1. Contract + `push_subscriptions` migration, RLS, grants, negative test. 2. `PUT`/`check`/`revoke`/`GET config` routes + use cases + endpoint validation + route declarations. 3. ADR-0027 addendum + tests PW-01…PW-04, PW-13, PW-16, PW-18, PW-19, PW-20 (key-id part) | ADR-0052 + this spec merged (no open question: WP-Q2 decides only the consumer rule in 28b-2) | database review mandatory |
-| **28b-2** | 1. `push_attempts` migration, RLS, grants, negative test. 2. Pure push templates, allowlist and mapping + unit tests. 3. Consumer for `PUSH` recipients + `PushSendAuthorized` + tests PW-05, PW-06, PW-17 (consumer side) | 28b-1; **WP-Q2 answered** (the consumer picks all live subscriptions or only the latest) | database review mandatory |
+| **28b-1** | 1. Contract + `push_subscriptions` migration, RLS, grants, negative test. 2. `PUT` and `revoke` use cases and the `GET config` query, with endpoint validation and route declarations. 3. ADR-0027 addendum (the personal capability and the local `pospay-push` record) + tests PW-01…PW-04, PW-13, PW-16, PW-18, PW-19, PW-20 (key-id part) | ADR-0052 + this spec merged (no open question: WP-Q2 decides only the consumer rule in 28b-2) | database review mandatory |
+| **28b-2** | 1. `push_attempts` migration, RLS, grants, negative test. 2. Pure push templates, allowlist and mapping + unit tests. 3. Consumer for `PUSH` recipients + `PushSendAuthorized` + tests PW-05, PW-06, PW-17 (consumer side) | 28b-1; **WP-Q2 answered** (the consumer selects **every** live subscription of the user) | database review mandatory |
 | **28b-3** | 1. Channel adapter (real and fake) + `web-push` pin + config/readiness. 2. `push-send` processor with the fence, result mapping, revoke + VAPID rotation. 3. `push:generate-vapid`, runbook, tests PW-07…PW-10, PW-14, PW-15, PW-20 (readiness part) | 28b-2 | dependency gate: Node 24 and CI |
-| **28b-4** | 1. Service worker via `injectManifest` + handlers + the delivery-token check. 2. The five-state control, subscribe/unsubscribe, locale refresh, rotation repair through `check`. 3. The installed-launch spike (what Add to Home Screen launches on a real iPhone and Android, the reception launch unchanged, ADR-0027 addendum if a hint must be stored) and UI tests (and the iPhone instruction if WP-Q3 says yes) | 28b-1; WP-Q1, WP-Q3 answered | a mockup is attached to WP-Q3 |
-| **28b-5** | 1. Emit the employee's `PUSH` recipient from the not-clocked-in handling. 2. Template `shift_not_clocked_in_self`, emitted as a request event of its own (BR-008). 3. Tests PW-11, PW-12, PW-17 (emitter side) | 28b-3 and **62-2** (orchestrator decision 2026-10-22: 62-2 removes `interimNotClockedInRule` and keeps the fixed push recipient this PR uses) | touches the staff emitter that 62-2 rewrites (spec 060 §62-2): it lands after 62-2 |
+| **28b-4** | 1. Service worker via `injectManifest` + handlers + the suspended-record check. 2. The five-state control, subscribe/unsubscribe, locale refresh, the `subscriber_ref` comparison and rotation repair from the stored key id. 3. The installed-launch spike (what Add to Home Screen launches on a real iPhone and Android, the reception launch unchanged, ADR-0027 addendum if a hint must be stored) and UI tests (and the iPhone instruction if WP-Q3 says yes) | 28b-1; WP-Q1, WP-Q3 answered | a mockup is attached to WP-Q3 |
+| **28b-5** | 1. Emit the employee's `PUSH` recipient from the not-clocked-in handling. 2. Template `shift_not_clocked_in_self`, emitted as a request event of its own (BR-008), only for a linked user whose personal access is current. 3. Tests PW-11, PW-12, PW-17 (emitter side) | 28b-3 and **62-2** (orchestrator decision 2026-10-22: 62-2 removes `interimNotClockedInRule` and keeps the fixed push recipient this PR uses) | touches the staff emitter that 62-2 rewrites (spec 060 §62-2): it lands after 62-2 |
 
 Row 28c (spec 064) reuses 28b-1…28b-3 unchanged and adds only its template and its emitter; it starts after 28b-3.
 
