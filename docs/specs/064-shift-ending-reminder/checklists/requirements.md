@@ -13,11 +13,11 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — **open**: SE-Q1…SE-Q6 are `PENDING` (each is a `TODO(spec)` in the spec)
-- [ ] Requirements are testable and unambiguous — open until SE-Q1…SE-Q6 are answered (draft coverage is complete)
+- [x] No [NEEDS CLARIFICATION] markers remain — SE-Q1…SE-Q6 decided by Waleed on 2026-10-22 (Abu Salem's pick, if different, would win)
+- [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
-- [ ] All acceptance scenarios are defined — scenarios tagged `TODO(spec)` wait for the owner's answers
+- [x] All acceptance scenarios are defined
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded (28c here; the push channel 28b and the alerts screen 62-4 out)
 - [x] Dependencies and assumptions identified (row 28b push channel recorded as a hard dependency)
@@ -26,8 +26,8 @@
 
 ## Feature Readiness
 
-- [ ] All functional requirements have clear acceptance criteria — FR-003/004/005/011/012 wait for SE-Q answers
-- [ ] User scenarios cover primary flows — final after the answers
+- [x] All functional requirements have clear acceptance criteria
+- [x] User scenarios cover primary flows
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
