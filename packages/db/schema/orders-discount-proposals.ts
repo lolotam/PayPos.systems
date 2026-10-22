@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { boolean, char, check, foreignKey, index, integer, jsonb, numeric, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { companies, branches } from './tenancy.ts';
+import { businesses, branches, companies } from './tenancy.ts';
 import { customers } from './customers.ts';
 import { services } from './catalog.ts';
 import { employees } from './staff.ts';
@@ -150,4 +150,24 @@ export const discountProposalPerformers = pgTable('discount_proposal_performers'
   index('dpp_employee_fk_idx').on(t.companyId, t.businessId, t.employeeId),
   index('dpp_linked_user_idx').on(t.linkedUserId).where(sql`${t.linkedUserId} IS NOT NULL`),
   check('dpp_first_names_ck', sql`char_length(${t.firstNameEn}) BETWEEN 1 AND 255 AND char_length(${t.firstNameAr}) <= 255`),
+]);
+
+// دفتر جرس طلب الموافقة (057-3): صف واحد لكل طلب، لأن الجرس قرار لا يُعاد. صفر مستلمين قرار نهائي لا خطأ.
+export const discountApprovalNotices = pgTable('discount_approval_notices', {
+  companyId: uuid('company_id').notNull(),
+  id: uuid('id').notNull(),
+  businessId: uuid('business_id').notNull(),
+  requestId: uuid('request_id').notNull(),
+  // المصدر محفوظ دون FK للأوتبوكس حتى لا تتوقف الحماية عند حذف الحدث القديم.
+  sourceEventId: uuid('source_event_id').notNull(),
+  decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
+  // الصفر قرار نهائي قابل للمراجعة، وليس حدثاً بمستلمين فارغين.
+  recipientCount: integer('recipient_count').notNull(),
+}, (t) => [
+  primaryKey({ name: 'discount_approval_notices_pkey', columns: [t.companyId, t.id] }),
+  unique('discount_approval_notices_request_key').on(t.companyId, t.requestId),
+  foreignKey({ name: 'discount_approval_notices_company_fk', columns: [t.companyId], foreignColumns: [companies.id] }),
+  foreignKey({ name: 'discount_approval_notices_business_fk', columns: [t.companyId, t.businessId], foreignColumns: [businesses.companyId, businesses.id] }),
+  index('discount_approval_notices_business_fk_idx').on(t.companyId, t.businessId),
+  check('discount_approval_notices_recipient_count', sql`${t.recipientCount} >= 0`),
 ]);

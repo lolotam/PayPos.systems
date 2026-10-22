@@ -1170,6 +1170,13 @@
       "when": 1792687482774,
       "tag": "0168_2026-10-22_staff-app-columns-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1792693042069,
+      "tag": "0169_2026-10-22_discount-approval-notices",
+      "breakpoints": true
     }
   ]
 }

@@ -71,7 +71,13 @@ session would let any logged-in user probe any manager's PIN, and SPEC §3 has n
    `discountApproverRecipients(branch)` — every active user whose membership covering the branch effectively grants
    `approve:discounts:branch` (role defaults and ALLOW overrides, minus any covering DENY), managers or not; **not**
    the ADR-0037 manager rule — drops the requester, and appends `DiscountApprovalNoticeRequested` to `notifications`
-   in groups of at most 100 (existing IN_APP storage). Zero recipients is a durable decision. The template
+   in groups of at most 100 (existing IN_APP storage). Zero recipients is a durable decision. **Outbox shape (057-3,
+   for the 057-4b writer):** `DiscountApprovalRequested` is written with `aggregate_type = 'discount_approval_request'`
+   and `aggregate_id` = the payload's `request_id`; the consumer refuses any other pair, and also refuses an event whose
+   `line_count` or `max_effective_bps` differs from the stored proposals of that `request_id` (so the writer stores the
+   proposals and the event in one transaction). The reader counts a user only when a membership covering the branch
+   itself grants the permission and no DENY covering the branch exists on any active membership of that user; an active
+   owner ignores a DENY, as the API's `protectOwnerAccess` does. The template
    `discount_approval_requested` (revision 1, ar/en) shows the branch, the **first** service of the request (the
    event's `services` order), the number of lines and the largest percent (`max_effective_bps` / 100 without trailing
    zeros, so a raw four-digit bps never reaches the safe-text filter). It never shows a customer, a phone or the

@@ -27,6 +27,7 @@ import {
   createLineCancelNoticeConsumer,
   createPerformersChangeNoticeConsumer,
   createPriceEditNoticeConsumer,
+  createDiscountApprovalNoticeConsumer,
 } from './modules/orders/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 import {
@@ -108,6 +109,7 @@ const businessDeliver = createDeliverer(
     createPriceEditNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
     createLineCancelNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
     createPerformersChangeNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
+    createDiscountApprovalNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
   ],
   logger,
   { knownEventTypes: knownEventTypes(staff, notifications, inApp) },

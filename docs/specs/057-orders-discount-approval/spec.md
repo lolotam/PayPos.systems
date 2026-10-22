@@ -509,7 +509,10 @@ Money in contracts is canonical three-decimal KWD strings; `bigint` mills inside
   recipients through a **new** worker identity reader `discountApproverRecipients(branch)` (identity owns permission
   resolution: active memberships covering the branch whose role defaults or ALLOW overrides grant
   `approve:discounts:branch`, minus any covering DENY; PP-15.2, so **not** the ADR-0037 manager rule), drops the
-  requester, and appends `DiscountApprovalNoticeRequested` to `notifications` (existing IN_APP storage, admin bell). A second
+  requester, and appends `DiscountApprovalNoticeRequested` to `notifications` (existing IN_APP storage, admin bell). The request writer
+  (057-4b) emits `DiscountApprovalRequested` with `aggregate_type = 'discount_approval_request'` and `aggregate_id` =
+  `request_id`, in the same transaction as the proposals (the consumer checks `line_count` and `max_effective_bps`
+  against them; ADR-0051 §7). A second
   worker `orders` consumer `orders.discount-self-approval-notice-v1` (057-3b) claims a `discount_self_approval_notices`
   row per event, reads the master switch and the kind's effective alert rule through `AlertRulesPort` (DA-Q11; nothing is
   sent when either is off), resolves the rule's roles covering the branch through the worker identity scoped-role reader

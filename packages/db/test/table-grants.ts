@@ -36,6 +36,8 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'devices:INSERT',
     'devices:SELECT',
     'devices:UPDATE',
+    'discount_approval_notices:INSERT',
+    'discount_approval_notices:SELECT',
     ...DISCOUNT_PROPOSAL_TABLE_GRANTS,
     'document_types:INSERT',
     'document_types:SELECT',
