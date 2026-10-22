@@ -21,7 +21,7 @@ export interface StaffColumnsPort {
    * @param tx         معاملة القراية
    * @param companyId  الشركة
    * @param businessId نشاط جلسة الموظفة
-   * @returns عدد الشهور من 1 لـ 24
+   * @returns عدد الشهور من 1 لـ 12
    */
   monthsBack(tx: Tx, companyId: string, businessId: string): Promise<number>;
 }

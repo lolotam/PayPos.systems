@@ -62,11 +62,12 @@ describe('staff columns (spec 060 D-A6, D-A7)', () => {
     expect(effectiveStaffColumns(['rating_average', 'tip'])).toEqual(['tip']);
   });
 
-  it('MY-13 months back: unset is 1, saved values from 1 to 24 pass, 0, 25 and fractions do not', () => {
-    expect(effectiveStaffMonthsBack(null)).toBe(1);
+  it('MY-13 months back: unset is 2, saved values from 1 to 12 pass, 0, 13 and fractions do not', () => {
+    expect(effectiveStaffMonthsBack(null)).toBe(2);
     expect(effectiveStaffMonthsBack(3)).toBe(3);
-    for (const valid of [1, 3, 24]) expect(isValidStaffMonthsBack(valid)).toBe(true);
-    for (const invalid of [0, 25, -1, 1.5]) expect(isValidStaffMonthsBack(invalid)).toBe(false);
+    for (const valid of [1, 2, 3, 12]) expect(isValidStaffMonthsBack(valid)).toBe(true);
+    for (const invalid of [0, 13, 24, 25, -1, 1.5])
+      expect(isValidStaffMonthsBack(invalid)).toBe(false);
   });
 });
 

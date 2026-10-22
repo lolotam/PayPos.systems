@@ -88,15 +88,15 @@ const storedRow = async () => {
   );
 };
 
-it('MY-17 nothing saved: every adapter gets the MY-Q3 default and one month, rating_average hidden', async () => {
-  expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 1));
+it('MY-17 nothing saved: every adapter gets the MY-Q3 default and two months, rating_average hidden', async () => {
+  expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 2));
   const read = await get();
   expect(read.statusCode).toBe(200);
   expect(staffColumnsSettings.parse(read.json())).toEqual({
     business_id: f.business,
     columns: DEFAULT,
     columns_default: true,
-    months_back: 1,
+    months_back: 2,
     months_back_default: true,
   });
 });
@@ -107,10 +107,10 @@ it('MY-18/MY-20 a saved set reaches every adapter, the estimate can be hidden, a
   expect(staffColumnsSettings.parse(saved.json())).toMatchObject({
     columns: ['date', 'service', 'list_price'],
     columns_default: false,
-    months_back: 1,
+    months_back: 2,
     months_back_default: true,
   });
-  expect(await throughAdapters()).toEqual(everyAdapter(['date', 'service', 'list_price'], 1));
+  expect(await throughAdapters()).toEqual(everyAdapter(['date', 'service', 'list_price'], 2));
   expect(await audits()).toEqual([
     {
       action: 'settings.staff_columns_changed',
@@ -130,19 +130,21 @@ it('MY-18/MY-20 a saved set reaches every adapter, the estimate can be hidden, a
   ).toBe(200);
 });
 
-it('MY-13 months back: saved 3 and 24 reach every adapter; 0 and 25 are 422 and the CHECK refuses them', async () => {
+it('MY-13 months back: saved 1, 3 and 12 reach every adapter; 0 and 13 are 422 and the CHECK refuses them', async () => {
+  expect((await put({ columns: null, months_back: 1 })).statusCode).toBe(200);
+  expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 1));
   expect((await put({ columns: null, months_back: 3 })).statusCode).toBe(200);
   expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 3));
-  expect((await put({ columns: null, months_back: 24 })).statusCode).toBe(200);
-  expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 24));
+  expect((await put({ columns: null, months_back: 12 })).statusCode).toBe(200);
+  expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 12));
   const before = await audits();
-  for (const months_back of [0, 25, 1001, -5000, 9007199254740992]) {
+  for (const months_back of [0, 13, 25, 1001, -5000, 9007199254740992]) {
     const refused = await put({ columns: null, months_back });
     expect(refused.statusCode).toBe(422);
     expect(errorEnvelope.parse(refused.json()).code).toBe('STAFF_MONTHS_BACK_INVALID');
   }
   expect(await audits()).toEqual(before);
-  for (const months of [0, 25]) {
+  for (const months of [0, 13]) {
     await expect(
       f.h.owner`UPDATE business_settings SET staff_months_back = ${months}
         WHERE company_id = ${f.company} AND business_id = ${f.business}`,
@@ -152,11 +154,12 @@ it('MY-13 months back: saved 3 and 24 reach every adapter; 0 and 25 are 422 and 
     (row) => row['action'] === 'settings.staff_months_back_changed',
   );
   expect(months.map((row) => [row['before'], row['after']])).toEqual([
-    [{ staff_months_back: null }, { staff_months_back: 3 }],
-    [{ staff_months_back: 3 }, { staff_months_back: 24 }],
+    [{ staff_months_back: null }, { staff_months_back: 1 }],
+    [{ staff_months_back: 1 }, { staff_months_back: 3 }],
+    [{ staff_months_back: 3 }, { staff_months_back: 12 }],
   ]);
   expect((await put({ columns: null, months_back: null })).statusCode).toBe(200);
-  expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 1));
+  expect(await throughAdapters()).toEqual(everyAdapter(DEFAULT, 2));
 });
 
 it('MY-19 an unknown, duplicate, rating_comments, customer_phone or rating_average code is 422 and nothing is saved', async () => {
@@ -208,7 +211,7 @@ it('MY-18 a no-op on a business with no settings row leaves no row and no audit'
   expect(staffColumnsSettings.parse(res.json())).toMatchObject({
     business_id: businessId,
     columns_default: true,
-    months_back: 1,
+    months_back: 2,
   });
   const rows = await f.h.owner`SELECT business_id FROM business_settings
     WHERE company_id = ${f.company} AND business_id = ${businessId}`;

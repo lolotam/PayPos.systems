@@ -1170,6 +1170,20 @@
       "when": 1792687482774,
       "tag": "0168_2026-10-22_staff-app-columns-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1792691717113,
+      "tag": "0169_2026-10-22_staff-months-back-range",
+      "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1792691725054,
+      "tag": "0170_2026-10-22_staff-months-back-validate",
+      "breakpoints": true
     }
   ]
 }

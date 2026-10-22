@@ -121,8 +121,9 @@ that list (D-A1). Its port has the same two reads as the other consumers (FR-A08
   money only (MY-Q3, PP-18.3; `list_price`, `discount` and `net` hidden). `estimated_commission` is an ordinary column,
   shown by default (MY-Q4, PP-18.4). `rating_average` is removed from what any consumer receives until the rating
   track ships (D-A7; RT-Q1, PP-18.9 postponed it), and sub-PR 61-3 lifts that filter.
-- `monthsBack(tx, companyId, businessId)` → `staff_months_back`, where `NULL` means 1 (the current month only) and the
-  stored value is 1–24 (D-A14; MY-Q2, PP-18.2; MY-Q9, PP-21.1: «شهر، ولحد 24»).
+- `monthsBack(tx, companyId, businessId)` → `staff_months_back`, where `NULL` means 2 (the current month and the one
+  before) and the stored value is 1–12 (D-A14; MY-Q2 and MY-Q9, Abu Salem 2026-10-22, replacing PP-18.2 and PP-21.1
+  «شهر، ولحد 24»; issue #497).
 
 `settings` stays the owner of both values; they are edited under `manage:staff-app-columns:business` (MY-Q5, Abu
 Salem's binding pick, replacing PP-18.5's `manage:settings:business`; built by issue #496, migration 0168) and nobody else writes them. `orders` already imports `settings` (§2, ADR-0041's `DiscountLimitPort`).

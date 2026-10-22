@@ -8,6 +8,7 @@ import {
   EmployeeNumbersRoleRefusedError,
 } from './employee-numbers.ts';
 import { MigrationRoleRefusedError, rekeyEmployeeNameKeys } from './employee-name-keys.ts';
+import { clampStaffMonthsBack, StaffMonthsBackRoleRefusedError } from './staff-months-back.ts';
 
 /**
  * يبني رابط pospay_app من رابط المالك؛ الباسورد بيتعمل له encode كامل لأن setter الـ URL
@@ -29,7 +30,8 @@ export function sanitizedStepError(step: string, error: unknown): Error {
   if (
     error instanceof MigrationRoleRefusedError ||
     error instanceof EmployeeNumbersRoleRefusedError ||
-    error instanceof EmployeeNumbersExhaustedError
+    error instanceof EmployeeNumbersExhaustedError ||
+    error instanceof StaffMonthsBackRoleRefusedError
   )
     return error;
   const codeOf = (value: unknown): unknown =>
@@ -72,6 +74,21 @@ export function migrationDataSteps(ownerUrl: string, appPassword: string) {
         console.log(`companies=${companies} read=${read} updated=${updated}`);
       } catch (error) {
         throw sanitizedStepError('employee-name-keys', error);
+      } finally {
+        await app.close();
+      }
+    },
+    'staff-months-back': async (owner: postgres.Sql): Promise<void> => {
+      const app = createDatabase({
+        url: appDatabaseUrl(ownerUrl, appPassword),
+        ids: systemUuidV7(),
+        maxConnections: 1,
+      });
+      try {
+        const { companies, clamped } = await clampStaffMonthsBack(owner, app);
+        console.log(`companies=${companies} clamped=${clamped}`);
+      } catch (error) {
+        throw sanitizedStepError('staff-months-back', error);
       } finally {
         await app.close();
       }
