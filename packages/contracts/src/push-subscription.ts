@@ -28,11 +28,20 @@ export function isAllowedPushHost(host: string): boolean {
 }
 
 // نقطة الدفع: https ومضيف من حروف صغيرة وأرقام وشرطات ونقاط، وبعده path أو query اختياري من غير مسافات
-// ولا fragment ولا محارف تحكم؛ الباقي ثابت فالهاش واحد لكل وجهة.
-const ENDPOINT_PATTERN = /^https:\/\/([a-z0-9.-]+)(?:[/?][^\s#\u0000-\u001f\u007f]*)?$/;
+// ولا fragment؛ الباقي ثابت فالهاش واحد لكل وجهة.
+const ENDPOINT_PATTERN = /^https:\/\/([a-z0-9.-]+)(?:[/?][^\s#]*)?$/;
 
 // أربع مجموعات أرقام بنقط: عنوان IP مش مضيف.
 const IPV4_PATTERN = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+// محرف التحكم بيعدّي من فئات زي \S وبعدين عمود النص في الداتابيز بيرفضه — فبنرفضه هنا.
+function hasControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
 
 /**
  * يقرر إن كان endpoint نقطة دفع مسموحة: https بمضيف من حروف صغيرة وأرقام وشرطات ونقاط،
@@ -43,6 +52,7 @@ const IPV4_PATTERN = /^\d{1,3}(\.\d{1,3}){3}$/;
  */
 export function isAllowedPushEndpoint(value: string): boolean {
   if (value.length === 0 || value.length > 2048) return false;
+  if (hasControlCharacter(value)) return false;
   const match = ENDPOINT_PATTERN.exec(value);
   // المطابقة لازم تغطي النص كله: `$` في جافاسكربت بتقبل سطر أخير، فالمقارنة نفسها هي الضمان.
   if (match === null || match[0] !== value) return false;

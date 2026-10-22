@@ -140,7 +140,9 @@ describe('the registration use case', () => {
     for (let attempt = 0; attempt < 25; attempt += 1) await register.execute(SCOPE, INPUT, CONFIG);
     expect(state.transactions).toBe(25);
   });
+});
 
+describe('the registration guards', () => {
   it('is not ready without a push configuration', async () => {
     const state: State = { transactions: 0, locked: [], revokes: 0, upserts: 0 };
     const register = useCase(state, null);
