@@ -1163,6 +1163,13 @@
       "when": 1792676038033,
       "tag": "0167_2026-10-22_alert-rules-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1792687482774,
+      "tag": "0168_2026-10-22_staff-app-columns-permission",
+      "breakpoints": true
     }
   ]
 }

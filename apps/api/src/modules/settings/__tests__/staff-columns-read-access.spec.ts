@@ -8,7 +8,7 @@ import {
 } from '../../../../test/permissions-fixture.ts';
 import { deviceToken } from './set-business-logo.support.ts';
 
-// MY-Q10 (PP-27.1): قراءة أعمدة تطبيق الموظفات مفتوحة بصلاحية القراءة أو بصلاحية الإدارة، كل واحدة في عضوية.
+// MY-Q10 (PP-27.1، MY-Q5): قراءة أعمدة تطبيق الموظفات مفتوحة بصلاحية القراءة أو بصلاحية أعمدة تطبيق الموظفين، كل واحدة في عضوية.
 let f: PermissionFixture;
 
 beforeAll(async () => {
@@ -49,17 +49,27 @@ it('a member with only read:settings:business reads the staff columns', async ()
   });
 });
 
-it('a member with only manage:settings:business reads the staff columns too', async () => {
+it('a member with only manage:staff-app-columns:business reads the staff columns', async () => {
   const cookie = await memberWith(
-    'staff-columns-manager@example.test',
-    'synthetic_columns_manager',
-    'manage:settings:business',
+    'staff-columns-columns@example.test',
+    'synthetic_columns_editor',
+    'manage:staff-app-columns:business',
   );
   const res = await get({ cookie, 'x-company-id': f.company });
   expect(res.statusCode).toBe(200);
   expect(staffColumnsSettings.parse(res.json())).toMatchObject({
     business_id: f.business,
   });
+});
+
+it('a member with only manage:settings:business is refused', async () => {
+  const cookie = await memberWith(
+    'staff-columns-settings@example.test',
+    'synthetic_columns_settings',
+    'manage:settings:business',
+  );
+  const res = await get({ cookie, 'x-company-id': f.company });
+  expect([res.statusCode, errorEnvelope.parse(res.json()).code]).toEqual([403, 'FORBIDDEN']);
 });
 
 it('a member with neither permission is refused', async () => {

@@ -115,6 +115,8 @@ export const ROLE_DEFAULTS = {
   'manage:business-identity:business': ['owner'],
   // قرار المالك AL-Q1 بتاريخ 2026-10-22: إدارة التنبيهات للمالك والمدير العام ومدير النشاط افتراضياً، وتفويضها لأي دور بشري.
   'manage:alert-rules:business': managers,
+  // قرار المالك MY-Q5 بتاريخ 2026-10-22: أعمدة تطبيق الموظفين للمالك والمدير العام ومدير النشاط افتراضياً، وتفويضها لأي دور بشري.
+  'manage:staff-app-columns:business': managers,
   'view:notifications:business': managers,
   'manage:employees:business': managers,
   'read:services:business': managers,
