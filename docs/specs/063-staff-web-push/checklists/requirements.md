@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — PS-Q1, PS-Q2 and PS-Q3 are open (`owner-questions.ar.md`, answers `PENDING`). They block 28b-4 (PS-Q1, PS-Q3) and 28b-1/28b-2 (PS-Q2: cap and "all phones" rule). `/speckit-implement` must not start those sub-PRs until they are answered.
+- [ ] No [NEEDS CLARIFICATION] markers remain — WP-Q1, WP-Q2 and WP-Q3 are open (`owner-questions.ar.md`, answers `PENDING`). They block 28b-4 (WP-Q1, WP-Q3) and the consumer subtask of 28b-2 (WP-Q2: "all phones" rule); 28b-1 and 28b-3 do not wait. `/speckit-implement` must not start those sub-PRs until they are answered.
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)

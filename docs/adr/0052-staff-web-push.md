@@ -3,7 +3,7 @@
 Status: Proposed (draft for Phase 1 row 28b; number provisional, renumbered at merge).
 Date: 2026-10-22. Scope: spec 063, rows 28b and (as a consumer of the channel) 28c. Owner decisions it rests on: spec 036
 NC-Q3 / NC-Q4 and the language request of 2026-10-08, `owner-questions.ar.md` of spec 036 (Waleed); the open questions
-PS-Q1…PS-Q3 are in spec 063 and wait for the owners.
+WP-Q1…WP-Q3 are in spec 063 and wait for the owners.
 
 ## Context
 
@@ -218,7 +218,7 @@ so the push service never sees the text, but the text is still treated as visibl
   and operator replacement run the same unsubscribe as a best effort (ADR-0027's cache clearing already runs on both).
   The state it can show is exactly one of: unsupported, install-first (iOS), blocked-in-browser, off, on.
 - **iOS and iPadOS** deliver web push only to a PWA **added to the home screen** (16.4 or later); in a Safari tab the
-  `PushManager` is absent. The control detects that and shows an install instruction instead of a dead toggle (PS-Q3).
+  `PushManager` is absent. The control detects that and shows an install instruction instead of a dead toggle (WP-Q3).
 - Nothing about a notice or a subscription is persisted by the PWA beyond the browser's own subscription object; the
   install id already exists (ADR-0029). The control and the existing offline rule coexist: with no network the toggle is
   disabled, because subscribing needs the server.

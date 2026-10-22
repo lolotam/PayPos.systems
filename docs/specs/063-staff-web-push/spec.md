@@ -4,8 +4,8 @@
 
 **Created**: 2026-10-22
 
-**Status**: Draft — three owner questions (PS-Q1…PS-Q3) are open, see
-[owner-questions.ar.md](owner-questions.ar.md). Sub-PR 28b-4 waits for them; 28b-1…28b-3 and 28b-5 do not.
+**Status**: Draft — three owner questions (WP-Q1…WP-Q3) are open, see
+[owner-questions.ar.md](owner-questions.ar.md). Sub-PR 28b-4 waits for WP-Q1 and WP-Q3, the consumer subtask of 28b-2 for WP-Q2; 28b-1 and 28b-3 wait for none (28b-5 waits for 62-2).
 
 **Input**: User description: "staff-web-push — row 28b: staff web push (Web Push/VAPID), subscriptions per user+device,
 worker delivery, employee's own not-clocked-in notice."
@@ -30,12 +30,12 @@ quiet hours (NC-Q11); a deleted employee or ended contract gets nothing (NC-Q12)
 
 Example used below: Mona, shift at 10:00 at Salmiya branch.
 
-- **PS-Q1 — How does Mona turn notifications on?** [NEEDS CLARIFICATION: PS-Q1] (TODO(spec)) Browsers only allow it if
+- **WP-Q1 — How does Mona turn notifications on?** [NEEDS CLARIFICATION: WP-Q1] (TODO(spec)) Browsers only allow it if
   Mona herself taps allow on her own phone, so no manager can switch it on for her. Options: ⭐ a toggle on her screen plus
   one small invitation the first time she signs in; the toggle only; an invitation at every sign-in until she answers.
-- **PS-Q2 — Mona has two phones.** [NEEDS CLARIFICATION: PS-Q2] (TODO(spec)) Both signed in with notifications on:
+- **WP-Q2 — Mona has two phones.** [NEEDS CLARIFICATION: WP-Q2] (TODO(spec)) Both signed in with notifications on:
   ⭐ both get the notice; or only the phone she opened the app on last.
-- **PS-Q3 — Mona uses an iPhone.** [NEEDS CLARIFICATION: PS-Q3] (TODO(spec)) On iPhone, notifications only arrive when
+- **WP-Q3 — Mona uses an iPhone.** [NEEDS CLARIFICATION: WP-Q3] (TODO(spec)) On iPhone, notifications only arrive when
   the app was added to the Home Screen. When it was not: ⭐ show her a short "add to Home Screen" instruction in place of the
   toggle; or show nothing. The first option is a screen, so a mockup is attached when the question is published.
 
@@ -71,7 +71,7 @@ shift; run the not-clocked-in job past 10:20: one push attempt, one fake send wi
 On her personal staff screen Mona sees one control. She taps it, allows notifications in the browser's prompt, and the
 control shows "on". Tapping it again turns it off and her phone stops receiving. If she blocked notifications in the
 browser, the control says so and how to undo it. On an iPhone that is not installed to the Home Screen it shows the
-install instruction (PS-Q3) instead of a toggle.
+install instruction (WP-Q3) instead of a toggle.
 
 **Why this priority**: Without it nobody can receive anything.
 
@@ -140,7 +140,7 @@ the subscription state of each.
 - **FR-004**: A notice producer MUST be able to request a push by user id, template and parameters, without knowing the
   user's subscriptions or language; notifications MUST resolve both.
 - **FR-005**: The system MUST send one push per live subscription of that user in that company, at most once per
-  `(source event, subscription, template)` — (PS-Q2 decides whether *all* live subscriptions or only the latest).
+  `(source event, subscription, template)` — (WP-Q2 decides whether *all* live subscriptions or only the latest).
 - **FR-006**: The text MUST be rendered in the subscription's stored language and MUST contain no customer data.
 - **FR-007**: The provider call MUST run only in the worker, outside any database transaction, after the
   `PENDING → SENDING` fence is committed, exactly once (ADR-0018).
@@ -277,10 +277,10 @@ declared per PP-7.1). ADR-0027 gets an addendum listing "own push subscription" 
 
 | PR | Scope (subtasks) | Depends on | Notes |
 | --- | --- | --- | --- |
-| **28b-1** | 1. Contract + `push_subscriptions` migration, RLS, grants, negative test. 2. `PUT`/`DELETE`/`GET config` routes + use cases + endpoint validation + route declarations. 3. ADR-0027 addendum + tests PW-01…PW-04, PW-13 | ADR-0052 + this spec merged; PS-Q2 (cap and "all phones") | database review mandatory |
-| **28b-2** | 1. `push_attempts` migration, RLS, grants, negative test. 2. Pure push templates, allowlist and mapping + unit tests. 3. Consumer for `PUSH` recipients + `PushSendAuthorized` + tests PW-05, PW-06 | 28b-1 | database review mandatory |
+| **28b-1** | 1. Contract + `push_subscriptions` migration, RLS, grants, negative test. 2. `PUT`/`DELETE`/`GET config` routes + use cases + endpoint validation + route declarations. 3. ADR-0027 addendum + tests PW-01…PW-04, PW-13 | ADR-0052 + this spec merged (no open question: WP-Q2 decides only the consumer rule in 28b-2) | database review mandatory |
+| **28b-2** | 1. `push_attempts` migration, RLS, grants, negative test. 2. Pure push templates, allowlist and mapping + unit tests. 3. Consumer for `PUSH` recipients + `PushSendAuthorized` + tests PW-05, PW-06 | 28b-1; **WP-Q2 answered** (the consumer picks all live subscriptions or only the latest) | database review mandatory |
 | **28b-3** | 1. Channel adapter (real and fake) + `web-push` pin + config/readiness. 2. `push-send` processor with the fence, result mapping, revoke + VAPID rotation. 3. `push:generate-vapid`, runbook, tests PW-07…PW-10, PW-14 | 28b-2 | dependency gate: Node 24 and CI |
-| **28b-4** | 1. Service worker via `injectManifest` + handlers. 2. The five-state control, subscribe/unsubscribe, locale refresh. 3. UI tests (and the iPhone instruction if PS-Q3 says yes) | 28b-1; PS-Q1, PS-Q3 answered | a mockup is attached to PS-Q3 |
+| **28b-4** | 1. Service worker via `injectManifest` + handlers. 2. The five-state control, subscribe/unsubscribe, locale refresh. 3. UI tests (and the iPhone instruction if WP-Q3 says yes) | 28b-1; WP-Q1, WP-Q3 answered | a mockup is attached to WP-Q3 |
 | **28b-5** | 1. Emit the employee's `PUSH` recipient from the not-clocked-in handling. 2. Template `shift_not_clocked_in_self`. 3. Tests PW-11, PW-12 | 28b-3 and **62-2** (orchestrator decision 2026-10-22: 62-2 removes `interimNotClockedInRule` and keeps the fixed push recipient this PR uses) | touches the staff emitter that 62-2 rewrites (spec 060 §62-2): lands after 62-2, or on `interimNotClockedInRule` if first and 62-2 adapts |
 
 Row 28c (spec 064) reuses 28b-1…28b-3 unchanged and adds only its template and its emitter; it starts after 28b-3.
