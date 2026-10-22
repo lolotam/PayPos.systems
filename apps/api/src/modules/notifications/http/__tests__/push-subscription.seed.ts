@@ -21,10 +21,7 @@ export interface SeedContext {
  * @param ids   مولّد المعرفات
  * @returns سياق الزرع
  */
-export function createSeedContext(
-  owner: postgres.Sql,
-  ids: { newId(): string },
-): SeedContext {
+export function createSeedContext(owner: postgres.Sql, ids: { newId(): string }): SeedContext {
   let phone = 0;
   return {
     owner,
@@ -100,11 +97,7 @@ export async function seedEmployee(
  * @param phone رقم التليفون المرتبط
  * @returns معرّف المستخدم
  */
-export async function seedUser(
-  seed: SeedContext,
-  label: string,
-  phone: string,
-): Promise<string> {
+export async function seedUser(seed: SeedContext, label: string, phone: string): Promise<string> {
   const userId = seed.ids.newId();
   // البريد بيتحسب في جافاسكربت: الـ @ جوّه قالب postgres.js بيتقرا معامل ناقص.
   const email = `${label.replaceAll(' ', '-')}@example.test`;
@@ -169,10 +162,7 @@ export async function receptionCookie(
  * @param auth خدمة الاعتماد
  * @returns الـ cookie بتاع جلسة الإدارة
  */
-export async function adminCookie(
-  app: NestFastifyApplication,
-  auth: AuthService,
-): Promise<string> {
+export async function adminCookie(app: NestFastifyApplication, auth: AuthService): Promise<string> {
   const email = 'push-admin@example.test';
   const password = 'synthetic-admin-password';
   await auth.provisionUser({ email, name: 'Synthetic admin', password });

@@ -73,11 +73,7 @@ function authOptions(databaseUrl: string, ids: { newId(): string }): AuthOptions
   };
 }
 
-function appOptions(
-  database: Database,
-  auth: AuthService,
-  configured: boolean,
-): AppDependencies {
+function appOptions(database: Database, auth: AuthService, configured: boolean): AppDependencies {
   return {
     readiness: [],
     auth: { service: auth, baseURL: BASE_URL },
