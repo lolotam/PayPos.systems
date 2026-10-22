@@ -94,7 +94,8 @@ nothing else of the package, so the builder screen runs the same validator as th
     48a-1 adds negative tests for `import()` and `require()` of the root and of a relative `packages/commissions-engine`
     path from a non-commissions file, from a commissions `domain/`, `queries/` and `http/` file, and from `apps/admin`, and
     of a relative path from a commissions use case, from `apps/admin/src/commissions` and from a sibling package under
-    `packages/*`, and of any subpath other than `/validation` from a commissions use case (all must fail),
+    `packages/*`, and of any subpath, `/validation` included, statically and dynamically from a commissions use case, port and
+    persistence file (all must fail),
     plus a passing lint test of a commissions use-case spec that holds Arabic text.
 - **(c) The `"exports"` map** above: a deep path into the package is not resolvable at all.
 
