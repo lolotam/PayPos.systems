@@ -1,0 +1,39 @@
+# Specification Quality Checklist: Staff web push (row 28b)
+
+**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Created**: 2026-10-22
+**Feature**: [spec.md](../spec.md)
+
+## Content Quality
+
+- [x] Business sections contain no implementation details; implementation decisions appear only under **Slice design**
+- [x] Focused on user value and business needs
+- [x] Written for non-technical stakeholders
+- [x] All mandatory sections completed
+
+## Requirement Completeness
+
+- [ ] No [NEEDS CLARIFICATION] markers remain — PS-Q1, PS-Q2 and PS-Q3 are open (`owner-questions.ar.md`, answers `PENDING`). They block 28b-4 (PS-Q1, PS-Q3) and 28b-1/28b-2 (PS-Q2: cap and "all phones" rule). `/speckit-implement` must not start those sub-PRs until they are answered.
+- [x] Requirements are testable and unambiguous
+- [x] Success criteria are measurable
+- [x] Success criteria are technology-agnostic (no implementation details)
+- [x] All acceptance scenarios are defined
+- [x] Edge cases are identified
+- [x] Scope is clearly bounded (28b here; 28c and 62 out; managers get no push)
+- [x] Dependencies and assumptions identified
+- [x] **Slice design** complete: schema changes (two tables, RLS, indexes, tenant-qualified FKs, grants), API contract (three personal routes, Zod, errors), permissions (personal session; ADR-0027 addendum), events, and the test plan (domain unit, `PW-01…PW-14`, RLS negative, `EXPLAIN`, privacy, UI)
+
+## Feature Readiness
+
+- [x] All functional requirements have clear acceptance criteria
+- [x] User scenarios cover primary flows
+- [x] Feature meets measurable outcomes defined in Success Criteria
+- [x] No implementation details leak into specification
+
+## Notes
+
+- The owner's answers (when they arrive) are recorded in Arabic in `owner-questions.ar.md`, maintained by the orchestrator.
+- Technical decisions (library, VAPID custody, subscription storage and allowlist, separate attempts table, rendering and
+  stored language, service-worker strategy) are in ADR-0052, number provisional.
+- Overlap to coordinate: 28b-5 touches the staff emitter that spec 060 sub-PR 62-2 rewrites.
+- `.specify/extensions.yml` does not exist, so no before/after hooks ran.
