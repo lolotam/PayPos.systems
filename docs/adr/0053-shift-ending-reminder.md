@@ -48,7 +48,7 @@ existing decision:
    length of one short transaction and is the same for every emitter that reads `AlertRulesPort` (ADR-0010
    addendum); it is accepted, nothing is re-sent or retracted.
 3. **Due moment and candidate pages.** `remindAt = max(endsAt − lead, startsAt)` (decision 11). The detector pages
-   through **all** running shifts with a keyset cursor over `(starts_at, shift id)` — the id is the immutable tie-breaker, because many employees share a start — until the page comes back short, never one page per run, so
+   through **all** running shifts with a keyset cursor over `(starts_at, employee_id)` — shift row ids are replaced on every re-save (ADR-0024), so the tie-breaker is the employee, which is stable and unique per start because ADR-0024 forbids overlapping shifts of one employee; many employees share a start — until the page comes back short, never one page per run, so
    not-yet-due rows cannot hide due ones. A page is read without locks and holds the shifts that are **running**
    (`starts_at ≤ now < ends_at`, plus the 16-hour lower bound of ADR-0037 §6, which the
    `staff_schedule_shifts_duration` check makes sufficient) and that have no ledger row (`NOT EXISTS` on the
@@ -57,7 +57,7 @@ existing decision:
    8 needs it). It uses the `(company_id, starts_at)` index ADR-0037 added; this row adds no index on the shifts
    table. The lead differs per (business, branch), so the due test happens in memory with the cached rule. Only the
    due candidates open a locked transaction: with the rule on, only those with an OPEN session; with the rule off,
-   every due one (decision 8). An idle run therefore costs one company-eligibility read, one rule read per distinct
+   every due one (decision 8). The cached rule can be stale by at most one run (minutes); a candidate skipped because the cache said «on» is re-evaluated by the next run, which reads the rule again, so the worst case is the accepted window of decision 2. An idle run therefore costs one company-eligibility read, one rule read per distinct
    pair and ⌈running shifts / 100⌉ unlocked page reads, bounded by the employees working at that moment.
 4. **Presence = an OPEN session at the decision instant.** The reminder is for an employee who is working. With the rule on, an
    employee with no OPEN session writes **no ledger row** (with the rule off, decision 8 applies): one who clocked out early never

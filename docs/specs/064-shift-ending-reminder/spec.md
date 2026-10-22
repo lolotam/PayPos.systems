@@ -34,7 +34,7 @@ template renderer, the end-to-end test through the push sender) is isolated in s
 merged. **The detector is wired into the company job last (064-3)**, after the template, the contract and the
 notifications consumer registration are on `main`, so a deployed detector never emits an event that nothing can
 deliver. **Implementation of this row starts after 28b-3 is merged** (the web-push adapter, the worker processor and the VAPID
-keys). Sub-PR 064-1 (rules and ledger, no behaviour) is the only one that could start earlier.
+keys). No sub-PR starts earlier, 064-1 included: the ledger table is not shipped ahead of its only consumer.
 
 ## Owner questions
 
@@ -93,7 +93,7 @@ Sara left at 16:00 with approval; Heba never came; Nour is on a 17:00–17:30 br
 
 **Acceptance Scenarios**:
 
-1. **Given** no OPEN session (clocked out, or never clocked in), **Then** no row and no event; the not-clocked-in alert
+1. **Given** no OPEN session (clocked out, or never clocked in) and the rule on, **Then** no row and no event; the not-clocked-in alert
    is unchanged (spec 036). **TODO(spec) SE-Q1.**
 2. **Given** an employee on a break (clocked out inside the break) at the reminder moment, **Then** nothing now; if she
    clocks back in before the shift ends, the reminder goes out at the next run. **TODO(spec) SE-Q1.**
@@ -159,7 +159,7 @@ moves Mona's end from 18:00 to 20:00 at 17:40, after her reminder.
 - **FR-003**: A shift whose end has passed MUST be skipped; a deleted employee or one whose contract ended before the
   working date MUST be skipped; approved leave that reaches the shift end MUST skip it; pending, rejected and cancelled
   leave MUST NOT (ADR-0053 §5, §6). **TODO(spec) SE-Q4.**
-- **FR-004**: An employee without an OPEN session MUST write nothing, so a later clock-in before the end can still
+- **FR-004**: With the rule on, an employee without an OPEN session MUST write nothing (with the rule off, FR-006 applies instead), so a later clock-in before the end can still
   trigger the reminder (ADR-0053 §4). **TODO(spec) SE-Q1.**
 - **FR-005**: The system MUST record the reminder once per employee per shift-end instant, whatever re-runs, restarts,
   concurrent workers or schedule re-saves happen (ADR-0053 §7). **TODO(spec) SE-Q3.**
@@ -255,8 +255,8 @@ RETURNING`, and only an inserted row writes audit and outbox.
 
 | # | Title | Subtasks | Waits for | Size |
 |---|---|---|---|---|
-| **064-1** | Rules and ledger | 1. `domain/shift-ending-soon.ts` with its exhaustive unit tests (BR-001…BR-006, DST, overnight, clamp). 2. Migration + Drizzle schema for `attendance_shift_ending_notices`, grants allowlist in `privileges.spec.ts`. 3. RLS negative tests (cross-tenant read 0 rows, insert rejected, FKs rejected, UPDATE/DELETE refused). | SE-Q3 and SE-Q5 answered (they set the key and the clamp) | 220–320 |
-| **064-2** | Template and delivery | 1. Template `shift_ends_soon` rev 1 (ar/en) in `packages/notifications` + the contracts parameter tuple and the `ShiftEndsSoon` event/recipient schema (with the delivery deadline). 2. `ShiftEndsSoon` in the notifications consumer list, `known-event-types.md` coverage gate, module-map §4 event row. 3. End-to-end test with a hand-made event: outbox → transport → 28b's push sender stub; language follows 28b's stored preference. | 064-1; **28b merged** | 200–300 |
+| **064-1** | Rules and ledger | 1. `domain/shift-ending-soon.ts` with its exhaustive unit tests (BR-001…BR-006, DST, overnight, clamp). 2. Migration + Drizzle schema for `attendance_shift_ending_notices`, grants allowlist in `privileges.spec.ts`. 3. RLS negative tests (cross-tenant read 0 rows, insert rejected, FKs rejected, UPDATE/DELETE refused). | **28b-3 merged**; SE-Q3 and SE-Q5 answered (they set the key and the clamp) | 220–320 |
+| **064-2** | Template and delivery | 1. Template `shift_ends_soon` rev 1 (ar/en) in `packages/notifications` + the contracts parameter tuple and the `ShiftEndsSoon` event/recipient schema (with the delivery deadline). 2. `ShiftEndsSoon` in the notifications consumer list, `known-event-types.md` coverage gate, module-map §4 event row. 3. End-to-end test with a hand-made event: outbox → transport → 28b's push sender stub; the text is rendered in the language ADR-0052 stores (today: per push subscription). | 064-1; **28b-3 merged**; SE-Q6 answered (it decides whether anyone is told when push cannot reach her) | 200–300 |
 | **064-3** | Detector in the company job | 1. Port `ShiftEndingSoonTransactions`, persistence (paged candidates with the presence column, locked reads, writes) and the staff `AlertRulesPort` adapter over worker `settings` (reused if 62-2 created it); module-map §3 row and YAML. 2. Use case `detect-shift-ending-soon`; `ShiftEndsSoon` in `published.ts`; wired as the **last** step of the processor. 3. Integration tests SEN-01…SEN-14 and EXPLAIN assertions. | 064-2; SE-Q1, SE-Q2, SE-Q4, SE-Q6 answered | 360–480 |
 
 ### Test plan
@@ -267,7 +267,7 @@ RETURNING`, and only an inserted row writes audit and outbox.
   lead longer than the shift; the parameter tuple and name fallbacks.
 - **Integration scenarios** (PostgreSQL, one cloned database per file, as `pospay_app`): `SEN-01` one row and one event,
   re-run none · `SEN-02` two concurrent workers → one · `SEN-03` clock-out racing the job: first lock wins ·
-  `SEN-04` no OPEN session → no row; clock-in later → reminder · `SEN-05` employee on break → none, back from break →
+  `SEN-04` no OPEN session, rule on → no row; clock-in later → reminder · `SEN-05` employee on break → none, back from break →
   sent · `SEN-06` approved leave to the end suppresses, pending does not · `SEN-07` re-saved week, same end → none ·
   `SEN-08` end moved → new reminder (SE-Q3) · `SEN-09` kind off and master off → `suppressed_at` row, no event, and
   switching on does not send it · `SEN-10` branch override lead · `SEN-11` clock-in at another branch counts ·
@@ -298,7 +298,7 @@ RETURNING`, and only an inserted row writes audit and outbox.
   after that moment, never two for the same instant (a changed end time is a new instant, SE-Q3).
 - **SC-002**: Zero reminders for employees who left, never came, are on approved leave to the end, or are no longer
   employed, across the fixtures.
-- **SC-003**: The reminder reaches the employee's phone within 5 minutes of the reminder moment while the system is up.
+- **SC-003**: For a lead of at least the 5-minute cadence, the reminder reaches the employee's phone within 5 minutes of the reminder moment while the system is up; shorter leads are best-effort (ADR-0053 §11).
 - **SC-004**: A change of the lead from the alerts screen applies to the next run; a reminder already recorded is not
   repeated or moved.
 - **SC-005**: No change to attendance, lateness, hours, salary or commission figures.
@@ -306,6 +306,8 @@ RETURNING`, and only an inserted row writes audit and outbox.
 ## Assumptions
 
 - Cadence 5 minutes and keyset pages of 100 are inherited from spec 029/036; the detector reads every page each run.
+- Spec 036's earlier owner addition (one stored language per user) and the plan row 28b predate ADR-0052's per-subscription
+  language; amending them belongs to 28b's PR (#512), not to this row.
 - A lead shorter than the 5-minute cadence is best-effort: a run may miss the window (ADR-0053 §11); the alerts screen
   should show the resolution (follow-up issue).
 - The text states the end time, not a countdown (ADR-0053 §10); the wording is Arabic-first and goes through the
