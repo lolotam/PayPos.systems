@@ -23,7 +23,7 @@ export function installationHash(companyId: string, installationId: string): Buf
 
 /**
  * بيحسب hash لعنوان نقطة الدفع.
- * القاعدة: العنوان بيتخزّن مشفّراً بــ SHA-256 عشان نعرف إنEndpoint تغيّر من غير ما نخزّن العنوان نفسه.
+ * القاعدة: العنوان بيتخزّن مشفّراً بـ SHA-256 عشان نعرف إن الوجهة اتغيّرت من غير ما نخزّن العنوان نفسه.
  *
  * @param endpoint عنوان نقطة الدفع كما أرسله المتصفح
  * @returns hash بـ 32 بايت (SHA-256)

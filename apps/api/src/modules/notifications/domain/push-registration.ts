@@ -69,7 +69,7 @@ export function planPushRegistration(input: PushRegistrationPlan): PushRegistrat
   return { revoke };
 }
 
-// الأقدم أولاً، وعند نفس الوقت الـ id الأصغر 먼저 عشان النتيجة واحدة مهما كان ترتيب الصفوف.
+// الأقدم أولاً، وعند نفس الوقت الـ id الأصغر أولاً عشان النتيجة واحدة مهما كان ترتيب الصفوف.
 function byAge(left: LivePushRow, right: LivePushRow): number {
   const at = left.createdAt.getTime() - right.createdAt.getTime();
   if (at !== 0) return at;

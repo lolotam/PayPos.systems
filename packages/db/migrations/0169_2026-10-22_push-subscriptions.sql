@@ -1,3 +1,4 @@
+-- اشتراكات الدفع الشخصية (ADR-0052 §3): صف لكل تثبيت متصفح في شركة؛ بلا DELETE، والتعديل على أسرار الاشتراك وسبب سحبه فقط.
 CREATE TABLE "push_subscriptions" (
 	"company_id" uuid NOT NULL,
 	"id" uuid NOT NULL,
@@ -31,3 +32,23 @@ ALTER TABLE "push_subscriptions" ADD CONSTRAINT "push_subscriptions_user_id_user
 CREATE UNIQUE INDEX "push_subscriptions_endpoint_key" ON "push_subscriptions" USING btree ("company_id","endpoint_hash") WHERE "push_subscriptions"."revoked_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "push_subscriptions_active_user_idx" ON "push_subscriptions" USING btree ("company_id","user_id") WHERE "push_subscriptions"."revoked_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "push_subscriptions_user_idx" ON "push_subscriptions" USING btree ("user_id");
+--> statement-breakpoint
+ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+ALTER TABLE push_subscriptions FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
+CREATE POLICY push_subscriptions_select ON push_subscriptions FOR SELECT TO pospay_app
+  USING (company_id = app_company_id());
+--> statement-breakpoint
+CREATE POLICY push_subscriptions_insert ON push_subscriptions FOR INSERT TO pospay_app
+  WITH CHECK (company_id = app_company_id());
+--> statement-breakpoint
+CREATE POLICY push_subscriptions_update ON push_subscriptions FOR UPDATE TO pospay_app
+  USING (company_id = app_company_id()) WITH CHECK (company_id = app_company_id());
+--> statement-breakpoint
+REVOKE ALL ON push_subscriptions FROM PUBLIC, pospay_app, pospay_auth, pospay_dispatcher;
+--> statement-breakpoint
+GRANT SELECT, INSERT ON push_subscriptions TO pospay_app;
+--> statement-breakpoint
+GRANT UPDATE (endpoint, p256dh, auth, endpoint_hash, delivery_token, generation, locale, vapid_key_id, last_seen_at, updated_at, revoked_at, revoked_reason)
+  ON push_subscriptions TO pospay_app;
