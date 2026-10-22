@@ -30,7 +30,9 @@ describe('readPushApiConfiguration', () => {
   it('is not ready when either variable is missing', () => {
     expect(readPushApiConfiguration(env({}))).toBeNull();
     expect(readPushApiConfiguration(env({ VAPID_PUBLIC_KEY: publicKey }))).toBeNull();
-    expect(readPushApiConfiguration(env({ VAPID_SUBJECT: 'mailto:ops@pospay.systems' }))).toBeNull();
+    expect(
+      readPushApiConfiguration(env({ VAPID_SUBJECT: 'mailto:ops@pospay.systems' })),
+    ).toBeNull();
   });
 
   it('is not ready for a public key that is not a P-256 point', () => {

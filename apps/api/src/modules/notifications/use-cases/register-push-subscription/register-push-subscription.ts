@@ -85,9 +85,7 @@ export class RegisterPushSubscription {
     let callerRows = await store.findCallerLive(scope.userId);
     let holders = await store.findLiveByEndpoint(endpointHash);
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const others = holders
-        .filter((row) => row.userId !== scope.userId)
-        .map((row) => row.userId);
+      const others = holders.filter((row) => row.userId !== scope.userId).map((row) => row.userId);
       if (others.length === 0) break;
       await store.lockUsers([...new Set([scope.userId, ...others])].sort());
       callerRows = await store.findCallerLive(scope.userId);

@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  endpointHash,
-  installationHash,
-  subscriberRef,
-  vapidKeyId,
-} from '../push/hashes.js';
+import { endpointHash, installationHash, subscriberRef, vapidKeyId } from '../push/hashes.js';
 
 const COMPANY = '01920000-0000-7000-8000-0000000000a0';
 const OTHER_COMPANY = '01920000-0000-7000-8000-0000000000b0';
@@ -23,9 +18,9 @@ describe('installationHash', () => {
   it('separates two companies and two tags for the same install', () => {
     const here = installationHash(COMPANY, INSTALLATION);
     expect(installationHash(OTHER_COMPANY, INSTALLATION).equals(here)).toBe(false);
-    expect(
-      installationHash(COMPANY.toUpperCase(), INSTALLATION.toUpperCase()).equals(here),
-    ).toBe(true);
+    expect(installationHash(COMPANY.toUpperCase(), INSTALLATION.toUpperCase()).equals(here)).toBe(
+      true,
+    );
   });
 });
 

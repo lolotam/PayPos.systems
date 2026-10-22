@@ -98,10 +98,8 @@ export function createPushSubscriptionTransactions(
 ): PushSubscriptionTransactions {
   return {
     run: (target, work) =>
-      db.withTenant(
-        target.companyId,
-        (tx) => work(storeFor(tx, target.companyId, target.userId)),
-        { userId: target.userId },
-      ),
+      db.withTenant(target.companyId, (tx) => work(storeFor(tx, target.companyId, target.userId)), {
+        userId: target.userId,
+      }),
   };
 }

@@ -107,29 +107,55 @@ describe('pushSubscriptionInput', () => {
     expect(pushSubscriptionInput.safeParse({ ...body(), extra: true }).success).toBe(false);
     expect(
       pushSubscriptionInput.safeParse(
-        body({ subscription: { endpoint: 'https://fcm.googleapis.com/x', keys: { p256dh: P256DH, auth: AUTH, x: 1 } } }),
+        body({
+          subscription: {
+            endpoint: 'https://fcm.googleapis.com/x',
+            keys: { p256dh: P256DH, auth: AUTH, x: 1 },
+          },
+        }),
       ).success,
     ).toBe(false);
   });
 
   it('refuses a bad installation id, key id, token, locale or key length', () => {
-    expect(pushSubscriptionInput.safeParse(body({ installation_id: 'not-a-uuid' })).success).toBe(false);
-    expect(pushSubscriptionInput.safeParse(body({ vapid_key_id: 'ABCDEF0123456789' })).success).toBe(false);
-    expect(pushSubscriptionInput.safeParse(body({ delivery_token: 'not-a-uuid' })).success).toBe(false);
+    expect(pushSubscriptionInput.safeParse(body({ installation_id: 'not-a-uuid' })).success).toBe(
+      false,
+    );
+    expect(
+      pushSubscriptionInput.safeParse(body({ vapid_key_id: 'ABCDEF0123456789' })).success,
+    ).toBe(false);
+    expect(pushSubscriptionInput.safeParse(body({ delivery_token: 'not-a-uuid' })).success).toBe(
+      false,
+    );
     expect(pushSubscriptionInput.safeParse(body({ locale: 'fr' })).success).toBe(false);
     expect(
       pushSubscriptionInput.safeParse(
-        body({ subscription: { endpoint: 'https://fcm.googleapis.com/x', keys: { p256dh: 'A'.repeat(86), auth: AUTH } } }),
+        body({
+          subscription: {
+            endpoint: 'https://fcm.googleapis.com/x',
+            keys: { p256dh: 'A'.repeat(86), auth: AUTH },
+          },
+        }),
       ).success,
     ).toBe(false);
     expect(
       pushSubscriptionInput.safeParse(
-        body({ subscription: { endpoint: 'https://fcm.googleapis.com/x', keys: { p256dh: P256DH, auth: 'B'.repeat(21) } } }),
+        body({
+          subscription: {
+            endpoint: 'https://fcm.googleapis.com/x',
+            keys: { p256dh: P256DH, auth: 'B'.repeat(21) },
+          },
+        }),
       ).success,
     ).toBe(false);
     expect(
       pushSubscriptionInput.safeParse(
-        body({ subscription: { endpoint: 'https://fcm.googleapis.com/x', keys: { p256dh: `${'A'.repeat(86)}=`, auth: AUTH } } }),
+        body({
+          subscription: {
+            endpoint: 'https://fcm.googleapis.com/x',
+            keys: { p256dh: `${'A'.repeat(86)}=`, auth: AUTH },
+          },
+        }),
       ).success,
     ).toBe(false);
   });
@@ -138,7 +164,9 @@ describe('pushSubscriptionInput', () => {
 describe('pushRevokeInput and pushConfig', () => {
   it('revoke takes only an installation id', () => {
     expect(pushRevokeInput.safeParse({ installation_id: INSTALLATION }).success).toBe(true);
-    expect(pushRevokeInput.safeParse({ installation_id: INSTALLATION, extra: 1 }).success).toBe(false);
+    expect(pushRevokeInput.safeParse({ installation_id: INSTALLATION, extra: 1 }).success).toBe(
+      false,
+    );
     expect(pushRevokeInput.safeParse({}).success).toBe(false);
   });
 
@@ -150,7 +178,19 @@ describe('pushRevokeInput and pushConfig', () => {
         subscriber_ref: 'c'.repeat(64),
       }).success,
     ).toBe(true);
-    expect(pushConfig.safeParse({ vapid_public_key: '', vapid_key_id: KEY_ID, subscriber_ref: 'c'.repeat(64) }).success).toBe(false);
-    expect(pushConfig.safeParse({ vapid_public_key: 'BPublic', vapid_key_id: KEY_ID, subscriber_ref: 'C'.repeat(64) }).success).toBe(false);
+    expect(
+      pushConfig.safeParse({
+        vapid_public_key: '',
+        vapid_key_id: KEY_ID,
+        subscriber_ref: 'c'.repeat(64),
+      }).success,
+    ).toBe(false);
+    expect(
+      pushConfig.safeParse({
+        vapid_public_key: 'BPublic',
+        vapid_key_id: KEY_ID,
+        subscriber_ref: 'C'.repeat(64),
+      }).success,
+    ).toBe(false);
   });
 });

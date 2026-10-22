@@ -73,7 +73,9 @@ it('FORCE RLS, no DELETE and a cross-company row is invisible', async () => {
     await db.withTenant(B.company, (tx) => tx.execute(sql`SELECT id FROM push_subscriptions`)),
   ).toHaveLength(0);
   expect(
-    await asA(sql`UPDATE push_subscriptions SET locale='en' WHERE company_id=${B.company} RETURNING id`),
+    await asA(
+      sql`UPDATE push_subscriptions SET locale='en' WHERE company_id=${B.company} RETURNING id`,
+    ),
   ).toHaveLength(0);
 });
 

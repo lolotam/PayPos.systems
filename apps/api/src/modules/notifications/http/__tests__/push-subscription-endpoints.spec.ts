@@ -58,7 +58,9 @@ it('subscribes, refreshes and unsubscribes, and the row holds the secrets only w
     subscription: first.subscription,
     locale: 'en',
   });
-  expect((await f.send('PUT', '/v1/staff/push/subscription', { body: refreshed })).status).toBe(204);
+  expect((await f.send('PUT', '/v1/staff/push/subscription', { body: refreshed })).status).toBe(
+    204,
+  );
   const [after] = await f.owner`SELECT * FROM push_subscriptions WHERE id=${row?.['id']}`;
   expect(after?.['locale']).toBe('en');
   expect(after?.['generation']).toBe(1);
@@ -112,15 +114,21 @@ it('revokes the oldest subscription when the cap is exceeded and keeps a refresh
     const installation = nextId();
     installations.push(installation);
     expect(
-      (await f.send('PUT', '/v1/staff/push/subscription', { body: body({ installation_id: installation }) }))
-        .status,
+      (
+        await f.send('PUT', '/v1/staff/push/subscription', {
+          body: body({ installation_id: installation }),
+        })
+      ).status,
     ).toBe(204);
     await wait(5);
   }
   expect(await liveCount()).toBe(5);
   expect(
-    (await f.send('PUT', '/v1/staff/push/subscription', { body: body({ installation_id: installations[0] }) }))
-      .status,
+    (
+      await f.send('PUT', '/v1/staff/push/subscription', {
+        body: body({ installation_id: installations[0] }),
+      })
+    ).status,
   ).toBe(204);
   expect(await liveCount()).toBe(5);
   expect((await f.send('PUT', '/v1/staff/push/subscription', { body: body() })).status).toBe(204);
@@ -177,8 +185,12 @@ it('keeps at most five live rows when registrations race and one live row per en
   expect(await liveCount()).toBeLessThanOrEqual(5);
   const endpoint = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
   await Promise.all([
-    f.send('PUT', '/v1/staff/push/subscription', { body: body({ subscription: subscription(endpoint) }) }),
-    f.send('PUT', '/v1/staff/push/subscription', { body: body({ subscription: subscription(endpoint) }) }),
+    f.send('PUT', '/v1/staff/push/subscription', {
+      body: body({ subscription: subscription(endpoint) }),
+    }),
+    f.send('PUT', '/v1/staff/push/subscription', {
+      body: body({ subscription: subscription(endpoint) }),
+    }),
   ]);
   const holders = await f.owner`SELECT count(*)::int AS count FROM push_subscriptions
     WHERE company_id=${f.companyId} AND endpoint=${endpoint} AND revoked_at IS NULL`;
@@ -188,8 +200,11 @@ it('keeps at most five live rows when registrations race and one live row per en
 it('stores no raw installation id and scopes the hash to the company', async () => {
   const installation = nextId();
   expect(
-    (await f.send('PUT', '/v1/staff/push/subscription', { body: body({ installation_id: installation }) }))
-      .status,
+    (
+      await f.send('PUT', '/v1/staff/push/subscription', {
+        body: body({ installation_id: installation }),
+      })
+    ).status,
   ).toBe(204);
   const rows = await f.owner`SELECT * FROM push_subscriptions WHERE company_id=${f.companyId}`;
   for (const row of rows)

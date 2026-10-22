@@ -28,7 +28,11 @@ import type { Logger } from '@pospay/observability';
 import { createWhatsappEnvelopeAdapter } from './persistence/whatsapp-envelope.adapter.ts';
 import { createWhatsappInboxRepository } from './persistence/drizzle-whatsapp-inbox.repository.ts';
 import { ReceiveWhatsappStop } from './use-cases/receive-whatsapp-stop/receive-whatsapp-stop.ts';
-import { notificationRedisOptions, subscriberRef, type PushApiConfiguration } from '@pospay/notifications';
+import {
+  notificationRedisOptions,
+  subscriberRef,
+  type PushApiConfiguration,
+} from '@pospay/notifications';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { RATE_LIMITER } from '../../shared/device-authenticator.ts';
 import type { RateLimiter } from '../../shared/ports/rate-limiter.port.ts';

@@ -72,9 +72,7 @@ describe('planPushRegistration', () => {
 
   it('keeps the caller row for the same install and the same endpoint', () => {
     const own = row('own');
-    const decision = planPushRegistration(
-      plan({ endpointHolders: [own], callerRows: [own] }),
-    );
+    const decision = planPushRegistration(plan({ endpointHolders: [own], callerRows: [own] }));
     expect(decision.revoke).toEqual([]);
   });
 

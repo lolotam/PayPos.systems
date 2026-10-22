@@ -43,9 +43,7 @@ export interface PushRegistrationDecision {
 export function planPushRegistration(input: PushRegistrationPlan): PushRegistrationDecision {
   const revoke: PushRevocation[] = [];
   const revoked = new Set<string>();
-  const holders = input.endpointHolders.filter(
-    (row) => row.endpointHash === input.endpointHash,
-  );
+  const holders = input.endpointHolders.filter((row) => row.endpointHash === input.endpointHash);
   for (const holder of holders) {
     if (holder.userId !== input.callerUserId) {
       revoke.push({ id: holder.id, reason: 'OWNER_CHANGED' });
