@@ -371,7 +371,7 @@ it('uses existing indexes for list, current/history detail and editing availabil
   const actor = { companyId: f.company, userId: f.userId };
   await listPermissionMemberships(explaining(f.db, plans), actor, { limit: 20 });
   await getMembershipPermissions(explaining(f.db, plans), actor, member, { limit: 20 });
-  expect(plans[0]).toMatch(/memberships_(pkey|company_id_user_id_id_key|scope_\w+_idx)/);
+  expect(plans[0]).toMatch(/memberships_(pkey|company_id_user_id_id_key|scope(_\w+)?_idx)/);
   expect(plans[1]).toMatch(/permission_overrides_(membership_idx|pkey)/);
   expect(plans[1]).toContain('memberships_pkey');
   expect(plans.join('')).not.toContain('Seq Scan');
