@@ -32,3 +32,6 @@ BEGIN
   END IF;
   RAISE EXCEPTION 'a discount proposal moves only PENDING to APPROVED or REJECTED, or APPROVED to CONSUMED' USING ERRCODE = '23514', CONSTRAINT = 'discount_proposals_transition_guard';
 END $$;
+--> statement-breakpoint
+-- expires_at بتتكتب مرة واحدة عند الطلب، فنشيل UPDATE عليها من pospay_app والتريغر يفضل خط دفاع تاني.
+REVOKE UPDATE (expires_at) ON discount_proposals FROM pospay_app;
