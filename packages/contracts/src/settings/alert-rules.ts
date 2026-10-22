@@ -33,7 +33,13 @@ export const alertChannel = z.enum(['IN_APP']).meta({ id: 'AlertChannel' });
 const minutes = z.number().int().min(1).max(1440);
 // الدومين هو اللي يملك مدى الدقايق (1..1440)، فالسكيما في الطلب بتفضل رقم صحيح بس:
 // القيمة برّه المدى لازم تطلع 422 ALERT_RULE_INVALID زي ما التوثيق بيقول، مش 400 من السكيما قبل ما الدومين يشوفها.
-const minutesInput = z.number().int();
+const minutesInput = z
+  .number()
+  .int()
+  .meta({
+    description:
+      'Whole minutes, 1..1440; the domain enforces the range, so a value outside it is 422 ALERT_RULE_INVALID',
+  });
 // رقم النسخة: عدّاد القاعدة المخزنة، بيتزود مع كل حفظ.
 const revision = z.number().int().min(1).max(2_147_483_646);
 

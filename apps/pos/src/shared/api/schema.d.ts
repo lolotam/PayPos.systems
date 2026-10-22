@@ -4025,7 +4025,9 @@ export interface components {
             enabled: boolean;
             recipient_roles: components["schemas"]["AlertRecipientRole"][];
             channels: components["schemas"]["AlertChannel"][];
+            /** @description Whole minutes, 1..1440; the domain enforces the range, so a value outside it is 422 ALERT_RULE_INVALID */
             delay_minutes: number | null;
+            /** @description Whole minutes, 1..1440; the domain enforces the range, so a value outside it is 422 ALERT_RULE_INVALID */
             lead_minutes: number | null;
             expected_revision: number | null;
             /** Format: uuid */

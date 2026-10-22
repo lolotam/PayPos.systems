@@ -184,8 +184,21 @@ it('validates per kind with ALERT_RULE_INVALID and saves nothing', async () => {
 
 it('out-of-range minutes are ALERT_RULE_INVALID (422), not a 400 from the contract', async () => {
   const before = (await audits()).length;
-  for (const rule of [notClockedIn(0), notClockedIn(1441), endsSoon(0), endsSoon(1441)]) {
+  for (const rule of [
+    notClockedIn(0),
+    notClockedIn(1441),
+    notClockedIn(0, false),
+    notClockedIn(1441, false),
+    endsSoon(0),
+    endsSoon(1441),
+  ]) {
     const response = await put(null, [rule]);
+    expect(response.status).toBe(422);
+    expect(response.body).toMatchObject({ code: 'ALERT_RULE_INVALID' });
+  }
+  // نفس الرفض في نطاق الفرع.
+  for (const delay of [0, 1441]) {
+    const response = await put(f.siblingBranch, [notClockedIn(delay)]);
     expect(response.status).toBe(422);
     expect(response.body).toMatchObject({ code: 'ALERT_RULE_INVALID' });
   }
