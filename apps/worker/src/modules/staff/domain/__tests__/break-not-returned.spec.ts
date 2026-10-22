@@ -1,21 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import {
   BREAK_OUT_LEAD_MS,
-  BREAK_RETURN_GRACE_MS,
   breakOutWindowStart,
   breakNotReturnedDecision,
   breakNotReturnedParameters,
   breakReturnedOtherBranchParameters,
   breakReturnDeadline,
   dueBreakCutoff,
-  interimBreakNotReturnedRule,
+  graceElapsed,
+  suppressedBreakDisposition,
+  type BreakNotReturnedDecision,
   type BreakNotReturnedFacts,
+  type SuppressedBreakDisposition,
+  type SuppressedBreakKind,
 } from '../break-not-returned.ts';
-import { interimNotClockedInRule, type LeaveInterval } from '../not-clocked-in.ts';
+import type { LeaveInterval } from '../not-clocked-in.ts';
 
 // سارة 09:00–17:00 بتوقيت الكويت (UTC+3)، البريك 13:00–14:00.
 const at = (time: string) => new Date(`2026-10-04T${time}:00.000+03:00`);
 const SHIFT = { workingDate: '2026-10-04', endsAt: at('17:00'), breakEndsAt: at('14:00') };
+const GRACE = 10 * 60 * 1000;
 
 function facts(overrides: Partial<BreakNotReturnedFacts> = {}): BreakNotReturnedFacts {
   return {
@@ -45,23 +49,9 @@ function leave(overrides: Partial<LeaveInterval>): LeaveInterval {
   };
 }
 
-describe('interim rule', () => {
-  it('reuses the not-clocked-in roles and channel with a 10-minute grace', () => {
-    const rule = interimBreakNotReturnedRule();
-    expect(rule).toEqual({
-      enabled: true,
-      graceMs: 10 * 60 * 1000,
-      breakOutLeadMs: 10 * 60 * 1000,
-      channel: 'IN_APP',
-      roles: interimNotClockedInRule().roles,
-    });
-    expect(BREAK_RETURN_GRACE_MS).toBe(600_000);
-  });
-});
-
 describe('breakReturnDeadline', () => {
   it('is the break end plus the grace without leave', () => {
-    expect(breakReturnDeadline(SHIFT, [], BREAK_RETURN_GRACE_MS)).toEqual({
+    expect(breakReturnDeadline(SHIFT, [], GRACE)).toEqual({
       excused: false,
       alertAt: at('14:10'),
     });
@@ -69,27 +59,27 @@ describe('breakReturnDeadline', () => {
 
   it('approved full-day leave excuses; pending and rejected leave do not', () => {
     const fullDay = leave({ kind: 'FULL_DAY', startsAt: at('00:00'), endsAt: at('23:59') });
-    expect(breakReturnDeadline(SHIFT, [fullDay], BREAK_RETURN_GRACE_MS).excused).toBe(true);
+    expect(breakReturnDeadline(SHIFT, [fullDay], GRACE).excused).toBe(true);
     for (const status of ['PENDING', 'REJECTED', 'CANCELLED'])
-      expect(
-        breakReturnDeadline(SHIFT, [{ ...fullDay, status }], BREAK_RETURN_GRACE_MS),
-      ).toEqual({ excused: false, alertAt: at('14:10') });
+      expect(breakReturnDeadline(SHIFT, [{ ...fullDay, status }], GRACE)).toEqual({
+        excused: false,
+        alertAt: at('14:10'),
+      });
   });
 
   it('partial leave covering the break end moves the alert to its end plus the grace', () => {
-    expect(breakReturnDeadline(SHIFT, [leave({})], BREAK_RETURN_GRACE_MS)).toEqual({
+    expect(breakReturnDeadline(SHIFT, [leave({})], GRACE)).toEqual({
       excused: false,
       alertAt: at('15:10'),
     });
   });
 
   it('partial leave past the shift end excuses; leave starting after the break end does not move it', () => {
-    expect(
-      breakReturnDeadline(SHIFT, [leave({ endsAt: at('18:00') })], BREAK_RETURN_GRACE_MS).excused,
-    ).toBe(true);
-    expect(
-      breakReturnDeadline(SHIFT, [leave({ startsAt: at('14:05') })], BREAK_RETURN_GRACE_MS),
-    ).toEqual({ excused: false, alertAt: at('14:10') });
+    expect(breakReturnDeadline(SHIFT, [leave({ endsAt: at('18:00') })], GRACE).excused).toBe(true);
+    expect(breakReturnDeadline(SHIFT, [leave({ startsAt: at('14:05') })], GRACE)).toEqual({
+      excused: false,
+      alertAt: at('14:10'),
+    });
   });
 });
 
@@ -161,7 +151,72 @@ it('other-branch parameters contain safe employee and destination names without 
 
 describe('dueBreakCutoff', () => {
   it('is now minus the grace', () => {
-    expect(dueBreakCutoff(at('14:10'), BREAK_RETURN_GRACE_MS)).toEqual(at('14:00'));
+    expect(dueBreakCutoff(at('14:10'), GRACE)).toEqual(at('14:00'));
+  });
+});
+
+describe('graceElapsed', () => {
+  it('holds until the grace after the break end has passed', () => {
+    expect(graceElapsed(at('14:00'), new Date(at('14:10').getTime() - 1), GRACE)).toBe(false);
+    expect(graceElapsed(at('14:00'), at('14:10'), GRACE)).toBe(true);
+    expect(graceElapsed(at('14:00'), at('14:30'), GRACE)).toBe(true);
+  });
+
+  it('follows the grace it is given, so the other-branch rule delay moves it', () => {
+    expect(graceElapsed(at('14:00'), at('14:05'), 5 * 60 * 1000)).toBe(true);
+    expect(graceElapsed(at('14:00'), at('14:05'), 20 * 60 * 1000)).toBe(false);
+  });
+});
+
+describe('suppressedBreakDisposition', () => {
+  const KINDS: readonly SuppressedBreakKind[] = ['NOT_RETURNED', 'RETURNED_OTHER_BRANCH'];
+  const DECISIONS: readonly BreakNotReturnedDecision[] = [
+    'ALERT',
+    'WAIT',
+    'NO_BREAK_OUT',
+    'RETURNED',
+    'RETURNED_OTHER_BRANCH',
+    'EXCUSED',
+    'STALE',
+    'INELIGIBLE',
+  ];
+  /** الجدول مكتوب بالحروف: أول قيمة والقاعدة مقفولة، والتانية والقاعدة شغّالة. */
+  const EXPECTED: Record<
+    SuppressedBreakKind,
+    Record<BreakNotReturnedDecision, readonly [SuppressedBreakDisposition, SuppressedBreakDisposition]>
+  > = {
+    NOT_RETURNED: {
+      ALERT: ['NONE', 'NONE'],
+      WAIT: ['NONE', 'NONE'],
+      NO_BREAK_OUT: ['NONE', 'NONE'],
+      RETURNED: ['NONE', 'NONE'],
+      RETURNED_OTHER_BRANCH: ['CLOSE', 'CONVERT'],
+      EXCUSED: ['NONE', 'NONE'],
+      STALE: ['NONE', 'NONE'],
+      INELIGIBLE: ['NONE', 'NONE'],
+    },
+    RETURNED_OTHER_BRANCH: {
+      ALERT: ['NONE', 'NONE'],
+      WAIT: ['NONE', 'NONE'],
+      NO_BREAK_OUT: ['NONE', 'NONE'],
+      RETURNED: ['NONE', 'NONE'],
+      RETURNED_OTHER_BRANCH: ['NONE', 'NONE'],
+      EXCUSED: ['NONE', 'NONE'],
+      STALE: ['NONE', 'NONE'],
+      INELIGIBLE: ['NONE', 'NONE'],
+    },
+  };
+
+  it.each(KINDS)('decides every decision for a %s suppressed row', (kind) => {
+    for (const decision of DECISIONS) {
+      const [closed, open] = EXPECTED[kind][decision];
+      expect(
+        suppressedBreakDisposition({ suppressedKind: kind, decision, otherBranchEnabled: false }),
+      ).toBe(closed);
+      expect(
+        suppressedBreakDisposition({ suppressedKind: kind, decision, otherBranchEnabled: true }),
+      ).toBe(open);
+    }
   });
 });
 

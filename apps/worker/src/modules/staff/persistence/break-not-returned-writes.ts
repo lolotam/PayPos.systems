@@ -1,7 +1,7 @@
 import { appendAuditLog, appendOutboxEvents, type IdGenerator, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { inAppRecipientGroups } from '../domain/not-clocked-in.ts';
-import type { BreakNoticeWrite } from '../ports/break-not-returned.port.ts';
+import type { BreakNoticeWrite, BreakSuppressedWrite } from '../ports/break-not-returned.port.ts';
 
 export async function recordBreakNotReturned(
   tx: Tx,
@@ -22,15 +22,33 @@ export async function recordBreakNotReturned(
       ${groups.reduce((total, group) => total + group.length, 0)})
     ON CONFLICT (company_id, employee_id, shift_starts_at) DO NOTHING RETURNING id`);
   if (inserted.length !== 1) return false;
-  const facts = noticeFacts(id, notice);
+  await writeBreakNotice(tx, ids, notice, id);
+  return true;
+}
+
+/**
+ * يكتب التدقيق وأحداث الإشعار لسطر دفتر واحد؛ مسار الإدراج ومسار التحويل بيستخدموه سوا.
+ *
+ * @param tx معاملة الشركة
+ * @param ids مولّد المعرفات
+ * @param notice حقائق الإشعار
+ * @param noticeId معرف سطر الدفتر
+ */
+export async function writeBreakNotice(
+  tx: Tx,
+  ids: IdGenerator,
+  notice: BreakNoticeWrite,
+  noticeId: string,
+): Promise<void> {
+  const groups = inAppRecipientGroups(notice.recipients);
+  const facts = noticeFacts(noticeId, notice);
   await appendAuditLog(tx, ids.newId(), {
     entity: 'attendance_notice',
-    entityId: id,
+    entityId: noticeId,
     action: `${notice.kind}.detected`,
     after: { ...facts, recipient_user_ids: groups.flat() },
   });
   await appendOutboxEvents(tx, outboxEntries(ids, notice, facts, groups));
-  return true;
 }
 
 function outboxEntries(
@@ -83,4 +101,24 @@ function noticeFacts(id: string, notice: BreakNoticeWrite) {
       returned_at: notice.returned.clockIn.toISOString(),
     }),
   };
+}
+
+export async function suppressBreakNotReturned(
+  tx: Tx,
+  ids: IdGenerator,
+  companyId: string,
+  notice: BreakSuppressedWrite,
+): Promise<boolean> {
+  const id = ids.newId();
+  const { shift } = notice;
+  const inserted = await tx.execute<{ id: string }>(sql`
+    INSERT INTO attendance_break_not_returned_notices(
+      company_id,id,business_id,branch_id,employee_id,shift_starts_at,shift_ends_at,break_ends_at,break_out_at,
+      alert_due_at,notified_at,recipient_count,suppressed_at,suppressed_kind)
+    VALUES(${companyId},${id},${shift.businessId},${shift.branchId},${shift.employeeId},
+      ${shift.startsAt.toISOString()},${shift.endsAt.toISOString()},${notice.breakEndsAt.toISOString()},
+      ${notice.breakOutAt.toISOString()},${notice.alertAt.toISOString()},${notice.detectedAt.toISOString()},
+      0,${notice.detectedAt.toISOString()},${notice.kind})
+    ON CONFLICT (company_id, employee_id, shift_starts_at) DO NOTHING RETURNING id`);
+  return inserted.length === 1;
 }

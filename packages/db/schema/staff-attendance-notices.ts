@@ -6,6 +6,7 @@ import {
   integer,
   pgTable,
   primaryKey,
+  text,
   timestamp,
   unique,
   uuid,
@@ -30,6 +31,8 @@ export const attendanceNotClockedInNotices = pgTable(
     alertDueAt: timestamp('alert_due_at', { withTimezone: true }).notNull(),
     notifiedAt: timestamp('notified_at', { withTimezone: true }).notNull(),
     recipientCount: integer('recipient_count').notNull(),
+    // سطر دفتر اتكتب والقاعدة أو المفتاح العام مقفولين وقتئه: من غير إشعار (spec 060 D-B15).
+    suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
   },
   (t) => [
     primaryKey({ name: 'attendance_not_clocked_in_notices_pkey', columns: [t.companyId, t.id] }),
@@ -56,6 +59,10 @@ export const attendanceNotClockedInNotices = pgTable(
     index('attendance_not_clocked_in_notices_branch_idx').on(t.companyId, t.branchId),
     check('attendance_not_clocked_in_notices_recipients', sql`${t.recipientCount} >= 0`),
     check('attendance_not_clocked_in_notices_span', sql`${t.shiftEndsAt} > ${t.shiftStartsAt}`),
+    check(
+      'attendance_not_clocked_in_notices_suppressed',
+      sql`${t.suppressedAt} IS NULL OR ${t.recipientCount} = 0`,
+    ),
   ],
 );
 
@@ -78,6 +85,10 @@ export const attendanceBreakNotReturnedNotices = pgTable(
     alertDueAt: timestamp('alert_due_at', { withTimezone: true }).notNull(),
     notifiedAt: timestamp('notified_at', { withTimezone: true }).notNull(),
     recipientCount: integer('recipient_count').notNull(),
+    // سطر دفتر اتكتب والقاعدة أو المفتاح العام مقفولين وقتئه: من غير إشعار (spec 060 D-B15).
+    suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
+    // نوع التنبيه اللي اتكبح فيه السطر: NOT_RETURNED أو RETURNED_OTHER_BRANCH؛ والاثنان موجودين أو لا واحد.
+    suppressedKind: text('suppressed_kind'),
   },
   (t) => [
     primaryKey({
@@ -109,6 +120,18 @@ export const attendanceBreakNotReturnedNotices = pgTable(
     check(
       'attendance_break_not_returned_notices_span',
       sql`${t.shiftEndsAt} > ${t.shiftStartsAt} AND ${t.breakEndsAt} > ${t.shiftStartsAt} AND ${t.breakEndsAt} < ${t.shiftEndsAt}`,
+    ),
+    check(
+      'attendance_break_not_returned_notices_suppressed',
+      sql`${t.suppressedAt} IS NULL OR ${t.recipientCount} = 0`,
+    ),
+    check(
+      'attendance_break_not_returned_notices_suppressed_kind',
+      sql`${t.suppressedKind} IN ('NOT_RETURNED', 'RETURNED_OTHER_BRANCH')`,
+    ),
+    check(
+      'attendance_break_not_returned_notices_suppressed_pair',
+      sql`(${t.suppressedAt} IS NULL) = (${t.suppressedKind} IS NULL)`,
     ),
   ],
 );

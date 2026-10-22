@@ -5,7 +5,6 @@ import {
   countingWindow,
   dueShiftCutoff,
   formatLocalShiftStart,
-  interimNotClockedInRule,
   notClockedInDecision,
   inAppRecipientGroups,
   recordNotClockedInOutcome,
@@ -47,17 +46,7 @@ function facts(patch: Partial<NotClockedInFacts> = {}): NotClockedInFacts {
   };
 }
 
-describe('interim rule and elapsed alert moment', () => {
-  it('keeps the fixed interim rule in one place', () => {
-    expect(interimNotClockedInRule()).toEqual({
-      enabled: true,
-      delayMs: DELAY,
-      windowBeforeMs: WINDOW,
-      channel: 'IN_APP',
-      roles: ['owner', 'general_manager', 'business_manager', 'branch_manager'],
-    });
-  });
-
+describe('elapsed alert moment', () => {
   it('adds twenty elapsed minutes and opens the window two hours before the start', () => {
     const alertAt = alertMoment(START, DELAY);
     expect(alertAt).toEqual(at(START, DELAY));

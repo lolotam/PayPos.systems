@@ -1,14 +1,19 @@
 import {
+  MIN_ALERT_DELAY_MS,
+  employeePushRecipient,
+  periodicAlertPlan,
+  type PeriodicAlertPlan,
+} from '../../domain/alert-rule-plan.ts';
+import {
+  NOT_CLOCKED_IN_WINDOW_BEFORE_MS,
   applyApprovedLeave,
   countingWindow,
   dueShiftCutoff,
   formatLocalShiftStart,
-  interimNotClockedInRule,
   notClockedInDecision,
   recordNotClockedInOutcome,
   shiftNotClockedInParameters,
   withoutAbsentEmployee,
-  type InterimNotClockedInRule,
   type NameFallback,
   type NotClockedInProgress,
 } from '../../domain/not-clocked-in.ts';
@@ -39,21 +44,19 @@ export class DetectNotClockedIns {
   ) {}
 
   async execute(companyId: string): Promise<NotClockedInRun> {
-    const rule = interimNotClockedInRule();
-    if (!rule.enabled) return { notified: 0 };
     let progress: NotClockedInProgress = { notified: 0, failed: 0 };
     let after: NotClockedInCursor | null = null;
     for (;;) {
       const now = this.clock.now();
       const page = await this.transactions.candidates(
         companyId,
-        dueShiftCutoff(now, rule.delayMs),
+        dueShiftCutoff(now, MIN_ALERT_DELAY_MS),
         now,
         after,
         NOT_CLOCKED_IN_PAGE_SIZE,
       );
       for (const candidate of page) {
-        const saved = await this.settle(companyId, candidate, rule).catch((error: unknown) => {
+        const saved = await this.settle(companyId, candidate).catch((error: unknown) => {
           this.diagnostics.failed(companyId, error);
           return null;
         });
@@ -67,32 +70,35 @@ export class DetectNotClockedIns {
     return { notified: progress.notified };
   }
 
-  private settle(
-    companyId: string,
-    candidate: DueShift,
-    rule: InterimNotClockedInRule,
-  ): Promise<boolean> {
+  private settle(companyId: string, candidate: DueShift): Promise<boolean> {
     return this.transactions.run(
       companyId,
       candidate.employeeId,
       () => this.clock.now(),
-      (tx, at) => this.assess(tx, candidate, rule, at),
+      (tx, at) => this.assess(tx, companyId, candidate, at),
     );
   }
 
   private async assess(
     tx: LockedNotClockedIn,
+    companyId: string,
     candidate: DueShift,
-    rule: InterimNotClockedInRule,
     at: Date,
   ): Promise<boolean> {
     const shift = await tx.shift(candidate.id);
     if (shift === null || shift.startsAt.getTime() !== candidate.startsAt.getTime()) return false;
+    const plan = periodicAlertPlan(
+      await tx.rules.rule(
+        companyId,
+        { businessId: shift.businessId, branchId: shift.branchId },
+        'SHIFT_NOT_CLOCKED_IN',
+      ),
+    );
     const leaves = await tx.approvedLeaves(
       shift.employeeId, shift.startsAt, shift.endsAt, shift.workingDate,
     );
-    const applied = applyApprovedLeave(shift, leaves, rule.delayMs);
-    const window = countingWindow(shift.startsAt, applied.alertAt, rule.windowBeforeMs);
+    const applied = applyApprovedLeave(shift, leaves, plan.delayMs);
+    const window = countingWindow(shift.startsAt, applied.alertAt, NOT_CLOCKED_IN_WINDOW_BEFORE_MS);
     const clockIns = await tx.clockIns(shift.employeeId, window.start, window.end);
     const decision = notClockedInDecision({
       now: at,
@@ -107,7 +113,12 @@ export class DetectNotClockedIns {
       presenceSession: await tx.presenceSession(shift.employeeId, applied.alertAt),
     });
     if (decision !== 'ALERT') return false;
-    return this.record(tx, shift, applied.alertAt, at, rule.roles);
+    if (!plan.enabled) {
+      // القاعدة مقفولة: سطر دفتر واحد بلا إشعار، والوردية ما تتنبهش تاني (spec 060 D-B15).
+      await tx.suppress({ shift, alertAt: applied.alertAt, detectedAt: at });
+      return false;
+    }
+    return this.record(tx, shift, applied.alertAt, at, plan);
   }
 
   private async record(
@@ -115,9 +126,12 @@ export class DetectNotClockedIns {
     shift: LockedShift,
     alertAt: Date,
     at: Date,
-    roles: InterimNotClockedInRule['roles'],
+    plan: PeriodicAlertPlan,
   ): Promise<boolean> {
-    const managers = await tx.managers(shift.businessId, shift.branchId, roles);
+    const managers: readonly string[] =
+      plan.roles.length === 0
+        ? []
+        : await tx.managers(shift.businessId, shift.branchId, plan.roles);
     const parameters = shiftNotClockedInParameters(
       shift.nameAr,
       shift.nameEn,
@@ -133,6 +147,7 @@ export class DetectNotClockedIns {
       detectedAt: at,
       recipients: withoutAbsentEmployee(managers, shift.employeeUserId),
       parameters,
+      employeePushUserId: employeePushRecipient(plan, shift.employeeUserId),
     });
   }
 }
