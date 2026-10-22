@@ -6,7 +6,7 @@ import {
   type PushRegistrationPlan,
 } from '../push-registration.ts';
 
-const INSTALL = 'install-a';
+const INSTALL = 'install-new';
 const ENDPOINT = 'endpoint-a';
 
 const row = (id: string, over: Partial<LivePushRow> = {}): LivePushRow => ({
@@ -28,7 +28,7 @@ const plan = (over: Partial<PushRegistrationPlan> = {}): PushRegistrationPlan =>
   ...over,
 });
 
-describe('planPushRegistration', () => {
+describe('the cap on live subscriptions', () => {
   it('revokes nothing when there is no other row', () => {
     expect(planPushRegistration(plan()).revoke).toEqual([]);
   });
@@ -57,7 +57,9 @@ describe('planPushRegistration', () => {
     expect(decision.revoke).toEqual([{ id: 'a', reason: 'CAP_EXCEEDED' }]);
     expect(decision.revoke.map((entry) => entry.id)).not.toContain('own');
   });
+});
 
+describe('the endpoint holder and the install', () => {
   it('moves an endpoint held by another user and revokes the old owner', () => {
     const holder = row('held', { userId: 'user-2' });
     const decision = planPushRegistration(plan({ endpointHolders: [holder] }));
@@ -88,7 +90,9 @@ describe('planPushRegistration', () => {
     const holder = row('held', { endpointHash: 'endpoint-other' });
     expect(planPushRegistration(plan({ endpointHolders: [holder] })).revoke).toEqual([]);
   });
+});
 
+describe('the order of the revocations', () => {
   it('revokes the oldest first and breaks a tie by id', () => {
     const at = new Date('2026-10-01T00:00:00.000Z');
     const callerRows = [

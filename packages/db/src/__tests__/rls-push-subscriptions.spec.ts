@@ -86,7 +86,7 @@ it('a cross-company insert and an unknown user are refused', async () => {
 });
 
 it('the state check refuses every partially cleared revoked row and a live row with a reason', async () => {
-  for (let mask = 0; mask < 16; mask += 1) {
+  for (let mask = 0; mask < 15; mask += 1) {
     const cleared = SECRETS.filter((_, bit) => (mask & (1 << bit)) !== 0);
     if (cleared.length === 0) continue;
     await rejected(

@@ -79,6 +79,8 @@ export interface PushSubscriptionTransactions {
    * بيشغّل شغل الاشتراكات كله في transaction واحدة للشركة، عشان القفل والقرار والكتابة يتعملوا سوا.
    *
    * @param target الشركة والمستخدم
+   * @param target.companyId الشركة اللي بتتفتح المعاملة عليها
+   * @param target.userId المستخدم صاحب الاشتراكات
    * @param work   الشغل جوه الـ transaction
    * @returns اللي الشغل رجّعه بعد الـ commit
    */

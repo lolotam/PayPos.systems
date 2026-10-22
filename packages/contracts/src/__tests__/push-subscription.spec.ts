@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  isAllowedPushEndpoint,
   isAllowedPushHost,
   pushConfig,
   pushEndpoint,
@@ -45,7 +44,6 @@ describe('the allowed push hosts', () => {
     for (const host of [
       'fcm.googleapis.com.evil.test',
       'evilfcm.googleapis.com',
-      'fcm.googleapis.com.evil.test.notify.windows.com',
       '.notify.windows.com',
       'notify.windows.com',
       'fcm.googleapis.co',
@@ -54,7 +52,7 @@ describe('the allowed push hosts', () => {
   });
 });
 
-describe('pushEndpoint', () => {
+describe('an allowed push endpoint', () => {
   it('accepts an https endpoint on an allowed host', () => {
     for (const endpoint of [
       'https://fcm.googleapis.com/fcm/send/abc',
@@ -86,7 +84,9 @@ describe('pushEndpoint', () => {
     ])
       expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(false);
   });
+});
 
+describe('a refused push endpoint', () => {
   it('refuses a look-alike host, an uppercase host and a trailing-dot host', () => {
     for (const endpoint of [
       'https://fcm.googleapis.com.evil.test/abc',

@@ -103,7 +103,6 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'plans:SELECT',
     'push_subscriptions:INSERT',
     'push_subscriptions:SELECT',
-    'push_subscriptions:UPDATE',
     'role_permissions:DELETE',
     'role_permissions:INSERT',
     'role_permissions:SELECT',
