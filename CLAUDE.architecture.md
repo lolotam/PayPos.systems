@@ -372,7 +372,7 @@ Clean Architecture protects **invariants**. A report has no invariants. Forcing 
 | Protects | money, stock, status transitions | nothing — it cannot mutate |
 | Tested by | unit (domain) + integration (use case) | a result-shape test + an `EXPLAIN ANALYZE` assertion |
 
-**Hard rule: a file in `queries/` may not import `domain/` or `use-cases/`, and may not write.** That is what keeps the fast path from quietly becoming a second, competing business-logic layer.
+**Hard rule: a file in `queries/` may not import `domain/` or `use-cases/`, and may not write.** That is what keeps the fast path from quietly becoming a second, competing business-logic layer. One recorded exception: the `commissions` module's estimate and statement views must run the engine, so they are two named read-only use cases (`get-commission-estimate/` and `get-statement/`) with reader ports only and a `READ ONLY` transaction, never a general permission for reads in `use-cases/` (ADR-0054 §5).
 
 ### 7.2 Performance rules that are architectural, not micro-optimisation
 
