@@ -1,16 +1,16 @@
 # Spec 059 — Commission plans, projection and statements (Phase 1 rows 48a–56b)
 
 > **Status:** Draft · 2026-10-21 · docs-only PR. Owner questions are recorded in [owner-questions.ar.md](owner-questions.ar.md):
-> the money list CS-Q1…CS-Q12 (decisions page batch 36) and the money question CS-Q22 (batch 39) are all answered; two new questions, **CS-Q27** (from Abu Salem's note on CS-Q1) and **CS-Q28** (from CS-Q8), are open. **CS-Q4,
+> the money list CS-Q1…CS-Q12 (decisions page batch 36) and the money question CS-Q22 (batch 39) are all answered; the new question **CS-Q27** (from Abu Salem's note on CS-Q1) is open; **CS-Q28** (from CS-Q8) and **CS-Q29** (a negative card-tip side) were answered by Waleed (cards through his super agent, 2026-10-22, batch 46; Abu Salem's pick replaces them if it differs). **CS-Q4,
 > CS-Q6…CS-Q12 and CS-Q22 were answered the same way by Waleed and Abu Salem on the decisions page (2026-10-22; the
 > recommended options): CS-Q4** the pay permission goes to the owner, the general manager and the accountant, grantable;
 > **CS-Q6** the payment method is picked from «مع المرتب» / «تحويل بنكي» / «كاش» with an optional note; **CS-Q7** a negative
-> commission shows as negative, pays 0 and carries to next month's commission, card tips paid in full; **CS-Q8** a departed
+> commission shows as negative, pays 0 and carries to next month's commission, card tips paid in full (a negative card-tip side pays 0 and carries to next month's card tips, CS-Q29); **CS-Q8** a departed
 > employee's correction posts normally in the next statement under her name and shows to the owner in the final settlement;
 > **CS-Q9** a separate section «تصحيحات شهور سابقة», one row per affected service; **CS-Q10** export only after approval, a
 > summary sheet and a detail sheet; **CS-Q11** a repair plan prices only the days that had no plan; **CS-Q12** the payable
 > is rounded to the nearest 5 fils when paid in cash; **CS-Q22** approval stays allowed after the 5th and the reminders on
-> the 3rd and 5th stay. `TODO(spec)` remain only on the new questions CS-Q27 (the plan permission's default roles and who grants it; Abu Salem's note on CS-Q1, FR-010), and the new question **CS-Q28** (what "the final settlement" is, from CS-Q8; FR-045). CS-Q12's storage is settled
+> the 3rd and 5th stay. `TODO(spec)` remains only on the new question CS-Q27 (the plan permission's default roles and who grants it; Abu Salem's note on CS-Q1, FR-010). CS-Q28 (the final settlement) and CS-Q29 (the card-tip carry) are settled in FR-045 and §9. CS-Q12's storage is settled
 > (D-19). CS-Q1 and CS-Q2 were answered by Abu Salem (below); CS-Q3 and CS-Q5 by Waleed through his super agent (2026-10-21, cards; still on batch 36, and Abu
 > Salem's pick replaces them if it differs), and the follow-up CS-Q2b (who holds review by default, batch 42) by Waleed
 > (PP-25.1, the recommended option). **Abu Salem answered on the decisions page (batch 36, 2026-10-22) and his pick binds**
@@ -415,7 +415,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-49** A replayed event is deduped before it can bump the generation; a second real change bumps it again and posts only
   `new − (frozen + corrections already posted)` for each source.
 - **CM-50** Corrections received are inputs of the target: they enter its fingerprint and are frozen as `CORRECTION` lines at
-  its approval; they display in their own section «تصحيحات شهور سابقة»: one row per affected service (date, service, original month, was, became, difference) and a total for the section, and the employee sees it as the manager does (CS-Q9).
+  its approval; they display in their own section «تصحيحات شهور سابقة»: one row per affected service (date, service, original month, was, became, difference) and a total for the section, and the employee sees it as the manager does (CS-Q9). An employee who left shows the flag «سابت الشغل» on her rows and her section total labelled owed to her or by her (CS-Q28).
 
 ### Story 10 — Blocked corrections and period repair (55b, P1)
 
@@ -509,7 +509,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 ### Edge cases
 
 - An employee who left the business still gets her month computed; whether corrections are posted for her after she
-  leaves, and how they are settled, is CS-Q8: the correction posts normally in the next open statement under her name and shows to the owner in the final settlement, owed to her or by her (`TODO(spec)` CS-Q28: what the final settlement is in the product and where it shows; Codex 4336865747).
+  leaves, and how they are settled, is CS-Q8: the correction posts normally in the next open statement under her name and shows to the owner in the final settlement, owed to her or by her; the final settlement is her row in that statement's «تصحيحات شهور سابقة» section, flagged «سابت الشغل», with her total owed to her or by her, and no new screen (CS-Q28, FR-045; Codex 4336865747).
 - A month with no input at all for the business still has a statement when generated (all employees with zero), so the
   owner can approve an empty month.
 - A line whose `rule_snapshot` is `ZERO`, `PCT` or `FIXED` needs no plan (spec 012, requirement 8); only `FOLLOW_PLAN` lines and sales
@@ -709,7 +709,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-033** Freezing writes `commission_statement_lines` (insert-only): per employee, one `COMMISSION` line per `line:<id>`
   source, one `SALE` per `sale:<id>`, one `TIP_CARD`/`TIP_CASH` per `tip:<session>:<method>`, one line per received
   correction (its own id as source) of kind `CORRECTION` (commission and sale corrections), `CORRECTION_TIP_CARD` or
-  `CORRECTION_TIP_CASH`, so the payable figure can be computed from the frozen kinds alone; zero amounts are frozen too, so the frozen set equals the set the statement fingerprint covered at review. The rows
+  `CORRECTION_TIP_CASH`, and the two carry lines of FR-045 (commission and card tips), so the payable figure can be computed from the frozen kinds alone; zero amounts are frozen too, so the frozen set equals the set the statement fingerprint covered at review. The rows
   are exactly the statement builder's output (FR-026), inserted as built.
   **Every in-scope employee gets one `EMPLOYEE` row** (`source_ref = employee:<id>`, amount `0.000`, never part of any
   total), even with no source at all: in scope means an employee of the business whose employment overlaps the month
@@ -793,7 +793,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-041** Tips: a newer `SessionTipsChanged` for a closed month posts `TIP_CARD` or `TIP_CASH` corrections per
   `(employee, tip:<session>:<method>)`. A `TIP_CASH` correction is informational like a cash tip: it is shown and frozen,
   never added to the payable figure and never part of a negative-commission carry (CS-Q7: card tips are paid in full even when the commission is negative); a `TIP_CARD` correction is
-  paid or recovered with payroll like a card tip.
+  paid or recovered with payroll like a card tip, and a card-tip side that goes negative pays 0 and carries into next month's card tips (CS-Q29, FR-045, §9).
 - **FR-042** Salaries: a salary entry `(employee, effective_from)` is the selected salary (SPEC §5.5) of **every month whose last
   day falls in `[effective_from, next_from)`**, where `next_from` is the employee's next later entry in the projection (open
   ended when there is none, up to the current month). A new entry or a new revision of one therefore affects that whole
@@ -814,11 +814,14 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   them into a month approved in another transaction, and it does not call 53-2's use case.
 - **FR-045** Negative totals, departed employees and the display of corrections (CS-Q7, CS-Q8, CS-Q9). **CS-Q7:** an
   employee whose commission total is negative sees the negative figure (e.g. −25.000) in the statement, is paid 0
-  commission, and the negative carries by itself into the next month's commission; her card tips are paid in full (payable = max(0, commission subtotal) + card tips + card-tip
-  corrections, §9). The carry is a new frozen line kind added by decision (SPEC §4's `kind` list grows), posted by approval into the next open
-  month, never a silent netting of tips (BR-06). **CS-Q8:** a correction for an employee who left posts normally in the next
-  open statement under her name and shows to the owner in the final settlement, owed to her or by her (`TODO(spec)` CS-Q28:
-  what "the final settlement" is in the product). **CS-Q9:** corrections display in their own section (CM-50).
+  commission, and the negative carries by itself into the next month's commission; her card tips are paid in full (payable = max(0, commission subtotal) + max(0, tip side), §9). The carry is a new frozen line kind added by decision (SPEC §4's `kind` list grows), posted by approval into the next open
+  month, never a silent netting of tips (BR-06). **CS-Q29:** a card-tip side (card tips + card-tip corrections + the tip
+  carry) that goes negative, e.g. a closed month's 10.000 card tip removed against 2.000 of card tips this month, shows
+  −8.000, pays 0 card tips, and the −8.000 carries whole into the next open month's card tips as a second carry kind of
+  its own; the tip carry and the commission carry never net each other (BR-06). **CS-Q8:** a correction for an employee
+  who left posts normally in the next open statement under her name and shows to the owner in the final settlement, owed
+  to her or by her. **CS-Q28:** the final settlement is no new screen: it is her row in that statement's «تصحيحات شهور
+  سابقة» section (CM-50), flagged «سابت الشغل», with her section total labelled owed to her or by her. **CS-Q9:** corrections display in their own section (CM-50).
 
 ### 55b — blocked corrections and period repair
 
@@ -939,8 +942,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **BR-04** Missing configuration is never zero (D-57).
 - **BR-05** Commissions never reads an orders or staff table; it learns inputs from events and from root-bound readers
   (ADR-0041 §6, SPEC §3).
-- **BR-06** Tips are paid in full to the employee and are never priced, netted or thresholded (D-36); CS-Q7
-  decides only whether a negative commission is carried (it is, by itself, next month), never a tip.
+- **BR-06** Tips are never priced or thresholded and never netted against commission (D-36). CS-Q7 carries a negative
+  commission by itself into next month's commission; CS-Q29 carries a negative card-tip side by itself into next
+  month's card tips; the two carries never net each other.
 
 ### Fingerprint
 
@@ -1119,8 +1123,8 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **50-4** | Package sales | 1. Sales table + RLS. 2. Handler and the root binding of `listCurrentPackageSales`. 3. CM-20, CM-20b (bootstrap, coverage, race) | 50-1; row 42 (producer with `business_date`, and its reader) | 250–380 |
 | **50-a** | Engine input assembly (FR-022) | 1. The pure assembly function in `packages/commissions-engine`. 2. Its types for lines, sales, salary, versions, overrides, tips and corrections. 3. Unit tests (every input kind, the selected salary, ACTIVE-only lines) | 48a-1 | 150–250 |
 | **50-5** | Estimate on read | 1. The read use case (D-7) over the 50-a assembly. 2. HTTP + permission (`read:commissions:business` with the branch scope of CS-Q20 = PP-20.1). 3. CM-23, CM-23b, CM-23c, CM-23d, CM-23e, CM-23f, CM-23g, CM-23h | 50-a, 50-1, 50-2, 50-4, 55-1 | 300–420 |
-| **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port, and the statement builder with its statement fingerprint (D-6, FR-026) and the round-trip unit test of CM-34e. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 (CM-28c included), and the statement-view part of CM-23d, CM-23e, CM-23f, CM-23g and CM-23h | 50-5 (CS-Q7 answered) | 350–480 |
-| **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044; CM-48c's concurrent approval is the FR-044 seed transaction under the lock), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2 (CS-Q7 answered; **CS-Q28** on the final settlement, FR-045, blocks the departed-employee part of the correction step) | 450–600 |
+| **51-1** | Generate and fingerprint | 1. Canonical input (pure) + hash port, and the statement builder with its statement fingerprint (D-6, FR-026) and the round-trip unit test of CM-34e. 2. Generate/GET use cases and HTTP. 3. CM-27…CM-29 (CM-28c included), and the statement-view part of CM-23d, CM-23e, CM-23f, CM-23g and CM-23h | 50-5 (CS-Q7 and CS-Q29 answered: the two carries, FR-045) | 350–480 |
+| **55-1** | Corrections | 1. Generation and correction tables + RLS. 2. The correction step in the consumer (FR-039…FR-042). 3. CM-43…CM-49 on seeded closed months (FR-044; CM-48c's concurrent approval is the FR-044 seed transaction under the lock), and CM-22 (crash between projection write and correction insert) | 50-a, 50-1, 50-2, 48a-2 (CS-Q7, CS-Q28 and CS-Q29 answered, FR-045) | 450–600 |
 | **55-2** | Blocked corrections and repair | 1. Blocked table + engine `repair_period` rule (D-12, CS-Q11). 2. Repair use case + HTTP + list, and the blocked-correction bell (FR-049: event contract, template, registrations, its `docs/module-map.md` event row). 3. CM-51…CM-54, CM-53b (the stored target, FR-046/FR-048) | 55-1 (CS-Q11 answered) | 400–550 |
 | **52-1** | Review | 1. The statement permissions `review:commissions:business` and `approve:commissions:business` with their defaults (approve: owner only, CS-Q5; review: owner, general manager and business manager, CS-Q2b = PP-25.1) and owner-only granting (CS-Q2, CS-Q5), and the grant-screen warning (FR-029b), so `StatementAwaitingApproval`, first emitted here, has a defined recipient set from its first release; 53-2 adds only the approval guard (FR-036). 2. Review use case (storing both fingerprints, FR-029) + HTTP + REVIEWED→DRAFT on writers (D-5) + the return by hand (FR-031, `commission_statement_returns` + RLS), and the `StatementAwaitingApproval` contract, template and registrations it emits (Codex 4336152050: three subtasks). 3. CM-30…CM-33, CM-33b, CM-33c, CM-33d and the FR-029b grant-screen UI test | 51-1, 55-2 | 350–480 |
 | **53-1** | The ADR-0012 count | 1. Role, function (six types), grants, policies, index. 2. Privilege inventory. 3. ADR-0012 §4 groups 1–4 and 7 (CM-39) | 59-0; design advisors | 350–500 |
@@ -1159,12 +1163,13 @@ notification events; they run one at a time. Everything else may run beside them
 
 ## 9. Assumptions
 
-- **Commission subtotal = commission + sales commission + commission and sale corrections + the carry from the previous
-  month; Payable = max(0, commission subtotal) + card tips + card-tip corrections.** A negative commission subtotal is paid
-  as 0 and carried, whole, into the next open month (CS-Q7); card tips and card-tip corrections are always paid in full and
-  never enter or absorb the carry (BR-06). Example: commission subtotal −25.000 and card tips 6.000 → payable 6.000, carry
-  −25.000. A card-tip correction that makes the tip side negative (a tip of a closed month reduced or removed) is
-  `TODO(spec)` CS-Q29; until it is answered the payable is never negative and 55-1's tip-correction part waits on CS-Q29. Cash tips and cash-tip corrections are shown, never added (D-36: card tips are paid with payroll, cash tips are
+- **Commission subtotal = commission + sales commission + commission and sale corrections + the commission carry from the
+  previous month; tip side = card tips + card-tip corrections + the tip carry from the previous month; Payable = max(0,
+  commission subtotal) + max(0, tip side).** A negative commission subtotal is paid as 0 and carried, whole, into the next
+  open month's commission (CS-Q7); a negative tip side is paid as 0 and carried, whole, into the next open month's card
+  tips (CS-Q29); the two carries never net each other (BR-06). Examples: commission subtotal −25.000 and card tips 6.000 →
+  payable 6.000, commission carry −25.000; commission 0, card tips 2.000 and a card-tip correction −10.000 → payable 0, tip
+  carry −8.000. The payable is never negative. Cash tips and cash-tip corrections are shown, never added (D-36: card tips are paid with payroll, cash tips are
   informational).
 - A month whose statement was never generated is generated on first demand (review, the correction target, or the plan
   lock); a statement row costs nothing and simplifies the lock (D-3).
