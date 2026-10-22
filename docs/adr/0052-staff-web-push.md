@@ -1,9 +1,9 @@
 # ADR-0052 — Staff web push: subscriptions, VAPID keys, delivery in the worker
 
 Status: Proposed (draft for Phase 1 row 28b; number provisional, renumbered at merge).
-Date: 2026-10-22. Scope: spec 061, rows 28b and (as a consumer of the channel) 28c. Owner decisions it rests on: spec 036
+Date: 2026-10-22. Scope: spec 063, rows 28b and (as a consumer of the channel) 28c. Owner decisions it rests on: spec 036
 NC-Q3 / NC-Q4 and the language request of 2026-10-08, `owner-questions.ar.md` of spec 036 (Waleed); the open questions
-PS-Q1…PS-Q3 are in spec 061 and wait for the owners.
+PS-Q1…PS-Q3 are in spec 063 and wait for the owners.
 
 ## Context
 

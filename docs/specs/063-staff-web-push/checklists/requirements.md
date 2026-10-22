@@ -35,5 +35,5 @@
 - The owner's answers (when they arrive) are recorded in Arabic in `owner-questions.ar.md`, maintained by the orchestrator.
 - Technical decisions (library, VAPID custody, subscription storage and allowlist, separate attempts table, rendering and
   stored language, service-worker strategy) are in ADR-0052, number provisional.
-- Overlap to coordinate: 28b-5 touches the staff emitter that spec 060 sub-PR 62-2 rewrites.
+- Ordering: 28b-5 lands after 62-2 (which rewrites the staff emitter, spec 060) and after 28b-3; row 28c is spec 064.
 - `.specify/extensions.yml` does not exist, so no before/after hooks ran.

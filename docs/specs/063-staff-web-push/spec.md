@@ -281,9 +281,9 @@ declared per PP-7.1). ADR-0027 gets an addendum listing "own push subscription" 
 | **28b-2** | 1. `push_attempts` migration, RLS, grants, negative test. 2. Pure push templates, allowlist and mapping + unit tests. 3. Consumer for `PUSH` recipients + `PushSendAuthorized` + tests PW-05, PW-06 | 28b-1 | database review mandatory |
 | **28b-3** | 1. Channel adapter (real and fake) + `web-push` pin + config/readiness. 2. `push-send` processor with the fence, result mapping, revoke + VAPID rotation. 3. `push:generate-vapid`, runbook, tests PW-07…PW-10, PW-14 | 28b-2 | dependency gate: Node 24 and CI |
 | **28b-4** | 1. Service worker via `injectManifest` + handlers. 2. The five-state control, subscribe/unsubscribe, locale refresh. 3. UI tests (and the iPhone instruction if PS-Q3 says yes) | 28b-1; PS-Q1, PS-Q3 answered | a mockup is attached to PS-Q3 |
-| **28b-5** | 1. Emit the employee's `PUSH` recipient from the not-clocked-in handling. 2. Template `shift_not_clocked_in_self`. 3. Tests PW-11, PW-12 | 28b-3; **coordinate with 62-2** | touches the staff emitter that 62-2 rewrites (spec 060 §62-2): lands after 62-2, or on `interimNotClockedInRule` if first and 62-2 adapts |
+| **28b-5** | 1. Emit the employee's `PUSH` recipient from the not-clocked-in handling. 2. Template `shift_not_clocked_in_self`. 3. Tests PW-11, PW-12 | 28b-3 and **62-2** (orchestrator decision 2026-10-22: 62-2 removes `interimNotClockedInRule` and keeps the fixed push recipient this PR uses) | touches the staff emitter that 62-2 rewrites (spec 060 §62-2): lands after 62-2, or on `interimNotClockedInRule` if first and 62-2 adapts |
 
-Row 28c reuses 28b-1…28b-3 unchanged and adds only its template and its emitter.
+Row 28c (spec 064) reuses 28b-1…28b-3 unchanged and adds only its template and its emitter; it starts after 28b-3.
 
 ## Success Criteria *(mandatory)*
 
