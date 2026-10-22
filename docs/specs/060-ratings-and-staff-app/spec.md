@@ -17,7 +17,7 @@
 > **RT-Q10** no, not in this phase: a customer who opted out stays opted out (sub-PR 58-3 is not built). **AL-Q1** a new permission «إدارة التنبيهات» for the owner, the general manager and the business manager, grantable (the merged 62-1
 > uses `manage:settings:business`: issue #495). **RT-Q13** its own permission «إدارة رسايل التقييم» (`manage:rating-requests:business`), the owner only at first, grantable.
 > **No owner question is open.** CS-Q30 (spec 059, batch 48) is answered: the employee sees full correction details, never the customer's name (MY-06). **RT-Q11** (where the public rating page is hosted) is answered: a separate rating-only copy of `apps/menu` (60-2 waits for its ADR, §11). **RT-Q14** (issue #452) is answered: a visit recorded live up to 30 minutes after the close is rated (Waleed, card through his super agent, 2026-10-22, batch 46; Abu Salem's pick replaces it if it differs). MY-Q10's guard is settled. **MY-Q6** (what an employee sees of her approved earnings; a money question) was answered the same way by Waleed and Abu Salem on the decisions page
-> (batch 37, 2026-10-22; the recommended option): an approved month shows «معتمد» and the approved amount, and a correction shows in the month it landed in with the word «تصحيح» and no details.
+> (batch 37, 2026-10-22; the recommended option): an approved month shows «معتمد» and the approved amount, and a correction shows in the month it landed in under «تصحيح»; its detail was replaced by **CS-Q30** (Waleed's card, 2026-10-22): full details as the manager sees them, never the customer's name.
 > AL-Q7 (PP-29.1) is answered, see §3. No rule waits on a `TODO(spec)`; a rule that waits on something else is marked here and
 > blocks only the sub-PRs named in §3. **No code starts before this spec is merged.**
 > **Two parts:** **Part A** — the staff app (rows 57, 57b, 57c). **Part B** — ratings and alerts (rows 58, 59, 59b, 60,
@@ -251,7 +251,7 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
   Guarded by `@Authenticated()` + `PERSONAL_ROUTE` + an explicit own check of `read:service-sessions:own` (ADR-0026),
   feature `orders`.
 - **FR-A02** (blocked on row 50) `GET /v1/staff/me/commission-estimate?month=YYYY-MM` (commissions, `queries/`):
-  `{ status: 'ESTIMATE' | 'NO_PLAN' | 'NO_SALARY' | 'APPROVED' (MY-Q6: the statement is approved; `total` is the approved amount, and corrections posted into the month show as «تصحيح» with an amount only; the exact fields are fixed in 57-3), total?, per_line?: [{ line_id, amount }],
+  `{ status: 'ESTIMATE' | 'NO_PLAN' | 'NO_SALARY' | 'APPROVED' (MY-Q6: the statement is approved; `total` is the approved amount, and corrections posted into the month show under «تصحيح» with the manager's detail fields (date, service, original month, was, became, difference) and never the customer's name, CS-Q30; the exact fields are fixed in 57-3), total?, per_line?: [{ line_id, amount }],
   recalculated?: boolean }`, computed on read by the engine (S-15); `total` **and** `per_line` only with
   `estimated_commission` allowed, otherwise `{ status: 'HIDDEN' }` with no amount (D-A2); `read:commissions:own`, feature `commissions`.
 - **FR-A03** `GET /v1/staff/me/tips?month=YYYY-MM` (orders): her tips of the month by method, only with `tip` allowed,
