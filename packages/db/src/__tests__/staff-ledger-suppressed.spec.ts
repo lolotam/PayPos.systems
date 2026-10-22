@@ -94,3 +94,15 @@ it('accepts a suppressed break row with no recipients', async () => {
   expect(row).toMatchObject({ recipient_count: 0 });
   expect(row?.['suppressed_at']).not.toBeNull();
 });
+
+// القيد بيتضاف NOT VALID في 0169 عشان ما تفحصش الدفتر تحت قفل تقيل، والتحقق في 0170؛ لازم يبقى متحققاً.
+it('both suppression constraints end validated', async () => {
+  const rows = await owner`SELECT conname, convalidated FROM pg_catalog.pg_constraint
+    WHERE conname IN ('attendance_not_clocked_in_notices_suppressed','attendance_break_not_returned_notices_suppressed')
+    ORDER BY conname`;
+  expect(rows).toHaveLength(2);
+  expect(rows.map((row) => [row['conname'], row['convalidated']])).toEqual([
+    ['attendance_break_not_returned_notices_suppressed', true],
+    ['attendance_not_clocked_in_notices_suppressed', true],
+  ]);
+});
