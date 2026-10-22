@@ -28,9 +28,11 @@ serialization); ADR-0010 addendum 2026-10-21 (worker staff `AlertRulesPort`); PR
 This spec **does not build** a push channel, a subscription store, a service worker or a language preference. It
 emits one event, `ShiftEndsSoon`, whose single recipient is the employee on the **push** channel, in the recipient
 shape that spec 061 / ADR-0052 defines. Everything that touches that shape (the event payload's recipient entry, the
-template renderer, the end-to-end test through the push sender) is isolated in sub-PR **062-3**, written after 28b is
-merged. Sub-PRs 062-1 and 062-2 contain the rules, the ledger and the detector and are written first only if the
-orchestrator confirms 28b's recipient shape in time; otherwise all three wait. `TODO(28b)`: confirm with spec 061 the
+template renderer, the end-to-end test through the push sender) is isolated in sub-PR **062-2**, written after 28b is
+merged. **The detector is wired into the company job last (062-3)**, after the template, the contract and the
+notifications consumer registration are on `main`, so a deployed detector never emits an event that nothing can
+deliver. Sub-PR 062-1 (rules and ledger, no behaviour) may be written first only if the orchestrator confirms 28b's
+recipient shape in time; otherwise all three wait. `TODO(28b)`: confirm with spec 061 the
 channel code, the recipient entry fields and where the per-user language is stored.
 
 ## Owner questions
@@ -97,8 +99,8 @@ Sara left at 16:00 with approval; Heba never came; Nour is on a 17:00–17:30 br
 3. **Given** approved leave that reaches the shift end, **Then** no row; **Given** pending, rejected or cancelled
    leave, **Then** the reminder goes out. **TODO(spec) SE-Q4.**
 4. **Given** a deleted employee, or one whose contract ended before the working date, **Then** no row and no event.
-5. **Given** the kind is switched off, or the business master switch is off, **When** a present employee's reminder
-   moment arrives, **Then** a ledger row with `suppressed_at` is written and **no** event; switching the rule back on
+5. **Given** the kind is switched off, or the business master switch is off, **When** an employee's reminder
+   moment arrives (at work or, for example, on a break), **Then** a ledger row with `suppressed_at` is written and **no** event; switching the rule back on
    later never sends a reminder for that shift (D-B15).
 
 ---
@@ -148,7 +150,7 @@ moves Mona's end from 18:00 to 20:00 at 17:40, after her reminder.
 ### Functional Requirements
 
 - **FR-001**: The system MUST detect, for every running scheduled shift whose employee has an OPEN attendance session at
-  any branch, that the shift end minus the rule's lead has arrived, comparing UTC instants (ADR-0053 §3, §11).
+  any branch, that `max(shift end − the rule's lead, shift start)` has arrived, comparing UTC instants (ADR-0053 §3, §11).
 - **FR-002**: The lead MUST come from the effective `SHIFT_ENDS_SOON` rule of the shift's business and branch (branch
   override, else business rule, else the default of 30 minutes; spec 060 D-B13), read once per run per pair and again
   by the decision; there is no interim fixed rule.
@@ -160,7 +162,8 @@ moves Mona's end from 18:00 to 20:00 at 17:40, after her reminder.
 - **FR-005**: The system MUST record the reminder once per employee per shift-end instant, whatever re-runs, restarts,
   concurrent workers or schedule re-saves happen (ADR-0053 §7). **TODO(spec) SE-Q3.**
 - **FR-006**: A due reminder found while the kind or the business master switch is off MUST write the ledger row with
-  `suppressed_at` and no event (D-B15, ADR-0053 §8).
+  `suppressed_at` and no event **whether or not the employee has an OPEN session at that instant**, so enabling the rule
+  later never back-fills it (D-B15, ADR-0053 §8). The rule used is the one read under the employee lock.
 - **FR-007**: Each reminder MUST publish one `ShiftEndsSoon` event in the ledger's transaction with the employee's own
   user as its only recipient, on the push channel defined by row 28b, carrying the shift end as a local `HH:MM` and the
   branch names; never a phone, never a document (ADR-0053 §9, §10).
@@ -232,7 +235,8 @@ None new. The job runs as `pospay_app` inside `withTenant(companyId)`; the recip
 - **Published**: `ShiftEndsSoon` — emitted once per (employee, shift end) when the reminder moment has passed, she is
   at work and the rule is on, in the same transaction as the ledger row and the audit entry. Payload: `notice_id,
   employee_id, business_id, branch_id, shift_starts_at, shift_ends_at, remind_at, detected_at`, plus
-  `notification_recipients` (one push recipient) when the employee has a linked user. Declared in
+  `notification_recipients` (one push recipient, carrying the preformatted template inputs and a delivery deadline equal
+  to `shift_ends_at`; `TODO(28b)` confirm the deadline field) when the employee has a linked user. Declared in
   `apps/worker/src/modules/staff/events/published.ts` with its Arabic one-liner.
 - **Consumed**: none new. notifications gains `ShiftEndsSoon` in its source-event list.
 - Audit: `attendance_notice` / `shift_ending_soon.detected`, actor NULL (system).
@@ -249,8 +253,8 @@ RETURNING`, and only an inserted row writes audit and outbox.
 | # | Title | Subtasks | Waits for | Size |
 |---|---|---|---|---|
 | **062-1** | Rules and ledger | 1. `domain/shift-ending-soon.ts` with its exhaustive unit tests (BR-001…BR-006, DST, overnight, clamp). 2. Migration + Drizzle schema for `attendance_shift_ending_notices`, grants allowlist in `privileges.spec.ts`. 3. RLS negative tests (cross-tenant read 0 rows, insert rejected, FKs rejected, UPDATE/DELETE refused). | SE-Q3 and SE-Q5 answered (they set the key and the clamp) | 220–320 |
-| **062-2** | Detector in the company job | 1. Ports `ShiftEndingSoonTransactions` and `ShiftEndsSoonRules`, persistence (candidate page, locked reads, writes) and the staff `AlertRulesPort` adapter over worker `settings`. 2. Use case `detect-shift-ending-soon`, wired as the third detector of the processor; `ShiftEndsSoon` in `published.ts`; module-map §3/§4 rows and YAML. 3. Integration tests SEN-01…SEN-14 and EXPLAIN assertions. | 062-1; **28b merged** (the recipient entry); SE-Q1, SE-Q2, SE-Q4, SE-Q6 answered | 360–480 |
-| **062-3** | Template and delivery | 1. Template `shift_ends_soon` rev 1 (ar/en) in `packages/notifications` + contracts parameter tuple. 2. `ShiftEndsSoon` in the notifications consumer list and `known-event-types.md`. 3. End-to-end test: outbox → transport → 28b's push sender stub; language follows 28b's stored preference. | 062-2; **28b merged** | 200–300 |
+| **062-2** | Template and delivery | 1. Template `shift_ends_soon` rev 1 (ar/en) in `packages/notifications` + the contracts parameter tuple and the `ShiftEndsSoon` event/recipient schema (with the delivery deadline). 2. `ShiftEndsSoon` in the notifications consumer list, `known-event-types.md` coverage gate, module-map §4 event row. 3. End-to-end test with a hand-made event: outbox → transport → 28b's push sender stub; language follows 28b's stored preference. | 062-1; **28b merged** | 200–300 |
+| **062-3** | Detector in the company job | 1. Port `ShiftEndingSoonTransactions`, persistence (paged candidates with the presence column, locked reads, writes) and the staff `AlertRulesPort` adapter over worker `settings` (reused if 62-2 created it); module-map §3 row and YAML. 2. Use case `detect-shift-ending-soon`; `ShiftEndsSoon` in `published.ts`; wired as the **last** step of the processor. 3. Integration tests SEN-01…SEN-14 and EXPLAIN assertions. | 062-2; SE-Q1, SE-Q2, SE-Q4, SE-Q6 answered | 360–480 |
 
 ### Test plan
 
@@ -276,17 +280,19 @@ RETURNING`, and only an inserted row writes audit and outbox.
 
 ### Documents to update in the same PRs
 
-- 062-2: `docs/module-map.md` (§3 port rows `ShiftEndsSoonRules` → worker `settings` and the `ShiftEndsSoon` event row in
-  §4) and `docs/module-map.yaml`; ADR-0053 final status; `docs/specs/phase-1/IMPLEMENTATION-PLAN.md` row 28c marked done
-  with the PR numbers.
-- 062-3: `docs/specs/worker/known-event-types.md`.
+- This docs PR: `docs/specs/phase-1/SPEC.md` §3 (`ShiftEndsSoon` added to the `staff ⇒ notifications` events).
+- 062-2: `docs/module-map.md` §4 (the `ShiftEndsSoon` event row) and `docs/module-map.yaml`;
+  `docs/specs/worker/known-event-types.md`.
+- 062-3: `docs/module-map.md` §3 (the staff `AlertRulesPort` → worker `settings` row, only if 62-2 has not added it) and
+  `docs/module-map.yaml`; ADR-0053 final status; `docs/specs/phase-1/IMPLEMENTATION-PLAN.md` row 28c marked done with
+  the PR numbers.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: For every shift with an employee at work at the reminder moment, exactly one reminder exists after that
-  moment, never two.
+- **SC-001**: For every shift end instant with an employee at work at the reminder moment, exactly one reminder exists
+  after that moment, never two for the same instant (a changed end time is a new instant, SE-Q3).
 - **SC-002**: Zero reminders for employees who left, never came, are on approved leave to the end, or are no longer
   employed, across the fixtures.
 - **SC-003**: The reminder reaches the employee's phone within 5 minutes of the reminder moment while the system is up.
@@ -296,7 +302,9 @@ RETURNING`, and only an inserted row writes audit and outbox.
 
 ## Assumptions
 
-- Cadence 5 minutes and keyset pages of 100 are inherited from spec 029/036.
+- Cadence 5 minutes and keyset pages of 100 are inherited from spec 029/036; the detector reads every page each run.
+- A lead shorter than the 5-minute cadence is best-effort: a run may miss the window (ADR-0053 §11); the alerts screen
+  should show the resolution (follow-up issue).
 - The text states the end time, not a countdown (ADR-0053 §10); the wording is Arabic-first and goes through the
   template, not hard-coded.
 - The employee's language comes from the preference row 28b adds; this row stores none.
