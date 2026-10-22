@@ -135,8 +135,8 @@ adapters, whose ports are already approved above, call the same reader in the sa
 business master switch applied: the branch's override when the event has a branch and an override exists, otherwise
 the business rule (AL-Q2, PP-18.22: «نشاط، والفرع يغيّر»). Recipients are role selectors (AL-Q3, PP-18.23). The master
 switch covers team alerts only (AL-Q4, PP-18.24). A kind with no saved rule uses the code-side default (AL-Q5,
-PP-18.25), and row 62 delivers in-app only (AL-Q6, PP-18.26). The rules are edited under `manage:settings:business`
-(AL-Q1, PP-18.21).
+PP-18.25), and row 62 delivers in-app only (AL-Q6, PP-18.26). The rules are edited under `manage:alert-rules:business`
+(AL-Q1, Abu Salem's binding pick, replacing PP-18.21's `manage:settings:business`; built by issue #495, migration 0167).
 
 - **A minimal worker `settings` module.** It exports this one read on the caller's transaction, in the shape of the
   worker `tenancy` and `identity` readers that ADR-0037 §2 uses. The API never pushes rules to the worker. Built in 62-1
