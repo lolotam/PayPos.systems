@@ -1,16 +1,11 @@
 import {
   applyApprovedLeave,
-  interimNotClockedInRule,
   shiftNotClockedInParameters,
   type AppliedLeave,
-  type InterimNotClockedInRule,
   type LeaveInterval,
   type NameFallback,
   type NoticeParameter,
 } from './not-clocked-in.ts';
-
-/** مهلة الرجوع من البريك: نفس مهلة التأخير العشر دقائق (AT-Q7)، منقضية من آخر البريك. */
-export const BREAK_RETURN_GRACE_MS = 10 * 60 * 1000;
 
 /** خروج قبل بداية البريك بعشر دقائق أو أقل يُحسب خروجاً للبريك (BW-Q11). */
 export const BREAK_OUT_LEAD_MS = 10 * 60 * 1000;
@@ -25,15 +20,6 @@ export interface BreakReturn {
   readonly clockIn: Date;
   readonly nameAr: string | null;
   readonly nameEn: string;
-}
-
-/** القاعدة المؤقتة لتنبيه عدم الرجوع؛ نفس مستلمي وقناة تنبيه عدم الحضور حتى يصل PR 62. */
-export interface InterimBreakNotReturnedRule {
-  readonly enabled: boolean;
-  readonly graceMs: number;
-  readonly breakOutLeadMs: number;
-  readonly channel: InterimNotClockedInRule['channel'];
-  readonly roles: InterimNotClockedInRule['roles'];
 }
 
 /** الوردية وبريكها كما خُزّنت لحظات UTC. */
@@ -62,23 +48,6 @@ export interface BreakNoticeParameter {
   readonly name: Exclude<NoticeParameter['name'], 'shift_start'> | 'break_end';
   readonly type: 'text';
   readonly value: string;
-}
-
-/**
- * القاعدة المؤقتة لتنبيه عدم الرجوع من البريك (BW-Q5، الاختيار 2).
- * تأخذ أدوار المستلمين والقناة من قاعدة تنبيه عدم الحضور حتى يبدلهما PR 62 معاً من مكان واحد.
- *
- * @returns القاعدة: مفعّلة، بمهلة رجوع عشر دقائق، وخروج حتى عشر دقائق قبل البريك، داخل التطبيق، لمديري الفرع
- */
-export function interimBreakNotReturnedRule(): InterimBreakNotReturnedRule {
-  const shared = interimNotClockedInRule();
-  return {
-    enabled: shared.enabled,
-    graceMs: BREAK_RETURN_GRACE_MS,
-    breakOutLeadMs: BREAK_OUT_LEAD_MS,
-    channel: shared.channel,
-    roles: shared.roles,
-  };
 }
 
 /**
@@ -135,6 +104,19 @@ export function breakNotReturnedDecision(facts: BreakNotReturnedFacts): BreakNot
  */
 export function dueBreakCutoff(now: Date, graceMs: number): Date {
   return new Date(now.getTime() - graceMs);
+}
+
+/**
+ * هل مضت مهلة الرجوع عن آخر البريك؟
+ * الدالة تحرس توقيت إشعار «رجعت لفرع آخر» بعد ما حد المرشحين نزل دقيقة، فالتوقيت ما يتحركش مع القاعدة.
+ *
+ * @param breakEndsAt آخر البريك
+ * @param at لحظة القرار
+ * @param graceMs مهلة الرجوع بالمللي ثانية
+ * @returns true لو المهلة مضت عند لحظة القرار
+ */
+export function graceElapsed(breakEndsAt: Date, at: Date, graceMs: number): boolean {
+  return at.getTime() >= breakEndsAt.getTime() + graceMs;
 }
 
 /**

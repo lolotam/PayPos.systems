@@ -9,7 +9,8 @@ import type {
 } from '../ports/break-not-returned.port.ts';
 import type { NotClockedInCursor } from '../ports/not-clocked-in.port.ts';
 import { branchManagerRecipientsAdapter } from './branch-manager-recipients.adapter.ts';
-import { recordBreakNotReturned } from './break-not-returned-writes.ts';
+import { alertRules } from './alert-rule.adapter.ts';
+import { recordBreakNotReturned, suppressBreakNotReturned } from './break-not-returned-writes.ts';
 import {
   NOT_CLOCKED_IN_TRANSACTION_TIMEOUT_MS,
   lockEmployee,
@@ -152,6 +153,7 @@ function locked(
   places: BranchPlaceReader<Tx>,
 ): LockedBreakNotReturned {
   return {
+    rules: alertRules(tx),
     shift: (shiftId) => readShift(tx, companyId, employeeId, shiftId, places),
     approvedLeaves: (id, from, to, workingDate) =>
       readLeaves(tx, companyId, id, from, to, workingDate),
@@ -173,6 +175,7 @@ function locked(
     managers: (businessId, branchId, roles) =>
       branchManagerRecipientsAdapter.forBranch(tx, companyId, businessId, branchId, at, roles),
     record: (notice) => recordBreakNotReturned(tx, ids, companyId, notice),
+    suppress: (notice) => suppressBreakNotReturned(tx, ids, companyId, notice),
   };
 }
 

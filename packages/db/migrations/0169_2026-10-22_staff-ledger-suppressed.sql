@@ -1,0 +1,4 @@
+ALTER TABLE "attendance_break_not_returned_notices" ADD COLUMN "suppressed_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "attendance_not_clocked_in_notices" ADD COLUMN "suppressed_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "attendance_break_not_returned_notices" ADD CONSTRAINT "attendance_break_not_returned_notices_suppressed" CHECK ("attendance_break_not_returned_notices"."suppressed_at" IS NULL OR "attendance_break_not_returned_notices"."recipient_count" = 0);--> statement-breakpoint
+ALTER TABLE "attendance_not_clocked_in_notices" ADD CONSTRAINT "attendance_not_clocked_in_notices_suppressed" CHECK ("attendance_not_clocked_in_notices"."suppressed_at" IS NULL OR "attendance_not_clocked_in_notices"."recipient_count" = 0);
