@@ -53,14 +53,22 @@ transport in any case; they see only an encrypted blob and the endpoint.
 - The public key is **served by the API** (`GET /v1/staff/push/config`), not baked into the PWA build with a `VITE_*`
   variable, so a key change needs no rebuild of the app.
 - `vapid_key_id` = the first 16 hex characters of SHA-256 of the public key. Every subscription row stores the key id it
-  was created under. A push service binds a subscription to the application server key, so a **rotation invalidates
-  every subscription**: on the next app open the PWA sees that the served key id differs from the one it subscribed with
-  and subscribes again; delivery treats a row whose key id is not the current one as revoked (`KEY_ROTATED`), without an
-  HTTP call. Rotation therefore costs a short gap in delivery and nothing else; the runbook entry says so.
-- Push is **off unless all three variables are valid.** Missing or partial configuration closes only push (the API
-  answers `NOT_READY` on the config route, the PWA hides the control, the consumer writes no push attempts); API and
-  worker readiness are unaffected (the ADR-0027 stance on optional capabilities). `NOTIFICATIONS_MODE=fake` binds a fake
-  push channel that records what it would send, and production refuses fake mode (ADR-0018).
+  was created under, **sent by the browser side in the `PUT`** (the id of the key it passed to `subscribe()`), and the API
+  refuses a `PUT` whose key id is not the current one with `PUSH_KEY_STALE` (409), so a registration made with a key
+  fetched before a rotation is never labelled with the new key. A push service binds a subscription to the application
+  server key, so a **rotation invalidates every subscription**: delivery treats a row whose key id is not the current one
+  as revoked (`KEY_ROTATED`), without an HTTP call. The PWA repairs it (decision 7): it **unsubscribes the existing
+  browser subscription first** (a browser refuses `subscribe()` with a different key while one exists), then subscribes
+  with the new key. Rotation costs a gap in delivery until each employee opens the app; the runbook entry says so.
+- **Readiness is split, because the API must never hold the private key.** The **API** answers the config route only when
+  `VAPID_PUBLIC_KEY` and `VAPID_SUBJECT` are valid (`NOT_READY` otherwise, and the PWA hides the control). The **worker**
+  enables push only when all three are valid **and** the private key derives the configured public key, checked once at
+  startup; otherwise it logs a visible `PUSH_DISABLED` reason, the consumer writes no push attempts and the processor
+  stays idle. If the API is ready and the worker is not, employees can still subscribe but nothing is sent until the
+  worker is fixed, and only notices created after that are pushed. The operator sets the three variables together
+  (runbook). Neither case touches API or worker readiness (the ADR-0027 stance on optional capabilities).
+  `NOTIFICATIONS_MODE=fake` binds a fake push channel that records what it would send, and production refuses fake
+  mode (ADR-0018).
 
 ### 3. Subscriptions — table `push_subscriptions`
 
@@ -72,19 +80,25 @@ same device.
 | --- | --- |
 | `company_id`, `id` | UUID NOT NULL; PK `(company_id, id)`; id from the injected UUID v7 generator |
 | `user_id` | UUID NOT NULL, references the global `user` (as `in_app_notifications.recipient_user_id` does) |
-| `installation_id` | UUID NOT NULL — the PWA's existing per-install id (`attendanceInstallationId()`), reused instead of a second device key |
+| `installation_hash` | bytea NOT NULL — SHA-256 of the tuple `pospay.push.installation.v1`, company UUID, installation UUID, from the PWA's existing per-install id (`attendanceInstallationId()`, ADR-0029). The **raw id never enters the database, a log or an event**, and the company in the tuple keeps two companies from correlating a device |
 | `endpoint`, `p256dh`, `auth` | text, NULL once revoked (see below); `endpoint` HTTPS, at most 2048 characters |
 | `endpoint_hash` | bytea NOT NULL, SHA-256 of the endpoint, kept after revocation |
+| `delivery_token` | UUID, NULL once revoked — a random value the PWA generated for this subscription and keeps locally; every payload carries it so the service worker can tell a notice meant for the current subscriber from a stale one (decision 7). Not personal data |
+| `generation` | integer NOT NULL, starts at 1 — **incremented whenever `endpoint`, the keys or the token change and on revocation**; the attempt records the generation it was authorized for and every provider-driven change is conditioned on it (decision 5) |
 | `locale` | `ar` / `en`, NOT NULL — **the stored language preference** (decision 6) |
 | `vapid_key_id` | text NOT NULL |
 | `created_at`, `last_seen_at`, `updated_at` | `timestamptz`, injected clock |
 | `revoked_at`, `revoked_reason` | nullable; reason in `UNSUBSCRIBED`, `GONE`, `REPLACED`, `OWNER_CHANGED`, `KEY_ROTATED`, `CAP_EXCEEDED` |
 
-- `CHECK ((revoked_at IS NULL) = (endpoint IS NOT NULL AND p256dh IS NOT NULL AND auth IS NOT NULL))` — **revoking
-  scrubs the three secrets.** A revoked row keeps its hash and reason for diagnosis and holds nothing that can be used.
-- Unique `(company_id, user_id, installation_id)` (re-subscribing the same install replaces its row's endpoint). Partial
-  unique `(company_id, endpoint_hash) WHERE revoked_at IS NULL`: one live subscription per browser endpoint per company.
-  Index `(company_id, user_id) WHERE revoked_at IS NULL` for the consumer lookup.
+- Two explicit branches, `CHECK ((revoked_at IS NULL AND endpoint IS NOT NULL AND p256dh IS NOT NULL AND auth IS NOT NULL
+  AND delivery_token IS NOT NULL) OR (revoked_at IS NOT NULL AND endpoint IS NULL AND p256dh IS NULL AND auth IS NULL AND
+  delivery_token IS NULL AND revoked_reason IS NOT NULL))` — **revoking scrubs every secret, all or nothing**, and a test
+  tries every partially cleared combination. A revoked row keeps its hash and reason for diagnosis and holds nothing that
+  can be used.
+- Unique `(company_id, user_id, installation_hash)` (re-subscribing the same install replaces its row's endpoint and bumps
+  `generation`). Partial unique `(company_id, endpoint_hash) WHERE revoked_at IS NULL`: one live subscription per browser
+  endpoint per company. Indexes `(company_id, user_id) WHERE revoked_at IS NULL` for the consumer lookup and `(user_id)`
+  for the foreign key to the global `user` table (as `in_app_notifications_user_idx` does).
 - RLS: ENABLE + FORCE; SELECT `USING (company_id = app_company_id())`; INSERT `WITH CHECK` and UPDATE both clauses, TO
   `pospay_app`. No DELETE grant. `pospay_auth` and `pospay_dispatcher` get nothing. Negative isolation test in the same PR
   (`CLAUDE.md` §5).
@@ -102,9 +116,14 @@ same device.
   constant in `packages/notifications`, extendable only by a code change. The worker re-checks it at send time and sends
   with redirects disabled. The check is a pure function with unit tests for the bypass shapes (userinfo, port,
   look-alike suffix, uppercase, trailing dot, IDN).
-- **Caps.** At most 5 live subscriptions per `(company_id, user_id)`; a sixth revokes the oldest (`CAP_EXCEEDED`).
-  Subscribing an endpoint that is live for another user in the same company moves it to the caller and revokes the old
-  row (`OWNER_CHANGED`), so a shared phone never delivers one employee's notice to the next employee who signs in.
+- **Caps and ownership.** At most 5 live subscriptions per `(company_id, user_id)`; a sixth revokes the oldest
+  (`CAP_EXCEEDED`). Subscribing an endpoint that is live for another user **in the same company** moves it to the caller
+  and revokes the old row (`OWNER_CHANGED`). The count, the eviction, the ownership move and the upsert run in **one
+  transaction under `pg_advisory_xact_lock` on `(company_id, user_id)`**; an ownership move also locks the previous owner,
+  both locks taken in ascending user-id order after an unlocked look-up of the previous owner, and the endpoint is read
+  again once locked (retry at most twice). Two racing registrations can therefore never leave six live rows or two live
+  rows for one endpoint. This is a same-company rule only (RLS hides other companies); the cross-company and stale-payload
+  protection is the delivery token of decision 7.
 
 ### 4. Routes and authorization
 
@@ -113,7 +132,8 @@ Owned by the API `notifications` module (`http/`), under `/v1/staff/push`, all `
 
 - `GET  /v1/staff/push/config` → `{ vapid_public_key, vapid_key_id }`; `NOT_READY` when push is not configured.
 - `PUT  /v1/staff/push/subscription` → upsert the caller's subscription for an `installation_id`; body `{ installation_id,
-  subscription: { endpoint, keys: { p256dh, auth } }, locale }`. It is naturally idempotent (upsert on the unique key), so
+  vapid_key_id, delivery_token, subscription: { endpoint, keys: { p256dh, auth } }, locale }`; `PUSH_KEY_STALE` (409)
+  when `vapid_key_id` is not the current key. The server hashes the install id (decision 3) and stores only the hash. It is naturally idempotent (upsert on the unique key), so
   it takes no `Idempotency-Key` (§6 asks for one on money and stock effects only). It is also the "I opened the app"
   refresh: it updates `locale` and `last_seen_at`.
 - `DELETE /v1/staff/push/subscription` → revoke the caller's own subscription for an `installation_id` (`UNSUBSCRIBED`).
@@ -123,8 +143,10 @@ Owned by the API `notifications` module (`http/`), under `/v1/staff/push`, all `
 principal is refused: a push to a shared counter device is meaningless and would be an employee's notice shown to
 whoever stands there. This adds "push subscription" to the personal purpose's list of own-scope capabilities, as a
 separate addendum to ADR-0027 made in sub-PR 28b-1 (as ADR-0027's 2026-10-21 addendum said such additions are made). Being
-a session-only write whose decision depends on the caller, each route is declared in `AUTHENTICATED_WRITES` with access
-`PERSONAL` and its check named, so the CI declaration test of PP-7.1 covers it. The caller's identity comes from
+a session-only write whose decision depends on the caller, the `PUT` and the `DELETE` are declared in
+`AUTHENTICATED_WRITES` with access `PERSONAL` and their check named, so the CI declaration test of PP-7.1 covers them. The
+`GET` is a read: it is **not** in that allowlist (the test requires the allowlist to equal the mounted authenticated
+writes), and keeps the `PERSONAL_ROUTE` marker alone. The caller's identity comes from
 `request.personalSession`; the company is the session's workspace; nothing in the body names a user or a company. A
 Redis counter limits `PUT` to 20 per user per hour. No new import arrow is needed: the controller uses `apps/api/src/shared`
 exactly as the staff controllers do.
@@ -135,12 +157,14 @@ exactly as the staff controllers do.
 at most 100 per ADR-0037 decision 5) gains a third recipient kind, `PUSH`: `{ channel: 'PUSH', user_id, template_key,
 template_revision, safe_parameters, send_deadline? }`. **No phone, no endpoint, no locale.** The producer does not know
 whether the user has a subscription or in which language to write; `notifications` resolves both from its own tables.
-A producer that has no push-capable user (an employee row with no `user_id`) simply emits no `PUSH` recipient. The
-producer owns the active-employee rule (NC-Q12): nothing is emitted for a deleted or ended employee, so a stale
+A producer that has no push-capable user (an employee row with no `user_id`) simply emits no `PUSH` recipient. **A
+`PUSH` recipient travels in a request event of its own** (its own source event id, derived from the notice's id), never
+inside a manager group, so a branch with 100 or 101 managers can neither overflow a 100-recipient request nor send the
+employee the same push once per group. The producer owns the active-employee rule (NC-Q12): nothing is emitted for a deleted or ended employee, so a stale
 subscription of an ex-employee never receives a notice.
 
 **Consumer.** In the existing `withTenant(event.companyId)` transaction, for each `PUSH` recipient the notifications
-consumer reads the user's live subscriptions and, for each, inserts one `PENDING` row into a new table
+consumer reads the user's live subscriptions (the rule for *which* of them is WP-Q2) and, for each, inserts one `PENDING` row into a new table
 **`push_attempts`** and appends `PushSendAuthorized { company_id, attempt_id }` to the outbox. No network or Redis work
 runs here. A user with no live subscription yields no row and no error (the notice is simply not pushed).
 
@@ -153,19 +177,20 @@ no endpoint:
 | Columns | Rule |
 | --- | --- |
 | `company_id`, `id` | PK `(company_id, id)` |
-| `subscription_id` | tenant-qualified FK `(company_id, subscription_id)`; the endpoint is read from this row at send time and **never copied** |
+| `subscription_id`, `subscription_generation` | tenant-qualified FK `(company_id, subscription_id)`; the endpoint is read from this row at send time and **never copied**; the generation is the one current when the attempt was authorized |
 | `user_id`, `business_id?`, `branch_id?` | for the delivery log and filters |
 | `source_event_id`, `template_key`, `template_revision`, `locale`, `safe_parameters` | same meaning and allowlist rules as ADR-0018; `locale` is copied from the subscription at authorization time |
 | `status`, `send_deadline`, `execution_id`, `sending_at`, `finished_at`, `failure_code`, `outcome_known`, `http_status`, `created_at`, `updated_at` | as ADR-0018 §2; `http_status` is the push service's status code, nothing from its body |
 
 Unique `(company_id, source_event_id, subscription_id, template_key)`; indexes `(company_id, status, created_at, id)`,
-`(company_id, user_id, created_at DESC, id DESC)`, `(company_id, branch_id)`, `(company_id, business_id)`. RLS as for
+`(company_id, user_id, created_at DESC, id DESC)`, `(company_id, subscription_id)` (the foreign key), `(company_id, branch_id)`, `(company_id, business_id)`. RLS as for
 `push_subscriptions`. No runtime DELETE grant. Retention follows the attempts table's.
 
 **Transport and send.** The outbox transport publisher (ADR-0018 §1.3, outside any database-effect consumer) routes
 `PushSendAuthorized` to a new BullMQ queue `push-send` (id-only job, stable id `companyId-attemptId`, `attempts=1`). The
-processor runs as `pospay_app`: load the attempt and its subscription; if the subscription is revoked, the key id is not
-current or the deadline passed, record `FAILED` / `EXPIRED` with **zero HTTP calls**; otherwise commit
+processor runs as `pospay_app`: load the attempt and its subscription; if the subscription is revoked, **its generation
+differs from the attempt's** (`SUBSCRIPTION_CHANGED`), the key id is not current or the deadline passed, record `FAILED` /
+`EXPIRED` with **zero HTTP calls**; otherwise commit
 `PENDING → SENDING` with an execution id, **leave the transaction**, then make **one** `web-push` request, and record the
 result in a second `withTenant` transaction fenced by execution id and `SENDING`. This is ADR-0018 §1.4–§1.5 unchanged,
 including: at-most-once, no retry after uncertainty, a crashed `SENDING` stays visible. A per-subscription Redis admission
@@ -180,7 +205,7 @@ collapses into one. Payload under 1 KB.
 | Push service answer | Attempt | Subscription |
 | --- | --- | --- |
 | 201 | `SENT` (evidence `PROVIDER_ACCEPTED`: the push service took it, not "the phone showed it") | unchanged |
-| 404, 410 | `FAILED` `SUBSCRIPTION_GONE`, outcome known | revoked `GONE` in the same transaction, secrets scrubbed |
+| 404, 410 | `FAILED` `SUBSCRIPTION_GONE`, outcome known | revoked `GONE` in the same transaction, secrets scrubbed — **only `WHERE generation = <the attempt's generation> AND revoked_at IS NULL`**, so a late answer for an old endpoint never revokes the replacement a concurrent `PUT` stored |
 | 400, 401, 403 | `FAILED` `PROVIDER_4XX`, outcome known; a 401/403 also emits a visible diagnostic (`VAPID_REJECTED`) | unchanged |
 | 413, 429 | `FAILED` `PROVIDER_4XX` / `PROVIDER_429`, outcome known | unchanged |
 | 5xx, timeout, network | `FAILED` `PROVIDER_5XX` / `NETWORK_UNKNOWN`, `outcome_known = false` | unchanged |
@@ -200,7 +225,7 @@ language. It is stored in tenant data (this table), not in the global `user` tab
 Templates are a small set in `packages/notifications/src/push/` (`PushTemplateDefinition`: key, revision, locales,
 allowlisted parameters reusing the `validateParameters` rules, and per-locale `{ title, body }`). The first is
 `shift_not_clocked_in_self` (row 28b); `shift_ends_soon` is row 28c's. The payload sent is exactly
-`{ v: 1, title, body, tag, url, lang }` with `url` always the staff app's own path. Names fall back to English the way
+`{ v: 1, title, body, tag, url, lang, t }` with `url` always the staff app's own path and `t` the subscription's delivery token. Names fall back to English the way
 ADR-0037 decision 4 does. **No customer data ever enters a push**: no customer name, phone, service, amount or rating;
 only the employee's own shift time, the branch name and fixed words. The payload is end-to-end encrypted to the browser,
 so the push service never sees the text, but the text is still treated as visible on a lock screen.
@@ -209,18 +234,37 @@ so the push service never sees the text, but the text is still treated as visibl
 
 - Replace the generated service worker with `strategies: 'injectManifest'` and a hand-written `apps/pos/src/sw.ts` that
   keeps today's precache and navigation fallback (`registerType` stays `autoUpdate`) and adds two handlers. `push`: parse
-  the JSON payload, `showNotification(title, { body, tag, lang, dir, data: { url } })`; an unparsable payload shows a
-  neutral "PosPay" notice (browsers require a visible notice for every push). `notificationclick`: close it, focus an
+  the JSON payload and **compare its `t` with the delivery token the app keeps locally** (one random value in IndexedDB,
+  written when the user switches notifications on and **deleted on explicit sign-out, unsubscribe and replacement by
+  another user**); only on a match `showNotification(title, { body, tag, lang, dir, data: { url } })`. An unparsable
+  payload, a missing token or a mismatch shows a neutral "PosPay" notice with no body (browsers require a visible notice
+  for every push). This is what protects a shared phone when the best-effort unsubscribe or the server revocation did
+  not happen (an expired session, no network, a person of another company): a notice queued for the previous subscriber
+  can never show its text to the next one. The token is random and names nobody, so keeping it does not break the rule
+  that the PWA persists no private data. `notificationclick`: close it, focus an
   open client or open `data.url`. The worker holds **no business logic and no translation catalog** and stores nothing.
 - The subscribe control lives on the personal staff screen (`apps/pos/src/personal-staff/`), a toggle that calls
   `PushManager.subscribe({ userVisibleOnly: true, applicationServerKey })` from a user gesture (browsers require one),
-  then `PUT`s the result with the install id and locale. Switching it off unsubscribes and `DELETE`s. Personal sign-out
-  and operator replacement run the same unsubscribe as a best effort (ADR-0027's cache clearing already runs on both).
+  then `PUT`s the result with the install id and locale. Switching it off unsubscribes and `DELETE`s. An **explicit personal sign-out**
+  unsubscribes and deletes the token (best effort for the network call, certain for the local token). A session that is
+  merely **replaced or expired** (for instance Mona signing in on her second phone invalidates the first phone's
+  session, ADR-0027) does **not** unsubscribe: the first phone keeps receiving, because it is still her own phone, and the
+  token still matches. A browser holds one subscription per service worker, so the app keeps **one subscriber per phone at
+  a time**: switching on for another user or company unsubscribes the previous browser subscription first, and the earlier
+  row dies at its next 410 or is made harmless by the token. A person working in two companies from one phone therefore
+  gets push for the company she enabled last; this is accepted.
+- **Rotation repair.** When the served key id differs from the subscription's, the app (permission already granted)
+  unsubscribes the browser subscription, subscribes with the new key and `PUT`s it; with permission not granted it shows
+  the "off" state.
+- **Launch destination.** The manifest starts at `/` (the reception app). On a personal visit the app remembers the
+  workspace hint (company and business ids, routing hints that grant nothing, ADR-0027) in local storage, and a
+  standalone (installed) launch with a remembered hint opens `/personal?company=…&business=…`; without one it shows the
+  request-link instruction. This is needed because an iPhone employee launches the Home-Screen icon, not the link.
   The state it can show is exactly one of: unsupported, install-first (iOS), blocked-in-browser, off, on.
 - **iOS and iPadOS** deliver web push only to a PWA **added to the home screen** (16.4 or later); in a Safari tab the
   `PushManager` is absent. The control detects that and shows an install instruction instead of a dead toggle (WP-Q3).
-- Nothing about a notice or a subscription is persisted by the PWA beyond the browser's own subscription object; the
-  install id already exists (ADR-0029). The control and the existing offline rule coexist: with no network the toggle is
+- The PWA persists no notice content and no subscription secret of its own: only the browser's own subscription object,
+  the existing install id (ADR-0029), the random delivery token and the routing hint described above. The control and the existing offline rule coexist: with no network the toggle is
   disabled, because subscribing needs the server.
 
 ### 8. Operations
