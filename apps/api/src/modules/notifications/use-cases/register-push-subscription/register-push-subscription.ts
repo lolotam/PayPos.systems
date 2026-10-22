@@ -34,8 +34,9 @@ export class RegisterPushSubscription {
     if (config === null) throw new ApiError('NOT_READY');
     if (input.vapid_key_id !== config.keyId) throw new ApiError('PUSH_KEY_STALE');
     if (this.rateLimiter !== null) {
+      // الحد للمستخدم نفسه لا للشركة: نفس الموظفة في شركتين ليها نفس العدّاد.
       const allowed = await this.rateLimiter.hit(
-        `push-subscribe:${scope.companyId}:${scope.userId}`,
+        `push-subscribe:${scope.userId}`,
         LIMIT,
         WINDOW_SECONDS,
       );

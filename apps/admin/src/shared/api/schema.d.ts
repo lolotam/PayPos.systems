@@ -15131,7 +15131,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Registers or refreshes the caller subscription, answered no-store. VALIDATION_ERROR 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; PUSH_REGISTRATION_BUSY 409 when another registration for the same device is in progress; RATE_LIMITED 429 after twenty registrations an hour; NOT_READY 503 when push is not configured. */
+            /** @description Registers or refreshes the caller subscription, answered no-store. VALIDATION_FAILED 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; PUSH_REGISTRATION_BUSY 409 when another registration for the same device is in progress; RATE_LIMITED 429 after twenty registrations an hour per user; NOT_READY 503 when push is not configured. */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -15162,7 +15162,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Revokes the caller subscription for that install, answered no-store; an unknown or foreign id answers the same. VALIDATION_ERROR 400 for a malformed install id; NOT_READY 503 when push is not configured. */
+            /** @description Revokes the caller subscription for that install, answered no-store; an unknown or foreign id answers the same. VALIDATION_FAILED 400 for a malformed install id. The revoke stays available without a push configuration, so an employee can always remove her subscription. */
             204: {
                 headers: {
                     [name: string]: unknown;

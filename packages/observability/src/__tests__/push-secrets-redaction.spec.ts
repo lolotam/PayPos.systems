@@ -59,4 +59,14 @@ describe('the push subscription fields', () => {
     const line = JSON.parse(capture((log) => log.info({ author: 'Mona' }, 'event')));
     expect(line).toMatchObject({ author: 'Mona' });
   });
+
+  it('the auth library container keeps its diagnostics while a bare auth value is redacted', () => {
+    const line = JSON.parse(
+      capture((log) => log.info({ authLibrary: { message: 'x', errorNames: ['E'] } }, 'event')),
+    );
+    expect(line).toMatchObject({ authLibrary: { message: 'x', errorNames: ['E'] } });
+    expect(capture((log) => log.info({ auth: 'a-secret-value' }, 'event'))).not.toContain(
+      'a-secret-value',
+    );
+  });
 });

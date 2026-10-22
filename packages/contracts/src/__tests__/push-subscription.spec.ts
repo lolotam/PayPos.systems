@@ -60,6 +60,7 @@ describe('an allowed push endpoint', () => {
       'https://web.push.apple.com/abc',
       'https://db5.notify.windows.com/w/?token=abc',
       'https://abc.notify.windows.com/w/?token=x',
+      'https://fcm.googleapis.com/fcm/send/abc?token=xyz',
       'https://fcm.googleapis.com',
     ])
       expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(true);
@@ -109,6 +110,17 @@ describe('a refused push endpoint', () => {
       'https://fcm.googleapis.com /x',
       'https://fcm.googleapis.com\t/x',
       'https://fcm.googleapis.com\n/x',
+      'https://fcm.googleapis.com/\u0000x',
+      'https://fcm.googleapis.com/\u007fx',
+    ])
+      expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(false);
+  });
+
+  it('refuses a fragment: fragments never travel, and one destination would hash two ways', () => {
+    for (const endpoint of [
+      'https://fcm.googleapis.com/x#frag',
+      'https://fcm.googleapis.com#',
+      'https://fcm.googleapis.com/x?token=1#frag',
     ])
       expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(false);
   });

@@ -1,3 +1,5 @@
+import { ECDH } from 'node:crypto';
+
 import { vapidKeyId } from './hashes.ts';
 
 /** إعداد الدفع اللي الـ API شايفه: المفتاح العام ومعرّفه وجهة الاتصال. */
@@ -14,7 +16,14 @@ const SUBJECT_ADDRESS = /^[^\s@]+@[^\s@]+$/;
 function isValidPublicKey(value: string): boolean {
   if (!PUBLIC_KEY.test(value)) return false;
   const decoded = Buffer.from(value, 'base64url');
-  return decoded.length === 65 && decoded[0] === 0x04;
+  if (decoded.length !== 65 || decoded[0] !== 0x04) return false;
+  try {
+    // النقطة لازم تكون على منحنى P-256: أي نص تاني المتصفح بي رفضه بعد ما السيرفر يعلن إنه جاهز.
+    ECDH.convertKey(decoded, 'prime256v1');
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function isValidSubject(value: string): boolean {

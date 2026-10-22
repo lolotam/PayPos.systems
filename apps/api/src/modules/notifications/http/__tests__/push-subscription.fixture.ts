@@ -1,3 +1,5 @@
+import { createECDH } from 'node:crypto';
+
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createAuth, type AuthOptions, type AuthService } from '@pospay/auth';
 import { createDatabase, type Database } from '@pospay/db';
@@ -29,7 +31,10 @@ export type { StaffSession };
 const BASE_URL = 'http://localhost:3000';
 
 export const pushFixtureConfig: PushApiConfiguration = (() => {
-  const publicKey = Buffer.concat([Buffer.from([0x04]), Buffer.alloc(64, 7)]).toString('base64url');
+  // مفتاح عام حقيقي من زوج مفاتيح P-256: نقطة على المنحنى، زي ما المتصفح بيطلبه.
+  const ecdh = createECDH('prime256v1');
+  ecdh.generateKeys();
+  const publicKey = ecdh.getPublicKey().toString('base64url');
   return { publicKey, keyId: vapidKeyId(publicKey), subject: 'mailto:ops@pospay.systems' };
 })();
 

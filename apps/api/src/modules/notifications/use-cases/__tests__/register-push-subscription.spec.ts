@@ -88,10 +88,12 @@ function transactionsFake(reads: Reads, state: State): PushSubscriptionTransacti
   };
 }
 
-function fakeLimiter(): { limiter: RateLimiter; hits: () => number } {
+function fakeLimiter(): { limiter: RateLimiter; keys: () => string[] } {
+  const keys: string[] = [];
   let hits = 0;
   const limiter: RateLimiter = {
-    hit: async (_key, limit) => {
+    hit: async (key, limit) => {
+      keys.push(key);
       hits += 1;
       return hits <= limit;
     },
@@ -100,7 +102,7 @@ function fakeLimiter(): { limiter: RateLimiter; hits: () => number } {
     count: async () => hits,
     remaining: async () => 0,
   };
-  return { limiter, hits: () => hits };
+  return { limiter, keys: () => keys };
 }
 
 function useCase(
@@ -121,6 +123,15 @@ describe('the registration use case', () => {
       code: 'RATE_LIMITED',
     });
     expect(state.transactions).toBe(20);
+  });
+
+  it('counts one user once, whatever company she signs in from', async () => {
+    const state: State = { transactions: 0, locked: [], revokes: 0, upserts: 0 };
+    const { limiter, keys } = fakeLimiter();
+    const register = useCase(state, limiter);
+    await register.execute(SCOPE, INPUT, CONFIG);
+    await register.execute({ ...SCOPE, companyId: 'company-2' }, INPUT, CONFIG);
+    expect(keys()).toEqual(['push-subscribe:user-1', 'push-subscribe:user-1']);
   });
 
   it('skips the limit when there is no limiter', async () => {

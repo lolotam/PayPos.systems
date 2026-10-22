@@ -151,7 +151,7 @@ try {
     cookieDomain: config.COOKIE_DOMAIN,
     // Already stripped of error objects and long values inside packages/auth.
     onLog: ({ level, message, errorNames }) => {
-      logger[level]({ auth: { message, errorNames } }, 'auth library event');
+      logger[level]({ authLibrary: { message, errorNames } }, 'auth library event');
     },
   });
   const service = auth;

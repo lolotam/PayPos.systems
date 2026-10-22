@@ -140,7 +140,7 @@ the subscription state of each.
 ### Edge Cases
 
 - A subscribe request whose endpoint is `http:`, has user-info or a port, is an IP literal, or whose host is a look-alike
-  of an allowed push service: refused `VALIDATION_ERROR`, nothing stored (request-forgery guard, ADR-0052 §3).
+  of an allowed push service: refused `VALIDATION_FAILED`, nothing stored (request-forgery guard, ADR-0052 §3).
 - A sixth subscription for one user in one company revokes the oldest (`CAP_EXCEEDED`).
 - The same endpoint subscribed by user B in a company where it is live for user A: moves to B, A's row revoked
   (`OWNER_CHANGED`).
@@ -258,9 +258,9 @@ mounted authenticated writes; the route coverage guard classes every `POST` as a
 - `PUT /v1/staff/push/subscription` · body `pushSubscriptionInput` `{ installation_id, vapid_key_id, delivery_token, subscription:
   { endpoint, keys: { p256dh, auth } }, locale }` · naturally idempotent, no `Idempotency-Key` · response `204`.
 - `POST /v1/staff/push/subscription/revoke` · body `{ installation_id }` · response `204`, identical for own, foreign and
-  absent ids. The raw installation id travels only in bodies, never in a URL (FR-016).
+  absent ids; available even when push is not configured, so an employee can always remove her subscription. The raw installation id travels only in bodies, never in a URL (FR-016).
 - Zod schemas in `packages/contracts/src/push-subscription.ts`; registered in `notifications-openapi.ts`, OpenAPI regenerated (`pnpm contracts:openapi`).
-- Errors: `VALIDATION_ERROR` (bad endpoint, bad key length, bad locale), `NOT_READY`, `PUSH_KEY_STALE` (409), `PUSH_REGISTRATION_BUSY` (409), `RATE_LIMITED` (20 `PUT` per user
+- Errors: `VALIDATION_FAILED` (bad endpoint, bad key length, bad locale), `NOT_READY`, `PUSH_KEY_STALE` (409), `PUSH_REGISTRATION_BUSY` (409), `RATE_LIMITED` (20 `PUT` per user
   per hour), `UNAUTHENTICATED`/`FORBIDDEN` for a non-personal principal. `message_ar` / `message_en` as the other staff routes.
 
 ### Permissions
