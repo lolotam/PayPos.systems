@@ -4,8 +4,9 @@
 
 **Created**: 2026-10-22
 
-**Status**: Draft — three owner questions (WP-Q1…WP-Q3) are open, see
-[owner-questions.ar.md](owner-questions.ar.md). Sub-PR 28b-4 waits for WP-Q1 and WP-Q3, the consumer subtask of 28b-2 for WP-Q2; 28b-1 and 28b-3 wait for none (28b-5 waits for 62-2).
+**Status**: Ready for planning — owner questions WP-Q1…WP-Q3 answered by Waleed on 2026-10-22, see
+[owner-questions.ar.md](owner-questions.ar.md); Abu Salem's pick, if different, replaces them. Sub-PRs 28b-1…28b-4 wait for
+no question; 28b-5 waits for 62-2.
 
 **Input**: User description: "staff-web-push — row 28b: staff web push (Web Push/VAPID), subscriptions per user+device,
 worker delivery, employee's own not-clocked-in notice."
@@ -30,14 +31,18 @@ quiet hours (NC-Q11); a deleted employee or ended contract gets nothing (NC-Q12)
 
 Example used below: Mona, shift at 10:00 at Salmiya branch.
 
-- **WP-Q1 — How does Mona turn notifications on?** [NEEDS CLARIFICATION: WP-Q1] (TODO(spec)) Browsers only allow it if
-  Mona herself taps allow on her own phone, so no manager can switch it on for her. Options: ⭐ a toggle on her screen plus
-  one small invitation the first time she signs in; the toggle only; an invitation at every sign-in until she answers.
-- **WP-Q2 — Mona has two phones.** [NEEDS CLARIFICATION: WP-Q2] (TODO(spec)) Both signed in with notifications on:
-  ⭐ both get the notice; or only the phone she opened the app on last.
-- **WP-Q3 — Mona uses an iPhone.** [NEEDS CLARIFICATION: WP-Q3] (TODO(spec)) On iPhone, notifications only arrive when
-  the app was added to the Home Screen. When it was not: ⭐ show her a short "add to Home Screen" instruction in place of the
-  toggle; or show nothing. The first option is a screen, so a mockup is attached when the question is published.
+Answered by Waleed on 2026-10-22 (PP-33.1…PP-33.3, batch 49, the first option of each; Abu Salem has not picked yet and
+his pick binds if it differs, `CLAUDE.md` §1 5b). The rules, now part of this spec:
+
+- **WP-Q1 — How Mona turns notifications on.** Browsers only allow it if Mona herself taps allow on her own phone, so no
+  manager can switch it on for her. The staff screen always shows a "mobile notifications" toggle, and the **first time**
+  she signs in on a phone it also shows one small invitation to switch it on (once; if she declines or dismisses it, it is
+  not shown again on that phone, the toggle stays).
+- **WP-Q2 — Mona has two phones.** A notice goes to **every live subscription** she has in that company (up to the cap of
+  5), each in its own language. Not only the last phone she used.
+- **WP-Q3 — Mona uses an iPhone.** When notifications cannot work because the app was not added to the Home Screen, the
+  toggle is replaced by a short instruction "add the app to the Home Screen to receive notifications" with simple steps.
+  The screen's look is reviewed in the 28b-4 PR before it merges.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -149,7 +154,7 @@ the subscription state of each.
 - **FR-004**: A notice producer MUST be able to request a push by user id, template and parameters, without knowing the
   user's subscriptions or language; notifications MUST resolve both.
 - **FR-005**: The system MUST send one push per live subscription of that user in that company, at most once per
-  `(source event, subscription, template)` — (WP-Q2 decides whether *all* live subscriptions or only the latest).
+  `(source event, subscription, template)`, to **every** live subscription of the user (WP-Q2).
 - **FR-006**: The text MUST be rendered in the subscription's stored language and MUST contain no customer data.
 - **FR-007**: The provider call MUST run only in the worker, outside any database transaction, after the
   `PENDING → SENDING` fence is committed, exactly once (ADR-0018).

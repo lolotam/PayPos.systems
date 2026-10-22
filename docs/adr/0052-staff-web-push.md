@@ -2,8 +2,8 @@
 
 Status: Proposed (draft for Phase 1 row 28b; number provisional, renumbered at merge).
 Date: 2026-10-22. Scope: spec 063, rows 28b and (as a consumer of the channel) 28c. Owner decisions it rests on: spec 036
-NC-Q3 / NC-Q4 and the language request of 2026-10-08, `owner-questions.ar.md` of spec 036 (Waleed); the open questions
-WP-Q1…WP-Q3 are in spec 063 and wait for the owners.
+NC-Q3 / NC-Q4 and the language request of 2026-10-08, `owner-questions.ar.md` of spec 036 (Waleed); the questions
+WP-Q1…WP-Q3 (spec 063, answered by Waleed on 2026-10-22; Abu Salem's pick binds if it differs).
 
 ## Context
 
@@ -164,7 +164,7 @@ employee the same push once per group. The producer owns the active-employee rul
 subscription of an ex-employee never receives a notice.
 
 **Consumer.** In the existing `withTenant(event.companyId)` transaction, for each `PUSH` recipient the notifications
-consumer reads the user's live subscriptions (the rule for *which* of them is WP-Q2) and, for each, inserts one `PENDING` row into a new table
+consumer reads the user's live subscriptions (every live one, WP-Q2) and, for each, inserts one `PENDING` row into a new table
 **`push_attempts`** and appends `PushSendAuthorized { company_id, attempt_id }` to the outbox. No network or Redis work
 runs here. A user with no live subscription yields no row and no error (the notice is simply not pushed).
 
