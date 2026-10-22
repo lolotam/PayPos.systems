@@ -187,13 +187,13 @@ it('the requester never receives the bell even when she holds the permission', a
   expect(await ledger(request.requestId)).toMatchObject([{ recipient_count: 1 }]);
 });
 
-it('a cashier allowed by name on another branch gets the bell for the target branch only', async () => {
+it('a cashier on another branch with an ALLOW override scoped to the target branch gets NO bell for it', async () => {
   const scope = await f.otherScope();
   const other = await f.otherScope();
   const cashier = await f.user();
   const membership = await f.member(cashier, 'cashier', 'BRANCH', other.branch);
   await f.allow(membership, 'BRANCH', scope.branch, scope.company);
-  expect(await approvers(scope)).toEqual([cashier]);
+  await expectNoBell(scope);
   await expectNoBell(other);
 });
 

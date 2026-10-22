@@ -44,9 +44,11 @@ session would let any logged-in user probe any manager's PIN, and SPEC §3 has n
    placeholder hash for an unknown holder), **outside** the database transaction. No staff session is issued,
    `login:staff:branch` is not required, and `app.` is never opened. The approval transaction then rechecks authority
    under the proposal locks: the holder's memberships **covering the device's branch** must grant
-   `approve:discounts:branch`, and DENY wins. That recheck (057-5, 057-6, 057-7) must go through the same evaluation
-   as the generic guard path (`access-reader.ts`): `evaluateAccess` over grants passed through `protectOwnerAccess`, so
-   an active owner's DENY is ignored there too and an owner the bell tells she may approve is never refused. The PIN never enters a log, an audit entry, an event, a response or the
+   `approve:discounts:branch`, and a DENY covering the branch wins, **except that an active owner's DENY is ignored**
+   (`protectOwnerAccess`). That recheck (057-5, 057-6, 057-7) must go through the same evaluation as the generic guard
+   path (`access-reader.ts`): `evaluateAccess` over grants passed through `protectOwnerAccess`, with the D-11
+   eligible-approver rule (the granting membership itself covers the branch), so the bell (§7) and the approval agree and
+   a user the bell reaches is never refused. The PIN never enters a log, an audit entry, an event, a response or the
    idempotency store; the device routes take no Idempotency-Key.
 4. **Lockout: two counters, both in Redis on Redis's clock.**
    - **Per holder** (D-08, ADR-0003 §4.2): 5 failures lock that holder's PIN for 15 minutes (423 `PIN_LOCKED`). An
@@ -77,11 +79,13 @@ session would let any logged-in user probe any manager's PIN, and SPEC §3 has n
    for the 057-4b writer):** `DiscountApprovalRequested` is written with `aggregate_type = 'discount_approval_request'`
    and `aggregate_id` = the payload's `request_id`; the consumer refuses any other pair, and also refuses an event whose
    `line_count` or `max_effective_bps` differs from the stored proposals of that `request_id` (so the writer stores the
-   proposals and the event in one transaction). The reader follows the API's `evaluateAccess` over grants passed
-   through `protectOwnerAccess`: a user counts when an ALLOW grant of one of her active memberships covers the branch (a
-   role grant carries its membership's scope; a personal override carries its **own** scope, so an override scoped to
-   this branch counts even when the membership that carries it sits on another branch) and no DENY covering the branch
-   exists on any active membership of that user; an active owner's DENY is ignored. The template
+   proposals and the event in one transaction). The recipient rule is exactly the
+   eligible-approver rule of spec 057 D-11 plus DENY and owner protection: a user counts when one of her active
+   memberships **covers the branch and itself grants** the permission (by its role, or by its own ALLOW override whose
+   scope covers the branch; an override on a membership that does not cover the branch does not count, even when the
+   override's own scope names this branch) and no DENY covering the branch exists on any active membership of that user
+   (a DENY has its own scope, independent of its membership's); an active owner's DENY is ignored, as
+   `protectOwnerAccess` does in the generic guard path. The template
    `discount_approval_requested` (revision 1, ar/en) shows the branch, the **first** service of the request (the
    event's `services` order), the number of lines and the largest percent (`max_effective_bps` / 100 without trailing
    zeros, so a raw four-digit bps never reaches the safe-text filter). It never shows a customer, a phone or the

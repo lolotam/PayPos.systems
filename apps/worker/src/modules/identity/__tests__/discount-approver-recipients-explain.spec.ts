@@ -69,7 +69,11 @@ it('the candidate statement finds the company arm by its scope index on its own'
 
 it('the grants statement uses tenant indexes', async () => {
   const grants = JSON.stringify(
-    await explain(discountApproverGrantsStatement(TENANT.A.company, AT, [USER])),
+    await explain(
+      discountApproverGrantsStatement(TENANT.A.company, TENANT.A.business, TENANT.A.branch, AT, [
+        USER,
+      ]),
+    ),
   );
   expect(grants).toMatch(/memberships_(pkey|scope_business_idx|scope_branch_idx|user_id_idx)/);
   expect(grants).toMatch(/role_permissions_[a-z_]+/);

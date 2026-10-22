@@ -255,11 +255,12 @@ second branch manager who also performs services.
 
 ### Story 6 — Bell (DA-Q7 = PP-15.2, P2)
 
-- **DP-26** One bell per request (`request_id`) to **every active user who effectively holds `approve:discounts:branch`
-  at the branch** (the API's `evaluateAccess` over `protectOwnerAccess` grants: a role default of an active membership
-  covering the branch, or an ALLOW override whose own scope covers the branch even when the membership carrying it sits
-  elsewhere; any DENY covering the branch excludes, an active owner's DENY is ignored; active window only), managers or
-  not, the requester **excluded**; zero recipients → a ledger row with count 0, no error.
+- **DP-26** One bell per request (`request_id`) to **every active user who is an eligible approver at the branch**,
+  exactly the rule of D-11 plus DENY and owner protection: one of her active memberships covers the branch and itself
+  grants `approve:discounts:branch` (its role default, or its own ALLOW override whose scope covers the branch; an
+  override on a membership that does not cover the branch does not count); any DENY covering the branch on any of her
+  active memberships excludes her, an active owner's DENY is ignored; active window only; managers or not, the
+  requester **excluded**; zero recipients → a ledger row with count 0, no error.
   Bell content: branch, service name(s), the largest percent, number of lines; no customer name, no phone.
 - **DP-26b** A cashier granted the permission by name gets the bell; a branch manager with a DENY on it at that branch
   does not; a holder at another branch does not.
