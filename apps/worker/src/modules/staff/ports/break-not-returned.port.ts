@@ -43,6 +43,13 @@ export interface LockedBreakNotReturned {
   /** القاعدة الفعلية لنوع التنبيه، تُقرأ على نفس معاملة القفل. */
   readonly rules: AlertRulesPort;
   /**
+   * حالة سطر دفتر الوردية تحت القفل: null يعني مفيش سطر، وsuppressedAt null يعني الإشعار اتسجل خلاص.
+   *
+   * @param shift الوردية وبريكها
+   * @returns حالة السطر أو null لما مفيش سطر
+   */
+  ledger(shift: LockedBreakShift): Promise<{ readonly suppressedAt: Date | null } | null>;
+  /**
    * يعيد قراءة الوردية وبريكها الحاليين؛ null إن حُذف الصف عند إعادة حفظ الأسبوع.
    *
    * @param shiftId صف الوردية الذي رأته الصفحة
@@ -101,6 +108,13 @@ export interface LockedBreakNotReturned {
    * @returns true لو أُدرج الصف الآن
    */
   record(notice: BreakNoticeWrite): Promise<boolean>;
+  /**
+   * يحوّل سطر الدفتر المكبوح لإشعار في مكانه، مع التدقيق والحدث في نفس المعاملة.
+   *
+   * @param notice حقائق الإشعار الجديد
+   * @returns true لو السطر اتحوّل دلوقتي
+   */
+  convert(notice: BreakNoticeWrite): Promise<boolean>;
   /**
    * يدرج سطر دفتر واحد والقاعدة مقفولة: بلا تدقيق وبلا حدث وبلا مستلمين.
    *

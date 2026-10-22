@@ -23,6 +23,7 @@ import {
 } from '../../domain/not-clocked-in.ts';
 import type { Clock } from '../../ports/clock.port.ts';
 import type {
+  BreakNoticeWrite,
   BreakNotReturnedTransactions,
   DueBreak,
   LockedBreakNotReturned,
@@ -45,6 +46,14 @@ interface BreakMoments {
   readonly breakEndsAt: Date;
   readonly breakOutAt: Date;
   readonly alertAt: Date;
+}
+
+/** قرار الوظيفة بعد قراءة القاعدة: نوع القرار وخطة النوع ولحظات الدفتر والرجوع. */
+interface BreakDecision {
+  readonly kind: 'ALERT' | 'RETURNED_OTHER_BRANCH';
+  readonly plan: PeriodicAlertPlan;
+  readonly moments: BreakMoments;
+  readonly returned: BreakReturn | null;
 }
 
 /** يفحص رجوع البريك لشركة واحدة؛ الغياب ينبه، والرجوع لفرع آخر يخطر مديري فرع الخروج مرة واحدة (BW-Q10). */
@@ -105,10 +114,33 @@ export class DetectBreakNotReturned {
     if (breakEndsAt === null) return false;
     const breakStartsAt = shift.breakStartsAt;
     if (breakStartsAt === null) return false;
+    const ledger = await tx.ledger(shift);
+    if (ledger !== null && ledger.suppressedAt === null) return false;
+    const decision = await this.decide(tx, companyId, shift, breakEndsAt, breakStartsAt, at);
+    if (decision === null) return false;
+    const { plan, moments, returned } = decision;
+    // سطر مكبوح بيتحوّل بس لإشعار «رجعت لفرع آخر»؛ عدم الرجوع ما بيتبعتش متأخر (D-B15).
+    if (ledger !== null)
+      return this.convertNotice(tx, shift, decision, at, ledger.suppressedAt);
+    if (!plan.enabled) {
+      await tx.suppress({ shift, ...moments, detectedAt: at });
+      return false;
+    }
+    return this.record(tx, shift, moments, at, plan, decision.kind === 'ALERT' ? null : returned);
+  }
+
+  private async decide(
+    tx: LockedBreakNotReturned,
+    companyId: string,
+    shift: LockedBreakShift,
+    breakEndsAt: Date,
+    breakStartsAt: Date,
+    at: Date,
+  ): Promise<BreakDecision | null> {
     const breakOutAt = await tx.breakOut(
       shift, breakOutWindowStart(breakStartsAt, BREAK_OUT_LEAD_MS),
     );
-    if (breakOutAt === null) return false;
+    if (breakOutAt === null) return null;
     const returned = await tx.returned(shift, breakOutAt, at);
     const otherBranch = returned !== null && returned.branchId !== shift.branchId;
     // النوعان مستقلان في التوقيت: إشعار الرجوع لفرع آخر بياخد قاعدة نفسه، مش قاعدة عدم الرجوع.
@@ -139,15 +171,30 @@ export class DetectBreakNotReturned {
       shiftBranchId: shift.branchId,
       returnedBranchId: returned?.branchId ?? null,
     });
-    if (decision !== 'ALERT' && decision !== 'RETURNED_OTHER_BRANCH') return false;
+    if (decision !== 'ALERT' && decision !== 'RETURNED_OTHER_BRANCH') return null;
     if (decision === 'RETURNED_OTHER_BRANCH' && !graceElapsed(breakEndsAt, at, plan.delayMs))
-      return false;
-    const moments: BreakMoments = { breakEndsAt, breakOutAt, alertAt: deadline.alertAt };
-    if (!plan.enabled) {
-      await tx.suppress({ shift, ...moments, detectedAt: at });
-      return false;
-    }
-    return this.record(tx, shift, moments, at, plan, decision === 'ALERT' ? null : returned);
+      return null;
+    return {
+      kind: decision,
+      plan,
+      moments: { breakEndsAt, breakOutAt, alertAt: deadline.alertAt },
+      returned,
+    };
+  }
+
+  private async convertNotice(
+    tx: LockedBreakNotReturned,
+    shift: LockedBreakShift,
+    decision: BreakDecision,
+    at: Date,
+    suppressedAt: Date | null,
+  ): Promise<boolean> {
+    const { kind, plan, moments, returned } = decision;
+    if (kind !== 'RETURNED_OTHER_BRANCH' || returned === null) return false;
+    if (suppressedAt === null || returned.clockIn.getTime() <= suppressedAt.getTime()) return false;
+    if (!plan.enabled) return false;
+    const notice = await this.notice(tx, shift, moments, at, plan, returned);
+    return tx.convert(notice);
   }
 
   private async record(
@@ -158,6 +205,17 @@ export class DetectBreakNotReturned {
     plan: PeriodicAlertPlan,
     returned: BreakReturn | null,
   ): Promise<boolean> {
+    return tx.record(await this.notice(tx, shift, moments, at, plan, returned));
+  }
+
+  private async notice(
+    tx: LockedBreakNotReturned,
+    shift: LockedBreakShift,
+    moments: BreakMoments,
+    at: Date,
+    plan: PeriodicAlertPlan,
+    returned: BreakReturn | null,
+  ): Promise<BreakNoticeWrite> {
     const managers: readonly string[] =
       plan.roles.length === 0
         ? []
@@ -171,7 +229,7 @@ export class DetectBreakNotReturned {
       this.nameFallback,
     ) : breakReturnedOtherBranchParameters(shift.nameAr, shift.nameEn, returned, this.nameFallback);
     if (parameters === null) throw new Error('ATTENDANCE_BREAK_NOT_RETURNED_PARAMETERS_INVALID');
-    return tx.record({
+    return {
       kind: returned === null ? 'break_not_returned' : 'break_returned_other_branch',
       returned,
       shift,
@@ -179,6 +237,6 @@ export class DetectBreakNotReturned {
       detectedAt: at,
       recipients: withoutAbsentEmployee(managers, shift.employeeUserId),
       parameters,
-    });
+    };
   }
 }

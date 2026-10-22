@@ -53,6 +53,13 @@ export const ATTENDANCE_CHANGE_COLUMN_GRANTS = [
   'session_id',
   'revision',
 ].map((column) => `attendance_change_requests.${column}:pospay_app:UPDATE`);
+// بند 62-2: سطر الكبح في دفتر البريك بيتحوّل مرة واحدة لإشعار «رجعت لفرع آخر»؛ الأعمدة دي بس هي اللي بتتغيّر.
+export const BREAK_LEDGER_COLUMN_GRANTS = [
+  'suppressed_at',
+  'recipient_count',
+  'alert_due_at',
+  'notified_at',
+].map((column) => `attendance_break_not_returned_notices.${column}:pospay_app:UPDATE`);
 
 export function testAttendanceDecisionPrivileges(database: () => Sql) {
   it('attendance board migration grants exactly the five AB-Q2 global role defaults', async () => {

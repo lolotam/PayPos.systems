@@ -22,15 +22,33 @@ export async function recordBreakNotReturned(
       ${groups.reduce((total, group) => total + group.length, 0)})
     ON CONFLICT (company_id, employee_id, shift_starts_at) DO NOTHING RETURNING id`);
   if (inserted.length !== 1) return false;
-  const facts = noticeFacts(id, notice);
+  await writeBreakNotice(tx, ids, notice, id);
+  return true;
+}
+
+/**
+ * يكتب التدقيق وأحداث الإشعار لسطر دفتر واحد؛ مسار الإدراج ومسار التحويل بيستخدموه سوا.
+ *
+ * @param tx معاملة الشركة
+ * @param ids مولّد المعرفات
+ * @param notice حقائق الإشعار
+ * @param noticeId معرف سطر الدفتر
+ */
+export async function writeBreakNotice(
+  tx: Tx,
+  ids: IdGenerator,
+  notice: BreakNoticeWrite,
+  noticeId: string,
+): Promise<void> {
+  const groups = inAppRecipientGroups(notice.recipients);
+  const facts = noticeFacts(noticeId, notice);
   await appendAuditLog(tx, ids.newId(), {
     entity: 'attendance_notice',
-    entityId: id,
+    entityId: noticeId,
     action: `${notice.kind}.detected`,
     after: { ...facts, recipient_user_ids: groups.flat() },
   });
   await appendOutboxEvents(tx, outboxEntries(ids, notice, facts, groups));
-  return true;
 }
 
 function outboxEntries(
