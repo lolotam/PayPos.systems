@@ -113,16 +113,19 @@ same device.
 - **Endpoint allowlist (request-forgery guard).** Subscribing is refused unless the endpoint is `https:`, has no
   user-info, uses the default port and a host name (never an IP literal) whose registrable suffix is on the allowlist:
   `fcm.googleapis.com`, `updates.push.services.mozilla.com`, `web.push.apple.com`, `*.notify.windows.com`. The list is a
-  constant in `packages/notifications`, extendable only by a code change. The worker re-checks it at send time and sends
+  constant in `packages/contracts` (`isAllowedPushEndpoint`, the same function the API's Zod schema and, in 28b-3, the worker
+  use), extendable only by a code change. The browser's `expirationTime` is accepted and ignored. The worker re-checks it at send time and sends
   with redirects disabled. The check is a pure function with unit tests for the bypass shapes (userinfo, port,
   look-alike suffix, uppercase, trailing dot, IDN).
 - **Caps and ownership.** At most 5 live subscriptions per `(company_id, user_id)`; a sixth revokes the oldest
   (`CAP_EXCEEDED`). Subscribing an endpoint that is live for another user **in the same company** moves it to the caller
   and revokes the old row (`OWNER_CHANGED`). The count, the eviction, the ownership move and the upsert run in **one
-  transaction under `pg_advisory_xact_lock` on `(company_id, user_id)`**; an ownership move also locks the previous owner,
-  both locks taken in ascending user-id order after an unlocked look-up of the previous owner, and the endpoint is read
-  again once locked (retry at most twice). Two racing registrations can therefore never leave six live rows or two live
-  rows for one endpoint. This is a same-company rule only (RLS hides other companies); the cross-company and stale-payload
+  transaction under advisory locks taken once, in one ascending order**: the caller's `user:` key, the endpoint's
+  `endpoint:` key and the `user:` key of every holder of that endpoint found by an unlocked first read; the rows are read
+  again once locked, and a holder who was not in the locked set (the endpoint moved meanwhile) ends the request with
+  `PUSH_REGISTRATION_BUSY` (409), nothing written, so the client retries. A revoke takes the caller's key first. There is
+  no second lock call, so two registrations on each other's endpoints cannot deadlock. Two racing registrations can
+  therefore never leave six live rows or two live rows for one endpoint, nor fail on the endpoint's unique index. This is a same-company rule only (RLS hides other companies); the cross-company and stale-payload
   protection is the delivery token and the subscriber reference of decision 7.
 
 ### 4. Routes and authorization
