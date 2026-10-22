@@ -87,14 +87,14 @@ without letting that voice touch commission (D-41, D-14).
 | S-19 | Staff private access is online only: no private data persisted or synced in the PWA; caches cleared on logout/replacement | `CLAUDE.md` §7 (ADR-0019), ADR-0027 |
 | S-20 | Leave: request, cancel and list own requests already exist (`staff/me/leave-requests`, kiosk and personal sessions); no leave balance in Phase 1 | ADR-0026 |
 
-## 3. Open owner questions and what each blocks
+## 3. Owner questions (all answered) and what each blocked
 
 All are in [owner-questions.ar.md](owner-questions.ar.md) with options and a recommended option. MY-Q6 is a money
 question (what staff earn, `CLAUDE.md` §1 5b) and went to Abu Salem too (both owners picked the same); the others went to Waleed. Since PP-23.2
 (`CLAUDE.md` V3.14, 2026-10-21) every question is on the shared decisions page for both owners and Abu Salem's pick binds
 on a difference: the product questions among PP-15…PP-23 were republished in batch 40 with Waleed's picks (here PP-18 = MY-Q1…MY-Q8,
 RT-Q1…RT-Q10 and RT-Q12, AL-Q1…AL-Q6; PP-20.4 = RT-Q13; PP-21.1 = MY-Q9; RT-Q11 was asked in batch 46), and AL-Q7
-is in batch 45. Until an answer arrives the rule is `TODO(spec)` and only the sub-PRs listed here wait.
+is in batch 45. All are answered (the last ones on 2026-10-22: RT-Q11, RT-Q14, and CS-Q30 in spec 059); none leaves a `TODO(spec)`. If Abu Salem picks differently, his pick replaces the answer and the rule it names.
 
 | ID | Subject | Blocks |
 |---|---|---|
@@ -251,7 +251,7 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
   Guarded by `@Authenticated()` + `PERSONAL_ROUTE` + an explicit own check of `read:service-sessions:own` (ADR-0026),
   feature `orders`.
 - **FR-A02** (blocked on row 50) `GET /v1/staff/me/commission-estimate?month=YYYY-MM` (commissions, `queries/`):
-  `{ status: 'ESTIMATE' | 'NO_PLAN' | 'NO_SALARY' | 'APPROVED' (MY-Q6: the statement is approved; `total` is the approved amount, and corrections posted into the month show under «تصحيح» with the manager's detail fields (date, service, original month, was, became, difference) and never the customer's name, CS-Q30; the exact fields are fixed in 57-3), total?, per_line?: [{ line_id, amount }],
+  `{ status: 'ESTIMATE' | 'NO_PLAN' | 'NO_SALARY' | 'APPROVED' (MY-Q6: the statement is approved; `total` is the approved amount, and corrections posted into the month show under «تصحيح» with the manager's detail fields (date, service, original month, was, became, difference) and never the customer's name, CS-Q30; the exact fields are fixed in 57-3), total?, per_line?: [{ line_id, amount }], corrections?: [{ business_date, service_name_ar, service_name_en, source_period, previous_amount, new_amount, amount }] (APPROVED only; CS-Q30: the manager's detail fields, never a customer field),
   recalculated?: boolean }`, computed on read by the engine (S-15); `total` **and** `per_line` only with
   `estimated_commission` allowed, otherwise `{ status: 'HIDDEN' }` with no amount (D-A2); `read:commissions:own`, feature `commissions`.
 - **FR-A03** `GET /v1/staff/me/tips?month=YYYY-MM` (orders): her tips of the month by method, only with `tip` allowed,
