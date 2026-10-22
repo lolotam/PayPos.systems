@@ -3,6 +3,7 @@ import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
 import type { TenantWrappers } from '@pospay/db';
 import { createAttendanceChangeTransactions } from '../persistence/drizzle-attendance-change-transactions.ts';
+import { attendanceChangeAlertRules } from '../persistence/attendance-change-alert-rule.adapter.ts';
 import { RequestAttendanceChangeUseCase } from '../use-cases/request-attendance-change/request-attendance-change.usecase.ts';
 import { DecideAttendanceChangeUseCase } from '../use-cases/decide-attendance-change/decide-attendance-change.usecase.ts';
 import {
@@ -135,7 +136,12 @@ it('refuses an unauthorized filer without waiting for a locked branch', async ()
         context,
       ),
   };
-  const transactions = createAttendanceChangeTransactions(database, leaveIds, f.kinds);
+  const transactions = createAttendanceChangeTransactions(
+    database,
+    leaveIds,
+    attendanceChangeAlertRules,
+    f.kinds,
+  );
   const useCase = new RequestAttendanceChangeUseCase(transactions, f.clock, f.kinds, leaveIds);
   const actor = changeActor(f);
   const before = await f.h.owner`SELECT id FROM attendance_change_requests ORDER BY id`;

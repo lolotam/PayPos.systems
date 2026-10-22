@@ -37,7 +37,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `customers`     | `tenancy`, `settings` | `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). |
 | `expenses`      | `tenancy`             |                                                                                |
 | `inventory`     | `tenancy`             |                                                                                |
-| `staff`         | `tenancy`, `identity`, `files`, `settings` | An employee may be linked to a user; a document binds a verified file (ADR-0031). `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). |
+| `staff`         | `tenancy`, `identity`, `files`, `settings` | An employee may be linked to a user; a document binds a verified file (ADR-0031). `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader, and the staff `AlertRulesPort.roleHolders` adapter reads identity's scoped role holders (ADR-0010 addendum 2026-10-21; ADR-0040 addendum, 62-2b). |
 | `realtime`      | `identity`            | Channel scope is resolved from the session.                                    |
 | `notifications` | —                     | Deliberately root-level: it is a service, it knows nothing about the business. |
 | `orders`        | `tenancy`, `catalog`, `customers`, `staff`, `identity`, `settings` | Consumer-owned ports call provider public readers on the same transaction (ADR-0041). |
@@ -146,6 +146,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | worker `staff` | `BranchManagerRecipients.companyOpen` | worker `tenancy` | company eligibility before candidate paging and again under the employee lock, on the caller's tenant transaction (ADR-0037) |
 | worker `staff` | `BranchPlaceReader` | worker `tenancy` | both branch names and the effective timezone (branch, otherwise business) on the caller's tenant transaction; adapter bound at the staff composition root (ADR-0037) |
 | `staff`, `customers`, `commissions` | `AlertRulesPort`, `StaffColumnsPort`                                                    | `settings`  | alert rules (recipients, channels) and staff-app columns — reads (ADR-0010)                                                                                          |
+| `staff` | `AlertRulesPort.roleHolders` | `identity` | active system-role holders whose company, business or branch membership covers the event branch at the event time, with the canonical company-owner flag; read on the attendance-change writer's transaction (ADR-0040 addendum 2026-10-21, spec 060 D-B13, 62-2b) |
 | `orders` | `StaffColumnsPort` | `settings` | the business's allowed staff-app columns and `staff_months_back`, read in the «شغلي» transaction so a hidden column never leaves the server (ADR-0010 addendum 2026-10-21, spec 060 D-A3, 57c-1) |
 | worker `orders` | `AlertRulesPort` | worker `settings` | the effective alert rule (branch override, otherwise the business rule, master switch applied) for the late, edit, cancel and performers bells; its roles feed `branchManagerRecipients` (ADR-0010 addendum 2026-10-21, spec 060 D-B14, 62-3) |
 | worker `customers` | `BranchScheduleHoursPort` | worker `tenancy` | the branch's opening hours and effective timezone through `branchScheduleHours` on the caller's transaction, for the rating request day and closing time; adapter bound at the customers composition root, not an injected callback (ADR-0010 addendum 2026-10-21, spec 060 D-B3, 59-1, postponed by RT-Q1) |
@@ -351,6 +352,7 @@ reads:
   - commissions -> settings.readStaffColumns @ apps/api/src/modules/commissions/persistence/staff-columns.adapter.ts
   - customers -> settings.readStaffColumns @ apps/api/src/modules/customers/persistence/staff-columns.adapter.ts
   - staff -> settings.readStaffColumns @ apps/api/src/modules/staff/persistence/staff-columns.adapter.ts
+  - staff -> settings.readAlertRule @ apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts
   - orders -> identity.lockServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/session-place.adapter.ts
@@ -361,6 +363,7 @@ reads:
   - staff -> identity.lockAttendanceExceptionAccess @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
   - staff -> identity.readAttendanceChangeAccess @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
   - staff -> identity.readAttendanceChangeApprovers @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
+  - staff -> identity.readBranchRoleHolders @ apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
   - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts
   - staff -> tenancy.attendanceBranch @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts

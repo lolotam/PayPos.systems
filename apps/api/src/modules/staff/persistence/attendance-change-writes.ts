@@ -5,21 +5,18 @@ import { sql } from 'drizzle-orm';
 import {
   AttendanceChangeError,
   attendanceChangeRecipientGroups,
-  attendanceChangeRecipients,
-  attendanceDecisionRecipients,
   attendanceChangeNoticeText,
   type AttendanceChangePlan,
 } from '../domain/attendance-change-request.ts';
+import { attendanceChangeNoticeParameters } from '../domain/attendance-change-alert-rule.ts';
 import type {
   AttendanceChangeKindInput,
   AttendanceChangeKindValues,
   AttendanceChangeTarget,
 } from '../ports/attendance-change-kinds.port.ts';
 import type { AttendanceChangeActor } from '../ports/attendance-change-transactions.port.ts';
-import {
-  attendanceChangeApprovers,
-  attendanceChangeAuthority,
-} from './attendance-change-context.adapter.ts';
+import type { AlertRulesPort } from '../ports/alert-rules.port.ts';
+import { attendanceChangeNoticeRecipients } from './attendance-change-recipients.ts';
 
 interface SaveContext {
   requestId: string;
@@ -38,6 +35,7 @@ export async function saveAttendanceChange(
   context: SaveContext,
   plan: AttendanceChangePlan,
   values: AttendanceChangeKindValues,
+  alertRules: AlertRulesPort,
 ): Promise<AttendanceChangeRequest> {
   values = targetValues(context, values);
   const id = context.before?.id ?? context.requestId;
@@ -48,7 +46,7 @@ export async function saveAttendanceChange(
   if (!context.before) await audit(tx, ids, id, 'requested', null, plan);
   if (plan.status !== 'PENDING')
     await audit(tx, ids, id, plan.status.toLowerCase(), context.before, plan);
-  if (plan.status !== 'CANCELLED') await events(tx, ids, actor, context, row);
+  if (plan.status !== 'CANCELLED') await events(tx, ids, actor, context, row, alertRules);
   return row;
 }
 // خطوة المالك الواحدة تحفظ الطلب PENDING قبل أثر النوع، حتى يشير الأثر لصف موجود ويبقى السجل نفس شكل الطلب العادي.
@@ -166,48 +164,23 @@ async function audit(
     after: snapshot(after),
   });
 }
-async function eventRecipients(
-  tx: Tx,
-  actor: AttendanceChangeActor,
-  context: SaveContext,
-  row: AttendanceChangeRequest,
-) {
-  if (row.status === 'PENDING')
-    return attendanceChangeRecipients(
-      await attendanceChangeApprovers(
-        tx,
-        actor.companyId,
-        row.business_id,
-        row.branch_id,
-        context.now,
-      ),
-      actor.userId,
-      context.employeeUserId,
-    );
-  if (row.requested_by === actor.userId) return [];
-  const requester = await attendanceChangeAuthority(
-    tx,
-    actor.companyId,
-    row.requested_by,
-    row.business_id,
-    row.branch_id,
-    context.now,
-  );
-  return attendanceDecisionRecipients(
-    { ...requester, userId: row.requested_by },
-    actor.userId,
-    context.employeeUserId,
-  );
-}
 async function events(
   tx: Tx,
   ids: IdGenerator,
   actor: AttendanceChangeActor,
   context: SaveContext,
   row: AttendanceChangeRequest,
+  alertRules: AlertRulesPort,
 ) {
   const pending = row.status === 'PENDING';
-  const users = await eventRecipients(tx, actor, context, row);
+  const { users, channel } = await attendanceChangeNoticeRecipients(
+    tx,
+    actor,
+    row,
+    context.now,
+    context.employeeUserId,
+    alertRules,
+  );
   const groups = attendanceChangeRecipientGroups(users);
   const facts = {
     request_id: row.id,
@@ -222,7 +195,7 @@ async function events(
     aggregateId: row.id,
     eventType: pending ? 'AttendanceChangeRequested' : 'AttendanceChangeDecided',
   };
-  const parameters = noticeParameters(row);
+  const safe = noticeText(row);
   await appendOutboxEvents(
     tx,
     (groups.length ? groups : [[]]).map((group) => ({
@@ -231,17 +204,17 @@ async function events(
         ...event,
         payload: {
           ...facts,
-          ...(group.length
+          ...(group.length && channel === 'IN_APP'
             ? {
                 notification_recipients: group.map((user_id) => ({
-                  channel: 'IN_APP',
+                  channel,
                   user_id,
                   locale: 'ar',
                   template_revision: 1,
                   template_key: pending
                     ? 'attendance_change_requested'
                     : 'attendance_change_decided',
-                  safe_parameters: parameters,
+                  safe_parameters: attendanceChangeNoticeParameters(safe, row, user_id),
                 })),
               }
             : {}),
@@ -250,19 +223,10 @@ async function events(
     })),
   );
 }
-function noticeParameters(row: AttendanceChangeRequest) {
-  const safe = attendanceChangeNoticeText(
+function noticeText(row: AttendanceChangeRequest) {
+  return attendanceChangeNoticeText(
     row.employee,
     { ar: t('ar', 'inApp.generic_employee'), en: t('en', 'inApp.generic_employee') },
     row.decision_reason,
   );
-  const parameter = (name: string, value: string) => ({ name, type: 'text', value });
-  return [
-    parameter('employee_name_ar', safe.employee_name_ar),
-    parameter('employee_name_en', safe.employee_name_en),
-    parameter('change', row.kind),
-    ...(row.status === 'PENDING'
-      ? []
-      : [parameter('decision', row.status), parameter('reason', safe.reason)]),
-  ];
 }
