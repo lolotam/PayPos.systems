@@ -176,3 +176,27 @@ ADR-0012's approval contract remains fail closed: publication is not commission 
 Until the `commissions.project-inputs` mark commits, a salary event before the approval cutoff
 remains pending and refuses approval. Retain those outbox rows for the backfill; do not add a
 placeholder consumer mark or weaken the pending count to treat publication as completion.
+
+## Amendment — 2026-10-22: six counted types and the statement fingerprint (spec 059, ADR-0054)
+
+**Section 1 (counted types) grows from four to six.** `ServiceSessionRecorded` and `ServiceSessionLinesAdded` join
+`ServiceLineChanged`, `PackageSaleChanged`, `SessionTipsChanged` and `SalaryChanged` (ADR-0041 §6, spec 059 D-9). The
+function signature, the cutoff rule and the consumer id `commissions.project-inputs` are unchanged. Wherever section 1
+says "the four input event types", read "the six".
+
+**Sections 2, 3 and section 4's group 7 index are otherwise unchanged.** Section 2 (the function owner, the grants and
+the RLS policies), section 3 (the approval transaction flow) and the index of section 4 group 7 keep their text. One
+addition to section 3: **after the freeze**, approval reads the frozen rows back, builds the statement fingerprint in
+the same canonical shape and compares it with `reviewed_statement_fingerprint`; a difference rolls the whole approval
+back with 409 `COMMISSION_FINGERPRINT_STALE` (ADR-0054 §6). The post-freeze check compares statement fingerprints only:
+the frozen rows hold no revisions, rule snapshots, salary or plans, so they cannot reproduce the input fingerprint.
+
+**Section 4 (tests).** Group 3's predicate fixtures use the **six** types. Groups 1 to 4 and 7 are implemented by
+sub-PR 53-1, and the approval-path groups 5 and 6 by 53-2 and 53-3, as the spec's §7 says.
+
+**Risk and obligation.** Publishing the two new types before 53-1 breaks nothing, because approval is not available yet.
+After 53-1, every `ServiceSessionRecorded` or `ServiceSessionLinesAdded` outbox row published before sub-PR 50-1 ships
+and lacking a `commissions.project-inputs` mark counts as pending forever. The `SalaryChanged` obligation of the
+2026-10-08 amendment therefore extends to them: the bootstrap of sub-PR 50-3 (spec D-15, test CM-24) discharges those
+event ids through the lines reader; the outbox rows are retained until then; no placeholder mark is ever written;
+publication is not processing.

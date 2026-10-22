@@ -2836,7 +2836,7 @@
             }
           }
         ],
-        "description": "Staff-app columns screen. The effective columns (the saved set, or the default when nothing is saved) and months back (1 when nothing is saved). rating_average is never returned while the rating track is postponed. Requires read:settings:business or manage:staff-app-columns:business on that business (MY-Q10, MY-Q5). No Idempotency-Key.",
+        "description": "Staff-app columns screen. The effective columns (the saved set, or the default when nothing is saved) and months back (2 when nothing is saved). rating_average is never returned while the rating track is postponed. Requires read:settings:business or manage:staff-app-columns:business on that business (MY-Q10, MY-Q5). No Idempotency-Key.",
         "responses": {
           "200": {
             "description": "The effective staff-app columns and months back",
@@ -2892,7 +2892,7 @@
             }
           }
         ],
-        "description": "Replaces the staff-app columns and months back of the business; null returns a value to its default. An unknown, duplicate or not-offered code is 422 STAFF_COLUMNS_INVALID with details.codes; months back outside 1–24 is 422 STAFF_MONTHS_BACK_INVALID. Requires manage:staff-app-columns:business on that business. Each changed value is audited.",
+        "description": "Replaces the staff-app columns and months back of the business; null returns a value to its default. An unknown, duplicate or not-offered code is 422 STAFF_COLUMNS_INVALID with details.codes; months back outside 1–12 is 422 STAFF_MONTHS_BACK_INVALID. Requires manage:staff-app-columns:business on that business. Each changed value is audited.",
         "requestBody": {
           "required": true,
           "content": {
@@ -19913,7 +19913,7 @@
           "months_back": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 24
+            "maximum": 12
           },
           "months_back_default": {
             "type": "boolean"
