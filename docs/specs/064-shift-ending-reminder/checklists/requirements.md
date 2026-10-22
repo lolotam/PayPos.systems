@@ -33,8 +33,8 @@
 
 ## Notes
 
-- The spec is **not ready for implementation** until the owner answers SE-Q1…SE-Q6 and row 28b is merged
-  (after 28b-3: web-push adapter, worker processor, VAPID keys).
+- SE-Q1…SE-Q6 are decided (Waleed, 22 October 2026; Abu Salem's picks pending on the decisions page). The spec is
+  **not ready for implementation** until row 28b is merged through 28b-3 (web-push adapter, worker processor, VAPID keys).
 - Owner questions are recorded in Arabic in `owner-questions.ar.md`; publishing them is the orchestrator's job.
 - Technical decisions (third detector in the company job, rule from `AlertRulesPort`, presence = OPEN session, ledger
   key and suppression row) are in ADR-0053, number provisional.

@@ -104,6 +104,8 @@ Sara left at 16:00 with approval; Heba never came; Nour is on a 17:00–17:30 br
 5. **Given** the kind is switched off, or the business master switch is off, **When** an employee's reminder
    moment arrives (at work or, for example, on a break), **Then** a ledger row with `suppressed_at` is written and **no** event; switching the rule back on
    later never sends a reminder for that shift (D-B15).
+6. **Given** the rule is off and Rana's approved leave reaches her 18:00 shift end, **Then** no row and no event:
+   the leave excuses the shift before the rule is checked (BR-002), so there is nothing to suppress. (SE-Q4).
 
 ---
 
@@ -163,11 +165,13 @@ moves Mona's end from 18:00 to 20:00 at 17:40, after her reminder.
   trigger the reminder (ADR-0053 §4). (SE-Q1).
 - **FR-005**: The system MUST record the reminder once per employee per shift-end instant, whatever re-runs, restarts,
   concurrent workers or schedule re-saves happen (ADR-0053 §7). (SE-Q3).
-- **FR-006**: A due reminder found while the kind or the business master switch is off MUST write the ledger row with
+- **FR-006**: A due reminder of an eligible, non-excused employee found while the kind or the business master switch
+  is off MUST write the ledger row with
   `suppressed_at` and no event **whether or not the employee has an OPEN session at that instant**, so enabling the rule
-  later never back-fills it (D-B15, ADR-0053 §8). The rule used is the one read under the employee lock.
-- **FR-007**: Each reminder MUST publish one `ShiftEndsSoon` event in the ledger's transaction with the employee's own
-  user as its only recipient, on the push channel defined by row 28b, carrying the shift end as a local `HH:MM` and the
+  later never back-fills it (D-B15, ADR-0053 §8). A shift excused by approved leave writes nothing even with the rule
+  off, because `EXCUSED` comes before `SUPPRESS` (BR-002). The rule used is the one read under the employee lock.
+- **FR-007**: Each reminder MUST publish one `ShiftEndsSoon` event in the ledger's transaction. Its only recipient is the
+  employee's own user; for an employee with no linked user the event carries no recipient (SE-Q6). It goes out on the push channel defined by row 28b, carrying the shift end as a local `HH:MM` and the
   branch names; never a phone, never a document (ADR-0053 §9, §10).
 - **FR-008**: The detection MUST never change attendance, lateness, hours, salary or commission (SPEC §7, A7).
 - **FR-009**: Each recorded reminder MUST leave an audit entry with the system as actor.
