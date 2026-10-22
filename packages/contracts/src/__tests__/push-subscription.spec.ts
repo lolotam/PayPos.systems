@@ -61,7 +61,8 @@ describe('pushEndpoint', () => {
       'https://updates.push.services.mozilla.com/wpush/v2/abc',
       'https://web.push.apple.com/abc',
       'https://db5.notify.windows.com/w/?token=abc',
-      'https://fcm.googleapis.com:443/fcm/send/abc',
+      'https://abc.notify.windows.com/w/?token=x',
+      'https://fcm.googleapis.com',
     ])
       expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(true);
   });
@@ -69,12 +70,17 @@ describe('pushEndpoint', () => {
   it('refuses a non-https scheme, a user-info, a port and an IP literal', () => {
     for (const endpoint of [
       'http://fcm.googleapis.com/fcm/send/abc',
+      'http://fcm.googleapis.com/x',
       'ftp://fcm.googleapis.com/abc',
       'https://fcm.googleapis.com@evil.test/abc',
       'https://user:pass@fcm.googleapis.com/abc',
+      'https://user@fcm.googleapis.com/x',
       'https://fcm.googleapis.com:8443/abc',
+      'https://fcm.googleapis.com:443/x',
       'https://127.0.0.1/abc',
+      'https://127.0.0.1/x',
       'https://[::1]/abc',
+      'https://[::1]/x',
       'not a url',
       '',
     ])
@@ -86,10 +92,23 @@ describe('pushEndpoint', () => {
       'https://fcm.googleapis.com.evil.test/abc',
       'https://evilfcm.googleapis.com/abc',
       'https://FCM.GOOGLEAPIS.COM/abc',
+      'https://FCM.Googleapis.com/x',
       'https://fcm.googleapis.com./abc',
+      'https://fcm.googleapis.com./x',
+      'https://.fcm.googleapis.com/x',
       'https://fcm-googleapis.com/abc',
       'https://xn--fcm-hia.googleapis.com/abc',
+      'https://xn--fcm-googleapis-com.evil.test/x',
       'https://fcm\u0433oogleapis.com/abc',
+    ])
+      expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(false);
+  });
+
+  it('refuses a space or a control character anywhere in the endpoint', () => {
+    for (const endpoint of [
+      'https://fcm.googleapis.com /x',
+      'https://fcm.googleapis.com\t/x',
+      'https://fcm.googleapis.com\n/x',
     ])
       expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(false);
   });

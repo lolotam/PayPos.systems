@@ -27,46 +27,29 @@ export function isAllowedPushHost(host: string): boolean {
   return host.length > suffix.length && host.endsWith(suffix);
 }
 
-// المضيف كما هو مكتوب في الطلب: الـ URL parser بيعيّره، فالمقارنة الحرفية هي اللي تكشف الحروف الكبيرة.
-function rawAuthorityHost(value: string): string | null {
-  const scheme = value.indexOf('://');
-  if (scheme < 0) return null;
-  const rest = value.slice(scheme + 3);
-  const end = rest.search(/[/?#]/);
-  const authority = end < 0 ? rest : rest.slice(0, end);
-  if (authority.length === 0 || authority.includes('@')) return null;
-  if (authority.startsWith('[')) return null;
-  const colon = authority.lastIndexOf(':');
-  if (colon < 0) return authority;
-  const port = authority.slice(colon + 1);
-  if (!/^\d+$/.test(port)) return null;
-  return authority.slice(0, colon);
-}
+// نقطة الدفع: https ومضيف من حروف صغيرة وأرقام وشرطات ونقاط، وبعده path أو query أو fragment اختياري من غير مسافات.
+const ENDPOINT_PATTERN = /^https:\/\/([a-z0-9.-]+)(?:[/?#]\S*)?$/;
+
+// أربع مجموعات أرقام بنقط: عنوان IP مش مضيف.
+const IPV4_PATTERN = /^\d{1,3}(\.\d{1,3}){3}$/;
 
 /**
- * يقرر إن كان endpoint نقطة دفع مسموحة: https بلا مستخدم ولا كلمة مرور ولا منفذ غير الافتراضي،
- * ومضيف اسم لا عنوان IP، وحروفه صغيرة بلا نقطة أخيرة، ومن قائمة المواقع المسموحة.
+ * يقرر إن كان endpoint نقطة دفع مسموحة: https بمضيف من حروف صغيرة وأرقام وشرطات ونقاط،
+ * بلا مستخدم ولا كلمة مرور ولا منفذ، ومضيف اسم لا عنوان IP، ومن قائمة المواقع المسموحة.
  *
  * @param value الـ endpoint كما أرسله المتصفح
  * @returns true لو هو نقطة دفع مسموحة
  */
 export function isAllowedPushEndpoint(value: string): boolean {
   if (value.length === 0 || value.length > 2048) return false;
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
+  const match = ENDPOINT_PATTERN.exec(value);
+  // المطابقة لازم تغطي النص كله: `$` في جافاسكربت بتقبل سطر أخير، فالمقارنة نفسها هي الضمان.
+  if (match === null || match[0] !== value) return false;
+  const host = match[1] ?? '';
+  if (host.startsWith('.') || host.endsWith('.') || host.startsWith('-') || host.endsWith('-'))
     return false;
-  }
-  if (url.protocol !== 'https:') return false;
-  if (url.username !== '' || url.password !== '') return false;
-  if (url.port !== '') return false;
-  const host = url.hostname;
-  if (host.startsWith('[') || host.endsWith(']')) return false;
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false;
-  if (host.endsWith('.')) return false;
-  const raw = rawAuthorityHost(value);
-  if (raw === null || raw !== host) return false;
+  if (host.includes('..')) return false;
+  if (IPV4_PATTERN.test(host)) return false;
   return isAllowedPushHost(host);
 }
 
