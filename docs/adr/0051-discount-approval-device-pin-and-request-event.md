@@ -82,7 +82,7 @@ session would let any logged-in user probe any manager's PIN, and SPEC §3 has n
    reader (the approver is **not** excluded, ED-Q10) and
    appends `DiscountSelfApprovalNoticeRequested` in groups of at most 100, template `discount_self_approved`
    (revision 1, ar/en: branch, the approver's label, the first flagged service, the largest percent).
-   **Addendum (2026-10-22, DA-Q11 = PP-29.2, both owners; closes the question of issue #476):** the request bell (057-3)
+   **Addendum (2026-10-22, DA-Q11 = PP-29.2, both owners; it answers the master-switch question this section left open):** the request bell (057-3)
    always rings and is outside the team-alerts master switch and rules; the owner bell (057-3b) follows the master switch
    (AL-Q4 = PP-18.24) and its own per-kind alert rule, whose roles replace the fixed `owner` set above (spec 057 D-19).
 8. **No new import arrow.** `orders → identity, settings` already exists; the new consumer-owned ports
