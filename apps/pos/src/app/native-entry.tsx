@@ -15,6 +15,7 @@ import {
   stateForRole,
   type NativeState,
 } from './link-rules';
+import { LoadingNotice } from './loading-notice';
 import type { PersonalWorkspace } from './manager-link';
 import { PasteLinkForm } from './paste-link-form';
 import { StartScreen } from './start-screen';
@@ -38,7 +39,10 @@ export function NativeEntry() {
       pending.current -= 1;
       if (pending.current === 0) setBusy(false);
     };
-    links.current = links.current.then(step).catch(() => undefined).finally(done);
+    links.current = links.current
+      .then(step)
+      .catch(() => undefined)
+      .finally(done);
   }, []);
 
   const onStart = useCallback((role: DeviceRole | null, saved: PersonalWorkspace | null) => {
@@ -69,7 +73,11 @@ export function NativeEntry() {
     const connect = <PasteLinkForm onConnect={(next) => void onLink(next)} />;
     return (
       <>
-        {alertText ? <p role="alert" className={ALERT_CLASS}>{alertText}</p> : null}
+        {alertText ? (
+          <p role="alert" className={ALERT_CLASS}>
+            {alertText}
+          </p>
+        ) : null}
         {state.role === 'counter' ? (
           <DeviceScreen />
         ) : state.business ? (
@@ -83,7 +91,9 @@ export function NativeEntry() {
   if (state.alert === undefined) {
     return busy ? <StartScreen onChoose={choose} busy /> : <StartScreen onChoose={choose} />;
   }
-  return busy
-    ? <StartScreen onChoose={choose} alert={state.alert} busy />
-    : <StartScreen onChoose={choose} alert={state.alert} />;
+  return busy ? (
+    <StartScreen onChoose={choose} alert={state.alert} busy />
+  ) : (
+    <StartScreen onChoose={choose} alert={state.alert} />
+  );
 }

@@ -13,11 +13,7 @@ export type StartAlert = 'saveFailed' | 'needsInternet' | 'linkRequired';
 
 /** تنبيهات شاشة الموظفة: لينك مش مقبول، أو نشاط تاني، أو جهاز كاونتر، أو حفظ فشل، أو نت. */
 export type FlowAlert =
-  | 'linkRequired'
-  | 'otherBusiness'
-  | 'counterDevice'
-  | 'saveFailed'
-  | 'needsInternet';
+  'linkRequired' | 'otherBusiness' | 'counterDevice' | 'saveFailed' | 'needsInternet';
 
 /** حالة التطبيق: لسه بيقرا، أو شاشة البداية، أو شاشة الموظفة/الكاونتر. */
 export type NativeState =

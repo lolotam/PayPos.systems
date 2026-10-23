@@ -142,7 +142,9 @@ describe('NativeEntry while a link runs', () => {
       }),
     );
     mount();
-    expect(await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+    expect(
+      await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') }),
+    ).not.toBeNull();
 
     await act(async () => {
       opened.listener?.(link());
@@ -227,7 +229,9 @@ describe('NativeEntry role choice', () => {
   it('shows the role a link already stored instead of the chosen one', async () => {
     vi.mocked(readDeviceRole).mockResolvedValueOnce(null).mockResolvedValue('employee');
     mount();
-    expect(await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+    expect(
+      await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') }),
+    ).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.counter') }));
 
