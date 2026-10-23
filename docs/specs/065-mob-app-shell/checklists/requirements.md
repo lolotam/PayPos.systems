@@ -32,6 +32,8 @@
 
 ## Notes
 
-- Owner answers are recorded in Arabic in `owner-questions.ar.md`; the orchestrator publishes APP-Q9 on the decisions page.
+- APP-Q9 … APP-Q18 are published (batch 58, PP-42.1 … PP-42.10); the answers are recorded in Arabic in
+  `owner-questions.ar.md`. Two further `TODO(spec)`s wait on ADR-0027 addenda, not on the owners: #549 (the iOS origin
+  for sessions) and #536 (passkeys).
 - Technical decisions are in ADR-0055 (Capacitor shell, bundled assets, origins, flavours, CI, guard rules).
 - `.specify/extensions.yml` does not exist, so no before/after hooks ran.

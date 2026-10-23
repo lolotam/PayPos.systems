@@ -57,25 +57,31 @@ OTP, restart the app; repeat (a)–(c) of M-1c on the iOS simulator.
 2. **Given** a remembered business, **When** she signs in with phone and code, **Then** her personal session opens and
    survives a restart until its eight-hour deadline (ADR-0027).
 3. **Given** no remembered business, **When** she opens «حسابي كموظفة», **Then** the app shows how to connect (APP-Q9),
-   never a field to type an identifier (ADR-0027: «the UI does not ask staff to type identifiers»).
+   never a field to type an identifier (ADR-0027: «the UI does not ask staff to type identifiers»). Pasting the whole
+   link the manager sent (APP-Q9's ⭐ «عندي لينك») is not typing an identifier: the app reads the identifiers out of the
+   link with the same parser as an opened link (FR-012) and shows the employee no identifier.
+4. **Given** the manager's link and the app installed, **When** she taps the link (app closed or already open),
+   **Then** the app opens on the employee flow with that business remembered (FR-012).
 
 ---
 
 ### User Story 3 - What the app cannot do yet is hidden, not broken (Priority: P3)
 
-On the iPhone app, Sara does not see the passkey enrolment or passkey attendance, and the Web Push control is absent on
-both platforms; a short line tells her to use the web app for those, instead of a button that fails.
+On the iPhone app, Sara does not see passkey enrolment or any attendance (QR camera or passkey), and the Web Push
+control is absent on both platforms, instead of a button that fails. What replaces them is APP-Q17 (`TODO(spec)`;
+working assumption, the ⭐ option: one line pointing to the web app with a link).
 
-**Why this priority**: a store build must never show a control that cannot work (passkeys on iOS wait for #536 and
-O-4; Web Push does not exist inside a WebView; native push is MOB-19).
+**Why this priority**: a store build must never show a control that cannot work (attendance on iOS waits for the real-iPhone
+check M-1c-ii, and passkeys also for #536 and O-4; Web Push does not exist inside a WebView; native push is MOB-19).
 
 **Independent Test**: render the personal screens with the platform port reporting each capability off and check what
 is on screen.
 
 **Acceptance Scenarios**:
 
-1. **Given** the native build on iOS, **When** the personal area opens, **Then** passkey enrolment and passkey
-   attendance are absent and the «use the web app» line is visible.
+1. **Given** the native build on iOS before M-1c-ii passes, **When** the personal area opens, **Then** passkey
+   enrolment and all attendance (QR camera and passkey) are absent, and what APP-Q17 decides is shown (working
+   assumption: the «use the web app» line).
 2. **Given** the native build on either platform, **When** any screen that would offer Web Push renders, **Then** the
    control is absent.
 3. **Given** the web build (PWA), **When** the same screens render, **Then** they behave exactly as before.
@@ -85,7 +91,8 @@ is on screen.
 ### User Story 4 - Changing the phone's role (Priority: P3)
 
 The manager hands a tablet that was an employee's phone to the counter. In the app settings she picks «تغيير نوع
-الجهاز»; the app signs out every session on it, clears private forms, forgets the remembered business, and shows the
+الجهاز» (who may do this is APP-Q16, `TODO(spec)`; working assumption, the ⭐ option: anyone holding the device, after a
+clear confirmation); with the network on, the app ends every session on it at the server, clears private forms, forgets the remembered business, and shows the
 start screen again.
 
 **Why this priority**: rare, but a wrong role on a shared device would show one person's data to another.
@@ -133,19 +140,35 @@ start screen again.
   device (Dexie stores) across restarts and app updates.
 - **FR-005**: The native build MUST NOT register a service worker; the web build MUST keep registering it exactly as
   today.
-- **FR-006**: A single platform port MUST report, per capability, whether it is available: Web Push (never on native),
-  passkeys (off on both platforms until O-4 is done and, on iOS, issue #536; on Android also only if M-1c's check passes), camera (per M-1c). Screens read the
-  port; no screen tests the platform itself.
-- **FR-007**: A capability that is off MUST hide its control; what replaces it is [NEEDS CLARIFICATION: APP-Q17 — ⭐ a
-  line pointing to the web app with a link].
-- **FR-008**: Who may change the device's role: [NEEDS CLARIFICATION: APP-Q16 — ⭐ anyone holding the device, after a
-  clear confirmation]. Changing it MUST sign out every session on the device, clear private forms and caches,
-  forget the remembered business, and, for a counter device, remove the local pairing only after confirmation.
+- **FR-006**: A single platform port MUST report, per capability, whether it is available: Web Push (never on native);
+  passkeys (off on both platforms until O-4 is done, on iOS also until #536, on Android also only if M-1c's check
+  passes); attendance camera (Android per M-1c; **iOS off until M-1c-ii passes on a real iPhone**, ADR-0055 decision 3).
+  Screens read the port; no screen tests the platform itself.
+- **FR-007**: A capability that is off MUST NOT offer a working-looking control. What it shows instead is `TODO(spec)`
+  [NEEDS CLARIFICATION: APP-Q17 (PP-42.9)]; working assumption until answered, the ⭐ option: hide it and show one
+  line pointing to the web app with a link.
+- **FR-008**: Who may change the device's role: `TODO(spec)` [NEEDS CLARIFICATION: APP-Q16 (PP-42.8)]; working
+  assumption until answered, the ⭐ option: anyone holding the device, after a clear confirmation. A role change
+  **needs the network**: the staff and personal sessions are HttpOnly cookies that page code cannot delete, so the app
+  first calls the existing server sign-out for every open session and continues only when each has succeeded; with
+  no network the change is refused with a message. Then it clears private forms and caches, forgets the remembered
+  business, and, for a counter device, removes the local pairing only after confirmation.
 - **FR-009**: Nothing new is stored about the person: no phone number, code or session token is persisted by the app
   beyond what the PWA already does (ADR-0019 online-only rule).
 - **FR-010**: Every string MUST come from `packages/i18n` in Arabic and English; Arabic and RTL first; logical CSS only.
 - **FR-011**: How the app learns the employee's business on first use: `TODO(spec)` [NEEDS CLARIFICATION: APP-Q9 — the manager's
   link opens the app (⭐ recommended), a QR code in the back office scanned in the app, or both].
+- **FR-012**: If APP-Q9 picks the link, the app MUST handle the manager's link `https://<pos host>/personal?company=…&
+  business=…` on a cold start (the launch link) and on a warm start (a link opened while the app runs) the same way: it
+  accepts only that host and path, parses the two values with the existing `personalWorkspace` schema of
+  `packages/contracts`, ignores every other parameter, and then: with no role or the employee role, it sets the employee
+  role and remembers the business (signing out first if a different business has a session, as in the edge case); with
+  the counter role, it does not switch, and offers the role change of FR-008. An invalid or foreign link changes
+  nothing and shows the existing «ask your manager for your link» message. The «عندي لينك» paste uses the same parser.
+- **FR-013**: The device credentials and the remembered business MUST NOT travel in an OS backup to another device:
+  the Android project disables app backup (or excludes the WebView storage from backup and device transfer), and the
+  iOS project keeps that storage out of iCloud and device backups. A restored phone starts at the start screen and
+  pairs again. Built and checked in M-1a.
 
 ### Key Entities
 
@@ -191,8 +214,11 @@ the browser storage of the native build (the same IndexedDB layer the PWA uses),
 ### API contract
 
 No new endpoint. The app calls the existing routes of the PWA (device pairing, staff PIN/OTP, personal OTP,
-attendance). Environment changes on staging, done by the web manager (plan O-1): add `capacitor://localhost` to
-`AUTH_TRUSTED_ORIGINS` and the API CORS origins; the Android origin is already the POS host. If APP-Q9 picks the link,
+attendance, and the existing sign-out routes for FR-008). The Android origin is already the POS host. The iOS origin
+`capacitor://localhost` is **not** a trusted origin today: ADR-0027 requires exact configured POS origins, and that
+origin is shared by every Capacitor iOS app. Trusting it is `TODO(spec)` — it needs an ADR-0027 addendum agreed with
+the web manager (issue #549, next to #536 for passkeys) **before** plan step O-1 adds it to `AUTH_TRUSTED_ORIGINS` and
+the API CORS origins on staging. Until then the iOS session checks of M-1c cannot run. If APP-Q9 picks the link,
 two things are needed, both for the **POS host** that the manager's link uses (not the passkey relying-party host of
 O-4): the native projects declare the link (iOS Associated Domains entitlement `applinks:<pos host>`; Android a verified
 `intent-filter` for `https://<pos host>/personal`), built in M-1a; and the POS host serves the matching association
@@ -213,14 +239,21 @@ None published, none consumed.
 - **Domain unit**: none (no business arithmetic; `packages/domain` is not touched).
 - **UI tests** (`apps/pos`, Vitest + Testing Library, each asserting what is on screen, `CLAUDE.md` §9):
   `MOB-01` start screen shows both choices on first launch · `MOB-02` a stored choice opens its flow directly ·
-  `MOB-03` employee flow with no remembered business shows the connect instruction and no identifier field ·
-  `MOB-04` employee flow with a remembered business shows the personal sign-in · `MOB-05` passkey controls absent and
-  the web-app line visible when the port reports passkeys off · `MOB-06` Web Push control absent on native ·
+  `MOB-03` employee flow with no remembered business shows the connect instruction and no identifier field (a paste
+  box for the whole link, if APP-Q9 picks it, is allowed) ·
+  `MOB-04` employee flow with a remembered business shows the personal sign-in · `MOB-05` passkey and attendance controls absent when
+  the port reports them off, and the APP-Q17 replacement shown (working assumption: the web-app line) · `MOB-06` Web Push control absent on native ·
   `MOB-07` the web build renders the same screens unchanged · `MOB-08` role change signs out, clears forms and shows the
-  start screen, and the remembered business is gone from device storage · `MOB-09` counter role change asks for
-  confirmation, and only after it the pairing credentials are gone from device storage (cancel keeps them).
+  start screen, the server sign-out was called for each open session, and the remembered business is gone from device
+  storage · `MOB-10` with no network the role change is refused with its message and nothing is cleared · `MOB-09` counter role change asks for
+  confirmation, and only after it the pairing credentials are gone from device storage (cancel keeps them) ·
+  `MOB-11` a valid manager link on a cold start opens the employee flow with the business remembered · `MOB-12` the
+  same link while the app runs does the same · `MOB-13` a link with a foreign host, a wrong path or invalid ids
+  changes nothing and shows the «ask your manager» message · `MOB-14` a link on a counter-role device offers the role
+  change and switches nothing by itself.
 - **Build checks** (M-1a): the `native` build output registers no service worker; the web build output still does; a
-  staging and a production debug build carry different app ids and their own API origin.
+  staging and a production debug build carry different app ids and their own API origin; the Android manifest and the
+  iOS project exclude the app's storage from backups (FR-013).
 - **Device checks** (M-1c, recorded in [plan.md](plan.md)): (a) pairing, (b) staff PIN session, (c) personal OTP
   session, each surviving a restart; (d) attendance QR camera; (e) passkey behaviour. Android on a real phone; iOS
   (a)–(c) on the simulator, (d)–(e) on the first real iPhone (M-1c-ii).
@@ -234,7 +267,8 @@ None published, none consumed.
 - **SC-001**: On a paired Android tablet, the app opens to the paired-device screen within 3 seconds with no network.
 - **SC-002**: A staff PIN session and a personal session each survive an app restart on Android and on the iOS
   simulator (M-1c).
-- **SC-003**: No screen of the native build shows a control for a capability the platform port reports as off.
+- **SC-003**: No screen of the native build offers a working-looking control for a capability the platform port
+  reports as off.
 - **SC-004**: The web build's behaviour is unchanged: every existing `apps/pos` UI test passes without edits.
 - **SC-005**: A role change leaves no session, phone number or code on the device.
 
@@ -244,8 +278,8 @@ None published, none consumed.
   with the `packages/ui` components; who may use it is APP-Q16.
 - A personal phone may not be both an employee phone and a counter device at the same time (BR-001). If the owners
   later want one phone to do both, that is a new decision.
-- Attendance by passkey on iOS stays hidden until issue #536 and O-4 are done; the employee uses the PWA or the counter
-  device's card clock meanwhile.
+- On iOS all attendance stays hidden until M-1c-ii passes on a real iPhone, and passkey attendance also until #536 and
+  O-4 are done; the employee uses the PWA or the counter device's card clock meanwhile.
 - Web Push stays the PWA's channel until native push (MOB-19); the app shows no push control.
 - The cashier selling screens are not in the PWA yet; when they land (MOB-18) they appear in the counter flow with no
   change to this shell.
