@@ -135,13 +135,13 @@ export class RequesterDiscountProposalsQuery {
 
   async execute(scope: SessionDayScope, input: unknown): Promise<RequesterDiscountProposalList> {
     const query = discountProposalRequestQuery.parse(input);
-    const statement = requesterDiscountProposalsStatement(scope, query.request_id, this.clock.now());
     return this.db.withTenant(scope.companyId, async (tx) => {
       if (!await this.access.place(tx, scope)) throw new SessionDayReadError('FORBIDDEN');
-      const access = await this.access.access(tx, scope, this.clock.now());
+      const now = this.clock.now();
+      const access = await this.access.access(tx, scope, now);
       if (access.denied || !access.record || access.membership_ids.length === 0) throw new SessionDayReadError('FORBIDDEN');
       if (!access.feature) throw new SessionDayReadError('FEATURE_DISABLED');
-      const rows = await tx.execute<RequesterRow>(statement);
+      const rows = await tx.execute<RequesterRow>(requesterDiscountProposalsStatement(scope, query.request_id, now));
       return requesterDiscountProposalList.parse({ items: rows.map(toItem) });
     }, { userId: scope.userId });
   }

@@ -73,7 +73,7 @@ function cursorScope(scope: SessionDayScope) {
   return { v: 1 as const, company: scope.companyId, business: scope.businessId, branch: scope.branchId };
 }
 
-function decode(scope: SessionDayScope, query: PendingDiscountProposalQuery): PendingDiscountProposalCursor | null {
+export function decodePendingCursor(scope: SessionDayScope, query: PendingDiscountProposalQuery): PendingDiscountProposalCursor | null {
   if (query.cursor === undefined) return null;
   try {
     const bytes = Buffer.from(query.cursor, 'base64url');
@@ -86,7 +86,7 @@ function decode(scope: SessionDayScope, query: PendingDiscountProposalQuery): Pe
 
 // شاشة الموافقين: طلبات الفرع المعلّقة الحيّة فقط، بما يكفي الموافقة أن يقرر، وبلا هاتف ولا اسم كامل.
 export function pendingDiscountProposalsStatement(scope: SessionDayScope, query: PendingDiscountProposalQuery, now: Date) {
-  const cursor = decode(scope, query);
+  const cursor = decodePendingCursor(scope, query);
   const before = cursor === null
     ? sql``
     : sql`AND (d.requested_at,d.id)<(${cursor.at}::text::timestamptz,${cursor.id}::uuid)`;
@@ -166,12 +166,13 @@ export class PendingDiscountProposalsQuery {
 
   async execute(scope: SessionDayScope, input: unknown): Promise<PendingDiscountProposalPage> {
     const query = pendingDiscountProposalQuery.parse(input);
-    const statement = pendingDiscountProposalsStatement(scope, query, this.clock.now());
+    decodePendingCursor(scope, query);
     return this.db.withTenant(scope.companyId, async (tx) => {
       if (!await this.access.place(tx, scope)) throw new SessionDayReadError('FORBIDDEN');
+      const now = this.clock.now();
       const access = await this.access.read(tx, scope);
       if (access !== 'ALLOWED') throw new SessionDayReadError(access === 'DENIED' ? 'FORBIDDEN' : 'FEATURE_DISABLED');
-      const rows = await tx.execute<PendingRow>(statement);
+      const rows = await tx.execute<PendingRow>(pendingDiscountProposalsStatement(scope, query, now));
       const items = rows.slice(0, query.limit).map(toItem);
       const last = rows[query.limit - 1];
       return pendingDiscountProposalPage.parse({

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { requestDiscountApprovalResponse } from '@pospay/contracts';
-import { AT, ids, must, discountRequestFixture, type DiscountRequestFixture } from './session.fixture.ts';
+import { ordersPendingProposals, ordersRequesterProposals } from '../orders.module.ts';
+import { AT, ids, interceptDatabase, must, discountRequestFixture, type DiscountRequestFixture } from './session.fixture.ts';
 
 let f: DiscountRequestFixture;
 beforeAll(async () => { f = await discountRequestFixture(); });
@@ -215,5 +216,48 @@ it('the approver list refuses once the approver membership ends', async () => {
     });
   } finally {
     await f.h.owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.editorMembership}`;
+  }
+});
+
+/** لحظة انتهاء طلب محفوظ: أربع وعشرون ساعة بعد طلبه، بالثانية التالية لاختبار حدّ الانتهاء. */
+async function expiryInstant(requestId: string): Promise<Date> {
+  const [row] = await f.h.owner`SELECT requested_at FROM discount_proposals
+    WHERE company_id=${f.company} AND request_id=${requestId}`;
+  const raw = must(row)['requested_at'] as Date | string;
+  const requestedAt = raw instanceof Date ? raw : new Date(raw);
+  return new Date(requestedAt.getTime() + 24 * 60 * 60 * 1000 + 1000);
+}
+
+it('the requester read takes its instant inside the transaction, after any wait', async () => {
+  const body = await ask(1);
+  const expiry = await expiryInstant(body.request_id);
+  let moved = false;
+  const requester = ordersRequesterProposals(interceptDatabase(f.db, async () => {
+    if (moved) return;
+    moved = true;
+    f.setAt(expiry);
+  }), f.clock);
+  try {
+    const list = await requester.execute(scope(f.userId), { request_id: body.request_id });
+    expect(list.items[0]?.status).toBe('EXPIRED');
+  } finally {
+    f.setAt(AT);
+  }
+});
+
+it('the approver list takes its instant inside the transaction, after any wait', async () => {
+  const body = await ask(1);
+  const expiry = await expiryInstant(body.request_id);
+  let moved = false;
+  const pending = ordersPendingProposals(interceptDatabase(f.db, async () => {
+    if (moved) return;
+    moved = true;
+    f.setAt(expiry);
+  }), f.clock);
+  try {
+    const page = await pending.execute(scope(f.editorId), { limit: 100 });
+    expect(page.items.map((item) => item.id)).not.toContain(must(body.proposals[0]).id);
+  } finally {
+    f.setAt(AT);
   }
 });
