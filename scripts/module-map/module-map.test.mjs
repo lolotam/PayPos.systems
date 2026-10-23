@@ -446,3 +446,50 @@ describe('ADR-0049 documents renderer import', () => {
     );
   });
 });
+
+describe('ADR-0054 commissions engine import', () => {
+  const engineMap = {
+    ...MAP,
+    packagesRestricted: { ...MAP.packagesRestricted, 'commissions-engine': ['commissions'] },
+  };
+  const code = "import { computePeriod } from '@pospay/commissions-engine'; void computePeriod;\n";
+  const workerPackage = {
+    'apps/worker/package.json': '{"name":"@pospay/worker","dependencies":{}}',
+  };
+
+  it('allows the api commissions persistence to import the engine', () => {
+    assert.equal(
+      checkModules(
+        repo({
+          ...workerPackage,
+          'apps/api/src/modules/commissions/persistence/engine.ts': code,
+        }),
+        engineMap,
+      ).join('\n'),
+      '',
+    );
+  });
+
+  it('allows the worker commissions use case to import the engine', () => {
+    assert.equal(
+      checkModules(
+        repo({
+          ...workerPackage,
+          'apps/worker/src/modules/commissions/use-cases/engine.ts': code,
+        }),
+        engineMap,
+      ).join('\n'),
+      '',
+    );
+  });
+
+  it('refuses the engine outside the commissions module', () => {
+    assert.match(
+      checkModules(
+        repo({ ...workerPackage, 'apps/api/src/modules/staff/persistence/sneak.ts': code }),
+        engineMap,
+      ).join('\n'),
+      /may be imported only by commissions/,
+    );
+  });
+});
