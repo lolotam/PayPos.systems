@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — **APP-Q9 … APP-Q18 PENDING** (one batch; FR-007, FR-008, FR-011, BR-004 and the table «Owner decisions this spec waits on»). Each sub-PR starts once the questions it needs are answered.
+- [x] No [NEEDS CLARIFICATION] markers remain — APP-Q9 … APP-Q18 answered by Waleed on 2026-10-23 (batch 58, PP-42.1 … PP-42.10); Abu Salem's picks are pending and bind if they differ. Two `TODO(spec)`s remain on ADR-0027 addenda, not on the owners: #549 (iOS origin) and #536 (passkeys).
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -27,7 +27,7 @@
 
 - [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
-- [ ] Feature meets measurable outcomes defined in Success Criteria — after APP-Q9 … APP-Q18
+- [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
 ## Notes
