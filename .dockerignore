@@ -7,6 +7,7 @@
 !**/*.env.example
 **/node_modules
 **/dist
+**/dist-native
 **/.turbo
 **/.next
 **/coverage

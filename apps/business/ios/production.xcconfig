@@ -1,0 +1,2 @@
+// سطر xcodebuild بـ -xcconfig هو اللي بيختار النسخة دي، وإعدادات الملف بتتغلب على إعدادات المشروع.
+PRODUCT_BUNDLE_IDENTIFIER = systems.pospay.business

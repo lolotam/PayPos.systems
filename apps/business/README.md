@@ -19,12 +19,19 @@
 (ADR-0055 قرار 3). وتغيير الـ hostname أو الـ scheme بعد أول إصدار = origin جديد، والـ
 IndexedDB (ربط الجهاز وطابور المزامنة) بيضيع.
 
+On iOS النسخة بتاخدها `xcodebuild` من سطر `-xcconfig`: `-xcconfig ios/staging.xcconfig` أو
+`-xcconfig ios/production.xcconfig` (سير العمل بتاع M-1b بيبعته). والبناء من غير السطر ده
+بيطلع نسخة `staging`، فالرفع على production من غيره بيت رفض من الـ bundle id بتاعه بدل ما
+ينزل التطبيق الغلط.
+
 ## المزامنة
 
-البناء الأول لازم يكون نسخة التطبيق الأصلي، لأن `webDir` بيشاور على `apps/pos/dist-native`:
+البناء الأول لازم يكون نسخة التطبيق الأصلي، لأن `webDir` بيشاور على `apps/pos/dist-native`،
+والـ API origin بيتخبّط جوّه الحزمة، فكل نسخة ليها بناء خاص بيها:
 
 ```bash
-pnpm --filter @pospay/pos build:native
+VITE_API_URL=https://api.staging.pospay.systems FLAVOUR=staging pnpm --filter @pospay/pos build:native
+VITE_API_URL=https://api.pospay.systems FLAVOUR=production pnpm --filter @pospay/pos build:native
 ```
 
 بعدين مزامنة الأصول داخل المشروع الأصلي، وهي الطريقة المسموحة الوحيدة:
@@ -37,6 +44,10 @@ pnpm --filter @pospay/business sync:production
 كل أمر بيشغّل `cap sync` للمنصتين واحدة واحدة — أندرويد الأول وبعدين iOS — مع `FLAVOUR`
 المناسب. و`cap sync` لوحده مش مسموح: هيسيب أندرويد من غير الـ hostname بتاعه. مفيش أمر
 `build` هنا عن قصد: بناء لينكس ما يحتاجش Xcode ولا Android SDK.
+
+الـ `dist-native` وأصول أندرويد بيحملوا نسخة واحدة في كل مرة، فزامن النسخة اللي هتبني
+بعدها، وبعدين ابني نفس نسخة Gradle. والأمر `pnpm turbo run sync:staging --filter=@pospay/business`
+(أو `sync:production`) بيبني نسخة التطبيق الأصلي الأول وبعدين يزامن.
 
 ## أسرار الـ CI
 
