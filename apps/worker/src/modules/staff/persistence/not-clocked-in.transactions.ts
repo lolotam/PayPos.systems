@@ -157,7 +157,7 @@ export async function lockEmployee(tx: Tx, companyId: string, employeeId: string
     WHERE company_id = ${companyId} AND id = ${employeeId} FOR SHARE`);
 }
 
-async function readShift(
+export async function readShift(
   tx: Tx,
   companyId: string,
   employeeId: string,
@@ -252,7 +252,7 @@ function toDueShift(row: DueRow): DueShift {
   };
 }
 
-function toLockedShift(row: ShiftRow, place: BranchPlace): LockedShift {
+export function toLockedShift(row: ShiftRow, place: BranchPlace): LockedShift {
   return {
     ...toDueShift(row),
     businessId: row.business_id,

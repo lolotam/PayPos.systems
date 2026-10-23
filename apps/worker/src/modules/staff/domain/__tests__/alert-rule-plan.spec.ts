@@ -1,10 +1,11 @@
-import { effectiveAlertRule } from '@pospay/domain';
+import { effectiveAlertRule, type EffectiveAlertRule } from '@pospay/domain';
 import { describe, expect, it } from 'vitest';
 import {
   MIN_ALERT_DELAY_MS,
   employeePushRecipient,
   inAppAlertOn,
   inAppAlertRoles,
+  leadAlertPlan,
   periodicAlertPlan,
   type PeriodicAlertRule,
 } from '../alert-rule-plan.ts';
@@ -20,6 +21,18 @@ function rule(patch: Partial<PeriodicAlertRule> = {}): PeriodicAlertRule {
     channels: ['IN_APP'],
     fixedRecipients: [{ selector: 'EMPLOYEE_PUSH' }],
     delayMinutes: 20,
+    ...patch,
+  };
+}
+
+function leadRule(
+  patch: Partial<Pick<EffectiveAlertRule, 'kind' | 'enabled' | 'fixedRecipients' | 'leadMinutes'>> = {},
+): Pick<EffectiveAlertRule, 'kind' | 'enabled' | 'fixedRecipients' | 'leadMinutes'> {
+  return {
+    kind: 'SHIFT_ENDS_SOON',
+    enabled: true,
+    fixedRecipients: [{ selector: 'EMPLOYEE_PUSH' }],
+    leadMinutes: null,
     ...patch,
   };
 }
@@ -83,6 +96,42 @@ describe('periodicAlertPlan', () => {
 
   it('has no employee push when the kind carries no fixed recipient', () => {
     expect(periodicAlertPlan(rule({ fixedRecipients: [] })).employeePush).toBe(false);
+  });
+});
+
+describe('leadAlertPlan', () => {
+  it('takes the kind default lead when the rule row carries none', () => {
+    expect(leadAlertPlan(leadRule())).toEqual({
+      enabled: true,
+      leadMs: 30 * MINUTE,
+      employeePush: true,
+    });
+  });
+
+  it('takes the stored lead of the rule', () => {
+    expect(leadAlertPlan(leadRule({ leadMinutes: 45 })).leadMs).toBe(45 * MINUTE);
+  });
+
+  it('keeps the stored lead of a closed rule so the suppression path knows it was overdue', () => {
+    const closed = effectiveAlertRule(
+      'SHIFT_ENDS_SOON',
+      { enabled: false, recipientRoles: [], channels: [], delayMinutes: null, leadMinutes: 45 },
+      null,
+      null,
+    );
+    expect(leadAlertPlan(closed)).toEqual({
+      enabled: false,
+      leadMs: 45 * MINUTE,
+      employeePush: false,
+    });
+  });
+
+  it('gives the employee push when the rule carries the fixed recipient', () => {
+    expect(leadAlertPlan(leadRule()).employeePush).toBe(true);
+  });
+
+  it('has no employee push when the rule carries no fixed recipient', () => {
+    expect(leadAlertPlan(leadRule({ fixedRecipients: [] })).employeePush).toBe(false);
   });
 });
 

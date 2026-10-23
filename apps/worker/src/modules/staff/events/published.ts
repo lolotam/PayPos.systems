@@ -52,6 +52,18 @@ export interface ShiftBreakNotReturned {
   readonly returned_at?: string;
 }
 
+/** يصدر مرة واحدة لكل موظف وكل لحظة نهاية وردية، في معاملة سطر الدفتر، لمّا لحظة التذكير تكون قد مضت وهي شغالة والقاعدة مفتوحة؛ ومفيش مستلم غير الموظفة نفسها على قناة الدفع، وهو موجود بس لو ليها حساب مرتبط بعضوية سارية. */
+export interface ShiftEndsSoon {
+  readonly notice_id: string;
+  readonly employee_id: string;
+  readonly business_id: string;
+  readonly branch_id: string;
+  readonly shift_starts_at: string;
+  readonly shift_ends_at: string;
+  readonly remind_at: string;
+  readonly detected_at: string;
+}
+
 /** يصدر مرة واحدة لكل وثيقة لكل تاريخ انتهاء عند إرفاق مستلميه، وبس لما قاعدة نوع DOCUMENT_EXPIRING توصّل لصاحب صلاحية read:files:business واحد على الأقل؛ صف لكل مجموعة مستلمين بسقف مئة. */
 export interface DocumentExpiring {
   readonly document_id: string;
