@@ -22,7 +22,7 @@ x-app-env: &app-env
 
 x-staff-otp-env: &staff-otp-env
   STAFF_OTP_ENABLED: ${STAFF_OTP_ENABLED:-}
-  STAFF_OTP_POS_ORIGIN: ${STAFF_OTP_POS_ORIGIN:-}
+  STAFF_OTP_POS_ORIGIN: ${STAFF_OTP_POS_ORIGIN:-https://${POS_STAGING_HOST:?}}
   STAFF_OTP_DERIVATION_KEY: ${STAFF_OTP_DERIVATION_KEY:-}
   STAFF_OTP_DERIVATION_KEY_ID: ${STAFF_OTP_DERIVATION_KEY_ID:-}
   STAFF_OTP_DERIVATION_RETIRED_KEYS: ${STAFF_OTP_DERIVATION_RETIRED_KEYS:-}
@@ -70,7 +70,7 @@ services:
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
       BETTER_AUTH_URL: https://${STAGING_HOST:?}
-      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${STAGING_HOST:?}}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${ADMIN_STAGING_HOST:?},https://${POS_STAGING_HOST:?}}
       PLATFORM_NOTIFICATIONS_DATABASE_URL: ${PLATFORM_NOTIFICATIONS_DATABASE_URL:-}
       WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
       WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
@@ -81,7 +81,7 @@ services:
       NOTIFICATION_MESSAGE_ID_HASH_KEY: ${NOTIFICATION_MESSAGE_ID_HASH_KEY:-}
       WHATSAPP_STOP_BUTTON_ID: ${WHATSAPP_STOP_BUTTON_ID:-}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
-      COOKIE_DOMAIN: .${STAGING_HOST:?}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.staging.pospay.systems}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -106,7 +106,7 @@ services:
     environment:
       <<: [*app-env, *staff-otp-env]
       AUTH_DATABASE_URL: postgres://pospay_auth:${POSTGRES_AUTH_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
-      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${ADMIN_STAGING_HOST:?},https://${POS_STAGING_HOST:?}}
 
       DISPATCHER_DATABASE_URL: postgres://pospay_dispatcher:${POSTGRES_DISPATCHER_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
       # ADR-0019: OTP activation independent; tenant outbound remains separately closed.
@@ -122,6 +122,47 @@ services:
         condition: service_completed_successfully
     networks: [dokploy-network]
     mem_limit: 1g
+
+  # The staging back-office and cashier. Both bake the API origin at build time, so CI builds staging variants with
+  # https://api.staging.pospay.systems (pospay-admin-staging, pospay-pos-staging); the plain images are origin-less.
+  # Hosts follow ADR-0001 §6: app.staging (back-office), pos.staging (cashier), api.staging (STAGING_HOST).
+  admin:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-admin-staging:${IMAGE_TAG:?}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    networks: [dokploy-network]
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.pospay-staging-admin.rule: Host(`${ADMIN_STAGING_HOST:?}`)
+      traefik.http.routers.pospay-staging-admin.entrypoints: websecure
+      traefik.http.routers.pospay-staging-admin.tls.certresolver: letsencrypt
+      traefik.http.routers.pospay-staging-admin-http.rule: Host(`${ADMIN_STAGING_HOST:?}`)
+      traefik.http.routers.pospay-staging-admin-http.entrypoints: web
+      traefik.http.routers.pospay-staging-admin-http.middlewares: redirect-to-https@file
+      traefik.http.services.pospay-staging-admin.loadbalancer.server.port: '3000'
+    mem_limit: 512m
+
+  pos:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-pos-staging:${IMAGE_TAG:?}
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [dokploy-network]
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.pospay-staging-pos.rule: Host(`${POS_STAGING_HOST:?}`)
+      traefik.http.routers.pospay-staging-pos.entrypoints: websecure
+      traefik.http.routers.pospay-staging-pos.tls.certresolver: letsencrypt
+      traefik.http.routers.pospay-staging-pos-http.rule: Host(`${POS_STAGING_HOST:?}`)
+      traefik.http.routers.pospay-staging-pos-http.entrypoints: web
+      traefik.http.routers.pospay-staging-pos-http.middlewares: redirect-to-https@file
+      traefik.http.services.pospay-staging-pos.loadbalancer.server.port: '8080'
+    mem_limit: 128m
 
 networks:
   dokploy-network:
