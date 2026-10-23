@@ -34,7 +34,7 @@ export type PushQueueStarter = (
   redisUrl: string,
   send: SendPush,
   logger: Logger,
-) => Promise<PushQueue>;
+) => PushQueue | Promise<PushQueue>;
 
 /** جاهزية الدفع في العامل: هل هو شغّال، ووين يروح حدث الإذن، وإزاي يتقفل. */
 export interface PushCapability {
@@ -75,7 +75,7 @@ async function unavailable(logger: Logger, queue?: PushQueue): Promise<void> {
 }
 
 /**
- * يربط قناة الدفع بالعداد: المزيف في التطوير غير المباشر بس، وكل حالة تانية قناة حقيقية.
+ * يختار قناة الدفع: المزيفة خارج الإنتاج وبوضع fake بس، وكل حالة تانية قناة حقيقية.
  * القاعدة: الـ staging بيشتغل NODE_ENV=production والوضع المزيف افتراضي، فلازم يبعت دفع حقيقي
  * لما مفاتيح VAPID تكون متركّبة.
  *
@@ -154,8 +154,8 @@ export function startPushQueue(redisUrl: string, send: SendPush, logger: Logger)
 
 /**
  * يشغّل قدرة الدفع في العامل.
- * القاعدة: الجاهزية مقسومة (ADR-0052 قرار 2): التلات متغيرات صحّة ومفتاحان متوافقان بس هو اللي بيفعّل
- * الإرسال؛ وإلا القدرة بتقفل من غير ما المستهلك يكتب محاولات ما حدش هيبعتها.
+ * القاعدة: الجاهزية مقسومة (ADR-0052 قرار 2): الإرسال بيتفعّل بس لما التلات متغيرات تكون صحيحة
+ * والمفتاحين متوافقين؛ وإلا القدرة بتقفل ومحدش بيكتب محاولات مفيش اللي يبعتها.
  *
  * @param options إعدادات البدء
  * @param start   دالة فتح الطابور، بتُحقن في الاختبار

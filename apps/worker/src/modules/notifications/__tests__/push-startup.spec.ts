@@ -66,7 +66,7 @@ it('an unconfigured environment stays disabled and hands the events over untouch
   const text = lines.join('');
   expect(text).toContain('DISABLED');
   expect(text).toContain('NOT_CONFIGURED');
-  const next = async () => ({ delivered: true });
+  const next = async () => ({ delivered: true as const });
   expect(capability.transport(next)).toBe(next);
 });
 

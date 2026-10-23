@@ -130,7 +130,7 @@ const businessDeliver = createDeliverer(
 );
 let queue: OptionalCapabilities['queue'];
 let documents: DocumentRendering | undefined;
-// حدث إذن الدفع بيروح للطابور بس لما الدفع جاهز؛ معطّل التسليم بيرجع زي ما هو.
+// حدث إذن الدفع بيروح للطابور بس لما الدفع جاهز؛ ولو مش جاهز التسليم يرجع زي ما هو.
 const pushTransport = push.transport((claimed) => (queue?.deliver ?? businessDeliver)(claimed));
 const deliver: typeof businessDeliver = (event) =>
   deliverFilesEvent(event, {
