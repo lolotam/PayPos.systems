@@ -14,6 +14,10 @@ import { RetireBusinessLogo } from './use-cases/retire-business-logo/retire-busi
 import { logoRetirementStore } from './persistence/logo-retirement.ts';
 import { logoReference } from './persistence/logo-reference.ts';
 import { retireBusinessLogoConsumer } from './events/handlers/on-business-logo-changed.ts';
+import { ReadStatementLogo } from './use-cases/read-statement-logo/read-statement-logo.ts';
+import { statementLogoRepository } from './persistence/statement-logo.repository.ts';
+import { statementLogoStorage } from './persistence/statement-logo-storage.adapter.ts';
+import type { StatementLogoRequest } from './domain/statement-logo.ts';
 import type { Clock } from './ports/verification.port.ts';
 
 type StorageCapability = Exclude<ReturnType<typeof optionalStorage>, null>;
@@ -35,11 +39,18 @@ export function startFilesWorker(
     stored?.artifacts,
   );
   const retention = startRetentionProcessors(cleanup, redisUrl, 'bull', capability !== null);
+  const statementLogo = new ReadStatementLogo(
+    statementLogoRepository(db, ids),
+    capability === null ? null : statementLogoStorage(capability.storage),
+    clock,
+  );
   return {
     consumer: retireBusinessLogoConsumer(
       new RetireBusinessLogo(logoRetirementStore(), logoReference(), clock),
     ),
     deliver: retention.deliver,
+    readStatementLogo: (companyId: string, request: StatementLogoRequest, signal?: AbortSignal) =>
+      statementLogo.execute(companyId, request, signal),
     close: async () => {
       await stored?.processor.close();
       await retention.close();
