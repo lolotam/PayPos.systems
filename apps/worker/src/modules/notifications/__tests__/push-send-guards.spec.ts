@@ -3,6 +3,8 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { TENANT } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { createPushDeliveryRepository } from '../persistence/drizzle-push-delivery.repository.ts';
 import type { PushAdmission } from '../ports/push-admission.port.ts';
+import type { PushDeliveryRepository } from '../ports/push-delivery.repository.ts';
+import type { PushRequestBuilder } from '../ports/push-request-builder.port.ts';
 import { SendPush } from '../use-cases/send-push/send-push.ts';
 import { NOW } from './push-harness.ts';
 import { pushSendHarness } from './push-send-harness.ts';
@@ -16,14 +18,21 @@ afterAll(async () => {
   await h.close();
 });
 
-const send = (admission: PushAdmission, clock = h.send.clock) =>
+const send = (
+  over: {
+    admission?: PushAdmission;
+    clock?: { now: () => Date };
+    deliveries?: PushDeliveryRepository;
+    builder?: PushRequestBuilder;
+  } = {},
+) =>
   new SendPush(
-    h.send.deliveries,
-    h.send.builder,
+    over.deliveries ?? h.send.deliveries,
+    over.builder ?? h.send.builder,
     h.send.channel,
-    admission,
+    over.admission ?? h.send.admission,
     h.send.keyId,
-    clock,
+    over.clock ?? h.send.clock,
     h.send.ids,
   );
 
@@ -49,10 +58,14 @@ it('records a changed subscription instead of leaving the attempt pending', asyn
   const { attemptId, subscriptionId } = await h.authorizeAttempt('ar');
   const before = h.channel.calls;
   const changing = send({
-    reserve: async () => {
-      await h.owner`UPDATE push_subscriptions SET generation = generation + 1
-        WHERE id = ${subscriptionId}`;
-      return true;
+    deliveries: {
+      ...h.send.deliveries,
+      pending: async (company: string, id: string) => {
+        const delivery = await h.send.deliveries.pending(company, id);
+        await h.owner`UPDATE push_subscriptions SET generation = generation + 1
+          WHERE id = ${subscriptionId}`;
+        return delivery;
+      },
     },
   });
   const result = await changing.execute(TENANT.A.company, attemptId);
@@ -67,15 +80,15 @@ it('expires an attempt whose deadline passed between the build and the claim', a
   const before = h.channel.calls;
   let current = NOW;
   const clock = { now: () => new Date(current) };
-  const advancing = send(
-    {
-      reserve: async () => {
+  const advancing = send({
+    clock,
+    builder: {
+      build: async (delivery, now) => {
         current = new Date(NOW.getTime() + 3_600_000);
-        return true;
+        return h.send.builder.build(delivery, now);
       },
     },
-    clock,
-  );
+  });
   const result = await advancing.execute(TENANT.A.company, attemptId);
   expect(result).toMatchObject({ status: 'EXPIRED', failureCode: 'DEADLINE_EXPIRED' });
   expect(h.channel.calls).toBe(before);
@@ -99,8 +112,10 @@ it('records a failed admission instead of leaving the attempt pending', async ()
   const { attemptId } = await h.authorizeAttempt('ar');
   const before = h.channel.calls;
   const failing = send({
-    reserve: async () => {
-      throw new Error('PUSH_ADMISSION_UNAVAILABLE');
+    admission: {
+      reserve: async () => {
+        throw new Error('PUSH_ADMISSION_UNAVAILABLE');
+      },
     },
   });
   const result = await failing.execute(TENANT.A.company, attemptId);
@@ -108,4 +123,8 @@ it('records a failed admission instead of leaving the attempt pending', async ()
   expect(h.channel.calls).toBe(before);
   const [row] = await h.attempt(attemptId);
   expect(row).toMatchObject({ status: 'FAILED', failure_code: 'ADMISSION_REFUSED' });
+  // المحاولة اتحجزت قبل رفض الحجز، فالسجل بيحمل سياج التنفيذ.
+  expect(row?.['execution_id']).not.toBeNull();
+  expect(row?.['sending_at']).not.toBeNull();
+  expect(await h.events(attemptId)).toHaveLength(1);
 });

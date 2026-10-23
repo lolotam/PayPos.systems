@@ -156,7 +156,8 @@ services:
       DISPATCHER_DATABASE_URL: postgres://pospay_dispatcher:${POSTGRES_DISPATCHER_PASSWORD:?}@postgres:5432/pospay
       # ADR-0019: OTP activation independent; tenant outbound remains separately closed.
       PLATFORM_NOTIFICATIONS_DATABASE_URL: ${PLATFORM_NOTIFICATIONS_DATABASE_URL:-}
-      NOTIFICATIONS_MODE: ${NOTIFICATIONS_MODE:-fake}
+      # Staff push (ADR-0052): production refuses fake mode, so an empty value is the default here; only `live` (staff OTP) or empty keep push enabled.
+      NOTIFICATIONS_MODE: ${NOTIFICATIONS_MODE:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}

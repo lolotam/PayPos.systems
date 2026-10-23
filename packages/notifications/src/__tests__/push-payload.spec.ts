@@ -14,7 +14,7 @@ const INPUT = {
   body: 'لسه مفيش بصمة حضور ليك لشيفت الساعة 10:00 في Salmiya.',
   tag: 'shift_not_clocked_in_self',
   lang: 'ar' as const,
-  token: '01920000-0000-4000-8000-0000000000d1',
+  token: 'synthetic-delivery-token',
 };
 
 // حمولة بحجم بالبايت محدد: العنوان هو الحقل الوحيد اللي بيتظبط.

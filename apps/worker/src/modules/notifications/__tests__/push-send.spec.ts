@@ -38,6 +38,33 @@ it('sends once when two executions race for the same attempt', async () => {
   expect(h.channel.calls).toBe(before + 1);
 });
 
+it('reserves one admission slot when two executions race for the same attempt', async () => {
+  const { attemptId } = await h.authorizeAttempt('ar');
+  const before = h.channel.calls;
+  let reserved = 0;
+  const limited = new SendPush(
+    h.send.deliveries,
+    h.send.builder,
+    h.send.channel,
+    {
+      reserve: async () => {
+        reserved += 1;
+        return true;
+      },
+    },
+    h.send.keyId,
+    h.send.clock,
+    h.send.ids,
+  );
+  await Promise.all([
+    limited.execute(TENANT.A.company, attemptId),
+    limited.execute(TENANT.A.company, attemptId),
+  ]);
+  expect(reserved).toBe(1);
+  expect(h.channel.calls).toBe(before + 1);
+  expect((await h.attempt(attemptId))[0]?.['status']).toBe('SENT');
+});
+
 it('sends nothing when the claim is lost', async () => {
   const { attemptId } = await h.authorizeAttempt('ar');
   const before = h.channel.calls;

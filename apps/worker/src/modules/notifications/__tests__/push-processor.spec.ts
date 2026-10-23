@@ -7,6 +7,9 @@ import type { PushSendOutcome } from '../use-cases/send-push/send-push.ts';
 const COMPANY = '01920000-0000-7000-8000-0000000000a1';
 const ATTEMPT = '01920000-0000-7000-8000-0000000000b1';
 const SUBSCRIPTION = '01920000-0000-7000-8000-0000000000c1';
+const USER = '01920000-0000-7000-8000-0000000000d1';
+const BUSINESS = '01920000-0000-7000-8000-0000000000e1';
+const BRANCH = '01920000-0000-7000-8000-0000000000f1';
 
 interface LogCall {
   readonly level: string;
@@ -28,6 +31,10 @@ function spyLogger() {
 }
 
 const outcome = (over: Partial<PushSendOutcome> = {}): PushSendOutcome => ({
+  companyId: COMPANY,
+  userId: USER,
+  businessId: BUSINESS,
+  branchId: BRANCH,
   attemptId: ATTEMPT,
   subscriptionId: SUBSCRIPTION,
   status: 'SENT',
@@ -77,7 +84,7 @@ it('a failure of the attempt is hidden behind a bounded reason', async () => {
   expect(error?.cause).toBeUndefined();
 });
 
-it('an outcome is logged with the five fields and nothing else', async () => {
+it('an outcome is logged with the tenant fields and nothing else', async () => {
   const { calls, logger } = spyLogger();
   const processor = pushProcessor({ execute: async () => outcome() }, logger);
   await processor(job);
@@ -86,6 +93,10 @@ it('an outcome is logged with the five fields and nothing else', async () => {
   expect(calls[0]?.message).toBe('push attempt finished');
   expect(calls[0]?.object).toEqual({
     push: {
+      companyId: COMPANY,
+      userId: USER,
+      businessId: BUSINESS,
+      branchId: BRANCH,
       attemptId: ATTEMPT,
       subscriptionId: SUBSCRIPTION,
       status: 'SENT',
@@ -114,7 +125,12 @@ it('a rejected VAPID key adds the one warn line', async () => {
   expect(calls[1]?.level).toBe('warn');
   expect(calls[1]?.message).toBe('push provider rejected the VAPID key');
   expect(calls[1]?.object).toEqual({
-    capability: { name: 'STAFF_PUSH', outcome: 'VAPID_REJECTED' },
+    capability: {
+      name: 'STAFF_PUSH',
+      outcome: 'VAPID_REJECTED',
+      companyId: COMPANY,
+      attemptId: ATTEMPT,
+    },
   });
 });
 

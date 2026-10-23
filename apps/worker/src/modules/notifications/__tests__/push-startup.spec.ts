@@ -10,12 +10,12 @@ import type { Queue } from 'bullmq';
 import { expect, it } from 'vitest';
 
 import {
-  bindPushChannel,
   startPushCapability,
   type PushCapability,
   type PushQueue,
   type PushStartupOptions,
 } from '../push-startup.module.ts';
+import type { SendPush } from '../use-cases/send-push/send-push.ts';
 
 const pair = generateVapidKeyPair();
 const other = generateVapidKeyPair();
@@ -41,9 +41,9 @@ const logger = createLogger('info', {
   },
 });
 
-const options = (env: NodeJS.ProcessEnv): PushStartupOptions => ({
+const options = (env: NodeJS.ProcessEnv, production = false): PushStartupOptions => ({
   env,
-  production: false,
+  production,
   logger,
   clock: { now: () => new Date('2026-10-23T10:00:00Z') },
   ids: { newId: () => '01920000-0000-7000-8000-0000000000b1' },
@@ -150,32 +150,66 @@ it('a disabled capability stops and closes without touching anything', async () 
   expect(capability.enabled).toBe(false);
 });
 
-it('binds a real channel in production even when the mode is fake', () => {
-  const channel = bindPushChannel(
-    { NOTIFICATIONS_MODE: 'fake' },
-    true,
-    { now: () => new Date('2026-10-23T10:00:00Z') },
-    CONFIGURATION,
+it('production refuses the fake mode and keeps the authorizations in the outbox', async () => {
+  lines.length = 0;
+  const capability = await startPushCapability(
+    options({ ...ENV, NOTIFICATIONS_MODE: 'fake' }, true),
   );
-  expect(channel).toBeInstanceOf(WebPushChannel);
+  expect(capability.enabled).toBe(false);
+  const text = lines.join('');
+  expect(text).toContain('DISABLED');
+  expect(text).toContain('FAKE_IN_PRODUCTION');
+  let handed = 0;
+  const transport = capability.transport(async () => {
+    handed += 1;
+    return { delivered: true as const };
+  });
+  expect(await transport(claimed())).toMatchObject({ delivered: false, error: 'PUSH_DISABLED' });
+  expect(handed).toBe(0);
 });
 
-it('binds the fake channel outside production when the mode is fake', () => {
-  const channel = bindPushChannel(
-    { NOTIFICATIONS_MODE: 'fake' },
-    false,
-    { now: () => new Date('2026-10-23T10:00:00Z') },
-    CONFIGURATION,
+it('the fake mode outside production needs no keys at all', async () => {
+  lines.length = 0;
+  let starts = 0;
+  const sends: SendPush[] = [];
+  const capability = await startPushCapability(
+    options({ NOTIFICATIONS_MODE: 'fake' }),
+    async (_redisUrl, send) => {
+      starts += 1;
+      sends.push(send);
+      return queue();
+    },
   );
-  expect(channel).toBeInstanceOf(FakePushChannel);
+  expect(capability.enabled).toBe(true);
+  expect(starts).toBe(1);
+  expect(sends[0]?.channel).toBeInstanceOf(FakePushChannel);
+  expect(lines.join('')).toContain('READY');
 });
 
-it('binds a real channel outside production without a mode', () => {
-  const channel = bindPushChannel(
-    {},
-    false,
-    { now: () => new Date('2026-10-23T10:00:00Z') },
-    CONFIGURATION,
+it('the fake mode outside production uses the key id of a valid pair', async () => {
+  lines.length = 0;
+  const capability = await startPushCapability(
+    options({ ...ENV, NOTIFICATIONS_MODE: 'fake' }),
+    async () => queue(),
   );
-  expect(channel).toBeInstanceOf(WebPushChannel);
+  expect(capability.enabled).toBe(true);
+  expect(lines.join('')).toContain(CONFIGURATION.keyId);
+});
+
+it('a valid pair outside production binds the real channel', async () => {
+  const sends: SendPush[] = [];
+  await startPushCapability(options(ENV), async (_redisUrl, send) => {
+    sends.push(send);
+    return queue();
+  });
+  expect(sends[0]?.channel).toBeInstanceOf(WebPushChannel);
+});
+
+it('a valid pair in production binds the real channel', async () => {
+  const sends: SendPush[] = [];
+  await startPushCapability(options(ENV, true), async (_redisUrl, send) => {
+    sends.push(send);
+    return queue();
+  });
+  expect(sends[0]?.channel).toBeInstanceOf(WebPushChannel);
 });

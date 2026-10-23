@@ -1,3 +1,6 @@
+import type { IncomingMessage } from 'node:http';
+import { request as httpsRequest } from 'node:https';
+
 import type { PushChannel, PushRequest, PushResult, PushTarget } from '../push/channel.ts';
 import { readPushWorkerConfiguration } from '../push/worker-configuration.ts';
 
@@ -21,6 +24,11 @@ export type WebPushSender = (
   options: WebPushRequestOptions,
 ) => Promise<{ statusCode: number }>;
 
+/** مرسل بيجهّز نفسه قبل الفحص؛ تحميل المكتبة بياخد وقت والموعد بيتحسب بعده. */
+interface PreparableSender extends WebPushSender {
+  prepare?(): Promise<void>;
+}
+
 /** إعدادات قناة الدفع: مفاتيح VAPID والساعة ومهلة الطلب والمرسل. */
 export interface WebPushChannelOptions {
   readonly vapid: {
@@ -31,36 +39,109 @@ export interface WebPushChannelOptions {
   readonly now: () => Date;
   readonly timeoutMs?: number;
   readonly sender?: WebPushSender;
+  /** طلب Node نفسه؛ بيحقن في الاختبار من غير شبكة. */
+  readonly request?: typeof httpsRequest;
 }
 
 // المكتبة بتتحمّل عند أول إرسال حقيقي بس: الـ API بيستورد الحزمة دي، فاستيرادها ما يحمّلش web-push.
 type WebPushLibrary = {
-  sendNotification(
+  generateRequestDetails(
     subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
     payload: string,
     options: WebPushRequestOptions,
-  ): Promise<{ statusCode: number }>;
+  ): {
+    method: string;
+    headers: Record<string, string | number | undefined>;
+    body: Buffer | null;
+    endpoint: string;
+  };
 };
 
-// المرسل الافتراضي: طلب واحد لمكتبة web-push، والرد بيتقلّم لرقم الحالة بس.
-const librarySender: WebPushSender = async (target, payload, options) => {
-  const { default: webpush } = (await import('web-push')) as unknown as {
-    default: WebPushLibrary;
+let library: Promise<WebPushLibrary> | null = null;
+
+function loadLibrary(): Promise<WebPushLibrary> {
+  library ??= (async () => {
+    const imported = (await import('web-push')) as unknown as { default: WebPushLibrary };
+    return imported.default;
+  })();
+  return library;
+}
+
+/**
+ * المرسل الافتراضي: تشفير وتوقيع من المكتبة، ثم طلب واحد بـ Node بمهلة مطلقة.
+ * القاعدة: مهلة المكتبة هي مهلة خمول السوكِت بس، فالمهلة المطلقة بتتعمل هنا بـ AbortController؛
+ * الرد بيتقرا رمز حالته بس وال BODY بيتهمل من غير ما يتبع تحويل.
+ */
+function defaultSender(request: typeof httpsRequest): PreparableSender {
+  return {
+    prepare: async () => {
+      await loadLibrary();
+    },
+    send: async (target, payload, options) => {
+      const webpush = await loadLibrary();
+      const details = webpush.generateRequestDetails(
+        { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },
+        payload,
+        options,
+      );
+      return sendOnce(request, details, options.timeout);
+    },
   };
-  const response = await webpush.sendNotification(
-    { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },
-    payload,
-    options,
-  );
-  return { statusCode: response.statusCode };
-};
+}
+
+// طلب واحد بمهلة مطلقة: الاتصال والطلب والرد كلهم جوّه نفس الوقت.
+// الرد بيتدمّر من غير قراءة جسمه، وأي خطأ بيتحوّل لسبب محدود من غير نصّه.
+function sendOnce(
+  request: typeof httpsRequest,
+  details: {
+    method: string;
+    headers: Record<string, string | number | undefined>;
+    body: Buffer | null;
+    endpoint: string;
+  },
+  timeoutMs: number,
+): Promise<{ statusCode: number }> {
+  return new Promise((resolve, reject) => {
+    const abort = new AbortController();
+    let timer: NodeJS.Timeout | undefined;
+    const fail = (error: Error) => {
+      if (timer !== undefined) clearTimeout(timer);
+      reject(error);
+    };
+    timer = setTimeout(() => {
+      abort.abort();
+      fail(new Error('PUSH_REQUEST_TIMEOUT'));
+    }, timeoutMs);
+    try {
+      const req = request(
+        details.endpoint,
+        {
+          method: details.method,
+          headers: details.headers,
+          signal: abort.signal,
+        },
+        (response: IncomingMessage) => {
+          const statusCode = response.statusCode ?? 0;
+          response.destroy();
+          clearTimeout(timer);
+          resolve({ statusCode });
+        },
+      );
+      req.on('error', (error: Error) => fail(error));
+      if (details.body !== null) req.write(details.body);
+      req.end();
+    } catch (error) {
+      fail(error as Error);
+    }
+  });
+}
 
 /**
  * قناة الدفع الحقيقية: بتعمل طلب واحد لخدمة الدفع وبترجّع النتيجة من غير إعادة محاولة.
  * القاعدة: جسم المزود ورأسه وعنوان نقطة الدفع ما بيوصلوش للنتيجة أبداً، وأي خطأ بيتحوّل لسبب محدود.
  */
 export class WebPushChannel implements PushChannel {
-  readonly #sender: WebPushSender;
+  readonly #sender: PreparableSender;
   readonly #now: () => Date;
   readonly #timeoutMs: number;
   readonly #vapid: WebPushRequestOptions['vapidDetails'];
@@ -79,22 +160,27 @@ export class WebPushChannel implements PushChannel {
     };
     this.#now = options.now;
     this.#timeoutMs = Math.min(10_000, Math.max(1, options.timeoutMs ?? 10_000));
-    this.#sender = options.sender ?? librarySender;
+    this.#sender = options.sender ?? defaultSender(options.request ?? httpsRequest);
   }
 
   async send(request: PushRequest): Promise<PushResult> {
+    // تحميل المكتبة بيحصل قبل الفحص: بعد الفحص مفيش أي await قبل الطلب نفسه.
+    if (this.#sender.prepare !== undefined) await this.#sender.prepare();
     const current = this.#now().getTime();
-    // فحص الموعد مجاور لبدء الطلب: ما فيش await ولا إعادة تقديم قبله.
-    if (request.deadline !== null && current >= request.deadline.getTime())
-      return { kind: 'expired' };
-    const remaining =
-      request.deadline === null ? this.#timeoutMs : request.deadline.getTime() - current;
+    const remainingMs = request.deadline === null ? null : request.deadline.getTime() - current;
+    if (remainingMs !== null && remainingMs <= 0) return { kind: 'expired' };
+    const timeout = remainingMs === null ? this.#timeoutMs : Math.min(this.#timeoutMs, remainingMs);
+    const ttlSeconds =
+      remainingMs === null
+        ? request.ttlSeconds
+        : Math.min(request.ttlSeconds, Math.floor(remainingMs / 1000));
+    if (ttlSeconds < 1) return { kind: 'expired' };
     try {
       const response = await this.#sender(request.target, request.payload, {
-        TTL: request.ttlSeconds,
+        TTL: ttlSeconds,
         urgency: request.urgency,
         topic: request.topic,
-        timeout: Math.min(this.#timeoutMs, remaining),
+        timeout,
         vapidDetails: this.#vapid,
       });
       return typeof response.statusCode === 'number'

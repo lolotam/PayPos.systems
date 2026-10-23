@@ -278,8 +278,8 @@ to reach the operator (for example `mailto:ops@pospay.systems`).
 
 **Install.** Put all three in the Dokploy environment of the compose service, as secrets. The compose files pass
 `VAPID_PUBLIC_KEY` and `VAPID_SUBJECT` to `api`, and all three to `worker` only; the private key must never reach the `api`
-container. Redeploy. The worker logs one line at start, `staff push capability`, with `state: READY` or `state: DISABLED`
-and a `reason` (`NOT_CONFIGURED`, `PUBLIC_KEY_OR_SUBJECT_INVALID`, `PRIVATE_KEY_INVALID`, `KEY_MISMATCH`); a key is never
+container. Do not set `NOTIFICATIONS_MODE=fake` on a deployed environment: a production worker refuses fake mode for push (`reason: FAKE_IN_PRODUCTION`, push stays off); leave it empty or `live`. Outside production, `NOTIFICATIONS_MODE=fake` runs push with a fake channel and needs no key. Redeploy. The worker logs one line at start, `staff push capability`, with `state: READY` or `state: DISABLED`
+and a `reason` (`NOT_CONFIGURED`, `PUBLIC_KEY_OR_SUBJECT_INVALID`, `PRIVATE_KEY_INVALID`, `KEY_MISMATCH`, `FAKE_IN_PRODUCTION`); a key is never
 in that line. The API answers `GET /v1/staff/push/config` with `NOT_READY` until the public key and the subject are valid.
 If the API is ready and the worker is not, employees can still subscribe, but no notice is created for push and nothing
 is sent until the worker is fixed; only notices created after that are pushed. Neither case changes `/ready`.

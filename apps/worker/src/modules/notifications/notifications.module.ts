@@ -131,7 +131,7 @@ export function createNotificationModule(options: NotificationModuleOptions) {
       'NotificationSendAuthorized',
       'NotificationDelivered',
       'NotificationFailed',
-      // حدث الدفع بيتكتب مع كل محاولة معلّقة؛ بيتسجّل هنا قبل ما ييجي مستهلكه في 28b-3 عشان ما يتوقفش.
+      // حدث إذن الدفع بيتكتب مع كل محاولة معلّقة، والـ worker بيوجّهه لطابور push-send لما الدفع يكون جاهز.
       'PushSendAuthorized',
     ],
   };
@@ -244,6 +244,7 @@ export function createInAppNotificationModule(
       ...NOTIFICATION_SOURCE_EVENTS,
       'NotificationDelivered',
       'NotificationFailed',
+      // حدث إذن الدفع بيتكتب مع كل محاولة معلّقة، والـ worker بيوجّهه لطابور push-send لما الدفع يكون جاهز.
       'PushSendAuthorized',
     ],
   };

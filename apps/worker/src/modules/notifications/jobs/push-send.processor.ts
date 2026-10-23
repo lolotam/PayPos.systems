@@ -30,6 +30,10 @@ export function pushProcessor(
     logger.info(
       {
         push: {
+          companyId: outcome.companyId,
+          userId: outcome.userId,
+          businessId: outcome.businessId,
+          branchId: outcome.branchId,
           attemptId: outcome.attemptId,
           subscriptionId: outcome.subscriptionId,
           status: outcome.status,
@@ -41,7 +45,14 @@ export function pushProcessor(
     );
     if (outcome.vapidRejected)
       logger.warn(
-        { capability: { name: 'STAFF_PUSH', outcome: 'VAPID_REJECTED' } },
+        {
+          capability: {
+            name: 'STAFF_PUSH',
+            outcome: 'VAPID_REJECTED',
+            companyId: outcome.companyId,
+            attemptId: outcome.attemptId,
+          },
+        },
         'push provider rejected the VAPID key',
       );
   };

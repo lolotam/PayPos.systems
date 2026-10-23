@@ -38,9 +38,9 @@ const subscription = (over: Partial<PushDeliverySubscription> = {}): PushDeliver
   vapidKeyId: KEY_ID,
   revokedAt: null,
   endpoint: 'https://fcm.googleapis.com/fcm/send/synthetic',
-  p256dh: 'p'.repeat(87),
-  auth: 'a'.repeat(22),
-  deliveryToken: '01920000-0000-7000-8000-0000000000f1',
+  p256dh: 'synthetic-p256dh',
+  auth: 'synthetic-auth',
+  deliveryToken: 'synthetic-delivery-token',
   ...over,
 });
 

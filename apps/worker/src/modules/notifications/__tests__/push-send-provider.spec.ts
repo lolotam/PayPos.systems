@@ -52,7 +52,10 @@ it('refuses the attempt when the admission budget is spent', async () => {
   expect(h.channel.calls).toBe(before);
   const [row] = await h.attempt(attemptId);
   expect(row).toMatchObject({ status: 'FAILED', failure_code: 'ADMISSION_REFUSED' });
-  expect(row?.['execution_id']).toBeNull();
+  // المحاولة اتحجزت قبل الرفض، فالسجل بيحمل سياج التنفيذ.
+  expect(row?.['execution_id']).not.toBeNull();
+  expect(row?.['sending_at']).not.toBeNull();
+  expect(await h.events(attemptId)).toHaveLength(1);
 });
 
 it('refuses a template that no longer renders', async () => {

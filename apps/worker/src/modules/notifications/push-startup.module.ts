@@ -2,6 +2,7 @@ import type { ClaimedEvent, DeliveryOutcome, TenantWrappers } from '@pospay/db';
 import {
   FakePushChannel,
   notificationRedisOptions,
+  readPushApiConfiguration,
   readPushWorkerConfiguration,
   WebPushChannel,
   type PushChannel,
@@ -48,6 +49,9 @@ export interface PushCapability {
   close(force?: boolean): Promise<void>;
 }
 
+// معرّف المفتاح الافتراضي في الوضع المزيف: مفيش مفاتيح، بس هوية ثابتة للتسجيل.
+const DEFAULT_KEY_ID = '0000000000000000';
+
 export interface PushStartupOptions {
   readonly env: NodeJS.ProcessEnv;
   readonly production: boolean;
@@ -85,23 +89,14 @@ async function unavailable(logger: Logger, queue?: PushQueue): Promise<void> {
 }
 
 /**
- * يختار قناة الدفع: المزيفة خارج الإنتاج وبوضع fake بس، وكل حالة تانية قناة حقيقية.
- * القاعدة: الـ staging بيشتغل NODE_ENV=production والوضع المزيف افتراضي، فلازم يبعت دفع حقيقي
- * لما مفاتيح VAPID تكون متركّبة.
+ * يبني قناة الدفع الحقيقية من مفاتيح VAPID المقروءة.
+ * القاعدة: القناة الحقيقية بتوقّع المفتاحين مع بعض، والمزيفة بتختارها في التجهيز مش هنا.
  *
- * @param env           بيئة العملية
- * @param production    هل العامل في الإنتاج
- * @param clock         ساعة العامل
  * @param configuration إعداد الدفع المقروء
+ * @param clock         ساعة العامل
  * @returns قناة الدفع
  */
-export function bindPushChannel(
-  env: NodeJS.ProcessEnv,
-  production: boolean,
-  clock: Clock,
-  configuration: PushWorkerConfiguration,
-): PushChannel {
-  if (!production && env['NOTIFICATIONS_MODE'] === 'fake') return new FakePushChannel(clock.now);
+export function bindPushChannel(configuration: PushWorkerConfiguration, clock: Clock): PushChannel {
   return new WebPushChannel({
     vapid: {
       subject: configuration.subject,
@@ -110,18 +105,6 @@ export function bindPushChannel(
     },
     now: () => clock.now(),
   });
-}
-
-// ربط القناة ممكن يفشل لو الزوج غير متسق؛ الفشل ده زي أي فشل تاني في التجهيز.
-function bindPushChannelOrNull(
-  options: PushStartupOptions,
-  configuration: PushWorkerConfiguration,
-): PushChannel | null {
-  try {
-    return bindPushChannel(options.env, options.production, options.clock, configuration);
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -175,26 +158,27 @@ export async function startPushCapability(
   options: PushStartupOptions,
   start: PushQueueStarter = startPushQueue,
 ): Promise<PushCapability> {
-  const readiness = readPushWorkerConfiguration(options.env);
-  if (!readiness.ready) {
-    options.logger.info(
-      { capability: { name: 'STAFF_PUSH', state: 'DISABLED', reason: readiness.reason } },
-      'staff push capability',
-    );
+  let binding: PushBinding;
+  try {
+    binding = bindPushCapability(options);
+  } catch {
+    // ربط القناة بيقفل فاشل لو الزوج غير متسق؛ ده زي أي فشل تاني في التجهيز.
+    await unavailable(options.logger);
     return disabledCapability();
   }
-  const configuration = readiness.configuration;
-  const channel = bindPushChannelOrNull(options, configuration);
-  if (channel === null) {
-    await unavailable(options.logger);
+  if (binding.kind === 'disabled') {
+    options.logger.info(
+      { capability: { name: 'STAFF_PUSH', state: 'DISABLED', reason: binding.reason } },
+      'staff push capability',
+    );
     return disabledCapability();
   }
   const send = new SendPush(
     createPushDeliveryRepository(options.database),
     createPushRequestBuilder(),
-    channel,
+    binding.channel,
     redisPushAdmission(options.redis),
-    configuration.keyId,
+    binding.keyId,
     options.clock,
     options.ids,
   );
@@ -204,7 +188,7 @@ export async function startPushCapability(
     queue = started;
     await optionalWithin(() => started.ready());
     options.logger.info(
-      { capability: { name: 'STAFF_PUSH', state: 'READY', keyId: configuration.keyId } },
+      { capability: { name: 'STAFF_PUSH', state: 'READY', keyId: binding.keyId } },
       'staff push capability',
     );
     return {
@@ -217,4 +201,29 @@ export async function startPushCapability(
     await unavailable(options.logger, queue);
     return disabledCapability();
   }
+}
+
+/** نتيجة تجهيز قدرة الدفع: مقفولة بسبب محدود، أو جاهزة بقناة ومعرّف مفتاح. */
+type PushBinding =
+  | { readonly kind: 'disabled'; readonly reason: string }
+  | { readonly kind: 'ready'; readonly channel: PushChannel; readonly keyId: string };
+
+// الوضع المزيف محتاجش مفاتيح (FR-011)، والإنتاج رفضه؛ وكل حالة تانية بتقرأ الجاهزية.
+function bindPushCapability(options: PushStartupOptions): PushBinding {
+  const mode = options.env['NOTIFICATIONS_MODE'];
+  if (options.production && mode === 'fake')
+    return { kind: 'disabled', reason: 'FAKE_IN_PRODUCTION' };
+  if (!options.production && mode === 'fake')
+    return {
+      kind: 'ready',
+      channel: new FakePushChannel(options.clock.now),
+      keyId: readPushApiConfiguration(options.env)?.keyId ?? DEFAULT_KEY_ID,
+    };
+  const readiness = readPushWorkerConfiguration(options.env);
+  if (!readiness.ready) return { kind: 'disabled', reason: readiness.reason };
+  return {
+    kind: 'ready',
+    channel: bindPushChannel(readiness.configuration, options.clock),
+    keyId: readiness.configuration.keyId,
+  };
 }

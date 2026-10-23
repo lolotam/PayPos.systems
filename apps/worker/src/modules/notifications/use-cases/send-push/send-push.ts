@@ -17,6 +17,10 @@ import type { PushRequestBuilder } from '../../ports/push-request-builder.port.t
 
 /** نتيجة الإرسال للـ processor: أرقام محدودة بس، من غير أي سر من الاشتراك. */
 export interface PushSendOutcome {
+  readonly companyId: string;
+  readonly userId: string;
+  readonly businessId: string | null;
+  readonly branchId: string | null;
   readonly attemptId: string;
   readonly subscriptionId: string;
   readonly status: PushTerminalResult['status'];
@@ -44,8 +48,6 @@ export class SendPush {
     if (refusal !== null) return this.refuse(delivery, refusal);
     const built = this.builder.build(delivery, this.clock.now());
     if (built.kind === 'refused') return this.refuse(delivery, built.decision);
-    const refused = await this.reserve(delivery);
-    if (refused !== null) return this.refuse(delivery, refused);
     const executionId = this.ids.newId();
     const now = this.clock.now();
     if (!(await this.deliveries.claim(delivery, executionId, now)))
@@ -54,6 +56,12 @@ export class SendPush {
       ...delivery,
       attempt: { ...delivery.attempt, status: 'SENDING', executionId, sendingAt: now },
     };
+    // الحجز بعد الحيازة: كذا التنفيذين المتوازيين لنفس المحاولة ما ياخدوش سعة واحدة.
+    const refused = await this.reserve(delivery);
+    if (refused !== null) {
+      await this.record(claimed, refused);
+      return this.outcome(delivery, refused);
+    }
     const submission = await this.channel.send(built.request);
     const decision = pushDecisionFromSubmission(submission);
     await this.record(claimed, decision);
@@ -101,6 +109,10 @@ export class SendPush {
 
   private outcome(delivery: PushDelivery, decision: PushDecision): PushSendOutcome {
     return {
+      companyId: delivery.attempt.companyId,
+      userId: delivery.attempt.userId,
+      businessId: delivery.attempt.businessId,
+      branchId: delivery.attempt.branchId,
       attemptId: delivery.attempt.id,
       subscriptionId: delivery.attempt.subscriptionId,
       status: decision.result.status,
