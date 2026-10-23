@@ -6,7 +6,12 @@ import { PersonalScreen } from '@/personal-staff/ui/personal-screen';
 import { useLocale } from '@/shared/locale/locale-context';
 
 import { DeviceScreen } from './device-screen';
-import { readDeviceRole, readRememberedBusiness, saveDeviceRole, type DeviceRole } from './device-role';
+import {
+  readDeviceRole,
+  readRememberedBusiness,
+  saveDeviceRole,
+  type DeviceRole,
+} from './device-role';
 import { LoadingNotice } from './loading-notice';
 import {
   FLOW_ALERT_KEYS,
@@ -47,7 +52,7 @@ export function NativeEntry() {
   const locale = useLocale();
   const [state, setState] = useState<NativeState>({ kind: 'loading' });
   const business = state.kind === 'loading' ? null : state.business;
-  // اللينكات بتتر واحد ورا التاني: كل لينك بيقرا الدور والنشاط تاني من التخزين قبل ما يقرر.
+  // اللينكات بتتعالج واحد ورا التاني: كل لينك بيقرا الدور والنشاط تاني من التخزين قبل ما يقرر.
   const links = useRef<Promise<void>>(Promise.resolve());
 
   const onStart = useCallback((role: DeviceRole | null, saved: PersonalWorkspace | null) => {

@@ -8,6 +8,7 @@ import {
   readDeviceRole,
   readRememberedBusiness,
   rememberBusiness,
+  saveDeviceRole,
   type DeviceRole,
 } from '@/app/device-role';
 import type { PersonalWorkspace } from '@/app/manager-link';
@@ -147,7 +148,9 @@ describe('NativeEntry refused links', () => {
 
   it('keeps the start screen and asks the manager for a foreign warm link', async () => {
     mount();
-    expect(await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+    expect(
+      await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') }),
+    ).not.toBeNull();
 
     await act(async () => {
       opened.listener?.(link('pos.example.com'));
