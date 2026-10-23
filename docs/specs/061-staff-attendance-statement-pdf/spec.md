@@ -105,13 +105,15 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 3. **When** she collects it, **then** she receives `application/pdf` with `Content-Disposition: attachment`, and the
    audit log has one entry for that download (BR-09).
 4. The PDF has `dir="rtl" lang="ar"`, the logo and the Arabic official name, «فرع السالمية», the period, one row per
-   employee with any counted session or contracted minutes (BR-12) at the branch in the period, a signature column, the
+   employee with any counted session, contracted minutes (BR-12) or approved leave on a contract day at the branch in
+   the period, a signature column, the
    manager's signature line and the footer (BR-01, BR-02, BR-04, BR-06).
 5. For a full calendar month at one branch with no shift filter, whose every scheduled shift end and default-entry end
    is at or before the request, each row's figures equal the 27b monthly report row of the same employee, branch and
    month read at the same moment (parity test). Any other range with no shift filter, under the same condition, is
-   checked against the sum of the 27b per-day figures over its dates, with no parity test. Otherwise the figures cover
-   only what had ended at the request (FR-013a). Admission (FR-003) is only a quick pre-check: if the render finds the
+   checked against the sum of the 27b per-day figures over its dates, with no parity test. Otherwise the schedule-based
+   figures (scheduled and contracted minutes, «لا يوجد حضور مسجّل») cover only the shifts and default hours that had
+   ended at the request, while sessions count as 27b counts them at render time (FR-013a). Admission (FR-003) is only a quick pre-check: if the render finds the
    employee or the whole statement empty, the status ends `FAILED / STATEMENT_EMPTY` and no PDF is produced.
 6. **Given** سارة always on 09:00–20:00, هبة always on 08:00–16:00 and ريم on 09:00–20:00 on some days and 08:00–16:00 on
    others, **when** the manager filters October by the shift 09:00–20:00, **then** the table has سارة with all her days
@@ -129,7 +131,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    "Missing clock-out" and adds 0 hours (BR-05); a date with approved leave shows the leave type; a date with a
    scheduled shift and no counted session shows the scheduled times and «لا يوجد حضور مسجّل» / "No attendance
    recorded"; any other date shows the date only. A shift that had not ended at the request (FR-013a), on any date,
-   adds nothing and never prints «لا يوجد حضور مسجّل». A date with an OPEN session (at render time) shows «لسه جوّه»
+   adds no scheduled minutes and never prints «لا يوجد حضور مسجّل»; a closed session on that date still counts, its
+   lateness included. A date with an OPEN session (at render time) shows «لسه جوّه»
    and never «لا يوجد حضور مسجّل», whatever its schedule.
 3. The totals under the table are the 27b columns for that employee and period, then her signature line and the
    manager's (BR-04).
@@ -139,15 +142,16 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 1. A user without `read:attendance:branch` on the branch gets `403` on request, status and collect.
 2. Another user, another company, an unknown `render_id` and an id requested for another branch all get the same `404`
    on status and collect (ADR-0049 §1.5).
-3. An employee who has no counted session and no contracted minutes that count under BR-12 at the branch in the
-   period (a period of only future dates included), or who belongs to another
+3. An employee who has no counted session, no contracted minutes that count under BR-12 and no approved leave on a
+   contract day at the branch in the period (a period of only future dates with no approved leave included), or who
+   belongs to another
    business or company: `404 ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND`, no request row, no job (FR-003). This is the
    same rule that decides who has a row in the branch table (Story 1.4).
    A route whose branch belongs to another business of the same company: `404 ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`,
    no request row, no job (FR-003).
 4. `from > to`, a period longer than 366 days, or `to` after the last day of the current month in the branch time
-   zone: `422 ATTENDANCE_STATEMENT_PERIOD_INVALID`. The current month can be asked for on any day; what had not ended
-   at the request counts nothing (FR-013a).
+   zone: `422 ATTENDANCE_STATEMENT_PERIOD_INVALID`. The current month can be asked for on any day; a shift or default
+   hours that had not ended at the request add no scheduled or contracted minutes (FR-013a).
 5. The renderer is down (no `documents:renderer-alive` key): `503 RENDERER_UNAVAILABLE`, no request row, no job.
 6. More than 20 requests by the same user in one fixed hourly window: `429 ATTENDANCE_STATEMENT_RATE_LIMITED`.
 7. The staff feature is disabled for the business: the same refusal as the monthly report (`@RequiresFeature('staff')`).
@@ -209,13 +213,14 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   falls in **in that time zone** (at 22:00 UTC on 31 October it is already November in `Asia/Kuwait`, so November is
   the current month). A violation is `422 ATTENDANCE_STATEMENT_PERIOD_INVALID` with nothing written. The same
   transaction then confirms the employee (when given) with the **same candidate rule the branch table uses** (Story
-  1.4, Story 3.3): she belongs to that business and has, at that branch in the period, a counted session or a contract
-  day that counts under BR-12, that is a contract day whose default working-hours entry ends at or before the injected
-  `Clock` instant (the same instant stored as `requested_at`). An employee whose only coverage has not ended yet (hired
+  1.4, Story 3.3): she belongs to that business and has, at that branch in the period, a counted session, a contract
+  day that counts under BR-12 (its default working-hours entry ends at or before the injected `Clock` instant, the same
+  instant stored as `requested_at`), or an approved leave on a contract day, whether or not that day had ended (the
+  leave is shown, BR-12). An employee whose only coverage has not ended yet and who has no approved leave on it (hired
   today with a 17:00 default entry, asked at 10:00) is refused here. The check is an eligibility statement in
   `@pospay/db` beside the shared 27b inputs statement (ADR-0056 §2): the 27b `candidates` rule limited to that one
-  employee, plus that end-instant predicate on contract days, with the instant as a parameter; the 27b statement takes
-  no instant and stays unchanged. It is a quick pre-check on the current state, and the render reads the current state again
+  employee, plus the end-instant predicate on contract days and the approved-leave case, with the instant as a
+  parameter; the 27b statement takes no instant and stays unchanged. It is a quick pre-check on the current state, and the render reads the current state again
   (FR-013a): if the render then finds the employee or the whole statement empty, the job ends `FAILED /
   STATEMENT_EMPTY` (a visible status, FR-005) and no PDF is produced. Otherwise `404
   ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` before any insert (no request row, no job). An employee whose only activity
@@ -291,21 +296,25 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   at or before `requested_at`; any other range with no shift filter, under the same condition, is checked against the
   sum of the 27b per-day figures, with no parity test.
 - **FR-013a** What has not happened yet (ST-Q8, BR-12). The cutoff is the instant `requested_at` of the request row,
-  compared in the branch time zone (or the business's when the branch has none, as in Story 3.4). It decides only
-  what had ended:
-  - **scheduled shifts:** a shift counts (its scheduled minutes, lateness and «لا يوجد حضور مسجّل») only when its
-    `ends_at` is at or before `requested_at`. This holds on every date of the period: at 01:00 a 22:00–06:00 shift of
-    the previous working date has not ended, so it stays attributed to its working date (AB-Q9b) but adds nothing;
+  compared in the branch time zone (or the business's when the branch has none, as in Story 3.4). It governs only the
+  schedule-based figures: contracted minutes, scheduled minutes and the «لا يوجد حضور مسجّل» note. Sessions are not
+  cut by it.
+  - **scheduled shifts:** a shift's scheduled minutes and its «لا يوجد حضور مسجّل» note count only when its `ends_at` is
+    at or before `requested_at`. This holds on every date of the period: at 01:00 a 22:00–06:00 shift of the previous
+    working date has not ended, so it stays attributed to its working date (AB-Q9b) but adds no scheduled minutes;
   - **contracted minutes (BR-12):** a date's contracted minutes count only when that date's default working-hours entry
     (the contract `entries` the 27b rules use, branch-local start and end, an end not after the start meaning the next
     day) ends at or before `requested_at`. An approved leave on a date whose entry has not ended is shown (leave
     column, employee form) but is not subtracted from contracted minutes until then. This compares the contract with
     the clock only; it never ties contracted minutes to a scheduled shift;
-  - **sessions:** counted as 27b counts them, in their render-time state (below).
+  - **sessions:** a `CLOSED` or `MISSED_OUT` session counts exactly as 27b counts it in its render-time state (below),
+    its lateness included, even before its shift ends (an employee who came in late and left early has her lateness
+    counted at once); an OPEN session prints «لسه جوّه».
 
   A date prints as the date only when it has no counted session, no OPEN session, no approved leave and no scheduled
   shift that had ended; the future dates of a current-month period are such dates unless they have approved leave. A
-  period with nothing counted counts nothing: Story 3.3 refuses the employee form, and the branch table has no row.
+  period with no counted session, no counted contracted minutes and no approved leave counts nothing: Story 3.3
+  refuses the employee form, and the branch table has no row.
   - **Render-time state:** sessions, approved leave and schedule shifts are read in their state at render time, as
     27b reads them, and admission reads the same current state. An edit made after the request (a void, a correction,
     a leave decision, a schedule edit) changes the figures, and a retry reads them again (`TODO(spec)`, issue #552:
@@ -456,12 +465,13 @@ factory. The code PRs add the two port rows.
   not); parity with 27b for full months with no filter whose every shift and default-entry end is at or before the
   request; at the month end, an October statement requested at 01:00 on 1 November (`Asia/Kuwait`) with a
   22:00–06:00 shift and default entry on 31 October is not asserted equal to 27b, and the same request at 06:00 or
-  later equals the 27b row; the FR-013a instant rule with a fixed clock: a request at 10:00 on 23 October for October
-  counts 1–22 October and the ended part of 23 October, so a 17:00–21:00 shift on 23 October adds nothing and prints
-  no «لا يوجد حضور مسجّل», a 08:00–09:30 shift that day counts, 24–31 October print the date only, and a 09:00–17:00
-  default entry on 23 October adds no contracted minutes until 17:00 (BR-12); an approved leave on 23 October is
-  shown and not subtracted before 17:00, and subtracted after; at 01:00 a 22:00–06:00 shift of the previous working
-  date adds nothing; an OPEN session at render prints «لسه جوّه» on its date.
+  later equals the 27b row; the FR-013a instant rule with a fixed clock: at 10:00 on 23 October a 17:00–21:00 shift
+  that day adds no scheduled minutes and prints no «لا يوجد حضور مسجّل», a 08:00–09:30 shift that day counts its
+  scheduled minutes, 24–31 October print the date only, and a 09:00–17:00 default entry on 23 October adds no
+  contracted minutes until 17:00 (BR-12); an approved leave on 23 October is shown and not subtracted before 17:00,
+  and subtracted after; at 13:00 a session from 09:20 to 12:00 on a 09:00–17:00 shift counts with its 20 minutes of
+  lateness while the shift's scheduled minutes do not count yet; at 01:00 a 22:00–06:00 shift of the previous working
+  date adds no scheduled minutes; an OPEN session at render prints «لسه جوّه» on its date.
 - **Contracts:** request body (forms, `employee_id` rule, `strictObject`), status reply, the template data schema.
 - **API integration (T2 Postgres, one cloned DB per file, ADR-0006):** 202 and the request row; every refusal of
   Story 3 including `403` without the permission, `404` cross-tenant/other-user/other-branch, and `404` for a business A
@@ -476,7 +486,7 @@ factory. The code PRs add the two port rows.
   while one with only contracted minutes is accepted; with a fixed clock in an `Asia/Kuwait` branch, an employee
   form for 25–31 October asked on 23 October gets `404 ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` (no row, no job), and
   so does an employee hired on 23 October with a 17:00 default entry asking at 10:00, while the same request at 23:30 is
-  accepted (BR-12); a `shift` on the branch form is accepted and on the employee form gets `422
+  accepted, and so is the 10:00 request when she has an approved leave on 23 October (BR-12); a `shift` on the branch form is accepted and on the employee form gets `422
   ATTENDANCE_STATEMENT_SHIFT_FILTER_INVALID`; the shift-options read lists the pairs in the period; the
   rate limit at its boundary: the 20th request in a window is
   accepted, the 21st gets `429`, and the first request after the window expires is accepted; collect once, expired,
