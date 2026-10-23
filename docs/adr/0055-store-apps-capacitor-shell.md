@@ -223,25 +223,30 @@ live in `apps/business/`, so the `apps/business/**` input already covers them.
 - Before the first stage-C upload, both stores need their app records: an App Store Connect app record per flavour, and
   per flavour a Play Console app with one build uploaded by hand (Play's API refuses uploads to an app with none). The
   account holder creates them (plan step O-2b); no automation creates store records.
-- **Cost (APP-Q8): the free minutes only.** Every macOS job (simulator or release) waits behind a **preflight job on
-  `ubuntu-latest`**, so a refused run never starts a macOS runner. The preflight adds up, in included-minute units:
-  - the account's Actions usage for the current billing cycle from GitHub's billing API, which covers `ci.yml`'s Linux
-    minutes and every other repository (`GITHUB_TOKEN` cannot read account billing, so it uses `ACTIONS_USAGE_TOKEN`,
-    a fine-grained token Waleed creates with only the account's billing-read permission, no repository access and a
-    90-day expiry; plan step O-5; the exact endpoint and permission are confirmed in M-1b);
-  - every macOS job of this repository that is queued or running, or finished but possibly not billed yet, read with
-    the workflow's `GITHUB_TOKEN` (`actions: read`), each at its timeout times the macOS multiplier;
-  - the job it is about to admit, at its timeout times the macOS multiplier.
-  The multiplier is **10 until M-1b measures it**. The preflight refuses the run when the sum would pass **80 % of the
-  included minutes**, or when any part cannot be read (missing or expired token included: fails closed). Two
-  preflights can still read the same numbers at the same moment, so the 20 % headroom must stay larger than two macOS
-  jobs' cost; M-1b sets the timeouts so it does. The billing cycle is GitHub's, not the calendar month. Concurrency
-  groups are **per ref** (`mobile-macos-${ref}` and the two release groups), so a run on one branch never drops a
-  pending run of another; within one ref a newer commit may supersede a pending one. The hard backstop is the
-  account's Actions budget at $0 with usage stopped at the limit (O-5): a run past the included minutes is blocked
-  rather than charged. That backstop would also block `ci.yml`'s required `ci-gate` until the cycle resets, which is
-  why the preflight stops at 80 %. Some published pricing says a macOS minute counts as ten included minutes on a
-  private repository; M-1b measures it, and the first week's usage is reported to Waleed.
+- **Cost (APP-Q8): the free minutes only.** The macOS guard is defined here by the rules it must keep; M-1b chooses
+  and tests the mechanism.
+  1. **A refused run never starts a macOS runner.** Admission is decided by a preflight job on `ubuntu-latest`.
+  2. **Admission is atomic and bounded.** At most **K** macOS jobs hold an admission at any moment, across all refs. An
+     admission is a reservation taken atomically (for example, creating one of K fixed slot refs, which fails when the
+     slot exists), released when the macOS job ends, and expired after the job's timeout if the job never ran.
+  3. **Projected use is never double-counted.** It is the account's billed usage for GitHub's billing cycle (read
+     with `ACTIONS_USAGE_TOKEN`; `GITHUB_TOKEN` cannot read account billing), plus every reservation still held, each
+     at its job's timeout times the macOS multiplier. A job stops counting as a reservation only when it has ended and
+     the billed usage has caught up with it (M-1b measures that delay and keeps the reservation at least that long).
+  4. **The threshold leaves room for every admitted job.** A reservation is granted only while projected use plus
+     the new job stays under **80 % of the included minutes**, and the remaining 20 % must exceed K jobs' cost; M-1b
+     sets K and the timeouts so it does. The multiplier is **10 until M-1b measures it**.
+  5. **Every attempt is checked fresh.** The macOS job's first step accepts only a reservation made for its own run
+     attempt (`github.run_attempt`) within the last few minutes; otherwise it stops at once. A re-run therefore takes a
+     new reservation (the preflight is re-run with it) or ends within its first minute.
+  6. **It fails closed.** A missing or expired token, an unreadable usage figure or a failed reservation refuses the
+     run.
+  The hard backstop is the account's Actions budget at $0 with usage stopped at the limit (O-5): a run past the included
+  minutes is blocked rather than charged. That backstop would also block `ci.yml`'s required `ci-gate` until the cycle
+  resets, which is why the guard stops at 80 %. Some published pricing says a macOS minute counts as ten included
+  minutes on a private repository; M-1b measures it, and the first week's usage is reported to Waleed. Concurrency
+  groups are per ref (`mobile-macos-${ref}` and the two release groups), so a run on one branch never drops a pending
+  run of another; the budget bound comes from the reservations, not from the groups.
 - **The token's environment.** `ACTIONS_USAGE_TOKEN` lives in its own environment `mobile-guard`, which **allows every
   branch** (pull-request preflights need it) and holds nothing else. It is not a signing secret: it reads billing
   numbers and nothing more. Only preflight jobs declare `mobile-guard`; the main-only rule of decision 5 covers the
