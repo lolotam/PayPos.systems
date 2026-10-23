@@ -6,7 +6,7 @@ rests on: APP-Q1 (`docs/owner-decisions.ar.md` §22, PP-38.1, batch 54) — two 
 both picked option 1 on 2026-10-23. That record is added by PR #532, **which merges before this ADR**. Owner questions
 this ADR opened: APP-Q2 … APP-Q7 (`docs/specs/065-mob-app-shell/owner-questions.ar.md`, batch 55, PP-39.1 … PP-39.6),
 **answered by both owners on 2026-10-23** (option 1 ⭐ on all six; on APP-Q2 Waleed then moved to option 2 with the
-Arabic name «بوس باي للأعمال», and Abu Salem has been asked to confirm). Still open: the legal name of the company, which
+Arabic name «بوس باي للأعمال»; Abu Salem's option 1 binds, and the Arabic name waits for his confirmation). Still open: the legal name of the company, which
 is still being formed (APP-Q3, `TODO(spec)`), and **APP-Q8** (how the iOS build is tested without a Mac, and at what
 cost; PENDING).
 
@@ -91,7 +91,9 @@ apps/business/
   (personal OTP), remembered on the phone; the slice spec defines it and M-1a builds it.
 - Why not `apps/pos/ios` and `apps/pos/android`: the native projects would enter `apps/pos`'s Docker build context,
   ESLint, Prettier, `max-lines` and Vite watch, and every web change would rebuild them. A separate app keeps the web
-  image and the web gates untouched; Turbo builds `@pospay/pos` first because `apps/business` depends on it.
+  image and the web gates untouched. `^build` would only run the PWA build (outputs `dist/**`), so `turbo.json` gets an
+  explicit `@pospay/pos#build:native` task with outputs `dist-native/**`, and the `apps/business` sync task depends on it
+  by name; a cache hit then restores `dist-native` instead of leaving it stale or missing.
 - `CLAUDE.md` §2.1 gains the line for `apps/business` (and later `apps/customer`) in M-1a; `docs/module-map.md` is not
   affected (it maps backend modules). `.dockerignore`, `.prettierignore` and the ESLint ignores exclude
   `apps/business/{ios,android}`; no Dockerfile copies `apps/business`.
@@ -155,8 +157,9 @@ its own installable app that can sit next to the other on one phone:
 
 The ids are reverse-DNS of the domain we own (ADR-0001); they **cannot be changed after the first upload**, which is
 why the owners chose them (APP-Q6). `systems.pospay.app` is reserved for the customer app. The display name is
-«PosPay Business», with the Arabic name «بوس باي للأعمال» on phones set to Arabic (APP-Q2: Waleed's pick; Abu Salem
-asked to confirm, and his pick binds if it differs). Version: `apps/business/package.json` `version` (user-visible, semver); build number: the CI run number
+«PosPay Business» in every language (APP-Q2: Abu Salem's option 1, which binds). An Arabic name «بوس باي للأعمال» on
+phones set to Arabic is Waleed's later pick and Abu Salem's note points the same way, but it is `TODO(spec)` until Abu
+Salem confirms it. Version: `apps/business/package.json` `version` (user-visible, semver); build number: the CI run number
 (monotonic, as both stores require).
 
 ### 5. Signing keys live in CI secrets only
@@ -164,8 +167,11 @@ asked to confirm, and his pick binds if it differs). Version: `apps/business/pac
 - No key, certificate, profile, keystore or store credential is ever committed, written into a Docker image, logged or
   pasted into a document (`CLAUDE.md` §8). The repository holds only the variable names, listed in
   `apps/business/README.md` with empty values.
-- They are **GitHub Actions secrets of a protected environment `mobile-release`** (required reviewer: Waleed), readable
-  only by the release jobs that run on `push` to `main`; pull-request jobs never see them.
+- They are **GitHub Actions secrets of the environment `mobile-release`**, whose **deployment-branch policy allows
+  `main` only**, so a workflow on another branch, a `workflow_dispatch` run on a feature branch or a pull request that
+  edits `mobile.yml` cannot receive them; pull-request jobs never see them. Internal builds after a merge need no manual
+  approval. A required reviewer (Waleed) guards a second environment, `store-release`, used only by the public-release
+  lane (MOB-17). Both settings are confirmed in the GitHub environment settings by the sub-PR that writes stage C.
 - iOS: an App Store Connect API key (key id, issuer id, `.p8`), the distribution certificate (`.p12` and its password)
   and the provisioning profiles, both flavours. Android: the **upload** key (keystore, its password, alias) and a Google
   Play service-account JSON limited to the two apps. Google Play App Signing keeps the app-signing key at Google, so a
@@ -204,7 +210,10 @@ result (a path-filtered workflow never reports, so it could never become a requi
 - `mobile-gate` starts advisory (not required by branch protection; `ci.yml`'s required `ci-gate` is unchanged); it
   becomes required only when the web manager and Waleed agree, after it has been stable on `main` for a week.
 - **"After every merge"** means every merge to `main` that changes the app's inputs produces a new internal build of
-  both flavours. A public store release is never automatic: it needs Waleed's typed yes, like a production deploy.
+  the **staging flavour** only (it talks to staging, which is redeployed after every merge). The **production flavour**
+  is built and uploaded only from a commit that has been deployed to the production API, in the same release that Waleed
+  approves with his typed yes, so a production build never calls routes production does not serve yet. A public store
+  release is never automatic either.
 
 ### 7. The customer app is decided later
 
@@ -243,8 +252,10 @@ notices keep the PWA installed for them.
   accepted. This PR does not edit `06`, `CLAUDE.md`, `ci.yml` or `docs/owner-decisions.ar.md`.
 - **Installed apps lag behind the server.** Unlike the PWA, a store app keeps running an old bundle until the user
   updates. The API must stay compatible with the oldest supported app version, and the app needs a minimum-version check
-  (sub-PR M-1f). Over-the-air web updates (a hosted live-update service) are out of scope: a new vendor needs its own ADR.
-- Every merge that touches `apps/pos` costs CI minutes on macOS; measured and reported in M-1d.
+  (sub-PR M-1f), which must be inside **the first signed build** (M-2a depends on it): a binary without the check can
+  never be told to update. The minimum version is not a new API route (`CLAUDE.md` §6 allows no unguarded endpoint): it
+  is a static file served by the POS host and changed by a deploy; M-1f's spec fixes its path and shape. Over-the-air web updates (a hosted live-update service) are out of scope: a new vendor needs its own ADR.
+- Every merge that touches `apps/pos` costs CI minutes on macOS if APP-Q8 keeps the macOS runner; measured in M-1b.
 - The auth-transport risk on iOS (decision 3) is the gate of the whole track: if neither cookie path works, the track
   stops at M-1c and the session-transport question goes back to the owners and the web manager.
 - Passkey attendance and native push are not available in the first internal builds; the PWA covers both meanwhile.
