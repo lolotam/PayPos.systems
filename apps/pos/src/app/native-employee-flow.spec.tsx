@@ -10,7 +10,17 @@ import { NativeEntry } from './native-entry';
 
 vi.mock('@/app/device-role', () => ({
   readDeviceRole: vi.fn(),
+  readRememberedBusiness: vi.fn(async () => null),
   saveDeviceRole: vi.fn(),
+  rememberBusiness: vi.fn(),
+  connectEmployee: vi.fn(),
+}));
+vi.mock('@/shared/platform/launch-links', () => ({
+  readLaunchLink: vi.fn(async () => null),
+  onLinkOpened: vi.fn(() => () => undefined),
+}));
+vi.mock('@/shared/platform/native-shell', () => ({
+  nativePosHost: vi.fn(() => 'pos.staging.pospay.systems'),
 }));
 vi.mock('@/personal-staff/api/use-personal-session', () => ({
   usePersonalSession: () => ({
@@ -40,6 +50,8 @@ describe('NativeEntry employee flow', () => {
     );
 
     expect(await screen.findByText(t('ar', 'personalStaff.linkRequired'))).not.toBeNull();
-    expect(screen.queryByRole('textbox')).toBeNull();
+    const field = screen.getByLabelText(t('ar', 'nativeShell.pasteLabel'));
+    expect(field.getAttribute('type')).toBe('url');
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
   });
 });

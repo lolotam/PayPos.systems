@@ -1,5 +1,8 @@
 import { personalWorkspace } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
+import type { ReactNode } from 'react';
+
+import type { PersonalWorkspace } from '@/app/manager-link';
 import { AppFrame } from '@/shared/frame/app-frame';
 import { useLocale } from '@/shared/locale/locale-context';
 import { LocaleSwitch } from '@/shared/locale/locale-switch';
@@ -7,14 +10,22 @@ import { usePersonalSession } from '../api/use-personal-session';
 import { PersonalSignIn } from './personal-sign-in';
 import { EnrolPasskeyScreen } from './enrol-passkey-screen';
 
-export function PersonalScreen() {
+export function PersonalScreen({
+  workspace,
+  connect,
+}: {
+  workspace?: PersonalWorkspace;
+  connect?: ReactNode;
+}) {
   const locale = useLocale();
   const state = usePersonalSession();
   const params = new URLSearchParams(window.location.search);
-  const workspace = personalWorkspace.safeParse({
+  const fromQuery = personalWorkspace.safeParse({
     company_id: params.get('company'),
     business_id: params.get('business'),
   });
+  // نسخة التطبيق بتبعت النشاط المتذكر من غير query string؛ نسخة الويب بتفضل تقرأه من العنوان.
+  const hint = workspace ?? (fromQuery.success ? fromQuery.data : undefined);
   return (
     <AppFrame brand={t(locale, 'pos.appName')} actions={<LocaleSwitch />}>
       <section className="mx-auto grid w-full max-w-md gap-6">
@@ -30,10 +41,13 @@ export function PersonalScreen() {
             employeeId={state.session.employee_id}
             onSignOut={state.signOut}
           />
-        ) : workspace.success ? (
-          <PersonalSignIn key={state.epoch} workspace={workspace.data} changed={state.changed} />
+        ) : hint ? (
+          <PersonalSignIn key={state.epoch} workspace={hint} changed={state.changed} />
         ) : (
-          <p>{t(locale, 'personalStaff.linkRequired')}</p>
+          <>
+            <p>{t(locale, 'personalStaff.linkRequired')}</p>
+            {connect}
+          </>
         )}
       </section>
     </AppFrame>

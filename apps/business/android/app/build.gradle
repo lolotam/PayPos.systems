@@ -22,9 +22,11 @@ android {
     productFlavors {
         staging {
             applicationId 'systems.pospay.business.staging'
+            manifestPlaceholders = [posHost: 'pos.staging.pospay.systems']
         }
         production {
             applicationId 'systems.pospay.business'
+            manifestPlaceholders = [posHost: 'pos.pospay.systems']
         }
     }
     buildTypes {
