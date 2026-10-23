@@ -113,9 +113,14 @@ async function expectBellEvent(requestId: string): Promise<void> {
   expect(events).toHaveLength(1);
   expect(events[0]).toMatchObject({ aggregate_type: 'discount_approval_request', aggregate_id: requestId });
   const payload = discountApprovalRequested.parse(events[0]?.['payload']);
+  expect(payload.request_id).toBe(requestId);
+  expect(payload.requested_by).toBe(f.userId);
+  expect(payload.business_id).toBe(f.business);
+  expect(payload.branch_id).toBe(f.branch);
+  expect(payload.occurred_at).toBe('2026-10-14T08:00:00.000Z');
+  expect(payload.services).toEqual([{ service_id: must(f.services[0]), name_en: 'Synthetic service 0', name_ar: null }]);
   expect(payload.line_count).toBe(1);
   expect(payload.max_effective_bps).toBe(2000);
-  expect(payload.services).toHaveLength(1);
 }
 
 it('DP-01 one request stores one pending proposal with the terms of that line', async () => {
@@ -142,6 +147,21 @@ it('DP-01 one bell event per request and a replay that writes nothing more', asy
   const counts = await storedCounts();
   const replay = await f.request.execute({ ...f.context(asked.key), input: asked.input });
   expect(replay).toEqual(asked.result);
+  expect(await storedCounts()).toEqual(counts);
+});
+
+it('DP-01 a replay after the requester membership ends is refused and writes nothing more', async () => {
+  const asked = await askedRequest();
+  const counts = await storedCounts();
+  await f.h.owner`UPDATE memberships SET ends_at='2026-10-15T07:00:00Z'
+    WHERE company_id=${f.company} AND id=${f.membership}`;
+  try {
+    await expect(f.request.execute({ ...f.context(asked.key), input: asked.input })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  } finally {
+    await f.h.owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.membership}`;
+  }
   expect(await storedCounts()).toEqual(counts);
 });
 

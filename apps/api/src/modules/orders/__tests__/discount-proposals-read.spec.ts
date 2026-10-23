@@ -31,6 +31,22 @@ async function decide(id: string, decision: 'APPROVED' | 'REJECTED') {
     WHERE company_id=${f.company} AND id=${id}`;
 }
 
+async function seedProposal(seed: { branchId: string; requestId: string; requestedAt: string; expiresAt: string }): Promise<string> {
+  const proposalId = ids.newId();
+  await f.h.owner`INSERT INTO discount_proposals(company_id,id,business_id,branch_id,request_id,input_index,kind,session_id,occurred_at,
+    customer_id,service_id,service_name_en,service_name_ar,terms,terms_hash,effective_bps,requested_by,requested_by_membership_id,
+    requester_limit_source,requester_limit_bps,requester_name_ar,requester_name_en,requester_role,requester_role_is_system,
+    requester_role_name_ar,requester_role_name_en,requester_first_name_en,requester_first_name_ar,customer_first_name,requested_at,status,expires_at)
+    VALUES(${f.company},${proposalId},${f.business},${seed.branchId},${seed.requestId},0,'RECORD',NULL,
+      ${seed.requestedAt}::timestamptz,${f.customer},${must(f.services[0])},'Synthetic service 0',NULL,
+      '{"list_price":"25.000","price":"25.000","discount":"5.000","net":"20.000"}'::jsonb,
+      ${'a'.repeat(64)},2000,${f.userId},${f.membership},'PERSON',1000,NULL,NULL,'cashier',true,NULL,'Cashier',NULL,NULL,'Synthetic',
+      ${seed.requestedAt}::timestamptz,'PENDING',${seed.expiresAt}::timestamptz)`;
+  await f.h.owner`INSERT INTO discount_proposal_performers(company_id,id,business_id,proposal_id,employee_id,linked_user_id,first_name_en,first_name_ar)
+    VALUES(${f.company},${ids.newId()},${f.business},${proposalId},${must(f.employees[1])},${f.performerUserId},'Sara','سارة')`;
+  return proposalId;
+}
+
 it('DP-07 the requester reads her own proposals with their decisions', async () => {
   const body = await ask(3);
   await decide(must(body.proposals[0]?.id), 'APPROVED');
@@ -141,4 +157,28 @@ it('the pending list needs the approve permission, so the recorder is refused', 
   const refused = await f.h.send('GET', `${f.proposalBase}/pending`, { cookie: f.cookie, company: f.company });
   expect(refused.status).toBe(403);
   expect(refused.body['code']).toBe('FORBIDDEN');
+});
+
+it('the pending list stays inside its own branch of the business', async () => {
+  const other = await seedProposal({ branchId: f.otherBranch, requestId: ids.newId(),
+    requestedAt: '2026-10-15T07:00:00.000Z', expiresAt: '2026-10-20T08:00:00.000Z' });
+  const page = await f.pending.execute(scope(f.editorId), { limit: 100 });
+  expect(page.items.map((item) => item.id)).not.toContain(other);
+  const refused = await f.h.send('GET',
+    `/v1/businesses/${f.business}/branches/${f.otherBranch}/discount-proposals/pending`,
+    { cookie: f.editorCookie, company: f.company });
+  expect(refused.status).toBe(403);
+  expect(refused.body['code']).toBe('FORBIDDEN');
+});
+
+it('a proposal whose expiry is the clock instant reads expired and is not listed', async () => {
+  const requestId = ids.newId();
+  const proposalId = await seedProposal({ branchId: f.branch, requestId,
+    requestedAt: '2026-10-15T07:00:00.000Z', expiresAt: '2026-10-15T08:00:00.000Z' });
+  const page = await f.pending.execute(scope(f.editorId), { limit: 100 });
+  expect(page.items.map((item) => item.id)).not.toContain(proposalId);
+  const list = await f.requester.execute(scope(f.userId), { request_id: requestId });
+  expect(list.items).toHaveLength(1);
+  expect(list.items[0]?.id).toBe(proposalId);
+  expect(list.items[0]?.status).toBe('EXPIRED');
 });

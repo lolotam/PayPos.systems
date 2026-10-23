@@ -58,6 +58,7 @@ export class RequestDiscountApprovalUseCase {
       resolveSessionRecorder(await tx.access.read(this.clock.now()), context.input.requester_membership_id, undefined, context.userId);
       const response = await tx.idempotent(() => this.request(tx, context));
       if (response.replayed) {
+        await tx.access.lock();
         resolveSessionRecorder(await tx.access.read(this.clock.now()), context.input.requester_membership_id, undefined, context.userId);
       }
       return response.body;
