@@ -134,7 +134,7 @@ start screen again.
 - **FR-005**: The native build MUST NOT register a service worker; the web build MUST keep registering it exactly as
   today.
 - **FR-006**: A single platform port MUST report, per capability, whether it is available: Web Push (never on native),
-  passkeys (off on iOS until #536 and O-4 are done; on Android per M-1c's result), camera (per M-1c). Screens read the
+  passkeys (off on both platforms until O-4 is done and, on iOS, issue #536; on Android also only if M-1c's check passes), camera (per M-1c). Screens read the
   port; no screen tests the platform itself.
 - **FR-007**: A capability that is off MUST hide its control; what replaces it is [NEEDS CLARIFICATION: APP-Q17 — ⭐ a
   line pointing to the web app with a link].
@@ -144,7 +144,7 @@ start screen again.
 - **FR-009**: Nothing new is stored about the person: no phone number, code or session token is persisted by the app
   beyond what the PWA already does (ADR-0019 online-only rule).
 - **FR-010**: Every string MUST come from `packages/i18n` in Arabic and English; Arabic and RTL first; logical CSS only.
-- **FR-011**: How the app learns the employee's business on first use: [NEEDS CLARIFICATION: APP-Q9 — the manager's
+- **FR-011**: How the app learns the employee's business on first use: `TODO(spec)` [NEEDS CLARIFICATION: APP-Q9 — the manager's
   link opens the app (⭐ recommended), a QR code in the back office scanned in the app, or both].
 
 ### Key Entities
@@ -161,7 +161,8 @@ start screen again.
 - **BR-001**: One role per installation. Changing it ends every session on the device first (FR-008).
 - **BR-002**: The remembered business is a hint; the server still decides eligibility on every request (ADR-0027).
 - **BR-003**: A hidden capability is hidden for everyone on that platform build; there is no per-user override.
-- **BR-004**: How the business is learned on first use: [NEEDS CLARIFICATION: APP-Q9].
+- **BR-004**: How the business is learned on first use: `TODO(spec)` APP-Q9 (PP-42.1, PENDING) [NEEDS CLARIFICATION:
+  APP-Q9].
 
 ### Owner decisions this spec waits on (all PENDING, one batch)
 
@@ -192,8 +193,10 @@ the browser storage of the native build (the same IndexedDB layer the PWA uses),
 No new endpoint. The app calls the existing routes of the PWA (device pairing, staff PIN/OTP, personal OTP,
 attendance). Environment changes on staging, done by the web manager (plan O-1): add `capacitor://localhost` to
 `AUTH_TRUSTED_ORIGINS` and the API CORS origins; the Android origin is already the POS host. If APP-Q9 picks the link,
-the POS host also serves the app-link association files (iOS `applinks:`, Android App Links), an operations step
-listed with O-4.
+two things are needed, both for the **POS host** that the manager's link uses (not the passkey relying-party host of
+O-4): the native projects declare the link (iOS Associated Domains entitlement `applinks:<pos host>`; Android a verified
+`intent-filter` for `https://<pos host>/personal`), built in M-1a; and the POS host serves the matching association
+files (`apple-app-site-association`, `assetlinks.json`), an operations step listed with O-4.
 
 ### Permissions
 
@@ -214,7 +217,8 @@ None published, none consumed.
   `MOB-04` employee flow with a remembered business shows the personal sign-in · `MOB-05` passkey controls absent and
   the web-app line visible when the port reports passkeys off · `MOB-06` Web Push control absent on native ·
   `MOB-07` the web build renders the same screens unchanged · `MOB-08` role change signs out, clears forms and shows the
-  start screen · `MOB-09` counter role change asks for confirmation before removing the pairing.
+  start screen, and the remembered business is gone from device storage · `MOB-09` counter role change asks for
+  confirmation, and only after it the pairing credentials are gone from device storage (cancel keeps them).
 - **Build checks** (M-1a): the `native` build output registers no service worker; the web build output still does; a
   staging and a production debug build carry different app ids and their own API origin.
 - **Device checks** (M-1c, recorded in [plan.md](plan.md)): (a) pairing, (b) staff PIN session, (c) personal OTP
