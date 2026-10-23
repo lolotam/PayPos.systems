@@ -144,7 +144,8 @@ The price, discount, net and the visit total never move; only who shares the lin
   - the event (`ServiceLineChanged`, `change.kind = "PERFORMERS_CHANGE"`), the audit row and the notice carry no reason, phone, customer or
     performer name; one notice row per change (`service_line_performer_notices`);
   - the same key replays the same 200 with no second write and no second bell;
-  - a removed performer's linked user is refused `SESSION_PERFORMER_SELF_FORBIDDEN` on the price edit, the cancel, this change and her tip entry.
+  - a removed performer's linked user is refused `SESSION_PERFORMER_SELF_FORBIDDEN` (403) on the price edit, the cancel and this change,
+    and `TIP_SELF_FORBIDDEN` (422) on her tip entry.
 - **Automated tests:** component tests `apps/admin/src/orders/{pages/service-session-day-performers.spec.tsx,pages/service-session-day-capability.spec.tsx,
   ui/change-line-performers-dialog.spec.tsx}`; API and worker integration tests from #433, #437, #430, #432, #456 and #405. No Playwright suite.
 - **Sources:**

@@ -104,8 +104,9 @@ Not here yet: tips are stored but nothing counts them in commissions or statemen
   - Sidebar **قائمة اليوم** / **Day list**; the button **تسجيل البقشيش** / **Record tip**; the dialog title **بقشيش الزيارة** / **Tips for this visit**.
   - Fields: `#tip-total`, `#tip-method` (options `CASH`, `CARD`), `#tip-reason`; per employee inputs `#tip-cash-<n>` / `#tip-card-<n>`
     whose accessible name is the employee's name followed by **بقشيش نقدي** / **Cash tip** or **بقشيش بطاقة** / **Card tip**.
-  - The suggestion is a list named **التقسيم المقترح** / **Suggested split**. On the saved visit, while a price edit's outcome is still
-    unknown, the suggestion and the size warning are hidden and amounts are typed by hand (`netsKnown`). The size warning is a `role="status"`; refusals and the saved
+  - The suggestion is a list named **التقسيم المقترح** / **Suggested split**. On the saved visit, after a price edit that saved but answered
+    without the figures (a user who cannot read the branch figures), the suggestion and the size warning are hidden and amounts are
+    typed by hand (`netsKnown`). While a price edit is still in flight, **تسجيل البقشيش** / **Record tip** is disabled. The size warning is a `role="status"`; refusals and the saved
     notice are a `role="alert"`.
 - **API** (session cookie + `x-company-id`; feature `orders`; both under `record:service-sessions:branch`):
   - `GET /v1/businesses/<B>/branches/<BR>/service-sessions/<SESSION_ID>/tips` → `{ revision, tips, total_cash, total_card }`; no tips
