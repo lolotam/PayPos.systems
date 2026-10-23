@@ -41,7 +41,7 @@ API بس، لسه مفيش شاشة، ولسه مفيش إشعار بيتبعت 
    لو الـ VAPID مش متظبط. بعد الإلغاء الـ endpoint والمفاتيح بيتمسحوا من الصف.
 9. **كتير ورا بعض:** أكتر من 20 تسجيل في الساعة لنفس الموظفة ← **محاولات كتير، جرّب بعد شوية.** (429).
 10. **تسجيلين في نفس اللحظة:** ← واحد ممكن ياخد **فيه تسجيل تاني شغال على نفس الجهاز، جرّب تاني.** (409)، ومفيش أكتر من
-    صف شغال للـ endpoint الواحد.
+    صف شغال للـ endpoint الواحد جوّه نفس الشركة.
 11. **مش الجلسة الشخصية:** جلسة لوحة الإدارة، أو جهاز الكاشير، أو أي `Authorization` header ← **يجب تسجيل الدخول** (401).
     مفيش صلاحية لمدير هنا: الموظفة بس على اشتراكها هي.
 
@@ -73,8 +73,8 @@ API only, no screen yet, and no notification is sent to any phone yet.
    cleared from the row.
 9. **Too many:** more than 20 registrations in an hour by the same employee → **Too many attempts, try again later.**
    (429).
-10. **Two at once:** one may get **Another registration for this device is in progress. Try again.** (409), and an
-    endpoint never has more than one live row.
+10. **Two at once:** one may get **Another registration for this device is in progress. Try again.** (409), and within one
+    company an endpoint never has more than one live row.
 11. **Not the personal session:** an admin session, the paired POS device, or any `Authorization` header →
     **Authentication is required** (401). No manager permission exists here: an employee acts only on her own
     subscription.
