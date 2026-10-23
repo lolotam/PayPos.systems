@@ -7,6 +7,11 @@ Spec 044 (2026-10-10, ADR-0040) adds `AttendanceChangeRequested` and
 events. IN_APP recipients are delivered by the existing notifications consumer;
 events without recipients are acknowledged without creating inbox rows.
 
+Spec 064 (2026-10-23, ADR-0053, row 28c) adds `ShiftEndsSoon`, a notification source
+event whose only recipient is the employee on the PUSH channel (ADR-0052). It is
+registered in the notifications consumer list before the staff detector that emits it
+(sub-PR 064-3), so it is a known dispatcher type from the day it can first exist.
+
 The dispatcher must recognize every event emitted by the API and worker, even when
 its business consumer has not shipped. An unknown event retries and eventually
 parks, blocking later events for the same aggregate.
