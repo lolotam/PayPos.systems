@@ -17,7 +17,8 @@ const ALLOWED = 'allowed';
 const ARABIC = String.fromCharCode(0x0639, 0x0645, 0x0648, 0x0644, 0x0629);
 const arabicLine = `export const label = '${ARABIC}';\n`;
 
-const staticImport = (spec) => `import { probe as engine } from '${spec}';\n\nexport const probe = engine;\n`;
+const staticImport = (spec) =>
+  `import { probe as engine } from '${spec}';\n\nexport const probe = engine;\n`;
 const dynamicImport = (spec) => `export const probe = () => import('${spec}');\n`;
 const requireCall = (spec) => `export const probe = require('${spec}');\n`;
 
@@ -129,11 +130,21 @@ for (const [file, expect, what] of [
 for (const [file, expect, what] of [
   [UC, E, 'a commissions use case may not import the engine /validation dynamically'],
   [PORT, E, 'a commissions port may not import the engine /validation dynamically'],
-  [PERSIST, E, 'a commissions persistence adapter may not import the engine /validation dynamically'],
+  [
+    PERSIST,
+    E,
+    'a commissions persistence adapter may not import the engine /validation dynamically',
+  ],
 ]) {
   add('api', file, dynamicImport(VALIDATION), expect, what);
 }
-add('api', UC, staticImport(DEEP), E, 'a commissions use case may not import a deep path of the engine');
+add(
+  'api',
+  UC,
+  staticImport(DEEP),
+  E,
+  'a commissions use case may not import a deep path of the engine',
+);
 
 // apps/api — a relative path into the package skips the exports map, so it is refused everywhere.
 for (const [file, expect, what] of [
@@ -151,7 +162,11 @@ for (const [file, expect, what] of [
   [ORDERS_UC, E, 'another module use case may not reach the engine by a relative path dynamically'],
   [UC, E, 'a commissions use case may not reach the engine by a relative path dynamically'],
   [PORT, E, 'a commissions port may not reach the engine by a relative path dynamically'],
-  [PERSIST, E, 'a commissions persistence adapter may not reach the engine by a relative path dynamically'],
+  [
+    PERSIST,
+    E,
+    'a commissions persistence adapter may not reach the engine by a relative path dynamically',
+  ],
   [DOMAIN, E, 'a commissions domain file may not reach the engine by a relative path dynamically'],
   [QUERY, E, 'a commissions query may not reach the engine by a relative path dynamically'],
   [HTTP, E, 'a commissions controller may not reach the engine by a relative path dynamically'],
@@ -160,8 +175,20 @@ for (const [file, expect, what] of [
 }
 
 // apps/api — the engine exception never widens the use-cases/ infrastructure ban.
-add('api', UC, staticImport('@pospay/db'), 'CLAUDE.md §4.2', 'a commissions use case may not import @pospay/db');
-add('api', UC, staticImport('node:fs'), 'CLAUDE.md §4.2', 'a commissions use case may not import node:fs');
+add(
+  'api',
+  UC,
+  staticImport('@pospay/db'),
+  'CLAUDE.md §4.2',
+  'a commissions use case may not import @pospay/db',
+);
+add(
+  'api',
+  UC,
+  staticImport('node:fs'),
+  'CLAUDE.md §4.2',
+  'a commissions use case may not import node:fs',
+);
 
 // apps/api — a test of a commissions layer keeps the engine and the Arabic-text exemption.
 add(
@@ -178,21 +205,43 @@ add(
   ALLOWED,
   'a commissions persistence test may import the engine root and hold Arabic',
 );
-add('api', UC, arabicLine, 'packages/i18n', 'a commissions use case may not hold Arabic text of its own');
+add(
+  'api',
+  UC,
+  arabicLine,
+  'packages/i18n',
+  'a commissions use case may not hold Arabic text of its own',
+);
 
 // apps/api — the facade override of the composition root keeps the ban.
-add('api', 'src/main.ts', staticImport(ROOT), E, 'the composition root may not import the engine root');
+add(
+  'api',
+  'src/main.ts',
+  staticImport(ROOT),
+  E,
+  'the composition root may not import the engine root',
+);
 
 // apps/worker — the file-less facade override keeps the ban; the exception comes only with 50-1.
 for (const [file, expect, what] of [
-  [`${M}/orders/use-cases/probe/probe.ts`, E, 'another module use case may not import the engine root'],
+  [
+    `${M}/orders/use-cases/probe/probe.ts`,
+    E,
+    'another module use case may not import the engine root',
+  ],
   [WORKER_UC, E, 'a commissions use case may not import the engine root yet'],
 ]) {
   add('worker', file, staticImport(ROOT), expect, what);
 }
 
 // apps/admin — the builder area may import the browser-safe /validation entry point and nothing else.
-add('admin', 'src/commissions/probe.ts', staticImport(ROOT), E, 'the commissions area may not import the engine root');
+add(
+  'admin',
+  'src/commissions/probe.ts',
+  staticImport(ROOT),
+  E,
+  'the commissions area may not import the engine root',
+);
 add(
   'admin',
   'src/commissions/probe.ts',
@@ -256,10 +305,22 @@ add(
   ALLOWED,
   'a commissions test may import /validation and hold Arabic',
 );
-add('admin', ADMIN_UC, staticImport(ROOT), E, 'a commissions use case may not import the engine root');
+add(
+  'admin',
+  ADMIN_UC,
+  staticImport(ROOT),
+  E,
+  'a commissions use case may not import the engine root',
+);
 
 // packages/ids — a sibling package reaches the engine only through its exports.
-add('ids', 'src/probe.ts', staticImport(SIBLING_PATH), E, 'a sibling package may not reach the engine by a relative path');
+add(
+  'ids',
+  'src/probe.ts',
+  staticImport(SIBLING_PATH),
+  E,
+  'a sibling package may not reach the engine by a relative path',
+);
 add(
   'ids',
   'src/probe.ts',
@@ -267,12 +328,24 @@ add(
   E,
   'a sibling package may not reach the engine by a relative path dynamically',
 );
-add('ids', 'src/probe.ts', staticImport(ROOT), E, 'a sibling package may not import the engine root');
+add(
+  'ids',
+  'src/probe.ts',
+  staticImport(ROOT),
+  E,
+  'a sibling package may not import the engine root',
+);
 add('ids', IDS_UC, staticImport(ROOT), E, 'a commissions use case may not import the engine root');
 
 // packages/commissions-engine — the engine itself is pure: @pospay/domain and its own files only.
 add('engine', 'src/probe.ts', staticImport('node:fs'), E, 'the package may not import node:fs');
-add('engine', 'src/probe.ts', dynamicImport('node:fs'), E, 'the package may not import node:fs dynamically');
+add(
+  'engine',
+  'src/probe.ts',
+  dynamicImport('node:fs'),
+  E,
+  'the package may not import node:fs dynamically',
+);
 add('engine', 'src/probe.ts', requireCall('node:fs'), E, 'the package may not require node:fs');
 add(
   'engine',
@@ -288,11 +361,29 @@ add(
   E,
   'the package may not leave its own folder by a relative path',
 );
-add('engine', 'src/probe.ts', staticImport('./plan-types.ts'), ALLOWED, 'the package may import its own files');
+add(
+  'engine',
+  'src/probe.ts',
+  staticImport('./plan-types.ts'),
+  ALLOWED,
+  'the package may import its own files',
+);
 
 // packages/domain — the kernel has zero dependencies, its own files only.
-add('domain', 'src/probe.ts', staticImport('@pospay/ids'), 'zero dependencies', 'the kernel may not import a package');
-add('domain', 'src/probe.ts', staticImport('./money.ts'), ALLOWED, 'the kernel may import its own files');
+add(
+  'domain',
+  'src/probe.ts',
+  staticImport('@pospay/ids'),
+  'zero dependencies',
+  'the kernel may not import a package',
+);
+add(
+  'domain',
+  'src/probe.ts',
+  staticImport('./money.ts'),
+  ALLOWED,
+  'the kernel may import its own files',
+);
 
 describe('the commissions engine import bans (ADR-0054 §1)', () => {
   for (const c of CASES) {

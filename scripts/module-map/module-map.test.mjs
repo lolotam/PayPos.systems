@@ -465,7 +465,9 @@ describe('ADR-0054 commissions engine import', () => {
     it(
       expected === '' ? `allows ${file} to import the engine` : `refuses the engine in ${file}`,
       () => {
-        const problems = checkModules(repo({ ...workerPackage, [file]: code }), engineMap).join('\n');
+        const problems = checkModules(repo({ ...workerPackage, [file]: code }), engineMap).join(
+          '\n',
+        );
         if (expected === '') {
           assert.equal(problems, '');
           return;
