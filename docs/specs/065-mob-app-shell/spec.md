@@ -162,7 +162,9 @@ start screen again.
   stops the change with a message. As soon as one sign-out is done, the app clears that session's private forms
   and caches at once (ADR-0027: logout clears them), even if the other sign-out then fails; the role, the
   remembered business and the pairing stay until every sign-out is done. Then it forgets the remembered
-  business and, for a counter device, removes the local pairing only after confirmation.
+  business and, for a counter device, removes the local pairing. Order: the confirmation (with its pairing warning on a
+  counter device) comes **first**, before any sign-out; cancelling it changes nothing; a retry after a partial failure
+  continues the confirmed change and asks nothing again.
 - **FR-009**: Nothing new is stored about the person: no phone number, code or session token is persisted by the app
   beyond what the PWA already does (ADR-0019 online-only rule).
 - **FR-010**: Every string MUST come from `packages/i18n` in Arabic and English; Arabic and RTL first; logical CSS only.
