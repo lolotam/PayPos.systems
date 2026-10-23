@@ -4,6 +4,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { documentExpiryCandidatesStatement } from '../persistence/document-expiry.transactions.ts';
 import {
+  ROLE,
   documentExpiryFixture,
   type DocumentExpiryFixture,
   type Tenant,
@@ -30,14 +31,28 @@ async function setup(tenant: Tenant, code: string, alertDays = 30, requiresExpir
   return employee;
 }
 
+/** مالك النشاط: هو اللي بيستلم الجرس بالقاعدة الافتراضية. */
+async function ownerMember(tenant: Tenant) {
+  const userId = await f.user('owner');
+  await f.member({
+    tenant,
+    userId,
+    roleId: ROLE.owner,
+    scopeType: 'COMPANY',
+    scopeId: tenant.company,
+  });
+  return userId;
+}
+
 it('emits exactly once per document per expiry date across two runs, and a re-run writes nothing', async () => {
   const tenant = await f.tenant();
+  const owner = await ownerMember(tenant);
   const employee = await setup(tenant, 'passport', 30);
   const document = await f.document(tenant, employee, 'passport', '2026-11-04');
 
   expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
   expect(await notices(document)).toHaveLength(1);
-  expect((await notices(document))[0]?.['recipients_attached_at']).toBeNull();
+  expect((await notices(document))[0]?.['recipients_attached_at']).not.toBeNull();
   const [event] = await events(document);
   expect(event?.['payload']).toMatchObject({
     document_id: document,
@@ -50,6 +65,15 @@ it('emits exactly once per document per expiry date across two runs, and a re-ru
     today: '2026-10-05',
     detected_at: f.clock.now().toISOString(),
   });
+  expect(
+    (event?.['payload'] as { notification_recipients?: { user_id: string }[] }).notification_recipients,
+  ).toEqual([
+    expect.objectContaining({
+      user_id: owner,
+      template_key: 'document_expiring',
+      template_revision: 1,
+    }),
+  ]);
   expect(
     await f.owner`SELECT actor_user_id FROM audit_log WHERE action='document_expiring.notified'
       AND entity_id=${document}`,
@@ -66,6 +90,7 @@ it('emits exactly once per document per expiry date across two runs, and a re-ru
 
 it('alert_days 0 fires on the expiry day only, never the day before or after', async () => {
   const tenant = await f.tenant();
+  await ownerMember(tenant);
   await f.type(tenant, 'civil_id', 0);
   const today = await f.document(tenant, await f.employee(tenant), 'civil_id', '2026-10-05');
   const tomorrow = await f.document(tenant, await f.employee(tenant), 'civil_id', '2026-10-06');
@@ -80,6 +105,7 @@ it('alert_days 0 fires on the expiry day only, never the day before or after', a
 
 it('a replaced document stops being scanned and the replacement gets its own single event', async () => {
   const tenant = await f.tenant();
+  await ownerMember(tenant);
   const employee = await setup(tenant, 'residency', 30);
   const first = await f.document(tenant, employee, 'residency', '2026-10-06');
   expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
@@ -97,6 +123,7 @@ it('a replaced document stops being scanned and the replacement gets its own sin
 
 it('an edited alert_days cannot re-emit after leaving and re-entering the window', async () => {
   const tenant = await f.tenant();
+  await ownerMember(tenant);
   const employee = await setup(tenant, 'health_certificate', 30);
   const document = await f.document(tenant, employee, 'health_certificate', '2026-11-24');
 
@@ -124,6 +151,7 @@ it('ignores a current document without an expiry date', async () => {
 it('works only inside the scheduled company: another tenant is never read or written', async () => {
   const a = await f.tenant();
   const b = await f.tenant();
+  await ownerMember(b);
   const bEmployee = await setup(b, 'passport', 30);
   const bDocument = await f.document(b, bEmployee, 'passport', '2026-10-06');
 

@@ -10,6 +10,14 @@ export interface MissedOutCursor {
 export interface LockedMissedOutSession extends MissedOutSession {
   readonly businessId: string;
   readonly branchId: string;
+  /** مستخدم الموظفة إن كان مربوطًا بحساب؛ null يعني أن الجرس بلا صاحب معلوم. */
+  readonly employeeUserId: string | null;
+  /** اسم الموظفة العربي أو null؛ الجرس يرجع للإنجليزي أو لاسم عام آمن. */
+  readonly employeeNameAr: string | null;
+  /** اسم الموظفة الإنجليزي. */
+  readonly employeeNameEn: string;
+  /** المنطقة الزمنية التي سُجّلت فيها البصمة؛ تاريخ ووقت الجرس محسوبان بها. */
+  readonly timeZone: string;
 }
 
 /** كتابات الوظيفة على نفس معاملة القفل؛ اللحظات تأتي محسوبة من domain. */

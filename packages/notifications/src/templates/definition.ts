@@ -7,8 +7,8 @@ export interface TemplateParameter {
   readonly sensitivity: 'safe' | 'sensitive';
   readonly component: 'header' | 'body' | 'button';
   readonly buttonIndex?: string;
-  /** safe يرفض أي سلسلة من ٤–٨ أرقام؛ display_name يسمح بسنة داخل الاسم ويرفض الرابط والهاتف والرمز وحده؛ date يثبت التاريخ الميلادي الفعلي؛ money يقبل 1250.000 كدينار بثلاث خانات لأن قاعدة ٤–٨ أرقام ترفض جزء 1250. */
-  readonly textKind?: 'safe' | 'display_name' | 'date' | 'money';
+  /** safe يرفض أي سلسلة من ٤–٨ أرقام؛ display_name يسمح بسنة داخل الاسم ويرفض الرابط والهاتف والرمز وحده؛ date يثبت التاريخ الميلادي الفعلي؛ money يقبل 1250.000 كدينار بثلاث خانات لأن قاعدة ٤–٨ أرقام ترفض جزء 1250؛ id يقبل معرّف UUID بأحرف صغيرة فقط لأن الأرقام البينية ترفضها قاعدة ٤–٨ أرقام. */
+  readonly textKind?: 'safe' | 'display_name' | 'date' | 'money' | 'id';
 }
 export interface TemplateDefinition {
   readonly key: string;
@@ -59,6 +59,8 @@ function textAllowed(descriptor: TemplateParameter, value: string): boolean {
   if (descriptor.textKind === 'date')
     return /^\d{4}-\d{2}-\d{2}$/.test(value) &&
       Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+  if (descriptor.textKind === 'id')
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
   if (descriptor.textKind === 'display_name')
     return value.trim().length > 0 && !DISPLAY_NAME_UNSAFE.test(value.trim());
   if (descriptor.textKind === 'money') return /^\d{1,11}\.\d{3}$/.test(value);

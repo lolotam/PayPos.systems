@@ -4,6 +4,12 @@ import { responseObject } from './response-object.js';
 import { id } from './scalars/id.js';
 import { timestamp } from './scalars/timestamp.js';
 import { pageQuery } from './pagination/cursor.js';
+import {
+  attendanceExceptionRaisedParameters,
+  attendanceExceptionRaisedRecipient,
+  documentExpiringParameters,
+  documentExpiringRecipient,
+} from './staff-alert-notifications.js';
 
 const safeText = z
   .string()
@@ -217,6 +223,8 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
     template_key: z.literal('break_not_returned'),
     safe_parameters: breakNotReturnedParameters,
   }),
+  attendanceExceptionRaisedRecipient,
+  documentExpiringRecipient,
 ]);
 const inAppNotificationBase = {
   id,
@@ -289,6 +297,16 @@ export const inAppNotification = z
       ...inAppNotificationBase,
       template_key: z.literal('break_not_returned'),
       safe_parameters: breakNotReturnedParameters,
+    }),
+    responseObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('attendance_exception_raised'),
+      safe_parameters: attendanceExceptionRaisedParameters,
+    }),
+    responseObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('document_expiring'),
+      safe_parameters: documentExpiringParameters,
     }),
   ])
   .meta({ id: 'InAppNotification' });

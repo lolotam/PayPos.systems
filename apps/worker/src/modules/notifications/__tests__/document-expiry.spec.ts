@@ -89,3 +89,110 @@ it('stores one in-app notification per recipient when the event carries the reco
   });
   expect(h.channel.calls).toBe(0);
 });
+
+it('stores the document expiry bell with its six parameters', async () => {
+  const parameters = [
+    { name: 'employee_name_ar', type: 'text', value: 'سارة' },
+    { name: 'employee_name_en', type: 'text', value: 'Sara' },
+    { name: 'document_type_ar', type: 'text', value: 'إقامة' },
+    { name: 'document_type_en', type: 'text', value: 'Residency' },
+    { name: 'expires_on', type: 'text', value: '2026-11-04' },
+    { name: 'document_id', type: 'text', value: ids.newId() },
+  ];
+  const request = documentExpiring({
+    notification_recipients: [
+      {
+        channel: 'IN_APP',
+        user_id: USER,
+        locale: 'ar',
+        template_key: 'document_expiring',
+        template_revision: 1,
+        safe_parameters: parameters,
+      },
+    ],
+  });
+  expect(await h.deliver(request)).toEqual({ delivered: true });
+  const rows =
+    await owner`SELECT template_key,template_revision,safe_parameters FROM in_app_notifications
+      WHERE source_event_id = ${request.id}`;
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.['template_key']).toBe('document_expiring');
+  expect(rows[0]?.['template_revision']).toBe(1);
+  expect(rows[0]?.['safe_parameters']).toEqual(parameters);
+});
+
+it('stores the attendance exception bell with its six parameters', async () => {
+  const parameters = [
+    { name: 'employee_name_ar', type: 'text', value: 'سارة' },
+    { name: 'employee_name_en', type: 'text', value: 'Sara' },
+    { name: 'branch_name_ar', type: 'text', value: 'السالمية' },
+    { name: 'branch_name_en', type: 'text', value: 'Salmiya' },
+    { name: 'clock_in_date', type: 'text', value: '2026-10-23' },
+    { name: 'clock_in_time', type: 'text', value: '09:02' },
+  ];
+  const request: ClaimedEvent = {
+    id: ids.newId(),
+    companyId: TENANT.A.company,
+    aggregateType: 'employee',
+    aggregateId: ids.newId(),
+    eventType: 'AttendanceExceptionRaised',
+    payload: {
+      exception_id: ids.newId(),
+      kind: 'SUSPECTED_MISSED_OUT',
+      session_id: ids.newId(),
+      employee_id: ids.newId(),
+      business_id: TENANT.A.business,
+      branch_id: ids.newId(),
+      clock_in: '2026-10-23T06:02:00.000Z',
+      due_at: '2026-10-23T18:02:00.000Z',
+      raised_at: '2026-10-23T18:02:00.000Z',
+      notification_recipients: [
+        {
+          channel: 'IN_APP',
+          user_id: USER,
+          locale: 'ar',
+          template_key: 'attendance_exception_raised',
+          template_revision: 1,
+          safe_parameters: parameters,
+        },
+      ],
+    },
+    attempt: 1,
+  };
+  expect(await h.deliver(request)).toEqual({ delivered: true });
+  const rows =
+    await owner`SELECT template_key,safe_parameters FROM in_app_notifications
+      WHERE source_event_id = ${request.id}`;
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.['template_key']).toBe('attendance_exception_raised');
+  expect(rows[0]?.['safe_parameters']).toEqual(parameters);
+});
+
+it('refuses a document bell whose document id is not a uuid and stores nothing', async () => {
+  const request = documentExpiring({
+    notification_recipients: [
+      {
+        channel: 'IN_APP',
+        user_id: USER,
+        locale: 'ar',
+        template_key: 'document_expiring',
+        template_revision: 1,
+        safe_parameters: [
+          { name: 'employee_name_ar', type: 'text', value: 'سارة' },
+          { name: 'employee_name_en', type: 'text', value: 'Sara' },
+          { name: 'document_type_ar', type: 'text', value: 'إقامة' },
+          { name: 'document_type_en', type: 'text', value: 'Residency' },
+          { name: 'expires_on', type: 'text', value: '2026-11-04' },
+          { name: 'document_id', type: 'text', value: 'not-a-uuid' },
+        ],
+      },
+    ],
+  });
+  await expect(
+    h.db.withTenant(request.companyId, (tx) => h.module.consumer.handle(tx, request)),
+  ).rejects.toThrow('NOTIFICATION_REQUEST_INVALID');
+  expect((await h.deliver(request)).delivered).toBe(false);
+  expect(
+    await owner`SELECT id FROM in_app_notifications WHERE source_event_id = ${request.id}`,
+  ).toHaveLength(0);
+});

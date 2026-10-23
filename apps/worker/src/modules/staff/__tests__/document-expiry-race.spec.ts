@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { documentExpiryTransactions } from '../persistence/document-expiry.transactions.ts';
 import {
+  ROLE,
   documentExpiryFixture,
   type DocumentExpiryFixture,
   type Tenant,
@@ -36,8 +37,22 @@ async function totals(document: string) {
   return row;
 }
 
+async function markers(document: string) {
+  const rows = await f.owner`SELECT recipients_attached_at FROM employee_document_expiry_notices
+    WHERE document_id=${document}`;
+  return rows.map((row) => row['recipients_attached_at']);
+}
+
 async function setup() {
   const tenant = await f.tenant();
+  const owner = await f.user('owner');
+  await f.member({
+    tenant,
+    userId: owner,
+    roleId: ROLE.owner,
+    scopeType: 'COMPANY',
+    scopeId: tenant.company,
+  });
   await f.type(tenant, 'passport', 30);
   const employee = await f.employee(tenant);
   const document = await f.document(tenant, employee, 'passport', '2026-10-20');
@@ -58,6 +73,7 @@ it('two workers and a restarted worker commit only one ledger, audit and event',
   expect(results.sort()).toEqual([false, true]);
   expect(await f.detect().execute(tenant.company)).toEqual({ notified: 0 });
   expect(await totals(document)).toEqual({ ledger: 1, audit: 1, events: 1 });
+  expect(await markers(document)).toEqual([f.clock.now()]);
 });
 
 it('a replacement committed after paging invalidates the old candidate', async () => {

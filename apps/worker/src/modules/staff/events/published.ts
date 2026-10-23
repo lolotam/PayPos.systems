@@ -1,5 +1,4 @@
-// TODO(spec) MO-Q5: لا notification_recipients قبل وصول AlertRulesPort؛ مستهلك الإشعارات يقبل الحدث بلا إرسال (موصى به).
-/** يصدر مرة واحدة لكل جلسة عندما ترفع وظيفة الخروج المفقود SUSPECTED_MISSED_OUT، في نفس معاملة الاستثناء والتدقيق. */
+/** يصدر مرة واحدة لكل جلسة عندما ترفع وظيفة الخروج المفقود SUSPECTED_MISSED_OUT، مع مستلميه لو قاعدة نوع ATTENDANCE_EXCEPTION أوصّلت لحد؛ صف لكل مجموعة مستلمين بسقف مئة. */
 export interface AttendanceExceptionRaised {
   readonly exception_id: string;
   readonly kind: 'SUSPECTED_MISSED_OUT';
@@ -53,8 +52,7 @@ export interface ShiftBreakNotReturned {
   readonly returned_at?: string;
 }
 
-// TODO(spec) MO-Q1: لا notification_recipients قبل وصول AlertRulesPort (PR 62)؛ مستهلك الإشعارات يقبل الحدث بلا إرسال (موصى به).
-/** يصدر مرة واحدة لكل وثيقة لكل تاريخ انتهاء عند دخولها نافذة التنبيه، داخل نفس معاملة دفتر المنع والتدقيق. */
+/** يصدر مرة واحدة لكل وثيقة لكل تاريخ انتهاء عند إرفاق مستلميه، وده بس لو قاعدة نوع DOCUMENT_EXPIRING أوصّلت لصاحب صلاحية read:files:business. */
 export interface DocumentExpiring {
   readonly document_id: string;
   readonly employee_id: string;
