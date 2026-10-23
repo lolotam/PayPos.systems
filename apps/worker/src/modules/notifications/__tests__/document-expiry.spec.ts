@@ -142,7 +142,7 @@ it('stores the attendance exception bell with its six parameters', async () => {
       session_id: ids.newId(),
       employee_id: ids.newId(),
       business_id: TENANT.A.business,
-      branch_id: ids.newId(),
+      branch_id: TENANT.A.branch,
       clock_in: '2026-10-23T06:02:00.000Z',
       due_at: '2026-10-23T18:02:00.000Z',
       raised_at: '2026-10-23T18:02:00.000Z',
