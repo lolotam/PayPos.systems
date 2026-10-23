@@ -39,7 +39,9 @@ describe('NativeEntry', () => {
   it('shows the start screen when no role is stored yet', async () => {
     mount();
 
-    expect(await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+    expect(
+      await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') }),
+    ).not.toBeNull();
     expect(screen.queryByRole('heading', { name: 'device screen' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'personal screen' })).toBeNull();
   });

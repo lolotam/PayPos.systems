@@ -47,7 +47,9 @@ describe('App', () => {
     vi.mocked(isNativeShell).mockReturnValue(true);
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+    expect(
+      await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') }),
+    ).not.toBeNull();
     expect(screen.queryByRole('heading', { name: 'device screen' })).toBeNull();
   });
 });

@@ -10,9 +10,7 @@ import { LoadingNotice } from './loading-notice';
 import { StartScreen } from './start-screen';
 
 type NativeState =
-  | { kind: 'loading' }
-  | { kind: 'start'; failed: boolean }
-  | { kind: 'flow'; role: DeviceRole };
+  { kind: 'loading' } | { kind: 'start'; failed: boolean } | { kind: 'flow'; role: DeviceRole };
 
 export function NativeEntry() {
   const locale = useLocale();
