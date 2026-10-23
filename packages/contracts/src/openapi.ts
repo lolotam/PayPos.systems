@@ -74,6 +74,7 @@ import {
   staffOtpVerifyInput,
   staffOtpAcknowledgement,
   staffSessionContext,
+  signOutResult,
   staffPinInput,
   staffPinResetInput,
 } from './identity/staff-otp.js';
@@ -186,6 +187,7 @@ const SCHEMAS = [
   staffOtpVerifyInput,
   staffOtpAcknowledgement,
   staffSessionContext,
+  signOutResult,
   whatsappWebhookAcknowledgement,
   whatsappEnvelope,
   whatsappHandshake,

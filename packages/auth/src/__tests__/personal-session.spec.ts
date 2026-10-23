@@ -104,7 +104,9 @@ it('durable replacement invalidates older personal sessions; failed validation p
   const next = await auth.personal.issue(userId, workspace, async () => true);
   expect(await auth.personal.resolve(headers(first.cookie))).toBeNull();
   expect(await auth.personal.resolve(headers(next.cookie))).not.toBeNull();
-  expect(await auth.personal.signOut(headers(next.cookie))).toContain('Expires=Thu, 01 Jan 1970');
+  expect((await auth.personal.signOut(headers(next.cookie))).cookie).toContain(
+    'Expires=Thu, 01 Jan 1970',
+  );
   expect(await auth.personal.resolve(headers(next.cookie))).toBeNull();
 });
 it('changing the approved phone invalidates the personal purpose at database level', async () => {

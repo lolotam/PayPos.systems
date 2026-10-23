@@ -11,6 +11,7 @@ import { API_CONTROLLERS, createApp } from '../../../app.ts';
 import { Public } from '../../../shared/public.decorator.ts';
 import { Authenticated, Require } from '../../../shared/access.decorators.ts';
 import { PERSONAL_ROUTE } from '../../../shared/personal-authentication.ts';
+import { SIGN_OUT_ROUTE } from '../../../shared/sign-out.guard.ts';
 import { STAFF_ROUTE } from '../../../shared/staff-authentication.ts';
 import {
   type AuthenticatedWriteDeclaration,
@@ -106,7 +107,10 @@ const silent = { logger: createLogger('silent') };
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../../../../../..');
 // What SessionGuard reads on each PERSONAL / DEVICE_ONLY write. A route absent here carries neither marker.
 const ROUTE_MARKERS: Readonly<
-  Record<string, { personal?: true | 'staff'; staff?: 'device' | 'staff' }>
+  Record<
+    string,
+    { personal?: true | 'staff'; staff?: 'device' | 'staff'; signOut?: 'staff' | 'personal' }
+  >
 > = {
   'ClockAttendanceController.challenge': { personal: true },
   'ClockAttendanceController.submit': { personal: true },
@@ -114,16 +118,17 @@ const ROUTE_MARKERS: Readonly<
   'OwnLeaveController.request': { personal: 'staff', staff: 'staff' },
   'PasskeysController.registrationOptions': { personal: true },
   'PasskeysController.verify': { personal: true },
-  'PersonalOtpController.signOut': { personal: true },
+  'PersonalOtpController.signOut': { signOut: 'personal' },
   'PushSubscriptionController.register': { personal: true },
   'PushSubscriptionController.revoke': { personal: true },
   'StaffOtpController.request': { staff: 'device' },
-  'StaffOtpController.signOut': { staff: 'staff' },
+  'StaffOtpController.signOut': { signOut: 'staff' },
   'StaffOtpController.verify': { staff: 'device' },
   'StaffPinController.signIn': { staff: 'device' },
 };
 const PERSONAL_GUARD = 'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest';
 const STAFF_GUARD = 'apps/api/src/shared/session.guard.ts##staff';
+const SIGN_OUT_GUARD = 'apps/api/src/shared/sign-out.guard.ts#signOutRequest';
 
 function bindingText(name: ts.Node): string | undefined {
   if (ts.isIdentifier(name) || ts.isPrivateIdentifier(name)) return name.text;
@@ -275,14 +280,17 @@ describe('the mounted allowlist', () => {
       const handler = mountedHandler(key);
       const personal: unknown = Reflect.getMetadata(PERSONAL_ROUTE, handler);
       const staff: unknown = Reflect.getMetadata(STAFF_ROUTE, handler);
+      const signOut: unknown = Reflect.getMetadata(SIGN_OUT_ROUTE, handler);
       // The personal guard is the whole check only when every request goes through it. PERSONAL_ROUTE 'staff'
       // lets a request with an Authorization header take another path, so such a route cites a check on both.
       expect(entry.checkedIn === PERSONAL_GUARD, key).toBe(personal === true);
+      // The sign-out policy is the whole check only on the route that carries its marker.
+      expect(entry.checkedIn === SIGN_OUT_GUARD, key).toBe(signOut !== undefined);
       if (entry.checkedIn === STAFF_GUARD) {
         expect(staff, key).toBe(entry.access === 'DEVICE_ONLY' ? 'device' : 'staff');
       }
       // Every marker the session guard reads is pinned, so dropping or changing one fails here.
-      expect({ personal, staff }, key).toEqual(ROUTE_MARKERS[key] ?? {});
+      expect({ personal, staff, signOut }, key).toEqual(ROUTE_MARKERS[key] ?? {});
     }
   });
 

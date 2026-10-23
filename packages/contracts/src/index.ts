@@ -204,6 +204,7 @@ export {
   staffOtpVerifyInput,
   staffOtpAcknowledgement,
   staffSessionContext,
+  signOutResult,
   staffOtpJob,
   staffPinInput,
   staffPinResetInput,
@@ -213,6 +214,7 @@ export {
   type StaffOtpVerifyInput,
   type StaffOtpAcknowledgement,
   type StaffSessionContext,
+  type SignOutResult,
 } from './identity/staff-otp.js';
 export {
   updateEmployeeInput,

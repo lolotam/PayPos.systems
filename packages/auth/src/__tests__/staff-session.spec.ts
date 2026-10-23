@@ -127,7 +127,7 @@ it('rotates only the shared device after durable creation and logout preserves a
   expect(
     await present(auth.staff).resolve(cookieHeaders(other.cookie), otherDevice),
   ).not.toBeNull();
-  expect(await present(auth.staff).signOut(cookieHeaders(next.cookie), device)).toContain(
+  expect((await present(auth.staff).signOut(cookieHeaders(next.cookie))).cookie).toContain(
     'Expires=Thu, 01 Jan 1970',
   );
   expect(await present(auth.staff).resolve(cookieHeaders(next.cookie), device)).toBeNull();
@@ -267,7 +267,7 @@ it('confirmCurrent accepts only the live device session', async () => {
     device,
   };
   await staff.confirmCurrent(next);
-  await staff.signOut(cookieHeaders(replacement.cookie), device);
+  await staff.signOut(cookieHeaders(replacement.cookie));
   await expect(staff.confirmCurrent(next)).rejects.toBeInstanceOf(StaffSessionEnded);
 });
 
@@ -275,7 +275,7 @@ it('session resolution rechecks approval even if eligibility remains valid', asy
   const issued = await auth.staff.issue(userId, device, async () => true);
   await owner`UPDATE "user" SET phone_binding_approved_at=NULL WHERE id=${userId}`;
   expect(await auth.staff.resolve(cookieHeaders(issued.cookie), device)).toBeNull();
-  await auth.staff.signOut(cookieHeaders(issued.cookie), device);
+  await auth.staff.signOut(cookieHeaders(issued.cookie));
   expect(await owner`SELECT id FROM session WHERE id=${issued.session.sessionId}`).toEqual([]);
   await owner`UPDATE "user" SET phone_binding_approved_at=${now} WHERE id=${userId}`;
 });

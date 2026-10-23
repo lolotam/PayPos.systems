@@ -45,6 +45,7 @@ export type {
 } from './staff-otp/types.ts';
 export type { StaffSessions } from './staff-sessions.ts';
 export { StaffProofChanged } from './staff-sessions.ts';
+export type { SignOutOutcome } from './session-sign-out.ts';
 export {
   StaffSessionEnded,
   staffDeviceSessionLockKey,

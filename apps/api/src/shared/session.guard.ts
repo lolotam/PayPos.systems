@@ -6,11 +6,20 @@ import {
   type ExecutionContext,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { resolveUserPrincipal, type AuthService, type Principal } from '@pospay/auth';
+import {
+  resolveUserPrincipal,
+  type AuthService,
+  type Principal,
+  type StaffSessions,
+} from '@pospay/auth';
 import { updateRequestContext } from '@pospay/observability';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
-import { DEVICE_AUTHENTICATOR, type DeviceAuthenticator } from './device-authenticator.ts';
+import {
+  DEVICE_AUTHENTICATOR,
+  RATE_LIMITER,
+  type DeviceAuthenticator,
+} from './device-authenticator.ts';
 import { ApiError } from './errors.ts';
 import {
   PERSONAL_AUTHENTICATION,
@@ -18,7 +27,11 @@ import {
   type PersonalAuthentication,
 } from './personal-authentication.ts';
 import { personalSessionRequest } from './personal-session.guard.ts';
+import type { RateLimiter } from './ports/rate-limiter.port.ts';
 import { PUBLIC_ROUTE } from './public.decorator.ts';
+import { SIGN_OUT_ROUTE, signOutRequest } from './sign-out.guard.ts';
+import { STAFF_POS_ORIGIN } from './staff-origin.token.ts';
+import { STAFF_SESSIONS } from './staff-sessions.token.ts';
 import { toWebHeaders } from './web-headers.ts';
 import {
   STAFF_AUTHENTICATION,
@@ -37,7 +50,10 @@ export const AllowClosedCompanyDeviceOtp = (): MethodDecorator =>
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** Set by the session guard on every non-public route; absent only on @Public() routes. */
+    /**
+     * Set by the session guard on every non-public route; absent on @Public() routes and on the two
+     * sign-out routes (SignOutRoute), which carry none (spec 067 D-7).
+     */
     principal?: Principal;
     /** The company the session last selected — a hint the access guard re-verifies, never trusted as is. */
     companyHint?: string | null;
@@ -47,7 +63,8 @@ declare module 'fastify' {
 /**
  * Deny by default (ADR-0003 §4): every route needs a verified session unless it is marked @Public(). The
  * principal is resolved server-side from the session cookie and attached to the request; what it may do is
- * decided by @Require (T9a-2), never by this guard.
+ * decided by @Require (T9a-2), never by this guard. The two sign-out routes (SignOutRoute) are the
+ * session-optional exception: they read the signed cookie alone and set no principal (spec 067 D-1).
  */
 @Injectable()
 export class SessionGuard implements CanActivate {
@@ -61,6 +78,9 @@ export class SessionGuard implements CanActivate {
     @Inject(DEVICE_AUTHENTICATOR) devices: DeviceAuthenticator | null,
     @Inject(STAFF_AUTHENTICATION) private readonly staff: StaffAuthentication | null,
     @Inject(PERSONAL_AUTHENTICATION) private readonly personal: PersonalAuthentication | null,
+    @Inject(STAFF_SESSIONS) private readonly staffSessions: StaffSessions | null,
+    @Inject(STAFF_POS_ORIGIN) private readonly staffOrigin: string | null,
+    @Inject(RATE_LIMITER) private readonly limiter: RateLimiter | null,
   ) {
     this.#reflector = reflector;
     this.#auth = auth;
@@ -75,6 +95,11 @@ export class SessionGuard implements CanActivate {
     if (isPublic === true) return true;
     const http = context.switchToHttp();
     const request = http.getRequest<FastifyRequest>();
+    const signOut = this.#reflector.get<'staff' | 'personal' | undefined>(
+      SIGN_OUT_ROUTE,
+      context.getHandler(),
+    );
+    if (signOut !== undefined) return this.#signOut(request, signOut);
     const personalPolicy = this.#reflector.get<boolean | 'staff'>(
       PERSONAL_ROUTE,
       context.getHandler(),
@@ -111,6 +136,17 @@ export class SessionGuard implements CanActivate {
       updateRequestContext({ userId: resolved.principal.userId });
     request.companyHint = resolved.companyHint;
     return true;
+  }
+
+  // The sign-out policy runs before every session read: the route proves nothing but the signed cookie,
+  // so no principal is set and no device, eligibility or binding code is consulted (spec 067 D-1).
+  async #signOut(request: FastifyRequest, kind: 'staff' | 'personal'): Promise<boolean> {
+    return signOutRequest(request, kind, {
+      staffSessions: this.staffSessions,
+      staffOrigin: this.staffOrigin,
+      personal: this.personal,
+      limiter: this.limiter,
+    });
   }
 
   async #staff(

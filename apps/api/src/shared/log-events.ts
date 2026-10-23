@@ -13,6 +13,7 @@ export const API_LOG_EVENTS = [
   'employee card issue limited',
   'employee card issue attempts unavailable',
   'employee card issue completion unrecorded',
+  'staff session sign-out',
   'card scan limited',
   'card scan redis unavailable',
   'card scan completion unrecorded',

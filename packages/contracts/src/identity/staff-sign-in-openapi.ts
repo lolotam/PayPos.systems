@@ -70,12 +70,6 @@ export const staffSignInPaths = {
     get: operation('getStaffSession', '200', 'Current device operator', 'StaffSessionContext'),
   },
   '/v1/devices/me/staff-session/sign-out': {
-    post: {
-      operationId: 'signOutStaff',
-      responses: {
-        '200': { description: 'Signed out' },
-        default: { description: 'Error', content: json('ErrorEnvelope') },
-      },
-    },
+    post: operation('signOutStaff', '200', 'Signed out, or no session to end', 'SignOutResult'),
   },
 };

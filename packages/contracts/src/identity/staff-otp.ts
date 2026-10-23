@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 
 export const canonicalStaffPhone = z.string().regex(/^\+[1-9]\d{7,14}$/);
@@ -42,6 +43,10 @@ export const staffSessionContext = z
   .strict()
   .meta({ id: 'StaffSessionContext' });
 
+export const signOutResult = responseObject({ status: z.enum(['SIGNED_OUT', 'NO_SESSION']) }).meta({
+  id: 'SignOutResult',
+});
+
 export const staffOtpJob = z
   .object({
     challenge_id: id,
@@ -53,6 +58,7 @@ export type StaffOtpRequestInput = z.infer<typeof staffOtpRequestInput>;
 export type StaffOtpVerifyInput = z.infer<typeof staffOtpVerifyInput>;
 export type StaffOtpAcknowledgement = z.infer<typeof staffOtpAcknowledgement>;
 export type StaffSessionContext = z.infer<typeof staffSessionContext>;
+export type SignOutResult = z.infer<typeof signOutResult>;
 
 export const staffPinInput = z
   .object({
