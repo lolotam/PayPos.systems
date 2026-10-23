@@ -67,6 +67,7 @@ export const NOTIFICATION_SOURCE_EVENTS = [
   'AttendanceExceptionRaised',
   'ShiftNotClockedIn',
   'ShiftBreakNotReturned',
+  'ShiftEndsSoon',
   'DocumentExpiring',
   'StatementAwaitingReview',
   'StatementAwaitingApproval',
