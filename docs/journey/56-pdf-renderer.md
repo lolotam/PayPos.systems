@@ -34,7 +34,7 @@ The worker runs on staging, but there is nothing to test there. The only thing t
    - نوع مش معروف ← `FAILED` / `DOCUMENT_KIND_UNKNOWN`.
    - HTML أكبر من 4 ميجا أو PDF أكبر من 8 ميجا ← `DOCUMENT_TOO_LARGE`.
    - رسم أطول من 30 ثانية ← `DOCUMENT_RENDER_TIMEOUT`.
-   - المحاولة الأولى لو فشلت بتتعاد مرة واحدة بعد 5 ثواني.
+   - المحاولة الأولى لو فشلت لسبب مؤقت (فشل الرسم أو الوقت خلص) بتتعاد مرة واحدة بعد 5 ثواني؛ أما `DOCUMENT_KIND_UNKNOWN` و`DOCUMENT_TOO_LARGE` فمحاولة واحدة بس من غير إعادة.
 5. **الملف ما بيتخزنش:** الـ PDF بيتحط في Redis لمدة 120 ثانية بس، وبيتاخد مرة واحدة. حالة الطلب نفسها بتفضل 15 دقيقة.
 6. **صورة الـ worker:** `docker build -f deploy/Dockerfile.worker .` بيشغّل فحصين وقت البناء: sharp، وبعده PDF عربي. فحص الـ PDF بيرفض يشتغل بـ root.
 7. **المحرّك شغال ولا لأ:** وChromium شغال، الـ worker بيجدد المفتاح `documents:renderer-alive` كل ثانية تقريبًا (عمره 3 ثواني). لو Chromium وقع، المفتاح بيختفي، والـ worker بيرجّع Chromium تاني. `/ready` بتاع الـ worker مش مربوط بيه.
@@ -62,7 +62,8 @@ The worker runs on staging, but there is nothing to test there. The only thing t
    - An unknown kind → `FAILED` / `DOCUMENT_KIND_UNKNOWN`.
    - HTML over 4 MiB or a PDF over 8 MiB → `DOCUMENT_TOO_LARGE`.
    - A render over 30 s → `DOCUMENT_RENDER_TIMEOUT`.
-   - A failed first attempt is retried once, 5 s later.
+   - A first attempt that fails for a transient reason (a render failure or a timeout) is retried once, 5 s later;
+     `DOCUMENT_KIND_UNKNOWN` and `DOCUMENT_TOO_LARGE` run once and are never retried.
 5. **The file is not stored:** the PDF sits in Redis for 120 s only and is collected once. The request status itself lives 15 minutes.
 6. **Worker image:** `docker build -f deploy/Dockerfile.worker .` runs two smokes at build time: sharp, then an Arabic PDF. The PDF smoke
    refuses to run as root.

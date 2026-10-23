@@ -8,8 +8,8 @@ no phone shows a notification today. Two more gates:
   templates and secrets are approved ([22](22-personal-phone-passkey.md)). Today the routes run only in tests and local
   seams, as in [26](26-clock-attendance.md).
 - Registering needs the API's VAPID public key and subject (`VAPID_PUBLIC_KEY`, `VAPID_SUBJECT` in `.env.example`).
-  `deploy/staging.env.example` does not list them, so unless they were set in Dokploy, staging answers the config and
-  register routes with «الخدمة غير جاهزة حالياً» (503). Removing a subscription always works.
+  Neither staging compose file passes them to the API, so setting them in Dokploy is not enough: until the compose wiring
+  is added (issue #534), staging answers the config and register routes with «الخدمة غير جاهزة حالياً» (503). Removing a subscription always works.
 
 Since #533 (2026-10-23) staging runs the admin at `https://app.staging.pospay.systems`, the POS at
 `https://pos.staging.pospay.systems` and the API + worker at `https://api.staging.pospay.systems`, demo data only. Spec
@@ -80,7 +80,8 @@ API only, no screen yet, and no notification is sent to any phone yet.
     subscription.
 
 **Must NOT happen:**
-- More than 5 live subscriptions for one employee, or one endpoint live for two employees.
+- Within one company: more than 5 live subscriptions for one employee, or one endpoint live for two employees (each
+  company counts and owns endpoints on its own, so the same user or endpoint in another company is not a conflict).
 - An endpoint outside the allowed push services accepted.
 - The raw installation id, or the keys after a revoke, stored; or any of them in the logs.
 - A revoke answer that tells her own subscription from someone else's or a missing one.
@@ -99,8 +100,8 @@ API only, no screen yet, and no notification is sent to any phone yet.
 
     The body has `installation_id` (a UUID v4), `vapid_key_id` (16 hex), `delivery_token` (a UUID v4), `locale` (`ar` or
     `en`) and `subscription`, the browser's push subscription object: `endpoint` (a synthetic
-    `https://fcm.googleapis.com/fcm/send/…` URL in tests), `expirationTime` (`null`), and its two public key fields
-    (87 and 22 base64url characters). Use synthetic values only.
+    `https://fcm.googleapis.com/fcm/send/…` URL in tests), `expirationTime` (`null`), and `keys` with `p256dh`
+    (87 base64url characters) and `auth` (22 base64url characters), as in `packages/contracts/src/push-subscription.ts`. Use synthetic values only.
 
   - `POST /staff/push/subscription/revoke` with `{ "installation_id": "<UUID_V4>" }` → 204.
   - Allowed hosts (`packages/contracts/src/push-subscription.ts`): `fcm.googleapis.com`,
