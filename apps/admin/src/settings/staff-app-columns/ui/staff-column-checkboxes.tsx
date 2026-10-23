@@ -10,7 +10,7 @@ import type { StaffColumnsDraft } from '../model/staff-columns-save-body';
 
 export function StaffColumnCheckboxes({ defaultInEffect }: { defaultInEffect: boolean }) {
   const locale = useLocale();
-  const { field } = useController<StaffColumnsDraft>({ name: 'columns' });
+  const { field } = useController<StaffColumnsDraft, 'columns'>({ name: 'columns' });
   const selected = field.value ?? [];
   const toggle = (code: StaffColumnCode) => {
     const next = selected.includes(code)
@@ -26,9 +26,7 @@ export function StaffColumnCheckboxes({ defaultInEffect }: { defaultInEffect: bo
           <Badge variant="secondary">{t(locale, 'staffAppColumns.defaultInEffect')}</Badge>
         ) : null}
       </legend>
-      <p className="text-sm text-muted-foreground">
-        {t(locale, 'staffAppColumns.columnsHint')}
-      </p>
+      <p className="text-sm text-muted-foreground">{t(locale, 'staffAppColumns.columnsHint')}</p>
       {offeredStaffColumns().map((code) => {
         const id = `staff-column-${code}`;
         return (

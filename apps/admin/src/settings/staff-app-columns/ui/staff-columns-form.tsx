@@ -35,10 +35,10 @@ export function StaffColumnsForm({
     resolver: zodResolver(replaceStaffColumnsInput),
     defaultValues: { columns: [...server.columns], months_back: server.months_back },
   });
-  const submit = form.handleSubmit(() => {
+  const submit = form.handleSubmit((data) => {
     setSaved(false);
     save.mutate(
-      { idempotencyKey: crypto.randomUUID(), body: staffColumnsSaveBody(server, form.getValues()) },
+      { idempotencyKey: crypto.randomUUID(), body: staffColumnsSaveBody(server, data) },
       {
         onSuccess: (stored) => {
           form.reset({ columns: [...stored.columns], months_back: stored.months_back });

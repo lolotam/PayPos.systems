@@ -65,7 +65,22 @@ it('shows the stored columns as ticked boxes with an example beside each one', a
   expect(checkbox(t('en', 'staffAppColumns.label_service')).checked).toBe(true);
   expect(checkbox(t('en', 'staffAppColumns.label_time')).checked).toBe(false);
   expect(screen.getAllByRole('checkbox')).toHaveLength(10);
-  expect(screen.queryByRole('checkbox', { name: 'rating_average' })).toBeNull();
+  expect(
+    screen
+      .getAllByRole('checkbox')
+      .map((box) => (box as HTMLInputElement).labels?.[0]?.textContent),
+  ).toEqual([
+    t('en', 'staffAppColumns.label_date'),
+    t('en', 'staffAppColumns.label_time'),
+    t('en', 'staffAppColumns.label_service'),
+    t('en', 'staffAppColumns.label_customer_name'),
+    t('en', 'staffAppColumns.label_list_price'),
+    t('en', 'staffAppColumns.label_discount'),
+    t('en', 'staffAppColumns.label_net'),
+    t('en', 'staffAppColumns.label_share'),
+    t('en', 'staffAppColumns.label_estimated_commission'),
+    t('en', 'staffAppColumns.label_tip'),
+  ]);
   expect(screen.getByText(t('en', 'staffAppColumns.example_date'))).toBeTruthy();
   expect(screen.getByText(t('en', 'staffAppColumns.example_share'))).toBeTruthy();
   expect(monthsField().value).toBe('3');
@@ -108,26 +123,31 @@ it('shows the failure of the read and retries it', async () => {
   expect((await screen.findByRole('alert')).textContent).toContain('Synthetic failure');
   fireEvent.click(screen.getByRole('button', { name: t('en', 'pos.retry') }));
   await waitFor(() => expect(api.GET).toHaveBeenCalledTimes(2));
-  expect(await screen.findByRole('checkbox', { name: t('en', 'staffAppColumns.label_date') })).toBeTruthy();
+  expect(
+    await screen.findByRole('checkbox', { name: t('en', 'staffAppColumns.label_date') }),
+  ).toBeTruthy();
 });
 
 it('saves the change and shows what the server stored', async () => {
   api.GET.mockResolvedValue({ data: settings({ columns: ['date'], months_back: 2 }) });
   api.PUT.mockResolvedValue({
     data: settings({
-      columns: ['date', 'net'],
-      months_back: 4,
+      columns: ['date', 'net', 'tip'],
+      months_back: 5,
       columns_default: false,
       months_back_default: false,
     }),
   });
   renderPage();
-  fireEvent.click(await screen.findByRole('checkbox', { name: t('en', 'staffAppColumns.label_net') }));
+  fireEvent.click(
+    await screen.findByRole('checkbox', { name: t('en', 'staffAppColumns.label_net') }),
+  );
   fireEvent.change(monthsField(), { target: { value: '4' } });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'staffAppColumns.save') }));
   expect(await screen.findByText(t('en', 'staffAppColumns.saved'))).toBeTruthy();
   expect(checkbox(t('en', 'staffAppColumns.label_net')).checked).toBe(true);
-  expect(monthsField().value).toBe('4');
+  expect(checkbox(t('en', 'staffAppColumns.label_tip')).checked).toBe(true);
+  expect(monthsField().value).toBe('5');
   const [path, options] = api.PUT.mock.calls[0] ?? [];
   expect(path).toBe('/v1/businesses/{businessId}/settings/staff-columns');
   expect(options.params.path).toEqual({ businessId });
@@ -139,7 +159,11 @@ it('saves the change and shows what the server stored', async () => {
 it('keeps an untouched default column set on the default when only the months changed', async () => {
   api.GET.mockResolvedValue({ data: settings({ columns: ['date', 'time', 'service'] }) });
   api.PUT.mockResolvedValue({
-    data: settings({ columns: ['date', 'time', 'service'], months_back: 4, months_back_default: false }),
+    data: settings({
+      columns: ['date', 'time', 'service'],
+      months_back: 4,
+      months_back_default: false,
+    }),
   });
   renderPage();
   fireEvent.change(await screen.findByLabelText(t('en', 'staffAppColumns.monthsLabel')), {
@@ -158,7 +182,9 @@ it('shows the refusal and keeps the form when the save is forbidden', async () =
   await screen.findByRole('checkbox', { name: t('en', 'staffAppColumns.label_date') });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'staffAppColumns.save') }));
   expect((await screen.findByRole('alert')).textContent).toContain(t('en', 'errors.FORBIDDEN'));
-  expect(screen.getByRole('checkbox', { name: t('en', 'staffAppColumns.label_date') })).toBeTruthy();
+  expect(
+    screen.getByRole('checkbox', { name: t('en', 'staffAppColumns.label_date') }),
+  ).toBeTruthy();
   expect(screen.getByRole('button', { name: t('en', 'staffAppColumns.save') })).toBeTruthy();
 });
 
@@ -177,7 +203,9 @@ it('shows the refusal of the server for the months and keeps the draft', async (
   fireEvent.change(field, { target: { value: '20' } });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'staffAppColumns.save') }));
   expect((await screen.findByRole('alert')).textContent).toContain('Synthetic months refusal');
-  expect((screen.getByLabelText(t('en', 'staffAppColumns.monthsLabel')) as HTMLInputElement).value).toBe('20');
+  expect(
+    (screen.getByLabelText(t('en', 'staffAppColumns.monthsLabel')) as HTMLInputElement).value,
+  ).toBe('20');
 });
 
 it('disables the save button while the request is in flight', async () => {

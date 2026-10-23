@@ -70,7 +70,11 @@ it('hides the entry while the columns read is still running', () => {
 
 it('hides the entry when the columns read fails', async () => {
   api.GET.mockResolvedValue({
-    error: { code: 'INTERNAL_ERROR', message_ar: 'Synthetic failure', message_en: 'Synthetic failure' },
+    error: {
+      code: 'INTERNAL_ERROR',
+      message_ar: 'Synthetic failure',
+      message_en: 'Synthetic failure',
+    },
     response: { status: 500 },
   });
   renderNav();

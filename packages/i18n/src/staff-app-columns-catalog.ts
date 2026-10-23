@@ -3,7 +3,8 @@ export const staffAppColumnsEn = {
   title: 'Staff app columns',
   lead: 'Choose the columns the staff app shows for this business, and how many months back it looks.',
   columnsTitle: 'Columns',
-  columnsHint: 'The staff app shows one row for every line the employee performed, with the columns ticked here.',
+  columnsHint:
+    'The staff app shows one row for every line the employee performed, with the columns ticked here.',
   monthsTitle: 'Months back',
   monthsLabel: 'Months back',
   monthsHint: 'The current month counts within it. From 1 to 12, and the default is two months.',
@@ -36,7 +37,7 @@ export const staffAppColumnsEn = {
 /** نفس مفاتيح الشاشة بالعربي. */
 export const staffAppColumnsAr: Record<keyof typeof staffAppColumnsEn, string> = {
   title: 'أعمدة تطبيق الموظفين',
-  lead: 'اختاري أعمدة تطبيق الموظفين لهذا النشاط، وكام شهر لورا بيشوف.',
+  lead: 'اختار أعمدة تطبيق الموظفين لهذا النشاط، وكام شهر لورا بيشوفه.',
   columnsTitle: 'الأعمدة',
   columnsHint: 'تطبيق الموظفين بيعرض سطر لكل خدمة عملتها الموظفة، بالأعمدة المحددة هنا.',
   monthsTitle: 'عدد الشهور لورا',
