@@ -54,7 +54,7 @@ settings adapter and the worker files adapter, with no `files → settings` impo
 - The 27b inputs statement (`attendanceMonthlyInputsStatement` and `attendanceReportContractsStatement`) moves to
   `@pospay/db` beside `employee-branch-links.ts` and `employee-default-shifts-projection.ts`, unchanged. It already
   takes `from` and `to` (the monthly report passes its month's first and last day), so a period needs no new SQL. The API 27b query
-  and the worker statement reader both call it; its result-shape and EXPLAIN tests move with it. It keeps leaving OPEN
+  and the worker statement reader both call it; its result-shape and EXPLAIN tests keep running against the shared statement from the API 27b test files, which import it from `@pospay/db` (the precedent of `employeeDefaultShiftsStatement`), so their fixtures are not ported. It keeps leaving OPEN
   sessions out (AB-Q9g); the employee statement shows them from a separate small worker `queries/` read (spec 061
   FR-011a), so the shared statement and the monthly report stay unchanged.
 - The 27b statement returns only its candidates (a session or contracted minutes), so it leaves out an employee whose
@@ -81,7 +81,7 @@ imports `staff`.
 
 Worker `files` exposes one function, `readStatementLogo(companyId, { businessId, fileId, requesterUserId, renderId },
 signal)`: the handle that `startFilesWorker` (exported by `apps/worker/src/modules/files/index.ts`) returns carries it,
-bound to the module's database, storage client and clock, and the index exports its type `ReadStatementLogo`. When the
+bound to the module's database, storage client and clock, and the index exports its type `StatementLogoReader`. When the
 worker has no storage configured, it throws before any transaction, so nothing is written. The source passes the `logo_file_id` the `staff` reader returned
 from the request row (§1, §5); when that is `null` the source does not call it and the statement prints the name only
 (spec 052 BR-04) on every attempt, even if a logo is bound in between. The function has two phases:
