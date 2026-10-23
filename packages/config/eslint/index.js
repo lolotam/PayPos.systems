@@ -3,7 +3,20 @@ import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
-import { boundariesConfig } from './boundaries.js';
+import {
+  boundariesConfig,
+  COMMISSIONS_ENGINE_PATH_BAN,
+  COMMISSIONS_ENGINE_PATH_SYNTAX,
+  COMMISSIONS_ENGINE_PATTERNS,
+  COMMISSIONS_ENGINE_ROOT_BAN,
+  COMMISSIONS_ENGINE_ROOT_SYNTAX,
+  COMMISSIONS_ENGINE_SUBPATH_BAN,
+  COMMISSIONS_ENGINE_SUBPATH_SYNTAX,
+  COMMISSIONS_ENGINE_SYNTAX,
+  COMMISSIONS_ENGINE_VALIDATION_ONLY_BAN,
+  COMMISSIONS_ENGINE_VALIDATION_ONLY_SYNTAX,
+  USE_CASES_INFRASTRUCTURE_PATTERN,
+} from './boundaries.js';
 import { CREDENTIAL_PATHS, CREDENTIAL_PATTERNS, CREDENTIAL_SYNTAX } from './credentials.js';
 import { jsdocConfig } from './jsdoc.js';
 import { frontendConfig } from './frontend.js';
@@ -25,7 +38,7 @@ const FACADES = {
   createPlatformWhatsappDatabase:
     'the global messaging facade is wired only by API/worker roots (ADR-0013).',
 };
-const facadeRule = (allowed, credentials = false) => [
+const facadeRule = (allowed, credentials = false, engine = COMMISSIONS_ENGINE_PATTERNS) => [
   'error',
   {
     paths: [
@@ -34,7 +47,7 @@ const facadeRule = (allowed, credentials = false) => [
         .map(([name, message]) => ({ name: '@pospay/db', importNames: [name], message })),
       ...(credentials ? [] : CREDENTIAL_PATHS),
     ],
-    patterns: credentials ? [] : CREDENTIAL_PATTERNS,
+    patterns: [...(credentials ? [] : CREDENTIAL_PATTERNS), ...engine],
   },
 ];
 
@@ -85,9 +98,10 @@ const USER_TEXT_SYNTAX = [
   { selector: `JSXText[value=${ARABIC}]`, message: USER_TEXT },
 ];
 
-const restrictedSyntax = ({ userText }) => [
+const restrictedSyntax = ({ userText, engine = COMMISSIONS_ENGINE_SYNTAX }) => [
   'error',
   ...CREDENTIAL_SYNTAX,
+  ...engine,
   ...LOG_SYNTAX,
   ...(userText ? [] : USER_TEXT_SYNTAX),
 ];
@@ -100,6 +114,125 @@ const restrictedSyntax = ({ userText }) => [
 export const allowUserFacingText = () => ({
   rules: { 'no-restricted-syntax': restrictedSyntax({ userText: true }) },
 });
+
+/**
+ * The backend exceptions of the engine ban (ADR-0054 §1): only the commissions use-cases/, ports/
+ * and persistence/ lift the root entry — the layers CLAUDE.architecture.md §3.1 lets import a
+ * module's own domain/. Every other commissions layer keeps the full ban. A subpath and a relative
+ * path stay refused everywhere, and a test file keeps the Arabic-text exemption.
+ */
+const commissionsEngineBackendExceptions = () => [
+  {
+    // ADR-0054 §1 — the commissions use-cases/ lift the engine's root entry and nothing else.
+    files: ['**/modules/commissions/use-cases/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: CREDENTIAL_PATHS,
+          patterns: [
+            ...CREDENTIAL_PATTERNS,
+            USE_CASES_INFRASTRUCTURE_PATTERN,
+            COMMISSIONS_ENGINE_SUBPATH_BAN,
+            COMMISSIONS_ENGINE_PATH_BAN,
+          ],
+        },
+      ],
+      'no-restricted-syntax': restrictedSyntax({
+        userText: false,
+        engine: [...COMMISSIONS_ENGINE_SUBPATH_SYNTAX, ...COMMISSIONS_ENGINE_PATH_SYNTAX],
+      }),
+    },
+  },
+  {
+    // ADR-0054 §1 — a commissions use-case test keeps the Arabic-text exemption.
+    files: [
+      '**/modules/commissions/use-cases/**/__tests__/**',
+      '**/modules/commissions/use-cases/**/*.spec.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userText: true,
+        engine: [...COMMISSIONS_ENGINE_SUBPATH_SYNTAX, ...COMMISSIONS_ENGINE_PATH_SYNTAX],
+      }),
+    },
+  },
+  {
+    // ADR-0054 §1 — the commissions ports/ and persistence/ lift the engine's root entry only.
+    files: ['**/modules/commissions/ports/**/*.ts', '**/modules/commissions/persistence/**/*.ts'],
+    rules: {
+      'no-restricted-imports': facadeRule(null, false, [
+        COMMISSIONS_ENGINE_SUBPATH_BAN,
+        COMMISSIONS_ENGINE_PATH_BAN,
+      ]),
+      'no-restricted-syntax': restrictedSyntax({
+        userText: false,
+        engine: [...COMMISSIONS_ENGINE_SUBPATH_SYNTAX, ...COMMISSIONS_ENGINE_PATH_SYNTAX],
+      }),
+    },
+  },
+  {
+    // ADR-0054 §1 — a commissions port or persistence test keeps the Arabic-text exemption.
+    files: [
+      '**/modules/commissions/ports/**/__tests__/**',
+      '**/modules/commissions/ports/**/*.spec.ts',
+      '**/modules/commissions/persistence/**/__tests__/**',
+      '**/modules/commissions/persistence/**/*.spec.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userText: true,
+        engine: [...COMMISSIONS_ENGINE_SUBPATH_SYNTAX, ...COMMISSIONS_ENGINE_PATH_SYNTAX],
+      }),
+    },
+  },
+];
+
+/**
+ * The override for apps/admin's commissions area: it may import the engine's browser-safe
+ * /validation entry point and nothing else of the package (ADR-0054 §1, spec 059 D-17).
+ *
+ * @returns {import('eslint').Linter.Config[]} the two blocks for apps/admin
+ */
+export const allowCommissionsEngineValidation = () => [
+  {
+    files: ['src/commissions/**/*.ts', 'src/commissions/**/*.tsx'],
+    rules: {
+      'no-restricted-imports': facadeRule(null, false, [
+        COMMISSIONS_ENGINE_ROOT_BAN,
+        COMMISSIONS_ENGINE_VALIDATION_ONLY_BAN,
+        COMMISSIONS_ENGINE_PATH_BAN,
+      ]),
+      'no-restricted-syntax': restrictedSyntax({
+        userText: false,
+        engine: [
+          ...COMMISSIONS_ENGINE_ROOT_SYNTAX,
+          ...COMMISSIONS_ENGINE_VALIDATION_ONLY_SYNTAX,
+          ...COMMISSIONS_ENGINE_PATH_SYNTAX,
+        ],
+      }),
+    },
+  },
+  {
+    files: [
+      'src/commissions/**/__tests__/**',
+      'src/commissions/**/*.spec.ts',
+      'src/commissions/**/test/**',
+    ],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userText: true,
+        engine: [
+          ...COMMISSIONS_ENGINE_ROOT_SYNTAX,
+          ...COMMISSIONS_ENGINE_VALIDATION_ONLY_SYNTAX,
+          ...COMMISSIONS_ENGINE_PATH_SYNTAX,
+        ],
+      }),
+    },
+  },
+];
+
+export { COMMISSIONS_ENGINE_PATTERNS, COMMISSIONS_ENGINE_SYNTAX };
 
 /** Shared flat config. Every app and package re-exports this from its own eslint.config.js. */
 export const config = tseslint.config(
@@ -140,6 +273,7 @@ export const config = tseslint.config(
     },
   },
   ...boundariesConfig,
+  ...commissionsEngineBackendExceptions(),
   ...jsdocConfig,
   ...frontendConfig,
   prettier,

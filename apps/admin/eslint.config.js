@@ -1,3 +1,7 @@
-import config from '@pospay/config/eslint';
+import config, { allowCommissionsEngineValidation } from '@pospay/config/eslint';
 
-export default [{ ignores: ['src/shared/api/schema.d.ts'] }, ...config];
+export default [
+  { ignores: ['src/shared/api/schema.d.ts'] },
+  ...config,
+  ...allowCommissionsEngineValidation(),
+];

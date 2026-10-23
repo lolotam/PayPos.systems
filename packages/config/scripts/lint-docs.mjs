@@ -4,7 +4,8 @@
  *   1. closing comments in JSX ({/* end ... *\/}, {/* /card *\/})
  *   2. the three banned debt markers anywhere in source (CLAUDE.md §3.1)
  *   3. commented-out code
- *   4. a JSDoc block in domain/**, ports/** or events/published.ts written without Arabic
+ *   4. a JSDoc block in domain/**, ports/**, events/published.ts or
+ *      packages/commissions-engine/src/** written without Arabic
  * TODO is reported as a warning and never fails the build.
  * JSDoc coverage itself is enforced by eslint-plugin-jsdoc inside `pnpm lint`.
  */
@@ -58,7 +59,8 @@ function* walk(dir) {
 let errors = 0;
 let warnings = 0;
 
-const ARABIC_REQUIRED = /(^|\/)(domain|ports)\/.*\.ts$|(^|\/)events\/published\.ts$/;
+const ARABIC_REQUIRED =
+  /(^|\/)(domain|ports)\/.*\.ts$|(^|\/)events\/published\.ts$|(^|\/)packages\/commissions-engine\/src\/.*\.ts$/;
 // A letter of the Arabic script — digits (١) and punctuation (،) do not count as prose.
 const ARABIC_LETTER = /(?=\p{Script=Arabic})\p{L}/u;
 
