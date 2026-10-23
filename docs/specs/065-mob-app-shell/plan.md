@@ -72,7 +72,8 @@ order:
    TestFlight **external** group, whose first build passes Apple's beta review. Play internal testing takes plain e-mail
    addresses.
 6. **M-1c-ii, the first real iPhone:** the first TestFlight build of M-2a, installed by the owners only (TestFlight
-   internal), repeats (a)–(c) and adds (d) the camera and (e) passkeys on iOS. Until it passes, no employee gets the iOS
+   internal), repeats (a)–(c) and adds (d) the camera on iOS and records (e) what passkeys do (they are expected to be refused until issue #536 and O-4
+   land; M-2b turns them on). Until it passes, no employee gets the iOS
    app (no external group) and attendance stays hidden on iOS.
 7. **M-2b:** passkey attendance in the app once O-4 is green (re-enables what M-1d hid).
 

@@ -159,7 +159,8 @@ The ids are reverse-DNS of the domain we own (ADR-0001); they **cannot be change
 why the owners chose them (APP-Q6). `systems.pospay.app` is reserved for the customer app. The display name is
 «PosPay Business» in every language (APP-Q2: Abu Salem's option 1, which binds). An Arabic name «بوس باي للأعمال» on
 phones set to Arabic is Waleed's later pick and Abu Salem's note points the same way, but it is `TODO(spec)` until Abu
-Salem confirms it. Version: `apps/business/package.json` `version` (user-visible, semver); build number: the CI run number
+Salem confirms it. One `capacitor.config.ts` serves both flavours: it reads the flavour from a build variable and sets
+the app id, name and Android `server.hostname` from it (M-1a builds it, M-1e fills the names). Version: `apps/business/package.json` `version` (user-visible, semver); build number: the CI run number
 (monotonic, as both stores require).
 
 ### 5. Signing keys live in CI secrets only
@@ -267,4 +268,5 @@ notices keep the PWA installed for them.
 APP-Q2 display name · APP-Q3 account holder and legal name on the developer accounts · APP-Q4 D-U-N-S number ·
 APP-Q5 privacy-policy URL · APP-Q6 bundle ids · APP-Q7 internal testers — answered by both owners on 2026-10-23 and
 recorded verbatim in `docs/specs/065-mob-app-shell/owner-questions.ar.md` (indexed as PP-39 in
-`docs/owner-decisions.ar.md`). Open: the company's legal name (APP-Q3).
+`docs/owner-decisions.ar.md`). Open: Abu Salem's confirmation of the Arabic name (APP-Q2), the company's legal name
+(APP-Q3), and APP-Q8 (how iOS is tested without a Mac, batch 56, PP-40.1, PENDING).
