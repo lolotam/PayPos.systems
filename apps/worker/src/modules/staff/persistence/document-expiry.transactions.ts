@@ -125,24 +125,25 @@ async function lockedCandidate(
   companyId: string,
   documentId: string,
 ): Promise<LockedDocumentExpiry | null> {
-  // قفل المشاركة يمنع الاستبدال وتعديل قاعدة النوع حتى يثبت الإشعار؛ الصفحة السابقة مجرد ترشيح.
+  const [document] = await tx.execute<{ employee_id: string }>(sql`
+    SELECT employee_id FROM employee_documents
+    WHERE company_id=${companyId} AND id=${documentId}`);
+  if (document === undefined) return null;
+  const employee = await lockNoticeEmployee(tx, companyId, document.employee_id);
+  if (employee === null) return null;
+  // صف الموظفة بيتقفل أولًا بنفس ترتيب كتابة الوثائق في الـ API، فالحذف أو تغيير الفرع الأساسي ما يسبقوش إرفاق المستلمين؛ وقفل المشاركة على الوثيقة والنوع يمنع الاستبدال وتعديل أيام التنبيه.
   const [row] = await tx.execute<
     NoticeRow & {
-      primary_branch_id: string;
-      employee_name_ar: string | null;
-      employee_name_en: string;
       type_name_ar: string | null;
       type_name_en: string;
     }
   >(sql`
     SELECT d.id, d.employee_id, d.business_id, d.type_code,
       to_char(d.expires_on,'YYYY-MM-DD') AS expires_on, t.alert_days,
-      e.primary_branch_id, e.name_ar AS employee_name_ar, e.name_en AS employee_name_en,
       t.name_ar AS type_name_ar, t.name_en AS type_name_en
     FROM employee_documents d
     JOIN document_types t ON t.company_id=d.company_id AND t.code=d.type_code
-    JOIN employees e ON e.company_id=d.company_id AND e.id=d.employee_id AND e.deleted_at IS NULL
-    WHERE d.company_id=${companyId} AND d.id=${documentId}
+    WHERE d.company_id=${companyId} AND d.id=${documentId} AND d.employee_id=${document.employee_id}
       AND d.replaced_at IS NULL AND d.expires_on IS NOT NULL
       AND t.active
     FOR SHARE OF d, t`);
@@ -154,10 +155,32 @@ async function lockedCandidate(
     typeCode: row.type_code,
     expiresOn: row.expires_on,
     alertDays: row.alert_days,
-    primaryBranchId: row.primary_branch_id,
-    employeeNameAr: row.employee_name_ar,
-    employeeNameEn: row.employee_name_en,
+    primaryBranchId: employee.primaryBranchId,
+    employeeNameAr: employee.nameAr,
+    employeeNameEn: employee.nameEn,
     typeNameAr: row.type_name_ar,
     typeNameEn: row.type_name_en,
+  };
+}
+
+/** صف الموظفة تحت قفل المشاركة: لو اتحذف أو اتغيّر فرعه الأساسي ما يقدرش يسبق إرفاق المستلمين. */
+async function lockNoticeEmployee(
+  tx: Tx,
+  companyId: string,
+  employeeId: string,
+): Promise<{ primaryBranchId: string; nameAr: string | null; nameEn: string } | null> {
+  const [row] = await tx.execute<{
+    primary_branch_id: string;
+    name_ar: string | null;
+    name_en: string;
+  }>(sql`
+    SELECT primary_branch_id, name_ar, name_en FROM employees
+    WHERE company_id=${companyId} AND id=${employeeId} AND deleted_at IS NULL
+    FOR SHARE`);
+  if (row === undefined) return null;
+  return {
+    primaryBranchId: row.primary_branch_id,
+    nameAr: row.name_ar,
+    nameEn: row.name_en,
   };
 }
