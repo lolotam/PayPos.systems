@@ -297,6 +297,9 @@ importers:
       '@pospay/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@pospay/commissions-engine':
+        specifier: workspace:*
+        version: link:../../packages/commissions-engine
       '@pospay/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -589,6 +592,25 @@ importers:
       vitest:
         specifier: 5.0.1
         version: 5.0.1(@types/node@24.13.6)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.1(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  packages/commissions-engine:
+    dependencies:
+      '@pospay/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      '@pospay/config':
+        specifier: workspace:*
+        version: link:../config
+      eslint:
+        specifier: 10.11.0
+        version: 10.11.0(jiti@2.7.0)(supports-color@10.2.2)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 5.0.1
+        version: 5.0.1(@types/node@26.6.2)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.1(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
   packages/config:
     dependencies:
