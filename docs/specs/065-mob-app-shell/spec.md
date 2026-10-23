@@ -163,8 +163,8 @@ start screen again.
   and caches at once (ADR-0027: logout clears them), even if the other sign-out then fails; the role, the
   remembered business and the pairing stay until every sign-out is done. Then it forgets the remembered
   business and, for a counter device, removes the local pairing. Order: the confirmation (with its pairing warning on a
-  counter device) comes **first**, before any sign-out; cancelling it changes nothing; a retry after a partial failure
-  continues the confirmed change and asks nothing again.
+  counter device) comes **first**, before any sign-out; cancelling it changes nothing; nothing «in progress» is stored,
+  so after a partial failure the change is simply started again, with the confirmation again.
 - **FR-009**: Nothing new is stored about the person: no phone number, code or session token is persisted by the app
   beyond what the PWA already does (ADR-0019 online-only rule).
 - **FR-010**: Every string MUST come from `packages/i18n` in Arabic and English; Arabic and RTL first; logical CSS only.
@@ -175,7 +175,8 @@ start screen again.
   business=…` on a cold start (the launch link) and on a warm start (a link opened while the app runs) the same way: it
   accepts only that host and path, parses the two values with the existing `personalWorkspace` schema of
   `packages/contracts`, ignores every other parameter, and then: with no role or the employee role, it sets the employee
-  role and remembers the business (when a different business may have a session, it first signs out as FR-008 does,
+  role and remembers the business (when a different business may have a session, it first asks the FR-008
+  confirmation, cancelling keeps the current business and session, and then signs out as FR-008 does,
   and with no network the link is refused with the same message, changing nothing); with
   the counter role, it does not switch, and offers the role change of FR-008. An invalid or foreign link changes
   nothing and shows the existing «ask your manager for your link» message. The «عندي لينك» paste uses the same parser.
@@ -272,11 +273,12 @@ None published, none consumed.
   changes nothing and shows the «ask your manager» message · `MOB-T14` a link on a counter-role device offers the role
   change and switches nothing by itself · `MOB-T15` pasting a valid manager link in «عندي لينك» connects the business
   like an opened link · `MOB-T16` a link for a different business while a personal session is open signs out at the
-  server first and only then remembers the new business · `MOB-T17` the same link with no network is refused with its
+  server first, after the confirmation, and only then remembers the new business (cancelling the confirmation keeps
+  the current one) · `MOB-T17` the same link with no network is refused with its
   message and changes nothing · `MOB-T18` a role change counts the explicit «no session to end» result as done and
   continues, and treats a plain 401 as a failure that stops it · `MOB-T19` one sign-out done and the other failing:
   the first session's private forms are already cleared, the role, the pairing and the remembered business are still
-  there after the success and after the failure, and only the retry that finishes the change removes them.
+  there after the success and after the failure, and only a new, confirmed change that finishes removes them.
 - **Build checks** (M-1a): the `native` build output registers no service worker; the web build output still does; a
   staging and a production debug build carry different app ids and their own API origin; the Android manifest and the
   iOS project exclude the app's storage from cloud backup and device transfer (FR-013: `allowBackup`,
