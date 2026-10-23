@@ -1,10 +1,11 @@
-import { notificationResult, pushSendAuthorized } from '@pospay/contracts';
+import { pushSendAuthorized } from '@pospay/contracts';
 import { appendOutboxEvent, type Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 
 import type { PushAttemptInput } from '../domain/push-attempt.ts';
 import type { PushAttemptsRepository } from '../ports/push-attempts.repository.ts';
 import { safePersistenceError } from './notification-records.ts';
+import { appendPushResult } from './push-result-event.ts';
 
 /**
  * جملة قراءة اشتراكات المستخدم الحيّة.
@@ -44,26 +45,21 @@ async function appendExpired(
   eventId: string,
   now: Date,
 ): Promise<void> {
-  await appendOutboxEvent(tx, eventId, {
-    aggregateType: 'push_attempt',
-    aggregateId: id,
-    eventType: 'NotificationFailed',
-    payload: notificationResult.parse({
-      company_id: input.companyId,
-      attempt_id: id,
-      source_event_id: input.sourceEventId,
-      business_id: input.businessId,
-      branch_id: input.branchId,
-      channel: 'PUSH',
-      template_key: input.templateKey,
+  await appendPushResult(
+    tx,
+    {
+      companyId: input.companyId,
+      id,
+      sourceEventId: input.sourceEventId,
+      businessId: input.businessId,
+      branchId: input.branchId,
+      templateKey: input.templateKey,
       locale: input.subscription.locale,
-      status: 'EXPIRED',
-      occurred_at: now.toISOString(),
-      evidence: 'NONE',
-      failure_code: 'DEADLINE_EXPIRED',
-      outcome_known: true,
-    }),
-  });
+    },
+    { status: 'EXPIRED', failureCode: 'DEADLINE_EXPIRED', outcomeKnown: true, httpStatus: null },
+    eventId,
+    now,
+  );
 }
 
 export function createPushAttemptsRepository(tx: Tx): PushAttemptsRepository {

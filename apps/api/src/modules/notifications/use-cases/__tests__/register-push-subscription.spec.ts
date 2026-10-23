@@ -1,11 +1,10 @@
-import { createECDH, randomBytes } from 'node:crypto';
-
 import type { PushSubscriptionInput } from '@pospay/contracts';
 import { describe, expect, it } from 'vitest';
 
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
 import type { RateLimiter } from '../../../../shared/ports/rate-limiter.port.ts';
+import { validAuth, validP256dh } from '../../http/__tests__/push-test-keys.ts';
 import type { PushHashes } from '../../ports/push-hashes.port.ts';
 import type { PushKeys } from '../../ports/push-keys.port.ts';
 import type {
@@ -18,18 +17,11 @@ import { RegisterPushSubscription } from '../register-push-subscription/register
 const SCOPE = { companyId: 'company-1', userId: 'user-1' };
 const CONFIG = { keyId: '0123456789abcdef' };
 
-// مفتاح عام حقيقي من زوج مفاتيح P-256: نقطة على المنحنى، زي ما المتصفح بيطلبه.
-const generatedP256dh = (): string => {
-  const ecdh = createECDH('prime256v1');
-  ecdh.generateKeys();
-  return ecdh.getPublicKey().toString('base64url');
-};
-const generatedAuth = (): string => randomBytes(16).toString('base64url');
-const VALID = { p256dh: generatedP256dh(), auth: generatedAuth() };
+const VALID = { p256dh: validP256dh(), auth: validAuth() };
 // نقطة خارج المنحنى: بادئة صحّية بس إحداثياتها مش على المنحنى.
 const OFF_CURVE = Buffer.concat([Buffer.from([0x04]), Buffer.alloc(64, 7)]).toString('base64url');
 // مفتاح مصادقة أقصر من 16 بايت.
-const SHORT_AUTH = randomBytes(15).toString('base64url');
+const SHORT_AUTH = Buffer.from(validAuth(), 'base64url').subarray(0, 15).toString('base64url');
 
 const INPUT: PushSubscriptionInput = {
   installation_id: '01920000-0000-4000-8000-0000000000a1',

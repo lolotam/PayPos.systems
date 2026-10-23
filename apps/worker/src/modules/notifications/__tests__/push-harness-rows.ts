@@ -21,5 +21,11 @@ export function pushQueries(owner: postgres.Sql) {
       owner`SELECT id FROM in_app_notifications WHERE source_event_id = ${sourceEventId}`,
     phoneAttempts: (sourceEventId: string) =>
       owner`SELECT id FROM notification_attempts WHERE source_event_id = ${sourceEventId}`,
+    attempt: (attemptId: string) => owner`SELECT * FROM push_attempts WHERE id = ${attemptId}`,
+    subscription: (subscriptionId: string) =>
+      owner`SELECT * FROM push_subscriptions WHERE id = ${subscriptionId}`,
+    events: (attemptId: string) => owner`SELECT event_type, payload FROM outbox
+      WHERE payload->>'attempt_id' = ${attemptId}
+        AND event_type IN ('NotificationDelivered','NotificationFailed') ORDER BY id`,
   };
 }
