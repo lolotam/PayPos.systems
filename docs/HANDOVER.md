@@ -236,7 +236,8 @@ drill, production sizing and the salon pilot (row 63, partner request AS-17).
   of ours (`CLAUDE.md` §10).
 - The staging host key changed on 2026-10-19; Waleed confirmed the new fingerprint on 2026-10-20 (PP-5.1), so the
   hold is lifted.
-- Staging lives in `/opt/pospay-staging`, reached over the `abdulaziz` SSH profile; images come from GHCR tagged by
-  commit SHA; `staging-deploy.sh <sha>` migrates, starts and proves `/ready`; `known-good/<sha>/` keeps every ready
-  pair for one-step rollback; a nightly backup runs from `pospay-backup:<sha>`. Steps: pipeline skill §6.
+- Staging is the Dokploy project **PosPay Staging** (one compose, `pospay-staging`; Dokploy domains api/app/pos.staging);
+  images come from GHCR tagged by commit SHA; each release sets `IMAGE_TAG` and redeploys, and rollback is the previous
+  `IMAGE_TAG`; a nightly backup runs from `pospay-backup:<sha>`. The old `staging-deploy.sh` path is retired. Steps:
+  pipeline skill §6.
 - The server is shared: never touch other projects there.
