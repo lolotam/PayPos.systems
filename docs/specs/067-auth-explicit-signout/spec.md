@@ -286,7 +286,9 @@ next sign-in on that device (staff) or for that user (personal) replaces it, and
 The reverse order is intended behaviour, not a gap: a sign-in whose response arrives after the sign-out leaves its own
 new session active; that is intended, because it needed new credentials (a fresh OTP code or the person's own PIN),
 and sign-out ends only the session its cookie names. A sign-out never promises that no session will exist afterwards,
-only that the session it was sent with has ended.
+only that the session it was sent with has ended. This does not weaken spec 065 BR-001 / FR-008: a role change ends
+every session that exists when it runs; keeping a new sign-in from completing during that flow is the app's part,
+which spec 065 does not state today (tracked in #581).
 
 **D-7. Readers of `request.principal` on these two routes.** `SessionGuard` documents `principal` as «absent only on
 @Public() routes»; these become the two `@Authenticated()` routes where it is absent too. Every reader in
@@ -429,8 +431,11 @@ None published, none consumed.
   `SO-13` sign-out racing a PIN sign-in on the same device, with the sign-out response delayed until after the
   sign-in's → the new operator's row survives and resolves with the new cookie, and the test records that the late
   clearing header names the same cookie (the D-6 limitation) ·
-  `SO-13d` a sign-in started before a sign-out and answered after it → the sign-out ends only the session its cookie
-  named (`SIGNED_OUT`), and the new session from the fresh OTP/PIN resolves with its new cookie (intended, D-6) ·
+  `SO-13d` a sign-in started before a sign-out and answered after it, with the sign-out's retirement committing before
+  the sign-in's replacement → the sign-out answers `SIGNED_OUT`, and the new session from the fresh OTP/PIN resolves
+  with its new cookie (intended, D-6) ·
+  `SO-13e` the same, with the sign-in's replacement committing first and deleting the old row → the sign-out finds no
+  row and answers `NO_SESSION` (FR-001, BR-002), and the new session still resolves ·
   `SO-13b` a request carrying no cookie of the route's name → `NO_SESSION` with no `Set-Cookie` ·
   `SO-13c` a malformed `STAFF_POS` row (no device context, or a non-UUID `deviceId`) named by a valid cookie → row
   deleted, `NO_SESSION` ·

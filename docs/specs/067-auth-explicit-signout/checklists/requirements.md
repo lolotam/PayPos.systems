@@ -24,7 +24,7 @@
 - [x] Dependencies and assumptions identified
 - [x] **Slice design** complete: no schema change, API contract (status matrix for both routes, `SignOutResult`,
       `back_office`), permissions (`@Authenticated()` + `AUTHENTICATED_WRITES`, PP-7.1), security, events (none) and the
-      test plan (`SO-01…SO-16` with `SO-13b`, `SO-13c`, `SO-13d`, `SO-15b`; `SO-20…SO-25`)
+      test plan (`SO-01…SO-16` with `SO-13b`, `SO-13c`, `SO-13d`, `SO-13e`, `SO-15b`; `SO-20…SO-25`)
 
 ## Feature Readiness
 
