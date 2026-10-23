@@ -161,11 +161,15 @@ export const allowCommissionsEngineBackend = () => [
     },
   },
   {
+    // The matcher's `**` does not match zero folders, so a test folder is listed in both the nested and the
+    // direct-child form.
     // ADR-0054 §1 — a commissions use-case test keeps the Arabic-text exemption.
     files: [
       '**/modules/commissions/use-cases/**/__tests__/**',
+      '**/modules/commissions/use-cases/__tests__/**',
       '**/modules/commissions/use-cases/**/*.spec.ts',
       '**/modules/commissions/use-cases/**/test/**',
+      '**/modules/commissions/use-cases/test/**',
     ],
     rules: {
       'no-restricted-syntax': restrictedSyntax({
@@ -192,11 +196,15 @@ export const allowCommissionsEngineBackend = () => [
     // ADR-0054 §1 — a commissions port or persistence test keeps the Arabic-text exemption.
     files: [
       '**/modules/commissions/ports/**/__tests__/**',
+      '**/modules/commissions/ports/__tests__/**',
       '**/modules/commissions/ports/**/*.spec.ts',
       '**/modules/commissions/ports/**/test/**',
+      '**/modules/commissions/ports/test/**',
       '**/modules/commissions/persistence/**/__tests__/**',
+      '**/modules/commissions/persistence/__tests__/**',
       '**/modules/commissions/persistence/**/*.spec.ts',
       '**/modules/commissions/persistence/**/test/**',
+      '**/modules/commissions/persistence/test/**',
     ],
     rules: {
       'no-restricted-syntax': restrictedSyntax({
