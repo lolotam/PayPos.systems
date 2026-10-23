@@ -223,20 +223,29 @@ live in `apps/business/`, so the `apps/business/**` input already covers them.
 - Before the first stage-C upload, both stores need their app records: an App Store Connect app record per flavour, and
   per flavour a Play Console app with one build uploaded by hand (Play's API refuses uploads to an app with none). The
   account holder creates them (plan step O-2b); no automation creates store records.
-- **Cost (APP-Q8): **the free minutes only.** The guard is the **first step of every macOS job**, so the check and the
-  spending sit in one job. It reads the account's Actions usage for the current billing cycle from GitHub's billing API
-  (`GITHUB_TOKEN` cannot read account billing, so it uses `ACTIONS_USAGE_TOKEN`, a fine-grained token Waleed creates
-  with only the account's billing-read permission, no repository access and a 90-day expiry; plan step O-5; the exact
-  endpoint and permission are confirmed in M-1b) and stops the job when the account would pass **80 % of its included
-  minutes** with this job's timeout added, or when the usage cannot be read (missing or expired token included: fails
-  closed). Because it reads the whole account, the Linux minutes of `ci.yml` and any other repository count too, and
-  the billing cycle is GitHub's, not the calendar month. Simulator jobs share the concurrency group `mobile-macos-check`,
-  so two of them never pass the check on the same reading; GitHub keeps only the newest pending run in a group, which
-  is acceptable here because the newest commit supersedes an older one. The hard backstop is the account's Actions
-  budget at $0 with usage stopped at the limit (O-5): a run past the included minutes is blocked rather than charged.
-  That backstop would also block `ci.yml`'s required `ci-gate` until the cycle resets, which is why the mobile guard
-  stops at 80 %. Some published pricing says a macOS minute counts as ten included minutes on a private repository;
-  M-1b measures it, and the first week's usage is reported to Waleed.
+- **Cost (APP-Q8): the free minutes only.** Every macOS job (simulator or release) waits behind a **preflight job on
+  `ubuntu-latest`**, so a refused run never starts a macOS runner. The preflight adds up, in included-minute units:
+  - the account's Actions usage for the current billing cycle from GitHub's billing API, which covers `ci.yml`'s Linux
+    minutes and every other repository (`GITHUB_TOKEN` cannot read account billing, so it uses `ACTIONS_USAGE_TOKEN`,
+    a fine-grained token Waleed creates with only the account's billing-read permission, no repository access and a
+    90-day expiry; plan step O-5; the exact endpoint and permission are confirmed in M-1b);
+  - every macOS job of this repository that is queued or running, or finished but possibly not billed yet, read with
+    the workflow's `GITHUB_TOKEN` (`actions: read`), each at its timeout times the macOS multiplier;
+  - the job it is about to admit, at its timeout times the macOS multiplier.
+  The multiplier is **10 until M-1b measures it**. The preflight refuses the run when the sum would pass **80 % of the
+  included minutes**, or when any part cannot be read (missing or expired token included: fails closed). Two
+  preflights can still read the same numbers at the same moment, so the 20 % headroom must stay larger than two macOS
+  jobs' cost; M-1b sets the timeouts so it does. The billing cycle is GitHub's, not the calendar month. Concurrency
+  groups are **per ref** (`mobile-macos-${ref}` and the two release groups), so a run on one branch never drops a
+  pending run of another; within one ref a newer commit may supersede a pending one. The hard backstop is the
+  account's Actions budget at $0 with usage stopped at the limit (O-5): a run past the included minutes is blocked
+  rather than charged. That backstop would also block `ci.yml`'s required `ci-gate` until the cycle resets, which is
+  why the preflight stops at 80 %. Some published pricing says a macOS minute counts as ten included minutes on a
+  private repository; M-1b measures it, and the first week's usage is reported to Waleed.
+- **The token's environment.** `ACTIONS_USAGE_TOKEN` lives in its own environment `mobile-guard`, which **allows every
+  branch** (pull-request preflights need it) and holds nothing else. It is not a signing secret: it reads billing
+  numbers and nothing more. Only preflight jobs declare `mobile-guard`; the main-only rule of decision 5 covers the
+  signing environments.
 - **Pre-merge iOS check.** Stage B runs on a pull request only when that PR can break the iOS build (the native project,
   the workflow or a Capacitor dependency); the orchestrator does not merge such a PR unless stage B passed on its head.
   Web-only changes are built for iOS after the merge, on `main`.
