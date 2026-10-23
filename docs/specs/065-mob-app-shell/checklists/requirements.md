@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain — APP-Q9 … APP-Q18 answered by Waleed on 2026-10-23 (batch 58, PP-42.1 … PP-42.10); Abu Salem's picks are pending and bind if they differ. Three `TODO(spec)`s remain: #549 (iOS origin) and #536 (passkeys), both ADR-0027 addenda, and FR-017's role signal (spec 067 Part B, waiting on the owners' answer to SO-Q1). The sign-out results of FR-008 are settled by spec 067; the role change also waits on the session fence of #581.
+- [x] No [NEEDS CLARIFICATION] markers remain — APP-Q9 … APP-Q18 answered by Waleed on 2026-10-23 (batch 58, PP-42.1 … PP-42.10); Abu Salem picked the same on 2026-10-23, so they are final. Two `TODO(spec)`s remain: #549 (iOS origin) and #536 (passkeys), both ADR-0027 addenda. FR-017's role signal waits on spec 067 sub-PR 067-2; who counts is spec 067 BR-003 (SO-Q1, Waleed 2026-10-24, Abu Salem pending). The sign-out results of FR-008 are settled by spec 067; the role change also waits on the session fence of #581.
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -33,8 +33,8 @@
 ## Notes
 
 - APP-Q9 … APP-Q18 are published (batch 58, PP-42.1 … PP-42.10); `owner-questions.ar.md` holds the question records
-  and Waleed's answers (2026-10-23); Abu Salem's picks are pending and bind if they differ. Three `TODO(spec)`s remain: #549 (the iOS origin for sessions) and #536 (passkeys), both
-  ADR-0027 addenda; and FR-017's role signal (spec 067 Part B, sub-PR 067-2, waiting on SO-Q1). FR-008's sign-out
+  and Waleed's answers (2026-10-23); Abu Salem picked the same on 2026-10-23, so they are final. Two `TODO(spec)`s remain: #549 (the iOS origin for sessions) and #536 (passkeys), both
+  ADR-0027 addenda. FR-017's role signal waits on spec 067 sub-PR 067-2; who counts is spec 067 BR-003 (SO-Q1). FR-008's sign-out
   results are settled by spec 067 (sub-PR 067-1); the role change also waits on the server-side session fence of #581.
 - Technical decisions are in ADR-0055 (Capacitor shell, bundled assets, origins, flavours, CI, guard rules).
 - `.specify/extensions.yml` does not exist, so no before/after hooks ran.

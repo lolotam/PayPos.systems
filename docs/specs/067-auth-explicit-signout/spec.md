@@ -178,8 +178,9 @@ Sara, a stylist, does not see it. Who counts is SO-Q1.
   (`POST /v1/staff/personal-otp/verify`) MUST carry one boolean, `back_office`, true when the signed-in user counts
   under SO-Q1 in the session's business at that moment.
 - **FR-009**: `back_office` MUST NOT grant anything: no personal route, guard or query may read it to allow an action.
-- **FR-010**: It MUST be computed on the server on each read, from the user's own memberships in the session's company
-  only, and never accepted from the client.
+- **FR-010**: It MUST be computed on the server on each read, only from the user's own memberships active now whose
+  scope covers the session's business (the whole company, that business, or one of its branches; a membership in
+  another business of the same company never counts), and never accepted from the client.
 
 ### Key Entities
 
@@ -196,8 +197,10 @@ Sara, a stylist, does not see it. Who counts is SO-Q1.
   part of it: a row that fails them now could pass again later in its 8 hours (eligibility is rechecked per request),
   so deleting it is a real sign-out.
 - **BR-003** (Part B): who counts for `back_office` is SO-Q1. Waleed answered option 2 (PP-45.1, batch 61, 2026-10-24,
-  through the super agent): a membership whose system role is `owner`, `general_manager`, `business_manager`,
-  `branch_manager`, `shift_supervisor` or `accountant`. A company-specific role never counts. Abu Salem's pick is
+  through the super agent): a membership active now whose scope covers the session's business (FR-010), with the
+  system role `owner`, `general_manager`, `business_manager`, `branch_manager`, `shift_supervisor` or `accountant`.
+  A qualifying role in another business of the same company does not count (`SO-23`), and a company-specific role
+  never counts. Abu Salem's pick is
   pending; work follows Waleed's pick until then, and Abu Salem's pick replaces it if it differs (`CLAUDE.md` §1 5b).
 
 ### Technical decisions (no owner question)
