@@ -61,7 +61,9 @@ OTP, restart the app; repeat (a)–(c) of M-1c on the iOS simulator.
    link the manager sent (APP-Q9's ⭐ «عندي لينك») is not typing an identifier: the app reads the identifiers out of the
    link with the same parser as an opened link (FR-012) and shows the employee no identifier.
 4. **Given** the manager's link and the app installed, **When** she taps the link (app closed or already open),
-   **Then** the app opens on the employee flow with that business remembered (FR-012).
+   **Then** the app opens on the employee flow with that business remembered (FR-012). **Accepted in M-2**, once O-6
+   can publish the association files; in M-1 the same handling is accepted through the paste and through a link handed
+   to the app by the test harness.
 
 ---
 
@@ -166,7 +168,8 @@ start screen again.
 - **FR-010**: Every string MUST come from `packages/i18n` in Arabic and English; Arabic and RTL first; logical CSS only.
 - **FR-011**: How the app learns the employee's business on first use: `TODO(spec)` [NEEDS CLARIFICATION: APP-Q9 — the manager's
   link opens the app (⭐ recommended), a QR code in the back office scanned in the app, or both].
-- **FR-012**: If APP-Q9 picks the link, the app MUST handle the manager's link `https://<pos host>/personal?company=…&
+- **FR-012**: If APP-Q9 picks the link, the app MUST handle the manager's link (in M-1: the parsing, the routing and
+  the paste; the operating system opening the app from a tapped link is verified in M-2 with O-6) `https://<pos host>/personal?company=…&
   business=…` on a cold start (the launch link) and on a warm start (a link opened while the app runs) the same way: it
   accepts only that host and path, parses the two values with the existing `personalWorkspace` schema of
   `packages/contracts`, ignores every other parameter, and then: with no role or the employee role, it sets the employee
@@ -270,8 +273,8 @@ None published, none consumed.
   server first and only then remembers the new business · `MOB-T17` the same link with no network is refused with its
   message and changes nothing · `MOB-T18` a role change counts the explicit «no session to end» result as done and
   continues, and treats a plain 401 as a failure that stops it · `MOB-T19` one sign-out done and the other failing:
-  the first session's private forms are already cleared, the role and pairing are still there, and a retry finishes
-  the change.
+  the first session's private forms are already cleared, the role, the pairing and the remembered business are still
+  there after the success and after the failure, and only the retry that finishes the change removes them.
 - **Build checks** (M-1a): the `native` build output registers no service worker; the web build output still does; a
   staging and a production debug build carry different app ids and their own API origin; the Android manifest and the
   iOS project exclude the app's storage from cloud backup and device transfer (FR-013: `allowBackup`,
