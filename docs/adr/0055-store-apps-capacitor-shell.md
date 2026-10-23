@@ -131,7 +131,11 @@ Bundled assets change the page origin, and that is the main technical risk of th
   company, APP-Q3). **No employee receives the iOS app, and attendance stays hidden on iOS, until M-1c-ii passes.** If (d) fails, the scanner moves to a native camera plugin behind the M-1d port before attendance
   is enabled in the app. If iOS fails (c) or (b), the fallback, in this order, is:
   1. Capacitor's native HTTP and cookie plugins (`CapacitorHttp`, `CapacitorCookies`) with the API hosts listed in
-     `WKAppBoundDomains`, so session requests leave through the native stack with the native cookie store;
+     `WKAppBoundDomains`, so session requests leave through the native stack with the native cookie store. M-1c checks
+     that the pinned plugin versions carry the POS client's real request shape (`openapi-fetch` 0.17.0 passing a
+     `Request` object with `credentials: 'include'`) and keep the session cookie across a restart; if the patched
+     `fetch` does not, M-1c adds a native transport adapter behind `apps/pos/src/shared/api/client.ts` and the staff and
+     personal login flows instead of relying on the patch;
   2. only if that fails, a native-only session transport (the session token held in the iOS Keychain / Android
      Keystore and sent as a header). That changes `packages/auth` and the security model of ADR-0019 and ADR-0027, so it
      needs **its own ADR addendum and the web manager's agreement**; this track does not change `packages/auth` alone.
@@ -188,7 +192,8 @@ copies `ci.yml`'s pattern rather than a workflow-level `paths` filter: it always
 whether the app's inputs changed, the build jobs run only then, and an always-present `mobile-gate` job reports the
 result (a path-filtered workflow never reports, so it could never become a required check). The app's inputs are
 `apps/pos/**`, `apps/business/**`, `packages/**`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, the root `package.json`,
-`turbo.json`, `.nvmrc` and `mobile.yml` itself.
+`turbo.json`, `.nvmrc` and `mobile.yml` itself. The stage-C fastlane files (`Gemfile`, `Gemfile.lock`, `fastlane/`)
+live in `apps/business/`, so the `apps/business/**` input already covers them.
 
 | Stage | When | Runner | Needs accounts | Output |
 | --- | --- | --- | --- | --- |
