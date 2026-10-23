@@ -80,6 +80,17 @@ beforeAll(async () => {
   await db.withTenant(B.company, (tx) => tx.execute(live(B.company, SUBSCRIPTION_B, USER)));
 });
 
+// السطر بيوصل للحالات الجارية بالطريق المسموح بس: إدراج PENDING ثم تحديث مقفول (حارس 0175).
+const throughSending = async (id: string, now: string, templateKey?: string) => {
+  const state: AttemptState =
+    templateKey === undefined ? { id, status: 'PENDING' } : { id, status: 'PENDING', templateKey };
+  await asA(attempt(A.company, state));
+  await asA(
+    sql`UPDATE push_attempts SET status='SENDING', execution_id=${ids.newId()}, sending_at=${now}
+      WHERE id=${id}`,
+  );
+};
+
 afterAll(async () => {
   await db?.close();
   await owner?.end();
@@ -90,9 +101,15 @@ it('FORCE RLS, no DELETE and a cross-company row is invisible', async () => {
   const [table] =
     await owner`SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE relname='push_attempts'`;
   expect(table).toMatchObject({ relrowsecurity: true, relforcerowsecurity: true });
-  expect(await asA(sql`SELECT id FROM push_attempts`)).toHaveLength(0);
+  await asA(attempt(A.company));
+  expect(await asA(sql`SELECT id FROM push_attempts`)).toHaveLength(1);
   expect(
     await db.withTenant(B.company, (tx) => tx.execute(sql`SELECT id FROM push_attempts`)),
+  ).toHaveLength(0);
+  expect(
+    await db.withTenant(B.company, (tx) =>
+      tx.execute(sql`UPDATE push_attempts SET updated_at = now() RETURNING id`),
+    ),
   ).toHaveLength(0);
   await rejected(asA(sql`DELETE FROM push_attempts RETURNING id`), '42501');
 });
@@ -103,40 +120,46 @@ it('a cross-company insert and a foreign-company subscription are refused', asyn
 });
 
 it('the state check refuses a broken row', async () => {
+  const now = new Date().toISOString();
+  const pending = ids.newId();
+  await asA(attempt(A.company, { id: pending, status: 'PENDING' }));
   await rejected(
-    asA(attempt(A.company, { status: 'PENDING', finishedAt: new Date().toISOString() })),
+    asA(sql`UPDATE push_attempts SET finished_at=${now} WHERE id=${pending}`),
     '23514',
     'push_attempts_state',
   );
-  await rejected(
-    asA(attempt(A.company, { status: 'SENDING', sendingAt: new Date().toISOString() })),
-    '23514',
-    'push_attempts_state',
-  );
-  await rejected(
-    asA(attempt(A.company, { status: 'SENT', outcomeKnown: true })),
-    '23514',
-    'push_attempts_state',
-  );
+  const withoutExecution = ids.newId();
+  await asA(attempt(A.company, { id: withoutExecution, status: 'PENDING' }));
   await rejected(
     asA(
-      attempt(A.company, {
-        status: 'SENT',
-        finishedAt: new Date().toISOString(),
-        outcomeKnown: true,
-        failureCode: 'PROVIDER_5XX',
-      }),
+      sql`UPDATE push_attempts SET status='SENDING', sending_at=${now} WHERE id=${withoutExecution}`,
+    ),
+    '23514',
+    'push_attempts_state',
+  );
+  const terminal = ids.newId();
+  await throughSending(terminal, now);
+  await rejected(
+    asA(sql`UPDATE push_attempts SET status='SENT', outcome_known=true WHERE id=${terminal}`),
+    '23514',
+    'push_attempts_state',
+  );
+  const sentWithFailure = ids.newId();
+  await throughSending(sentWithFailure, now);
+  await rejected(
+    asA(
+      sql`UPDATE push_attempts SET status='SENT', finished_at=${now}, outcome_known=true,
+        failure_code='PROVIDER_5XX' WHERE id=${sentWithFailure}`,
     ),
     '23514',
     'push_attempts_outcome',
   );
+  const failedWithoutFailure = ids.newId();
+  await asA(attempt(A.company, { id: failedWithoutFailure, status: 'PENDING' }));
   await rejected(
     asA(
-      attempt(A.company, {
-        status: 'FAILED',
-        finishedAt: new Date().toISOString(),
-        outcomeKnown: true,
-      }),
+      sql`UPDATE push_attempts SET status='FAILED', finished_at=${now}, outcome_known=true
+        WHERE id=${failedWithoutFailure}`,
     ),
     '23514',
     'push_attempts_outcome',
@@ -145,40 +168,32 @@ it('the state check refuses a broken row', async () => {
 
 it('the state check accepts one valid row of each status', async () => {
   const now = new Date().toISOString();
-  const sourceEventId = ids.newId();
-  await asA(attempt(A.company, { sourceEventId, status: 'PENDING' }));
+  const templateKey = 'status_matrix';
+  await asA(attempt(A.company, { id: ids.newId(), templateKey, status: 'PENDING' }));
   await asA(
     attempt(A.company, {
-      sourceEventId,
-      status: 'SENDING',
-      executionId: ids.newId(),
-      sendingAt: now,
-    }),
-  );
-  await asA(
-    attempt(A.company, { sourceEventId, status: 'SENT', finishedAt: now, outcomeKnown: true }),
-  );
-  await asA(
-    attempt(A.company, {
-      sourceEventId,
-      status: 'FAILED',
-      finishedAt: now,
-      outcomeKnown: true,
-      failureCode: 'PROVIDER_5XX',
-    }),
-  );
-  await asA(
-    attempt(A.company, {
-      sourceEventId,
+      id: ids.newId(),
+      templateKey,
       status: 'EXPIRED',
       finishedAt: now,
       outcomeKnown: true,
       failureCode: 'DEADLINE_EXPIRED',
     }),
   );
-  const rows = await asA(
-    sql`SELECT status FROM push_attempts WHERE source_event_id = ${sourceEventId}`,
+  const sending = ids.newId();
+  await throughSending(sending, now, templateKey);
+  const sent = ids.newId();
+  await throughSending(sent, now, templateKey);
+  await asA(
+    sql`UPDATE push_attempts SET status='SENT', finished_at=${now}, outcome_known=true WHERE id=${sent}`,
   );
+  const failed = ids.newId();
+  await asA(attempt(A.company, { id: failed, templateKey, status: 'PENDING' }));
+  await asA(
+    sql`UPDATE push_attempts SET status='FAILED', finished_at=${now}, outcome_known=true,
+      failure_code='PROVIDER_5XX' WHERE id=${failed}`,
+  );
+  const rows = await asA(sql`SELECT status FROM push_attempts WHERE template_key = ${templateKey}`);
   expect(rows).toHaveLength(5);
   expect(rows.map((row) => row['status']).sort()).toEqual([
     'EXPIRED',

@@ -19,8 +19,8 @@ export interface PushTemplateDefinition {
   readonly copy: Readonly<Record<'ar' | 'en', PushTemplateCopy>>;
 }
 
-// اسم الفرع ممكن ييجي فاضي؛ فاضي مش خطأ، ومعناه إننا نستخدم الاسم باللغة التانية أو اللفظ العام.
-const BLANK_ALLOWED = new Set(['branch_name_ar', 'branch_name_en']);
+// اسم الفرع لو كان فاضي أو مرفوض بقواعد العرض بيتعامل كأنه مش موجود: الاسم باللغة التانية أو اللفظ العام.
+const FALLBACK_NAMES = new Set(['branch_name_ar', 'branch_name_en']);
 
 // اللفظ العام لما اسم الفرع ناقص باللغة المطلوبة وفي اللغة التانية كمان (ADR-0037 قرار 4).
 const GENERIC_BRANCH: Readonly<Record<'ar' | 'en', string>> = {
@@ -69,13 +69,13 @@ const find = (key: string): PushTemplateDefinition | null =>
   PUSH_TEMPLATES.find((definition) => definition.key === key) ?? null;
 
 // قالب الدفع بيشارك قواعد الأمان بتاعة قوالب الإشعارات، فبنلفّه في نفس الشكل.
-const asTemplateDefinition = (definition: PushTemplateDefinition): TemplateDefinition => ({
-  key: definition.key,
-  revision: definition.revision,
+const asTemplateDefinition = (parameters: readonly TemplateParameter[]): TemplateDefinition => ({
+  key: 'push_notice',
+  revision: 1,
   locales: ['ar', 'en'],
   category: 'UTILITY',
-  parameters: definition.parameters,
-  copy: { ar: definition.copy.ar.body, en: definition.copy.en.body },
+  parameters,
+  copy: { ar: '', en: '' },
 });
 
 const valueOf = (parameters: readonly SafeParameter[], name: string): string | null => {
@@ -84,11 +84,51 @@ const valueOf = (parameters: readonly SafeParameter[], name: string): string | n
   return parameter.value;
 };
 
-const branchName = (parameters: readonly SafeParameter[], locale: 'ar' | 'en'): string => {
-  const own = valueOf(parameters, locale === 'ar' ? 'branch_name_ar' : 'branch_name_en');
-  if (own !== null && own.trim() !== '') return own;
-  const other = valueOf(parameters, locale === 'ar' ? 'branch_name_en' : 'branch_name_ar');
-  if (other !== null && other.trim() !== '') return other;
+/**
+ * بيحكم إن اسم الفرع صالح للتعرض.
+ * القاعدة: الاسم الفاضي أو اللي مرفوض بقواعد العرض (رابط أو هاتف أو رمز) بيتعامل كأنه مش موجود.
+ *
+ * @param descriptor وصف معامل الاسم
+ * @param parameter قيمة الاسم كما جت
+ * @returns الاسم بعد التشذيب، أو null لو الاسم مش صالح للتعرض
+ */
+const usableName = (descriptor: TemplateParameter, parameter: SafeParameter): string | null => {
+  if (typeof parameter.value !== 'string') return null;
+  const value = parameter.value.trim();
+  if (value === '') return null;
+  const single: SafeParameter = { name: descriptor.name, type: descriptor.type, value };
+  if (!validateParameters(asTemplateDefinition([descriptor]), 'ar', [single])) return null;
+  return value;
+};
+
+const usableBranchName = (
+  definition: PushTemplateDefinition,
+  parameters: readonly SafeParameter[],
+  name: string,
+): string | null => {
+  const descriptor = definition.parameters.find((item) => item.name === name);
+  const parameter = parameters.find((item) => item.name === name);
+  if (descriptor === undefined || parameter === undefined) return null;
+  return usableName(descriptor, parameter);
+};
+
+const branchName = (
+  definition: PushTemplateDefinition,
+  parameters: readonly SafeParameter[],
+  locale: 'ar' | 'en',
+): string => {
+  const own = usableBranchName(
+    definition,
+    parameters,
+    locale === 'ar' ? 'branch_name_ar' : 'branch_name_en',
+  );
+  if (own !== null) return own;
+  const other = usableBranchName(
+    definition,
+    parameters,
+    locale === 'ar' ? 'branch_name_en' : 'branch_name_ar',
+  );
+  if (other !== null) return other;
   return GENERIC_BRANCH[locale];
 };
 
@@ -101,18 +141,17 @@ const matches = (
   for (const [index, descriptor] of definition.parameters.entries()) {
     const parameter = parameters[index];
     if (parameter === undefined) return false;
-    const blank =
-      BLANK_ALLOWED.has(descriptor.name) &&
-      typeof parameter.value === 'string' &&
-      parameter.value.trim() === '';
-    normalized.push(blank ? { ...parameter, value: GENERIC_BRANCH.ar } : parameter);
+    const unusable =
+      FALLBACK_NAMES.has(descriptor.name) && usableName(descriptor, parameter) === null;
+    normalized.push(unusable ? { ...parameter, value: GENERIC_BRANCH.ar } : parameter);
   }
-  return validateParameters(asTemplateDefinition(definition), 'ar', normalized);
+  return validateParameters(asTemplateDefinition(definition.parameters), 'ar', normalized);
 };
 
 /**
  * بيتأكد إن القالب ومراجعته ومعاملاته مطابقة لقالب دفع معروف.
- * القاعدة: الاسم الفاضي مسموح (فيُستبدل وقت العرض)، وأي قيمة تانية اسمها رابط أو هاتف أو رمز بتترفض.
+ * القاعدة: اسم الفرع الفاضي أو المرفوض بيتحسب مش موجود (بينستبدل وقت العرض)،
+ * وأي معامل تاني قيمته رابط أو هاتف أو رمز بتترفض.
  *
  * @param key        مفتاح القالب
  * @param revision   مراجعة القالب
@@ -131,7 +170,8 @@ export function validPushTemplate(
 
 /**
  * بيرسم نص الإشعار بلغة الاشتراك.
- * القاعدة: اسم الفرع بلغة الإشعار، ولما ينقص بنستخدم الاسم باللغة التانية، ولما ينقص الاتنين بنستخدم اللفظ العام.
+ * القاعدة: اسم الفرع بلغة الإشعار، ولما ينقص أو يرفض بنستخدم الاسم باللغة التانية،
+ * ولما ينقص الاتنين بنستخدم اللفظ العام.
  *
  * @param key        مفتاح القالب
  * @param revision   مراجعة القالب
@@ -151,7 +191,7 @@ export function renderPushNotice(
   const copy = definition.copy[locale];
   const values: Record<string, string> = {
     shift_start: valueOf(parameters, 'shift_start') ?? '',
-    branch_name: branchName(parameters, locale),
+    branch_name: branchName(definition, parameters, locale),
   };
   return {
     title: copy.title,

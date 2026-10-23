@@ -81,3 +81,11 @@ it('publishes the push authorization with the company and the attempt only', () 
   const withEndpoint = { company_id: ID, attempt_id: ID, endpoint: 'https://x.test' };
   expect(pushSendAuthorized.safeParse(withEndpoint).success).toBe(false);
 });
+
+it('takes one hundred recipients and refuses one hundred and one', () => {
+  const group = Array.from({ length: 100 }, () => push);
+  expect(notificationRequest.safeParse({ notification_recipients: group }).success).toBe(true);
+  expect(notificationRequest.safeParse({ notification_recipients: [...group, push] }).success).toBe(
+    false,
+  );
+});

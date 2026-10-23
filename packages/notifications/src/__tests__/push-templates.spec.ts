@@ -64,7 +64,18 @@ it('refuses an unknown template, a wrong revision and a missing parameter', () =
   ).toBe(false);
 });
 
-it('refuses a parameter that carries a link, a phone or a bare code', () => {
+it('refuses a shift start that carries a link, a phone or a bare code', () => {
+  for (const value of ['https://example.test/private', '+96500000001', '123456', 'bearer secret']) {
+    const values: SafeParameter[] = [
+      { name: 'shift_start', type: 'text', value },
+      ...parameters().slice(1),
+    ];
+    expect(validPushTemplate(KEY, 1, values)).toBe(false);
+    expect(renderPushNotice(KEY, 1, 'ar', values)).toBeNull();
+  }
+});
+
+it('falls back to the other language when a branch name is rejected', () => {
   for (const value of [
     'https://example.test/private',
     'www.example.test',
@@ -72,15 +83,22 @@ it('refuses a parameter that carries a link, a phone or a bare code', () => {
     '123456',
     'bearer secret',
   ]) {
-    expect(validPushTemplate(KEY, 1, parameters(value, 'Salmiya'))).toBe(false);
-    expect(renderPushNotice(KEY, 1, 'ar', parameters(value, 'Salmiya'))).toBeNull();
+    const values = parameters(value, 'Salmiya');
+    expect(validPushTemplate(KEY, 1, values)).toBe(true);
+    for (const locale of ['ar', 'en'] as const) {
+      const body = renderPushNotice(KEY, 1, locale, values)?.body ?? '';
+      expect(body).not.toContain(value);
+      expect(body).toContain('Salmiya');
+    }
   }
-  expect(
-    validPushTemplate(KEY, 1, [
-      { name: 'shift_start', type: 'text', value: 'https://example.test' },
-      ...parameters().slice(1),
-    ]),
-  ).toBe(false);
+  const both = parameters('https://example.test', '123456');
+  expect(validPushTemplate(KEY, 1, both)).toBe(true);
+  expect(renderPushNotice(KEY, 1, 'ar', both)?.body).toBe(
+    'لسه مفيش بصمة حضور ليك لشيفت الساعة 10:00 في الفرع.',
+  );
+  expect(renderPushNotice(KEY, 1, 'en', both)?.body).toBe(
+    'No clock-in yet for your 10:00 shift at the branch.',
+  );
 });
 
 it('leaves no placeholder brace in the rendered body', () => {

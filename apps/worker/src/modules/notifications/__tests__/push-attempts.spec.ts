@@ -6,6 +6,7 @@ import {
   ENDPOINT,
   OTHER_USER,
   P256DH,
+  PUSH_PARAMETERS,
   PUSH_USER,
   pushHarness,
   pushRecipient,
@@ -160,4 +161,22 @@ it('stores the in-app rows and the push attempts independently in one request', 
   expect(await h.attempts(event.id)).toHaveLength(2);
   expect(await h.authorized(event.id)).toHaveLength(2);
   expect(await h.phoneAttempts(event.id)).toHaveLength(0);
+});
+
+it('accepts a request whose branch name is rejected in both languages', async () => {
+  const event = await h.request([
+    {
+      ...pushRecipient(),
+      safe_parameters: PUSH_PARAMETERS.map((parameter) =>
+        parameter.name === 'branch_name_ar'
+          ? { ...parameter, value: 'https://example.test' }
+          : parameter.name === 'branch_name_en'
+            ? { ...parameter, value: '' }
+            : parameter,
+      ),
+    },
+  ]);
+  expect(await h.deliver(event)).toEqual({ delivered: true });
+  expect(await h.attempts(event.id)).toHaveLength(2);
+  expect(await h.authorized(event.id)).toHaveLength(2);
 });

@@ -66,3 +66,47 @@ GRANT SELECT, INSERT ON push_attempts TO pospay_app;
 --> statement-breakpoint
 GRANT UPDATE (status, execution_id, sending_at, finished_at, failure_code, outcome_known, http_status, updated_at)
   ON push_attempts TO pospay_app;
+--> statement-breakpoint
+CREATE FUNCTION push_attempts_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    IF (NEW.company_id, NEW.id, NEW.subscription_id, NEW.subscription_generation, NEW.user_id,
+        NEW.business_id, NEW.branch_id, NEW.source_event_id, NEW.template_key, NEW.template_revision,
+        NEW.locale, NEW.safe_parameters, NEW.send_deadline, NEW.created_at)
+       IS DISTINCT FROM
+       (OLD.company_id, OLD.id, OLD.subscription_id, OLD.subscription_generation, OLD.user_id,
+        OLD.business_id, OLD.branch_id, OLD.source_event_id, OLD.template_key, OLD.template_revision,
+        OLD.locale, OLD.safe_parameters, OLD.send_deadline, OLD.created_at) THEN
+      RAISE EXCEPTION 'push attempt identity is immutable' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.status IN ('SENT','FAILED','EXPIRED') AND NEW IS DISTINCT FROM OLD THEN
+      RAISE EXCEPTION 'push attempt terminal state is immutable' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.status <> OLD.status AND NOT (
+      (OLD.status = 'PENDING' AND NEW.status IN ('SENDING','FAILED','EXPIRED')) OR
+      (OLD.status = 'SENDING' AND NEW.status IN ('SENT','FAILED','EXPIRED'))
+    ) THEN
+      RAISE EXCEPTION 'push attempt transition refused' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.status = 'SENDING' AND (NEW.execution_id, NEW.sending_at) IS DISTINCT FROM (OLD.execution_id, OLD.sending_at) THEN
+      RAISE EXCEPTION 'push attempt execution is immutable' USING ERRCODE = '23514';
+    END IF;
+  ELSIF NEW.status NOT IN ('PENDING','EXPIRED') THEN
+    RAISE EXCEPTION 'push attempt initial state refused' USING ERRCODE = '23514';
+  END IF;
+  IF NEW.status IN ('PENDING','SENDING') AND (NEW.failure_code IS NOT NULL OR NEW.http_status IS NOT NULL OR NEW.outcome_known IS NOT NULL) THEN
+    RAISE EXCEPTION 'push attempt result before the end' USING ERRCODE = '23514';
+  END IF;
+  IF NEW.branch_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM branches WHERE company_id = NEW.company_id AND id = NEW.branch_id AND business_id = NEW.business_id
+  ) THEN
+    RAISE EXCEPTION 'push attempt scope refused' USING ERRCODE = '23503';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION push_attempts_guard() FROM PUBLIC;
+--> statement-breakpoint
+CREATE TRIGGER push_attempts_guard BEFORE INSERT OR UPDATE ON push_attempts
+  FOR EACH ROW EXECUTE FUNCTION push_attempts_guard();
