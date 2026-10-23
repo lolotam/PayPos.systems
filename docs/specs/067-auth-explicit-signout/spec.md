@@ -117,8 +117,10 @@ Sara, a stylist, does not see it. Who counts is SO-Q1.
 
 1. **Given** a personal session of a user who counts under SO-Q1 in the session's business, **When** the app reads the
    session, **Then** `back_office` is `true`.
-2. **Given** the same user after her qualifying membership ended, **When** the app reads the session again, **Then**
-   `back_office` is `false`, with no new sign-in.
+2. **Given** the same user after her qualifying membership ended while another active membership still covers the
+   session (so the personal guard still accepts her, ADR-0027), **When** the app reads the session again, **Then**
+   `back_office` is `false`, with no new sign-in. If no covering membership remains, the guard refuses the read with
+   401 as today and no flag is returned.
 3. **Given** any personal session, **When** `back_office` is `true`, **Then** no personal route accepts anything it did
    not accept before (the flag grants nothing).
 
@@ -128,16 +130,20 @@ Sara, a stylist, does not see it. Who counts is SO-Q1.
   personal one on the row delete; one answers «signed out», the other «no session to end». Both count as done.
 - **Sign-out racing a new sign-in on the same counter device**: the replacement and the retirement take the same
   advisory lock (`staffDeviceSessionLockKey`); sign-out ends only the row its own cookie names, never the new operator's.
+  **The cookie is a known limitation (D-6):** if the sign-out response reaches the browser after the new sign-in's
+  response, its cookie-clearing header erases the new cookie. The new row survives; the user signs in again.
+- **An expired or malformed row** (deadline passed, context not well-formed): deleted as cleanup, answered «no session
+  to end», because no request could have used it. A `STAFF_POS` row whose `staffDeviceContext.deviceId` is not a UUID
+  is deleted by its id and purpose without the device lock (D-2).
 - **The staff cookie names a session of another device** (the browser was re-paired under a new device id): the row is
   retired under its own device's lock and the answer is «signed out»; the current device token plays no part.
 - **A personal cookie sent to the staff route, or the reverse**: each route reads only its own cookie name
   (`STAFF_COOKIE`, `PERSONAL_COOKIE`) and its own purpose; the other cookie is ignored; answer «no session to end».
-- **An expired or malformed row** (deadline passed, context not well-formed): deleted as cleanup, answered «no session
-  to end», because no request could have used it.
 - **A user who lost eligibility, or whose approved phone changed**: the row is still deleted; eligibility and
   `bindingValid` are not consulted to end a session.
 - **Rate limit reached**: 429 `TOO_MANY_REQUESTS`; nothing changed; the app retries later (FR-008 treats it as a stop).
-- **Auth not configured** on that API (tests, a misconfigured environment): 503 `NOT_READY`, never 401.
+- **Auth not configured** on that API (tests, a misconfigured environment: the route's sessions, its POS origin
+  setting or the rate limiter not wired): 503 `NOT_READY`, checked before the `Origin` header, never 401 or 403.
 - **Database failure** while ending the session: 5xx; the caller must not count it as done.
 
 ## Requirements *(mandatory)*
@@ -145,10 +151,12 @@ Sara, a stylist, does not see it. Who counts is SO-Q1.
 ### Functional Requirements — Part A (sign-out)
 
 - **FR-001**: Each sign-out route MUST answer 200 in exactly two cases: «signed out» when this request ended a live
-  session of its kind, and «no session to end» otherwise. Both clear that route's cookie.
+  session of its kind, and «no session to end» otherwise. Both clear that route's cookie when the request carried
+  it (D-6).
 - **FR-002**: Calling a sign-out again MUST be safe and MUST answer «no session to end» once the session is gone.
 - **FR-003**: A sign-out MUST NOT answer 401 for any reason it controls. A refused request (wrong origin, an
-  `Authorization` header on the personal route) MUST get 403; missing configuration 503; rate limit 429.
+  `Authorization` header on the personal route) MUST get 403; missing configuration (sessions, POS origin setting or
+  rate limiter not wired) MUST get 503, checked first; rate limit 429.
 - **FR-004**: The authority to end a session MUST be possession of that session's server-signed cookie, from the
   configured POS origin, and nothing else. The staff route MUST NOT read the device token at all, so its answer can
   never depend on whether the device is active, revoked, unknown or of a closed company.
@@ -193,13 +201,16 @@ policy for sign-out (proposed: a `SIGN_OUT_ROUTE` metadata value `'staff' | 'per
 the `PERSONAL_ROUTE` and `STAFF_ROUTE` branches; the two sign-out handlers drop their `STAFF_ROUTE` / `PERSONAL_ROUTE`
 markers. The branch, in this order:
 
-1. the `Origin` header must equal the configured POS origin of that route (`STAFF_POS_ORIGIN` for staff,
-   `PersonalAuthentication.origin` for personal); an unset origin or a mismatch → 403 `FORBIDDEN`;
+0. wiring: the route's sessions (`StaffSessions` / `PersonalAuthentication.sessions`), its POS origin setting and the
+   `RATE_LIMITER` must be wired; otherwise 503 `NOT_READY`. A missing origin **setting** is configuration, not a
+   refusal;
+1. the request's `Origin` header must equal that setting: for staff the `STAFF_OTP_POS_ORIGIN` environment variable
+   (injected as the `STAFF_POS_ORIGIN` token, the value the staff OTP routes compare today), for personal
+   `PersonalAuthentication.origin`; a missing or different header → 403 `FORBIDDEN`;
 2. personal only: an `Authorization` header → 403 `FORBIDDEN` (ADR-0027: device credentials cannot upgrade or stand
    in for the personal purpose);
 3. the per-IP rate limit (D-5);
-4. set no principal, return true. The access guard already lets an `@Authenticated()` route through without a
-   principal (`AccessGuard` returns early for `AUTHENTICATED_ONLY`), and neither controller uses `SelectedCompanyGuard`.
+4. set no principal, return true (D-7 lists every reader of `request.principal` on these routes).
 
 Rejected alternatives:
 
@@ -218,7 +229,10 @@ Rejected alternatives:
 `{ cookie, ended }`; `PersonalSessions.signOut(headers)` returns the same shape. Staff: verify the cookie
 (`verifiedToken` with `STAFF_COOKIE`), find the row, and when its purpose is `STAFF_POS` and its
 `staffDeviceContext.deviceId` is a UUID, retire it with `retireStaffSession(authDatabase, row.id, deviceId)` using
-the row's **own** device id (server-written, immutable). Personal: as today, remove the row when its purpose is
+the row's **own** device id (server-written, immutable). A `STAFF_POS` row whose context is malformed (no
+`staffDeviceContext` object, or a `deviceId` that is not a UUID, which `retireStaffSession` silently skips) is deleted
+by a second auth operation, `DELETE FROM session WHERE id = … AND purpose = 'STAFF_POS'`, without the device lock: no
+device can resolve such a row, so nothing can race it. Personal: as today, remove the row when its purpose is
 `STAFF_PERSONAL`. `ended` is true only when the deleted row was live under BR-002. The doc comments on both interface
 methods change in the same commit (`CLAUDE.md` §3.1).
 
@@ -236,6 +250,42 @@ route (key `sign-out:<staff|personal>:<ip>`). The limit is higher than the devic
 often share one public IP and many staff leave at the same hour. Without a wired limiter the route answers 503
 `NOT_READY`, as `DevicesController` does.
 
+**D-6. The cookie race is a recorded limitation.** The advisory lock orders the database changes, not the HTTP
+responses. If one tab's sign-out response reaches the browser after another tab's new sign-in response, the
+sign-out's `Set-Cookie` (an expired cookie of the same name, `Path=/v1`) erases the new cookie. HTTP gives the server no
+clean way to prevent it: a `Set-Cookie` cannot be made conditional on the value the browser holds when the response
+arrives, and avoiding it would need a different cookie name per session, while ADR-0019 and ADR-0027 fix one name per
+purpose. Two narrowings are required, and the rest is accepted:
+
+- the server sends the clearing header only when the request carried a cookie of that route's name; a request with no
+  such cookie gets `NO_SESSION` with no `Set-Cookie`, so a stray sign-out from a tab that never held a session cannot
+  erase anything;
+- the clients serialize: the PWA and the app never start a sign-in of a kind while a sign-out of that kind is in
+  flight in any tab (the existing cross-tab change announcement, `announcePersonalChange`, and its staff equivalent
+  carry an «in flight» state), and a sign-out started after a sign-in waits for it.
+
+If the race still happens, the effect is availability only: the new row survives until its deadline or the next
+sign-in on that device (staff) or for that user (personal) replaces it, and the person signs in again. No session is
+extended, revived or exposed.
+
+**D-7. Readers of `request.principal` on these two routes.** `SessionGuard` documents `principal` as «absent only on
+@Public() routes»; these become the two `@Authenticated()` routes where it is absent too. Every reader in
+`apps/api/src`:
+
+- global guards, in order: `SessionGuard` (sets it; the new branch does not), `AccessGuard` (returns early for
+  `AUTHENTICATED_ONLY` before reading it; its `@RequirePlatform` branch does not apply), `FeatureGuard` (reads
+  `principal?.companyId` only when a feature flag is declared; these routes declare none);
+- per-controller guards that read it (`SelectedCompanyGuard`, the orders `session-access.guard.ts`, the settings
+  `identity-capability-company.guard.ts`, the staff `attendance-report-company.guard.ts`) are not applied to
+  `StaffOtpController` or `PersonalOtpController`;
+- `actorOf` (`apps/api/src/shared/actor.ts`) is called by handlers only; the sign-out handlers do not call it;
+- the exception filter (`EnvelopeExceptionFilter`) and the `onRequest` / `onResponse` hooks in `app.ts` do not read
+  `principal`; no interceptor is registered globally;
+- the rate-limit key is the IP (D-5), not the principal.
+
+Sub-PR 067-1 updates the `principal` doc comment in `session.guard.ts` to name the sign-out exception (`CLAUDE.md`
+§3.1) and adds a test that both routes answer without a principal.
+
 ### Schema changes
 
 None. No table, column, RLS policy, grant or index changes. The `session` table stays reachable only from
@@ -250,13 +300,14 @@ Paths and methods do not change. Bodies are new Zod schemas in `packages/contrac
 
 | Case | Status | Body | `Set-Cookie` |
 |---|---|---|---|
-| The request ended a live session (BR-002) | 200 | `{ "status": "SIGNED_OUT" }` | clears the route's cookie |
-| No cookie, bad signature, unknown or already-deleted row, other purpose, deadline passed, malformed context | 200 | `{ "status": "NO_SESSION" }` | clears the route's cookie |
-| Repeat after either 200 | 200 | `{ "status": "NO_SESSION" }` | clears the route's cookie |
-| `Origin` unset in config, missing or not the POS origin | 403 | `FORBIDDEN` envelope | none |
+| Sessions, the POS origin setting or the limiter not wired (checked first) | 503 | `NOT_READY` envelope | none |
+| `Origin` header missing or not the configured POS origin | 403 | `FORBIDDEN` envelope | none |
 | Personal route with an `Authorization` header | 403 | `FORBIDDEN` envelope | none |
 | Rate limit reached | 429 | `TOO_MANY_REQUESTS` envelope | none |
-| Auth sessions or the limiter not wired | 503 | `NOT_READY` envelope | none |
+| The request ended a live session (BR-002) | 200 | `{ "status": "SIGNED_OUT" }` | clears the route's cookie |
+| A cookie of the route's name was sent, but with a bad signature, an unknown or already-deleted row, another purpose, a passed deadline or a malformed context | 200 | `{ "status": "NO_SESSION" }` | clears the route's cookie |
+| No cookie of the route's name was sent | 200 | `{ "status": "NO_SESSION" }` | none (D-6) |
+| Repeat after either 200 | 200 | `{ "status": "NO_SESSION" }` | as the two rows above |
 | Database or other infrastructure failure | 5xx | error envelope | none |
 
 Staff route specifics: the `Authorization: device …` header is not read; a revoked, unknown, closed-company or absent
@@ -277,11 +328,19 @@ device token changes nothing in the table above. There is no 401 row on either r
 - `personalSessionContext` (`packages/contracts/src/staff/passkeys.ts`, a `strictObject`) gains `back_office:
   z.boolean()`. Both `getPersonalSession` and `verifyPersonalOtp` return it; their handlers build the same shape
   today and keep doing so.
-- Computed by a new identity read, `apps/api/src/modules/identity/queries/personal-back-office.query.ts` (name
-  proposed): one `withTenant(companyId, …)` transaction run by the two handlers after the guard, never inside it
-  (`CLAUDE.md` §6 connection budget). It reads the user's memberships active now whose scope covers the session's
-  business (company scope of that company, that business, or a branch of it) and applies the SO-Q1 rule.
-- Not added to the guard (`personalSessionRequest` runs on every personal request; only the two reads need the flag).
+- **One reader, one transaction** (`CLAUDE.md` §6 connection budget). The personal eligibility read that already runs
+  in one `withTenant` transaction on every personal request (`personalEmployee` in
+  `apps/api/src/modules/staff/persistence/personal-employee.ts`, through `personalMemberships` in
+  `apps/api/src/modules/identity/persistence/personal-membership.ts`) also returns the raw facts the rule needs: the
+  `role_id` (and owner key) of each membership active now whose scope covers the session's business (that company,
+  that business, or a branch of it). No second transaction is opened, in the guard or in the handlers: the guard
+  (`personalSessionRequest`) keeps those raw rows on the request next to `personalEmployeeId`, and the verify handler
+  gets them from the same eligibility call it makes today. If SO-Q1 picks the permission-based option, the same SQL
+  joins `role_permissions` inside that transaction.
+- **The rule outside `queries/` and `persistence/`.** The SO-Q1 decision is a pure function in
+  `apps/api/src/modules/identity/domain/` (proposed `backOfficeFor(memberships)`), exported through the identity
+  `index.ts` and applied by the two handlers to the raw rows. The reader returns rows only and imports no `domain/`
+  code (`CLAUDE.md` §6). No `queries/` file is added.
 
 ### Permissions
 
@@ -325,8 +384,8 @@ None published, none consumed.
 
 ### Test plan
 
-- **Domain unit**: none (no business arithmetic). The SO-Q1 rule, if it becomes a function, lives in
-  `apps/api/src/modules/identity/domain/` with exhaustive unit tests (Part B).
+- **Domain unit**: none for Part A (no business arithmetic). Part B: the SO-Q1 function in
+  `apps/api/src/modules/identity/domain/` with exhaustive unit tests (every system role, a company role, each scope).
 - **`packages/auth` unit** (`packages/auth/src/__tests__/staff-session.spec.ts`, `personal-session.spec.ts`): `ended`
   true for a live row; false for no cookie, bad signature, unknown token, other purpose, passed deadline, malformed
   context; the staff row is retired under its own device id's lock; the personal sign-out never touches a `STAFF_POS`
@@ -345,9 +404,16 @@ None published, none consumed.
   `SO-10` personal route with an `Authorization` header → 403, session still resolves ·
   `SO-11` personal cookie sent to the staff route (and the reverse) → 200 `NO_SESSION`, the other session untouched ·
   `SO-12` two concurrent sign-outs of one session → one `SIGNED_OUT`, one `NO_SESSION` ·
-  `SO-13` sign-out racing a PIN sign-in on the same device → the new operator's session survives ·
+  `SO-13` sign-out racing a PIN sign-in on the same device, with the sign-out response delayed until after the
+  sign-in's → the new operator's row survives and resolves with the new cookie, and the test records that the late
+  clearing header names the same cookie (the D-6 limitation) ·
+  `SO-13b` a request carrying no cookie of the route's name → `NO_SESSION` with no `Set-Cookie` ·
+  `SO-13c` a malformed `STAFF_POS` row (no device context, or a non-UUID `deviceId`) named by a valid cookie → row
+  deleted, `NO_SESSION` ·
   `SO-14` 31st request in 60 s from one IP → 429, nothing changed ·
-  `SO-15` sessions or limiter not wired → 503 `NOT_READY` ·
+  `SO-15` sessions, the POS origin setting or the limiter not wired → 503 `NOT_READY`, even with a wrong `Origin`
+  header (wiring is checked first) ·
+  `SO-15b` both routes answer with no `request.principal` set (D-7) ·
   `SO-16` no response of either route is ever 401 (the matrix above, both routes).
 - **Route declarations**: `route-declarations.spec.ts` asserts both handlers carry the sign-out marker and neither
   `STAFF_ROUTE` nor `PERSONAL_ROUTE`; `AUTHENTICATED_WRITES` matches the mounted writes.
@@ -355,9 +421,12 @@ None published, none consumed.
 - **POS** (Vitest): the PWA sign-out paths still clear local state on both 200 statuses (visible signed-out screen,
   `CLAUDE.md` §9).
 - **Part B integration**: `SO-20` qualifying user → `back_office: true` on both reads · `SO-21` non-qualifying user →
-  `false` · `SO-22` qualifying membership ended → `false` on the next read · `SO-23` a membership in another company or
-  another business of the same company does not count · `SO-24` no personal route changes its answer when the flag is
-  true. **Query**: result-shape test and `EXPLAIN ANALYZE` index assertion for `personal-back-office.query.ts`.
+  `false` · `SO-22` qualifying membership ended while another membership still covers the session → `false` on the
+  next read; with no covering membership left → 401 from the guard, as today · `SO-23` a membership in another company
+  or another business of the same company does not count · `SO-24` no personal route changes its answer when the flag
+  is true · `SO-25` a personal request opens exactly one tenant transaction, as before (connection budget). **Reader**:
+  the extended eligibility SQL keeps its result-shape test and gets an `EXPLAIN ANALYZE` index assertion for the added
+  role columns.
 - **RLS negative**: no new table. `SO-23` covers cross-tenant reads for Part B.
 
 ### Sub-PR split
@@ -365,7 +434,7 @@ None published, none consumed.
 | Sub-PR | Content | Waits on |
 |---|---|---|
 | 067-1 | Part A: guard policy, `packages/auth` return shape, both handlers, contracts and OpenAPI, POS client regeneration, tests `SO-01…SO-16`, ADR addenda flipped to Accepted | nothing; it changes auth, so `pospay-pipeline` §3 step 2 design advice applies |
-| 067-2 | Part B: identity query, `back_office` on both reads, contract, tests `SO-20…SO-24` | SO-Q1 |
+| 067-2 | Part B: the eligibility reader returns the covering memberships' roles, the SO-Q1 domain function, `back_office` on both reads, contract, tests `SO-20…SO-25` | SO-Q1 |
 
 The app side (counting the statuses in FR-008, showing the FR-017 line) stays in spec 065's sub-PRs.
 
