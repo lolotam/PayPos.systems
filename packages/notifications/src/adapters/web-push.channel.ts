@@ -33,7 +33,7 @@ export interface WebPushChannelOptions {
   readonly sender?: WebPushSender;
 }
 
-// المكتبة بيتحمّلها بالمكتبة الحقيقية بس: الـ API بيستورد هذه الحزمة، فما بيحمّلش web-push مع الاستيراد.
+// المكتبة بتتحمّل عند أول إرسال حقيقي بس: الـ API بيستورد الحزمة دي، فاستيرادها ما يحمّلش web-push.
 type WebPushLibrary = {
   sendNotification(
     subscription: { endpoint: string; keys: { p256dh: string; auth: string } },

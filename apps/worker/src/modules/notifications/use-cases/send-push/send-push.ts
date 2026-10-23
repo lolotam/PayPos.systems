@@ -60,7 +60,7 @@ export class SendPush {
     return this.outcome(delivery, decision);
   }
 
-  // الحجز بيرجع رفضًا محليًا لما يخلص أو لما يفشل؛ خطأ الحجز ما بيستناش تسريب نصّه.
+  // الحجز بيرجع رفضًا محليًا لما السعة تخلص أو لما Redis يفشل؛ نص الخطأ ما بيتحفظش.
   private async reserve(delivery: PushDelivery): Promise<PushDecision | null> {
     try {
       const allowed = await this.admission.reserve(delivery.attempt.subscriptionId);

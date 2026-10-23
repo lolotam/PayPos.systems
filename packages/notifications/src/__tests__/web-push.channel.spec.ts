@@ -108,7 +108,7 @@ describe('the request the channel sends', () => {
   });
 });
 
-describe('the mapping of the push service answer', () => {
+describe('the accepted, gone and rejected answers', () => {
   const ACCEPTED: [number, PushResult][] = [
     [200, { kind: 'accepted', httpStatus: 200 }],
     [201, { kind: 'accepted', httpStatus: 201 }],
@@ -122,9 +122,6 @@ describe('the mapping of the push service answer', () => {
     [403, { kind: 'rejected', code: 'PROVIDER_4XX', httpStatus: 403, vapidRejected: true }],
     [413, { kind: 'rejected', code: 'PROVIDER_4XX', httpStatus: 413, vapidRejected: false }],
     [429, { kind: 'rejected', code: 'PROVIDER_429', httpStatus: 429, vapidRejected: false }],
-    [500, { kind: 'unknown', code: 'PROVIDER_5XX', outcomeKnown: false, httpStatus: 500 }],
-    [503, { kind: 'unknown', code: 'PROVIDER_5XX', outcomeKnown: false, httpStatus: 503 }],
-    [302, { kind: 'unknown', code: 'NETWORK_UNKNOWN', outcomeKnown: false, httpStatus: 302 }],
   ];
 
   it.each(ACCEPTED)('accepts the answer %s', async (status, expected) => {
@@ -133,6 +130,18 @@ describe('the mapping of the push service answer', () => {
   });
 
   it.each(REFUSED)('maps the refused answer %s', async (status, expected) => {
+    expect(await channel(refusing(status)).send(request())).toEqual(expected);
+  });
+});
+
+describe('the unknown answers', () => {
+  const UNKNOWN: [number, PushResult][] = [
+    [500, { kind: 'unknown', code: 'PROVIDER_5XX', outcomeKnown: false, httpStatus: 500 }],
+    [503, { kind: 'unknown', code: 'PROVIDER_5XX', outcomeKnown: false, httpStatus: 503 }],
+    [302, { kind: 'unknown', code: 'NETWORK_UNKNOWN', outcomeKnown: false, httpStatus: 302 }],
+  ];
+
+  it.each(UNKNOWN)('maps the unknown answer %s', async (status, expected) => {
     expect(await channel(refusing(status)).send(request())).toEqual(expected);
   });
 
