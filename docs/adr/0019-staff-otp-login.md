@@ -896,3 +896,32 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
   D-A5). They are 57-1's own ADR-0027 addendum.
 - The column setting (D-A2) and the months-back setting (D-A14). They apply the same way on both paths and are read
   through `StaffColumnsPort` (ADR-0010 addendum 2026-10-21).
+
+## Addendum 2026-10-23 — explicit, idempotent staff sign-out (spec 067, issue #554 item 2)
+
+- **Status:** Proposed. It becomes Accepted when sub-PR 067-1 merges.
+
+**Context.** §1 says sign-out clears the staff session and keeps the pairing. The route
+`POST /v1/devices/me/staff-session/sign-out` runs today behind the full staff guard (device token, a live `STAFF_POS`
+session, eligibility), so a device with no live session, a user who lost eligibility, and a revoked or unknown device all
+get the same 401 `UNAUTHENTICATED`. Spec 065 FR-008 (the app's role change) cannot count that 401 as signed out, and a
+revoked counter device could never finish the role change.
+
+**Decision.**
+
+1. The staff sign-out is **the one staff route that needs no device token**. It does not read the
+   `Authorization: device …` header at all, so its answer can never depend on whether the device is active, revoked,
+   unknown or of a closed company; §6's rule that a revoked device looks exactly like an unknown one holds.
+2. The authority to end the session is possession of the server-signed `pospay-staff.session_token` cookie, sent from
+   the exact configured POS origin. The session row is retired through `retireStaffSession` under the advisory lock of
+   the device named in the row's own `staffDeviceContext`, so a concurrent replacement on that device still serializes
+   with it and everything this ADR ties to the end of a session follows.
+3. The route answers 200 `SIGNED_OUT` when it ended a live session and 200 `NO_SESSION` otherwise, clearing the cookie
+   in both cases; repeats answer `NO_SESSION`. Refusals are explicit (403 origin, 429 rate limit, 503 not wired); the
+   route never answers 401. Eligibility and the phone binding are not consulted to end a session.
+4. The route stays `@Authenticated()` and declared in `AUTHENTICATED_WRITES`; the guard runs a session-optional
+   sign-out policy (origin check, per-IP rate limit, no principal).
+
+**Consequence.** A holder of a stolen staff cookie without the device token can now end that session and learn it was
+live. Accepted: ending a session only removes access, and the cookie is HttpOnly, host-only and never sent cross-site.
+Full matrix and tests: `docs/specs/067-auth-explicit-signout/spec.md`.
