@@ -13,7 +13,7 @@ export function pushQueries(owner: postgres.Sql) {
       owner`SELECT * FROM push_attempts WHERE source_event_id = ${sourceEventId} ORDER BY id`,
     authorized: (sourceEventId: string) => owner`SELECT o.event_type, o.payload FROM outbox o
       JOIN push_attempts a ON a.company_id = o.company_id AND a.id = (o.payload->>'attempt_id')::uuid
-      WHERE a.source_event_id = ${sourceEventId} ORDER BY o.id`,
+      WHERE a.source_event_id = ${sourceEventId} AND o.event_type = 'PushSendAuthorized' ORDER BY o.id`,
     results: (sourceEventId: string) => owner`SELECT o.event_type, o.payload FROM outbox o
       JOIN push_attempts a ON a.company_id = o.company_id AND a.id = (o.payload->>'attempt_id')::uuid
       WHERE a.source_event_id = ${sourceEventId} AND o.event_type = 'NotificationFailed' ORDER BY o.id`,

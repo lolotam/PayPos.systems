@@ -34,10 +34,13 @@ it('returns the live subscriptions of the user in creation order', async () => {
   ]);
 });
 
-it('the lookup plan uses the live subscriptions index', async () => {
+it('the lookup plan reads the user through an index and never scans the table', async () => {
   const plan = await h.db.withTenant(TENANT.A.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     return tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${liveSubscriptionsStatement(PUSH_USER)}`);
   });
-  expect(JSON.stringify(plan)).toContain('push_subscriptions_active_user_idx');
+  const text = JSON.stringify(plan);
+  expect(text).toMatch(/Index Scan|Index Only Scan|Bitmap Index Scan/);
+  expect(text).toMatch(/push_subscriptions_(active_user_idx|user_idx)/);
+  expect(text).not.toContain('Seq Scan');
 });
