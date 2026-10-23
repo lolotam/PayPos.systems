@@ -112,7 +112,7 @@ Bundled assets change the page origin, and that is the main technical risk of th
      needs **its own ADR addendum and the web manager's agreement**; this track does not change `packages/auth` alone.
 - **Passkeys in the WebView** (attendance, ADR-0027 / ADR-0039) are a named open risk, not solved here. On iOS the
   `capacitor://` origin is refused by design by `passkey-policy.ts`; accepting it is a `packages/auth` change that needs
-  an ADR-0027 addendum. On both platforms the app must also be associated with the relying party (Apple
+  an ADR-0027 addendum (issue #536), which lands before any native passkey work. On both platforms the app must also be associated with the relying party (Apple
   `webcredentials:` associated domain with an `apple-app-site-association` file; Android Digital Asset Links
   `assetlinks.json`), served from the relying party's host (`pospay.systems`, or `staging.pospay.systems` for the staging
   flavour). Serving those files is an operations change (`deploy/pos-nginx.conf` and Dokploy), made by the web manager or

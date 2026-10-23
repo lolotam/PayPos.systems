@@ -50,7 +50,7 @@ Starts only when **Abu Salem confirms APP-Q1** and **APP-Q3 … APP-Q6 are answe
    GitHub environment `mobile-release` (required reviewer: Waleed). No agent sees or handles the values.
 3. **O-4 (web manager / Waleed):** serve `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json`
    from the relying party's host (`pospay.systems`; `staging.pospay.systems` for the staging flavour), and agree the
-   `packages/auth` change that lets the iOS origin use passkeys (an ADR-0027 addendum; ADR-0055 decision 3).
+   `packages/auth` change that lets the iOS origin use passkeys (an ADR-0027 addendum, issue #536; ADR-0055 decision 3).
 4. **M-2a:** `mobile.yml` stage C — fastlane (`Gemfile.lock` pinned) builds and signs both flavours on `push` to `main`
    and uploads them to TestFlight internal and Play internal testing; the testers are the list of APP-Q7.
 5. **M-2b:** passkey attendance in the app once O-4 is green (re-enables what M-1d hid).
