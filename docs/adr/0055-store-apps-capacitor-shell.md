@@ -5,8 +5,9 @@ Date: 2026-10-23. Scope: roadmap track `MOB` (MOB-14 … MOB-19), first delivera
 rests on: APP-Q1 (`docs/owner-decisions.ar.md` §22, PP-38.1, batch 54) — two store apps, **final**: Waleed and Abu Salem
 both picked option 1 on 2026-10-23. That record is added by PR #532, **which merges before this ADR**. Owner questions
 this ADR opened: APP-Q2 … APP-Q7 (`docs/specs/065-mob-app-shell/owner-questions.ar.md`, batch 55, PP-39.1 … PP-39.6),
-**answered by both owners on 2026-10-23 (option 1 ⭐ on all six)**. Two points stay open and are marked `TODO(spec)`:
-the Arabic display name (APP-Q2) and the legal name of the company, which is still being formed (APP-Q3).
+**answered by both owners on 2026-10-23** (option 1 ⭐ on all six; on APP-Q2 Waleed then confirmed Abu Salem's Arabic
+name). One point stays open and is marked `TODO(spec)`: the legal name of the company, which is still being formed
+(APP-Q3).
 
 ## Context
 
@@ -112,11 +113,17 @@ Bundled assets change the page origin, and that is the main technical risk of th
   default origin **`capacitor://localhost`**. Whether WebKit sends a cookie of `https://api.pospay.systems` to a `fetch`
   from that origin is **not verified** and is presumed not to.
 - **Decision:** Android sets `server.hostname` to the environment's POS host with the `https` scheme; iOS keeps
-  `capacitor://localhost`. **Sub-PR M-1c is a spike that proves, on a real iPhone and a real Android phone against
-  staging**, that (a) device pairing, (b) a staff PIN session and (c) a personal OTP session open and survive a restart,
-  (d) the attendance QR camera opens and reads a code, and (e) records what passkey attendance does. A simulator run is
-  useful but does not close the spike. **Every later row of the track, and any store fee, waits for a green spike on
-  both real devices.** If (d) fails, the scanner moves to a native camera plugin behind the M-1d port before attendance
+  `capacitor://localhost`. **Sub-PR M-1c is a spike against staging** that checks (a) device pairing, (b) a staff PIN
+  session and (c) a personal OTP session open and survive a restart, (d) the attendance QR camera opens and reads a
+  code, and (e) what passkey attendance does. There is **no Mac** (Waleed, 2026-10-23), and a real iPhone can only get a
+  build through a Mac or a paid Apple account, so the spike runs in two steps:
+  - **M-1c, no fee:** Android (a)–(e) on a real phone with a side-loaded debug build; iOS (a)–(c) as an automated UI
+    test on the iOS simulator of the GitHub macOS runner. The simulator runs the iOS WebKit, so it answers the cookie
+    question; it has no camera and no real passkey, so (d) and (e) stay open on iOS.
+  - **M-1c-ii, the first real iPhone:** the first TestFlight build of M-2a, installed by the owners only (internal
+    testers), repeats (a)–(c) and adds (d) and (e) on iOS.
+  **M-1d onward waits for M-1c; the Apple fee waits for M-1c's iOS (a)–(c) to pass on the simulator** (and for the
+  company, APP-Q3). **No employee receives the iOS app, and attendance stays hidden on iOS, until M-1c-ii passes.** If (d) fails, the scanner moves to a native camera plugin behind the M-1d port before attendance
   is enabled in the app. If iOS fails (c) or (b), the fallback, in this order, is:
   1. Capacitor's native HTTP and cookie plugins (`CapacitorHttp`, `CapacitorCookies`) with the API hosts listed in
      `WKAppBoundDomains`, so session requests leave through the native stack with the native cookie store;
@@ -146,7 +153,7 @@ its own installable app that can sit next to the other on one phone:
 
 The ids are reverse-DNS of the domain we own (ADR-0001); they **cannot be changed after the first upload**, which is
 why the owners chose them (APP-Q6). `systems.pospay.app` is reserved for the customer app. The display name is
-«PosPay Business» in every language (APP-Q2); an Arabic name is `TODO(spec)` until Waleed confirms Abu Salem's note. Version: `apps/business/package.json` `version` (user-visible, semver); build number: the CI run number
+«PosPay Business», with the Arabic name «بوس باي للأعمال» on phones set to Arabic (APP-Q2). Version: `apps/business/package.json` `version` (user-visible, semver); build number: the CI run number
 (monotonic, as both stores require).
 
 ### 5. Signing keys live in CI secrets only
@@ -246,4 +253,4 @@ notices keep the PWA installed for them.
 APP-Q2 display name · APP-Q3 account holder and legal name on the developer accounts · APP-Q4 D-U-N-S number ·
 APP-Q5 privacy-policy URL · APP-Q6 bundle ids · APP-Q7 internal testers — answered by both owners on 2026-10-23 and
 recorded verbatim in `docs/specs/065-mob-app-shell/owner-questions.ar.md` (indexed as PP-39 in
-`docs/owner-decisions.ar.md`). Open: the Arabic display name (APP-Q2) and the company's legal name (APP-Q3).
+`docs/owner-decisions.ar.md`). Open: the company's legal name (APP-Q3).
