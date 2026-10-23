@@ -271,8 +271,10 @@ it with the round-trip test CM-34e.
 - 48a-1 carries the enforcement work: the three layers of section 1, the lint test, and the JSDoc scope for the moved
   functions.
 - 50-5 adds the `{ readOnly: true }` option to `withTenant`; the read use cases depend on it.
-- 56b-1 is **no longer blocked** (CS-Q31 decided, 2026-10-23): the table's grants change the governing text of
-  CLAUDE.md §5 and ADR-0003, so 56b-1 amends both in its own PR to name the `pospay_dispatcher` grant.
+- 56b-1 is **no longer blocked by CS-Q31** (decided, 2026-10-23): the table's grants change the governing text of
+  CLAUDE.md §5 and ADR-0003, so 56b-1 amends both in its own PR to name the `pospay_dispatcher` grant. It **is blocked
+  by CS-Q32** (batch 53, `PENDING`): whether the worker rebuilds every company's schedule by itself after a Redis loss,
+  through a narrow read of company ids only (like ADR-0038), which would need its own ADR, or keeps the operator replay.
 - Every sub-PR that adds a root binding adds its Port row to `docs/module-map.md` §3, or stops and writes an ADR first
   (D-16).
 - The spec is corrected in the same PR: D-17 (the enforcement of the restriction), FR-053 (the table's shape and
@@ -281,7 +283,10 @@ it with the round-trip test CM-34e.
 
 ## Open questions for the owner
 
-- None. **CS-Q31** (may the dispatcher role also hold `SELECT` and `INSERT` on the tenant-free
+- **CS-Q32** (batch 53, PP-37.1, `PENDING`): should the worker rebuild every company's reminder schedule by itself after a
+  Redis loss, through a narrow exception that reads company ids only (like ADR-0038), or keep the operator replay of
+  section 2? An automatic rebuild needs its own ADR. It blocks 56b-1 only.
+- **CS-Q31** (may the dispatcher role also hold `SELECT` and `INSERT` on the tenant-free
   `operational_recovery_flags` table, or does the owner want a new narrow role `pospay_recovery`?) was decided on
   2026-10-23: the dispatcher role, as recommended (Waleed and Abu Salem).
   Link: [../specs/059-commissions-statements/owner-questions.ar.md](../specs/059-commissions-statements/owner-questions.ar.md)
