@@ -135,3 +135,56 @@ export const attendanceBreakNotReturnedNotices = pgTable(
     ),
   ],
 );
+
+// دفتر «دوامك قرب يخلص»: تذكير واحد لكل موظف لكل لحظة نهاية وردية، ومفتاحه الموظف ولحظة النهاية؛
+// بلا FK للشيفت لأن حفظ الأسبوع بيستبدل صفوفه (ADR-0024، SE-Q3).
+export const attendanceShiftEndingNotices = pgTable(
+  'attendance_shift_ending_notices',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    branchId: uuid('branch_id').notNull(),
+    employeeId: uuid('employee_id').notNull(),
+    shiftStartsAt: timestamp('shift_starts_at', { withTimezone: true }).notNull(),
+    shiftEndsAt: timestamp('shift_ends_at', { withTimezone: true }).notNull(),
+    // لحظة استحقاق التذكير: نهاية الوردية ناقص المهلة، ولا تسبق بداية الوردية أبداً.
+    remindDueAt: timestamp('remind_due_at', { withTimezone: true }).notNull(),
+    notifiedAt: timestamp('notified_at', { withTimezone: true }).notNull(),
+    recipientCount: integer('recipient_count').notNull(),
+    // سطر دفتر اتكتب والقاعدة أو المفتاح العام مقفولين وقتئه: من غير إشعار (spec 060 D-B15).
+    suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ name: 'attendance_shift_ending_notices_pkey', columns: [t.companyId, t.id] }),
+    foreignKey({
+      name: 'attendance_shift_ending_notices_employee_fk',
+      columns: [t.companyId, t.businessId, t.employeeId],
+      foreignColumns: [employees.companyId, employees.businessId, employees.id],
+    }),
+    foreignKey({
+      name: 'attendance_shift_ending_notices_branch_fk',
+      columns: [t.companyId, t.businessId, t.branchId],
+      foreignColumns: [branches.companyId, branches.businessId, branches.id],
+    }),
+    unique('attendance_shift_ending_notices_shift_key').on(
+      t.companyId,
+      t.employeeId,
+      t.shiftEndsAt,
+    ),
+    index('attendance_shift_ending_notices_business_branch_idx').on(
+      t.companyId,
+      t.businessId,
+      t.branchId,
+    ),
+    index('attendance_shift_ending_notices_branch_idx').on(t.companyId, t.branchId),
+    check('attendance_shift_ending_notices_recipients', sql`${t.recipientCount} >= 0`),
+    check('attendance_shift_ending_notices_span', sql`${t.shiftEndsAt} > ${t.shiftStartsAt}`),
+    check(
+      'attendance_shift_ending_notices_suppressed',
+      sql`${t.suppressedAt} IS NULL OR ${t.recipientCount} = 0`,
+    ),
+  ],
+);
