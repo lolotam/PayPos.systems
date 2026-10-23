@@ -11,7 +11,7 @@ import { generateVapidKeyPair } from '../push/vapid-keys.ts';
 
 const NOW = new Date('2026-10-23T10:00:00Z');
 const SUBJECT = 'mailto:ops@pospay.systems';
-const TOPIC = 'topic-of-the-event-topic-of-the-e';
+const TOPIC = 'abcdefghijklmnopqrstuvwxyz012345';
 const PAYLOAD =
   '{"v":1,"title":"x","body":"y","tag":"z","url":"/personal","lang":"en","t":"synthetic"}';
 
@@ -44,8 +44,9 @@ function fakeRequest(status: number | null) {
       if (status === null) return;
       const response = new EventEmitter() as unknown as IncomingMessage;
       response.statusCode = status;
-      response.destroy = (): void => {
+      response.destroy = (): IncomingMessage => {
         response.emit('close');
+        return response;
       };
       callback(response);
     };
