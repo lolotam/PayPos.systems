@@ -153,8 +153,9 @@ worker clears its own flag after a complete rebuild; see Consequences and spec 0
 **What 56b-1 (the sub-PR that builds the table) must add.** The migration; the privilege allowlist entries for
 `pospay_dispatcher` in `packages/db/test/table-grants.ts` (`operational_recovery_flags` `INSERT` and `SELECT`) and the
 matching cases in `packages/db/src/__tests__/privileges.spec.ts`; a check that no other role holds any privilege on it;
-the facade operations and their tests. Under CS-Q32 (Consequences) the new ADR before 56b-1 adds the clearing role's narrow
-clear privilege to this allowlist.
+the facade operations and their tests. Under CS-Q32 (Consequences) the new ADR before 56b-1 chooses the clearing role's narrow
+clear (a column-level `UPDATE (cleared_at, cleared_by)` or a `SECURITY DEFINER` function), amends this section's access
+rules, and adds the matching allowlist entry and privilege test for whichever it picks.
 
 **Decided by the owners (CS-Q31, 2026-10-23, batch 51).** CLAUDE.md §5 says the dispatcher "reads and marks rows of the outbox
 table only" (plus the one idempotency sweep). Giving it a second, tenant-free table is a change to that governing text
