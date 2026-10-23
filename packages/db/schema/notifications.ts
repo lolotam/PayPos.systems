@@ -308,7 +308,7 @@ export const pushAttempts = pgTable(
     ),
     check(
       'push_attempts_failure',
-      sql`${t.failureCode} IS NULL OR ${t.failureCode} IN ('DEADLINE_EXPIRED','SUBSCRIPTION_GONE','SUBSCRIPTION_CHANGED','SUBSCRIPTION_REVOKED','KEY_ROTATED','ADMISSION_REFUSED','VAPID_REJECTED','PROVIDER_4XX','PROVIDER_429','PROVIDER_5XX','NETWORK_UNKNOWN')`,
+      sql`${t.failureCode} IS NULL OR ${t.failureCode} IN ('DEADLINE_EXPIRED','SUBSCRIPTION_GONE','SUBSCRIPTION_CHANGED','SUBSCRIPTION_REVOKED','KEY_ROTATED','ADMISSION_REFUSED','VAPID_REJECTED','PROVIDER_4XX','PROVIDER_429','PROVIDER_5XX','NETWORK_UNKNOWN','PARAMETERS_INVALID','CONFIG_INVALID')`,
     ),
     // كل حالة ليها أعمدة بتقولها: معلّقة من غير تنفيذ، جارية بمعرّف تنفيذ، أو منتهية بنتيجة معروفة.
     check(

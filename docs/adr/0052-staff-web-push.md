@@ -201,7 +201,7 @@ Unique `(company_id, source_event_id, subscription_id, template_key)`; indexes `
 `push_subscriptions`. No runtime DELETE grant. Retention follows the attempts table's.
 
 **Transport and send.** The outbox transport publisher (ADR-0018 §1.3, outside any database-effect consumer) routes
-`PushSendAuthorized` to a new BullMQ queue `push-send` (id-only job, stable id `companyId-attemptId`, `attempts=1`). The
+`PushSendAuthorized` to a new BullMQ queue `push-send` (id-only job, stable id `companyId-attemptId`, `attempts=3` with exponential backoff: a retry before the claim is the only retry that can happen, because the claim is fenced on `PENDING` and a retry after it finds nothing to send). The
 processor runs as `pospay_app`: load the attempt and its subscription; if the subscription is revoked, **its generation
 differs from the attempt's** (`SUBSCRIPTION_CHANGED`), the key id is not current or the deadline passed, record `FAILED` /
 `EXPIRED` with **zero HTTP calls**; otherwise commit

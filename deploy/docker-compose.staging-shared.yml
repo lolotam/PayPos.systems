@@ -83,6 +83,8 @@ services:
       NOTIFICATION_PHONE_HASH_KEY_ID: ${NOTIFICATION_PHONE_HASH_KEY_ID:-}
       NOTIFICATION_MESSAGE_ID_HASH_KEY: ${NOTIFICATION_MESSAGE_ID_HASH_KEY:-}
       WHATSAPP_STOP_BUTTON_ID: ${WHATSAPP_STOP_BUTTON_ID:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.staging.pospay.systems}
       # Private files on Cloudflare R2 (packages/storage); any of endpoint, bucket and the two keys missing = uploads answer STORAGE_NOT_CONFIGURED.
@@ -110,7 +112,11 @@ services:
       DISPATCHER_DATABASE_URL: postgres://pospay_dispatcher:${POSTGRES_DISPATCHER_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
       # ADR-0019: OTP activation independent; tenant outbound remains separately closed.
       PLATFORM_NOTIFICATIONS_DATABASE_URL: ${PLATFORM_NOTIFICATIONS_DATABASE_URL:-}
-      NOTIFICATIONS_MODE: ${NOTIFICATIONS_MODE:-fake}
+      # Staff push (ADR-0052): production refuses fake mode, so an empty value is the default here; only `live` (staff OTP) or empty keep push enabled.
+      NOTIFICATIONS_MODE: ${NOTIFICATIONS_MODE:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       NOTIFICATION_PHONE_HASH_KEY: ${NOTIFICATION_PHONE_HASH_KEY:-}
       NOTIFICATION_PHONE_HASH_KEY_ID: ${NOTIFICATION_PHONE_HASH_KEY_ID:-}
       WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}

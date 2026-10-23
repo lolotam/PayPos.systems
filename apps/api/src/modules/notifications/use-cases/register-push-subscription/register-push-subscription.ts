@@ -6,6 +6,7 @@ import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts'
 import type { RateLimiter } from '../../../../shared/ports/rate-limiter.port.ts';
 import { planPushRegistration } from '../../domain/push-registration.ts';
 import type { PushHashes } from '../../ports/push-hashes.port.ts';
+import type { PushKeys } from '../../ports/push-keys.port.ts';
 import type {
   LivePushSubscription,
   PushSubscriptionStore,
@@ -21,6 +22,7 @@ export class RegisterPushSubscription {
   constructor(
     private readonly transactions: PushSubscriptionTransactions,
     private readonly hashes: PushHashes,
+    private readonly keys: PushKeys,
     private readonly ids: IdGenerator,
     private readonly clock: Clock,
     private readonly rateLimiter: RateLimiter | null,
@@ -33,15 +35,21 @@ export class RegisterPushSubscription {
   ): Promise<void> {
     if (config === null) throw new ApiError('NOT_READY');
     if (input.vapid_key_id !== config.keyId) throw new ApiError('PUSH_KEY_STALE');
-    if (this.rateLimiter !== null) {
-      // الحد للمستخدم نفسه لا للشركة: نفس الموظفة في شركتين ليها نفس العدّاد.
-      const allowed = await this.rateLimiter.hit(
-        `push-subscribe:${scope.userId}`,
-        LIMIT,
-        WINDOW_SECONDS,
-      );
-      if (!allowed) throw new ApiError('RATE_LIMITED');
-    }
+    // من غير Redis مفيش حد بيتحسب، فالتسجيل كله بيتقفل بدل ما يعدّي مفتوح.
+    if (this.rateLimiter === null) throw new ApiError('NOT_READY');
+    // الحد للمستخدم نفسه لا للشركة: نفس الموظفة في شركتين ليها نفس العدّاد.
+    // الحد بيتحسب قبل فحص المفاتيح، عشان التسجيلات الغلط ما تستهلكش حدّ مستخدمين من غير حدّ.
+    const allowed = await this.rateLimiter.hit(
+      `push-subscribe:${scope.userId}`,
+      LIMIT,
+      WINDOW_SECONDS,
+    );
+    if (!allowed) throw new ApiError('RATE_LIMITED');
+    // المفتاحين بيتشفروا بعدين، فالتسجيل بيترفض قبل أي كتابة لو هم مش بالشكل الصح.
+    if (
+      !this.keys.validSubscriptionKeys(input.subscription.keys.p256dh, input.subscription.keys.auth)
+    )
+      throw new ApiError('VALIDATION_FAILED');
     await this.transactions.run(scope, async (store) => {
       const installationHash = this.hashes.installationHash(scope.companyId, input.installation_id);
       const endpointHash = this.hashes.endpointHash(input.subscription.endpoint);
