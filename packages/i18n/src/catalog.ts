@@ -4,7 +4,10 @@ import { nativeShellAr, nativeShellEn } from './native-shell-catalog.js';
 import { sessionTipsAr, sessionTipsEn } from './session-tips-catalog.js';
 import { serviceLineCancelAr, serviceLineCancelEn } from './service-line-cancel-catalog.js';
 import { serviceLineEditAr, serviceLineEditEn } from './service-line-edit-catalog.js';
-import { serviceLinePerformersAr, serviceLinePerformersEn } from './service-line-performers-catalog.js';
+import {
+  serviceLinePerformersAr,
+  serviceLinePerformersEn,
+} from './service-line-performers-catalog.js';
 import { serviceSessionsAr, serviceSessionsEn } from './service-session-catalog.js';
 import { staffAppColumnsAr, staffAppColumnsEn } from './staff-app-columns-catalog.js';
 
@@ -33,8 +36,26 @@ export type MessageKey = {
 export type ErrorMessageCode = keyof typeof en.errors;
 
 const CATALOGS: Record<Locale, RegisteredCatalog> = {
-  ar: { ...ar, serviceSessions: serviceSessionsAr, serviceLineEdit: serviceLineEditAr, serviceLineCancel: serviceLineCancelAr, serviceLinePerformers: serviceLinePerformersAr, sessionTips: sessionTipsAr, staffAppColumns: staffAppColumnsAr, nativeShell: nativeShellAr },
-  en: { ...en, serviceSessions: serviceSessionsEn, serviceLineEdit: serviceLineEditEn, serviceLineCancel: serviceLineCancelEn, serviceLinePerformers: serviceLinePerformersEn, sessionTips: sessionTipsEn, staffAppColumns: staffAppColumnsEn, nativeShell: nativeShellEn },
+  ar: {
+    ...ar,
+    serviceSessions: serviceSessionsAr,
+    serviceLineEdit: serviceLineEditAr,
+    serviceLineCancel: serviceLineCancelAr,
+    serviceLinePerformers: serviceLinePerformersAr,
+    sessionTips: sessionTipsAr,
+    staffAppColumns: staffAppColumnsAr,
+    nativeShell: nativeShellAr,
+  },
+  en: {
+    ...en,
+    serviceSessions: serviceSessionsEn,
+    serviceLineEdit: serviceLineEditEn,
+    serviceLineCancel: serviceLineCancelEn,
+    serviceLinePerformers: serviceLinePerformersEn,
+    sessionTips: sessionTipsEn,
+    staffAppColumns: staffAppColumnsEn,
+    nativeShell: nativeShellEn,
+  },
 };
 
 /**
