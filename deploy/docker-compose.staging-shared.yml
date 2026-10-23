@@ -148,6 +148,9 @@ services:
   pos:
     image: ${REGISTRY:-ghcr.io/lolotam}/pospay-pos-staging:${IMAGE_TAG:?}
     restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     networks: [dokploy-network]
     labels:
       traefik.enable: 'true'

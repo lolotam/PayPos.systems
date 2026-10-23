@@ -540,6 +540,12 @@ https://api.staging.pospay.systems, the back-office at https://app.staging.pospa
 https://pos.staging.pospay.systems, on the server's shared Postgres and Redis. Waleed's standing rule (2026-10-23):
 **staging is updated after every merge**, so every new feature can be tested there live; its data is demo data only.
 
+The environment must hold the ADR-0001 hosts, which the CI staging builds bake in: `STAGING_HOST=api.staging.pospay.systems`,
+`ADMIN_STAGING_HOST=app.staging.pospay.systems`, `POS_STAGING_HOST=pos.staging.pospay.systems`,
+`COOKIE_DOMAIN=.staging.pospay.systems`, and `AUTH_TRUSTED_ORIGINS` either unset or exactly the app and pos origins. A
+legacy value (`staging.pospay.systems`, an older origin list) is replaced, never kept; all three hosts have DNS A
+records to the server (2026-10-23).
+
 1. Confirm the main CI run for the merged SHA is green (it pushes the images to GHCR, the `-staging` admin and POS
    variants included). The server pulled GHCR images without a registry login on 2026-10-07; if a pull ever fails with
    an auth error, stop and ask the owner for a read-only package token (`docker login ghcr.io`) — never copy images by
