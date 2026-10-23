@@ -3,11 +3,8 @@ import {
   type StatementLogo,
   type StatementLogoRequest,
 } from '../../domain/statement-logo.ts';
-import type {
-  Clock,
-  StatementLogoBytes,
-  StatementLogoStore,
-} from '../../ports/statement-logo.port.ts';
+import type { StatementLogoBytes, StatementLogoStore } from '../../ports/statement-logo.port.ts';
+import type { Clock } from '../../ports/verification.port.ts';
 
 // يقرأ شعار البيان: يسجّل الوصول جوه معاملة، ثم يقرأ البايتات من برّهها.
 export class ReadStatementLogo {

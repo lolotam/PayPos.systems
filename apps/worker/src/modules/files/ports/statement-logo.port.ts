@@ -1,8 +1,4 @@
 import type { StatementLogo, StatementLogoFile, StatementLogoRequest } from '../domain/statement-logo.ts';
-import type { Clock, IdGenerator } from './verification.port.ts';
-
-// مصادر الوقت والهوية مشتركة مع باقي الوحدة، وبتتصدّر من هنا عشان مستهلكي بوابة الشعار ياخدوها من مكان واحد.
-export type { Clock, IdGenerator };
 
 /** صف الشعار في ملف الوحدة: فحص الملف وتسجيل وصول واحد لكل رندر. */
 export interface StatementLogoStore {

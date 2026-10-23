@@ -5,8 +5,6 @@ import {
   type Tx,
 } from '@pospay/db';
 
-export type { AttendanceReportScope };
-
 export interface AttendanceReportInputRow extends Record<string, unknown> {
   employee_id: string;
   name_ar: string | null;

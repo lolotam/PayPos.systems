@@ -8,7 +8,6 @@ import {
   fitImage,
   type ObjectStorage,
 } from '@pospay/storage';
-import { deflateSync } from 'node:zlib';
 
 import {
   createTestDatabase,
@@ -17,6 +16,7 @@ import {
 import { seedTwoTenants, USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { PROVISIONAL_PLAN_ID } from '../../../../../../packages/db/src/seed.ts';
 import { fakeS3, fakeCredentials } from '../../../../../../packages/storage/test/fake-s3.ts';
+import { pngImage } from './png-image.ts';
 import { statementLogoRepository } from '../persistence/statement-logo.repository.ts';
 import { statementLogoStorage } from '../persistence/statement-logo-storage.adapter.ts';
 import { ReadStatementLogo } from '../use-cases/read-statement-logo/read-statement-logo.ts';
@@ -57,49 +57,6 @@ afterAll(async () => {
   await testDb?.drop();
 });
 
-// عامل الـ CRC بتاع PNG: نفس جدول zlib، عشان الـ chunks تطلع صحيحة.
-const CRC_TABLE = (() => {
-  const table = new Uint32Array(256);
-  for (let index = 0; index < 256; index += 1) {
-    let value = index;
-    for (let bit = 0; bit < 8; bit += 1) {
-      value = (value & 1) === 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
-    }
-    table[index] = value >>> 0;
-  }
-  return table;
-})();
-
-function crc32(bytes: Buffer): number {
-  let crc = 0xffffffff;
-  for (const byte of bytes) crc = (CRC_TABLE[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function pngChunk(type: string, data: Buffer): Buffer {
-  const length = Buffer.alloc(4);
-  length.writeUInt32BE(data.length, 0);
-  const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(body), 0);
-  return Buffer.concat([length, body, crc]);
-}
-
-// صورة PNG حقيقية مبنية وقت التشغيل: عامل الـ worker مالوش sharp، والاختبار محتاج صورة يقراها القارئ.
-export function pngImage(width: number, height: number): Buffer {
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(width, 0);
-  header.writeUInt32BE(height, 4);
-  header[8] = 8;
-  header[9] = 2;
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    pngChunk('IHDR', header),
-    pngChunk('IDAT', deflateSync(Buffer.alloc((width * 3 + 1) * height))),
-    pngChunk('IEND', Buffer.alloc(0)),
-  ]);
-}
-
 // JPEG حقيقي: بيرميز نفس الـ PNG بـ fitImage، وده الترميز الوحيد المتاح من غير sharp.
 export async function jpegImage(width: number, height: number): Promise<Buffer> {
   const encoded = await fitImage(pngImage(width, height), 'image/jpeg', {
@@ -107,12 +64,6 @@ export async function jpegImage(width: number, height: number): Promise<Buffer> 
     maxBytes: 10 * 1024 * 1024,
   });
   return Buffer.from(encoded);
-}
-
-// أبعاد PNG من ترويسة IHDR، عشان نتحقق من القصّ من غير sharp في عامل الـ worker.
-export function pngSize(bytes: Uint8Array): { width: number; height: number } {
-  const view = Buffer.from(bytes);
-  return { width: view.readUInt32BE(16), height: view.readUInt32BE(20) };
 }
 
 export function isJpeg(bytes: Uint8Array): boolean {

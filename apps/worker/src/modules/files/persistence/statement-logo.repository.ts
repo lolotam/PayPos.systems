@@ -2,7 +2,8 @@ import { appendAuditLog, type TenantWrappers } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import type { StatementLogoRequest } from '../domain/statement-logo.ts';
-import type { IdGenerator, StatementLogoStore } from '../ports/statement-logo.port.ts';
+import type { StatementLogoStore } from '../ports/statement-logo.port.ts';
+import type { IdGenerator } from '../ports/verification.port.ts';
 
 type LogoRow = {
   storage_key: string;

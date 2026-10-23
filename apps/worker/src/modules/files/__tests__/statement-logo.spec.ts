@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 
 import { TENANT, USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
+import { pngSize } from './png-image.ts';
 import {
   company,
   ids,
@@ -8,7 +9,6 @@ import {
   now,
   otherBusiness,
   owner,
-  pngSize,
   reader,
   request,
   seedLogo,
