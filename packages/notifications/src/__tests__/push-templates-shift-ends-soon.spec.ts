@@ -9,11 +9,11 @@ import {
 
 const KEY = 'shift_ends_soon';
 const OLD_KEY = 'shift_not_clocked_in_self';
-const AR_BODY = 'دوامك بينتهي الساعة 18:00 في فرع السالمية.';
-const EN_BODY = 'Your shift ends at 18:00 at Salmiya.';
-const AR_BODY_EN_NAME = 'دوامك بينتهي الساعة 18:00 في Salmiya.';
-const AR_BODY_GENERIC = 'دوامك بينتهي الساعة 18:00 في الفرع.';
-const EN_BODY_GENERIC = 'Your shift ends at 18:00 at the branch.';
+const AR_BODY = 'دوامك بينتهي الساعة 6:00 م في فرع السالمية.';
+const EN_BODY = 'Your shift ends at 6:00 PM at Salmiya.';
+const AR_BODY_EN_NAME = 'دوامك بينتهي الساعة 6:00 م في Salmiya.';
+const AR_BODY_GENERIC = 'دوامك بينتهي الساعة 6:00 م في الفرع.';
+const EN_BODY_GENERIC = 'Your shift ends at 6:00 PM at the branch.';
 
 const parameters = (branchAr = 'فرع السالمية', branchEn = 'Salmiya'): readonly SafeParameter[] => [
   { name: 'shift_end', type: 'text', value: '18:00' },
@@ -37,6 +37,36 @@ it('renders the exact copy in both languages with the branch name', () => {
     title: 'Shift ending soon',
     body: EN_BODY,
   });
+});
+
+it('renders the shift end in a 12-hour clock in both languages', () => {
+  const cases: readonly [string, string, string][] = [
+    ['00:00', '12:00 ص', '12:00 AM'],
+    ['00:05', '12:05 ص', '12:05 AM'],
+    ['09:05', '9:05 ص', '9:05 AM'],
+    ['12:00', '12:00 م', '12:00 PM'],
+    ['12:30', '12:30 م', '12:30 PM'],
+    ['18:00', '6:00 م', '6:00 PM'],
+    ['23:59', '11:59 م', '11:59 PM'],
+  ];
+  for (const [time, arabic, english] of cases) {
+    const values: SafeParameter[] = [
+      { name: 'shift_end', type: 'text', value: time },
+      ...parameters().slice(1),
+    ];
+    expect(renderPushNotice(KEY, 1, 'ar', values)?.body).toBe(
+      `دوامك بينتهي الساعة ${arabic} في فرع السالمية.`,
+    );
+    expect(renderPushNotice(KEY, 1, 'en', values)?.body).toBe(
+      `Your shift ends at ${english} at Salmiya.`,
+    );
+  }
+});
+
+it('keeps the shift end stored in the 24-hour form', () => {
+  const sanitized = sanitizePushParameters(KEY, 1, parameters());
+  const stored = sanitized?.find((parameter) => parameter.name === 'shift_end');
+  expect(stored?.value).toBe('18:00');
 });
 
 it('falls back to the other language when the name of the notice language is missing', () => {

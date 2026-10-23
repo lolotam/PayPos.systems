@@ -114,9 +114,10 @@ existing decision:
    without managers). No manager is notified (managers have the not-clocked-in alert). No email, no WhatsApp.
    Decided (SE-Q6): nobody else is told.
 10. **Template.** `packages/notifications` gains `shift_ends_soon` rev 1 (ar/en). Safe parameters: `shift_end`
-    (`HH:MM`, formatted in the schedule's saved timezone as ADR-0037 §4 does, so a later timezone change cannot
-    relabel it) and `branch_name_ar` / `branch_name_en` (the same safe-text rules and generic fallbacks). The text
-    states the **end time** («دوامك بينتهي الساعة 6:00 م»), never a countdown, because a late-sent reminder
+    (24-hour `HH:MM`, formatted in the schedule's saved timezone as ADR-0037 §4 does, so a later timezone change cannot
+    relabel it; it is **stored and validated as 24-hour** and the push template renders it as a 12-hour time in the
+    subscription's language, 6:00 م / 6:00 PM, as the owner's example shows) and `branch_name_ar` / `branch_name_en` (the same safe-text rules and generic fallbacks). The text
+    states the **end time** («دوامك بينتهي الساعة 6:00 م» / "Your shift ends at 6:00 PM"), never a countdown, because a late-sent reminder
     (SE-Q2) would make «بعد 30 دقيقة» false. Language: notifications renders the push in the language of each of the employee's subscriptions (ADR-0052);
     this row stores and sends no language.
 11. **Time.** `starts_at`/`ends_at` are the resolved UTC instants of ADR-0024; the lead is elapsed time, so

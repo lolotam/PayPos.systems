@@ -12,8 +12,8 @@ import { pushSendHarness } from './push-send-harness.ts';
 let h: Awaited<ReturnType<typeof pushSendHarness>>;
 
 const DEADLINE = '2026-10-01T15:00:00.000Z';
-const AR_BODY = 'دوامك بينتهي الساعة 18:00 في فرع السالمية.';
-const EN_BODY = 'Your shift ends at 18:00 at Salmiya.';
+const AR_BODY = 'دوامك بينتهي الساعة 6:00 م في فرع السالمية.';
+const EN_BODY = 'Your shift ends at 6:00 PM at Salmiya.';
 
 interface Added {
   readonly data: unknown;

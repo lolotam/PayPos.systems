@@ -229,7 +229,8 @@ No change to `staff_schedule_shifts` or `attendance_sessions` (existing indexes 
   template; the job data is unchanged (`{ companyId }`).
 - `packages/notifications` (`push/templates.ts`): template `shift_ends_soon` rev 1, ar/en, with its strict parameter
   tuple (`shift_end` 24-hour `HH:MM`, `branch_name_ar`, `branch_name_en`) validated there with the existing safe-text
-  checks, because push templates are validated in this package, not in contracts.
+  checks, because push templates are validated in this package, not in contracts. The template renders `shift_end`
+  as a 12-hour time in the subscription's language («6:00 م» / «6:00 PM»); the stored value stays 24-hour.
 - `packages/i18n`: no admin UI copy (the alerts screen already lists the kind).
 
 ### Permissions

@@ -4,6 +4,7 @@ import {
   type TemplateDefinition,
   type TemplateParameter,
 } from '../templates/definition.ts';
+import { formatTwelveHour } from './clock-format.ts';
 
 /** نص الإشعار في لغة واحدة: العنوان اللي بيشوفه الموظف والجسم. */
 export interface PushTemplateCopy {
@@ -257,7 +258,8 @@ export function validPushTemplate(
 /**
  * بيرسم نص الإشعار بلغة الاشتراك.
  * القاعدة: اسم الفرع بلغة الإشعار؛ العربي الناقص أو المرفوض بيرجع لاسم الإنجليزي،
- * والإنجليزي الناقص أو المرفوض بيرجع للفظ العام بالإنجليزي.
+ * والإنجليزي الناقص أو المرفوض بيرجع للفظ العام بالإنجليزي؛ ووقت نهاية الشيفت
+ * بيتعرض بوقت 12 ساعة بلغة الإشعار (6:00 م) مع إنه بيتخزّن وبيتفحص بصيغة 24 ساعة.
  *
  * @param key        مفتاح القالب
  * @param revision   مراجعة القالب
@@ -277,7 +279,7 @@ export function renderPushNotice(
   const copy = definition.copy[locale];
   const values: Record<string, string> = {
     shift_start: valueOf(parameters, 'shift_start') ?? '',
-    shift_end: valueOf(parameters, 'shift_end') ?? '',
+    shift_end: formatTwelveHour(valueOf(parameters, 'shift_end') ?? '', locale),
     branch_name: branchName(definition, parameters, locale),
   };
   return {
