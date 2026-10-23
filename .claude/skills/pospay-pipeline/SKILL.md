@@ -541,7 +541,7 @@ service (Domains tab: api -> `api`:3000, app -> `admin`:3000, pos -> `pos`:8080,
 file carries no Traefik labels; never add them back (a second router for the same host). The earlier compose in
 `PayPos.Systems` / environment `staging` (`hjvMzqQ-SyAm0wSaWxkzW`) is stopped and kept only as a cold copy until Waleed
 approves deleting it; it is not the rollback path, and it must never be started while the new one runs (two workers would
-share the queues). Following ADR-0001 §6 it serves the API at
+share the queues). Following ADR-0001 §6 the `PosPay Staging` service serves the API at
 https://api.staging.pospay.systems, the back-office at https://app.staging.pospay.systems and the cashier at
 https://pos.staging.pospay.systems, on the server's shared Postgres and Redis. Waleed's standing rule (2026-10-23):
 **staging is updated after every merge**, so every new feature can be tested there live; its data is demo data only.
@@ -566,18 +566,19 @@ records to the server (2026-10-23).
    `https://api.staging.pospay.systems/ready` answers 200, the worker's own `/ready` answers 200 from inside its
    container (`docker exec <worker> node -e "fetch('http://127.0.0.1:3001/ready')…"`, as the retired script did), both front ends answer 200, and the `migrate` container exited 0.
 5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): redeploy
-   `<previous-sha>` with **its own** compose file and that tag (a newer compose file may ask for images the previous SHA
-   never built) against the new schema, confirm `/ready`, then restore the current compose file and redeploy `<full-sha>`. A
+   `<previous-sha>` with **the rollback compose file** (below) and that tag against the new schema, confirm `/ready`, then restore the current compose file and redeploy `<full-sha>`. A
    previous image that does not start on the new schema is a P1 against the migration: redeploy `<full-sha>` at once,
    keep the release blocked, and open the P1.
-6. On a failure of step 4, redeploy the previous SHA at once, **with its own compose file** (as in step 5), then diagnose. Never leave staging down while diagnosing.
+6. On a failure of step 4, redeploy the previous SHA at once, **with the rollback compose file** (below), then diagnose. Never leave staging down while diagnosing.
 
-**Rollback to a SHA from before #545** (the move to Dokploy domains): keep the current label-free compose file and change
-only `IMAGE_TAG`. Never upload an older compose file that still carries Traefik labels to this service: with the
-service's Dokploy domains it would add a second router for every host. The images of those SHAs run unchanged under the
-label-free file, since only the routing moved.
+**The rollback compose file** of `<sha>`: that SHA's own `deploy/docker-compose.staging-shared.yml` when the SHA is #545 or
+later (a newer file may ask for images an older SHA never built); for a SHA from before #545 (the move to Dokploy
+domains), the current label-free file. Never upload an older file that still carries Traefik labels to this service:
+with its Dokploy domains it would add a second router for every host. Only SHAs from #533 (`4bfef627`) on can be
+restored at all, because the admin and POS `-staging` images exist only from there.
 
-**Restore `<sha>`:** set `IMAGE_TAG=<sha>` (and, if `deploy/` changed since, that SHA's compose file) and redeploy;
+**Restore `<sha>`:** set `IMAGE_TAG=<sha>`, put the rollback compose file of `<sha>` in place if it differs from the live one,
+and redeploy;
 Dokploy keeps every deployment and its log. The old `deploy/staging-deploy.sh` path and the server `.env` in
 `/opt/pospay-staging` are retired (the script was deleted with #545): a plain `docker compose up` of this file would start a
 second api/worker stack on the same queues with no public routes. The rollback is always `IMAGE_TAG` on the
