@@ -1,18 +1,77 @@
-import { pushSendAuthorized } from '@pospay/contracts';
+import { notificationResult, pushSendAuthorized } from '@pospay/contracts';
 import { appendOutboxEvent, type Tx } from '@pospay/db';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 
+import type { PushAttemptInput } from '../domain/push-attempt.ts';
 import type { PushAttemptsRepository } from '../ports/push-attempts.repository.ts';
 import { safePersistenceError } from './notification-records.ts';
+
+/**
+ * جملة قراءة اشتراكات المستخدم الحيّة.
+ * القاعدة: كل اشتراك حيّ للمستخدم في الشركة دي، الأقدم الأول، والممسحوب ما بيترجعش.
+ *
+ * @param userId المستخدم المقصود
+ * @returns الجملة جاهزة للتنفيذ
+ */
+export function liveSubscriptionsStatement(userId: string): SQL {
+  return sql`SELECT id, locale, generation FROM push_subscriptions
+    WHERE company_id = app_company_id() AND user_id = ${userId} AND revoked_at IS NULL
+    ORDER BY created_at, id`;
+}
+
+async function appendAuthorized(
+  tx: Tx,
+  input: PushAttemptInput,
+  id: string,
+  eventId: string,
+): Promise<void> {
+  await appendOutboxEvent(tx, eventId, {
+    aggregateType: 'push_attempt',
+    aggregateId: id,
+    eventType: 'PushSendAuthorized',
+    payload: pushSendAuthorized.parse({
+      company_id: input.companyId,
+      attempt_id: id,
+    }),
+  });
+}
+
+// المحاولة اللي اتنتهت الموعد قبل ما تتفوض بتنتج فشل معروف؛ مفيش إذن إرسال ليها.
+async function appendExpired(
+  tx: Tx,
+  input: PushAttemptInput,
+  id: string,
+  eventId: string,
+  now: Date,
+): Promise<void> {
+  await appendOutboxEvent(tx, eventId, {
+    aggregateType: 'push_attempt',
+    aggregateId: id,
+    eventType: 'NotificationFailed',
+    payload: notificationResult.parse({
+      company_id: input.companyId,
+      attempt_id: id,
+      source_event_id: input.sourceEventId,
+      business_id: input.businessId,
+      branch_id: input.branchId,
+      channel: 'PUSH',
+      template_key: input.templateKey,
+      locale: input.subscription.locale,
+      status: 'EXPIRED',
+      occurred_at: now.toISOString(),
+      evidence: 'NONE',
+      failure_code: 'DEADLINE_EXPIRED',
+      outcome_known: true,
+    }),
+  });
+}
 
 export function createPushAttemptsRepository(tx: Tx): PushAttemptsRepository {
   return {
     liveSubscriptions: async (userId) => {
       try {
         const rows = await tx.execute<{ id: string; locale: 'ar' | 'en'; generation: number }>(
-          sql`SELECT id, locale, generation FROM push_subscriptions
-            WHERE company_id = app_company_id() AND user_id = ${userId} AND revoked_at IS NULL
-            ORDER BY created_at, id`,
+          liveSubscriptionsStatement(userId),
         );
         return rows;
       } catch (error) {
@@ -36,16 +95,8 @@ export function createPushAttemptsRepository(tx: Tx): PushAttemptsRepository {
             ${expired ? true : null},null,${now.toISOString()},${now.toISOString()})
           ON CONFLICT (company_id,source_event_id,subscription_id,template_key) DO NOTHING RETURNING id`);
         if (rows.length === 0) return false;
-        if (!expired)
-          await appendOutboxEvent(tx, eventId, {
-            aggregateType: 'push_attempt',
-            aggregateId: id,
-            eventType: 'PushSendAuthorized',
-            payload: pushSendAuthorized.parse({
-              company_id: input.companyId,
-              attempt_id: id,
-            }),
-          });
+        if (expired) await appendExpired(tx, input, id, eventId, now);
+        else await appendAuthorized(tx, input, id, eventId);
         return true;
       } catch (error) {
         throw safePersistenceError(error);

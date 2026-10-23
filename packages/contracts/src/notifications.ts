@@ -80,7 +80,7 @@ export const notificationResult = z
     source_event_id: id,
     business_id: id.nullable(),
     branch_id: id.nullable(),
-    channel: z.enum(['whatsapp', 'email', 'IN_APP']),
+    channel: z.enum(['whatsapp', 'email', 'IN_APP', 'PUSH']),
     recipient_user_id: id.optional(),
     template_key: z.string(),
     locale: z.enum(['ar', 'en']).nullable(),

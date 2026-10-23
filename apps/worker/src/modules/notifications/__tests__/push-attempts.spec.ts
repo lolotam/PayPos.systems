@@ -20,6 +20,8 @@ const OTHER = '01920000-0000-7000-8000-0000000000e4';
 const FOREIGN = '01920000-0000-7000-8000-0000000000e5';
 let tokenAr = '';
 let tokenEn = '';
+const payloadOf = (row: { [column: string]: unknown }): Record<string, unknown> =>
+  row['payload'] as Record<string, unknown>;
 
 beforeAll(async () => {
   h = await pushHarness();
@@ -58,6 +60,7 @@ it('writes one pending attempt per live subscription and one authorization event
   const events = await h.authorized(event.id);
   expect(events).toHaveLength(2);
   expect(events.every((row) => row['event_type'] === 'PushSendAuthorized')).toBe(true);
+  expect(await h.results(event.id)).toHaveLength(0);
   expect(await h.inbox(event.id)).toHaveLength(0);
   expect(await h.phoneAttempts(event.id)).toHaveLength(0);
 });
@@ -106,7 +109,7 @@ it('writes no second attempt and no second event when the same event is delivere
   expect(await h.authorized(event.id)).toHaveLength(2);
 });
 
-it('records an expired attempt with no authorization event when the deadline has passed', async () => {
+it('records an expired attempt with a failure event and no authorization event', async () => {
   const event = await h.request([pushRecipient(PUSH_USER, '2026-10-01T09:00:00Z')]);
   expect(await h.deliver(event)).toEqual({ delivered: true });
   const rows = await h.attempts(event.id);
@@ -116,6 +119,23 @@ it('records an expired attempt with no authorization event when the deadline has
   expect(rows.every((row) => row['outcome_known'] === true)).toBe(true);
   expect(rows.every((row) => row['finished_at'] !== null)).toBe(true);
   expect(await h.authorized(event.id)).toHaveLength(0);
+  const failures = await h.results(event.id);
+  expect(failures).toHaveLength(2);
+  expect(failures.map((failure) => payloadOf(failure)['locale']).sort()).toEqual(['ar', 'en']);
+  for (const failure of failures) {
+    const payload = payloadOf(failure);
+    expect(failure['event_type']).toBe('NotificationFailed');
+    expect(payload['channel']).toBe('PUSH');
+    expect(payload['status']).toBe('EXPIRED');
+    expect(payload['failure_code']).toBe('DEADLINE_EXPIRED');
+    expect(payload['outcome_known']).toBe(true);
+    const text = JSON.stringify(payload);
+    expect(text).not.toContain(ENDPOINT);
+    expect(text).not.toContain(P256DH);
+    expect(text).not.toContain(AUTH);
+  }
+  expect(await h.deliver(event)).toEqual({ delivered: true });
+  expect(await h.results(event.id)).toHaveLength(2);
 });
 
 it('writes nothing while the sender is not configured and still refuses an invalid template', async () => {

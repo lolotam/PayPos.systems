@@ -106,6 +106,20 @@ it('falls back to the other language when a branch name is rejected', () => {
   );
 });
 
+it('uses the generic English label when the English name is unusable', () => {
+  const blank = parameters('فرع السالمية', '');
+  expect(renderPushNotice(KEY, 1, 'en', blank)?.body).toBe(
+    'No clock-in yet for your 10:00 shift at the branch.',
+  );
+  expect(renderPushNotice(KEY, 1, 'ar', blank)?.body).toBe(
+    'لسه مفيش بصمة حضور ليك لشيفت الساعة 10:00 في فرع السالمية.',
+  );
+  const rejected = parameters('فرع السالمية', 'https://example.test');
+  expect(renderPushNotice(KEY, 1, 'en', rejected)?.body).toBe(
+    'No clock-in yet for your 10:00 shift at the branch.',
+  );
+});
+
 it('leaves no placeholder brace in the rendered body', () => {
   for (const locale of ['ar', 'en'] as const) {
     const body = renderPushNotice(KEY, 1, locale, parameters())?.body ?? '';

@@ -3,6 +3,7 @@ import { expect, it } from 'vitest';
 import {
   notificationRecipient,
   notificationRequest,
+  notificationResult,
   pushRecipient,
   pushSendAuthorized,
 } from '../notifications.js';
@@ -88,4 +89,24 @@ it('takes one hundred recipients and refuses one hundred and one', () => {
   expect(notificationRequest.safeParse({ notification_recipients: [...group, push] }).success).toBe(
     false,
   );
+});
+
+it('carries a push terminal result without a recipient user', () => {
+  const result = {
+    company_id: ID,
+    attempt_id: ID,
+    source_event_id: ID,
+    business_id: null,
+    branch_id: null,
+    channel: 'PUSH',
+    template_key: 'shift_not_clocked_in_self',
+    locale: 'ar',
+    status: 'EXPIRED',
+    occurred_at: '2026-10-23T10:00:00Z',
+    evidence: 'NONE',
+    failure_code: 'DEADLINE_EXPIRED',
+    outcome_known: true,
+  };
+  expect(notificationResult.parse(result)).toEqual(result);
+  expect(notificationResult.safeParse({ ...result, recipient_user_id: ID }).success).toBe(false);
 });

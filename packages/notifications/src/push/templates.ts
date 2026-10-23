@@ -19,10 +19,10 @@ export interface PushTemplateDefinition {
   readonly copy: Readonly<Record<'ar' | 'en', PushTemplateCopy>>;
 }
 
-// اسم الفرع لو كان فاضي أو مرفوض بقواعد العرض بيتعامل كأنه مش موجود: الاسم باللغة التانية أو اللفظ العام.
+// اسم الفرع لو كان فاضي أو مرفوض بقواعد العرض بيتعامل كأنه مش موجود: العربي بيرجع للإنجليزي، والإنجليزي بيرجع للفظ العام.
 const FALLBACK_NAMES = new Set(['branch_name_ar', 'branch_name_en']);
 
-// اللفظ العام لما اسم الفرع ناقص باللغة المطلوبة وفي اللغة التانية كمان (ADR-0037 قرار 4).
+// اللفظ العام لما اسم الفرع باللغة المطلوبة مش صالح للعرض (ADR-0037 قرار 4): العربي بيرجع للإنجليزي، والإنجليزي بيرجع للفظ العام.
 const GENERIC_BRANCH: Readonly<Record<'ar' | 'en', string>> = {
   ar: 'الفرع',
   en: 'the branch',
@@ -120,6 +120,7 @@ const usableBranchName = (
   return usableName(descriptor, parameter);
 };
 
+// السقوط باتجاه واحد (ADR-0037 قرار 4): العربي الناقص بيرجع للإنجليزي، والإنجليزي الناقص بيرجع للفظ العام.
 const branchName = (
   definition: PushTemplateDefinition,
   parameters: readonly SafeParameter[],
@@ -131,12 +132,10 @@ const branchName = (
     locale === 'ar' ? 'branch_name_ar' : 'branch_name_en',
   );
   if (own !== null) return own;
-  const other = usableBranchName(
-    definition,
-    parameters,
-    locale === 'ar' ? 'branch_name_en' : 'branch_name_ar',
-  );
-  if (other !== null) return other;
+  if (locale === 'ar') {
+    const english = usableBranchName(definition, parameters, 'branch_name_en');
+    if (english !== null) return english;
+  }
   return GENERIC_BRANCH[locale];
 };
 
@@ -219,8 +218,8 @@ export function validPushTemplate(
 
 /**
  * بيرسم نص الإشعار بلغة الاشتراك.
- * القاعدة: اسم الفرع بلغة الإشعار، ولما ينقص أو يرفض بنستخدم الاسم باللغة التانية،
- * ولما ينقص الاتنين بنستخدم اللفظ العام.
+ * القاعدة: اسم الفرع بلغة الإشعار؛ العربي الناقص أو المرفوض بيرجع لاسم الإنجليزي،
+ * والإنجليزي الناقص أو المرفوض بيرجع للفظ العام بالإنجليزي.
  *
  * @param key        مفتاح القالب
  * @param revision   مراجعة القالب
