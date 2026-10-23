@@ -41,7 +41,7 @@ export class StatementLogoUnavailable extends Error {
  * قارئ شعار البيان: بياخد شركة الطلب والطلب نفسه وإلغاء المهلة، وبيرجّع الشعار أو null.
  * المصدر في documents بياخد الدالة دي من composition root، فمفيش استيراد لوحدة تانية.
  */
-export type ReadStatementLogo = (
+export type StatementLogoReader = (
   companyId: string,
   request: StatementLogoRequest,
   signal?: AbortSignal,

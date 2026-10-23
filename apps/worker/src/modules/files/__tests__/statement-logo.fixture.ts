@@ -97,10 +97,10 @@ export async function seedLogo(patch: LogoPatch = {}) {
   return { id, key };
 }
 
-export function reader() {
+export function reader(target: ObjectStorage = storage) {
   return new ReadStatementLogo(
     statementLogoRepository(db, ids),
-    statementLogoStorage(storage),
+    statementLogoStorage(target),
     clock,
   );
 }

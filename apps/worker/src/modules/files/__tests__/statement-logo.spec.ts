@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { StorageError } from '@pospay/storage';
 
 import { TENANT, USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { pngSize } from './png-image.ts';
@@ -12,6 +13,7 @@ import {
   reader,
   request,
   seedLogo,
+  storage,
   type LogoPatch,
 } from './statement-logo.fixture.ts';
 
@@ -71,6 +73,24 @@ it('a second render of the same file adds one access row and one audit entry', a
   await reader().execute(company, request(logo.id));
   expect(await accessRows()).toHaveLength(2);
   expect(await auditRows()).toHaveLength(2);
+});
+
+it('a failed attempt leaves one access row, and the retry with the same render id embeds the logo', async () => {
+  const logo = await seedLogo();
+  const render = request(logo.id);
+  const failing = reader({
+    ...storage,
+    read: async () => {
+      throw new StorageError();
+    },
+  });
+  await expect(failing.execute(company, render)).rejects.toMatchObject({
+    code: 'STORAGE_UNAVAILABLE',
+  });
+  const result = await reader().execute(company, render);
+  expect(result?.content_type).toBe('image/png');
+  expect(await accessRows()).toHaveLength(1);
+  expect(await auditRows()).toHaveLength(1);
 });
 
 it('a file that no longer qualifies returns nothing and writes no row', async () => {

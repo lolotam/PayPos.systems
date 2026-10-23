@@ -32,12 +32,10 @@ async function safely<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
-// المفتاح الناقص (404) يعني «مفيش ملف» مش انقطاع؛ أي خطأ تاني يبقى انقطاعاً عادياً.
+// المفتاح الناقص بس هو «مفيش ملف»؛ 404 على bucket غلط عطل تخزين، وأي خطأ تاني انقطاع عادي.
 function isMissingObject(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
-  const failure = error as { name?: string; $metadata?: { httpStatusCode?: number } };
-  if (failure.name === 'NoSuchKey') return true;
-  return failure.$metadata?.httpStatusCode === 404;
+  return (error as { name?: string }).name === 'NoSuchKey';
 }
 
 async function bounded(

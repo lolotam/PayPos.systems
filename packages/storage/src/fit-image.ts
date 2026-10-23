@@ -29,7 +29,7 @@ async function encode(
   limits: { maxSide: number; maxBytes: number },
 ): Promise<Buffer> {
   try {
-    return await sharp(bytes, {
+    const image = sharp(bytes, {
       limitInputPixels: 16_000_000,
       failOn: 'warning',
       animated: false,
@@ -40,9 +40,10 @@ async function encode(
         height: limits.maxSide,
         fit: 'inside',
         withoutEnlargement: true,
-      })
-      .toFormat(type === 'image/png' ? 'png' : 'jpeg')
-      .toBuffer();
+      });
+    // PNG يضيع في الضغط الافتراضي، والصورة الصاخبة بتعدّي حد الـ 512 KiB؛ فضغطه بأعلى درجة.
+    if (type === 'image/png') return await image.png({ compressionLevel: 9 }).toBuffer();
+    return await image.jpeg().toBuffer();
   } catch {
     throw new FileValidationError('FILE_CONTENT_INVALID');
   }
