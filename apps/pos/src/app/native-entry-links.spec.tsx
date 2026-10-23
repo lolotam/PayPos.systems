@@ -244,7 +244,9 @@ describe('NativeEntry failed reads', () => {
       .mockResolvedValueOnce(null)
       .mockRejectedValue(new Error('SYNTHETIC_READ_FAILURE'));
     mount();
-    expect(await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+    expect(
+      await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') }),
+    ).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.counter') }));
 
