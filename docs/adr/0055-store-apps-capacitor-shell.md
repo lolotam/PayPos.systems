@@ -5,9 +5,10 @@ Date: 2026-10-23. Scope: roadmap track `MOB` (MOB-14 … MOB-19), first delivera
 rests on: APP-Q1 (`docs/owner-decisions.ar.md` §22, PP-38.1, batch 54) — two store apps, **final**: Waleed and Abu Salem
 both picked option 1 on 2026-10-23. That record is added by PR #532, **which merges before this ADR**. Owner questions
 this ADR opened: APP-Q2 … APP-Q7 (`docs/specs/065-mob-app-shell/owner-questions.ar.md`, batch 55, PP-39.1 … PP-39.6),
-**answered by both owners on 2026-10-23** (option 1 ⭐ on all six; on APP-Q2 Waleed then confirmed Abu Salem's Arabic
-name). One point stays open and is marked `TODO(spec)`: the legal name of the company, which is still being formed
-(APP-Q3).
+**answered by both owners on 2026-10-23** (option 1 ⭐ on all six; on APP-Q2 Waleed then moved to option 2 with the
+Arabic name «بوس باي للأعمال», and Abu Salem has been asked to confirm). Still open: the legal name of the company, which
+is still being formed (APP-Q3, `TODO(spec)`), and **APP-Q8** (how the iOS build is tested without a Mac, and at what
+cost; PENDING).
 
 ## Context
 
@@ -116,7 +117,8 @@ Bundled assets change the page origin, and that is the main technical risk of th
   `capacitor://localhost`. **Sub-PR M-1c is a spike against staging** that checks (a) device pairing, (b) a staff PIN
   session and (c) a personal OTP session open and survive a restart, (d) the attendance QR camera opens and reads a
   code, and (e) what passkey attendance does. There is **no Mac** (Waleed, 2026-10-23), and a real iPhone can only get a
-  build through a Mac or a paid Apple account, so the spike runs in two steps:
+  build through a Mac or a paid Apple account. **How iOS is tested, and what it may cost, is owner question APP-Q8
+  (PENDING); no money is spent without Waleed's yes.** Its recommended answer gives the spike two steps:
   - **M-1c, no fee:** Android (a)–(e) on a real phone with a side-loaded debug build; iOS (a)–(c) as an automated UI
     test on the iOS simulator of the GitHub macOS runner. The simulator runs the iOS WebKit, so it answers the cookie
     question; it has no camera and no real passkey, so (d) and (e) stay open on iOS.
@@ -153,7 +155,8 @@ its own installable app that can sit next to the other on one phone:
 
 The ids are reverse-DNS of the domain we own (ADR-0001); they **cannot be changed after the first upload**, which is
 why the owners chose them (APP-Q6). `systems.pospay.app` is reserved for the customer app. The display name is
-«PosPay Business», with the Arabic name «بوس باي للأعمال» on phones set to Arabic (APP-Q2). Version: `apps/business/package.json` `version` (user-visible, semver); build number: the CI run number
+«PosPay Business», with the Arabic name «بوس باي للأعمال» on phones set to Arabic (APP-Q2: Waleed's pick; Abu Salem
+asked to confirm, and his pick binds if it differs). Version: `apps/business/package.json` `version` (user-visible, semver); build number: the CI run number
 (monotonic, as both stores require).
 
 ### 5. Signing keys live in CI secrets only
