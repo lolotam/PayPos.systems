@@ -563,7 +563,8 @@ records to the server (2026-10-23).
 4. **Pin the tag in the compose file, not the environment.** Dokploy encrypts the service environment at rest once it is
    saved from its UI (`enc:v1:`; first seen 2026-10-23), so it can no longer be edited by SQL, and sending it through
    `compose.saveEnvironment` would carry every secret. Take the SHA's `deploy/docker-compose.staging-shared.yml` (or the
-   rollback compose file, below), replace every `${IMAGE_TAG:?}` with `<full-sha>`, check that no `IMAGE_TAG` is left in the text (the
+   rollback compose file, below), replace every `${IMAGE_TAG:?}` with `<full-sha>`, check that no `${IMAGE_TAG` expression is left and that every `image:` line ends with
+   `:<full-sha>` (the
    environment's old `IMAGE_TAG` line is stale and must never be read), and send that text with `compose.update`
    (`composeFile`; it holds no secret), then `compose.deploy`. A variable the SHA's file needs that the
    environment lacks is added by Waleed in the Dokploy UI first (`deploy/staging.env.example` lists them), or the
@@ -586,9 +587,9 @@ restored at all, because the admin and POS `-staging` images exist only from the
 `${IMAGE_TAG:?}` replaced, none left), send it with `compose.update`, and redeploy;
 Dokploy keeps every deployment and its log. The old `deploy/staging-deploy.sh` path and the server `.env` in
 `/opt/pospay-staging` are retired (the script was deleted with #545): a plain `docker compose up` of this file would start a
-second api/worker stack on the same queues with no public routes. The rollback is always `IMAGE_TAG` on the
-`PosPay Staging` service, never the stopped compose in `PayPos.Systems`, which is a cold copy kept only until Waleed
-approves deleting it.
+second api/worker stack on the same queues with no public routes. The rollback is always a pinned compose upload on the
+`PosPay Staging` service (Restore, above), never an environment edit. The stopped compose in `PayPos.Systems` was
+deleted with Waleed's yes on 2026-10-23.
 7. **Standing yes for this one cron line** (Waleed, PP-12.2, 2026-10-20: «(a) Yes, now and on every future
    release.»). Every other change to the server itself still needs his yes (PP-12.1). Point
    `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
