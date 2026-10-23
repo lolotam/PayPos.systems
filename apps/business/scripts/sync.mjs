@@ -31,13 +31,17 @@ function checkBuiltFlavour(name) {
     if (!file.endsWith('.js')) continue;
     const source = readFileSync(join(assets, file), 'utf8');
     if (source.includes(ORIGINS[other])) {
-      process.stderr.write(`${name}: dist-native holds the ${other} build. Rebuild with: ${rebuild}\n`);
+      process.stderr.write(
+        `${name}: dist-native holds the ${other} build. Rebuild with: ${rebuild}\n`,
+      );
       process.exit(1);
     }
     if (source.includes(ORIGINS[name])) found = true;
   }
   if (!found) {
-    process.stderr.write(`${name}: dist-native holds no ${name} API origin. Rebuild with: ${rebuild}\n`);
+    process.stderr.write(
+      `${name}: dist-native holds no ${name} API origin. Rebuild with: ${rebuild}\n`,
+    );
     process.exit(1);
   }
 }
