@@ -1,4 +1,4 @@
--- مفاتيح ربط الاستهلاك (D-21) على جداول فيها حركة بتُبنى CONCURRENTLY في هجرة لوحدها عشان ما تقفلش الكتابة (ADR-0033)؛ الربط نفسه في 0179 والتحقق في 0180.
+-- مفاتيح ربط الاستهلاك (D-21) على جداول فيها حركة بتُبنى CONCURRENTLY في هجرة لوحدها عشان ما تقفلش الكتابة (ADR-0033)؛ الربط نفسه في الهجرة الجاية، والتحقق في الهجرة اللي بعدها.
 CREATE UNIQUE INDEX CONCURRENTLY "service_lines_id_session_key" ON "service_lines" ("company_id","id","session_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX CONCURRENTLY "service_sessions_branch_id_key" ON "service_sessions" ("company_id","branch_id","id");

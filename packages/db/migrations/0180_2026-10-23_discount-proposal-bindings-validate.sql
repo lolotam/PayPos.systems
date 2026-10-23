@@ -1,4 +1,4 @@
--- التحقق من قيود D-21 بيحصل في معاملة لوحدها بعد ما 0179 يخلص، وبقفل SHARE UPDATE EXCLUSIVE بس.
+-- التحقق من قيود D-21 بيحصل في معاملة لوحدها بعد ما الهجرة السابقة تخلص: SHARE UPDATE EXCLUSIVE على الجدول المفحوص وROW SHARE على الجدول المرجوع، فالكتابة بتكمّل.
 SET LOCAL lock_timeout = '5s';
 --> statement-breakpoint
 ALTER TABLE "service_lines" VALIDATE CONSTRAINT "service_lines_discount_proposal_binding_fk";

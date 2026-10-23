@@ -9,7 +9,7 @@ import {
   lineNoticeMatchStatement,
 } from '../persistence/service-line-edit-notice.repository.ts';
 
-// The planner may serve these reads through service_lines_discount_proposal_key, service_lines_id_session_key or service_sessions_branch_id_key; they lead with the primary key columns (company_id, id).
+// The planner may serve these reads through service_lines_discount_proposal_key or service_lines_id_session_key, which lead with the primary key columns (company_id, id), or through service_sessions_branch_id_key, which leads with (company_id, branch_id, id), the columns the session probe filters on.
 // service_line_edits_line_id_key is fine for the edit snapshot too; it leads with (company_id, line_id), the snapshot's filter columns.
 let f: PriceEditFixture;
 beforeAll(async () => {

@@ -17,7 +17,7 @@ const SERVICE_2 = '01920000-0000-7000-8000-000000004101';
 const BUSINESS_2 = '01920000-0000-7000-8000-000000004102';
 const BRANCH_B2 = '01920000-0000-7000-8000-000000004103';
 const SERVICE_B2 = '01920000-0000-7000-8000-000000004104';
-// فرع تاني في نفس النشاط: طلب باسمفرع غير فرع الزيارة لازم يترفض (D-21، R3).
+// فرع تاني في نفس النشاط: طلب باسم فرع غير فرع الزيارة لازم يترفض (D-21، R3).
 const BRANCH_2 = '01920000-0000-7000-8000-000000004105';
 // زيارة تانية بنفس النشاط والفرع: بند من زيارة تانية ما بيستهلكش موافقة زيارة (D-21، R2).
 const SESSION_2 = '01920000-0000-7000-8000-000000004106';
@@ -103,6 +103,17 @@ const proposal = ({
     ${ORDER_IDS.customer},${service},'Synthetic service','{}'::jsonb,${HASH},2000,${USER},${ORDER_IDS.membership},
     'PERSON',1000,'cashier',true,'Cashier','Synthetic',clock_timestamp(),'PENDING',clock_timestamp() + interval '1 day')`;
 
+// طلب تعديل (D-20): بيسمّي بند محفوظ ومراجعته، والفرع بيفصله عن فرع الزيارة زي طلب التسجيل.
+const editProposal = (id: string, branch: string) =>
+  sql`INSERT INTO discount_proposals(company_id,id,business_id,branch_id,request_id,input_index,kind,line_id,base_revision,
+    base_price,base_discount,base_net,session_id,occurred_at,customer_id,service_id,service_name_en,terms,terms_hash,effective_bps,
+    requested_by,requested_by_membership_id,requester_limit_source,requester_limit_bps,requester_role,requester_role_is_system,
+    requester_role_name_en,customer_first_name,requested_at,status,expires_at)
+  VALUES(${A.company},${id},${A.business},${branch},${ids.newId()},0,'EDIT',${ORDER_IDS.line},2,
+    25.000,5.000,20.000,${ORDER_IDS.session},clock_timestamp(),${ORDER_IDS.customer},${ORDER_IDS.service},'Synthetic service',
+    '{}'::jsonb,${HASH},2000,${USER},${ORDER_IDS.membership},'PERSON',1000,'cashier',true,'Cashier','Synthetic',
+    clock_timestamp(),'PENDING',clock_timestamp() + interval '1 day')`;
+
 const approve = (id: string) =>
   sql`UPDATE discount_proposals SET status='APPROVED',decided_by=${USER},decided_by_membership_id=${ORDER_IDS.membership},
     decided_via='REMOTE',decider_role='owner',decider_role_is_system=true,decider_role_name_en='Owner',
@@ -168,6 +179,7 @@ const consumption = async (proposalId: string, lineId: string) => ({
   line: await as(A.company, sql`SELECT discount_proposal_id FROM service_lines WHERE id=${lineId}`),
 });
 
+// النشاط والخدمة مش بيختلفوا لوحدهم: طلب نشاط تاني لازم يسمّي خدمة النشاط ده (dp_service_fk)، فالحالتان بتقعوا على القيد نفسه، وقائمة أعمدة القيد بتثبّت business_id.
 it('refuses a consumption of a proposal from another business', async () => {
   const proposalId = ids.newId();
   await as(A.company, proposal({ id: proposalId, business: BUSINESS_2, branch: BRANCH_B2, service: SERVICE_B2 }));
@@ -199,6 +211,11 @@ it('refuses a proposal whose branch is not the branch of its visit', async () =>
     '23503',
     'dp_session_branch_fk',
   );
+});
+
+// القيد بيشتغل على نوعي الطلب: طلب التعديل بيخضع لنفس فرع الزيارة.
+it('refuses an edit proposal whose branch is not the branch of its visit', async () => {
+  await refused(as(A.company, editProposal(ids.newId(), BRANCH_2)), '23503', 'dp_session_branch_fk');
 });
 
 it('accepts a consumption in the visit the proposal names', async () => {

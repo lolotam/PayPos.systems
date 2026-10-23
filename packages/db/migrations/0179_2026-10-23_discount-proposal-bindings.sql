@@ -28,9 +28,11 @@ ALTER TABLE service_sessions ADD CONSTRAINT service_sessions_branch_id_key UNIQU
 ALTER TABLE discount_proposals ADD CONSTRAINT dp_consumed_line_binding_key UNIQUE USING INDEX dp_consumed_line_binding_key;
 --> statement-breakpoint
 -- البند يستهلك موافقة من نشاطه وخدمته بس؛ الفحص يتأجل لحد الـ commit، والقيمة الفارغة بتتخطّى (MATCH SIMPLE).
+-- البحث بيتخدم بالفهرس الجزئي service_lines_discount_proposal_uq (company_id, discount_proposal_id) اللي بيضيّق البحث على صف واحد، فمفيش فهرس تاني لازم.
 ALTER TABLE service_lines ADD CONSTRAINT service_lines_discount_proposal_binding_fk FOREIGN KEY ("company_id","discount_proposal_id","id","business_id","service_id") REFERENCES "public"."discount_proposals"("company_id","id","consumed_line_id","business_id","service_id") ON DELETE no action ON UPDATE no action DEFERRABLE INITIALLY DEFERRED NOT VALID;
 --> statement-breakpoint
 -- الزيارة مربوطة من جهة الطلب؛ طلب من غير زيارة (session_id NULL) ما بيتفحصش، والمطابقة بتتخطّى (MATCH SIMPLE).
+-- البحث بيتخدم بالفهرس الجزئي dp_consumed_line_uq (company_id, consumed_line_id) اللي بيضيّق البحث على صف واحد، فمفيش فهرس تاني لازم.
 ALTER TABLE discount_proposals ADD CONSTRAINT dp_consumed_line_session_fk FOREIGN KEY ("company_id","consumed_line_id","session_id") REFERENCES "public"."service_lines"("company_id","id","session_id") ON DELETE no action ON UPDATE no action DEFERRABLE INITIALLY DEFERRED NOT VALID;
 --> statement-breakpoint
 -- فرع الطلب لازم يكون فرع زيارته؛ الفحص فوري لأن الطلب بيتكتب قبل ما يتستهلك.
