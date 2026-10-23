@@ -55,13 +55,16 @@ describe('NativeEntry', () => {
     expect(screen.queryByRole('heading', { name: 'personal screen' })).toBeNull();
   });
 
-  it.each(roles)('opens the $role flow directly when the role is stored', async ({ role, heading }) => {
-    vi.mocked(readDeviceRole).mockResolvedValue(role);
-    mount();
+  it.each(roles)(
+    'opens the $role flow directly when the role is stored',
+    async ({ role, heading }) => {
+      vi.mocked(readDeviceRole).mockResolvedValue(role);
+      mount();
 
-    expect(await screen.findByRole('heading', { name: heading })).not.toBeNull();
-    expect(screen.queryByRole('heading', { name: t('ar', 'nativeShell.title') })).toBeNull();
-  });
+      expect(await screen.findByRole('heading', { name: heading })).not.toBeNull();
+      expect(screen.queryByRole('heading', { name: t('ar', 'nativeShell.title') })).toBeNull();
+    },
+  );
 
   it.each(roles)('saves the $role choice and opens its flow', async ({ role, button, heading }) => {
     mount();
