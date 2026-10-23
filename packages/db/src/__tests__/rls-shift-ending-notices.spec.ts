@@ -20,6 +20,7 @@ const COUNT_END = new Date('2026-10-04T20:00:00.000Z');
 const CROSS_TENANT_END = new Date('2026-10-04T21:00:00.000Z');
 const FK_BRANCH_END = new Date('2026-10-04T22:00:00.000Z');
 const FK_EMPLOYEE_END = new Date('2026-10-04T23:00:00.000Z');
+const ONCE_ONLY_END = new Date('2026-10-05T00:00:00.000Z');
 const REMIND_DUE = new Date('2026-10-04T14:30:00.000Z');
 const DETECTED_AT = new Date('2026-10-04T14:30:00.000Z');
 
@@ -176,7 +177,12 @@ it('a suppressed row with no recipients is accepted', async () => {
 });
 
 it('the once-only key refuses a second row for the same shift end and allows a moved end', async () => {
-  await rejected(noticeRow(), '23505', 'attendance_shift_ending_notices_shift_key');
+  await noticeRow({ endsAt: ONCE_ONLY_END });
+  await rejected(
+    noticeRow({ endsAt: ONCE_ONLY_END }),
+    '23505',
+    'attendance_shift_ending_notices_shift_key',
+  );
   await noticeRow({ endsAt: MOVED_END });
   const rows = await owner`SELECT shift_ends_at FROM attendance_shift_ending_notices
     WHERE company_id=${A.company} AND employee_id=${EMPLOYEE_A} AND shift_ends_at=${MOVED_END}`;

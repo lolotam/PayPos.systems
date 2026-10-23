@@ -69,7 +69,7 @@ describe('remindMoment', () => {
     ).toEqual(utc('2026-10-05T02:30:00.000Z'));
   });
 
-  it('keeps elapsed time across a DST fall-back and a spring-forward', () => {
+  it('is plain elapsed arithmetic on the UTC instants of a DST fall-back and a spring-forward', () => {
     expect(
       remindMoment(utc('2026-11-01T02:00:00.000Z'), utc('2026-11-01T11:00:00.000Z'), LEAD),
     ).toEqual(utc('2026-11-01T10:30:00.000Z'));
@@ -89,18 +89,10 @@ describe('remindMoment', () => {
   });
 });
 
-describe('shiftEndingSoonDecision', () => {
+describe('shiftEndingSoonDecision before the rule switch', () => {
   it('waits a millisecond before the moment', () => {
     const justBefore = new Date(REMIND_AT.getTime() - 1);
     expect(shiftEndingSoonDecision(facts({ now: justBefore }))).toBe('WAIT');
-  });
-
-  it('reminds on the moment', () => {
-    expect(shiftEndingSoonDecision(facts())).toBe('REMIND');
-  });
-
-  it('reminds until the last millisecond of the shift', () => {
-    expect(shiftEndingSoonDecision(facts({ now: utc('2026-10-04T14:59:59.999Z') }))).toBe('REMIND');
   });
 
   it('is stale at the shift end even for an absent employee with the rule off', () => {
@@ -127,6 +119,21 @@ describe('shiftEndingSoonDecision', () => {
     expect(shiftEndingSoonDecision(facts({ deleted: true, excused: true }))).toBe('INELIGIBLE');
   });
 
+  it('is ineligible before the suppression of an off rule', () => {
+    const deleted = facts({ deleted: true, ruleEnabled: false });
+    expect(shiftEndingSoonDecision(deleted)).toBe('INELIGIBLE');
+  });
+
+  it('is ineligible for an ended contract before the suppression of an off rule', () => {
+    const ended = facts({ contractEnd: '2026-10-03', ruleEnabled: false });
+    expect(shiftEndingSoonDecision(ended)).toBe('INELIGIBLE');
+  });
+
+  it('is ineligible before waiting', () => {
+    const justBefore = new Date(REMIND_AT.getTime() - 1);
+    expect(shiftEndingSoonDecision(facts({ deleted: true, now: justBefore }))).toBe('INELIGIBLE');
+  });
+
   it('is excused by approved leave even with the rule off', () => {
     expect(shiftEndingSoonDecision(facts({ excused: true, ruleEnabled: false }))).toBe('EXCUSED');
   });
@@ -139,6 +146,21 @@ describe('shiftEndingSoonDecision', () => {
   it('waits before the suppression of an off rule', () => {
     const justBefore = new Date(REMIND_AT.getTime() - 1);
     expect(shiftEndingSoonDecision(facts({ ruleEnabled: false, now: justBefore }))).toBe('WAIT');
+  });
+
+  it('fails closed on an invalid date', () => {
+    expect(shiftEndingSoonDecision(facts({ remindAt: new Date(NaN) }))).toBe('WAIT');
+    expect(shiftEndingSoonDecision(facts({ now: new Date(NaN) }))).toBe('STALE');
+  });
+});
+
+describe('shiftEndingSoonDecision with the rule and the presence', () => {
+  it('reminds on the moment', () => {
+    expect(shiftEndingSoonDecision(facts())).toBe('REMIND');
+  });
+
+  it('reminds until the last millisecond of the shift', () => {
+    expect(shiftEndingSoonDecision(facts({ now: utc('2026-10-04T14:59:59.999Z') }))).toBe('REMIND');
   });
 
   it('suppresses an off rule after the moment, whether she is present or not', () => {

@@ -4,17 +4,14 @@ import {
   englishDisplayName,
   type LeaveInterval,
   type NameFallback,
+  type ShiftSpan,
 } from './not-clocked-in.ts';
 
 /** ساعة نهاية الوردية بنظام 24 ساعة؛ أي نص تاني معناها إن الجدول ما فيهاش وقت صالح. */
 const SHIFT_END_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-/** الوردية ويوم العمل بتوعها؛ البداية والنهاية لحظات UTC كمان خُزّنت. */
-export interface ShiftEndSpan {
-  readonly workingDate: string;
-  readonly startsAt: Date;
-  readonly endsAt: Date;
-}
+/** نفس شريط الوردية بتاع تنبيه الغياب، معاد استخدامه في قاعدة الإجازة. */
+export type ShiftEndSpan = ShiftSpan;
 
 /** قرار التذكير لوردية واحدة؛ REMIND و SUPPRESS وحدهم بيكتبوا سطر في دفتر «دوامك قرب يخلص». */
 export type ShiftEndingSoonDecision =
@@ -85,11 +82,13 @@ export function endsSoonLeave(shift: ShiftEndSpan, leaves: readonly LeaveInterva
  * @returns القرار
  */
 export function shiftEndingSoonDecision(facts: ShiftEndingSoonFacts): ShiftEndingSoonDecision {
-  if (facts.now.getTime() >= facts.shiftEndsAt.getTime()) return 'STALE';
+  // مقارنة تاريخ مش صالح (NaN) دايماً false، فالنفي بيقفل الباب: لحظة غلط معناها الوردية خلصت.
+  if (!(facts.now.getTime() < facts.shiftEndsAt.getTime())) return 'STALE';
   if (facts.deleted || (facts.contractEnd !== null && facts.contractEnd < facts.workingDate))
     return 'INELIGIBLE';
   if (facts.excused) return 'EXCUSED';
-  if (facts.now.getTime() < facts.remindAt.getTime()) return 'WAIT';
+  // نفس المنطق مع لحظة الاستحقاق: تاريخ مش صالح معناها لسه ما جهتش، فالتذكير ما ينطلقش.
+  if (!(facts.now.getTime() >= facts.remindAt.getTime())) return 'WAIT';
   if (!facts.ruleEnabled) return 'SUPPRESS';
   if (!facts.hasOpenSession) return 'NOT_PRESENT';
   return 'REMIND';
