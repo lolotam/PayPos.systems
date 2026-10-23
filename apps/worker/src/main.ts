@@ -206,7 +206,7 @@ async function startWorkerCore(): Promise<void> {
         stopping = true;
         email.stop();
         maintenance?.stop();
-        await push.stop();
+        await closeOptional([() => push.stop()]);
         await drainDispatchAndDocuments({
           stopDispatch: () => loop.stop(),
           stopDocuments: () => documents?.stop(),

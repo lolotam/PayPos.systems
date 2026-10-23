@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   WebPushChannel,
+  type PreparableSender,
   type WebPushRequestOptions,
   type WebPushSender,
 } from '../adapters/web-push.channel.ts';
@@ -79,6 +80,26 @@ const thrownMessage = (build: () => unknown): string => {
   }
   return '';
 };
+
+describe('a sender that cannot load the library', () => {
+  it('refuses the attempt without calling the sender and without throwing', async () => {
+    const calls: Captured[] = [];
+    const sender: PreparableSender = Object.assign(
+      async (sent: PushTarget, payload: string, sentOptions: WebPushRequestOptions) => {
+        calls.push({ target: sent, payload, options: sentOptions });
+        return { statusCode: 201 };
+      },
+      {
+        prepare: async () => {
+          throw new Error('the library could not be loaded');
+        },
+      },
+    );
+    const result = await channel(sender).send(request());
+    expect(result).toEqual({ kind: 'refused', code: 'CAPABILITY_UNAVAILABLE' });
+    expect(calls).toHaveLength(0);
+  });
+});
 
 describe('the request the channel sends', () => {
   it('sends one request with the ttl, the urgency, the topic, the timeout and the vapid details', async () => {

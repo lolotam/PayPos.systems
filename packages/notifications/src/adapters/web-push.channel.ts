@@ -25,7 +25,7 @@ export type WebPushSender = (
 ) => Promise<{ statusCode: number }>;
 
 /** مرسل بيجهّز نفسه قبل الفحص؛ تحميل المكتبة بياخد وقت والموعد بيتحسب بعده. */
-interface PreparableSender extends WebPushSender {
+export interface PreparableSender extends WebPushSender {
   prepare?(): Promise<void>;
 }
 
@@ -38,7 +38,7 @@ export interface WebPushChannelOptions {
   };
   readonly now: () => Date;
   readonly timeoutMs?: number;
-  readonly sender?: WebPushSender;
+  readonly sender?: PreparableSender;
   /** طلب Node نفسه؛ بيحقن في الاختبار من غير شبكة. */
   readonly request?: typeof httpsRequest;
 }
@@ -83,7 +83,11 @@ function loadLibrary(): Promise<WebPushLibrary> {
   library ??= (async () => {
     const imported = (await import('web-push')) as unknown as { default: WebPushLibrary };
     return imported.default;
-  })();
+  })().catch((error: unknown) => {
+    // تحميل فاشل ما يبقاش محفوظ للأبد؛ المرة الجاية تحاول تاني.
+    library = null;
+    throw error;
+  });
   return library;
 }
 
@@ -193,7 +197,14 @@ export class WebPushChannel implements PushChannel {
 
   async send(request: PushRequest): Promise<PushResult> {
     // تحميل المكتبة بيحصل قبل الفحص: بعد الفحص مفيش أي await قبل الطلب نفسه.
-    if (this.#sender.prepare !== undefined) await this.#sender.prepare();
+    if (this.#sender.prepare !== undefined) {
+      try {
+        await this.#sender.prepare();
+      } catch {
+        // التحميل فشل قبل أي شبكة: النتيجة معروفة، مش عدم يقين.
+        return { kind: 'refused', code: 'CAPABILITY_UNAVAILABLE' };
+      }
+    }
     const current = this.#now().getTime();
     const remainingMs = request.deadline === null ? null : request.deadline.getTime() - current;
     if (remainingMs !== null && remainingMs <= 0) return { kind: 'expired' };

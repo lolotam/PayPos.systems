@@ -122,6 +122,17 @@ function fakeLimiter(): { limiter: RateLimiter; keys: () => string[] } {
   return { limiter, keys: () => keys };
 }
 
+// حدّ مرفوض من الأول: كل محاولة بتترفض قبل أي فحص تاني.
+function refusingLimiter(): RateLimiter {
+  return {
+    hit: async () => false,
+    remember: async () => undefined,
+    remembered: async () => false,
+    count: async () => 0,
+    remaining: async () => 0,
+  };
+}
+
 function useCase(
   state: State,
   limiter: RateLimiter | null,
@@ -187,7 +198,38 @@ describe('the keys of the subscription', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
     expect(state.transactions).toBe(0);
     expect(state.upserts).toBe(0);
-    expect(hits()).toEqual([]);
+    // التسجيل الغلط بيستهلك من حدّ المستخدم، عشان ما يقدرش يبعت تسجيلات غلط بلا حدّ.
+    expect(hits()).toHaveLength(2);
+  });
+
+  it('a refused limiter answers before the keys are even checked', async () => {
+    const state: State = { transactions: 0, locked: [], revokes: 0, upserts: 0 };
+    let checked = 0;
+    const register = new RegisterPushSubscription(
+      transactionsFake({ first: EMPTY, second: EMPTY }, state),
+      hashes,
+      {
+        validSubscriptionKeys: () => {
+          checked += 1;
+          return true;
+        },
+      },
+      ids,
+      clock,
+      refusingLimiter(),
+    );
+    await expect(
+      register.execute(
+        SCOPE,
+        {
+          ...INPUT,
+          subscription: { ...INPUT.subscription, keys: { p256dh: OFF_CURVE, auth: VALID.auth } },
+        },
+        CONFIG,
+      ),
+    ).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+    expect(checked).toBe(0);
+    expect(state.transactions).toBe(0);
   });
 });
 

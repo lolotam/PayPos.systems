@@ -47,6 +47,13 @@ function failingRedis(): Pick<Redis, 'eval'> {
   };
 }
 
+// Redis بيقبل الاتصال وما بيردش خالص.
+function hangingRedis(): Pick<Redis, 'eval'> {
+  return {
+    eval: (() => new Promise<number>(() => undefined)) as unknown as Pick<Redis, 'eval'>['eval'],
+  };
+}
+
 it('allows ten sends a minute for one subscription and refuses the eleventh', async () => {
   const admission = redisPushAdmission(fakeRedis().redis);
   for (let attempt = 0; attempt < 10; attempt += 1)
@@ -79,10 +86,24 @@ it('refuses a configuration that is not a positive whole number', () => {
     { windowMs: 0 },
     { windowMs: -1 },
     { windowMs: 1.5 },
+    { timeoutMs: 0 },
+    { timeoutMs: -1 },
+    { timeoutMs: 1.5 },
   ])
     expect(() => redisPushAdmission(fakeRedis().redis, options), JSON.stringify(options)).toThrow(
       'PUSH_ADMISSION_CONFIG_INVALID',
     );
+});
+
+it('gives up when redis never answers', async () => {
+  const admission = redisPushAdmission(hangingRedis(), { timeoutMs: 20 });
+  let message = '';
+  try {
+    await admission.reserve(SUBSCRIPTION);
+  } catch (error) {
+    message = (error as Error).message;
+  }
+  expect(message).toBe('PUSH_ADMISSION_UNAVAILABLE');
 });
 
 it('hides the redis failure behind a bounded reason', async () => {
