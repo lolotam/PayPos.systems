@@ -116,7 +116,8 @@ screen states the outcome and pre-selects the matching button; Waleed's pick, Ab
   on an append whose key belongs to another visit `IDEMPOTENCY_KEY_REUSED` 422.
 - **Assertions:**
   - one row in `service_session_recoveries` per user, place, operation and key hash; `key_hash` is sha256, the key itself is never stored;
-  - a 503 on save leaves no proof row and no visit;
+  - a 503 on save writes no visit in that request; a replay may still find a proof or a visit that an earlier attempt
+    committed, and an unknown commit outcome also answers 503 (ADR-0042), so assert on this request only;
   - after a confirm that reached the server, `revoked_at` and `revoked_outcome` are set, one `audit_log` row is written, and the read answers `CLOSED`;
   - after **Confirmed — it was not saved** the next POST carries a new `Idempotency-Key`;
   - the read never returns lines whose `recorded_by` is another user.

@@ -97,12 +97,10 @@ API only, no screen yet, and no notification is sent to any phone yet.
   - `GET /staff/push/config` → `{ vapid_public_key, vapid_key_id (16 hex), subscriber_ref (64 hex) }`.
   - `PUT /staff/push/subscription` → 204:
 
-    ```json
-    { "installation_id": "<UUID_V4>", "vapid_key_id": "<16_HEX>", "delivery_token": "<UUID_V4>",
-      "subscription": { "endpoint": "https://fcm.googleapis.com/fcm/send/<SYNTHETIC>", "expirationTime": null,
-        "keys": { "p256dh": "<87_BASE64URL_CHARS>", "auth": "<22_BASE64URL_CHARS>" } },
-      "locale": "ar" }
-    ```
+    The body has `installation_id` (a UUID v4), `vapid_key_id` (16 hex), `delivery_token` (a UUID v4), `locale` (`ar` or
+    `en`) and `subscription`, the browser's push subscription object: `endpoint` (a synthetic
+    `https://fcm.googleapis.com/fcm/send/…` URL in tests), `expirationTime` (`null`), and its two public key fields
+    (87 and 22 base64url characters). Use synthetic values only.
 
   - `POST /staff/push/subscription/revoke` with `{ "installation_id": "<UUID_V4>" }` → 204.
   - Allowed hosts (`packages/contracts/src/push-subscription.ts`): `fcm.googleapis.com`,

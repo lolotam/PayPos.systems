@@ -22,7 +22,8 @@ element by its visible text in either language.
 
 ## Staging — الستاجنج
 
-Since #533 (2026-10-23) staging runs the whole product in Dokploy and is updated after every merge:
+Since #533 (2026-10-23) staging runs admin, POS, API, worker and the one-shot migrate step in Dokploy, and is updated after
+every merge. The public menu (`apps/menu`) is **not** deployed there yet:
 
 - admin (back office): `https://app.staging.pospay.systems`
 - POS (cashier and staff): `https://pos.staging.pospay.systems`
@@ -39,7 +40,7 @@ What still does not work there, whatever the journey:
   answers `STORAGE_NOT_CONFIGURED`. This hits employee documents, the Excel import and the business logo.
 - **Worker-only jobs** run there, but you only see their result (a bell message), never a screen.
 
-من #533 (2026-10-23) الستاجنج شغال كله على Dokploy وبيتحدّث بعد كل merge: لوحة الإدارة على
+من #533 (2026-10-23) الستاجنج شغال على Dokploy (الإدارة والكاشير والـ API والـ worker وخطوة الـ migrate) وبيتحدّث بعد كل merge، والمنيو العام (`apps/menu`) **لسه مش متركّب هناك**: لوحة الإدارة على
 `https://app.staging.pospay.systems`، والكاشير على `https://pos.staging.pospay.systems`، والـ API على
 `https://api.staging.pospay.systems` ومعاه الـ worker. البيانات تجريبية بس: شركة «صالون الأميرة (تجريبي)» بفرعين، السالمية وحولي،
 و8 خدمات و7 موظفين. لسه مقفول هناك: إرسال الواتساب والـ OTP (مستني قوالب Meta والأسرار)، ورفع الملفات (مفيش إعدادات تخزين)،
