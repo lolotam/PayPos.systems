@@ -71,6 +71,7 @@ export { lockEmployeeNumberAccess, readEmployeeNumberAccess } from './persistenc
 export { readEmployeeNumberCompanyAccess } from './persistence/employee-number-access.ts';
 export { lockServiceSessionAccess, readServiceSessionAccess } from './persistence/service-session-access.ts';
 export { readServiceSessionReadAccess } from './persistence/service-session-read-access.ts';
+export { readDiscountApprovalListAccess } from './persistence/discount-approval-list-access.ts';
 export {
   lockServiceSessionCancelAccess,
   lockServiceSessionEditAccess,
