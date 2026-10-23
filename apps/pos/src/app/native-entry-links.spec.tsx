@@ -223,6 +223,56 @@ describe('NativeEntry refused links', () => {
   });
 });
 
+describe('NativeEntry failed reads', () => {
+  beforeEach(prepare);
+
+  it('shows the start screen and warns when the link read fails on a cold start', async () => {
+    vi.mocked(readDeviceRole)
+      .mockResolvedValueOnce(null)
+      .mockRejectedValue(new Error('SYNTHETIC_READ_FAILURE'));
+    vi.mocked(readLaunchLink).mockResolvedValue(link());
+    mount();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
+    expect(screen.getByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('keeps the start screen and warns when the choice read fails', async () => {
+    vi.mocked(readDeviceRole)
+      .mockResolvedValueOnce(null)
+      .mockRejectedValue(new Error('SYNTHETIC_READ_FAILURE'));
+    mount();
+    expect(await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.counter') }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
+    expect(screen.getByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+    const counter = screen.getByRole('button', { name: t('ar', 'nativeShell.counter') });
+    expect(counter.hasAttribute('disabled')).toBe(false);
+    expect(saveDeviceRole).not.toHaveBeenCalled();
+  });
+
+  it('keeps the employee flow and warns when a warm link read fails', async () => {
+    vi.mocked(readDeviceRole)
+      .mockResolvedValueOnce('employee')
+      .mockRejectedValue(new Error('SYNTHETIC_READ_FAILURE'));
+    mount();
+    expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
+
+    await act(async () => {
+      opened.listener?.(link());
+    });
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
+    expect(screen.getByRole('heading', { name: 'personal screen' })).not.toBeNull();
+  });
+});
+
 describe('NativeEntry role choice', () => {
   beforeEach(prepare);
 

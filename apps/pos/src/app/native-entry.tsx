@@ -28,27 +28,24 @@ const ALERT_CLASS =
 export function NativeEntry() {
   const locale = useLocale();
   const [state, setState] = useState<NativeState>({ kind: 'loading' });
-  const { busy, queue } = useStepQueue();
+  const onError = useCallback(() => {
+    setState((current) => stateAfterFailure(current, null, null));
+  }, []);
+  const { busy, queue } = useStepQueue(onError);
 
   const onStart = useCallback((role: DeviceRole | null, saved: PersonalWorkspace | null) => {
     setState((current) => (current.kind === 'loading' ? stateForRole(role, saved) : current));
   }, []);
 
-  const onLink = useCallback(
-    async (workspace: PersonalWorkspace | null) => {
-      queue(async () => {
-        const outcome = await resolveLink(workspace);
-        if (outcome.kind === 'state') setState(outcome.state);
-        else setState((current) => stateAfterFailure(current, outcome.role, outcome.business));
-      });
-    },
-    [queue],
-  );
+  const onLink = useCallback(async (workspace: PersonalWorkspace | null) => {
+    queue(async () => {
+      const outcome = await resolveLink(workspace);
+      if (outcome.kind === 'state') setState(outcome.state);
+      else setState((current) => stateAfterFailure(current, outcome.role, outcome.business));
+    });
+  }, [queue]);
 
-  const choose = useCallback(
-    (role: DeviceRole) => queue(async () => setState(await resolveChoice(role))),
-    [queue],
-  );
+  const choose = (role: DeviceRole) => queue(async () => setState(await resolveChoice(role)));
 
   useNativeLink(onStart, onLink);
 
@@ -74,7 +71,11 @@ export function NativeEntry() {
     );
   }
   if (state.alert === undefined) {
-    return busy ? <StartScreen onChoose={choose} busy /> : <StartScreen onChoose={choose} />;
+    return busy ? (
+      <StartScreen onChoose={choose} busy />
+    ) : (
+      <StartScreen onChoose={choose} />
+    );
   }
   return busy ? (
     <StartScreen onChoose={choose} alert={state.alert} busy />
