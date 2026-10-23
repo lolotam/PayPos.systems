@@ -19,7 +19,7 @@
 (ADR-0055 قرار 3). وتغيير الـ hostname أو الـ scheme بعد أول إصدار = origin جديد، والـ
 IndexedDB (ربط الجهاز وطابور المزامنة) بيضيع.
 
-On iOS النسخة بتاخدها `xcodebuild` من سطر `-xcconfig`: `-xcconfig ios/staging.xcconfig` أو
+على iOS النسخة بتاخدها `xcodebuild` من سطر `-xcconfig`: `-xcconfig ios/staging.xcconfig` أو
 `-xcconfig ios/production.xcconfig` (سير العمل بتاع M-1b بيبعته). والبناء من غير السطر ده
 بيطلع نسخة `staging`، فالرفع على production من غيره بيت رفض من الـ bundle id بتاعه بدل ما
 ينزل التطبيق الغلط.

@@ -22,7 +22,7 @@ function checkBuiltFlavour(name) {
   const assets = fileURLToPath(new URL('../../pos/dist-native/assets', import.meta.url));
   const rebuild = `VITE_API_URL=${ORIGINS[name]} FLAVOUR=${name} pnpm --filter @pospay/pos build:native`;
   if (!existsSync(assets)) {
-    console.error(`${name}: no dist-native build found. Rebuild with: ${rebuild}`);
+    process.stderr.write(`${name}: no dist-native build found. Rebuild with: ${rebuild}\n`);
     process.exit(1);
   }
   const other = name === 'staging' ? 'production' : 'staging';
@@ -31,13 +31,13 @@ function checkBuiltFlavour(name) {
     if (!file.endsWith('.js')) continue;
     const source = readFileSync(join(assets, file), 'utf8');
     if (source.includes(ORIGINS[other])) {
-      console.error(`${name}: dist-native holds the ${other} build. Rebuild with: ${rebuild}`);
+      process.stderr.write(`${name}: dist-native holds the ${other} build. Rebuild with: ${rebuild}\n`);
       process.exit(1);
     }
     if (source.includes(ORIGINS[name])) found = true;
   }
   if (!found) {
-    console.error(`${name}: dist-native holds no ${name} API origin. Rebuild with: ${rebuild}`);
+    process.stderr.write(`${name}: dist-native holds no ${name} API origin. Rebuild with: ${rebuild}\n`);
     process.exit(1);
   }
 }
