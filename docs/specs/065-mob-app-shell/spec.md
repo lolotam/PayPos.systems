@@ -9,7 +9,8 @@
 **Input**: Track MOB, plan row M-1·0 ([plan.md](plan.md)). Wrap the existing `apps/pos` build in a Capacitor shell for
 iOS and Android, as decided in `docs/adr/0055-store-apps-capacitor-shell.md`. Owner decisions: APP-Q1 … APP-Q8
 ([owner-questions.ar.md](owner-questions.ar.md)); questions APP-Q9 … APP-Q18 (batch 58), answered by Waleed on
-2026-10-23 (Abu Salem's picks pending, binding if they differ), so M-1a … M-1f need no further owner question.
+2026-10-23 (Abu Salem's picks pending, binding if they differ), so M-1a … M-1f need no further owner question of
+this spec. One owner answer from spec 067 is still open: who sees FR-017's line (SO-Q1).
 
 **Scope.** The shell, its start screen, offline cold start, the checks of the auth spike (M-1c), and what is hidden on
 native. Out of scope: signed builds and store uploads (M-2), the cashier selling screens (MOB-18, not built yet in the
@@ -152,11 +153,13 @@ start screen again.
   for each session kind the device can hold (staff, personal) the app calls the existing server sign-out; a sign-out
   counts as done only when the server confirms it, or gives the auth module's **explicit** «no session to end»
   result for that route. A plain 401 never counts, because it can also mean the request itself was refused (an
-  untrusted origin, a bad authentication context) while the session is still alive. Which explicit result each
-  sign-out route gives for an ended, replaced or expired session or a revoked device is checked against
-  `packages/auth` in M-1a; if a route has none, that route's case is `TODO(spec)` and goes to the web manager (an
-  auth change is not this track's). Anything else (no network, a timeout, a server error, an ambiguous answer)
-  stops the change with a message. As soon as one sign-out is done, the app clears that session's private forms
+  untrusted origin, a bad authentication context) while the session is still alive. The results are fixed by spec 067
+  (`docs/specs/067-auth-explicit-signout/spec.md`, built in its sub-PR 067-1): both routes answer 200 `SIGNED_OUT` or
+  200 `NO_SESSION`, never 401, and both count as done; 403 `FORBIDDEN` (a wrong `Origin`) and 503 `NOT_READY` (a
+  configuration problem) are refusals. Anything else (no network, a timeout, a refusal, a server error, an ambiguous
+  answer) stops the change with a message. **Prerequisite:** the role change is not implemented before the server-side
+  session fence of issue #581 (spec 067 D-6): without it, a sign-in racing the role change could leave a usable
+  session after the change completes, breaking BR-001. As soon as one sign-out is done, the app clears that session's private forms
   and caches at once (ADR-0027: logout clears them), even if the other sign-out then fails; the role, the
   remembered business and the pairing stay until every sign-out is done. Then it forgets the remembered
   business and, for a counter device, removes the local pairing. Order: the confirmation (with its pairing warning on a
@@ -172,9 +175,13 @@ start screen again.
   business=…` on a cold start (the launch link) and on a warm start (a link opened while the app runs) the same way: it
   accepts only that host and path, parses the two values with the existing `personalWorkspace` schema of
   `packages/contracts`, ignores every other parameter, and then: with no role or the employee role, it sets the employee
-  role and remembers the business (when a different business may have a session, it first asks the FR-008
-  confirmation, cancelling keeps the current business and session, and then signs out as FR-008 does,
-  and with no network the link is refused with the same message, changing nothing); with
+  role and remembers the business (when a different business may have a session, it first asks its own short
+  confirmation «تبدّلي لصالون تاني؟», not the role-change text (#554 item 1); cancelling keeps the current business and
+  session; then it signs out the personal session as FR-008 does, and with no network the link is refused with the
+  same message, changing nothing). The business switch does not wait on the session fence of #581: the device keeps
+  the employee role, so a racing sign-in can only leave the personal session its own fresh OTP just created (spec 067
+  D-6), never a counter or another person's session left behind by the switch, and the server still decides
+  eligibility on every request (BR-002); orchestrator, 2026-10-23. With
   the counter role, it does not switch, and offers the role change of FR-008. An invalid or foreign link changes
   nothing and shows the existing «ask your manager for your link» message. The «عندي لينك» paste uses the same parser.
 - **FR-013**: The device credentials and the remembered business MUST NOT travel in an OS backup to another device:
@@ -194,12 +201,14 @@ start screen again.
   other language; the user can change it afterwards with the existing language switch (APP-Q12, PP-42.4; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs).
 - **FR-016**: The app follows the device's rotation on tablets and on phones (APP-Q14, PP-42.6; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs); every screen
   of the native build must work in both orientations.
-- **FR-017**: Before MOB-15, an owner or a manager who picks «حسابي كموظفة» sees what an employee sees (sign-in and
+- **FR-017**: Before MOB-15, an owner or a manager (exactly which roles count is SO-Q1 of spec 067, still open) who
+  picks «حسابي كموظفة» sees what an employee sees (sign-in and
   their own attendance) plus one small line «لوحة الإدارة على الويب» with a link to the back office (APP-Q15,
   PP-42.7; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs). This works only for an owner or
   manager who also has an employee record in that business, because a personal session is issued only to a linked
-  employee (ADR-0027). Showing the line needs a role signal the personal session does not carry today: `TODO(spec)`,
-  with the web manager (#554); until it exists, the line is not shown to anyone.
+  employee (ADR-0027). Showing the line needs a role signal the personal session does not carry today. Spec 067 Part B
+  (its sub-PR 067-2) adds it, and who counts waits on the owners' answer to SO-Q1 (spec 067 `owner-questions.ar.md`): `TODO(spec)`
+  until then, and until it exists the line is not shown to anyone.
 
 ### Key Entities
 
