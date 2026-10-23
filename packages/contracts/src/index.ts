@@ -161,23 +161,7 @@ export {
   type StaffColumnCode,
   type StaffColumnsSettings,
 } from './settings/staff-columns.js';
-export {
-  notificationStatus,
-  notificationFailureCode,
-  notificationParameter,
-  notificationRecipient,
-  notificationRequest,
-  notificationSendAuthorized,
-  notificationResult,
-  deliveryLogItem,
-  deliveryLogQuery,
-  deliveryLogPage,
-  type NotificationRecipient,
-  type NotificationSendAuthorized,
-  type NotificationResult,
-  type DeliveryLogItem,
-  type DeliveryLogQuery,
-} from './notifications.js';
+export * from './notifications.js';
 export {
   inAppRecipient,
   inAppNotification,

@@ -50,9 +50,19 @@ const emailRecipient = z.strictObject({
   safe_parameters: z.array(notificationParameter).max(20),
   send_deadline: timestamp.nullish(),
 });
+// مستلم الدفع: هوية المستخدم والقالب بس؛ مفيش هاتف ولا وجهة ولا لغة، لأنها بتتقرأ من الاشتراك نفسه.
+export const pushRecipient = z.strictObject({
+  channel: z.literal('PUSH'),
+  user_id: id,
+  template_key: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
+  template_revision: z.number().int().positive(),
+  safe_parameters: z.array(notificationParameter).max(20),
+  send_deadline: timestamp.nullish(),
+});
 export const notificationRecipient = z.union([
   z.discriminatedUnion('channel', [whatsappRecipient, emailRecipient]),
   inAppRecipient,
+  pushRecipient,
 ]);
 export const notificationRequest = z
   .object({
@@ -62,6 +72,7 @@ export const notificationRequest = z
   })
   .refine((v) => v.branch_id == null || v.business_id != null);
 export const notificationSendAuthorized = z.strictObject({ company_id: id, attempt_id: id });
+export const pushSendAuthorized = z.strictObject({ company_id: id, attempt_id: id });
 export const notificationResult = z
   .strictObject({
     company_id: id,
@@ -128,6 +139,8 @@ export const deliveryLogPage = z
   .meta({ id: 'DeliveryLogPage' });
 export type NotificationRecipient = z.infer<typeof notificationRecipient>;
 export type NotificationSendAuthorized = z.infer<typeof notificationSendAuthorized>;
+export type PushRecipient = z.infer<typeof pushRecipient>;
+export type PushSendAuthorized = z.infer<typeof pushSendAuthorized>;
 export type NotificationResult = z.infer<typeof notificationResult>;
 export type DeliveryLogItem = z.infer<typeof deliveryLogItem>;
 export type DeliveryLogQuery = z.infer<typeof deliveryLogQuery>;

@@ -1212,6 +1212,13 @@
       "when": 1792713942622,
       "tag": "0174_2026-10-23_push-subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1792717815092,
+      "tag": "0175_2026-10-23_push-attempts",
+      "breakpoints": true
     }
   ]
 }
