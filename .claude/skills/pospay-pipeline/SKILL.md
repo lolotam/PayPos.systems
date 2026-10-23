@@ -564,7 +564,7 @@ records to the server (2026-10-23).
    never built) against the new schema, confirm `/ready`, then restore the current compose file and redeploy `<full-sha>`. A
    previous image that does not start on the new schema is a P1 against the migration: redeploy `<full-sha>` at once,
    keep the release blocked, and open the P1.
-6. On a failure of step 4, redeploy the previous SHA at once, then diagnose. Never leave staging down while diagnosing.
+6. On a failure of step 4, redeploy the previous SHA at once, **with its own compose file** (as in step 5), then diagnose. Never leave staging down while diagnosing.
 
 **Restore `<sha>`:** set `IMAGE_TAG=<sha>` (and, if `deploy/` changed since, that SHA's compose file) and redeploy;
 Dokploy keeps every deployment and its log. The old `/opt/pospay-staging/staging-deploy.sh` path is retired.
