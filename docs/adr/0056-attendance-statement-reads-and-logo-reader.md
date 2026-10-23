@@ -1,4 +1,4 @@
-# ADR-0051 — Attendance statement: where its reads live, the files-owned logo reader, and the request record
+# ADR-0056 — Attendance statement: where its reads live, the files-owned logo reader, and the request record
 
 - **Status:** Proposed — 2026-10-21, with [spec 061](../specs/061-staff-attendance-statement-pdf/spec.md) (Phase 1 row
   27g). It becomes Accepted when sub-PR 1 lands. The number is the next free one on `main` and on every remote branch

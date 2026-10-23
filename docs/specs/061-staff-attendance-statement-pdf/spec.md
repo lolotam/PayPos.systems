@@ -1,12 +1,13 @@
 # Spec 061 — The official attendance statement PDF (Phase 1 row 27g)
 
 > **Status:** Draft · 2026-10-21 · docs-only PR (sub-PR 0 of §9). **No code starts before this spec and
-> [ADR-0051](../../adr/0051-attendance-statement-reads-and-logo-reader.md) are merged.**
+> [ADR-0056](../../adr/0056-attendance-statement-reads-and-logo-reader.md) are merged.**
 > **Owner answers:** ST-Q1…ST-Q5 (batch 14) were answered on 2026-10-12 by Waleed and Abu Salem with the same pick, plus
 > three clarifications by Waleed; they are recorded in
 > [spec 051's owner-questions](../051-staff-employee-number/owner-questions.ar.md) §5–§9 and cited in §3, not asked again.
 > **ST-Q6** (how a shift is identified for the shift filter) was answered by Waleed on 2026-10-21 (PP-15.4, through his
-> super agent) with the recommended option: a shift is a start–end pair from the schedule (BR-11). Recorded in
+> super agent) with the recommended option: a shift is a start–end pair from the schedule (BR-11). Abu Salem picked the
+> same option on the decisions page (batch 40, 2026-10-21), so the answer is final. Recorded in
 > [owner-questions.ar.md](owner-questions.ar.md). No question is open and no sub-PR waits on an owner answer.
 > **Depends on (all merged):** row 27 ([spec 049](../049-staff-attendance-board-report/spec.md), 27b report and its audit),
 > row 8c ([spec 051](../051-staff-employee-number/spec.md), `employee_number`), row 27h
@@ -45,7 +46,7 @@ statement counts it.
 | The request, status and collect endpoints in `staff`, their contracts, the request record table | A schedule of statements or sending them by message |
 | The `attendance-statement` document source and its data reader in the worker | The employee's own statement in her app (row 57b) |
 | The download audit (ST-Q5) | Payroll, deductions, public holidays (spec 049 §7) |
-| The `files`-owned logo bytes reader and its access audit (ADR-0049 §6, ADR-0051) | A page number on every page (needs a renderer option; §10) |
+| The `files`-owned logo bytes reader and its access audit (ADR-0049 §6, ADR-0056) | A page number on every page (needs a renderer option; §10) |
 | The admin download screen, with the shift picker (BR-11) | Named shifts (ST-Q6 option ج, not chosen) |
 
 ## 3. Owner rules (final, cited — not asked again)
@@ -145,7 +146,7 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    logo is bound before a retry; no `file_access_audit` row is written.
 2. A business with a logo: exactly one `file_access_audit` row (`outcome = 'ALLOW'`, actor = the requester, `id =
    render_id`) and one `file`/`access` audit entry per render, even when the job's attempt is retried; every attempt
-   embeds the file recorded on the request row, never a logo bound after it (ADR-0051 §3).
+   embeds the file recorded on the request row, never a logo bound after it (ADR-0056 §3).
 3. A logo replaced or purged between the request and the render: the statement uses the logo bound when the request
    was made (recorded on the request row), or the name only if none was bound or that file no longer qualifies.
 4. With no official names written, the header follows spec 052 BR-11 (the display name).
@@ -190,13 +191,13 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`, nothing written), confirms the employee (when given) with the **same
   candidate rule the branch table uses** (Story 1.4, Story 3.3): she belongs to that business and has a counted
   session or contracted minutes at that branch in the period. The check is the `candidates` part of the shared 27b
-  inputs statement (ADR-0051 §2) limited to that one employee, exposed from `@pospay/db` beside it, so the request
+  inputs statement (ADR-0056 §2) limited to that one employee, exposed from `@pospay/db` beside it, so the request
   refuses exactly the employees the statement would show nothing for; otherwise `404
   ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` before any insert (no request row, no job). An employee whose only activity
   is an OPEN session is refused too: an OPEN session is not counted until it closes (AB-Q9g). Then it reads the
   business's bound `logo_file_id` through a port the API `staff` module owns (`StatementLogoReferenceReader` in
   `staff/ports/`, its `persistence/` adapter calling the shared `@pospay/db` `readBusinessIdentity`; the use case
-  depends only on the port, ADR-0051 §1) and inserts the request row with it (§6.2), so the logo decision of the render, a file or none, is fixed before any attempt. The `branch` guard authorizes the branch by its own stored business, so this check is
+  depends only on the port, ADR-0056 §1) and inserts the request row with it (§6.2), so the logo decision of the render, a file or none, is fixed before any attempt. The `branch` guard authorizes the branch by its own stored business, so this check is
   what stops a business A route with a business B branch from mixing A's identity with B's attendance. After commit it writes the status hash `QUEUED` (`requested_by`, `filename`) with its
   900-second TTL, then adds the BullMQ job `{ company_id, render_id, kind: 'attendance-statement' }` with
   `jobId = render_id` (ADR-0049 §1.1–§1.3), and answers `202 { render_id }`. `render_id` comes from the injected
@@ -230,13 +231,13 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   passes the worker `staff` reader and the worker `files` `readStatementLogo` into that factory, so the `sources/` folder
   imports no module index (the composition-root pattern). The source calls the `staff` reader for the typed statement
   data, then, when the request row recorded a logo, `readStatementLogo`, which audits and reads it in the `files`
-  module's own transaction and step (ADR-0051 §3), then fills the template from `packages/documents` (ADR-0051 §4). The
+  module's own transaction and step (ADR-0056 §3), then fills the template from `packages/documents` (ADR-0056 §4). The
   two calls are sequential, never nested.
 - **FR-011** The `staff` data reader (`readAttendanceStatement(companyId, renderId, signal)`, exported by
   `apps/worker/src/modules/staff/index.ts`) runs one `withTenant(companyId, …, { userId: requested_by })` transaction that
   reads the request row, the business and branch names, the employees with `employee_number`, the period inputs through
-  the shared 27b inputs statement (ADR-0051 §2), the employee's OPEN sessions in the period for the employee form
-  (FR-011a) and the stored identity (ADR-0051 §2), and never calls `files`. It commits, then computes the figures with
+  the shared 27b inputs statement (ADR-0056 §2), the employee's OPEN sessions in the period for the employee form
+  (FR-011a) and the stored identity (ADR-0056 §2), and never calls `files`. It commits, then computes the figures with
   `packages/domain` and returns its internal result `AttendanceStatementData` (a TypeScript type exported from the
   worker `staff` index, not a contract): `businessId`, `requesterUserId` (the request row's `requested_by`),
   `logoFileId` (the request row's `logo_file_id`, untouched, or `null`) and `statement`, the statement data without a
@@ -306,7 +307,7 @@ admin ── POST …/:renderId/download ──▶ api: one withTenant: binding 
 | `period_from`, `period_to` | date NOT NULL | branch-local working dates; CHECK `period_from <= period_to` and at most 366 days |
 | `language` | text NOT NULL | CHECK `IN ('ar','en')` |
 | `shift_start`, `shift_end` | time NULL | the BR-11 pair; CHECK both null or both set, and set only when `form = 'BRANCH'` |
-| `logo_file_id` | uuid NULL | the business's bound logo when the request was made, read through the shared `@pospay/db` `readBusinessIdentity` in the request transaction; null = no logo. No FK (ADR-0051 §5) |
+| `logo_file_id` | uuid NULL | the business's bound logo when the request was made, read through the shared `@pospay/db` `readBusinessIdentity` in the request transaction; null = no logo. No FK (ADR-0056 §5) |
 | `requested_by` | uuid NOT NULL | the user; the binding of ADR-0049 §1.5 |
 | `requested_at` | timestamptz NOT NULL | from the injected clock |
 
@@ -374,8 +375,8 @@ no `files` or `settings` permission to see the logo in her statement (ADR-0046 �
 
 ### 6.9 Module map
 
-ADR-0051: no new import arrow and no `sync_writes` row. The worker `staff` reader never calls `files`; the documents
-source calls `files` `readStatementLogo`, which writes its own access audit in its own transaction (ADR-0051 §3). The
+ADR-0056: no new import arrow and no `sync_writes` row. The worker `staff` reader never calls `files`; the documents
+source calls `files` `readStatementLogo`, which writes its own access audit in its own transaction (ADR-0056 §3). The
 `staff` reads of identity go through module-owned ports to `@pospay/db` (worker `StatementIdentityReader`, API
 `StatementLogoReferenceReader`), and the 27b inputs statement is shared through `@pospay/db`; `apps/worker/src/documents/` imports `@pospay/documents` (already allowed)
 and no module index: `apps/worker/src/main.ts` injects the `staff` reader and the `files` logo reader into the source
@@ -421,8 +422,8 @@ factory. The code PRs add the two port rows.
 
 | # | PR | Content |
 |---|---|---|
-| 0 | docs (this PR) | spec 061, ADR-0051, owner question ST-Q6 (answered) |
-| 1 | shared reads + logo reader | move the identity read statement to `@pospay/db` and `statementIdentity` to `packages/domain` (settings re-exports both, no behaviour change); move the 27b inputs statement to `@pospay/db` (27b unchanged, its EXPLAIN and shape tests follow it); worker `files` `readStatementLogo` with its own transaction and the once-per-render access audit (ADR-0051 §2–§3) |
+| 0 | docs (this PR) | spec 061, ADR-0056, owner question ST-Q6 (answered) |
+| 1 | shared reads + logo reader | move the identity read statement to `@pospay/db` and `statementIdentity` to `packages/domain` (settings re-exports both, no behaviour change); move the 27b inputs statement to `@pospay/db` (27b unchanged, its EXPLAIN and shape tests follow it); worker `files` `readStatementLogo` with its own transaction and the once-per-render access audit (ADR-0056 §2–§3) |
 | 2 | schema, contracts, domain | migration + RLS + negative test for `attendance_statement_requests` (with the shift columns); contracts (request body, status, `attendanceStatementDocument`); `packages/domain` period, day-by-day and BR-11 shift-day functions with unit tests |
 | 3 | worker | worker `staff` `readAttendanceStatement` and the OPEN-sessions query (FR-011a); template; source (staff reader, then `files` `readStatementLogo`) and its registration in `main.ts` |
 | 4 | API | request and collect use cases (with the shift filter, the business–branch check and the `StatementLogoReferenceReader` port and adapter), the status and shift-options `queries/` reads with the status read interface beside its query (FR-005, FR-001a), the guard, the rate limit, the audit entry and every refusal test |
