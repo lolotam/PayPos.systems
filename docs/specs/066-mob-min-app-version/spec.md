@@ -105,11 +105,15 @@ it is online (APP-Q19).
   most **3 seconds** while the read runs. If the answer arrives in time, it decides; if not, the app opens normally.
   Every read (cold start or later) ends after **10 seconds** in total: an answer arriving before that still applies (a
   «must update» answer then covers whatever is showing), and an answer arriving after it is discarded and counts as a
-  failed check. Checks after the cold start run in the background, with no loading notice.
+  failed check. The read passes `connectTimeout` and `readTimeout` of 10 000 ms to `CapacitorHttp`, and the app also
+  keeps its own 10-second deadline, so a stalled native request can never hold it. Checks after the cold start run in
+  the background, with no loading notice.
 - **FR-002**: The version file MUST be a static file served by the POS host and changed only by a deploy. There is no
   API route (`CLAUDE.md` §6 allows no unguarded endpoint). Its URL is
   `https://<the flavour's POS host>/app-version/<flavour>.json`, with flavour `staging` or `production`. The same POS
-  image serves both environments, so the flavour, not the host, picks the entry.
+  image serves both environments, so the flavour, not the host, picks the entry. The flavour is a build constant of the
+  native build (`VITE_FLAVOUR`, set in the `native` mode of `apps/pos/vite.config.ts` from `FLAVOUR`, like
+  `VITE_POS_HOST` in spec 065), never read from the page: on iOS both flavours run on `capacitor://localhost`.
 - **FR-003**: The app MUST read the file through Capacitor's native HTTP (`CapacitorHttp`, part of `@capacitor/core`),
   never through a WebView `fetch`. On Android the app's own hostname is the POS host, and Capacitor answers it from the
   bundled assets (ADR-0055 decision 3). On iOS a WebView read from `capacitor://localhost` would need CORS. No new
@@ -203,7 +207,8 @@ None published, none consumed.
   behind one platform module):
   - `VER-T05` the «must update» screen covers the start screen, the counter flow and the employee flow, and shows
     only the store button.
-  - `VER-T06` offline at start → the normal start screen.
+  - `VER-T06` a read requires an update and the screen shows; the app is closed and started again offline → the
+    normal start screen (nothing was stored); the network returns → a fresh read shows the screen again.
   - `VER-T07` a malformed file → the normal start screen.
   - `VER-T08` returning to the foreground after `minimum` was raised → the screen appears.
   - `VER-T09` the throttle: a foreground, online or timer trigger within 15 minutes of a successful read makes no
