@@ -8,7 +8,8 @@
 
 **Input**: Track MOB, plan row M-1·0 ([plan.md](plan.md)). Wrap the existing `apps/pos` build in a Capacitor shell for
 iOS and Android, as decided in `docs/adr/0055-store-apps-capacitor-shell.md`. Owner decisions: APP-Q1 … APP-Q8
-([owner-questions.ar.md](owner-questions.ar.md)); new question APP-Q9 (PENDING).
+([owner-questions.ar.md](owner-questions.ar.md)); new questions APP-Q9 … APP-Q18 (PENDING), asked in one batch so
+M-1a … M-1f need no further owner question.
 
 **Scope.** The shell, its start screen, offline cold start, the checks of the auth spike (M-1c), and what is hidden on
 native. Out of scope: signed builds and store uploads (M-2), the cashier selling screens (MOB-18, not built yet in the
@@ -135,8 +136,10 @@ start screen again.
 - **FR-006**: A single platform port MUST report, per capability, whether it is available: Web Push (never on native),
   passkeys (off on iOS until #536 and O-4 are done; on Android per M-1c's result), camera (per M-1c). Screens read the
   port; no screen tests the platform itself.
-- **FR-007**: A capability that is off MUST hide its control and show one line pointing to the web app.
-- **FR-008**: Changing the device's role MUST sign out every session on the device, clear private forms and caches,
+- **FR-007**: A capability that is off MUST hide its control; what replaces it is [NEEDS CLARIFICATION: APP-Q17 — ⭐ a
+  line pointing to the web app with a link].
+- **FR-008**: Who may change the device's role: [NEEDS CLARIFICATION: APP-Q16 — ⭐ anyone holding the device, after a
+  clear confirmation]. Changing it MUST sign out every session on the device, clear private forms and caches,
   forget the remembered business, and, for a counter device, remove the local pairing only after confirmation.
 - **FR-009**: Nothing new is stored about the person: no phone number, code or session token is persisted by the app
   beyond what the PWA already does (ADR-0019 online-only rule).
@@ -159,6 +162,25 @@ start screen again.
 - **BR-002**: The remembered business is a hint; the server still decides eligibility on every request (ADR-0027).
 - **BR-003**: A hidden capability is hidden for everyone on that platform build; there is no per-user override.
 - **BR-004**: How the business is learned on first use: [NEEDS CLARIFICATION: APP-Q9].
+
+### Owner decisions this spec waits on (all PENDING, one batch)
+
+| Question | Decides | Needed by |
+|---|---|---|
+| APP-Q9 | how the employee connects the app to her business the first time | M-1a (employee connect step) |
+| APP-Q10 | app icon and colours | M-1e |
+| APP-Q11 | splash screen | M-1e |
+| APP-Q12 | language on first launch | M-1a |
+| APP-Q13 | how the staging flavour is marked | M-1e |
+| APP-Q14 | screen rotation on tablets and phones | M-1a |
+| APP-Q15 | what an owner or manager sees in the app before MOB-15 | M-1a |
+| APP-Q16 | who may change the device's role | M-1a |
+| APP-Q17 | what replaces a control that is off on native | M-1d |
+| APP-Q18 | when an update is forced (M-1f's policy) | M-1f |
+
+Not asked, because already decided: card attendance on the counter device is online-only
+(`apps/pos/src/attendance/api/clock-by-card.ts`), and what the cashier does offline is set by `CLAUDE.md` §7 (the
+POS is local-first) and §8 (payment state only from the server) for the selling slices of MOB-18.
 
 ### Schema changes
 
@@ -214,8 +236,8 @@ None published, none consumed.
 
 ## Assumptions
 
-- The start screen's wording, and the place of «تغيير نوع الجهاز» (a settings entry), are UI details decided in M-1a
-  with the `packages/ui` components; they are not business rules.
+- The start screen's wording and the place of «تغيير نوع الجهاز» (a settings entry) are UI details decided in M-1a
+  with the `packages/ui` components; who may use it is APP-Q16.
 - A personal phone may not be both an employee phone and a counter device at the same time (BR-001). If the owners
   later want one phone to do both, that is a new decision.
 - Attendance by passkey on iOS stays hidden until issue #536 and O-4 are done; the employee uses the PWA or the counter

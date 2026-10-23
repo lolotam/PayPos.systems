@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — **APP-Q9 PENDING** (FR-011, BR-004: how the app learns the employee's business on first use). M-1a can build everything except the employee "connect" step until it is answered.
+- [ ] No [NEEDS CLARIFICATION] markers remain — **APP-Q9 … APP-Q18 PENDING** (one batch; FR-007, FR-008, FR-011, BR-004 and the table «Owner decisions this spec waits on»). Each sub-PR starts once the questions it needs are answered.
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -27,7 +27,7 @@
 
 - [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
-- [ ] Feature meets measurable outcomes defined in Success Criteria — after APP-Q9
+- [ ] Feature meets measurable outcomes defined in Success Criteria — after APP-Q9 … APP-Q18
 - [x] No implementation details leak into specification
 
 ## Notes
