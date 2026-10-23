@@ -9,6 +9,7 @@ import {
 } from '../notifications.js';
 
 const ID = '01920000-0000-7000-8000-000000000001';
+const OTHER_ID = '01920000-0000-7000-8000-000000000002';
 const push = {
   channel: 'PUSH',
   user_id: ID,
@@ -109,4 +110,70 @@ it('carries a push terminal result without a recipient user', () => {
   };
   expect(notificationResult.parse(result)).toEqual(result);
   expect(notificationResult.safeParse({ ...result, recipient_user_id: ID }).success).toBe(false);
+});
+
+it('carries every push failure code of a push attempt', () => {
+  const codes = [
+    'DEADLINE_EXPIRED',
+    'SUBSCRIPTION_GONE',
+    'SUBSCRIPTION_CHANGED',
+    'SUBSCRIPTION_REVOKED',
+    'KEY_ROTATED',
+    'ADMISSION_REFUSED',
+    'VAPID_REJECTED',
+    'PROVIDER_4XX',
+    'PROVIDER_429',
+    'PROVIDER_5XX',
+    'NETWORK_UNKNOWN',
+  ];
+  const base = {
+    company_id: ID,
+    attempt_id: ID,
+    source_event_id: ID,
+    business_id: null,
+    branch_id: null,
+    channel: 'PUSH',
+    template_key: 'shift_not_clocked_in_self',
+    locale: 'ar',
+    status: 'FAILED',
+    occurred_at: '2026-10-23T10:00:00Z',
+    evidence: 'NONE',
+    outcome_known: true,
+  };
+  for (const failure_code of codes)
+    expect(notificationResult.safeParse({ ...base, failure_code }).success).toBe(true);
+  expect(notificationResult.safeParse({ ...base, failure_code: 'NOT_A_CODE' }).success).toBe(false);
+});
+
+it('keeps the employee push in a request of its own', () => {
+  const inApp = {
+    channel: 'IN_APP',
+    user_id: ID,
+    locale: 'ar',
+    template_key: 'generic_notice',
+    template_revision: 1,
+    safe_parameters: [{ name: 'subject', type: 'text', value: 'Synthetic subject' }],
+  };
+  const whatsapp = {
+    channel: 'whatsapp',
+    phone: '+96500000001',
+    locale: 'ar',
+    template_key: 'document_expiring',
+    template_revision: 1,
+    safe_parameters: [],
+  };
+  expect(notificationRequest.safeParse({ notification_recipients: [push, inApp] }).success).toBe(
+    false,
+  );
+  expect(notificationRequest.safeParse({ notification_recipients: [push, whatsapp] }).success).toBe(
+    false,
+  );
+  expect(
+    notificationRequest.safeParse({
+      notification_recipients: [push, { ...push, user_id: OTHER_ID }],
+    }).success,
+  ).toBe(true);
+  expect(
+    notificationRequest.safeParse({ notification_recipients: [inApp, whatsapp] }).success,
+  ).toBe(true);
 });

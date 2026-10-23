@@ -27,6 +27,14 @@ export const notificationFailureCode = z.enum([
   'NETWORK_UNKNOWN',
   'RESPONSE_INVALID',
 ]);
+export const pushFailureCode = z.enum([
+  'SUBSCRIPTION_GONE',
+  'SUBSCRIPTION_CHANGED',
+  'SUBSCRIPTION_REVOKED',
+  'KEY_ROTATED',
+  'VAPID_REJECTED',
+  'PROVIDER_429',
+]);
 export const notificationParameter = z.strictObject({
   name: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
   type: z.enum(['text', 'number']),
@@ -64,13 +72,21 @@ export const notificationRecipient = z.union([
   inAppRecipient,
   pushRecipient,
 ]);
+// إشعار الموظف لازم يسافر في طلب لوحده؛ ما يتخلطش بجموعة المديرين (BR-008).
+const pushIsAlone = (request: {
+  notification_recipients: readonly { channel: string }[];
+}): boolean => {
+  const push = request.notification_recipients.filter((recipient) => recipient.channel === 'PUSH');
+  return push.length === 0 || push.length === request.notification_recipients.length;
+};
 export const notificationRequest = z
   .object({
     business_id: id.nullish(),
     branch_id: id.nullish(),
     notification_recipients: z.array(notificationRecipient).min(1).max(100),
   })
-  .refine((v) => v.branch_id == null || v.business_id != null);
+  .refine((v) => v.branch_id == null || v.business_id != null)
+  .refine(pushIsAlone);
 export const notificationSendAuthorized = z.strictObject({ company_id: id, attempt_id: id });
 export const pushSendAuthorized = z.strictObject({ company_id: id, attempt_id: id });
 export const notificationResult = z
@@ -87,7 +103,7 @@ export const notificationResult = z
     status: z.enum(['SENT', 'FAILED', 'EXPIRED', 'SUPPRESSED']),
     occurred_at: timestamp,
     evidence: z.enum(['PROVIDER_ACCEPTED', 'IN_APP_STORED', 'NONE']),
-    failure_code: notificationFailureCode.optional(),
+    failure_code: z.union([notificationFailureCode, pushFailureCode]).optional(),
     outcome_known: z.boolean(),
   })
   .refine((value) =>
@@ -141,6 +157,7 @@ export type NotificationRecipient = z.infer<typeof notificationRecipient>;
 export type NotificationSendAuthorized = z.infer<typeof notificationSendAuthorized>;
 export type PushRecipient = z.infer<typeof pushRecipient>;
 export type PushSendAuthorized = z.infer<typeof pushSendAuthorized>;
+export type PushFailureCode = z.infer<typeof pushFailureCode>;
 export type NotificationResult = z.infer<typeof notificationResult>;
 export type DeliveryLogItem = z.infer<typeof deliveryLogItem>;
 export type DeliveryLogQuery = z.infer<typeof deliveryLogQuery>;

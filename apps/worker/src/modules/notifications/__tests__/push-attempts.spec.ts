@@ -164,7 +164,7 @@ it('accepts a request that holds only push recipients, one per user', async () =
   expect(await h.authorized(event.id)).toHaveLength(3);
 });
 
-it('stores the in-app rows and the push attempts independently in one request', async () => {
+it('ignores a request that mixes a push recipient with another channel', async () => {
   const event = await h.request([
     {
       channel: 'IN_APP',
@@ -177,10 +177,10 @@ it('stores the in-app rows and the push attempts independently in one request', 
     pushRecipient(),
   ]);
   expect(await h.deliver(event)).toEqual({ delivered: true });
-  expect(await h.inbox(event.id)).toHaveLength(1);
-  expect(await h.attempts(event.id)).toHaveLength(2);
-  expect(await h.authorized(event.id)).toHaveLength(2);
+  expect(await h.attempts(event.id)).toHaveLength(0);
+  expect(await h.inbox(event.id)).toHaveLength(0);
   expect(await h.phoneAttempts(event.id)).toHaveLength(0);
+  expect(await h.authorized(event.id)).toHaveLength(0);
 });
 
 it('accepts a request whose branch name is rejected in both languages', async () => {
