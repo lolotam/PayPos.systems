@@ -1,0 +1,27 @@
+{
+  "name": "@pospay/business",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "sync": "node ./scripts/sync.mjs staging",
+    "sync:staging": "node ./scripts/sync.mjs staging",
+    "sync:production": "node ./scripts/sync.mjs production"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/ios": "8.5.3",
+    "@pospay/pos": "workspace:*"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3",
+    "@pospay/config": "workspace:*",
+    "@types/node": "24.13.6",
+    "eslint": "10.11.0",
+    "typescript": "6.0.3"
+  }
+}
