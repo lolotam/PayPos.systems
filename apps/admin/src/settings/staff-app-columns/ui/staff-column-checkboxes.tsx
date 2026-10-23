@@ -11,9 +11,11 @@ import type { StaffColumnsDraft } from '../model/staff-columns-save-body';
 export function StaffColumnCheckboxes({
   defaultInEffect,
   disabled,
+  error,
 }: {
   defaultInEffect: boolean;
   disabled: boolean;
+  error?: string | undefined;
 }) {
   const locale = useLocale();
   const { field } = useController<StaffColumnsDraft, 'columns'>({ name: 'columns' });
@@ -51,6 +53,11 @@ export function StaffColumnCheckboxes({
           </div>
         );
       })}
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
     </fieldset>
   );
 }

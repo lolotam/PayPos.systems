@@ -1,51 +1,22 @@
-import type { StaffColumnsSettings } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
+import {
+  businessId,
+  checkbox,
+  companyId,
+  refusal,
+  renderPage,
+  settings,
+  userId,
+} from './fixtures/staff-app-columns-page.fixture';
 import { StaffAppColumnsPage } from './staff-app-columns-page';
 
 const api = vi.hoisted(() => ({ GET: vi.fn(), PUT: vi.fn() }));
 const locale = vi.hoisted(() => ({ value: 'en' as Locale }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => locale.value }));
-
-const companyId = '01920000-0000-7000-8000-0000000000a2';
-const userId = '01920000-0000-7000-8000-0000000000a3';
-const businessId = '01920000-0000-7000-8000-0000000000a4';
-
-function settings(overrides: Partial<StaffColumnsSettings> = {}): StaffColumnsSettings {
-  return {
-    business_id: businessId,
-    columns: ['date', 'time', 'service'],
-    columns_default: true,
-    months_back: 2,
-    months_back_default: true,
-    ...overrides,
-  };
-}
-
-function refusal(status: number) {
-  return {
-    error: { code: 'FORBIDDEN', message_ar: 'Synthetic refusal', message_en: 'Synthetic refusal' },
-    response: { status },
-  };
-}
-
-function renderPage() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={client}>
-      <StaffAppColumnsPage companyId={companyId} userId={userId} businessId={businessId} />
-    </QueryClientProvider>,
-  );
-}
-
-function checkbox(name: string): HTMLInputElement {
-  return screen.getByRole('checkbox', { name }) as HTMLInputElement;
-}
 
 function monthsField(): HTMLInputElement {
   return screen.getByLabelText(t(locale.value, 'staffAppColumns.monthsLabel')) as HTMLInputElement;

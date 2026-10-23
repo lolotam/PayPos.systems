@@ -11,9 +11,11 @@ const MONTHS_FIELD_ID = 'staff-months-back';
 export function StaffMonthsBackField({
   defaultInEffect,
   disabled,
+  error,
 }: {
   defaultInEffect: boolean;
   disabled: boolean;
+  error?: string | undefined;
 }) {
   const locale = useLocale();
   const form = useFormContext<StaffColumnsDraft>();
@@ -37,6 +39,11 @@ export function StaffMonthsBackField({
         className="tabular-nums"
       />
       <p className="text-sm text-muted-foreground">{t(locale, 'staffAppColumns.monthsHint')}</p>
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
     </fieldset>
   );
 }

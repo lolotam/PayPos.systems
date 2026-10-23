@@ -15,6 +15,7 @@ export function StaffAppColumnsPage(props: {
   const locale = useLocale();
   const query = useStaffColumns(props.companyId, props.userId, props.businessId);
   const settings = query.data;
+  const refused = query.isError && isStaffColumnsRefusal(query.error);
   return (
     <section className="flex min-w-0 flex-col gap-8 text-start">
       <PageHeader
@@ -32,7 +33,7 @@ export function StaffAppColumnsPage(props: {
           )}
         </div>
       ) : null}
-      {settings && !query.isError ? (
+      {settings && !refused ? (
         <StaffColumnsForm
           key={props.businessId}
           companyId={props.companyId}
