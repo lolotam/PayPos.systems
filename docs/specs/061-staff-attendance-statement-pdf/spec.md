@@ -12,8 +12,9 @@
 > **ST-Q7** (what the leave column counts under a shift filter) is **PENDING** (`TODO(spec)` in BR-11 and §6.6). Until
 > it is answered no shift-filtered statement ships (§9); the statement without a shift filter does not wait on it.
 > **ST-Q8** (whether contracted hours of a date whose default hours have not ended at the request count, and whether
-> approved leave on it subtracts) is **PENDING** (`TODO(spec)` in FR-013a and FR-003). Until it is answered, the
-> interim cap of §9 stops every statement at the day before the request date and prints «حتى <التاريخ>».
+> approved leave on it subtracts) is **PENDING** (`TODO(spec)` in FR-013a). Until it is answered a feature gate
+> applies (Story 3.4a, §9 row G): only a period that has fully ended is accepted, so no partly ended date exists.
+> Answering ST-Q8 lifts the gate.
 > **Depends on (all merged):** row 27 ([spec 049](../049-staff-attendance-board-report/spec.md), 27b report and its audit),
 > row 8c ([spec 051](../051-staff-employee-number/spec.md), `employee_number`), row 27h
 > ([spec 052](../052-settings-business-identity/spec.md), official names and logo, 27h-1…27h-5), row 27i
@@ -105,9 +106,9 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 4. The PDF has `dir="rtl" lang="ar"`, the logo and the Arabic official name, «فرع السالمية», the period, one row per
    employee with any counted session or contracted minutes at the branch in the period, a signature column, the
    manager's signature line and the footer (BR-01, BR-02, BR-04, BR-06).
-5. For a month whose every shift end and default-entry end is at or before the request, each row's figures equal the
-   27b monthly report row of the same employee, branch and month read at the same moment (parity test). Otherwise they
-   cover only what had happened at the request (FR-013a).
+5. Each row's figures equal the 27b monthly report row of the same employee, branch and month read at the same
+   moment (parity test). Admission (FR-003) is only a quick pre-check: if the render finds the employee or the whole
+   statement empty, the status ends `FAILED / STATEMENT_EMPTY` and no PDF is produced.
 6. **Given** سارة always on 09:00–20:00, هبة always on 08:00–16:00 and ريم on 09:00–20:00 on some days and 08:00–16:00 on
    others, **when** the manager filters October by the shift 09:00–20:00, **then** the table has سارة with all her days
    and ريم with her 09:00–20:00 days only; هبة has no row; contracted hours and difference print «—» (BR-11).
@@ -122,10 +123,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    MANUAL session) and the day's worked hours; a date with an uncorrected missed clock-out shows «ناقص بصمة خروج» /
    "Missing clock-out" and adds 0 hours (BR-05); a date with approved leave shows the leave type; a date with a
    scheduled shift and no counted session shows the scheduled times and «لا يوجد حضور مسجّل» / "No attendance
-   recorded"; any other date shows the date only. A shift that had not ended at the request (FR-013a), on any date,
-   adds nothing and never prints «لا يوجد حضور مسجّل»; a date with nothing counted, no shift that had ended, no OPEN
-   session and no approved leave shows the date only. An OPEN session (at render time) always shows «لسه جوّه» on its
-   date, and approved leave always shows its type.
+   recorded"; any other date shows the date only. An OPEN session (at render time) always shows «لسه جوّه» on its
+   date.
 3. The totals under the table are the 27b columns for that employee and period, then her signature line and the
    manager's (BR-04).
 
@@ -134,15 +133,19 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 1. A user without `read:attendance:branch` on the branch gets `403` on request, status and collect.
 2. Another user, another company, an unknown `render_id` and an id requested for another branch all get the same `404`
    on status and collect (ADR-0049 §1.5).
-3. An employee who has no session and no contracted minutes at the branch in the period up to the cutoff (FR-013a),
-   which includes every period with only future dates, or who belongs to another
+3. An employee who has no session and no contracted minutes at the branch in the period, or who belongs to another
    business or company: `404 ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND`, no request row, no job (FR-003). This is the
    same rule that decides who has a row in the branch table (Story 1.4).
    A route whose branch belongs to another business of the same company: `404 ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`,
    no request row, no job (FR-003).
 4. `from > to`, a period longer than 366 days, or `to` after the last day of the current month in the branch time
-   zone (so the current month can be asked for on any day; its future dates show the date only, Story 2.2):
-   `422 ATTENDANCE_STATEMENT_PERIOD_INVALID`.
+   zone: `422 ATTENDANCE_STATEMENT_PERIOD_INVALID`.
+   4a. **Temporary, until ST-Q8 is answered (§9 row G):** a period that has not fully ended gets `422
+   ATTENDANCE_STATEMENT_PERIOD_NOT_ENDED`, no request row, no job. A period has fully ended when `to` is before the
+   request's branch-local date and every scheduled shift end and default working-hours entry end (an overnight entry
+   ends the next day) on every date up to `to` is at or before the request instant. Example: at 01:00 on 23 October,
+   1–22 October with a 22:00–06:00 entry on 22 October is refused; at 06:00 it is accepted. This is a feature gate,
+   not a calculation rule. Answering ST-Q8 lifts it.
 5. The renderer is down (no `documents:renderer-alive` key): `503 RENDERER_UNAVAILABLE`, no request row, no job.
 6. More than 20 requests by the same user in one fixed hourly window: `429 ATTENDANCE_STATEMENT_RATE_LIMITED`.
 7. The staff feature is disabled for the business: the same refusal as the monthly report (`@RequiresFeature('staff')`).
@@ -201,18 +204,19 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   time zone (the branch's, otherwise the business's, through the `tenancy.describeWorkspaces` read staff already uses)
   and only then checks the ceiling of Story 3.4: `to` must not pass the last day of the month that the injected `Clock`
   falls in **in that time zone** (at 22:00 UTC on 31 October it is already November in `Asia/Kuwait`, so November is
-  the current month). A violation is `422 ATTENDANCE_STATEMENT_PERIOD_INVALID` with nothing written. The same
+  the current month). A violation is `422 ATTENDANCE_STATEMENT_PERIOD_INVALID` with nothing written. It then applies
+  the ST-Q8 gate (Story 3.4a), `TODO(spec)` ST-Q8: a period that has not fully ended at the injected `Clock` instant (the
+  same instant stored as `requested_at`) is `422 ATTENDANCE_STATEMENT_PERIOD_NOT_ENDED` with nothing written; it reads
+  the employees' schedule shifts and default working-hours entries up to `to` for that check. The same
   transaction then confirms that the route's branch belongs to
   the route's business (`branches` row with `(company_id, business_id, id)`; otherwise `404
   ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`, nothing written), confirms the employee (when given) with the **same
   candidate rule the branch table uses** (Story 1.4, Story 3.3): she belongs to that business and has a counted
-  session or contracted minutes at that branch in the FR-013a counted range, with the injected `Clock` instant as the
-  cutoff (the same instant stored as `requested_at`): `from` to the earlier of `to` and the day before the cutoff
-  date, the interim cap of §9 (`TODO(spec)` ST-Q8). A period with no date in that range, every period of only today
-  or future dates included, is refused here and never reaches the worker. The check is the `candidates` part of the
-  shared 27b inputs statement (ADR-0056 §2) limited to that one employee and run over the capped range, exposed from
-  `@pospay/db` beside it; the 27b statement stays unchanged. So the request
-  refuses exactly the employees the statement would show nothing for; otherwise `404
+  session or contracted minutes at that branch in the period. The check is the `candidates` part of the shared 27b
+  inputs statement (ADR-0056 §2) limited to that one employee, exposed from `@pospay/db` beside it; the 27b statement
+  stays unchanged. It is a quick pre-check on the current state, and the render reads the current state again
+  (FR-013a): if the render then finds the employee or the whole statement empty, the job ends `FAILED /
+  STATEMENT_EMPTY` (a visible status, FR-005) and no PDF is produced. Otherwise `404
   ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` before any insert (no request row, no job). An employee whose only activity
   is an OPEN session is refused too: an OPEN session is not counted until it closes (AB-Q9g). Then it reads the
   business's bound `logo_file_id` through a port the API `staff` module owns (`StatementLogoReferenceReader` in
@@ -229,7 +233,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   test and `EXPLAIN` assertion), and the Redis status hash through a read-side interface declared **beside the query**
   in `queries/` (`DocumentStatusRead`, as `EmployeeDetailAccess` sits beside its query, module map §3), not in
   `ports/`; the module wiring supplies its Redis adapter from `persistence/` (the same Redis keys ADR-0049 §1.3 names). It writes
-  nothing and imports no `domain/` or `use-cases/`. It returns `{ state, error_code? }` (`QUEUED | RENDERING | READY |
+  nothing and imports no `domain/` or `use-cases/`. It returns `{ state, error_code? }` (`error_code` includes
+  `STATEMENT_EMPTY`, FR-013a; `QUEUED | RENDERING | READY |
   FAILED | EXPIRED | CONSUMED`) with `Cache-Control: no-store`. It answers `404` unless the request row exists in the
   tenant, its branch is the route branch, and `requested_by` is the caller (ADR-0049 §1.5).
 - **FR-006** `POST …/attendance-statements/:renderId/download` collects the PDF once (§6.4) and replies
@@ -278,36 +283,20 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   breakdown for the employee form, plus the BR-11 day selection: the working dates whose schedule shift at the branch,
   in branch-local time, starts and ends at the pair; on such a date the counted sessions are those the 27b rules
   attribute to the matching shift (on a split-shift day, the other shift's sessions are left out). Each has exhaustive
-  unit tests, including a parity test that a full calendar month with no shift filter gives the 27b row when every
-  relevant shift end and default-entry end of that month is at or before `requested_at` and both are computed from the
-  same inputs (FR-013a).
-- **FR-013a** What has not happened yet. The cutoff is the instant `requested_at` of the request row; the cutoff date
-  is its branch-local date (the branch time zone, or the business's when the branch has none, as in Story 3.4). The
-  counted range runs from `from` to the earlier of `to` and the day before the cutoff date: the interim cap of §9,
-  kept until ST-Q8 is answered (`TODO(spec)` ST-Q8). When the cap shortens the period, the header prints the period's
-  end as «حتى <التاريخ>» / "Up to <date>" with the capped date. Every figure, both forms' totals, the branch rows, the
-  BR-11 day selection and who has a row (Story 1.4, Story 3.3) is computed over that range.
-  - **The only instant rule:** `requested_at` decides which scheduled shifts and default working-hours entries had
-    ended. A scheduled shift counts (its scheduled minutes, lateness and «لا يوجد حضور مسجّل») only when its `ends_at`
-    is at or before `requested_at`. At 01:00 a 22:00–06:00 shift of the previous working date has not ended, so it
-    stays attributed to its working date (AB-Q9b) but adds nothing.
+  unit tests, including a parity test that a full calendar month with no shift filter gives the 27b row when both are
+  computed from the same inputs.
+- **FR-013a** Which state is counted. Until ST-Q8 is answered, only a period that has fully ended is accepted (the ST-Q8 gate (Story 3.4a),
+  FR-003), so every date of the period has fully ended and every figure follows the 27b rules unchanged, with no
+  partly ended date and no date after the period. `TODO(spec)` ST-Q8: how a partly ended date counts (contracted
+  minutes of a date whose default hours have not ended, and leave subtracted from them) is settled by ST-Q8, which
+  also lifts the gate.
   - **Render-time state:** sessions, approved leave and schedule shifts are read in their state at render time, as
-    27b reads them. An edit made after the request (a void, a correction, a leave decision, a schedule edit) changes
-    the figures, and a retry reads them again (`TODO(spec)`, issue #552: freezing the inputs at the request is a
-    separate design). A session prints «لسه جوّه» only when it is still OPEN at render time, and a `MISSED_OUT`
-    session is judged by its state at render.
-  - **Contracted minutes:** `TODO(spec)` ST-Q8: whether a date whose default working-hours entry has not ended at
-    `requested_at` adds its contracted minutes, and whether an approved leave on that date subtracts from them,
-    waits on the owner answer. Until then the cap keeps the cutoff date out of the range, and the dates in it count
-    their contracted minutes as 27b does. An approved leave is shown in the leave column and on the employee form
-    whatever the answer.
-
-  A date prints as the date only when it has no counted session, no OPEN session, no approved leave and no scheduled
-  shift that had ended. Every date after the counted range is such a date unless it has approved leave (Story 2.2). An
-  OPEN session always prints «لسه جوّه» on its own date, and approved leave always shows its type, so neither date
-  becomes date-only. A period with nothing counted counts nothing: Story 3.3 refuses the employee form, and the branch
-  table has no row. FR-003's request-time check uses the same capped range. This is what Story 3.4's «its future dates
-  show the date only» already says, applied at the instant of the request.
+    27b reads them, and admission reads the same current state. An edit made after the request (a void, a correction,
+    a leave decision, a schedule edit) changes the figures, and a retry reads them again (`TODO(spec)`, issue #552:
+    freezing the inputs at the request is a separate design). A session prints «لسه جوّه» when it is still OPEN at
+    render time, inside an accepted period too, and a `MISSED_OUT` session is judged by its state at render.
+  - **Empty at render:** if the render finds the requested employee, or every branch row, empty, the job ends `FAILED
+    / STATEMENT_EMPTY` and no PDF is produced.
 - **FR-014** The template's input is a Zod schema in `packages/contracts` (`attendanceStatementDocument`). The source
   builds it, after the two calls of FR-010, from the reader's `statement` (FR-011) and the `readStatementLogo` result
   encoded as `logo: { content_type, base64 }`, or `logo: null` when `logoFileId` is `null` or the logo reader returned
@@ -418,6 +407,7 @@ no `files` or `settings` permission to see the logo in her statement (ADR-0046 �
 | Code | HTTP | When |
 |---|---|---|
 | `ATTENDANCE_STATEMENT_PERIOD_INVALID` | 422 | Story 3.4 |
+| `ATTENDANCE_STATEMENT_PERIOD_NOT_ENDED` | 422 | Story 3.4a, temporary until ST-Q8 is answered (in the contracts error codes, with i18n ar/en) |
 | `ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` | 404 | Story 3.3 |
 | `ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND` | 404 | Story 3.3, FR-003: the route's branch is not in the route's business |
 | `ATTENDANCE_STATEMENT_RATE_LIMITED` | 429 | FR-008 |
@@ -441,15 +431,8 @@ factory. The code PRs add the two port rows.
   edges, AB-Q11 leave at every branch, AB-Q12 deletion; day-by-day rows (sessions, MISSED_OUT with and without
   correction, MANUAL, OPEN, overnight, leave, scheduled with no session); BR-11 shift-day selection (one pair, a
   split-shift day, an overnight shift, a pair that matches nothing, «—» for contracted and difference); parity with 27b
-  for full months whose every shift and default-entry end is at or before the cutoff, with no filter; at the month
-  end, an October statement requested at 01:00 on 1 November (`Asia/Kuwait`) with a 22:00–06:00 shift on 31 October
-  is not asserted equal to 27b (the shift adds nothing), and the same request at 06:00 or later equals the 27b row;
-  the interim cap with a fixed date: October 2026 with the cutoff date 2026-10-23 counts 1–22 October, prints «حتى 22
-  أكتوبر 2026» / "Up to 22 October 2026", and 23–31 October print the date only, even on a scheduled date; at 01:00 on
-  23 October a 22:00–06:00 shift of 22 October adds no minutes and prints no «لا يوجد حضور مسجّل», while it counts
-  once the request is after 06:00; an OPEN session at render prints «لسه جوّه» on its date even when nothing else on
-  that date had ended; an approved full-day leave after the counted range shows its type; the cases for the cutoff
-  date itself (a 10:00 request and a 17:00 shift) follow ST-Q8 (`TODO(spec)`).
+  for full months computed from the same inputs, with no filter; an OPEN session at render prints «لسه جوّه» on its
+  date.
 - **Contracts:** request body (forms, `employee_id` rule, `strictObject`), status reply, the template data schema.
 - **API integration (T2 Postgres, one cloned DB per file, ADR-0006):** 202 and the request row; every refusal of
   Story 3 including `403` without the permission, `404` cross-tenant/other-user/other-branch, and `404` for a business A
@@ -457,10 +440,10 @@ factory. The code PRs add the two port rows.
   with a fixed clock for an `Asia/Kuwait` branch: at 2026-10-31T21:00Z `to = 2026-11-30` is accepted, at
   2026-10-31T20:59Z it is refused, and a branch without its own time zone uses the business's; `404` for an employee of the business with
   no counted session and no contracted minutes at the branch in the period, or only an OPEN session (no row, no job),
-  while one with only contracted minutes is accepted; with a fixed clock on 2026-10-23 in an `Asia/Kuwait` branch, an
-  employee form for 25–31 October gets `404 ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` (no row, no job), and so does an
-  employee hired on 25 October asking 1–31 October, and under the interim cap an employee form for 23–23 October
-  asked on 23 October and an employee hired on 23 October asking 1–31 October; the
+  while one with only contracted minutes is accepted; the ST-Q8 gate with a fixed clock in an `Asia/Kuwait` branch:
+  on 23 October a period ending 23 October or later gets `422 ATTENDANCE_STATEMENT_PERIOD_NOT_ENDED` (no row, no job),
+  at 01:00 on 23 October 1–22 October with a 22:00–06:00 default entry or shift on 22 October gets the same `422`,
+  and at 06:00 it is accepted; the
   rate limit at its boundary: the 20th request in a window is
   accepted, the 21st gets `429`, and the first request after the window expires is accepted; collect once, expired,
   not ready; the audit entry's fields; no audit when nothing is delivered.
@@ -471,10 +454,10 @@ factory. The code PRs add the two port rows.
 - **Worker:** the source against the T2 Redis with a fake renderer: data read, `readStatementLogo` (file check +
   access audit in its own transaction) as `pospay_app`, the `staff` reader writing nothing in `files`, a retry after the logo was replaced embeds the recorded file and adds no row, a request made with no
   logo stays name-only after a logo is bound, logo fetch outside
-  the transaction, missing request row fails, no figure or HTML in a log line; the FR-013a cutoff with a fixed clock
-  for an `Asia/Kuwait` branch: a request row with `requested_at` 2026-10-23T20:59Z has the cutoff 23 October, one with
-  2026-10-23T21:00Z has 24 October; render-time reads: a session closed between the request and the render counts
-  as closed, and one still OPEN at render prints «لسه جوّه» (#552); one end-to-end run with the real
+  the transaction, missing request row fails, no figure or HTML in a log line; render-time reads: a session closed
+  between the request and the render counts as closed, and one still OPEN at render prints «لسه جوّه» (#552); an
+  employee whose only session is voided between the request and the render ends `FAILED / STATEMENT_EMPTY` with no
+  PDF; one end-to-end run with the real
   renderer that checks `%PDF-`, `dir`/`lang`, and the escaped employee names.
 - **Template:** escaping of names with `<script>`, quotes and `&`; no external URL; signature places and footer present
   in both languages.
@@ -484,8 +467,7 @@ factory. The code PRs add the two port rows.
 ## 8. Success criteria
 
 - A pilot branch (30 employees) month statement is `READY` within 10 seconds of the request on staging.
-- For a month whose every shift and default-entry end is at or before the request, the branch statement figures equal
-  the 27b report for the same month, read at the same moment, in
+- The branch statement figures equal the 27b report for the same month, read at the same moment, in
   every column.
 - Every delivered PDF has exactly one audit entry; no PDF byte exists anywhere after collection or 120 seconds.
 
@@ -498,7 +480,7 @@ factory. The code PRs add the two port rows.
 | 2 | schema, contracts, domain | migration + RLS + negative test for `attendance_statement_requests` (with the shift columns); contracts (request body, status, `attendanceStatementDocument`); `packages/domain` period, day-by-day and BR-11 shift-day functions with unit tests |
 | 3 | worker | worker `staff` `readAttendanceStatement` and the OPEN-sessions query (FR-011a); template; source (staff reader, then `files` `readStatementLogo`) and its registration in `main.ts` |
 | 4 | API | request and collect use cases (with the shift filter once ST-Q7 is answered, the business–branch check and the `StatementLogoReferenceReader` port and adapter), the status read and, once ST-Q7 is answered, the shift-options read with the status read interface beside its query (FR-005, FR-001a), the guard, the rate limit, the audit entry and every refusal test |
-| G | ST-Q8 interim gate | until ST-Q8 is answered, 27g-2…27g-5 cap the counted range at the day before the cutoff date (FR-013a), print «حتى <التاريخ>» / "Up to <date>" when the cap shortens the period, and FR-003 checks the same capped range; one follow-up PR lifts the gate with the ST-Q8 rule and its tests |
+| G | ST-Q8 feature gate | until ST-Q8 is answered, 27g-4 refuses a period that has not fully ended with `422 ATTENDANCE_STATEMENT_PERIOD_NOT_ENDED` (Story 3.4a) and 27g-5 shows that refusal; it is a feature gate, not a calculation rule. One follow-up PR lifts it with the ST-Q8 rule and its tests |
 | 5 | admin | the download screen (form, period, employee, shift picker once ST-Q7 is answered, language, waiting state, download, refusals), i18n ar/en, RTL |
 
 The worker source (3) ships **before** the API that admits requests (4), so every request the API accepts has a
