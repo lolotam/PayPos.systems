@@ -6,11 +6,30 @@ import {
   type PendingDiscountProposalPage,
   type PendingDiscountProposalQuery,
 } from '@pospay/contracts';
-import type { TenantWrappers } from '@pospay/db';
+import type { TenantWrappers, Tx } from '@pospay/db';
 import { editorLabel } from '@pospay/i18n';
 import { sql } from 'drizzle-orm';
 import { SessionDayReadError, type SessionDayScope } from './branch-day-service-sessions.query.ts';
-import type { DiscountProposalPlaceAccess } from './requester-discount-proposals.query.ts';
+
+/** تثبيت تبعية الفرع للنشاط وإعادة فحص إذن الموافقة قبل قراءة قائمة الموافقين. */
+export interface PendingProposalPlaceAccess {
+  /**
+   * يثبت أن الفرع تابع للنشاط داخل الشركة.
+   *
+   * @param tx معاملة القراءة
+   * @param scope الشركة والنشاط والفرع والطالبة
+   * @returns هل الفرع داخل النشاط
+   */
+  place(tx: Tx, scope: SessionDayScope): Promise<boolean>;
+  /**
+   * يعيد إذن الموافقة على الخصم والميزة عند كل صفحة.
+   *
+   * @param tx معاملة القراءة
+   * @param scope الشركة والنشاط والفرع والطالبة
+   * @returns الإذن أو المنع أو الميزة المغلقة
+   */
+  read(tx: Tx, scope: SessionDayScope): Promise<'ALLOWED' | 'DENIED' | 'FEATURE_DISABLED'>;
+}
 
 type PerformerRow = { employee_id: string; first_name_en: string; first_name_ar: string | null };
 
@@ -29,8 +48,8 @@ type PendingRow = {
   net: string;
   effective_bps: number;
   terms_hash: string;
-  requester_name_ar: string | null;
-  requester_name_en: string | null;
+  requester_first_name_ar: string | null;
+  requester_first_name_en: string | null;
   requester_role: string;
   requester_role_is_system: boolean;
   requester_role_name_ar: string | null;
@@ -73,7 +92,7 @@ export function pendingDiscountProposalsStatement(scope: SessionDayScope, query:
     : sql`AND (d.requested_at,d.id)<(${cursor.at}::text::timestamptz,${cursor.id}::uuid)`;
   return sql`SELECT d.id,d.request_id,d.kind,d.session_id,${occurred} AS occurred_at,d.service_id,d.service_name_en,d.service_name_ar,
     d.terms->>'list_price' AS list_price,d.terms->>'price' AS price,d.terms->>'discount' AS discount,d.terms->>'net' AS net,
-    d.effective_bps,d.terms_hash,d.requester_name_ar,d.requester_name_en,d.requester_role,d.requester_role_is_system,
+    d.effective_bps,d.terms_hash,d.requester_first_name_ar,d.requester_first_name_en,d.requester_role,d.requester_role_is_system,
     d.requester_role_name_ar,d.requester_role_name_en,d.customer_first_name,
     ${requestedAt} AS requested_at,${expiresAt} AS expires_at,
     d.line_id,d.base_revision,d.base_price::text AS base_price,d.base_discount::text AS base_discount,d.base_net::text AS base_net,
@@ -91,8 +110,8 @@ export function pendingDiscountProposalsStatement(scope: SessionDayScope, query:
 
 function requesterSnapshot(row: PendingRow) {
   return {
-    nameAr: row.requester_name_ar,
-    nameEn: row.requester_name_en,
+    nameAr: row.requester_first_name_ar,
+    nameEn: row.requester_first_name_en,
     role: row.requester_role,
     roleIsSystem: row.requester_role_is_system,
     roleNameAr: row.requester_role_name_ar,
@@ -141,7 +160,7 @@ function toItem(row: PendingRow) {
 export class PendingDiscountProposalsQuery {
   constructor(
     private readonly db: TenantWrappers,
-    private readonly access: DiscountProposalPlaceAccess,
+    private readonly access: PendingProposalPlaceAccess,
     private readonly clock: { now(): Date },
   ) {}
 
@@ -150,6 +169,8 @@ export class PendingDiscountProposalsQuery {
     const statement = pendingDiscountProposalsStatement(scope, query, this.clock.now());
     return this.db.withTenant(scope.companyId, async (tx) => {
       if (!await this.access.place(tx, scope)) throw new SessionDayReadError('FORBIDDEN');
+      const access = await this.access.read(tx, scope);
+      if (access !== 'ALLOWED') throw new SessionDayReadError(access === 'DENIED' ? 'FORBIDDEN' : 'FEATURE_DISABLED');
       const rows = await tx.execute<PendingRow>(statement);
       const items = rows.slice(0, query.limit).map(toItem);
       const last = rows[query.limit - 1];

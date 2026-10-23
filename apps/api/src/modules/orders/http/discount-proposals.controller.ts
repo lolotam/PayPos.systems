@@ -12,7 +12,6 @@ import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { Idempotency, requestFingerprint, type IdempotencyInput } from '../../../shared/idempotency.ts';
-import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { PendingDiscountProposalsQuery } from '../queries/pending-discount-proposals.query.ts';
 import { RequesterDiscountProposalsQuery } from '../queries/requester-discount-proposals.query.ts';
@@ -63,7 +62,7 @@ export class DiscountProposalsController {
   @Get()
   @Require('record:service-sessions:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
-  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  @UseGuards(SessionAdminGuard)
   async mine(
     @Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
     @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
@@ -82,7 +81,7 @@ export class DiscountProposalsController {
   @Get('pending')
   @Require('approve:discounts:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
-  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  @UseGuards(SessionAdminGuard)
   async pending(
     @Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
     @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,

@@ -8,7 +8,7 @@ import { editorLabel } from '@pospay/i18n';
 import { sql } from 'drizzle-orm';
 import { SessionDayReadError, type SessionDayScope } from './branch-day-service-sessions.query.ts';
 
-/** تثبيت تبعية الفرع للنشاط قبل قراءة طلبات صاحبها. */
+/** تثبيت تبعية الفرع للنشاط، وإعادة فحص إذن التسجيل، قبل قراءة طلبات صاحبها. */
 export interface DiscountProposalPlaceAccess {
   /**
    * يثبت أن الفرع تابع للنشاط داخل الشركة.
@@ -18,6 +18,20 @@ export interface DiscountProposalPlaceAccess {
    * @returns هل الفرع داخل النشاط
    */
   place(tx: Tx, scope: SessionDayScope): Promise<boolean>;
+  /**
+   * يعيد إذن التسجيل والمنع والميزة والعضويات عند اللحظة المحقونة.
+   *
+   * @param tx معاملة القراءة
+   * @param scope الشركة والنشاط والفرع والطالبة
+   * @param at اللحظة المحقونة بعد الانتظار
+   * @returns سلطة التسجيل ومنعها والميزة والعضويات المتاحة في الفرع
+   */
+  access(tx: Tx, scope: SessionDayScope, at: Date): Promise<{
+    record: boolean;
+    denied: boolean;
+    feature: boolean;
+    membership_ids: readonly string[];
+  }>;
 }
 
 type RequesterRow = {
@@ -124,6 +138,9 @@ export class RequesterDiscountProposalsQuery {
     const statement = requesterDiscountProposalsStatement(scope, query.request_id, this.clock.now());
     return this.db.withTenant(scope.companyId, async (tx) => {
       if (!await this.access.place(tx, scope)) throw new SessionDayReadError('FORBIDDEN');
+      const access = await this.access.access(tx, scope, this.clock.now());
+      if (access.denied || !access.record || access.membership_ids.length === 0) throw new SessionDayReadError('FORBIDDEN');
+      if (!access.feature) throw new SessionDayReadError('FEATURE_DISABLED');
       const rows = await tx.execute<RequesterRow>(statement);
       return requesterDiscountProposalList.parse({ items: rows.map(toItem) });
     }, { userId: scope.userId });

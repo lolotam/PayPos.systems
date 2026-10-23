@@ -24,7 +24,7 @@ import { editorName } from './persistence/editor-name.adapter.ts';
 import { sessionBranchBelongs, sessionPlace } from './persistence/session-place.adapter.ts';
 import { discountRequestAccess, sessionRecordAccess } from './persistence/session-record-access.adapter.ts';
 import { sessionCancelCapability, sessionPerformersCapability } from './persistence/session-edit-access.adapter.ts';
-import { sessionReadAccess } from './persistence/session-read-access.adapter.ts';
+import { discountApprovalListAccess, sessionReadAccess } from './persistence/session-read-access.adapter.ts';
 import { BranchDayServiceSessionsQuery } from './queries/branch-day-service-sessions.query.ts';
 import { ServiceSessionCapabilitiesQuery } from './queries/service-session-capabilities.query.ts';
 import { ServiceLineCancellationQuery } from './queries/service-line-cancellation.query.ts';
@@ -160,11 +160,13 @@ export function ordersDiscountRequests(database: TenantWrappers, ids: IdGenerato
 export function ordersRequesterProposals(database: TenantWrappers, clock: Clock = systemClock) {
   return new RequesterDiscountProposalsQuery(database, {
     place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
+    access: (tx, scope, at) => sessionRecordAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId).read(at),
   }, clock);
 }
 export function ordersPendingProposals(database: TenantWrappers, clock: Clock = systemClock) {
   return new PendingDiscountProposalsQuery(database, {
     place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
+    read: (tx, scope) => discountApprovalListAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
   }, clock);
 }
 export function ordersProviders(database: TenantWrappers | undefined, ids: IdGenerator, clock: Clock = systemClock): Provider[] {

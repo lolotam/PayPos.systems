@@ -330,6 +330,7 @@ reads:
   - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/recording-context.adapter.ts
   - orders -> settings.readEffectiveDiscountLimit @ apps/api/src/modules/orders/persistence/recording-context.adapter.ts
   - orders -> identity.readServiceSessionReadAccess @ apps/api/src/modules/orders/persistence/session-read-access.adapter.ts
+  - orders -> identity.readDiscountApprovalListAccess @ apps/api/src/modules/orders/persistence/session-read-access.adapter.ts
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/branch-place.adapter.ts

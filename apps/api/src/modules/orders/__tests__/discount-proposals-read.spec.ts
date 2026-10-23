@@ -97,6 +97,19 @@ it('DP-07 another recorder reads an empty list, with no hint that the request ex
   expect(list.items).toEqual([]);
 });
 
+it('the requester read refuses once the requester membership ends', async () => {
+  const body = await ask(1);
+  await f.h.owner`UPDATE memberships SET ends_at='2026-10-15T07:00:00Z'
+    WHERE company_id=${f.company} AND id=${f.membership}`;
+  try {
+    await expect(f.requester.execute(scope(f.userId), { request_id: body.request_id })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  } finally {
+    await f.h.owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.membership}`;
+  }
+});
+
 it('the approver list shows the live pending proposals with first names only', async () => {
   const body = await ask(5);
   const page = await f.pending.execute(scope(f.editorId), { limit: 100 });
@@ -181,4 +194,26 @@ it('a proposal whose expiry is the clock instant reads expired and is not listed
   expect(list.items).toHaveLength(1);
   expect(list.items[0]?.id).toBe(proposalId);
   expect(list.items[0]?.status).toBe('EXPIRED');
+});
+
+it('the approver list shows the requester first name only, never her full name', async () => {
+  const body = requestDiscountApprovalResponse.parse(await f.request.execute({ ...f.context(ids.newId(), f.editorId),
+    input: f.requestBody([f.draft(0, '25.000', '7.500', 1)], { requester_membership_id: f.editorMembership }) }));
+  const page = await f.pending.execute(scope(f.ownerId), { limit: 100 });
+  const item = page.items.find((entry) => entry.request_id === body.request_id);
+  expect(item?.requester_label_en).toBe('Layla');
+  expect(item?.requester_label_ar).toBe('ليلى');
+  expect(JSON.stringify(page)).not.toContain('Layla Editor');
+});
+
+it('the approver list refuses once the approver membership ends', async () => {
+  await f.h.owner`UPDATE memberships SET ends_at='2026-10-15T07:00:00Z'
+    WHERE company_id=${f.company} AND id=${f.editorMembership}`;
+  try {
+    await expect(f.pending.execute(scope(f.editorId), { limit: 20 })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  } finally {
+    await f.h.owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.editorMembership}`;
+  }
 });
