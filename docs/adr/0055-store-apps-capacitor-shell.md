@@ -7,7 +7,7 @@ both picked option 1 on 2026-10-23. That record is added by PR #532, **which mer
 this ADR opened: APP-Q2 … APP-Q7 (`docs/specs/065-mob-app-shell/owner-questions.ar.md`, batch 55, PP-39.1 … PP-39.6),
 **answered by both owners on 2026-10-23** (option 1 ⭐ on all six; on APP-Q2 Waleed then moved to option 2 with the
 Arabic name «بوس باي للأعمال»; Abu Salem's option 1 binds, and the Arabic name waits for his confirmation). Still open: the legal name of the company, which
-is still being formed (APP-Q3, `TODO(spec)`), **APP-Q8** (batch 56, PP-40.1) is final: both owners picked
+is still being formed (APP-Q3, `TODO(spec)`). **APP-Q8** (batch 56, PP-40.1) is final: both owners picked
 the GitHub macOS runner with the iOS simulator, inside the free minutes only.
 
 ## Context
