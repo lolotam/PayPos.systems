@@ -73,20 +73,20 @@ function loadLibrary(): Promise<WebPushLibrary> {
  * الرد بيتقرا رمز حالته بس وال BODY بيتهمل من غير ما يتبع تحويل.
  */
 function defaultSender(request: typeof httpsRequest): PreparableSender {
-  return {
+  const send: WebPushSender = async (target, payload, options) => {
+    const webpush = await loadLibrary();
+    const details = webpush.generateRequestDetails(
+      { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },
+      payload,
+      options,
+    );
+    return sendOnce(request, details, options.timeout);
+  };
+  return Object.assign(send, {
     prepare: async () => {
       await loadLibrary();
     },
-    send: async (target, payload, options) => {
-      const webpush = await loadLibrary();
-      const details = webpush.generateRequestDetails(
-        { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },
-        payload,
-        options,
-      );
-      return sendOnce(request, details, options.timeout);
-    },
-  };
+  });
 }
 
 // طلب واحد بمهلة مطلقة: الاتصال والطلب والرد كلهم جوّه نفس الوقت.
@@ -103,15 +103,14 @@ function sendOnce(
 ): Promise<{ statusCode: number }> {
   return new Promise((resolve, reject) => {
     const abort = new AbortController();
-    let timer: NodeJS.Timeout | undefined;
+    const timer = setTimeout(() => {
+      abort.abort();
+      reject(new Error('PUSH_REQUEST_TIMEOUT'));
+    }, timeoutMs);
     const fail = (error: Error) => {
-      if (timer !== undefined) clearTimeout(timer);
+      clearTimeout(timer);
       reject(error);
     };
-    timer = setTimeout(() => {
-      abort.abort();
-      fail(new Error('PUSH_REQUEST_TIMEOUT'));
-    }, timeoutMs);
     try {
       const req = request(
         details.endpoint,

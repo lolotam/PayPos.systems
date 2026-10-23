@@ -1,9 +1,9 @@
 import { createECDH, randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import type { IncomingMessage } from 'node:http';
-import { request as httpsRequest } from 'node:https';
+import type { request as httpsRequest } from 'node:https';
 
-import { describe, expect, it } from 'vitest';
+import { expect, it } from 'vitest';
 
 import { WebPushChannel } from '../adapters/web-push.channel.ts';
 import type { PushRequest, PushResult } from '../push/channel.ts';
@@ -42,9 +42,11 @@ function fakeRequest(status: number | null) {
     emitter.end = () => {
       calls.push({ url, headers: options.headers ?? {}, body: Buffer.concat(chunks) });
       if (status === null) return;
-      const response = new EventEmitter() as IncomingMessage;
+      const response = new EventEmitter() as unknown as IncomingMessage;
       response.statusCode = status;
-      response.destroy = () => response.emit('close');
+      response.destroy = (): void => {
+        response.emit('close');
+      };
       callback(response);
     };
     return emitter;

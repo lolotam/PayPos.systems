@@ -83,7 +83,7 @@ it('expires an attempt whose deadline passed between the build and the claim', a
   const advancing = send({
     clock,
     builder: {
-      build: async (delivery, now) => {
+      build: (delivery, now) => {
         current = new Date(NOW.getTime() + 3_600_000);
         return h.send.builder.build(delivery, now);
       },
