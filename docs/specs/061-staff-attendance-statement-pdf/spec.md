@@ -9,8 +9,8 @@
 > super agent) with the recommended option: a shift is a start–end pair from the schedule (BR-11). Abu Salem picked the
 > same option on the decisions page (batch 40, 2026-10-21), so the answer is final. Recorded in
 > [owner-questions.ar.md](owner-questions.ar.md).
-> **ST-Q7** (what the leave column counts under a shift filter) is **PENDING** (`TODO(spec)` in BR-11 and §6.6). Only
-> that column of a shift-filtered branch statement waits on it; everything else in sub-PRs 1–5 does not.
+> **ST-Q7** (what the leave column counts under a shift filter) is **PENDING** (`TODO(spec)` in BR-11 and §6.6). Until
+> it is answered no shift-filtered statement ships (§9); the statement without a shift filter does not wait on it.
 > **Depends on (all merged):** row 27 ([spec 049](../049-staff-attendance-board-report/spec.md), 27b report and its audit),
 > row 8c ([spec 051](../051-staff-employee-number/spec.md), `employee_number`), row 27h
 > ([spec 052](../052-settings-business-identity/spec.md), official names and logo, 27h-1…27h-5), row 27i
@@ -127,7 +127,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 1. A user without `read:attendance:branch` on the branch gets `403` on request, status and collect.
 2. Another user, another company, an unknown `render_id` and an id requested for another branch all get the same `404`
    on status and collect (ADR-0049 §1.5).
-3. An employee who has no session and no contracted minutes at the branch in the period, or who belongs to another
+3. An employee who has no session and no contracted minutes at the branch in the period up to the cutoff (FR-013a),
+   which includes every period with only future dates, or who belongs to another
    business or company: `404 ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND`, no request row, no job (FR-003). This is the
    same rule that decides who has a row in the branch table (Story 1.4).
    A route whose branch belongs to another business of the same company: `404 ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`,
@@ -136,7 +137,7 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    zone (so the current month can be asked for on any day; its future dates show the date only, Story 2.2):
    `422 ATTENDANCE_STATEMENT_PERIOD_INVALID`.
 5. The renderer is down (no `documents:renderer-alive` key): `503 RENDERER_UNAVAILABLE`, no request row, no job.
-6. More than 20 requests by the same user in a rolling hour: `429 ATTENDANCE_STATEMENT_RATE_LIMITED`.
+6. More than 20 requests by the same user in one fixed hourly window: `429 ATTENDANCE_STATEMENT_RATE_LIMITED`.
 7. The staff feature is disabled for the business: the same refusal as the monthly report (`@RequiresFeature('staff')`).
 
 ### Story 4 — Collect once (P1)
@@ -196,7 +197,9 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   the route's business (`branches` row with `(company_id, business_id, id)`; otherwise `404
   ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`, nothing written), confirms the employee (when given) with the **same
   candidate rule the branch table uses** (Story 1.4, Story 3.3): she belongs to that business and has a counted
-  session or contracted minutes at that branch in the period. The check is the `candidates` part of the shared 27b
+  session or contracted minutes at that branch from `from` to the earlier of `to` and the FR-013a cutoff (the
+  branch-local date of the injected `Clock`, the same instant stored as `requested_at`), so a period with only future
+  dates, or an employee whose only coverage falls after the cutoff, is refused here and never reaches the worker. The check is the `candidates` part of the shared 27b
   inputs statement (ADR-0056 §2) limited to that one employee, exposed from `@pospay/db` beside it, so the request
   refuses exactly the employees the statement would show nothing for; otherwise `404
   ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` before any insert (no request row, no job). An employee whose only activity
@@ -224,8 +227,10 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   transaction that consumes the bytes.
 - **FR-007** The file name is `attendance-statement-{branch|employee}-{from}_{to}.pdf` (ASCII only; no employee name in
   it, so the name never travels in a header).
-- **FR-008** The rate limit is a Redis counter per `company_id` + `user_id`: at most 20 requests in a rolling hour
-  (`CLAUDE.md` §8 "rate-limit in Redis"). It is a technical guard against filling the render queue, not an owner rule.
+- **FR-008** The rate limit is a Redis counter per `company_id` + `user_id`: at most 20 requests in one fixed hourly
+  window, through the existing fixed-window `createRedisRateLimiter` (`apps/api/src/shared/adapters/redis-rate-limiter.ts`,
+  the same limiter every other API rate limit uses; `CLAUDE.md` §8 "rate-limit in Redis"). Up to 40 requests can
+  therefore land within one rolling hour across a window boundary; that is accepted. It is a technical guard against filling the render queue, not an owner rule.
 - **FR-009** Reads go through `queries/` and writes through use cases (`CLAUDE.md` §6): the request is a use case (it
   writes the request row), collect is a use case (it consumes the bytes and writes the audit), and status (FR-005) and
   the shift options (FR-001a) are `queries/` reads. No arithmetic in any of them.
@@ -414,7 +419,10 @@ factory. The code PRs add the two port rows.
   with a fixed clock for an `Asia/Kuwait` branch: at 2026-10-31T21:00Z `to = 2026-11-30` is accepted, at
   2026-10-31T20:59Z it is refused, and a branch without its own time zone uses the business's; `404` for an employee of the business with
   no counted session and no contracted minutes at the branch in the period, or only an OPEN session (no row, no job),
-  while one with only contracted minutes is accepted; collect once, expired,
+  while one with only contracted minutes is accepted; with a fixed clock on 2026-10-23 in an `Asia/Kuwait` branch, an
+  employee form for 25–31 October gets `404 ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` (no row, no job), and so does an
+  employee hired on 25 October asking 1–31 October; the rate limit at its boundary: the 20th request in a window is
+  accepted, the 21st gets `429`, and the first request after the window expires is accepted; collect once, expired,
   not ready; the audit entry's fields; no audit when nothing is delivered.
 - **RLS:** negative isolation test for `attendance_statement_requests` (cross-tenant read = 0 rows, write = error), and
   that `pospay_app` cannot `UPDATE` or `DELETE` it. A negative constraint test: inserting a row whose branch (or
@@ -447,13 +455,16 @@ factory. The code PRs add the two port rows.
 | 1 | shared reads + logo reader | move the identity read statement to `@pospay/db` and `statementIdentity` to `packages/domain` (settings re-exports both, no behaviour change); move the 27b inputs statement to `@pospay/db` (27b unchanged, its EXPLAIN and shape tests follow it); worker `files` `readStatementLogo` with its own transaction and the once-per-render access audit (ADR-0056 §2–§3) |
 | 2 | schema, contracts, domain | migration + RLS + negative test for `attendance_statement_requests` (with the shift columns); contracts (request body, status, `attendanceStatementDocument`); `packages/domain` period, day-by-day and BR-11 shift-day functions with unit tests |
 | 3 | worker | worker `staff` `readAttendanceStatement` and the OPEN-sessions query (FR-011a); template; source (staff reader, then `files` `readStatementLogo`) and its registration in `main.ts` |
-| 4 | API | request and collect use cases (with the shift filter, the business–branch check and the `StatementLogoReferenceReader` port and adapter), the status and shift-options `queries/` reads with the status read interface beside its query (FR-005, FR-001a), the guard, the rate limit, the audit entry and every refusal test |
-| 5 | admin | the download screen (form, period, employee, shift picker, language, waiting state, download, refusals), i18n ar/en, RTL |
+| 4 | API | request and collect use cases (with the shift filter once ST-Q7 is answered, the business–branch check and the `StatementLogoReferenceReader` port and adapter), the status and shift-options `queries/` reads with the status read interface beside its query (FR-005, FR-001a), the guard, the rate limit, the audit entry and every refusal test |
+| 5 | admin | the download screen (form, period, employee, shift picker once ST-Q7 is answered, language, waiting state, download, refusals), i18n ar/en, RTL |
 
 The worker source (3) ships **before** the API that admits requests (4), so every request the API accepts has a
 registered `attendance-statement` source; until 4 is deployed nothing enqueues that kind. ST-Q6 is answered, so the
-shift filter is no longer a separate PR waiting on the owner: it is built in 2–5 with the rest, except the leave
-column under a shift filter, which no sub-PR builds before ST-Q7 is answered. Each code sub-PR passes
+shift filter is no longer waiting on ST-Q6, but its leave column waits on ST-Q7 (`TODO(spec)`). Until ST-Q7 is
+answered: 27g-2 leaves the leave field of a shift-filtered table out of the contract and the domain (its shape depends
+on the answer, «—» being one option), 27g-4 does not accept `shift` (the request body has no `shift` field yet, so a
+filtered statement cannot be requested), and 27g-5 shows no shift picker. Once ST-Q7 is answered, one follow-up PR adds
+the field, its domain rule and tests, `shift` in the request and the picker together. Each code sub-PR passes
 the gates of `CLAUDE.md` §10 before merge.
 
 ## 10. Assumptions
