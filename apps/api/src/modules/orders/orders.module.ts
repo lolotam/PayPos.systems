@@ -4,6 +4,7 @@ import { serviceSessionErrors } from '@pospay/i18n';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { SelectedCompanyGuard } from '../../shared/selected-company.guard.ts';
 import { ServiceSessionsController } from './http/service-sessions.controller.ts';
+import { DiscountProposalsController } from './http/discount-proposals.controller.ts';
 import { SessionTipsController } from './http/session-tips.controller.ts';
 import { ServiceSessionFormController } from './http/service-session-form.controller.ts';
 import { RecordingContextQueryHandler } from './queries/recording-context.query.ts';
@@ -19,6 +20,7 @@ import { catalogReader } from './persistence/catalog-reader.adapter.ts';
 import { customerLookup } from './persistence/customer-lookup.adapter.ts';
 import { performerCheck } from './persistence/performer-check.adapter.ts';
 import { discountLimit } from './persistence/discount-limit.adapter.ts';
+import { editorName } from './persistence/editor-name.adapter.ts';
 import { sessionBranchBelongs, sessionPlace } from './persistence/session-place.adapter.ts';
 import { sessionRecordAccess } from './persistence/session-record-access.adapter.ts';
 import { sessionCancelCapability, sessionPerformersCapability } from './persistence/session-edit-access.adapter.ts';
@@ -35,6 +37,12 @@ import { bindLineCancelReaders, createLineCancelTransactions } from './persisten
 import { bindLinePerformersReaders, createLinePerformersTransactions } from './persistence/line-performers-transactions.ts';
 import { createSessionTipsTransactions } from './persistence/session-tip-transactions.ts';
 import { createSessionRecovery, recoveryKeyHash } from './persistence/session-recovery.adapter.ts';
+import { createDiscountRequestTransactions } from './persistence/discount-request-transactions.ts';
+import { discountRequestAccess } from './persistence/discount-request-access.adapter.ts';
+import { termsHash } from './persistence/terms-hash.adapter.ts';
+import { PendingDiscountProposalsQuery } from './queries/pending-discount-proposals.query.ts';
+import { RequesterDiscountProposalsQuery } from './queries/requester-discount-proposals.query.ts';
+import { RequestDiscountApprovalUseCase } from './use-cases/request-discount-approval/request-discount-approval.usecase.ts';
 import { sessionRecoveryPlace, sessionRecoveryRecord } from './persistence/session-recovery-read.adapter.ts';
 import { createSessionRecoveryConfirm } from './persistence/session-recovery-confirm.adapter.ts';
 import { SessionRecoveryQuery } from './queries/session-recovery.query.ts';
@@ -48,7 +56,7 @@ import { ConfirmSessionRecoveryUseCase } from './use-cases/confirm-session-recov
 import { SessionRecoveryController } from './http/session-recovery.controller.ts';
 import type { Clock } from './ports/service-session-transactions.port.ts';
 
-export const ordersControllers = [SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController];
+export const ordersControllers = [SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController, DiscountProposalsController];
 export function ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
   return new SessionPerformerOptionsQueryHandler(database, {
     time: (occurredAt, at, timezone) => sessionTime(new Date(occurredAt), at, timezone).occurred_at.toISOString(),
@@ -139,6 +147,27 @@ export function ordersTransactions(database: TenantWrappers, ids: IdGenerator, c
     discountMessages: serviceSessionErrors.SESSION_DISCOUNT_ABOVE_LIMIT,
   }), clock);
 }
+export function ordersDiscountRequests(database: TenantWrappers, ids: IdGenerator) {
+  return createDiscountRequestTransactions(database, ids, (tx, context) => ({
+    place: sessionPlace(tx, context.companyId, context.businessId, context.branchId),
+    access: discountRequestAccess(tx, context.companyId, context.userId, context.businessId, context.branchId),
+    catalog: catalogReader(tx, context.companyId, context.businessId),
+    customer: customerLookup(tx, context.companyId),
+    performers: performerCheck(tx, context.companyId, context.businessId, context.branchId),
+    discount: discountLimit(tx, context.companyId, context.businessId),
+    requesterName: editorName(tx, context.companyId, context.businessId),
+  }));
+}
+export function ordersRequesterProposals(database: TenantWrappers, clock: Clock = systemClock) {
+  return new RequesterDiscountProposalsQuery(database, {
+    place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
+  }, clock);
+}
+export function ordersPendingProposals(database: TenantWrappers, clock: Clock = systemClock) {
+  return new PendingDiscountProposalsQuery(database, {
+    place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
+  }, clock);
+}
 export function ordersProviders(database: TenantWrappers | undefined, ids: IdGenerator, clock: Clock = systemClock): Provider[] {
   const writes = database === undefined ? null : {
     transactions: ordersTransactions(database, ids, clock), recovery: createSessionRecovery(database, ids, clock),
@@ -160,5 +189,8 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
     { provide: CancelServiceLineUseCase, useValue: database === undefined ? null : new CancelServiceLineUseCase(ordersLineCancels(database), ids, clock) },
     { provide: ChangeLinePerformersUseCase, useValue: database === undefined ? null : new ChangeLinePerformersUseCase(ordersLinePerformers(database), ids, clock) },
     { provide: RecordSessionTipsUseCase, useValue: database === undefined ? null : new RecordSessionTipsUseCase(ordersSessionTips(database), ids, clock) },
-    { provide: SessionTipsCurrentQuery, useValue: database === undefined ? null : ordersSessionTipsCurrent(database, clock) }];
+    { provide: SessionTipsCurrentQuery, useValue: database === undefined ? null : ordersSessionTipsCurrent(database, clock) },
+    { provide: RequestDiscountApprovalUseCase, useValue: database === undefined ? null : new RequestDiscountApprovalUseCase(ordersDiscountRequests(database, ids), ids, clock, termsHash()) },
+    { provide: RequesterDiscountProposalsQuery, useValue: database === undefined ? null : ordersRequesterProposals(database, clock) },
+    { provide: PendingDiscountProposalsQuery, useValue: database === undefined ? null : ordersPendingProposals(database, clock) }];
 }
