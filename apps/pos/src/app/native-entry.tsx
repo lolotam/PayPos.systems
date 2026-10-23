@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { t } from '@pospay/i18n';
 
@@ -20,6 +20,7 @@ import type { PersonalWorkspace } from './manager-link';
 import { PasteLinkForm } from './paste-link-form';
 import { StartScreen } from './start-screen';
 import { useNativeLink } from './use-native-link';
+import { useStepQueue } from './use-step-queue';
 
 const ALERT_CLASS =
   'mx-auto mt-4 w-full max-w-md bg-destructive/10 px-4 py-3 text-center text-destructive';
@@ -27,23 +28,7 @@ const ALERT_CLASS =
 export function NativeEntry() {
   const locale = useLocale();
   const [state, setState] = useState<NativeState>({ kind: 'loading' });
-  const [busy, setBusy] = useState(false);
-  // اللينكات والاختيارات بتتعالج واحد ورا التاني: كل خطوة بتقرا الدور والنشاط تاني من التخزين قبل ما تقرر.
-  const links = useRef<Promise<void>>(Promise.resolve());
-  const pending = useRef(0);
-
-  const queue = useCallback((step: () => Promise<void>) => {
-    pending.current += 1;
-    setBusy(true);
-    const done = () => {
-      pending.current -= 1;
-      if (pending.current === 0) setBusy(false);
-    };
-    links.current = links.current
-      .then(step)
-      .catch(() => undefined)
-      .finally(done);
-  }, []);
+  const { busy, queue } = useStepQueue();
 
   const onStart = useCallback((role: DeviceRole | null, saved: PersonalWorkspace | null) => {
     setState((current) => (current.kind === 'loading' ? stateForRole(role, saved) : current));
