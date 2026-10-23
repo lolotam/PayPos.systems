@@ -244,6 +244,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `AttendanceExceptionRaised`                                                 | `staff` (worker missed-out job, ADR-0032) | `notifications` (in-app managers by the `ATTENDANCE_EXCEPTION` rule; no row when it resolves to nobody, 62-2d) |
 | `ShiftNotClockedIn` | `staff` (worker not-clocked-in job, ADR-0037) | `notifications` (in-app managers by the interim rule; PR 62 replaces the rule) |
 | `ShiftBreakNotReturned` | `staff` (worker not-clocked-in job, break detector, spec 041 BW-Q5) | `notifications` (in-app managers by the same interim rule; PR 62 replaces the rule) |
+| `ShiftEndsSoon` | `staff` (worker detector, spec 064 row 28c; emitted from sub-PR 064-3) | `notifications` (one PUSH recipient, the employee herself, rendered in each of her subscriptions' language by the `shift_ends_soon` push template; ADR-0053, ADR-0052) |
 | `AttendanceChangeRequested` / `AttendanceChangeDecided` | `staff` | `notifications` (in-app holders of decide:attendance-change:company / the requester, ADR-0040) |
 | `DocumentExpiring`                                                          | `staff`         | `notifications` (in-app holders of `read:files:business` by the `DOCUMENT_EXPIRING` rule, once per notice when its recipients are attached, 62-2d) |
 | `StatementAwaitingReview`                                                   | `commissions`   | `notifications`                                                                                   |

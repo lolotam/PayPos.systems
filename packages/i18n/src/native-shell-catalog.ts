@@ -8,6 +8,10 @@ export const nativeShellEn = {
   employeeHint: 'Your own phone: your sign-in and your attendance.',
   needsInternet: 'The first time needs the internet.',
   saveFailed: 'The choice could not be saved. Try again.',
+  pasteLabel: 'Paste the link your manager sent you',
+  pasteSubmit: 'Connect',
+  otherBusiness: 'This device is connected to another salon',
+  counterDevice: 'This device is a counter device, and the link is for an employee',
 } as const;
 
 /** نفس مفاتيح شاشة البداية بالعربي. */
@@ -20,4 +24,8 @@ export const nativeShellAr: Record<keyof typeof nativeShellEn, string> = {
   employeeHint: 'تليفونك إنت: دخولك وحضورك',
   needsInternet: 'أول مرة محتاجة نت',
   saveFailed: 'مقدرناش نحفظ الاختيار ده. حاول تاني.',
+  pasteLabel: 'الصقي اللينك اللي بعتهولك المدير',
+  pasteSubmit: 'وصّلي',
+  otherBusiness: 'الجهاز ده متوصّل بصالون تاني',
+  counterDevice: 'الجهاز ده جهاز كاونتر، واللينك ده لحساب موظفة',
 };

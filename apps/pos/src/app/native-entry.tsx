@@ -1,56 +1,84 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+
+import { t } from '@pospay/i18n';
 
 import { PersonalScreen } from '@/personal-staff/ui/personal-screen';
+import { useLocale } from '@/shared/locale/locale-context';
 
 import { DeviceScreen } from './device-screen';
-import { readDeviceRole, saveDeviceRole, type DeviceRole } from './device-role';
+import type { DeviceRole } from './device-role';
+import {
+  FLOW_ALERT_KEYS,
+  resolveChoice,
+  resolveLink,
+  stateAfterFailure,
+  stateForRole,
+  type NativeState,
+} from './link-rules';
 import { LoadingNotice } from './loading-notice';
+import type { PersonalWorkspace } from './manager-link';
+import { PasteLinkForm } from './paste-link-form';
 import { StartScreen } from './start-screen';
+import { useNativeLink } from './use-native-link';
+import { useStepQueue } from './use-step-queue';
 
-type NativeState =
-  | { kind: 'loading' }
-  | { kind: 'start'; alert?: 'saveFailed' | 'needsInternet' }
-  | { kind: 'flow'; role: DeviceRole };
+const ALERT_CLASS =
+  'mx-auto mt-4 w-full max-w-md bg-destructive/10 px-4 py-3 text-center text-destructive';
 
 export function NativeEntry() {
+  const locale = useLocale();
   const [state, setState] = useState<NativeState>({ kind: 'loading' });
+  const onError = useCallback(() => {
+    setState((current) => stateAfterFailure(current, null, null));
+  }, []);
+  const { busy, queue } = useStepQueue(onError);
 
-  useEffect(() => {
-    let cancelled = false;
-    void readDeviceRole().then(
-      (stored) => {
-        if (cancelled) return;
-        setState(stored ? { kind: 'flow', role: stored } : { kind: 'start' });
-      },
-      () => {
-        if (cancelled) return;
-        // تخزين غير مقروء زي أول تشغيل: المستخدم بيختار تاني، ولو الحفظ فشل يظهر تنبيه الحفظ.
-        setState({ kind: 'start' });
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
+  const onStart = useCallback((role: DeviceRole | null, saved: PersonalWorkspace | null) => {
+    setState((current) => (current.kind === 'loading' ? stateForRole(role, saved) : current));
   }, []);
 
-  const choose = (role: DeviceRole) => {
-    // من غير نت مفيش حاجة تتحفظ (حالة «أول تشغيل من غير نت» في spec 065): اختيار متحفظ
-    // هيفتح الشاشة اللي مش هتوصل للخادم.
-    if (!navigator.onLine) {
-      setState({ kind: 'start', alert: 'needsInternet' });
-      return;
-    }
-    void saveDeviceRole(role).then(
-      () => setState({ kind: 'flow', role }),
-      () => setState({ kind: 'start', alert: 'saveFailed' }),
-    );
-  };
+  const onLink = useCallback(
+    async (workspace: PersonalWorkspace | null) => {
+      queue(async () => {
+        const outcome = await resolveLink(workspace);
+        if (outcome.kind === 'state') setState(outcome.state);
+        else setState((current) => stateAfterFailure(current, outcome.role, outcome.business));
+      });
+    },
+    [queue],
+  );
+
+  const choose = (role: DeviceRole) => queue(async () => setState(await resolveChoice(role)));
+
+  useNativeLink(onStart, onLink);
 
   if (state.kind === 'loading') return <LoadingNotice />;
   if (state.kind === 'flow') {
-    return state.role === 'counter' ? <DeviceScreen /> : <PersonalScreen />;
+    const alertText = state.alert ? t(locale, FLOW_ALERT_KEYS[state.alert]) : null;
+    const connect = <PasteLinkForm onConnect={(next) => void onLink(next)} />;
+    return (
+      <>
+        {alertText ? (
+          <p role="alert" className={ALERT_CLASS}>
+            {alertText}
+          </p>
+        ) : null}
+        {state.role === 'counter' ? (
+          <DeviceScreen />
+        ) : state.business ? (
+          <PersonalScreen workspace={state.business} connect={connect} />
+        ) : (
+          <PersonalScreen connect={connect} />
+        )}
+      </>
+    );
   }
-  const { alert } = state;
-  if (alert === undefined) return <StartScreen onChoose={choose} />;
-  return <StartScreen onChoose={choose} alert={alert} />;
+  if (state.alert === undefined) {
+    return busy ? <StartScreen onChoose={choose} busy /> : <StartScreen onChoose={choose} />;
+  }
+  return busy ? (
+    <StartScreen onChoose={choose} alert={state.alert} busy />
+  ) : (
+    <StartScreen onChoose={choose} alert={state.alert} />
+  );
 }

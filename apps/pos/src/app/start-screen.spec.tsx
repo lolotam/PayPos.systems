@@ -15,9 +15,13 @@ const CHOICE_KEYS = {
 const ALERT_KEYS = {
   saveFailed: 'nativeShell.saveFailed',
   needsInternet: 'nativeShell.needsInternet',
+  linkRequired: 'personalStaff.linkRequired',
 } as const;
 
-function mount(locale: 'ar' | 'en', options: { alert?: 'saveFailed' | 'needsInternet' } = {}) {
+function mount(
+  locale: 'ar' | 'en',
+  options: { alert?: keyof typeof ALERT_KEYS; busy?: boolean } = {},
+) {
   const onChoose = vi.fn();
   render(
     <DirectionProvider dir={locale === 'ar' ? 'rtl' : 'ltr'}>
@@ -62,7 +66,7 @@ describe('StartScreen', () => {
     expect(screen.getByText(t('en', 'nativeShell.employeeHint'))).not.toBeNull();
   });
 
-  it.each(['saveFailed', 'needsInternet'] as const)(
+  it.each(['saveFailed', 'needsInternet', 'linkRequired'] as const)(
     'shows the %s warning inside the alert',
     (kind) => {
       mount('ar', { alert: kind });
@@ -72,6 +76,29 @@ describe('StartScreen', () => {
       expect(screen.getByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
     },
   );
+
+  it('disables both choices while the shell is busy', () => {
+    mount('ar', { busy: true });
+
+    const counter = screen.getByRole('button', { name: t('ar', 'nativeShell.counter') });
+    const employee = screen.getByRole('button', { name: t('ar', 'nativeShell.employee') });
+
+    expect(counter.hasAttribute('disabled')).toBe(true);
+    expect(employee.hasAttribute('disabled')).toBe(true);
+  });
+
+  it('puts the two choices side by side in landscape', () => {
+    mount('ar');
+
+    const counter = screen.getByRole('button', { name: t('ar', 'nativeShell.counter') });
+    const employee = screen.getByRole('button', { name: t('ar', 'nativeShell.employee') });
+    const choices = counter.parentElement?.parentElement;
+
+    expect(choices).toBe(employee.parentElement?.parentElement);
+    expect(choices?.className).toContain('landscape:grid-cols-2');
+    expect(choices?.contains(employee)).toBe(true);
+    expect(choices?.parentElement?.className).toContain('landscape:max-w-3xl');
+  });
 
   it('shows no warning by default', () => {
     mount('ar');

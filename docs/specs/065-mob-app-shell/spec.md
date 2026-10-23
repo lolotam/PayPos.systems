@@ -252,7 +252,7 @@ the API CORS origins on staging (plan O-1b). Until then the iOS session checks o
 need no origin change. For the link (APP-Q9: link and QR), two things are needed, both for the **POS host** the manager's link
 uses (`pos.pospay.systems`, `pos.staging.pospay.systems`), never the passkey relying-party host of O-4: the native
 projects declare the link (iOS Associated Domains entitlement `applinks:<pos host>`; Android a verified
-`intent-filter` with `autoVerify` for `https://<pos host>/personal`), built in M-1a; and the POS host serves the
+`intent-filter` with `autoVerify` for `https://<pos host>/personal`), the Android one built in M-1a and the iOS one in M-1b (it needs an Xcode project edit checked on the macOS runner); and the POS host serves the
 matching association files (`/.well-known/apple-app-site-association`, `/.well-known/assetlinks.json`), plan step
 O-6, an operations step of its own. Those files need the Apple Team ID and the Play App Signing certificate
 fingerprint, which exist only once the company's accounts and signing keys do (O-2, O-3), so a tapped link opens the
@@ -301,8 +301,8 @@ None published, none consumed.
   staging and a production debug build carry different app ids and their own API origin; the Android manifest and the
   iOS project exclude the app's storage from cloud backup and device transfer (FR-013: `allowBackup`,
   `dataExtractionRules` and `fullBackupContent` all present); the Android project carries the
-  verified `intent-filter` and the iOS project the Associated Domains entitlement in its entitlements file (an
-  unsigned simulator build cannot embed it; link verification itself is O-6, in M-2).
+  verified `intent-filter` (link verification itself is O-6, in M-2). **Build checks** (M-1b): the iOS project
+  carries the Associated Domains entitlement in its entitlements file (an unsigned simulator build cannot embed it).
 - **Device checks** (M-1c, recorded in [plan.md](plan.md)): (a) pairing, (b) staff PIN session, (c) personal OTP
   session, each surviving a restart; (d) attendance QR camera; (e) passkey behaviour. Android on a real phone; iOS
   (a)–(c) on the simulator, (d)–(e) on the first real iPhone (M-1c-ii).

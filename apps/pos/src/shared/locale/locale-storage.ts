@@ -4,11 +4,21 @@ import { parseLocale } from './parse-locale';
 
 const LOCALE_KEY = 'pospay.locale';
 
-export function readStoredLocale(): Locale {
+/**
+ * بيقرأ اللغة المحفوظة على الجهاز.
+ *
+ * @param fallback اللغة اللي تبدأ بيها لما مفيش لغة محفوظة صالحة
+ * @returns اللغة المحفوظة، أو اللغة الاحتياطية
+ */
+export function readStoredLocale(fallback: Locale = 'ar'): Locale {
   try {
-    return parseLocale(localStorage.getItem(LOCALE_KEY));
+    const stored = localStorage.getItem(LOCALE_KEY);
+    if (stored === null) return fallback;
+    // parseLocale بيرجع 'ar' لأي قيمة مش معروفة، فالمقارنة بتعرف إن المحفوظ مش صالح.
+    const parsed = parseLocale(stored);
+    return parsed === stored ? parsed : fallback;
   } catch {
-    return 'ar';
+    return fallback;
   }
 }
 

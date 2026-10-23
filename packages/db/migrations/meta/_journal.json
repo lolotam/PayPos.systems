@@ -1233,6 +1233,13 @@
       "when": 1792775834321,
       "tag": "0177_2026-10-23_push-attempt-local-failure-codes",
       "breakpoints": true
+    },
+    {
+      "idx": 178,
+      "version": "7",
+      "when": 1792782838947,
+      "tag": "0178_2026-10-23_shift-ending-notices",
+      "breakpoints": true
     }
   ]
 }

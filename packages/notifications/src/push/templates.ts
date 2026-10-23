@@ -4,6 +4,7 @@ import {
   type TemplateDefinition,
   type TemplateParameter,
 } from '../templates/definition.ts';
+import { formatTwelveHour } from './clock-format.ts';
 
 /** نص الإشعار في لغة واحدة: العنوان اللي بيشوفه الموظف والجسم. */
 export interface PushTemplateCopy {
@@ -28,12 +29,13 @@ const GENERIC_BRANCH: Readonly<Record<'ar' | 'en', string>> = {
   en: 'the branch',
 };
 
-// وقت الشيفت صيغته HH:MM (24 ساعة) بالظبط؛ قيمة حرة كانت هتوصّل بيانات عميل لشاشة القفل.
-const SHIFT_START_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+// وقت الشيفت (بدايته أو نهايته) صيغته HH:MM (24 ساعة) بالظبط؛ قيمة حرة كانت هتوصّل بيانات عميل لشاشة القفل.
+const TIME_24H_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 // المعاملات اللي ليها صيغة صارمة غير قواعد النص العام.
 const STRICT_PARAMETERS: Readonly<Record<string, RegExp>> = {
-  shift_start: SHIFT_START_PATTERN,
+  shift_start: TIME_24H_PATTERN,
+  shift_end: TIME_24H_PATTERN,
 };
 
 const SHIFT_NOT_CLOCKED_IN_SELF: PushTemplateDefinition = {
@@ -70,8 +72,45 @@ const SHIFT_NOT_CLOCKED_IN_SELF: PushTemplateDefinition = {
   },
 };
 
-// كل قوالب الدفع المعروفة؛ قالب واحد لحد ما ييجي قالب تاني.
-const PUSH_TEMPLATES: readonly PushTemplateDefinition[] = [SHIFT_NOT_CLOCKED_IN_SELF];
+const SHIFT_ENDS_SOON: PushTemplateDefinition = {
+  key: 'shift_ends_soon',
+  revision: 1,
+  parameters: [
+    { name: 'shift_end', type: 'text', required: true, sensitivity: 'safe', component: 'body' },
+    {
+      name: 'branch_name_ar',
+      type: 'text',
+      required: true,
+      sensitivity: 'safe',
+      component: 'body',
+      textKind: 'display_name',
+    },
+    {
+      name: 'branch_name_en',
+      type: 'text',
+      required: true,
+      sensitivity: 'safe',
+      component: 'body',
+      textKind: 'display_name',
+    },
+  ],
+  copy: {
+    ar: {
+      title: 'دوامك قرب يخلص',
+      body: 'دوامك بينتهي الساعة {shift_end} في {branch_name}.',
+    },
+    en: {
+      title: 'Shift ending soon',
+      body: 'Your shift ends at {shift_end} at {branch_name}.',
+    },
+  },
+};
+
+// كل قوالب الدفع المعروفة: تنبيه عدم تسجيل الحضور وتذكير قرب انتهاء الدوام.
+const PUSH_TEMPLATES: readonly PushTemplateDefinition[] = [
+  SHIFT_NOT_CLOCKED_IN_SELF,
+  SHIFT_ENDS_SOON,
+];
 
 const find = (key: string): PushTemplateDefinition | null =>
   PUSH_TEMPLATES.find((definition) => definition.key === key) ?? null;
@@ -201,7 +240,7 @@ export function sanitizePushParameters(
 /**
  * بيتأكد إن القالب ومراجعته ومعاملاته مطابقة لقالب دفع معروف.
  * القاعدة: اسم الفرع الفاضي أو المرفوض بيتحسب مش موجود (بينستبدل وقت العرض)،
- * ووقت الشيفت لازم يكون وقت HH:MM، وأي معامل تاني قيمته رابط أو هاتف أو رمز بتترفض.
+ * ووقتا الشيفت (البداية والنهاية) لازم يكونوا وقت HH:MM، وأي معامل تاني قيمته رابط أو هاتف أو رمز بتترفض.
  *
  * @param key        مفتاح القالب
  * @param revision   مراجعة القالب
@@ -219,7 +258,8 @@ export function validPushTemplate(
 /**
  * بيرسم نص الإشعار بلغة الاشتراك.
  * القاعدة: اسم الفرع بلغة الإشعار؛ العربي الناقص أو المرفوض بيرجع لاسم الإنجليزي،
- * والإنجليزي الناقص أو المرفوض بيرجع للفظ العام بالإنجليزي.
+ * والإنجليزي الناقص أو المرفوض بيرجع للفظ العام بالإنجليزي؛ ووقت نهاية الشيفت
+ * بيتعرض بوقت 12 ساعة بلغة الإشعار (6:00 م) مع إنه بيتخزّن وبيتفحص بصيغة 24 ساعة.
  *
  * @param key        مفتاح القالب
  * @param revision   مراجعة القالب
@@ -239,12 +279,13 @@ export function renderPushNotice(
   const copy = definition.copy[locale];
   const values: Record<string, string> = {
     shift_start: valueOf(parameters, 'shift_start') ?? '',
+    shift_end: formatTwelveHour(valueOf(parameters, 'shift_end') ?? '', locale),
     branch_name: branchName(definition, parameters, locale),
   };
   return {
     title: copy.title,
     body: copy.body.replace(
-      /\{(shift_start|branch_name)\}/g,
+      /\{(shift_start|shift_end|branch_name)\}/g,
       (_match, name: string) => values[name] ?? '',
     ),
   };
