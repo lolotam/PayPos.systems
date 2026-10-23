@@ -5,8 +5,8 @@
 **Created**: 2026-10-22
 
 **Status**: Ready for planning — owner questions SE-Q1…SE-Q6 decided by Waleed on the decisions page on
-2026-10-22 (final decision, the recommended option in all six, PP-34.1…PP-34.6, batch 49; Abu Salem has not picked yet
-and his pick would win, [owner-questions.ar.md](owner-questions.ar.md)). Implementation sub-PRs do not start until row 28b
+2026-10-22 (final decision, the recommended option in all six, PP-34.1…PP-34.6, batch 49; Abu Salem picked the same in all six on 2026-10-23
+and the decisions are final, [owner-questions.ar.md](owner-questions.ar.md)). Implementation sub-PRs do not start until row 28b
 (staff web push, spec 063 / ADR-0052) is merged through 28b-3 (the web-push adapter, the worker processor and the VAPID keys).
 
 **Input**: User description: "28c — «your shift ends soon» reminder to the employee by push, default 30 minutes before

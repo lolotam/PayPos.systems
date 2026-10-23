@@ -1,6 +1,6 @@
 # ADR-0054 — The commissions engine package, the recovery-flag ledger, the read use cases and the two fingerprints
 
-Status: Proposed (draft for spec 059, sub-PR 59-0; number provisional, renumbered at merge). Sections 1, 3, 4, 5 and 6 are decided by the spec and the design advisors; section 2's role choice waits for the owner (CS-Q31, TODO(spec)).
+Status: Proposed (draft for spec 059, sub-PR 59-0; number provisional, renumbered at merge). Sections 1, 3, 4, 5 and 6 are decided by the spec and the design advisors; section 2's role choice is decided by the owners (CS-Q31: Waleed and Abu Salem, 2026-10-23, the recommended option, the existing `pospay_dispatcher`).
 Date: 2026-10-22. Scope: spec 059, Phase 1 rows 48a to 56b. Owner decisions already taken: CS-Q13 = PP-17.1 (the new package), spec 059 D-6 to D-9, D-15 to D-18.
 
 ## Context
@@ -18,7 +18,7 @@ Spec 059 leaves four points to an ADR, and this is that ADR (sub-PR 59-0, docs o
    the rule that says which of the two an approval compares (D-6, D-8, D-9).
 
 Everything else in this slice is already decided by the spec, by ADR-0003, ADR-0012, ADR-0041 and ADR-0049. This ADR
-records the shape those decisions force, and names the one point that still needs the owner (CS-Q31, section 2).
+records the shape those decisions force, and records the one point the owners decided (CS-Q31, section 2).
 
 ## Decision
 
@@ -154,13 +154,15 @@ no `UPDATE` and no `DELETE` on the table, so it cannot clear its own alarm.
 matching cases in `packages/db/src/__tests__/privileges.spec.ts`; a check that no other role holds any privilege on it;
 the facade operations and their tests.
 
-**What needs the owner (CS-Q31, TODO(spec)).** CLAUDE.md §5 says the dispatcher "reads and marks rows of the outbox
+**Decided by the owners (CS-Q31, 2026-10-23, batch 51).** CLAUDE.md §5 says the dispatcher "reads and marks rows of the outbox
 table only" (plus the one idempotency sweep). Giving it a second, tenant-free table is a change to that governing text
-and to ADR-0003 (a new group 2.6, "global operational flags"). 59-0 does **not** edit CLAUDE.md §5 or ADR-0003; both
-change when the owner accepts this section, in the PR that builds the table. **Until then 56b-1 does not start.** If the
-owner refuses: a new narrow role `pospay_recovery` with its own facade, at the cost of a connection pool, an env URL, a
-deploy secret, a facade entry in `packages/config/eslint/index.js` (`FACADES`) and a role row in
-`packages/db/src/__tests__/privileges.spec.ts`.
+and to ADR-0003 (a new group 2.6, "global operational flags"). Waleed and Abu Salem both chose the recommended option: the
+existing `pospay_dispatcher` role may `SELECT` and `INSERT` on `operational_recovery_flags` only (no `UPDATE`, no
+`DELETE`), and the clear is a manual command run by the database owner. 59-0 still does **not** edit CLAUDE.md §5 or
+ADR-0003: **56b-1 must amend both in its own PR**, together with the table and the grants, to name this grant. This
+section stays Proposed until that PR. The refused alternative was a new narrow role `pospay_recovery` with its own
+facade, at the cost of a connection pool, an env URL, a deploy secret, a facade entry in
+`packages/config/eslint/index.js` (`FACADES`) and a role row in `packages/db/src/__tests__/privileges.spec.ts`.
 
 ### 3. One consumer id and the registrations (D-8, D-9)
 
@@ -269,8 +271,8 @@ it with the round-trip test CM-34e.
 - 48a-1 carries the enforcement work: the three layers of section 1, the lint test, and the JSDoc scope for the moved
   functions.
 - 50-5 adds the `{ readOnly: true }` option to `withTenant`; the read use cases depend on it.
-- 56b-1 is **blocked on CS-Q31**: the table's grants change the governing text of CLAUDE.md §5 and ADR-0003, and it
-  starts only when the owner accepts section 2.
+- 56b-1 is **no longer blocked** (CS-Q31 decided, 2026-10-23): the table's grants change the governing text of
+  CLAUDE.md §5 and ADR-0003, so 56b-1 amends both in its own PR to name the `pospay_dispatcher` grant.
 - Every sub-PR that adds a root binding adds its Port row to `docs/module-map.md` §3, or stops and writes an ADR first
   (D-16).
 - The spec is corrected in the same PR: D-17 (the enforcement of the restriction), FR-053 (the table's shape and
@@ -279,6 +281,7 @@ it with the round-trip test CM-34e.
 
 ## Open questions for the owner
 
-- **CS-Q31 (TODO(spec)):** may the dispatcher role also hold `SELECT` and `INSERT` on the tenant-free
-  `operational_recovery_flags` table (recommended), or does the owner want a new narrow role `pospay_recovery`?
+- None. **CS-Q31** (may the dispatcher role also hold `SELECT` and `INSERT` on the tenant-free
+  `operational_recovery_flags` table, or does the owner want a new narrow role `pospay_recovery`?) was decided on
+  2026-10-23: the dispatcher role, as recommended (Waleed and Abu Salem).
   Link: [../specs/059-commissions-statements/owner-questions.ar.md](../specs/059-commissions-statements/owner-questions.ar.md)

@@ -5,7 +5,7 @@
 **Created**: 2026-10-22
 
 **Status**: Ready for planning — owner questions WP-Q1…WP-Q4 answered by Waleed on 2026-10-22, see
-[owner-questions.ar.md](owner-questions.ar.md); Abu Salem's pick, if different, replaces them. Sub-PRs 28b-1…28b-4 wait for
+[owner-questions.ar.md](owner-questions.ar.md); Abu Salem picked the same in all four on 2026-10-23 (batches 49 and 50). Sub-PRs 28b-1…28b-4 wait for
 no question; 28b-5 waits for 62-2.
 
 **Input**: User description: "staff-web-push — row 28b: staff web push (Web Push/VAPID), subscriptions per user+device,
@@ -32,7 +32,7 @@ quiet hours (NC-Q11); a deleted employee or ended contract gets nothing (NC-Q12)
 Example used below: Mona, shift at 10:00 at Salmiya branch.
 
 Answered by Waleed on 2026-10-22 (WP-Q1…WP-Q3 on the decisions page, final decisions, PP-33.1…PP-33.3, batch 49, the first option of
-each; Abu Salem has not picked yet and his pick binds if it differs, `CLAUDE.md` §1 5b). The rules, now part of this spec:
+each; Abu Salem picked the same on 2026-10-23, so they are final). The rules, now part of this spec:
 
 - **WP-Q1 — How Mona turns notifications on.** Browsers only allow it if Mona herself taps allow on her own phone, so no
   manager can switch it on for her. The staff screen always shows a "mobile notifications" toggle, and the **first time**
@@ -47,7 +47,7 @@ each; Abu Salem has not picked yet and his pick binds if it differs, `CLAUDE.md`
 - **WP-Q4 — Mona works in two salons (two companies) on one phone.** A phone holds one notification subscription for the
   app, so it serves one company at a time: the notices come from the company she turned notifications on for **last**; to
   switch to the other salon she turns them on there again (answered by Waleed, PP-33.4, batch 50, the first option; Abu
-  Salem has not picked yet and his pick binds if it differs).
+  Salem picked the same on 2026-10-23).
 
 ## User Scenarios & Testing *(mandatory)*
 
