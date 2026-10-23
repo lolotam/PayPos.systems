@@ -81,7 +81,7 @@ services:
       NOTIFICATION_MESSAGE_ID_HASH_KEY: ${NOTIFICATION_MESSAGE_ID_HASH_KEY:-}
       WHATSAPP_STOP_BUTTON_ID: ${WHATSAPP_STOP_BUTTON_ID:-}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
-      COOKIE_DOMAIN: .${STAGING_HOST:?}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.staging.pospay.systems}
     depends_on:
       migrate:
         condition: service_completed_successfully
