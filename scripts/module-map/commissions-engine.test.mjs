@@ -16,7 +16,8 @@ const E = 'ADR-0054';
 const ARABIC = String.fromCharCode(0x0639, 0x0645, 0x0648, 0x0644, 0x0629);
 const arabicLine = `export const label = '${ARABIC}';\n`;
 
-const staticImport = (spec) => `import { probe as engine } from '${spec}';\n\nexport const probe = engine;\n`;
+const staticImport = (spec) =>
+  `import { probe as engine } from '${spec}';\n\nexport const probe = engine;\n`;
 const dynamicImport = (spec) => `export const probe = () => import('${spec}');\n`;
 const requireCall = (spec) => `export const probe = require('${spec}');\n`;
 
@@ -301,7 +302,8 @@ const CASES = [
     expect: E,
   },
   {
-    label: 'api: a commissions persistence adapter may not import the engine /validation dynamically',
+    label:
+      'api: a commissions persistence adapter may not import the engine /validation dynamically',
     at: 'api',
     file: PERSIST,
     source: dynamicImport(VALIDATION),
@@ -366,7 +368,8 @@ const CASES = [
     expect: E,
   },
   {
-    label: 'api: a commissions persistence adapter may not reach the engine by a relative path dynamically',
+    label:
+      'api: a commissions persistence adapter may not reach the engine by a relative path dynamically',
     at: 'api',
     file: PERSIST,
     source: dynamicImport(API_PATH),
