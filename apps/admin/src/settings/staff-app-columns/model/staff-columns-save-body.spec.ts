@@ -1,6 +1,6 @@
-import type { StaffColumnsSettings } from '@pospay/contracts';
+import type { ReplaceStaffColumnsInput, StaffColumnsSettings } from '@pospay/contracts';
 import { expect, it } from 'vitest';
-import { staffColumnsSaveBody } from './staff-columns-save-body';
+import { staffColumnsSaveBody, type StaffColumnsDraft } from './staff-columns-save-body';
 
 const businessId = '01920000-0000-7000-8000-0000000000a2';
 
@@ -15,51 +15,50 @@ function settings(overrides: Partial<StaffColumnsSettings> = {}): StaffColumnsSe
   };
 }
 
-it('keeps an untouched default column set on the default', () => {
-  const body = staffColumnsSaveBody(settings(), {
-    columns: ['date', 'time', 'service'],
-    months_back: 2,
-  });
-  expect(body.columns).toBeNull();
-  expect(body.months_back).toBeNull();
-});
+const cases: {
+  name: string;
+  server: Partial<StaffColumnsSettings>;
+  draft: StaffColumnsDraft;
+  expected: ReplaceStaffColumnsInput;
+}[] = [
+  {
+    name: 'keeps an untouched default column set on the default',
+    server: {},
+    draft: { columns: ['date', 'time', 'service'], months_back: 2 },
+    expected: { columns: null, months_back: null },
+  },
+  {
+    name: 'sends the column array when the default set changed',
+    server: {},
+    draft: { columns: ['date', 'net'], months_back: 2 },
+    expected: { columns: ['date', 'net'], months_back: null },
+  },
+  {
+    name: 'sends the column array when the business already chose its own set',
+    server: { columns_default: false },
+    draft: { columns: ['date', 'time', 'service'], months_back: 2 },
+    expected: { columns: ['date', 'time', 'service'], months_back: null },
+  },
+  {
+    name: 'treats a reordered but equal column set as unchanged',
+    server: {},
+    draft: { columns: ['service', 'time', 'date'], months_back: 2 },
+    expected: { columns: null, months_back: null },
+  },
+  {
+    name: 'sends the months when the default months changed',
+    server: {},
+    draft: { columns: ['date', 'time', 'service'], months_back: 4 },
+    expected: { columns: null, months_back: 4 },
+  },
+  {
+    name: 'sends the months when the business already chose its own months',
+    server: { months_back_default: false },
+    draft: { columns: ['date', 'time', 'service'], months_back: 2 },
+    expected: { columns: null, months_back: 2 },
+  },
+];
 
-it('sends the column array when the default set changed', () => {
-  const body = staffColumnsSaveBody(settings(), {
-    columns: ['date', 'net'],
-    months_back: 2,
-  });
-  expect(body.columns).toEqual(['date', 'net']);
-});
-
-it('sends the column array when the business already chose its own set', () => {
-  const body = staffColumnsSaveBody(settings({ columns_default: false }), {
-    columns: ['date', 'time', 'service'],
-    months_back: 2,
-  });
-  expect(body.columns).toEqual(['date', 'time', 'service']);
-});
-
-it('treats a reordered but equal column set as unchanged', () => {
-  const body = staffColumnsSaveBody(settings(), {
-    columns: ['service', 'time', 'date'],
-    months_back: 2,
-  });
-  expect(body.columns).toBeNull();
-});
-
-it('sends the months when the default months changed', () => {
-  const body = staffColumnsSaveBody(settings(), {
-    columns: ['date', 'time', 'service'],
-    months_back: 4,
-  });
-  expect(body.months_back).toBe(4);
-});
-
-it('sends the months when the business already chose its own months', () => {
-  const body = staffColumnsSaveBody(settings({ months_back_default: false, months_back: 2 }), {
-    columns: ['date', 'time', 'service'],
-    months_back: 2,
-  });
-  expect(body.months_back).toBe(2);
+it.each(cases)('$name', ({ server, draft, expected }) => {
+  expect(staffColumnsSaveBody(settings(server), draft)).toEqual(expected);
 });

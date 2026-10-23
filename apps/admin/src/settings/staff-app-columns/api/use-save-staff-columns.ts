@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { isStaffColumnsRefusal } from '../model/staff-columns-failure';
 import { saveStaffColumns, staffColumnsKey } from './staff-columns-client';
 
-export type SaveStaffColumnsInput = {
+type SaveStaffColumnsInput = {
   idempotencyKey: string;
   body: ReplaceStaffColumnsInput;
 };

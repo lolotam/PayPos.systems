@@ -5,7 +5,7 @@ import {
 } from '@pospay/contracts';
 import { apiClient } from '@/shared/api/client';
 
-export const staffColumnsPath = '/v1/businesses/{businessId}/settings/staff-columns';
+const staffColumnsPath = '/v1/businesses/{businessId}/settings/staff-columns';
 
 /**
  * مفتاح قراءة أعمدة تطبيق الموظفين.

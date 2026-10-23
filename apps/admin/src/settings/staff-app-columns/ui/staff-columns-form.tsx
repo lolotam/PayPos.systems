@@ -51,8 +51,17 @@ export function StaffColumnsForm({
   return (
     <FormProvider {...form}>
       <form onSubmit={submit} noValidate className="flex flex-col gap-6 text-start">
-        <StaffColumnCheckboxes defaultInEffect={server.columns_default} />
-        <StaffMonthsBackField defaultInEffect={server.months_back_default} />
+        {/* أثناء الحفظ بيتقفل كل الحقول: الـ fieldset بيمنع التحرير في المتصفح، والـ disabled على كل مدخل بيوضح إن المدخل مقفول. */}
+        <fieldset disabled={save.isPending} className="contents">
+          <StaffColumnCheckboxes
+            defaultInEffect={server.columns_default}
+            disabled={save.isPending}
+          />
+          <StaffMonthsBackField
+            defaultInEffect={server.months_back_default}
+            disabled={save.isPending}
+          />
+        </fieldset>
         {invalid ? <p role="alert">{t(locale, 'errors.STAFF_MONTHS_BACK_INVALID')}</p> : null}
         {save.isError ? <p role="alert">{staffColumnsFailureMessage(save.error, locale)}</p> : null}
         {save.isPending ? <p role="status">{t(locale, 'staffAppColumns.saving')}</p> : null}

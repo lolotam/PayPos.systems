@@ -8,7 +8,13 @@ import type { StaffColumnsDraft } from '../model/staff-columns-save-body';
 
 const MONTHS_FIELD_ID = 'staff-months-back';
 
-export function StaffMonthsBackField({ defaultInEffect }: { defaultInEffect: boolean }) {
+export function StaffMonthsBackField({
+  defaultInEffect,
+  disabled,
+}: {
+  defaultInEffect: boolean;
+  disabled: boolean;
+}) {
   const locale = useLocale();
   const form = useFormContext<StaffColumnsDraft>();
   return (
@@ -27,6 +33,7 @@ export function StaffMonthsBackField({ defaultInEffect }: { defaultInEffect: boo
         min={1}
         max={12}
         step={1}
+        disabled={disabled}
         className="tabular-nums"
       />
       <p className="text-sm text-muted-foreground">{t(locale, 'staffAppColumns.monthsHint')}</p>

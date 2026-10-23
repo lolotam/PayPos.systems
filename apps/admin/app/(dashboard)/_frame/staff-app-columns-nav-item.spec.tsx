@@ -4,6 +4,7 @@ import { DirectionProvider } from '@pospay/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
+import { staffColumnsKey } from '@/settings/staff-app-columns/api/staff-columns-client';
 import { StaffAppColumnsNavItem } from './staff-app-columns-nav-item';
 
 const api = vi.hoisted(() => ({ GET: vi.fn() }));
@@ -33,13 +34,14 @@ function settings() {
 
 function renderNav() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <DirectionProvider dir="ltr">
         <StaffAppColumnsNavItem />
       </DirectionProvider>
     </QueryClientProvider>,
   );
+  return { client, ...view };
 }
 
 beforeEach(() => {
@@ -68,27 +70,15 @@ it('hides the entry while the columns read is still running', () => {
   expect(screen.queryByRole('link', { name: label })).toBeNull();
 });
 
-it('hides the entry when the columns read fails', async () => {
-  api.GET.mockResolvedValue({
-    error: {
-      code: 'INTERNAL_ERROR',
-      message_ar: 'Synthetic failure',
-      message_en: 'Synthetic failure',
-    },
-    response: { status: 500 },
-  });
-  renderNav();
-  await waitFor(() => expect(api.GET).toHaveBeenCalled());
-  expect(screen.queryByRole('link', { name: label })).toBeNull();
-});
-
-it('hides the entry when the columns read is forbidden', async () => {
+it.each([500, 403])('hides the entry when the columns read answers %i', async (status) => {
   api.GET.mockResolvedValue({
     error: { code: 'FORBIDDEN', message_ar: 'Synthetic refusal', message_en: 'Synthetic refusal' },
-    response: { status: 403 },
+    response: { status },
   });
-  renderNav();
-  await waitFor(() => expect(api.GET).toHaveBeenCalled());
+  const { client } = renderNav();
+  await waitFor(() =>
+    expect(client.getQueryState(staffColumnsKey(id, 'user', id))?.status).toBe('error'),
+  );
   expect(screen.queryByRole('link', { name: label })).toBeNull();
 });
 

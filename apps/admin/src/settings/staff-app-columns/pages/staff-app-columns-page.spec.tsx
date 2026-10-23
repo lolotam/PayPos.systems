@@ -223,8 +223,61 @@ it('disables the save button while the request is in flight', async () => {
   await waitFor(() => expect(api.PUT).toHaveBeenCalled());
   const button = screen.getByRole('button', { name: t('en', 'staffAppColumns.save') });
   expect((button as HTMLButtonElement).disabled).toBe(true);
+  expect(checkbox(t('en', 'staffAppColumns.label_date')).disabled).toBe(true);
+  expect(monthsField().disabled).toBe(true);
   release({ data: settings() });
   expect(await screen.findByText(t('en', 'staffAppColumns.saved'))).toBeTruthy();
+  expect(checkbox(t('en', 'staffAppColumns.label_date')).disabled).toBe(false);
+  expect(monthsField().disabled).toBe(false);
+});
+
+it('follows the business when the selection changes', async () => {
+  const otherBusiness = '01920000-0000-7000-8000-0000000000a5';
+  const otherSettings = {
+    business_id: otherBusiness,
+    columns: ['tip'],
+    columns_default: true,
+    months_back: 6,
+    months_back_default: true,
+  };
+  api.GET.mockImplementation(
+    (_path: string, options: { params: { path: { businessId: string } } }) =>
+      options.params.path.businessId === otherBusiness
+        ? { data: otherSettings }
+        : { data: settings({ columns: ['date'] }) },
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const view = render(
+    <QueryClientProvider client={client}>
+      <StaffAppColumnsPage
+        key={`${companyId}:${businessId}:${userId}`}
+        companyId={companyId}
+        userId={userId}
+        businessId={businessId}
+      />
+    </QueryClientProvider>,
+  );
+  await screen.findByRole('checkbox', { name: t('en', 'staffAppColumns.label_date') });
+  expect(checkbox(t('en', 'staffAppColumns.label_date')).checked).toBe(true);
+  view.rerender(
+    <QueryClientProvider client={client}>
+      <StaffAppColumnsPage
+        key={`${companyId}:${otherBusiness}:${userId}`}
+        companyId={companyId}
+        userId={userId}
+        businessId={otherBusiness}
+      />
+    </QueryClientProvider>,
+  );
+  await waitFor(() => expect(checkbox(t('en', 'staffAppColumns.label_tip')).checked).toBe(true));
+  expect(checkbox(t('en', 'staffAppColumns.label_date')).checked).toBe(false);
+  expect(monthsField().value).toBe('6');
+  api.PUT.mockResolvedValue({ data: otherSettings });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staffAppColumns.save') }));
+  await waitFor(() => expect(api.PUT).toHaveBeenCalled());
+  expect(api.PUT.mock.calls[0]?.[1].params.path).toEqual({ businessId: otherBusiness });
 });
 
 it('shows the Arabic screen with the Arabic column names', async () => {

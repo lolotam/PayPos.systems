@@ -23,19 +23,18 @@ export function StaffAppColumnsPage(props: {
       />
       {query.isPending ? <p role="status">{t(locale, 'admin.loading')}</p> : null}
       {query.isError ? (
-        isStaffColumnsRefusal(query.error) ? (
-          <p role="alert">{t(locale, 'errors.FORBIDDEN')}</p>
-        ) : (
-          <div className="flex flex-col items-start gap-2">
-            <p role="alert">{staffColumnsFailureMessage(query.error, locale)}</p>
+        <div className="flex flex-col items-start gap-2">
+          <p role="alert">{staffColumnsFailureMessage(query.error, locale)}</p>
+          {isStaffColumnsRefusal(query.error) ? null : (
             <Button type="button" variant="outline" onClick={() => void query.refetch()}>
               {t(locale, 'pos.retry')}
             </Button>
-          </div>
-        )
+          )}
+        </div>
       ) : null}
       {settings && !query.isError ? (
         <StaffColumnsForm
+          key={props.businessId}
           companyId={props.companyId}
           userId={props.userId}
           businessId={props.businessId}

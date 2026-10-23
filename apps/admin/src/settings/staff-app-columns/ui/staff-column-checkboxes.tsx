@@ -8,7 +8,13 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { offeredStaffColumns } from '../model/offered-staff-columns';
 import type { StaffColumnsDraft } from '../model/staff-columns-save-body';
 
-export function StaffColumnCheckboxes({ defaultInEffect }: { defaultInEffect: boolean }) {
+export function StaffColumnCheckboxes({
+  defaultInEffect,
+  disabled,
+}: {
+  defaultInEffect: boolean;
+  disabled: boolean;
+}) {
   const locale = useLocale();
   const { field } = useController<StaffColumnsDraft, 'columns'>({ name: 'columns' });
   const selected = field.value ?? [];
@@ -34,6 +40,7 @@ export function StaffColumnCheckboxes({ defaultInEffect }: { defaultInEffect: bo
             <input
               id={id}
               type="checkbox"
+              disabled={disabled}
               checked={selected.includes(code)}
               onChange={() => toggle(code)}
             />

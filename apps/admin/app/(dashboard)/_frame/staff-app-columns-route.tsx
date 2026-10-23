@@ -15,6 +15,7 @@ export function StaffAppColumnsRoute() {
   if (!workspace.business) return <p>{t(locale, 'admin.chooseBusiness')}</p>;
   return (
     <StaffAppColumnsPage
+      key={`${workspace.company.id}:${workspace.business.id}:${userId}`}
       companyId={workspace.company.id}
       userId={userId}
       businessId={workspace.business.id}
