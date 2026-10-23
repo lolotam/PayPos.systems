@@ -106,7 +106,7 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 4. The PDF has `dir="rtl" lang="ar"`, the logo and the Arabic official name, «فرع السالمية», the period, one row per
    employee with any counted session or contracted minutes at the branch in the period, a signature column, the
    manager's signature line and the footer (BR-01, BR-02, BR-04, BR-06).
-5. For a full calendar month at one branch, each row's figures equal the 27b monthly report row of the same
+5. For a full calendar month at one branch with no shift filter, each row's figures equal the 27b monthly report row of the same
    employee, branch and month read at the same moment (parity test). Any other range is checked against the sum of the
    27b per-day figures over its dates, with no parity test. Admission (FR-003) is only a quick pre-check: if the render finds the employee or the whole
    statement empty, the status ends `FAILED / STATEMENT_EMPTY` and no PDF is produced.
@@ -200,18 +200,19 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   matches no day. `TODO(spec)` ST-Q7: this read ships with the shift filter, after ST-Q7 is answered (§9).
 - **FR-002** The route is guarded by `@Require('read:attendance:branch', { branch: 'branchId' })` and
   `@RequiresFeature('staff')`, like `attendance-monthly-report.controller.ts` (BR-08).
-- **FR-003** The use case checks the period's shape (`from <= to`, at most 366 days), the renderer liveness key and the
-  per-user rate limit, then in **one** `withTenant(companyId, …, { userId })` transaction loads the branch's effective
-  time zone (the branch's, otherwise the business's, through the `tenancy.describeWorkspaces` read staff already uses)
+- **FR-003** The use case checks the renderer liveness key and the per-user rate limit, then in **one**
+  `withTenant(companyId, …, { userId })` transaction first confirms that the route's branch belongs to the route's
+  business (`branches` row with `(company_id, business_id, id)`; otherwise `404 ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`,
+  nothing written), before any period check, so a mismatched route always gets that `404`. Then it checks the period's
+  shape (`from <= to`, at most 366 days; otherwise `422 ATTENDANCE_STATEMENT_PERIOD_INVALID`), loads the branch's
+  effective time zone (the branch's, otherwise the business's, through the `tenancy.describeWorkspaces` read staff already uses)
   and only then checks the ceiling of Story 3.4: `to` must not pass the last day of the month that the injected `Clock`
   falls in **in that time zone** (at 22:00 UTC on 31 October it is already November in `Asia/Kuwait`, so November is
   the current month). A violation is `422 ATTENDANCE_STATEMENT_PERIOD_INVALID` with nothing written. It then applies
   the ST-Q8 gate (Story 3.4a), `TODO(spec)` ST-Q8: a period that has not fully ended at the injected `Clock` instant (the
   same instant stored as `requested_at`) is `422 ATTENDANCE_STATEMENT_PERIOD_NOT_ENDED` with nothing written; it reads
   the employees' schedule shifts and default working-hours entries up to `to` for that check. The same
-  transaction then confirms that the route's branch belongs to
-  the route's business (`branches` row with `(company_id, business_id, id)`; otherwise `404
-  ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`, nothing written), confirms the employee (when given) with the **same
+  transaction then confirms the employee (when given) with the **same
   candidate rule the branch table uses** (Story 1.4, Story 3.3): she belongs to that business and has a counted
   session or contracted minutes at that branch in the period. The check is the `candidates` part of the shared 27b
   inputs statement (ADR-0056 §2) limited to that one employee, exposed from `@pospay/db` beside it; the 27b statement
@@ -488,7 +489,7 @@ factory. The code PRs add the two port rows.
 ## 8. Success criteria
 
 - A pilot branch (30 employees) month statement is `READY` within 10 seconds of the request on staging.
-- For a full calendar month at one branch, the branch statement figures equal the 27b report for the same month,
+- For a full calendar month at one branch with no shift filter, the branch statement figures equal the 27b report for the same month,
   read at the same moment, in every column.
 - Every delivered PDF has exactly one audit entry; no PDF byte exists anywhere after collection or 120 seconds.
 
