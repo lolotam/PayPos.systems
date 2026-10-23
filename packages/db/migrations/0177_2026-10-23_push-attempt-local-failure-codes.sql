@@ -1,0 +1,2 @@
+ALTER TABLE "push_attempts" DROP CONSTRAINT "push_attempts_failure";--> statement-breakpoint
+ALTER TABLE "push_attempts" ADD CONSTRAINT "push_attempts_failure" CHECK ("push_attempts"."failure_code" IS NULL OR "push_attempts"."failure_code" IN ('DEADLINE_EXPIRED','SUBSCRIPTION_GONE','SUBSCRIPTION_CHANGED','SUBSCRIPTION_REVOKED','KEY_ROTATED','ADMISSION_REFUSED','VAPID_REJECTED','PROVIDER_4XX','PROVIDER_429','PROVIDER_5XX','NETWORK_UNKNOWN','PARAMETERS_INVALID','CONFIG_INVALID'));

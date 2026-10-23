@@ -5,6 +5,7 @@ import { createAuth, type AuthOptions, type AuthService } from '@pospay/auth';
 import { createDatabase, type Database } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { phoneLockKey, vapidKeyId, type PushApiConfiguration } from '@pospay/notifications';
+import type { Redis } from 'ioredis';
 import postgres from 'postgres';
 
 import { seedReferenceData } from '../../../../../../../packages/db/src/seed.ts';
@@ -91,7 +92,45 @@ function appOptions(database: Database, auth: AuthService, configured: boolean):
       otp: null,
     },
     push: configured ? pushFixtureConfig : null,
+    redis: fakeRedis(),
   };
+}
+
+type FakeChain = {
+  incr(name: string): FakeChain;
+  expire(name: string): FakeChain;
+  exec(): Promise<[Error | null, number][]>;
+};
+
+// Redis وهمي للاختبار: عدّاد نافذة ثابتة في الذاكرة. تسجيل الدفع محتاج حدّ يعدّ، وفي اختبار الـ API
+// مفيش Redis حقيقي، فبلا عدّاد كل تسجيل بيرد NOT_READY وما بيفحصش ولا مفتاح.
+function fakeRedis(): Redis {
+  const store = new Map<string, string>();
+  const multi = (): FakeChain => {
+    const commands: (() => number)[] = [];
+    const chain: FakeChain = {
+      incr: (name: string) => {
+        commands.push(() => {
+          const next = Number(store.get(name) ?? '0') + 1;
+          store.set(name, String(next));
+          return next;
+        });
+        return chain;
+      },
+      expire: () => chain,
+      exec: async () => commands.map((run) => [null, run()] as [Error | null, number]),
+    };
+    return chain;
+  };
+  return {
+    multi,
+    set: async (name: string, value: string) => {
+      store.set(name, value);
+      return 'OK';
+    },
+    get: async (name: string) => store.get(name) ?? null,
+    ttl: async () => 3600,
+  } as unknown as Redis;
 }
 
 // الـ payload بيتضاف بس لما يكون موجود، ونوعه string أو object عشان fastify يقبله.

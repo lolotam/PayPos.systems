@@ -61,9 +61,19 @@ describe('an allowed push endpoint', () => {
       'https://db5.notify.windows.com/w/?token=abc',
       'https://abc.notify.windows.com/w/?token=x',
       'https://fcm.googleapis.com/fcm/send/abc?token=xyz',
-      'https://fcm.googleapis.com',
+      'https://x.notify.windows.com/?token=abc',
     ])
       expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(true);
+  });
+
+  it('refuses a host without a path and a query directly after the host', () => {
+    for (const endpoint of [
+      'https://updates.push.services.mozilla.com?token=abc',
+      'https://x.notify.windows.com?token=abc',
+      'https://fcm.googleapis.com',
+      'https://fcm.googleapis.com?x=1',
+    ])
+      expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(false);
   });
 
   it('refuses a non-https scheme, a user-info, a port and an IP literal', () => {
@@ -129,6 +139,49 @@ describe('a refused push endpoint', () => {
     const long = `https://fcm.googleapis.com/${'a'.repeat(2048)}`;
     expect(long.length).toBeGreaterThan(2048);
     expect(pushEndpoint.safeParse(long).success).toBe(false);
+  });
+});
+
+describe('a canonical push endpoint path', () => {
+  it('refuses a backslash, a dot segment and an encoded dot, slash or backslash', () => {
+    for (const endpoint of [
+      'https://fcm.googleapis.com/fcm\\send/abc',
+      'https://fcm.googleapis.com/fcm/send/abc\\',
+      'https://fcm.googleapis.com/fcm/./send/abc',
+      'https://fcm.googleapis.com/fcm/../send/abc',
+      'https://fcm.googleapis.com/fcm/%2e%2e/send',
+      'https://fcm.googleapis.com/fcm/%2E/send',
+      'https://fcm.googleapis.com/fcm%2Fsend/abc',
+      'https://fcm.googleapis.com/fcm%5Csend/abc',
+      'https://fcm.googleapis.com/fcm/send/abc?token=a\\b',
+    ])
+      expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(false);
+  });
+
+  it('accepts a normal path and a query that carries encoded characters', () => {
+    for (const endpoint of [
+      'https://fcm.googleapis.com/fcm/send/abc',
+      'https://web.push.apple.com/abc',
+      'https://updates.push.services.mozilla.com/wpush/v2/abc',
+      'https://x.notify.windows.com/?token=AbC%3d%2Fabc',
+      'https://fcm.googleapis.com/fcm/send/abc?token=a%2Fb',
+    ])
+      expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(true);
+  });
+
+  it('keeps one spelling of a destination, so one hash reaches the database', () => {
+    const canonical = 'https://fcm.googleapis.com/fcm/send/abc';
+    expect(pushEndpoint.safeParse(canonical).success).toBe(true);
+    for (const spelling of [
+      'https://fcm.googleapis.com/fcm\\send/abc',
+      'https://fcm.googleapis.com/fcm/send/abc\\',
+      'https://fcm.googleapis.com/fcm/./send/abc',
+      'https://fcm.googleapis.com/fcm/../send/abc',
+      'https://fcm.googleapis.com/fcm/%2e%2e/send',
+      'https://fcm.googleapis.com/fcm%2Fsend/abc',
+      'https://fcm.googleapis.com/fcm%5Csend/abc',
+    ])
+      expect(pushEndpoint.safeParse(spelling).success, spelling).toBe(false);
   });
 });
 

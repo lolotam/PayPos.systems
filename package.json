@@ -26,6 +26,7 @@
     "infra:logs": "docker compose --env-file .env -f deploy/docker-compose.dev.yml logs -f --tail=100",
     "platform:grant": "pnpm --filter @pospay/db platform:grant",
     "platform:create-user": "pnpm --filter @pospay/auth platform:create-user",
+    "push:generate-vapid": "node scripts/push-generate-vapid.mjs",
     "module-map:generate": "node scripts/module-map/cli.mjs generate",
     "module-map:check": "node scripts/module-map/cli.mjs check"
   },

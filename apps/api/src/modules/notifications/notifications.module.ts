@@ -44,6 +44,7 @@ import {
 } from './http/push-subscription.controller.ts';
 import { createPushSubscriptionTransactions } from './persistence/drizzle-push-subscriptions.repository.ts';
 import { createPushHashes } from './persistence/push-hashes.adapter.ts';
+import { createPushKeys } from './persistence/push-keys.adapter.ts';
 import { RegisterPushSubscription } from './use-cases/register-push-subscription/register-push-subscription.ts';
 import { RevokePushSubscription } from './use-cases/revoke-push-subscription/revoke-push-subscription.ts';
 
@@ -86,6 +87,7 @@ export function notificationsProviders(
           register: new RegisterPushSubscription(
             transactions,
             createPushHashes(),
+            createPushKeys(),
             systemUuidV7(),
             systemClock,
             limiter,

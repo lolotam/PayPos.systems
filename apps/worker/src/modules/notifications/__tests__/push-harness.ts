@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createECDH, createHash, randomBytes } from 'node:crypto';
 
 import { appendOutboxEvent, createDatabase, type ClaimedEvent, type Database } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
@@ -27,8 +27,14 @@ import { pushQueries } from './push-harness-rows.ts';
 export const PUSH_USER = USER;
 export const OTHER_USER = '01920000-0000-7000-8000-0000000000f2';
 export const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/synthetic';
-export const P256DH = 'p'.repeat(87);
-export const AUTH = 'a'.repeat(22);
+// مفاتيح حقيقية: نقطة P-256 على المنحنى و16 بايت، عشان التشفير ينجح في اختبارات الإرسال.
+const generatedP256dh = (): string => {
+  const ecdh = createECDH('prime256v1');
+  ecdh.generateKeys();
+  return ecdh.getPublicKey().toString('base64url');
+};
+export const P256DH = generatedP256dh();
+export const AUTH = randomBytes(16).toString('base64url');
 export const KEY_ID = '0123456789abcdef';
 export const NOW = new Date('2026-10-01T10:00:00Z');
 export const logger: Logger = createLogger('silent');

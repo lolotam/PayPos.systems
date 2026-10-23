@@ -265,3 +265,35 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
 - The container does not survive a Docker Desktop restart. If the tests then report that Postgres is not
   reachable on a 554xx port (the hint to run `pnpm infra:up` is for the shared cluster), rerun
   `node scripts/test-db/lane.mjs up <lane>`, or `down <lane>` to fall back to the shared cluster.
+
+## Staff web push (VAPID keys, row 28b)
+
+Spec 063 and ADR-0052. One ES256 (P-256) key pair for the whole platform signs every push. The **worker** is the only
+process that holds the private key; the API holds the public key and the subject only.
+
+**Generate (once, on the operator's machine).** Run `pnpm push:generate-vapid`. It prints two lines to the terminal,
+`VAPID_PUBLIC_KEY=…` (87 characters) and `VAPID_PRIVATE_KEY=…` (43 characters), and writes nothing to disk. Do not paste
+them into a chat, a ticket or a commit. Choose `VAPID_SUBJECT`, a `mailto:` or `https:` contact the push services may use
+to reach the operator (for example `mailto:ops@pospay.systems`).
+
+**Install.** Put all three in the Dokploy environment of the compose service, as secrets. The compose files pass
+`VAPID_PUBLIC_KEY` and `VAPID_SUBJECT` to `api`, and all three to `worker` only; the private key must never reach the `api`
+container. Do not set `NOTIFICATIONS_MODE=fake` on a deployed environment: a production worker refuses fake mode for push (`reason: FAKE_IN_PRODUCTION`, push stays off); leave it empty or `live`. Outside production, `NOTIFICATIONS_MODE=fake` runs push with a fake channel and needs no key. Redeploy. The worker logs one line at start, `staff push capability`, with `state: READY` or `state: DISABLED`
+and a `reason` (`NOT_CONFIGURED`, `PUBLIC_KEY_OR_SUBJECT_INVALID`, `PRIVATE_KEY_INVALID`, `KEY_MISMATCH`, `FAKE_IN_PRODUCTION`); a key is never
+in that line. The API answers `GET /v1/staff/push/config` with `NOT_READY` until the public key and the subject are valid.
+If the API is ready and the worker is not, employees can still subscribe, but no notice is created for push and nothing
+is sent until the worker is fixed; only notices created after that are pushed. Neither case changes `/ready`. If the log says `state: UNAVAILABLE` with `reason: SETUP_FAILED` (Redis was not reachable when the worker started), push stays off for that process and no push attempts are written until the worker is restarted: restart it once Redis is up.
+
+**Rotate.** Generate a new pair and replace all three variables together, then redeploy. A push service binds each
+subscription to the key it was created with, so **every existing subscription stops working**: the sender revokes a row
+whose key id is not the current one (`KEY_ROTATED`) without calling the push service. Each employee repairs it by opening
+the staff app once (it unsubscribes and subscribes again with the new key). Do the rotation in this order, because an old worker that is still running would treat a subscription created under the new key as stale and revoke it: stop the worker first, set the three variables, then start the new worker and the API together. Plan the rotation for a quiet hour and tell the
+managers there is a gap in delivery until the staff open the app.
+
+**Reading a failure.** `push_attempts.failure_code` says what happened: `SUBSCRIPTION_GONE` (the phone uninstalled or the
+user disabled notifications; the subscription is revoked), `SUBSCRIPTION_CHANGED` and `SUBSCRIPTION_REVOKED` (the phone
+re-subscribed or signed out before the send; no call was made), `KEY_ROTATED`, `DEADLINE_EXPIRED`, `ADMISSION_REFUSED`
+(more than 10 pushes a minute to one subscription), `PROVIDER_4XX` (a 401 or 403 also logs `VAPID_REJECTED`: check the
+key pair), `PROVIDER_429`, `PROVIDER_5XX` and `NETWORK_UNKNOWN` (the outcome is unknown and the notice is never repeated).
+A `PushSendAuthorized` event that kept coming back undelivered while push was disabled is parked after the outbox's last attempt (log `outbox event parked`); its attempt stays `PENDING` and the notice is not sent unless an operator replays the event after push is enabled. A row stuck in `SENDING` means the worker stopped between taking the send and recording the result; it is never retried.
+Logs carry the attempt id, the subscription id, the status code and the failure code only.
