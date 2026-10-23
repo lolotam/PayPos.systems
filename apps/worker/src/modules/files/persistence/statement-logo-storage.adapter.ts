@@ -8,7 +8,6 @@ import {
 import {
   STATEMENT_LOGO_LIMITS,
   StatementLogoUnavailable,
-  type StatementLogo,
   type StatementLogoFile,
 } from '../domain/statement-logo.ts';
 import type { StatementLogoBytes } from '../ports/statement-logo.port.ts';
