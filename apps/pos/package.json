@@ -14,6 +14,8 @@
     "api:check": "node scripts/api-check.mjs"
   },
   "dependencies": {
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.3",
     "@hookform/resolvers": "5.9.1",
     "@pospay/auth": "workspace:*",
     "@pospay/contracts": "workspace:*",
