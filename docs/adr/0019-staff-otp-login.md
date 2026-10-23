@@ -915,9 +915,10 @@ revoked counter device could never finish the role change.
 2. The authority to end the session is possession of the server-signed `pospay-staff.session_token` cookie, sent from
    the exact configured POS origin. The session row is retired through `retireStaffSession` under the advisory lock of
    the device named in the row's own `staffDeviceContext`, so a concurrent replacement on that device still serializes
-   with it and everything this ADR ties to the end of a session follows.
-3. The route answers 200 `SIGNED_OUT` when it ended a live session and 200 `NO_SESSION` otherwise, clearing the cookie
-   in both cases; repeats answer `NO_SESSION`. Refusals are explicit (403 origin, 429 rate limit, 503 not wired); the
+   with it and everything this ADR ties to the end of a session follows. A `STAFF_POS` row with no device context or
+   a non-UUID device id, which no device can resolve, is deleted by its id and purpose without the lock.
+3. The route answers 200 `SIGNED_OUT` when it ended a live session and 200 `NO_SESSION` otherwise; it sends the
+   clearing `Set-Cookie` only when the request carried the staff cookie (spec 067 D-6); repeats answer `NO_SESSION`. Refusals are explicit (403 origin, 429 rate limit, 503 not wired); the
    route never answers 401. Eligibility and the phone binding are not consulted to end a session.
 4. The route stays `@Authenticated()` and declared in `AUTHENTICATED_WRITES`; the guard runs a session-optional
    sign-out policy (origin check, per-IP rate limit, no principal).

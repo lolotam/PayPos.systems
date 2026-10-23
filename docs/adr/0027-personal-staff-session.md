@@ -135,7 +135,8 @@ expired does not delete it (ADR-0052 §7).
    (403, as device credentials still cannot stand in for this purpose) and applies a per-IP rate limit. Possession of
    the server-signed `pospay-personal.session_token` cookie is the authority to end that session; eligibility and the
    phone binding are not consulted. It answers 200 `SIGNED_OUT` when it ended a live `STAFF_PERSONAL` session and 200
-   `NO_SESSION` otherwise, clearing the cookie in both cases, and never 401. The client-side clearing rules above
+   `NO_SESSION` otherwise, and never 401; it sends the clearing `Set-Cookie` only when the request carried the
+   personal cookie (spec 067 D-6). The client-side clearing rules above
    (private forms and caches on logout; the push record on an explicit sign-out) are unchanged.
 2. **One own-scope display flag.** The personal session read (`GET /v1/staff/personal-session`) and the personal
    sign-in answer carry `back_office: boolean`: whether the signed-in user counts, under the owner's answer to SO-Q1,

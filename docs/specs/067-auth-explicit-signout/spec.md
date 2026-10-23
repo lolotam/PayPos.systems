@@ -61,8 +61,10 @@ check the three answers and that a repeat answers the same «nothing to end».
 
 1. **Given** a live personal session, **When** the personal sign-out is called from the POS origin, **Then** it answers
    «signed out», the session no longer resolves, and the cookie is cleared.
-2. **Given** the same browser right after, **When** the sign-out is called again, **Then** it answers «no session to
-   end» with the cookie cleared again.
+2. **Given** the same browser right after (it no longer holds the cookie), **When** the sign-out is called again,
+   **Then** it answers «no session to end» and sends no `Set-Cookie` (D-6).
+   A request that still carries the old cookie (another tab's copy of the request) also answers «no session to end»,
+   with the clearing header.
 3. **Given** no cookie, an expired session or a session replaced by a sign-in on another phone, **When** the personal
    sign-out is called, **Then** it answers «no session to end».
 4. **Given** a live staff (counter operator) session, **When** the staff sign-out is called, **Then** it answers
@@ -202,10 +204,17 @@ the `PERSONAL_ROUTE` and `STAFF_ROUTE` branches; the two sign-out handlers drop 
 markers. The branch, in this order:
 
 0. wiring: the route's sessions (`StaffSessions` / `PersonalAuthentication.sessions`), its POS origin setting and the
-   `RATE_LIMITER` must be wired; otherwise 503 `NOT_READY`. A missing origin **setting** is configuration, not a
-   refusal;
+   `RATE_LIMITER` must be wired; otherwise 503 `NOT_READY`. For staff that means `StaffSessions` or the
+   `STAFF_POS_ORIGIN` binding is null, the same condition under which no staff sign-in works at all; whether OTP is
+   enabled is never consulted. A missing origin **setting** is configuration, not a refusal;
 1. the request's `Origin` header must equal that setting: for staff the `STAFF_OTP_POS_ORIGIN` environment variable
-   (injected as the `STAFF_POS_ORIGIN` token, the value the staff OTP routes compare today), for personal
+   (injected as the `STAFF_POS_ORIGIN` token, the value the staff OTP routes compare today). Despite its name it is
+   not an OTP-only setting: the composition root binds it whether or not OTP is enabled (`apps/api/src/main.ts`,
+   `staff.origin: process.env['STAFF_OTP_POS_ORIGIN'] || null`, next to `api: otp ?? null`; provided as
+   `STAFF_POS_ORIGIN` in `apps/api/src/modules/identity/identity.module.ts`), staging always sets it
+   (`deploy/docker-compose.staging-shared.yml`: `STAFF_OTP_POS_ORIGIN: ${STAFF_OTP_POS_ORIGIN:-https://${POS_STAGING_HOST:?}}`),
+   and the staff PIN sign-in (`StaffPinController`), the staff leave guard and the card clock refuse every request
+   when it is unset, so no staff session can exist without it. OTP being off changes nothing here; for personal
    `PersonalAuthentication.origin`; a missing or different header → 403 `FORBIDDEN`;
 2. personal only: an `Authorization` header → 403 `FORBIDDEN` (ADR-0027: device credentials cannot upgrade or stand
    in for the personal purpose);
@@ -255,18 +264,22 @@ responses. If one tab's sign-out response reaches the browser after another tab'
 sign-out's `Set-Cookie` (an expired cookie of the same name, `Path=/v1`) erases the new cookie. HTTP gives the server no
 clean way to prevent it: a `Set-Cookie` cannot be made conditional on the value the browser holds when the response
 arrives, and avoiding it would need a different cookie name per session, while ADR-0019 and ADR-0027 fix one name per
-purpose. Two narrowings are required, and the rest is accepted:
+purpose. One narrowing is required, and the rest is accepted:
 
 - the server sends the clearing header only when the request carried a cookie of that route's name; a request with no
   such cookie gets `NO_SESSION` with no `Set-Cookie`, so a stray sign-out from a tab that never held a session cannot
-  erase anything;
-- the clients serialize: the PWA and the app never start a sign-in of a kind while a sign-out of that kind is in
-  flight in any tab (the existing cross-tab change announcement, `announcePersonalChange`, and its staff equivalent
-  carry an «in flight» state), and a sign-out started after a sign-in waits for it.
+  erase anything.
 
-If the race still happens, the effect is availability only: the new row survives until its deadline or the next
-sign-in on that device (staff) or for that user (personal) replaces it, and the person signs in again. No session is
-extended, revived or exposed.
+No cross-tab lock between sign-in and sign-out is added. Such a lock would need an owner tab, a release on every
+terminal path and recovery when that tab crashes or closes; a lock that outlives its tab blocks every sign-in on the
+device, which is worse than the race it prevents. Clients keep today's behaviour (a sign-out clears the private state
+in every tab, ADR-0019 §1, ADR-0027).
+
+When the race happens (rare: it needs a sign-out and a sign-in of the same kind in two tabs at the same moment), the
+effect is availability only: the person signs in again; the orphaned row can no longer be used by that browser, the
+next sign-in on that device (staff) or for that user (personal) replaces it, and in any case it expires within its
+8 hours. No session is extended, revived or exposed. An optional client-side mitigation is tracked for spec 065 in issue
+#581; this spec adds no synchronization mechanism.
 
 **D-7. Readers of `request.principal` on these two routes.** `SessionGuard` documents `principal` as «absent only on
 @Public() routes»; these become the two `@Authenticated()` routes where it is absent too. Every reader in
@@ -335,8 +348,10 @@ device token changes nothing in the table above. There is no 401 row on either r
   `role_id` (and owner key) of each membership active now whose scope covers the session's business (that company,
   that business, or a branch of it). No second transaction is opened, in the guard or in the handlers: the guard
   (`personalSessionRequest`) keeps those raw rows on the request next to `personalEmployeeId`, and the verify handler
-  gets them from the same eligibility call it makes today. If SO-Q1 picks the permission-based option, the same SQL
-  joins `role_permissions` inside that transaction.
+  gets them from the same eligibility call it makes today. Every SO-Q1 option is a list of stable system-role ids
+  (`SYSTEM_ROLES` in `packages/db/src/access-catalog.ts`), so the rule needs no permission evaluation: no join on
+  `role_permissions`, no overrides. A company-specific role counts under no option; counting one later would need the
+  existing effective-access evaluation (`AuthorizeRequest`: DENY wins, time windows apply) and its own spec change.
 - **The rule outside `queries/` and `persistence/`.** The SO-Q1 decision is a pure function in
   `apps/api/src/modules/identity/domain/` (proposed `backOfficeFor(memberships)`), exported through the identity
   `index.ts` and applied by the two handlers to the raw rows. The reader returns rows only and imports no `domain/`
