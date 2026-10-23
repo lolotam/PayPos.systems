@@ -98,20 +98,21 @@ it('private publication is create-only; GET expiry is 60 seconds and attachment'
   await expect(storage.read('verified/one', 10)).rejects.toThrow('STORAGE_UNAVAILABLE');
   await expect(storage.read('verified/one', 10)).rejects.toBeInstanceOf(StorageObjectMissingError);
 });
-it('a read with a wrong signature is an outage, not a missing object', async () => {
-  const wrong = createS3Storage({
-    endpoint: fake.endpoint,
+it('a 403 from the storage is an outage, not a missing object', async () => {
+  const server = await failingStorage(403, '<Error><Code>AccessDenied</Code></Error>');
+  const broken = createS3Storage({
+    endpoint: server.endpoint,
     region: 'auto',
     bucket: 'private',
-    accessKeyId: fakeCredentials.accessKeyId,
-    secretAccessKey: 'synthetic-wrong-secret-only',
+    ...fakeCredentials,
   });
   try {
-    const failure = await wrong.read('verified/one', 10).catch((error: unknown) => error);
+    const failure = await broken.read('verified/one', 10).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(StorageError);
     expect(failure).not.toBeInstanceOf(StorageObjectMissingError);
   } finally {
-    wrong.close();
+    broken.close();
+    await server.close();
   }
 });
 it('a 404 on a missing bucket is an outage, not a missing object', async () => {
