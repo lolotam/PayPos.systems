@@ -560,9 +560,13 @@ records to the server (2026-10-23).
 2. Take a backup: `docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env ghcr.io/lolotam/pospay-backup:<sha>`.
 3. If `deploy/docker-compose.staging-shared.yml` changed, update the service's compose file in Dokploy to that SHA's
    content (`compose.update`, raw source). Note the SHA that is live now: it is the rollback target.
-4. Set `IMAGE_TAG=<full-sha>` in the service's environment (change only that line, unless the compose file of that SHA
-   requires a variable the environment lacks: add it first, as `deploy/staging.env.example` lists, or the
-   interpolation aborts before any service starts), then `compose.deploy`. Prove it:
+4. **Pin the tag in the compose file, not the environment.** Dokploy encrypts the service environment at rest once it is
+   saved from its UI (`enc:v1:`; first seen 2026-10-23), so it can no longer be edited by SQL, and sending it through
+   `compose.saveEnvironment` would carry every secret. Take the SHA's `deploy/docker-compose.staging-shared.yml` (or the
+   rollback compose file, below), replace every `${IMAGE_TAG:?}` with `<full-sha>`, and send that text with
+   `compose.update` (`composeFile`; it holds no secret), then `compose.deploy`. A variable the SHA's file needs that the
+   environment lacks is added by Waleed in the Dokploy UI first (`deploy/staging.env.example` lists them), or the
+   interpolation aborts before any service starts. Prove it:
    `https://api.staging.pospay.systems/ready` answers 200, the worker's own `/ready` answers 200 from inside its
    container (`docker exec <worker> node -e "fetch('http://127.0.0.1:3001/ready')…"`, as the retired script did), both front ends answer 200, and the `migrate` container exited 0.
 5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): redeploy
