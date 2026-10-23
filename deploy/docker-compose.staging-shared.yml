@@ -123,6 +123,43 @@ services:
     networks: [dokploy-network]
     mem_limit: 1g
 
+  # The staging back-office and cashier. Both bake the API origin at build time, so CI builds staging variants with
+  # https://staging.pospay.systems (pospay-admin-staging, pospay-pos-staging); the plain images are origin-less.
+  admin:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-admin-staging:${IMAGE_TAG:?}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    networks: [dokploy-network]
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.pospay-staging-admin.rule: Host(`${ADMIN_STAGING_HOST:?}`)
+      traefik.http.routers.pospay-staging-admin.entrypoints: websecure
+      traefik.http.routers.pospay-staging-admin.tls.certresolver: letsencrypt
+      traefik.http.routers.pospay-staging-admin-http.rule: Host(`${ADMIN_STAGING_HOST:?}`)
+      traefik.http.routers.pospay-staging-admin-http.entrypoints: web
+      traefik.http.routers.pospay-staging-admin-http.middlewares: redirect-to-https@file
+      traefik.http.services.pospay-staging-admin.loadbalancer.server.port: '3000'
+    mem_limit: 512m
+
+  pos:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-pos-staging:${IMAGE_TAG:?}
+    restart: unless-stopped
+    networks: [dokploy-network]
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.pospay-staging-pos.rule: Host(`${POS_STAGING_HOST:?}`)
+      traefik.http.routers.pospay-staging-pos.entrypoints: websecure
+      traefik.http.routers.pospay-staging-pos.tls.certresolver: letsencrypt
+      traefik.http.routers.pospay-staging-pos-http.rule: Host(`${POS_STAGING_HOST:?}`)
+      traefik.http.routers.pospay-staging-pos-http.entrypoints: web
+      traefik.http.routers.pospay-staging-pos-http.middlewares: redirect-to-https@file
+      traefik.http.services.pospay-staging-pos.loadbalancer.server.port: '8080'
+    mem_limit: 128m
+
 networks:
   dokploy-network:
     external: true

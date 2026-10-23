@@ -232,6 +232,7 @@ jobs:
       REGISTRY: ghcr.io/${{ github.repository_owner }}
       SHA: ${{ github.sha }}
       PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      STAGING_API_URL: https://staging.pospay.systems
     steps:
       - uses: actions/checkout@v7
 
@@ -253,6 +254,9 @@ jobs:
           docker build -f deploy/Dockerfile.backup -t "$registry/pospay-backup:$SHA" .
           docker build -f deploy/Dockerfile.admin -t "$registry/pospay-admin:$SHA" .
           docker build -f deploy/Dockerfile.pos -t "$registry/pospay-pos:$SHA" .
+          # Staging variants: the API origin is baked into both front ends at build time.
+          docker build -f deploy/Dockerfile.admin --build-arg NEXT_PUBLIC_API_URL="$STAGING_API_URL" -t "$registry/pospay-admin-staging:$SHA" .
+          docker build -f deploy/Dockerfile.pos --build-arg VITE_API_URL="$STAGING_API_URL" -t "$registry/pospay-pos-staging:$SHA" .
           echo "REGISTRY_LC=$registry" >> "$GITHUB_ENV"
 
       - name: no env file in any image or build stage
@@ -263,6 +267,7 @@ jobs:
           images="$images $REGISTRY_LC/pospay-migrate:$SHA $REGISTRY_LC/pospay-worker:$SHA $REGISTRY_LC/pospay-backup:$SHA"
           images="$images $REGISTRY_LC/pospay-admin:$SHA"
           images="$images $REGISTRY_LC/pospay-pos:$SHA"
+          images="$images $REGISTRY_LC/pospay-admin-staging:$SHA $REGISTRY_LC/pospay-pos-staging:$SHA"
           search='find / \( -name ".env" -o -name ".env.*" -o -name "*.env" \) ! -name "*.env.example" ! -name ".env.example" -not -path "/proc/*" 2>/dev/null; true'
           for image in $images; do
             # A failed inspection fails the step (set -e); it never counts as "nothing found".
@@ -277,7 +282,7 @@ jobs:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          for image in api migrate worker backup admin pos; do docker push "$REGISTRY_LC/pospay-$image:$SHA"; done
+          for image in api migrate worker backup admin pos admin-staging pos-staging; do docker push "$REGISTRY_LC/pospay-$image:$SHA"; done
 
   # The one check branch protection requires. It passes when `check` passed, or when `check` was
   # skipped because only docs changed — and fails on anything else, including a failed `changes`.

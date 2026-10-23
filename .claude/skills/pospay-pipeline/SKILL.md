@@ -533,28 +533,30 @@ pins the PosPay rules on top of it.
 
 ## 6. Staging deploy — after every merge that changes code
 
-On the `abdulaziz` SSH profile, in `/opt/pospay-staging`:
+Staging is the Dokploy **compose service `pospay-staging`** in project `PayPos.Systems` (moved into Dokploy on
+2026-10-23, Waleed: «أيوه، انقله»). Its compose file is `deploy/docker-compose.staging-shared.yml` from the repo and
+its environment lives in Dokploy (secrets included; never print them). It serves the API at
+https://staging.pospay.systems, the back-office at https://admin.staging.pospay.systems and the cashier at
+https://pos.staging.pospay.systems, on the server's shared Postgres and Redis. Waleed's standing rule (2026-10-23):
+**staging is updated after every merge**, so every new feature can be tested there live; its data is demo data only.
 
-1. Confirm the main CI run for the merged SHA is green (it pushes the images to GHCR). The server pulled GHCR images
-   without a registry login on 2026-10-07; if a pull ever fails with an auth error, stop and ask the owner for a
-   read-only package token (`docker login ghcr.io`) — never copy images by hand.
+1. Confirm the main CI run for the merged SHA is green (it pushes the images to GHCR, the `-staging` admin and POS
+   variants included). The server pulled GHCR images without a registry login on 2026-10-07; if a pull ever fails with
+   an auth error, stop and ask the owner for a read-only package token (`docker login ghcr.io`) — never copy images by
+   hand.
 2. Take a backup: `docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env ghcr.io/lolotam/pospay-backup:<sha>`.
-3. If `deploy/` changed, fetch **both** `docker-compose.staging-shared.yml` and `staging-deploy.sh` from GitHub raw at
-   that SHA, compare each sha256 with the repo, then replace the server copies (keep the script executable). Step 4
-   runs the server copy, so a stale script silently skips new migrate, readiness or failure logic. **Before** replacing
-   them, make sure `known-good/<previous-sha>/` holds the current pair (copy it there if it is missing).
-4. `./staging-deploy.sh <full-sha>`; it migrates, starts, and proves `/ready`. Once ready, copy the active pair to
-   `known-good/<full-sha>/` — **every** ready SHA gets its pair, code-only releases too, so any later rollback finds one.
-5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): restore `<previous-sha>`
-   (below) against the new schema, confirm `/ready`, then restore `<full-sha>` the same way. A previous image that does
-   not start on the new schema is a P1 against the migration: restore `<full-sha>` at once (it is the one that was ready
-   on this schema), keep the release blocked, and open the P1.
-6. On a failure of step 4, restore the previous SHA at once, then diagnose. Never leave staging down while
-   diagnosing — in either step, the SHA to restore is the last one that proved `/ready` on the current schema.
+3. If `deploy/docker-compose.staging-shared.yml` changed, update the service's compose file in Dokploy to that SHA's
+   content (`compose.update`, raw source). Note the SHA that is live now: it is the rollback target.
+4. Set `IMAGE_TAG=<full-sha>` in the service's environment (change only that line), then `compose.deploy`. Prove it:
+   `https://staging.pospay.systems/ready` answers 200, both front ends answer 200, and the `migrate` container exited 0.
+5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): redeploy
+   `<previous-sha>` (step 4 with that tag) against the new schema, confirm `/ready`, then redeploy `<full-sha>`. A
+   previous image that does not start on the new schema is a P1 against the migration: redeploy `<full-sha>` at once,
+   keep the release blocked, and open the P1.
+6. On a failure of step 4, redeploy the previous SHA at once, then diagnose. Never leave staging down while diagnosing.
 
-**Restore `<sha>`:** copy `known-good/<sha>/docker-compose.staging-shared.yml` and `staging-deploy.sh` back into
-`/opt/pospay-staging/` (keep the script executable), then run `./staging-deploy.sh <sha>` from there. The script reads
-the `.env` next to itself, so it must always run from `/opt/pospay-staging/`, never from inside `known-good/`.
+**Restore `<sha>`:** set `IMAGE_TAG=<sha>` (and, if `deploy/` changed since, that SHA's compose file) and redeploy;
+Dokploy keeps every deployment and its log. The old `/opt/pospay-staging/staging-deploy.sh` path is retired.
 7. **Standing yes for this one cron line** (Waleed, PP-12.2, 2026-10-20: «(a) Yes, now and on every future
    release.»). Every other change to the server itself still needs his yes (PP-12.1). Point
    `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
