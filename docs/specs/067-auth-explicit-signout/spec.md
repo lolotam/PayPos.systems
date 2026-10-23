@@ -4,7 +4,8 @@
 
 **Created**: 2026-10-23
 
-**Status**: Draft. Part A needs no owner answer. Part B waits on SO-Q1 ([owner-questions.ar.md](owner-questions.ar.md)).
+**Status**: Draft. Part A needs no owner answer. Part B follows Waleed's SO-Q1 answer (2026-10-24, option 2); Abu
+Salem's pick is pending and binds if it differs ([owner-questions.ar.md](owner-questions.ar.md)).
 
 **Input**: Issue #554 items 2 and 4, raised by the reviews of #548 and #558 on `docs/specs/065-mob-app-shell/spec.md`.
 Item 2: both staff sign-out routes need an explicit, idempotent «no session to end» result, because spec 065 FR-008
@@ -194,8 +195,10 @@ Sara, a stylist, does not see it. Who counts is SO-Q1.
   `STAFF_PERSONAL`), a well-formed context and an absolute deadline still ahead. Eligibility and phone binding are not
   part of it: a row that fails them now could pass again later in its 8 hours (eligibility is rechecked per request),
   so deleting it is a real sign-out.
-- **BR-003** (Part B): who counts for `back_office` is SO-Q1. `TODO(spec)` until answered; sub-PR 067-2 does not
-  start before.
+- **BR-003** (Part B): who counts for `back_office` is SO-Q1. Waleed answered option 2 (PP-45.1, batch 61, 2026-10-24,
+  through the super agent): a membership whose system role is `owner`, `general_manager`, `business_manager`,
+  `branch_manager`, `shift_supervisor` or `accountant`. A company-specific role never counts. Abu Salem's pick is
+  pending; work follows Waleed's pick until then, and Abu Salem's pick replaces it if it differs (`CLAUDE.md` §1 5b).
 
 ### Technical decisions (no owner question)
 
@@ -470,7 +473,7 @@ None published, none consumed.
 | Sub-PR | Content | Waits on |
 |---|---|---|
 | 067-1 | Part A: guard policy, `packages/auth` return shape, both handlers, contracts and OpenAPI, POS client regeneration, tests `SO-01…SO-16`, ADR addenda flipped to Accepted | nothing; it changes auth, so `pospay-pipeline` §3 step 2 design advice applies |
-| 067-2 | Part B: the eligibility reader returns the covering memberships' roles, the SO-Q1 domain function, `back_office` on both reads, contract, tests `SO-20…SO-25` | SO-Q1 |
+| 067-2 | Part B: the eligibility reader returns the covering memberships' roles, the SO-Q1 domain function, `back_office` on both reads, contract, tests `SO-20…SO-25` | nothing: SO-Q1 answered by Waleed (option 2); Abu Salem's pick pending |
 
 The app side (counting the statuses in FR-008, showing the FR-017 line) stays in spec 065's sub-PRs.
 

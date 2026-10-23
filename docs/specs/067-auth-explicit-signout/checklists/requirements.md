@@ -13,8 +13,8 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — Part A has none; Part B waits on SO-Q1 (BR-003, `TODO(spec)`), so
-      sub-PR 067-2 does not start before the answer
+- [x] No [NEEDS CLARIFICATION] markers remain — Part A has none; Part B follows Waleed's SO-Q1 answer (BR-003,
+      option 2, 2026-10-24); Abu Salem's pick is pending and replaces it if it differs
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
