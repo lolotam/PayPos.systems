@@ -71,6 +71,9 @@ it is online (APP-Q19).
 2. **Given** yesterday's check showed «must update», the cashier did not update, and the app is opened offline today,
    **When** it opens, **Then** it opens normally offline. **When** the network returns, **Then** it checks again and
    blocks if the update is still required (APP-Q19).
+3. **Given** the «must update» screen is up and the cashier switches to another app, **When** the cashier comes back to it
+   offline (the app was kept in the background, not closed), **Then** it opens normally too, and checks again once
+   online (FR-007).
 
 ### Edge Cases
 
@@ -95,12 +98,16 @@ it is online (APP-Q19).
 
 - **FR-001**: The native build MUST check the version file, online only, on these triggers:
   - **cold start**: always, never skipped;
-  - **return to the foreground**, **back online**, and **every 15 minutes while the app is in the foreground and
-    online** (a timer stopped while in the background): each is skipped when the last successful read is less than 15
-    minutes old.
-  Only the time of the last successful read is kept, in memory, for the life of the app process. The `minimum` it
-  returned is never stored (FR-007). A cold start offline has no successful read yet, so going back online checks at
-  once.
+  - **return to the foreground** and **back online**: each is skipped when the last successful read is less than 15
+    minutes old;
+  - **the foreground timer**: while the app is in the foreground and online, a timer fires 15 minutes after the last
+    successful read and is restarted by every successful read, so the throttle never skips it. It stops while the app
+    is in the background.
+  A cold start offline, or a return to the foreground offline (FR-007), leaves no successful read in force, so going
+  back online checks at once.
+- **FR-001b**: Only one read runs at a time. A trigger that comes while a read is running starts nothing. Each read
+  carries an increasing number, and only the answer of the most recently started read can apply; any other answer,
+  including one that arrives after its 10-second deadline, is discarded.
 - **FR-001a**: A check never holds the app for long. At cold start the app keeps its existing loading notice for at
   most **3 seconds** while the read runs. If the answer arrives in time, it decides; if not, the app opens normally.
   Every read (cold start or later) ends after **10 seconds** in total: an answer arriving before that still applies (a
@@ -127,10 +134,12 @@ it is online (APP-Q19).
   and offer only the store button. It cannot be dismissed. The language switch stays available, and so does the
   system back gesture, which leaves the app.
 - **FR-007**: No network, a timeout (FR-001a), a non-200 answer, an unreadable file or a version that does not parse
-  MUST let the app open normally (APP-Q19). The result of a check is **never stored**: every cold start decides again,
-  from a fresh read only. Inside one running process, the decision of the last successful read stands until the next
-  successful read: a «must update» screen does not lift because the network drops, and a failed later read changes
-  nothing.
+  MUST let the app open normally (APP-Q19). The decision of the last successful read (blocked or not) and its time live
+  **in memory only**, for the life of the app process. Nothing goes to disk, and a cold start begins with no decision.
+  While the app stays in the foreground, that decision stands until the next successful read: a «must update» screen
+  does not lift because the network drops or a later read fails. When the app **returns to the foreground offline**,
+  the decision is cleared and the app opens normally, as at an offline cold start, whether or not the process was kept
+  (APP-Q19: «يفتح ويتأكد تاني»); it checks again as soon as it is online.
 - **FR-008**: The store button opens the `store_url` of the platform from the file, outside the app, and only when
   its host is one of `apps.apple.com`, `testflight.apple.com` or `play.google.com` over `https`. With any other value
   the screen still blocks, and it shows one line asking the user to update from the store instead of a button.
@@ -162,8 +171,8 @@ it is online (APP-Q19).
     app (the internal group and, once used, the external group after Apple's beta review, plan 065 step M-2);
   - **staging, Android**: the build is available in every Play testing track that serves the staging app (internal
     testing today).
-- **BR-003** (APP-Q19): offline, the app opens normally even right after a «must update» answer, and it checks again
-  once online.
+- **BR-003** (APP-Q19): opened offline, from a cold start or back from the background, the app opens normally even
+  right after a «must update» answer, and it checks again once online.
 - **BR-004**: raising `minimum` in the production file is part of a production deploy, so it needs Waleed's typed yes,
   like any production change. The staging file is changed by the orchestrator through a normal staging deploy.
 
@@ -211,17 +220,22 @@ None published, none consumed.
     normal start screen (nothing was stored); the network returns → a fresh read shows the screen again.
   - `VER-T07` a malformed file → the normal start screen.
   - `VER-T08` returning to the foreground after `minimum` was raised → the screen appears.
-  - `VER-T09` the throttle: a foreground, online or timer trigger within 15 minutes of a successful read makes no
-    read; a cold start always reads; a back-online trigger after an offline cold start reads at once.
+  - `VER-T09` the throttle: a foreground or back-online trigger within 15 minutes of a successful read makes no read;
+    a cold start always reads; a back-online trigger after an offline cold start reads at once.
   - `VER-T10` back online after an offline start → checks again and blocks when required (APP-Q19).
   - `VER-T11` a store link outside the allowed hosts → no button, the «update from the store» line.
   - `VER-T12` flavour and platform isolation, table-driven over staging/production × iOS/Android with a different
     `minimum` in each entry: the requested URL is the flavour's file, and only the matching platform's entry can show
     the screen (SC-004).
-  - `VER-T13` with fake timers, the app stays in the foreground and online past 15 minutes with no other event, and
-    `minimum` was raised → the screen appears.
+  - `VER-T13` with fake timers and a read that takes a few seconds, the app stays in the foreground and online for 45
+    minutes with no other event: a read happens every 15 minutes after the previous one (none skipped), and once
+    `minimum` is raised the screen appears.
   - `VER-T14` a stalled read: the normal start appears after 3 seconds; a «must update» answer at 8 seconds still
     blocks; an answer after 10 seconds is discarded.
+  - `VER-T15` single flight: a foreground and a back-online trigger during a running read start no second read; an
+    older read's late answer showing the old `minimum` never lifts a block set by a newer read.
+  - `VER-T16` the screen is up, the app goes to the background, and it returns to the foreground offline without the
+    process being killed → the normal flow shows; the network returns → a fresh read shows the screen again.
 - **Device checks** (M-2a, on the first signed builds): an installed build below `minimum` on staging shows the
   screen and opens the right store page; the read goes through native HTTP on Android, where a WebView `fetch` to the
   POS host would be answered from the bundled assets.
