@@ -5,7 +5,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
-        guard let windowScene = scene as? UIWindowScene else { return }
+        // جلسة عرض خارجي أو AirPlay كانت بتعمل نسخة تانية من التطبيق جوّه نفس العملية.
+        guard session.role == .windowApplication, let windowScene = scene as? UIWindowScene else { return }
 
         window = UIWindow(windowScene: windowScene)
         window?.rootViewController = CAPBridgeViewController()

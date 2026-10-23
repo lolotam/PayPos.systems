@@ -46,8 +46,14 @@ pnpm --filter @pospay/business sync:production
 `build` هنا عن قصد: بناء لينكس ما يحتاجش Xcode ولا Android SDK.
 
 الـ `dist-native` وأصول أندرويد بيحملوا نسخة واحدة في كل مرة، فزامن النسخة اللي هتبني
-بعدها، وبعدين ابني نفس نسخة Gradle. والأمر `pnpm turbo run sync:staging --filter=@pospay/business`
-(أو `sync:production`) بيبني نسخة التطبيق الأصلي الأول وبعدين يزامن.
+بعدها، وبعدين ابني نفس نسخة Gradle. وأمر `turbo` بيبني نسخة التطبيق الأصلي ويزامن في خطوة
+واحدة، بس قائمة `env` فيه بتعمل hash للمتغيرات ومش بتحطّهم، فلازم `VITE_API_URL` و `FLAVOUR`
+يبقوا في نفس السطر:
+
+```bash
+VITE_API_URL=https://api.staging.pospay.systems FLAVOUR=staging pnpm turbo run sync:staging --filter=@pospay/business
+VITE_API_URL=https://api.pospay.systems FLAVOUR=production pnpm turbo run sync:production --filter=@pospay/business
+```
 
 ## أسرار الـ CI
 
