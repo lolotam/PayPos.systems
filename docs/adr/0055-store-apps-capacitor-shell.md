@@ -225,20 +225,24 @@ live in `apps/business/`, so the `apps/business/**` input already covers them.
   account holder creates them (plan step O-2b); no automation creates store records.
 - **Cost (APP-Q8): the free minutes only.** The macOS guard is defined here by the rules it must keep; M-1b chooses
   and tests the mechanism.
-  1. **A refused run never starts a macOS runner.** Admission is decided by a preflight job on `ubuntu-latest`.
-  2. **Admission is atomic and bounded.** At most **K** macOS jobs hold an admission at any moment, across all refs. An
-     admission is a reservation taken atomically (for example, creating one of K fixed slot refs, which fails when the
-     slot exists), released when the macOS job ends, and expired after the job's timeout if the job never ran.
-  3. **Projected use is never double-counted.** It is the account's billed usage for GitHub's billing cycle (read
-     with `ACTIONS_USAGE_TOKEN`; `GITHUB_TOKEN` cannot read account billing), plus every reservation still held, each
-     at its job's timeout times the macOS multiplier. A job stops counting as a reservation only when it has ended and
-     the billed usage has caught up with it (M-1b measures that delay and keeps the reservation at least that long).
-  4. **The threshold leaves room for every admitted job.** A reservation is granted only while projected use plus
-     the new job stays under **80 % of the included minutes**, and the remaining 20 % must exceed K jobs' cost; M-1b
-     sets K and the timeouts so it does. The multiplier is **10 until M-1b measures it**.
-  5. **Every attempt is checked fresh.** The macOS job's first step accepts only a reservation made for its own run
-     attempt (`github.run_attempt`) within the last few minutes; otherwise it stops at once. A re-run therefore takes a
-     new reservation (the preflight is re-run with it) or ends within its first minute.
+  1. **An admission check runs before any macOS runner is requested.** It is a preflight job on `ubuntu-latest`. A
+     refused admission starts no macOS runner.
+  2. **Two separate records, both atomic.** A **slot** bounds concurrency: at most **K** across all refs, taken
+     atomically (for example, one of K fixed slot refs whose creation fails when it exists), freed when the macOS job
+     ends. A **usage record** bounds spending: written with the slot, it stays until the billed usage has caught up
+     with that job (M-1b measures the billing delay), whether the job ran, failed or stopped early.
+  3. **Projected use is never double-counted:** the account's billed usage for GitHub's billing cycle (read with
+     `ACTIONS_USAGE_TOKEN`; `GITHUB_TOKEN` cannot read account billing) plus every usage record not yet reflected in
+     it, each at its job's timeout times the macOS multiplier.
+  4. **The threshold leaves room for every admitted job.** Admission is granted only while projected use plus the new
+     job stays under **80 % of the included minutes**, and the remaining 20 % must exceed K jobs' cost; M-1b sets K
+     and the timeouts so it does. The multiplier is **10 until M-1b measures it**.
+  5. **Each admission belongs to one job attempt.** It carries an owner key (run id, run attempt, job key and flavour)
+     and a lease that covers the longest runner queue wait plus the job's timeout. The macOS job's first step accepts
+     only an unexpired admission whose owner key matches it exactly, otherwise it stops. A re-run of a single macOS
+     job (which GitHub starts without re-running the preflight) is therefore the one case that starts a runner without
+     an admission: it ends in its first minute, and that minute is written as a usage record so it is counted. Re-runs
+     are done with «Re-run all jobs», which repeats the admission.
   6. **It fails closed.** A missing or expired token, an unreadable usage figure or a failed reservation refuses the
      run.
   The hard backstop is the account's Actions budget at $0 with usage stopped at the limit (O-5): a run past the included
