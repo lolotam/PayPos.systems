@@ -533,9 +533,14 @@ pins the PosPay rules on top of it.
 
 ## 6. Staging deploy — after every merge that changes code
 
-Staging is the Dokploy **compose service `pospay-staging`** in project `PayPos.Systems` (moved into Dokploy on
-2026-10-23, Waleed: «أيوه، انقله»). Its compose file is `deploy/docker-compose.staging-shared.yml` from the repo and
-its environment lives in Dokploy (secrets included; never print them). Following ADR-0001 §6 it serves the API at
+Staging is the Dokploy **compose service `pospay-staging`** (composeId `9hu_-BekJdhi05exz7bGg`) in its own Dokploy
+**project `PosPay Staging`** (moved into Dokploy on 2026-10-23, Waleed: «أيوه، انقله»; its own project the same day,
+Waleed: «مشروع جديد بـ Compose واحد»). Its compose file is `deploy/docker-compose.staging-shared.yml` from the repo and
+its environment lives in Dokploy (secrets included; never print them). The three hosts are **Dokploy domains** on that
+service (Domains tab: api -> `api`:3000, app -> `admin`:3000, pos -> `pos`:8080, HTTPS, Let's Encrypt), so the compose
+file carries no Traefik labels; never add them back (a second router for the same host). The earlier compose in
+`PayPos.Systems` / environment `staging` (`hjvMzqQ-SyAm0wSaWxkzW`) is stopped and kept only as a rollback until Waleed
+approves deleting it; never start it while the new one runs (two workers would share the queues). Following ADR-0001 §6 it serves the API at
 https://api.staging.pospay.systems, the back-office at https://app.staging.pospay.systems and the cashier at
 https://pos.staging.pospay.systems, on the server's shared Postgres and Redis. Waleed's standing rule (2026-10-23):
 **staging is updated after every merge**, so every new feature can be tested there live; its data is demo data only.
