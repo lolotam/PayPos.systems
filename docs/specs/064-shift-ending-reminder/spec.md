@@ -225,10 +225,11 @@ No change to `staff_schedule_shifts` or `attendance_sessions` (existing indexes 
 ### API contract
 
 - No endpoint, request schema or `Idempotency-Key`.
-- `packages/contracts`: the notification-request template key `shift_ends_soon` (revision 1) with its strict
-  parameter tuple (`shift_end` `HH:MM`, `branch_name_ar`, `branch_name_en`) passing the existing safe-text checks; the
-  PUSH recipient entry is 28b's schema (above). The job data is unchanged (`{ companyId }`).
-- `packages/notifications`: template `shift_ends_soon` rev 1, ar/en.
+- `packages/contracts`: **no change.** The PUSH recipient entry is 28b's generic schema (above) and carries any push
+  template; the job data is unchanged (`{ companyId }`).
+- `packages/notifications` (`push/templates.ts`): template `shift_ends_soon` rev 1, ar/en, with its strict parameter
+  tuple (`shift_end` 24-hour `HH:MM`, `branch_name_ar`, `branch_name_en`) validated there with the existing safe-text
+  checks, because push templates are validated in this package, not in contracts.
 - `packages/i18n`: no admin UI copy (the alerts screen already lists the kind).
 
 ### Permissions
@@ -258,7 +259,7 @@ RETURNING`, and only an inserted row writes audit and outbox.
 | # | Title | Subtasks | Waits for | Size |
 |---|---|---|---|---|
 | **064-1** | Rules and ledger | 1. `domain/shift-ending-soon.ts` with its exhaustive unit tests (BR-001…BR-006, DST, overnight, clamp). 2. Migration + Drizzle schema for `attendance_shift_ending_notices`, grants allowlist in `privileges.spec.ts`. 3. RLS negative tests (cross-tenant read 0 rows, insert rejected, FKs rejected, UPDATE/DELETE refused). | **28b-3 merged** | 220–320 |
-| **064-2** | Template and delivery | 1. Template `shift_ends_soon` rev 1 (ar/en) in `packages/notifications` + the contracts parameter tuple and the `ShiftEndsSoon` event/recipient schema (with the delivery deadline). 2. `ShiftEndsSoon` in the notifications consumer list, `known-event-types.md` coverage gate, module-map §4 event row. 3. End-to-end test with a hand-made event: outbox → transport → 28b's push sender stub; the text is rendered in the language ADR-0052 stores (today: per push subscription). | 064-1; **28b-3 merged** | 200–300 |
+| **064-2** | Template and delivery | 1. Template `shift_ends_soon` rev 1 (ar/en) in `packages/notifications/src/push/templates.ts` with its strict parameter tuple (no contracts change: the PUSH recipient schema is 28b's and already carries `send_deadline`). 2. `ShiftEndsSoon` in the notifications consumer list, `known-event-types.md` coverage gate, module-map §4 event row. 3. End-to-end test with a hand-made event: outbox → transport → 28b's push sender stub; the text is rendered in the language ADR-0052 stores (today: per push subscription). | 064-1; **28b-3 merged** | 200–300 |
 | **064-3** | Detector in the company job | 1. Port `ShiftEndingSoonTransactions`, persistence (paged candidates with the presence column, locked reads, writes) and the staff `AlertRulesPort` adapter over worker `settings` (reused if 62-2 created it); module-map §3 row and YAML. 2. Use case `detect-shift-ending-soon`; `ShiftEndsSoon` in `published.ts`; wired as the **last** step of the processor. 3. Integration tests SEN-01…SEN-14 and EXPLAIN assertions. | 064-2 | 360–480 |
 
 ### Test plan
@@ -286,8 +287,8 @@ RETURNING`, and only an inserted row writes audit and outbox.
 ### Documents to update in the same PRs
 
 - This docs PR: `docs/specs/phase-1/SPEC.md` §3 (`ShiftEndsSoon` added to the `staff ⇒ notifications` events).
-- 064-2: `docs/module-map.md` §4 (the `ShiftEndsSoon` event row) and `docs/module-map.yaml`;
-  `docs/specs/worker/known-event-types.md`.
+- 064-2: `docs/module-map.md` §4 (the `ShiftEndsSoon` event row; `module-map.yaml` has no event rows, so it does not
+  change) and `docs/specs/worker/known-event-types.md`.
 - 064-3: `docs/module-map.md` §3 (the staff `AlertRulesPort` → worker `settings` row, only if 62-2 has not added it) and
   `docs/module-map.yaml`; ADR-0053 final status; `docs/specs/phase-1/IMPLEMENTATION-PLAN.md` row 28c marked done with
   the PR numbers.

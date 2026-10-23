@@ -76,7 +76,18 @@ it('falls back to the other language when a branch name is rejected', () => {
 });
 
 it('takes only a 24-hour shift end', () => {
-  for (const value of ['24:00', '9:00', '18:60', '', '18:00:00', 'tonight']) {
+  for (const value of [
+    '24:00',
+    '9:00',
+    '18:60',
+    '',
+    '18:00:00',
+    'tonight',
+    '18:00\n',
+    ' 18:00',
+    '18:00 ',
+    '١٨:٠٠',
+  ]) {
     const values: SafeParameter[] = [
       { name: 'shift_end', type: 'text', value },
       ...parameters().slice(1),
