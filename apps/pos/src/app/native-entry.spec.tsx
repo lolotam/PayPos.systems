@@ -171,6 +171,16 @@ describe('NativeEntry link on a cold start', () => {
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
   });
 
+  it('warns that the choice could not be saved when the link cannot be stored', async () => {
+    vi.mocked(readLaunchLink).mockResolvedValue(link());
+    vi.mocked(connectEmployee).mockRejectedValue(new Error('SYNTHETIC_SAVE_FAILURE'));
+    mount();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
+    expect(screen.getByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+  });
+
   it('stores nothing and asks for the internet when a link arrives offline', async () => {
     vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
     vi.mocked(readLaunchLink).mockResolvedValue(link());

@@ -2,7 +2,6 @@ import { personalWorkspace } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import type { ReactNode } from 'react';
 
-import type { PersonalWorkspace } from '@/app/manager-link';
 import { AppFrame } from '@/shared/frame/app-frame';
 import { useLocale } from '@/shared/locale/locale-context';
 import { LocaleSwitch } from '@/shared/locale/locale-switch';
@@ -14,7 +13,7 @@ export function PersonalScreen({
   workspace,
   connect,
 }: {
-  workspace?: PersonalWorkspace;
+  workspace?: { company_id: string; business_id: string };
   connect?: ReactNode;
 }) {
   const locale = useLocale();

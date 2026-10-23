@@ -35,6 +35,17 @@ const FLOW_ALERT_KEYS = {
 } as const;
 
 /**
+ * حالة الشاشة لما التطبيق يفتح من غير لينك: دور محفوظ ولا أول تشغيل.
+ *
+ * @param role     الدور المحفوظ على الجهاز
+ * @param business النشاط المتذكر على الجهاز
+ * @returns حالة الشاشة
+ */
+function stateForRole(role: DeviceRole | null, business: PersonalWorkspace | null): NativeState {
+  return role === null ? { kind: 'start', business } : { kind: 'flow', role, business };
+}
+
+/**
  * لينك مش مقبول: حاجة واحدة بس بتتغير، وهي الرسالة (FR-012).
  *
  * @param role    الدور المحفوظ على الجهاز
@@ -87,22 +98,24 @@ async function stateAfterLink(
 export function NativeEntry() {
   const locale = useLocale();
   const [state, setState] = useState<NativeState>({ kind: 'loading' });
+  const business = state.kind === 'loading' ? null : state.business;
 
-  const onStart = useCallback((role: DeviceRole | null, business: PersonalWorkspace | null) => {
-    setState(role === null ? { kind: 'start', business } : { kind: 'flow', role, business });
+  const onStart = useCallback((role: DeviceRole | null, saved: PersonalWorkspace | null) => {
+    setState(stateForRole(role, saved));
   }, []);
 
   const onLink = useCallback(async (workspace: PersonalWorkspace | null) => {
     try {
-      const [role, business] = await Promise.all([readDeviceRole(), readRememberedBusiness()]);
+      const [role, saved] = await Promise.all([readDeviceRole(), readRememberedBusiness()]);
       setState(
         workspace === null
-          ? withLinkRequired(role, business)
-          : await stateAfterLink(role, business, workspace),
+          ? withLinkRequired(role, saved)
+          : await stateAfterLink(role, saved, workspace),
       );
     } catch {
-      // تخزين غير مقروء أو كتابة فاشلة: نرجع لشاشة البداية بدل ما نسيب الشاشة نص نص.
-      setState({ kind: 'start', business: null });
+      // الحفظ فشل (تخزين غير مقروء أو كتابة مرفوضة): نرجع لشاشة البداية ونقول إن الحفظ فشل،
+      // عشان الموظفة تعرف إن اللينك ما اتحفظش.
+      setState({ kind: 'start', business: null, alert: 'saveFailed' });
     }
   }, []);
 
@@ -112,18 +125,19 @@ export function NativeEntry() {
     // من غير نت مفيش حاجة تتحفظ (حالة «أول تشغيل من غير نت» في spec 065): اختيار متحفظ
     // هيفتح الشاشة اللي مش هتوصل للخادم.
     if (!navigator.onLine) {
-      setState({ kind: 'start', business: state.business, alert: 'needsInternet' });
+      setState({ kind: 'start', business, alert: 'needsInternet' });
       return;
     }
     void saveDeviceRole(role).then(
-      () => setState({ kind: 'flow', role, business: state.business }),
-      () => setState({ kind: 'start', business: state.business, alert: 'saveFailed' }),
+      () => setState({ kind: 'flow', role, business }),
+      () => setState({ kind: 'start', business, alert: 'saveFailed' }),
     );
   };
 
   if (state.kind === 'loading') return <LoadingNotice />;
   if (state.kind === 'flow') {
     const alertText = state.alert ? t(locale, FLOW_ALERT_KEYS[state.alert]) : null;
+    const connect = <PasteLinkForm onConnect={(next) => void onLink(next)} />;
     return (
       <>
         {alertText ? (
@@ -136,14 +150,14 @@ export function NativeEntry() {
         ) : null}
         {state.role === 'counter' ? (
           <DeviceScreen />
+        ) : business ? (
+          <PersonalScreen workspace={business} connect={connect} />
         ) : (
-          <PersonalScreen
-            workspace={state.business ?? undefined}
-            connect={<PasteLinkForm onConnect={(workspace) => void onLink(workspace)} />}
-          />
+          <PersonalScreen connect={connect} />
         )}
       </>
     );
   }
+  if (state.alert === undefined) return <StartScreen onChoose={choose} />;
   return <StartScreen onChoose={choose} alert={state.alert} />;
 }
