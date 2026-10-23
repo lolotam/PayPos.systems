@@ -1,7 +1,12 @@
 import { DiscountApprovalError } from './discount-approval-error.ts';
 import { needsApproval, proposalExpiry } from './discount-approval-rules.ts';
 import { firstName } from './discount-first-name.ts';
-import { buildDiscountTerms, canonicalDiscountTerms, discountTermsHash } from './discount-terms.ts';
+import {
+  buildDiscountTerms,
+  canonicalDiscountTerms,
+  discountTermsHash,
+  type DiscountTermsV1,
+} from './discount-terms.ts';
 import { SessionError } from './session-error.ts';
 import type { PreparedSessionLine, SessionLimit } from './session-types.ts';
 
@@ -84,7 +89,7 @@ export interface DiscountRequestPlanInput {
 
 /**
  * يختار دور العضوية التي طلبت، فاللقطة المحفوظة على الطلب تُنسب للعضوية المختارة لا لأي عضوية.
- * القاعدة: طلب بلا عضوية صالحة ممنوع، فالرفض موحّد ولا يكشف العضويات (D-6، FR-005).
+ * القاعدة: طلب بلا عضوية صالحة ممنوع، فالرفض موحّد ولا يكشف العضويات (FR-005).
  *
  * @param memberships عضويات الطالبة وأدوارها وقت الطلب
  * @param membershipId العضوية التي طلبت
@@ -109,74 +114,105 @@ export function requesterRole(
  * @returns اقتراح لكل بند بترتيب البنود، بنفس مواضعها في الطلب
  */
 export function planDiscountRequest(input: DiscountRequestPlanInput): DiscountProposalPlan[] {
-  const withinLimit = input.lines
-    .filter((line) => !needsApproval(input.limit, line.effective_discount_bps))
+  refuseLinesWithinLimit(input.lines, input.limit);
+  const expiresAt = proposalExpiry(input.requested_at);
+  let performerOffset = 0;
+  return input.lines.map((line, index) => {
+    const proposal = proposalFromLine(input, line, index, expiresAt);
+    const performers = performerRows(line, input.performer_row_ids, performerOffset);
+    performerOffset += performers.length;
+    return { ...proposal, performers };
+  });
+}
+
+function refuseLinesWithinLimit(lines: readonly PreparedSessionLine[], limit: SessionLimit): void {
+  const withinLimit = lines
+    .filter((line) => !needsApproval(limit, line.effective_discount_bps))
     .map((line) => line.input_index)
     .sort((left, right) => left - right);
   if (withinLimit.length > 0) {
     throw new DiscountApprovalError('DISCOUNT_APPROVAL_NOT_NEEDED', { input_indexes: withinLimit });
   }
-  const expiresAt = proposalExpiry(input.requested_at);
-  let performerRow = 0;
-  return input.lines.map((line, index) => {
-    const proposalId = input.proposal_ids[index];
-    if (proposalId === undefined) throw new RangeError('A proposal id is missing');
-    const terms = buildDiscountTerms({
-      company_id: input.company_id,
-      business_id: input.business_id,
-      branch_id: input.branch_id,
-      customer_id: input.customer_id,
-      session_id: input.session_id,
-      service_id: line.service.id,
-      requested_by: input.requested_by,
-      requested_by_membership_id: input.requested_by_membership_id,
-      occurred_business_date: input.occurred_business_date,
-      list_price: line.service.price,
-      price: line.price,
-      discount: line.discount,
-      performer_ids: line.performers.map((performer) => performer.employee.id),
-    });
-    const performers = line.performers.map((performer) => {
-      const rowId = input.performer_row_ids[performerRow];
-      performerRow += 1;
-      if (rowId === undefined) throw new RangeError('A performer row id is missing');
-      return {
-        id: rowId,
-        employee_id: performer.employee.id,
-        linked_user_id: performer.employee.user_id,
-        first_name_en: firstName(performer.employee.name_en),
-        first_name_ar: performer.employee.name_ar === null ? null : firstName(performer.employee.name_ar),
-      };
-    });
+}
+
+function proposalFromLine(
+  input: DiscountRequestPlanInput,
+  line: PreparedSessionLine,
+  index: number,
+  expiresAt: Date,
+): Omit<DiscountProposalPlan, 'performers'> {
+  const proposalId = input.proposal_ids[index];
+  if (proposalId === undefined) throw new RangeError('A proposal id is missing');
+  const terms = termsForLine(input, line);
+  return {
+    id: proposalId,
+    request_id: input.request_id,
+    input_index: line.input_index,
+    session_id: input.session_id,
+    occurred_at: input.occurred_at,
+    customer_id: input.customer_id,
+    service_id: line.service.id,
+    service_name_en: line.service.name_en,
+    service_name_ar: line.service.name_ar,
+    terms_text: canonicalDiscountTerms(terms),
+    terms_hash: discountTermsHash(terms, input.sha256Hex),
+    effective_bps: terms.effective_bps,
+    ...requesterSnapshot(input),
+    customer_first_name: firstName(input.customer_name),
+    requested_at: input.requested_at,
+    expires_at: expiresAt,
+  };
+}
+
+function termsForLine(input: DiscountRequestPlanInput, line: PreparedSessionLine): DiscountTermsV1 {
+  return buildDiscountTerms({
+    company_id: input.company_id,
+    business_id: input.business_id,
+    branch_id: input.branch_id,
+    customer_id: input.customer_id,
+    session_id: input.session_id,
+    service_id: line.service.id,
+    requested_by: input.requested_by,
+    requested_by_membership_id: input.requested_by_membership_id,
+    occurred_business_date: input.occurred_business_date,
+    list_price: line.service.price,
+    price: line.price,
+    discount: line.discount,
+    performer_ids: line.performers.map((performer) => performer.employee.id),
+  });
+}
+
+function requesterSnapshot(input: DiscountRequestPlanInput) {
+  return {
+    requested_by: input.requested_by,
+    requested_by_membership_id: input.requested_by_membership_id,
+    requester_limit_source: input.limit.source,
+    requester_limit_bps: input.limit.bps,
+    requester_name_ar: input.requester.name_ar,
+    requester_name_en: input.requester.name_en,
+    requester_role: input.requester.role.code,
+    requester_role_is_system: input.requester.role.is_system,
+    requester_role_name_ar: input.requester.role.name_ar,
+    requester_role_name_en: input.requester.role.name_en,
+    requester_first_name_en: input.requester.name_en === null ? null : firstName(input.requester.name_en),
+    requester_first_name_ar: input.requester.name_ar === null ? null : firstName(input.requester.name_ar),
+  };
+}
+
+function performerRows(
+  line: PreparedSessionLine,
+  rowIds: readonly string[],
+  offset: number,
+): DiscountProposalPerformer[] {
+  return line.performers.map((performer, index) => {
+    const rowId = rowIds[offset + index];
+    if (rowId === undefined) throw new RangeError('A performer row id is missing');
     return {
-      id: proposalId,
-      request_id: input.request_id,
-      input_index: line.input_index,
-      session_id: input.session_id,
-      occurred_at: input.occurred_at,
-      customer_id: input.customer_id,
-      service_id: line.service.id,
-      service_name_en: line.service.name_en,
-      service_name_ar: line.service.name_ar,
-      terms_text: canonicalDiscountTerms(terms),
-      terms_hash: discountTermsHash(terms, input.sha256Hex),
-      effective_bps: terms.effective_bps,
-      requested_by: input.requested_by,
-      requested_by_membership_id: input.requested_by_membership_id,
-      requester_limit_source: input.limit.source,
-      requester_limit_bps: input.limit.bps,
-      requester_name_ar: input.requester.name_ar,
-      requester_name_en: input.requester.name_en,
-      requester_role: input.requester.role.code,
-      requester_role_is_system: input.requester.role.is_system,
-      requester_role_name_ar: input.requester.role.name_ar,
-      requester_role_name_en: input.requester.role.name_en,
-      requester_first_name_en: input.requester.name_en === null ? null : firstName(input.requester.name_en),
-      requester_first_name_ar: input.requester.name_ar === null ? null : firstName(input.requester.name_ar),
-      customer_first_name: firstName(input.customer_name),
-      requested_at: input.requested_at,
-      expires_at: expiresAt,
-      performers,
+      id: rowId,
+      employee_id: performer.employee.id,
+      linked_user_id: performer.employee.user_id,
+      first_name_en: firstName(performer.employee.name_en),
+      first_name_ar: performer.employee.name_ar === null ? null : firstName(performer.employee.name_ar),
     };
   });
 }

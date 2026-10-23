@@ -22,7 +22,7 @@ import { performerCheck } from './persistence/performer-check.adapter.ts';
 import { discountLimit } from './persistence/discount-limit.adapter.ts';
 import { editorName } from './persistence/editor-name.adapter.ts';
 import { sessionBranchBelongs, sessionPlace } from './persistence/session-place.adapter.ts';
-import { sessionRecordAccess } from './persistence/session-record-access.adapter.ts';
+import { discountRequestAccess, sessionRecordAccess } from './persistence/session-record-access.adapter.ts';
 import { sessionCancelCapability, sessionPerformersCapability } from './persistence/session-edit-access.adapter.ts';
 import { sessionReadAccess } from './persistence/session-read-access.adapter.ts';
 import { BranchDayServiceSessionsQuery } from './queries/branch-day-service-sessions.query.ts';
@@ -38,7 +38,6 @@ import { bindLinePerformersReaders, createLinePerformersTransactions } from './p
 import { createSessionTipsTransactions } from './persistence/session-tip-transactions.ts';
 import { createSessionRecovery, recoveryKeyHash } from './persistence/session-recovery.adapter.ts';
 import { createDiscountRequestTransactions } from './persistence/discount-request-transactions.ts';
-import { discountRequestAccess } from './persistence/discount-request-access.adapter.ts';
 import { termsHash } from './persistence/terms-hash.adapter.ts';
 import { PendingDiscountProposalsQuery } from './queries/pending-discount-proposals.query.ts';
 import { RequesterDiscountProposalsQuery } from './queries/requester-discount-proposals.query.ts';

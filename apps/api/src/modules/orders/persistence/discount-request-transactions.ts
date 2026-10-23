@@ -13,7 +13,6 @@ import { DiscountApprovalError } from '../domain/discount-approval-error.ts';
 import { SessionError } from '../domain/session-error.ts';
 import type {
   DiscountRequestAccessPort,
-  DiscountRequestTransaction,
   DiscountRequestTransactions,
 } from '../ports/discount-request.port.ts';
 import type { EditorNamePort } from '../ports/line-edit.port.ts';

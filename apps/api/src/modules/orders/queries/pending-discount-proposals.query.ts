@@ -6,7 +6,7 @@ import {
   type PendingDiscountProposalPage,
   type PendingDiscountProposalQuery,
 } from '@pospay/contracts';
-import type { TenantWrappers, Tx } from '@pospay/db';
+import type { TenantWrappers } from '@pospay/db';
 import { editorLabel } from '@pospay/i18n';
 import { sql } from 'drizzle-orm';
 import { SessionDayReadError, type SessionDayScope } from './branch-day-service-sessions.query.ts';
@@ -86,7 +86,7 @@ export function pendingDiscountProposalsStatement(scope: SessionDayScope, query:
       WHERE p.company_id=d.company_id AND p.business_id=d.business_id AND p.proposal_id=d.id) perf ON true
     WHERE d.company_id=${scope.companyId} AND d.business_id=${scope.businessId} AND d.branch_id=${scope.branchId}
       AND d.status='PENDING' AND d.expires_at > ${now.toISOString()}::timestamptz ${before}
-    ORDER BY d.requested_at DESC,d.id DESC LIMIT ${query.limit + 1}`;
+    ORDER BY d.requested_at DESC NULLS LAST,d.id DESC NULLS LAST LIMIT ${query.limit + 1}`;
 }
 
 function requesterSnapshot(row: PendingRow) {

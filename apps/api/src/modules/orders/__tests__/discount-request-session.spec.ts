@@ -41,7 +41,19 @@ it('DP-02 an explicit past instant is stored and returned as it was sent', async
   expect((row?.['occurred_at'] as Date).toISOString()).toBe('2026-10-14T08:00:00.000Z');
 });
 
-it('DP-06 a visit of another branch is refused as if it did not exist', async () => {
+it('DP-06 a visit of another branch of the same business is refused as if it did not exist', async () => {
+  const before = await storedCounts();
+  const foreignSession = ids.newId();
+  await f.h.owner`INSERT INTO service_sessions(company_id,id,business_id,branch_id,customer_id,customer_name,customer_phone_masked,
+    recorded_by,recorded_by_membership_id,occurred_at,recorded_at,business_date,business_timezone,late,created_at)
+    VALUES(${f.company},${foreignSession},${f.business},${f.otherBranch},${f.customer},'Synthetic customer','***123',
+      ${f.userId},${f.membership},'2026-10-14T08:00:00.000Z'::timestamptz,now(),'2026-10-14','Asia/Kuwait',false,now())`;
+  await expect(f.request.execute({ ...f.context(), input: f.requestBody([f.draft(0, '25.000', '5.000', 1)], { session_id: foreignSession }) }))
+    .rejects.toThrow('FORBIDDEN');
+  expect(await storedCounts()).toEqual(before);
+});
+
+it('DP-06 a visit of another business is refused the same way', async () => {
   const before = await storedCounts();
   const foreignSession = ids.newId();
   await f.h.owner`INSERT INTO service_sessions(company_id,id,business_id,branch_id,customer_id,customer_name,customer_phone_masked,

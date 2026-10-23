@@ -11,6 +11,8 @@ const PERFORMER_NAME_AR = 'سارة أحمد';
 /** طبقة اختيارية فوق editFixture: المستخدمة التي تطلب الموافقة ومنفّذة باسم من كلمتين. */
 export async function discountRequestFixture(options: Parameters<typeof editFixture>[0] = {}) {
   const base = await editFixture(options);
+  const otherBranch = ids.newId();
+  await base.h.owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${base.company},${otherBranch},${base.business},'Synthetic other branch')`;
   const performer = await linkPerformer(base);
   const request = new RequestDiscountApprovalUseCase(ordersDiscountRequests(base.db, ids), ids, base.clock, termsHash());
   const requester = ordersRequesterProposals(base.db, base.clock);
@@ -40,7 +42,7 @@ export async function discountRequestFixture(options: Parameters<typeof editFixt
     ...(extra.requester_membership_id === undefined ? {} : { requester_membership_id: extra.requester_membership_id }),
   });
   const proposalBase = `/v1/businesses/${base.business}/branches/${base.branch}/discount-proposals`;
-  return { ...base, ...performer, request, requester, pending, context, draft, requestBody, proposalBase };
+  return { ...base, ...performer, otherBranch, request, requester, pending, context, draft, requestBody, proposalBase };
 }
 
 export type DiscountRequestFixture = Awaited<ReturnType<typeof discountRequestFixture>>;
