@@ -75,6 +75,11 @@ export const FUNCTION_INVENTORY = [
     proconfig: ['search_path=pg_catalog'],
   },
   {
+    proname: 'push_attempts_guard',
+    prosecdef: false,
+    proconfig: ['search_path=public, pg_temp'],
+  },
+  {
     proname: 'sweep_expired_idempotency_keys',
     prosecdef: true,
     proconfig: ['search_path=pg_catalog, pg_temp'],
