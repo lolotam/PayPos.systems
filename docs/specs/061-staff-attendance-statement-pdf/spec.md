@@ -49,7 +49,7 @@ statement counts it.
 | The `attendance-statement` document source and its data reader in the worker | The employee's own statement in her app (row 57b) |
 | The download audit (ST-Q5) | Payroll, deductions, public holidays (spec 049 §7) |
 | The `files`-owned logo bytes reader and its access audit (ADR-0049 §6, ADR-0056) | A page number on every page (needs a renderer option; §10) |
-| The admin download screen, with the shift picker (BR-11) | Named shifts (ST-Q6 option ج, not chosen) |
+| The admin download screen, with the shift picker (BR-11; `TODO(spec)` ST-Q7: the picker waits on ST-Q7, §9) | Named shifts (ST-Q6 option ج, not chosen) |
 
 ## 3. Owner rules (final, cited — not asked again)
 
@@ -107,6 +107,7 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 6. **Given** سارة always on 09:00–20:00, هبة always on 08:00–16:00 and ريم on 09:00–20:00 on some days and 08:00–16:00 on
    others, **when** the manager filters October by the shift 09:00–20:00, **then** the table has سارة with all her days
    and ريم with her 09:00–20:00 days only; هبة has no row; contracted hours and difference print «—» (BR-11).
+   `TODO(spec)` ST-Q7: this story is delivered with the shift filter, after ST-Q7 is answered (§9).
 
 ### Story 2 — The employee statement (P1)
 
@@ -117,8 +118,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    MANUAL session) and the day's worked hours; a date with an uncorrected missed clock-out shows «ناقص بصمة خروج» /
    "Missing clock-out" and adds 0 hours (BR-05); a date with approved leave shows the leave type; a date with a
    scheduled shift and no counted session shows the scheduled times and «لا يوجد حضور مسجّل» / "No attendance
-   recorded"; any other date shows the date only. A date after the cutoff (FR-013a), and a shift on the cutoff day that
-   had not ended at the request, show the date only, whatever the schedule: never «لا يوجد حضور مسجّل».
+   recorded"; any other date shows the date only. A shift that had not ended at the request (FR-013a), on any date,
+   adds nothing, and a date with nothing ended shows the date only, whatever the schedule: never «لا يوجد حضور مسجّل».
 3. The totals under the table are the 27b columns for that employee and period, then her signature line and the
    manager's (BR-04).
 
@@ -180,11 +181,13 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   `packages/contracts`). `employee_id` is required when `form = 'EMPLOYEE'`; on `BRANCH` it is the optional one-employee
   filter (BR-03). `from`/`to` are branch-local dates (`YYYY-MM-DD`, SPEC §7 working dates). The optional
   `shift: { start, end }` (branch-local `HH:MM`, the `scheduleShift` time format) is the BR-11 filter; it is accepted on
-  `BRANCH` only and refused on `EMPLOYEE` with `422 ATTENDANCE_STATEMENT_SHIFT_FILTER_INVALID`.
+  `BRANCH` only and refused on `EMPLOYEE` with `422 ATTENDANCE_STATEMENT_SHIFT_FILTER_INVALID`. `TODO(spec)` ST-Q7:
+  `shift` and that error code are not in the body until ST-Q7 is answered (§9); until then `z.strictObject` refuses a
+  `shift` key like any unknown key.
 - **FR-001a** `GET /v1/businesses/:businessId/branches/:branchId/attendance-statement-shifts?from&to` (a `queries/` read,
   same guard as FR-002) lists the distinct start–end pairs of the branch's schedule shifts in the period, ordered by
   start then end, for the screen's shift picker (BR-11). A pair not in that list is still accepted by FR-001 and simply
-  matches no day.
+  matches no day. `TODO(spec)` ST-Q7: this read ships with the shift filter, after ST-Q7 is answered (§9).
 - **FR-002** The route is guarded by `@Require('read:attendance:branch', { branch: 'branchId' })` and
   `@RequiresFeature('staff')`, like `attendance-monthly-report.controller.ts` (BR-08).
 - **FR-003** The use case checks the period's shape (`from <= to`, at most 366 days), the renderer liveness key and the
@@ -197,10 +200,14 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   the route's business (`branches` row with `(company_id, business_id, id)`; otherwise `404
   ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND`, nothing written), confirms the employee (when given) with the **same
   candidate rule the branch table uses** (Story 1.4, Story 3.3): she belongs to that business and has a counted
-  session or contracted minutes at that branch from `from` to the earlier of `to` and the FR-013a cutoff (the
-  branch-local date of the injected `Clock`, the same instant stored as `requested_at`), so a period with only future
-  dates, or an employee whose only coverage falls after the cutoff, is refused here and never reaches the worker. The check is the `candidates` part of the shared 27b
-  inputs statement (ADR-0056 §2) limited to that one employee, exposed from `@pospay/db` beside it, so the request
+  session or contracted minutes at that branch under the FR-013a rule, with the injected `Clock` instant as the cutoff
+  (the same instant stored as `requested_at`): a counted session with a working date from `from` to the earlier of `to`
+  and the cutoff date, or a contract day in that range whose default working-hours entry ends at or before that
+  instant. A period with only future dates, or an employee whose only coverage has not ended yet (hired today with a
+  17:00 default entry, asked at 10:00), is refused here and never reaches the worker. The check is an eligibility
+  statement in `@pospay/db` beside the shared 27b inputs statement (ADR-0056 §2): the 27b `candidates` rule limited to
+  that one employee, plus that end-instant predicate on contract days, with the instant as a parameter. The 27b
+  statement takes no instant and stays unchanged. So the request
   refuses exactly the employees the statement would show nothing for; otherwise `404
   ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` before any insert (no request row, no job). An employee whose only activity
   is an OPEN session is refused too: an OPEN session is not counted until it closes (AB-Q9g). Then it reads the
@@ -269,17 +276,25 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   attribute to the matching shift (on a split-shift day, the other shift's sessions are left out). Each has exhaustive
   unit tests, including a parity test that a full calendar month that ends on or before the cutoff (FR-013a), with no
   shift filter, gives the 27b row.
-- **FR-013a** Future dates. The cutoff is the branch-local date of the request row's `requested_at` (the branch time
-  zone, or the business's when the branch has none, as in Story 3.4). Every figure, both forms' totals, the branch
-  rows, the BR-11 day selection and who has a row (Story 1.4, Story 3.3), is computed over `from` to the earlier of `to`
-  and the cutoff. A date after the cutoff adds no scheduled, contracted or worked minutes, no lateness and no «لا يوجد
-  حضور مسجّل», and the employee form prints it as the date only (Story 2.2). A period that starts after the cutoff
-  therefore counts nothing: Story 3.3 refuses the employee form, and the branch table has no row. On the cutoff day
-  itself only the scheduled shifts that had already ended at `requested_at` (branch-local) count. A shift that had not
-  ended is treated like a future date: it adds no scheduled or contracted minutes, no lateness and no «لا يوجد حضور
-  مسجّل». When no shift of that date had ended, the employee form prints the date only, plus any session already counted
-  on it. FR-003's request-time check applies the same rule. This is what Story 3.4's «its future dates show the date
-  only» already says, applied to the part of the request day that has not happened yet.
+- **FR-013a** What has not happened yet. The cutoff is the instant `requested_at` of the request row; the cutoff date
+  is its branch-local date (the branch time zone, or the business's when the branch has none, as in Story 3.4). Every
+  figure, both forms' totals, the branch rows, the BR-11 day selection and who has a row (Story 1.4, Story 3.3), is
+  computed over `from` to the earlier of `to` and the cutoff date, and inside that range by one instant rule:
+  - a scheduled shift counts (its scheduled minutes, lateness and «لا يوجد حضور مسجّل») only when its `ends_at` is at or
+    before `requested_at`;
+  - a date's contracted minutes count only when that date's default working-hours entry (the contract `entries` the
+    27b rules already use, branch-local start and end, an end not after the start meaning the next day) ends at or
+    before `requested_at`. This compares the contract with the clock only; it never ties contracted minutes to a
+    scheduled shift;
+  - a counted session counts as in 27b (a closed session was recorded before the request).
+
+  The rule holds for every date of the range, not only the cutoff date: at 01:00 a 22:00–06:00 shift of the previous
+  working date has not ended, so it stays attributed to its working date (AB-Q9b) but adds no minutes and no «لا يوجد
+  حضور مسجّل». A shift or contract day that has not ended is treated like a future date. A date with nothing that had
+  ended and no counted session prints the date only (Story 2.2); every date after the cutoff date is such a date. A
+  period with no counted session and nothing that had ended counts nothing: Story 3.3 refuses the employee form, and the branch table has no
+  row. FR-003's request-time check applies the same rule. This is what Story 3.4's «its future dates show the date
+  only» already says, applied at the instant of the request.
 - **FR-014** The template's input is a Zod schema in `packages/contracts` (`attendanceStatementDocument`). The source
   builds it, after the two calls of FR-010, from the reader's `statement` (FR-011) and the `readStatementLogo` result
   encoded as `logo: { content_type, base64 }`, or `logo: null` when `logoFileId` is `null` or the logo reader returned
@@ -417,7 +432,10 @@ factory. The code PRs add the two port rows.
   with the cutoff 2026-10-23 counts 1–23 October only, and 24–31 October add no scheduled or contracted minutes and
   print the date only, even on a scheduled date; on the cutoff day, a request at 10:00 branch-local for a date with a
   17:00–21:00 shift adds no minutes for that shift and prints the date only, while a 08:00–09:30 shift on the same
-  date, already ended, counts (with its «لا يوجد حضور مسجّل» when it has no session).
+  date, already ended, counts (with its «لا يوجد حضور مسجّل» when it has no session); at 01:00 a 22:00–06:00 shift of
+  the previous working date adds no minutes and prints no «لا يوجد حضور مسجّل», while it is counted once the cutoff is
+  after 06:00; contracted minutes of a date count only after its default entry's end (an overnight entry ends the next
+  day).
 - **Contracts:** request body (forms, `employee_id` rule, `strictObject`), status reply, the template data schema.
 - **API integration (T2 Postgres, one cloned DB per file, ADR-0006):** 202 and the request row; every refusal of
   Story 3 including `403` without the permission, `404` cross-tenant/other-user/other-branch, and `404` for a business A
@@ -427,7 +445,9 @@ factory. The code PRs add the two port rows.
   no counted session and no contracted minutes at the branch in the period, or only an OPEN session (no row, no job),
   while one with only contracted minutes is accepted; with a fixed clock on 2026-10-23 in an `Asia/Kuwait` branch, an
   employee form for 25–31 October gets `404 ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` (no row, no job), and so does an
-  employee hired on 25 October asking 1–31 October; the rate limit at its boundary: the 20th request in a window is
+  employee hired on 25 October asking 1–31 October, and an employee hired on 23 October with a 17:00 default entry
+  asking at 10:00 branch-local (her only coverage has not ended), while the same request at 23:30 is accepted; the
+  rate limit at its boundary: the 20th request in a window is
   accepted, the 21st gets `429`, and the first request after the window expires is accepted; collect once, expired,
   not ready; the audit entry's fields; no audit when nothing is delivered.
 - **RLS:** negative isolation test for `attendance_statement_requests` (cross-tenant read = 0 rows, write = error), and
@@ -461,7 +481,7 @@ factory. The code PRs add the two port rows.
 | 1 | shared reads + logo reader | move the identity read statement to `@pospay/db` and `statementIdentity` to `packages/domain` (settings re-exports both, no behaviour change); move the 27b inputs statement to `@pospay/db` (27b unchanged, its EXPLAIN and shape tests follow it); worker `files` `readStatementLogo` with its own transaction and the once-per-render access audit (ADR-0056 §2–§3) |
 | 2 | schema, contracts, domain | migration + RLS + negative test for `attendance_statement_requests` (with the shift columns); contracts (request body, status, `attendanceStatementDocument`); `packages/domain` period, day-by-day and BR-11 shift-day functions with unit tests |
 | 3 | worker | worker `staff` `readAttendanceStatement` and the OPEN-sessions query (FR-011a); template; source (staff reader, then `files` `readStatementLogo`) and its registration in `main.ts` |
-| 4 | API | request and collect use cases (with the shift filter once ST-Q7 is answered, the business–branch check and the `StatementLogoReferenceReader` port and adapter), the status and shift-options `queries/` reads with the status read interface beside its query (FR-005, FR-001a), the guard, the rate limit, the audit entry and every refusal test |
+| 4 | API | request and collect use cases (with the shift filter once ST-Q7 is answered, the business–branch check and the `StatementLogoReferenceReader` port and adapter), the status read and, once ST-Q7 is answered, the shift-options read with the status read interface beside its query (FR-005, FR-001a), the guard, the rate limit, the audit entry and every refusal test |
 | 5 | admin | the download screen (form, period, employee, shift picker once ST-Q7 is answered, language, waiting state, download, refusals), i18n ar/en, RTL |
 
 The worker source (3) ships **before** the API that admits requests (4), so every request the API accepts has a
