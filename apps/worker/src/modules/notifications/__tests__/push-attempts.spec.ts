@@ -164,7 +164,7 @@ it('accepts a request that holds only push recipients, one per user', async () =
   expect(await h.authorized(event.id)).toHaveLength(3);
 });
 
-it('ignores a request that mixes a push recipient with another channel', async () => {
+it('rejects a request that mixes a push recipient with another channel', async () => {
   const event = await h.request([
     {
       channel: 'IN_APP',
@@ -176,7 +176,9 @@ it('ignores a request that mixes a push recipient with another channel', async (
     },
     pushRecipient(),
   ]);
-  expect(await h.deliver(event)).toEqual({ delivered: true });
+  await expect(
+    h.db.withTenant(event.companyId, (tx) => h.consumer.handle(tx, event)),
+  ).rejects.toThrow('NOTIFICATION_REQUEST_INVALID');
   expect(await h.attempts(event.id)).toHaveLength(0);
   expect(await h.inbox(event.id)).toHaveLength(0);
   expect(await h.phoneAttempts(event.id)).toHaveLength(0);

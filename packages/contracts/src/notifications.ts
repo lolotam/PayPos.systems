@@ -72,7 +72,7 @@ export const notificationRecipient = z.union([
   inAppRecipient,
   pushRecipient,
 ]);
-// إشعار الموظف لازم يسافر في طلب لوحده؛ ما يتخلطش بجموعة المديرين (BR-008).
+// إشعار الموظف لازم يسافر في طلب لوحده؛ ما يتخلطش بمجموعة المديرين (BR-008).
 const pushIsAlone = (request: {
   notification_recipients: readonly { channel: string }[];
 }): boolean => {
