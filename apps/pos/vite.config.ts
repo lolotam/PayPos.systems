@@ -11,11 +11,22 @@ export default defineConfig(({ mode }) => {
   // نسخة التطبيق الأصلي: الأصول بتاعته جوّه التطبيق نفسه، فمفيش service worker ولا manifest
   // (ADR-0055 قرار 3)، والبناء بيطلع في مجلد مستقل عشان build الويب ما يتغيرش.
   const native = mode === 'native';
+  // نفس الـ host بتاع نسخة التطبيق (ADR-0055 قرار 4): لينك المدير بيتقرأ من الـ host ده بالظبط،
+  // والنسختين (staging و production) ليهما host مختلف.
+  const posHost =
+    process.env.FLAVOUR === 'production' ? 'pos.pospay.systems' : 'pos.staging.pospay.systems';
 
   return {
     envDir: fileURLToPath(new URL('../..', import.meta.url)),
     ...(native ? { build: { outDir: 'dist-native' } } : {}),
-    ...(native ? { define: { 'import.meta.env.VITE_NATIVE': JSON.stringify('1') } } : {}),
+    ...(native
+      ? {
+          define: {
+            'import.meta.env.VITE_NATIVE': JSON.stringify('1'),
+            'import.meta.env.VITE_POS_HOST': JSON.stringify(posHost),
+          },
+        }
+      : {}),
     plugins: [
       react(),
       tailwindcss(),

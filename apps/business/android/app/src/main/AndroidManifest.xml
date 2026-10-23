@@ -24,6 +24,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- لينك المدير: نفس الـ host بتاع النسخة (ADR-0055 قرار 4)، والتسجيل بيتأكد من O-6. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="${posHost}"
+                    android:path="/personal" />
+            </intent-filter>
+
         </activity>
 
         <provider
