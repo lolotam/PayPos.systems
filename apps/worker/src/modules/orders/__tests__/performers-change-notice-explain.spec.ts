@@ -15,7 +15,7 @@ import {
   performersChangeRowsStatement,
 } from '../persistence/service-line-performer-notice.repository.ts';
 
-// The planner may serve these reads through service_lines_discount_proposal_key; it leads with the primary key columns (company_id, id).
+// The planner may serve these reads through service_lines_discount_proposal_key, service_lines_id_session_key or service_sessions_branch_id_key; they lead with the primary key columns (company_id, id).
 let f: PerformersChangeFixture;
 beforeAll(async () => {
   f = await performersChangeFixture();
@@ -50,14 +50,14 @@ it('matchesLine, the change header, its rows, the line context and the claim use
   );
   const context = JSON.stringify(await explain(performersChangeContextStatement(line)));
   expect(match).toMatch(
-    /service_lines_(company_id_id_pk|session_fk_idx|business_id_key|discount_proposal_key)/,
+    /service_lines_(company_id_id_pk|session_fk_idx|business_id_key|discount_proposal_key|id_session_key)/,
   );
-  expect(match).toMatch(/service_sessions_(company_id_id_pk|business_id_key)/);
+  expect(match).toMatch(/service_sessions_(company_id_id_pk|business_id_key|branch_id_key)/);
   expect(header).toMatch(/slpc_line_(revision|xid)_uq/);
   expect(rows).toMatch(/slpc_line_(revision|xid)_uq/);
   expect(rows).toMatch(/slpcr_(change_fk_idx|ordinal_uq)/);
   expect(context).toMatch(
-    /service_lines_(company_id_id_pk|session_fk_idx|business_id_key|discount_proposal_key)/,
+    /service_lines_(company_id_id_pk|session_fk_idx|business_id_key|discount_proposal_key|id_session_key)/,
   );
   for (const plan of [match, header, rows, context]) expect(plan).not.toContain('Seq Scan');
   const claim = JSON.stringify(

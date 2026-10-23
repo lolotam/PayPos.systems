@@ -36,7 +36,7 @@ it('exact session probe and permanent claim use tenant indexes and the session c
     );
   const result = await explain(sessionNoticeMatchStatement(scope));
   const text = JSON.stringify(result);
-  expect(text).toMatch(/service_sessions_(company_id_id_pk|business_id_key)/);
+  expect(text).toMatch(/service_sessions_(company_id_id_pk|business_id_key|branch_id_key)/);
   expect(text).not.toContain('Seq Scan');
   const claim = await explain(
     lateNoticeClaimStatement(scope, {
