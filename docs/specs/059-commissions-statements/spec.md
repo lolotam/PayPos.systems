@@ -502,10 +502,13 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `COMMISSION_REMINDER_SCHEDULES_LOST` alert is raised; the worker's CS-Q32 rebuild (FR-053 _CS-Q32_; the runbook's
   `CompanyCreated` replay is the fallback) registers the quiet company's scheduler again and the 3 November reminder is sent. **Worker down during the loss:** Redis is emptied while the
   worker is stopped; on start the worker finds no sentinel, opens the `operational_recovery_flags` row before writing the
-  sentinel, reports degraded and raises the alert; a second restart keeps the flag and the alert; only a complete CS-Q32 rebuild
-  (or, as the fallback, the operator's confirmation after the replay) clears it, and `/ready` is healthy again.
+  sentinel, reports degraded and raises the alert, then runs the CS-Q32 rebuild; while the rebuild has not completed for
+  every company, a restart keeps the flag and the alert; only a rebuild that succeeds for every company clears it, and
+  `/ready` is healthy again. The operator fallback clears the flag only after its replay has re-registered every
+  company; it never clears a flag after a partial rebuild. The new CS-Q32 ADR before 56b-1 finalises CM-57b and CM-57c.
 - **CM-57b** A company created after the release gets its scheduler from `CompanyCreated`; a company whose Redis schedule
-  was lost gets it back on the next commission input delivery; an existing company gets it from the operator replay.
+  was lost gets it back on the next commission input delivery; an existing company gets it from the CS-Q32 rebuild after a Redis loss, and at the first rollout from the one-time
+  operator replay (the replay also stays the fallback).
 - **CM-58** (CS-Q16 = PP-17.4) On the 3rd, in the same 09:00 run as the owner's reminder, if October is still DRAFT one
   `StatementAwaitingReview` reaches the holders of `review:commissions:business` who are business-wide readers; none on
   the 5th; none if it is already REVIEWED or closed.
