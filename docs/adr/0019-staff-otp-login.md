@@ -650,3 +650,249 @@ Only the following template approval TODO and future design note remain:
 
 Q7 approval blocks live OTP activation. Q4 is a future design obligation before PR 20, not an open
 choice about PR 6's scope. This revision changes no implementation or other governing documents.
+
+## Addendum 2026-10-21 — private view on the reception device (spec 060 D-A13, docs PR 57-0)
+
+Waleed answered MY-Q1 on 2026-10-21 (PP-18.1, against the recommended option): an employee's «شغلي» (her work and
+earnings) and «حضوري» (her attendance) open on her personal phone **and** on the shared reception device after her PIN.
+On that device they would ride the `STAFF_POS` operator session, which lives 8 hours with no idle timeout (Q2 above),
+so any colleague at the counter could read her commission. Spec 060 D-A13 therefore adds a short **private-view
+window** on top of the session. This ADR has no idle rule, and ADR-0027 lists own reads for the personal purpose only,
+so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
+
+### What does not change
+
+- **The `STAFF_POS` session itself.** It stays 8 hours absolute, with no idle timeout and no renewal (Q2). The
+  Alternatives row that rejects a staff idle timeout or sliding renewal still holds for the session. The window is a
+  separate, shorter state that gates two screens only. When it lapses, the operator stays signed in and every other
+  staff route behaves as before.
+- **One operator per device, replacement and sign-out** (§1).
+- **«إجازاتي».** The ADR-0026 kiosk and personal leave routes keep `PERSONAL_ROUTE = 'staff'` with no window check
+  (spec 060 D-A11).
+- **The personal session (ADR-0027).** It needs no window: the phone is the employee's own.
+
+### Decision
+
+1. **Scope.** The window gates exactly the «شغلي» and «حضوري» reads (spec 060 FR-A01…FR-A04: her lines, her
+   commission estimate, her tips, her attendance) and their activity touch, and only on the `STAFF_POS` path. No other
+   route reads or extends it.
+2. **Fresh PIN proof.** Opening either screen asks for the PIN again. The PIN is the cashier PIN of the employee
+   linked to the session's user, so the operator proves herself and no one else. A manager's PIN never opens another
+   employee's window (Q8). `packages/auth` verifies the PIN against the session's own user and device context. The
+   window is granted only against a proof **at most 60 seconds old**, consumed once; a stale or reused proof opens
+   nothing. Step-up attempts count against the existing PIN attempt limit in Redis (`CLAUDE.md` §8), and the actual
+   actor is recorded, as for PIN sign-in.
+3. **The window record is auth-owned and global**, kept in the existing `verification` storage the way ADR-0027
+   keeps its 120-second attendance challenge. It holds a `window_id`, its `window_seq`, the session id, the operator's
+   user id, the device id, `opened_at` and `last_activity_at`, and its stored expiry is `opened_at` + 5 minutes. It holds no tenant
+   data, no employee data, no column setting and no PIN material. A session has at most one window; opening it again
+   replaces it.
+   **Openings are serialized per session.** `verification.identifier` has only a non-unique index, so two concurrent
+   openings could each find no record and insert two windows. The opening therefore runs in one `pospay_auth`
+   transaction that first locks the operator's `session` row (`SELECT … FOR UPDATE`), then deletes every window record
+   of that session and inserts the new one before it commits. A second opening waits on the lock, then replaces the
+   first: whatever order they arrive in, one record with one `window_id` survives. The session-ending and replacement
+   operations of item 6 take the same session-row lock before they delete the window, so neither can interleave with
+   an opening. `pospay_auth` already holds `UPDATE` on `session` (migration 0008), so the lock needs no new grant, and
+   no unique index or migration is added. Reads, touch, close and cleanup need no lock: with at most one record per
+   session, the `window_id` match inside their conditional statement is enough (item 4).
+   **Every opening gets a tie-free order, `window_seq`.** It is a per-session `bigint` counter kept in its own
+   `verification` record for that session, whose expiry is the session's 8-hour deadline. Unlike the window record,
+   this counter is not deleted when a window closes. The opening reads and increments it in the same transaction,
+   under the same session-row lock, so every later opening of that session gets a strictly greater `window_seq`. The
+   opening response returns it with the `window_id` and a `session_ref`: the session's opaque row id, never its token,
+   which names the session the window belongs to. The session-ending and replacement operations delete the counter
+   with the window.
+   **Every opening gets a new `window_id`:** 128 random bits from the injected entropy source, never derived from the
+   session, the user or the time. The opening response returns it to the POS, and every request inside that window
+   carries it in a dedicated request header (57-1's contract names it). Like the session token, it is never logged and
+   never put in a URL. On its own it grants nothing: it is checked only together with the live session and Device
+   credentials. **No new table and no new grant:** `pospay_auth` already reads and writes `verification` (migration 0008), so
+   ADR-0003 needs no new classification.
+4. **The server enforces the idle limit, not the tab.** On every gated request on the `STAFF_POS` path, after the
+   normal staff-session checks (§1 items 6–7: device, session purpose, deadline, membership), auth runs one atomic
+   conditional update with the request's single Clock sample `now` (spec 060 FR-A06):
+   - it passes only when the window exists for **this session, this operator and this `window_id`**,
+     `now − last_activity_at ≤ 60 s` and `now − opened_at ≤ 5 min`. The `window_id` match is part of the same
+     conditional update, never a separate read before it;
+   - a passing request sets `last_activity_at = now`, so each request extends the window by 60 seconds from its own
+     time, never past 5 minutes from the opening. **Its response returns the remaining times** derived from that same
+     Clock sample: `idle_remaining_ms` (60 s) and `cap_remaining_ms` (5 min − (`now` − `opened_at`)). The opening
+     response returns the same two values, plus the window's `window_seq` as its ordering value (item 6). The browser
+     sets its deadlines only from these server values, never from limits it computes itself;
+   - any other request is refused with **403 `PRIVATE_VIEW_EXPIRED`**. When the `window_id` matches but a limit has
+     passed, the record is deleted, which closes the window; that delete is conditional on the same `window_id`. A
+     request with a missing or different `window_id` changes nothing: it neither extends nor deletes the current
+     window.
+
+   **A late request never reaches a newer window.** Take a request sent inside one window that arrives after that
+   window has closed and a new one has opened. It carries the old `window_id`, so it is refused with 403: it reads no
+   data from the new window and does not extend it. The same rule covers every write to the record. Touch (item 5),
+   close and cleanup (item 6) each match the `window_id` inside their own conditional statement, so a late close or
+   cleanup for an old window can never delete the new one. Only the end or replacement of the session deletes a window
+   whatever its id.
+
+   A killed tab, a lost connection or a bypassed client therefore never keeps the window open.
+
+   **Two refusals, two meanings.** The staff-session checks run first, so a dead operator session (sign-out,
+   replacement, the 8-hour deadline, a revoked device) is always 401 `UNAUTHENTICATED`, even when its window is also
+   gone. `PRIVATE_VIEW_EXPIRED` (403) is returned only while the operator session is still live and means only that the
+   window is missing or lapsed. The POS acts on the code, never on the status alone:
+   - `PRIVATE_VIEW_EXPIRED`: close the private screen, clear its query cache, and show the PIN step. The operator stays
+     signed in.
+   - `UNAUTHENTICATED`: the existing signed-out handling of §1, which clears the operator's caches in every tab.
+
+   Spec 060 D-A13, FR-A06b and MY-13b said 401; this PR changes them to the two codes above and adds
+   `PRIVATE_VIEW_EXPIRED` to the spec's error list. 57-1 adds it to `src/shared/errors.ts` with its
+   `message_ar`/`message_en`.
+5. **Activity touch.** While the screen has input, the POS sends a throttled touch, at most one every 20 seconds,
+   through the same route policy and the same check. It returns no private data. Its only effect is to keep the
+   server's clock in step with real use.
+6. **Closing and clearing.** Leaving the screen sends a best-effort close carrying the `window_id`. Sign-out, operator replacement and the
+   session's 8-hour deadline close the window too: the auth operation that ends or replaces the session deletes its
+   window, and the check in item 4 also requires the bound session to be the live one, so a stale record never passes.
+   The POS clears the screen and the query cache of these reads in every tab, as §1 already requires for a replaced
+   operator. The server's idle expiry never depends on the close request arriving.
+   **The browser clears on its own clocks too.** The server check of item 4 stays the authority. The browser only
+   makes sure the data leaves the screen on time when nobody sends a request. It keeps two kinds of deadline, because
+   neither clock alone is enough. A wall clock (`Date.now()`) is shared by the tabs, but it can be moved back by less
+   than the time elapsed and then pass every sanity check. A monotonic clock (`performance.now()`) cannot be moved,
+   but it belongs to one tab, restarts on reload and may pause while the device sleeps.
+
+   - **Server-derived only.** Every deadline comes from the `idle_remaining_ms` and `cap_remaining_ms` of the last
+     passing response (item 4), counted from the moment the tab **sent** that request. The browser therefore always
+     expires no later than the server does, and a reload or a new tab never rebuilds a deadline from a stored instant
+     alone.
+   - **The shared key.** The POS keeps one key in `localStorage` holding the `window_id`, its `session_ref` and
+     `window_seq`, and the two wall-clock expiry instants (`Date.now()` at send + each remaining time), and nothing
+     else.
+     - **Order is `(session_ref, window_seq)`.** `window_seq` counts per session, but the key is device-wide. An
+       opening for a **different** `session_ref` than the key's always overwrites the key: the session that wrote it
+       has ended or been replaced, because a device has one operator at a time. Within one session, an opening
+       overwrites the key only when its `window_seq` is **strictly greater**. The server never issues two openings of
+       one session with the same `window_seq` (item 3), so an older opening whose response arrives late never
+       overwrites a newer window.
+     - **An expired key counts as absent.** A key whose wall-clock deadlines have passed never blocks an opening,
+       whatever its `session_ref` or `window_seq`. So a stale key left by an ended session, or by a replacement whose
+       tab crashed before clearing it, can never outrank a new opening or loop the PIN step.
+     - A passing read or touch updates the key only when its `window_id` equals the stored one.
+     - **A newer window retires the older ones at once.** When a tab sees a greater `window_seq` in the key (a
+       `storage` event or its own read), it immediately hides and clears its private screen if that screen belongs to
+       an older window. A tab renders a response only if the response's `window_id` still equals the key's current one;
+       otherwise it discards the response.
+     - **Any mismatch ends in the PIN step.** Whenever a tab's own window and the key disagree, in either direction,
+       that tab clears its private screen and cache and returns to the PIN step. This covers a discarded response, a
+       newer window in the key, and a key that is missing or older than the tab's window. The PIN step makes a fresh
+       opening, which rewrites the key with the server's current window. No tab is ever left stranded between two
+       windows.
+   - **The per-tab monotonic deadlines.** Each tab keeps its own `performance.now()` deadlines in memory, never stored
+     or shared. **Only the tab's own passing server response sets or extends them**, from that response's
+     `idle_remaining_ms` and `cap_remaining_ms`. A shared-key update written by another tab may only **shorten** them,
+     never lengthen them, so every tab is bounded by deadlines the server gave that tab itself.
+   - **Two kinds of expiry, two scopes.**
+     - When a tab's **own monotonic deadline** passes, that tab hides only its own private screen and clears its own
+       query cache. It does not remove the key or tell other tabs, so an idle tab B never closes the window while tab
+       A is in use. Before it shows the data again it sends one touch, and it shows the data only if that touch
+       passes; the touch's response then sets its new deadlines.
+     - When the **shared wall-clock deadline** passes, or the server refuses with 403, the window is closed for all
+       tabs, as described next.
+   - **Checks.** A tab compares its deadlines on a periodic tick, on `visibilitychange`, `focus` and `pageshow`, and
+     before it renders any private data.
+   - **A context whose elapsed time cannot be trusted shows nothing private until the server says so.** That covers a
+     tab that was hidden and becomes visible again, a page restored from the back-forward cache (`pageshow` with
+     `persisted`), a reload, a newly opened tab, and a device waking from sleep. Such a tab first hides the private
+     screen, then sends one touch (item 5). It sets its monotonic deadlines from that touch's remaining times, and
+     shows the data only if the touch passes the server check; a 403 sends it to the PIN step. So a partial clock
+     rollback, combined with a reload or with sleep, still cannot keep data on the screen past the server window.
+
+   **Closing for all tabs, fenced by `window_id`.** The tab that closes the window first clears its own screen and
+   cache and shows the PIN step, with no request needed.
+   - **The key.** It re-reads the shared key and removes it only if the stored `window_id` equals the one it is
+     closing. If a newer window has replaced the key, it leaves the key alone and clears only itself.
+   - **The other tabs.** It posts a `BroadcastChannel` message carrying the `window_id` it closes. Each receiving tab
+     clears its private screen and cache only when that `window_id` is its current one; a notice about another window
+     is ignored.
+   - **The fallback** is the `storage` event, and only a removal counts (`newValue` is null). The removed key's
+     `oldValue` carries the `window_id`, which the closer checked before removing it. A tab acts on it only when that
+     id is its current one. A `storage` event that replaces the key with a newer window is not a close, though it
+     still retires every tab showing an older window (above).
+
+   **The cross-tab fence is best-effort, and every race it loses fails safe.** `localStorage` has no atomic
+   compare-and-set: two tabs can interleave a read with a write or a removal. Such a race can only close a window
+   early, or skip an extension that the key would have recorded. Either way, the PIN is asked again sooner. It can
+   never keep data on a screen longer, because every tab is bounded by its own server-derived monotonic deadlines,
+   which no other tab can lengthen. The server check of item 4 stays the authority on every request.
+
+   **A changed device clock.** The server check runs on the server's Clock, so a device clock moved forward or back
+   cannot keep a window open on the server. In the browser, the monotonic deadlines catch a partial rollback, and an
+   untrusted context waits for a fresh server value. A tab also closes early whenever the wall clock looks wrong: a
+   `Date.now()` earlier than the stored send instant, or a stored deadline further away than the limits allow
+   (60 seconds or 5 minutes). Closing early costs the employee one PIN entry; closing late would show her data.
+7. **No private data kept.** Responses carry `Cache-Control: no-store`, and the PWA persists no private data from these
+   screens: no IndexedDB, no offline queue (spec 060 S-19, `CLAUDE.md` §7). The ban covers private data, not window
+   metadata. The only stored item is item 6's key: the `window_id`, its `session_ref` and `window_seq`, and the two
+   expiry instants. It holds no personal
+   data, is useless without the operator's session and Device credentials, and is removed when the window closes.
+   ADR-0027's addendum says the same.
+8. **Route policy, for 57-1 (spec 060 FR-A06b).** Today `PERSONAL_ROUTE = true` makes `SessionGuard`
+   (`apps/api/src/shared/session.guard.ts`) call `personalSessionRequest` at once, so a `STAFF_POS` request would be
+   refused before any window check. FR-A01…FR-A04 therefore use the combined `PERSONAL_ROUTE = 'staff'` policy the
+   ADR-0026 leave routes already use:
+   - each route carries **both** markers, exactly as the ADR-0026 leave routes do
+     (`apps/api/src/modules/staff/http/own-leave.controller.ts`): `@SetMetadata(STAFF_ROUTE, 'staff')` and
+     `@SetMetadata(PERSONAL_ROUTE, 'staff')`;
+   - without an `Authorization` header, `SessionGuard` takes the personal session (`personalSessionRequest`). With one,
+     it skips the personal branch and continues to the `STAFF_ROUTE` check. That check sends the request to its
+     `#staff` path (a Device credential plus the `pospay-staff` session, with the device context checked). With
+     `PERSONAL_ROUTE` alone, a request with that header would reach no staff policy and would be judged as a bare
+     Device or admin request. Neither path ever falls back to an admin session;
+   - a per-route private-view marker makes the `STAFF_POS` path call auth's window check after the staff session
+     resolves;
+   - the personal path and the leave routes never call it.
+
+   This addendum names the `SessionGuard` change and the auth window store; 57-1 builds both, with test MY-13b, its
+   killed-tab case included. MY-13b also covers the two codes and the browser timer:
+   - an idle or capped window on a live session → 403 `PRIVATE_VIEW_EXPIRED`, the PIN step is shown and the operator
+     is still signed in; a replaced or signed-out operator → 401 `UNAUTHENTICATED`;
+   - with no request at all, 60 seconds of idle, or 5 minutes from the opening, remove the private screen and empty
+     its query cache in every open tab (57-4's UI test asserts the visible screen, `CLAUDE.md` §9);
+   - **sleep and wake:** the device sleeps and wakes after a deadline has passed → on `visibilitychange`, `focus` or
+     `pageshow` the private screen is gone before any data shows, and the PIN step is visible;
+   - **another tab:** the deadline is noticed in one tab → a second open tab receives the `BroadcastChannel` (or
+     `storage`) close, removes its private screen and empties its cache;
+   - **clock moved back:** `Date.now()` earlier than the stored send instant → the screen closes at once;
+   - **partial clock rollback:** the device clock is moved back by less than the time elapsed, so `Date.now()` stays
+     after the send instant and inside both limits → the tab's monotonic deadline still closes the screen on time;
+     after sleep or a restore, the tab shows nothing private until a fresh touch passes on the server;
+   - **fenced cross-tab close:** a `BroadcastChannel` or `storage` close naming window A reaches a tab already showing
+     window B → that tab keeps B open; a closing tab that finds window B in the key does not remove it, and if a
+     race removes it anyway, window B is not extended and at worst asks for the PIN again;
+   - **newer window retires older tabs:** tab A shows window A, and tab B opens window B → tab A hides and clears at
+     once, and a late response for window A is never rendered;
+   - **reload after a partial rollback:** the clock is moved back, then the tab reloads → it shows nothing until a
+     touch passes, and its deadlines come from that touch's `cap_remaining_ms`, never past the server's 5-minute cap;
+   - **out-of-order openings:** the response of an older opening arrives after a newer one → the key keeps the newer
+     `window_id` and its greater `window_seq`;
+   - **stale key from an ended session:** the key still holds a window of a session that signed out, with a higher
+     `window_seq` → a new operator's opening has a different `session_ref`, overwrites the key and shows her data with
+     no PIN loop; the same holds when the old key has merely expired;
+   - **replacement after a crash:** an operator is replaced while her tab has crashed and never cleared the key → the
+     new operator's opening overwrites it, and the old window's data is never shown;
+   - **discarded response:** a tab's passing response names a `window_id` that is no longer the key's → the tab
+     discards it, clears its screen and cache and shows the PIN step; the fresh opening rewrites the key;
+   - **idle tab beside an active tab:** tab B is idle past its own monotonic deadline while tab A keeps sending
+     requests → B hides only its own screen, and A's window stays open; B shows data again only after its own touch
+     passes, and a shared-key update from A never lengthens B's deadlines;
+   - **late request:** a request sent in window A arrives after A closed and window B opened → 403
+     `PRIVATE_VIEW_EXPIRED`, no data, and B's `last_activity_at` is unchanged;
+   - **late close:** a close or cleanup for window A arrives after window B opened → B stays open and its next request
+     passes;
+   - a route test asserts that each FR-A01…FR-A04 handler carries both `STAFF_ROUTE = 'staff'` and
+     `PERSONAL_ROUTE = 'staff'`.
+
+### Not in this addendum
+
+- The four own permission codes and their place in ADR-0027's list of personal-purpose capabilities (spec 060 D-A4,
+  D-A5). They are 57-1's own ADR-0027 addendum.
+- The column setting (D-A2) and the months-back setting (D-A14). They apply the same way on both paths and are read
+  through `StaffColumnsPort` (ADR-0010 addendum 2026-10-21).

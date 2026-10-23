@@ -82,6 +82,16 @@ const PRIVATE_PAYLOAD_KEYS = new Set([
   'emailhtml',
   'emailtext',
 ]);
+// أسرار اشتراك الدفع (ADR-0052 §3): أسماء كاملة مش لواحق — "auth" بالظبط عشان "author" ما يتخبّاش،
+// و"endpoint" و"p256dh" اسماء حقل واحدة، والتطبيع بيجمع الشكلين بالشرطة والـ camelCase.
+const PUSH_SECRET_KEYS = new Set([
+  'endpoint',
+  'p256dh',
+  'auth',
+  'deliverytoken',
+  'installationid',
+  'subscriberref',
+]);
 const normalizeKey = (key: string): string => key.toLowerCase().replace(/[^a-z0-9]/g, '');
 // A plural container ("passwords", "tokens", "hashes") holds secrets under ordinary child keys, so the key
 // is also tested with a trailing "s" or "es" removed — the container is redacted before its children.
@@ -93,7 +103,10 @@ const endsWithAny = (key: string, suffixes: readonly string[]): boolean => {
 const isIbanKey = (key: string): boolean =>
   endsWithAny(key, ['iban', 'holdername']) || /holdername(?:en|ar)$/.test(normalizeKey(key));
 const isSecretKey = (key: string): boolean =>
-  (endsWithAny(key, SECRET_SUFFIXES) || isIbanKey(key)) && !STRUCTURAL_KEYS.has(normalizeKey(key));
+  (endsWithAny(key, SECRET_SUFFIXES) ||
+    isIbanKey(key) ||
+    PUSH_SECRET_KEYS.has(normalizeKey(key))) &&
+  !STRUCTURAL_KEYS.has(normalizeKey(key));
 const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);
 const isEmailKey = (key: string): boolean =>
   endsWithAny(key, ['email', 'emails', 'emailaddress', 'emailaddresses']);

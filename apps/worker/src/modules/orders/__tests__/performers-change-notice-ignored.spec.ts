@@ -3,8 +3,10 @@ import { safeDisplayName, t } from '@pospay/i18n';
 import { createLogger } from '@pospay/observability';
 import { beforeAll, afterAll, expect, it } from 'vitest';
 import { createDeliverer } from '../../../outbox/deliver.ts';
+import { failingBranchRead } from './failing-branch-read.ts';
 import type { PerformersChangeNameFallback } from '../domain/performers-change-notice.ts';
 import { onPerformersChanged } from '../events/handlers/on-performers-changed.handler.ts';
+import { alertRules } from '../persistence/alert-rule.adapter.ts';
 import { performersChangeRecipients } from '../persistence/performers-change-recipients.adapter.ts';
 import {
   performersChangeOutbox,
@@ -83,7 +85,7 @@ it('a bad header, side, date, branch or aggregate writes nothing', async () => {
   await expectInvalid(foreign, { ...foreign.event, aggregateId: f.ids.newId() });
 });
 
-it('a missing branch place is invalid and rolls the ledger back', async () => {
+it('a missing branch place is recorded with no recipients and is not retried', async () => {
   const prepared = await f.change();
   const deliver = createDeliverer(
     f.db,
@@ -91,12 +93,29 @@ it('a missing branch place is invalid and rolls the ledger back', async () => {
     createLogger('silent'),
     { knownEventTypes: f.consumer.eventTypes },
   );
-  expect((await deliver(prepared.event)).delivered).toBe(false);
-  await expect(
-    f.db.withTenant(prepared.companyId, (tx) => onPerformersChanged(useCase(tx), prepared.event)),
-  ).rejects.toThrow('LINE_PERFORMERS_PLACE_INVALID');
+  expect(await deliver(prepared.event)).toEqual({ delivered: true });
+  expect(await f.notices(prepared.lineId)).toMatchObject([{ recipient_count: 0 }]);
+  expect(await f.requests(prepared.lineId)).toHaveLength(0);
+  expect(await f.consumed(prepared.event.id)).toHaveLength(1);
+  expect(await f.deliver({ ...prepared.event, id: f.ids.newId() })).toEqual({ delivered: true });
+  expect(await f.notices(prepared.lineId)).toHaveLength(1);
+  expect(await f.requests(prepared.lineId)).toHaveLength(0);
+});
+
+it('a transient failure reading the branch place rolls back and is retried', async () => {
+  const prepared = await f.change();
+  const flaky = createDeliverer(failingBranchRead(f.db), [f.consumer], createLogger('silent'), {
+    knownEventTypes: f.consumer.eventTypes,
+  });
+  expect(await flaky(prepared.event)).toMatchObject({
+    delivered: false,
+    retryInMs: expect.any(Number),
+  });
   expect(await f.notices(prepared.lineId)).toHaveLength(0);
   expect(await f.consumed(prepared.event.id)).toHaveLength(0);
+  expect(await f.deliver(prepared.event)).toEqual({ delivered: true });
+  expect(await f.notices(prepared.lineId)).toMatchObject([{ recipient_count: 1 }]);
+  expect(await f.requests(prepared.lineId)).toHaveLength(1);
 });
 
 async function expectInvalid(prepared: PreparedChange, event: ClaimedEvent = prepared.event) {
@@ -114,6 +133,7 @@ function useCase(tx: Tx) {
       place: { branchPlace: async () => null },
       repository: performersChangeRepository(tx),
       outbox: performersChangeOutbox(tx),
+      rules: alertRules(tx),
     },
     f.ids,
     { now: () => f.at },

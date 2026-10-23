@@ -9,7 +9,13 @@ import type {
 } from '../ports/break-not-returned.port.ts';
 import type { NotClockedInCursor } from '../ports/not-clocked-in.port.ts';
 import { branchManagerRecipientsAdapter } from './branch-manager-recipients.adapter.ts';
-import { recordBreakNotReturned } from './break-not-returned-writes.ts';
+import { alertRules } from './alert-rule.adapter.ts';
+import { recordBreakNotReturned, suppressBreakNotReturned } from './break-not-returned-writes.ts';
+import {
+  closeBreakSuppressed,
+  convertBreakNotReturned,
+  readBreakLedger,
+} from './break-not-returned-conversion.ts';
 import {
   NOT_CLOCKED_IN_TRANSACTION_TIMEOUT_MS,
   lockEmployee,
@@ -58,6 +64,7 @@ export function dueBreaksStatement(
     after === null
       ? sql``
       : sql`AND (sh.starts_at, sh.id) > (${after.startsAt.toISOString()}::timestamptz, ${after.id}::uuid)`;
+  // الوردية المكبوحة لسه مرشحة: سطرها بيتحوّل لإشعار «رجعت لفرع آخر» لو الرجوع بفرع تاني حصل بعد الكبح.
   return sql`SELECT sh.id, sh.employee_id, sh.starts_at
     FROM staff_schedule_shifts sh
     JOIN staff_schedules sc ON sc.company_id = sh.company_id AND sc.id = sh.schedule_id
@@ -66,9 +73,20 @@ export function dueBreaksStatement(
       AND sh.starts_at > (${endsAfter.toISOString()}::timestamptz - interval '16 hours')
       AND sh.ends_at > ${endsAfter.toISOString()}::timestamptz
       AND sh.break_ends_at <= ${breakEndsAtOrBefore.toISOString()}::timestamptz
-      AND NOT EXISTS (SELECT 1 FROM attendance_break_not_returned_notices n
-        WHERE n.company_id = sh.company_id AND n.employee_id = sh.employee_id
-          AND n.shift_starts_at = sh.starts_at)
+      AND (
+        NOT EXISTS (SELECT 1 FROM attendance_break_not_returned_notices n
+          WHERE n.company_id = sh.company_id AND n.employee_id = sh.employee_id
+            AND n.shift_starts_at = sh.starts_at)
+        OR EXISTS (SELECT 1 FROM attendance_break_not_returned_notices n
+          JOIN attendance_sessions r ON r.company_id = n.company_id AND r.employee_id = n.employee_id
+            AND r.working_date BETWEEN ${dayAround(endsAfter, -2)}::date AND ${dayAround(endsAfter, 1)}::date
+            AND r.business_id = sc.business_id AND r.branch_id <> sc.branch_id
+            AND r.status IN ('OPEN','CLOSED','MISSED_OUT') AND r.voided_at IS NULL
+            AND r.clock_in > n.suppressed_at
+          WHERE n.company_id = sh.company_id AND n.employee_id = sh.employee_id
+            AND n.shift_starts_at = sh.starts_at AND n.suppressed_kind = 'NOT_RETURNED'
+            AND n.suppressed_at IS NOT NULL)
+      )
       AND EXISTS (SELECT 1 FROM attendance_sessions a
         WHERE a.company_id = sh.company_id AND a.employee_id = sh.employee_id
           AND a.working_date BETWEEN ${dayAround(endsAfter, -2)}::date AND ${dayAround(endsAfter, 1)}::date
@@ -152,6 +170,8 @@ function locked(
   places: BranchPlaceReader<Tx>,
 ): LockedBreakNotReturned {
   return {
+    rules: alertRules(tx),
+    ledger: (shift) => readBreakLedger(tx, companyId, shift),
     shift: (shiftId) => readShift(tx, companyId, employeeId, shiftId, places),
     approvedLeaves: (id, from, to, workingDate) =>
       readLeaves(tx, companyId, id, from, to, workingDate),
@@ -173,6 +193,9 @@ function locked(
     managers: (businessId, branchId, roles) =>
       branchManagerRecipientsAdapter.forBranch(tx, companyId, businessId, branchId, at, roles),
     record: (notice) => recordBreakNotReturned(tx, ids, companyId, notice),
+    convert: (notice) => convertBreakNotReturned(tx, ids, companyId, notice),
+    closeSuppressed: (shift) => closeBreakSuppressed(tx, companyId, shift),
+    suppress: (notice) => suppressBreakNotReturned(tx, ids, companyId, notice),
   };
 }
 

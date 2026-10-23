@@ -1114,6 +1114,111 @@
       "when": 1792468470150,
       "tag": "0160_2026-10-20_write-seal-system-id-uniques",
       "breakpoints": true
+    },
+    {
+      "idx": 161,
+      "version": "7",
+      "when": 1792580299769,
+      "tag": "0161_2026-10-21_staff-columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 162,
+      "version": "7",
+      "when": 1792581989660,
+      "tag": "0162_2026-10-21_discount-proposals",
+      "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1792582041083,
+      "tag": "0163_2026-10-21_discount-proposal-unique-indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 164,
+      "version": "7",
+      "when": 1792582058309,
+      "tag": "0164_2026-10-21_discount-proposal-links",
+      "breakpoints": true
+    },
+    {
+      "idx": 165,
+      "version": "7",
+      "when": 1792582059309,
+      "tag": "0165_2026-10-21_alert-rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 166,
+      "version": "7",
+      "when": 1792617054108,
+      "tag": "0166_2026-10-21_discount-proposal-expiry-immutable",
+      "breakpoints": true
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1792676038033,
+      "tag": "0167_2026-10-22_alert-rules-permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1792687482774,
+      "tag": "0168_2026-10-22_staff-app-columns-permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1792692163793,
+      "tag": "0169_2026-10-22_staff-ledger-suppressed",
+      "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1792694020732,
+      "tag": "0170_2026-10-22_staff-ledger-suppressed-validate",
+      "breakpoints": true
+    },
+    {
+      "idx": 171,
+      "version": "7",
+      "when": 1792697317174,
+      "tag": "0171_2026-10-22_ledger-break-convert-suppressed",
+      "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1792710836971,
+      "tag": "0172_2026-10-22_discount-approval-notices",
+      "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1792710837971,
+      "tag": "0173_2026-10-22_memberships-scope-index",
+      "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1792713942622,
+      "tag": "0174_2026-10-23_push-subscriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1792717815092,
+      "tag": "0175_2026-10-23_push-attempts",
+      "breakpoints": true
     }
   ]
 }

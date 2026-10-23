@@ -113,6 +113,10 @@ export const ROLE_DEFAULTS = {
   'manage:settings:business': settings,
   // قرار المالك BI-Q1 بتاريخ 2026-10-17: إدارة هوية النشاط للمالك وحده افتراضياً، ويمنحها لأي دور بشري.
   'manage:business-identity:business': ['owner'],
+  // قرار المالك AL-Q1 بتاريخ 2026-10-22: إدارة التنبيهات للمالك والمدير العام ومدير النشاط افتراضياً، وتفويضها لأي دور بشري.
+  'manage:alert-rules:business': managers,
+  // قرار المالك MY-Q5 بتاريخ 2026-10-22: أعمدة تطبيق الموظفين للمالك والمدير العام ومدير النشاط افتراضياً، وتفويضها لأي دور بشري.
+  'manage:staff-app-columns:business': managers,
   'view:notifications:business': managers,
   'manage:employees:business': managers,
   'read:services:business': managers,
@@ -126,6 +130,8 @@ export const ROLE_DEFAULTS = {
   'manage:document-types:company': ['owner'],
   'manage:discounts:company': ['owner'],
   'manage:discount-limits:business': managers,
+  // قرار المالك DA-Q1 بتاريخ 2026-10-21: الموافقة على الخصم للمديرين الأربعة افتراضياً، وتفويضها لأي دور بشري.
+  'approve:discounts:branch': [...managers, 'branch_manager'],
   'create:customers:company': ['owner', 'general_manager'],
   'create:customers:business': ['owner', 'business_manager'],
   'create:customers:branch': ['owner', 'branch_manager', 'cashier'],

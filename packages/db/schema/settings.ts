@@ -1,10 +1,12 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   foreignKey,
   index,
   integer,
   jsonb,
+  smallint,
   pgTable,
   primaryKey,
   text,
@@ -15,7 +17,7 @@ import {
 
 import { fileObjects } from './files.ts';
 import { user } from './identity-auth.ts';
-import { businesses } from './tenancy.ts';
+import { branches, businesses } from './tenancy.ts';
 
 // إعدادات النشاط (PRD P0-T10.1) — صف واحد لكل نشاط، بيتعمل أول ما حد يغيّر حاجة. كل عمود null معناه "زي الـ
 // template" (قرار Waleed 2026-09-23: الـ template الأول وبعدين تعديلات العميل)، فالـ template لو اتغير بيوصل لكل نشاط
@@ -37,6 +39,13 @@ export const businessSettings = pgTable(
     officialNameEn: text('official_name_en'),
     // ملف الشعار في نفس الشركة؛ null = مفيش شعار، والحذف ممنوع طول ما الصف شاير عليه.
     logoFileId: uuid('logo_file_id'),
+    // مفتاح كل تنبيهات الفريق للنشاط (D-B13، AL-Q4)؛ null = شغّال، ورسايل التقييم للزباين ليها مفتاحها لوحدها.
+    alertsEnabled: boolean('alerts_enabled'),
+    // أعمدة تطبيق الموظفات اللي المدير اختارها؛ null = افتراضي MY-Q3 (spec 060 D-A6).
+    staffColumns: text('staff_columns').array(),
+    // كام شهر لورا الموظفة تشوف في «شغلي» و«حضوري»؛ null = الشهر الحالي والشهر اللي قبله (D-A14، MY-Q2، MY-Q9).
+    // الـ CHECK لسه بيسمح حتى 24 في الإصدار ده، والدومين بيقرا أي قيمة فوق 12 على إنها 12 لحد ما يتضيّق (issue #519).
+    staffMonthsBack: smallint('staff_months_back'),
     updatedBy: uuid('updated_by').references(() => user.id),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -67,6 +76,15 @@ export const businessSettings = pgTable(
       'business_settings_official_name_en',
       sql`${t.officialNameEn} IS NULL OR char_length(${t.officialNameEn}) BETWEEN 1 AND 255`,
     ),
+    // الأكواد المسموحة بس، من غير null ومن غير تكرار (D-A6، D-A7)؛ التكرار بتفحصه دالة لأن الـ CHECK ما بيقبلش subquery.
+    check(
+      'business_settings_staff_columns',
+      sql`${t.staffColumns} IS NULL OR (${t.staffColumns} <@ ARRAY['date', 'time', 'service', 'customer_name', 'list_price', 'discount', 'net', 'share', 'estimated_commission', 'tip', 'rating_average']::text[] AND array_position(${t.staffColumns}, NULL) IS NULL AND staff_columns_distinct(${t.staffColumns}))`,
+    ),
+    check(
+      'business_settings_staff_months_back',
+      sql`${t.staffMonthsBack} IS NULL OR ${t.staffMonthsBack} BETWEEN 1 AND 24`,
+    ),
     foreignKey({
       name: 'business_settings_logo_file_fk',
       columns: [t.companyId, t.logoFileId],
@@ -77,5 +95,78 @@ export const businessSettings = pgTable(
     uniqueIndex('business_settings_logo_file_key')
       .on(t.companyId, t.logoFileId)
       .where(sql`${t.logoFileId} IS NOT NULL`),
+  ],
+);
+
+const ALERT_KINDS_SQL = sql.raw(
+  "'SHIFT_NOT_CLOCKED_IN','SHIFT_BREAK_NOT_RETURNED','SHIFT_BREAK_RETURNED_OTHER_BRANCH','SHIFT_ENDS_SOON'," +
+    "'ATTENDANCE_EXCEPTION','DOCUMENT_EXPIRING','LATE_SERVICE_SESSION','SERVICE_LINE_EDITED'," +
+    "'SERVICE_LINE_CANCELLED','SERVICE_LINE_PERFORMERS_CHANGED','ATTENDANCE_CHANGE_REQUESTED'," +
+    "'ATTENDANCE_CHANGE_DECIDED','STATEMENT_AWAITING_REVIEW','STATEMENT_AWAITING_APPROVAL'",
+);
+
+// قواعد التنبيه (spec 060 D-B13): صف لكل نوع للنشاط، وصف اختياري لنفس النوع لفرع بيغيّر قاعدة النشاط (AL-Q2).
+// الغياب = الافتراضي من جدول الكود (AL-Q5)، فالجدول بيحمل تعديلات العميل بس.
+export const alertRules = pgTable(
+  'alert_rules',
+  {
+    companyId: uuid('company_id').notNull(),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    // null = قاعدة النشاط؛ غير كده قاعدة الفرع ده اللي بتحل محل قاعدة النشاط لأحداثه.
+    branchId: uuid('branch_id'),
+    kind: text('kind').notNull(),
+    enabled: boolean('enabled').notNull(),
+    // المستلمين بالدور (AL-Q3)؛ مستلمين الصلاحية والسياق ثابتين في جدول الكود ومش هنا.
+    recipientRoles: text('recipient_roles').array().notNull(),
+    // IN_APP بس لحد البند 62b (AL-Q6).
+    channels: text('channels').array().notNull(),
+    delayMinutes: integer('delay_minutes'),
+    leadMinutes: integer('lead_minutes'),
+    updatedBy: uuid('updated_by')
+      .notNull()
+      .references(() => user.id),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    revision: integer('revision').notNull(),
+  },
+  (t) => [
+    primaryKey({ name: 'alert_rules_pkey', columns: [t.companyId, t.id] }),
+    foreignKey({
+      name: 'alert_rules_business_fk',
+      columns: [t.companyId, t.businessId],
+      foreignColumns: [businesses.companyId, businesses.id],
+    }),
+    foreignKey({
+      name: 'alert_rules_branch_fk',
+      columns: [t.companyId, t.businessId, t.branchId],
+      foreignColumns: [branches.companyId, branches.businessId, branches.id],
+    }),
+    uniqueIndex('alert_rules_business_kind_key')
+      .on(t.companyId, t.businessId, t.kind)
+      .where(sql`${t.branchId} IS NULL`),
+    uniqueIndex('alert_rules_branch_kind_key')
+      .on(t.companyId, t.branchId, t.kind)
+      .where(sql`${t.branchId} IS NOT NULL`),
+    index('alert_rules_branch_fk_idx').on(t.companyId, t.businessId, t.branchId),
+    index('alert_rules_updated_by_idx').on(t.updatedBy),
+    check('alert_rules_kind', sql`${t.kind} IN (${ALERT_KINDS_SQL})`),
+    check(
+      'alert_rules_recipient_roles',
+      sql`${t.recipientRoles} <@ ARRAY['owner','general_manager','business_manager','branch_manager']::text[]`,
+    ),
+    check('alert_rules_channels', sql`${t.channels} <@ ARRAY['IN_APP']::text[]`),
+    check(
+      'alert_rules_delay_minutes',
+      sql`${t.delayMinutes} IS NULL OR ${t.delayMinutes} BETWEEN 1 AND 1440`,
+    ),
+    check(
+      'alert_rules_lead_minutes',
+      sql`${t.leadMinutes} IS NULL OR ${t.leadMinutes} BETWEEN 1 AND 1440`,
+    ),
+    check(
+      'alert_rules_document_lead',
+      sql`${t.kind} <> 'DOCUMENT_EXPIRING' OR ${t.leadMinutes} IS NULL`,
+    ),
+    check('alert_rules_revision', sql`${t.revision} >= 1`),
   ],
 );

@@ -3,6 +3,7 @@ import { en } from './en.js';
 import { sessionTipsAr, sessionTipsEn } from './session-tips-catalog.js';
 import { serviceLineCancelAr, serviceLineCancelEn } from './service-line-cancel-catalog.js';
 import { serviceLineEditAr, serviceLineEditEn } from './service-line-edit-catalog.js';
+import { serviceLinePerformersAr, serviceLinePerformersEn } from './service-line-performers-catalog.js';
 import { serviceSessionsAr, serviceSessionsEn } from './service-session-catalog.js';
 
 /** اللغتين اللي المنتج بيدعمهم — العربي الأساسي (CLAUDE.md §0). */
@@ -15,6 +16,7 @@ type RegisteredCatalog = Catalog & {
   readonly serviceSessions: Record<keyof typeof serviceSessionsEn, string>;
   readonly serviceLineEdit: Record<keyof typeof serviceLineEditEn, string>;
   readonly serviceLineCancel: Record<keyof typeof serviceLineCancelEn, string>;
+  readonly serviceLinePerformers: Record<keyof typeof serviceLinePerformersEn, string>;
   readonly sessionTips: Record<keyof typeof sessionTipsEn, string>;
 };
 
@@ -27,8 +29,8 @@ export type MessageKey = {
 export type ErrorMessageCode = keyof typeof en.errors;
 
 const CATALOGS: Record<Locale, RegisteredCatalog> = {
-  ar: { ...ar, serviceSessions: serviceSessionsAr, serviceLineEdit: serviceLineEditAr, serviceLineCancel: serviceLineCancelAr, sessionTips: sessionTipsAr },
-  en: { ...en, serviceSessions: serviceSessionsEn, serviceLineEdit: serviceLineEditEn, serviceLineCancel: serviceLineCancelEn, sessionTips: sessionTipsEn },
+  ar: { ...ar, serviceSessions: serviceSessionsAr, serviceLineEdit: serviceLineEditAr, serviceLineCancel: serviceLineCancelAr, serviceLinePerformers: serviceLinePerformersAr, sessionTips: sessionTipsAr },
+  en: { ...en, serviceSessions: serviceSessionsEn, serviceLineEdit: serviceLineEditEn, serviceLineCancel: serviceLineCancelEn, serviceLinePerformers: serviceLinePerformersEn, sessionTips: sessionTipsEn },
 };
 
 /**

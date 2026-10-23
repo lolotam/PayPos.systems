@@ -1,5 +1,10 @@
-import type { BreakNoticeParameter, BreakReturn } from '../domain/break-not-returned.ts';
+import type {
+  BreakNoticeParameter,
+  BreakReturn,
+  SuppressedBreakKind,
+} from '../domain/break-not-returned.ts';
 import type { LeaveInterval } from '../domain/not-clocked-in.ts';
+import type { AlertRulesPort } from './alert-rule.port.ts';
 import type { LockedShift, NotClockedInCursor } from './not-clocked-in.port.ts';
 
 /** وردية فيها بريك انتهى ولم يصدر لها إشعار؛ القرار الملزم يعاد تحت قفل State. */
@@ -28,8 +33,32 @@ export interface BreakNoticeWrite {
   readonly parameters: readonly BreakNoticeParameter[];
 }
 
+/** سطر الدفتر اللي بيتكتب والقاعدة مقفولة: سطر دفتر بلا إشعار (spec 060 D-B15). */
+export interface BreakSuppressedWrite {
+  readonly kind: SuppressedBreakKind;
+  readonly shift: LockedBreakShift;
+  readonly breakEndsAt: Date;
+  readonly breakOutAt: Date;
+  readonly alertAt: Date;
+  readonly detectedAt: Date;
+}
+
 /** قراءات وكتابة الوظيفة على معاملة قفل الموظفة. */
 export interface LockedBreakNotReturned {
+  /** القاعدة الفعلية لنوع التنبيه، تُقرأ على نفس معاملة القفل. */
+  readonly rules: AlertRulesPort;
+  /**
+   * حالة سطر دفتر الوردية تحت القفل: null يعني مفيش سطر، وsuppressedAt null يعني الإشعار اتسجل خلاص.
+   *
+   * @param shift الوردية وبريكها
+   * @returns حالة السطر أو null لما مفيش سطر
+   */
+  ledger(
+    shift: LockedBreakShift,
+  ): Promise<{
+    readonly suppressedAt: Date | null;
+    readonly suppressedKind: SuppressedBreakKind | null;
+  } | null>;
   /**
    * يعيد قراءة الوردية وبريكها الحاليين؛ null إن حُذف الصف عند إعادة حفظ الأسبوع.
    *
@@ -74,7 +103,7 @@ export interface LockedBreakNotReturned {
    *
    * @param businessId نشاط الوردية
    * @param branchId فرع الوردية
-   * @param roles أدوار القاعدة المؤقتة
+   * @param roles أدوار القاعدة الفعلية
    * @returns معرفات المستخدمين بلا تكرار
    */
   managers(
@@ -89,6 +118,27 @@ export interface LockedBreakNotReturned {
    * @returns true لو أُدرج الصف الآن
    */
   record(notice: BreakNoticeWrite): Promise<boolean>;
+  /**
+   * يحوّل سطر الدفتر المكبوح لإشعار في مكانه، مع التدقيق والحدث في نفس المعاملة.
+   *
+   * @param notice حقائق الإشعار الجديد
+   * @returns true لو السطر اتحوّل دلوقتي
+   */
+  convert(notice: BreakNoticeWrite): Promise<boolean>;
+  /**
+   * يقفل سطر الدفتر المكبوح نهائيًا بنوع «رجعت لفرع آخر»، من غير تدقيق وبلا حدث.
+   *
+   * @param shift الوردية وبريكها
+   * @returns true لو السطر اتقفل دلوقتي
+   */
+  closeSuppressed(shift: LockedBreakShift): Promise<boolean>;
+  /**
+   * يدرج سطر دفتر واحد والقاعدة مقفولة: بلا تدقيق وبلا حدث وبلا مستلمين.
+   *
+   * @param notice لحظات البريك والاستحقاق والكشف
+   * @returns true لو أُدرج الصف الآن
+   */
+  suppress(notice: BreakSuppressedWrite): Promise<boolean>;
 }
 
 /** حدود شركة واحدة؛ لا قراءة عابرة للشركات. */

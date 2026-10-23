@@ -2,6 +2,7 @@ import type { Tx } from '@pospay/db';
 import { editorLabel, safeDisplayName, t } from '@pospay/i18n';
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import type { Clock, IdGenerator } from './ports/late-service-session-notice.port.ts';
+import { alertRules } from './persistence/alert-rule.adapter.ts';
 import { lateNoticeRecipients } from './persistence/branch-manager-recipients.adapter.ts';
 import { lateNoticePlace } from './persistence/branch-place.adapter.ts';
 import {
@@ -37,6 +38,15 @@ import {
 } from './persistence/service-line-performer-notice.repository.ts';
 import { RequestPerformersChangeNotice } from './use-cases/request-performers-change-notice/request-performers-change-notice.ts';
 import { onPerformersChanged } from './events/handlers/on-performers-changed.handler.ts';
+import type { DiscountApprovalNoticeNameFallback } from './domain/discount-approval-notice.ts';
+import { discountApprovalRecipients } from './persistence/discount-approval-recipients.adapter.ts';
+import { discountApprovalPlace } from './persistence/discount-approval-place.adapter.ts';
+import {
+  discountApprovalRepository,
+  discountApprovalOutbox,
+} from './persistence/discount-approval-notice.repository.ts';
+import { RequestDiscountApprovalNotice } from './use-cases/request-discount-approval-notice/request-discount-approval-notice.ts';
+import { onDiscountApprovalRequested } from './events/handlers/on-discount-approval-requested.handler.ts';
 
 export function createLateServiceSessionNoticeConsumer(
   ids: IdGenerator,
@@ -49,6 +59,7 @@ export function createLateServiceSessionNoticeConsumer(
         place: lateNoticePlace(tx),
         repository: lateNoticeRepository(tx),
         outbox: lateNoticeOutbox(tx),
+        rules: alertRules(tx),
       },
       ids,
       clock,
@@ -68,6 +79,7 @@ export function createPriceEditNoticeConsumer(ids: IdGenerator, clock: Clock): O
         place: priceEditPlace(tx),
         repository: priceEditRepository(tx),
         outbox: priceEditOutbox(tx),
+        rules: alertRules(tx),
       },
       ids,
       clock,
@@ -87,6 +99,7 @@ export function createLineCancelNoticeConsumer(ids: IdGenerator, clock: Clock): 
         place: lineCancelPlace(tx),
         repository: lineCancelRepository(tx),
         outbox: lineCancelOutbox(tx),
+        rules: alertRules(tx),
       },
       ids,
       clock,
@@ -109,6 +122,7 @@ export function createPerformersChangeNoticeConsumer(
         place: performersChangePlace(tx),
         repository: performersChangeRepository(tx),
         outbox: performersChangeOutbox(tx),
+        rules: alertRules(tx),
       },
       ids,
       clock,
@@ -118,6 +132,28 @@ export function createPerformersChangeNoticeConsumer(
     id: 'orders.line-performers-notice-v1',
     eventTypes: ['ServiceLineChanged'],
     handle: (tx, event) => onPerformersChanged(bind(tx), event),
+  };
+}
+export function createDiscountApprovalNoticeConsumer(
+  ids: IdGenerator,
+  clock: Clock,
+): OutboxConsumer {
+  const bind = (tx: Tx) =>
+    new RequestDiscountApprovalNotice(
+      {
+        recipients: discountApprovalRecipients(tx),
+        place: discountApprovalPlace(tx),
+        repository: discountApprovalRepository(tx),
+        outbox: discountApprovalOutbox(tx),
+      },
+      ids,
+      clock,
+      discountApprovalFallback(),
+    );
+  return {
+    id: 'orders.discount-approval-notice-v1',
+    eventTypes: ['DiscountApprovalRequested'],
+    handle: (tx, event) => onDiscountApprovalRequested(bind(tx), event),
   };
 }
 function priceEditFallback(): PriceEditNameFallback {
@@ -136,6 +172,13 @@ function lineCancelFallback(): LineCancelNameFallback {
   };
 }
 function performersChangeFallback(): PerformersChangeNameFallback {
+  return {
+    service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
+    branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
+    safeName: safeDisplayName,
+  };
+}
+function discountApprovalFallback(): DiscountApprovalNoticeNameFallback {
   return {
     service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
     branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },

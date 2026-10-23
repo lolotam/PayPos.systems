@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { orderSchemas } from './orders/openapi-schemas.js';
 import { serviceSessionFormPaths } from './orders/service-session-form-openapi.js';
 import { serviceSessionPaths } from './orders/service-session-openapi.js';
+import { discountApprovalPaths } from './orders/discount-approval-openapi.js';
 import { serviceSessionRecoveryPaths } from './orders/service-session-recovery-openapi.js';
 import { attendanceMonthlyReportPaths } from './staff/attendance-monthly-report-openapi.js';
 import { employeeIbanSchemas } from './staff/employee-iban.js';
@@ -35,6 +36,8 @@ import {
   salaryHistoryPage,
 } from './staff/salary.js';
 import { settingsPaths } from './settings/settings-openapi.js';
+import { alertRulePaths, alertRuleSchemas } from './settings/alert-rules-openapi.js';
+import { staffColumnsPaths, staffColumnsSchemas } from './settings/staff-columns-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
 import { employee, createdEmployee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
@@ -102,6 +105,12 @@ import {
   notificationReadResult,
 } from './in-app-notifications.js';
 import {
+  pushConfig,
+  pushEndpoint,
+  pushRevokeInput,
+  pushSubscriptionInput,
+} from './push-subscription.js';
+import {
   businessIdentity, businessIdentityNames, businessLogo, businessSettings, identityCapability,
   calendar,
   language,
@@ -121,6 +130,7 @@ import {
   whatsappHandshake,
   whatsappWebhookAcknowledgement,
 } from './whatsapp-webhook.js';
+import { json, operation } from './openapi-operation.js';
 
 const SCHEMAS = [
   ...employeeIbanSchemas,
@@ -147,6 +157,7 @@ const SCHEMAS = [
   employeeListQuery,
   ...permissionSchemas,
   ...fileSchemas,
+  ...staffColumnsSchemas,
   employee, createdEmployee,
   createEmployeeInput,
   employeeRoleCode,
@@ -164,6 +175,7 @@ const SCHEMAS = [
   customer,
   findOrCreateCustomerInput,
   ...catalogSchemas,
+  ...alertRuleSchemas,
   ...orderSchemas,
   attendanceQrToken,
   attendanceQrBranch,
@@ -182,6 +194,10 @@ const SCHEMAS = [
   inAppNotificationQuery,
   notificationUnreadCount,
   notificationReadResult,
+  pushConfig,
+  pushEndpoint,
+  pushRevokeInput,
+  pushSubscriptionInput,
   deliveryLogItem,
   deliveryLogPage,
   deliveryLogQuery,
@@ -221,27 +237,6 @@ const SCHEMAS = [
   taxRule,
 ];
 
-const json = (schema: string) => ({
-  'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
-});
-
-function operation(
-  operationId: string,
-  status: '200' | '201' | '202',
-  description: string,
-  response: string,
-  body?: string,
-) {
-  return {
-    operationId,
-    ...(body === undefined ? {} : { requestBody: { required: true, content: json(body) } }),
-    responses: {
-      [status]: { description, content: json(response) },
-      default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
-    },
-  };
-}
-
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
   ...attendanceMonthlyReportPaths,
@@ -254,6 +249,7 @@ const PATHS = {
   ...employeeCardPaths,
   ...unbindPasskeyPaths,
   ...settingsPaths,
+  ...staffColumnsPaths,
   ...filePaths,
   ...staffPaths,
   ...leavePaths,
@@ -263,8 +259,9 @@ const PATHS = {
   ...permissionPaths,
   ...customerPaths,
   ...catalogPaths,
+  ...alertRulePaths,
   ...serviceSessionPaths,
-  ...serviceSessionFormPaths, ...serviceSessionRecoveryPaths,
+  ...serviceSessionFormPaths, ...serviceSessionRecoveryPaths, ...discountApprovalPaths,
   '/v1/devices/me/attendance-qr': {
     post: {
       ...operation(

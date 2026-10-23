@@ -235,7 +235,8 @@ it('rechecks absent/delegated authority, DENY, expiry and orders feature inside 
 });
 it('requires selected company/admin, refusing staff-session purposes', async () => {
   expect((await f.h.app.inject({ method: 'GET', url: `${f.base}/performer-options?occurred_at=${occurred_at}` })).statusCode).toBe(401);
-  expect((await f.h.send('GET', `${f.base}/performer-options?occurred_at=${occurred_at}`, { cookie: f.cookie })).status).toBe(403);
+  // @Authenticated + SelectedCompanyGuard (PP-19.1): غياب الشركة المختارة 400 زي باقي مسارات الجلسة.
+  expect((await f.h.send('GET', `${f.base}/performer-options?occurred_at=${occurred_at}`, { cookie: f.cookie })).status).toBe(400);
   await f.h.owner`UPDATE "user" SET phone_number=(SELECT phone FROM customers WHERE company_id=${f.company} AND id=${f.customer}),phone_binding_approved_at='2026-01-01' WHERE id=${f.userId}`;
   const sessions = [await f.h.auth.staff.issue(f.userId, { companyId: f.company, businessId: f.business, branchId: f.branch, deviceId: ids.newId() }, async () => true),
     await f.h.auth.personal.issue(f.userId, { purpose: 'STAFF_PERSONAL', companyId: f.company, businessId: f.business }, async () => true)];

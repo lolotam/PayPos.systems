@@ -39,10 +39,10 @@ export const serviceSessionPaths = {
   '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/capabilities': {
     get: {
       operationId: 'readServiceSessionCapabilities',
-      description: 'Lock-free branch capability for the manager day list. Requires read:service-sessions:branch and the orders feature. can_cancel_lines is the effective cancel:service-lines:branch on this branch: ALLOW, no DENY, and an active membership. Missing cancel permission, a DENY, or another branch is 200 false. Missing read is the route 403. A disabled orders feature stays FEATURE_DISABLED. No Idempotency-Key.',
+      description: 'Lock-free branch capability for the manager day list. Requires read:service-sessions:branch and the orders feature. can_cancel_lines is the effective cancel:service-lines:branch, can_change_performers the effective change:service-line-performers:branch and can_record_sessions the effective record:service-sessions:branch on this branch: ALLOW, no DENY, and an active membership. A missing permission, a DENY, or another branch makes that flag 200 false. Missing read is the route 403. A disabled orders feature stays FEATURE_DISABLED. No Idempotency-Key.',
       parameters: parameters.filter((p) => p.name !== 'Idempotency-Key'),
       responses: {
-        '200': { description: 'Whether the day list may offer Cancel on this branch.', content: json('ServiceSessionCapabilities') },
+        '200': { description: 'Whether the day list may offer Cancel, Change performers and the recording actions (tips) on this branch.', content: json('ServiceSessionCapabilities') },
         '403': { description: 'Uniform scope/authority refusal or disabled orders feature.', content: json('ErrorEnvelope') },
         default: { description: 'Bilingual authentication/readiness refusal.', content: json('ErrorEnvelope') },
       },
@@ -98,6 +98,24 @@ export const serviceSessionPaths = {
         '200': { description: 'The cancellation. Money is canonical three-decimal text. Labels are names first, then the role.', content: json('ServiceLineCancellation') },
         '403': { description: 'Uniform scope/authority refusal or disabled orders feature.', content: json('ErrorEnvelope') },
         default: { description: 'Bilingual authentication/readiness refusal.', content: json('ErrorEnvelope') },
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/performers': {
+    put: {
+      operationId: 'changeServiceLinePerformers',
+      description: 'Replaces the performer set and the shares of one saved line. Requires change:service-line-performers:branch on the route branch, the orders feature, and an individual admin login. Actor-bound Idempotency-Key. Every return, including a replay, is projected by the caller effective read:service-sessions:branch: the saved line with the new performers and performers_changed_at plus the visit total, or only changed true when that read is absent. The reason, the previous performers and the changer are never returned; the guarded history read FR-016 returns the reason, the before and after names and the changer.',
+      parameters: [...parameters,
+        { in: 'path', name: 'sessionId', required: true, schema: { type: 'string', format: 'uuid' } },
+        { in: 'path', name: 'lineId', required: true, schema: { type: 'string', format: 'uuid' } }],
+      requestBody: { required: true, content: json('ChangeLinePerformersInput') },
+      responses: {
+        '200': { description: 'Projected change. With branch read: line status ACTIVE with the new performers and performers_changed_at, and session id plus total_net. Without it: changed true only.', content: json('ChangeLinePerformersResponse') },
+        '400': { description: 'Shape error or a missing Idempotency-Key. A missing or blank reason is not a shape error.', content: json('ErrorEnvelope') },
+        '403': { description: 'Permission, orders feature, device principal, self-change, or a session or line that does not match the route. A foreign, unknown or out-of-scope session or line is the same body.', content: json('ErrorEnvelope') },
+        '409': { description: 'Stale expected_revision (SESSION_LINE_REVISION_STALE): details carry current_revision only and no money. Also an idempotent request still in progress or a transaction retry, which carry no details.', content: json('ErrorEnvelope') },
+        '422': { description: 'Domain refusal: an invalid reason, an unchanged set, invalid shares, a performer who is not eligible, an unknown performer identity, a missing changer membership, a line that cannot change, a session outside the window, or the same Idempotency-Key reused with another request (IDEMPOTENCY_KEY_REUSED).', content: json('ErrorEnvelope') },
+        default: { description: 'Bilingual authentication or readiness refusal.', content: json('ErrorEnvelope') },
       },
     },
   },

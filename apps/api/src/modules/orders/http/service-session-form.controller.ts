@@ -2,7 +2,8 @@ import { Controller, Get, Inject, Param, Query, Req, UseFilters, UseGuards } fro
 import { id, recordingContextQuery, sessionServiceOptionsQuery, sessionPerformerOptionsQuery, type RecordingContextQuery,
   type SessionServiceOptionsQuery, type SessionPerformerOptionsQuery } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
-import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
+import { updateRequestContext } from '@pospay/observability';
+import { Authenticated, Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts';
@@ -18,16 +19,19 @@ export class ServiceSessionFormController {
   constructor(@Inject(RecordingContextQueryHandler) private readonly context: RecordingContextQueryHandler | null,
     @Inject(SessionServiceOptionsQueryHandler) private readonly options: SessionServiceOptionsQueryHandler | null,
     @Inject(SessionPerformerOptionsQueryHandler) private readonly performerOptions: SessionPerformerOptionsQueryHandler | null) {}
+  // قايمة المحرر تقبل التسجيل أو تغيير المنفّذين (PP-19.1)، و@Require بياخد صلاحية واحدة؛ فالإذن والميزة
+  // بيتفحصوا جوه معاملة القراءة نفسها (pickerAccess ثم pickerAllowed)، وده إعلان الوصول بتاع المسار ده.
   @Get('performer-options')
   @UseFilters(new SessionErrorsFilter(400))
-  @Require('record:service-sessions:branch', { branch: 'branchId' })
-  @RequiresFeature('orders')
+  @Authenticated()
   @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
   async performers(@Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
     @Param('branchId', new ZodValidationPipe(id.toLowerCase())) branchId: string,
     @Query(new ZodValidationPipe(sessionPerformerOptionsQuery)) query: SessionPerformerOptionsQuery,
     @Req() request: FastifyRequest) {
     if (this.performerOptions === null) throw new ApiError('NOT_READY');
+    // @Require كان بيحط الفرع في سياق اللوج؛ @Authenticated ما بيحطوش، فسطور اللوج تفضل فيها branch_id (CLAUDE.md §8).
+    updateRequestContext({ branchId });
     try { return await this.performerOptions.execute({ ...actorOf(request), businessId, branchId }, query); }
     catch (error) {
       if (error instanceof RangeError && error.message === 'SESSION_PERFORMER_CURSOR_INVALID') throw new ApiError('VALIDATION_FAILED');
@@ -51,15 +55,16 @@ export class ServiceSessionFormController {
       throw error;
     }
   }
+  // نفس إعلان قايمة المحرر: الإذن (تسجيل أو تغيير منفّذين) والميزة بيتفحصوا جوه المعاملة (PP-19.1).
   @Get('recording-context')
-  @Require('record:service-sessions:branch', { branch: 'branchId' })
-  @RequiresFeature('orders')
+  @Authenticated()
   @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
   async read(@Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
     @Param('branchId', new ZodValidationPipe(id.toLowerCase())) branchId: string,
     @Query(new ZodValidationPipe(recordingContextQuery)) query: RecordingContextQuery,
     @Req() request: FastifyRequest) {
     if (this.context === null) throw new ApiError('NOT_READY');
+    updateRequestContext({ branchId });
     try { return await this.context.execute({ ...actorOf(request), businessId, branchId }, query); }
     catch (error) {
       if (error instanceof RecordingContextReadError) throw new ApiError(error.code);

@@ -23,6 +23,8 @@ export { lateServiceSession } from './templates/late-service-session.ts';
 export { serviceLinePriceEdited } from './templates/service-line-price-edited.ts';
 export { serviceLineCancelled } from './templates/service-line-cancelled.ts';
 export { serviceLinePerformersChanged } from './templates/service-line-performers-changed.ts';
+export { discountApprovalRequested } from './templates/discount-approval-requested.ts';
+export { discountSelfApproved } from './templates/discount-self-approved.ts';
 export { shiftNotClockedIn } from './templates/shift-not-clocked-in.ts';
 export { breakNotReturned } from './templates/break-not-returned.ts';
 export { validateParameters, templateComponents } from './templates/definition.ts';
@@ -55,3 +57,12 @@ export {
   prepareStaffOtp,
   type OtpTemplateApproval,
 } from './templates/staff-otp-preparation.ts';
+export { installationHash, endpointHash, subscriberRef, vapidKeyId } from './push/hashes.ts';
+export { readPushApiConfiguration, type PushApiConfiguration } from './push/configuration.ts';
+export {
+  validPushTemplate,
+  sanitizePushParameters,
+  renderPushNotice,
+  type PushTemplateDefinition,
+  type PushTemplateCopy,
+} from './push/templates.ts';

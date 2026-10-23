@@ -53,6 +53,7 @@ export const PERMISSIONS = [
   'manage:memberships:business',
   'manage:discounts:company',
   'manage:discount-limits:business',
+  'approve:discounts:branch',
   'read:businesses:company',
   'create:businesses:company',
   'create:branches:business',
@@ -61,6 +62,8 @@ export const PERMISSIONS = [
   'read:settings:business',
   'manage:settings:business',
   'manage:business-identity:business',
+  'manage:alert-rules:business',
+  'manage:staff-app-columns:business',
   'view:notifications:business',
   // صلاحية منصة: بتتدي بـ pnpm platform:grant بس، وعمرها ما بتبقى في role شركة (ADR-0003 §3).
   'create:companies:platform',

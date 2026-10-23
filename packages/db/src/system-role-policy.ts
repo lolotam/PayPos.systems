@@ -34,6 +34,10 @@ const deviceForbidden = [
   'read:settings:business',
   'manage:settings:business',
   'manage:business-identity:business',
+  // الجهاز لا يعدّل قواعد التنبيهات أبداً.
+  'manage:alert-rules:business',
+  // الجهاز لا يعدّل أعمدة تطبيق الموظفين أبداً.
+  'manage:staff-app-columns:business',
   'manage:employee-number:company',
   'view:notifications:business',
   'create:companies:platform',
@@ -50,6 +54,8 @@ const deviceForbidden = [
   'create:customers:branch',
   'manage:discounts:company',
   'manage:discount-limits:business',
+  // الجهاز لا يوافق أبداً بدوره؛ موافقة الـ PIN تُقيَّم بعضويات صاحب الـ PIN وحده (spec 057).
+  'approve:discounts:branch',
   'resolve:attendance:branch',
   'read:attendance:branch',
   'correct:attendance:branch',
@@ -91,6 +97,9 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
           code === 'edit:service-line-prices:branch' ||
           code === 'change:service-line-performers:branch' ||
           code === 'cancel:service-lines:branch' ||
+          code === 'approve:discounts:branch' ||
+          code === 'manage:alert-rules:business' ||
+          code === 'manage:staff-app-columns:business' ||
           optional[role.code]?.includes(code),
     ),
   };

@@ -40,6 +40,7 @@ const occurred = sql`to_char(s.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24
 // شاشة جلسات يوم الفرع تقسم الزيارات أولاً ثم تجمع البنود والمؤديات المحفوظات دون هاتف أو قراءة سياق آخر.
 // edited من وجود صف service_line_edits لا من revision، حتى لا تُقرأ مراجعة التسجيل كتعديل سعر.
 // وقت الإلغاء من صف التاريخ لأن السطر لا يخزّن اللحظة، والمفتاح يغيب عن السطر النشط.
+// يوم تغيّر المنفّذين من صف آخر مراجعة لا من أكبر وقت، فرجوع الساعة لا يقدّم تغييراً أقدم؛ بتوقيت النشاط، والمفتاح يغيب عن السطر اللي لم يتغيّر.
 export function branchDayServiceSessionsStatement(scope: SessionDayScope, query: ServiceSessionDayQuery) {
   const cursor = decode(scope, query);
   const where = sql`s.company_id=${scope.companyId} AND s.business_id=${scope.businessId}
@@ -67,10 +68,18 @@ export function branchDayServiceSessionsStatement(scope: SessionDayScope, query:
         'late',l.late,'has_performer_warning',l.has_performer_warning,
         'performers',COALESCE(performers.items,'[]'::jsonb))
         || CASE WHEN c.cancelled_at IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('cancelled_at',
-          to_char(c.cancelled_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')) END)
+          to_char(c.cancelled_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')) END
+        || CASE WHEN mark.changed_at IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('performers_changed_at',
+          to_char(mark.changed_at AT TIME ZONE s.business_timezone,'YYYY-MM-DD')) END)
         ORDER BY l.ordinal) AS items
       FROM service_lines l
       LEFT JOIN service_line_cancellations c ON c.company_id=l.company_id AND c.business_id=l.business_id AND c.line_id=l.id
+      LEFT JOIN LATERAL (
+        SELECT pc.changed_at
+        FROM service_line_performer_changes pc
+        WHERE pc.company_id=l.company_id AND pc.business_id=l.business_id AND pc.line_id=l.id
+        ORDER BY pc.revision DESC LIMIT 1
+      ) mark ON true
       LEFT JOIN LATERAL (
         SELECT jsonb_agg(jsonb_build_object('employee_id',p.employee_id,'name_ar',p.name_ar,'name_en',p.name_en,
           'share_bps',p.share_bps,'not_clocked_in_warning',p.not_clocked_in_warning,

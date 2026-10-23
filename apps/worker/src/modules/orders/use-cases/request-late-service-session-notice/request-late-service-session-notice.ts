@@ -1,5 +1,5 @@
+import { bellDelivery } from '../../domain/alert-rule-bell.ts';
 import {
-  interimLateNoticeRule,
   qualifiesForLateNotice,
   lateNoticeParameters,
   lateNoticeRecipientGroups,
@@ -32,19 +32,28 @@ export class RequestLateServiceSessionNotice {
     if (!(await this.ports.repository.matchesSession(input)))
       throw new Error('LATE_SESSION_EVENT_INVALID');
     if (!(await this.ports.recipients.companyOpen(input.companyId))) return;
-    const rule = interimLateNoticeRule();
+    const { roles, channel } = bellDelivery(
+      await this.ports.rules.rule(
+        input.companyId,
+        { businessId: input.businessId, branchId: input.branchId },
+        'LATE_SERVICE_SESSION',
+      ),
+    );
     const decidedAt = this.clock.now();
-    const users = await this.ports.recipients.forBranch(input, decidedAt, rule.roles);
-    const { groups, recipientCount } = lateNoticeRecipientGroups(users);
+    const users = await this.ports.recipients.forBranch(input, decidedAt, roles);
+    const branch = await this.ports.place.forBranch(input);
+    // فرع لم يعد موجودًا حالة نهائية لا تصلحها إعادة المحاولة: تُسجَّل كقرار بلا مستلمين
+    // مثل «لا مدير في النطاق» فلا يتكرر الحدث ولا يخرج جرس.
+    const { groups, recipientCount } = lateNoticeRecipientGroups(branch === null ? [] : users);
     const won = await this.ports.repository.claim(input, {
       id: this.ids.newId(),
       sourceEventId: input.sourceEventId,
       decidedAt,
       recipientCount,
     });
-    if (!won || recipientCount === 0) return;
-    const branch = await this.ports.place.forBranch(input);
-    if (branch === null) throw new Error('LATE_SESSION_PLACE_INVALID');
+    // قاعدة مقفولة معناها قناة null وأدوار فاضية، فهي قرار صفر مستلمين زي «لا مدير في النطاق»؛
+    // الشرط ده بيحافظ على نوع القناة من غير cast.
+    if (!won || branch === null || recipientCount === 0 || channel === null) return;
     const parameters = lateNoticeParameters(branch, input.businessDate, this.fallback);
     for (const group of groups)
       await this.ports.outbox.append(this.ids.newId(), {
@@ -55,7 +64,7 @@ export class RequestLateServiceSessionNotice {
         business_date: input.businessDate,
         business_timezone: input.businessTimezone,
         notification_recipients: group.map((user_id) => ({
-          channel: rule.channel,
+          channel,
           user_id,
           locale: 'ar',
           template_key: 'late_service_session',

@@ -26,6 +26,7 @@ it.each(['ar', 'en'] as const)(
       'read:settings:business',
       'manage:settings:business',
       'manage:business-identity:business',
+      'manage:alert-rules:business',
       'manage:employee-number:company',
       'read:package-types:business',
       'manage:package-types:business',
@@ -33,6 +34,7 @@ it.each(['ar', 'en'] as const)(
       'edit:service-line-prices:branch',
       'change:service-line-performers:branch',
       'cancel:service-lines:branch',
+      'approve:discounts:branch',
     ])
       expect(permissionName(locale, code)).not.toBe(code);
     expect(permissionName('ar', 'edit:service-line-prices:branch')).toBe('تعديل سعر/خصم جلسة');
@@ -45,12 +47,27 @@ it.each(['ar', 'en'] as const)(
     );
     expect(permissionName('ar', 'cancel:service-lines:branch')).toBe('إلغاء بنود الخدمة');
     expect(permissionName('en', 'cancel:service-lines:branch')).toBe('Cancel service lines');
+    expect(permissionName('ar', 'approve:discounts:branch')).toBe('الموافقة على خصم فوق الحد');
+    expect(permissionName('en', 'approve:discounts:branch')).toBe('Approve discounts above the limit');
     expect(permissionName('ar', 'manage:business-identity:business')).toBe('إدارة هوية النشاط');
     expect(permissionName('en', 'manage:business-identity:business')).toBe(
       'Manage business identity',
     );
+    expect(permissionName('ar', 'manage:alert-rules:business')).toBe('إدارة التنبيهات');
+    expect(permissionName('en', 'manage:alert-rules:business')).toBe('Manage alerts');
     expect(permissionName('ar', 'manage:employee-number:company')).toBe('إدارة الرقم الوظيفي');
     expect(permissionName('en', 'manage:employee-number:company')).toBe('Manage employee numbers');
     expect(permissionName(locale, 'read:future:business')).toBe('read:future:business');
   },
 );
+
+it('MY-Q5 manage:staff-app-columns:business has an Arabic and an English name', () => {
+  expect(permissionName('ar', 'manage:staff-app-columns:business')).toBe('أعمدة تطبيق الموظفين');
+  expect(permissionName('en', 'manage:staff-app-columns:business')).toBe(
+    'Manage staff app columns',
+  );
+  for (const locale of ['ar', 'en'] as const)
+    expect(permissionName(locale, 'manage:staff-app-columns:business')).not.toBe(
+      'manage:staff-app-columns:business',
+    );
+});

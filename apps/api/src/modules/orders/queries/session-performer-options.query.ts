@@ -1,7 +1,7 @@
 import { sessionPerformerOptionPage, sessionPerformerOptionsQuery, type SessionPerformerOptionPage,
   type SessionPerformerOptionsQuery } from '@pospay/contracts';
 import type { TenantWrappers, Tx } from '@pospay/db';
-import { RecordingContextReadError, type RecordingContextReads, type RecordingScope } from './recording-context.query.ts';
+import { pickerAllowed, RecordingContextReadError, type RecordingContextReads, type RecordingScope } from './recording-context.query.ts';
 
 export interface SessionPerformerOptionsReads extends Pick<RecordingContextReads, 'place' | 'access'> {
   /** يطبق نافذة POST ويطبع فرق ساعة الجهاز قبل قراءة حقائق الحضور والإجازة. */
@@ -22,7 +22,7 @@ export class SessionPerformerOptionsQueryHandler {
       if (place === null) throw new RecordingContextReadError('FORBIDDEN');
       const at = this.clock.now();
       const access = await this.reads.access(tx, scope, at);
-      if (!access.record || access.denied || access.membership_ids.length === 0) throw new RecordingContextReadError('FORBIDDEN');
+      if (!pickerAllowed(access) || access.membership_ids.length === 0) throw new RecordingContextReadError('FORBIDDEN');
       if (!access.feature) throw new RecordingContextReadError('FEATURE_DISABLED');
       return sessionPerformerOptionPage.parse(await this.reads.options(tx, scope, query,
         (instant) => this.reads.time(instant, at, place.timezone)));

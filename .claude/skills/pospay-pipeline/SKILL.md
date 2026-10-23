@@ -72,7 +72,7 @@ the renewal.
 | # | Step | Owner | Done when |
 |---|---|---|---|
 | 0 | Pick the next row of the phase plan, or the task the owner names | orchestrator + owner | row named in the report |
-| 1 | Spec: `/speckit-specify` → `docs/specs/NNN-<module>-<use-case>/spec.md`; owner questions → the slice's `owner-questions.ar.md` (a question that belongs to no slice, such as a pipeline, docs or process rule, goes to `docs/owner-decisions.ar.md` instead), then routed by kind (`CLAUDE.md` §1 5b): charges/money → a new numbered batch on the decisions page; every other question → Waleed through his super agent; a feature's questions are asked together before its first sub-PR, one batch per destination, never a mixed batch | orchestrator | every business rule is in the spec or asked; an unknown rule is a `TODO(spec)` and a stop. **Ask the whole feature at once** (owner, 2026-10-17): before the first sub-PR of a feature starts, list every sub-PR in the plan, collect all of their owner questions, one numbered batch per destination (money on the page, the rest to Waleed), and add a clickable mockup (an HTML artifact, or a Lovable prototype) when the answer is a screen; late-found questions are the exception, not the routine |
+| 1 | Spec: `/speckit-specify` → `docs/specs/NNN-<module>-<use-case>/spec.md`; owner questions → the slice's `owner-questions.ar.md` (a question that belongs to no slice, such as a pipeline, docs or process rule, goes to `docs/owner-decisions.ar.md` instead), then published on the decisions page as a new numbered batch, whatever its kind, and sent to Waleed as super-agent cards (`CLAUDE.md` §1 5b, V3.14: on a difference Abu Salem's pick wins); a feature's questions are asked together before its first sub-PR, in one batch | orchestrator | every business rule is in the spec or asked; an unknown rule is a `TODO(spec)` and a stop. **Ask the whole feature at once** (owner, 2026-10-17): before the first sub-PR of a feature starts, list every sub-PR in the plan, collect all of their owner questions, one numbered batch on the page (also sent to Waleed as cards), and add a clickable mockup (an HTML artifact, or a Lovable prototype) when the answer is a screen; late-found questions are the exception, not the routine |
 | 2 | Design advice — **only** when the slice parses files, runs long work, may cross 200 ms, moves money, or changes auth/RLS | both advisors, read-only | the chosen design is written into the spec |
 | 3 | Brief and dispatch the implementer (§4), baseline captured first | orchestrator → MiniMax | MiniMax reports done; the delivery is kept as the first commit, as delivered |
 | 4 | Judge the delivery: diff against the baseline, read it against the spec, merge `main`, renumber migrations/ADRs, `pnpm check` | orchestrator | `pnpm check` green |
@@ -533,28 +533,57 @@ pins the PosPay rules on top of it.
 
 ## 6. Staging deploy — after every merge that changes code
 
-On the `abdulaziz` SSH profile, in `/opt/pospay-staging`:
+Staging is the Dokploy **compose service `pospay-staging`** (composeId `9hu_-BekJdhi05exz7bGg`) in its own Dokploy
+**project `PosPay Staging`** (moved into Dokploy on 2026-10-23, Waleed: «أيوه، انقله»; its own project the same day,
+Waleed: «مشروع جديد بـ Compose واحد»). Its compose file is `deploy/docker-compose.staging-shared.yml` from the repo and
+its environment lives in Dokploy (secrets included; never print them). The three hosts are **Dokploy domains** on that
+service (Domains tab: api -> `api`:3000, app -> `admin`:3000, pos -> `pos`:8080, HTTPS, Let's Encrypt), so the compose
+file carries no Traefik labels; never add them back (a second router for the same host). The earlier compose in
+`PayPos.Systems` / environment `staging` (`hjvMzqQ-SyAm0wSaWxkzW`) is stopped and kept only as a cold copy until Waleed
+approves deleting it; it is not the rollback path, and it must never be started while the new one runs (two workers would
+share the queues). Following ADR-0001 §6 the `PosPay Staging` service serves the API at
+https://api.staging.pospay.systems, the back-office at https://app.staging.pospay.systems and the cashier at
+https://pos.staging.pospay.systems, on the server's shared Postgres and Redis. Waleed's standing rule (2026-10-23):
+**staging is updated after every merge**, so every new feature can be tested there live; its data is demo data only.
 
-1. Confirm the main CI run for the merged SHA is green (it pushes the images to GHCR). The server pulled GHCR images
-   without a registry login on 2026-10-07; if a pull ever fails with an auth error, stop and ask the owner for a
-   read-only package token (`docker login ghcr.io`) — never copy images by hand.
+The environment must hold the ADR-0001 hosts, which the CI staging builds bake in: `STAGING_HOST=api.staging.pospay.systems`,
+`ADMIN_STAGING_HOST=app.staging.pospay.systems`, `POS_STAGING_HOST=pos.staging.pospay.systems`,
+`COOKIE_DOMAIN=.staging.pospay.systems`, `STAFF_OTP_POS_ORIGIN=https://pos.staging.pospay.systems` (staff PIN sign-in on the
+cashier refuses every request without it, even with OTP off), and `AUTH_TRUSTED_ORIGINS` either unset or exactly the app and pos origins. A
+legacy value (`staging.pospay.systems`, an older origin list) is replaced, never kept; all three hosts have DNS A
+records to the server (2026-10-23).
+
+1. Confirm the main CI run for the merged SHA is green (it pushes the images to GHCR, the `-staging` admin and POS
+   variants included). The server pulled GHCR images without a registry login on 2026-10-07; if a pull ever fails with
+   an auth error, stop and ask the owner for a read-only package token (`docker login ghcr.io`) — never copy images by
+   hand.
 2. Take a backup: `docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env ghcr.io/lolotam/pospay-backup:<sha>`.
-3. If `deploy/` changed, fetch **both** `docker-compose.staging-shared.yml` and `staging-deploy.sh` from GitHub raw at
-   that SHA, compare each sha256 with the repo, then replace the server copies (keep the script executable). Step 4
-   runs the server copy, so a stale script silently skips new migrate, readiness or failure logic. **Before** replacing
-   them, make sure `known-good/<previous-sha>/` holds the current pair (copy it there if it is missing).
-4. `./staging-deploy.sh <full-sha>`; it migrates, starts, and proves `/ready`. Once ready, copy the active pair to
-   `known-good/<full-sha>/` — **every** ready SHA gets its pair, code-only releases too, so any later rollback finds one.
-5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): restore `<previous-sha>`
-   (below) against the new schema, confirm `/ready`, then restore `<full-sha>` the same way. A previous image that does
-   not start on the new schema is a P1 against the migration: restore `<full-sha>` at once (it is the one that was ready
-   on this schema), keep the release blocked, and open the P1.
-6. On a failure of step 4, restore the previous SHA at once, then diagnose. Never leave staging down while
-   diagnosing — in either step, the SHA to restore is the last one that proved `/ready` on the current schema.
+3. If `deploy/docker-compose.staging-shared.yml` changed, update the service's compose file in Dokploy to that SHA's
+   content (`compose.update`, raw source). Note the SHA that is live now: it is the rollback target.
+4. Set `IMAGE_TAG=<full-sha>` in the service's environment (change only that line, unless the compose file of that SHA
+   requires a variable the environment lacks: add it first, as `deploy/staging.env.example` lists, or the
+   interpolation aborts before any service starts), then `compose.deploy`. Prove it:
+   `https://api.staging.pospay.systems/ready` answers 200, the worker's own `/ready` answers 200 from inside its
+   container (`docker exec <worker> node -e "fetch('http://127.0.0.1:3001/ready')…"`, as the retired script did), both front ends answer 200, and the `migrate` container exited 0.
+5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): redeploy
+   `<previous-sha>` with **the rollback compose file** (below) and that tag against the new schema, confirm `/ready`, then restore the current compose file and redeploy `<full-sha>`. A
+   previous image that does not start on the new schema is a P1 against the migration: redeploy `<full-sha>` at once,
+   keep the release blocked, and open the P1.
+6. On a failure of step 4, redeploy the previous SHA at once, **with the rollback compose file** (below), then diagnose. Never leave staging down while diagnosing.
 
-**Restore `<sha>`:** copy `known-good/<sha>/docker-compose.staging-shared.yml` and `staging-deploy.sh` back into
-`/opt/pospay-staging/` (keep the script executable), then run `./staging-deploy.sh <sha>` from there. The script reads
-the `.env` next to itself, so it must always run from `/opt/pospay-staging/`, never from inside `known-good/`.
+**The rollback compose file** of `<sha>`: that SHA's own `deploy/docker-compose.staging-shared.yml` when the SHA is #545 or
+later (a newer file may ask for images an older SHA never built); for a SHA from before #545 (the move to Dokploy
+domains), the current label-free file. Never upload an older file that still carries Traefik labels to this service:
+with its Dokploy domains it would add a second router for every host. Only SHAs from #533 (`4bfef627`) on can be
+restored at all, because the admin and POS `-staging` images exist only from there.
+
+**Restore `<sha>`:** set `IMAGE_TAG=<sha>`, put the rollback compose file of `<sha>` in place if it differs from the live one,
+and redeploy;
+Dokploy keeps every deployment and its log. The old `deploy/staging-deploy.sh` path and the server `.env` in
+`/opt/pospay-staging` are retired (the script was deleted with #545): a plain `docker compose up` of this file would start a
+second api/worker stack on the same queues with no public routes. The rollback is always `IMAGE_TAG` on the
+`PosPay Staging` service, never the stopped compose in `PayPos.Systems`, which is a cold copy kept only until Waleed
+approves deleting it.
 7. **Standing yes for this one cron line** (Waleed, PP-12.2, 2026-10-20: «(a) Yes, now and on every future
    release.»). Every other change to the server itself still needs his yes (PP-12.1). Point
    `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a

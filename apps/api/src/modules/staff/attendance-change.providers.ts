@@ -13,6 +13,7 @@ import { createAttendanceChangeKinds } from './persistence/attendance-change-kin
 import { createVoidSessionKind } from './persistence/void-session-kind.ts';
 import { createRestoreSessionKind } from './persistence/restore-session-kind.ts';
 import { createAttendanceChangeTransactions } from './persistence/drizzle-attendance-change-transactions.ts';
+import { attendanceChangeAlertRules } from './persistence/attendance-change-alert-rule.adapter.ts';
 import { createAttendanceChangeReadAccess } from './persistence/attendance-change-context.adapter.ts';
 import { ATTENDANCE_CHANGE_READ_ACCESS } from './queries/attendance-change-requests.query.ts';
 
@@ -21,7 +22,9 @@ export function attendanceChangeProviders(
   ids: IdGenerator,
 ): Provider[] {
   const transactions = (kinds: AttendanceChangeKinds) =>
-    database === undefined ? null : createAttendanceChangeTransactions(database, ids, kinds);
+    database === undefined
+      ? null
+      : createAttendanceChangeTransactions(database, ids, attendanceChangeAlertRules, kinds);
   return [
     {
       provide: ATTENDANCE_CHANGE_KINDS,

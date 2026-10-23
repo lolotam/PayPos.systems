@@ -77,3 +77,22 @@ one-step, so the row the session points at always exists (045 research R1). A pa
 index gives each request at most one session, and the CHECK
 `attendance_change_requests_add_linked` requires an APPROVED ADD_SESSION to name its session.
 VOID_SESSION remains unavailable until 26c. Manual sessions cannot be corrected.
+
+## Addendum 2026-10-21 — the two emitters read the effective alert rule (sub-PR 62-2b)
+
+`AttendanceChangeRequested` and `AttendanceChangeDecided` take their recipients and their channel from the
+effective alert rule of their kind, read through settings' public reader on the same transaction (spec 060
+D-B13, FR-B17, row 62-2b). The rule gates and adds, it does not replace: `attendanceChangeRecipients`,
+`attendanceDecisionRecipients` and `attendanceChangeRecipientGroups` stay as they are, so with no stored rule
+and the master switch null the recipients, the groups of a hundred and the payload are exactly what they were.
+A closed rule (the kind off, its branch override off, or the master switch off) skips the approver and
+requester authority reads entirely and leaves the event in the outbox with its facts and no
+`notification_recipients`: the event stays for the rest of the system and only the bell goes away. The rule's
+`recipientRoles` add recipients: the users who hold one of those system roles in the event branch's scope (a
+company, business or branch membership covering the branch, active at the event time), unioned with the fixed
+recipients and deduplicated; the acting user (the requester on a request, the decider on a decision) never
+receives the bell, and the employee herself is left out unless she is an owner, exactly as the fixed
+recipients are. Those role holders are read through staff's `AlertRulesPort.roleHolders`, whose adapter calls
+identity's public `readBranchRoleHolders` on the same transaction (the `staff → identity` arrow already exists,
+module-map §2); this addendum is the decision that authorizes that port read, which the ADR-0010 addendum's
+settings-only rule for `AlertRulesPort` adapters does not cover.

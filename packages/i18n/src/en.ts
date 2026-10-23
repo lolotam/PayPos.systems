@@ -4,6 +4,8 @@ import { attendanceChangeEn } from './attendance-change.js';
 import { inAppEn } from './in-app-catalog.js';
 import { permissionCodesEn } from './permission-codes-catalog.js';
 import { catalogPackageTypesEn, packageTypeErrorsEn } from './catalog-package-types.js';
+import { discountApprovalErrorsEn } from './discount-approval-errors.js';
+import { staffColumnsErrorsEn } from './staff-columns-errors.js';
 import { attendanceEn } from './attendance-en.js';
 import { clockCardAdminEn, clockCardPosEn } from './clock-card-catalog.js';
 import { employeeImportEn, employeeImportErrorsEn } from './employee-import.js';
@@ -215,7 +217,10 @@ export const en = {
     EMPLOYEE_CARD_CODE_UNAVAILABLE: "This card code can't be used. Choose another code.",
     ...employeeImportErrorsEn,
     ...serviceErrorsEn,
+    ALERT_RULE_INVALID: 'A value is outside what this alert kind allows (minutes, roles or channels).',
     ...packageTypeErrorsEn,
+    ...discountApprovalErrorsEn,
+    ...staffColumnsErrorsEn,
     PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',
@@ -223,6 +228,7 @@ export const en = {
     PERMISSION_OWNER_ONLY: 'Only the company owner can grant this permission',
     PERMISSION_ROLE_FORBIDDEN: 'This system role cannot receive this permission',
     PERMISSION_OVERRIDE_ENDED: 'This override has already ended',
+    ALERT_RULE_REVISION_CONFLICT: 'Another manager changed this alert rule. Reload before saving.',
     TRANSACTION_RETRY_REQUIRED:
       'The change conflicted with another transaction and was not saved. Please retry.',
     INVALID_CUSTOMER_PHONE:
@@ -234,6 +240,8 @@ export const en = {
     PASSKEY_SELF_UNBIND: 'You cannot unbind your own passkey. Ask another permitted manager.',
     PASSKEY_REVISION_CONFLICT:
       'The passkey binding changed. Refresh its status before trying again.',
+    PUSH_KEY_STALE: 'The notification key changed. Turn notifications on again.',
+    PUSH_REGISTRATION_BUSY: 'Another registration for this device is in progress. Try again.',
     OTP_INVALID: 'The sign-in code is not valid.',
     VALIDATION_FAILED: 'The request is not valid',
     BAD_REQUEST: 'The request is malformed',
@@ -246,6 +254,7 @@ export const en = {
     DEVICE_NOT_PENDING: 'No device in this branch is waiting for approval with this id',
     PIN_INVALID: 'The PIN is incorrect',
     PIN_LOCKED: 'The PIN is locked after too many wrong attempts — try again in 15 minutes',
+    RATE_LIMITED: 'Too many attempts, try again later.',
     NOT_FOUND: 'Not found',
     METHOD_NOT_ALLOWED: 'Method not allowed',
     PAYLOAD_TOO_LARGE: 'Payload too large',

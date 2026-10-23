@@ -1,4 +1,5 @@
 export const FUNCTION_INVENTORY = [
+  { proname: 'staff_columns_distinct', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
   { proname: 'orders_check_performers', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
   { proname: 'orders_performer_consistency', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
   {
@@ -74,6 +75,11 @@ export const FUNCTION_INVENTORY = [
     proconfig: ['search_path=pg_catalog'],
   },
   {
+    proname: 'push_attempts_guard',
+    prosecdef: false,
+    proconfig: ['search_path=public, pg_temp'],
+  },
+  {
     proname: 'sweep_expired_idempotency_keys',
     prosecdef: true,
     proconfig: ['search_path=pg_catalog, pg_temp'],
@@ -136,6 +142,11 @@ export const FUNCTION_INVENTORY = [
     proconfig: ['search_path=pg_catalog, public'],
   },
   { proname: 'slc_complete', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  {
+    proname: 'discount_proposals_transition_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
   {
     proname: 'session_tip_revisions_begin',
     prosecdef: false,

@@ -1,4 +1,5 @@
 import type { LineCancelParameters } from '../domain/line-cancel-notice.ts';
+import type { AlertRulesPort } from './alert-rule.port.ts';
 import type { Clock, IdGenerator } from './late-service-session-notice.port.ts';
 
 export type { Clock, IdGenerator };
@@ -127,4 +128,5 @@ export interface LineCancelNoticePorts {
   readonly place: LineCancelNoticePlace;
   readonly repository: LineCancelNoticeRepository;
   readonly outbox: LineCancelNoticeOutbox;
+  readonly rules: AlertRulesPort;
 }

@@ -193,6 +193,7 @@ it('does not read tips until the visit button opens the dialog', () => {
       online
       timezone="Asia/Kuwait"
       canCancel={false}
+      canChangePerformers={false}
       canRecord={false}
       loadError={null}
       empty

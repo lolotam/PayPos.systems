@@ -50,11 +50,10 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
 `.claude/skills/pospay-pipeline/SKILL.md`. In short:
 
 1. One row of the phase plan per branch, worktree and PR (`feat/…`, `fix/…`, `docs/…`). **Never push to `main`.**
-2. Spec first (`/speckit-specify`); owner questions go to the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md` when no slice exists: pipeline, docs or process rules), then by kind (`CLAUDE.md` §1 5b): charges/money
-   questions to a new numbered batch on the decisions page, every other question to Waleed through his super agent. On
-   the page, when Waleed and his partner (Abu Salem) differ, the partner's pick binds.
-   Ask the questions of a whole feature before its first sub-PR, with a mockup when the answer is a screen: one batch per
-   destination (the money questions on the page, the rest to Waleed), never a mixed batch.
+2. Spec first (`/speckit-specify`); owner questions go to the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md` when no slice exists: pipeline, docs or process rules), then every question, whatever its kind, goes on the
+   decisions page as a new numbered batch and to Waleed as a super-agent card (`CLAUDE.md` §1 5b, V3.14). On the page,
+   when Waleed and his partner (Abu Salem) differ, the partner's pick binds.
+   Ask the questions of a whole feature before its first sub-PR, with a mockup when the answer is a screen, in one batch.
 3. The only implementer is **opencode with `minimax-coding-plan/MiniMax-M3.1-Flash`** (owner, PP-10.1, 2026-10-20),
    for new tasks and for PR-finding fix rounds, one continued session per task. Its briefs ban every git command,
    any read or write under `.git`, edits outside the task, and line-squashing. Claude Code orchestrates, judges the diff (including a line-by-line diff
@@ -237,7 +236,8 @@ drill, production sizing and the salon pilot (row 63, partner request AS-17).
   of ours (`CLAUDE.md` §10).
 - The staging host key changed on 2026-10-19; Waleed confirmed the new fingerprint on 2026-10-20 (PP-5.1), so the
   hold is lifted.
-- Staging lives in `/opt/pospay-staging`, reached over the `abdulaziz` SSH profile; images come from GHCR tagged by
-  commit SHA; `staging-deploy.sh <sha>` migrates, starts and proves `/ready`; `known-good/<sha>/` keeps every ready
-  pair for one-step rollback; a nightly backup runs from `pospay-backup:<sha>`. Steps: pipeline skill §6.
+- Staging is the Dokploy project **PosPay Staging** (one compose, `pospay-staging`; Dokploy domains api/app/pos.staging);
+  images come from GHCR tagged by commit SHA; each release sets `IMAGE_TAG` and redeploys, and rollback is the previous
+  `IMAGE_TAG`; a nightly backup runs from `pospay-backup:<sha>`. The old `staging-deploy.sh` path is retired. Steps:
+  pipeline skill §6.
 - The server is shared: never touch other projects there.

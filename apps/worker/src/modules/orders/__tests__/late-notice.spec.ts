@@ -1,6 +1,7 @@
 import { createInAppTestModule } from '../../../outbox/__tests__/late-service-session-inbox.ts';
 import { createLogger } from '@pospay/observability';
 import { createDeliverer } from '../../../outbox/deliver.ts';
+import { alertRules } from '../persistence/alert-rule.adapter.ts';
 import { lateNoticeRecipients } from '../persistence/branch-manager-recipients.adapter.ts';
 import { lateNoticePlace } from '../persistence/branch-place.adapter.ts';
 import {
@@ -12,6 +13,7 @@ import { onLateServiceSession } from '../events/handlers/on-late-service-session
 import { beforeAll, afterAll, expect, it } from 'vitest';
 import { lateServiceSessionNoticeRequested } from '@pospay/contracts';
 import { USER, TENANT } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
+import { failingBranchRead } from './failing-branch-read.ts';
 import { lateNoticeFixture, type LateNoticeFixture } from './late-notice.fixture.ts';
 let f: LateNoticeFixture;
 beforeAll(async () => {
@@ -74,6 +76,7 @@ it('zero recipients is observable and manager added later never gets the histori
                 place: lateNoticePlace(tx),
                 repository: lateNoticeRepository(tx),
                 outbox: lateNoticeOutbox(tx),
+                rules: alertRules(tx),
               },
               f.ids,
               { now: () => f.at },
@@ -94,6 +97,58 @@ it('zero recipients is observable and manager added later never gets the histori
   await f.deliver(await f.event(id, true, 'ServiceSessionLinesAdded'));
   expect(await f.requests(id)).toHaveLength(0);
   await f.owner`DELETE FROM memberships WHERE company_id=${f.tenant.company} AND id=${added}`;
+});
+it('a missing branch place is recorded with no recipients and is not retried', async () => {
+  const missing = createDeliverer(
+    f.db,
+    [
+      {
+        ...f.consumer,
+        handle: (tx, event) =>
+          onLateServiceSession(
+            new RequestLateServiceSessionNotice(
+              {
+                recipients: lateNoticeRecipients(tx),
+                place: { forBranch: async () => null },
+                repository: lateNoticeRepository(tx),
+                outbox: lateNoticeOutbox(tx),
+                rules: alertRules(tx),
+              },
+              f.ids,
+              { now: () => f.at },
+              { ar: 'فرع', en: 'Branch' },
+            ),
+            event,
+          ),
+      },
+    ],
+    createLogger('silent'),
+    { knownEventTypes: f.consumer.eventTypes },
+  );
+  const id = await f.session();
+  const input = await f.event(id);
+  expect(await missing(input)).toEqual({ delivered: true });
+  expect(await f.notices(id)).toMatchObject([{ recipient_count: 0 }]);
+  expect(await f.requests(id)).toHaveLength(0);
+  expect(await consumed(input.id)).toHaveLength(1);
+  expect(await f.deliver(await f.event(id, true, 'ServiceSessionLinesAdded'))).toEqual({
+    delivered: true,
+  });
+  expect(await f.notices(id)).toHaveLength(1);
+  expect(await f.requests(id)).toHaveLength(0);
+});
+it('a transient failure reading the branch place rolls back and is retried', async () => {
+  const flaky = createDeliverer(failingBranchRead(f.db), [f.consumer], createLogger('silent'), {
+    knownEventTypes: f.consumer.eventTypes,
+  });
+  const id = await f.session();
+  const input = await f.event(id);
+  expect(await flaky(input)).toMatchObject({ delivered: false, retryInMs: expect.any(Number) });
+  expect(await f.notices(id)).toHaveLength(0);
+  expect(await consumed(input.id)).toHaveLength(0);
+  expect(await f.deliver(input)).toEqual({ delivered: true });
+  expect(await f.notices(id)).toMatchObject([{ recipient_count: 1 }]);
+  expect(await f.requests(id)).toHaveLength(1);
 });
 it('closed company, foreign envelope and mismatched aggregate cannot produce a ledger/request', async () => {
   const id = await f.session();
@@ -143,3 +198,6 @@ it('production IN_APP-only delivery and direct/concurrent replay store one inbox
     await f.owner`SELECT id FROM outbox WHERE aggregate_id=${id} AND event_type IN ('NotificationSendAuthorized','ServiceLineChanged','OrderCompleted')`,
   ).toHaveLength(0);
 });
+function consumed(eventId: string) {
+  return f.owner`SELECT event_id FROM consumed_events WHERE company_id=${f.tenant.company} AND consumer_id=${f.consumer.id} AND event_id=${eventId}`;
+}

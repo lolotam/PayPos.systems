@@ -3,56 +3,58 @@ import { useRef, useState } from 'react';
 
 type OpenEditor = { key: string; token: number };
 
+function usePanelToggle() {
+  const [open, setOpen] = useState<string | null>(null);
+  const toggle = (visitId: string, lineId: string) => {
+    const key = `${visitId}:${lineId}`;
+    setOpen((current) => (current === key ? null : key));
+  };
+  return [open, toggle] as const;
+}
+
+function useEditorSlot() {
+  const [open, setOpen] = useState<OpenEditor | null>(null);
+  const release = (key: string, token: number) => {
+    setOpen((current) => (current?.key === key && current.token === token ? null : current));
+  };
+  return { open, setOpen, release };
+}
+
+// محرر واحد بس مفتوح في المرة (سعر أو إلغاء أو منفّذين)، عشان طلبين على نفس السطر ما يتسابقوش على نفس المراجعة.
 export function useDayLineActions() {
-  const editorToken = useRef(0);
-  const cancelToken = useRef(0);
-  const [editing, setEditing] = useState<OpenEditor | null>(null);
-  const [cancelling, setCancelling] = useState<OpenEditor | null>(null);
-  const [history, setHistory] = useState<string | null>(null);
-  const [details, setDetails] = useState<string | null>(null);
+  const token = useRef(0);
+  const edit = useEditorSlot();
+  const cancel = useEditorSlot();
+  const performers = useEditorSlot();
+  const [history, toggleHistory] = usePanelToggle();
+  const [details, toggleDetails] = usePanelToggle();
+  const [performerHistory, togglePerformerHistory] = usePanelToggle();
   const [notice, setNotice] = useState<string | null>(null);
-  const openEdit = (visitId: string, lineId: string) => {
+  const opener = (slot: ReturnType<typeof useEditorSlot>) => (visitId: string, lineId: string) => {
     const key = `${visitId}:${lineId}`;
     setNotice(null);
-    setCancelling(null);
-    if (editing?.key === key) return;
-    editorToken.current += 1;
-    setEditing({ key, token: editorToken.current });
-  };
-  const openCancel = (visitId: string, lineId: string) => {
-    const key = `${visitId}:${lineId}`;
-    setNotice(null);
-    setEditing(null);
-    if (cancelling?.key === key) return;
-    cancelToken.current += 1;
-    setCancelling({ key, token: cancelToken.current });
-  };
-  const toggleHistory = (visitId: string, lineId: string) => {
-    const key = `${visitId}:${lineId}`;
-    setHistory((current) => (current === key ? null : key));
-  };
-  const toggleDetails = (visitId: string, lineId: string) => {
-    const key = `${visitId}:${lineId}`;
-    setDetails((current) => (current === key ? null : key));
-  };
-  const releaseEdit = (key: string, token: number) => {
-    setEditing((current) => (current?.key === key && current.token === token ? null : current));
-  };
-  const releaseCancel = (key: string, token: number) => {
-    setCancelling((current) => (current?.key === key && current.token === token ? null : current));
+    for (const other of [edit, cancel, performers]) if (other !== slot) other.setOpen(null);
+    if (slot.open?.key === key) return;
+    token.current += 1;
+    slot.setOpen({ key, token: token.current });
   };
   return {
-    editing,
-    cancelling,
+    editing: edit.open,
+    cancelling: cancel.open,
+    changingPerformers: performers.open,
     history,
     details,
+    performerHistory,
     notice,
     setNotice,
-    openEdit,
-    openCancel,
+    openEdit: opener(edit),
+    openCancel: opener(cancel),
+    openPerformers: opener(performers),
     toggleHistory,
     toggleDetails,
-    releaseEdit,
-    releaseCancel,
+    togglePerformerHistory,
+    releaseEdit: edit.release,
+    releaseCancel: cancel.release,
+    releasePerformers: performers.release,
   };
 }

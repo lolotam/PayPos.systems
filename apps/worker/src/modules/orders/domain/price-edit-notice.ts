@@ -1,8 +1,3 @@
-/** القاعدة المؤقتة حتى يضيف البند 62 مفاتيح تعطيل التنبيه؛ المحرر لا يُستثنى (ED-Q10). */
-export interface PriceEditNoticeRule {
-  readonly channel: 'IN_APP';
-  readonly roles: readonly string[];
-}
 /**
  * تسميات الكتالوج ودالتا العرض المحقونتان؛ domain لا يستورد i18n فتُحقن editorLabel وsafeDisplayName من التوصيل.
  */
@@ -48,17 +43,6 @@ export interface PriceEditParameterInput {
 }
 const CANONICAL_MONEY = /^(0|[1-9]\d{0,10})\.\d{3}$/;
 
-/**
- * يحدد قناة الجرس وأدوار المديرين الأربعة كما في جرس التأخير.
- *
- * @returns القاعدة الثابتة التي يستبدلها البند 62
- */
-export function interimPriceEditNoticeRule(): PriceEditNoticeRule {
-  return {
-    channel: 'IN_APP',
-    roles: ['owner', 'general_manager', 'business_manager', 'branch_manager'],
-  };
-}
 /**
  * يرتب المستخدمين ويسقط التكرار ويقسمهم مجموعات لا تتجاوز مئة؛ صفر مستلمين لا ينتج مجموعة.
  *

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
+import { canonicalJson } from '@pospay/domain';
 import type { FastifyRequest } from 'fastify';
 
 import { ApiError } from './errors.ts';
@@ -25,19 +26,6 @@ function fingerprintBody(body: unknown, fields: readonly string[]): unknown {
     return body;
   // الاستبعاد صريح لكل مسار ولحقول سطحية فقط؛ لا نغير جسم الطلب المستخدم في التحقق والتنفيذ.
   return Object.fromEntries(Object.entries(body).filter(([field]) => !fields.includes(field)));
-}
-
-// Object keys sorted at every level: {"a":1,"b":2} and {"b":2,"a":1} are one request. Arrays keep their
-// order, because order is part of what a client sends.
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, child]) => child !== undefined)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-    return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
 }
 
 /**

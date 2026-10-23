@@ -3,6 +3,8 @@ import { staffDuplicateNameAr } from './staff-duplicate-name-catalog.js';
 import { attendanceChangeAr } from './attendance-change.js';
 import { inAppAr } from './in-app-catalog.js';
 import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
+import { discountApprovalErrorsAr } from './discount-approval-errors.js';
+import { staffColumnsErrorsAr } from './staff-columns-errors.js';
 import { attendanceAr } from './attendance-ar.js';
 import { clockCardAdminAr, clockCardPosAr } from './clock-card-catalog.js';
 import { employeeImportAr, employeeImportErrorsAr } from './employee-import.js';
@@ -213,7 +215,11 @@ export const ar: Catalog = {
     EMPLOYEE_CARD_CODE_UNAVAILABLE: 'لا يمكن استخدام كود الكارت هذا. اختر كودًا آخر.',
     ...employeeImportErrorsAr,
     ...serviceErrorsAr,
+    ALERT_RULE_INVALID: 'قيمة القاعدة برّه المسموح لنوع التنبيه ده (المدة أو الأدوار أو القنوات).',
+    ALERT_RULE_REVISION_CONFLICT: 'عدّل مدير آخر قاعدة التنبيه. أعد التحميل قبل الحفظ.',
     ...packageTypeErrorsAr,
+    ...discountApprovalErrorsAr,
+    ...staffColumnsErrorsAr,
     PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',
     PERMISSION_SELF_EDIT: 'لا يمكنك تعديل صلاحيات عضويتك الشخصية',
     PERMISSION_OWNER_PROTECTED: 'صلاحيات صاحب الشركة محمية من هذا التغيير',
@@ -227,6 +233,8 @@ export const ar: Catalog = {
     PASSKEY_INVALID: 'تعذر التحقق من مفتاح المرور.',
     PASSKEY_SELF_UNBIND: 'لا يمكنك فك ربط مفتاح مرورك بنفسك. اطلب من مدير آخر لديه الصلاحية.',
     PASSKEY_REVISION_CONFLICT: 'تغير ربط مفتاح المرور. حدّث الحالة قبل المحاولة من جديد.',
+    PUSH_KEY_STALE: 'مفتاح الإشعارات اتغيّر، فعّل الإشعارات من جديد.',
+    PUSH_REGISTRATION_BUSY: 'فيه تسجيل تاني شغال على نفس الجهاز، جرّب تاني.',
     OTP_INVALID: 'رمز الدخول غير صحيح.',
     VALIDATION_FAILED: 'البيانات المرسلة غير صحيحة',
     INVALID_CUSTOMER_PHONE:
@@ -241,6 +249,7 @@ export const ar: Catalog = {
     DEVICE_NOT_PENDING: 'لا يوجد جهاز في انتظار الموافقة بهذا المعرّف في هذا الفرع',
     PIN_INVALID: 'الرقم السري غير صحيح',
     PIN_LOCKED: 'الرقم السري مقفول بعد محاولات خاطئة كثيرة، حاول بعد 15 دقيقة',
+    RATE_LIMITED: 'محاولات كتير، جرّب بعد شوية.',
     NOT_FOUND: 'المسار غير موجود',
     METHOD_NOT_ALLOWED: 'الطريقة غير مسموحة',
     PAYLOAD_TOO_LARGE: 'حجم الطلب كبير جداً',

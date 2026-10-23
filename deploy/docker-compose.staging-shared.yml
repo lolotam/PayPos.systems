@@ -1,16 +1,17 @@
-# Staging on the existing server's shared Postgres and Redis (plan T13-2, Waleed 2026-09-24): the "paypossystem"
-# Dokploy project already runs Postgres 18 and Redis 8 on dokploy-network, so this file brings only the migrate step,
-# the API and the worker, and joins that network. Deploy with deploy/staging-deploy.sh, never by hand: the server's
-# .env (mode 600, generated on the server — never in Git) is interpolated here, so `docker compose config` WITHOUT -q
-# prints every secret; the script only ever validates with -q.
+# PosPay staging on the server's shared Postgres 18 and Redis 8 (dokploy-network). Runs as the compose service
+# `pospay-staging` of the Dokploy project "PosPay Staging" (Waleed, 2026-10-23). The environment lives in Dokploy
+# (secrets included) and is never printed; deploy/staging.env.example lists its keys.
+#
+# The three public hosts are Dokploy domains (the service's Domains tab), not labels in this file: api.staging -> api:3000,
+# app.staging -> admin:3000, pos.staging -> pos:8080, HTTPS with Let's Encrypt. Dokploy adds the Traefik labels on
+# deploy, so adding labels here would create a second router for the same host.
 #
 # Rollback: redeploy the previous IMAGE_TAG. That restores the code, not the schema — it is safe only because every
-# migration is expand/contract (CLAUDE.md §10), and T13-2 proves it by running the previous image on the new schema.
+# migration is expand/contract (CLAUDE.md §10).
 #
-# Accepted for staging (Waleed): Postgres 18 and Redis 8 here, where CI tests 16 and 7 — the deploy's smoke test runs
-# against them every time; and dokploy-network is shared with the server's other projects, which can reach the API's
-# port directly (every route still needs a session or a device token) and the shared database (password-protected).
-# Production gets its own networks on the new server (D-11).
+# Accepted for staging (Waleed): Postgres 18 and Redis 8 here, where CI tests 16 and 7; and dokploy-network is shared
+# with the server's other projects, which can reach the API's port directly (every protected route still needs a
+# session or a device token; /health and /ready answer without one) and the shared database (password-protected). Production gets its own networks on the new server (D-11).
 
 name: pospay-staging
 
@@ -22,7 +23,7 @@ x-app-env: &app-env
 
 x-staff-otp-env: &staff-otp-env
   STAFF_OTP_ENABLED: ${STAFF_OTP_ENABLED:-}
-  STAFF_OTP_POS_ORIGIN: ${STAFF_OTP_POS_ORIGIN:-}
+  STAFF_OTP_POS_ORIGIN: ${STAFF_OTP_POS_ORIGIN:-https://${POS_STAGING_HOST:?}}
   STAFF_OTP_DERIVATION_KEY: ${STAFF_OTP_DERIVATION_KEY:-}
   STAFF_OTP_DERIVATION_KEY_ID: ${STAFF_OTP_DERIVATION_KEY_ID:-}
   STAFF_OTP_DERIVATION_RETIRED_KEYS: ${STAFF_OTP_DERIVATION_RETIRED_KEYS:-}
@@ -70,7 +71,7 @@ services:
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
       BETTER_AUTH_URL: https://${STAGING_HOST:?}
-      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${STAGING_HOST:?}}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${ADMIN_STAGING_HOST:?},https://${POS_STAGING_HOST:?}}
       PLATFORM_NOTIFICATIONS_DATABASE_URL: ${PLATFORM_NOTIFICATIONS_DATABASE_URL:-}
       WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
       WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
@@ -81,21 +82,11 @@ services:
       NOTIFICATION_MESSAGE_ID_HASH_KEY: ${NOTIFICATION_MESSAGE_ID_HASH_KEY:-}
       WHATSAPP_STOP_BUTTON_ID: ${WHATSAPP_STOP_BUTTON_ID:-}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
-      COOKIE_DOMAIN: .${STAGING_HOST:?}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.staging.pospay.systems}
     depends_on:
       migrate:
         condition: service_completed_successfully
     networks: [dokploy-network]
-    labels:
-      traefik.enable: 'true'
-      traefik.docker.network: dokploy-network
-      traefik.http.routers.pospay-staging-api.rule: Host(`${STAGING_HOST:?}`)
-      traefik.http.routers.pospay-staging-api.entrypoints: websecure
-      traefik.http.routers.pospay-staging-api.tls.certresolver: letsencrypt
-      traefik.http.routers.pospay-staging-api-http.rule: Host(`${STAGING_HOST:?}`)
-      traefik.http.routers.pospay-staging-api-http.entrypoints: web
-      traefik.http.routers.pospay-staging-api-http.middlewares: redirect-to-https@file
-      traefik.http.services.pospay-staging-api.loadbalancer.server.port: '3000'
     mem_limit: 512m
 
   worker:
@@ -106,7 +97,7 @@ services:
     environment:
       <<: [*app-env, *staff-otp-env]
       AUTH_DATABASE_URL: postgres://pospay_auth:${POSTGRES_AUTH_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
-      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${ADMIN_STAGING_HOST:?},https://${POS_STAGING_HOST:?}}
 
       DISPATCHER_DATABASE_URL: postgres://pospay_dispatcher:${POSTGRES_DISPATCHER_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
       # ADR-0019: OTP activation independent; tenant outbound remains separately closed.
@@ -122,6 +113,27 @@ services:
         condition: service_completed_successfully
     networks: [dokploy-network]
     mem_limit: 1g
+
+  # The staging back-office and cashier. Both bake the API origin at build time, so CI builds staging variants with
+  # https://api.staging.pospay.systems (pospay-admin-staging, pospay-pos-staging); the plain images are origin-less.
+  # Hosts follow ADR-0001 §6: app.staging (back-office), pos.staging (cashier), api.staging (STAGING_HOST).
+  admin:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-admin-staging:${IMAGE_TAG:?}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    networks: [dokploy-network]
+    mem_limit: 512m
+
+  pos:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-pos-staging:${IMAGE_TAG:?}
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [dokploy-network]
+    mem_limit: 128m
 
 networks:
   dokploy-network:

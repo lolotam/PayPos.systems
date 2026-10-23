@@ -1,4 +1,5 @@
 import type { LeaveInterval, NoticeParameter, PresenceSession } from '../domain/not-clocked-in.ts';
+import type { AlertRulesPort } from './alert-rule.port.ts';
 
 /** موضع الصفحة التالية بترتيب (starts_at ثم id) حتى لا تتكرر وردية أو تسقط بين الصفحات. */
 export interface NotClockedInCursor {
@@ -40,10 +41,21 @@ export interface NoticeWrite {
   readonly detectedAt: Date;
   readonly recipients: readonly string[];
   readonly parameters: readonly NoticeParameter[];
+  /** مستخدم الموظفة الغائبة للإشعار الثابت؛ بند 28b-5 هو اللي يبعتّه. */
+  readonly employeePushUserId: string | null;
+}
+
+/** سطر الدفتر اللي بيتكتب والقاعدة مقفولة: سطر دفتر بلا إشعار (spec 060 D-B15). */
+export interface SuppressedWrite {
+  readonly shift: LockedShift;
+  readonly alertAt: Date;
+  readonly detectedAt: Date;
 }
 
 /** قراءات وكتابة الوظيفة على معاملة قفل الموظف. */
 export interface LockedNotClockedIn {
+  /** القاعدة الفعلية لنوع التنبيه، تُقرأ على نفس معاملة القفل. */
+  readonly rules: AlertRulesPort;
   /**
    * يعيد قراءة الوردية الحالية؛ null إن حُذف الصف عند إعادة حفظ الأسبوع.
    *
@@ -88,7 +100,7 @@ export interface LockedNotClockedIn {
    *
    * @param businessId نشاط الوردية
    * @param branchId فرع الوردية
-   * @param roles أدوار القاعدة المؤقتة
+   * @param roles أدوار القاعدة الفعلية
    * @returns معرفات المستخدمين بلا ترتيب مضمون بعد إزالة التكرار في SQL
    */
   managers(
@@ -103,6 +115,13 @@ export interface LockedNotClockedIn {
    * @returns true لو أُدرج الصف الآن
    */
   record(notice: NoticeWrite): Promise<boolean>;
+  /**
+   * يدرج سطر دفتر واحد والقاعدة مقفولة: بلا تدقيق وبلا حدث وبلا مستلمين.
+   *
+   * @param notice لحظات الاستحقاق والكشف
+   * @returns true لو أُدرج الصف الآن
+   */
+  suppress(notice: SuppressedWrite): Promise<boolean>;
 }
 
 /** حدود شركة واحدة؛ لا قراءة عابرة للشركات. */

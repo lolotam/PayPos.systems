@@ -7,6 +7,7 @@ import { ORDER_IDS } from '../../../../../../packages/db/test/orders-fixture.ts'
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import type { PriceEditNameFallback } from '../domain/price-edit-notice.ts';
 import { onServiceLineChanged } from '../events/handlers/on-service-line-changed.handler.ts';
+import { alertRules } from '../persistence/alert-rule.adapter.ts';
 import { priceEditPlace } from '../persistence/price-edit-place.adapter.ts';
 import { priceEditRecipients } from '../persistence/price-edit-recipients.adapter.ts';
 import {
@@ -180,6 +181,7 @@ function useCase(tx: Tx, recipients: () => Promise<readonly string[]>) {
       place: priceEditPlace(tx),
       repository: priceEditRepository(tx),
       outbox: priceEditOutbox(tx),
+      rules: alertRules(tx),
     },
     f.ids,
     { now: () => f.at },

@@ -65,7 +65,8 @@ it('rejects scope mismatch, another tenant/branch, missing tenant and inactive p
     [f.company, `/v1/businesses/${f.secondBusiness}/branches/${f.secondBranch}/service-sessions`],
     [f.company, `/v1/businesses/${f.foreignBusiness}/branches/${f.foreignBranch}/service-sessions`]])
     expect((await get('', f.cookie, must(company), must(base))).status).toBe(403);
-  expect((await f.h.send('GET', `${f.base}/recording-context`, { cookie: f.cookie })).status).toBe(403);
+  // @Authenticated + SelectedCompanyGuard (PP-19.1): غياب الشركة المختارة 400 زي باقي مسارات الجلسة.
+  expect((await f.h.send('GET', `${f.base}/recording-context`, { cookie: f.cookie })).status).toBe(400);
   await f.h.owner`UPDATE branches SET is_active=false WHERE company_id=${f.company} AND id=${f.branch}`;
   expect((await get('', f.ownerCookie)).status).toBe(403);
   await f.h.owner`UPDATE branches SET is_active=true WHERE company_id=${f.company} AND id=${f.branch}`;

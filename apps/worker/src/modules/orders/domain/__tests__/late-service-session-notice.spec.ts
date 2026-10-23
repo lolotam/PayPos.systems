@@ -1,16 +1,11 @@
 import { expect, it } from 'vitest';
 import {
-  interimLateNoticeRule,
   qualifiesForLateNotice,
   lateNoticeRecipientGroups,
   lateNoticeParameters,
 } from '../late-service-session-notice.ts';
 
-it('SS-Q11 uses only the four manager roles and IN_APP, based on saved facts', () => {
-  expect(interimLateNoticeRule()).toEqual({
-    channel: 'IN_APP',
-    roles: ['owner', 'general_manager', 'business_manager', 'branch_manager'],
-  });
+it('the saved facts decide whether the visit qualifies for the bell', () => {
   expect(qualifiesForLateNotice({ late: false, lines: [{ late: false }] })).toBe(false);
   expect(qualifiesForLateNotice({ late: true, lines: [{ late: false }] })).toBe(true);
   expect(qualifiesForLateNotice({ late: false, lines: [{ late: true }] })).toBe(true);

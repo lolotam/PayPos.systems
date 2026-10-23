@@ -12,6 +12,7 @@ import { APP_GUARD, NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { AuthService, StaffOtpApi, StaffSessions } from '@pospay/auth';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
+import type { PushApiConfiguration } from '@pospay/notifications';
 import type { Redis } from 'ioredis';
 import { systemUuidV7 } from '@pospay/ids';
 import {
@@ -80,6 +81,8 @@ export interface AppDependencies {
   /** Browser origins allowed to call the API with credentials (admin, POS). Empty: no CORS headers at all. */
   readonly corsOrigins?: readonly string[];
   readonly whatsapp?: WhatsappIntake;
+  /** The push public key and subject, when push is configured; without them the push routes answer NOT_READY. */
+  readonly push?: PushApiConfiguration | null;
   readonly trustedProxy?: readonly string[];
 }
 
@@ -144,7 +147,7 @@ class AppModule {
         ...catalogProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...ordersProviders(deps.database, deps.ids ?? systemUuidV7(), deps.ordersClock),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
-        ...notificationsProviders(deps.database, deps.whatsapp),
+        ...notificationsProviders(deps.database, deps.whatsapp, deps.push),
         ...staffProviders(
           deps.database,
           deps.redis,
