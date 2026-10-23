@@ -1,5 +1,6 @@
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+import { DEFAULT_NAME_FALLBACK, type NameFallback } from '../domain/not-clocked-in.ts';
 import type { MissedOutSession } from '../domain/missed-out.ts';
 import type {
   LockedMissedOutSession,
@@ -56,19 +57,40 @@ async function lockedOpenSession(
   const [state] = await tx.execute<{ employee_id: string }>(sql`
     SELECT employee_id FROM attendance_states WHERE company_id = ${companyId} AND employee_id = ${employeeId} FOR UPDATE`);
   if (state === undefined) return null;
-  const [row] = await tx.execute<SessionRow & { business_id: string; branch_id: string }>(sql`
-    SELECT s.id, s.employee_id, s.business_id, s.branch_id, s.clock_in, s.scheduled_end,
+  const [row] = await tx.execute<
+    SessionRow & {
+      business_id: string;
+      branch_id: string;
+      user_id: string | null;
+      name_ar: string | null;
+      name_en: string;
+      timezone: string;
+    }
+  >(sql`
+    SELECT s.id, s.employee_id, s.business_id, s.branch_id, s.clock_in, s.scheduled_end, s.timezone,
+      emp.user_id, emp.name_ar, emp.name_en,
       EXISTS (SELECT 1 FROM attendance_exceptions e WHERE e.company_id = s.company_id AND e.session_id = s.id
         AND e.kind = 'SUSPECTED_MISSED_OUT') AS suspected
-    FROM attendance_sessions s WHERE s.company_id = ${companyId} AND s.employee_id = ${employeeId} AND s.status = 'OPEN'`);
+    FROM attendance_sessions s
+    JOIN employees emp ON emp.company_id = s.company_id AND emp.id = s.employee_id
+    WHERE s.company_id = ${companyId} AND s.employee_id = ${employeeId} AND s.status = 'OPEN'`);
   return row === undefined
     ? null
-    : { ...toSession(row), businessId: row.business_id, branchId: row.branch_id };
+    : {
+        ...toSession(row),
+        businessId: row.business_id,
+        branchId: row.branch_id,
+        employeeUserId: row.user_id,
+        employeeNameAr: row.name_ar,
+        employeeNameEn: row.name_en,
+        timeZone: row.timezone,
+      };
 }
 
 export function missedOutTransactions(
   database: Pick<TenantWrappers, 'withTenant'>,
   ids: IdGenerator,
+  fallback: NameFallback = DEFAULT_NAME_FALLBACK,
 ): MissedOutTransactions {
   return {
     candidates: (companyId, clockInAtOrBefore, after, limit) =>
@@ -91,7 +113,7 @@ export function missedOutTransactions(
             {
               open,
               raiseSuspected: (session, dueAt, at) =>
-                raiseSuspected(tx, ids, companyId, session, dueAt, at),
+                raiseSuspected(tx, ids, companyId, session, dueAt, at, fallback),
               closeMissedOut: (session, closeAt, at) =>
                 closeMissedOut(tx, ids, companyId, session, closeAt, at),
             },

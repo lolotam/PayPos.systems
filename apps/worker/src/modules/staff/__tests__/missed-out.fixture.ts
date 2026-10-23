@@ -2,7 +2,7 @@ import { employeeNameMatchKey } from '@pospay/domain';
 import { takeTestEmployeeNumber } from './test-employee-number.ts';
 import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
-import { createDatabase, PROVISIONAL_PLAN_ID, type Database } from '@pospay/db';
+import { createDatabase, PROVISIONAL_PLAN_ID, type Database, type IdGenerator } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import {
   createTestDatabase,
@@ -21,6 +21,25 @@ export interface Tenant {
   readonly branch: string;
 }
 export { TENANT };
+
+/** أدوار النظام الثابتة؛نسخها هنا عشان ما يتعملش استيراد بين الملفات. */
+export const ROLE = {
+  owner: '01920000-0000-7000-8000-000000000101',
+  general_manager: '01920000-0000-7000-8000-000000000102',
+  business_manager: '01920000-0000-7000-8000-000000000104',
+  branch_manager: '01920000-0000-7000-8000-000000000105',
+} as const;
+
+/** عضوية نشطة بمستخدم ودور ونطاق. */
+export interface MemberInput {
+  readonly tenant: Tenant;
+  readonly userId: string;
+  readonly roleId: string;
+  readonly scopeType: 'COMPANY' | 'BUSINESS' | 'BRANCH';
+  readonly scopeId: string;
+  readonly startsAt?: string;
+  readonly endsAt?: string | null;
+}
 
 /** قاعدة اختبار مستنسخة لكل ملف، والوظيفة تعمل كـ pospay_app فقط. */
 export async function missedOutFixture() {
@@ -46,9 +65,18 @@ export async function missedOutFixture() {
     },
     detect: (port: MissedOutTransactions = transactions) => new DetectMissedOuts(port, clock),
     tenant: () => newTenant(owner, userId, ids.newId(), ids.newId(), ids.newId()),
-    employee: (tenant: Tenant) => newEmployee(owner, ids.newId(), tenant),
-    open: (tenant: Tenant, employeeId: string, clockIn: Date, scheduledEnd: Date | null = null) =>
-      openSession(owner, ids.newId(), tenant, employeeId, clockIn, scheduledEnd),
+    branch: (tenant: Tenant) => newBranch(owner, ids, tenant),
+    employee: (tenant: Tenant, options: EmployeeOptions = {}) =>
+      newEmployee(owner, ids.newId(), tenant, options),
+    user: (label: string) => newUser(owner, ids, label),
+    member: (input: MemberInput) => newMember(owner, ids, input),
+    open: (
+      tenant: Tenant,
+      employeeId: string,
+      clockIn: Date,
+      scheduledEnd: Date | null = null,
+      branch = tenant.branch,
+    ) => openSession(owner, ids.newId(), tenant, employeeId, clockIn, scheduledEnd, branch),
     close: async () => {
       await db.close();
       await owner.end();
@@ -57,6 +85,16 @@ export async function missedOutFixture() {
   };
 }
 export type MissedOutFixture = Awaited<ReturnType<typeof missedOutFixture>>;
+
+/** خيارات الموظفة: الاسم ومستخدم الحساب والفرع الأساسي. */
+export interface EmployeeOptions {
+  readonly nameEn?: string;
+  readonly nameAr?: string | null;
+  readonly userId?: string | null;
+  readonly contractEnd?: string | null;
+  readonly deletedAt?: Date | null;
+  readonly primaryBranchId?: string;
+}
 
 async function newTenant(
   owner: postgres.Sql,
@@ -71,9 +109,36 @@ async function newTenant(
   return { company, business, branch };
 }
 
-async function newEmployee(owner: postgres.Sql, id: string, tenant: Tenant) {
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
-    VALUES(${tenant.company},${id},${tenant.business},${tenant.branch},'Synthetic missed-out employee',${employeeNameMatchKey('Synthetic missed-out employee')},'staff','2026-01-01',${takeTestEmployeeNumber(tenant.company)})`;
+async function newEmployee(
+  owner: postgres.Sql,
+  id: string,
+  tenant: Tenant,
+  options: EmployeeOptions,
+) {
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,name_ar_key,name_en_key,role_code,hire_date,contract_end,deleted_at,employee_number)
+    VALUES(${tenant.company},${id},${tenant.business},${options.primaryBranchId ?? tenant.branch},${options.userId ?? null},${options.nameAr ?? null},
+      ${options.nameEn ?? 'Synthetic missed-out employee'},${options.nameAr == null ? null : employeeNameMatchKey(options.nameAr)},
+      ${employeeNameMatchKey(options.nameEn ?? 'Synthetic missed-out employee')},'staff','2026-01-01',${options.contractEnd ?? null},${options.deletedAt ?? null},${takeTestEmployeeNumber(tenant.company)})`;
+  return id;
+}
+
+async function newBranch(owner: postgres.Sql, ids: IdGenerator, tenant: Tenant) {
+  const id = ids.newId();
+  await owner`INSERT INTO branches(id,company_id,business_id,name_en) VALUES(${id},${tenant.company},${tenant.business},'Synthetic other branch')`;
+  return id;
+}
+
+async function newUser(owner: postgres.Sql, ids: IdGenerator, label: string) {
+  const id = ids.newId();
+  await owner`INSERT INTO "user"(id,name,email) VALUES(${id},${label},${`${id}@example.test`})`;
+  return id;
+}
+
+async function newMember(owner: postgres.Sql, ids: IdGenerator, input: MemberInput) {
+  const id = ids.newId();
+  await owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at,ends_at)
+    VALUES(${input.tenant.company},${id},${input.userId},${input.roleId},'global',${input.scopeType},${input.scopeId},
+      ${input.startsAt ?? '2026-01-01T00:00:00Z'},${input.endsAt ?? null})`;
   return id;
 }
 
@@ -84,9 +149,10 @@ async function openSession(
   employeeId: string,
   clockIn: Date,
   scheduledEnd: Date | null,
+  branch: string,
 ) {
   await owner`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,clock_in,status,source,geo,late_minutes,scheduled_start,scheduled_end)
-    VALUES(${tenant.company},${id},${tenant.business},${tenant.branch},${employeeId},${clockIn.toISOString().slice(0, 10)},'Asia/Kuwait',${clockIn},'OPEN','QR','OK',0,
+    VALUES(${tenant.company},${id},${tenant.business},${branch},${employeeId},${clockIn.toISOString().slice(0, 10)},'Asia/Kuwait',${clockIn},'OPEN','QR','OK',0,
       ${scheduledEnd === null ? null : new Date(clockIn.getTime() + H)},${scheduledEnd})`;
   return id;
 }

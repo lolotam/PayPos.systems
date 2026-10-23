@@ -175,6 +175,12 @@ export {
   type InAppNotificationQuery,
   type InAppNotificationPage,
 } from './in-app-notifications.js';
+export {
+  attendanceExceptionRaisedParameters,
+  attendanceExceptionRaisedRecipient,
+  documentExpiringParameters,
+  documentExpiringRecipient,
+} from './staff-alert-notifications.js';
 export * from './push-subscription.js';
 export { whatsappEnvelope, whatsappHandshake, type WhatsAppEnvelope } from './whatsapp-webhook.js';
 

@@ -14,6 +14,7 @@ export const inAppEn = {
   generic_notice: 'Update for {{subject}}',
   generic_employee: 'Employee',
   generic_branch: 'Branch',
+  generic_document: 'Document',
   late_service_session: 'A late service session dated {{business_date}} was recorded at {{branch_name_en}}.',
   service_line_price_edited:
     '{{editor_name_en}} edited {{service_name_en}} at {{branch_name_en}} dated {{business_date}}: the net was {{previous_net}} KWD and is now {{new_net}} KWD.',
@@ -34,6 +35,9 @@ export const inAppEn = {
     '{{employee_name_en}} has not clocked back in from the break that ended at {{break_end}} at {{branch_name_en}}',
   break_returned_other_branch:
     '{{employee_name_en}} returned from the break at {{branch_name_en}}',
+  attendance_exception_raised:
+    '{{employee_name_en}} clocked in at {{branch_name_en}} on {{clock_in_date}} at {{clock_in_time}} and has not clocked out',
+  document_expiring: "{{employee_name_en}}'s {{document_type_en}} expires on {{expires_on}}",
 };
 
 export const inAppAr = {
@@ -49,6 +53,7 @@ export const inAppAr = {
   generic_notice: 'تحديث بخصوص {{subject}}',
   generic_employee: 'موظف',
   generic_branch: 'فرع',
+  generic_document: 'مستند',
   late_service_session: 'سُجّلت جلسة متأخرة بتاريخ {{business_date}} في فرع {{branch_name_ar}}.',
   service_line_price_edited:
     'عدّل {{editor_name_ar}} خدمة {{service_name_ar}} في فرع {{branch_name_ar}} بتاريخ {{business_date}}: كان الصافي {{previous_net}} دينار وأصبح {{new_net}} دينار.',
@@ -69,4 +74,7 @@ export const inAppAr = {
     'لم يُسجَّل رجوع {{employee_name_ar}} من البريك المنتهي الساعة {{break_end}} في {{branch_name_ar}}',
   break_returned_other_branch:
     '{{employee_name_ar}} رجعت من البريك في فرع {{branch_name_ar}}',
+  attendance_exception_raised:
+    '{{employee_name_ar}} سجّلت دخول في {{branch_name_ar}} يوم {{clock_in_date}} الساعة {{clock_in_time}} ولم تسجّل خروج',
+  document_expiring: 'مستند {{document_type_ar}} الخاص بـ {{employee_name_ar}} ينتهي يوم {{expires_on}}',
 };

@@ -126,3 +126,26 @@ in, her branch's managers are alerted. This alert rides on this ADR instead of a
   branch (BW-Q10). The probe uses `attendance_sessions_employee_date_idx`. A finished shift is never re-read, so a session
   inserted later for a past day raises nothing.
 - **No attendance change.** No session status, exception kind or `attendance_exceptions` column is added.
+
+## Addendum 2026-10-23 — file-reader recipients for the document-expiry bell (spec 060, sub-PR 62-2d)
+
+The `DocumentExpiring` bell goes only to users who may read the employee's files (spec 033 MO-Q1, issue #489,
+AL-Q7). That needs a second read from worker `identity`, next to §2's `BranchManagerRecipients`, and this addendum
+is the decision that authorizes it (module-map row `FileReaderRecipients.holders`).
+
+- **Port.** Worker `staff` defines `FileReaderRecipients.holders(tx, companyId, businessId, at)` in its own
+  `ports/`. The adapter calls identity's public `businessPermissionHolders(tx, companyId, businessId,
+  'read:files:business', at)` through `identity/index.ts`, on the caller's `withTenant` transaction: read-only, no
+  lock, no new connection, no new role or grant. The document-expiry job calls it inside its locked transaction.
+- **Who holds the permission.** Every user with a membership of the company that is active at `at`
+  (`starts_at <= at`, `ends_at` NULL or later). Their grants are the role's grants at the membership's own scope,
+  plus their personal overrides at the override's scope that have not expired at `at`. Ending an override sets
+  `expires_at`, so an ended ALLOW or DENY no longer counts. A grant covers the business when it is company-scoped or
+  scoped to this business; a branch-scoped grant never covers it. A user holds the permission when at least one
+  covering ALLOW exists and no covering DENY exists. The canonical company owner ignores DENY. Custom roles count
+  like system roles; the system-role policy predicates only narrow the global roles. This mirrors the API's
+  `evaluateAccess` at a business target with `protectOwnerAccess`; the pure decision is
+  `decideBusinessPermissionHolders` in worker `identity/domain`.
+- **Recipients.** When the `DOCUMENT_EXPIRING` rule names no roles (the default), the recipients are the holders.
+  When it names roles, they are §2's managers of the employee's primary branch in those roles, kept only if they also
+  hold the permission.

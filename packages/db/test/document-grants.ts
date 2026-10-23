@@ -6,5 +6,7 @@ export const DOCUMENT_COLUMN_GRANTS = [
   'document_types.name_en:pospay_app:UPDATE',
   'document_types.requires_expiry:pospay_app:UPDATE',
   'document_types.revision:pospay_app:UPDATE',
+  // عقد spec 033 في بند 62: علامة إرفاق المستلمين بتتحول مرة واحدة ولا ترجع.
+  'employee_document_expiry_notices.recipients_attached_at:pospay_app:UPDATE',
   'employee_documents.replaced_at:pospay_app:UPDATE',
 ];

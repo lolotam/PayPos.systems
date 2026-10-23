@@ -9,6 +9,8 @@ import { serviceLinePriceEdited } from './service-line-price-edited.ts';
 import { shiftNotClockedIn } from './shift-not-clocked-in.ts';
 import { attendanceChangeRequested } from './attendance-change-requested.ts';
 import { attendanceChangeDecided } from './attendance-change-decided.ts';
+import { attendanceExceptionRaised } from './attendance-exception-raised.ts';
+import { documentExpiring } from './document-expiring.ts';
 
 export const genericNotice: TemplateDefinition = {
   key: 'generic_notice',
@@ -51,6 +53,8 @@ export function validInAppTemplate(
       breakReturnedOtherBranch,
       attendanceChangeRequested,
       attendanceChangeDecided,
+      attendanceExceptionRaised,
+      documentExpiring,
     ].find((item) => item.key === key) ?? null;
   return (
     definition !== null &&

@@ -1,7 +1,13 @@
 import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { H, missedOutFixture, TENANT, type MissedOutFixture } from './missed-out.fixture.ts';
+import {
+  H,
+  ROLE,
+  missedOutFixture,
+  TENANT,
+  type MissedOutFixture,
+} from './missed-out.fixture.ts';
 import { takeTestEmployeeNumbers } from './test-employee-number.ts';
 import { missedOutCandidatesStatement } from '../persistence/missed-out.transactions.ts';
 import { MISSED_OUT_PAGE_SIZE } from '../use-cases/detect-missed-outs/detect-missed-outs.ts';
@@ -24,6 +30,14 @@ async function events(type: string, sessionId: string) {
 
 it('raises exactly one suspected exception at shift end + 4 h with audit and event; re-runs change nothing', async () => {
   const A = await f.tenant();
+  const owner = await f.user('owner');
+  await f.member({
+    tenant: A,
+    userId: owner,
+    roleId: ROLE.owner,
+    scopeType: 'COMPANY',
+    scopeId: A.company,
+  });
   const clockIn = new Date('2026-10-05T05:00:00Z');
   const employee = await f.employee(A);
   const session = await f.open(A, employee, clockIn, new Date(clockIn.getTime() + 8 * H));
