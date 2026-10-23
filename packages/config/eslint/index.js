@@ -115,13 +115,29 @@ export const allowUserFacingText = () => ({
   rules: { 'no-restricted-syntax': restrictedSyntax({ userText: true }) },
 });
 
+// ADR-0054 §1 — the backend exceptions lift the engine's root entry only: a subpath and a relative
+// path stay refused everywhere, and a test file keeps the Arabic-text exemption.
+const BACKEND_ENGINE_SYNTAX = [
+  ...COMMISSIONS_ENGINE_SUBPATH_SYNTAX,
+  ...COMMISSIONS_ENGINE_PATH_SYNTAX,
+];
+
+// ADR-0054 §1 — the admin area allows the browser-safe /validation entry point and nothing else.
+const ADMIN_ENGINE_SYNTAX = [
+  ...COMMISSIONS_ENGINE_ROOT_SYNTAX,
+  ...COMMISSIONS_ENGINE_VALIDATION_ONLY_SYNTAX,
+  ...COMMISSIONS_ENGINE_PATH_SYNTAX,
+];
+
 /**
- * The backend exceptions of the engine ban (ADR-0054 §1): only the commissions use-cases/, ports/
- * and persistence/ lift the root entry — the layers CLAUDE.architecture.md §3.1 lets import a
- * module's own domain/. Every other commissions layer keeps the full ban. A subpath and a relative
- * path stay refused everywhere, and a test file keeps the Arabic-text exemption.
+ * The override for the backend apps whose commissions module may import the engine root: only those
+ * apps append it — today apps/api; apps/worker appends it with 50-1, when its commissions module
+ * arrives. The blocks lift the root entry of the commissions use-cases/, ports/ and persistence/
+ * — the layers CLAUDE.architecture.md §3.1 lets import a module's own domain/ — and nothing else.
+ *
+ * @returns {import('eslint').Linter.Config[]} the four blocks of the commissions layers
  */
-const commissionsEngineBackendExceptions = () => [
+export const allowCommissionsEngineBackend = () => [
   {
     // ADR-0054 §1 — the commissions use-cases/ lift the engine's root entry and nothing else.
     files: ['**/modules/commissions/use-cases/**/*.ts'],
@@ -140,7 +156,7 @@ const commissionsEngineBackendExceptions = () => [
       ],
       'no-restricted-syntax': restrictedSyntax({
         userText: false,
-        engine: [...COMMISSIONS_ENGINE_SUBPATH_SYNTAX, ...COMMISSIONS_ENGINE_PATH_SYNTAX],
+        engine: BACKEND_ENGINE_SYNTAX,
       }),
     },
   },
@@ -153,7 +169,7 @@ const commissionsEngineBackendExceptions = () => [
     rules: {
       'no-restricted-syntax': restrictedSyntax({
         userText: true,
-        engine: [...COMMISSIONS_ENGINE_SUBPATH_SYNTAX, ...COMMISSIONS_ENGINE_PATH_SYNTAX],
+        engine: BACKEND_ENGINE_SYNTAX,
       }),
     },
   },
@@ -167,7 +183,7 @@ const commissionsEngineBackendExceptions = () => [
       ]),
       'no-restricted-syntax': restrictedSyntax({
         userText: false,
-        engine: [...COMMISSIONS_ENGINE_SUBPATH_SYNTAX, ...COMMISSIONS_ENGINE_PATH_SYNTAX],
+        engine: BACKEND_ENGINE_SYNTAX,
       }),
     },
   },
@@ -182,7 +198,7 @@ const commissionsEngineBackendExceptions = () => [
     rules: {
       'no-restricted-syntax': restrictedSyntax({
         userText: true,
-        engine: [...COMMISSIONS_ENGINE_SUBPATH_SYNTAX, ...COMMISSIONS_ENGINE_PATH_SYNTAX],
+        engine: BACKEND_ENGINE_SYNTAX,
       }),
     },
   },
@@ -205,11 +221,7 @@ export const allowCommissionsEngineValidation = () => [
       ]),
       'no-restricted-syntax': restrictedSyntax({
         userText: false,
-        engine: [
-          ...COMMISSIONS_ENGINE_ROOT_SYNTAX,
-          ...COMMISSIONS_ENGINE_VALIDATION_ONLY_SYNTAX,
-          ...COMMISSIONS_ENGINE_PATH_SYNTAX,
-        ],
+        engine: ADMIN_ENGINE_SYNTAX,
       }),
     },
   },
@@ -222,17 +234,11 @@ export const allowCommissionsEngineValidation = () => [
     rules: {
       'no-restricted-syntax': restrictedSyntax({
         userText: true,
-        engine: [
-          ...COMMISSIONS_ENGINE_ROOT_SYNTAX,
-          ...COMMISSIONS_ENGINE_VALIDATION_ONLY_SYNTAX,
-          ...COMMISSIONS_ENGINE_PATH_SYNTAX,
-        ],
+        engine: ADMIN_ENGINE_SYNTAX,
       }),
     },
   },
 ];
-
-export { COMMISSIONS_ENGINE_PATTERNS, COMMISSIONS_ENGINE_SYNTAX };
 
 /** Shared flat config. Every app and package re-exports this from its own eslint.config.js. */
 export const config = tseslint.config(
@@ -273,7 +279,6 @@ export const config = tseslint.config(
     },
   },
   ...boundariesConfig,
-  ...commissionsEngineBackendExceptions(),
   ...jsdocConfig,
   ...frontendConfig,
   prettier,

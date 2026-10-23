@@ -457,39 +457,21 @@ describe('ADR-0054 commissions engine import', () => {
     'apps/worker/package.json': '{"name":"@pospay/worker","dependencies":{}}',
   };
 
-  it('allows the api commissions persistence to import the engine', () => {
-    assert.equal(
-      checkModules(
-        repo({
-          ...workerPackage,
-          'apps/api/src/modules/commissions/persistence/engine.ts': code,
-        }),
-        engineMap,
-      ).join('\n'),
-      '',
+  for (const [file, expected] of [
+    ['apps/api/src/modules/commissions/persistence/engine.ts', ''],
+    ['apps/worker/src/modules/commissions/use-cases/engine.ts', ''],
+    ['apps/api/src/modules/staff/persistence/sneak.ts', /may be imported only by commissions/],
+  ]) {
+    it(
+      expected === '' ? `allows ${file} to import the engine` : `refuses the engine in ${file}`,
+      () => {
+        const problems = checkModules(repo({ ...workerPackage, [file]: code }), engineMap).join('\n');
+        if (expected === '') {
+          assert.equal(problems, '');
+          return;
+        }
+        assert.match(problems, expected);
+      },
     );
-  });
-
-  it('allows the worker commissions use case to import the engine', () => {
-    assert.equal(
-      checkModules(
-        repo({
-          ...workerPackage,
-          'apps/worker/src/modules/commissions/use-cases/engine.ts': code,
-        }),
-        engineMap,
-      ).join('\n'),
-      '',
-    );
-  });
-
-  it('refuses the engine outside the commissions module', () => {
-    assert.match(
-      checkModules(
-        repo({ ...workerPackage, 'apps/api/src/modules/staff/persistence/sneak.ts': code }),
-        engineMap,
-      ).join('\n'),
-      /may be imported only by commissions/,
-    );
-  });
+  }
 });
