@@ -2,7 +2,7 @@
 
 Track `MOB` (roadmap MOB-14 … MOB-19). Decision record: `docs/adr/0055-store-apps-capacitor-shell.md` (Proposed).
 Owner questions: [owner-questions.ar.md](owner-questions.ar.md) (APP-Q2 … APP-Q7, batch 55, PP-39.1 … PP-39.6,
-PENDING). This PR merges after PR #532, which records APP-Q1. Spec number 065 is
+answered by both owners on 2026-10-23). This PR merges after PR #532, which records APP-Q1. Spec number 065 is
 provisional (061 is claimed by open PR #439) and is renumbered at merge, like the ADR number.
 
 ## Goal of M-1
@@ -10,7 +10,7 @@ provisional (061 is claimed by open PR #439) and is renumbered at merge, like th
 At the end of M-1, every merge to `main` that touches the app's inputs produces an Android build and an iOS simulator
 build of «PosPay Business» as CI artifacts, from the same `apps/pos` code the PWA runs, and the auth risk of ADR-0055
 decision 3 is answered with evidence from a real iPhone and a real Android phone. **M-1 pays nothing and creates no store account.** Signed builds and TestFlight /
-Play internal uploads are M-2, gated on Abu Salem's APP-Q1 pick and on APP-Q3 … APP-Q6.
+Play internal uploads are M-2, gated on the company that will own the store accounts being formed (APP-Q3).
 
 ## Rules that hold for every sub-PR
 
@@ -37,16 +37,19 @@ Play internal uploads are M-2, gated on Abu Salem's APP-Q1 pick and on APP-Q3 �
 | O-1 | Staging origins (operations) | Dokploy env of `pospay-staging`: add the app origins to `AUTH_TRUSTED_ORIGINS` and the API CORS list — `https://pos.staging.pospay.systems` is already there (Android); add `capacitor://localhost` (iOS, ADR-0055 decision 3) | M-1a (origins known) | Web manager confirms the change; staging still serves the PWA unchanged |
 | M-1c | Auth spike and its record | the debug builds of M-1b; a short results section appended to this plan; if needed, `capacitor.config.ts` plugin config for `CapacitorHttp` / `CapacitorCookies` and `WKAppBoundDomains` in `ios/App/App/Info.plist` | M-1b, O-1 | Recorded, per platform, against staging with a seeded test company: (a) device pairing, (b) staff PIN session, (c) personal OTP session — each opens and survives an app restart; (d) the attendance QR camera opens and reads a code; (e) what passkey attendance does. **On real devices only:** Android a side-loaded debug APK; iOS a development build installed with Xcode's free personal-team signing on a Mac (no fee, no store account; the profile lasts 7 days). A simulator run may come first but does not close M-1c. **Every later row (M-1d onward) and every M-2 step, including any store fee, waits for this result.** If iOS (b) or (c) fails with both cookie paths, the track stops here and ADR-0055's last fallback goes to the owners and the web manager as a new ADR addendum; if (d) fails, a native camera plugin behind the M-1d port is added before attendance is enabled in the app |
 | M-1d | Native capability ports in `apps/pos` | `apps/pos/src/shared/platform/` (one port: `isNativeShell()` and the capabilities it reports); the Web Push control (spec 063) and passkey attendance read it and hide on native; UI tests assert the hidden state on screen, not a mock call (`CLAUDE.md` §9) | M-1c | The PWA behaves exactly as before; in the native build the two controls are absent and a short line tells the employee to use the PWA for them; `pnpm check` green |
-| M-1e | App identity | `apps/business`: display names, icons and splash for both flavours (staging badge on the staging icon), RTL default, Arabic first; app id per flavour from APP-Q6 | M-1a, **APP-Q2 and APP-Q6 answered** | Both flavours install side by side on one Android phone; the names and ids match the recorded answers |
+| M-1e | App identity | `apps/business`: display names, icons and splash for both flavours (staging badge on the staging icon), RTL default, Arabic first; app id per flavour from APP-Q6 (`systems.pospay.business`, `.staging`); the Arabic name only if APP-Q2's `TODO(spec)` is settled | M-1c | Both flavours install side by side on one Android phone; the names and ids match the recorded answers |
 | M-1f | Minimum supported app version | spec of its own first (a small public read route in the API plus a blocking "please update" screen in `apps/pos` native mode) | M-1d | Its own spec, ADR note and owner questions if any; listed here so the store lag of ADR-0055 is not forgotten |
 
 ## M-2 — signed builds and internal distribution (not started; gated)
 
-Starts only when **Abu Salem confirms APP-Q1** and **APP-Q3 … APP-Q6 are answered**. It needs, in this order:
+APP-Q1 is final and APP-Q2 … APP-Q7 are answered. M-2 starts only when **the company that will own the store accounts
+is formed** (APP-Q3; its legal name is `TODO(spec)` until then) **and M-1c is green on real devices**. It needs, in this
+order:
 
-1. **O-2 (owners):** the account holder enrols in the Apple Developer Program and creates the Google Play developer
-   account, in the name recorded in APP-Q3 (D-U-N-S from APP-Q4 for an organisation account), and publishes the privacy
-   policy at the URL of APP-Q5.
+1. **O-2 (owners):** the account holder (Abu Salem, APP-Q3) enrols in the Apple Developer Program and creates the Google Play developer
+   account, in the company's name (APP-Q3), with the D-U-N-S number requested for free once the company exists (APP-Q4;
+   the owners discuss it at their next meeting), and the privacy policy is published at `https://pospay.systems/privacy`
+   in Arabic and English (APP-Q5: we draft it, the owners or their lawyer review it).
 2. **O-2b (owners):** the account holder creates the store records before any automated upload: an App Store Connect
    app record per flavour, and per flavour a Play Console app with its first build uploaded by hand (the stage-A AAB
    signed with the upload key), because Play's API refuses uploads to an app that has none.
@@ -63,17 +66,17 @@ Starts only when **Abu Salem confirms APP-Q1** and **APP-Q3 … APP-Q6 are answe
    addresses.
 6. **M-2b:** passkey attendance in the app once O-4 is green (re-enables what M-1d hid).
 
-Public store release (MOB-17) is a separate step after M-2 and needs Waleed's typed yes, like a production deploy. If
-the Play account is a **personal** account (APP-Q3, option 2), Google requires a closed test with at least 12 testers
-opted in for 14 days in a row before production access; internal testing does not count. MOB-17 then starts with that
-closed test.
+Public store release (MOB-17) is a separate step after M-2 and needs Waleed's typed yes, like a production deploy. The owners chose a company account (APP-Q3), so Google's closed-test rule for new
+personal accounts (12 testers for 14 days) does not apply; if that ever changes, MOB-17 starts with that closed test.
 
 ## Later rows of the track
 
 - **MOB-18** cashier mode in the app: the cashier screens land in `apps/pos` first (web), then the printer and card
   terminal plugins behind the M-1d port; its own spec.
 - **MOB-19** native push on `push_subscriptions`: its own ADR (ADR-0055 decision 8 lists what it must decide).
-- **MOB-16** customer app: its own ADR (React Native + Expo is the recorded candidate, ADR-0055 decision 7).
+- **MOB-16** customer app: its own ADR (React Native + Expo is the recorded candidate, ADR-0055 decision 7), and before
+  it a separate ADR for the customer's view across every business on the platform (Abu Salem's APP-Q1 note), which RLS
+  forbids today.
 
 ## Open risks
 

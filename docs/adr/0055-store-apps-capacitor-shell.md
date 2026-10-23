@@ -2,10 +2,11 @@
 
 Status: Proposed (track MOB, sub-PR M-0; number provisional, renumbered at merge).
 Date: 2026-10-23. Scope: roadmap track `MOB` (MOB-14 … MOB-19), first deliverable «PosPay Business». Owner decision it
-rests on: APP-Q1 (`docs/owner-decisions.ar.md` §22, PP-38.1, batch 54) — Waleed picked two store apps on 2026-10-23;
-**Abu Salem's pick is PENDING and binds if it differs**. That record is added by PR #532, **which merges before this
-ADR**. Owner questions this ADR opens: APP-Q2 … APP-Q7 (`docs/specs/065-mob-app-shell/owner-questions.ar.md`, batch 55,
-PP-39.1 … PP-39.6, PENDING); every value below that depends on them is marked `TODO(spec)` with its question.
+rests on: APP-Q1 (`docs/owner-decisions.ar.md` §22, PP-38.1, batch 54) — two store apps, **final**: Waleed and Abu Salem
+both picked option 1 on 2026-10-23. That record is added by PR #532, **which merges before this ADR**. Owner questions
+this ADR opened: APP-Q2 … APP-Q7 (`docs/specs/065-mob-app-shell/owner-questions.ar.md`, batch 55, PP-39.1 … PP-39.6),
+**answered by both owners on 2026-10-23 (option 1 ⭐ on all six)**. Two points stay open and are marked `TODO(spec)`:
+the Arabic display name (APP-Q2) and the legal name of the company, which is still being formed (APP-Q3).
 
 ## Context
 
@@ -138,14 +139,14 @@ Bundled assets change the page origin, and that is the main technical risk of th
 The API origin is baked into the build (`VITE_API_URL`, as the staging images do), so there are **two flavours**, each
 its own installable app that can sit next to the other on one phone:
 
-| Flavour | Proposed bundle id / application id (APP-Q6) | Talks to | Distribution |
+| Flavour | Bundle id / application id (APP-Q6, decided) | Talks to | Distribution |
 | --- | --- | --- | --- |
-| staging | `systems.pospay.business.staging` — `TODO(spec)` APP-Q6 | `api.staging.pospay.systems` | TestFlight internal + Play internal testing, after every merge |
-| production | `systems.pospay.business` — `TODO(spec)` APP-Q6 | `api.pospay.systems` | TestFlight + Play internal first; store release only on Waleed's typed yes |
+| staging | `systems.pospay.business.staging` | `api.staging.pospay.systems` | TestFlight internal + Play internal testing, after every merge |
+| production | `systems.pospay.business` | `api.pospay.systems` | TestFlight + Play internal first; store release only on Waleed's typed yes |
 
-The ids are reverse-DNS of the domain we own (ADR-0001). They **cannot be changed after the first upload**, so they are
-an owner question (APP-Q6) and nothing is uploaded before it is answered. The display names (APP-Q2) are owner
-questions too. Version: `apps/business/package.json` `version` (user-visible, semver); build number: the CI run number
+The ids are reverse-DNS of the domain we own (ADR-0001); they **cannot be changed after the first upload**, which is
+why the owners chose them (APP-Q6). `systems.pospay.app` is reserved for the customer app. The display name is
+«PosPay Business» in every language (APP-Q2); an Arabic name is `TODO(spec)` until Waleed confirms Abu Salem's note. Version: `apps/business/package.json` `version` (user-visible, semver); build number: the CI run number
 (monotonic, as both stores require).
 
 ### 5. Signing keys live in CI secrets only
@@ -159,7 +160,7 @@ questions too. Version: `apps/business/package.json` `version` (user-visible, se
   and the provisioning profiles, both flavours. Android: the **upload** key (keystore, its password, alias) and a Google
   Play service-account JSON limited to the two apps. Google Play App Signing keeps the app-signing key at Google, so a
   leaked upload key is replaceable rather than fatal.
-- The keys are created by the account holder (APP-Q3) on their own machine and entered into GitHub by them or by Waleed.
+- The keys are created by the account holder (Abu Salem, APP-Q3) on their own machine and entered into GitHub by them or by Waleed.
   No agent creates, reads or stores them; the agent only names the secret each job expects.
 
 ### 6. CI builds and distribution after every merge
@@ -175,10 +176,12 @@ result (a path-filtered workflow never reports, so it could never become a requi
 | --- | --- | --- | --- | --- |
 | A. Android debug + unsigned AAB | PR and `main`, when the app's inputs change | `ubuntu-latest` | No | AAB/APK as a workflow artifact |
 | B. iOS simulator build, no signing | same trigger | `macos-latest` | No | `.app` for the simulator as an artifact |
-| C. Signed release builds + upload | `push` to `main` only, environment `mobile-release` | Ubuntu (Android), macOS (iOS) | Yes (APP-Q3 … APP-Q6) | TestFlight internal and Play internal testing, both flavours |
+| C. Signed release builds + upload | `push` to `main` only, environment `mobile-release` | Ubuntu (Android), macOS (iOS) | Yes (company accounts, APP-Q3 / APP-Q4) | TestFlight internal and Play internal testing, both flavours |
 
-- Stages A and B arrive with M-1 and cost nothing in store fees. **Stage C is written only after Abu Salem confirms
-  APP-Q1 and APP-Q3 … APP-Q6 are answered**; until then nothing is uploaded and no account is paid for.
+- Stages A and B arrive with M-1 and cost nothing in store fees. **Stage C is written only after the company that will
+  own the store accounts is formed and its accounts exist** (APP-Q3: the accounts are in the company's name, the company
+  is still being formed, and Abu Salem is the account holder; APP-Q4: its D-U-N-S number is requested after that). Until
+  then nothing is uploaded and no account is paid for.
 - The upload tool is **fastlane** (`pilot` for TestFlight, `supply` for Play) at a version pinned in a committed
   `Gemfile.lock`, added in the sub-PR that writes stage C; it is the standard path for both stores and keeps third-party
   GitHub Actions out of the release path (the stance `ci.yml` takes for images). The sub-PR names the version it checked.
@@ -199,6 +202,13 @@ result (a path-filtered workflow never reports, so it could never become a requi
 consumer app benefits from native components, it does not share the staff screens, and it can still import
 `packages/domain` and `packages/contracts`. Capacitor stays possible if the customer app turns out to be a thin
 ordering and booking flow. It would live in `apps/customer`.
+
+Abu Salem's note on APP-Q1 (2026-10-23) sets its scope: a customer sees their bookings, purchases, points, packages
+(and what is left in them) and refunds **across every business on the platform**, not only one salon. That is a view
+across tenants, which RLS forbids by design (`CLAUDE.md` §5: every tenant query runs inside one `withTenant()`). It needs
+**its own ADR before any customer-app work**: the customer's global identity, how a customer is linked to each
+company's customer record, and the read path that gathers per-company data without a cross-tenant query. This ADR does
+not decide it.
 
 ### 8. Native push is MOB-19, on `push_subscriptions`
 
@@ -226,14 +236,14 @@ notices keep the PWA installed for them.
   (sub-PR M-1f). Over-the-air web updates (a hosted live-update service) are out of scope: a new vendor needs its own ADR.
 - Every merge that touches `apps/pos` costs CI minutes on macOS; measured and reported in M-1d.
 - The auth-transport risk on iOS (decision 3) is the gate of the whole track: if neither cookie path works, the track
-  stops at M-1a and the session-transport question goes back to the owners and the web manager.
+  stops at M-1c and the session-transport question goes back to the owners and the web manager.
 - Passkey attendance and native push are not available in the first internal builds; the PWA covers both meanwhile.
 - No store fee is paid and no account is created by this ADR. Apple's developer programme is a yearly fee and Google
-  Play's a one-time fee; both wait for Abu Salem's APP-Q1 pick and the account answers.
+  Play's a one-time fee; both wait for the company to be formed (APP-Q3).
 
-## Open owner questions (PENDING)
+## Owner questions
 
-APP-Q2 display names · APP-Q3 account holder and legal name on the developer accounts · APP-Q4 D-U-N-S number ·
-APP-Q5 privacy-policy URL · APP-Q6 bundle ids · APP-Q7 internal testers. Recorded in
-`docs/specs/065-mob-app-shell/owner-questions.ar.md`; the PosPay orchestrator publishes them on the decisions page and
-indexes them in `docs/owner-decisions.ar.md`.
+APP-Q2 display name · APP-Q3 account holder and legal name on the developer accounts · APP-Q4 D-U-N-S number ·
+APP-Q5 privacy-policy URL · APP-Q6 bundle ids · APP-Q7 internal testers — answered by both owners on 2026-10-23 and
+recorded verbatim in `docs/specs/065-mob-app-shell/owner-questions.ar.md` (indexed as PP-39 in
+`docs/owner-decisions.ar.md`). Open: the Arabic display name (APP-Q2) and the company's legal name (APP-Q3).
