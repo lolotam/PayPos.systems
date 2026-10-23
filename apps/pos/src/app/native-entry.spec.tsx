@@ -215,7 +215,9 @@ describe('NativeEntry link while the app runs', () => {
 
   it('takes the same link while the app runs', async () => {
     mount();
-    expect(await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+    expect(
+      await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') }),
+    ).not.toBeNull();
 
     await act(async () => {
       opened.listener?.(link());

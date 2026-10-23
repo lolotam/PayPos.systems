@@ -50,4 +50,5 @@ export function useNativeLink(
         void onLink(readManagerLink(raw));
       }),
     [onLink],
-  );}
+  );
+}

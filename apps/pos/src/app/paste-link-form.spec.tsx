@@ -56,9 +56,9 @@ describe('PasteLinkForm', () => {
     const alert = screen.getByRole('alert');
     expect(alert.textContent).toBe(t('ar', 'personalStaff.linkRequired'));
     expect(onConnect).not.toHaveBeenCalled();
-    expect((screen.getByLabelText(t('ar', 'nativeShell.pasteLabel')) as HTMLInputElement).value).toBe(
-      pasted,
-    );
+    expect(
+      (screen.getByLabelText(t('ar', 'nativeShell.pasteLabel')) as HTMLInputElement).value,
+    ).toBe(pasted);
   });
 
   it('asks for the whole link and never for an identifier', () => {
