@@ -153,6 +153,16 @@ it('recomputes the ttl from the time left to the deadline', async () => {
   expect(Number(header(fake.calls[0], 'ttl'))).toBe(30);
 });
 
+it('refuses a malformed key before any request is made', async () => {
+  const fake = fakeRequest(201);
+  const offCurve = Buffer.concat([Buffer.from([0x04]), Buffer.alloc(64, 7)]).toString('base64url');
+  const result = await channel(fake.request).send(
+    request({ target: { ...subscription(), p256dh: offCurve } }),
+  );
+  expect(result).toEqual({ kind: 'refused', code: 'CAPABILITY_UNAVAILABLE' });
+  expect(fake.calls).toHaveLength(0);
+});
+
 it('never carries the endpoint, the keys or the payload in the result', async () => {
   const fake = fakeRequest(201);
   const sent = request();

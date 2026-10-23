@@ -183,6 +183,8 @@ it('the fake mode outside production needs no keys at all', async () => {
   expect(capability.enabled).toBe(true);
   expect(starts).toBe(1);
   expect(sends[0]?.channel).toBeInstanceOf(FakePushChannel);
+  // من غير مفاتيح مفيش معرّف مفتاح، فمفيش مقارنة بسحب اشتراك حقيقي.
+  expect(sends[0]?.keyId).toBeNull();
   expect(lines.join('')).toContain('READY');
 });
 

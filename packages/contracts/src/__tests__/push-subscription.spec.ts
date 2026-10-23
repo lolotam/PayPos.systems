@@ -61,9 +61,19 @@ describe('an allowed push endpoint', () => {
       'https://db5.notify.windows.com/w/?token=abc',
       'https://abc.notify.windows.com/w/?token=x',
       'https://fcm.googleapis.com/fcm/send/abc?token=xyz',
-      'https://fcm.googleapis.com',
+      'https://x.notify.windows.com/?token=abc',
     ])
       expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(true);
+  });
+
+  it('refuses a host without a path and a query directly after the host', () => {
+    for (const endpoint of [
+      'https://updates.push.services.mozilla.com?token=abc',
+      'https://x.notify.windows.com?token=abc',
+      'https://fcm.googleapis.com',
+      'https://fcm.googleapis.com?x=1',
+    ])
+      expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(false);
   });
 
   it('refuses a non-https scheme, a user-info, a port and an IP literal', () => {

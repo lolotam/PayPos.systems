@@ -115,16 +115,17 @@ function localFailure(
 /**
  * يقرر إن كانت المحاولة ممكنة تتسلّم محليًا، ويقول سبب المنع لو لأ.
  * القاعدة: الموعد اللي عدّى أو اشتراك مسحوب أو متغيّر أو مفتاح قديم معناها إن مفيش ولا طلب؛
- * الترتيب ثابت عشان السبب المسجّل هو الأسبق أثرًا.
+ * الترتيب ثابت عشان السبب المسجّل هو الأسبق أثرًا، ومعرّف المفتاح null معناها إن مفيش مفتاح
+ * نشوفه (الوضع المزيف) فمفيش مقارنة للمفتاح.
  *
  * @param delivery     المحاولة واشتراكها
- * @param currentKeyId معرّف مفتاح VAPID الحالي
+ * @param currentKeyId معرّف مفتاح VAPID الحالي، أو null لما مفيش مفتاح
  * @param now          اللحظة الحالية
  * @returns null لو الإرسال مسموح، أو قرار المنع المحلي
  */
 export function pushPreflight(
   delivery: PushDelivery,
-  currentKeyId: string,
+  currentKeyId: string | null,
   now: Date,
 ): PushDecision | null {
   const { attempt, subscription } = delivery;
@@ -140,7 +141,7 @@ export function pushPreflight(
     return localFailure('SUBSCRIPTION_REVOKED');
   if (subscription.generation !== attempt.subscriptionGeneration)
     return localFailure('SUBSCRIPTION_CHANGED');
-  if (subscription.vapidKeyId !== currentKeyId)
+  if (currentKeyId !== null && subscription.vapidKeyId !== currentKeyId)
     return localFailure('KEY_ROTATED', 'FAILED', 'KEY_ROTATED');
   return null;
 }

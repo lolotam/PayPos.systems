@@ -27,9 +27,9 @@ export function isAllowedPushHost(host: string): boolean {
   return host.length > suffix.length && host.endsWith(suffix);
 }
 
-// نقطة الدفع: https ومضيف من حروف صغيرة وأرقام وشرطات ونقاط، وبعده path أو query اختياري من غير مسافات
-// ولا fragment؛ الباقي ثابت فالهاش واحد لكل وجهة.
-const ENDPOINT_PATTERN = /^https:\/\/([a-z0-9.-]+)([/?][^\s#]*)?$/;
+// نقطة الدفع: https ومضيف من حروف صغيرة وأرقام وشرطات ونقاط، وبعده path لازم يبدأ بشرطة مائلة
+// ومن غير مسافات ولا fragment؛ الباقي ثابت فالهاش واحد لكل وجهة.
+const ENDPOINT_PATTERN = /^https:\/\/([a-z0-9.-]+)(\/[^\s#]*)$/;
 
 // أربع مجموعات أرقام بنقط: عنوان IP مش مضيف.
 const IPV4_PATTERN = /^\d{1,3}(\.\d{1,3}){3}$/;

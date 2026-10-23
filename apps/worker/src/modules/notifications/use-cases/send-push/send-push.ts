@@ -36,7 +36,7 @@ export class SendPush {
     readonly builder: PushRequestBuilder,
     readonly channel: PushChannel,
     readonly admission: PushAdmission,
-    readonly keyId: string,
+    readonly keyId: string | null,
     readonly clock: Clock,
     readonly ids: IdGenerator,
   ) {}

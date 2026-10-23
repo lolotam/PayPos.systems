@@ -49,9 +49,6 @@ export interface PushCapability {
   close(force?: boolean): Promise<void>;
 }
 
-// معرّف المفتاح الافتراضي في الوضع المزيف: مفيش مفاتيح، بس هوية ثابتة للتسجيل.
-const DEFAULT_KEY_ID = '0000000000000000';
-
 export interface PushStartupOptions {
   readonly env: NodeJS.ProcessEnv;
   readonly production: boolean;
@@ -203,10 +200,10 @@ export async function startPushCapability(
   }
 }
 
-/** نتيجة تجهيز قدرة الدفع: مقفولة بسبب محدود، أو جاهزة بقناة ومعرّف مفتاح. */
+/** نتيجة تجهيز قدرة الدفع: مقفولة بسبب محدود، أو جاهزة بقناة ومعرّف مفتاح (>null لما مفيش مفتاح). */
 type PushBinding =
   | { readonly kind: 'disabled'; readonly reason: string }
-  | { readonly kind: 'ready'; readonly channel: PushChannel; readonly keyId: string };
+  | { readonly kind: 'ready'; readonly channel: PushChannel; readonly keyId: string | null };
 
 // الوضع المزيف محتاجش مفاتيح (FR-011)، والإنتاج رفضه؛ وكل حالة تانية بتقرأ الجاهزية.
 function bindPushCapability(options: PushStartupOptions): PushBinding {
@@ -217,7 +214,7 @@ function bindPushCapability(options: PushStartupOptions): PushBinding {
     return {
       kind: 'ready',
       channel: new FakePushChannel(options.clock.now),
-      keyId: readPushApiConfiguration(options.env)?.keyId ?? DEFAULT_KEY_ID,
+      keyId: readPushApiConfiguration(options.env)?.keyId ?? null,
     };
   const readiness = readPushWorkerConfiguration(options.env);
   if (!readiness.ready) return { kind: 'disabled', reason: readiness.reason };

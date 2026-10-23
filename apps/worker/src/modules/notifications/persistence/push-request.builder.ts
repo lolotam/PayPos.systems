@@ -1,6 +1,7 @@
 import { isAllowedPushEndpoint } from '@pospay/contracts';
 import {
   buildPushPayload,
+  isValidSubscriptionKeys,
   pushTimeToLiveSeconds,
   pushTopic,
   renderPushNotice,
@@ -15,8 +16,8 @@ import type { PushBuild, PushRequestBuilder } from '../ports/push-request-builde
 
 /**
  * باني طلب الدفع: يجمع النص والحمولة ومدة البقاء والموضوع من المحاولة واشتراكها.
- * القاعدة: الوجهة بتتأكد إنها على قائمة المواقع المسموحة (ADR-0052 §3) قبل أي سر يستعمل؛
- * ونص مش موجود أو حمولة أكبر من الحد معناها رفض محلي بصفر طلبات.
+ * القاعدة: الوجهة بتتأكد إنها على قائمة المواقع المسموحة (ADR-0052 §3) والمفاتيح بتتأكد شكلها
+ * قبل أي سر يستعمل؛ ونص مش موجود أو حمولة أكبر من الحد معناها رفض محلي بصفر طلبات.
  *
  * @param delivery المحاولة واشتراكها
  * @param now      اللحظة الحالية
@@ -37,6 +38,9 @@ function build(delivery: PushDelivery, now: Date): PushBuild {
     return { kind: 'refused', decision: refusedDecision('PARAMETERS_INVALID') };
   // وجهة مش مسموحة معناها إن الاشتراك ما بيوصلش لخدمة دفع؛ بيتسحب بدل ما نبعت لعنوان غريب.
   if (!isAllowedPushEndpoint(endpoint))
+    return { kind: 'refused', decision: invalidEndpointDecision() };
+  // مفاتيح مش سليمة معناها إن التشفير هيفشل؛ الاشتراك بيتسحب برضه لأنه ما بيشتغلش.
+  if (!isValidSubscriptionKeys(p256dh, auth))
     return { kind: 'refused', decision: invalidEndpointDecision() };
   const payload = buildPushPayload({
     title: copy.title,

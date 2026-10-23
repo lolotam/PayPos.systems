@@ -282,12 +282,12 @@ container. Do not set `NOTIFICATIONS_MODE=fake` on a deployed environment: a pro
 and a `reason` (`NOT_CONFIGURED`, `PUBLIC_KEY_OR_SUBJECT_INVALID`, `PRIVATE_KEY_INVALID`, `KEY_MISMATCH`, `FAKE_IN_PRODUCTION`); a key is never
 in that line. The API answers `GET /v1/staff/push/config` with `NOT_READY` until the public key and the subject are valid.
 If the API is ready and the worker is not, employees can still subscribe, but no notice is created for push and nothing
-is sent until the worker is fixed; only notices created after that are pushed. Neither case changes `/ready`.
+is sent until the worker is fixed; only notices created after that are pushed. Neither case changes `/ready`. If the log says `state: UNAVAILABLE` with `reason: SETUP_FAILED` (Redis was not reachable when the worker started), push stays off for that process and no push attempts are written until the worker is restarted: restart it once Redis is up.
 
 **Rotate.** Generate a new pair and replace all three variables together, then redeploy. A push service binds each
 subscription to the key it was created with, so **every existing subscription stops working**: the sender revokes a row
 whose key id is not the current one (`KEY_ROTATED`) without calling the push service. Each employee repairs it by opening
-the staff app once (it unsubscribes and subscribes again with the new key). Plan the rotation for a quiet hour and tell the
+the staff app once (it unsubscribes and subscribes again with the new key). Do the rotation in this order, because an old worker that is still running would treat a subscription created under the new key as stale and revoke it: stop the worker first, set the three variables, then start the new worker and the API together. Plan the rotation for a quiet hour and tell the
 managers there is a gap in delivery until the staff open the app.
 
 **Reading a failure.** `push_attempts.failure_code` says what happened: `SUBSCRIPTION_GONE` (the phone uninstalled or the

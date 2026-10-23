@@ -112,6 +112,11 @@ describe('pushPreflight', () => {
       vapidRejected: false,
     });
   });
+
+  it('never reports a rotated key when there is no key to compare with', () => {
+    expect(pushPreflight(delivery(), null, NOW)).toBeNull();
+    expect(pushPreflight(delivery({}, { vapidKeyId: 'fedcba9876543210' }), null, NOW)).toBeNull();
+  });
 });
 
 describe('the accepted and gone answers', () => {

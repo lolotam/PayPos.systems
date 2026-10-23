@@ -49,13 +49,33 @@ type WebPushLibrary = {
     subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
     payload: string,
     options: WebPushRequestOptions,
-  ): {
-    method: string;
-    headers: Record<string, string | number | undefined>;
-    body: Buffer | null;
-    endpoint: string;
-  };
+  ): WebPushRequestDetails;
 };
+
+/** تفاصيل الطلب بعد التشفير والتوقيع: إزاي نبعته من غير ما نعرف حاجة عن الوجهة. */
+interface WebPushRequestDetails {
+  readonly method: string;
+  readonly headers: Record<string, string | number | undefined>;
+  readonly body: Buffer | null;
+  readonly endpoint: string;
+}
+
+/** بناء الطلب فشل قبل الشبكة: المفاتيح أو الحمولة مرفوضة، ومفيش حاجة اتبعتت. */
+export class PushRequestBuildError extends Error {
+  constructor() {
+    super('PUSH_REQUEST_BUILD_FAILED');
+    this.name = 'PushRequestBuildError';
+  }
+}
+
+function isBuildError(error: unknown): boolean {
+  if (error instanceof PushRequestBuildError) return true;
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: unknown }).name === 'PushRequestBuildError'
+  );
+}
 
 let library: Promise<WebPushLibrary> | null = null;
 
@@ -67,6 +87,24 @@ function loadLibrary(): Promise<WebPushLibrary> {
   return library;
 }
 
+// تشفير وتوقيع من المكتبة؛ أي رفض هنا قبل الشبكة، فبينتهي كسبب معروف مش كعدم يقين.
+function buildDetails(
+  webpush: WebPushLibrary,
+  target: PushTarget,
+  payload: string,
+  options: WebPushRequestOptions,
+): WebPushRequestDetails {
+  try {
+    return webpush.generateRequestDetails(
+      { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },
+      payload,
+      options,
+    );
+  } catch {
+    throw new PushRequestBuildError();
+  }
+}
+
 /**
  * المرسل الافتراضي: تشفير وتوقيع من المكتبة، ثم طلب واحد بـ Node بمهلة مطلقة.
  * القاعدة: مهلة المكتبة هي مهلة خمول السوكِت بس، فالمهلة المطلقة بتتعمل هنا بـ AbortController؛
@@ -75,11 +113,7 @@ function loadLibrary(): Promise<WebPushLibrary> {
 function defaultSender(request: typeof httpsRequest): PreparableSender {
   const send: WebPushSender = async (target, payload, options) => {
     const webpush = await loadLibrary();
-    const details = webpush.generateRequestDetails(
-      { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },
-      payload,
-      options,
-    );
+    const details = buildDetails(webpush, target, payload, options);
     return sendOnce(request, details, options.timeout);
   };
   return Object.assign(send, {
@@ -93,12 +127,7 @@ function defaultSender(request: typeof httpsRequest): PreparableSender {
 // الرد بيتدمّر من غير قراءة جسمه، وأي خطأ بيتحوّل لسبب محدود من غير نصّه.
 function sendOnce(
   request: typeof httpsRequest,
-  details: {
-    method: string;
-    headers: Record<string, string | number | undefined>;
-    body: Buffer | null;
-    endpoint: string;
-  },
+  details: WebPushRequestDetails,
   timeoutMs: number,
 ): Promise<{ statusCode: number }> {
   return new Promise((resolve, reject) => {
@@ -186,6 +215,8 @@ export class WebPushChannel implements PushChannel {
         ? mapStatus(response.statusCode)
         : networkUnknown();
     } catch (error) {
+      // الرفض قبل الشبكة: النتيجة معروفة، مش عدم يقين.
+      if (isBuildError(error)) return { kind: 'refused', code: 'CAPABILITY_UNAVAILABLE' };
       const status = statusOf(error);
       return status === null ? networkUnknown() : mapStatus(status);
     }

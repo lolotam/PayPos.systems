@@ -88,15 +88,17 @@ if (!production) {
     );
   }
 }
-const inApp = production
-  ? createInAppNotificationModule({
-      database: app,
-      ids: systemUuidV7(),
-      clock: { now: () => new Date() },
-      email: email.module,
-      push: { enabled: push.enabled },
-    })
-  : null;
+// من غير الموديول الكامل يبقى في bell بس؛ وإلا مفيش مستهلك خالص والمشغّل بيكتب.
+const inApp =
+  production || notifications === null
+    ? createInAppNotificationModule({
+        database: app,
+        ids: systemUuidV7(),
+        clock: { now: () => new Date() },
+        email: email.module,
+        push: { enabled: push.enabled },
+      })
+    : null;
 if (production)
   logger.info(
     { capability: { name: 'TENANT_WHATSAPP', state: 'DISABLED', reason: 'LIVE_NOT_AUTHORIZED' } },

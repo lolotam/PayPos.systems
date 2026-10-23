@@ -54,6 +54,23 @@ it('refuses an endpoint that is not an allowed push service and scrubs the subsc
   expect(subscription?.['delivery_token']).toBeNull();
 });
 
+it('refuses a subscription whose stored key is malformed and scrubs it', async () => {
+  const { attemptId, subscriptionId } = await h.authorizeAttempt('ar');
+  await h.owner`UPDATE push_subscriptions SET p256dh = 'synthetic-malformed-p256dh'
+    WHERE id = ${subscriptionId}`;
+  const before = h.channel.calls;
+  const result = await h.send.execute(TENANT.A.company, attemptId);
+  expect(result).toMatchObject({ status: 'FAILED', failureCode: 'SUBSCRIPTION_GONE' });
+  expect(h.channel.calls).toBe(before);
+  const [row] = await h.attempt(attemptId);
+  expect(row).toMatchObject({ status: 'FAILED', failure_code: 'SUBSCRIPTION_GONE' });
+  const [subscription] = await h.subscription(subscriptionId);
+  expect(subscription?.['revoked_reason']).toBe('GONE');
+  expect(subscription?.['p256dh']).toBeNull();
+  expect(subscription?.['auth']).toBeNull();
+  expect(subscription?.['delivery_token']).toBeNull();
+});
+
 it('records a changed subscription instead of leaving the attempt pending', async () => {
   const { attemptId, subscriptionId } = await h.authorizeAttempt('ar');
   const before = h.channel.calls;
