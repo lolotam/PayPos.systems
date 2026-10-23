@@ -15,7 +15,7 @@ interface FakeRedis {
 function fakeRedis(): FakeRedis {
   const store = new Map<string, { count: number; expiresAt: number }>();
   let now = 0;
-  const eval = async (
+  const evalScript = async (
     _script: string,
     _numkeys: number,
     ...args: (string | number | Buffer)[]
@@ -32,7 +32,7 @@ function fakeRedis(): FakeRedis {
     return entry.count <= limit ? 1 : 0;
   };
   return {
-    redis: { eval } as unknown as Pick<Redis, 'eval'>,
+    redis: { eval: evalScript } as unknown as Pick<Redis, 'eval'>,
     advance: (ms) => {
       now += ms;
     },

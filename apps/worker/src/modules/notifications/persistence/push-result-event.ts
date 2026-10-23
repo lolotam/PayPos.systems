@@ -3,7 +3,7 @@ import { appendOutboxEvent, type Tx } from '@pospay/db';
 
 import type { PushTerminalResult } from '../domain/push-delivery.ts';
 
-/** هوية المحاولة في حدث النتيجة: أرقام وبيانات 범خ بس، من غير أي سر من الاشتراك. */
+/** هوية المحاولة في حدث النتيجة: معرّفات وبيانات القالب بس، من غير أي سر من الاشتراك. */
 export interface PushResultAttempt {
   readonly companyId: string;
   readonly id: string;

@@ -95,7 +95,9 @@ export interface PushDecision {
 /**
  * يبني رفضًا محليًا: الفشل معروف والنتيجة معلومة وبلا سحب.
  *
- * @param code سبب الرفض المحدود
+ * @param code   سبب الرفض المحدود
+ * @param status حالة المحاولة بعد الرفض
+ * @param revoke سبب سحب الاشتراك لو الرفض بيطلب سحب
  * @returns قرار الرفض المحلي
  */
 function localFailure(

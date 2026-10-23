@@ -123,7 +123,10 @@ it('sends the topic of the source event and the seconds left to the deadline', a
 
 it('expires a pending attempt whose deadline passed without any call', async () => {
   const { subscriptionId } = await h.authorizeAttempt('ar');
-  const attemptId = await h.pendingAttempt({ subscriptionId });
+  const attemptId = await h.pendingAttempt({
+    subscriptionId,
+    deadline: '2026-10-01T09:00:00Z',
+  });
   const before = h.channel.calls;
   const outcome = await h.send.execute(TENANT.A.company, attemptId);
   expect(outcome?.status).toBe('EXPIRED');
