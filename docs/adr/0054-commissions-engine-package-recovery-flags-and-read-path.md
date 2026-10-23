@@ -147,7 +147,8 @@ any flag is open. The API never reads the table.
 **Clearing.** Only an operator script run as the migration owner (the `platform:grant` precedent of ADR-0003 §3). It
 names the **id of the incident** it confirms — never "the open flag of this code" — sets `cleared_at` and `cleared_by` in
 one statement, and inserts a `platform_audit_log` row in the same transaction. A restart never clears: the runtime holds
-no `UPDATE` and no `DELETE` on the table, so it cannot clear its own alarm.
+no `UPDATE` and no `DELETE` on the table, so it cannot clear its own alarm. **Superseded by CS-Q32 (2026-10-23):** the
+worker clears its own flag after a complete rebuild; see Consequences and spec 059 FR-053 (_CS-Q32_).
 
 **What 56b-1 (the sub-PR that builds the table) must add.** The migration; the privilege allowlist entries for
 `pospay_dispatcher` in `packages/db/test/table-grants.ts` (`operational_recovery_flags` `INSERT` and `SELECT`) and the
@@ -274,9 +275,11 @@ it with the round-trip test CM-34e.
 - 56b-1 is **no longer blocked by CS-Q31** (decided, 2026-10-23): the table's grants change the governing text of
   CLAUDE.md §5 and ADR-0003, so 56b-1 amends both in its own PR to name the `pospay_dispatcher` grant. By **CS-Q32**
   (batch 53; decided 2026-10-23 by Waleed and Abu Salem) the worker rebuilds every company's schedule by itself after a Redis
-  loss, through a narrow read of company ids only (like ADR-0038), and clears its own flag after a successful rebuild.
-  That supersedes the operator replay and "the runtime never clears its own flag" of section 2, so 56b-1 starts with a
-  new ADR.
+  loss, through a narrow read of company ids only (a new mechanism: ADR-0038 covers only the migrate step), and clears its own
+  flag only after every company's rebuild succeeds. That supersedes section 2's manual-only clearing and the
+  `SELECT`/`INSERT`-only grant, and turns the operator replay into a fallback. 56b-1 therefore starts with a new ADR
+  that defines the clear privilege, the incident-and-generation guard, the bounded retry and the audit path (spec 059
+  FR-053, _CS-Q32_).
 - Every sub-PR that adds a root binding adds its Port row to `docs/module-map.md` §3, or stops and writes an ADR first
   (D-16).
 - The spec is corrected in the same PR: D-17 (the enforcement of the restriction), FR-053 (the table's shape and

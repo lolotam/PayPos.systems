@@ -33,7 +33,7 @@
 
 ## Notes
 
-- SE-Q1…SE-Q6 are decided (Waleed, 22 October 2026; Abu Salem's picks pending on the decisions page). The spec is
+- SE-Q1…SE-Q6 are final (Waleed, 22 October 2026; Abu Salem picked the same six options on 23 October 2026). The spec is
   **not ready for implementation** until row 28b is merged through 28b-3 (web-push adapter, worker processor, VAPID keys).
 - Owner questions are recorded in Arabic in `owner-questions.ar.md`; publishing them is the orchestrator's job.
 - Technical decisions (third detector in the company job, rule from `AlertRulesPort`, presence = OPEN session, ledger
