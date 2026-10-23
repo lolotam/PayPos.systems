@@ -117,8 +117,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    MANUAL session) and the day's worked hours; a date with an uncorrected missed clock-out shows «ناقص بصمة خروج» /
    "Missing clock-out" and adds 0 hours (BR-05); a date with approved leave shows the leave type; a date with a
    scheduled shift and no counted session shows the scheduled times and «لا يوجد حضور مسجّل» / "No attendance
-   recorded"; any other date shows the date only. A date after the cutoff (FR-013a) shows the date only, whatever its
-   schedule: never «لا يوجد حضور مسجّل».
+   recorded"; any other date shows the date only. A date after the cutoff (FR-013a), and a shift on the cutoff day that
+   had not ended at the request, show the date only, whatever the schedule: never «لا يوجد حضور مسجّل».
 3. The totals under the table are the 27b columns for that employee and period, then her signature line and the
    manager's (BR-04).
 
@@ -274,8 +274,12 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   rows, the BR-11 day selection and who has a row (Story 1.4, Story 3.3), is computed over `from` to the earlier of `to`
   and the cutoff. A date after the cutoff adds no scheduled, contracted or worked minutes, no lateness and no «لا يوجد
   حضور مسجّل», and the employee form prints it as the date only (Story 2.2). A period that starts after the cutoff
-  therefore counts nothing: Story 3.3 refuses the employee form, and the branch table has no row. This is what Story
-  3.4's «its future dates show the date only» already says; it adds no new rule.
+  therefore counts nothing: Story 3.3 refuses the employee form, and the branch table has no row. On the cutoff day
+  itself only the scheduled shifts that had already ended at `requested_at` (branch-local) count. A shift that had not
+  ended is treated like a future date: it adds no scheduled or contracted minutes, no lateness and no «لا يوجد حضور
+  مسجّل». When no shift of that date had ended, the employee form prints the date only, plus any session already counted
+  on it. FR-003's request-time check applies the same rule. This is what Story 3.4's «its future dates show the date
+  only» already says, applied to the part of the request day that has not happened yet.
 - **FR-014** The template's input is a Zod schema in `packages/contracts` (`attendanceStatementDocument`). The source
   builds it, after the two calls of FR-010, from the reader's `statement` (FR-011) and the `readStatementLogo` result
   encoded as `logo: { content_type, base64 }`, or `logo: null` when `logoFileId` is `null` or the logo reader returned
@@ -411,7 +415,9 @@ factory. The code PRs add the two port rows.
   split-shift day, an overnight shift, a pair that matches nothing, «—» for contracted and difference); parity with 27b
   for full months that end on or before the cutoff, with no filter; the FR-013a cutoff with a fixed date: October 2026
   with the cutoff 2026-10-23 counts 1–23 October only, and 24–31 October add no scheduled or contracted minutes and
-  print the date only, even on a scheduled date.
+  print the date only, even on a scheduled date; on the cutoff day, a request at 10:00 branch-local for a date with a
+  17:00–21:00 shift adds no minutes for that shift and prints the date only, while a 08:00–09:30 shift on the same
+  date, already ended, counts (with its «لا يوجد حضور مسجّل» when it has no session).
 - **Contracts:** request body (forms, `employee_id` rule, `strictObject`), status reply, the template data schema.
 - **API integration (T2 Postgres, one cloned DB per file, ADR-0006):** 202 and the request row; every refusal of
   Story 3 including `403` without the permission, `404` cross-tenant/other-user/other-branch, and `404` for a business A
@@ -461,10 +467,11 @@ factory. The code PRs add the two port rows.
 The worker source (3) ships **before** the API that admits requests (4), so every request the API accepts has a
 registered `attendance-statement` source; until 4 is deployed nothing enqueues that kind. ST-Q6 is answered, so the
 shift filter is no longer waiting on ST-Q6, but its leave column waits on ST-Q7 (`TODO(spec)`). Until ST-Q7 is
-answered: 27g-2 leaves the leave field of a shift-filtered table out of the contract and the domain (its shape depends
-on the answer, «—» being one option), 27g-4 does not accept `shift` (the request body has no `shift` field yet, so a
-filtered statement cannot be requested), and 27g-5 shows no shift picker. Once ST-Q7 is answered, one follow-up PR adds
-the field, its domain rule and tests, `shift` in the request and the picker together. Each code sub-PR passes
+answered: 27g-2 makes the leave field of the `attendanceStatementDocument` row nullable, so the contract fits every
+ST-Q7 option («—» is `null`), and adds no filtered-leave domain rule; 27g-4 does not accept `shift` (the request body
+has no `shift` field yet, `TODO(spec)` ST-Q7, so a filtered statement cannot be requested); and 27g-5 shows no shift
+picker (`TODO(spec)` ST-Q7). Once ST-Q7 is answered, one follow-up PR adds the filtered-leave domain rule and its tests,
+`shift` in the request and the picker together. Each code sub-PR passes
 the gates of `CLAUDE.md` §10 before merge.
 
 ## 10. Assumptions
