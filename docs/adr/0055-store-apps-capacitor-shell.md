@@ -9,6 +9,9 @@ this ADR opened: APP-Q2 … APP-Q7 (`docs/specs/065-mob-app-shell/owner-question
 Arabic name «بوس باي للأعمال»; Abu Salem's option 1 binds, and the Arabic name waits for his confirmation). Still open: the legal name of the company, which
 is still being formed (APP-Q3, `TODO(spec)`). **APP-Q8** (batch 56, PP-40.1) is final: both owners picked
 the GitHub macOS runner with the iOS simulator, inside the free minutes only.
+**APP-Q20** (batch 60, PP-44.1): the guard counts this repository's own macOS minutes, with no account token, and Waleed
+checks account usage weekly (Waleed, 2026-10-23; Abu Salem's pick binds if it differs). It replaces the usage-read token
+this ADR first described, which GitHub's billing endpoints would not accept in a narrow form.
 
 ## Context
 
@@ -227,34 +230,35 @@ live in `apps/business/`, so the `apps/business/**` input already covers them.
   and tests the mechanism.
   1. **An admission check runs before any macOS runner is requested.** It is a preflight job on `ubuntu-latest`. A
      refused admission starts no macOS runner.
-  2. **Two separate records, both atomic.** A **slot** bounds concurrency: at most **K** across all refs, taken
+  2. **Admissions are atomic and bounded.** A **slot** bounds concurrency: at most **K** across all refs, taken
      atomically (for example, one of K fixed slot refs whose creation fails when it exists), freed when the macOS job
-     ends. A **usage record** bounds spending: written with the slot, it stays until the billed usage has caught up
-     with that job (M-1b measures the billing delay), whether the job ran, failed or stopped early.
-  3. **Projected use is never double-counted:** the account's billed usage for GitHub's billing cycle (read with
-     `ACTIONS_USAGE_TOKEN`; `GITHUB_TOKEN` cannot read account billing) plus every usage record not yet reflected in
-     it, each at its job's timeout times the macOS multiplier.
-  4. **The threshold leaves room for every admitted job.** Admission is granted only while projected use plus the new
-     job stays under **80 % of the included minutes**, and the remaining 20 % must exceed K jobs' cost; M-1b sets K
-     and the timeouts so it does. The multiplier is **10 until M-1b measures it**.
+     ends.
+  3. **What is counted: this repository's own macOS minutes, with no account token** (APP-Q20, owner decision
+     2026-10-23). With the workflow's `GITHUB_TOKEN` (`actions: read`) the guard adds, for the current calendar
+     month, every finished macOS job of this repository at its minutes rounded up per job, plus every admitted macOS
+     job that has not finished at its timeout. Nothing is counted twice: a job is either finished or admitted. No
+     account billing figure is read (GitHub's billing usage endpoints do not accept a narrow fine-grained token, and
+     a classic token's scope is far broader than this needs).
+  4. **A fixed monthly macOS allowance.** Admission is granted only while that count plus the new job's timeout stays
+     under the allowance written in `mobile.yml`, and the allowance leaves room for K jobs. It is set in macOS
+     minutes so that, at the macOS multiplier (**10 until M-1b measures it**), it stays under 80 % of the account's
+     included minutes after the usual Linux usage of `ci.yml`; M-1b proposes it from the first week's measurement and
+     reports it to Waleed.
   5. **Each admission belongs to one job attempt.** It carries an owner key (run id, run attempt, job key and flavour)
      and a lease that covers the longest runner queue wait plus the job's timeout. The macOS job's first step accepts
      only an unexpired admission whose owner key matches it exactly, otherwise it stops. A re-run of a single macOS
      job (which GitHub starts without re-running the preflight) is therefore the one case that starts a runner without
-     an admission: it ends in its first minute, and that minute is written as a usage record so it is counted. Re-runs
-     are done with «Re-run all jobs», which repeats the admission.
-  6. **It fails closed.** A missing or expired token, an unreadable usage figure or a failed reservation refuses the
-     run.
-  The hard backstop is the account's Actions budget at $0 with usage stopped at the limit (O-5): a run past the included
-  minutes is blocked rather than charged. That backstop would also block `ci.yml`'s required `ci-gate` until the cycle
-  resets, which is why the guard stops at 80 %. Some published pricing says a macOS minute counts as ten included
+     an admission: it ends in its first minute, and that minute is counted with the finished jobs. Re-runs are done
+     with «Re-run all jobs», which repeats the admission.
+  6. **It fails closed.** An unreadable job history or a failed reservation refuses the run.
+  **Account-wide usage** (the Linux minutes of `ci.yml`, any other repository) is not read by the guard: Waleed checks
+  it on the billing page once a week (APP-Q20). The hard backstop is the account's Actions budget at $0 with usage
+  stopped at the limit (O-5): a run past the included minutes is blocked rather than charged, so **no money is spent
+  in any case**. That backstop would also block `ci.yml`'s required `ci-gate` until the cycle resets, which is why the
+  allowance stays well under the included minutes. Some published pricing says a macOS minute counts as ten included
   minutes on a private repository; M-1b measures it, and the first week's usage is reported to Waleed. Concurrency
   groups are per ref (`mobile-macos-${ref}` and the two release groups), so a run on one branch never drops a pending
   run of another; the budget bound comes from the reservations, not from the groups.
-- **The token's environment.** `ACTIONS_USAGE_TOKEN` lives in its own environment `mobile-guard`, which **allows every
-  branch** (pull-request preflights need it) and holds nothing else. It is not a signing secret: it reads billing
-  numbers and nothing more. Only preflight jobs declare `mobile-guard`; the main-only rule of decision 5 covers the
-  signing environments.
 - **Pre-merge iOS check.** Stage B runs on a pull request only when that PR can break the iOS build (the native project,
   the workflow or a Capacitor dependency); the orchestrator does not merge such a PR unless stage B passed on its head.
   Web-only changes are built for iOS after the merge, on `main`.
