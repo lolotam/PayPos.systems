@@ -132,6 +132,49 @@ describe('a refused push endpoint', () => {
   });
 });
 
+describe('a canonical push endpoint path', () => {
+  it('refuses a backslash, a dot segment and an encoded dot, slash or backslash', () => {
+    for (const endpoint of [
+      'https://fcm.googleapis.com/fcm\\send/abc',
+      'https://fcm.googleapis.com/fcm/send/abc\\',
+      'https://fcm.googleapis.com/fcm/./send/abc',
+      'https://fcm.googleapis.com/fcm/../send/abc',
+      'https://fcm.googleapis.com/fcm/%2e%2e/send',
+      'https://fcm.googleapis.com/fcm/%2E/send',
+      'https://fcm.googleapis.com/fcm%2Fsend/abc',
+      'https://fcm.googleapis.com/fcm%5Csend/abc',
+      'https://fcm.googleapis.com/fcm/send/abc?token=a\\b',
+    ])
+      expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(false);
+  });
+
+  it('accepts a normal path and a query that carries encoded characters', () => {
+    for (const endpoint of [
+      'https://fcm.googleapis.com/fcm/send/abc',
+      'https://web.push.apple.com/abc',
+      'https://updates.push.services.mozilla.com/wpush/v2/abc',
+      'https://x.notify.windows.com/?token=AbC%3d%2Fabc',
+      'https://fcm.googleapis.com/fcm/send/abc?token=a%2Fb',
+    ])
+      expect(pushEndpoint.safeParse(endpoint).success, endpoint).toBe(true);
+  });
+
+  it('keeps one spelling of a destination, so one hash reaches the database', () => {
+    const canonical = 'https://fcm.googleapis.com/fcm/send/abc';
+    expect(pushEndpoint.safeParse(canonical).success).toBe(true);
+    for (const spelling of [
+      'https://fcm.googleapis.com/fcm\\send/abc',
+      'https://fcm.googleapis.com/fcm/send/abc\\',
+      'https://fcm.googleapis.com/fcm/./send/abc',
+      'https://fcm.googleapis.com/fcm/../send/abc',
+      'https://fcm.googleapis.com/fcm/%2e%2e/send',
+      'https://fcm.googleapis.com/fcm%2Fsend/abc',
+      'https://fcm.googleapis.com/fcm%5Csend/abc',
+    ])
+      expect(pushEndpoint.safeParse(spelling).success, spelling).toBe(false);
+  });
+});
+
 describe('pushSubscriptionInput', () => {
   it('accepts a complete subscription and refuses an unknown key', () => {
     expect(pushSubscriptionInput.safeParse(body()).success).toBe(true);

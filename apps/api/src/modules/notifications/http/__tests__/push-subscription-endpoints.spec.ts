@@ -2,13 +2,14 @@ import { installationHash } from '@pospay/notifications';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { pushFixture, type PushFixture } from './push-subscription.fixture.ts';
+import { validAuth, validP256dh } from './push-test-keys.ts';
 
 let f: PushFixture;
 let counter = 0;
 const nextId = () => `01920000-0000-4000-8000-${String(counter++).padStart(12, '0')}`;
 const subscription = (endpoint: string) => ({
   endpoint,
-  keys: { p256dh: 'p'.repeat(87), auth: 'a'.repeat(22) },
+  keys: { p256dh: validP256dh(), auth: validAuth() },
 });
 const body = (over: Record<string, unknown> = {}) => ({
   installation_id: nextId(),
@@ -49,7 +50,7 @@ it('subscribes, refreshes and unsubscribes, and the row holds the secrets only w
   const [row] = await f.owner`SELECT * FROM push_subscriptions
     WHERE company_id=${f.companyId} AND user_id=${f.userId} AND installation_hash IS NOT NULL`;
   expect(row?.['endpoint']).toBe(first.subscription.endpoint);
-  expect(row?.['p256dh']).toBe('p'.repeat(87));
+  expect(row?.['p256dh']).toBe(first.subscription.keys.p256dh);
   expect(row?.['delivery_token']).toBe(first.delivery_token);
   expect(row?.['generation']).toBe(1);
   await wait(5);

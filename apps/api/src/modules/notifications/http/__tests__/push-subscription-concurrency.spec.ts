@@ -2,13 +2,14 @@ import { installationHash } from '@pospay/notifications';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { pushFixture, type PushFixture } from './push-subscription.fixture.ts';
+import { validAuth, validP256dh } from './push-test-keys.ts';
 
 let f: PushFixture;
 let counter = 0;
 const nextId = () => `01920000-0000-4000-8000-${String(counter++).padStart(12, '0')}`;
 const subscription = (endpoint: string) => ({
   endpoint,
-  keys: { p256dh: 'p'.repeat(87), auth: 'a'.repeat(22) },
+  keys: { p256dh: validP256dh(), auth: validAuth() },
 });
 const body = (over: Record<string, unknown> = {}) => ({
   installation_id: nextId(),
@@ -187,8 +188,8 @@ describe('a row that is replaced or counted', () => {
     const endpoint = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
     const other = `https://fcm.googleapis.com/fcm/send/${nextId()}`;
     const token = nextId();
-    const keys = { p256dh: 'p'.repeat(87), auth: 'a'.repeat(22) };
-    const otherKeys = { p256dh: 'q'.repeat(87), auth: 'a'.repeat(22) };
+    const keys = { p256dh: validP256dh(), auth: validAuth() };
+    const otherKeys = { p256dh: validP256dh(), auth: validAuth() };
     const send = (over: Record<string, unknown> = {}) =>
       f.send('PUT', '/v1/staff/push/subscription', {
         body: {

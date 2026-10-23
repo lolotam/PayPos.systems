@@ -76,6 +76,7 @@ export {
   PUSH_APP_PATH,
 } from './push/payload.ts';
 export { generateVapidKeyPair } from './push/vapid-keys.ts';
+export { isValidSubscriptionKeys } from './push/subscription-keys.ts';
 export { readPushWorkerConfiguration } from './push/worker-configuration.ts';
 export type {
   PushWorkerConfiguration,

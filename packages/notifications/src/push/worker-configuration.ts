@@ -28,7 +28,7 @@ function isAbsent(value: string | undefined): boolean {
 
 /**
  * بيقرأ جاهزية الدفع من البيئة.
- * القاعدة: الدفع بيتفعّل بس لما التلات متغيرات تكون صحّة والمفتاح الخاص يطلع منه المفتاح العام المعلن؛
+ * القاعدة: الدفع بيتفعّل بس لما التلات متغيرات تكون صحيحة والمفتاح الخاص يطلع منه المفتاح العام المعلن؛
  * المفتاح الخاص بيتقرا هنا وبس، والـ worker هو اللي بيقراه، والسبب اللي بيرجع محدود ومش بيحمل أي مفتاح.
  *
  * @param env بيئة العملية
@@ -45,7 +45,7 @@ export function readPushWorkerConfiguration(env: NodeJS.ProcessEnv): PushWorkerR
   if (privateKey === undefined || privateKey === '' || !PRIVATE_KEY.test(privateKey))
     return { ready: false, reason: 'PRIVATE_KEY_INVALID' };
   const bytes = Buffer.from(privateKey, 'base64url');
-  // المفتاح كله أصفار مش سالب صالح على المنحنى، فمفتاح توقيع مش.
+  // مفتاح كله أصفار مش صالح كمفتاح توقيع على المنحنى.
   if (bytes.length !== 32 || bytes.equals(Buffer.alloc(32)))
     return { ready: false, reason: 'PRIVATE_KEY_INVALID' };
   let derived: string;
@@ -57,7 +57,7 @@ export function readPushWorkerConfiguration(env: NodeJS.ProcessEnv): PushWorkerR
       return { ready: false, reason: 'PRIVATE_KEY_INVALID' };
     derived = point.toString('base64url');
   } catch {
-    // سالب بره مدى المنحنى: setPrivateKey بيرفضه، فالمفتاح مش صالح للتوقيع.
+    // setPrivateKey بيرفض أي قيمة برّه مدى المنحنى، فالمفتاح مش صالح للتوقيع.
     return { ready: false, reason: 'PRIVATE_KEY_INVALID' };
   }
   if (derived !== api.publicKey) return { ready: false, reason: 'KEY_MISMATCH' };

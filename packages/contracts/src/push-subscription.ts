@@ -29,10 +29,13 @@ export function isAllowedPushHost(host: string): boolean {
 
 // نقطة الدفع: https ومضيف من حروف صغيرة وأرقام وشرطات ونقاط، وبعده path أو query اختياري من غير مسافات
 // ولا fragment؛ الباقي ثابت فالهاش واحد لكل وجهة.
-const ENDPOINT_PATTERN = /^https:\/\/([a-z0-9.-]+)(?:[/?][^\s#]*)?$/;
+const ENDPOINT_PATTERN = /^https:\/\/([a-z0-9.-]+)([/?][^\s#]*)?$/;
 
 // أربع مجموعات أرقام بنقط: عنوان IP مش مضيف.
 const IPV4_PATTERN = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+// نقطة أو شرطة مائلة أو شرطة خلفية مكتوبة بالترميز: في المسار بس، لأن التوكين في الـ query بيتشفّر عادي.
+const ENCODED_PATH = /%(2e|2f|5c)/i;
 
 // محرف التحكم بيعدّي من فئات زي \S وبعدين عمود النص في الداتابيز بيرفضه — فبنرفضه هنا.
 function hasControlCharacter(value: string): boolean {
@@ -44,8 +47,23 @@ function hasControlCharacter(value: string): boolean {
 }
 
 /**
+ * بيتأكد إن مسار نقطة الدفع مكتوب بشكل وحيد.
+ * القاعدة: الـ URL parser بيعمل تطبيع للنقطة والشرطات المائلة، فكتابة تانية لنفس الوجهة كانت هتشيل
+ * بره وتعمل هاش تاني؛ فالمسار يرفض النقطة والـ .. والشرطة الخلفية والترميز المحجّم، والـ query مش خاضع للترميز.
+ *
+ * @param path مسار نقطة الدفع من بعد المضيف لحد الـ query
+ * @returns true لو المسار بصيغته الوحيدة
+ */
+function hasCanonicalPath(path: string): boolean {
+  if (path.includes('\\')) return false;
+  if (ENCODED_PATH.test(path)) return false;
+  return !path.split('/').some((segment) => segment === '.' || segment === '..');
+}
+
+/**
  * يقرر إن كان endpoint نقطة دفع مسموحة: https بمضيف من حروف صغيرة وأرقام وشرطات ونقاط،
- * بلا مستخدم ولا كلمة مرور ولا منفذ، ومضيف اسم لا عنوان IP، ومن قائمة المواقع المسموحة.
+ * بلا مستخدم ولا كلمة مرور ولا منفذ، ومضيف اسم لا عنوان IP، ومن قائمة المواقع المسموحة،
+ * وبمسار مكتوب بشكل وحيد (نقطة وشرطات مائلة وترميز محجّم مرفوضة).
  *
  * @param value الـ endpoint كما أرسله المتصفح
  * @returns true لو هو نقطة دفع مسموحة
@@ -53,6 +71,8 @@ function hasControlCharacter(value: string): boolean {
 export function isAllowedPushEndpoint(value: string): boolean {
   if (value.length === 0 || value.length > 2048) return false;
   if (hasControlCharacter(value)) return false;
+  // الشرطة الخلفية بتتحوّل لشرطة مائلة عند التحليل، فأي نسخة منها بتعمل هاش مختلف.
+  if (value.includes('\\')) return false;
   const match = ENDPOINT_PATTERN.exec(value);
   // المطابقة لازم تغطي النص كله: `$` في جافاسكربت بتقبل سطر أخير، فالمقارنة نفسها هي الضمان.
   if (match === null || match[0] !== value) return false;
@@ -61,6 +81,8 @@ export function isAllowedPushEndpoint(value: string): boolean {
     return false;
   if (host.includes('..')) return false;
   if (IPV4_PATTERN.test(host)) return false;
+  const path = (match[2] ?? '').split('?')[0] ?? '';
+  if (!hasCanonicalPath(path)) return false;
   return isAllowedPushHost(host);
 }
 
