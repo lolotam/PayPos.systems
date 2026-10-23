@@ -8,8 +8,8 @@
 
 **Input**: Track MOB, plan row M-1·0 ([plan.md](plan.md)). Wrap the existing `apps/pos` build in a Capacitor shell for
 iOS and Android, as decided in `docs/adr/0055-store-apps-capacitor-shell.md`. Owner decisions: APP-Q1 … APP-Q8
-([owner-questions.ar.md](owner-questions.ar.md)); new questions APP-Q9 … APP-Q18 (PENDING), asked in one batch so
-M-1a … M-1f need no further owner question.
+([owner-questions.ar.md](owner-questions.ar.md)); questions APP-Q9 … APP-Q18 (batch 58), answered by Waleed on
+2026-10-23 (Abu Salem's picks pending, binding if they differ), so M-1a … M-1f need no further owner question.
 
 **Scope.** The shell, its start screen, offline cold start, the checks of the auth spike (M-1c), and what is hidden on
 native. Out of scope: signed builds and store uploads (M-2), the cashier selling screens (MOB-18, not built yet in the
@@ -70,8 +70,7 @@ OTP, restart the app; repeat (a)–(c) of M-1c on the iOS simulator.
 ### User Story 3 - What the app cannot do yet is hidden, not broken (Priority: P3)
 
 On the iPhone app, Sara does not see passkey enrolment or any attendance (QR camera or passkey), and the Web Push
-control is absent on both platforms, instead of a button that fails. What replaces them is APP-Q17 (`TODO(spec)`;
-working assumption, the ⭐ option: one line pointing to the web app with a link).
+control is absent on both platforms, instead of a button that fails. What replaces them is one line pointing to the web app with a link (APP-Q17).
 
 **Why this priority**: a store build must never show a control that cannot work (attendance on iOS waits for the real-iPhone
 check M-1c-ii, and passkeys also for #536 and O-4; Web Push does not exist inside a WebView; native push is MOB-19).
@@ -93,8 +92,7 @@ is on screen.
 ### User Story 4 - Changing the phone's role (Priority: P3)
 
 The manager hands a tablet that was an employee's phone to the counter. In the app settings she picks «تغيير نوع
-الجهاز» (who may do this is APP-Q16, `TODO(spec)`; working assumption, the ⭐ option: anyone holding the device, after a
-clear confirmation); with the network on, the app ends every session on it at the server, clears private forms, forgets the remembered business, and shows the
+الجهاز» (anyone holding the device may do this, after a clear confirmation; APP-Q16); with the network on, the app ends every session on it at the server, clears private forms, forgets the remembered business, and shows the
 start screen again.
 
 **Why this priority**: rare, but a wrong role on a shared device would show one person's data to another.
@@ -146,11 +144,10 @@ start screen again.
   passkeys (off on both platforms until O-4 is done, on iOS also until #536, on Android also only if M-1c's check
   passes); attendance camera (Android per M-1c; **iOS off until M-1c-ii passes on a real iPhone**, ADR-0055 decision 3).
   Screens read the port; no screen tests the platform itself.
-- **FR-007**: A capability that is off MUST NOT offer a working-looking control. What it shows instead is `TODO(spec)`
-  [NEEDS CLARIFICATION: APP-Q17 (PP-42.9)]; working assumption until answered, the ⭐ option: hide it and show one
-  line pointing to the web app with a link.
-- **FR-008**: Who may change the device's role: `TODO(spec)` [NEEDS CLARIFICATION: APP-Q16 (PP-42.8)]; working
-  assumption until answered, the ⭐ option: anyone holding the device, after a clear confirmation. A role change
+- **FR-007**: A capability that is off MUST NOT offer a working-looking control: its button is hidden and one line says
+  it is available in the web app, with a link that opens it (APP-Q17, PP-42.9; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs).
+- **FR-008**: Anyone holding the device may change its role, after a clear confirmation; a counter device then needs
+  a manager's approval to be paired again, as today (APP-Q16, PP-42.8; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs). A role change
   **needs the network**: the staff and personal sessions are HttpOnly cookies that page code cannot see or delete, so
   for each session kind the device can hold (staff, personal) the app calls the existing server sign-out; a sign-out
   counts as done only when the server confirms it, or gives the auth module's **explicit** «no session to end»
@@ -168,9 +165,9 @@ start screen again.
 - **FR-009**: Nothing new is stored about the person: no phone number, code or session token is persisted by the app
   beyond what the PWA already does (ADR-0019 online-only rule).
 - **FR-010**: Every string MUST come from `packages/i18n` in Arabic and English; Arabic and RTL first; logical CSS only.
-- **FR-011**: How the app learns the employee's business on first use: `TODO(spec)` [NEEDS CLARIFICATION: APP-Q9 — the manager's
-  link opens the app (⭐ recommended), a QR code in the back office scanned in the app, or both].
-- **FR-012**: If APP-Q9 picks the link, the app MUST handle the manager's link (in M-1: the parsing, the routing and
+- **FR-011**: The app learns the employee's business on first use in **both** ways: the manager's link (FR-012) and a
+  QR code scanned in the app (FR-014) (APP-Q9, PP-42.1; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs).
+- **FR-012**: The app MUST handle the manager's link (in M-1: the parsing, the routing and
   the paste; the operating system opening the app from a tapped link is verified in M-2 with O-6) `https://<pos host>/personal?company=…&
   business=…` on a cold start (the launch link) and on a warm start (a link opened while the app runs) the same way: it
   accepts only that host and path, parses the two values with the existing `personalWorkspace` schema of
@@ -186,6 +183,23 @@ start screen again.
   transfer), plus `android:fullBackupContent` excluding it for older versions; the iOS project keeps that storage out
   of iCloud and device backups. A restored phone starts at the start screen and
   pairs again. Built and checked in M-1a.
+- **FR-014**: The in-app QR scan reads a QR code whose content is exactly the manager's link of FR-012 and handles it
+  with the same parser and the same rules (host and path check, role precedence, confirmation before a business
+  switch). It uses the attendance camera capability of the platform port (FR-006): where the camera is off (iOS
+  until M-1c-ii passes; Android if M-1c's check fails), the scan option is hidden with the FR-007 line and the
+  employee connects by the link or the paste. The QR itself is shown by a back-office screen in `apps/admin` that
+  gives the manager each employee's personal link and its QR code; that screen is its own sub-PR (plan M-1g),
+  agreed with the web manager because it is in `apps/admin`.
+- **FR-015**: On first launch the app uses the phone's language: Arabic when the phone is in Arabic, English for any
+  other language; the user can change it afterwards with the existing language switch (APP-Q12, PP-42.4; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs).
+- **FR-016**: The app follows the device's rotation on tablets and on phones (APP-Q14, PP-42.6; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs); every screen
+  of the native build must work in both orientations.
+- **FR-017**: Before MOB-15, an owner or a manager who picks «حسابي كموظفة» sees what an employee sees (sign-in and
+  their own attendance) plus one small line «لوحة الإدارة على الويب» with a link to the back office (APP-Q15,
+  PP-42.7; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs). This works only for an owner or
+  manager who also has an employee record in that business, because a personal session is issued only to a linked
+  employee (ADR-0027). Showing the line needs a role signal the personal session does not carry today: `TODO(spec)`,
+  with the web manager (#554); until it exists, the line is not shown to anyone.
 
 ### Key Entities
 
@@ -201,23 +215,22 @@ start screen again.
 - **BR-001**: One role per installation. Changing it ends every session on the device first (FR-008).
 - **BR-002**: The remembered business is a hint; the server still decides eligibility on every request (ADR-0027).
 - **BR-003**: A hidden capability is hidden for everyone on that platform build; there is no per-user override.
-- **BR-004**: How the business is learned on first use: `TODO(spec)` APP-Q9 (PP-42.1, PENDING) [NEEDS CLARIFICATION:
-  APP-Q9].
+- **BR-004**: The business is learned on first use by the manager's link or by its QR code (APP-Q9: both).
 
-### Owner decisions this spec waits on (all PENDING, one batch)
+### Owner decisions (batch 58: Waleed's picks on 2026-10-23; Abu Salem's pending, and binding if they differ)
 
-| Question | Decides | Needed by |
+| Question | Waleed's pick | Lands in |
 |---|---|---|
-| APP-Q9 | how the employee connects the app to her business the first time | M-1a (employee connect step) |
-| APP-Q10 | app icon and colours | M-1e |
-| APP-Q11 | splash screen | M-1e |
-| APP-Q12 | language on first launch | M-1a |
-| APP-Q13 | how the staging flavour is marked | M-1e |
-| APP-Q14 | screen rotation on tablets and phones | M-1a |
-| APP-Q15 | what an owner or manager sees in the app before MOB-15 | M-1a |
-| APP-Q16 | who may change the device's role | M-1a |
-| APP-Q17 | what replaces a control that is off on native | M-1d |
-| APP-Q18 | when an update is forced (M-1f's policy) | M-1f |
+| APP-Q9 | both: the link and a QR code (FR-011, FR-012, FR-014) | M-1a (link, paste), M-1g (back-office QR screen), M-1h (in-app scan) |
+| APP-Q10 | today's PosPay icon and colours plus a small mark that tells it from the customer app | M-1e |
+| APP-Q11 | the logo with «PosPay Business» written under it | M-1e |
+| APP-Q12 | the phone's language, changeable (FR-015) | M-1a |
+| APP-Q13 | «تجربة» on the icon and a coloured strip on every staging screen | M-1e |
+| APP-Q14 | follows the device on tablets and phones (FR-016) | M-1a |
+| APP-Q15 | the employee view plus a «لوحة الإدارة على الويب» line (FR-017) | M-1a |
+| APP-Q16 | anyone holding the device, after a clear confirmation; counter re-pairing needs a manager (FR-008) | M-1a |
+| APP-Q17 | hide the button, one line with a link to the web app (FR-007) | M-1d |
+| APP-Q18 | «must update» with every new version | M-1f (its own spec) |
 
 Not asked, because already decided: card attendance on the counter device is online-only
 (`apps/pos/src/attendance/api/clock-by-card.ts`), and what the cashier does offline is set by `CLAUDE.md` §7 (the
@@ -236,7 +249,7 @@ attendance, and the existing sign-out routes for FR-008). The Android origin is 
 origin is shared by every Capacitor iOS app. Trusting it is `TODO(spec)` — it needs an ADR-0027 addendum agreed with
 the web manager (issue #549, next to #536 for passkeys) **before** plan step O-1b adds it to `AUTH_TRUSTED_ORIGINS` and
 the API CORS origins on staging (plan O-1b). Until then the iOS session checks of M-1c cannot run; the Android ones
-need no origin change. If APP-Q9 picks the link, two things are needed, both for the **POS host** the manager's link
+need no origin change. For the link (APP-Q9: link and QR), two things are needed, both for the **POS host** the manager's link
 uses (`pos.pospay.systems`, `pos.staging.pospay.systems`), never the passkey relying-party host of O-4: the native
 projects declare the link (iOS Associated Domains entitlement `applinks:<pos host>`; Android a verified
 `intent-filter` with `autoVerify` for `https://<pos host>/personal`), built in M-1a; and the POS host serves the
@@ -260,10 +273,9 @@ None published, none consumed.
 - **Domain unit**: none (no business arithmetic; `packages/domain` is not touched).
 - **UI tests** (`apps/pos`, Vitest + Testing Library, each asserting what is on screen, `CLAUDE.md` §9):
   `MOB-T01` start screen shows both choices on first launch · `MOB-T02` a stored choice opens its flow directly ·
-  `MOB-T03` employee flow with no remembered business shows the connect instruction and no identifier field (a paste
-  box for the whole link, if APP-Q9 picks it, is allowed) ·
+  `MOB-T03` employee flow with no remembered business shows the connect instruction and no identifier field (the paste box for the whole link is allowed) ·
   `MOB-T04` employee flow with a remembered business shows the personal sign-in · `MOB-T05` passkey and attendance controls absent when
-  the port reports them off, and the APP-Q17 replacement shown (working assumption: the web-app line) · `MOB-T06` Web Push control absent on native ·
+  the port reports them off, and the APP-Q17 line with its link to the web app shown · `MOB-T06` Web Push control absent on native ·
   `MOB-T07` the web build renders the same screens unchanged · `MOB-T08` role change signs out, clears forms and shows the
   start screen, the server sign-out was called for each open session, and the remembered business is gone from device
   storage · `MOB-T10` with no network the role change is refused with its message and nothing is cleared · `MOB-T09` counter role change asks for
@@ -278,11 +290,17 @@ None published, none consumed.
   message and changes nothing · `MOB-T18` a role change counts the explicit «no session to end» result as done and
   continues, and treats a plain 401 as a failure that stops it · `MOB-T19` one sign-out done and the other failing:
   the first session's private forms are already cleared, the role, the pairing and the remembered business are still
-  there after the success and after the failure, and only a new, confirmed change that finishes removes them.
+  there after the success and after the failure, and only a new, confirmed change that finishes removes them ·
+  `MOB-T20` a valid QR scanned in the app connects the business like the link, and where the camera port is off the
+  scan option is hidden with the FR-007 line · `MOB-T21` first launch with the phone in Arabic shows Arabic, with the
+  phone in any other language shows English, and the language switch still changes it · `MOB-T22` the start screen,
+  the counter flow and the personal flow render without cut-off controls in both orientations (tablet and phone
+  viewports) · `MOB-T23` with the role signal present the «لوحة الإدارة على الويب» line and its link show, without it
+  they do not.
 - **Build checks** (M-1a): the `native` build output registers no service worker; the web build output still does; a
   staging and a production debug build carry different app ids and their own API origin; the Android manifest and the
   iOS project exclude the app's storage from cloud backup and device transfer (FR-013: `allowBackup`,
-  `dataExtractionRules` and `fullBackupContent` all present); if APP-Q9 picks the link, the Android project carries the
+  `dataExtractionRules` and `fullBackupContent` all present); the Android project carries the
   verified `intent-filter` and the iOS project the Associated Domains entitlement in its entitlements file (an
   unsigned simulator build cannot embed it; link verification itself is O-6, in M-2).
 - **Device checks** (M-1c, recorded in [plan.md](plan.md)): (a) pairing, (b) staff PIN session, (c) personal OTP

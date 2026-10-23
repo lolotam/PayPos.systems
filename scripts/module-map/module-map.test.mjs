@@ -446,3 +446,39 @@ describe('ADR-0049 documents renderer import', () => {
     );
   });
 });
+
+describe('ADR-0054 commissions engine import', () => {
+  const engineMap = {
+    ...MAP,
+    packagesRestricted: { ...MAP.packagesRestricted, 'commissions-engine': ['commissions'] },
+  };
+  const code = "import { computePeriod } from '@pospay/commissions-engine'; void computePeriod;\n";
+  const workerPackage = {
+    'apps/worker/package.json': '{"name":"@pospay/worker","dependencies":{}}',
+  };
+
+  for (const [file, expected, source = code] of [
+    ['apps/api/src/modules/commissions/persistence/engine.ts', ''],
+    ['apps/worker/src/modules/commissions/use-cases/engine.ts', ''],
+    ['apps/api/src/modules/staff/persistence/sneak.ts', /may be imported only by commissions/],
+    [
+      'apps/api/src/modules/staff/persistence/type-sneak.ts',
+      /may be imported only by commissions/,
+      "export type Plan = import('@pospay/commissions-engine').CommissionPlan;\n",
+    ],
+  ]) {
+    it(
+      expected === '' ? `allows ${file} to import the engine` : `refuses the engine in ${file}`,
+      () => {
+        const problems = checkModules(repo({ ...workerPackage, [file]: source }), engineMap).join(
+          '\n',
+        );
+        if (expected === '') {
+          assert.equal(problems, '');
+          return;
+        }
+        assert.match(problems, expected);
+      },
+    );
+  }
+});

@@ -1,12 +1,18 @@
 import jsdoc from 'eslint-plugin-jsdoc';
 
 /**
- * CLAUDE.md §3.1 — Arabic JSDoc is mandatory on domain/** and ports/**.
+ * CLAUDE.md §3.1 — Arabic JSDoc is mandatory on domain/**, ports/** and on the commissions
+ * engine package, whose engine moved out of a domain/ folder (ADR-0054 §1).
  * Scoped by `files` so the rule never fires on persistence/ or http/, where comments are banned noise.
  * Exported on its own so a package linted from its own folder can re-scope `files` to its paths.
  */
 export const requireArabicJsdoc = {
-  files: ['**/domain/**/*.ts', '**/ports/**/*.ts', 'packages/domain/src/**/*.ts'],
+  files: [
+    '**/domain/**/*.ts',
+    '**/ports/**/*.ts',
+    'packages/domain/src/**/*.ts',
+    'packages/commissions-engine/src/**/*.ts',
+  ],
   ignores: ['**/*.spec.ts', '**/*.test.ts'],
   plugins: { jsdoc },
   rules: {
