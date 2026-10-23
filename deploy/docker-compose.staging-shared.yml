@@ -106,7 +106,7 @@ services:
     environment:
       <<: [*app-env, *staff-otp-env]
       AUTH_DATABASE_URL: postgres://pospay_auth:${POSTGRES_AUTH_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
-      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${ADMIN_STAGING_HOST:?},https://${POS_STAGING_HOST:?}}
 
       DISPATCHER_DATABASE_URL: postgres://pospay_dispatcher:${POSTGRES_DISPATCHER_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
       # ADR-0019: OTP activation independent; tenant outbound remains separately closed.

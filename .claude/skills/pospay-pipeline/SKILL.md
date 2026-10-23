@@ -547,7 +547,9 @@ https://pos.staging.pospay.systems, on the server's shared Postgres and Redis. W
 2. Take a backup: `docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env ghcr.io/lolotam/pospay-backup:<sha>`.
 3. If `deploy/docker-compose.staging-shared.yml` changed, update the service's compose file in Dokploy to that SHA's
    content (`compose.update`, raw source). Note the SHA that is live now: it is the rollback target.
-4. Set `IMAGE_TAG=<full-sha>` in the service's environment (change only that line), then `compose.deploy`. Prove it:
+4. Set `IMAGE_TAG=<full-sha>` in the service's environment (change only that line, unless the compose file of that SHA
+   requires a variable the environment lacks: add it first, as `deploy/staging.env.example` lists, or the
+   interpolation aborts before any service starts), then `compose.deploy`. Prove it:
    `https://api.staging.pospay.systems/ready` answers 200, both front ends answer 200, and the `migrate` container exited 0.
 5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): redeploy
    `<previous-sha>` (step 4 with that tag) against the new schema, confirm `/ready`, then redeploy `<full-sha>`. A
