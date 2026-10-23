@@ -38,6 +38,15 @@ import {
 } from './persistence/service-line-performer-notice.repository.ts';
 import { RequestPerformersChangeNotice } from './use-cases/request-performers-change-notice/request-performers-change-notice.ts';
 import { onPerformersChanged } from './events/handlers/on-performers-changed.handler.ts';
+import type { DiscountApprovalNoticeNameFallback } from './domain/discount-approval-notice.ts';
+import { discountApprovalRecipients } from './persistence/discount-approval-recipients.adapter.ts';
+import { discountApprovalPlace } from './persistence/discount-approval-place.adapter.ts';
+import {
+  discountApprovalRepository,
+  discountApprovalOutbox,
+} from './persistence/discount-approval-notice.repository.ts';
+import { RequestDiscountApprovalNotice } from './use-cases/request-discount-approval-notice/request-discount-approval-notice.ts';
+import { onDiscountApprovalRequested } from './events/handlers/on-discount-approval-requested.handler.ts';
 
 export function createLateServiceSessionNoticeConsumer(
   ids: IdGenerator,
@@ -125,6 +134,28 @@ export function createPerformersChangeNoticeConsumer(
     handle: (tx, event) => onPerformersChanged(bind(tx), event),
   };
 }
+export function createDiscountApprovalNoticeConsumer(
+  ids: IdGenerator,
+  clock: Clock,
+): OutboxConsumer {
+  const bind = (tx: Tx) =>
+    new RequestDiscountApprovalNotice(
+      {
+        recipients: discountApprovalRecipients(tx),
+        place: discountApprovalPlace(tx),
+        repository: discountApprovalRepository(tx),
+        outbox: discountApprovalOutbox(tx),
+      },
+      ids,
+      clock,
+      discountApprovalFallback(),
+    );
+  return {
+    id: 'orders.discount-approval-notice-v1',
+    eventTypes: ['DiscountApprovalRequested'],
+    handle: (tx, event) => onDiscountApprovalRequested(bind(tx), event),
+  };
+}
 function priceEditFallback(): PriceEditNameFallback {
   return {
     service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
@@ -141,6 +172,13 @@ function lineCancelFallback(): LineCancelNameFallback {
   };
 }
 function performersChangeFallback(): PerformersChangeNameFallback {
+  return {
+    service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
+    branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
+    safeName: safeDisplayName,
+  };
+}
+function discountApprovalFallback(): DiscountApprovalNoticeNameFallback {
   return {
     service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
     branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },

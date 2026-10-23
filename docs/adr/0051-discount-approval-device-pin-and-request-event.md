@@ -44,7 +44,14 @@ session would let any logged-in user probe any manager's PIN, and SPEC §3 has n
    placeholder hash for an unknown holder), **outside** the database transaction. No staff session is issued,
    `login:staff:branch` is not required, and `app.` is never opened. The approval transaction then rechecks authority
    under the proposal locks: the holder's memberships **covering the device's branch** must grant
-   `approve:discounts:branch`, and DENY wins. The PIN never enters a log, an audit entry, an event, a response or the
+   `approve:discounts:branch`, and a DENY covering the branch wins, **except that an active owner's DENY is ignored**
+   (`protectOwnerAccess`). That recheck (057-5, 057-6, 057-7) must go through the same evaluation as the generic guard
+   path (`access-reader.ts`): `evaluateAccess` over grants passed through `protectOwnerAccess`, with the D-11
+   eligible-approver rule (the granting membership itself covers the branch). The bell (§7) uses that permission rule,
+   with a DENY on any of the user's active memberships that covers the branch as in `evaluateAccess`, so it never reaches
+   someone the permission check refuses. The approval still applies the approver's own limit (FR-013), so a bell recipient
+   whose limit is below the line's effective bps is refused with `DISCOUNT_APPROVER_LIMIT_TOO_LOW`, by design: the bell
+   says who may approve, not who can approve every amount. The PIN never enters a log, an audit entry, an event, a response or the
    idempotency store; the device routes take no Idempotency-Key.
 4. **Lockout: two counters, both in Redis on Redis's clock.**
    - **Per holder** (D-08, ADR-0003 §4.2): 5 failures lock that holder's PIN for 15 minutes (423 `PIN_LOCKED`). An
@@ -71,7 +78,17 @@ session would let any logged-in user probe any manager's PIN, and SPEC §3 has n
    `discountApproverRecipients(branch)` — every active user whose membership covering the branch effectively grants
    `approve:discounts:branch` (role defaults and ALLOW overrides, minus any covering DENY), managers or not; **not**
    the ADR-0037 manager rule — drops the requester, and appends `DiscountApprovalNoticeRequested` to `notifications`
-   in groups of at most 100 (existing IN_APP storage). Zero recipients is a durable decision. The template
+   in groups of at most 100 (existing IN_APP storage). Zero recipients is a durable decision. **Outbox shape (057-3,
+   for the 057-4b writer):** `DiscountApprovalRequested` is written with `aggregate_type = 'discount_approval_request'`
+   and `aggregate_id` = the payload's `request_id`; the consumer refuses any other pair, and also refuses an event whose
+   `line_count` or `max_effective_bps` differs from the stored proposals of that `request_id` (so the writer stores the
+   proposals and the event in one transaction). The recipient rule is exactly the
+   eligible-approver rule of spec 057 D-11 plus DENY and owner protection: a user counts when one of her active
+   memberships **covers the branch and itself grants** the permission (by its role, or by its own ALLOW override whose
+   scope covers the branch; an override on a membership that does not cover the branch does not count, even when the
+   override's own scope names this branch) and no DENY covering the branch exists on any active membership of that user
+   (a DENY has its own scope, independent of its membership's); an active owner's DENY is ignored, as
+   `protectOwnerAccess` does in the generic guard path. The template
    `discount_approval_requested` (revision 1, ar/en) shows the branch, the **first** service of the request (the
    event's `services` order), the number of lines and the largest percent (`max_effective_bps` / 100 without trailing
    zeros, so a raw four-digit bps never reaches the safe-text filter). It never shows a customer, a phone or the

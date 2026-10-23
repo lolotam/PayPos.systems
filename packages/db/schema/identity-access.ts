@@ -175,6 +175,8 @@ export const memberships = pgTable(
     index('memberships_role_idx').on(t.roleId, t.roleOwnerKey),
     index('memberships_scope_business_idx').on(t.companyId, t.scopeBusinessId),
     index('memberships_scope_branch_idx').on(t.companyId, t.scopeBranchId),
+    // فهرس ذراع نطاق الشركة: يخدم أذرع نوع النطاق في قارئ جرس العامل وكل بحث «من يحمل نطاق الشركة».
+    index('memberships_scope_idx').on(t.companyId, t.scopeType, t.scopeId),
   ],
 );
 
