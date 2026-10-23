@@ -85,6 +85,7 @@ apps/
   menu     Next.js SSR — public e-menu / booking
   api      NestJS (Fastify adapter) — HTTP + SSE + auth handler + webhooks
   worker   NestJS — BullMQ processors (same repo, different entrypoint and image)
+  business Capacitor shell for «PosPay Business» (iOS, Android) around the apps/pos build — ADR-0055
 
 packages/
   domain          Shared kernel: Money, Percentage, TaxRule, Quantity/UoM, KWD rounding.

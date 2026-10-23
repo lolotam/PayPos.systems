@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- نفس القاعدة للإصدارات القديمة من أندرويد (أقل من 12): تخزين التطبيق كله
+     مستثنى من النسخ الاحتياطي (spec 065 FR-013). -->
+<full-backup-content>
+    <exclude domain="root" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="external" path="." />
+</full-backup-content>

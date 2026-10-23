@@ -7,13 +7,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        excludeAppStorageFromBackup()
         // Override point for customization after application launch.
         return true
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
         // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
-        // Use this method to pause ongoing tasks, disable timers, and invalidate graphics rendering callbacks. Games should use this method to pause the game.
+        // Use this method to pause ongoing tasks, disable timers, and invalidate graphics rendering callbacks. Games should use this method to pause your game.
     }
 
     func applicationDidEnterBackground(_ application: UIApplication) {
@@ -22,11 +23,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationWillEnterForeground(_ application: UIApplication) {
-        // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
+        // Called as part of the transition from the background to the active state; here you can undo many of the changes made when entering the background.
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh its user interface.
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
@@ -40,5 +41,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                                           sessionRole: connectingSceneSession.role)
         config.delegateClass = SceneDelegate.self
         return config
+    }
+}
+
+// اعتماد الجهاز وبيانات النشاط ما يسافروش مع نسخة iCloud ولا مع نسخة الجهاز: موبايل
+// متنسوخ ما يجيبش معاه اعتماد كاونتر شغّال (spec 065 FR-013).
+private func excludeAppStorageFromBackup() {
+    guard let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first else {
+        return
+    }
+    for directory in ["WebKit", "Application Support"] {
+        let url = library.appendingPathComponent(directory, isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        var mutableUrl = url
+        try? mutableUrl.setResourceValues(resourceValues)
     }
 }

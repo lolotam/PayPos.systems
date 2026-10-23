@@ -16,6 +16,17 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // التطبيقين بيتبنيوا من نفس المصدر وبـ applicationId مختلف (ADR-0055 قرار 4)،
+    // والـ id ده مش بيتغيرش بعد أول رفع للمتجر.
+    flavorDimensions 'env'
+    productFlavors {
+        staging {
+            applicationId 'systems.pospay.business.staging'
+        }
+        production {
+            applicationId 'systems.pospay.business'
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false

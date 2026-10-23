@@ -10,6 +10,8 @@
 **/.turbo
 **/.next
 **/coverage
+apps/business/ios
+apps/business/android
 .git
 .github
 *.log

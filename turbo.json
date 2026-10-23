@@ -22,6 +22,11 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "@pospay/pos#build:native": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist-native/**"],
+      "env": ["FLAVOUR", "VITE_API_URL"]
     }
   }
 }

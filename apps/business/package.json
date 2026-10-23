@@ -3,6 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "sync": "cap sync",
+    "sync:staging": "node ./scripts/sync.mjs staging",
+    "sync:production": "node ./scripts/sync.mjs production"
+  },
   "dependencies": {
     "@capacitor/android": "8.5.3",
     "@capacitor/app": "8.1.2",
