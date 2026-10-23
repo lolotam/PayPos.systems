@@ -39,11 +39,14 @@ it('attendance_break_not_returned_notices enforces FORCE RLS and refuses cross-t
   await expect(
     f.db.withTenant(b.company, (tx) => tx.execute(insert(a, a, employee, f.ids.newId()))),
   ).rejects.toThrow();
-  await expect(
-    f.db.withTenant(a.company, (tx) =>
-      tx.execute(sql`UPDATE attendance_break_not_returned_notices SET recipient_count=1`),
-    ),
-  ).rejects.toThrow();
+  // بعد 0171 التحديث مسموح بس على السطر المكبوح بس؛ السطر المسجّل عليه إشعار ما بيتغيرش.
+  const updated = await f.db.withTenant(a.company, (tx) =>
+    tx.execute(sql`UPDATE attendance_break_not_returned_notices SET recipient_count=1 RETURNING id`),
+  );
+  expect(updated).toHaveLength(0);
+  const [row] = await f.owner`SELECT recipient_count FROM attendance_break_not_returned_notices
+    WHERE company_id=${a.company}`;
+  expect(row).toMatchObject({ recipient_count: 0 });
   await expect(
     f.db.withTenant(a.company, (tx) => tx.execute(sql`DELETE FROM attendance_break_not_returned_notices`)),
   ).rejects.toThrow();

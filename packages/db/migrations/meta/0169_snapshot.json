@@ -1,5 +1,5 @@
 {
-  "id": "6b4c93c3-1e19-4041-8e71-b683851f2bfd",
+  "id": "9dabfdf2-0920-4d22-bace-1c0bce00f5e7",
   "prevId": "37a67535-9c58-4887-b3f6-1b8216c52a30",
   "version": "7",
   "dialect": "postgresql",
@@ -6317,252 +6317,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.push_subscriptions": {
-      "name": "push_subscriptions",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "installation_hash": {
-          "name": "installation_hash",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "endpoint": {
-          "name": "endpoint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "p256dh": {
-          "name": "p256dh",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "auth": {
-          "name": "auth",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "endpoint_hash": {
-          "name": "endpoint_hash",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "delivery_token": {
-          "name": "delivery_token",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "generation": {
-          "name": "generation",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "locale": {
-          "name": "locale",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "vapid_key_id": {
-          "name": "vapid_key_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_seen_at": {
-          "name": "last_seen_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revoked_at": {
-          "name": "revoked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revoked_reason": {
-          "name": "revoked_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "push_subscriptions_endpoint_key": {
-          "name": "push_subscriptions_endpoint_key",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "endpoint_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"push_subscriptions\".\"revoked_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "push_subscriptions_active_user_idx": {
-          "name": "push_subscriptions_active_user_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"push_subscriptions\".\"revoked_at\" IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "push_subscriptions_user_idx": {
-          "name": "push_subscriptions_user_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "push_subscriptions_company_id_companies_id_fk": {
-          "name": "push_subscriptions_company_id_companies_id_fk",
-          "tableFrom": "push_subscriptions",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "push_subscriptions_user_id_user_id_fk": {
-          "name": "push_subscriptions_user_id_user_id_fk",
-          "tableFrom": "push_subscriptions",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "push_subscriptions_pkey": {
-          "name": "push_subscriptions_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "push_subscriptions_install_key": {
-          "name": "push_subscriptions_install_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "company_id",
-            "user_id",
-            "installation_hash"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "push_subscriptions_locale": {
-          "name": "push_subscriptions_locale",
-          "value": "\"push_subscriptions\".\"locale\" IN ('ar','en')"
-        },
-        "push_subscriptions_revoked_reason": {
-          "name": "push_subscriptions_revoked_reason",
-          "value": "\"push_subscriptions\".\"revoked_reason\" IS NULL OR \"push_subscriptions\".\"revoked_reason\" IN ('UNSUBSCRIBED','GONE','REPLACED','OWNER_CHANGED','KEY_ROTATED','CAP_EXCEEDED')"
-        },
-        "push_subscriptions_generation": {
-          "name": "push_subscriptions_generation",
-          "value": "\"push_subscriptions\".\"generation\" >= 1"
-        },
-        "push_subscriptions_endpoint_length": {
-          "name": "push_subscriptions_endpoint_length",
-          "value": "\"push_subscriptions\".\"endpoint\" IS NULL OR char_length(\"push_subscriptions\".\"endpoint\") <= 2048"
-        },
-        "push_subscriptions_vapid_key_id": {
-          "name": "push_subscriptions_vapid_key_id",
-          "value": "\"push_subscriptions\".\"vapid_key_id\" ~ '^[0-9a-f]{16}$'"
-        },
-        "push_subscriptions_state": {
-          "name": "push_subscriptions_state",
-          "value": "(\"push_subscriptions\".\"revoked_at\" IS NULL AND \"push_subscriptions\".\"revoked_reason\" IS NULL AND \"push_subscriptions\".\"endpoint\" IS NOT NULL AND \"push_subscriptions\".\"p256dh\" IS NOT NULL AND \"push_subscriptions\".\"auth\" IS NOT NULL AND \"push_subscriptions\".\"delivery_token\" IS NOT NULL) OR (\"push_subscriptions\".\"revoked_at\" IS NOT NULL AND \"push_subscriptions\".\"revoked_reason\" IS NOT NULL AND \"push_subscriptions\".\"endpoint\" IS NULL AND \"push_subscriptions\".\"p256dh\" IS NULL AND \"push_subscriptions\".\"auth\" IS NULL AND \"push_subscriptions\".\"delivery_token\" IS NULL)"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.platform_whatsapp_audit": {
       "name": "platform_whatsapp_audit",
       "schema": "",
@@ -11701,6 +11455,18 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "suppressed_at": {
+          "name": "suppressed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suppressed_kind": {
+          "name": "suppressed_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -11831,6 +11597,18 @@
         "attendance_break_not_returned_notices_span": {
           "name": "attendance_break_not_returned_notices_span",
           "value": "\"attendance_break_not_returned_notices\".\"shift_ends_at\" > \"attendance_break_not_returned_notices\".\"shift_starts_at\" AND \"attendance_break_not_returned_notices\".\"break_ends_at\" > \"attendance_break_not_returned_notices\".\"shift_starts_at\" AND \"attendance_break_not_returned_notices\".\"break_ends_at\" < \"attendance_break_not_returned_notices\".\"shift_ends_at\""
+        },
+        "attendance_break_not_returned_notices_suppressed": {
+          "name": "attendance_break_not_returned_notices_suppressed",
+          "value": "\"attendance_break_not_returned_notices\".\"suppressed_at\" IS NULL OR \"attendance_break_not_returned_notices\".\"recipient_count\" = 0"
+        },
+        "attendance_break_not_returned_notices_suppressed_kind": {
+          "name": "attendance_break_not_returned_notices_suppressed_kind",
+          "value": "\"attendance_break_not_returned_notices\".\"suppressed_kind\" IN ('NOT_RETURNED', 'RETURNED_OTHER_BRANCH')"
+        },
+        "attendance_break_not_returned_notices_suppressed_pair": {
+          "name": "attendance_break_not_returned_notices_suppressed_pair",
+          "value": "(\"attendance_break_not_returned_notices\".\"suppressed_at\" IS NULL) = (\"attendance_break_not_returned_notices\".\"suppressed_kind\" IS NULL)"
         }
       },
       "isRLSEnabled": false
@@ -11898,6 +11676,12 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "suppressed_at": {
+          "name": "suppressed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -12028,6 +11812,10 @@
         "attendance_not_clocked_in_notices_span": {
           "name": "attendance_not_clocked_in_notices_span",
           "value": "\"attendance_not_clocked_in_notices\".\"shift_ends_at\" > \"attendance_not_clocked_in_notices\".\"shift_starts_at\""
+        },
+        "attendance_not_clocked_in_notices_suppressed": {
+          "name": "attendance_not_clocked_in_notices_suppressed",
+          "value": "\"attendance_not_clocked_in_notices\".\"suppressed_at\" IS NULL OR \"attendance_not_clocked_in_notices\".\"recipient_count\" = 0"
         }
       },
       "isRLSEnabled": false

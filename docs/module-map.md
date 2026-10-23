@@ -155,6 +155,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `AlertRulesPort.roleHolders` | `identity` | active system-role holders whose company, business or branch membership covers the event branch at the event time, with the canonical company-owner flag; read on the attendance-change writer's transaction (ADR-0040 addendum 2026-10-21, spec 060 D-B13, 62-2b) |
 | `orders` | `StaffColumnsPort` | `settings` | the business's allowed staff-app columns and `staff_months_back`, read in the «شغلي» transaction so a hidden column never leaves the server (ADR-0010 addendum 2026-10-21, spec 060 D-A3, 57c-1) |
 | worker `orders` | `AlertRulesPort` | worker `settings` | the effective alert rule (branch override, otherwise the business rule, master switch applied) for the late, edit, cancel and performers bells; its roles feed `branchManagerRecipients` (ADR-0010 addendum 2026-10-21, spec 060 D-B14, 62-3) |
+| worker `staff` | `AlertRulesPort` | worker `settings` | the effective alert rule for the not-clocked-in, break-not-returned and break-returned-at-another-branch alerts, read on the detector's locked employee transaction; its delay, roles and on/off drive the decision and the `suppressed_at` ledger row, and the kind's fixed employee push recipient is carried for row 28b-5 (ADR-0010 addendum 2026-10-21, spec 060 D-B14/D-B15, 62-2) |
 | worker `customers` | `BranchScheduleHoursPort` | worker `tenancy` | the branch's opening hours and effective timezone through `branchScheduleHours` on the caller's transaction, for the rating request day and closing time; adapter bound at the customers composition root, not an injected callback (ADR-0010 addendum 2026-10-21, spec 060 D-B3, 59-1, postponed by RT-Q1) |
 
 ### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
@@ -360,6 +361,7 @@ reads:
   - customers -> settings.readStaffColumns @ apps/api/src/modules/customers/persistence/staff-columns.adapter.ts
   - staff -> settings.readStaffColumns @ apps/api/src/modules/staff/persistence/staff-columns.adapter.ts
   - staff -> settings.readAlertRule @ apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts
+  - staff -> settings.alertRule @ apps/worker/src/modules/staff/persistence/alert-rule.adapter.ts
   - orders -> identity.lockServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/session-place.adapter.ts

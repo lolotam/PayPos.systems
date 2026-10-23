@@ -1,23 +1,11 @@
 const MINUTE_MS = 60 * 1000;
 
-/** مهلة التنبيه الافتراضية: عشرون دقيقة منقضية من بداية الوردية (D-47). */
-export const NOT_CLOCKED_IN_DELAY_MS = 20 * MINUTE_MS;
-
 /** بداية نافذة الحضور: ساعتان منقضيتان قبل بداية الوردية. */
 export const NOT_CLOCKED_IN_WINDOW_BEFORE_MS = 2 * 60 * MINUTE_MS;
 
 /** قرار الوظيفة لوردية واحدة في لحظة واحدة؛ ALERT وحده يكتب إشعاراً. */
 export type NotClockedInDecision =
   'ALERT' | 'WAIT' | 'EXCUSED' | 'CLOCKED_IN' | 'STALE' | 'INELIGIBLE';
-
-/** القاعدة الثابتة التي يستبدلها PR 62 بقراءة AlertRulesPort؛ مكانها واحد. */
-export interface InterimNotClockedInRule {
-  readonly enabled: boolean;
-  readonly delayMs: number;
-  readonly windowBeforeMs: number;
-  readonly channel: 'IN_APP';
-  readonly roles: readonly ['owner', 'general_manager', 'business_manager', 'branch_manager'];
-}
 
 /** إجازة قد تغطي بداية الوردية؛ الحالة غير المعتمدة لا تُعذر حتى لو تداخلت. */
 export interface LeaveInterval {
@@ -100,22 +88,6 @@ const SAFE_NAME_FALLBACK: NameFallback = {
   branchAr: SAFE_BRANCH,
   branchEn: SAFE_BRANCH,
 };
-
-/**
- * القاعدة المؤقتة لتنبيه عدم الحضور حتى تصل شاشة قواعد التنبيه.
- * مفعّلة دائماً، بتأخير عشرين دقيقة، والمستلمون مديرو الفرع، والقناة داخل التطبيق فقط.
- *
- * @returns القاعدة التي يقرأها مسار الكشف حيث سيقرأ PR 62 المنفذ AlertRulesPort
- */
-export function interimNotClockedInRule(): InterimNotClockedInRule {
-  return {
-    enabled: true,
-    delayMs: NOT_CLOCKED_IN_DELAY_MS,
-    windowBeforeMs: NOT_CLOCKED_IN_WINDOW_BEFORE_MS,
-    channel: 'IN_APP',
-    roles: ['owner', 'general_manager', 'business_manager', 'branch_manager'],
-  };
-}
 
 /**
  * لحظة التنبيه: بداية الوردية زائد مهلة منقضية، لا ساعة حائط.

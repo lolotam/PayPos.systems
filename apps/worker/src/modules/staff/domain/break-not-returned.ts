@@ -1,16 +1,11 @@
 import {
   applyApprovedLeave,
-  interimNotClockedInRule,
   shiftNotClockedInParameters,
   type AppliedLeave,
-  type InterimNotClockedInRule,
   type LeaveInterval,
   type NameFallback,
   type NoticeParameter,
 } from './not-clocked-in.ts';
-
-/** مهلة الرجوع من البريك: نفس مهلة التأخير العشر دقائق (AT-Q7)، منقضية من آخر البريك. */
-export const BREAK_RETURN_GRACE_MS = 10 * 60 * 1000;
 
 /** خروج قبل بداية البريك بعشر دقائق أو أقل يُحسب خروجاً للبريك (BW-Q11). */
 export const BREAK_OUT_LEAD_MS = 10 * 60 * 1000;
@@ -25,15 +20,6 @@ export interface BreakReturn {
   readonly clockIn: Date;
   readonly nameAr: string | null;
   readonly nameEn: string;
-}
-
-/** القاعدة المؤقتة لتنبيه عدم الرجوع؛ نفس مستلمي وقناة تنبيه عدم الحضور حتى يصل PR 62. */
-export interface InterimBreakNotReturnedRule {
-  readonly enabled: boolean;
-  readonly graceMs: number;
-  readonly breakOutLeadMs: number;
-  readonly channel: InterimNotClockedInRule['channel'];
-  readonly roles: InterimNotClockedInRule['roles'];
 }
 
 /** الوردية وبريكها كما خُزّنت لحظات UTC. */
@@ -62,23 +48,6 @@ export interface BreakNoticeParameter {
   readonly name: Exclude<NoticeParameter['name'], 'shift_start'> | 'break_end';
   readonly type: 'text';
   readonly value: string;
-}
-
-/**
- * القاعدة المؤقتة لتنبيه عدم الرجوع من البريك (BW-Q5، الاختيار 2).
- * تأخذ أدوار المستلمين والقناة من قاعدة تنبيه عدم الحضور حتى يبدلهما PR 62 معاً من مكان واحد.
- *
- * @returns القاعدة: مفعّلة، بمهلة رجوع عشر دقائق، وخروج حتى عشر دقائق قبل البريك، داخل التطبيق، لمديري الفرع
- */
-export function interimBreakNotReturnedRule(): InterimBreakNotReturnedRule {
-  const shared = interimNotClockedInRule();
-  return {
-    enabled: shared.enabled,
-    graceMs: BREAK_RETURN_GRACE_MS,
-    breakOutLeadMs: BREAK_OUT_LEAD_MS,
-    channel: shared.channel,
-    roles: shared.roles,
-  };
 }
 
 /**
@@ -126,6 +95,33 @@ export function breakNotReturnedDecision(facts: BreakNotReturnedFacts): BreakNot
   return 'ALERT';
 }
 
+/** نوع التنبيه اللي اتكبح فيه سطر دفتر البريك. */
+export type SuppressedBreakKind = 'NOT_RETURNED' | 'RETURNED_OTHER_BRANCH';
+
+/** قرار سطر الدفتر المكبوح: يتحول لإشعار، يتقفل بنوع تاني، أو ما يحصلش. */
+export type SuppressedBreakDisposition = 'CONVERT' | 'CLOSE' | 'NONE';
+
+/**
+ * بيقرر إيه اللي يحصل لسطر دفتر البريك المكبوح.
+ * سطر «عدم الرجوع» المكبوح بيتحوّل بس لإشعار «رجعت لفرع آخر»؛ والعكس سطره نهائي ما يتغيّرش
+ * (D-B15: ما فيش إشعار متأخر عن وقت القاعدة). والقاعدة المقفولة بتقفل السطر نهائيًا عشان ما يتحوّلش بعدها.
+ *
+ * @param facts الحقائق الثلاث التالية
+ * @param facts.suppressedKind نوع التنبيه اللي اتكبح فيه السطر
+ * @param facts.decision قرار الوظيفة بعد إعادة القراءة تحت القفل
+ * @param facts.otherBranchEnabled هل قاعدة «رجعت لفرع آخر» الفعلية شغالة (القاعدة والمفتاح العام)
+ * @returns CONVERT للتحويل، CLOSE للقفل النهائي، NONE إن السطر ما يتغيّرش
+ */
+export function suppressedBreakDisposition(facts: {
+  readonly suppressedKind: SuppressedBreakKind;
+  readonly decision: BreakNotReturnedDecision;
+  readonly otherBranchEnabled: boolean;
+}): SuppressedBreakDisposition {
+  if (facts.suppressedKind !== 'NOT_RETURNED') return 'NONE';
+  if (facts.decision !== 'RETURNED_OTHER_BRANCH') return 'NONE';
+  return facts.otherBranchEnabled ? 'CONVERT' : 'CLOSE';
+}
+
 /**
  * أحدث نهاية بريك يمكن أن تكون مستحقة الآن، ليقرأ التخزين صفحة أصغر.
  *
@@ -135,6 +131,20 @@ export function breakNotReturnedDecision(facts: BreakNotReturnedFacts): BreakNot
  */
 export function dueBreakCutoff(now: Date, graceMs: number): Date {
   return new Date(now.getTime() - graceMs);
+}
+
+/**
+ * هل مضت مهلة الرجوع عن آخر البريك؟
+ * الدالة تحرس توقيت إشعار «رجعت لفرع آخر»، والمهلة هي مهلة قاعدة النوع نفسه
+ * (SHIFT_BREAK_RETURNED_OTHER_BRANCH، عشر دقائق لو مفيش قاعدة مخزّنة) ولا تعتمد على قاعدة عدم الرجوع.
+ *
+ * @param breakEndsAt آخر البريك
+ * @param at لحظة القرار
+ * @param graceMs مهلة قاعدة النوع اللي بيتقرر، بالمللي ثانية
+ * @returns true لو المهلة مضت عند لحظة القرار
+ */
+export function graceElapsed(breakEndsAt: Date, at: Date, graceMs: number): boolean {
+  return at.getTime() >= breakEndsAt.getTime() + graceMs;
 }
 
 /**
