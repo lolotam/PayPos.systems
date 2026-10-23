@@ -17,6 +17,7 @@ const SCAN_DIRS = ['apps', 'packages'];
 const SKIP_DIRS = new Set([
   'node_modules',
   'dist',
+  'dist-native',
   '.next',
   '.turbo',
   'coverage',

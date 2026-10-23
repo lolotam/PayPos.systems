@@ -8,7 +8,7 @@ import { defineConfig } from 'vitest/config';
 const testing = process.env.VITEST === 'true';
 
 export default defineConfig(({ mode }) => {
-  // نسخة التطبيق الأصلي: الأصول بتاعةه جوّه التطبيق نفسه، فمفيش service worker ولا manifest
+  // نسخة التطبيق الأصلي: الأصول بتاعته جوّه التطبيق نفسه، فمفيش service worker ولا manifest
   // (ADR-0055 قرار 3)، والبناء بيطلع في مجلد مستقل عشان build الويب ما يتغيرش.
   const native = mode === 'native';
 

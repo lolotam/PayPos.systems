@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import { t } from '@pospay/i18n';
 
 import { PersonalScreen } from '@/personal-staff/ui/personal-screen';
-import { useLocale } from '@/shared/locale/locale-context';
 
 import { DeviceScreen } from './device-screen';
 import { readDeviceRole, saveDeviceRole, type DeviceRole } from './device-role';
@@ -13,7 +11,6 @@ type NativeState =
   { kind: 'loading' } | { kind: 'start'; failed: boolean } | { kind: 'flow'; role: DeviceRole };
 
 export function NativeEntry() {
-  const locale = useLocale();
   const [state, setState] = useState<NativeState>({ kind: 'loading' });
 
   useEffect(() => {
@@ -44,14 +41,5 @@ export function NativeEntry() {
   if (state.kind === 'flow') {
     return state.role === 'counter' ? <DeviceScreen /> : <PersonalScreen />;
   }
-  return (
-    <>
-      {state.failed ? (
-        <p role="alert" className="bg-destructive/10 px-4 py-3 text-center text-destructive">
-          {t(locale, 'nativeShell.saveFailed')}
-        </p>
-      ) : null}
-      <StartScreen onChoose={choose} />
-    </>
-  );
+  return <StartScreen onChoose={choose} saveFailed={state.failed} />;
 }

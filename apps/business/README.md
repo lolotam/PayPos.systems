@@ -4,18 +4,20 @@
 نفسه (ADR-0055). مفيش كود شاشات هنا — الشاشات في `apps/pos` عشان الـ PWA والتطبيق ما يختلفوش
 (`CLAUDE.md` §7). اللي هنا: إعداد Capacitor، مشروعا Xcode و Gradle، وأوامر المزامنة.
 
-## الطعمان (flavours)
+## نسختين البناء (flavours)
 
-التطبيقان نسخة واحدة تنصب جنب بعض على نفس الموبايل، ولكل واحد id بتاعه و API بتاعه
-(ADR-0055 قرار 4):
+نسختين البناء من نفس المصدر، كل واحدة تنصب جنب بعض على نفس الموبايل، ولكل واحدة id بتاعها
+و API بتاعها (ADR-0055 قرار 4):
 
-| الطعم | `appId` | الـ API | `server.hostname` |
+| نسخة البناء | `appId` | الـ API | `server.hostname` (أندرويد بس) |
 | --- | --- | --- | --- |
 | `staging` (الافتراضي) | `systems.pospay.business.staging` | `api.staging.pospay.systems` | `pos.staging.pospay.systems` |
 | `production` | `systems.pospay.business` | `api.pospay.systems` | `pos.pospay.systems` |
 
-الـ `appId` والـ `server.hostname` ما يتغيروش بعد أول رفع للمتجر: تغييرهم = origin جديد،
-والـ IndexedDB (ربط الجهاز وطابور المزامنة) بيضيع.
+الـ `appId` ما يتغيرش بعد أول رفع للمتجر. والـ `server.hostname` ده لأندرويد بس: iOS بيقرا
+`server.hostname` كمان، بس لازم يفضل على `capacitor://localhost` عشان الـ secure context
+(ADR-0055 قرار 3). وتغيير الـ hostname أو الـ scheme بعد أول إصدار = origin جديد، والـ
+IndexedDB (ربط الجهاز وطابور المزامنة) بيضيع.
 
 ## المزامنة
 
@@ -25,21 +27,24 @@
 pnpm --filter @pospay/pos build:native
 ```
 
-بعدين مزامنة الأصول داخل المشروع الأصلي:
+بعدين مزامنة الأصول داخل المشروع الأصلي، وهي الطريقة المسموحة الوحيدة:
 
 ```bash
 pnpm --filter @pospay/business sync:staging
 pnpm --filter @pospay/business sync:production
 ```
 
-كل أمر بيشغّل `cap sync` مع `FLAVOUR` المناسب. مفيش أمر `build` هنا عن قصد: بناء لينكس
-ما يحتاجش Xcode ولا Android SDK.
+كل أمر بيشغّل `cap sync` للمنصتين واحدة واحدة — أندرويد الأول وبعدين iOS — مع `FLAVOUR`
+المناسب. و`cap sync` لوحده مش مسموح: هيسيب أندرويد من غير الـ hostname بتاعه. مفيش أمر
+`build` هنا عن قصد: بناء لينكس ما يحتاجش Xcode ولا Android SDK.
 
 ## أسرار الـ CI
 
 الملف ده فيه **أسماء** المتغيرات بس. القيم كلها أسرار في environments بتاعت GitHub Actions
 (ADR-0055 قرار 5) — `mobile-staging` و `mobile-production`، ومفيش مفتاح أو ملف توقيع
-في المستودع (`CLAUDE.md` §8):
+في المستودع (`CLAUDE.md` §8).
+
+الأسماء دي **مقترحة**: sub-PR اللي بيكتب stage C (ADR-0055 قرار 6) هو اللي بيثبّتها.
 
 | الاسم | القيمة |
 | --- | --- |

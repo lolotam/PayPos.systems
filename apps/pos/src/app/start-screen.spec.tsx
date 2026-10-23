@@ -7,12 +7,12 @@ import { LocaleProvider } from '@/shared/locale/locale-context';
 
 import { StartScreen } from './start-screen';
 
-function mount(locale: 'ar' | 'en') {
+function mount(locale: 'ar' | 'en', options: { saveFailed?: boolean } = {}) {
   const onChoose = vi.fn();
   render(
     <DirectionProvider dir={locale === 'ar' ? 'rtl' : 'ltr'}>
       <LocaleProvider locale={locale} setLocale={() => undefined}>
-        <StartScreen onChoose={onChoose} />
+        <StartScreen onChoose={onChoose} {...options} />
       </LocaleProvider>
     </DirectionProvider>,
   );
@@ -55,5 +55,20 @@ describe('StartScreen', () => {
     expect(screen.getByRole('button', { name: t('en', 'nativeShell.employee') })).not.toBeNull();
     expect(screen.getByText(t('en', 'nativeShell.counterHint'))).not.toBeNull();
     expect(screen.getByText(t('en', 'nativeShell.employeeHint'))).not.toBeNull();
+  });
+
+  it('warns on the screen when the choice could not be saved', () => {
+    mount('ar', { saveFailed: true });
+
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
+    expect(screen.getByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+  });
+
+  it('shows no save-failure warning by default', () => {
+    mount('ar');
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
   });
 });

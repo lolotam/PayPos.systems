@@ -1,8 +1,19 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
-// الطعم (flavour) بييجي من متغير بيئة واحد، لأن الـ API origin بيتخبّط في البناء نفسه
-// (ADR-0055 قرار 4): التطبيقين لازم يبنوا من نفس المصدر وبأصول مختلفة.
+// نسخة البناء (flavour) بييجي من متغير بيئة واحد، لأن الـ API origin بيتحط جوّه البناء
+// (ADR-0055 قرار 4): نسختين البناء بتتبنيوا من نفس المصدر وبأصول مختلفة.
 const flavour = process.env.FLAVOUR === 'production' ? 'production' : 'staging';
+
+// الـ hostname ده لأندرويد بس: iOS بيقرا server.hostname كمان، ولازم يفضل على
+// capacitor://localhost عشان الـ secure context (ADR-0055 قرار 3). عشان كده مفيش مزامنة
+// غير عن طريق سكربتات apps/business، و«cap sync» لوحده بيسيب أندرويد على الـ host
+// الافتراضي — وده عمره ما ينزل للتخزين.
+const android = process.env.CAP_PLATFORM === 'android';
+
+const server: NonNullable<CapacitorConfig['server']> = { androidScheme: 'https' };
+if (android) {
+  server.hostname = flavour === 'production' ? 'pos.pospay.systems' : 'pos.staging.pospay.systems';
+}
 
 const config: CapacitorConfig = {
   appId: flavour === 'production' ? 'systems.pospay.business' : 'systems.pospay.business.staging',
@@ -10,11 +21,7 @@ const config: CapacitorConfig = {
   webDir: '../pos/dist-native',
   // الـ hostname والـ scheme ما يتغيروش بعد أول إصدار: تغييرهم معناه origin جديد،
   // والـ IndexedDB (ربط الجهاز وطابور المزامنة) بيضيع (حالة «تحديث التطبيق» في spec 065).
-  // مفيش override لـ iOS: هو بيفضل على الـ scheme الافتراضي (capacitor) زي ما هو.
-  server: {
-    androidScheme: 'https',
-    hostname: flavour === 'production' ? 'pos.pospay.systems' : 'pos.staging.pospay.systems',
-  },
+  server,
 };
 
 export default config;
