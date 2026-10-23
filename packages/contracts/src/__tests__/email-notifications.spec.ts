@@ -25,11 +25,13 @@ it('requires one email destination without phone/body/credentials on its strict 
     ).toBe(false);
 });
 it('retains explicit locale failures for processing without falling back', () => {
-  for (const locale of [null, 'fr'])
-    expect(
-      notificationRequest.parse({ notification_recipients: [{ ...recipient, locale }] })
-        .notification_recipients[0]?.locale,
-    ).toBe(locale);
+  for (const locale of [null, 'fr']) {
+    const parsed = notificationRequest.parse({
+      notification_recipients: [{ ...recipient, locale }],
+    });
+    const first = parsed.notification_recipients[0] as unknown as { locale?: unknown } | undefined;
+    expect(first?.locale).toBe(locale);
+  }
 });
 it('email result evidence contains only context and finite diagnostics', () => {
   const result = {

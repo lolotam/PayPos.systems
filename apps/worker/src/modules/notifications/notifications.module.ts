@@ -30,7 +30,9 @@ import type { SuppressionGate } from './ports/suppression-gate.port.ts';
 import { createAttemptsRepository } from './persistence/drizzle-attempts.repository.ts';
 import { createAuthorizationRepository } from './persistence/drizzle-authorization.repository.ts';
 import { createInAppRepository } from './persistence/drizzle-in-app.repository.ts';
+import { createPushAttemptsRepository } from './persistence/drizzle-push-attempts.repository.ts';
 import { StoreInAppNotification } from './use-cases/store-in-app-notification/store-in-app-notification.ts';
+import { StorePushAttempts } from './use-cases/store-push-attempts/store-push-attempts.ts';
 import { createSuppressionGate } from './persistence/drizzle-suppression.gate.ts';
 import { createChannelAdapter } from './persistence/channel.adapter.ts';
 import {
@@ -109,6 +111,11 @@ export function createNotificationModule(options: NotificationModuleOptions) {
     registry,
     (tx) => new StoreInAppNotification(createInAppRepository(tx), clock, ids),
     email.authorize,
+    // جاهزية الدفع في العامل (إعداد VAPID) هي اللي بتفعّل الإرسال؛ لحد 28b-3 بيفضل معطّل.
+    {
+      enabled: false,
+      store: (tx) => new StorePushAttempts(createPushAttemptsRepository(tx), clock, ids),
+    },
   );
   return {
     consumer,
@@ -122,6 +129,8 @@ export function createNotificationModule(options: NotificationModuleOptions) {
       'NotificationSendAuthorized',
       'NotificationDelivered',
       'NotificationFailed',
+      // حدث الدفع بيتكتب مع كل محاولة معلّقة؛ بيتسجّل هنا قبل ما ييجي مستهلكه في 28b-3 عشان ما يتوقفش.
+      'PushSendAuthorized',
     ],
   };
 }
@@ -219,11 +228,22 @@ export function createInAppNotificationModule(
     createTemplateRegistry(),
     (tx) => new StoreInAppNotification(createInAppRepository(tx), options.clock, options.ids),
     email.authorize,
+    // جاهزية الدفع في العامل (إعداد VAPID) هي اللي بتفعّل الإرسال؛ لحد 28b-3 بيفضل معطّل.
+    {
+      enabled: false,
+      store: (tx) =>
+        new StorePushAttempts(createPushAttemptsRepository(tx), options.clock, options.ids),
+    },
   );
   return {
     consumer,
     emailCapability: email.capability,
-    eventTypes: [...NOTIFICATION_SOURCE_EVENTS, 'NotificationDelivered', 'NotificationFailed'],
+    eventTypes: [
+      ...NOTIFICATION_SOURCE_EVENTS,
+      'NotificationDelivered',
+      'NotificationFailed',
+      'PushSendAuthorized',
+    ],
   };
 }
 

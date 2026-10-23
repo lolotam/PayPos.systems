@@ -19,6 +19,7 @@ import { SERVICE_LINE_CANCEL_COLUMN_GRANTS } from '../../test/service-line-cance
 import { SERVICE_LINE_PERFORMER_COLUMN_GRANTS } from '../../test/service-line-performer-grants.ts';
 import { ALERT_RULE_COLUMN_GRANTS } from '../../test/alert-rule-grants.ts';
 import { PUSH_SUBSCRIPTION_COLUMN_GRANTS } from '../../test/push-subscription-grants.ts';
+import { PUSH_ATTEMPT_COLUMN_GRANTS } from '../../test/push-attempt-grants.ts';
 import { DISCOUNT_PROPOSAL_COLUMN_GRANTS } from '../../test/discount-proposal-grants.ts';
 import { ALLOWED_TABLE_GRANTS } from '../../test/table-grants.ts';
 import postgres from 'postgres';
@@ -129,6 +130,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...SERVICE_LINE_CANCEL_COLUMN_GRANTS,
         ...ALERT_RULE_COLUMN_GRANTS,
         ...PUSH_SUBSCRIPTION_COLUMN_GRANTS,
+        ...PUSH_ATTEMPT_COLUMN_GRANTS,
         ...DISCOUNT_PROPOSAL_COLUMN_GRANTS,
       ].sort(),
     );

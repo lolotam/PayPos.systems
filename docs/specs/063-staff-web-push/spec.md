@@ -302,7 +302,8 @@ declared per PP-7.1). ADR-0027 gets an addendum listing "own push subscription" 
 - **RLS negative**: both tables — cross-tenant read = 0 rows, write rejected, tenant-qualified FK across tenants rejected.
   `privileges.spec.ts` updated; `route-declarations.spec.ts` covers the three routes.
 - **Queries/EXPLAIN**: the consumer's live-subscription lookup and the processor's attempt+subscription read each have a
-  result-shape test and an `EXPLAIN` assertion that the partial index is used.
+  result-shape test and an `EXPLAIN` assertion that the user is read through an index (the partial `push_subscriptions_active_user_idx`
+  or the user foreign-key index; the planner picks either on a small table) and never by a table scan.
 - **Privacy**: the leak-path test of `packages/observability` gets the new field names; a test asserts no log line, event
   JSON or job payload contains an endpoint, key or body.
 - **UI (apps/pos)**: the rotation repair (old browser subscription removed, new one registered, visible state "on"); a

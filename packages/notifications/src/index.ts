@@ -59,3 +59,10 @@ export {
 } from './templates/staff-otp-preparation.ts';
 export { installationHash, endpointHash, subscriberRef, vapidKeyId } from './push/hashes.ts';
 export { readPushApiConfiguration, type PushApiConfiguration } from './push/configuration.ts';
+export {
+  validPushTemplate,
+  sanitizePushParameters,
+  renderPushNotice,
+  type PushTemplateDefinition,
+  type PushTemplateCopy,
+} from './push/templates.ts';
