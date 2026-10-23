@@ -9,7 +9,8 @@
 **Input**: Track MOB, plan row M-1·0 ([plan.md](plan.md)). Wrap the existing `apps/pos` build in a Capacitor shell for
 iOS and Android, as decided in `docs/adr/0055-store-apps-capacitor-shell.md`. Owner decisions: APP-Q1 … APP-Q8
 ([owner-questions.ar.md](owner-questions.ar.md)); questions APP-Q9 … APP-Q18 (batch 58), answered by Waleed on
-2026-10-23 (Abu Salem's picks pending, binding if they differ), so M-1a … M-1f need no further owner question.
+2026-10-23 (Abu Salem's picks pending, binding if they differ), so M-1a … M-1f need no further owner question of
+this spec. One owner answer from spec 067 is still open: who sees FR-017's line (SO-Q1).
 
 **Scope.** The shell, its start screen, offline cold start, the checks of the auth spike (M-1c), and what is hidden on
 native. Out of scope: signed builds and store uploads (M-2), the cashier selling screens (MOB-18, not built yet in the
@@ -174,9 +175,13 @@ start screen again.
   business=…` on a cold start (the launch link) and on a warm start (a link opened while the app runs) the same way: it
   accepts only that host and path, parses the two values with the existing `personalWorkspace` schema of
   `packages/contracts`, ignores every other parameter, and then: with no role or the employee role, it sets the employee
-  role and remembers the business (when a different business may have a session, it first asks the FR-008
-  confirmation, cancelling keeps the current business and session, and then signs out as FR-008 does,
-  and with no network the link is refused with the same message, changing nothing); with
+  role and remembers the business (when a different business may have a session, it first asks its own short
+  confirmation «تبدّلي لصالون تاني؟», not the role-change text (#554 item 1); cancelling keeps the current business and
+  session; then it signs out the personal session as FR-008 does, and with no network the link is refused with the
+  same message, changing nothing). The business switch does not wait on the session fence of #581: the device keeps
+  the employee role, so a racing sign-in can only leave the personal session its own fresh OTP just created (spec 067
+  D-6), never a counter or another person's session left behind by the switch, and the server still decides
+  eligibility on every request (BR-002); orchestrator, 2026-10-23. With
   the counter role, it does not switch, and offers the role change of FR-008. An invalid or foreign link changes
   nothing and shows the existing «ask your manager for your link» message. The «عندي لينك» paste uses the same parser.
 - **FR-013**: The device credentials and the remembered business MUST NOT travel in an OS backup to another device:
@@ -196,7 +201,8 @@ start screen again.
   other language; the user can change it afterwards with the existing language switch (APP-Q12, PP-42.4; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs).
 - **FR-016**: The app follows the device's rotation on tablets and on phones (APP-Q14, PP-42.6; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs); every screen
   of the native build must work in both orientations.
-- **FR-017**: Before MOB-15, an owner or a manager who picks «حسابي كموظفة» sees what an employee sees (sign-in and
+- **FR-017**: Before MOB-15, an owner or a manager (exactly which roles count is SO-Q1 of spec 067, still open) who
+  picks «حسابي كموظفة» sees what an employee sees (sign-in and
   their own attendance) plus one small line «لوحة الإدارة على الويب» with a link to the back office (APP-Q15,
   PP-42.7; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs). This works only for an owner or
   manager who also has an employee record in that business, because a personal session is issued only to a linked
