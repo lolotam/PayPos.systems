@@ -124,3 +124,23 @@ user id, the same in every company), the company id it was enabled for, the publ
 holds no phone, code, challenge, credential, name or notice text, is outside the private-cache clearing described above,
 and is deleted on an explicit sign-out and when notifications are switched off. A session that is merely replaced or
 expired does not delete it (ADR-0052 §7).
+
+## Addendum 2026-10-23 — explicit sign-out and the back-office signal (spec 067, issue #554 items 2 and 4)
+
+- **Status:** Proposed. Item 1 becomes Accepted when sub-PR 067-1 merges, item 2 when sub-PR 067-2 merges (after the
+  owner answers SO-Q1).
+
+1. **Logout without a live session.** `POST /v1/staff/personal-session/sign-out` no longer runs the personal session
+   guard. A session-optional sign-out policy checks the exact configured POS origin, refuses an `Authorization` header
+   (403, as device credentials still cannot stand in for this purpose) and applies a per-IP rate limit. Possession of
+   the server-signed `pospay-personal.session_token` cookie is the authority to end that session; eligibility and the
+   phone binding are not consulted. It answers 200 `SIGNED_OUT` when it ended a live `STAFF_PERSONAL` session and 200
+   `NO_SESSION` otherwise, and never 401; it sends the clearing `Set-Cookie` only when the request carried the
+   personal cookie (spec 067 D-6). The client-side clearing rules above
+   (private forms and caches on logout; the push record on an explicit sign-out) are unchanged.
+2. **One own-scope display flag.** The personal session read (`GET /v1/staff/personal-session`) and the personal
+   sign-in answer carry `back_office: boolean`: whether the signed-in user counts, under the owner's answer to SO-Q1,
+   as someone the back office is for in the session's business. It is computed on the server on each read from the
+   user's own memberships in the session's company, after proof. It is a display hint only: the personal purpose gains
+   no capability, no guard or query may read it to allow an action, and it reveals nothing about anyone else. This
+   ADR's rule against returning account information applies to the pre-proof eligibility read and is unchanged.
