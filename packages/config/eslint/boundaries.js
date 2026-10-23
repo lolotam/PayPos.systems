@@ -45,7 +45,7 @@ export const USE_CASES_INFRASTRUCTURE_PATTERN = {
   message: 'use-cases/ reach infrastructure only through ports/ (CLAUDE.md §4.2).',
 };
 
-// import('…') and require('…') of the engine — no-restricted-imports sees static imports only.
+// import('…'), require('…') and import types of the engine — no-restricted-imports sees static imports only.
 const ENGINE_ROOT = '/^@pospay\\/commissions-engine$/';
 const ENGINE_SUBPATH = '/^@pospay\\/commissions-engine\\/.+$/';
 const ENGINE_VALIDATION_ONLY = '/^@pospay\\/commissions-engine\\/(?!validation$).+$/';
@@ -54,27 +54,28 @@ const ENGINE_PATH = '/^\\.{1,2}\\/(?:.*\\/)?commissions-engine(?:\\/.*)?$/';
 const engineSyntax = (pattern, message) => [
   { selector: `ImportExpression[source.value=${pattern}]`, message },
   { selector: `CallExpression[callee.name='require'][arguments.0.value=${pattern}]`, message },
+  { selector: `TSImportType[argument.literal.value=${pattern}]`, message },
 ];
 
-/** The dynamic-import and require() selectors of the engine's root entry. */
+/** The dynamic-import, require() and import-type selectors of the engine's root entry. */
 export const COMMISSIONS_ENGINE_ROOT_SYNTAX = engineSyntax(
   ENGINE_ROOT,
   COMMISSIONS_ENGINE_ROOT_BAN.message,
 );
 
-/** The dynamic-import and require() selectors of every engine subpath. */
+/** The dynamic-import, require() and import-type selectors of every engine subpath. */
 export const COMMISSIONS_ENGINE_SUBPATH_SYNTAX = engineSyntax(
   ENGINE_SUBPATH,
   COMMISSIONS_ENGINE_SUBPATH_BAN.message,
 );
 
-/** The dynamic-import and require() selectors of every engine subpath but /validation. */
+/** The dynamic-import, require() and import-type selectors of every engine subpath but /validation. */
 export const COMMISSIONS_ENGINE_VALIDATION_ONLY_SYNTAX = engineSyntax(
   ENGINE_VALIDATION_ONLY,
   COMMISSIONS_ENGINE_VALIDATION_ONLY_BAN.message,
 );
 
-/** The dynamic-import and require() selectors of a relative path into the engine. */
+/** The dynamic-import, require() and import-type selectors of a relative path into the engine. */
 export const COMMISSIONS_ENGINE_PATH_SYNTAX = engineSyntax(
   ENGINE_PATH,
   COMMISSIONS_ENGINE_PATH_BAN.message,

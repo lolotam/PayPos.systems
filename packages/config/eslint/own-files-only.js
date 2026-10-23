@@ -2,9 +2,9 @@ import { dirname, isAbsolute, relative, resolve } from 'node:path';
 
 /**
  * The purity rule of a package that runs in the browser: it may import only its own files and the
- * packages it names. A static import pattern cannot see a dynamic import() or a require(), and a
- * relative specifier that leaves the package's src folder, so every specifier is resolved here
- * against the importing file instead of being matched by its spelling.
+ * packages it names. A static import pattern cannot see a dynamic import(), a require() or an
+ * import type, and a relative specifier that leaves the package's src folder, so every specifier is
+ * resolved here against the importing file instead of being matched by its spelling.
  *
  * @param {{ src: string, packages?: string[], message: string }} options
  *   src: the absolute path of the package's src folder; packages: the package names it may import;
@@ -47,6 +47,7 @@ export const ownFilesOnly = ({ src, packages = [], message }) => ({
       ExportNamedDeclaration: (node) => check(node.source),
       ExportAllDeclaration: (node) => check(node.source),
       ImportExpression: (node) => check(node.source),
+      TSImportType: (node) => check(node.argument?.literal),
       CallExpression: checkRequire,
     };
   },

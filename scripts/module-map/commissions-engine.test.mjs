@@ -21,6 +21,7 @@ const staticImport = (spec) =>
   `import { probe as engine } from '${spec}';\n\nexport const probe = engine;\n`;
 const dynamicImport = (spec) => `export const probe = () => import('${spec}');\n`;
 const requireCall = (spec) => `export const probe = require('${spec}');\n`;
+const typeImport = (spec) => `export type Probe = import('${spec}').CommissionPlan;\n`;
 
 const M = 'src/modules';
 const ORDERS_UC = `${M}/orders/use-cases/probe/probe.ts`;
@@ -121,6 +122,29 @@ for (const [file, expect, what] of [
 ]) {
   add('api', file, requireCall(ROOT), expect, what);
 }
+
+// apps/api — an import type is a dependency too, and no rule of the import bans may miss it.
+for (const [file, expect, what] of [
+  [ORDERS_UC, E, 'another module use case may not import the engine root as an import type'],
+  [UC, ALLOWED, 'a commissions use case may import the engine root as an import type'],
+  [DOMAIN, E, 'a commissions domain file may not import the engine root as an import type'],
+]) {
+  add('api', file, typeImport(ROOT), expect, what);
+}
+add(
+  'api',
+  UC,
+  typeImport(VALIDATION),
+  E,
+  'a commissions use case may not import the engine /validation as an import type',
+);
+add(
+  'api',
+  ORDERS_UC,
+  typeImport(API_PATH),
+  E,
+  'another module use case may not reach the engine by a relative path as an import type',
+);
 
 // apps/api — no subpath of the engine is importable, not even /validation.
 for (const [file, expect, what] of [
@@ -336,6 +360,20 @@ add(
   E,
   'a commissions use case may not import the engine root',
 );
+add(
+  'admin',
+  'src/commissions/probe.ts',
+  typeImport(ROOT),
+  E,
+  'the commissions area may not import the engine root as an import type',
+);
+add(
+  'admin',
+  'src/commissions/probe.ts',
+  typeImport(VALIDATION),
+  ALLOWED,
+  'the commissions area may import the engine /validation as an import type',
+);
 
 // packages/ids — a sibling package reaches the engine only through its exports.
 add(
@@ -392,6 +430,27 @@ add(
   ALLOWED,
   'the package may import its own files',
 );
+add(
+  'engine',
+  'src/probe.ts',
+  typeImport('node:fs'),
+  E,
+  'the package may not import node:fs as an import type',
+);
+add(
+  'engine',
+  'src/probe.ts',
+  typeImport('../../db/src/index.ts'),
+  E,
+  'the package may not leave its own folder by a relative path as an import type',
+);
+add(
+  'engine',
+  'src/probe.ts',
+  typeImport('@pospay/domain'),
+  ALLOWED,
+  'the package may import @pospay/domain as an import type',
+);
 
 // packages/domain — the kernel has zero dependencies, its own files only.
 add(
@@ -407,6 +466,13 @@ add(
   staticImport('./money.ts'),
   ALLOWED,
   'the kernel may import its own files',
+);
+add(
+  'domain',
+  'src/probe.ts',
+  typeImport('@pospay/ids'),
+  'zero dependencies',
+  'the kernel may not import a package as an import type',
 );
 
 describe('the commissions engine import bans (ADR-0054 §1)', () => {
