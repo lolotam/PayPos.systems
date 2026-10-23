@@ -252,7 +252,14 @@ export const allowCommissionsEngineValidation = () => [
 /** Shared flat config. Every app and package re-exports this from its own eslint.config.js. */
 export const config = tseslint.config(
   {
-    ignores: ['**/dist/**', '**/dist-native/**', '**/.next/**', '**/.turbo/**', '**/coverage/**', '**/node_modules/**'],
+    ignores: [
+      '**/dist/**',
+      '**/dist-native/**',
+      '**/.next/**',
+      '**/.turbo/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.strict,
