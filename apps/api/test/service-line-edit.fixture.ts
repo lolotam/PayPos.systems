@@ -5,7 +5,7 @@ import { EditServiceLinePriceUseCase } from '../src/modules/orders/use-cases/edi
 import { ids, must, sessionFixture, type SessionFixture } from './service-session.fixture.ts';
 import { takeTestEmployeeNumber } from './test-employee-number.ts';
 
-interface PerformerSnapshot {
+export interface PerformerSnapshot {
   employee_id: string;
   linked_user_id: string | null;
   linked_user_snapshotted: boolean;

@@ -42,6 +42,7 @@ reads:
   - { from: orders, to: identity, symbol: readServiceSessionAccess, file: apps/api/src/modules/orders/persistence/recording-context.adapter.ts }
   - { from: orders, to: settings, symbol: readEffectiveDiscountLimit, file: apps/api/src/modules/orders/persistence/recording-context.adapter.ts }
   - { from: orders, to: identity, symbol: readServiceSessionReadAccess, file: apps/api/src/modules/orders/persistence/session-read-access.adapter.ts }
+  - { from: orders, to: identity, symbol: readDiscountApprovalListAccess, file: apps/api/src/modules/orders/persistence/session-read-access.adapter.ts }
   - { from: orders, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/branch-place.adapter.ts }
