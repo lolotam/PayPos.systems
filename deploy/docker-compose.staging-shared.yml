@@ -85,7 +85,7 @@ services:
       WHATSAPP_STOP_BUTTON_ID: ${WHATSAPP_STOP_BUTTON_ID:-}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.staging.pospay.systems}
-      # Private files on Cloudflare R2 (packages/storage); all four empty = uploads answer STORAGE_NOT_CONFIGURED.
+      # Private files on Cloudflare R2 (packages/storage); any of endpoint, bucket and the two keys missing = uploads answer STORAGE_NOT_CONFIGURED.
       STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
       STORAGE_REGION: ${STORAGE_REGION:-auto}
       STORAGE_BUCKET: ${STORAGE_BUCKET:-}

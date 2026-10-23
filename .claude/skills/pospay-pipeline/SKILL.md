@@ -539,9 +539,8 @@ Waleed: «مشروع جديد بـ Compose واحد»). Its compose file is `dep
 its environment lives in Dokploy (secrets included; never print them). The three hosts are **Dokploy domains** on that
 service (Domains tab: api -> `api`:3000, app -> `admin`:3000, pos -> `pos`:8080, HTTPS, Let's Encrypt), so the compose
 file carries no Traefik labels; never add them back (a second router for the same host). The earlier compose in
-`PayPos.Systems` / environment `staging` (`hjvMzqQ-SyAm0wSaWxkzW`) is stopped and kept only as a cold copy until Waleed
-approves deleting it; it is not the rollback path, and it must never be started while the new one runs (two workers would
-share the queues). Following ADR-0001 §6 the `PosPay Staging` service serves the API at
+`PayPos.Systems` / environment `staging` (`hjvMzqQ-SyAm0wSaWxkzW`) was deleted with Waleed's yes on 2026-10-23; it was never the
+rollback path. Never start a second copy of this compose next to the live one (two workers would share the queues). Following ADR-0001 §6 the `PosPay Staging` service serves the API at
 https://api.staging.pospay.systems, the back-office at https://app.staging.pospay.systems and the cashier at
 https://pos.staging.pospay.systems, on the server's shared Postgres and Redis. Waleed's standing rule (2026-10-23):
 **staging is updated after every merge**, so every new feature can be tested there live; its data is demo data only.
