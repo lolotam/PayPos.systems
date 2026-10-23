@@ -191,6 +191,7 @@ export {
   type InAppNotificationQuery,
   type InAppNotificationPage,
 } from './in-app-notifications.js';
+export * from './push-subscription.js';
 export { whatsappEnvelope, whatsappHandshake, type WhatsAppEnvelope } from './whatsapp-webhook.js';
 
 export {

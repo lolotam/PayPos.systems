@@ -181,6 +181,14 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
       'PERSONAL',
       'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',
     ),
+    'PushSubscriptionController.register': declared(
+      'PERSONAL',
+      'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',
+    ),
+    'PushSubscriptionController.revoke': declared(
+      'PERSONAL',
+      'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',
+    ),
     'ScheduleSettingsController.set': declared(
       'RECORD_SCOPED',
       'apps/api/src/modules/identity/persistence/schedule-access.ts#scheduleAccess',

@@ -14317,6 +14317,108 @@
         ]
       }
     },
+    "/v1/staff/push/config": {
+      "get": {
+        "operationId": "getStaffPushConfig",
+        "responses": {
+          "200": {
+            "description": "The push public key, its id and the caller subscriber reference, answered no-store. NOT_READY when push is not configured; UNAUTHENTICATED without a personal staff session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushConfig"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PersonalStaffSession": []
+          }
+        ]
+      }
+    },
+    "/v1/staff/push/subscription": {
+      "put": {
+        "operationId": "registerStaffPushSubscription",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscriptionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Registers or refreshes the caller subscription, answered no-store. VALIDATION_FAILED 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; PUSH_REGISTRATION_BUSY 409 when another registration for the same device is in progress; RATE_LIMITED 429 after twenty registrations an hour per user; NOT_READY 503 when push is not configured."
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PersonalStaffSession": []
+          }
+        ]
+      }
+    },
+    "/v1/staff/push/subscription/revoke": {
+      "post": {
+        "operationId": "revokeStaffPushSubscription",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushRevokeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Revokes the caller subscription for that install, answered no-store; an unknown or foreign id answers the same. VALIDATION_FAILED 400 for a malformed install id. The revoke stays available without a push configuration, so an employee can always remove her subscription."
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PersonalStaffSession": []
+          }
+        ]
+      }
+    },
     "/v1/me/workspaces": {
       "get": {
         "operationId": "listMyWorkspaces",
@@ -31341,6 +31443,117 @@
         "required": [
           "ok"
         ]
+      },
+      "PushConfig": {
+        "type": "object",
+        "properties": {
+          "vapid_public_key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "vapid_key_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          },
+          "subscriber_ref": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "vapid_public_key",
+          "vapid_key_id",
+          "subscriber_ref"
+        ],
+        "additionalProperties": false
+      },
+      "PushEndpoint": {
+        "type": "string",
+        "maxLength": 2048
+      },
+      "PushRevokeInput": {
+        "type": "object",
+        "properties": {
+          "installation_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+          }
+        },
+        "required": [
+          "installation_id"
+        ],
+        "additionalProperties": false
+      },
+      "PushSubscriptionInput": {
+        "type": "object",
+        "properties": {
+          "installation_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+          },
+          "vapid_key_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          },
+          "delivery_token": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+          },
+          "subscription": {
+            "type": "object",
+            "properties": {
+              "endpoint": {
+                "$ref": "#/components/schemas/PushEndpoint"
+              },
+              "expirationTime": {
+                "nullable": true,
+                "type": "number"
+              },
+              "keys": {
+                "type": "object",
+                "properties": {
+                  "p256dh": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{87}$"
+                  },
+                  "auth": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{22}$"
+                  }
+                },
+                "required": [
+                  "p256dh",
+                  "auth"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "endpoint",
+              "keys"
+            ],
+            "additionalProperties": false
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "ar",
+              "en"
+            ]
+          }
+        },
+        "required": [
+          "installation_id",
+          "vapid_key_id",
+          "delivery_token",
+          "subscription",
+          "locale"
+        ],
+        "additionalProperties": false
       },
       "DeliveryLogItem": {
         "type": "object",

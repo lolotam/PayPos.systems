@@ -44,6 +44,7 @@ export const TENANT_TABLES = [
   'employee_number_sequences',
   'in_app_notifications',
   'notification_attempts',
+  'push_subscriptions',
   'companies',
   'businesses',
   'branches',

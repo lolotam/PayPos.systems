@@ -105,6 +105,12 @@ import {
   notificationReadResult,
 } from './in-app-notifications.js';
 import {
+  pushConfig,
+  pushEndpoint,
+  pushRevokeInput,
+  pushSubscriptionInput,
+} from './push-subscription.js';
+import {
   businessIdentity, businessIdentityNames, businessLogo, businessSettings, identityCapability,
   calendar,
   language,
@@ -188,6 +194,10 @@ const SCHEMAS = [
   inAppNotificationQuery,
   notificationUnreadCount,
   notificationReadResult,
+  pushConfig,
+  pushEndpoint,
+  pushRevokeInput,
+  pushSubscriptionInput,
   deliveryLogItem,
   deliveryLogPage,
   deliveryLogQuery,

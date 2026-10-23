@@ -103,6 +103,8 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'permission_overrides:UPDATE',
     'permissions:SELECT',
     'plans:SELECT',
+    'push_subscriptions:INSERT',
+    'push_subscriptions:SELECT',
     'role_permissions:DELETE',
     'role_permissions:INSERT',
     'role_permissions:SELECT',

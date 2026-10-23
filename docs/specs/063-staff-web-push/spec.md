@@ -140,7 +140,7 @@ the subscription state of each.
 ### Edge Cases
 
 - A subscribe request whose endpoint is `http:`, has user-info or a port, is an IP literal, or whose host is a look-alike
-  of an allowed push service: refused `VALIDATION_ERROR`, nothing stored (request-forgery guard, ADR-0052 §3).
+  of an allowed push service: refused `VALIDATION_FAILED`, nothing stored (request-forgery guard, ADR-0052 §3).
 - A sixth subscription for one user in one company revokes the oldest (`CAP_EXCEEDED`).
 - The same endpoint subscribed by user B in a company where it is live for user A: moves to B, A's row revoked
   (`OWNER_CHANGED`).
@@ -258,9 +258,9 @@ mounted authenticated writes; the route coverage guard classes every `POST` as a
 - `PUT /v1/staff/push/subscription` · body `pushSubscriptionInput` `{ installation_id, vapid_key_id, delivery_token, subscription:
   { endpoint, keys: { p256dh, auth } }, locale }` · naturally idempotent, no `Idempotency-Key` · response `204`.
 - `POST /v1/staff/push/subscription/revoke` · body `{ installation_id }` · response `204`, identical for own, foreign and
-  absent ids. The raw installation id travels only in bodies, never in a URL (FR-016).
+  absent ids; available even when push is not configured, so an employee can always remove her subscription. The raw installation id travels only in bodies, never in a URL (FR-016).
 - Zod schemas in `packages/contracts/src/push-subscription.ts`; registered in `notifications-openapi.ts`, OpenAPI regenerated (`pnpm contracts:openapi`).
-- Errors: `VALIDATION_ERROR` (bad endpoint, bad key length, bad locale), `NOT_READY`, `PUSH_KEY_STALE` (409), `RATE_LIMITED` (20 `PUT` per user
+- Errors: `VALIDATION_FAILED` (bad endpoint, bad key length, bad locale), `NOT_READY`, `PUSH_KEY_STALE` (409), `PUSH_REGISTRATION_BUSY` (409), `RATE_LIMITED` (20 `PUT` per user
   per hour), `UNAUTHENTICATED`/`FORBIDDEN` for a non-personal principal. `message_ar` / `message_en` as the other staff routes.
 
 ### Permissions
@@ -342,7 +342,7 @@ declared per PP-7.1). ADR-0027 gets an addendum listing "own push subscription" 
 | --- | --- | --- | --- |
 | **28b-1** | 1. Contract + `push_subscriptions` migration, RLS, grants, negative test. 2. `PUT` and `revoke` use cases and the `GET config` query, with endpoint validation and route declarations. 3. ADR-0027 addendum (the personal capability and the local `pospay-push` record) + tests PW-01…PW-04, PW-13, PW-16, PW-18, PW-19, PW-20 (key-id part), PW-21 | ADR-0052 + this spec merged (no open question: WP-Q2 decides only the consumer rule in 28b-2) | database review mandatory |
 | **28b-2** | 1. `push_attempts` migration, RLS, grants, negative test. 2. Pure push templates, allowlist and mapping + unit tests. 3. Consumer for `PUSH` recipients + `PushSendAuthorized` + tests PW-05, PW-06, PW-17 (consumer side) | 28b-1; **WP-Q2 answered** (the consumer selects **every** live subscription of the user) | database review mandatory |
-| **28b-3** | 1. Channel adapter (real and fake) + `web-push` pin + config/readiness. 2. `push-send` processor with the fence, result mapping, revoke + VAPID rotation. 3. `push:generate-vapid`, runbook, tests PW-07…PW-10, PW-14, PW-15, PW-20 (readiness part) | 28b-2 | dependency gate: Node 24 and CI |
+| **28b-3** | 1. Channel adapter (real and fake) + `web-push` pin + the worker's side of the readiness (the API side, `readPushApiConfiguration`, shipped in 28b-1). 2. `push-send` processor with the fence, result mapping, revoke + VAPID rotation. 3. `push:generate-vapid`, runbook, tests PW-07…PW-10, PW-14, PW-15, PW-20 (readiness part) | 28b-2 | dependency gate: Node 24 and CI |
 | **28b-4** | 1. Service worker via `injectManifest` + handlers + the suspended-record check. 2. The five-state control, subscribe/unsubscribe, locale refresh, the `subscriber_ref` comparison and rotation repair from the stored key id. 3. The installed-launch spike (what Add to Home Screen launches on a real iPhone and Android, the reception launch unchanged, ADR-0027 addendum if a hint must be stored) and UI tests (and the iPhone instruction if WP-Q3 says yes) | 28b-1; WP-Q1, WP-Q3 answered | a mockup is attached to WP-Q3 |
 | **28b-5** | 1. Emit the employee's `PUSH` recipient from the not-clocked-in handling. 2. Template `shift_not_clocked_in_self`, emitted as a request event of its own (BR-008), only for a linked user whose personal access is current. 3. Tests PW-11, PW-12, PW-17 (emitter side) | 28b-3 and **62-2** (orchestrator decision 2026-10-22: 62-2 removes `interimNotClockedInRule` and keeps the fixed push recipient this PR uses) | touches the staff emitter that 62-2 rewrites (spec 060 §62-2): it lands after 62-2 |
 

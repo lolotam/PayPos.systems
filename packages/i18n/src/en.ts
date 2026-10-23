@@ -240,6 +240,8 @@ export const en = {
     PASSKEY_SELF_UNBIND: 'You cannot unbind your own passkey. Ask another permitted manager.',
     PASSKEY_REVISION_CONFLICT:
       'The passkey binding changed. Refresh its status before trying again.',
+    PUSH_KEY_STALE: 'The notification key changed. Turn notifications on again.',
+    PUSH_REGISTRATION_BUSY: 'Another registration for this device is in progress. Try again.',
     OTP_INVALID: 'The sign-in code is not valid.',
     VALIDATION_FAILED: 'The request is not valid',
     BAD_REQUEST: 'The request is malformed',
@@ -252,6 +254,7 @@ export const en = {
     DEVICE_NOT_PENDING: 'No device in this branch is waiting for approval with this id',
     PIN_INVALID: 'The PIN is incorrect',
     PIN_LOCKED: 'The PIN is locked after too many wrong attempts — try again in 15 minutes',
+    RATE_LIMITED: 'Too many attempts, try again later.',
     NOT_FOUND: 'Not found',
     METHOD_NOT_ALLOWED: 'Method not allowed',
     PAYLOAD_TOO_LARGE: 'Payload too large',

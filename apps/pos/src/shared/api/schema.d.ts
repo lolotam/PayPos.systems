@@ -2327,6 +2327,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/staff/push/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getStaffPushConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/push/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["registerStaffPushSubscription"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/push/subscription/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokeStaffPushSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/workspaces": {
         parameters: {
             query?: never;
@@ -6406,6 +6454,33 @@ export interface components {
         NotificationReadResult: {
             /** @enum {boolean} */
             ok: true;
+        };
+        PushConfig: {
+            vapid_public_key: string;
+            vapid_key_id: string;
+            subscriber_ref: string;
+        };
+        PushEndpoint: string;
+        PushRevokeInput: {
+            /** Format: uuid */
+            installation_id: string;
+        };
+        PushSubscriptionInput: {
+            /** Format: uuid */
+            installation_id: string;
+            vapid_key_id: string;
+            /** Format: uuid */
+            delivery_token: string;
+            subscription: {
+                endpoint: components["schemas"]["PushEndpoint"];
+                expirationTime?: number | null;
+                keys: {
+                    p256dh: string;
+                    auth: string;
+                };
+            };
+            /** @enum {string} */
+            locale: "ar" | "en";
         };
         DeliveryLogItem: {
             /** Format: uuid */
@@ -15002,6 +15077,97 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DeliveryLogPage"];
                 };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getStaffPushConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The push public key, its id and the caller subscriber reference, answered no-store. NOT_READY when push is not configured; UNAUTHENTICATED without a personal staff session. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushConfig"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    registerStaffPushSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionInput"];
+            };
+        };
+        responses: {
+            /** @description Registers or refreshes the caller subscription, answered no-store. VALIDATION_FAILED 400 for a refused endpoint or key; PUSH_KEY_STALE 409 when the key id is not the current one; PUSH_REGISTRATION_BUSY 409 when another registration for the same device is in progress; RATE_LIMITED 429 after twenty registrations an hour per user; NOT_READY 503 when push is not configured. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    revokeStaffPushSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushRevokeInput"];
+            };
+        };
+        responses: {
+            /** @description Revokes the caller subscription for that install, answered no-store; an unknown or foreign id answers the same. VALIDATION_FAILED 400 for a malformed install id. The revoke stays available without a push configuration, so an employee can always remove her subscription. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description The API error envelope */
             default: {
