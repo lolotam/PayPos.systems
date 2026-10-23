@@ -1,10 +1,8 @@
-import type { PushRequest } from '@pospay/notifications';
-
-import type { PushDecision, PushDelivery } from '../domain/push-delivery.ts';
+import type { PushDecision, PushDelivery, PushSendRequest } from '../domain/push-delivery.ts';
 
 /** الطلب جاهز للإرسال، أو الرفض المحلي اللي بيمنعه. */
 export type PushBuild =
-  | { readonly kind: 'ready'; readonly request: PushRequest }
+  | { readonly kind: 'ready'; readonly request: PushSendRequest }
   | { readonly kind: 'refused'; readonly decision: PushDecision };
 
 export interface PushRequestBuilder {

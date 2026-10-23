@@ -92,6 +92,23 @@ export interface PushDecision {
   readonly vapidRejected: boolean;
 }
 
+/** وجهة الإرسال: العنوان ومفتاح التوقيع ومفتاح المصادقة — نفس شكل طلب القناة. */
+export interface PushSendTarget {
+  readonly endpoint: string;
+  readonly p256dh: string;
+  readonly auth: string;
+}
+
+/** طلب الإرسال: الوجهة والحمولة ومدة البقاء والأولوية والموضوع والموعد. */
+export interface PushSendRequest {
+  readonly target: PushSendTarget;
+  readonly payload: string;
+  readonly ttlSeconds: number;
+  readonly urgency: 'high';
+  readonly topic: string;
+  readonly deadline: Date | null;
+}
+
 /**
  * يبني رفضًا محليًا: الفشل معروف والنتيجة معلومة وبلا سحب.
  *

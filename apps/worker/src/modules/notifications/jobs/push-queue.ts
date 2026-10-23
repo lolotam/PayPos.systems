@@ -28,9 +28,11 @@ export function createPushTransport(
       if (!parsed.success || parsed.data.company_id !== event.companyId)
         throw new TypeError('PUSH_JOB_INVALID');
       const data = parsed.data;
+      // إعادة المحاولة آمنة: بعد الحيازة المحاولة مش بتتبعت تاني، والحيازة مقفولة على PENDING.
       await queue.add('send', data, {
         jobId: `${data.company_id}-${data.attempt_id}`,
-        attempts: 1,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5_000 },
         removeOnComplete: { age: 86_400 },
         removeOnFail: { age: 604_800 },
       });

@@ -1,5 +1,3 @@
-import type { PushChannel } from '@pospay/notifications';
-
 import {
   pushDecisionFromSubmission,
   pushPreflight,
@@ -10,6 +8,7 @@ import {
   type PushTerminalResult,
 } from '../../domain/push-delivery.ts';
 import type { PushAdmission } from '../../ports/push-admission.port.ts';
+import type { PushChannelPort } from '../../ports/push-channel.port.ts';
 import type { Clock } from '../../ports/clock.port.ts';
 import type { PushDeliveryRepository } from '../../ports/push-delivery.repository.ts';
 import type { IdGenerator } from '../../ports/id-generator.port.ts';
@@ -34,7 +33,7 @@ export class SendPush {
   constructor(
     readonly deliveries: PushDeliveryRepository,
     readonly builder: PushRequestBuilder,
-    readonly channel: PushChannel,
+    readonly channel: PushChannelPort,
     readonly admission: PushAdmission,
     readonly keyId: string | null,
     readonly clock: Clock,

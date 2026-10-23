@@ -60,7 +60,8 @@ it('enqueues one id-only job for an authorized attempt', async () => {
   expect(queue.added[0]?.data).toEqual({ company_id: COMPANY, attempt_id: ATTEMPT });
   expect(queue.added[0]?.opts).toMatchObject({
     jobId: `${COMPANY}-${ATTEMPT}`,
-    attempts: 1,
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5_000 },
   });
 });
 

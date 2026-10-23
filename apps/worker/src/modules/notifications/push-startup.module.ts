@@ -64,6 +64,8 @@ function disabledCapability(): PushCapability {
   return {
     enabled: false,
     // حدث إذن الدفع ما بيترجعش للتسليم العادي؛ هو يفضل في الـ outbox لحد ما الدفع يتفعّل.
+    // بعد آخر محاولة في سياسة الـ outbox (عشرة) الحدث بيتوقف زي أي حدث سام، والمشغّل بيعيد تشغيله
+    // لما الدفع يبقى جاهز.
     transport: (next) => (event) => {
       if (event.eventType !== 'PushSendAuthorized') return next(event);
       return Promise.resolve({

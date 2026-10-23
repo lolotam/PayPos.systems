@@ -59,6 +59,7 @@ const email = await startEmailCapability({
   clock: { now: () => new Date() },
 });
 // ADR-0052 قرار 2: جاهزية الدفع في العامل وحدها بتفعّل كتابة المحاولات؛ من غيرها مفيش دفع.
+// وأحداث الإذن بتقعد في الـ outbox لحد ما الدفع يتفعّل، وبعد آخر محاولة في السياسة بتتوقف زي أي حدث سام.
 const push = await startPushCapability({
   env: process.env,
   production,
