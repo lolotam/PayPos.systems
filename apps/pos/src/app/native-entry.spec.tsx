@@ -181,6 +181,17 @@ describe('NativeEntry link on a cold start', () => {
     expect(screen.getByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
   });
 
+  it('keeps the counter device and says the link is for an employee', async () => {
+    vi.mocked(readLaunchLink).mockResolvedValue(link());
+    vi.mocked(readDeviceRole).mockResolvedValue('counter');
+    mount();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.counterDevice'));
+    expect(screen.getByRole('heading', { name: 'device screen' })).not.toBeNull();
+    expect(connectEmployee).not.toHaveBeenCalled();
+  });
+
   it('stores nothing and asks for the internet when a link arrives offline', async () => {
     vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
     vi.mocked(readLaunchLink).mockResolvedValue(link());
@@ -228,17 +239,6 @@ describe('NativeEntry link while the app runs', () => {
       company_id: COMPANY,
       business_id: BUSINESS,
     });
-  });
-
-  it('keeps the counter device and says the link is for an employee', async () => {
-    vi.mocked(readLaunchLink).mockResolvedValue(link());
-    vi.mocked(readDeviceRole).mockResolvedValue('counter');
-    mount();
-
-    const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain(t('ar', 'nativeShell.counterDevice'));
-    expect(screen.getByRole('heading', { name: 'device screen' })).not.toBeNull();
-    expect(connectEmployee).not.toHaveBeenCalled();
   });
 
   it('keeps the remembered business when the link is for another one', async () => {

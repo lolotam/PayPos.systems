@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { t } from '@pospay/i18n';
 
@@ -6,133 +6,74 @@ import { PersonalScreen } from '@/personal-staff/ui/personal-screen';
 import { useLocale } from '@/shared/locale/locale-context';
 
 import { DeviceScreen } from './device-screen';
-import {
-  connectEmployee,
-  readDeviceRole,
-  readRememberedBusiness,
-  rememberBusiness,
-  saveDeviceRole,
-  type DeviceRole,
-} from './device-role';
+import { readDeviceRole, readRememberedBusiness, saveDeviceRole, type DeviceRole } from './device-role';
 import { LoadingNotice } from './loading-notice';
+import {
+  FLOW_ALERT_KEYS,
+  stateAfterFailure,
+  stateAfterLink,
+  stateForRole,
+  withLinkRequired,
+  type NativeState,
+} from './link-rules';
 import type { PersonalWorkspace } from './manager-link';
 import { PasteLinkForm } from './paste-link-form';
 import { StartScreen } from './start-screen';
 import { useNativeLink } from './use-native-link';
 
-type StartAlert = 'saveFailed' | 'needsInternet' | 'linkRequired';
-type FlowAlert = 'linkRequired' | 'otherBusiness' | 'counterDevice';
-
-type NativeState =
-  | { kind: 'loading' }
-  | { kind: 'start'; business: PersonalWorkspace | null; alert?: StartAlert }
-  | { kind: 'flow'; role: DeviceRole; business: PersonalWorkspace | null; alert?: FlowAlert };
-
-const FLOW_ALERT_KEYS = {
-  linkRequired: 'personalStaff.linkRequired',
-  otherBusiness: 'nativeShell.otherBusiness',
-  counterDevice: 'nativeShell.counterDevice',
-} as const;
-
 /**
- * حالة الشاشة لما التطبيق يفتح من غير لينك: دور محفوظ ولا أول تشغيل.
+ * اختيار نوع الجهاز: من غير نت مفيش حاجة تتحفظ، ومع نت بنحفظ الدور ونفتح الشاشة (spec 065).
  *
- * @param role     الدور المحفوظ على الجهاز
- * @param business النشاط المتذكر على الجهاز
- * @returns حالة الشاشة
+ * @param role      الدور اللي اختارته الموظفة
+ * @param business  النشاط المتذكر على الجهاز
+ * @param setState  تحديث حالة الشاشة
  */
-function stateForRole(role: DeviceRole | null, business: PersonalWorkspace | null): NativeState {
-  return role === null ? { kind: 'start', business } : { kind: 'flow', role, business };
-}
-
-/**
- * لينك مش مقبول: حاجة واحدة بس بتتغير، وهي الرسالة (FR-012).
- *
- * @param role    الدور المحفوظ على الجهاز
- * @param business النشاط المتذكر على الجهاز
- * @returns حالة الشاشة بعد رفض اللينك
- */
-function withLinkRequired(
-  role: DeviceRole | null,
+function chooseRole(
+  role: DeviceRole,
   business: PersonalWorkspace | null,
-): NativeState {
-  if (role === null) return { kind: 'start', business, alert: 'linkRequired' };
-  return { kind: 'flow', role, business, alert: 'linkRequired' };
-}
-
-/**
- * قواعد تطبيق لينك المدير — نفس القواعد في كل الحالات: التشغيل البارد، والتشغيل الدافي،
- * واللصق في شاشة الموظفة (FR-012).
- *
- * @param role     الدور المحفوظ على الجهاز
- * @param business النشاط المتذكر على الجهاز
- * @param workspace النشاط اللي جاي في اللينك
- * @returns حالة الشاشة بعد تطبيق اللينك
- */
-async function stateAfterLink(
-  role: DeviceRole | null,
-  business: PersonalWorkspace | null,
-  workspace: PersonalWorkspace,
-): Promise<NativeState> {
-  if (role === 'counter') {
-    // جهاز الكاونتر ما بيبدّلش دوره من لينك؛ تغيير الدور محتاج تأكيد FR-008 وهو Part B.
-    return { kind: 'flow', role: 'counter', business: null, alert: 'counterDevice' };
+  setState: (state: NativeState) => void,
+): void {
+  if (!navigator.onLine) {
+    setState({ kind: 'start', business, alert: 'needsInternet' });
+    return;
   }
-  if (role === null) {
-    // من غير نت مفيش حاجة تتحفظ: اللينك بيرفض زي باقي أول تشغيل (FR-012).
-    if (!navigator.onLine) return { kind: 'start', business: null, alert: 'needsInternet' };
-    await connectEmployee(workspace);
-    return { kind: 'flow', role: 'employee', business: workspace };
-  }
-  if (business === null) {
-    await rememberBusiness(workspace);
-    return { kind: 'flow', role: 'employee', business: workspace };
-  }
-  const same =
-    business.company_id === workspace.company_id && business.business_id === workspace.business_id;
-  if (same) return { kind: 'flow', role: 'employee', business };
-  // نشاط تاني والموظفة ممكن تكون داخل جلسة: التغيير محتاج تأكيد FR-008، وده Part B.
-  return { kind: 'flow', role: 'employee', business, alert: 'otherBusiness' };
+  void saveDeviceRole(role).then(
+    () => setState({ kind: 'flow', role, business }),
+    () => setState({ kind: 'start', business, alert: 'saveFailed' }),
+  );
 }
 
 export function NativeEntry() {
   const locale = useLocale();
   const [state, setState] = useState<NativeState>({ kind: 'loading' });
   const business = state.kind === 'loading' ? null : state.business;
+  // اللينكات بتتر واحد ورا التاني: كل لينك بيقرا الدور والنشاط تاني من التخزين قبل ما يقرر.
+  const links = useRef<Promise<void>>(Promise.resolve());
 
   const onStart = useCallback((role: DeviceRole | null, saved: PersonalWorkspace | null) => {
-    setState(stateForRole(role, saved));
+    setState((current) => (current.kind === 'loading' ? stateForRole(role, saved) : current));
   }, []);
 
   const onLink = useCallback(async (workspace: PersonalWorkspace | null) => {
-    try {
-      const [role, saved] = await Promise.all([readDeviceRole(), readRememberedBusiness()]);
-      setState(
-        workspace === null
-          ? withLinkRequired(role, saved)
-          : await stateAfterLink(role, saved, workspace),
-      );
-    } catch {
-      // الحفظ فشل (تخزين غير مقروء أو كتابة مرفوضة): نرجع لشاشة البداية ونقول إن الحفظ فشل،
-      // عشان الموظفة تعرف إن اللينك ما اتحفظش.
-      setState({ kind: 'start', business: null, alert: 'saveFailed' });
-    }
+    links.current = links.current
+      .then(async () => {
+        const [role, saved] = await Promise.all([readDeviceRole(), readRememberedBusiness()]);
+        try {
+          setState(
+            workspace === null
+              ? withLinkRequired(role, saved)
+              : await stateAfterLink(role, saved, workspace),
+          );
+        } catch {
+          setState((current) => stateAfterFailure(current, role, saved));
+        }
+      })
+      .catch(() => setState((current) => stateAfterFailure(current, null, null)));
   }, []);
 
   useNativeLink(onStart, onLink);
 
-  const choose = (role: DeviceRole) => {
-    // من غير نت مفيش حاجة تتحفظ (حالة «أول تشغيل من غير نت» في spec 065): اختيار متحفظ
-    // هيفتح الشاشة اللي مش هتوصل للخادم.
-    if (!navigator.onLine) {
-      setState({ kind: 'start', business, alert: 'needsInternet' });
-      return;
-    }
-    void saveDeviceRole(role).then(
-      () => setState({ kind: 'flow', role, business }),
-      () => setState({ kind: 'start', business, alert: 'saveFailed' }),
-    );
-  };
+  const choose = (role: DeviceRole) => chooseRole(role, business, setState);
 
   if (state.kind === 'loading') return <LoadingNotice />;
   if (state.kind === 'flow') {

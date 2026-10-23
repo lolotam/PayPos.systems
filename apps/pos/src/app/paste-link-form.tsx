@@ -33,6 +33,7 @@ export function PasteLinkForm({
       <Input
         id="manager-link"
         type="url"
+        dir="ltr"
         autoComplete="off"
         value={value}
         onChange={(event) => setValue(event.target.value)}

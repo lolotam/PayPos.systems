@@ -24,7 +24,7 @@ export function StartScreen({
   const alertText = alert ? t(locale, ALERT_KEYS[alert]) : null;
   return (
     <AppFrame brand={t(locale, 'pos.appName')} actions={<LocaleSwitch />}>
-      <section className="mx-auto grid w-full max-w-md gap-6">
+      <section className="mx-auto grid w-full max-w-md gap-6 landscape:max-w-3xl">
         <h1 className="text-2xl font-semibold">{t(locale, 'nativeShell.title')}</h1>
         <p className="text-muted-foreground">{t(locale, 'nativeShell.lead')}</p>
         {alertText ? (

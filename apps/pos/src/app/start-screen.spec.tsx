@@ -84,6 +84,7 @@ describe('StartScreen', () => {
     expect(choices).toBe(employee.parentElement?.parentElement);
     expect(choices?.className).toContain('landscape:grid-cols-2');
     expect(choices?.contains(employee)).toBe(true);
+    expect(choices?.parentElement?.className).toContain('landscape:max-w-3xl');
   });
 
   it('shows no warning by default', () => {
