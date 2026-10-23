@@ -134,6 +134,8 @@ Sara, a stylist, does not see it. Who counts is SO-Q1.
   advisory lock (`staffDeviceSessionLockKey`); sign-out ends only the row its own cookie names, never the new operator's.
   **The cookie is a known limitation (D-6):** if the sign-out response reaches the browser after the new sign-in's
   response, its cookie-clearing header erases the new cookie. The new row survives; the user signs in again.
+  In the reverse order, a sign-in whose response arrives after the sign-out leaves its own new session active; that is
+  intended, because it needed new credentials, and sign-out ends only the session its cookie names (D-6).
 - **An expired or malformed row** (deadline passed, context not well-formed): deleted as cleanup, answered «no session
   to end», because no request could have used it. A `STAFF_POS` row whose `staffDeviceContext.deviceId` is not a UUID
   is deleted by its id and purpose without the device lock (D-2).
@@ -275,11 +277,16 @@ terminal path and recovery when that tab crashes or closes; a lock that outlives
 device, which is worse than the race it prevents. Clients keep today's behaviour (a sign-out clears the private state
 in every tab, ADR-0019 §1, ADR-0027).
 
-When the race happens (rare: it needs a sign-out and a sign-in of the same kind in two tabs at the same moment), the
-effect is availability only: the person signs in again; the orphaned row can no longer be used by that browser, the
+When the race happens in that order (rare: it needs a sign-out and a sign-in of the same kind in two tabs at the same
+moment), the effect is availability only: the person signs in again; the orphaned row can no longer be used by that browser, the
 next sign-in on that device (staff) or for that user (personal) replaces it, and in any case it expires within its
 8 hours. No session is extended, revived or exposed. An optional client-side mitigation is tracked for spec 065 in issue
 #581; this spec adds no synchronization mechanism.
+
+The reverse order is intended behaviour, not a gap: a sign-in whose response arrives after the sign-out leaves its own
+new session active; that is intended, because it needed new credentials (a fresh OTP code or the person's own PIN),
+and sign-out ends only the session its cookie names. A sign-out never promises that no session will exist afterwards,
+only that the session it was sent with has ended.
 
 **D-7. Readers of `request.principal` on these two routes.** `SessionGuard` documents `principal` as «absent only on
 @Public() routes»; these become the two `@Authenticated()` routes where it is absent too. Every reader in
@@ -422,6 +429,8 @@ None published, none consumed.
   `SO-13` sign-out racing a PIN sign-in on the same device, with the sign-out response delayed until after the
   sign-in's → the new operator's row survives and resolves with the new cookie, and the test records that the late
   clearing header names the same cookie (the D-6 limitation) ·
+  `SO-13d` a sign-in started before a sign-out and answered after it → the sign-out ends only the session its cookie
+  named (`SIGNED_OUT`), and the new session from the fresh OTP/PIN resolves with its new cookie (intended, D-6) ·
   `SO-13b` a request carrying no cookie of the route's name → `NO_SESSION` with no `Set-Cookie` ·
   `SO-13c` a malformed `STAFF_POS` row (no device context, or a non-UUID `deviceId`) named by a valid cookie → row
   deleted, `NO_SESSION` ·
