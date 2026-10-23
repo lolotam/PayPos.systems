@@ -47,7 +47,14 @@ export const attendanceExceptionRaised: TemplateDefinition = {
       component: 'body',
       textKind: 'date',
     },
-    { name: 'clock_in_time', type: 'text', required: true, sensitivity: 'safe', component: 'body' },
+    {
+      name: 'clock_in_time',
+      type: 'text',
+      required: true,
+      sensitivity: 'safe',
+      component: 'body',
+      textKind: 'time',
+    },
   ],
   copy: {
     ar: '{{employee_name_ar}} سجّلت دخول في {{branch_name_ar}} يوم {{clock_in_date}} الساعة {{clock_in_time}} ولم تسجّل خروج',

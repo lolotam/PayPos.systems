@@ -1,4 +1,9 @@
-import type { NameFallback } from './not-clocked-in.ts';
+import {
+  arabicDisplayName,
+  DEFAULT_NAME_FALLBACK,
+  englishDisplayName,
+  type NameFallback,
+} from './not-clocked-in.ts';
 
 /**
  * جرس انتهاء المستند (spec 060 §B.4، AL-Q8 وAL-Q7): الموظفة ونوع المستند وتاريخ الانتهاء بالظبط.
@@ -11,12 +16,9 @@ export interface DocumentNameFallback extends NameFallback {
   readonly documentEn: string;
 }
 
-/** الأسماء العامة عند رفض اسم العرض. المستدعي يملؤها من الكتالوج؛ الافتراضي إنجليزي حتى لا يسقط التنبيه. */
+/** الأسماء العامة الافتراضية لجرس المستند: أسماء الأجراس العامة ونوع المستند. */
 export const SAFE_DOCUMENT_NAME_FALLBACK: DocumentNameFallback = {
-  employeeAr: 'Employee',
-  employeeEn: 'Employee',
-  branchAr: 'Branch',
-  branchEn: 'Branch',
+  ...DEFAULT_NAME_FALLBACK,
   documentAr: 'Document',
   documentEn: 'Document',
 };
@@ -34,9 +36,6 @@ export interface DocumentExpiryParameter {
   readonly value: string;
 }
 
-// نفس قاعدة العرض في not-clocked-in.ts: اسم مرفوض لا يسقط الجرس، والعربي المرفوض يرجع للإنجليزي.
-const DISPLAY_NAME_UNSAFE =
-  /(?:https?:|[a-z][a-z\d+.-]*:\/\/|\b[a-z\d-]+\.[a-z]{2,}\b|\p{Nd}(?:[\s().+-]*\p{Nd}){6,}|\b(?:bearer|token|otp|code)\b|^\p{Nd}{4,8}$)/iu;
 const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DOCUMENT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -85,10 +84,10 @@ export function documentExpiringParameters(
 ): readonly DocumentExpiryParameter[] | null {
   if (!realDate(expiresOn) || !DOCUMENT_UUID.test(documentId)) return null;
   return [
-    named('employee_name_ar', arabicSlot(employeeNameAr, employeeNameEn, fallback.employeeAr)),
-    named('employee_name_en', englishSlot(employeeNameEn, fallback.employeeEn)),
-    named('document_type_ar', arabicSlot(typeNameAr, typeNameEn, fallback.documentAr)),
-    named('document_type_en', englishSlot(typeNameEn, fallback.documentEn)),
+    named('employee_name_ar', arabicDisplayName(employeeNameAr, employeeNameEn, fallback.employeeAr)),
+    named('employee_name_en', englishDisplayName(employeeNameEn, fallback.employeeEn)),
+    named('document_type_ar', arabicDisplayName(typeNameAr, typeNameEn, fallback.documentAr)),
+    named('document_type_en', englishDisplayName(typeNameEn, fallback.documentEn)),
     named('expires_on', expiresOn),
     named('document_id', documentId),
   ];
@@ -102,19 +101,4 @@ function realDate(value: string): boolean {
   if (!LOCAL_DATE.test(value)) return false;
   const at = new Date(`${value}T00:00:00Z`);
   return Number.isFinite(at.getTime()) && at.toISOString().slice(0, 10) === value;
-}
-
-function arabicSlot(nameAr: string | null, nameEn: string, generic: string): string {
-  return acceptedDisplayName(nameAr) ?? acceptedDisplayName(nameEn) ?? generic;
-}
-
-function englishSlot(nameEn: string, generic: string): string {
-  return acceptedDisplayName(nameEn) ?? generic;
-}
-
-function acceptedDisplayName(value: string | null): string | null {
-  const trimmed = value?.trim() ?? '';
-  if (trimmed.length === 0 || trimmed.length > 255 || DISPLAY_NAME_UNSAFE.test(trimmed))
-    return null;
-  return trimmed;
 }

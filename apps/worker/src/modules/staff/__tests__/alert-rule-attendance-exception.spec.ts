@@ -126,17 +126,34 @@ it('the master switch off keeps the exception and sends no bell', async () => {
 
 it('a branch override switched off stops the bell of that branch only', async () => {
   const tenant = await f.tenant();
-  await managers(tenant);
+  const { owner } = await managers(tenant);
+  const otherBranch = await f.branch(tenant);
+  const otherManager = await f.user('other-manager');
+  await f.member({
+    tenant,
+    userId: otherManager,
+    roleId: ROLE.branch_manager,
+    scopeType: 'BRANCH',
+    scopeId: otherBranch,
+  });
   const employee = await f.employee(tenant);
-  await f.open(tenant, employee, CLOCK_IN);
+  const session = await f.open(tenant, employee, CLOCK_IN);
+  const otherEmployee = await f.employee(tenant, { primaryBranchId: otherBranch });
+  const otherSession = await f.open(tenant, otherEmployee, CLOCK_IN, null, otherBranch);
   await saveRule(ctx, tenant, KIND, { enabled: true, roles: MANAGER_ROLES });
   await saveRule(ctx, { ...tenant, branchId: tenant.branch }, KIND, {
     enabled: false,
     roles: MANAGER_ROLES,
   });
 
-  expect(await f.detect().execute(tenant.company)).toEqual({ suspected: 1, missedOut: 0 });
-  expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
+  expect(await f.detect().execute(tenant.company)).toEqual({ suspected: 2, missedOut: 0 });
+  const events = await outboxRows(ctx, tenant.company, EVENT);
+  const forSession = (id: string) =>
+    events.filter((row) => (row['payload'] as { session_id?: string }).session_id === id);
+  const otherEvents = forSession(otherSession);
+  expect(forSession(session)).toHaveLength(0);
+  expect(otherEvents).toHaveLength(1);
+  expect(eventRecipients(otherEvents[0]).sort()).toEqual([owner, otherManager].sort());
 });
 
 it('no manager at all leaves the exception without a bell', async () => {

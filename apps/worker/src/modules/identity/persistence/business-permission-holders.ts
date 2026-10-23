@@ -15,14 +15,12 @@ import {
  * القراءة على معاملة المستدعي بلا قفل، لأن المسار قراءة فقط (ADR-0037 §2).
  *
  * @param companyId الشركة
- * @param businessId النشاط المستهدف؛ منحة نطاقها فرع لا تغطيه
  * @param permission كود الصلاحية
  * @param at لحظة نافذة العضوية والمنحة
  * @returns جملة SQL تُرجع العضويات النشطة ومنحها
  */
 export function businessPermissionGrantsStatement(
   companyId: string,
-  businessId: string,
   permission: string,
   at: Date,
 ) {
@@ -78,7 +76,7 @@ export async function businessPermissionHolders(
   at: Date,
 ): Promise<readonly string[]> {
   const rows = await tx.execute<GrantRow>(
-    businessPermissionGrantsStatement(companyId, businessId, permission, at),
+    businessPermissionGrantsStatement(companyId, permission, at),
   );
   return decideBusinessPermissionHolders({
     companyId,

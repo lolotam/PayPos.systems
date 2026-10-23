@@ -82,7 +82,8 @@ export interface NameFallback {
   readonly branchEn: string;
 }
 
-const SAFE_NAME_FALLBACK: NameFallback = {
+/** الأسماء العامة الافتراضية بالإنجليزية؛ نفس القيم اللي كانت تُستخدم قبل تصديرها. */
+export const DEFAULT_NAME_FALLBACK: NameFallback = {
   employeeAr: SAFE_EMPLOYEE,
   employeeEn: SAFE_EMPLOYEE,
   branchAr: SAFE_BRANCH,
@@ -268,14 +269,14 @@ export function shiftNotClockedInParameters(
   branchNameAr: string | null,
   branchNameEn: string,
   shiftStart: string,
-  fallback: NameFallback = SAFE_NAME_FALLBACK,
+  fallback: NameFallback = DEFAULT_NAME_FALLBACK,
 ): readonly NoticeParameter[] | null {
   if (!SHIFT_START.test(shiftStart)) return null;
   return [
-    named('employee_name_ar', arabicSlot(employeeNameAr, employeeNameEn, fallback.employeeAr)),
-    named('employee_name_en', englishSlot(employeeNameEn, fallback.employeeEn)),
-    named('branch_name_ar', arabicSlot(branchNameAr, branchNameEn, fallback.branchAr)),
-    named('branch_name_en', englishSlot(branchNameEn, fallback.branchEn)),
+    named('employee_name_ar', arabicDisplayName(employeeNameAr, employeeNameEn, fallback.employeeAr)),
+    named('employee_name_en', englishDisplayName(employeeNameEn, fallback.employeeEn)),
+    named('branch_name_ar', arabicDisplayName(branchNameAr, branchNameEn, fallback.branchAr)),
+    named('branch_name_en', englishDisplayName(branchNameEn, fallback.branchEn)),
     named('shift_start', shiftStart),
   ];
 }
@@ -301,11 +302,31 @@ function named(name: NoticeParameter['name'], value: string): NoticeParameter {
   return { name, type: 'text', value };
 }
 
-function arabicSlot(nameAr: string | null, nameEn: string, generic: string): string {
+/**
+ * خانة الاسم العربي: الاسم المقبول، وإلا الإنجليزي المقبول، وإلا الاسم العام الآمن.
+ * الاسم المرفوض (رابط أو هاتف أو رمز أو أرقام مجردة) ما بيقفلش الجرس.
+ *
+ * @param nameAr الاسم العربي أو null
+ * @param nameEn الاسم الإنجليزي
+ * @param generic الاسم العام الآمن عند رفض الاسمين
+ * @returns الاسم اللي يتبعت في الخانة العربية
+ */
+export function arabicDisplayName(
+  nameAr: string | null,
+  nameEn: string,
+  generic: string,
+): string {
   return acceptedDisplayName(nameAr) ?? acceptedDisplayName(nameEn) ?? generic;
 }
 
-function englishSlot(nameEn: string, generic: string): string {
+/**
+ * خانة الاسم الإنجليزي: الاسم المقبول وإلا الاسم العام الآمن.
+ *
+ * @param nameEn الاسم الإنجليزي
+ * @param generic الاسم العام الآمن عند رفض الاسم
+ * @returns الاسم اللي يتبعت في الخانة الإنجليزية
+ */
+export function englishDisplayName(nameEn: string, generic: string): string {
   return acceptedDisplayName(nameEn) ?? generic;
 }
 

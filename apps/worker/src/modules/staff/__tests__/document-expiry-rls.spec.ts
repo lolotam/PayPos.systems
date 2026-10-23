@@ -71,29 +71,32 @@ it('the recipients marker turns once and never goes back to null', async () => {
   await f.owner`INSERT INTO employee_document_expiry_notices(company_id,id,document_id,employee_id,business_id,type_code,expires_on,notified_at)
     VALUES(${a.company},${noticeId},${document},${employee},${a.business},'passport','2026-10-06',now())`;
 
+  await f.db.withTenant(b.company, async (tx) => {
+    const foreign = await tx.execute(sql`
+      UPDATE employee_document_expiry_notices SET recipients_attached_at=now()
+      WHERE company_id=${a.company} AND id=${noticeId} RETURNING id`);
+    expect(foreign).toHaveLength(0);
+  });
+  const [untouched] = await f.owner`SELECT recipients_attached_at FROM employee_document_expiry_notices
+    WHERE company_id=${a.company} AND id=${noticeId}`;
+  expect(untouched?.['recipients_attached_at']).toBeNull();
   await f.db.withTenant(a.company, async (tx) => {
     const updated = await tx.execute(sql`
       UPDATE employee_document_expiry_notices SET recipients_attached_at=now()
-      WHERE company_id=${a.company} AND id=${noticeId}`);
+      WHERE company_id=${a.company} AND id=${noticeId} RETURNING id`);
     expect(updated).toHaveLength(1);
   });
   await f.db.withTenant(a.company, async (tx) => {
     const again = await tx.execute(sql`
       UPDATE employee_document_expiry_notices SET recipients_attached_at=now()
-      WHERE company_id=${a.company} AND id=${noticeId}`);
+      WHERE company_id=${a.company} AND id=${noticeId} RETURNING id`);
     expect(again).toHaveLength(0);
   });
   await f.db.withTenant(a.company, async (tx) => {
     const back = await tx.execute(sql`
       UPDATE employee_document_expiry_notices SET recipients_attached_at=NULL
-      WHERE company_id=${a.company} AND id=${noticeId}`);
+      WHERE company_id=${a.company} AND id=${noticeId} RETURNING id`);
     expect(back).toHaveLength(0);
-  });
-  await f.db.withTenant(b.company, async (tx) => {
-    const foreign = await tx.execute(sql`
-      UPDATE employee_document_expiry_notices SET recipients_attached_at=now()
-      WHERE company_id=${a.company} AND id=${noticeId}`);
-    expect(foreign).toHaveLength(0);
   });
   const [row] = await f.owner`SELECT recipients_attached_at FROM employee_document_expiry_notices
     WHERE company_id=${a.company} AND id=${noticeId}`;

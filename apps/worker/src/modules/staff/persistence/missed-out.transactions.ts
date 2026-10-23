@@ -1,8 +1,7 @@
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import { SAFE_ATTENDANCE_NAME_FALLBACK } from '../domain/attendance-exception-notice.ts';
+import { DEFAULT_NAME_FALLBACK, type NameFallback } from '../domain/not-clocked-in.ts';
 import type { MissedOutSession } from '../domain/missed-out.ts';
-import type { NameFallback } from '../domain/not-clocked-in.ts';
 import type {
   LockedMissedOutSession,
   MissedOutCursor,
@@ -91,7 +90,7 @@ async function lockedOpenSession(
 export function missedOutTransactions(
   database: Pick<TenantWrappers, 'withTenant'>,
   ids: IdGenerator,
-  fallback: NameFallback = SAFE_ATTENDANCE_NAME_FALLBACK,
+  fallback: NameFallback = DEFAULT_NAME_FALLBACK,
 ): MissedOutTransactions {
   return {
     candidates: (companyId, clockInAtOrBefore, after, limit) =>

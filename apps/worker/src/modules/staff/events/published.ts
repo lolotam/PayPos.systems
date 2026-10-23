@@ -1,4 +1,4 @@
-/** يصدر مرة واحدة لكل جلسة عندما ترفع وظيفة الخروج المفقود SUSPECTED_MISSED_OUT، مع مستلميه لو قاعدة نوع ATTENDANCE_EXCEPTION أوصّلت لحد؛ صف لكل مجموعة مستلمين بسقف مئة. */
+/** يصدر مرة واحدة لكل استثناء SUSPECTED_MISSED_OUT مرفوع، وبس لما قاعدة نوع ATTENDANCE_EXCEPTION توصّل لحد واحد على الأقل بجرس داخل التطبيق؛ صف لكل مجموعة مستلمين بسقف مئة. والاستثناء وتدقيقه بيتكتبوا في كل الأحوال. */
 export interface AttendanceExceptionRaised {
   readonly exception_id: string;
   readonly kind: 'SUSPECTED_MISSED_OUT';

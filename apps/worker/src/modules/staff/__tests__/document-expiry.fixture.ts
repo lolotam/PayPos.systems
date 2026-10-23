@@ -1,7 +1,7 @@
 import { employeeNameMatchKey } from '@pospay/domain';
 import { takeTestEmployeeNumber } from './test-employee-number.ts';
 import postgres from 'postgres';
-import { createDatabase, PROVISIONAL_PLAN_ID, type Database } from '@pospay/db';
+import { createDatabase, PROVISIONAL_PLAN_ID, type Database, type IdGenerator } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import {
   createTestDatabase,
