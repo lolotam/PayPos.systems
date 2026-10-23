@@ -272,9 +272,11 @@ it with the round-trip test CM-34e.
   functions.
 - 50-5 adds the `{ readOnly: true }` option to `withTenant`; the read use cases depend on it.
 - 56b-1 is **no longer blocked by CS-Q31** (decided, 2026-10-23): the table's grants change the governing text of
-  CLAUDE.md §5 and ADR-0003, so 56b-1 amends both in its own PR to name the `pospay_dispatcher` grant. It **is blocked
-  by CS-Q32** (batch 53, `PENDING`): whether the worker rebuilds every company's schedule by itself after a Redis loss,
-  through a narrow read of company ids only (like ADR-0038), which would need its own ADR, or keeps the operator replay.
+  CLAUDE.md §5 and ADR-0003, so 56b-1 amends both in its own PR to name the `pospay_dispatcher` grant. By **CS-Q32**
+  (batch 53; Waleed 2026-10-23, Abu Salem pending) the worker rebuilds every company's schedule by itself after a Redis
+  loss, through a narrow read of company ids only (like ADR-0038), and clears its own flag after a successful rebuild.
+  That supersedes the operator replay and "the runtime never clears its own flag" of section 2, so 56b-1 starts with a
+  new ADR.
 - Every sub-PR that adds a root binding adds its Port row to `docs/module-map.md` §3, or stops and writes an ADR first
   (D-16).
 - The spec is corrected in the same PR: D-17 (the enforcement of the restriction), FR-053 (the table's shape and
@@ -283,9 +285,8 @@ it with the round-trip test CM-34e.
 
 ## Open questions for the owner
 
-- **CS-Q32** (batch 53, PP-37.1, `PENDING`): should the worker rebuild every company's reminder schedule by itself after a
-  Redis loss, through a narrow exception that reads company ids only (like ADR-0038), or keep the operator replay of
-  section 2? An automatic rebuild needs its own ADR. It blocks 56b-1 only.
+- **CS-Q32** (batch 53, PP-37.1): answered by Waleed on 2026-10-23, fully automatic (rebuild and clear by the worker);
+  Abu Salem pending. A new ADR records the narrow company-id read and the self-clear before 56b-1.
 - **CS-Q31** (may the dispatcher role also hold `SELECT` and `INSERT` on the tenant-free
   `operational_recovery_flags` table, or does the owner want a new narrow role `pospay_recovery`?) was decided on
   2026-10-23: the dispatcher role, as recommended (Waleed and Abu Salem).
