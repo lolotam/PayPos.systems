@@ -17,7 +17,9 @@ export function useSaveStaffColumns(companyId: string, userId: string, businessI
     retry: false,
     mutationFn: (input: SaveStaffColumnsInput) =>
       saveStaffColumns(companyId, businessId, input.idempotencyKey, input.body),
-    onSuccess: (saved) => {
+    onSuccess: async (saved) => {
+      // القراءة اللي بدأت قبل الحفظ لو رجعت بعده كانت هتكتب فوق النتيجة المحفوظة وترجّع الشاشة بالقيم القديمة.
+      await client.cancelQueries({ queryKey: key });
       client.setQueryData(key, saved);
     },
     onError: (error) => {

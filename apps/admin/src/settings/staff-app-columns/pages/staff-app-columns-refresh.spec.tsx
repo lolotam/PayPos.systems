@@ -110,6 +110,66 @@ it('mints a new idempotency key after a successful save', async () => {
   expect(second).not.toBe(first);
 });
 
+it('keeps the same idempotency key while the first request is still running', async () => {
+  api.GET.mockResolvedValue({ data: settings({ columns: ['date'], months_back: 2 }) });
+  api.PUT.mockResolvedValueOnce({
+    error: {
+      code: 'IDEMPOTENCY_KEY_IN_PROGRESS',
+      message_ar: 'Synthetic key in progress',
+      message_en: 'Synthetic key in progress',
+    },
+    response: { status: 409 },
+  }).mockResolvedValueOnce({ data: settings({ columns: ['date'], months_back: 2 }) });
+  renderPage();
+  await screen.findByRole('checkbox', { name: t('en', 'staffAppColumns.label_date') });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staffAppColumns.save') }));
+  expect((await screen.findByRole('alert')).textContent).toContain('Synthetic key in progress');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staffAppColumns.save') }));
+  await waitFor(() => expect(api.PUT).toHaveBeenCalledTimes(2));
+  const first = api.PUT.mock.calls[0]?.[1].params.header['Idempotency-Key'];
+  const second = api.PUT.mock.calls[1]?.[1].params.header['Idempotency-Key'];
+  expect(second).toBe(first);
+  expect(await screen.findByText(t('en', 'staffAppColumns.saved'))).toBeTruthy();
+});
+
+it('keeps the saved values when an older read lands after the save', async () => {
+  const old = settings({ columns: ['date'], months_back: 2 });
+  let release: (value: unknown) => void = () => undefined;
+  const held = new Promise((resolve) => {
+    release = resolve;
+  });
+  let reads = 0;
+  api.GET.mockImplementation(() => {
+    reads += 1;
+    if (reads === 1) return Promise.resolve({ data: old });
+    if (reads === 2) return held;
+    return new Promise(() => undefined);
+  });
+  api.PUT.mockResolvedValue({
+    data: settings({
+      columns: ['date', 'tip'],
+      months_back: 3,
+      columns_default: false,
+      months_back_default: false,
+    }),
+  });
+  const { client } = renderPage();
+  await screen.findByRole('checkbox', { name: t('en', 'staffAppColumns.label_date') });
+  await act(async () => {
+    void client.invalidateQueries({ queryKey: staffColumnsKey(companyId, userId, businessId) });
+  });
+  await waitFor(() => expect(api.GET).toHaveBeenCalledTimes(2));
+  fireEvent.click(screen.getByRole('checkbox', { name: t('en', 'staffAppColumns.label_tip') }));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'staffAppColumns.save') }));
+  expect(await screen.findByText(t('en', 'staffAppColumns.saved'))).toBeTruthy();
+  release({ data: old });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(checkbox(t('en', 'staffAppColumns.label_tip')).checked).toBe(true);
+  expect(monthsField().value).toBe('3');
+});
+
 it('shows only the months message when the months field is empty', async () => {
   api.GET.mockResolvedValue({ data: settings() });
   renderPage();
