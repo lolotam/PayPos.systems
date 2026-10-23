@@ -23,6 +23,7 @@ it('leaves the attempt pending and sends nothing when the claim fails', async ()
         throw new Error('CRASH_CLAIM');
       },
     },
+    h.send.builder,
     h.send.channel,
     h.send.admission,
     h.send.keyId,
@@ -62,6 +63,7 @@ it('keeps the attempt sending when the result cannot be written', async () => {
         throw new Error('CRASH_RESULT_COMMIT');
       },
     },
+    h.send.builder,
     h.send.channel,
     h.send.admission,
     h.send.keyId,

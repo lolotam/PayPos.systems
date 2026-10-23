@@ -1,11 +1,4 @@
-import {
-  buildPushPayload,
-  pushTimeToLiveSeconds,
-  pushTopic,
-  renderPushNotice,
-  type PushChannel,
-  type PushRequest,
-} from '@pospay/notifications';
+import type { PushChannel } from '@pospay/notifications';
 
 import {
   pushDecisionFromSubmission,
@@ -20,6 +13,7 @@ import type { PushAdmission } from '../../ports/push-admission.port.ts';
 import type { Clock } from '../../ports/clock.port.ts';
 import type { PushDeliveryRepository } from '../../ports/push-delivery.repository.ts';
 import type { IdGenerator } from '../../ports/id-generator.port.ts';
+import type { PushRequestBuilder } from '../../ports/push-request-builder.port.ts';
 
 /** نتيجة الإرسال للـ processor: أرقام محدودة بس، من غير أي سر من الاشتراك. */
 export interface PushSendOutcome {
@@ -31,15 +25,11 @@ export interface PushSendOutcome {
   readonly vapidRejected: boolean;
 }
 
-/** الطلب جاهز للإرسال، أو الرفض المحلي اللي بيمنعه. */
-type PushBuild =
-  | { readonly kind: 'ready'; readonly request: PushRequest }
-  | { readonly kind: 'refused'; readonly decision: PushDecision };
-
 /** ينفّذ محاولة الدفع المرخّصة: فحص محلي، ثم حيازة، ثم طلب واحد، ثم تسجيل النتيجة. */
 export class SendPush {
   constructor(
     readonly deliveries: PushDeliveryRepository,
+    readonly builder: PushRequestBuilder,
     readonly channel: PushChannel,
     readonly admission: PushAdmission,
     readonly keyId: string,
@@ -52,13 +42,14 @@ export class SendPush {
     if (delivery === null) return null;
     const refusal = pushPreflight(delivery, this.keyId, this.clock.now());
     if (refusal !== null) return this.refuse(delivery, refusal);
-    const built = this.build(delivery);
+    const built = this.builder.build(delivery, this.clock.now());
     if (built.kind === 'refused') return this.refuse(delivery, built.decision);
-    if (!(await this.admission.reserve(delivery.attempt.subscriptionId)))
-      return this.refuse(delivery, refusedDecision('ADMISSION_REFUSED'));
+    const refused = await this.reserve(delivery);
+    if (refused !== null) return this.refuse(delivery, refused);
     const executionId = this.ids.newId();
     const now = this.clock.now();
-    if (!(await this.deliveries.claim(delivery, executionId, now))) return null;
+    if (!(await this.deliveries.claim(delivery, executionId, now)))
+      return this.lostClaim(companyId, attemptId);
     const claimed: PushDelivery = {
       ...delivery,
       attempt: { ...delivery.attempt, status: 'SENDING', executionId, sendingAt: now },
@@ -69,43 +60,23 @@ export class SendPush {
     return this.outcome(delivery, decision);
   }
 
-  // الطلب بيتبني قبل أي حيازة: نص مش موجود أو حمولة أكبر من الحد معناها رفض محلي بصفر طلبات.
-  private build(delivery: PushDelivery): PushBuild {
-    const attempt = delivery.attempt;
-    const copy = renderPushNotice(
-      attempt.templateKey,
-      attempt.templateRevision,
-      attempt.locale,
-      attempt.safeParameters,
-    );
-    if (copy === null) return { kind: 'refused', decision: refusedDecision('PARAMETERS_INVALID') };
-    const { endpoint, p256dh, auth, deliveryToken } = delivery.subscription;
-    // الفحص المحلي في الـ domain رجّع null، فالأسرار موجودة؛ الشرط ده للتضييق بس.
-    if (endpoint === null || p256dh === null || auth === null || deliveryToken === null)
-      return { kind: 'refused', decision: refusedDecision('PARAMETERS_INVALID') };
-    const payload = buildPushPayload({
-      title: copy.title,
-      body: copy.body,
-      tag: attempt.templateKey,
-      lang: attempt.locale,
-      token: deliveryToken,
-    });
-    if (payload === null)
-      return { kind: 'refused', decision: refusedDecision('PARAMETERS_INVALID') };
-    const ttlSeconds = pushTimeToLiveSeconds(attempt.deadline, this.clock.now());
-    if (ttlSeconds === null)
-      return { kind: 'refused', decision: refusedDecision('DEADLINE_EXPIRED') };
-    return {
-      kind: 'ready',
-      request: {
-        target: { endpoint, p256dh, auth },
-        payload,
-        ttlSeconds,
-        urgency: 'high',
-        topic: pushTopic(attempt.sourceEventId),
-        deadline: attempt.deadline,
-      },
-    };
+  // الحجز بيرجع رفضًا محليًا لما يخلص أو لما يفشل؛ خطأ الحجز ما بيستناش تسريب نصّه.
+  private async reserve(delivery: PushDelivery): Promise<PushDecision | null> {
+    try {
+      const allowed = await this.admission.reserve(delivery.attempt.subscriptionId);
+      return allowed ? null : refusedDecision('ADMISSION_REFUSED');
+    } catch {
+      return refusedDecision('ADMISSION_REFUSED');
+    }
+  }
+
+  // حيازة ضايعة: المحاولة بتتفتح تاني، فلو السبب محلي بيتسجل فورًا بدل ما تفضل معلّقة.
+  private async lostClaim(companyId: string, attemptId: string): Promise<PushSendOutcome | null> {
+    const current = await this.deliveries.pending(companyId, attemptId);
+    if (current === null) return null;
+    const refusal = pushPreflight(current, this.keyId, this.clock.now());
+    if (refusal === null) return null;
+    return this.refuse(current, refusal);
   }
 
   private async refuse(delivery: PushDelivery, decision: PushDecision): Promise<PushSendOutcome> {

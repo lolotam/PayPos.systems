@@ -159,6 +159,22 @@ describe('the mapping of the push service answer', () => {
       httpStatus: null,
     });
   });
+
+  it.each([99, 600, 1000])('keeps a status outside the stored range unknown', async (status) => {
+    const accepted = capture(status);
+    expect(await channel(accepted.sender).send(request())).toEqual({
+      kind: 'unknown',
+      code: 'NETWORK_UNKNOWN',
+      outcomeKnown: false,
+      httpStatus: null,
+    });
+    expect(await channel(refusing(status)).send(request())).toEqual({
+      kind: 'unknown',
+      code: 'NETWORK_UNKNOWN',
+      outcomeKnown: false,
+      httpStatus: null,
+    });
+  });
 });
 
 describe('the deadline and the timeout of the request', () => {

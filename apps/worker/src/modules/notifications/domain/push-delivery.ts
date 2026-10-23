@@ -201,6 +201,25 @@ export function pushDecisionFromSubmission(submission: PushSubmission): PushDeci
 }
 
 /**
+ * يبني رفضًا لوجهة بقت مش على قائمة المواقع المسموحة.
+ * القاعدة: الوجهة دي ما بتوصلش لخدمة دفع مسموحة، فالاشتراك بقى بلا فايدة: بيتسحب وأسراره بتتمسح.
+ *
+ * @returns قرار الرفض مع سحب الاشتراك
+ */
+export function invalidEndpointDecision(): PushDecision {
+  return {
+    result: {
+      status: 'FAILED',
+      failureCode: 'SUBSCRIPTION_GONE',
+      outcomeKnown: true,
+      httpStatus: null,
+    },
+    revoke: 'GONE',
+    vapidRejected: false,
+  };
+}
+
+/**
  * يبني رفضًا محليًا معلومًا قبل أي طلب للخدمة.
  * القاعدة: انتهاء الموعد منتهية، والباقي فشل معروف من غير أي إرسال.
  *

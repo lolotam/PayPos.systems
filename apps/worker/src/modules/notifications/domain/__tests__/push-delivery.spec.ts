@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  invalidEndpointDecision,
   pushDecisionFromSubmission,
   pushPreflight,
   refusedDecision,
@@ -210,6 +211,21 @@ describe('the expired and refused answers', () => {
       failureCode: 'CONFIG_INVALID',
       outcomeKnown: true,
       httpStatus: null,
+    });
+  });
+});
+
+describe('the invalid endpoint decision', () => {
+  it('fails the attempt as gone and asks for the subscription to be revoked', () => {
+    expect(invalidEndpointDecision()).toEqual({
+      result: {
+        status: 'FAILED',
+        failureCode: 'SUBSCRIPTION_GONE',
+        outcomeKnown: true,
+        httpStatus: null,
+      },
+      revoke: 'GONE',
+      vapidRejected: false,
     });
   });
 });

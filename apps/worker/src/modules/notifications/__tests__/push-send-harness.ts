@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 
 import { TENANT } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { createPushDeliveryRepository } from '../persistence/drizzle-push-delivery.repository.ts';
+import { createPushRequestBuilder } from '../persistence/push-request.builder.ts';
 import type { PushAdmission } from '../ports/push-admission.port.ts';
 import { SendPush } from '../use-cases/send-push/send-push.ts';
 import { KEY_ID, PUSH_PARAMETERS, PUSH_USER, pushHarness, pushRecipient } from './push-harness.ts';
@@ -41,6 +42,7 @@ export async function pushSendHarness() {
   const admission: PushAdmission = { reserve: async () => admitted };
   const send = new SendPush(
     createPushDeliveryRepository(h.db),
+    createPushRequestBuilder(),
     channel,
     admission,
     KEY_ID,

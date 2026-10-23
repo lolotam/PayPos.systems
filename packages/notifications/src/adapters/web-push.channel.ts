@@ -1,5 +1,3 @@
-import webpush from 'web-push';
-
 import type { PushChannel, PushRequest, PushResult, PushTarget } from '../push/channel.ts';
 import { readPushWorkerConfiguration } from '../push/worker-configuration.ts';
 
@@ -35,8 +33,20 @@ export interface WebPushChannelOptions {
   readonly sender?: WebPushSender;
 }
 
+// المكتبة بيتحمّلها بالمكتبة الحقيقية بس: الـ API بيستورد هذه الحزمة، فما بيحمّلش web-push مع الاستيراد.
+type WebPushLibrary = {
+  sendNotification(
+    subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
+    payload: string,
+    options: WebPushRequestOptions,
+  ): Promise<{ statusCode: number }>;
+};
+
 // المرسل الافتراضي: طلب واحد لمكتبة web-push، والرد بيتقلّم لرقم الحالة بس.
 const librarySender: WebPushSender = async (target, payload, options) => {
+  const { default: webpush } = (await import('web-push')) as unknown as {
+    default: WebPushLibrary;
+  };
   const response = await webpush.sendNotification(
     { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },
     payload,
@@ -104,6 +114,9 @@ function statusOf(error: unknown): number | null {
 }
 
 function mapStatus(status: number): PushResult {
+  // كود الحالة بره المدى المسموح مش بيتخزّن: قيد قاعدة البيانات بين 100 و599.
+  if (status < 100 || status > 599)
+    return { kind: 'unknown', code: 'NETWORK_UNKNOWN', outcomeKnown: false, httpStatus: null };
   if (status >= 200 && status < 300) return { kind: 'accepted', httpStatus: status };
   if (status === 404 || status === 410) return { kind: 'gone', httpStatus: status };
   if (status >= 400 && status < 500)

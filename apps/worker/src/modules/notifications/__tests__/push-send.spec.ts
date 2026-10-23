@@ -43,6 +43,7 @@ it('sends nothing when the claim is lost', async () => {
   const before = h.channel.calls;
   const losing = new SendPush(
     { ...h.send.deliveries, claim: async () => false },
+    h.send.builder,
     h.send.channel,
     h.send.admission,
     h.send.keyId,
@@ -141,6 +142,7 @@ it('leaves the attempt pending when the deadline passes before the claim', async
   const before = h.channel.calls;
   const losing = new SendPush(
     { ...h.send.deliveries, claim: async () => false },
+    h.send.builder,
     h.send.channel,
     h.send.admission,
     h.send.keyId,

@@ -11,6 +11,7 @@ import type { Logger } from '@pospay/observability';
 import { Worker, type Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 
+import { retryDelayMs } from '../../outbox/retry-policy.ts';
 import { closeOptional, optionalWithin } from '../../shared/optional-capability.ts';
 import { notificationQueue } from './jobs/notification-queue.ts';
 import { createPushTransport, PUSH_SEND_QUEUE } from './jobs/push-queue.ts';
@@ -18,6 +19,7 @@ import { pushProcessor } from './jobs/push-send.processor.ts';
 import type { Clock } from './ports/clock.port.ts';
 import type { IdGenerator } from './ports/id-generator.port.ts';
 import { createPushDeliveryRepository } from './persistence/drizzle-push-delivery.repository.ts';
+import { createPushRequestBuilder } from './persistence/push-request.builder.ts';
 import { redisPushAdmission } from './persistence/redis-push-admission.ts';
 import { SendPush } from './use-cases/send-push/send-push.ts';
 
@@ -60,7 +62,15 @@ export interface PushStartupOptions {
 function disabledCapability(): PushCapability {
   return {
     enabled: false,
-    transport: (next) => next,
+    // حدث إذن الدفع ما بيترجعش للتسليم العادي؛ هو يفضل في الـ outbox لحد ما الدفع يتفعّل.
+    transport: (next) => (event) => {
+      if (event.eventType !== 'PushSendAuthorized') return next(event);
+      return Promise.resolve({
+        delivered: false,
+        error: 'PUSH_DISABLED',
+        retryInMs: retryDelayMs(event.attempt),
+      });
+    },
     stop: async () => undefined,
     close: async () => undefined,
   };
@@ -181,6 +191,7 @@ export async function startPushCapability(
   }
   const send = new SendPush(
     createPushDeliveryRepository(options.database),
+    createPushRequestBuilder(),
     channel,
     redisPushAdmission(options.redis),
     configuration.keyId,

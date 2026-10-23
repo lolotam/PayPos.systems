@@ -1,3 +1,4 @@
+import type { ClaimedEvent } from '@pospay/db';
 import {
   FakePushChannel,
   generateVapidKeyPair,
@@ -59,15 +60,40 @@ const queue = (over: Partial<PushQueue> = {}): PushQueue => ({
   ...over,
 });
 
-it('an unconfigured environment stays disabled and hands the events over untouched', async () => {
+const claimed = (over: Partial<ClaimedEvent> = {}): ClaimedEvent => ({
+  id: '01920000-0000-7000-8000-0000000000c1',
+  companyId: '01920000-0000-7000-8000-0000000000a1',
+  aggregateType: 'push_attempt',
+  aggregateId: '01920000-0000-7000-8000-0000000000b1',
+  eventType: 'PushSendAuthorized',
+  payload: {
+    company_id: '01920000-0000-7000-8000-0000000000a1',
+    attempt_id: '01920000-0000-7000-8000-0000000000b1',
+  },
+  attempt: 1,
+  ...over,
+});
+
+it('an unconfigured environment stays disabled and keeps the push authorizations in the outbox', async () => {
   lines.length = 0;
   const capability = await startPushCapability(options({}));
   expect(capability.enabled).toBe(false);
   const text = lines.join('');
   expect(text).toContain('DISABLED');
   expect(text).toContain('NOT_CONFIGURED');
-  const next = async () => ({ delivered: true as const });
-  expect(capability.transport(next)).toBe(next);
+  let handed = 0;
+  const transport = capability.transport(async () => {
+    handed += 1;
+    return { delivered: true as const };
+  });
+  expect(await transport(claimed({ eventType: 'NotificationFailed' }))).toEqual({
+    delivered: true,
+  });
+  expect(handed).toBe(1);
+  const pushEvent = await transport(claimed());
+  expect(pushEvent).toMatchObject({ delivered: false, error: 'PUSH_DISABLED' });
+  if (!pushEvent.delivered) expect(pushEvent.retryInMs).toBe(5000);
+  expect(handed).toBe(1);
 });
 
 it('a pair that does not match stays disabled and the log carries no key', async () => {
