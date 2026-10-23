@@ -8,8 +8,8 @@
 
 **Input**: Track MOB, plan row M-1·0 ([plan.md](plan.md)). Wrap the existing `apps/pos` build in a Capacitor shell for
 iOS and Android, as decided in `docs/adr/0055-store-apps-capacitor-shell.md`. Owner decisions: APP-Q1 … APP-Q8
-([owner-questions.ar.md](owner-questions.ar.md)); new questions APP-Q9 … APP-Q18 (PENDING), asked in one batch so
-M-1a … M-1f need no further owner question.
+([owner-questions.ar.md](owner-questions.ar.md)); questions APP-Q9 … APP-Q18 (batch 58), answered by Waleed on
+2026-10-23 (Abu Salem's picks pending, binding if they differ), so M-1a … M-1f need no further owner question.
 
 **Scope.** The shell, its start screen, offline cold start, the checks of the auth spike (M-1c), and what is hidden on
 native. Out of scope: signed builds and store uploads (M-2), the cashier selling screens (MOB-18, not built yet in the
@@ -196,7 +196,10 @@ start screen again.
   of the native build must work in both orientations.
 - **FR-017**: Before MOB-15, an owner or a manager who picks «حسابي كموظفة» sees what an employee sees (sign-in and
   their own attendance) plus one small line «لوحة الإدارة على الويب» with a link to the back office (APP-Q15,
-  PP-42.7; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs).
+  PP-42.7; Waleed, 2026-10-23; Abu Salem's pick pending and binding if it differs). This works only for an owner or
+  manager who also has an employee record in that business, because a personal session is issued only to a linked
+  employee (ADR-0027). Showing the line needs a role signal the personal session does not carry today: `TODO(spec)`,
+  with the web manager (#554); until it exists, the line is not shown to anyone.
 
 ### Key Entities
 
@@ -218,7 +221,7 @@ start screen again.
 
 | Question | Waleed's pick | Lands in |
 |---|---|---|
-| APP-Q9 | both: the link and a QR code (FR-011, FR-012, FR-014) | M-1a (link, paste), M-1g (back-office QR screen), scan with the camera port |
+| APP-Q9 | both: the link and a QR code (FR-011, FR-012, FR-014) | M-1a (link, paste), M-1g (back-office QR screen), M-1h (in-app scan) |
 | APP-Q10 | today's PosPay icon and colours plus a small mark that tells it from the customer app | M-1e |
 | APP-Q11 | the logo with «PosPay Business» written under it | M-1e |
 | APP-Q12 | the phone's language, changeable (FR-015) | M-1a |
@@ -287,7 +290,13 @@ None published, none consumed.
   message and changes nothing · `MOB-T18` a role change counts the explicit «no session to end» result as done and
   continues, and treats a plain 401 as a failure that stops it · `MOB-T19` one sign-out done and the other failing:
   the first session's private forms are already cleared, the role, the pairing and the remembered business are still
-  there after the success and after the failure, and only a new, confirmed change that finishes removes them.
+  there after the success and after the failure, and only a new, confirmed change that finishes removes them ·
+  `MOB-T20` a valid QR scanned in the app connects the business like the link, and where the camera port is off the
+  scan option is hidden with the FR-007 line · `MOB-T21` first launch with the phone in Arabic shows Arabic, with the
+  phone in any other language shows English, and the language switch still changes it · `MOB-T22` the start screen,
+  the counter flow and the personal flow render without cut-off controls in both orientations (tablet and phone
+  viewports) · `MOB-T23` with the role signal present the «لوحة الإدارة على الويب» line and its link show, without it
+  they do not.
 - **Build checks** (M-1a): the `native` build output registers no service worker; the web build output still does; a
   staging and a production debug build carry different app ids and their own API origin; the Android manifest and the
   iOS project exclude the app's storage from cloud backup and device transfer (FR-013: `allowBackup`,
