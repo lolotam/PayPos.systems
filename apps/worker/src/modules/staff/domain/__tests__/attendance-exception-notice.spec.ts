@@ -1,8 +1,5 @@
 import { expect, it } from 'vitest';
-import {
-  attendanceExceptionParameters,
-  formatLocalDate,
-} from '../attendance-exception-notice.ts';
+import { attendanceExceptionParameters, formatLocalDate } from '../attendance-exception-notice.ts';
 
 const KUWAIT = 'Asia/Kuwait';
 

@@ -13,10 +13,5 @@ export interface FileReaderRecipients {
    * @param at لحظة القرار من الساعة المحقونة
    * @returns معرّفات المستخدمين مرتبة
    */
-  holders(
-    tx: Tx,
-    companyId: string,
-    businessId: string,
-    at: Date,
-  ): Promise<readonly string[]>;
+  holders(tx: Tx, companyId: string, businessId: string, at: Date): Promise<readonly string[]>;
 }

@@ -84,7 +84,10 @@ export function documentExpiringParameters(
 ): readonly DocumentExpiryParameter[] | null {
   if (!realDate(expiresOn) || !DOCUMENT_UUID.test(documentId)) return null;
   return [
-    named('employee_name_ar', arabicDisplayName(employeeNameAr, employeeNameEn, fallback.employeeAr)),
+    named(
+      'employee_name_ar',
+      arabicDisplayName(employeeNameAr, employeeNameEn, fallback.employeeAr),
+    ),
     named('employee_name_en', englishDisplayName(employeeNameEn, fallback.employeeEn)),
     named('document_type_ar', arabicDisplayName(typeNameAr, typeNameEn, fallback.documentAr)),
     named('document_type_en', englishDisplayName(typeNameEn, fallback.documentEn)),

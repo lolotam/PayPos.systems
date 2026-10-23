@@ -62,7 +62,9 @@ it('falls back to the English employee name when the Arabic one is blank', () =>
 });
 
 it('renders the document expiry bell in the viewer locale without the document id', () => {
-  expect(renderNotification(document(), 'ar')).toBe('مستند إقامة الخاص بـ سارة ينتهي يوم 2026-11-04');
+  expect(renderNotification(document(), 'ar')).toBe(
+    'مستند إقامة الخاص بـ سارة ينتهي يوم 2026-11-04',
+  );
   expect(renderNotification(document(), 'en')).toBe("Sara's Residency expires on 2026-11-04");
   const rendered = renderNotification(document(), 'ar');
   expect(rendered).toContain('2026-11-04');

@@ -23,11 +23,15 @@ const documentParameters: readonly SafeParameter[] = [
 ];
 
 it.each(['ar', 'en'])('validates the attendance exception bell in %s', (locale) => {
-  expect(validInAppTemplate('attendance_exception_raised', 1, locale, exceptionParameters)).toBe(true);
-  expect(validInAppTemplate('attendance_exception_raised', 2, locale, exceptionParameters)).toBe(false);
-  expect(validInAppTemplate('attendance_exception_raised', 1, locale, exceptionParameters.slice(0, 5))).toBe(
+  expect(validInAppTemplate('attendance_exception_raised', 1, locale, exceptionParameters)).toBe(
+    true,
+  );
+  expect(validInAppTemplate('attendance_exception_raised', 2, locale, exceptionParameters)).toBe(
     false,
   );
+  expect(
+    validInAppTemplate('attendance_exception_raised', 1, locale, exceptionParameters.slice(0, 5)),
+  ).toBe(false);
   for (const value of ['24:00', '9:02', '2026-10-23']) {
     expect(
       validInAppTemplate(
@@ -78,11 +82,9 @@ it.each(['ar', 'en'])('validates the document expiry bell in %s', (locale) => {
     ),
   ).toBe(false);
   expect(
-    validInAppTemplate(
-      'document_expiring',
-      1,
-      locale,
-      [...documentParameters, { name: 'document_number', type: 'text', value: 'A-12345' }],
-    ),
+    validInAppTemplate('document_expiring', 1, locale, [
+      ...documentParameters,
+      { name: 'document_number', type: 'text', value: 'A-12345' },
+    ]),
   ).toBe(false);
 });

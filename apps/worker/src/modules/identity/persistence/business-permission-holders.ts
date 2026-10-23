@@ -19,11 +19,7 @@ import {
  * @param at لحظة نافذة العضوية والمنحة
  * @returns جملة SQL تُرجع العضويات النشطة ومنحها
  */
-export function businessPermissionGrantsStatement(
-  companyId: string,
-  permission: string,
-  at: Date,
-) {
+export function businessPermissionGrantsStatement(companyId: string, permission: string, at: Date) {
   const moment = at.toISOString();
   const granted = sql`(
     SELECT g_m.id AS membership_id, 'ALLOW'::text AS effect,

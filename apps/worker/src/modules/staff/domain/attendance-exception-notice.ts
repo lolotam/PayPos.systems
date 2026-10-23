@@ -78,7 +78,10 @@ export function attendanceExceptionParameters(
   }
   if (!LOCAL_DATE.test(date) || !LOCAL_TIME.test(time)) return null;
   return [
-    named('employee_name_ar', arabicDisplayName(employeeNameAr, employeeNameEn, fallback.employeeAr)),
+    named(
+      'employee_name_ar',
+      arabicDisplayName(employeeNameAr, employeeNameEn, fallback.employeeAr),
+    ),
     named('employee_name_en', englishDisplayName(employeeNameEn, fallback.employeeEn)),
     named('branch_name_ar', arabicDisplayName(branchNameAr, branchNameEn, fallback.branchAr)),
     named('branch_name_en', englishDisplayName(branchNameEn, fallback.branchEn)),
@@ -87,6 +90,9 @@ export function attendanceExceptionParameters(
   ];
 }
 
-function named(name: AttendanceExceptionParameter['name'], value: string): AttendanceExceptionParameter {
+function named(
+  name: AttendanceExceptionParameter['name'],
+  value: string,
+): AttendanceExceptionParameter {
   return { name, type: 'text', value };
 }

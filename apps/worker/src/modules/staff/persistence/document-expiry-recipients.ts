@@ -43,12 +43,7 @@ export async function documentExpiryRecipientsFor(
     'DOCUMENT_EXPIRING',
   );
   if (!inAppAlertOn(rule)) return null;
-  const holders = await fileReaderRecipientsAdapter.holders(
-    tx,
-    companyId,
-    locked.businessId,
-    at,
-  );
+  const holders = await fileReaderRecipientsAdapter.holders(tx, companyId, locked.businessId, at);
   const roles = rule.recipientRoles;
   const candidates =
     roles.length === 0

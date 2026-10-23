@@ -1,8 +1,5 @@
 import { expect, it } from 'vitest';
-import {
-  documentExpiryRecipients,
-  documentExpiringParameters,
-} from '../document-expiry-notice.ts';
+import { documentExpiryRecipients, documentExpiringParameters } from '../document-expiry-notice.ts';
 
 const DOCUMENT = '01920000-0000-7000-8000-0000000000d1';
 
@@ -60,6 +57,13 @@ it('gives no parameters for a date or a document id outside their format', () =>
     documentExpiringParameters(null, 'Sara', null, 'Residency', '2026-11-04', 'not-a-uuid'),
   ).toBeNull();
   expect(
-    documentExpiringParameters(null, 'Sara', null, 'Residency', '2026-11-04', DOCUMENT.toUpperCase()),
+    documentExpiringParameters(
+      null,
+      'Sara',
+      null,
+      'Residency',
+      '2026-11-04',
+      DOCUMENT.toUpperCase(),
+    ),
   ).toBeNull();
 });

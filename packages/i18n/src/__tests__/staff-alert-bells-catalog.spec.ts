@@ -30,7 +30,9 @@ it('registers the attendance exception bell copy in both locales', () => {
 it('registers the document expiry bell copy in both locales', () => {
   const arabic = t('ar', 'inApp.document_expiring');
   const english = t('en', 'inApp.document_expiring');
-  expect(arabic).toBe('مستند {{document_type_ar}} الخاص بـ {{employee_name_ar}} ينتهي يوم {{expires_on}}');
+  expect(arabic).toBe(
+    'مستند {{document_type_ar}} الخاص بـ {{employee_name_ar}} ينتهي يوم {{expires_on}}',
+  );
   expect(english).toBe("{{employee_name_en}}'s {{document_type_en}} expires on {{expires_on}}");
   expect(placeholders(arabic)).toEqual(['document_type_ar', 'employee_name_ar', 'expires_on']);
   expect(placeholders(english)).toEqual(['document_type_en', 'employee_name_en', 'expires_on']);

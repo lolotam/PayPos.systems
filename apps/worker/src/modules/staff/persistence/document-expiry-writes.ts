@@ -1,6 +1,9 @@
 import { appendAuditLog, appendOutboxEvents, type IdGenerator, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import type { DocumentExpiryParameter, DocumentNameFallback } from '../domain/document-expiry-notice.ts';
+import type {
+  DocumentExpiryParameter,
+  DocumentNameFallback,
+} from '../domain/document-expiry-notice.ts';
 import { daysUntilExpiry } from '../domain/document-expiry.ts';
 import { inAppRecipientGroups } from '../domain/not-clocked-in.ts';
 import type { LockedDocumentExpiry } from '../ports/document-expiry.port.ts';
@@ -129,10 +132,7 @@ async function appendExpiryEvents(
   );
 }
 
-function recipientsFor(
-  userIds: readonly string[],
-  parameters: readonly DocumentExpiryParameter[],
-) {
+function recipientsFor(userIds: readonly string[], parameters: readonly DocumentExpiryParameter[]) {
   return userIds.map((userId) => ({
     channel: 'IN_APP' as const,
     user_id: userId,

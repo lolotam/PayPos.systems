@@ -37,9 +37,7 @@ export interface BusinessPermissionInput {
  * @param input الشركة والنشاط والمرشحون وأصحاب صلاحية المالك والمنح المقروءة
  * @returns معرفات المستخدمين المؤهلين مرتبة تصاعدياً
  */
-export function decideBusinessPermissionHolders(
-  input: BusinessPermissionInput,
-): readonly string[] {
+export function decideBusinessPermissionHolders(input: BusinessPermissionInput): readonly string[] {
   const owners = new Set(input.owners);
   const holders: string[] = [];
   for (const userId of new Set(input.userIds)) {
@@ -59,10 +57,7 @@ export function decideBusinessPermissionHolders(
  * @param input الشركة والنشاط المستهدفان
  * @returns هل نطاق المنحة يغطي النشاط
  */
-function coversBusiness(
-  grant: BusinessPermissionGrant,
-  input: BusinessPermissionInput,
-): boolean {
+function coversBusiness(grant: BusinessPermissionGrant, input: BusinessPermissionInput): boolean {
   if (grant.scopeType === 'COMPANY') return grant.scopeId === input.companyId;
   if (grant.scopeType === 'BUSINESS') return grant.scopeId === input.businessId;
   return false;
