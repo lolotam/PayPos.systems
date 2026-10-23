@@ -539,9 +539,8 @@ Waleed: «مشروع جديد بـ Compose واحد»). Its compose file is `dep
 its environment lives in Dokploy (secrets included; never print them). The three hosts are **Dokploy domains** on that
 service (Domains tab: api -> `api`:3000, app -> `admin`:3000, pos -> `pos`:8080, HTTPS, Let's Encrypt), so the compose
 file carries no Traefik labels; never add them back (a second router for the same host). The earlier compose in
-`PayPos.Systems` / environment `staging` (`hjvMzqQ-SyAm0wSaWxkzW`) is stopped and kept only as a cold copy until Waleed
-approves deleting it; it is not the rollback path, and it must never be started while the new one runs (two workers would
-share the queues). Following ADR-0001 §6 the `PosPay Staging` service serves the API at
+`PayPos.Systems` / environment `staging` (`hjvMzqQ-SyAm0wSaWxkzW`) was deleted with Waleed's yes on 2026-10-23; it was never the
+rollback path. Never start a second copy of this compose next to the live one (two workers would share the queues). Following ADR-0001 §6 the `PosPay Staging` service serves the API at
 https://api.staging.pospay.systems, the back-office at https://app.staging.pospay.systems and the cashier at
 https://pos.staging.pospay.systems, on the server's shared Postgres and Redis. Waleed's standing rule (2026-10-23):
 **staging is updated after every merge**, so every new feature can be tested there live; its data is demo data only.
@@ -558,11 +557,17 @@ records to the server (2026-10-23).
    an auth error, stop and ask the owner for a read-only package token (`docker login ghcr.io`) — never copy images by
    hand.
 2. Take a backup: `docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env ghcr.io/lolotam/pospay-backup:<sha>`.
-3. If `deploy/docker-compose.staging-shared.yml` changed, update the service's compose file in Dokploy to that SHA's
-   content (`compose.update`, raw source). Note the SHA that is live now: it is the rollback target.
-4. Set `IMAGE_TAG=<full-sha>` in the service's environment (change only that line, unless the compose file of that SHA
-   requires a variable the environment lacks: add it first, as `deploy/staging.env.example` lists, or the
-   interpolation aborts before any service starts), then `compose.deploy`. Prove it:
+3. Note the SHA that is live now: it is the rollback target. The compose file is uploaded on every release, pinned, in
+   step 4; it is never uploaded raw (with its `${IMAGE_TAG:?}` placeholders).
+4. **Pin the tag in the compose file, not the environment.** Dokploy encrypts the service environment at rest once it is
+   saved from its UI (`enc:v1:`; first seen 2026-10-23), so it can no longer be edited by SQL, and sending it through
+   `compose.saveEnvironment` would carry every secret. Take the SHA's `deploy/docker-compose.staging-shared.yml` (or the
+   rollback compose file, below), replace every `${IMAGE_TAG:?}` with `<full-sha>`, check that no `${IMAGE_TAG` expression is left and that every `image:` line ends with
+   `:<full-sha>` (the
+   environment's old `IMAGE_TAG` line is stale and must never be read), and send that text with `compose.update`
+   (`composeFile`; it holds no secret), then `compose.deploy`. A variable the SHA's file needs that the
+   environment lacks is added by Waleed in the Dokploy UI first (`deploy/staging.env.example` lists them), or the
+   interpolation aborts before any service starts. Prove it:
    `https://api.staging.pospay.systems/ready` answers 200, the worker's own `/ready` answers 200 from inside its
    container (`docker exec <worker> node -e "fetch('http://127.0.0.1:3001/ready')…"`, as the retired script did), both front ends answer 200, and the `migrate` container exited 0.
 5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): redeploy
@@ -577,13 +582,13 @@ domains), the current label-free file. Never upload an older file that still car
 with its Dokploy domains it would add a second router for every host. Only SHAs from #533 (`4bfef627`) on can be
 restored at all, because the admin and POS `-staging` images exist only from there.
 
-**Restore `<sha>`:** set `IMAGE_TAG=<sha>`, put the rollback compose file of `<sha>` in place if it differs from the live one,
-and redeploy;
+**Restore `<sha>`:** take the rollback compose file of `<sha>`, pin it to `<sha>` exactly as step 4 does (every
+`${IMAGE_TAG:?}` replaced, none left), send it with `compose.update`, and redeploy;
 Dokploy keeps every deployment and its log. The old `deploy/staging-deploy.sh` path and the server `.env` in
 `/opt/pospay-staging` are retired (the script was deleted with #545): a plain `docker compose up` of this file would start a
-second api/worker stack on the same queues with no public routes. The rollback is always `IMAGE_TAG` on the
-`PosPay Staging` service, never the stopped compose in `PayPos.Systems`, which is a cold copy kept only until Waleed
-approves deleting it.
+second api/worker stack on the same queues with no public routes. The rollback is always a pinned compose upload on the
+`PosPay Staging` service (Restore, above), never an environment edit. The stopped compose in `PayPos.Systems` was
+deleted with Waleed's yes on 2026-10-23.
 7. **Standing yes for this one cron line** (Waleed, PP-12.2, 2026-10-20: «(a) Yes, now and on every future
    release.»). Every other change to the server itself still needs his yes (PP-12.1). Point
    `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
