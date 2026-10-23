@@ -42,3 +42,13 @@ Clock-ins whose events were parked before this release register their company on
 re-queues them or the next clock-in is delivered. The job never touches `last_accepted_scan_at`, so
 the 5-minute scan dedupe still refers to the employee's last real scan. One new unique partial
 index is created concurrently; candidates use PR 22's one-open index; no table or policy changes.
+
+## Addendum 2026-10-23 — the event follows the alert rules (spec 060, sub-PR 62-2d)
+
+§6 changes for `AttendanceExceptionRaised`. The job still inserts the SUSPECTED_MISSED_OUT exception
+and its audit row whatever the rules say. It writes the event only when the `ATTENDANCE_EXCEPTION`
+rule resolves to at least one in-app recipient: one outbox row per group of at most 100 recipients,
+each carrying `notification_recipients` with the `attendance_exception_raised` bell (AL-Q8b). When
+the company is closed, the kind or the business master switch is off, the branch override is off, nobody qualifies, or the
+session's branch or its timezone cannot be read, no outbox row is written (issue #457). A consumer
+that needs every exception reads `attendance_exceptions`, not this event.

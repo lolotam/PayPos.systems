@@ -2,7 +2,11 @@ import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { businessToday, documentExpiryCandidate } from '../domain/document-expiry.ts';
-import { documentExpiryFixture, type DocumentExpiryFixture } from './document-expiry.fixture.ts';
+import {
+  ROLE,
+  documentExpiryFixture,
+  type DocumentExpiryFixture,
+} from './document-expiry.fixture.ts';
 import { takeTestEmployeeNumbers } from './test-employee-number.ts';
 
 let f: DocumentExpiryFixture;
@@ -21,6 +25,14 @@ it.each([
   ['America/New_York', '2026-11-01T06:30:00Z', '2026-11-01'],
 ])('SQL/domain and notification agree for %s at %s', async (zone, instant, today) => {
   const tenant = await f.tenant();
+  const owner = await f.user('owner');
+  await f.member({
+    tenant,
+    userId: owner,
+    roleId: ROLE.owner,
+    scopeType: 'COMPANY',
+    scopeId: tenant.company,
+  });
   await f.owner`UPDATE businesses SET timezone=${zone} WHERE company_id=${tenant.company} AND id=${tenant.business}`;
   await f.type(tenant, 'passport', 0);
   const document = await f.document(tenant, await f.employee(tenant), 'passport', today);

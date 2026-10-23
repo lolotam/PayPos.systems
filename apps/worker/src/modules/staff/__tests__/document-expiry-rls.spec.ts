@@ -41,7 +41,7 @@ it('employee_document_expiry_notices enforces FORCE RLS, hides reads and refuses
   ).rejects.toThrow();
   await expect(
     f.db.withTenant(a.company, (tx) =>
-      tx.execute(sql`UPDATE employee_document_expiry_notices SET recipients_attached_at=now()`),
+      tx.execute(sql`UPDATE employee_document_expiry_notices SET notified_at=now()`),
     ),
   ).rejects.toThrow();
   await expect(
@@ -59,6 +59,48 @@ it('employee_document_expiry_notices enforces FORCE RLS, hides reads and refuses
     await raw.end();
     await auth.end();
   }
+});
+
+it('the recipients marker turns once and never goes back to null', async () => {
+  const a = await f.tenant();
+  const b = await f.tenant();
+  const employee = await f.employee(a);
+  await f.type(a, 'passport', 30);
+  const document = await f.document(a, employee, 'passport', '2026-10-06');
+  const noticeId = f.ids.newId();
+  await f.owner`INSERT INTO employee_document_expiry_notices(company_id,id,document_id,employee_id,business_id,type_code,expires_on,notified_at)
+    VALUES(${a.company},${noticeId},${document},${employee},${a.business},'passport','2026-10-06',now())`;
+
+  await f.db.withTenant(b.company, async (tx) => {
+    const foreign = await tx.execute(sql`
+      UPDATE employee_document_expiry_notices SET recipients_attached_at=now()
+      WHERE company_id=${a.company} AND id=${noticeId} RETURNING id`);
+    expect(foreign).toHaveLength(0);
+  });
+  const [untouched] = await f.owner`SELECT recipients_attached_at FROM employee_document_expiry_notices
+    WHERE company_id=${a.company} AND id=${noticeId}`;
+  expect(untouched?.['recipients_attached_at']).toBeNull();
+  await f.db.withTenant(a.company, async (tx) => {
+    const updated = await tx.execute(sql`
+      UPDATE employee_document_expiry_notices SET recipients_attached_at=now()
+      WHERE company_id=${a.company} AND id=${noticeId} RETURNING id`);
+    expect(updated).toHaveLength(1);
+  });
+  await f.db.withTenant(a.company, async (tx) => {
+    const again = await tx.execute(sql`
+      UPDATE employee_document_expiry_notices SET recipients_attached_at=now()
+      WHERE company_id=${a.company} AND id=${noticeId} RETURNING id`);
+    expect(again).toHaveLength(0);
+  });
+  await f.db.withTenant(a.company, async (tx) => {
+    const back = await tx.execute(sql`
+      UPDATE employee_document_expiry_notices SET recipients_attached_at=NULL
+      WHERE company_id=${a.company} AND id=${noticeId} RETURNING id`);
+    expect(back).toHaveLength(0);
+  });
+  const [row] = await f.owner`SELECT recipients_attached_at FROM employee_document_expiry_notices
+    WHERE company_id=${a.company} AND id=${noticeId}`;
+  expect(row?.['recipients_attached_at']).not.toBeNull();
 });
 
 it('the tenant-qualified primary key stops a notice pointing at another company document', async () => {

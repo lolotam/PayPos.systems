@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   MIN_ALERT_DELAY_MS,
   employeePushRecipient,
+  inAppAlertOn,
+  inAppAlertRoles,
   periodicAlertPlan,
   type PeriodicAlertRule,
 } from '../alert-rule-plan.ts';
@@ -103,4 +105,39 @@ describe('employeePushRecipient', () => {
 
 it('the smallest delay a rule may carry is one minute', () => {
   expect(MIN_ALERT_DELAY_MS).toBe(MINUTE);
+});
+
+describe('inAppAlertRoles', () => {
+  const open = { enabled: true, channels: ['IN_APP'] as const, recipientRoles: MANAGERS };
+
+  it('keeps the roles of an open rule with the in-app channel', () => {
+    expect(inAppAlertRoles(open)).toEqual(MANAGERS);
+  });
+
+  it('gives no roles when the rule is switched off', () => {
+    expect(inAppAlertRoles({ ...open, enabled: false })).toEqual([]);
+  });
+
+  it('gives no roles when the master switch closed the rule', () => {
+    const closed = effectiveAlertRule('ATTENDANCE_EXCEPTION', null, null, false);
+    expect(inAppAlertRoles(closed)).toEqual([]);
+  });
+
+  it('gives no roles when the rule has no in-app channel', () => {
+    expect(inAppAlertRoles({ ...open, channels: [] })).toEqual([]);
+  });
+});
+
+describe('inAppAlertOn', () => {
+  it('is on for an open rule with the in-app channel', () => {
+    expect(inAppAlertOn({ enabled: true, channels: ['IN_APP'] })).toBe(true);
+  });
+
+  it('is off for a closed rule or a rule without the channel', () => {
+    expect(inAppAlertOn({ enabled: false, channels: ['IN_APP'] })).toBe(false);
+    expect(inAppAlertOn({ enabled: true, channels: [] })).toBe(false);
+    expect(
+      inAppAlertOn(effectiveAlertRule('ATTENDANCE_EXCEPTION', null, null, false)),
+    ).toBe(false);
+  });
 });

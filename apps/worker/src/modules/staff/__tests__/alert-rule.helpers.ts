@@ -26,10 +26,11 @@ export async function saveRule(
   kind: string,
   values: { enabled: boolean; roles: readonly string[]; delayMinutes?: number | null },
 ): Promise<void> {
+  // 1009 هو OID ‎_text؛ بتمريره صريحًا تبقى المصفوفة الفاضية نصًا صحيحًا مش سلسلة فاضية.
   await context.owner`INSERT INTO alert_rules (company_id,id,business_id,branch_id,kind,enabled,recipient_roles,channels,
       delay_minutes,lead_minutes,updated_by,revision)
     VALUES(${target.company},${context.ids.newId()},${target.business},${target.branchId ?? null},${kind},
-      ${values.enabled},${context.owner.array([...values.roles])},ARRAY['IN_APP']::text[],
+      ${values.enabled},${context.owner.array([...values.roles], 1009)},ARRAY['IN_APP']::text[],
       ${values.delayMinutes ?? null},NULL,${context.userId},1)`;
 }
 
@@ -85,6 +86,33 @@ export async function auditRows(context: RuleContext, company: string) {
 export function eventRecipients(row: postgres.Row | undefined) {
   const payload = row?.['payload'] as { notification_recipients?: { user_id: string }[] };
   return (payload.notification_recipients ?? []).map((item) => item.user_id);
+}
+
+/** قالب الجرس ومعاملاته كما هما في الحدث. */
+export function eventBell(row: postgres.Row | undefined) {
+  const payload = row?.['payload'] as
+    | {
+        notification_recipients?: {
+          template_key: string;
+          template_revision: number;
+          locale: string;
+          safe_parameters: { name: string; type: string; value: string }[];
+        }[];
+      }
+    | undefined;
+  return payload?.notification_recipients?.[0] ?? null;
+}
+
+/** سطور استثناءات الحضور للشركة. */
+export async function attendanceExceptions(context: RuleContext, company: string) {
+  return context.owner`SELECT id, kind, status, session_id FROM attendance_exceptions
+    WHERE company_id=${company} ORDER BY id`;
+}
+
+/** سطور دفتر انتهاء المستندات: العلامة ووقت الإشعار. */
+export async function documentExpiryLedger(context: RuleContext, company: string) {
+  return context.owner`SELECT document_id, expires_on, notified_at, recipients_attached_at
+    FROM employee_document_expiry_notices WHERE company_id=${company} ORDER BY id`;
 }
 
 /** يشوف الكتابة في الدفتر من غير ما يمسّ المعاملة. */

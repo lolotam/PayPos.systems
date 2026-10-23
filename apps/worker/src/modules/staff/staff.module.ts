@@ -39,6 +39,13 @@ const NOT_CLOCKED_IN_NAME_FALLBACK = {
   branchEn: t('en', 'inApp.generic_branch'),
 };
 
+// أسماء أجراس الحضور والمستندات: نفس الأسماء العامة مع نوع المستند، والكتالوج هو المصدر (CLAUDE.md §7).
+const STAFF_ALERT_NAME_FALLBACK = {
+  ...NOT_CLOCKED_IN_NAME_FALLBACK,
+  documentAr: t('ar', 'inApp.generic_document'),
+  documentEn: t('en', 'inApp.generic_document'),
+};
+
 export function createStaffDocumentDefaults(ids: IdGenerator) {
   return companyCreatedConsumer((tx) => new SeedDocumentTypes(createDocumentTypeSeeds(tx), ids));
 }
@@ -50,13 +57,7 @@ export function startStaffWorker(
   clock: Clock,
   prefix?: string,
 ) {
-  const detect = new DetectMissedOuts(missedOutTransactions(database, ids), clock);
-  const processor = startMissedOutProcessor(detect, redisUrl, prefix);
-  const expiry = startDocumentExpiryProcessor(
-    new DetectDocumentExpiries(documentExpiryTransactions(database, ids), clock),
-    redisUrl,
-    prefix,
-  );
+  const { processor, expiry } = createAttendanceJobs(database, ids, redisUrl, clock, prefix);
   const notClockedIn = startNotClockedInProcessor(
     createNotClockedInDetectors(database, ids, clock),
     redisUrl,
@@ -102,6 +103,30 @@ export function startStaffWorker(
       await processor.close();
     },
   };
+}
+
+/** وظيفتا الحضور اللي بتوصل بجرس: الخروج المفقود وانتهاء المستندات، بأسماء الأجراس من الكتالوج. */
+function createAttendanceJobs(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  ids: IdGenerator,
+  redisUrl: string,
+  clock: Clock,
+  prefix?: string,
+) {
+  const processor = startMissedOutProcessor(
+    new DetectMissedOuts(missedOutTransactions(database, ids, STAFF_ALERT_NAME_FALLBACK), clock),
+    redisUrl,
+    prefix,
+  );
+  const expiry = startDocumentExpiryProcessor(
+    new DetectDocumentExpiries(
+      documentExpiryTransactions(database, ids, STAFF_ALERT_NAME_FALLBACK),
+      clock,
+    ),
+    redisUrl,
+    prefix,
+  );
+  return { processor, expiry };
 }
 
 // تنبيه عدم الرجوع من البريك يركب نفس جدولة الشركة (BW-Q5)، فلا طابور ولا تسجيل جديد.

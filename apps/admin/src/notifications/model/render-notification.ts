@@ -25,23 +25,7 @@ export function renderNotification(item: InAppNotification, viewerLocale?: Local
     item.template_key === 'attendance_change_requested' ||
     item.template_key === 'attendance_change_decided'
   ) {
-    const locale = viewerLocale ?? item.locale;
-    const values = Object.fromEntries(item.safe_parameters.map((p) => [p.name, p.value]));
-    values['change'] = t(
-      locale,
-      values['change'] === 'ADD_SESSION'
-        ? 'inApp.attendance_change_add'
-        : values['change'] === 'RESTORE_SESSION'
-          ? 'inApp.attendance_change_restore'
-          : 'inApp.attendance_change_void',
-    );
-    values['decision'] = t(
-      locale,
-      values['decision'] === 'APPROVED'
-        ? 'inApp.attendance_change_approved'
-        : 'inApp.attendance_change_rejected',
-    );
-    return fill(t(locale, `inApp.${item.template_key}`), values);
+    return renderAttendanceChange(item, viewerLocale);
   }
   if (item.template_key === 'shift_not_clocked_in') {
     const locale = viewerLocale ?? item.locale;
@@ -55,10 +39,43 @@ export function renderNotification(item: InAppNotification, viewerLocale?: Local
     const locale = viewerLocale ?? item.locale;
     return fill(t(locale, 'inApp.break_returned_other_branch'), shiftValues(item.safe_parameters));
   }
+  if (
+    item.template_key === 'attendance_exception_raised' ||
+    item.template_key === 'document_expiring'
+  ) {
+    return renderStaffAlert(item, viewerLocale);
+  }
   return fill(
     t(item.locale, 'inApp.generic_notice'),
     Object.fromEntries(item.safe_parameters.map((parameter) => [parameter.name, parameter.value])),
   );
+}
+
+/** طلبات تعديل الحضور وقراراتها: التغيير والقرار بيتقروا بلغة الواجهة. */
+function renderAttendanceChange(item: InAppNotification, viewerLocale?: Locale): string {
+  const locale = viewerLocale ?? item.locale;
+  const values = Object.fromEntries(item.safe_parameters.map((p) => [p.name, p.value]));
+  values['change'] = t(
+    locale,
+    values['change'] === 'ADD_SESSION'
+      ? 'inApp.attendance_change_add'
+      : values['change'] === 'RESTORE_SESSION'
+        ? 'inApp.attendance_change_restore'
+        : 'inApp.attendance_change_void',
+  );
+  values['decision'] = t(
+    locale,
+    values['decision'] === 'APPROVED'
+      ? 'inApp.attendance_change_approved'
+      : 'inApp.attendance_change_rejected',
+  );
+  return fill(t(locale, `inApp.${item.template_key}`), values);
+}
+
+/** جرسا استثناء الحضور وانتهاء المستند: لغة الواجهة، والعربي الغائب يرجع للإنجليزي، ومعرّف المستند ما يظهرش. */
+function renderStaffAlert(item: InAppNotification, viewerLocale?: Locale): string {
+  const locale = viewerLocale ?? item.locale;
+  return fill(t(locale, `inApp.${item.template_key}`), staffAlertValues(item.safe_parameters));
 }
 
 function renderServiceLineNotice(item: InAppNotification, viewerLocale?: Locale): string | null {
@@ -176,6 +193,22 @@ function shiftValues(parameters: InAppNotification['safe_parameters']): Record<s
     shift_start: read('shift_start'),
     break_end: read('break_end'),
   };
+}
+
+/** قيم جرسَي الاستثناء والمستند: العربي الغائب يرجع للإنجليزي، ومعرّف المستند ما بيتبعتش للنص. */
+function staffAlertValues(parameters: InAppNotification['safe_parameters']): Record<string, string> {
+  const read = (name: string) => parameters.find((item) => item.name === name)?.value ?? '';
+  const arabic = (name: string, english: string) => {
+    const value = read(name).trim();
+    return value.length > 0 ? value : english;
+  };
+  const values: Record<string, string> = {};
+  for (const parameter of parameters)
+    if (parameter.name !== 'document_id') values[parameter.name] = parameter.value;
+  for (const name of ['employee_name', 'branch_name', 'document_type']) {
+    values[`${name}_ar`] = arabic(`${name}_ar`, read(`${name}_en`));
+  }
+  return values;
 }
 
 function fill(text: string, values: Readonly<Record<string, string>>): string {

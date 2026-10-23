@@ -1,7 +1,7 @@
 import { employeeNameMatchKey } from '@pospay/domain';
 import { takeTestEmployeeNumber } from './test-employee-number.ts';
 import postgres from 'postgres';
-import { createDatabase, PROVISIONAL_PLAN_ID, type Database } from '@pospay/db';
+import { createDatabase, PROVISIONAL_PLAN_ID, type Database, type IdGenerator } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import {
   createTestDatabase,
@@ -21,6 +21,36 @@ export interface Tenant {
 export { TENANT };
 export const A = TENANT.A;
 export const B = TENANT.B;
+
+/** أدوار النظام الثابتة؛نسخها هنا عشان ما يتعملش استيراد بين الملفات. */
+export const ROLE = {
+  owner: '01920000-0000-7000-8000-000000000101',
+  general_manager: '01920000-0000-7000-8000-000000000102',
+  business_manager: '01920000-0000-7000-8000-000000000104',
+  branch_manager: '01920000-0000-7000-8000-000000000105',
+} as const;
+
+/** عضوية نشطة بمستخدم ودور ونطاق. */
+export interface MemberInput {
+  readonly tenant: Tenant;
+  readonly userId: string;
+  readonly roleId: string;
+  readonly scopeType: 'COMPANY' | 'BUSINESS' | 'BRANCH';
+  readonly scopeId: string;
+  readonly startsAt?: string;
+  readonly endsAt?: string | null;
+}
+
+/** منحة شخصية على عضوية: صلاحية أو رفض بنطاق. */
+export interface OverrideInput {
+  readonly tenant: Tenant;
+  readonly membershipId: string;
+  readonly permissionCode: string;
+  readonly effect: 'ALLOW' | 'DENY';
+  readonly scopeType: 'COMPANY' | 'BUSINESS' | 'BRANCH';
+  readonly scopeId: string;
+  readonly grantedBy: string;
+}
 
 /** قاعدة اختبار مستنسخة لكل ملف، والوظيفة تعمل كـ pospay_app فقط. */
 export async function documentExpiryFixture() {
@@ -48,7 +78,12 @@ export async function documentExpiryFixture() {
     detect: (port: DocumentExpiryTransactions = transactions) =>
       new DetectDocumentExpiries(port, clock),
     tenant: () => newTenant(owner, userId, ids.newId(), ids.newId(), ids.newId()),
-    employee: (tenant: Tenant) => newEmployee(owner, ids.newId(), tenant),
+    branch: (tenant: Tenant) => newBranch(owner, ids, tenant),
+    employee: (tenant: Tenant, options: EmployeeOptions = {}) =>
+      newEmployee(owner, ids.newId(), tenant, options),
+    user: (label: string) => newUser(owner, ids, label),
+    member: (input: MemberInput) => newMember(owner, ids, input),
+    override: (input: OverrideInput) => newOverride(owner, ids, input),
     type: (tenant: Tenant, code: string, alertDays = 30, requiresExpiry = true) =>
       newType(owner, ids.newId(), tenant, code, alertDays, requiresExpiry),
     document: (tenant: Tenant, employeeId: string, typeCode: string, expiresOn: string | null) =>
@@ -77,6 +112,13 @@ export async function documentExpiryFixture() {
 }
 export type DocumentExpiryFixture = Awaited<ReturnType<typeof documentExpiryFixture>>;
 
+/** خيارات الموظفة: الاسم ومستخدم الحساب. */
+export interface EmployeeOptions {
+  readonly nameEn?: string;
+  readonly nameAr?: string | null;
+  readonly userId?: string | null;
+}
+
 async function closeFixture(db: Database, owner: postgres.Sql, testDb: TestDatabase) {
   await db.close();
   await owner.end();
@@ -96,9 +138,44 @@ async function newTenant(
   return { company, business, branch };
 }
 
-async function newEmployee(owner: postgres.Sql, id: string, tenant: Tenant) {
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
-    VALUES(${tenant.company},${id},${tenant.business},${tenant.branch},'Synthetic expiry employee',${employeeNameMatchKey('Synthetic expiry employee')},'staff','2026-01-01',${takeTestEmployeeNumber(tenant.company)})`;
+async function newBranch(owner: postgres.Sql, ids: IdGenerator, tenant: Tenant) {
+  const id = ids.newId();
+  await owner`INSERT INTO branches(id,company_id,business_id,name_en) VALUES(${id},${tenant.company},${tenant.business},'Synthetic other branch')`;
+  return id;
+}
+
+async function newEmployee(
+  owner: postgres.Sql,
+  id: string,
+  tenant: Tenant,
+  options: EmployeeOptions,
+) {
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,name_ar_key,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${tenant.company},${id},${tenant.business},${tenant.branch},${options.userId ?? null},${options.nameAr ?? null},
+      ${options.nameEn ?? 'Synthetic expiry employee'},${options.nameAr == null ? null : employeeNameMatchKey(options.nameAr)},
+      ${employeeNameMatchKey(options.nameEn ?? 'Synthetic expiry employee')},'staff','2026-01-01',${takeTestEmployeeNumber(tenant.company)})`;
+  return id;
+}
+
+async function newUser(owner: postgres.Sql, ids: IdGenerator, label: string) {
+  const id = ids.newId();
+  await owner`INSERT INTO "user"(id,name,email) VALUES(${id},${label},${`${id}@example.test`})`;
+  return id;
+}
+
+async function newMember(owner: postgres.Sql, ids: IdGenerator, input: MemberInput) {
+  const id = ids.newId();
+  await owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at,ends_at)
+    VALUES(${input.tenant.company},${id},${input.userId},${input.roleId},'global',${input.scopeType},${input.scopeId},
+      ${input.startsAt ?? '2026-01-01T00:00:00Z'},${input.endsAt ?? null})`;
+  return id;
+}
+
+async function newOverride(owner: postgres.Sql, ids: IdGenerator, input: OverrideInput) {
+  const id = ids.newId();
+  await owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by,granted_at)
+    VALUES(${input.tenant.company},${id},${input.membershipId},${input.permissionCode},${input.effect},${input.scopeType},
+      ${input.scopeId},'Synthetic override',${input.grantedBy},clock_timestamp())`;
   return id;
 }
 

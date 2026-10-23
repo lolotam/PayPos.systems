@@ -56,3 +56,28 @@ export function employeePushRecipient(
   if (!plan.employeePush || employeeUserId === null) return null;
   return employeeUserId;
 }
+
+/**
+ * أدوار المستلمين لجرس داخل التطبيق: القاعدة المفتوحة والقناة فيها IN_APP، وإلا لا مستلمين.
+ * القاعدة المقفولة (أو المفتاح العام مقفول) مفيهاش أدوار، فالمُرسِل ما يبعتش لحد.
+ *
+ * @param rule القاعدة الفعلية بعد المفتاح العام
+ * @returns أدوار المستلمين كما في القاعدة
+ */
+export function inAppAlertRoles(
+  rule: Pick<EffectiveAlertRule, 'enabled' | 'channels' | 'recipientRoles'>,
+): readonly AlertRecipientRole[] {
+  if (!rule.enabled) return [];
+  if (!rule.channels.includes('IN_APP')) return [];
+  return rule.recipientRoles;
+}
+
+/**
+ * هل القاعدة تشغل جرس داخل التطبيق؟ القاعدة المقفولة أو اللي مفيهاش قناة IN_APP ما بتوصلش لحد.
+ *
+ * @param rule القاعدة الفعلية بعد المفتاح العام
+ * @returns true لو الجرس داخل التطبيق شغال
+ */
+export function inAppAlertOn(rule: Pick<EffectiveAlertRule, 'enabled' | 'channels'>): boolean {
+  return rule.enabled && rule.channels.includes('IN_APP');
+}
