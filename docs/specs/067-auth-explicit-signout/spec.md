@@ -286,9 +286,14 @@ next sign-in on that device (staff) or for that user (personal) replaces it, and
 The reverse order is intended behaviour, not a gap: a sign-in whose response arrives after the sign-out leaves its own
 new session active; that is intended, because it needed new credentials (a fresh OTP code or the person's own PIN),
 and sign-out ends only the session its cookie names. A sign-out never promises that no session will exist afterwards,
-only that the session it was sent with has ended. This does not weaken spec 065 BR-001 / FR-008: a role change ends
-every session that exists when it runs; keeping a new sign-in from completing during that flow is the app's part,
-which spec 065 does not state today (tracked in #581).
+only that the session it was sent with has ended.
+
+**Dependency for spec 065 (BR-001, FR-008).** This spec does **not** guarantee BR-001 on its own when a sign-in runs
+in parallel with the role change: a client cannot stop concurrent API requests, and the race above can leave a fresh
+session usable after the role change's sign-outs return. Therefore the role-change flow MUST NOT be implemented until
+a **server-side fence** exists, for example a per-device session generation that the role change advances, such that
+a sign-in that started under an older generation produces no usable session. The exact design is tracked in issue
+#581, which is a prerequisite of the MOB sub-PR that implements the role change; it is not part of 067-1 or 067-2.
 
 **D-7. Readers of `request.principal` on these two routes.** `SessionGuard` documents `principal` as «absent only on
 @Public() routes»; these become the two `@Authenticated()` routes where it is absent too. Every reader in
@@ -435,7 +440,9 @@ None published, none consumed.
   the sign-in's replacement → the sign-out answers `SIGNED_OUT`, and the new session from the fresh OTP/PIN resolves
   with its new cookie (intended, D-6) ·
   `SO-13e` the same, with the sign-in's replacement committing first and deleting the old row → the sign-out finds no
-  row and answers `NO_SESSION` (FR-001, BR-002), and the new session still resolves ·
+  row and answers `NO_SESSION` (FR-001, BR-002), and the new session still resolves. This is 067's behaviour without
+  the fence; spec 065's role-change test must prove that, once the #581 fence is in place, such a replacement session
+  is not usable after the role change ·
   `SO-13b` a request carrying no cookie of the route's name → `NO_SESSION` with no `Set-Cookie` ·
   `SO-13c` a malformed `STAFF_POS` row (no device context, or a non-UUID `deviceId`) named by a valid cookie → row
   deleted, `NO_SESSION` ·
