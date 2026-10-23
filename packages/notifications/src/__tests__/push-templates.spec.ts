@@ -1,6 +1,11 @@
 import { expect, it } from 'vitest';
 
-import { renderPushNotice, validPushTemplate, type SafeParameter } from '../index.ts';
+import {
+  renderPushNotice,
+  sanitizePushParameters,
+  validPushTemplate,
+  type SafeParameter,
+} from '../index.ts';
 
 const KEY = 'shift_not_clocked_in_self';
 
@@ -107,4 +112,46 @@ it('leaves no placeholder brace in the rendered body', () => {
     expect(body).not.toContain('{');
     expect(body).not.toContain('}');
   }
+});
+
+it('takes only a 24-hour shift start', () => {
+  for (const value of ['Customer Alice', '10am', '9:00', '24:00', '10:60', '', ' 10:00']) {
+    const values: SafeParameter[] = [
+      { name: 'shift_start', type: 'text', value },
+      ...parameters().slice(1),
+    ];
+    expect(validPushTemplate(KEY, 1, values)).toBe(false);
+    expect(renderPushNotice(KEY, 1, 'ar', values)).toBeNull();
+    expect(sanitizePushParameters(KEY, 1, values)).toBeNull();
+  }
+  for (const value of ['00:00', '09:05', '23:59']) {
+    const values: SafeParameter[] = [
+      { name: 'shift_start', type: 'text', value },
+      ...parameters().slice(1),
+    ];
+    expect(validPushTemplate(KEY, 1, values)).toBe(true);
+    expect(renderPushNotice(KEY, 1, 'ar', values)).not.toBeNull();
+    expect(sanitizePushParameters(KEY, 1, values)).not.toBeNull();
+  }
+});
+
+it('sanitises the unusable branch names before they are stored', () => {
+  const values = parameters();
+  expect(sanitizePushParameters(KEY, 1, values)).toEqual(values);
+  for (const value of ['https://example.test', '+96500000001', '123456']) {
+    const sanitized = sanitizePushParameters(KEY, 1, parameters(value, 'Salmiya'));
+    expect(sanitized?.map((parameter) => [parameter.name, parameter.value])).toEqual([
+      ['shift_start', '10:00'],
+      ['branch_name_ar', ''],
+      ['branch_name_en', 'Salmiya'],
+    ]);
+  }
+  const blank = sanitizePushParameters(KEY, 1, parameters('', 'Salmiya'));
+  expect(blank?.map((parameter) => [parameter.name, parameter.value])).toEqual([
+    ['shift_start', '10:00'],
+    ['branch_name_ar', ''],
+    ['branch_name_en', 'Salmiya'],
+  ]);
+  expect(sanitizePushParameters('unknown_notice', 1, values)).toBeNull();
+  expect(sanitizePushParameters(KEY, 2, values)).toBeNull();
 });

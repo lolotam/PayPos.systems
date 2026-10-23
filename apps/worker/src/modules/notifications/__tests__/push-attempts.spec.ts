@@ -179,4 +179,26 @@ it('accepts a request whose branch name is rejected in both languages', async ()
   expect(await h.deliver(event)).toEqual({ delivered: true });
   expect(await h.attempts(event.id)).toHaveLength(2);
   expect(await h.authorized(event.id)).toHaveLength(2);
+  const rows = await h.attempts(event.id);
+  expect(JSON.stringify(rows)).not.toContain('https://example.test');
+  for (const row of rows) {
+    const stored = row['safe_parameters'] as { name: string; value: string }[];
+    const arabic = stored.find((parameter) => parameter.name === 'branch_name_ar');
+    expect(arabic?.value).toBe('');
+  }
+});
+
+it('refuses a shift start that is not a time', async () => {
+  const event = await h.request([
+    {
+      ...pushRecipient(),
+      safe_parameters: PUSH_PARAMETERS.map((parameter) =>
+        parameter.name === 'shift_start' ? { ...parameter, value: 'Customer Alice' } : parameter,
+      ),
+    },
+  ]);
+  await expect(
+    h.db.withTenant(event.companyId, (tx) => h.disabled.handle(tx, event)),
+  ).rejects.toThrow('NOTIFICATION_REQUEST_INVALID');
+  expect(await h.attempts(event.id)).toHaveLength(0);
 });

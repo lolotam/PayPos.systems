@@ -61,6 +61,7 @@ export { installationHash, endpointHash, subscriberRef, vapidKeyId } from './pus
 export { readPushApiConfiguration, type PushApiConfiguration } from './push/configuration.ts';
 export {
   validPushTemplate,
+  sanitizePushParameters,
   renderPushNotice,
   type PushTemplateDefinition,
   type PushTemplateCopy,

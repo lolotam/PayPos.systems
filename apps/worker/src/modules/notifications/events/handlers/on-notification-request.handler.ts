@@ -11,7 +11,7 @@ import type { OutboxConsumer } from '../../../../outbox/consumer.ts';
 import type { AuthorizeNotification } from '../../use-cases/authorize-notification/authorize-notification.ts';
 import type { StoreInAppNotification } from '../../use-cases/store-in-app-notification/store-in-app-notification.ts';
 import type { StorePushAttempts } from '../../use-cases/store-push-attempts/store-push-attempts.ts';
-import { validInAppTemplate, validPushTemplate } from '@pospay/notifications';
+import { validInAppTemplate, sanitizePushParameters } from '@pospay/notifications';
 type EmailRecipient = Extract<NotificationRecipient, { channel: 'email' }>;
 type EmailScope = {
   business_id?: string | null | undefined;
@@ -196,14 +196,12 @@ async function storePushRecipient(
   recipient: PushRecipient,
   scope: EmailScope,
 ): Promise<void> {
-  if (
-    !validPushTemplate(
-      recipient.template_key,
-      recipient.template_revision,
-      recipient.safe_parameters,
-    )
-  )
-    throw new Error('NOTIFICATION_REQUEST_INVALID');
+  const safeParameters = sanitizePushParameters(
+    recipient.template_key,
+    recipient.template_revision,
+    recipient.safe_parameters,
+  );
+  if (safeParameters === null) throw new Error('NOTIFICATION_REQUEST_INVALID');
   if (push === undefined || !push.enabled) return;
   await push.store(tx).execute({
     companyId: event.companyId,
@@ -213,7 +211,7 @@ async function storePushRecipient(
     branchId: scope.branch_id ?? null,
     templateKey: recipient.template_key,
     templateRevision: recipient.template_revision,
-    safeParameters: recipient.safe_parameters,
+    safeParameters,
     deadline: recipient.send_deadline == null ? null : new Date(recipient.send_deadline),
   });
 }

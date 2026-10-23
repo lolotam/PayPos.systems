@@ -28,6 +28,14 @@ const GENERIC_BRANCH: Readonly<Record<'ar' | 'en', string>> = {
   en: 'the branch',
 };
 
+// وقت الشيفت صيغته HH:MM (24 ساعة) بالظبط؛ قيمة حرة كانت هتوصّل بيانات عميل لشاشة القفل.
+const SHIFT_START_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// المعاملات اللي ليها صيغة صارمة غير قواعد النص العام.
+const STRICT_PARAMETERS: Readonly<Record<string, RegExp>> = {
+  shift_start: SHIFT_START_PATTERN,
+};
+
 const SHIFT_NOT_CLOCKED_IN_SELF: PushTemplateDefinition = {
   key: 'shift_not_clocked_in_self',
   revision: 1,
@@ -145,13 +153,56 @@ const matches = (
       FALLBACK_NAMES.has(descriptor.name) && usableName(descriptor, parameter) === null;
     normalized.push(unusable ? { ...parameter, value: GENERIC_BRANCH.ar } : parameter);
   }
-  return validateParameters(asTemplateDefinition(definition.parameters), 'ar', normalized);
+  if (!validateParameters(asTemplateDefinition(definition.parameters), 'ar', normalized))
+    return false;
+  return definition.parameters.every((descriptor, index) => {
+    const pattern = STRICT_PARAMETERS[descriptor.name];
+    if (pattern === undefined) return true;
+    const parameter = normalized[index];
+    return (
+      parameter !== undefined &&
+      typeof parameter.value === 'string' &&
+      pattern.test(parameter.value)
+    );
+  });
 };
+
+/**
+ * ينضّف معاملات القالب قبل تخزينها.
+ * القاعدة: اسم الفرع الفاضي أو المرفوض بيتشال من النسخة المخزنة (فاضي)،
+ * وباقي المعاملات ماتتغيرش، والقالب المايطابقش أو المعاملات المرفوضة بيرجعوا null.
+ *
+ * @param key        مفتاح القالب
+ * @param revision   مراجعة القالب
+ * @param parameters المعاملات الآمنة المرتبة
+ * @returns نسخة نظيفة من المعاملات، أو null لو القالب مش معروف أو المعاملات مرفوضة
+ */
+export function sanitizePushParameters(
+  key: string,
+  revision: number,
+  parameters: readonly SafeParameter[],
+): readonly SafeParameter[] | null {
+  const definition = find(key);
+  if (definition === null || definition.revision !== revision) return null;
+  if (!matches(definition, parameters)) return null;
+  const sanitized: SafeParameter[] = [];
+  for (const [index, descriptor] of definition.parameters.entries()) {
+    const parameter = parameters[index];
+    if (parameter === undefined) return null;
+    if (!FALLBACK_NAMES.has(descriptor.name)) {
+      sanitized.push(parameter);
+      continue;
+    }
+    const usable = usableName(descriptor, parameter);
+    sanitized.push(usable === null ? { ...parameter, value: '' } : { ...parameter, value: usable });
+  }
+  return sanitized;
+}
 
 /**
  * بيتأكد إن القالب ومراجعته ومعاملاته مطابقة لقالب دفع معروف.
  * القاعدة: اسم الفرع الفاضي أو المرفوض بيتحسب مش موجود (بينستبدل وقت العرض)،
- * وأي معامل تاني قيمته رابط أو هاتف أو رمز بتترفض.
+ * ووقت الشيفت لازم يكون وقت HH:MM، وأي معامل تاني قيمته رابط أو هاتف أو رمز بتترفض.
  *
  * @param key        مفتاح القالب
  * @param revision   مراجعة القالب
@@ -163,9 +214,7 @@ export function validPushTemplate(
   revision: number,
   parameters: readonly SafeParameter[],
 ): boolean {
-  const definition = find(key);
-  if (definition === null || definition.revision !== revision) return false;
-  return matches(definition, parameters);
+  return sanitizePushParameters(key, revision, parameters) !== null;
 }
 
 /**
