@@ -559,7 +559,8 @@ records to the server (2026-10-23).
    `https://api.staging.pospay.systems/ready` answers 200, the worker's own `/ready` answers 200 from inside its
    container (`docker exec <worker> node -e "fetch('http://127.0.0.1:3001/ready')…"`, as the retired script did), both front ends answer 200, and the `migrate` container exited 0.
 5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): redeploy
-   `<previous-sha>` (step 4 with that tag) against the new schema, confirm `/ready`, then redeploy `<full-sha>`. A
+   `<previous-sha>` with **its own** compose file and that tag (a newer compose file may ask for images the previous SHA
+   never built) against the new schema, confirm `/ready`, then restore the current compose file and redeploy `<full-sha>`. A
    previous image that does not start on the new schema is a P1 against the migration: redeploy `<full-sha>` at once,
    keep the release blocked, and open the P1.
 6. On a failure of step 4, redeploy the previous SHA at once, then diagnose. Never leave staging down while diagnosing.
