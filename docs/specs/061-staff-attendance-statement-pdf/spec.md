@@ -11,6 +11,9 @@
 > [owner-questions.ar.md](owner-questions.ar.md).
 > **ST-Q7** (what the leave column counts under a shift filter) is **PENDING** (`TODO(spec)` in BR-11 and §6.6). Until
 > it is answered no shift-filtered statement ships (§9); the statement without a shift filter does not wait on it.
+> **ST-Q8** (whether contracted hours of a date whose default hours have not ended at the request count, and whether
+> approved leave on it subtracts) is **PENDING** (`TODO(spec)` in FR-013a and FR-003). Only that part of the cutoff
+> waits on it.
 > **Depends on (all merged):** row 27 ([spec 049](../049-staff-attendance-board-report/spec.md), 27b report and its audit),
 > row 8c ([spec 051](../051-staff-employee-number/spec.md), `employee_number`), row 27h
 > ([spec 052](../052-settings-business-identity/spec.md), official names and logo, 27h-1…27h-5), row 27i
@@ -102,8 +105,9 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 4. The PDF has `dir="rtl" lang="ar"`, the logo and the Arabic official name, «فرع السالمية», the period, one row per
    employee with any counted session or contracted minutes at the branch in the period, a signature column, the
    manager's signature line and the footer (BR-01, BR-02, BR-04, BR-06).
-5. For a month that ended before the request, each row's figures equal the 27b monthly report row of the same
-   employee, branch and month (parity test). For the current month they cover the dates up to the cutoff (FR-013a).
+5. For a month whose every shift end, default-entry end and session recording instant is at or before the request,
+   each row's figures equal the 27b monthly report row of the same employee, branch and month (parity test). Otherwise
+   they cover only what had happened at the request (FR-013a).
 6. **Given** سارة always on 09:00–20:00, هبة always on 08:00–16:00 and ريم on 09:00–20:00 on some days and 08:00–16:00 on
    others, **when** the manager filters October by the shift 09:00–20:00, **then** the table has سارة with all her days
    and ريم with her 09:00–20:00 days only; هبة has no row; contracted hours and difference print «—» (BR-11).
@@ -119,7 +123,9 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    "Missing clock-out" and adds 0 hours (BR-05); a date with approved leave shows the leave type; a date with a
    scheduled shift and no counted session shows the scheduled times and «لا يوجد حضور مسجّل» / "No attendance
    recorded"; any other date shows the date only. A shift that had not ended at the request (FR-013a), on any date,
-   adds nothing, and a date with nothing ended shows the date only, whatever the schedule: never «لا يوجد حضور مسجّل».
+   adds nothing and never prints «لا يوجد حضور مسجّل»; a date with nothing counted, nothing ended, no OPEN session and
+   no approved leave shows the date only. An OPEN session at the request always shows «لسه جوّه» on its date, and
+   approved leave always shows its type, whatever the cutoff.
 3. The totals under the table are the 27b columns for that employee and period, then her signature line and the
    manager's (BR-04).
 
@@ -202,11 +208,13 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   candidate rule the branch table uses** (Story 1.4, Story 3.3): she belongs to that business and has a counted
   session or contracted minutes at that branch under the FR-013a rule, with the injected `Clock` instant as the cutoff
   (the same instant stored as `requested_at`): a counted session with a working date from `from` to the earlier of `to`
-  and the cutoff date, or a contract day in that range whose default working-hours entry ends at or before that
-  instant. A period with only future dates, or an employee whose only coverage has not ended yet (hired today with a
-  17:00 default entry, asked at 10:00), is refused here and never reaches the worker. The check is an eligibility
+  and the cutoff date whose close and last correction were recorded at or before that instant (FR-011b), or a
+  contract day in that range counted as FR-013a counts it (`TODO(spec)` ST-Q8: whether a contract day whose default
+  entry has not ended counts follows the ST-Q8 answer). A period with only future dates is refused here and never
+  reaches the worker; so is an employee whose only coverage has not ended yet, if ST-Q8 says such a day does not
+  count. The check is an eligibility
   statement in `@pospay/db` beside the shared 27b inputs statement (ADR-0056 §2): the 27b `candidates` rule limited to
-  that one employee, plus that end-instant predicate on contract days, with the instant as a parameter. The 27b
+  that one employee, plus the FR-013a predicates on sessions and contract days, with the instant as a parameter. The 27b
   statement takes no instant and stays unchanged. So the request
   refuses exactly the employees the statement would show nothing for; otherwise `404
   ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` before any insert (no request row, no job). An employee whose only activity
@@ -266,7 +274,15 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   `attendance-monthly-report.query.ts`, AB-Q9g), and it stays unchanged so the report and the branch statement keep the
   same figures. The employee form reads the employee's OPEN sessions of the period at the branch through its own worker
   `queries/` statement (`attendance-statement-open-sessions.query.ts`: working date and clock-in only, non-voided), and
-  shows them as «لسه جوّه» / "Still clocked in" with 0 hours. They never enter a total.
+  shows them as «لسه جوّه» / "Still clocked in" with 0 hours. A session that the inputs return but whose close or last
+  correction was recorded after `requested_at` (FR-013a) is shown the same way. Neither enters a total.
+- **FR-011b** To apply FR-013a's session rule, the 27g-2 input projection carries, per session, the instants its close
+  and corrections were recorded: `clock_out` for a scan close (`closed_by = 'EMPLOYEE'`, written by the server clock at
+  the scan); `clock_out` for a `MISSED_OUT` close (the sweep's close instant, the nearest recorded value, §10); the
+  approving `attendance_change_requests.decided_at` through `change_request_id` for a `MANUAL` session (rows 26a/26b);
+  and `max(attendance_corrections.corrected_at)` of its corrections. A backdated manual correction is judged by its
+  `corrected_at`, not by the corrected time. The projection is the worker's own statement in `@pospay/db` next to the
+  27b one; the 27b statement stays unchanged.
 - **FR-012** A missing request row (or one for another company) fails the job with `DOCUMENT_RENDER_FAILED`; it is never
   rendered for anyone.
 - **FR-013** The figures come from pure functions in `packages/domain`: the 27b `computeAttendanceMonthlyReport` rules
@@ -274,27 +290,31 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   breakdown for the employee form, plus the BR-11 day selection: the working dates whose schedule shift at the branch,
   in branch-local time, starts and ends at the pair; on such a date the counted sessions are those the 27b rules
   attribute to the matching shift (on a split-shift day, the other shift's sessions are left out). Each has exhaustive
-  unit tests, including a parity test that a full calendar month that ends on or before the cutoff (FR-013a), with no
-  shift filter, gives the 27b row.
+  unit tests, including a parity test that a full calendar month with no shift filter gives the 27b row when every
+  relevant shift end and default-entry end of that month is at or before `requested_at` (FR-013a).
 - **FR-013a** What has not happened yet. The cutoff is the instant `requested_at` of the request row; the cutoff date
   is its branch-local date (the branch time zone, or the business's when the branch has none, as in Story 3.4). Every
   figure, both forms' totals, the branch rows, the BR-11 day selection and who has a row (Story 1.4, Story 3.3), is
   computed over `from` to the earlier of `to` and the cutoff date, and inside that range by one instant rule:
-  - a scheduled shift counts (its scheduled minutes, lateness and «لا يوجد حضور مسجّل») only when its `ends_at` is at or
-    before `requested_at`;
-  - a date's contracted minutes count only when that date's default working-hours entry (the contract `entries` the
-    27b rules already use, branch-local start and end, an end not after the start meaning the next day) ends at or
-    before `requested_at`. This compares the contract with the clock only; it never ties contracted minutes to a
-    scheduled shift;
-  - a counted session counts as in 27b (a closed session was recorded before the request).
+  - **scheduled shifts:** a shift counts (its scheduled minutes, lateness and «لا يوجد حضور مسجّل») only when its
+    `ends_at` is at or before `requested_at`. This holds on every date of the range: at 01:00 a 22:00–06:00 shift of the
+    previous working date has not ended, so it stays attributed to its working date (AB-Q9b) but adds nothing;
+  - **sessions:** a session counts only when its close and its last correction were both recorded at or before
+    `requested_at` (the recording instants are listed in FR-011b). A session open at the request, or closed or
+    corrected after it, is shown as OPEN at the request («لسه جوّه», FR-011a) and adds nothing; a session clocked in
+    after `requested_at` is not shown;
+  - **contracted minutes:** `TODO(spec)` ST-Q8: whether a date whose default working-hours entry (the contract
+    `entries` the 27b rules use) has not ended at `requested_at` adds its contracted minutes, and whether an approved
+    leave on that date subtracts from them, waits on the owner answer. No sub-PR builds that part before ST-Q8 is
+    answered. An approved leave on that date is still shown in the leave column and on the employee form whatever
+    the answer.
 
-  The rule holds for every date of the range, not only the cutoff date: at 01:00 a 22:00–06:00 shift of the previous
-  working date has not ended, so it stays attributed to its working date (AB-Q9b) but adds no minutes and no «لا يوجد
-  حضور مسجّل». A shift or contract day that has not ended is treated like a future date. A date with nothing that had
-  ended and no counted session prints the date only (Story 2.2); every date after the cutoff date is such a date. A
-  period with no counted session and nothing that had ended counts nothing: Story 3.3 refuses the employee form, and the branch table has no
-  row. FR-003's request-time check applies the same rule. This is what Story 3.4's «its future dates show the date
-  only» already says, applied at the instant of the request.
+  A date prints as the date only when it has no counted session, no OPEN session at the request, no approved leave
+  and no scheduled shift that had ended; every date after the cutoff date is such a date unless it has approved leave
+  (Story 2.2). An OPEN session always prints «لسه جوّه» on its own date, and approved leave always shows its type:
+  neither date becomes date-only. A period with nothing counted counts nothing: Story 3.3 refuses the employee form,
+  and the branch table has no row. FR-003's request-time check applies the same rule. This is what Story 3.4's «its
+  future dates show the date only» already says, applied at the instant of the request.
 - **FR-014** The template's input is a Zod schema in `packages/contracts` (`attendanceStatementDocument`). The source
   builds it, after the two calls of FR-010, from the reader's `statement` (FR-011) and the `readStatementLogo` result
   encoded as `logo: { content_type, base64 }`, or `logo: null` when `logoFileId` is `null` or the logo reader returned
@@ -428,14 +448,17 @@ factory. The code PRs add the two port rows.
   edges, AB-Q11 leave at every branch, AB-Q12 deletion; day-by-day rows (sessions, MISSED_OUT with and without
   correction, MANUAL, OPEN, overnight, leave, scheduled with no session); BR-11 shift-day selection (one pair, a
   split-shift day, an overnight shift, a pair that matches nothing, «—» for contracted and difference); parity with 27b
-  for full months that end on or before the cutoff, with no filter; the FR-013a cutoff with a fixed date: October 2026
+  for full months whose every shift and default-entry end is at or before the cutoff, with no filter; at the month
+  end, an October statement requested at 01:00 on 1 November (`Asia/Kuwait`) with a 22:00–06:00 shift on 31 October
+  is not asserted equal to 27b (the shift adds nothing), and the same request at 06:00 or later equals the 27b row; the FR-013a cutoff with a fixed date: October 2026
   with the cutoff 2026-10-23 counts 1–23 October only, and 24–31 October add no scheduled or contracted minutes and
   print the date only, even on a scheduled date; on the cutoff day, a request at 10:00 branch-local for a date with a
   17:00–21:00 shift adds no minutes for that shift and prints the date only, while a 08:00–09:30 shift on the same
   date, already ended, counts (with its «لا يوجد حضور مسجّل» when it has no session); at 01:00 a 22:00–06:00 shift of
   the previous working date adds no minutes and prints no «لا يوجد حضور مسجّل», while it is counted once the cutoff is
-  after 06:00; contracted minutes of a date count only after its default entry's end (an overnight entry ends the next
-  day).
+  after 06:00; an OPEN session at the request prints «لسه جوّه» on its date even when nothing else on that date had
+  ended; an approved full-day leave on the cutoff date shows its type; the contracted-minutes cases follow ST-Q8
+  (`TODO(spec)`).
 - **Contracts:** request body (forms, `employee_id` rule, `strictObject`), status reply, the template data schema.
 - **API integration (T2 Postgres, one cloned DB per file, ADR-0006):** 202 and the request row; every refusal of
   Story 3 including `403` without the permission, `404` cross-tenant/other-user/other-branch, and `404` for a business A
@@ -445,8 +468,8 @@ factory. The code PRs add the two port rows.
   no counted session and no contracted minutes at the branch in the period, or only an OPEN session (no row, no job),
   while one with only contracted minutes is accepted; with a fixed clock on 2026-10-23 in an `Asia/Kuwait` branch, an
   employee form for 25–31 October gets `404 ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` (no row, no job), and so does an
-  employee hired on 25 October asking 1–31 October, and an employee hired on 23 October with a 17:00 default entry
-  asking at 10:00 branch-local (her only coverage has not ended), while the same request at 23:30 is accepted; the
+  employee hired on 25 October asking 1–31 October (the hired-today case with a 17:00 default entry asked at 10:00
+  follows ST-Q8, `TODO(spec)`); the
   rate limit at its boundary: the 20th request in a window is
   accepted, the 21st gets `429`, and the first request after the window expires is accepted; collect once, expired,
   not ready; the audit entry's fields; no audit when nothing is delivered.
@@ -459,7 +482,8 @@ factory. The code PRs add the two port rows.
   logo stays name-only after a logo is bound, logo fetch outside
   the transaction, missing request row fails, no figure or HTML in a log line; the FR-013a cutoff with a fixed clock
   for an `Asia/Kuwait` branch: a request row with `requested_at` 2026-10-23T20:59Z has the cutoff 23 October, one with
-  2026-10-23T21:00Z has 24 October; one end-to-end run with the real
+  2026-10-23T21:00Z has 24 October; a session open at the request and closed before the render prints «لسه جوّه» and
+  adds 0 hours, and a session corrected after the request is not counted; one end-to-end run with the real
   renderer that checks `%PDF-`, `dir`/`lang`, and the escaped employee names.
 - **Template:** escaping of names with `<script>`, quotes and `&`; no external URL; signature places and footer present
   in both languages.
@@ -469,7 +493,8 @@ factory. The code PRs add the two port rows.
 ## 8. Success criteria
 
 - A pilot branch (30 employees) month statement is `READY` within 10 seconds of the request on staging.
-- For a month that ended before the request, the branch statement figures equal the 27b report for the same month in
+- For a month whose every shift and default-entry end is at or before the request, the branch statement figures equal
+  the 27b report for the same month in
   every column.
 - Every delivered PDF has exactly one audit entry; no PDF byte exists anywhere after collection or 120 seconds.
 
@@ -477,7 +502,7 @@ factory. The code PRs add the two port rows.
 
 | # | PR | Content |
 |---|---|---|
-| 0 | docs (this PR) | spec 061, ADR-0056, owner questions ST-Q6 (answered) and ST-Q7 (pending) |
+| 0 | docs (this PR) | spec 061, ADR-0056, owner questions ST-Q6 (answered), ST-Q7 and ST-Q8 (pending) |
 | 1 | shared reads + logo reader | move the identity read statement to `@pospay/db` and `statementIdentity` to `packages/domain` (settings re-exports both, no behaviour change); move the 27b inputs statement to `@pospay/db` (27b unchanged, its EXPLAIN and shape tests follow it); worker `files` `readStatementLogo` with its own transaction and the once-per-render access audit (ADR-0056 §2–§3) |
 | 2 | schema, contracts, domain | migration + RLS + negative test for `attendance_statement_requests` (with the shift columns); contracts (request body, status, `attendanceStatementDocument`); `packages/domain` period, day-by-day and BR-11 shift-day functions with unit tests |
 | 3 | worker | worker `staff` `readAttendanceStatement` and the OPEN-sessions query (FR-011a); template; source (staff reader, then `files` `readStatementLogo`) and its registration in `main.ts` |
@@ -495,6 +520,10 @@ picker (`TODO(spec)` ST-Q7). Once ST-Q7 is answered, one follow-up PR adds the f
 the gates of `CLAUDE.md` §10 before merge.
 
 ## 10. Assumptions
+
+- A `MISSED_OUT` close is judged by its `clock_out` (FR-011b). The sweep writes it a little after that instant, so a
+  request made in that gap shows the session as MISSED_OUT rather than OPEN. No column records the sweep's own write
+  time.
 
 - The footer is printed once at the end of the document body, as the 056 base layout does (ADR-0049 §2.1). A footer and
   page number on every printed page needs a Chromium header/footer option in `packages/documents`; it is out of scope.
