@@ -499,11 +499,11 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **CM-57c** A quiet business (no session, plan or generate in October) still gets its reminder on 3 November: the job
   creates October's DRAFT statement, writes the ledger row and the events in one transaction; a rerun that day adds
   nothing. If Redis is lost (its `run_id` changes or the sentinel key disappears), `/ready` turns degraded and the
-  `COMMISSION_REMINDER_SCHEDULES_LOST` alert is raised; after the runbook's `CompanyCreated` replay the quiet company's
-  scheduler exists again and the 3 November reminder is sent. **Worker down during the loss:** Redis is emptied while the
+  `COMMISSION_REMINDER_SCHEDULES_LOST` alert is raised; the worker's CS-Q32 rebuild (FR-053 _CS-Q32_; the runbook's
+  `CompanyCreated` replay is the fallback) registers the quiet company's scheduler again and the 3 November reminder is sent. **Worker down during the loss:** Redis is emptied while the
   worker is stopped; on start the worker finds no sentinel, opens the `operational_recovery_flags` row before writing the
-  sentinel, reports degraded and raises the alert; a second restart keeps the flag and the alert; only the operator's
-  confirmation after the replay clears it, and `/ready` is healthy again.
+  sentinel, reports degraded and raises the alert; a second restart keeps the flag and the alert; only a complete CS-Q32 rebuild
+  (or, as the fallback, the operator's confirmation after the replay) clears it, and `/ready` is healthy again.
 - **CM-57b** A company created after the release gets its scheduler from `CompanyCreated`; a company whose Redis schedule
   was lost gets it back on the next commission input delivery; an existing company gets it from the operator replay.
 - **CM-58** (CS-Q16 = PP-17.4) On the 3rd, in the same 09:00 run as the owner's reminder, if October is still DRAFT one

@@ -87,14 +87,14 @@ without letting that voice touch commission (D-41, D-14).
 | S-19 | Staff private access is online only: no private data persisted or synced in the PWA; caches cleared on logout/replacement | `CLAUDE.md` §7 (ADR-0019), ADR-0027 |
 | S-20 | Leave: request, cancel and list own requests already exist (`staff/me/leave-requests`, kiosk and personal sessions); no leave balance in Phase 1 | ADR-0026 |
 
-## 3. Owner questions (all answered) and what each blocked
+## 3. Owner questions and what each blocked
 
 All are in [owner-questions.ar.md](owner-questions.ar.md) with options and a recommended option. MY-Q6 is a money
 question (what staff earn, `CLAUDE.md` §1 5b) and went to Abu Salem too (both owners picked the same); the others went to Waleed. Since PP-23.2
 (`CLAUDE.md` V3.14, 2026-10-21) every question is on the shared decisions page for both owners and Abu Salem's pick binds
 on a difference: the product questions among PP-15…PP-23 were republished in batch 40 with Waleed's picks (here PP-18 = MY-Q1…MY-Q8,
 RT-Q1…RT-Q10 and RT-Q12, AL-Q1…AL-Q6; PP-20.4 = RT-Q13; PP-21.1 = MY-Q9; RT-Q11 was asked in batch 46), and AL-Q7
-is in batch 45. All are answered (the last ones: RT-Q11, RT-Q14 and CS-Q30 in spec 059 on 2026-10-22, and AL-Q8 on 2026-10-23, batch 52, PP-36.1; Abu Salem picked the same as Waleed on all four). If Abu Salem picks differently, his pick replaces the answer and the rule it names.
+is in batch 45. All are answered except one Abu Salem pick: AL-Q8c (batch 57, PP-41.2; Waleed picked the optional number, and work follows his pick until Abu Salem answers). The last answered: RT-Q11, RT-Q14 and CS-Q30 in spec 059 on 2026-10-22, AL-Q8 on 2026-10-23 (batch 52, PP-36.1), and AL-Q8b on 2026-10-23 (batch 57, PP-41.1; Waleed and Abu Salem). If Abu Salem picks differently, his pick replaces the answer and the rule it names.
 
 | ID | Subject | Blocks |
 |---|---|---|
