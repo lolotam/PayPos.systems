@@ -168,8 +168,9 @@ A **separate workflow** `.github/workflows/mobile.yml`, so `ci.yml` and its requ
 - **Cost:** a macOS runner minute is billed at about ten Linux minutes on a private repository. Stage B therefore runs
   only on the path filter above, and if the minutes become a problem it moves to `main` pushes plus a manual dispatch;
   the PR body of M-1d reports the measured minutes.
-- Both workflows' jobs start `advisory` (not required by branch protection); `mobile` becomes required only when the web
-  manager and Waleed agree, after it has been stable on `main` for a week.
+- The `mobile` workflow's jobs start advisory (not required by branch protection; `ci.yml`'s required `ci-gate` is
+  unchanged); `mobile` becomes required only when the web manager and Waleed agree, after it has been stable on `main`
+  for a week.
 - **"After every merge"** means every merge to `main` that changes the app's inputs produces a new internal build of
   both flavours. A public store release is never automatic: it needs Waleed's typed yes, like a production deploy.
 
