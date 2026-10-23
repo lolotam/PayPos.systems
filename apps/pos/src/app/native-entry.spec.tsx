@@ -19,10 +19,10 @@ vi.mock('@/personal-staff/ui/personal-screen', () => ({
   PersonalScreen: () => <h2>personal screen</h2>,
 }));
 
-const storedRoles: [DeviceRole, string][] = [
-  ['counter', 'device screen'],
-  ['employee', 'personal screen'],
-];
+const roles = [
+  { role: 'counter', button: 'nativeShell.counter', heading: 'device screen' },
+  { role: 'employee', button: 'nativeShell.employee', heading: 'personal screen' },
+] as const;
 
 function mount() {
   render(
@@ -55,7 +55,7 @@ describe('NativeEntry', () => {
     expect(screen.queryByRole('heading', { name: 'personal screen' })).toBeNull();
   });
 
-  it.each(storedRoles)('opens the %s flow directly when the role is stored', async (role, heading) => {
+  it.each(roles)('opens the $role flow directly when the role is stored', async ({ role, heading }) => {
     vi.mocked(readDeviceRole).mockResolvedValue(role);
     mount();
 
@@ -63,22 +63,13 @@ describe('NativeEntry', () => {
     expect(screen.queryByRole('heading', { name: t('ar', 'nativeShell.title') })).toBeNull();
   });
 
-  it('saves the employee choice and opens the employee flow', async () => {
+  it.each(roles)('saves the $role choice and opens its flow', async ({ role, button, heading }) => {
     mount();
 
-    fireEvent.click(await screen.findByRole('button', { name: t('ar', 'nativeShell.employee') }));
+    fireEvent.click(await screen.findByRole('button', { name: t('ar', button) }));
 
-    expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
-    expect(saveDeviceRole).toHaveBeenCalledWith('employee');
-  });
-
-  it('saves the counter choice and opens the counter flow', async () => {
-    mount();
-
-    fireEvent.click(await screen.findByRole('button', { name: t('ar', 'nativeShell.counter') }));
-
-    expect(await screen.findByRole('heading', { name: 'device screen' })).not.toBeNull();
-    expect(saveDeviceRole).toHaveBeenCalledWith('counter');
+    expect(await screen.findByRole('heading', { name: heading })).not.toBeNull();
+    expect(saveDeviceRole).toHaveBeenCalledWith(role);
   });
 
   it('keeps the start screen and warns when the choice cannot be saved', async () => {
