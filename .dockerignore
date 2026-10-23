@@ -7,9 +7,12 @@
 !**/*.env.example
 **/node_modules
 **/dist
+**/dist-native
 **/.turbo
 **/.next
 **/coverage
+apps/business/ios
+apps/business/android
 .git
 .github
 *.log

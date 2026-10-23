@@ -1,0 +1,14 @@
+# Signing files: no key, certificate, profile, keystore or store credential is ever committed (ADR-0055 decision 5)
+*.jks
+*.keystore
+keystore.properties
+*.p12
+*.p8
+*.mobileprovision
+*.cer
+*service-account*.json
+*.pem
+*.key
+*.pfx
+# Any key file kept on a developer machine, whatever its name, goes in this folder only
+.secrets/

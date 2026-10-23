@@ -7,42 +7,50 @@ import { defineConfig } from 'vitest/config';
 
 const testing = process.env.VITEST === 'true';
 
-export default defineConfig({
-  envDir: fileURLToPath(new URL('../..', import.meta.url)),
-  plugins: [
-    react(),
-    tailwindcss(),
-    testing
-      ? null
-      : VitePWA({
-          registerType: 'autoUpdate',
-          manifestFilename: 'manifest.webmanifest',
-          includeAssets: ['icon.svg'],
-          manifest: {
-            name: 'PosPay',
-            short_name: 'PosPay',
-            dir: 'rtl',
-            lang: 'ar',
-            display: 'standalone',
-            start_url: '/',
-            scope: '/',
-            theme_color: '#FF6421',
-            background_color: '#FCFAF6',
-            icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
-          },
-          workbox: {
-            globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
-            navigateFallback: 'index.html',
-          },
-          devOptions: { enabled: false },
-        }),
-  ],
-  resolve: {
-    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
-  },
-  test: {
-    environment: 'jsdom',
-    setupFiles: ['./src/test-setup.ts'],
-    env: { VITE_API_URL: 'http://127.0.0.1:3000' },
-  },
+export default defineConfig(({ mode }) => {
+  // نسخة التطبيق الأصلي: الأصول بتاعته جوّه التطبيق نفسه، فمفيش service worker ولا manifest
+  // (ADR-0055 قرار 3)، والبناء بيطلع في مجلد مستقل عشان build الويب ما يتغيرش.
+  const native = mode === 'native';
+
+  return {
+    envDir: fileURLToPath(new URL('../..', import.meta.url)),
+    ...(native ? { build: { outDir: 'dist-native' } } : {}),
+    ...(native ? { define: { 'import.meta.env.VITE_NATIVE': JSON.stringify('1') } } : {}),
+    plugins: [
+      react(),
+      tailwindcss(),
+      testing || native
+        ? null
+        : VitePWA({
+            registerType: 'autoUpdate',
+            manifestFilename: 'manifest.webmanifest',
+            includeAssets: ['icon.svg'],
+            manifest: {
+              name: 'PosPay',
+              short_name: 'PosPay',
+              dir: 'rtl',
+              lang: 'ar',
+              display: 'standalone',
+              start_url: '/',
+              scope: '/',
+              theme_color: '#FF6421',
+              background_color: '#FCFAF6',
+              icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+            },
+            workbox: {
+              globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
+              navigateFallback: 'index.html',
+            },
+            devOptions: { enabled: false },
+          }),
+    ],
+    resolve: {
+      alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+    },
+    test: {
+      environment: 'jsdom',
+      setupFiles: ['./src/test-setup.ts'],
+      env: { VITE_API_URL: 'http://127.0.0.1:3000' },
+    },
+  };
 });

@@ -22,6 +22,21 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "@pospay/pos#build:native": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist-native/**"],
+      "env": ["FLAVOUR", "VITE_API_URL"]
+    },
+    "@pospay/business#sync:staging": {
+      "dependsOn": ["@pospay/pos#build:native"],
+      "cache": false,
+      "env": ["FLAVOUR", "VITE_API_URL"]
+    },
+    "@pospay/business#sync:production": {
+      "dependsOn": ["@pospay/pos#build:native"],
+      "cache": false,
+      "env": ["FLAVOUR", "VITE_API_URL"]
     }
   }
 }

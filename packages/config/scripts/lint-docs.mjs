@@ -17,12 +17,15 @@ const SCAN_DIRS = ['apps', 'packages'];
 const SKIP_DIRS = new Set([
   'node_modules',
   'dist',
+  'dist-native',
   '.next',
   '.turbo',
   'coverage',
   'generated',
   'migrations',
 ]);
+// مشاريع البناء الأصلية المتولّدة (ADR-0055): الـ bundle اللي Capacitor بينسخه جواها مش كود بتاعنا.
+const SKIP_PATHS = new Set(['apps/business/android', 'apps/business/ios']);
 const EXTENSIONS = /\.(ts|tsx|js|mjs|cjs)$/;
 const SELF = 'packages/config/scripts/lint-docs.mjs';
 
@@ -51,8 +54,10 @@ function* walk(dir) {
   for (const name of entries) {
     if (SKIP_DIRS.has(name)) continue;
     const full = join(dir, name);
-    if (statSync(full).isDirectory()) yield* walk(full);
-    else if (EXTENSIONS.test(name)) yield full;
+    if (statSync(full).isDirectory()) {
+      if (SKIP_PATHS.has(relative(ROOT, full).replaceAll('\\', '/'))) continue;
+      yield* walk(full);
+    } else if (EXTENSIONS.test(name)) yield full;
   }
 }
 

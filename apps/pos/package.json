@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:native": "vite build --mode native",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.e2e.json",
     "lint": "eslint .",
@@ -14,6 +15,8 @@
     "api:check": "node scripts/api-check.mjs"
   },
   "dependencies": {
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.3",
     "@hookform/resolvers": "5.9.1",
     "@pospay/auth": "workspace:*",
     "@pospay/contracts": "workspace:*",

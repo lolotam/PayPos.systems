@@ -1,0 +1,11 @@
+{
+  "extends": "@pospay/config/tsconfig/base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": ["capacitor.config.ts"]
+}

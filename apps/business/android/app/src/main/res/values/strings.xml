@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PosPay Business</string>
+    <string name="title_activity_main">PosPay Business</string>
+    <string name="package_name">systems.pospay.business</string>
+    <string name="custom_url_scheme">systems.pospay.business</string>
+</resources>
