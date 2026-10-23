@@ -24,11 +24,13 @@ export async function readLaunchLink(): Promise<string | null> {
 export function onLinkOpened(listener: (url: string) => void): () => void {
   let removed = false;
   // نفس سبب القراءة فوق: الإضافة الأصلية ما بتوصلش لحزمة نسخة الويب (FR-005).
-  const registration = import('@capacitor/app').then(({ App }) => {
-    // الدالة اللي بتشيل الاستماع ممكن تتنادى قبل ما الإضافة تتحمل، فمفيش تسجيل أصلاً.
-    if (removed) return null;
-    return App.addListener('appUrlOpen', (event) => listener(event.url));
-  });
+  const registration = import('@capacitor/app')
+    .then(({ App }) => {
+      // الدالة اللي بتشيل الاستماع ممكن تتنادى قبل ما الإضافة تتحمل، فمفيش تسجيل أصلاً.
+      if (removed) return null;
+      return App.addListener('appUrlOpen', (event) => listener(event.url));
+    })
+    .catch(() => null);
   return () => {
     removed = true;
     void registration

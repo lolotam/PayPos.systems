@@ -1,4 +1,4 @@
-import { personalWorkspace } from '@pospay/contracts';
+import { personalWorkspace, type PersonalOtpRequestInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import type { ReactNode } from 'react';
 
@@ -13,7 +13,7 @@ export function PersonalScreen({
   workspace,
   connect,
 }: {
-  workspace?: { company_id: string; business_id: string };
+  workspace?: Pick<PersonalOtpRequestInput, 'company_id' | 'business_id'>;
   connect?: ReactNode;
 }) {
   const locale = useLocale();

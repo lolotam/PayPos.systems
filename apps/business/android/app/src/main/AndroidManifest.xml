@@ -32,7 +32,7 @@
                 <data
                     android:scheme="https"
                     android:host="${posHost}"
-                    android:pathPrefix="/personal" />
+                    android:path="/personal" />
             </intent-filter>
 
         </activity>

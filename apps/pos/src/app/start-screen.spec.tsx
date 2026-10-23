@@ -18,7 +18,10 @@ const ALERT_KEYS = {
   linkRequired: 'personalStaff.linkRequired',
 } as const;
 
-function mount(locale: 'ar' | 'en', options: { alert?: keyof typeof ALERT_KEYS } = {}) {
+function mount(
+  locale: 'ar' | 'en',
+  options: { alert?: keyof typeof ALERT_KEYS; busy?: boolean } = {},
+) {
   const onChoose = vi.fn();
   render(
     <DirectionProvider dir={locale === 'ar' ? 'rtl' : 'ltr'}>
@@ -73,6 +76,16 @@ describe('StartScreen', () => {
       expect(screen.getByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
     },
   );
+
+  it('disables both choices while the shell is busy', () => {
+    mount('ar', { busy: true });
+
+    const counter = screen.getByRole('button', { name: t('ar', 'nativeShell.counter') });
+    const employee = screen.getByRole('button', { name: t('ar', 'nativeShell.employee') });
+
+    expect(counter.hasAttribute('disabled')).toBe(true);
+    expect(employee.hasAttribute('disabled')).toBe(true);
+  });
 
   it('puts the two choices side by side in landscape', () => {
     mount('ar');

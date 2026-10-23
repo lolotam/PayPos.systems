@@ -39,8 +39,11 @@ describe('PasteLinkForm', () => {
   it('connects the business of a pasted manager link', () => {
     const onConnect = mount();
 
-    paste(`https://${HOST}/personal?company=${COMPANY}&business=${BUSINESS}`);
+    paste(`https://elsewhere.example/personal?company=${COMPANY}&business=${BUSINESS}`);
+    expect(screen.getByRole('alert').textContent).toBe(t('ar', 'personalStaff.linkRequired'));
 
+    paste(`https://${HOST}/personal?company=${COMPANY}&business=${BUSINESS}`);
+    expect(screen.queryByRole('alert')).toBeNull();
     expect(onConnect).toHaveBeenCalledWith({
       company_id: COMPANY,
       business_id: BUSINESS,

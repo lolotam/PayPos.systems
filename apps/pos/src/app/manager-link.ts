@@ -1,9 +1,9 @@
-import { personalWorkspace } from '@pospay/contracts';
+import { personalWorkspace, type PersonalOtpRequestInput } from '@pospay/contracts';
 
 import { nativePosHost } from '@/shared/platform/native-shell';
 
 /** الشركة والنشاط اللي الموظفة بتتصل بيهم — تلميح توجيه مش صلاحية (BR-002). */
-export type PersonalWorkspace = { company_id: string; business_id: string };
+export type PersonalWorkspace = Pick<PersonalOtpRequestInput, 'company_id' | 'business_id'>;
 
 /**
  * بيقرأ لينك المدير ويطلّع منه الشركة والنشاط.

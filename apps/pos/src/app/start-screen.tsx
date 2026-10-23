@@ -16,9 +16,11 @@ const ALERT_KEYS = {
 export function StartScreen({
   onChoose,
   alert,
+  busy,
 }: {
   onChoose: (role: DeviceRole) => void;
   alert?: keyof typeof ALERT_KEYS;
+  busy?: boolean;
 }) {
   const locale = useLocale();
   const alertText = alert ? t(locale, ALERT_KEYS[alert]) : null;
@@ -38,6 +40,7 @@ export function StartScreen({
               className="w-full justify-start gap-3"
               size="lg"
               variant="outline"
+              disabled={busy}
               onClick={() => onChoose('counter')}
             >
               <Store aria-hidden="true" className="shrink-0" />
@@ -50,6 +53,7 @@ export function StartScreen({
               className="w-full justify-start gap-3"
               size="lg"
               variant="outline"
+              disabled={busy}
               onClick={() => onChoose('employee')}
             >
               <UserRound aria-hidden="true" className="shrink-0" />

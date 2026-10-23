@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -131,8 +131,53 @@ describe('NativeEntry links that race', () => {
   });
 });
 
+describe('NativeEntry while a link runs', () => {
+  beforeEach(prepare);
+
+  it('disables the start choices while a warm link is being handled', async () => {
+    let release!: () => void;
+    vi.mocked(connectEmployee).mockReturnValue(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    mount();
+    expect(await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+
+    await act(async () => {
+      opened.listener?.(link());
+    });
+
+    await waitFor(() => {
+      const counter = screen.getByRole('button', { name: t('ar', 'nativeShell.counter') });
+      expect(counter.hasAttribute('disabled')).toBe(true);
+    });
+    const employee = screen.getByRole('button', { name: t('ar', 'nativeShell.employee') });
+    expect(employee.hasAttribute('disabled')).toBe(true);
+
+    await act(async () => {
+      release();
+    });
+    expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
+    expect(saveDeviceRole).not.toHaveBeenCalled();
+  });
+});
+
 describe('NativeEntry refused links', () => {
   beforeEach(prepare);
+
+  it('keeps the employee flow and asks for the internet when a link arrives offline', async () => {
+    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    vi.mocked(readDeviceRole).mockResolvedValue('employee');
+    vi.mocked(readRememberedBusiness).mockResolvedValue(null);
+    vi.mocked(readLaunchLink).mockResolvedValue(link());
+    mount();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.needsInternet'));
+    expect(screen.getByRole('heading', { name: 'personal screen' })).not.toBeNull();
+    expect(rememberBusiness).not.toHaveBeenCalled();
+  });
 
   it('keeps the employee flow and warns when the business cannot be stored', async () => {
     vi.mocked(readDeviceRole).mockResolvedValue('employee');
@@ -173,5 +218,20 @@ describe('NativeEntry refused links', () => {
     expect(screen.queryByRole('alert')).toBeNull();
     expect(connectEmployee).not.toHaveBeenCalled();
     expect(rememberBusiness).not.toHaveBeenCalled();
+  });
+});
+
+describe('NativeEntry role choice', () => {
+  beforeEach(prepare);
+
+  it('shows the role a link already stored instead of the chosen one', async () => {
+    vi.mocked(readDeviceRole).mockResolvedValueOnce(null).mockResolvedValue('employee');
+    mount();
+    expect(await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.counter') }));
+
+    expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
+    expect(saveDeviceRole).not.toHaveBeenCalled();
   });
 });

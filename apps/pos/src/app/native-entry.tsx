@@ -6,19 +6,13 @@ import { PersonalScreen } from '@/personal-staff/ui/personal-screen';
 import { useLocale } from '@/shared/locale/locale-context';
 
 import { DeviceScreen } from './device-screen';
-import {
-  readDeviceRole,
-  readRememberedBusiness,
-  saveDeviceRole,
-  type DeviceRole,
-} from './device-role';
-import { LoadingNotice } from './loading-notice';
+import type { DeviceRole } from './device-role';
 import {
   FLOW_ALERT_KEYS,
+  resolveChoice,
+  resolveLink,
   stateAfterFailure,
-  stateAfterLink,
   stateForRole,
-  withLinkRequired,
   type NativeState,
 } from './link-rules';
 import type { PersonalWorkspace } from './manager-link';
@@ -26,59 +20,48 @@ import { PasteLinkForm } from './paste-link-form';
 import { StartScreen } from './start-screen';
 import { useNativeLink } from './use-native-link';
 
-/**
- * اختيار نوع الجهاز: من غير نت مفيش حاجة تتحفظ، ومع نت بنحفظ الدور ونفتح الشاشة (spec 065).
- *
- * @param role      الدور اللي اختارته الموظفة
- * @param business  النشاط المتذكر على الجهاز
- * @param setState  تحديث حالة الشاشة
- */
-function chooseRole(
-  role: DeviceRole,
-  business: PersonalWorkspace | null,
-  setState: (state: NativeState) => void,
-): void {
-  if (!navigator.onLine) {
-    setState({ kind: 'start', business, alert: 'needsInternet' });
-    return;
-  }
-  void saveDeviceRole(role).then(
-    () => setState({ kind: 'flow', role, business }),
-    () => setState({ kind: 'start', business, alert: 'saveFailed' }),
-  );
-}
+const ALERT_CLASS =
+  'mx-auto mt-4 w-full max-w-md bg-destructive/10 px-4 py-3 text-center text-destructive';
 
 export function NativeEntry() {
   const locale = useLocale();
   const [state, setState] = useState<NativeState>({ kind: 'loading' });
-  const business = state.kind === 'loading' ? null : state.business;
-  // اللينكات بتتعالج واحد ورا التاني: كل لينك بيقرا الدور والنشاط تاني من التخزين قبل ما يقرر.
+  const [busy, setBusy] = useState(false);
+  // اللينكات والاختيارات بتتعالج واحد ورا التاني: كل خطوة بتقرا الدور والنشاط تاني من التخزين قبل ما تقرر.
   const links = useRef<Promise<void>>(Promise.resolve());
+  const pending = useRef(0);
+
+  const queue = useCallback((step: () => Promise<void>) => {
+    pending.current += 1;
+    setBusy(true);
+    const done = () => {
+      pending.current -= 1;
+      if (pending.current === 0) setBusy(false);
+    };
+    links.current = links.current.then(step).catch(() => undefined).finally(done);
+  }, []);
 
   const onStart = useCallback((role: DeviceRole | null, saved: PersonalWorkspace | null) => {
     setState((current) => (current.kind === 'loading' ? stateForRole(role, saved) : current));
   }, []);
 
-  const onLink = useCallback(async (workspace: PersonalWorkspace | null) => {
-    links.current = links.current
-      .then(async () => {
-        const [role, saved] = await Promise.all([readDeviceRole(), readRememberedBusiness()]);
-        try {
-          setState(
-            workspace === null
-              ? withLinkRequired(role, saved)
-              : await stateAfterLink(role, saved, workspace),
-          );
-        } catch {
-          setState((current) => stateAfterFailure(current, role, saved));
-        }
-      })
-      .catch(() => setState((current) => stateAfterFailure(current, null, null)));
-  }, []);
+  const onLink = useCallback(
+    async (workspace: PersonalWorkspace | null) => {
+      queue(async () => {
+        const outcome = await resolveLink(workspace);
+        if (outcome.kind === 'state') setState(outcome.state);
+        else setState((current) => stateAfterFailure(current, outcome.role, outcome.business));
+      });
+    },
+    [queue],
+  );
+
+  const choose = useCallback(
+    (role: DeviceRole) => queue(async () => setState(await resolveChoice(role))),
+    [queue],
+  );
 
   useNativeLink(onStart, onLink);
-
-  const choose = (role: DeviceRole) => chooseRole(role, business, setState);
 
   if (state.kind === 'loading') return <LoadingNotice />;
   if (state.kind === 'flow') {
@@ -86,24 +69,21 @@ export function NativeEntry() {
     const connect = <PasteLinkForm onConnect={(next) => void onLink(next)} />;
     return (
       <>
-        {alertText ? (
-          <p
-            role="alert"
-            className="mx-auto mt-4 w-full max-w-md bg-destructive/10 px-4 py-3 text-center text-destructive"
-          >
-            {alertText}
-          </p>
-        ) : null}
+        {alertText ? <p role="alert" className={ALERT_CLASS}>{alertText}</p> : null}
         {state.role === 'counter' ? (
           <DeviceScreen />
-        ) : business ? (
-          <PersonalScreen workspace={business} connect={connect} />
+        ) : state.business ? (
+          <PersonalScreen workspace={state.business} connect={connect} />
         ) : (
           <PersonalScreen connect={connect} />
         )}
       </>
     );
   }
-  if (state.alert === undefined) return <StartScreen onChoose={choose} />;
-  return <StartScreen onChoose={choose} alert={state.alert} />;
+  if (state.alert === undefined) {
+    return busy ? <StartScreen onChoose={choose} busy /> : <StartScreen onChoose={choose} />;
+  }
+  return busy
+    ? <StartScreen onChoose={choose} alert={state.alert} busy />
+    : <StartScreen onChoose={choose} alert={state.alert} />;
 }

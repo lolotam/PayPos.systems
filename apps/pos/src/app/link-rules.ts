@@ -1,11 +1,23 @@
-import { connectEmployee, rememberBusiness, type DeviceRole } from './device-role';
+import {
+  connectEmployee,
+  readDeviceRole,
+  readRememberedBusiness,
+  rememberBusiness,
+  saveDeviceRole,
+  type DeviceRole,
+} from './device-role';
 import type { PersonalWorkspace } from './manager-link';
 
 /** تنبيهات شاشة البداية: حفظ فشل، أو نت، أو لينك مش مقبول. */
 export type StartAlert = 'saveFailed' | 'needsInternet' | 'linkRequired';
 
-/** تنبيهات شاشة الموظفة: لينك مش مقبول، أو نشاط تاني، أو جهاز كاونتر، أو حفظ فشل. */
-export type FlowAlert = 'linkRequired' | 'otherBusiness' | 'counterDevice' | 'saveFailed';
+/** تنبيهات شاشة الموظفة: لينك مش مقبول، أو نشاط تاني، أو جهاز كاونتر، أو حفظ فشل، أو نت. */
+export type FlowAlert =
+  | 'linkRequired'
+  | 'otherBusiness'
+  | 'counterDevice'
+  | 'saveFailed'
+  | 'needsInternet';
 
 /** حالة التطبيق: لسه بيقرا، أو شاشة البداية، أو شاشة الموظفة/الكاونتر. */
 export type NativeState =
@@ -13,11 +25,17 @@ export type NativeState =
   | { kind: 'start'; business: PersonalWorkspace | null; alert?: StartAlert }
   | { kind: 'flow'; role: DeviceRole; business: PersonalWorkspace | null; alert?: FlowAlert };
 
+/** نتيجة تطبيق لينك: شاشة جاهزة، أو فشل الحفظ مع الدور والنشاط اللي اتقروا. */
+export type LinkOutcome =
+  | { kind: 'state'; state: NativeState }
+  | { kind: 'failed'; role: DeviceRole | null; business: PersonalWorkspace | null };
+
 export const FLOW_ALERT_KEYS = {
   linkRequired: 'personalStaff.linkRequired',
   otherBusiness: 'nativeShell.otherBusiness',
   counterDevice: 'nativeShell.counterDevice',
   saveFailed: 'nativeShell.saveFailed',
+  needsInternet: 'nativeShell.needsInternet',
 } as const;
 
 /**
@@ -76,6 +94,10 @@ export async function stateAfterLink(
     return { kind: 'flow', role: 'employee', business: workspace };
   }
   if (business === null) {
+    // من غير نت مفيش حاجة تتحفظ: الموظفة ما بتتربطش بنشاط من غير نت (FR-012).
+    if (!navigator.onLine) {
+      return { kind: 'flow', role: 'employee', business: null, alert: 'needsInternet' };
+    }
     await rememberBusiness(workspace);
     return { kind: 'flow', role: 'employee', business: workspace };
   }
@@ -102,4 +124,46 @@ export function stateAfterFailure(
   if (current.kind === 'flow') return { ...current, alert: 'saveFailed' };
   if (role === null) return { kind: 'start', business: null, alert: 'saveFailed' };
   return { kind: 'flow', role, business, alert: 'saveFailed' };
+}
+
+/**
+ * حالة الشاشة بعد تطبيق لينك: بتقرا الدور والنشاط من التخزين وبتقرر.
+ *
+ * @param workspace النشاط اللي جاي في اللينك، أو null لو اللينك مش مقبول
+ * @returns الشاشة بعد اللينك، أو فشل الحفظ مع الدور والنشاط اللي اتقروا
+ */
+export async function resolveLink(workspace: PersonalWorkspace | null): Promise<LinkOutcome> {
+  const [role, business] = await Promise.all([readDeviceRole(), readRememberedBusiness()]);
+  try {
+    return {
+      kind: 'state',
+      state:
+        workspace === null
+          ? withLinkRequired(role, business)
+          : await stateAfterLink(role, business, workspace),
+    };
+  } catch {
+    return { kind: 'failed', role, business };
+  }
+}
+
+/**
+ * حالة الشاشة بعد اختيار نوع الجهاز.
+ *
+ * الاختيار بيقرا الدور المحفوظ من جديد الأول: لينك ممكن يكون وصل قبل الاختيار واتخزّن دور،
+ * فالدور المحفوظ هو اللي بيتقدّم على الاختيار (BR-001).
+ *
+ * @param role الدور اللي اختارته الموظفة
+ * @returns حالة الشاشة بعد الاختيار
+ */
+export async function resolveChoice(role: DeviceRole): Promise<NativeState> {
+  const [stored, business] = await Promise.all([readDeviceRole(), readRememberedBusiness()]);
+  if (stored !== null) return { kind: 'flow', role: stored, business };
+  if (!navigator.onLine) return { kind: 'start', business: null, alert: 'needsInternet' };
+  try {
+    await saveDeviceRole(role);
+    return { kind: 'flow', role, business };
+  } catch {
+    return { kind: 'start', business: null, alert: 'saveFailed' };
+  }
 }
