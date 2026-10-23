@@ -21,7 +21,7 @@
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded (shell, start screen, offline start, M-1c checks, hidden capabilities; M-1f, M-2, MOB-16/18/19 out)
 - [x] Dependencies and assumptions identified
-- [x] **Slice design** complete: no schema, no new endpoint (environment changes O-1a/O-1b and, for APP-Q9's link option, the app-link files of O-6 on the POS host), no new permission, no events; test plan `MOB-T01…MOB-T18`, build checks, device checks (a)–(e); RLS and `EXPLAIN` not applicable
+- [x] **Slice design** complete: no schema, no new endpoint (environment changes O-1a/O-1b and, for APP-Q9's link option, the app-link files of O-6 on the POS host), no new permission, no events; test plan `MOB-T01…MOB-T19`, build checks, device checks (a)–(e); RLS and `EXPLAIN` not applicable
 
 ## Feature Readiness
 

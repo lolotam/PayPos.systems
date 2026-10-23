@@ -151,10 +151,16 @@ start screen again.
   assumption until answered, the ⭐ option: anyone holding the device, after a clear confirmation. A role change
   **needs the network**: the staff and personal sessions are HttpOnly cookies that page code cannot see or delete, so
   for each session kind the device can hold (staff, personal) the app calls the existing server sign-out; a sign-out
-  counts as done when the server confirms it **or** answers that there is no valid session (401, an ended,
-  replaced or expired session, or a revoked device), and fails only on no network, a timeout or a server error; the change continues only when every sign-out is done, and with no network it is refused with a
-  message. Then it clears private forms and caches, forgets the remembered
-  business, and, for a counter device, removes the local pairing only after confirmation.
+  counts as done only when the server confirms it, or gives the auth module's **explicit** «no session to end»
+  result for that route. A plain 401 never counts, because it can also mean the request itself was refused (an
+  untrusted origin, a bad authentication context) while the session is still alive. Which explicit result each
+  sign-out route gives for an ended, replaced or expired session or a revoked device is checked against
+  `packages/auth` in M-1a; if a route has none, that route's case is `TODO(spec)` and goes to the web manager (an
+  auth change is not this track's). Anything else (no network, a timeout, a server error, an ambiguous answer)
+  stops the change with a message. As soon as one sign-out is done, the app clears that session's private forms
+  and caches at once (ADR-0027: logout clears them), even if the other sign-out then fails; the role, the
+  remembered business and the pairing stay until every sign-out is done. Then it forgets the remembered
+  business and, for a counter device, removes the local pairing only after confirmation.
 - **FR-009**: Nothing new is stored about the person: no phone number, code or session token is persisted by the app
   beyond what the PWA already does (ADR-0019 online-only rule).
 - **FR-010**: Every string MUST come from `packages/i18n` in Arabic and English; Arabic and RTL first; logical CSS only.
@@ -229,7 +235,9 @@ uses (`pos.pospay.systems`, `pos.staging.pospay.systems`), never the passkey rel
 projects declare the link (iOS Associated Domains entitlement `applinks:<pos host>`; Android a verified
 `intent-filter` with `autoVerify` for `https://<pos host>/personal`), built in M-1a; and the POS host serves the
 matching association files (`/.well-known/apple-app-site-association`, `/.well-known/assetlinks.json`), plan step
-O-6, an operations step of its own.
+O-6, an operations step of its own. Those files need the Apple Team ID and the Play App Signing certificate
+fingerprint, which exist only once the company's accounts and signing keys do (O-2, O-3), so a tapped link opens the
+app only from M-2 on; until then the employee connects through the «عندي لينك» paste.
 
 ### Permissions
 
@@ -260,13 +268,16 @@ None published, none consumed.
   change and switches nothing by itself · `MOB-T15` pasting a valid manager link in «عندي لينك» connects the business
   like an opened link · `MOB-T16` a link for a different business while a personal session is open signs out at the
   server first and only then remembers the new business · `MOB-T17` the same link with no network is refused with its
-  message and changes nothing · `MOB-T18` a role change counts a sign-out answered «no valid session» (401) as done
-  and continues.
+  message and changes nothing · `MOB-T18` a role change counts the explicit «no session to end» result as done and
+  continues, and treats a plain 401 as a failure that stops it · `MOB-T19` one sign-out done and the other failing:
+  the first session's private forms are already cleared, the role and pairing are still there, and a retry finishes
+  the change.
 - **Build checks** (M-1a): the `native` build output registers no service worker; the web build output still does; a
   staging and a production debug build carry different app ids and their own API origin; the Android manifest and the
   iOS project exclude the app's storage from cloud backup and device transfer (FR-013: `allowBackup`,
-  `dataExtractionRules` and `fullBackupContent` all present); if APP-Q9 picks the link, the built apps carry the
-  POS-host link declarations.
+  `dataExtractionRules` and `fullBackupContent` all present); if APP-Q9 picks the link, the Android project carries the
+  verified `intent-filter` and the iOS project the Associated Domains entitlement in its entitlements file (an
+  unsigned simulator build cannot embed it; link verification itself is O-6, in M-2).
 - **Device checks** (M-1c, recorded in [plan.md](plan.md)): (a) pairing, (b) staff PIN session, (c) personal OTP
   session, each surviving a restart; (d) attendance QR camera; (e) passkey behaviour. Android on a real phone; iOS
   (a)–(c) on the simulator, (d)–(e) on the first real iPhone (M-1c-ii).
