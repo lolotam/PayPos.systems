@@ -21,7 +21,7 @@
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded: the forced-update check of the native build only; no «update available» notice (not the owners' pick); no API route
 - [x] Dependencies and assumptions identified (M-1d before, M-2a after; the native versions; the store pages)
-- [x] **Slice design** complete: no schema, no endpoint (two static files plus one `deploy/pos-nginx.conf` location, coordinated with the deploy lane), no permission, no events; test plan `VER-T01…VER-T11`, device checks in M-2a; RLS and `EXPLAIN` not applicable
+- [x] **Slice design** complete: no schema, no endpoint (two static files plus one `deploy/pos-nginx.conf` location, coordinated with the deploy lane), no permission, no events; test plan `VER-T01…VER-T14`, device checks in M-2a; RLS and `EXPLAIN` not applicable
 
 ## Feature Readiness
 
