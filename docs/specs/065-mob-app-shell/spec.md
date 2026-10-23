@@ -301,8 +301,8 @@ None published, none consumed.
   staging and a production debug build carry different app ids and their own API origin; the Android manifest and the
   iOS project exclude the app's storage from cloud backup and device transfer (FR-013: `allowBackup`,
   `dataExtractionRules` and `fullBackupContent` all present); the Android project carries the
-  verified `intent-filter` and the iOS project the Associated Domains entitlement in its entitlements file (an
-  unsigned simulator build cannot embed it; link verification itself is O-6, in M-2).
+  verified `intent-filter` (link verification itself is O-6, in M-2). **Build checks** (M-1b): the iOS project
+  carries the Associated Domains entitlement in its entitlements file (an unsigned simulator build cannot embed it).
 - **Device checks** (M-1c, recorded in [plan.md](plan.md)): (a) pairing, (b) staff PIN session, (c) personal OTP
   session, each surviving a restart; (d) attendance QR camera; (e) passkey behaviour. Android on a real phone; iOS
   (a)–(c) on the simulator, (d)–(e) on the first real iPhone (M-1c-ii).
