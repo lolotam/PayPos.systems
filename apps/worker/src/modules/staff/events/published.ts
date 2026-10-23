@@ -52,7 +52,7 @@ export interface ShiftBreakNotReturned {
   readonly returned_at?: string;
 }
 
-/** يصدر مرة واحدة لكل وثيقة لكل تاريخ انتهاء عند إرفاق مستلميه، وده بس لو قاعدة نوع DOCUMENT_EXPIRING أوصّلت لصاحب صلاحية read:files:business. */
+/** يصدر مرة واحدة لكل وثيقة لكل تاريخ انتهاء عند إرفاق مستلميه، وبس لما قاعدة نوع DOCUMENT_EXPIRING توصّل لصاحب صلاحية read:files:business واحد على الأقل؛ صف لكل مجموعة مستلمين بسقف مئة. */
 export interface DocumentExpiring {
   readonly document_id: string;
   readonly employee_id: string;
