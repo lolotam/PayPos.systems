@@ -23,6 +23,14 @@ interface FakeCall {
   readonly body: Buffer;
 }
 
+// رأس الطلب بتيجي بأسماء capitalized من المكتبة؛ البحث بيقارن بالحروف الصغيرة.
+function header(call: FakeCall | undefined, name: string): string | number | undefined {
+  const wanted = name.toLowerCase();
+  for (const [key, value] of Object.entries(call?.headers ?? {}))
+    if (key.toLowerCase() === wanted) return value;
+  return undefined;
+}
+
 // طلب وهمية: بترد برمز حالة من غير شبكة، أو ما بتردش خالص.
 function fakeRequest(status: number | null) {
   const calls: FakeCall[] = [];
@@ -129,10 +137,10 @@ it('sends one signed and encrypted request with the topic and the urgency', asyn
   await channel(fake.request).send(request());
   expect(fake.calls).toHaveLength(1);
   const call = fake.calls[0];
-  expect(call?.headers['authorization']).toBeDefined();
-  expect(call?.headers['urgency']).toBe('high');
-  expect(call?.headers['topic']).toBe(TOPIC);
-  expect(call?.headers['ttl']).toBe(3600);
+  expect(header(call, 'authorization')).toBeDefined();
+  expect(header(call, 'urgency')).toBe('high');
+  expect(header(call, 'topic')).toBe(TOPIC);
+  expect(Number(header(call, 'ttl'))).toBe(3600);
   expect(call?.body.length).toBeGreaterThan(0);
 });
 
@@ -142,7 +150,7 @@ it('recomputes the ttl from the time left to the deadline', async () => {
     request({ deadline: new Date(NOW.getTime() + 30_000) }),
   );
   expect(result).toEqual({ kind: 'accepted', httpStatus: 201 });
-  expect(fake.calls[0]?.headers['ttl']).toBe(30);
+  expect(Number(header(fake.calls[0], 'ttl'))).toBe(30);
 });
 
 it('never carries the endpoint, the keys or the payload in the result', async () => {
