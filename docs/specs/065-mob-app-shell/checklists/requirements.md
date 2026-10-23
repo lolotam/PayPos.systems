@@ -21,7 +21,7 @@
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded (shell, start screen, offline start, M-1c checks, hidden capabilities; M-1f, M-2, MOB-16/18/19 out)
 - [x] Dependencies and assumptions identified
-- [x] **Slice design** complete: no schema, no new endpoint (environment changes O-1 and, for APP-Q9's link option, the app-link files), no new permission, no events; test plan `MOB-01…MOB-09`, build checks, device checks (a)–(e); RLS and `EXPLAIN` not applicable
+- [x] **Slice design** complete: no schema, no new endpoint (environment changes O-1a/O-1b and, for APP-Q9's link option, the app-link files of O-6 on the POS host), no new permission, no events; test plan `MOB-T01…MOB-T18`, build checks, device checks (a)–(e); RLS and `EXPLAIN` not applicable
 
 ## Feature Readiness
 
@@ -32,8 +32,8 @@
 
 ## Notes
 
-- APP-Q9 … APP-Q18 are published (batch 58, PP-42.1 … PP-42.10); the answers are recorded in Arabic in
-  `owner-questions.ar.md`. Two further `TODO(spec)`s wait on ADR-0027 addenda, not on the owners: #549 (the iOS origin
+- APP-Q9 … APP-Q18 are published (batch 58, PP-42.1 … PP-42.10); `owner-questions.ar.md` holds the question records
+  and their answer slots, still PENDING; the orchestrator writes the answers back. Two further `TODO(spec)`s wait on ADR-0027 addenda, not on the owners: #549 (the iOS origin
   for sessions) and #536 (passkeys).
 - Technical decisions are in ADR-0055 (Capacitor shell, bundled assets, origins, flavours, CI, guard rules).
 - `.specify/extensions.yml` does not exist, so no before/after hooks ran.

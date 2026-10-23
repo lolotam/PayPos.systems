@@ -149,9 +149,11 @@ start screen again.
   line pointing to the web app with a link.
 - **FR-008**: Who may change the device's role: `TODO(spec)` [NEEDS CLARIFICATION: APP-Q16 (PP-42.8)]; working
   assumption until answered, the ⭐ option: anyone holding the device, after a clear confirmation. A role change
-  **needs the network**: the staff and personal sessions are HttpOnly cookies that page code cannot delete, so the app
-  first calls the existing server sign-out for every open session and continues only when each has succeeded; with
-  no network the change is refused with a message. Then it clears private forms and caches, forgets the remembered
+  **needs the network**: the staff and personal sessions are HttpOnly cookies that page code cannot see or delete, so
+  for each session kind the device can hold (staff, personal) the app calls the existing server sign-out; a sign-out
+  counts as done when the server confirms it **or** answers that there is no valid session (401, an ended,
+  replaced or expired session, or a revoked device), and fails only on no network, a timeout or a server error; the change continues only when every sign-out is done, and with no network it is refused with a
+  message. Then it clears private forms and caches, forgets the remembered
   business, and, for a counter device, removes the local pairing only after confirmation.
 - **FR-009**: Nothing new is stored about the person: no phone number, code or session token is persisted by the app
   beyond what the PWA already does (ADR-0019 online-only rule).
@@ -162,12 +164,15 @@ start screen again.
   business=…` on a cold start (the launch link) and on a warm start (a link opened while the app runs) the same way: it
   accepts only that host and path, parses the two values with the existing `personalWorkspace` schema of
   `packages/contracts`, ignores every other parameter, and then: with no role or the employee role, it sets the employee
-  role and remembers the business (signing out first if a different business has a session, as in the edge case); with
+  role and remembers the business (when a different business may have a session, it first signs out as FR-008 does,
+  and with no network the link is refused with the same message, changing nothing); with
   the counter role, it does not switch, and offers the role change of FR-008. An invalid or foreign link changes
   nothing and shows the existing «ask your manager for your link» message. The «عندي لينك» paste uses the same parser.
 - **FR-013**: The device credentials and the remembered business MUST NOT travel in an OS backup to another device:
-  the Android project disables app backup (or excludes the WebView storage from backup and device transfer), and the
-  iOS project keeps that storage out of iCloud and device backups. A restored phone starts at the start screen and
+  the Android project sets `android:allowBackup="false"` **and** `android:dataExtractionRules` excluding the app's
+  storage from both `<cloud-backup>` and `<device-transfer>` (Android 12 and later ignore `allowBackup` for device
+  transfer), plus `android:fullBackupContent` excluding it for older versions; the iOS project keeps that storage out
+  of iCloud and device backups. A restored phone starts at the start screen and
   pairs again. Built and checked in M-1a.
 
 ### Key Entities
@@ -217,12 +222,14 @@ No new endpoint. The app calls the existing routes of the PWA (device pairing, s
 attendance, and the existing sign-out routes for FR-008). The Android origin is already the POS host. The iOS origin
 `capacitor://localhost` is **not** a trusted origin today: ADR-0027 requires exact configured POS origins, and that
 origin is shared by every Capacitor iOS app. Trusting it is `TODO(spec)` — it needs an ADR-0027 addendum agreed with
-the web manager (issue #549, next to #536 for passkeys) **before** plan step O-1 adds it to `AUTH_TRUSTED_ORIGINS` and
-the API CORS origins on staging. Until then the iOS session checks of M-1c cannot run. If APP-Q9 picks the link,
-two things are needed, both for the **POS host** that the manager's link uses (not the passkey relying-party host of
-O-4): the native projects declare the link (iOS Associated Domains entitlement `applinks:<pos host>`; Android a verified
-`intent-filter` for `https://<pos host>/personal`), built in M-1a; and the POS host serves the matching association
-files (`apple-app-site-association`, `assetlinks.json`), an operations step listed with O-4.
+the web manager (issue #549, next to #536 for passkeys) **before** plan step O-1b adds it to `AUTH_TRUSTED_ORIGINS` and
+the API CORS origins on staging (plan O-1b). Until then the iOS session checks of M-1c cannot run; the Android ones
+need no origin change. If APP-Q9 picks the link, two things are needed, both for the **POS host** the manager's link
+uses (`pos.pospay.systems`, `pos.staging.pospay.systems`), never the passkey relying-party host of O-4: the native
+projects declare the link (iOS Associated Domains entitlement `applinks:<pos host>`; Android a verified
+`intent-filter` with `autoVerify` for `https://<pos host>/personal`), built in M-1a; and the POS host serves the
+matching association files (`/.well-known/apple-app-site-association`, `/.well-known/assetlinks.json`), plan step
+O-6, an operations step of its own.
 
 ### Permissions
 
@@ -238,22 +245,28 @@ None published, none consumed.
 
 - **Domain unit**: none (no business arithmetic; `packages/domain` is not touched).
 - **UI tests** (`apps/pos`, Vitest + Testing Library, each asserting what is on screen, `CLAUDE.md` §9):
-  `MOB-01` start screen shows both choices on first launch · `MOB-02` a stored choice opens its flow directly ·
-  `MOB-03` employee flow with no remembered business shows the connect instruction and no identifier field (a paste
+  `MOB-T01` start screen shows both choices on first launch · `MOB-T02` a stored choice opens its flow directly ·
+  `MOB-T03` employee flow with no remembered business shows the connect instruction and no identifier field (a paste
   box for the whole link, if APP-Q9 picks it, is allowed) ·
-  `MOB-04` employee flow with a remembered business shows the personal sign-in · `MOB-05` passkey and attendance controls absent when
-  the port reports them off, and the APP-Q17 replacement shown (working assumption: the web-app line) · `MOB-06` Web Push control absent on native ·
-  `MOB-07` the web build renders the same screens unchanged · `MOB-08` role change signs out, clears forms and shows the
+  `MOB-T04` employee flow with a remembered business shows the personal sign-in · `MOB-T05` passkey and attendance controls absent when
+  the port reports them off, and the APP-Q17 replacement shown (working assumption: the web-app line) · `MOB-T06` Web Push control absent on native ·
+  `MOB-T07` the web build renders the same screens unchanged · `MOB-T08` role change signs out, clears forms and shows the
   start screen, the server sign-out was called for each open session, and the remembered business is gone from device
-  storage · `MOB-10` with no network the role change is refused with its message and nothing is cleared · `MOB-09` counter role change asks for
+  storage · `MOB-T10` with no network the role change is refused with its message and nothing is cleared · `MOB-T09` counter role change asks for
   confirmation, and only after it the pairing credentials are gone from device storage (cancel keeps them) ·
-  `MOB-11` a valid manager link on a cold start opens the employee flow with the business remembered · `MOB-12` the
-  same link while the app runs does the same · `MOB-13` a link with a foreign host, a wrong path or invalid ids
-  changes nothing and shows the «ask your manager» message · `MOB-14` a link on a counter-role device offers the role
-  change and switches nothing by itself.
+  `MOB-T11` a valid manager link on a cold start opens the employee flow with the business remembered · `MOB-T12` the
+  same link while the app runs does the same · `MOB-T13` a link with a foreign host, a wrong path or invalid ids
+  changes nothing and shows the «ask your manager» message · `MOB-T14` a link on a counter-role device offers the role
+  change and switches nothing by itself · `MOB-T15` pasting a valid manager link in «عندي لينك» connects the business
+  like an opened link · `MOB-T16` a link for a different business while a personal session is open signs out at the
+  server first and only then remembers the new business · `MOB-T17` the same link with no network is refused with its
+  message and changes nothing · `MOB-T18` a role change counts a sign-out answered «no valid session» (401) as done
+  and continues.
 - **Build checks** (M-1a): the `native` build output registers no service worker; the web build output still does; a
   staging and a production debug build carry different app ids and their own API origin; the Android manifest and the
-  iOS project exclude the app's storage from backups (FR-013).
+  iOS project exclude the app's storage from cloud backup and device transfer (FR-013: `allowBackup`,
+  `dataExtractionRules` and `fullBackupContent` all present); if APP-Q9 picks the link, the built apps carry the
+  POS-host link declarations.
 - **Device checks** (M-1c, recorded in [plan.md](plan.md)): (a) pairing, (b) staff PIN session, (c) personal OTP
   session, each surviving a restart; (d) attendance QR camera; (e) passkey behaviour. Android on a real phone; iOS
   (a)–(c) on the simulator, (d)–(e) on the first real iPhone (M-1c-ii).
