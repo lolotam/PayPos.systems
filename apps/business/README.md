@@ -61,6 +61,10 @@ VITE_API_URL=https://api.pospay.systems FLAVOUR=production pnpm turbo run sync:p
 (ADR-0055 قرار 5) — `mobile-staging` و `mobile-production`، ومفيش مفتاح أو ملف توقيع
 في المستودع (`CLAUDE.md` §8).
 
+أي مفتاح أو ملف توقيع محتاجه على جهاز المبرمج (مثل ملف الـ service account بتاع Play، وGoogle
+بيسمّيه باسم المشروع) بيتحفظ في `apps/business/.secrets/` بس، والمجلد ده git مش بيتابعه، لأن مفيش
+ignore pattern يقدر يخمّن اسم الملف ده.
+
 الأسماء دي **مقترحة**: sub-PR اللي بيكتب stage C (ADR-0055 قرار 6) هو اللي بيثبّتها.
 
 | الاسم | القيمة |

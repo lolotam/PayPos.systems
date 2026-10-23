@@ -7,3 +7,8 @@ keystore.properties
 *.mobileprovision
 *.cer
 *service-account*.json
+*.pem
+*.key
+*.pfx
+# Any key file kept on a developer machine, whatever its name, goes in this folder only
+.secrets/
