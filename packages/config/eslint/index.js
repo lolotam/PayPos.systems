@@ -165,6 +165,7 @@ export const allowCommissionsEngineBackend = () => [
     files: [
       '**/modules/commissions/use-cases/**/__tests__/**',
       '**/modules/commissions/use-cases/**/*.spec.ts',
+      '**/modules/commissions/use-cases/**/test/**',
     ],
     rules: {
       'no-restricted-syntax': restrictedSyntax({
@@ -192,8 +193,10 @@ export const allowCommissionsEngineBackend = () => [
     files: [
       '**/modules/commissions/ports/**/__tests__/**',
       '**/modules/commissions/ports/**/*.spec.ts',
+      '**/modules/commissions/ports/**/test/**',
       '**/modules/commissions/persistence/**/__tests__/**',
       '**/modules/commissions/persistence/**/*.spec.ts',
+      '**/modules/commissions/persistence/**/test/**',
     ],
     rules: {
       'no-restricted-syntax': restrictedSyntax({

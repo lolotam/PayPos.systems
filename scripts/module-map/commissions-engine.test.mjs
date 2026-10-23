@@ -36,6 +36,7 @@ const ROOT_FILE = `${M}/commissions/index.ts`;
 const SHARED = 'src/shared/probe.ts';
 const UC_SPEC = `${M}/commissions/use-cases/probe/probe.spec.ts`;
 const PERSIST_SPEC = `${M}/commissions/persistence/__tests__/probe.spec.ts`;
+const PERSIST_TEST = `${M}/commissions/persistence/test/probe-fixture.ts`;
 const ADMIN_UC = 'src/modules/commissions/use-cases/probe.ts';
 const IDS_UC = 'src/modules/commissions/use-cases/probe.ts';
 const WORKER_UC = 'src/modules/commissions/use-cases/probe/probe.ts';
@@ -204,6 +205,13 @@ add(
   staticImport(ROOT) + arabicLine,
   ALLOWED,
   'a commissions persistence test may import the engine root and hold Arabic',
+);
+add(
+  'api',
+  PERSIST_TEST,
+  staticImport(ROOT) + arabicLine,
+  ALLOWED,
+  'a commissions persistence fixture under a test folder may import the engine root and hold Arabic',
 );
 add(
   'api',
