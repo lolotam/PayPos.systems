@@ -70,6 +70,8 @@ export interface NotificationModuleOptions {
   readonly emailConfiguration?: EmailModuleOptions['configuration'];
   readonly emailTesting?: EmailModuleOptions['testing'];
   readonly email?: ReturnType<typeof createEmailModule>;
+  /** جاهزية الدفع في العامل: هي اللي بتفعّل كتابة محاولات الدفع (ADR-0052 قرار 2). */
+  readonly push?: { readonly enabled: boolean };
 }
 
 export function createNotificationModule(options: NotificationModuleOptions) {
@@ -111,9 +113,9 @@ export function createNotificationModule(options: NotificationModuleOptions) {
     registry,
     (tx) => new StoreInAppNotification(createInAppRepository(tx), clock, ids),
     email.authorize,
-    // جاهزية الدفع في العامل (إعداد VAPID) هي اللي بتفعّل الإرسال؛ لحد 28b-3 بيفضل معطّل.
+    // جاهزية الدفع في العامل (إعداد VAPID) هي اللي بتفعّل الإرسال؛ من غيرها مفيش محاولات بتتكتب.
     {
-      enabled: false,
+      enabled: options.push?.enabled === true,
       store: (tx) => new StorePushAttempts(createPushAttemptsRepository(tx), clock, ids),
     },
   );
@@ -203,7 +205,7 @@ export { notificationRedisOptions };
 export function createInAppNotificationModule(
   options: Pick<
     NotificationModuleOptions,
-    'database' | 'ids' | 'clock' | 'emailConfiguration' | 'email'
+    'database' | 'ids' | 'clock' | 'emailConfiguration' | 'email' | 'push'
   >,
 ) {
   const email =
@@ -228,9 +230,9 @@ export function createInAppNotificationModule(
     createTemplateRegistry(),
     (tx) => new StoreInAppNotification(createInAppRepository(tx), options.clock, options.ids),
     email.authorize,
-    // جاهزية الدفع في العامل (إعداد VAPID) هي اللي بتفعّل الإرسال؛ لحد 28b-3 بيفضل معطّل.
+    // جاهزية الدفع في العامل (إعداد VAPID) هي اللي بتفعّل الإرسال؛ من غيرها مفيش محاولات بتتكتب.
     {
-      enabled: false,
+      enabled: options.push?.enabled === true,
       store: (tx) =>
         new StorePushAttempts(createPushAttemptsRepository(tx), options.clock, options.ids),
     },

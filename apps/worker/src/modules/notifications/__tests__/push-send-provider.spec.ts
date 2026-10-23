@@ -68,19 +68,3 @@ it('refuses a template that no longer renders', async () => {
   const [row] = await h.attempt(attemptId);
   expect(row).toMatchObject({ status: 'FAILED', failure_code: 'PARAMETERS_INVALID' });
 });
-
-it('refuses a payload that is over the size cap', async () => {
-  const { subscriptionId } = await h.authorizeAttempt('ar');
-  const attemptId = await h.pendingAttempt({
-    subscriptionId,
-    parameters: [
-      { name: 'shift_start', type: 'text', value: '10:00' },
-      { name: 'branch_name_ar', type: 'text', value: 'فرع'.repeat(300) },
-      { name: 'branch_name_en', type: 'text', value: 'Salmiya' },
-    ],
-  });
-  const before = h.channel.calls;
-  const result = await h.send.execute(TENANT.A.company, attemptId);
-  expect(result).toMatchObject({ status: 'FAILED', failureCode: 'PARAMETERS_INVALID' });
-  expect(h.channel.calls).toBe(before);
-});

@@ -10,6 +10,7 @@ import {
   createInAppNotificationModule,
   readNotificationConfiguration,
   startEmailCapability,
+  startPushCapability,
 } from './modules/notifications/index.ts';
 import { createDispatchLoop } from './outbox/dispatch-loop.ts';
 import { readConfig } from './shared/config.ts';
@@ -57,6 +58,17 @@ const email = await startEmailCapability({
   ids: systemUuidV7(),
   clock: { now: () => new Date() },
 });
+// ADR-0052 قرار 2: جاهزية الدفع في العامل وحدها بتفعّل كتابة المحاولات؛ من غيرها مفيش دفع.
+const push = await startPushCapability({
+  env: process.env,
+  production,
+  logger,
+  clock: { now: () => new Date() },
+  ids: systemUuidV7(),
+  database: app,
+  redisUrl: config.REDIS_URL,
+  redis,
+});
 let notifications: ReturnType<typeof createNotificationModule> | null = null;
 if (!production) {
   try {
@@ -67,6 +79,7 @@ if (!production) {
       configuration: readNotificationConfiguration(process.env),
       production,
       email: email.module,
+      push: { enabled: push.enabled },
     });
   } catch {
     logger.warn(
@@ -81,6 +94,7 @@ const inApp = production
       ids: systemUuidV7(),
       clock: { now: () => new Date() },
       email: email.module,
+      push: { enabled: push.enabled },
     })
   : null;
 if (production)
@@ -116,11 +130,13 @@ const businessDeliver = createDeliverer(
 );
 let queue: OptionalCapabilities['queue'];
 let documents: DocumentRendering | undefined;
+// حدث إذن الدفع بيروح للطابور بس لما الدفع جاهز؛ معطّل التسليم بيرجع زي ما هو.
+const pushTransport = push.transport((claimed) => (queue?.deliver ?? businessDeliver)(claimed));
 const deliver: typeof businessDeliver = (event) =>
   deliverFilesEvent(event, {
     register: (claimed) => files.deliver(claimed),
     staff: (claimed, next) => staff.deliver(claimed, next),
-    core: (claimed) => (queue?.deliver ?? businessDeliver)(claimed),
+    core: pushTransport,
   });
 const loop = createDispatchLoop({ dispatcher, deliver, logger });
 
@@ -141,6 +157,7 @@ const release = async (): Promise<void> => {
         maintenance?.close(),
         globalDatabase?.close(true),
         queue?.close(true),
+        push.close(true),
         email.close(),
         dispatcher.close(),
         app.close(),
@@ -186,6 +203,7 @@ async function startWorkerCore(): Promise<void> {
         stopping = true;
         email.stop();
         maintenance?.stop();
+        await push.stop();
         await drainDispatchAndDocuments({
           stopDispatch: () => loop.stop(),
           stopDocuments: () => documents?.stop(),
