@@ -10,7 +10,7 @@ provisional (061 is claimed by open PR #439) and is renumbered at merge, like th
 At the end of M-1, every merge to `main` that touches the app's inputs produces an Android build of «PosPay Business»
 as a CI artifact, from the same `apps/pos` code the PWA runs, and the auth risk of ADR-0055 decision 3 is answered on a
 real Android phone. **iOS follows APP-Q8:** there is no Mac, and Waleed picked the GitHub macOS runner with the iOS
-simulator, **inside the free minutes only** (Abu Salem's pick pending; it binds if it differs). CI then also produces
+simulator, **inside the free minutes only** (Abu Salem picked the same; final). CI then also produces
 an iOS simulator build on `main` and the iOS cookie question is answered on the simulator. Android device testing
 starts now at no cost. The first real-iPhone check is the first TestFlight build (M-1c-ii, inside M-2). **M-1 pays nothing and creates no store account.** Signed builds and TestFlight /
 Play internal uploads are M-2, gated on the company that will own the store accounts being formed (APP-Q3).

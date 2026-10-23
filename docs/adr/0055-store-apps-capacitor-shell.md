@@ -7,8 +7,8 @@ both picked option 1 on 2026-10-23. That record is added by PR #532, **which mer
 this ADR opened: APP-Q2 … APP-Q7 (`docs/specs/065-mob-app-shell/owner-questions.ar.md`, batch 55, PP-39.1 … PP-39.6),
 **answered by both owners on 2026-10-23** (option 1 ⭐ on all six; on APP-Q2 Waleed then moved to option 2 with the
 Arabic name «بوس باي للأعمال»; Abu Salem's option 1 binds, and the Arabic name waits for his confirmation). Still open: the legal name of the company, which
-is still being formed (APP-Q3, `TODO(spec)`), and Abu Salem's pick on **APP-Q8** (batch 56, PP-40.1). Waleed picked
-the GitHub macOS runner with the iOS simulator, inside the free minutes only; that is the plan until Abu Salem picks.
+is still being formed (APP-Q3, `TODO(spec)`), **APP-Q8** (batch 56, PP-40.1) is final: both owners picked
+the GitHub macOS runner with the iOS simulator, inside the free minutes only.
 
 ## Context
 
@@ -121,7 +121,7 @@ Bundled assets change the page origin, and that is the main technical risk of th
   code, and (e) what passkey attendance does. There is **no Mac** (Waleed, 2026-10-23), and a real iPhone can only get a
   build through a Mac or a paid Apple account. **How iOS is tested, and what it may cost, is owner question APP-Q8:
   Waleed picked the GitHub macOS runner with the iOS simulator, free minutes only, and nothing may start charging
-  without his yes** (Abu Salem's pick pending; it binds if it differs). The spike therefore has two steps:
+  without his yes** (Abu Salem picked the same; final). The spike therefore has two steps:
   - **M-1c, no fee:** Android (a)–(e) on a real phone with a side-loaded debug build; iOS (a)–(c) as an automated UI
     test on the iOS simulator of the GitHub macOS runner. The simulator runs the iOS WebKit, so it answers the cookie
     question; it has no camera and no real passkey, so (d) and (e) stay open on iOS.
@@ -330,4 +330,4 @@ APP-Q2 display name · APP-Q3 account holder and legal name on the developer acc
 APP-Q5 privacy-policy URL · APP-Q6 bundle ids · APP-Q7 internal testers — answered by both owners on 2026-10-23 and
 recorded verbatim in `docs/specs/065-mob-app-shell/owner-questions.ar.md` (indexed as PP-39 in
 `docs/owner-decisions.ar.md`). Open: Abu Salem's confirmation of the Arabic name (APP-Q2), the company's legal name
-(APP-Q3), and Abu Salem's pick on APP-Q8 (batch 56, PP-40.1; Waleed picked the GitHub macOS runner, free minutes only).
+(APP-Q3). APP-Q8 (batch 56, PP-40.1) is final: the GitHub macOS runner, free minutes only, picked by both owners.
