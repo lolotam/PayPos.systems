@@ -1,7 +1,13 @@
-import config, { allowDatabaseFacade, allowUserFacingText } from '@pospay/config/eslint';
+import config, {
+  allowCommissionsEngineBackend,
+  allowDatabaseFacade,
+  allowUserFacingText,
+} from '@pospay/config/eslint';
 
 export default [
   ...config,
+  // ADR-0054 §1 — the API's commissions module is the one that may import the engine root.
+  ...allowCommissionsEngineBackend(),
   {
     files: [
       'src/**/__tests__/whatsapp-harness.ts',

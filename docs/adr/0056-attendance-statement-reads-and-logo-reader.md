@@ -1,0 +1,148 @@
+# ADR-0056 — Attendance statement: where its reads live, the files-owned logo reader, and the request record
+
+- **Status:** Proposed — 2026-10-21, with [spec 061](../specs/061-staff-attendance-statement-pdf/spec.md) (Phase 1 row
+  27g). It becomes Accepted when sub-PR 1 lands. The number is the next free one on `main` and on every remote branch
+  on 2026-10-21; the orchestrator renumbers it at merge if another lane took it.
+- **Amends:** [ADR-0046](0046-business-identity-settings-reads-and-logo-lifecycle.md) §5 (where the identity read and the
+  logo bytes reader live, and the `staff → settings` arrow it left to this ADR); a pointer is added there and in
+  ADR-0049 §6.
+- **Builds on:** [ADR-0049](0049-pdf-renderer-in-phase-1.md) §1 (request, poll, collect once), §5 (module map) and §6
+  (the logo bytes reader moves to 27g, PP-6.2); [ADR-0031](0031-employee-document-file-binding.md) (`staff → files`).
+
+## Context
+
+Row 27g prints the official attendance statement. ADR-0049 fixed the transport: the API writes a request record and
+enqueues `{ company_id, render_id, kind }`; a document source in the **worker** reads every fact under
+`withTenant(company_id)`, closes the transaction, then renders. The statement needs four reads:
+
+1. the attendance inputs of the period, today read by the API's 27b query
+   (`apps/api/src/modules/staff/queries/attendance-monthly-report.query.ts`, `attendanceMonthlyInputsStatement`);
+2. the business's stored identity (`official_name_ar`, `official_name_en`, `logo_file_id` on `business_settings`) and the
+   pure header fallback `statementIdentity`, both exported today by `apps/api/src/modules/settings/index.ts`;
+3. the logo bytes, which only `files` may read (`packages/storage` belongs to `files`), with an access audit for the
+   requester (ADR-0046 §5);
+4. the request parameters (form, branch, employee, period, language), which the job payload must not carry.
+
+ADR-0046 §5 assumed an **API** `staff → settings` import and left that arrow to this ADR. ADR-0049 then put the reads in
+the **worker**. The worker has no `settings` module, and an app never imports another app's code (only test fixtures do
+today). Duplicating the 27b SQL or the header fallback in the worker would let the statement and the monthly report
+drift apart, which is exactly the failure the statement must not have: its figures must equal the report's.
+
+## Decision
+
+### 1. All statement data is read in the worker; the API only records which logo the render will use
+
+The API side of 27g (request, status, collect) reads `staff`'s own request table, the permission through the existing
+guard, Redis, and one stored fact: the business's bound `logo_file_id`, read in the request transaction through a
+port the API `staff` module owns (`StatementLogoReferenceReader` in `staff/ports/`), whose `persistence/` adapter calls
+the shared `@pospay/db` `readBusinessIdentity` (§2); the use case depends only on the port. The id is written on the
+request row (§5). That makes the logo decision of a
+render, a file **or none**, durable before any attempt, so a retry can never change it (§3). This is a read of a shared
+statement, not a `settings` import: **no API `staff → settings` arrow** is added, and the API's `staff → files` arrow
+keeps its ADR-0031 purpose only.
+
+### 2. Shared reads go to the shared packages, not to a second copy
+
+Following the precedent of `lockBusinessLogoReference` (ADR-0046 §4: one function in `@pospay/db`, called by the API
+settings adapter and the worker files adapter, with no `files → settings` import):
+
+- The identity read statement moves from `apps/api/src/modules/settings/persistence/read-business-identity.ts` to
+  `@pospay/db` (`readBusinessIdentity`, same SQL, same `businessIdentityReadStatement` for EXPLAIN). `settings/index.ts`
+  keeps exporting it, so its callers do not change.
+- The pure fallback `statementIdentity` (and its types) moves from `settings/domain/statement-identity.ts` to
+  `packages/domain`, with its unit tests. `settings/index.ts` re-exports it. It is pure TypeScript with no dependency,
+  which is what `packages/domain` holds.
+- The 27b inputs statement (`attendanceMonthlyInputsStatement` and `attendanceReportContractsStatement`) moves to
+  `@pospay/db` beside `employee-branch-links.ts` and `employee-default-shifts-projection.ts`, unchanged. It already
+  takes `from` and `to` (the monthly report passes its month's first and last day), so a period needs no new SQL. The API 27b query
+  and the worker statement reader both call it; its result-shape and EXPLAIN tests move with it. It keeps leaving OPEN
+  sessions out (AB-Q9g); the employee statement shows them from a separate small worker `queries/` read (spec 061
+  FR-011a), so the shared statement and the monthly report stay unchanged.
+
+The worker `staff` module reads identity through a port it owns (`StatementIdentityReader`) whose adapter calls
+`@pospay/db`, the same shape as the worker `files` `LogoReference` row in the module map. **No `staff → settings` import
+arrow is added**; the module map gains a port row (`worker staff | StatementIdentityReader | @pospay/db`). Settings
+still owns the table and the rule; the shared package is only where the one copy lives.
+
+### 3. The logo is read and audited by worker `files` in its own step, called by the documents source
+
+The logo read writes an access audit, so a call into it from `staff` would be a second synchronous cross-module write,
+which the module map forbids (§3.1: one recorded exception). Instead no business module calls it: the documents source
+(`apps/worker/src/documents/sources/attendance-statement.source.ts`, infrastructure wired by `apps/worker/src/main.ts`,
+§4) calls the `staff` data reader first and the `files` logo reader second. Each runs its **own** `withTenant`
+transaction, one after the other, never nested (PP-7.2). `staff` never imports `files` for this, and `files` never
+imports `staff`.
+
+Worker `files` exports one function, `readStatementLogo(companyId, { businessId, fileId, requesterUserId, renderId },
+signal)`, from `apps/worker/src/modules/files/index.ts`. The source passes the `logo_file_id` the `staff` reader returned
+from the request row (§1, §5); when that is `null` the source does not call it and the statement prints the name only
+(spec 052 BR-04) on every attempt, even if a logo is bound in between. The function has two phases:
+
+1. **Its own transaction** (`withTenant(companyId, …, { userId: requesterUserId })`): it reads that file's
+   `file_objects` row (READY, `owner_module = 'settings'`, owner = the business, `purge_started_at IS NULL`); if the
+   file no longer qualifies it returns `null` (name only) and writes nothing. It never looks up the logo bound now.
+   When the file qualifies, it inserts one access row (`file_access_audit.id = renderId`, `file_id`, `outcome =
+   'ALLOW'`, `actor_user_id` = the requester) with `ON CONFLICT (company_id, id) DO NOTHING RETURNING id`, and only when
+   the insert returned a row it appends the `file`/`access` audit-log entry, as the API files repository does for a
+   download. It commits. A retry (spec 056 FR-006) passes the same `fileId`, so it embeds the same file and writes
+   nothing new: every logo embedded in a PDF has exactly one access row for that render, naming that file. `render_id`
+   is a fresh UUID v7, so it never collides with another access row. `pospay_app` holds `SELECT, INSERT` on
+   `file_access_audit` (`packages/db/migrations/0042_2026-10-03_files-rls.sql`), which covers `RETURNING id`; an
+   integration test runs a first attempt and a retry as `pospay_app`.
+2. **After commit**, outside any transaction: it reads the object through `packages/storage` and re-encodes it with the
+   same `sharp` setup as upload inspection to fit 512 × 512 px, PNG for a PNG and JPEG for a JPEG, at most 512 KiB. A
+   10 MiB logo (spec 052 BR-10) would otherwise take most of the 4 MiB HTML cap as base64. A missing object returns
+   `null` (name only). A storage error or a timeout of 5 seconds throws, so the job's attempt fails and BullMQ retries
+   it once (spec 056 FR-006). It returns `{ content_type, bytes }` or `null`.
+
+The write stays inside the module that owns `file_access_audit`, in that module's own transaction, so it is not a
+cross-module write and needs no `sync_writes` row; the module map gains no port row and no `reads:` entry for the logo.
+The requester needs no `files` or `settings` permission: the statement's permission (`read:attendance:branch`) was
+checked when the request was made, and the stored permission of a settings file gates only the admin preview (ADR-0046
+§5).
+
+### 4. The template stays inside the documents boundary
+
+`packages/documents` may be imported only by `apps/worker/src/main.ts` and `apps/worker/src/documents/` (module map,
+ADR-0049 §5). So the worker `staff` module returns **typed data**, not HTML: its internal result
+`AttendanceStatementData` (the statement data plus `businessId`, `requesterUserId` and `logoFileId`, which the source
+needs only to call `readStatementLogo`). The source then builds the template input `attendanceStatementDocument` (Zod in
+`packages/contracts`) from the statement data and the logo, `{ content_type, base64 }` or `null`, with no user id. The template lives in `packages/documents/src/templates/attendance-statement.ts`, and
+`apps/worker/src/documents/sources/attendance-statement.source.ts` turns the data into HTML. `main.ts` builds that
+source with the worker `staff` reader and the worker `files` `readStatementLogo` injected (so `sources/` imports no
+module index) and registers it for the kind `attendance-statement`. A business module still never imports `packages/documents`.
+
+### 5. The request record is a `staff` table
+
+`attendance_statement_requests` (spec 061 §6.2), written by the API in the request transaction and read by the worker
+reader by `(company_id, render_id)`. It is the "own request record" ADR-0049 §1.1 allows, with RLS, a negative isolation
+test, `(company_id, id)` key (ADR-0007), and `SELECT, INSERT` only for `pospay_app`. It carries ids, dates, form,
+language and the logo decision (`logo_file_id`, null for "no logo"); never a figure. `logo_file_id` has no foreign key
+to `file_objects`: it records a decision, and the file's own lifecycle (retire, purge) must not be blocked by a
+statement request; the files reader re-checks the file at render time (§3). The download audit (ST-Q5) is a separate `audit_log` entry written at collection (spec 061
+§6.5), because "downloaded" means the file reached the requester (ADR-0049 §1.4).
+
+## Consequences
+
+- No new import arrow, no `sync_writes` row, and no new runtime role, grant beyond the new table, or RLS exception. The
+  module map gains two port rows for the identity reads (worker `StatementIdentityReader`, API
+  `StatementLogoReferenceReader`, both through `@pospay/db`); `packages/documents` keeps its two allowed importers.
+- `settings/index.ts`'s public surface is unchanged; two of its exports become re-exports.
+- The 27b report and the statement read the same SQL and compute with the same `packages/domain` functions, so a parity
+  test can hold them equal.
+- Every rendered statement with a logo leaves one `file_access_audit` row for its requester, even if she never collects
+  the PDF. That is the honest record: the logo was read for her.
+- A storage outage fails statements with a logo (one retry, then `FAILED`) instead of silently printing an "official"
+  statement without the logo the owner uploaded.
+
+## Alternatives rejected
+
+- **An API `staff → settings` import (ADR-0046 §5 as first written):** the reads moved to the worker with ADR-0049; the
+  API no longer needs them.
+- **A worker `settings` module with a copy of the reader and the fallback:** two copies of a business rule in two apps.
+- **Reading the data in the API and passing it to the worker:** the job would carry tenant data (ADR-0049 §1.2), or the
+  data would need a second store.
+- **Embedding the stored logo as is:** up to 10 MiB as base64 breaks the 4 MiB HTML cap.
+- **Printing the name only when the logo cannot be fetched:** quietly produces a statement that differs from what the
+  owner set up; a retry or a visible failure is better.
+- **Reading the logo bytes inside the tenant transaction:** storage IO in a transaction (ADR-0046 §4).

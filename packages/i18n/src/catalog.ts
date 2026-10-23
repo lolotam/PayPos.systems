@@ -5,6 +5,7 @@ import { serviceLineCancelAr, serviceLineCancelEn } from './service-line-cancel-
 import { serviceLineEditAr, serviceLineEditEn } from './service-line-edit-catalog.js';
 import { serviceLinePerformersAr, serviceLinePerformersEn } from './service-line-performers-catalog.js';
 import { serviceSessionsAr, serviceSessionsEn } from './service-session-catalog.js';
+import { staffAppColumnsAr, staffAppColumnsEn } from './staff-app-columns-catalog.js';
 
 /** اللغتين اللي المنتج بيدعمهم — العربي الأساسي (CLAUDE.md §0). */
 export type Locale = 'ar' | 'en';
@@ -18,6 +19,7 @@ type RegisteredCatalog = Catalog & {
   readonly serviceLineCancel: Record<keyof typeof serviceLineCancelEn, string>;
   readonly serviceLinePerformers: Record<keyof typeof serviceLinePerformersEn, string>;
   readonly sessionTips: Record<keyof typeof sessionTipsEn, string>;
+  readonly staffAppColumns: Record<keyof typeof staffAppColumnsEn, string>;
 };
 
 /** مفتاح رسالة: <القسم>.<الاسم>، زي errors.NOT_READY. */
@@ -29,8 +31,8 @@ export type MessageKey = {
 export type ErrorMessageCode = keyof typeof en.errors;
 
 const CATALOGS: Record<Locale, RegisteredCatalog> = {
-  ar: { ...ar, serviceSessions: serviceSessionsAr, serviceLineEdit: serviceLineEditAr, serviceLineCancel: serviceLineCancelAr, serviceLinePerformers: serviceLinePerformersAr, sessionTips: sessionTipsAr },
-  en: { ...en, serviceSessions: serviceSessionsEn, serviceLineEdit: serviceLineEditEn, serviceLineCancel: serviceLineCancelEn, serviceLinePerformers: serviceLinePerformersEn, sessionTips: sessionTipsEn },
+  ar: { ...ar, serviceSessions: serviceSessionsAr, serviceLineEdit: serviceLineEditAr, serviceLineCancel: serviceLineCancelAr, serviceLinePerformers: serviceLinePerformersAr, sessionTips: sessionTipsAr, staffAppColumns: staffAppColumnsAr },
+  en: { ...en, serviceSessions: serviceSessionsEn, serviceLineEdit: serviceLineEditEn, serviceLineCancel: serviceLineCancelEn, serviceLinePerformers: serviceLinePerformersEn, sessionTips: sessionTipsEn, staffAppColumns: staffAppColumnsEn },
 };
 
 /**

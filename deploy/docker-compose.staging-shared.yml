@@ -6,8 +6,10 @@
 # app.staging -> admin:3000, pos.staging -> pos:8080, HTTPS with Let's Encrypt. Dokploy adds the Traefik labels on
 # deploy, so adding labels here would create a second router for the same host.
 #
-# Rollback: redeploy the previous IMAGE_TAG. That restores the code, not the schema — it is safe only because every
-# migration is expand/contract (CLAUDE.md §10).
+# Every release and rollback uploads this file with each ${IMAGE_TAG:?} replaced by one SHA (pipeline skill §6, step 4
+# and Restore); an old IMAGE_TAG line in the Dokploy environment is stale and never read. Rollback: upload this file
+# pinned to the previous SHA. That restores the code, not the schema; it is safe only because every migration is
+# expand/contract (CLAUDE.md §10).
 #
 # Accepted for staging (Waleed): Postgres 18 and Redis 8 here, where CI tests 16 and 7; and dokploy-network is shared
 # with the server's other projects, which can reach the API's port directly (every protected route still needs a
@@ -83,6 +85,12 @@ services:
       WHATSAPP_STOP_BUTTON_ID: ${WHATSAPP_STOP_BUTTON_ID:-}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.staging.pospay.systems}
+      # Private files on Cloudflare R2 (packages/storage); any of endpoint, bucket and the two keys missing = uploads answer STORAGE_NOT_CONFIGURED.
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
+      STORAGE_REGION: ${STORAGE_REGION:-auto}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:-}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -108,6 +116,12 @@ services:
       WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
       WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
       WHATSAPP_GRAPH_API_VERSION: v23.0
+      # The worker retires replaced files and reads imports from the same bucket.
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
+      STORAGE_REGION: ${STORAGE_REGION:-auto}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:-}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

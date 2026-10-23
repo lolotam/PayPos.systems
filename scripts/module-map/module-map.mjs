@@ -1,6 +1,6 @@
 // The module-map gate (plan v4 T12b, docs/module-map.md §6). Imports are read with the TypeScript compiler — every
-// form (import, export … from, import(), require, side-effect imports, type-only) — and resolved with each project's
-// own tsconfig, so an alias or a `.js` specifier is judged by the file it really reaches.
+// form (import, export … from, import(), require, side-effect imports, type-only, import types) — and resolved with
+// each project's own tsconfig, so an alias or a `.js` specifier is judged by the file it really reaches.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
@@ -198,6 +198,19 @@ export function dependenciesOf(file) {
           locals: [],
         });
       }
+    } else if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteral(node.argument.literal)
+    ) {
+      // `type Plan = import('…').Plan` is a type-only dependency: it carries no runtime edge.
+      found.push({
+        spec: node.argument.literal.text,
+        kind: 'import-type',
+        typeOnly: true,
+        names: [],
+        locals: [],
+      });
     } else if (ts.isCallExpression(node)) {
       const [argument] = node.arguments;
       const dynamic = node.expression.kind === ts.SyntaxKind.ImportKeyword;

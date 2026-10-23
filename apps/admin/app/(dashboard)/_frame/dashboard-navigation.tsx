@@ -8,6 +8,7 @@ import { BusinessIdentityNavItem } from './business-identity-nav-item';
 import { CatalogNavItem } from './catalog-nav-item';
 import { SessionDayNavItem } from './session-day-nav-item';
 import { SessionNavItem } from './session-nav-item';
+import { StaffAppColumnsNavItem } from './staff-app-columns-nav-item';
 import { StaffNavigation } from './staff-navigation';
 
 export function DashboardNavigation() {
@@ -52,6 +53,7 @@ export function DashboardNavigation() {
       <SessionDayNavItem />
       <StaffNavigation />
       <BusinessIdentityNavItem />
+      <StaffAppColumnsNavItem />
     </AppSidebarGroup>
   );
 }

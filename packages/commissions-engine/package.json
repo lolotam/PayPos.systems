@@ -1,0 +1,33 @@
+{
+  "name": "@pospay/commissions-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The pure commissions engine — plan types, plan validation, period computation. One dependency: @pospay/domain. Runs in Node and the browser (ADR-0054)",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./validation": {
+      "types": "./dist/validation.d.ts",
+      "import": "./dist/validation.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run && pnpm run test:node",
+    "test:node": "node --input-type=module -e \"import { computePeriod, validateCommissionPlan } from '@pospay/commissions-engine'; import { validateCommissionPlan as fromValidation } from '@pospay/commissions-engine/validation'; if (fromValidation !== validateCommissionPlan || typeof computePeriod !== 'function') process.exit(1); await import('@pospay/commissions-engine/dist/plan-validation.js').then(() => process.exit(1), () => undefined);\""
+  },
+  "dependencies": {
+    "@pospay/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@pospay/config": "workspace:*",
+    "eslint": "10.11.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.1"
+  }
+}
