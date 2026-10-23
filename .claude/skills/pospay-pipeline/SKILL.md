@@ -535,8 +535,8 @@ pins the PosPay rules on top of it.
 
 Staging is the Dokploy **compose service `pospay-staging`** in project `PayPos.Systems` (moved into Dokploy on
 2026-10-23, Waleed: «أيوه، انقله»). Its compose file is `deploy/docker-compose.staging-shared.yml` from the repo and
-its environment lives in Dokploy (secrets included; never print them). It serves the API at
-https://staging.pospay.systems, the back-office at https://admin.staging.pospay.systems and the cashier at
+its environment lives in Dokploy (secrets included; never print them). Following ADR-0001 §6 it serves the API at
+https://api.staging.pospay.systems, the back-office at https://app.staging.pospay.systems and the cashier at
 https://pos.staging.pospay.systems, on the server's shared Postgres and Redis. Waleed's standing rule (2026-10-23):
 **staging is updated after every merge**, so every new feature can be tested there live; its data is demo data only.
 
@@ -548,7 +548,7 @@ https://pos.staging.pospay.systems, on the server's shared Postgres and Redis. W
 3. If `deploy/docker-compose.staging-shared.yml` changed, update the service's compose file in Dokploy to that SHA's
    content (`compose.update`, raw source). Note the SHA that is live now: it is the rollback target.
 4. Set `IMAGE_TAG=<full-sha>` in the service's environment (change only that line), then `compose.deploy`. Prove it:
-   `https://staging.pospay.systems/ready` answers 200, both front ends answer 200, and the `migrate` container exited 0.
+   `https://api.staging.pospay.systems/ready` answers 200, both front ends answer 200, and the `migrate` container exited 0.
 5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): redeploy
    `<previous-sha>` (step 4 with that tag) against the new schema, confirm `/ready`, then redeploy `<full-sha>`. A
    previous image that does not start on the new schema is a P1 against the migration: redeploy `<full-sha>` at once,

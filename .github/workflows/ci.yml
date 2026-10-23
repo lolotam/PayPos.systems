@@ -232,7 +232,7 @@ jobs:
       REGISTRY: ghcr.io/${{ github.repository_owner }}
       SHA: ${{ github.sha }}
       PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-      STAGING_API_URL: https://staging.pospay.systems
+      STAGING_API_URL: https://api.staging.pospay.systems
     steps:
       - uses: actions/checkout@v7
 

@@ -70,7 +70,7 @@ services:
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
       BETTER_AUTH_URL: https://${STAGING_HOST:?}
-      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${STAGING_HOST:?}}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${ADMIN_STAGING_HOST:?},https://${POS_STAGING_HOST:?}}
       PLATFORM_NOTIFICATIONS_DATABASE_URL: ${PLATFORM_NOTIFICATIONS_DATABASE_URL:-}
       WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
       WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
@@ -124,7 +124,8 @@ services:
     mem_limit: 1g
 
   # The staging back-office and cashier. Both bake the API origin at build time, so CI builds staging variants with
-  # https://staging.pospay.systems (pospay-admin-staging, pospay-pos-staging); the plain images are origin-less.
+  # https://api.staging.pospay.systems (pospay-admin-staging, pospay-pos-staging); the plain images are origin-less.
+  # Hosts follow ADR-0001 §6: app.staging (back-office), pos.staging (cashier), api.staging (STAGING_HOST).
   admin:
     image: ${REGISTRY:-ghcr.io/lolotam}/pospay-admin-staging:${IMAGE_TAG:?}
     restart: unless-stopped
