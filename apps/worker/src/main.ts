@@ -89,7 +89,7 @@ if (!production) {
     );
   }
 }
-// من غير الموديول الكامل يبقى في bell بس؛ وإلا مفيش مستهلك خالص والمشغّل بيكتب.
+// لو الموديول الكامل مش متاح بنعمل مستهلك الجرس والدفع بس، عشان محدش يفضل من غير مستهلك.
 const inApp =
   production || notifications === null
     ? createInAppNotificationModule({

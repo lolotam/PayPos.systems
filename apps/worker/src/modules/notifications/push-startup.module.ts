@@ -208,8 +208,13 @@ type PushBinding =
   | { readonly kind: 'ready'; readonly channel: PushChannel; readonly keyId: string | null };
 
 // الوضع المزيف محتاجش مفاتيح (FR-011)، والإنتاج رفضه؛ وكل حالة تانية بتقرأ الجاهزية.
+// أنماط معروفة بس: أي كلمة تانية (خطأ مطبعي مثل 'fake ' أو 'Fake') بتقفل الدفع ولا بتقرأ أي متغير.
+const KNOWN_MODES: readonly string[] = ['', 'live', 'fake'];
+
 function bindPushCapability(options: PushStartupOptions): PushBinding {
   const mode = options.env['NOTIFICATIONS_MODE'];
+  if (mode !== undefined && !KNOWN_MODES.includes(mode))
+    return { kind: 'disabled', reason: 'MODE_INVALID' };
   if (options.production && mode === 'fake')
     return { kind: 'disabled', reason: 'FAKE_IN_PRODUCTION' };
   if (!options.production && mode === 'fake')

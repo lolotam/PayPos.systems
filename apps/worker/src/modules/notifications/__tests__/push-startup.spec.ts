@@ -198,6 +198,39 @@ it('the fake mode outside production uses the key id of a valid pair', async () 
   expect(lines.join('')).toContain(CONFIGURATION.keyId);
 });
 
+it('an unknown notification mode keeps the push disabled', async () => {
+  for (const mode of ['fake ', 'Fake', 'maybe']) {
+    lines.length = 0;
+    let starts = 0;
+    const capability = await startPushCapability(
+      options({ ...ENV, NOTIFICATIONS_MODE: mode }),
+      async () => {
+        starts += 1;
+        return queue();
+      },
+    );
+    expect(capability.enabled, mode).toBe(false);
+    expect(starts, mode).toBe(0);
+    const text = lines.join('');
+    expect(text, mode).toContain('MODE_INVALID');
+    expect(text, mode).not.toContain(mode);
+  }
+});
+
+it('an empty or live mode with a valid pair binds the real channel', async () => {
+  for (const mode of ['', 'live']) {
+    const sends: SendPush[] = [];
+    await startPushCapability(
+      options({ ...ENV, NOTIFICATIONS_MODE: mode }),
+      async (_redisUrl, send) => {
+        sends.push(send);
+        return queue();
+      },
+    );
+    expect(sends[0]?.channel, mode).toBeInstanceOf(WebPushChannel);
+  }
+});
+
 it('a valid pair outside production binds the real channel', async () => {
   const sends: SendPush[] = [];
   await startPushCapability(options(ENV), async (_redisUrl, send) => {
