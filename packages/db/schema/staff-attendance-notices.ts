@@ -180,6 +180,11 @@ export const attendanceShiftEndingNotices = pgTable(
       t.branchId,
     ),
     index('attendance_shift_ending_notices_branch_idx').on(t.companyId, t.branchId),
+    index('attendance_shift_ending_notices_employee_idx').on(
+      t.companyId,
+      t.businessId,
+      t.employeeId,
+    ),
     check('attendance_shift_ending_notices_recipients', sql`${t.recipientCount} >= 0`),
     check('attendance_shift_ending_notices_span', sql`${t.shiftEndsAt} > ${t.shiftStartsAt}`),
     check(

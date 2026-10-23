@@ -21,7 +21,8 @@ ALTER TABLE "attendance_shift_ending_notices" ADD CONSTRAINT "attendance_shift_e
 ALTER TABLE "attendance_shift_ending_notices" ADD CONSTRAINT "attendance_shift_ending_notices_employee_fk" FOREIGN KEY ("company_id","business_id","employee_id") REFERENCES "public"."employees"("company_id","business_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "attendance_shift_ending_notices" ADD CONSTRAINT "attendance_shift_ending_notices_branch_fk" FOREIGN KEY ("company_id","business_id","branch_id") REFERENCES "public"."branches"("company_id","business_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "attendance_shift_ending_notices_business_branch_idx" ON "attendance_shift_ending_notices" USING btree ("company_id","business_id","branch_id");--> statement-breakpoint
-CREATE INDEX "attendance_shift_ending_notices_branch_idx" ON "attendance_shift_ending_notices" USING btree ("company_id","branch_id");
+CREATE INDEX "attendance_shift_ending_notices_branch_idx" ON "attendance_shift_ending_notices" USING btree ("company_id","branch_id");--> statement-breakpoint
+CREATE INDEX "attendance_shift_ending_notices_employee_idx" ON "attendance_shift_ending_notices" USING btree ("company_id","business_id","employee_id");
 --> statement-breakpoint
 ALTER TABLE attendance_shift_ending_notices ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint

@@ -1,5 +1,5 @@
 {
-  "id": "a05e6e8c-484f-48a7-8c23-23a14d6350af",
+  "id": "d3d1d892-31d3-4cfd-8c0f-bc015684d173",
   "prevId": "b8a0e184-4fa1-4fc6-bc05-73f2a82418bc",
   "version": "7",
   "dialect": "postgresql",
@@ -12625,6 +12625,33 @@
             },
             {
               "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "attendance_shift_ending_notices_employee_idx": {
+          "name": "attendance_shift_ending_notices_employee_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employee_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
