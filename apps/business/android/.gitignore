@@ -52,11 +52,6 @@ captures/
 # Comment next line if keeping position of elements in Navigation Editor is relevant for you
 .idea/navEditor.xml
 
-# Keystore files
-*.jks
-*.keystore
-keystore.properties
-
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild
 .cxx/

@@ -12,7 +12,3 @@ capacitor-cordova-ios-plugins
 App/App/capacitor.config.json
 App/App/config.xml
 
-# Signing files
-*.p12
-*.mobileprovision
-*.cer
