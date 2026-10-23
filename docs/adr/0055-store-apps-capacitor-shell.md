@@ -164,8 +164,12 @@ The ids are reverse-DNS of the domain we own (ADR-0001); they **cannot be change
 why the owners chose them (APP-Q6). `systems.pospay.app` is reserved for the customer app. The display name is
 «PosPay Business» in every language (APP-Q2: Abu Salem's option 1, which binds). An Arabic name «بوس باي للأعمال» on
 phones set to Arabic is Waleed's later pick and Abu Salem's note points the same way, but it is `TODO(spec)` until Abu
-Salem confirms it. One `capacitor.config.ts` serves both flavours: it reads the flavour from a build variable and sets
-the app id, name and Android `server.hostname` from it (M-1a builds it, M-1e fills the names). Version: `apps/business/package.json` `version` (user-visible, semver); build number: the CI run number
+Salem confirms it. The two flavours are **native build variants**, because `cap sync` copies web assets and plugin
+settings but does not rewrite the Android `applicationId` or the Xcode `PRODUCT_BUNDLE_IDENTIFIER`: Android gets two
+`productFlavors` (`staging`, `production`) with their own `applicationId`, and iOS gets two build configurations (or
+`.xcconfig` files) with their own bundle id and display name. `capacitor.config.ts` reads the flavour from a build
+variable only for what Capacitor itself uses (the Android `server.hostname`, plugin settings). M-1a builds the
+variants; M-1e fills the names. Version: `apps/business/package.json` `version` (user-visible, semver); build number: the CI run number
 (monotonic, as both stores require).
 
 ### 5. Signing keys live in CI secrets only
@@ -173,11 +177,14 @@ the app id, name and Android `server.hostname` from it (M-1a builds it, M-1e fil
 - No key, certificate, profile, keystore or store credential is ever committed, written into a Docker image, logged or
   pasted into a document (`CLAUDE.md` §8). The repository holds only the variable names, listed in
   `apps/business/README.md` with empty values.
-- They are **GitHub Actions secrets of the environment `mobile-release`**, whose **deployment-branch policy allows
-  `main` only**, so a workflow on another branch, a `workflow_dispatch` run on a feature branch or a pull request that
-  edits `mobile.yml` cannot receive them; pull-request jobs never see them. Internal builds after a merge need no manual
-  approval. A required reviewer (Waleed) guards a second environment, `store-release`, used only by the public-release
-  lane (MOB-17). Both settings are confirmed in the GitHub environment settings by the sub-PR that writes stage C.
+- They are **GitHub Actions secrets of two environments**, each holding its own copy (a job reads the secrets of one
+  environment only), and both with a **deployment-branch policy that allows `main` only**, so a workflow on another
+  branch, a `workflow_dispatch` run on a feature branch or a pull request that edits `mobile.yml` cannot receive them;
+  pull-request jobs never see them:
+  - `mobile-staging` — no reviewer; the staging-flavour job C1 runs after every merge without waiting.
+  - `mobile-production` — **required reviewer Waleed**; the production-flavour job C2 and the later public release
+    (MOB-17) use it, so nothing signed for production leaves CI without his approval of that run.
+  Both settings are confirmed in the GitHub environment settings by the sub-PR that writes stage C.
 - iOS: an App Store Connect API key (key id, issuer id, `.p8`), the distribution certificate (`.p12` and its password)
   and the provisioning profiles, both flavours. Android: the **upload** key (keystore, its password, alias) and a Google
   Play service-account JSON limited to the two apps. Google Play App Signing keeps the app-signing key at Google, so a
@@ -198,32 +205,39 @@ live in `apps/business/`, so the `apps/business/**` input already covers them.
 | Stage | When | Runner | Needs accounts | Output |
 | --- | --- | --- | --- | --- |
 | A. Android debug + unsigned AAB | PR and `main`, when the app's inputs change | `ubuntu-latest` | No | AAB/APK as a workflow artifact |
-| B. iOS simulator build, no signing | same trigger | `macos-latest` | No | `.app` for the simulator as an artifact |
-| C. Signed release builds + upload | `push` to `main` only, environment `mobile-release` | Ubuntu (Android), macOS (iOS) | Yes (company accounts, APP-Q3 / APP-Q4) | TestFlight internal and Play internal testing, both flavours |
+| B. iOS simulator build, no signing | `push` to `main` when the inputs change; a PR only when it changes `apps/business/**`, `mobile.yml` or a `@capacitor/*` dependency; `workflow_dispatch` | `macos-latest`, behind the guard below | No | `.app` for the simulator as an artifact |
+| C1. Signed **staging** flavour + upload | `push` to `main` when the inputs change | Ubuntu (Android), macOS (iOS) | Yes (company accounts) | TestFlight and Play internal testing, environment `mobile-staging` |
+| C2. Signed **production** flavour + upload | `workflow_dispatch` only, naming the commit deployed to production | Ubuntu (Android), macOS (iOS) | Yes | TestFlight and Play internal testing, environment `mobile-production` (Waleed approves each run) |
 
-- Stages A and B arrive with M-1 and cost nothing in store fees. **Stage C is written only after the company that will
-  own the store accounts is formed and its accounts exist** (APP-Q3: the accounts are in the company's name, the company
-  is still being formed, and Abu Salem is the account holder; APP-Q4: its D-U-N-S number is requested after that). Until
-  then nothing is uploaded and no account is paid for.
+- Stages A and B arrive with M-1 and cost nothing in store fees. **Stages C1 and C2 are written only after the company
+  that will own the store accounts is formed and its accounts exist** (APP-Q3: the accounts are in the company's name,
+  the company is still being formed, and Abu Salem is the account holder; APP-Q4: its D-U-N-S number is requested after
+  that). Until then nothing is uploaded and no account is paid for.
 - The upload tool is **fastlane** (`pilot` for TestFlight, `supply` for Play) at a version pinned in a committed
   `Gemfile.lock`, added in the sub-PR that writes stage C; it is the standard path for both stores and keeps third-party
   GitHub Actions out of the release path (the stance `ci.yml` takes for images). The sub-PR names the version it checked.
 - Before the first stage-C upload, both stores need their app records: an App Store Connect app record per flavour, and
   per flavour a Play Console app with one build uploaded by hand (Play's API refuses uploads to an app with none). The
   account holder creates them (plan step O-2b); no automation creates store records.
-- **Cost (APP-Q8):** stage B stays inside **the free minutes only**: the macOS job runs only on `push` to `main` when the app's inputs change and on a manual
-  dispatch, never on every pull request; a guard job before it reads the month's Actions usage and **skips the macOS
-  job once 80 % of the included minutes are used**, and skips it too when the usage cannot be read (fails closed); the
-  account's Actions budget stays at $0 with usage stopped at the limit (an account setting only Waleed changes); and the
-  first week's usage is reported to Waleed before anything could become billable. Some published pricing says a macOS minute counts as ten
-  included minutes on a private repository; M-1b measures it.
+- **Cost (APP-Q8): free minutes only.** Every job that runs on macOS waits behind a guard job and shares one
+  concurrency group (`mobile-macos`, never cancelled, so two runs cannot both pass the guard on the same reading). The
+  guard needs no secret: with the workflow's own `GITHUB_TOKEN` (`actions: read`) it adds up this month's macOS job
+  minutes in this repository, counts a running job at its full timeout, and skips the macOS job when the total plus the
+  next job's timeout would pass the monthly macOS allowance (80 % of the share of included minutes the first week's
+  measurement supports, written in `mobile.yml` and reported to Waleed). If the count cannot be read it skips (fails
+  closed). The hard backstop is the account: its Actions budget stays at $0 with usage stopped at the limit (plan O-5,
+  a setting only Waleed changes), so a run past the included minutes is blocked rather than charged. Some published
+  pricing says a macOS minute counts as ten included minutes on a private repository; M-1b measures it.
+- **Pre-merge iOS check.** Stage B runs on a pull request only when that PR can break the iOS build (the native project,
+  the workflow or a Capacitor dependency); the orchestrator does not merge such a PR unless stage B passed on its head.
+  Web-only changes are built for iOS after the merge, on `main`.
 - `mobile-gate` starts advisory (not required by branch protection; `ci.yml`'s required `ci-gate` is unchanged); it
   becomes required only when the web manager and Waleed agree, after it has been stable on `main` for a week.
 - **"After every merge"** means every merge to `main` that changes the app's inputs produces a new internal build of
-  the **staging flavour** only (it talks to staging, which is redeployed after every merge). The **production flavour**
-  is built and uploaded only from a commit that has been deployed to the production API, in the same release that Waleed
-  approves with his typed yes, so a production build never calls routes production does not serve yet. A public store
-  release is never automatic either.
+  the **staging flavour** only (C1; it talks to staging, which is redeployed after every merge). The **production
+  flavour** (C2) is built only by a manual run that names a commit already deployed to the production API, and the
+  `mobile-production` environment holds that run until Waleed approves it, so a production build never calls routes
+  production does not serve yet. A public store release is never automatic either.
 
 ### 7. The customer app is decided later
 
@@ -264,8 +278,11 @@ notices keep the PWA installed for them.
   updates. The API must stay compatible with the oldest supported app version, and the app needs a minimum-version check
   (sub-PR M-1f), which must be inside **the first signed build** (M-2a depends on it): a binary without the check can
   never be told to update. The minimum version is not a new API route (`CLAUDE.md` §6 allows no unguarded endpoint): it
-  is a static file served by the POS host and changed by a deploy; M-1f's spec fixes its path and shape. Over-the-air web updates (a hosted live-update service) are out of scope: a new vendor needs its own ADR.
-- Every merge that touches `apps/pos` costs CI minutes on macOS if APP-Q8 keeps the macOS runner; measured in M-1b.
+  is a static file changed by a deploy. On Android the app's own hostname is the POS host, and Capacitor answers that
+  hostname from the bundled assets, so a WebView `fetch` to it never reaches the server: M-1f reads the file through the
+  native HTTP plugin or from a host other than the app's own; its spec fixes the path, host and shape. Over-the-air web
+  updates (a hosted live-update service) are out of scope: a new vendor needs its own ADR.
+- macOS minutes are spent only within APP-Q8's limits (decision 6); measured in M-1b.
 - The auth-transport risk on iOS (decision 3) is the gate of the whole track: if neither cookie path works, the track
   stops at M-1c and the session-transport question goes back to the owners and the web manager.
 - Passkey attendance and native push are not available in the first internal builds; the PWA covers both meanwhile.
