@@ -161,8 +161,6 @@ export const allowCommissionsEngineBackend = () => [
     },
   },
   {
-    // The matcher's `**` does not match zero folders, so a test folder is listed in both the nested and the
-    // direct-child form.
     // ADR-0054 §1 — a commissions use-case test keeps the Arabic-text exemption.
     files: [
       '**/modules/commissions/use-cases/**/__tests__/**',
