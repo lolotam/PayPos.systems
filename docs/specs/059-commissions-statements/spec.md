@@ -507,8 +507,9 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `/ready` is healthy again. The operator fallback clears the flag only after its replay has re-registered every
   company; it never clears a flag after a partial rebuild. The new CS-Q32 ADR before 56b-1 finalises CM-57b and CM-57c.
 - **CM-57b** A company created after the release gets its scheduler from `CompanyCreated`; a company whose Redis schedule
-  was lost gets it back on the next commission input delivery; an existing company gets it from the CS-Q32 rebuild after a Redis loss, and at the first rollout from the one-time
-  operator replay (the replay also stays the fallback).
+  was lost gets it back on the next commission input delivery; an existing company gets it from the CS-Q32 rebuild, at the first rollout too: FR-053 treats a first start
+  with no sentinel like a loss, so the first deploy shows the flag and the alert until that rebuild completes (the
+  operator replay stays only as the fallback).
 - **CM-58** (CS-Q16 = PP-17.4) On the 3rd, in the same 09:00 run as the owner's reminder, if October is still DRAFT one
   `StatementAwaitingReview` reaches the holders of `review:commissions:business` who are business-wide readers; none on
   the 5th; none if it is already REVIEWED or closed.
