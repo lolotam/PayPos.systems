@@ -7,7 +7,17 @@ import { LocaleProvider } from '@/shared/locale/locale-context';
 
 import { StartScreen } from './start-screen';
 
-function mount(locale: 'ar' | 'en', options: { saveFailed?: boolean } = {}) {
+const CHOICE_KEYS = {
+  counter: 'nativeShell.counter',
+  employee: 'nativeShell.employee',
+} as const;
+
+const ALERT_KEYS = {
+  saveFailed: 'nativeShell.saveFailed',
+  needsInternet: 'nativeShell.needsInternet',
+} as const;
+
+function mount(locale: 'ar' | 'en', options: { alert?: 'saveFailed' | 'needsInternet' } = {}) {
   const onChoose = vi.fn();
   render(
     <DirectionProvider dir={locale === 'ar' ? 'rtl' : 'ltr'}>
@@ -31,20 +41,15 @@ describe('StartScreen', () => {
     expect(screen.getByText(t('ar', 'nativeShell.needsInternet'))).not.toBeNull();
   });
 
-  it('reports the counter choice to the caller', () => {
+  it.each(['counter', 'employee'] as const)('reports the %s choice to the caller', (role) => {
     const onChoose = mount('ar');
 
-    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.counter') }));
+    const button = screen.getByRole('button', { name: t('ar', CHOICE_KEYS[role]) });
+    expect(button.hasAttribute('disabled')).toBe(false);
 
-    expect(onChoose).toHaveBeenCalledWith('counter');
-  });
+    fireEvent.click(button);
 
-  it('reports the employee choice to the caller', () => {
-    const onChoose = mount('ar');
-
-    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.employee') }));
-
-    expect(onChoose).toHaveBeenCalledWith('employee');
+    expect(onChoose).toHaveBeenCalledWith(role);
   });
 
   it('shows the English titles and hints in English', () => {
@@ -57,15 +62,18 @@ describe('StartScreen', () => {
     expect(screen.getByText(t('en', 'nativeShell.employeeHint'))).not.toBeNull();
   });
 
-  it('warns on the screen when the choice could not be saved', () => {
-    mount('ar', { saveFailed: true });
+  it.each(['saveFailed', 'needsInternet'] as const)(
+    'shows the %s warning inside the alert',
+    (kind) => {
+      mount('ar', { alert: kind });
 
-    const alert = screen.getByRole('alert');
-    expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
-    expect(screen.getByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
-  });
+      const alert = screen.getByRole('alert');
+      expect(alert.textContent).toContain(t('ar', ALERT_KEYS[kind]));
+      expect(screen.getByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+    },
+  );
 
-  it('shows no save-failure warning by default', () => {
+  it('shows no warning by default', () => {
     mount('ar');
 
     expect(screen.queryByRole('alert')).toBeNull();

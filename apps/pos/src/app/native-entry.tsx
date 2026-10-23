@@ -8,7 +8,9 @@ import { LoadingNotice } from './loading-notice';
 import { StartScreen } from './start-screen';
 
 type NativeState =
-  { kind: 'loading' } | { kind: 'start'; failed: boolean } | { kind: 'flow'; role: DeviceRole };
+  | { kind: 'loading' }
+  | { kind: 'start'; alert?: 'saveFailed' | 'needsInternet' }
+  | { kind: 'flow'; role: DeviceRole };
 
 export function NativeEntry() {
   const [state, setState] = useState<NativeState>({ kind: 'loading' });
@@ -18,11 +20,12 @@ export function NativeEntry() {
     void readDeviceRole().then(
       (stored) => {
         if (cancelled) return;
-        setState(stored ? { kind: 'flow', role: stored } : { kind: 'start', failed: false });
+        setState(stored ? { kind: 'flow', role: stored } : { kind: 'start' });
       },
       () => {
         if (cancelled) return;
-        setState({ kind: 'start', failed: false });
+        // تخزين غير مقروء زي أول تشغيل: المستخدم بيختار تاني، ولو الحفظ فشل يظهر تنبيه الحفظ.
+        setState({ kind: 'start' });
       },
     );
     return () => {
@@ -31,9 +34,15 @@ export function NativeEntry() {
   }, []);
 
   const choose = (role: DeviceRole) => {
+    // من غير نت مفيش حاجة تتحفظ (حالة «أول تشغيل من غير نت» في spec 065): اختيار متحفظ
+    // هيفتح الشاشة اللي مش هتوصل للخادم.
+    if (!navigator.onLine) {
+      setState({ kind: 'start', alert: 'needsInternet' });
+      return;
+    }
     void saveDeviceRole(role).then(
       () => setState({ kind: 'flow', role }),
-      () => setState({ kind: 'start', failed: true }),
+      () => setState({ kind: 'start', alert: 'saveFailed' }),
     );
   };
 
@@ -41,5 +50,7 @@ export function NativeEntry() {
   if (state.kind === 'flow') {
     return state.role === 'counter' ? <DeviceScreen /> : <PersonalScreen />;
   }
-  return <StartScreen onChoose={choose} saveFailed={state.failed} />;
+  const { alert } = state;
+  if (alert === undefined) return <StartScreen onChoose={choose} />;
+  return <StartScreen onChoose={choose} alert={alert} />;
 }

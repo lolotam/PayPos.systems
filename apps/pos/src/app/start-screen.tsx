@@ -9,20 +9,26 @@ import type { DeviceRole } from './device-role';
 
 export function StartScreen({
   onChoose,
-  saveFailed = false,
+  alert,
 }: {
   onChoose: (role: DeviceRole) => void;
-  saveFailed?: boolean;
+  alert?: 'saveFailed' | 'needsInternet';
 }) {
   const locale = useLocale();
+  const alertText =
+    alert === 'saveFailed'
+      ? t(locale, 'nativeShell.saveFailed')
+      : alert === 'needsInternet'
+        ? t(locale, 'nativeShell.needsInternet')
+        : null;
   return (
     <AppFrame brand={t(locale, 'pos.appName')} actions={<LocaleSwitch />}>
       <section className="mx-auto grid w-full max-w-md gap-6">
         <h1 className="text-2xl font-semibold">{t(locale, 'nativeShell.title')}</h1>
         <p className="text-muted-foreground">{t(locale, 'nativeShell.lead')}</p>
-        {saveFailed ? (
+        {alertText ? (
           <p role="alert" className="bg-destructive/10 px-4 py-3 text-center text-destructive">
-            {t(locale, 'nativeShell.saveFailed')}
+            {alertText}
           </p>
         ) : null}
         <div className="grid gap-2">

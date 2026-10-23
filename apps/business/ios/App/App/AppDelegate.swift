@@ -44,13 +44,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 }
 
-// اعتماد الجهاز وبيانات النشاط ما يسافروش مع نسخة iCloud ولا مع نسخة الجهاز: موبايل
-// متنسوخ ما يجيبش معاه اعتماد كاونتر شغّال (spec 065 FR-013).
+// اعتماد الجهاز وبيانات النشاط والكوكيز ما يسافروش مع نسخة iCloud ولا مع نسخة الجهاز:
+// موبايل متنسوخ ما يجيبش معاه اعتماد كاونتر شغّال ولا session cookie (spec 065 FR-013).
 private func excludeAppStorageFromBackup() {
     guard let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first else {
         return
     }
-    for directory in ["WebKit", "Application Support"] {
+    for directory in ["WebKit", "Application Support", "Cookies"] {
         let url = library.appendingPathComponent(directory, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         var resourceValues = URLResourceValues()

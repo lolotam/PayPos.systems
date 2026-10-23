@@ -7,7 +7,7 @@ const flavour = process.env.FLAVOUR === 'production' ? 'production' : 'staging';
 // الـ hostname ده لأندرويد بس: iOS بيقرا server.hostname كمان، ولازم يفضل على
 // capacitor://localhost عشان الـ secure context (ADR-0055 قرار 3). عشان كده مفيش مزامنة
 // غير عن طريق سكربتات apps/business، و«cap sync» لوحده بيسيب أندرويد على الـ host
-// الافتراضي — وده عمره ما ينزل للتخزين.
+// الافتراضي — وده عمره ما ينزل للمتجر.
 const android = process.env.CAP_PLATFORM === 'android';
 
 const server: NonNullable<CapacitorConfig['server']> = { androidScheme: 'https' };

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { readDeviceRole, saveDeviceRole, type DeviceRole } from '@/app/device-role';
 import { LocaleProvider } from '@/shared/locale/locale-context';
@@ -18,6 +18,11 @@ vi.mock('@/app/device-screen', () => ({
 vi.mock('@/personal-staff/ui/personal-screen', () => ({
   PersonalScreen: () => <h2>personal screen</h2>,
 }));
+
+const storedRoles: [DeviceRole, string][] = [
+  ['counter', 'device screen'],
+  ['employee', 'personal screen'],
+];
 
 function mount() {
   render(
@@ -36,6 +41,10 @@ describe('NativeEntry', () => {
     vi.mocked(saveDeviceRole).mockResolvedValue(undefined);
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('shows the start screen when no role is stored yet', async () => {
     mount();
 
@@ -46,19 +55,11 @@ describe('NativeEntry', () => {
     expect(screen.queryByRole('heading', { name: 'personal screen' })).toBeNull();
   });
 
-  it('opens the counter flow directly when the counter role is stored', async () => {
-    vi.mocked(readDeviceRole).mockResolvedValue('counter');
+  it.each(storedRoles)('opens the %s flow directly when the role is stored', async (role, heading) => {
+    vi.mocked(readDeviceRole).mockResolvedValue(role);
     mount();
 
-    expect(await screen.findByRole('heading', { name: 'device screen' })).not.toBeNull();
-    expect(screen.queryByRole('heading', { name: t('ar', 'nativeShell.title') })).toBeNull();
-  });
-
-  it('opens the employee flow directly when the employee role is stored', async () => {
-    vi.mocked(readDeviceRole).mockResolvedValue('employee');
-    mount();
-
-    expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
+    expect(await screen.findByRole('heading', { name: heading })).not.toBeNull();
     expect(screen.queryByRole('heading', { name: t('ar', 'nativeShell.title') })).toBeNull();
   });
 
@@ -71,6 +72,15 @@ describe('NativeEntry', () => {
     expect(saveDeviceRole).toHaveBeenCalledWith('employee');
   });
 
+  it('saves the counter choice and opens the counter flow', async () => {
+    mount();
+
+    fireEvent.click(await screen.findByRole('button', { name: t('ar', 'nativeShell.counter') }));
+
+    expect(await screen.findByRole('heading', { name: 'device screen' })).not.toBeNull();
+    expect(saveDeviceRole).toHaveBeenCalledWith('counter');
+  });
+
   it('keeps the start screen and warns when the choice cannot be saved', async () => {
     vi.mocked(saveDeviceRole).mockRejectedValue(new Error('SYNTHETIC_SAVE_FAILURE'));
     mount();
@@ -80,6 +90,20 @@ describe('NativeEntry', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
     expect(screen.getByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+  });
+
+  it('stores nothing and asks for the internet when the choice is made offline', async () => {
+    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    mount();
+
+    fireEvent.click(await screen.findByRole('button', { name: t('ar', 'nativeShell.employee') }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.needsInternet'));
+    expect(screen.getByRole('heading', { name: t('ar', 'nativeShell.title') })).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: 'device screen' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'personal screen' })).toBeNull();
+    expect(saveDeviceRole).not.toHaveBeenCalled();
   });
 
   it('shows the loading notice while the stored role is being read', () => {
