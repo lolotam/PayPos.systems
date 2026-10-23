@@ -6,7 +6,11 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { FileValidationError } from '../domain/files.ts';
-import { StorageError, type ObjectStorage } from '../object-storage.ts';
+import {
+  StorageError,
+  StorageObjectMissingError,
+  type ObjectStorage,
+} from '../object-storage.ts';
 
 export interface S3Configuration {
   endpoint: string;
@@ -22,9 +26,18 @@ async function safely<T>(work: () => Promise<T>): Promise<T> {
     return await work();
   } catch (error) {
     if (error instanceof FileValidationError) throw error;
+    if (error instanceof StorageObjectMissingError) throw error;
     // أخطاء SDK قد تتضمن المفتاح أو رابطاً موقعاً؛ لا ننقل الرسالة أو cause للـ logger.
     throw new StorageError();
   }
+}
+
+// المفتاح الناقص (404) يعني «مفيش ملف» مش انقطاع؛ أي خطأ تاني يبقى انقطاعاً عادياً.
+function isMissingObject(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const failure = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+  if (failure.name === 'NoSuchKey') return true;
+  return failure.$metadata?.httpStatusCode === 404;
 }
 
 async function bounded(
@@ -87,7 +100,10 @@ export function createS3Storage(configuration: S3Configuration): ObjectStorage {
       ),
     read: (Key, maxBytes) =>
       safely(async () => {
-        const result = await client.send(new GetObjectCommand({ Bucket, Key }));
+        const result = await client.send(new GetObjectCommand({ Bucket, Key })).catch((error: unknown) => {
+          if (isMissingObject(error)) throw new StorageObjectMissingError();
+          throw error;
+        });
         const body = result.Body;
         if (body === undefined) throw new StorageError();
         if (result.ContentLength !== undefined && result.ContentLength > maxBytes) {

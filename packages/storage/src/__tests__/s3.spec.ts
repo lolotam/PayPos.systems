@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import sharp from 'sharp';
 import { createS3Storage } from '../adapters/s3-generic.ts';
 import { inspectContent } from '../inspection.ts';
+import { StorageError, StorageObjectMissingError } from '../object-storage.ts';
 import { fakeCredentials, fakeS3 } from '../../test/fake-s3.ts';
 
 let fake: Awaited<ReturnType<typeof fakeS3>>;
@@ -73,6 +74,15 @@ it('private publication is create-only; GET expiry is 60 seconds and attachment'
   ).toBe(true);
   await storage.remove('verified/one');
   await expect(storage.read('verified/one', 10)).rejects.toThrow('STORAGE_UNAVAILABLE');
+  await expect(storage.read('verified/one', 10)).rejects.toBeInstanceOf(StorageObjectMissingError);
+});
+it('a server failure other than a missing key stays a plain storage error', async () => {
+  await storage.put('verified/twice', Buffer.from('safe'), 'application/pdf');
+  const failure = await storage
+    .put('verified/twice', Buffer.from('changed'), 'application/pdf')
+    .catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(StorageError);
+  expect(failure).not.toBeInstanceOf(StorageObjectMissingError);
 });
 it('detects content instead of headers and fully re-encodes an image without metadata', async () => {
   const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#112233' } })

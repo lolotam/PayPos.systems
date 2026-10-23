@@ -15,6 +15,15 @@ export {
   type PlatformAuditEntry,
 } from './auth-database.ts';
 export { appendAuditLog, appendAuditLogs, type AuditEntry } from './audit-log.ts';
+export {
+  attendanceMonthlyInputsStatement,
+  type AttendanceReportScope,
+} from './attendance-monthly-inputs.ts';
+export { attendanceReportContractsStatement } from './attendance-report-contracts.ts';
+export {
+  businessIdentityReadStatement,
+  readBusinessIdentity,
+} from './business-identity-read.ts';
 export { canonicalJson } from './canonical-json.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
 export { markEventConsumed } from './consumed-events.ts';

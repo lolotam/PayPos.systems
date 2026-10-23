@@ -1,7 +1,7 @@
-import type { Tx } from '@pospay/db';
+import type { StoredBusinessIdentity } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 
-import type { StoredBusinessIdentity } from '../domain/statement-identity.ts';
+import type { Tx } from './with-tenant.ts';
 
 type IdentityRow = {
   official_name_ar: string | null;
@@ -10,6 +10,14 @@ type IdentityRow = {
 };
 
 // نفس جملة القراءة، عشان EXPLAIN يفحص المفتاح مش نسخة تانية من الاستعلام.
+/**
+ * جملة قراءة هوية النشاط: الأسماء الرسمية ومعرف الشعار كما خُزّنت.
+ * الـ api والـ worker يقرآن نفس الجملة، عشان البيان والتقرير لا يختلفا في المصدر.
+ *
+ * @param companyId الشركة
+ * @param businessId النشاط
+ * @returns الجملة الجاهزة للتنفيذ أو لفحص EXPLAIN
+ */
 export function businessIdentityReadStatement(companyId: string, businessId: string) {
   return sql`
     SELECT official_name_ar, official_name_en, logo_file_id
@@ -18,6 +26,15 @@ export function businessIdentityReadStatement(companyId: string, businessId: str
 }
 
 // قراءة البيان ما تنشئش صف: الغياب ثلاثة nulls، وبايتات الشعار مش جزء من الهوية المخزنة.
+/**
+ * يقرأ هوية النشاط المخزنة: الأسماء الرسمية ومعرف الشعار.
+ * الصف الغائب يعطي ثلاث قيم null ولا ينشئ صفاً، وبايتات الشعار ليست جزءاً من الهوية.
+ *
+ * @param tx معاملة الشركة المفتوحة
+ * @param companyId الشركة
+ * @param businessId النشاط
+ * @returns الأسماء الرسمية ومعرف الشعار المخزّن
+ */
 export async function readBusinessIdentity(
   tx: Tx,
   companyId: string,
