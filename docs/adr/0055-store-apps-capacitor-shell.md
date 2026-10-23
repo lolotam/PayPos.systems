@@ -7,8 +7,8 @@ both picked option 1 on 2026-10-23. That record is added by PR #532, **which mer
 this ADR opened: APP-Q2 … APP-Q7 (`docs/specs/065-mob-app-shell/owner-questions.ar.md`, batch 55, PP-39.1 … PP-39.6),
 **answered by both owners on 2026-10-23** (option 1 ⭐ on all six; on APP-Q2 Waleed then moved to option 2 with the
 Arabic name «بوس باي للأعمال»; Abu Salem's option 1 binds, and the Arabic name waits for his confirmation). Still open: the legal name of the company, which
-is still being formed (APP-Q3, `TODO(spec)`), and **APP-Q8** (how the iOS build is tested without a Mac, and at what
-cost; PENDING).
+is still being formed (APP-Q3, `TODO(spec)`), and Abu Salem's pick on **APP-Q8** (batch 56, PP-40.1). Waleed picked
+the GitHub macOS runner with the iOS simulator, inside the free minutes only; that is the plan until Abu Salem picks.
 
 ## Context
 
@@ -119,8 +119,9 @@ Bundled assets change the page origin, and that is the main technical risk of th
   `capacitor://localhost`. **Sub-PR M-1c is a spike against staging** that checks (a) device pairing, (b) a staff PIN
   session and (c) a personal OTP session open and survive a restart, (d) the attendance QR camera opens and reads a
   code, and (e) what passkey attendance does. There is **no Mac** (Waleed, 2026-10-23), and a real iPhone can only get a
-  build through a Mac or a paid Apple account. **How iOS is tested, and what it may cost, is owner question APP-Q8
-  (PENDING); no money is spent without Waleed's yes.** Its recommended answer gives the spike two steps:
+  build through a Mac or a paid Apple account. **How iOS is tested, and what it may cost, is owner question APP-Q8:
+  Waleed picked the GitHub macOS runner with the iOS simulator, free minutes only, and nothing may start charging
+  without his yes** (Abu Salem's pick pending; it binds if it differs). The spike therefore has two steps:
   - **M-1c, no fee:** Android (a)–(e) on a real phone with a side-loaded debug build; iOS (a)–(c) as an automated UI
     test on the iOS simulator of the GitHub macOS runner. The simulator runs the iOS WebKit, so it answers the cookie
     question; it has no camera and no real passkey, so (d) and (e) stay open on iOS.
@@ -205,9 +206,12 @@ result (a path-filtered workflow never reports, so it could never become a requi
 - Before the first stage-C upload, both stores need their app records: an App Store Connect app record per flavour, and
   per flavour a Play Console app with one build uploaded by hand (Play's API refuses uploads to an app with none). The
   account holder creates them (plan step O-2b); no automation creates store records.
-- **Cost:** a macOS runner minute is billed at about ten Linux minutes on a private repository. Stage B therefore runs
-  only when the app's inputs change, and if the minutes become a problem it moves to `main` pushes plus a manual
-  dispatch; the PR body of M-1b reports the measured minutes.
+- **Cost (APP-Q8):** stage B stays inside **the free minutes only**: the macOS job runs only on `push` to `main` when the app's inputs change and on a manual
+  dispatch, never on every pull request; a guard job before it reads the month's Actions usage and **skips the macOS
+  job once 80 % of the included minutes are used**, and skips it too when the usage cannot be read (fails closed); the
+  account's Actions budget stays at $0 with usage stopped at the limit (an account setting only Waleed changes); and the
+  first week's usage is reported to Waleed before anything could become billable. Some published pricing says a macOS minute counts as ten
+  included minutes on a private repository; M-1b measures it.
 - `mobile-gate` starts advisory (not required by branch protection; `ci.yml`'s required `ci-gate` is unchanged); it
   becomes required only when the web manager and Waleed agree, after it has been stable on `main` for a week.
 - **"After every merge"** means every merge to `main` that changes the app's inputs produces a new internal build of
@@ -269,4 +273,4 @@ APP-Q2 display name · APP-Q3 account holder and legal name on the developer acc
 APP-Q5 privacy-policy URL · APP-Q6 bundle ids · APP-Q7 internal testers — answered by both owners on 2026-10-23 and
 recorded verbatim in `docs/specs/065-mob-app-shell/owner-questions.ar.md` (indexed as PP-39 in
 `docs/owner-decisions.ar.md`). Open: Abu Salem's confirmation of the Arabic name (APP-Q2), the company's legal name
-(APP-Q3), and APP-Q8 (how iOS is tested without a Mac, batch 56, PP-40.1, PENDING).
+(APP-Q3), and Abu Salem's pick on APP-Q8 (batch 56, PP-40.1; Waleed picked the GitHub macOS runner, free minutes only).
