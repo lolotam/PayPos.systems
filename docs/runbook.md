@@ -295,5 +295,5 @@ user disabled notifications; the subscription is revoked), `SUBSCRIPTION_CHANGED
 re-subscribed or signed out before the send; no call was made), `KEY_ROTATED`, `DEADLINE_EXPIRED`, `ADMISSION_REFUSED`
 (more than 10 pushes a minute to one subscription), `PROVIDER_4XX` (a 401 or 403 also logs `VAPID_REJECTED`: check the
 key pair), `PROVIDER_429`, `PROVIDER_5XX` and `NETWORK_UNKNOWN` (the outcome is unknown and the notice is never repeated).
-A row stuck in `SENDING` means the worker stopped between taking the send and recording the result; it is never retried.
+A `PushSendAuthorized` event that kept coming back undelivered while push was disabled is parked after the outbox's last attempt (log `outbox event parked`); its attempt stays `PENDING` and the notice is not sent unless an operator replays the event after push is enabled. A row stuck in `SENDING` means the worker stopped between taking the send and recording the result; it is never retried.
 Logs carry the attempt id, the subscription id, the status code and the failure code only.
