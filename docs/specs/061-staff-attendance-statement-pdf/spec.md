@@ -8,7 +8,9 @@
 > **ST-Q6** (how a shift is identified for the shift filter) was answered by Waleed on 2026-10-21 (PP-15.4, through his
 > super agent) with the recommended option: a shift is a start–end pair from the schedule (BR-11). Abu Salem picked the
 > same option on the decisions page (batch 40, 2026-10-21), so the answer is final. Recorded in
-> [owner-questions.ar.md](owner-questions.ar.md). No question is open and no sub-PR waits on an owner answer.
+> [owner-questions.ar.md](owner-questions.ar.md).
+> **ST-Q7** (what the leave column counts under a shift filter) is **PENDING** (`TODO(spec)` in BR-11 and §6.6). Only
+> that column of a shift-filtered branch statement waits on it; everything else in sub-PRs 1–5 does not.
 > **Depends on (all merged):** row 27 ([spec 049](../049-staff-attendance-board-report/spec.md), 27b report and its audit),
 > row 8c ([spec 051](../051-staff-employee-number/spec.md), `employee_number`), row 27h
 > ([spec 052](../052-settings-business-identity/spec.md), official names and logo, 27h-1…27h-5), row 27i
@@ -81,6 +83,8 @@ From [spec 051 owner-questions](../051-staff-employee-number/owner-questions.ar.
   days** on which the employee's scheduled shift at the branch had that pair: days present, worked hours, lateness,
   missing clock-out, manual days and scheduled hours. The contracted hours and the difference print «—» in a filtered
   statement, because they are not tied to a shift. An employee with no day on that pair in the period has no row.
+  `TODO(spec)` ST-Q7: what the leave-by-type column counts in a shift-filtered statement (only leave on dates
+  scheduled on the pair, the whole period, or «—») is open in [owner-questions.ar.md](owner-questions.ar.md) §2.
 
 Carried from earlier decisions (no new rule): the column rules of the 27b report (spec 049 §5: AB-Q3…AB-Q9c, AB-Q11,
 AB-Q12, BW-Q8, ACR-Q18, ACR-Q20, D-32, DH-Q4); `employee_number` on every employee (spec 051, EN-Q1…EN-Q14); a voided
@@ -98,7 +102,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 4. The PDF has `dir="rtl" lang="ar"`, the logo and the Arabic official name, «فرع السالمية», the period, one row per
    employee with any counted session or contracted minutes at the branch in the period, a signature column, the
    manager's signature line and the footer (BR-01, BR-02, BR-04, BR-06).
-5. Each row's figures equal the 27b monthly report row of the same employee, branch and month (parity test).
+5. For a month that ended before the request, each row's figures equal the 27b monthly report row of the same
+   employee, branch and month (parity test). For the current month they cover the dates up to the cutoff (FR-013a).
 6. **Given** سارة always on 09:00–20:00, هبة always on 08:00–16:00 and ريم on 09:00–20:00 on some days and 08:00–16:00 on
    others, **when** the manager filters October by the shift 09:00–20:00, **then** the table has سارة with all her days
    and ريم with her 09:00–20:00 days only; هبة has no row; contracted hours and difference print «—» (BR-11).
@@ -112,7 +117,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    MANUAL session) and the day's worked hours; a date with an uncorrected missed clock-out shows «ناقص بصمة خروج» /
    "Missing clock-out" and adds 0 hours (BR-05); a date with approved leave shows the leave type; a date with a
    scheduled shift and no counted session shows the scheduled times and «لا يوجد حضور مسجّل» / "No attendance
-   recorded"; any other date shows the date only.
+   recorded"; any other date shows the date only. A date after the cutoff (FR-013a) shows the date only, whatever its
+   schedule: never «لا يوجد حضور مسجّل».
 3. The totals under the table are the 27b columns for that employee and period, then her signature line and the
    manager's (BR-04).
 
@@ -234,7 +240,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   module's own transaction and step (ADR-0056 §3), then fills the template from `packages/documents` (ADR-0056 §4). The
   two calls are sequential, never nested.
 - **FR-011** The `staff` data reader (`readAttendanceStatement(companyId, renderId, signal)`, exported by
-  `apps/worker/src/modules/staff/index.ts`) runs one `withTenant(companyId, …, { userId: requested_by })` transaction that
+  `apps/worker/src/modules/staff/index.ts`) runs one read-only `withTenant(companyId, …)` transaction, with no `userId`
+  option because `requested_by` is known only once the request row is read and nothing in it is written, that
   reads the request row, the business and branch names, the employees with `employee_number`, the period inputs through
   the shared 27b inputs statement (ADR-0056 §2), the employee's OPEN sessions in the period for the employee form
   (FR-011a) and the stored identity (ADR-0056 §2), and never calls `files`. It commits, then computes the figures with
@@ -255,7 +262,15 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   breakdown for the employee form, plus the BR-11 day selection: the working dates whose schedule shift at the branch,
   in branch-local time, starts and ends at the pair; on such a date the counted sessions are those the 27b rules
   attribute to the matching shift (on a split-shift day, the other shift's sessions are left out). Each has exhaustive
-  unit tests, including a parity test that a full calendar month with no shift filter gives the 27b row.
+  unit tests, including a parity test that a full calendar month that ends on or before the cutoff (FR-013a), with no
+  shift filter, gives the 27b row.
+- **FR-013a** Future dates. The cutoff is the branch-local date of the request row's `requested_at` (the branch time
+  zone, or the business's when the branch has none, as in Story 3.4). Every figure, both forms' totals, the branch
+  rows, the BR-11 day selection and who has a row (Story 1.4, Story 3.3), is computed over `from` to the earlier of `to`
+  and the cutoff. A date after the cutoff adds no scheduled, contracted or worked minutes, no lateness and no «لا يوجد
+  حضور مسجّل», and the employee form prints it as the date only (Story 2.2). A period that starts after the cutoff
+  therefore counts nothing: Story 3.3 refuses the employee form, and the branch table has no row. This is what Story
+  3.4's «its future dates show the date only» already says; it adds no new rule.
 - **FR-014** The template's input is a Zod schema in `packages/contracts` (`attendanceStatementDocument`). The source
   builds it, after the two calls of FR-010, from the reader's `statement` (FR-011) and the `readStatementLogo` result
   encoded as `logo: { content_type, base64 }`, or `logo: null` when `logoFileId` is `null` or the logo reader returned
@@ -344,6 +359,7 @@ actor and time. `shift` is `{ start, end }` or `null`.
 **Header (both):** logo or none, header name (`statementIdentity(language, …)`, spec 052 BR-11), branch name in that
 language, the period. Employee form adds the employee's name and `employee_number`. Branch form adds the applied filter
 (one employee, and the shift pair, BR-11). A shift-filtered table prints «—» for contracted hours and difference.
+`TODO(spec)` ST-Q7: the leave-by-type column of a shift-filtered table waits on the owner answer (BR-11).
 
 **Branch table:** `employee_number`, name, days present, worked hours, scheduled hours, contracted hours, difference,
 leave by type, late count and minutes, missing clock-out count, manual days (the 27b columns, spec 049 §5), «التوقيع».
@@ -388,7 +404,9 @@ factory. The code PRs add the two port rows.
   edges, AB-Q11 leave at every branch, AB-Q12 deletion; day-by-day rows (sessions, MISSED_OUT with and without
   correction, MANUAL, OPEN, overnight, leave, scheduled with no session); BR-11 shift-day selection (one pair, a
   split-shift day, an overnight shift, a pair that matches nothing, «—» for contracted and difference); parity with 27b
-  for full months with no filter.
+  for full months that end on or before the cutoff, with no filter; the FR-013a cutoff with a fixed date: October 2026
+  with the cutoff 2026-10-23 counts 1–23 October only, and 24–31 October add no scheduled or contracted minutes and
+  print the date only, even on a scheduled date.
 - **Contracts:** request body (forms, `employee_id` rule, `strictObject`), status reply, the template data schema.
 - **API integration (T2 Postgres, one cloned DB per file, ADR-0006):** 202 and the request row; every refusal of
   Story 3 including `403` without the permission, `404` cross-tenant/other-user/other-branch, and `404` for a business A
@@ -405,7 +423,9 @@ factory. The code PRs add the two port rows.
 - **Worker:** the source against the T2 Redis with a fake renderer: data read, `readStatementLogo` (file check +
   access audit in its own transaction) as `pospay_app`, the `staff` reader writing nothing in `files`, a retry after the logo was replaced embeds the recorded file and adds no row, a request made with no
   logo stays name-only after a logo is bound, logo fetch outside
-  the transaction, missing request row fails, no figure or HTML in a log line; one end-to-end run with the real
+  the transaction, missing request row fails, no figure or HTML in a log line; the FR-013a cutoff with a fixed clock
+  for an `Asia/Kuwait` branch: a request row with `requested_at` 2026-10-23T20:59Z has the cutoff 23 October, one with
+  2026-10-23T21:00Z has 24 October; one end-to-end run with the real
   renderer that checks `%PDF-`, `dir`/`lang`, and the escaped employee names.
 - **Template:** escaping of names with `<script>`, quotes and `&`; no external URL; signature places and footer present
   in both languages.
@@ -415,14 +435,15 @@ factory. The code PRs add the two port rows.
 ## 8. Success criteria
 
 - A pilot branch (30 employees) month statement is `READY` within 10 seconds of the request on staging.
-- The branch statement figures equal the 27b report for the same month in every column.
+- For a month that ended before the request, the branch statement figures equal the 27b report for the same month in
+  every column.
 - Every delivered PDF has exactly one audit entry; no PDF byte exists anywhere after collection or 120 seconds.
 
 ## 9. Delivery: the sub-PR split
 
 | # | PR | Content |
 |---|---|---|
-| 0 | docs (this PR) | spec 061, ADR-0056, owner question ST-Q6 (answered) |
+| 0 | docs (this PR) | spec 061, ADR-0056, owner questions ST-Q6 (answered) and ST-Q7 (pending) |
 | 1 | shared reads + logo reader | move the identity read statement to `@pospay/db` and `statementIdentity` to `packages/domain` (settings re-exports both, no behaviour change); move the 27b inputs statement to `@pospay/db` (27b unchanged, its EXPLAIN and shape tests follow it); worker `files` `readStatementLogo` with its own transaction and the once-per-render access audit (ADR-0056 §2–§3) |
 | 2 | schema, contracts, domain | migration + RLS + negative test for `attendance_statement_requests` (with the shift columns); contracts (request body, status, `attendanceStatementDocument`); `packages/domain` period, day-by-day and BR-11 shift-day functions with unit tests |
 | 3 | worker | worker `staff` `readAttendanceStatement` and the OPEN-sessions query (FR-011a); template; source (staff reader, then `files` `readStatementLogo`) and its registration in `main.ts` |
@@ -431,7 +452,8 @@ factory. The code PRs add the two port rows.
 
 The worker source (3) ships **before** the API that admits requests (4), so every request the API accepts has a
 registered `attendance-statement` source; until 4 is deployed nothing enqueues that kind. ST-Q6 is answered, so the
-shift filter is no longer a separate PR waiting on the owner: it is built in 2–5 with the rest. Each code sub-PR passes
+shift filter is no longer a separate PR waiting on the owner: it is built in 2–5 with the rest, except the leave
+column under a shift filter, which no sub-PR builds before ST-Q7 is answered. Each code sub-PR passes
 the gates of `CLAUDE.md` §10 before merge.
 
 ## 10. Assumptions
