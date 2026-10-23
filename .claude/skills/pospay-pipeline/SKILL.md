@@ -542,7 +542,8 @@ https://pos.staging.pospay.systems, on the server's shared Postgres and Redis. W
 
 The environment must hold the ADR-0001 hosts, which the CI staging builds bake in: `STAGING_HOST=api.staging.pospay.systems`,
 `ADMIN_STAGING_HOST=app.staging.pospay.systems`, `POS_STAGING_HOST=pos.staging.pospay.systems`,
-`COOKIE_DOMAIN=.staging.pospay.systems`, and `AUTH_TRUSTED_ORIGINS` either unset or exactly the app and pos origins. A
+`COOKIE_DOMAIN=.staging.pospay.systems`, `STAFF_OTP_POS_ORIGIN=https://pos.staging.pospay.systems` (staff PIN sign-in on the
+cashier refuses every request without it, even with OTP off), and `AUTH_TRUSTED_ORIGINS` either unset or exactly the app and pos origins. A
 legacy value (`staging.pospay.systems`, an older origin list) is replaced, never kept; all three hosts have DNS A
 records to the server (2026-10-23).
 
