@@ -1,14 +1,15 @@
 # MOB M-1 — the «PosPay Business» app shell, built for iOS and Android in CI
 
 Track `MOB` (roadmap MOB-14 … MOB-19). Decision record: `docs/adr/0055-store-apps-capacitor-shell.md` (Proposed).
-Owner questions: [owner-questions.ar.md](owner-questions.ar.md) (APP-Q2 … APP-Q7, PENDING). Spec number 065 is
+Owner questions: [owner-questions.ar.md](owner-questions.ar.md) (APP-Q2 … APP-Q7, batch 55, PP-39.1 … PP-39.6,
+PENDING). This PR merges after PR #532, which records APP-Q1. Spec number 065 is
 provisional (061 is claimed by open PR #439) and is renumbered at merge, like the ADR number.
 
 ## Goal of M-1
 
 At the end of M-1, every merge to `main` that touches the app's inputs produces an Android build and an iOS simulator
 build of «PosPay Business» as CI artifacts, from the same `apps/pos` code the PWA runs, and the auth risk of ADR-0055
-decision 3 is answered with evidence. **M-1 pays nothing and creates no store account.** Signed builds and TestFlight /
+decision 3 is answered with evidence from a real iPhone and a real Android phone. **M-1 pays nothing and creates no store account.** Signed builds and TestFlight /
 Play internal uploads are M-2, gated on Abu Salem's APP-Q1 pick and on APP-Q3 … APP-Q6.
 
 ## Rules that hold for every sub-PR
@@ -30,10 +31,11 @@ Play internal uploads are M-2, gated on Abu Salem's APP-Q1 pick and on APP-Q3 �
 
 | # | Title | Main files | Depends on | Done when |
 | --- | --- | --- | --- | --- |
-| M-1a | Shell scaffold and native build mode | new `apps/business/` (`package.json`, `capacitor.config.ts`, generated `ios/`, `android/`, `README.md` with the secret names, empty values); `apps/pos/vite.config.ts` (`native` mode → `dist-native`, no service-worker registration); `turbo.json` task for `@pospay/pos#build:native`; ignores in `.dockerignore`, `.prettierignore`, ESLint; `CLAUDE.md` §2.1 line for `apps/business` | ADR-0055 merged | `pnpm turbo run build` on Linux stays green and does **not** need Xcode or the Android SDK; `cap sync` copies `dist-native` into both projects; the web PWA build output is byte-for-byte unchanged in behaviour (service worker still registered on the web) |
-| M-1b | `mobile.yml` stages A and B | new `.github/workflows/mobile.yml`: Android debug APK + unsigned AAB on `ubuntu-latest`, iOS simulator build without signing on `macos-latest`, path filter `apps/pos/**`, `apps/business/**`, `packages/**`, the workflow itself; artifacts kept 14 days; advisory (not required) | M-1a | Both jobs green on the PR and on `main`; the PR body reports the measured macOS minutes per run; no secret is referenced |
-| O-1 | Staging origins (operations) | Dokploy env of `pospay-staging`: add the app origins to `AUTH_TRUSTED_ORIGINS` and the API CORS list — `https://pos.staging.pospay.systems` is already there (Android); add `capacitor://pos.staging.pospay.systems` (iOS) | M-1a (origins known) | Web manager confirms the change; staging still serves the PWA unchanged |
-| M-1c | Auth spike and its record | the debug builds of M-1b; a short results section appended to this plan; if needed, `capacitor.config.ts` plugin config for `CapacitorHttp` / `CapacitorCookies` and `WKAppBoundDomains` in `ios/App/App/Info.plist` | M-1b, O-1 | Recorded, per platform, against staging with a seeded test company: (a) device pairing, (b) staff PIN session, (c) personal OTP session — each opens and survives an app restart; (d) what passkey attendance does. Android on a real phone (side-loaded debug APK); iOS on the simulator of the macOS runner, and on a real iPhone once M-2 gives TestFlight. **If iOS (b) or (c) fails with both cookie paths, the track stops here** and ADR-0055's last fallback goes to the owners and the web manager as a new ADR addendum |
+| M-1·0 | Slice spec | `docs/specs/065-mob-app-shell/spec.md` through `/speckit-specify` (docs-only): requirements, edge cases and acceptance criteria for the shell, the native start screen («this counter device» / «my employee account», remembered on the phone; today the personal screens are reachable only at `/personal`, `apps/pos/src/app/app.tsx`), offline cold start, the auth and camera checks of M-1c, what is hidden on native (M-1d), and tests; any new owner question goes to the orchestrator first | ADR-0055 merged | Spec merged; no production code starts before it (`CLAUDE.md` §1) |
+| M-1a | Shell scaffold, native build mode and start screen | new `apps/business/` (`package.json`, `capacitor.config.ts`, generated `ios/`, `android/`, `README.md` with the secret names, empty values); `apps/pos/vite.config.ts` (`native` mode → `dist-native`, no service-worker registration); `turbo.json` task for `@pospay/pos#build:native`; ignores in `.dockerignore`, `.prettierignore`, ESLint; `CLAUDE.md` §2.1 line for `apps/business`; the native start screen of the spec in `apps/pos/src/app/` | M-1·0 | `pnpm turbo run build` on Linux stays green and does **not** need Xcode or the Android SDK; `cap sync` copies `dist-native` into both projects; the web PWA build output is byte-for-byte unchanged in behaviour (service worker still registered on the web); the native build opens on the start screen and both choices reach their flow; UI tests assert what is on screen |
+| M-1b | `mobile.yml` stages A and B | new `.github/workflows/mobile.yml`: Android debug APK + unsigned AAB on `ubuntu-latest`, iOS simulator build without signing on `macos-latest`; a `changes` job (inputs: `apps/pos/**`, `apps/business/**`, `packages/**`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, root `package.json`, `turbo.json`, `.nvmrc`, the workflow) and an always-present `mobile-gate`, the `ci.yml` pattern, no workflow-level `paths`; artifacts kept 14 days; `mobile-gate` advisory (not required) | M-1a | Both jobs green on the PR and on `main`; the PR body reports the measured macOS minutes per run; no secret is referenced |
+| O-1 | Staging origins (operations) | Dokploy env of `pospay-staging`: add the app origins to `AUTH_TRUSTED_ORIGINS` and the API CORS list — `https://pos.staging.pospay.systems` is already there (Android); add `capacitor://localhost` (iOS, ADR-0055 decision 3) | M-1a (origins known) | Web manager confirms the change; staging still serves the PWA unchanged |
+| M-1c | Auth spike and its record | the debug builds of M-1b; a short results section appended to this plan; if needed, `capacitor.config.ts` plugin config for `CapacitorHttp` / `CapacitorCookies` and `WKAppBoundDomains` in `ios/App/App/Info.plist` | M-1b, O-1 | Recorded, per platform, against staging with a seeded test company: (a) device pairing, (b) staff PIN session, (c) personal OTP session — each opens and survives an app restart; (d) the attendance QR camera opens and reads a code; (e) what passkey attendance does. **On real devices only:** Android a side-loaded debug APK; iOS a development build installed with Xcode's free personal-team signing on a Mac (no fee, no store account; the profile lasts 7 days). A simulator run may come first but does not close M-1c. **Every later row (M-1d onward) and every M-2 step, including any store fee, waits for this result.** If iOS (b) or (c) fails with both cookie paths, the track stops here and ADR-0055's last fallback goes to the owners and the web manager as a new ADR addendum; if (d) fails, a native camera plugin behind the M-1d port is added before attendance is enabled in the app |
 | M-1d | Native capability ports in `apps/pos` | `apps/pos/src/shared/platform/` (one port: `isNativeShell()` and the capabilities it reports); the Web Push control (spec 063) and passkey attendance read it and hide on native; UI tests assert the hidden state on screen, not a mock call (`CLAUDE.md` §9) | M-1c | The PWA behaves exactly as before; in the native build the two controls are absent and a short line tells the employee to use the PWA for them; `pnpm check` green |
 | M-1e | App identity | `apps/business`: display names, icons and splash for both flavours (staging badge on the staging icon), RTL default, Arabic first; app id per flavour from APP-Q6 | M-1a, **APP-Q2 and APP-Q6 answered** | Both flavours install side by side on one Android phone; the names and ids match the recorded answers |
 | M-1f | Minimum supported app version | spec of its own first (a small public read route in the API plus a blocking "please update" screen in `apps/pos` native mode) | M-1d | Its own spec, ADR note and owner questions if any; listed here so the store lag of ADR-0055 is not forgotten |
@@ -45,17 +47,26 @@ Starts only when **Abu Salem confirms APP-Q1** and **APP-Q3 … APP-Q6 are answe
 1. **O-2 (owners):** the account holder enrols in the Apple Developer Program and creates the Google Play developer
    account, in the name recorded in APP-Q3 (D-U-N-S from APP-Q4 for an organisation account), and publishes the privacy
    policy at the URL of APP-Q5.
-2. **O-3 (owners):** the account holder creates, on their own machine, the App Store Connect API key, the distribution
+2. **O-2b (owners):** the account holder creates the store records before any automated upload: an App Store Connect
+   app record per flavour, and per flavour a Play Console app with its first build uploaded by hand (the stage-A AAB
+   signed with the upload key), because Play's API refuses uploads to an app that has none.
+3. **O-3 (owners):** the account holder creates, on their own machine, the App Store Connect API key, the distribution
    certificate and profiles, the Android upload keystore and the Play service account, and stores them as secrets of the
    GitHub environment `mobile-release` (required reviewer: Waleed). No agent sees or handles the values.
-3. **O-4 (web manager / Waleed):** serve `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json`
+4. **O-4 (web manager / Waleed):** serve `/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json`
    from the relying party's host (`pospay.systems`; `staging.pospay.systems` for the staging flavour), and agree the
    `packages/auth` change that lets the iOS origin use passkeys (an ADR-0027 addendum, issue #536; ADR-0055 decision 3).
-4. **M-2a:** `mobile.yml` stage C — fastlane (`Gemfile.lock` pinned) builds and signs both flavours on `push` to `main`
-   and uploads them to TestFlight internal and Play internal testing; the testers are the list of APP-Q7.
-5. **M-2b:** passkey attendance in the app once O-4 is green (re-enables what M-1d hid).
+5. **M-2a:** `mobile.yml` stage C — fastlane (`Gemfile.lock` pinned) builds and signs both flavours on `push` to `main`
+   and uploads them to TestFlight and Play internal testing; the testers are the list of APP-Q7. TestFlight **internal**
+   testers must be App Store Connect users of the account, so only the owners go there; salon employees go to a
+   TestFlight **external** group, whose first build passes Apple's beta review. Play internal testing takes plain e-mail
+   addresses.
+6. **M-2b:** passkey attendance in the app once O-4 is green (re-enables what M-1d hid).
 
-Public store release (MOB-17) is a separate step after M-2 and needs Waleed's typed yes, like a production deploy.
+Public store release (MOB-17) is a separate step after M-2 and needs Waleed's typed yes, like a production deploy. If
+the Play account is a **personal** account (APP-Q3, option 2), Google requires a closed test with at least 12 testers
+opted in for 14 days in a row before production access; internal testing does not count. MOB-17 then starts with that
+closed test.
 
 ## Later rows of the track
 
@@ -70,6 +81,7 @@ Public store release (MOB-17) is a separate step after M-2 and needs Waleed's ty
 | --- | --- |
 | iOS `capacitor://` origin drops the `SameSite=Lax` session cookies | M-1c (spike), fallback order in ADR-0055 decision 3 |
 | Passkeys inside the WebView | M-1c records it; M-2b with O-4 |
-| A real iPhone needs signing, so the iOS spike first runs on the simulator | Rechecked on a real iPhone in M-2a's first TestFlight build |
+| A real-iPhone test needs a Mac with Xcode (free signing) before any account is paid for | M-1c; if no Mac is available the track waits and the owners are told, rather than paying for an account to get TestFlight first |
+| The camera scanner needs a secure context in the WebView | M-1c (d); native camera plugin as fallback |
 | macOS runner minutes | Measured in M-1b; moves to `main`-only plus manual dispatch if too high |
 | Installed apps lag behind the server | M-1f |

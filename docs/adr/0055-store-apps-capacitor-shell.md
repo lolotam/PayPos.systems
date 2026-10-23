@@ -3,8 +3,9 @@
 Status: Proposed (track MOB, sub-PR M-0; number provisional, renumbered at merge).
 Date: 2026-10-23. Scope: roadmap track `MOB` (MOB-14 … MOB-19), first deliverable «PosPay Business». Owner decision it
 rests on: APP-Q1 (`docs/owner-decisions.ar.md` §22, PP-38.1, batch 54) — Waleed picked two store apps on 2026-10-23;
-**Abu Salem's pick is PENDING and binds if it differs**. Owner questions this ADR opens: APP-Q2 … APP-Q7
-(`docs/specs/065-mob-app-shell/owner-questions.ar.md`, PENDING).
+**Abu Salem's pick is PENDING and binds if it differs**. That record is added by PR #532, **which merges before this
+ADR**. Owner questions this ADR opens: APP-Q2 … APP-Q7 (`docs/specs/065-mob-app-shell/owner-questions.ar.md`, batch 55,
+PP-39.1 … PP-39.6, PENDING); every value below that depends on them is marked `TODO(spec)` with its question.
 
 ## Context
 
@@ -81,6 +82,10 @@ apps/business/
   (frontend folders by business, `CLAUDE.md` §7), so the PWA and the app cannot drift. `apps/pos` gains a second Vite
   build mode, `native`, whose output (`dist-native`) skips the service-worker registration (service workers do not run
   on the app's custom scheme and are not needed: the assets are inside the app) and sets a build flag the ports read.
+- **The native build needs its own start screen.** The PWA reaches the employee's personal screens only at the path
+  `/personal` (`apps/pos/src/app/app.tsx`), and a store app always cold-starts at `/`, which today is device pairing. The
+  native mode therefore opens on a choice between «this counter device» (pairing, cashier) and «my employee account»
+  (personal OTP), remembered on the phone; the slice spec defines it and M-1a builds it.
 - Why not `apps/pos/ios` and `apps/pos/android`: the native projects would enter `apps/pos`'s Docker build context,
   ESLint, Prettier, `max-lines` and Vite watch, and every web change would rebuild them. A separate app keeps the web
   image and the web gates untouched; Turbo builds `@pospay/pos` first because `apps/business` depends on it.
@@ -97,14 +102,21 @@ wrapper in the App Store's eyes, and it would let a server change alter a review
 Bundled assets change the page origin, and that is the main technical risk of this ADR (context item 3):
 
 - **Android** can serve the bundle as `https://<pos host>` (`server.androidScheme: 'https'`, `server.hostname`), the same
-  origin as the PWA, so the existing cookies, `AUTH_TRUSTED_ORIGINS` and the passkey relying party should keep working.
-- **iOS** cannot: `WKWebView` reserves `http` and `https`, so the origin is `capacitor://<pos host>`. Whether WebKit sends
-  a `SameSite=Lax` cookie of `https://api.pospay.systems` to a `fetch` from that origin is **not verified** and is
-  presumed not to.
-- **Decision:** set `server.hostname` to the environment's POS host on both platforms, and make **sub-PR M-1a a spike
-  that proves, on a real iPhone and a real Android phone against staging**, that (a) device pairing, (b) a staff PIN
-  session and (c) a personal OTP session open and survive a restart, and (d) records what passkey attendance does. M-1
-  continues only on a green spike. If iOS fails (c) or (b), the fallback, in this order, is:
+  origin as the PWA, so the existing cookies, `AUTH_TRUSTED_ORIGINS` and the passkey relying party should keep working,
+  and the page stays a secure context.
+- **iOS** cannot: `WKWebView` reserves `http` and `https`, so the origin is `capacitor://<host>`. A custom host would
+  not make the API's `SameSite=Lax` cookies same-site anyway (the scheme differs), and Capacitor recommends keeping
+  `localhost` on iOS because secure-context APIs such as `MediaDevices.getUserMedia`, which the attendance QR scanner
+  uses (`apps/pos/src/personal-staff/api/use-attendance-camera.ts`), may otherwise be unavailable. So iOS keeps the
+  default origin **`capacitor://localhost`**. Whether WebKit sends a cookie of `https://api.pospay.systems` to a `fetch`
+  from that origin is **not verified** and is presumed not to.
+- **Decision:** Android sets `server.hostname` to the environment's POS host with the `https` scheme; iOS keeps
+  `capacitor://localhost`. **Sub-PR M-1c is a spike that proves, on a real iPhone and a real Android phone against
+  staging**, that (a) device pairing, (b) a staff PIN session and (c) a personal OTP session open and survive a restart,
+  (d) the attendance QR camera opens and reads a code, and (e) records what passkey attendance does. A simulator run is
+  useful but does not close the spike. **Every later row of the track, and any store fee, waits for a green spike on
+  both real devices.** If (d) fails, the scanner moves to a native camera plugin behind the M-1d port before attendance
+  is enabled in the app. If iOS fails (c) or (b), the fallback, in this order, is:
   1. Capacitor's native HTTP and cookie plugins (`CapacitorHttp`, `CapacitorCookies`) with the API hosts listed in
      `WKAppBoundDomains`, so session requests leave through the native stack with the native cookie store;
   2. only if that fails, a native-only session transport (the session token held in the iOS Keychain / Android
@@ -128,8 +140,8 @@ its own installable app that can sit next to the other on one phone:
 
 | Flavour | Proposed bundle id / application id (APP-Q6) | Talks to | Distribution |
 | --- | --- | --- | --- |
-| staging | `systems.pospay.business.staging` | `api.staging.pospay.systems` | TestFlight internal + Play internal testing, after every merge |
-| production | `systems.pospay.business` | `api.pospay.systems` | TestFlight + Play internal first; store release only on Waleed's typed yes |
+| staging | `systems.pospay.business.staging` — `TODO(spec)` APP-Q6 | `api.staging.pospay.systems` | TestFlight internal + Play internal testing, after every merge |
+| production | `systems.pospay.business` — `TODO(spec)` APP-Q6 | `api.pospay.systems` | TestFlight + Play internal first; store release only on Waleed's typed yes |
 
 The ids are reverse-DNS of the domain we own (ADR-0001). They **cannot be changed after the first upload**, so they are
 an owner question (APP-Q6) and nothing is uploaded before it is answered. The display names (APP-Q2) are owner
@@ -152,11 +164,16 @@ questions too. Version: `apps/business/package.json` `version` (user-visible, se
 
 ### 6. CI builds and distribution after every merge
 
-A **separate workflow** `.github/workflows/mobile.yml`, so `ci.yml` and its required `ci-gate` are untouched:
+A **separate workflow** `.github/workflows/mobile.yml`, so `ci.yml` and its required `ci-gate` are untouched. It
+copies `ci.yml`'s pattern rather than a workflow-level `paths` filter: it always runs, a first `changes` job decides
+whether the app's inputs changed, the build jobs run only then, and an always-present `mobile-gate` job reports the
+result (a path-filtered workflow never reports, so it could never become a required check). The app's inputs are
+`apps/pos/**`, `apps/business/**`, `packages/**`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, the root `package.json`,
+`turbo.json`, `.nvmrc` and `mobile.yml` itself.
 
 | Stage | When | Runner | Needs accounts | Output |
 | --- | --- | --- | --- | --- |
-| A. Android debug + unsigned AAB | PR and `main`, when `apps/pos/**`, `apps/business/**`, `packages/**` or the workflow change | `ubuntu-latest` | No | AAB/APK as a workflow artifact |
+| A. Android debug + unsigned AAB | PR and `main`, when the app's inputs change | `ubuntu-latest` | No | AAB/APK as a workflow artifact |
 | B. iOS simulator build, no signing | same trigger | `macos-latest` | No | `.app` for the simulator as an artifact |
 | C. Signed release builds + upload | `push` to `main` only, environment `mobile-release` | Ubuntu (Android), macOS (iOS) | Yes (APP-Q3 … APP-Q6) | TestFlight internal and Play internal testing, both flavours |
 
@@ -165,12 +182,14 @@ A **separate workflow** `.github/workflows/mobile.yml`, so `ci.yml` and its requ
 - The upload tool is **fastlane** (`pilot` for TestFlight, `supply` for Play) at a version pinned in a committed
   `Gemfile.lock`, added in the sub-PR that writes stage C; it is the standard path for both stores and keeps third-party
   GitHub Actions out of the release path (the stance `ci.yml` takes for images). The sub-PR names the version it checked.
+- Before the first stage-C upload, both stores need their app records: an App Store Connect app record per flavour, and
+  per flavour a Play Console app with one build uploaded by hand (Play's API refuses uploads to an app with none). The
+  account holder creates them (plan step O-2b); no automation creates store records.
 - **Cost:** a macOS runner minute is billed at about ten Linux minutes on a private repository. Stage B therefore runs
-  only on the path filter above, and if the minutes become a problem it moves to `main` pushes plus a manual dispatch;
-  the PR body of M-1d reports the measured minutes.
-- The `mobile` workflow's jobs start advisory (not required by branch protection; `ci.yml`'s required `ci-gate` is
-  unchanged); `mobile` becomes required only when the web manager and Waleed agree, after it has been stable on `main`
-  for a week.
+  only when the app's inputs change, and if the minutes become a problem it moves to `main` pushes plus a manual
+  dispatch; the PR body of M-1b reports the measured minutes.
+- `mobile-gate` starts advisory (not required by branch protection; `ci.yml`'s required `ci-gate` is unchanged); it
+  becomes required only when the web manager and Waleed agree, after it has been stable on `main` for a week.
 - **"After every merge"** means every merge to `main` that changes the app's inputs produces a new internal build of
   both flavours. A public store release is never automatic: it needs Waleed's typed yes, like a production deploy.
 
