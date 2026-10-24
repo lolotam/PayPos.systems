@@ -321,8 +321,11 @@ app only from M-2 on; until then the employee connects through the «عندي ل
 ### Permissions
 
 No new permission string. Device pairing keeps the manager approval it has today; staff and personal sessions keep
-ADR-0019 and ADR-0027. Phone-level permissions the app asks for: the camera (QR attendance, Android, when used) and,
-on iOS, nothing else in M-1.
+ADR-0019 and ADR-0027. Phone-level permissions the app asks for: only the camera, for the connect-screen QR scan
+and QR attendance, asked the first time either is used. On Android it is the `CAMERA` permission. On iOS the camera
+stays off until M-1c-ii, so M-1 asks for nothing there; the build that M-1c-ii checks adds an `NSCameraUsageDescription`
+string (Arabic and English) to `Info.plist`, without which iOS refuses camera access, and the permission prompt and
+the denied path of the edge cases are then part of the M-1c-ii checks.
 
 ### Events
 
