@@ -12,6 +12,7 @@ interface ForeignSignOutOptions {
 /**
  * بيدير محاولات إنهاء الجلسة الغريبة بمهلة محددة، عشان الموظفة ما تفضلش على
  * شاشة تحميل من غير زر، وأي رد متأخر أو جاي من محاولة أقدم ما يغيّرش النتيجة.
+ * والتنبيه الجديد اللي يلاقي running محفوظة بيعاملها كفشل بدل انتظار رد مش هيستلمه.
  */
 export function useForeignSignOut({
   sessionKey,
@@ -49,10 +50,15 @@ export function useForeignSignOut({
   }, []);
 
   useEffect(() => {
-    if (outcome !== undefined || started.current) return;
+    if (started.current) return;
     started.current = true;
-    begin(false);
-  }, [begin, outcome]);
+    if (outcome === 'running') {
+      // running المحفوظة معناها رد محاولة قديمة مابقاش يوصل ونفس الجلسة لسه موجودة، فبتحسب فشل (#603).
+      onOutcome(sessionKey, 'failed');
+    } else if (outcome === undefined) {
+      begin(false);
+    }
+  }, [begin, outcome, onOutcome, sessionKey]);
 
   useEffect(() => {
     if (attempt === 0) return;

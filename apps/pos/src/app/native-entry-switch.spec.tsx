@@ -191,6 +191,25 @@ describe('NativeEntry business switch that does not happen', () => {
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
   });
 
+  it('drops the panel when a newer link names the business already open', async () => {
+    await mountWithPanel();
+
+    await act(async () => {
+      opened.listener?.(link(HOST, BUSINESS));
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText(t('ar', 'nativeShell.switchBusinessConfirm'))).toBeNull();
+    });
+    expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
+    expect(endPersonalSession).not.toHaveBeenCalled();
+    expect(rememberBusiness).not.toHaveBeenCalled();
+  });
+});
+
+describe('NativeEntry cancelling a switch that did not happen', () => {
+  beforeEach(prepare);
+
   it.each([
     { alertKey: 'nativeShell.roleChangeFailed', refused: true },
     { alertKey: 'nativeShell.roleChangeOffline', refused: false },
@@ -222,21 +241,6 @@ describe('NativeEntry business switch that does not happen', () => {
     expect(screen.getByRole('alert').textContent).toContain(t('ar', 'nativeShell.saveFailed'));
     expect(screen.queryByText(t('ar', 'nativeShell.switchBusinessConfirm'))).toBeNull();
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
-  });
-
-  it('drops the panel when a newer link names the business already open', async () => {
-    await mountWithPanel();
-
-    await act(async () => {
-      opened.listener?.(link(HOST, BUSINESS));
-    });
-
-    await waitFor(() => {
-      expect(screen.queryByText(t('ar', 'nativeShell.switchBusinessConfirm'))).toBeNull();
-    });
-    expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
-    expect(endPersonalSession).not.toHaveBeenCalled();
-    expect(rememberBusiness).not.toHaveBeenCalled();
   });
 });
 

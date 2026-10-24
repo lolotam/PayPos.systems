@@ -23,7 +23,7 @@ function mount(initialOutcome: 'running' | 'failed' | undefined) {
         onOutcome(key, next);
         setOutcome(next);
       },
-      [onOutcome],
+      [],
     );
     return <ForeignSessionNotice sessionKey={KEY} outcome={outcome} onOutcome={report} />;
   }
@@ -44,7 +44,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('ForeignSessionNotice', () => {
+describe('ForeignSessionNotice initial outcomes', () => {
   it('ends the session once when it mounts for a session nobody tried yet', async () => {
     const { onOutcome } = mount(undefined);
 
@@ -62,6 +62,19 @@ describe('ForeignSessionNotice', () => {
     expect(endPersonalSession).not.toHaveBeenCalled();
   });
 
+  it('fails a stored running attempt without signing out again', async () => {
+    mount('running');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.roleChangeFailed'));
+    expect(
+      screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }).hasAttribute('disabled'),
+    ).toBe(false);
+    expect(endPersonalSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('ForeignSessionNotice retry', () => {
   it('ends the session again when the employee asks and locks the button while it runs', async () => {
     let release!: (result: 'done' | 'failed') => void;
     vi.mocked(endPersonalSession).mockImplementation(
@@ -89,6 +102,33 @@ describe('ForeignSessionNotice', () => {
     ).toBe(false);
   });
 
+  it('unlocks retry after a retry also never answers for ten seconds', async () => {
+    vi.useFakeTimers();
+    vi.mocked(endPersonalSession).mockReturnValue(
+      new Promise<'done' | 'failed'>(() => undefined),
+    );
+    mount('failed');
+
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }));
+    expect(
+      screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }).hasAttribute('disabled'),
+    ).toBe(true);
+    expect(screen.getByRole('alert')).not.toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(FOREIGN_SIGN_OUT_WAIT_MS);
+    });
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      t('ar', 'nativeShell.roleChangeFailed'),
+    );
+    expect(
+      screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }).hasAttribute('disabled'),
+    ).toBe(false);
+  });
+});
+
+describe('ForeignSessionNotice ten-second wait', () => {
   it('shows an enabled retry after a sign-out never answers for ten seconds', async () => {
     vi.useFakeTimers();
     vi.mocked(endPersonalSession).mockReturnValue(
@@ -133,7 +173,9 @@ describe('ForeignSessionNotice', () => {
       screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }).hasAttribute('disabled'),
     ).toBe(false);
   });
+});
 
+describe('ForeignSessionNotice late answers', () => {
   it('ignores a successful answer that arrives after the wait', async () => {
     vi.useFakeTimers();
     let release!: (result: 'done' | 'failed') => void;
@@ -159,31 +201,6 @@ describe('ForeignSessionNotice', () => {
       t('ar', 'nativeShell.roleChangeFailed'),
     );
     expect(screen.queryByRole('status')).toBeNull();
-    expect(
-      screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }).hasAttribute('disabled'),
-    ).toBe(false);
-  });
-
-  it('unlocks retry after a retry also never answers for ten seconds', async () => {
-    vi.useFakeTimers();
-    vi.mocked(endPersonalSession).mockReturnValue(
-      new Promise<'done' | 'failed'>(() => undefined),
-    );
-    mount('failed');
-
-    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }));
-    expect(
-      screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }).hasAttribute('disabled'),
-    ).toBe(true);
-    expect(screen.getByRole('alert')).not.toBeNull();
-
-    await act(async () => {
-      vi.advanceTimersByTime(FOREIGN_SIGN_OUT_WAIT_MS);
-    });
-
-    expect(screen.getByRole('alert').textContent).toContain(
-      t('ar', 'nativeShell.roleChangeFailed'),
-    );
     expect(
       screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }).hasAttribute('disabled'),
     ).toBe(false);
