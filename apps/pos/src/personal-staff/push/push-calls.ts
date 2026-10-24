@@ -54,15 +54,48 @@ export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+/**
+ * طلب بحدّ زمني وبإشارة إلغاء: لو الوقت عدّى، الطلب بيتملغ وبيرفض (ADR-0052 §7).
+ *
+ * @param run الطلب اللي بياخد الإشارة
+ * @param ms  المهلة بالميلي ثانية
+ * @returns نتيجة الطلب
+ */
+export function withAbortTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  ms: number,
+): Promise<T> {
+  const controller = new AbortController();
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      controller.abort();
+      reject(new PushApiError('PUSH_TIMEOUT'));
+    }, ms);
+    run(controller.signal).then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (cause: unknown) => {
+        window.clearTimeout(timer);
+        reject(cause);
+      },
+    );
+  });
+}
+
 export const pushCalls = {
-  config: async (): Promise<PushConfigResult> => {
-    const result = await client().GET('/v1/staff/push/config');
+  config: async (signal?: AbortSignal): Promise<PushConfigResult> => {
+    const result = await client().GET(
+      '/v1/staff/push/config',
+      signal === undefined ? {} : { signal },
+    );
     if (result.data !== undefined) return { kind: 'ready', config: result.data };
     const code = errorCode(result.error);
     if (code === 'NOT_READY' || result.response.status === 503) return { kind: 'not-ready' };
     throw new PushApiError(code ?? 'PUSH_CONFIG_REFUSED');
   },
-  register: async (input: PushSubscriptionInput): Promise<void> => {
+  register: async (input: PushSubscriptionInput, signal?: AbortSignal): Promise<void> => {
     // الحقل الاختياري في العقد بيسمح بـ undefined، لكن جسم الطلب المولّد ما بيقبلش غير
     // رقم أو null، فبنبعته null بدل ما نسيبه (exactOptionalPropertyTypes).
     const body = {
@@ -72,15 +105,21 @@ export const pushCalls = {
         expirationTime: input.subscription.expirationTime ?? null,
       },
     };
-    const result = await client().PUT('/v1/staff/push/subscription', { body });
+    const result = await client().PUT('/v1/staff/push/subscription', {
+      body,
+      ...(signal === undefined ? {} : { signal }),
+    });
     if (result.response.ok) return;
     const code = errorCode(result.error);
     if (code === 'PUSH_KEY_STALE') throw new PushKeyStaleError();
     throw new PushApiError(code ?? 'PUSH_SUBSCRIPTION_REFUSED');
   },
-  revoke: async (installationId: string): Promise<void> => {
+  revoke: async (installationId: string, signal?: AbortSignal): Promise<void> => {
     const body: PushRevokeInput = { installation_id: installationId };
-    const result = await client().POST('/v1/staff/push/subscription/revoke', { body });
+    const result = await client().POST('/v1/staff/push/subscription/revoke', {
+      body,
+      ...(signal === undefined ? {} : { signal }),
+    });
     if (result.response.ok) return;
     throw new PushApiError(errorCode(result.error) ?? 'PUSH_REVOKE_REFUSED');
   },

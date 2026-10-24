@@ -1,10 +1,13 @@
-import type { PushRecord, PushRecordStore } from './push-record';
+import type { PushRecord, PushRecordStore, PushWriteOptions } from './push-record';
 
 // داتابيز مستقلة عن داتابيز التطبيق: السجل ده بيشتغل مع التطبيق ومع الـ service worker،
 // ومالهوش علاقة بمسح الكاش الخاص اللي بيعمله مسار الدخول الشخصي (ADR-0027، ADR-0052 §7).
+// جيل السجل متخزن هنا كمان: كل التبويبات بتشارك نفس IndexedDB، فالتسجيل في تبويب تاني
+// لازم يوقف الكتابة في التبويب ده (ADR-0052 §7).
 const DATABASE_NAME = 'pospay-push';
 const STORE_NAME = 'record';
 const RECORD_KEY = 'current';
+const GENERATION_KEY = 'generation';
 const DATABASE_VERSION = 1;
 
 function unavailable(): Error {
@@ -55,7 +58,74 @@ function runTransaction<T>(
   );
 }
 
-/** سجل الإشعارات المحلي على IndexedDB: داتابيز واحدة ومخزن واحد ومفتاح واحد ثابت. */
+function readGeneration(result: number | undefined): number {
+  return typeof result === 'number' ? result : 0;
+}
+
+/** بيكسر جيل السجل: القراءة والزيادة والكتابة في transaction واحد، فالتسجيلات ما تتزاحمش. */
+function bumpGeneration(): Promise<number> {
+  return openDatabase().then(
+    (database) =>
+      new Promise<number>((resolve, reject) => {
+        const transaction = database.transaction(STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.get(GENERATION_KEY) as IDBRequest<number | undefined>;
+        let next = 0;
+        request.onsuccess = () => {
+          next = readGeneration(request.result) + 1;
+          store.put(next, GENERATION_KEY);
+        };
+        transaction.oncomplete = () => {
+          database.close();
+          resolve(next);
+        };
+        transaction.onabort = () => {
+          database.close();
+          reject(transaction.error ?? unavailable());
+        };
+      }),
+  );
+}
+
+/**
+ * بيكتب السجل بس لو جيله زي ما هو، والقراءة والكتابة في transaction واحد.
+ * ولو السجل المحفوظ معلّق، السجل الجديد يفضل معلّق إلا لو الطلب قال صريح إن التعليق يتشال.
+ */
+function writeIfGeneration(
+  record: PushRecord,
+  expected: number,
+  options: PushWriteOptions,
+): Promise<boolean> {
+  return openDatabase().then(
+    (database) =>
+      new Promise<boolean>((resolve, reject) => {
+        const transaction = database.transaction(STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const generationRequest = store.get(GENERATION_KEY) as IDBRequest<number | undefined>;
+        let written = false;
+        generationRequest.onsuccess = () => {
+          if (readGeneration(generationRequest.result) !== expected) return;
+          const recordRequest = store.get(RECORD_KEY) as IDBRequest<PushRecord | undefined>;
+          recordRequest.onsuccess = () => {
+            const stored = recordRequest.result;
+            const suspended = stored?.suspended === true && options.clearSuspension !== true;
+            store.put(suspended ? { ...record, suspended: true } : record, RECORD_KEY);
+            written = true;
+          };
+        };
+        transaction.oncomplete = () => {
+          database.close();
+          resolve(written);
+        };
+        transaction.onabort = () => {
+          database.close();
+          reject(transaction.error ?? unavailable());
+        };
+      }),
+  );
+}
+
+/** سجل الإشعارات المحلي على IndexedDB: داتابيز واحدة ومخزن واحد ومفتاحين ثابتين. */
 export const pushRecordStore: PushRecordStore = {
   read: async () => {
     const stored = await runTransaction<PushRecord | undefined>('readonly', (store) =>
@@ -69,4 +139,13 @@ export const pushRecordStore: PushRecordStore = {
   remove: async () => {
     await runTransaction('readwrite', (store) => store.delete(RECORD_KEY));
   },
+  generation: async () => {
+    const stored = await runTransaction<number | undefined>('readonly', (store) =>
+      store.get(GENERATION_KEY),
+    );
+    return readGeneration(stored);
+  },
+  bumpGeneration: async () => bumpGeneration(),
+  writeIfGeneration: async (record: PushRecord, expected: number, options?: PushWriteOptions) =>
+    writeIfGeneration(record, expected, options ?? {}),
 };

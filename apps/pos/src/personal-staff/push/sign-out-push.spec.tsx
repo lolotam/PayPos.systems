@@ -14,6 +14,7 @@ const fakes = vi.hoisted(() => {
     removed: 0,
     unsubscribed: 0,
     revokeAttempts: 0,
+    generation: 0,
   };
   return { state };
 });
@@ -57,6 +58,12 @@ vi.mock('./push-record-idb', () => ({
     remove: async () => {
       fakes.state.removed += 1;
     },
+    generation: async () => fakes.state.generation,
+    bumpGeneration: async () => {
+      fakes.state.generation += 1;
+      return fakes.state.generation;
+    },
+    writeIfGeneration: async () => true,
   },
 }));
 vi.mock('./push-calls', () => ({
@@ -69,6 +76,8 @@ vi.mock('./push-calls', () => ({
     }),
   },
   withTimeout: <T,>(promise: Promise<T>) => promise,
+  withAbortTimeout: <T,>(run: (signal: AbortSignal) => Promise<T>) =>
+    run(new AbortController().signal),
 }));
 
 let onlineSpy: { mockRestore(): void } | null = null;
@@ -86,6 +95,7 @@ beforeEach(() => {
   fakes.state.removed = 0;
   fakes.state.unsubscribed = 0;
   fakes.state.revokeAttempts = 0;
+  fakes.state.generation = 0;
   vi.mocked(personalCalls.session).mockResolvedValue(session);
   vi.mocked(personalCalls.signOut).mockResolvedValue(undefined);
 });

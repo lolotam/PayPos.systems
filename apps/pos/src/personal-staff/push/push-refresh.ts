@@ -6,11 +6,11 @@ import {
   currentSubscription,
   notificationPermission,
   pushSubscriptionBody,
-  subscribePush,
+  subscribeWithDeadline,
   unsubscribePush,
 } from './push-browser';
-import { pushCalls, withTimeout } from './push-calls';
-import { currentPushGeneration, runPushExclusive } from './push-lock';
+import { pushCalls, withAbortTimeout } from './push-calls';
+import { runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
@@ -42,7 +42,7 @@ export interface PushRefreshInput {
  */
 export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshOutcome> {
   return runPushExclusive(async (): Promise<PushRefreshOutcome> => {
-    const generation = currentPushGeneration();
+    const generation = await pushRecordStore.generation();
     const record = await pushRecordStore.read().catch(() => null);
     if (record === null) return { kind: 'none' };
     if (record.company_id !== input.companyId) return { kind: 'none' };
@@ -66,14 +66,18 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
       await revoke(input.installationId);
       return { kind: 'cleared' };
     }
-    await withTimeout(
-      pushCalls.register({
-        installation_id: input.installationId,
-        vapid_key_id: live.vapid_key_id,
-        delivery_token: live.token,
-        subscription: pushSubscriptionBody(subscription),
-        locale: input.locale,
-      }),
+    await withAbortTimeout(
+      (signal) =>
+        pushCalls.register(
+          {
+            installation_id: input.installationId,
+            vapid_key_id: live.vapid_key_id,
+            delivery_token: live.token,
+            subscription: pushSubscriptionBody(subscription),
+            locale: input.locale,
+          },
+          signal,
+        ),
       API_TIMEOUT_MS,
     );
     return { kind: 'refreshed' };
@@ -84,14 +88,16 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
  * سجل معلّق بعد فحص توقيع فاشل: نفس مرجع المشترك بيرجّعه قايم (ADR-0052 §7).
  *
  * @param record السجل المعلّق
- * @param generation جيل الشغل وقت ما بدأ
+ * @param generation جيل السجل وقت ما الشغل بدأ
  * @returns السجل بعد الرجوع، أو null لما الجيل يتغير
  */
 async function resume(record: PushRecord, generation: number): Promise<PushRecord | null> {
-  if (generation !== currentPushGeneration()) return null;
   const live = { ...record, suspended: false };
   try {
-    await pushRecordStore.write(live);
+    const written = await pushRecordStore.writeIfGeneration(live, generation, {
+      clearSuspension: true,
+    });
+    if (!written) return null;
   } catch {
     return null;
   }
@@ -109,24 +115,28 @@ async function rotate(
   // الجديد بيتعمل بالمفتاح الجديد — وده مش متعلق بالسطر عند الـ API (ADR-0052 §2).
   const existing = await currentSubscription();
   if (existing !== null) await unsubscribePush();
-  const subscription = await withTimeout(
-    subscribePush(base64UrlToBytes(input.config.vapid_public_key)),
+  const subscription = await subscribeWithDeadline(
+    base64UrlToBytes(input.config.vapid_public_key),
     SUBSCRIBE_TIMEOUT_MS,
-  ).catch(() => null);
+  );
   if (subscription === null) {
     await removeRecord();
     return { kind: 'cleared' };
   }
   const token = crypto.randomUUID();
   try {
-    await withTimeout(
-      pushCalls.register({
-        installation_id: installationId,
-        vapid_key_id: input.config.vapid_key_id,
-        delivery_token: token,
-        subscription: pushSubscriptionBody(subscription),
-        locale: input.locale,
-      }),
+    await withAbortTimeout(
+      (signal) =>
+        pushCalls.register(
+          {
+            installation_id: installationId,
+            vapid_key_id: input.config.vapid_key_id,
+            delivery_token: token,
+            subscription: pushSubscriptionBody(subscription),
+            locale: input.locale,
+          },
+          signal,
+        ),
       API_TIMEOUT_MS,
     );
   } catch {
@@ -134,21 +144,23 @@ async function rotate(
     await removeRecord();
     return { kind: 'cleared' };
   }
-  if (generation !== currentPushGeneration()) {
-    await unsubscribePush().catch(() => undefined);
-    await removeRecord();
-    return { kind: 'cleared' };
-  }
+  let written = false;
   try {
-    await pushRecordStore.write({
-      token,
-      subscriber_ref: record.subscriber_ref,
-      company_id: record.company_id,
-      vapid_key_id: input.config.vapid_key_id,
-      suspended: false,
-    });
+    written = await pushRecordStore.writeIfGeneration(
+      {
+        token,
+        subscriber_ref: record.subscriber_ref,
+        company_id: record.company_id,
+        vapid_key_id: input.config.vapid_key_id,
+        suspended: false,
+      },
+      generation,
+    );
   } catch {
-    // السيرفر ماسك توكن من غير سجل محلي: من غيره الـ service worker مش هيلاقيه أبداً.
+    written = false;
+  }
+  if (!written) {
+    // جيل تاني غيّر السجل: الاشتراك الجديد بيتشال والسطر عند الـ API بيراجع (ADR-0052 §7).
     await unsubscribePush().catch(() => undefined);
     await revoke(installationId);
     await removeRecord();
@@ -165,7 +177,7 @@ async function removeRecord(): Promise<void> {
 
 async function revoke(installationId: string): Promise<void> {
   try {
-    await withTimeout(pushCalls.revoke(installationId), REVOKE_TIMEOUT_MS);
+    await withAbortTimeout((signal) => pushCalls.revoke(installationId, signal), REVOKE_TIMEOUT_MS);
   } catch {
     // المراجعة على السيرفر أفضل effort: السجل المحلي اتمسح والزر بيعرض مقفول.
   }

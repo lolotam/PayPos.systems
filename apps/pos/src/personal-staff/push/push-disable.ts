@@ -1,7 +1,7 @@
 import { attendanceInstallationId } from '../model/installation-id';
 import { unsubscribePush } from './push-browser';
-import { pushCalls, withTimeout } from './push-calls';
-import { bumpPushGeneration, runPushExclusive } from './push-lock';
+import { pushCalls, withAbortTimeout, withTimeout } from './push-calls';
+import { runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 
@@ -17,6 +17,8 @@ const SIGN_OUT_RECORD_TIMEOUT_MS = 2000;
  */
 export async function disablePush(installationId: string | null): Promise<void> {
   await runPushExclusive(async () => {
+    // إيقاف الإشعارات بيكسر الجيل: أي تسجيل شغال في تبويب تاني بيمسك نفسه (ADR-0052 §7).
+    await pushRecordStore.bumpGeneration().catch(() => undefined);
     try {
       await pushRecordStore.remove();
     } catch {
@@ -30,7 +32,10 @@ export async function disablePush(installationId: string | null): Promise<void> 
     }
     if (installationId === null) return;
     try {
-      await withTimeout(pushCalls.revoke(installationId), REVOKE_TIMEOUT_MS);
+      await withAbortTimeout(
+        (signal) => pushCalls.revoke(installationId, signal),
+        REVOKE_TIMEOUT_MS,
+      );
     } catch {
       // المراجعة على السيرفر أفضل effort: الزر يبقى مقفول والسجل اتمسح.
     }
@@ -49,7 +54,7 @@ export async function disablePushOnSignOut(): Promise<void> {
     // من غير معرف تثبيت مفيش مراجعة عند الـ API، بس السجل المحلي بينمسح.
   }
   // التوكين بينمسح بره القفل: لو شغل تاني ماسك القفل على طلب واقف، الخروج يفضل ماشي.
-  bumpPushGeneration();
+  await pushRecordStore.bumpGeneration().catch(() => undefined);
   try {
     await withTimeout(pushRecordStore.remove(), SIGN_OUT_RECORD_TIMEOUT_MS);
     notifyPushRecordChanged();

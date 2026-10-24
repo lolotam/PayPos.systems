@@ -12,6 +12,7 @@ const fakes = vi.hoisted(() => {
     record: null as PushRecord | null,
     writes: [] as PushRecord[],
     writeFails: false,
+    generation: 0,
     removed: 0,
     subscribed: false,
     unsubscribed: 0,
@@ -46,6 +47,22 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.removed += 1;
       fakes.state.record = null;
     },
+    generation: async () => fakes.state.generation,
+    bumpGeneration: async () => {
+      fakes.state.generation += 1;
+      return fakes.state.generation;
+    },
+    writeIfGeneration: async (
+      record: PushRecord,
+      expected: number,
+      options?: { clearSuspension?: boolean },
+    ) => {
+      if (fakes.state.generation !== expected) return false;
+      const suspended = fakes.state.record?.suspended === true && options?.clearSuspension !== true;
+      fakes.state.record = suspended ? { ...record, suspended: true } : record;
+      fakes.state.writes.push(fakes.state.record);
+      return true;
+    },
   },
 }));
 
@@ -76,6 +93,19 @@ vi.mock('./push-browser', () => ({
       }),
     };
   },
+  subscribeWithDeadline: async (key: Uint8Array<ArrayBuffer>) => {
+    fakes.state.subscribedWithKey = Array.from(key);
+    fakes.state.subscribed = true;
+    return {
+      endpoint: 'https://fcm.googleapis.com/fcm/send/rotated',
+      unsubscribe: async () => true,
+      toJSON: () => ({
+        endpoint: 'https://fcm.googleapis.com/fcm/send/rotated',
+        expirationTime: null,
+        keys: { p256dh: 'q'.repeat(87), auth: 'b'.repeat(22) },
+      }),
+    };
+  },
   unsubscribePush: async () => {
     fakes.state.unsubscribed += 1;
     fakes.state.subscribed = false;
@@ -92,6 +122,8 @@ vi.mock('./push-browser', () => ({
 vi.mock('./push-calls', () => ({
   pushCalls: { config: vi.fn(), register: vi.fn(), revoke: vi.fn() },
   withTimeout: <T>(promise: Promise<T>) => promise,
+  withAbortTimeout: <T>(run: (signal: AbortSignal) => Promise<T>) =>
+    run(new AbortController().signal),
 }));
 
 beforeEach(() => {
@@ -99,6 +131,7 @@ beforeEach(() => {
   fakes.state.record = { ...RECORD };
   fakes.state.writes = [];
   fakes.state.writeFails = false;
+  fakes.state.generation = 0;
   fakes.state.removed = 0;
   fakes.state.subscribed = true;
   fakes.state.unsubscribed = 0;

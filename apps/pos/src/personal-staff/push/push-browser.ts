@@ -84,6 +84,30 @@ export async function unsubscribePush(): Promise<boolean> {
   return subscription.unsubscribe();
 }
 
+/**
+ * اشتراك بيتعمل من غير ما ينفع تلغيه: لو الوقت عدّى، الاشتراك اللي يوصل متأخر بيتشال
+ * عشان ما يفضلش في المتصفح من غير حد يطلبه (ADR-0052 §7).
+ *
+ * @param applicationServerKey المفتاح العام
+ * @param ms المهلة بالميلي ثانية
+ * @returns الاشتراك أو null
+ */
+export async function subscribeWithDeadline(
+  applicationServerKey: Uint8Array<ArrayBuffer>,
+  ms: number,
+): Promise<PushSubscriptionLike | null> {
+  const pending = subscribePush(applicationServerKey);
+  let timer = 0;
+  const deadline = new Promise<null>((resolve) => {
+    timer = window.setTimeout(() => resolve(null), ms);
+  });
+  const subscription = await Promise.race([pending, deadline]);
+  window.clearTimeout(timer);
+  if (subscription !== null) return subscription;
+  void pending.then((late) => late.unsubscribe()).catch(() => undefined);
+  return null;
+}
+
 /** جسم الاشتراك اللي بيروح للـ API: من غير قيم ناقصة، لأن الـ API بيرفض طول المفتاح الغلط. */
 export function pushSubscriptionBody(subscription: PushSubscriptionLike): {
   endpoint: string;

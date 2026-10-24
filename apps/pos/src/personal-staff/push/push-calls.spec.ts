@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { PushSubscriptionInput } from '@pospay/contracts';
 
-import { pushCalls } from './push-calls';
+import { pushCalls, withAbortTimeout } from './push-calls';
 
 const INSTALLATION = '12345678-1234-4234-8234-123456789abc';
 
@@ -78,4 +78,16 @@ it('refuses a registration made under a key the server no longer serves', async 
   fetcher.mockResolvedValue(json({ code: 'PUSH_KEY_STALE', message_ar: '', message_en: '' }, 409));
 
   await expect(pushCalls.register(subscription)).rejects.toThrow('PUSH_KEY_STALE');
+});
+
+it('aborts the request when the time is up', async () => {
+  const holder: { signal: AbortSignal | null } = { signal: null };
+
+  const pending = withAbortTimeout((signal) => {
+    holder.signal = signal;
+    return new Promise<void>(() => undefined);
+  }, 10);
+
+  await expect(pending).rejects.toThrow('PUSH_TIMEOUT');
+  expect(holder.signal?.aborted).toBe(true);
 });

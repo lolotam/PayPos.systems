@@ -7,12 +7,12 @@ import {
   notificationPermission,
   pushSubscriptionBody,
   requestNotificationPermission,
-  subscribePush,
+  subscribeWithDeadline,
   unsubscribePush,
   type PushSubscriptionLike,
 } from './push-browser';
-import { PushKeyStaleError, pushCalls, withTimeout } from './push-calls';
-import { currentPushGeneration, runPushExclusive } from './push-lock';
+import { PushKeyStaleError, pushCalls, withAbortTimeout } from './push-calls';
+import { runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
@@ -43,15 +43,12 @@ async function subscribeWithConfig(
   // عشان الشركة اللي آخر مرة هي اللي تستلم (WP-Q4).
   const existing = await currentSubscription();
   if (existing !== null || previous !== null) await unsubscribePush();
-  try {
-    return await withTimeout(
-      subscribePush(base64UrlToBytes(config.vapid_public_key)),
-      SUBSCRIBE_TIMEOUT_MS,
-    );
-  } catch {
-    await unsubscribePush().catch(() => undefined);
-    return null;
-  }
+  const subscription = await subscribeWithDeadline(
+    base64UrlToBytes(config.vapid_public_key),
+    SUBSCRIBE_TIMEOUT_MS,
+  );
+  if (subscription === null) await unsubscribePush().catch(() => undefined);
+  return subscription;
 }
 
 /**
@@ -70,18 +67,19 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
     if (asked !== 'granted') return { kind: 'blocked' };
   }
   return runPushExclusive(async (): Promise<PushEnableOutcome> => {
-    const generation = currentPushGeneration();
-    // القراءة من جوه القفل: لو شغل تاني غيّر السجل، إحنا بنشوف النسخة الجديدة.
+    // الجيل بيتقرا من IndexedDB عشان كل التبويبات تشوف نفس الرقم (ADR-0052 §7).
+    const generation = await pushRecordStore.generation();
     const previous = await pushRecordStore.read().catch(() => null);
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const config = await withTimeout(pushCalls.config(), API_TIMEOUT_MS);
+      const config = await withAbortTimeout((signal) => pushCalls.config(signal), API_TIMEOUT_MS);
       if (config.kind === 'not-ready') return { kind: 'not-ready' };
       const subscription = await subscribeWithConfig(config.config, previous);
       if (subscription === null) return { kind: 'failed' };
       const token = crypto.randomUUID();
       try {
-        await withTimeout(
-          pushCalls.register(registerBody(input, config.config, subscription, token)),
+        await withAbortTimeout(
+          (signal) =>
+            pushCalls.register(registerBody(input, config.config, subscription, token), signal),
           API_TIMEOUT_MS,
         );
       } catch (cause) {
@@ -90,23 +88,25 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
         if (cause instanceof PushKeyStaleError && attempt === 0) continue;
         return { kind: 'failed' };
       }
-      // الخروج أو جيل تاني كسر الشغل ده: السجل ما يتكتبش، والتوكن الجديد بيتشال.
-      if (generation !== currentPushGeneration()) {
-        await unsubscribePush().catch(() => undefined);
-        return { kind: 'failed' };
-      }
       // السجل بيتكتب بعد ما الـ API يقبل، والزر يعرف التوكن الجديد قبل ما يتغيّر السجل.
       input.onRegistered(token);
+      let written = false;
       try {
-        await pushRecordStore.write({
-          token,
-          subscriber_ref: config.config.subscriber_ref,
-          company_id: input.companyId,
-          vapid_key_id: config.config.vapid_key_id,
-          suspended: false,
-        });
+        written = await pushRecordStore.writeIfGeneration(
+          {
+            token,
+            subscriber_ref: config.config.subscriber_ref,
+            company_id: input.companyId,
+            vapid_key_id: config.config.vapid_key_id,
+            suspended: false,
+          },
+          generation,
+        );
       } catch {
-        // السيرفر ماسك توكن من غير سجل محلي: من غيره الـ service worker مش هيلاقيه أبداً.
+        written = false;
+      }
+      if (!written) {
+        // جيل تاني غيّر السجل: التوكين الجديد بيتشال والسطر عند الـ API بيراجع.
         await unsubscribePush().catch(() => undefined);
         await revoke(input.installationId);
         return { kind: 'failed' };
@@ -120,7 +120,7 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
 
 async function revoke(installationId: string): Promise<void> {
   try {
-    await withTimeout(pushCalls.revoke(installationId), REVOKE_TIMEOUT_MS);
+    await withAbortTimeout((signal) => pushCalls.revoke(installationId, signal), REVOKE_TIMEOUT_MS);
   } catch {
     // المراجعة على السيرفر أفضل effort: السجل مش هيتكتب، فالتوكن مش هيلاقي حد.
   }

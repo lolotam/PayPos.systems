@@ -13,6 +13,7 @@ const fakes = vi.hoisted(() => {
     unsubscribed: 0,
     writesBeforeConfig: 0,
     writeFails: false,
+    generation: 0,
   };
   return { state };
 });
@@ -43,6 +44,22 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.removed += 1;
       fakes.state.record = null;
     },
+    generation: async () => fakes.state.generation,
+    bumpGeneration: async () => {
+      fakes.state.generation += 1;
+      return fakes.state.generation;
+    },
+    writeIfGeneration: async (
+      record: PushRecord,
+      expected: number,
+      options?: { clearSuspension?: boolean },
+    ) => {
+      if (fakes.state.generation !== expected) return false;
+      const suspended = fakes.state.record?.suspended === true && options?.clearSuspension !== true;
+      fakes.state.record = suspended ? { ...record, suspended: true } : record;
+      fakes.state.writes.push(fakes.state.record);
+      return true;
+    },
   },
 }));
 
@@ -56,6 +73,8 @@ vi.mock('./push-browser', () => ({
 vi.mock('./push-calls', () => ({
   pushCalls: { config: vi.fn(), register: vi.fn(), revoke: vi.fn() },
   withTimeout: <T>(promise: Promise<T>) => promise,
+  withAbortTimeout: <T>(run: (signal: AbortSignal) => Promise<T>) =>
+    run(new AbortController().signal),
 }));
 
 function deferred<T>() {
@@ -74,6 +93,7 @@ beforeEach(() => {
   fakes.state.unsubscribed = 0;
   fakes.state.writesBeforeConfig = 0;
   fakes.state.writeFails = false;
+  fakes.state.generation = 0;
   vi.mocked(pushCalls.config).mockImplementation(async () => {
     fakes.state.writesBeforeConfig = fakes.state.writes.length;
     return { kind: 'ready', config: CONFIG };

@@ -3,9 +3,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { disablePush, disablePushOnSignOut } from './push-disable';
 import { enablePush } from './push-enable';
+import { pushCalls } from './push-calls';
 import { runPushExclusive } from './push-lock';
 import type { PushRecord } from './push-record';
 import { refreshPush } from './push-refresh';
+import { suspendPushForSignIn } from './push-sign-in-check';
 
 const INSTALLATION = '12345678-1234-4234-8234-123456789abc';
 const FIRST = 'https://fcm.googleapis.com/fcm/send/one';
@@ -22,6 +24,7 @@ const fakes = vi.hoisted(() => {
     removed: 0,
     writes: [] as PushRecord[],
     writeFails: false,
+    generation: 0,
     endpoint: 'https://fcm.googleapis.com/fcm/send/one',
     unsubscribed: 0,
     registers: [] as { token: string; endpoint: string }[],
@@ -53,6 +56,22 @@ vi.mock('./push-record-idb', () => ({
     remove: async () => {
       fakes.state.removed += 1;
       fakes.state.record = null;
+    },
+    generation: async () => fakes.state.generation,
+    bumpGeneration: async () => {
+      fakes.state.generation += 1;
+      return fakes.state.generation;
+    },
+    writeIfGeneration: async (
+      record: PushRecord,
+      expected: number,
+      options?: { clearSuspension?: boolean },
+    ) => {
+      if (fakes.state.generation !== expected) return false;
+      const suspended = fakes.state.record?.suspended === true && options?.clearSuspension !== true;
+      fakes.state.record = suspended ? { ...record, suspended: true } : record;
+      fakes.state.writes.push(fakes.state.record);
+      return true;
     },
   },
 }));
@@ -92,6 +111,18 @@ vi.mock('./push-browser', () => ({
       }),
     };
   },
+  subscribeWithDeadline: async () => {
+    fakes.state.endpoint = 'https://fcm.googleapis.com/fcm/send/two';
+    return {
+      endpoint: fakes.state.endpoint,
+      unsubscribe: async () => true,
+      toJSON: () => ({
+        endpoint: fakes.state.endpoint,
+        expirationTime: null,
+        keys: { p256dh: 'p'.repeat(87), auth: 'a'.repeat(22) },
+      }),
+    };
+  },
   unsubscribePush: async () => {
     fakes.state.unsubscribed += 1;
     return true;
@@ -120,6 +151,8 @@ vi.mock('./push-calls', () => ({
   PushApiError: class extends Error {},
   PushKeyStaleError: class extends Error {},
   withTimeout: <T>(promise: Promise<T>) => promise,
+  withAbortTimeout: <T>(run: (signal: AbortSignal) => Promise<T>) =>
+    run(new AbortController().signal),
 }));
 
 function gate(): { reached: Promise<void>; release: () => void } {
@@ -160,6 +193,7 @@ beforeEach(() => {
   fakes.state.removed = 0;
   fakes.state.writes = [];
   fakes.state.writeFails = false;
+  fakes.state.generation = 0;
   fakes.state.endpoint = FIRST;
   fakes.state.unsubscribed = 0;
   fakes.state.registers = [];
@@ -271,6 +305,48 @@ it('a failed record write leaves no registration behind', async () => {
   expect(outcome.kind).toBe('failed');
   expect(fakes.state.record).toEqual(RECORD);
   expect(fakes.state.unsubscribed).toBeGreaterThan(0);
+});
+
+it('keeps the record when the same person signs in again during a rotation', async () => {
+  fakes.state.record = { ...RECORD, vapid_key_id: 'oldkey0000000000' };
+  const hold = gate();
+  const rotating = refreshPush({
+    companyId: 'company',
+    locale: 'en',
+    config: fakes.state.config,
+    installationId: INSTALLATION,
+  });
+  await hold.reached;
+
+  await suspendPushForSignIn();
+  hold.release();
+  const outcome = await rotating;
+
+  expect(outcome.kind).toBe('rotated');
+  expect(fakes.state.record?.suspended).toBe(true);
+  expect(fakes.state.record?.vapid_key_id).toBe('0123456789abcdef');
+});
+
+it('deletes the record and revokes when the sign out happens during a rotation', async () => {
+  fakes.state.record = { ...RECORD, vapid_key_id: 'oldkey0000000000' };
+  const hold = gate();
+  const rotating = refreshPush({
+    companyId: 'company',
+    locale: 'en',
+    config: fakes.state.config,
+    installationId: INSTALLATION,
+  });
+  await hold.reached;
+
+  const signingOut = disablePushOnSignOut();
+  await waitFor(() => expect(fakes.state.record).toBeNull());
+  hold.release();
+  await rotating;
+  await signingOut;
+
+  expect(fakes.state.record).toBeNull();
+  expect(fakes.state.writes).toHaveLength(0);
+  expect(pushCalls.revoke).toHaveBeenCalled();
 });
 
 it('runs the work one at a time when the browser has no locks', async () => {

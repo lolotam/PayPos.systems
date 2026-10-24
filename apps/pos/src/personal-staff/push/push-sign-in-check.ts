@@ -1,6 +1,6 @@
 import { unsubscribePush } from './push-browser';
-import { pushCalls, withTimeout } from './push-calls';
-import { bumpPushGeneration, currentPushGeneration, runPushExclusive } from './push-lock';
+import { pushCalls, withAbortTimeout } from './push-calls';
+import { runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 
@@ -12,9 +12,9 @@ let sequence = 0;
 /**
  * بيعلّق عرض نص الإشعارات قبل ما الجلسة الجديدة تتأسس: السجل بيتكتب معلق من غير انتظار
  * القفل، فأي إشعار متسرب للمشترك القديم ما بيعرفش نصه (FR-018).
+ * التعليق مش بيكسر الجيل: تسجيل نفس الموظفة أثناء تدوير لازم يفضل محفوظ (ADR-0052 §7).
  */
 export async function suspendPushForSignIn(): Promise<void> {
-  bumpPushGeneration();
   const record = await pushRecordStore.read().catch(() => null);
   if (record === null) return;
   try {
@@ -36,7 +36,7 @@ export async function suspendPushForSignIn(): Promise<void> {
 export async function runSignInPushCheck(): Promise<void> {
   const run = (sequence += 1);
   await runPushExclusive(async (): Promise<void> => {
-    const generation = currentPushGeneration();
+    const generation = await pushRecordStore.generation();
     const record = await pushRecordStore.read().catch(() => null);
     if (record === null) return;
     try {
@@ -51,7 +51,7 @@ export async function runSignInPushCheck(): Promise<void> {
     notifyPushRecordChanged();
     let result: Awaited<ReturnType<typeof pushCalls.config>>;
     try {
-      result = await withTimeout(pushCalls.config(), CONFIG_TIMEOUT_MS);
+      result = await withAbortTimeout((signal) => pushCalls.config(signal), CONFIG_TIMEOUT_MS);
     } catch {
       return;
     }
@@ -68,8 +68,10 @@ export async function runSignInPushCheck(): Promise<void> {
       return;
     }
     if (result.config.subscriber_ref === record.subscriber_ref) {
-      if (generation !== currentPushGeneration()) return;
-      await pushRecordStore.write({ ...current, suspended: false }).catch(() => undefined);
+      const written = await pushRecordStore
+        .writeIfGeneration({ ...current, suspended: false }, generation, { clearSuspension: true })
+        .catch(() => false);
+      if (!written) return;
       notifyPushRecordChanged();
       return;
     }

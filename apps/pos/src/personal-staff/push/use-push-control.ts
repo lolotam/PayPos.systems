@@ -107,21 +107,6 @@ function usePushLocalState(): PushLocalState {
   // كل ما السجل يتغيّر (ADR-0052 §7).
   useEffect(() => onPushRecordChanged(() => void reload()), [reload]);
 
-  // السماح ممكن يتغير من إعدادات المتصفح من غير إعادة تحميل، فالزر بيقرأ تاني لما
-  // الشاشة تركز أو تطلع من الخلفية (FR-010).
-  useEffect(() => {
-    const onFocus = () => void reload();
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void reload();
-    };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [reload]);
-
   return { snapshot, loaded, installationId, storageBlocked, seen, reload, markSeen };
 }
 
@@ -162,6 +147,8 @@ function usePushRefresh(input: {
   registered: RefObject<string | null>;
 }) {
   const refreshed = useRef('');
+  const inFlight = useRef('');
+  const failed = useRef('');
   const { companyId, locale, config, local, registered } = input;
   const record = local.snapshot.record;
   const installationId = local.installationId;
@@ -172,9 +159,13 @@ function usePushRefresh(input: {
     const signature = `${record.token}|${locale}|${config.vapid_key_id}`;
     // السجل ده اتسجل دلوقتي: التسجيل نفسه عمل الـ PUT، فالتحديث التاني هيبقى تكرار.
     if (signature === registered.current) return;
-    if (refreshed.current === signature) return;
+    // التحديث شغال أو خلص أو فشل: ما نعيدش نفس الطلب في نفس اللحظة (ADR-0052 §7).
+    if (signature === inFlight.current || signature === refreshed.current) return;
+    if (signature === failed.current) return;
+    inFlight.current = signature;
     void refreshPush({ companyId, locale, config, installationId })
       .then((outcome) => {
+        inFlight.current = '';
         refreshed.current =
           outcome.kind === 'rotated'
             ? `${outcome.token}|${locale}|${config.vapid_key_id}`
@@ -182,11 +173,16 @@ function usePushRefresh(input: {
         void reload();
       })
       .catch(() => {
-        // التحديث فشل: التوقيع بيتشال عشان الشاشة تعيد المحاولة مع أول فتح تاني.
-        refreshed.current = '';
-        void reload();
+        // التحديث فشل: ما نعملش reload (هيعيد تشغيل الطلب فورًا)، والعRetry بيحصل
+        // بس لما المستخدم يرجع للتطبيق أو الشبكة تيجي (ADR-0052 §7).
+        inFlight.current = '';
+        failed.current = signature;
       });
   }, [companyId, config, installationId, locale, record, registered, reload]);
+  const retry = useCallback(() => {
+    failed.current = '';
+  }, []);
+  return { retry };
 }
 
 function usePushActions(input: {
@@ -262,7 +258,27 @@ export function usePushControl({ companyId }: { companyId: string }) {
       registered.current = `${token}|${locale}|${config.config?.vapid_key_id ?? ''}`;
     },
   });
-  usePushRefresh({ companyId, locale, config: config.config, local, registered });
+  const refresh = usePushRefresh({ companyId, locale, config: config.config, local, registered });
+
+  // السماح ممكن يتغير من إعدادات المتصفح من غير إعادة تحميل، والتحديث اللي فشل لازم
+  // يتعاد مرة واحدة لما المستخدم يرجع للتطبيق أو الشبكة تيجي (FR-010).
+  useEffect(() => {
+    const again = () => {
+      refresh.retry();
+      void local.reload();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') again();
+    };
+    window.addEventListener('focus', again);
+    window.addEventListener('online', again);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', again);
+      window.removeEventListener('online', again);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [local.reload, refresh.retry]);
   const decision = decidePushState({
     notReady: config.notReady,
     storageBlocked: local.storageBlocked,

@@ -15,6 +15,7 @@ const fakes = vi.hoisted(() => {
     record: null as PushRecord | null,
     writes: [] as PushRecord[],
     removed: 0,
+    generation: 0,
     permission: 'default' as 'default' | 'granted' | 'denied',
     supported: true,
     ios: false,
@@ -47,6 +48,22 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.removed += 1;
       fakes.state.record = null;
     },
+    generation: async () => fakes.state.generation,
+    bumpGeneration: async () => {
+      fakes.state.generation += 1;
+      return fakes.state.generation;
+    },
+    writeIfGeneration: async (
+      record: PushRecord,
+      expected: number,
+      options?: { clearSuspension?: boolean },
+    ) => {
+      if (fakes.state.generation !== expected) return false;
+      const suspended = fakes.state.record?.suspended === true && options?.clearSuspension !== true;
+      fakes.state.record = suspended ? { ...record, suspended: true } : record;
+      fakes.state.writes.push(fakes.state.record);
+      return true;
+    },
   },
 }));
 
@@ -77,6 +94,10 @@ vi.mock('./push-browser', () => {
       fakes.state.subscribed = true;
       return subscription();
     },
+    subscribeWithDeadline: async () => {
+      fakes.state.subscribed = true;
+      return subscription();
+    },
     unsubscribePush: async () => {
       fakes.state.subscribed = false;
       return true;
@@ -101,6 +122,8 @@ vi.mock('./push-calls', () => {
     PushKeyStaleError,
     pushCalls: { config: vi.fn(), register: vi.fn(), revoke: vi.fn() },
     withTimeout: <T,>(promise: Promise<T>) => promise,
+    withAbortTimeout: <T,>(run: (signal: AbortSignal) => Promise<T>) =>
+      run(new AbortController().signal),
   };
 });
 
@@ -122,6 +145,7 @@ beforeEach(() => {
   fakes.state.record = null;
   fakes.state.writes = [];
   fakes.state.removed = 0;
+  fakes.state.generation = 0;
   fakes.state.permission = 'default';
   fakes.state.supported = true;
   fakes.state.ios = false;
@@ -197,4 +221,50 @@ it('shows the home screen instruction on an iPhone that is not installed', async
 
   expect(await screen.findByText(t('en', 'staffPush.installLead'))).toBeDefined();
   expect(screen.queryByRole('button', { name: t('en', 'staffPush.enable') })).toBeNull();
+});
+
+it('tries the registration once when the refresh keeps failing, and again after a focus', async () => {
+  fakes.state.record = {
+    token: 'delivery-token',
+    subscriber_ref: 'subscriber-ref',
+    company_id: 'company',
+    vapid_key_id: '0123456789abcdef',
+    suspended: false,
+  };
+  fakes.state.permission = 'granted';
+  fakes.state.subscribed = true;
+  vi.mocked(pushCalls.register).mockRejectedValue(new Error('SYNTHETIC_NETWORK_FAILURE'));
+  mount();
+
+  await waitFor(() => expect(pushCalls.register).toHaveBeenCalledTimes(1));
+  await act(async () => {});
+  expect(pushCalls.register).toHaveBeenCalledTimes(1);
+
+  await act(async () => {
+    window.dispatchEvent(new Event('focus'));
+  });
+
+  await waitFor(() => expect(pushCalls.register).toHaveBeenCalledTimes(2));
+});
+
+it('starts no second refresh while one is still pending', async () => {
+  fakes.state.record = {
+    token: 'delivery-token',
+    subscriber_ref: 'subscriber-ref',
+    company_id: 'company',
+    vapid_key_id: '0123456789abcdef',
+    suspended: false,
+  };
+  fakes.state.permission = 'granted';
+  fakes.state.subscribed = true;
+  vi.mocked(pushCalls.register).mockImplementation(() => new Promise<void>(() => undefined));
+  mount();
+
+  await waitFor(() => expect(pushCalls.register).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    window.dispatchEvent(new Event('focus'));
+    window.dispatchEvent(new Event('focus'));
+  });
+
+  expect(pushCalls.register).toHaveBeenCalledTimes(1);
 });
