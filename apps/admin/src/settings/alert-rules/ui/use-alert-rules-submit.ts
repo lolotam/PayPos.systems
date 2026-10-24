@@ -23,8 +23,12 @@ export function useAlertRulesSubmit(
   setNotice: Dispatch<SetStateAction<AlertRulesNotice>>,
   setReplace: Dispatch<SetStateAction<AlertRulesReplacement>>,
 ) {
-  const save = useSaveAlertRules(props.companyId, props.userId, props.businessId, props.branchId, () =>
-    setReplace({ all: true, kinds: [] }),
+  const save = useSaveAlertRules(
+    props.companyId,
+    props.userId,
+    props.businessId,
+    props.branchId,
+    () => setReplace({ all: true, kinds: [] }),
   );
   const submit = form.handleSubmit((data) => {
     setNotice(null);

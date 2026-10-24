@@ -119,18 +119,29 @@ it('disables every write control while a master or save write is pending', async
   await screen.findByRole('button', { name: resetName });
   fireEvent.click(screen.getByRole('switch', { name: t('en', 'alertRules.masterLabel') }));
   await waitFor(() => {
-    expect((screen.getByRole('button', { name: t('en', 'alertRules.save') }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: t('en', 'alertRules.save') }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
     expect(kindSwitch('SHIFT_NOT_CLOCKED_IN').disabled).toBe(true);
-    expect((screen.getByRole('button', { name: resetName }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: resetName }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
   });
   releaseMaster({ data: { ...view, branch_id: null, alerts_enabled: false } });
   await waitFor(() =>
-    expect((screen.getByRole('button', { name: t('en', 'alertRules.save') }) as HTMLButtonElement).disabled).toBe(false),
+    expect(
+      (screen.getByRole('button', { name: t('en', 'alertRules.save') }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false),
   );
   fireEvent.click(kindSwitch('SHIFT_NOT_CLOCKED_IN'));
   fireEvent.click(screen.getByRole('button', { name: t('en', 'alertRules.save') }));
   await waitFor(() =>
-    expect((screen.getByRole('switch', { name: t('en', 'alertRules.masterLabel') }) as HTMLInputElement).disabled).toBe(true),
+    expect(
+      (screen.getByRole('switch', { name: t('en', 'alertRules.masterLabel') }) as HTMLInputElement)
+        .disabled,
+    ).toBe(true),
   );
   releaseSave({ data: withAlertRule(view, 'SHIFT_NOT_CLOCKED_IN', { enabled: false }) });
   expect(await screen.findByText(t('en', 'alertRules.saved'))).toBeTruthy();
