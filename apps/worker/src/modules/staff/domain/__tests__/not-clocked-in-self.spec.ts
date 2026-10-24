@@ -33,7 +33,9 @@ describe('shiftNotClockedInSelfParameters', () => {
       type: 'text',
       value: 'Salmiya',
     });
-    expect(shiftNotClockedInSelfParameters('https://example.test', 'Salmiya', '10:00')?.[1]).toEqual({
+    expect(
+      shiftNotClockedInSelfParameters('https://example.test', 'Salmiya', '10:00')?.[1],
+    ).toEqual({
       name: 'branch_name_ar',
       type: 'text',
       value: 'Salmiya',
@@ -54,10 +56,17 @@ describe('shiftNotClockedInSelfParameters', () => {
   });
 
   it('uses the catalog fallback it is given', () => {
-    const parameters = shiftNotClockedInSelfParameters(null, 'https://example.test', '10:00', CATALOG);
+    const parameters = shiftNotClockedInSelfParameters(
+      null,
+      'https://example.test',
+      '10:00',
+      CATALOG,
+    );
     expect(parameters?.map((parameter) => parameter.value)).toEqual(['10:00', 'فرع', 'Branch']);
   });
+});
 
+describe('the shift start and the template acceptance', () => {
   it('refuses a shift start that is not a 24-hour time', () => {
     for (const shiftStart of ['24:00', '9:00', '10:60', ''])
       expect(shiftNotClockedInSelfParameters(null, 'Salmiya', shiftStart)).toBeNull();

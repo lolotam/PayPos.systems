@@ -35,11 +35,7 @@ function isoOf(value: string | Date): string {
 }
 
 /** عضوية على فرع الوردية: صلاحيتها الشخصية سارية وقت التنبيه. */
-async function branchMember(
-  tenant: Tenant,
-  userId: string,
-  roleId: string,
-): Promise<void> {
+async function branchMember(tenant: Tenant, userId: string, roleId: string): Promise<void> {
   await f.member({ tenant, userId, roleId, scopeType: 'BRANCH', scopeId: tenant.branch });
 }
 
@@ -94,10 +90,12 @@ it('PW-11 the managers get the bell and the employee gets one push in each of he
     title: 'بصمة الحضور',
     body: 'لسه مفيش بصمة حضور ليك لشيفت الساعة 10:00 في Salmiya.',
   });
-  expect(renderPushNotice('shift_not_clocked_in_self', 1, 'en', english?.parameters ?? [])).toEqual({
-    title: 'Clock-in',
-    body: 'No clock-in yet for your 10:00 shift at Salmiya.',
-  });
+  expect(renderPushNotice('shift_not_clocked_in_self', 1, 'en', english?.parameters ?? [])).toEqual(
+    {
+      title: 'Clock-in',
+      body: 'No clock-in yet for your 10:00 shift at Salmiya.',
+    },
+  );
   await inbox.deliver(f.owner, tenant.company);
   expect(await f.detect().execute(tenant.company)).toEqual({ notified: 0 });
   expect(await f.events(tenant.company)).toHaveLength(2);

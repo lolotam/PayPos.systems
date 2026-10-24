@@ -35,7 +35,7 @@ export interface LockedShift {
   readonly timeZone: string;
 }
 
-/** إشعار الدفع للموظفة بنفسها: المستخدم اللي بيتحمل الرسالة ومعاملات قالبها. */
+/** إشعار الدفع للموظفة الغائبة: المستخدم اللي الإشعار بيوصله ومعاملات قالب shift_not_clocked_in_self. */
 export interface EmployeePush {
   readonly userId: string;
   readonly parameters: readonly SelfParameter[];
@@ -50,7 +50,7 @@ export interface NoticeWrite {
   readonly parameters: readonly NoticeParameter[];
   /** هدف الإشعار الثابت للموظفة الغائبة: بيتحمل على أول حدث من التنبيه بس؛ الإشعار نفسه بيسافر في طلبه هو (BR-008). */
   readonly employeePushUserId: string | null;
-  /** إشعار الدفع اللي بتبعتاه الموظفة بنفسها، أو null لو مفيش هدفش أو صلاحيتها الشخصية مش سارية. */
+  /** إشعار الدفع اللي بتبعتاه للموظفة الغائبة بنفسها، أو null لو القاعدة مش فيها هدف ثابت للموظفة، أو مفيش حساب مرتبط ليها، أو صلاحيتها الشخصية مش سارية وقت التنبيه. */
   readonly employeePush: EmployeePush | null;
 }
 
