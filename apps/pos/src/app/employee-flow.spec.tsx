@@ -158,8 +158,8 @@ describe('EmployeeFlow with a session of the remembered business or none', () =>
     mount();
 
     expect(await screen.findByText(`session screen ${SESSION.employee_id}`)).not.toBeNull();
+    expect(screen.queryByText(`sign-in ${COMPANY} ${BUSINESS}`)).toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
-    expect(usePersonalSession).toHaveBeenCalledTimes(1);
   });
 
   it('shows the sign-in of the remembered business when there is no session', async () => {

@@ -177,7 +177,7 @@ export function stateFromLink(current: NativeState, outcome: LinkOutcome): Nativ
  * حالة الشاشة بعد تبديل النشاط.
  *
  * النجاح: النشاط الجديد هو المعروض. الفشل: النشاط القديم يفضل زي ما هو
- * والانتظار بيتبعت، عشان الموظفة تعرف إن مفيش حاجة اتغيرت.
+ * والانتظار بيتبعت، عشان الموظفة تعرف إن مفيش حاجة اتغيرت وتقدر تعيد المحاولة.
  *
  * @param current حالة الشاشة الحالية
  * @param outcome نتيجة التبديل
@@ -192,7 +192,7 @@ export function stateAfterSwitch(
   if (current.kind !== 'flow') return current;
   if (outcome === 'switched') return { kind: 'flow', role: current.role, business: pending };
   const alert = outcome === 'offline' ? 'roleChangeOffline' : 'roleChangeFailed';
-  return { kind: 'flow', role: current.role, business: current.business, alert };
+  return { kind: 'flow', role: current.role, business: current.business, pending, alert };
 }
 
 /**

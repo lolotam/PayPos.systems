@@ -52,6 +52,7 @@ const HOST = 'pos.staging.pospay.systems';
 const COMPANY = '00000000-0000-4000-8000-000000000001';
 const BUSINESS = '00000000-0000-4000-8000-000000000002';
 const OTHER_BUSINESS = '00000000-0000-4000-8000-000000000003';
+const THIRD_BUSINESS = '00000000-0000-4000-8000-000000000004';
 const link = (host = HOST, business = BUSINESS) =>
   `https://${host}/personal?company=${COMPANY}&business=${business}`;
 
@@ -160,6 +161,7 @@ describe('NativeEntry business switch that does not happen', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain(t('ar', 'nativeShell.roleChangeOffline'));
+    expect(screen.getByText(t('ar', 'nativeShell.switchBusinessConfirm'))).not.toBeNull();
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
     expect(rememberBusiness).not.toHaveBeenCalled();
@@ -173,8 +175,20 @@ describe('NativeEntry business switch that does not happen', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain(t('ar', 'nativeShell.roleChangeFailed'));
+    expect(screen.getByText(t('ar', 'nativeShell.switchBusinessConfirm'))).not.toBeNull();
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(rememberBusiness).not.toHaveBeenCalled();
+  });
+
+  it('keeps the old business and warns when the new one cannot be stored', async () => {
+    vi.mocked(rememberBusiness).mockRejectedValue(new Error('SYNTHETIC_SAVE_FAILURE'));
+    await mountWithPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.confirm') }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
+    expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
   });
 
   it('drops the panel when a newer link names the business already open', async () => {
@@ -190,5 +204,26 @@ describe('NativeEntry business switch that does not happen', () => {
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
     expect(rememberBusiness).not.toHaveBeenCalled();
+  });
+});
+
+describe('NativeEntry business switch with a newer link', () => {
+  beforeEach(prepare);
+
+  it('switches to the newest business when a second link names another one', async () => {
+    await mountWithPanel();
+
+    await act(async () => {
+      opened.listener?.(link(HOST, THIRD_BUSINESS));
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.confirm') }));
+
+    expect(await screen.findByText(`${COMPANY} ${THIRD_BUSINESS}`)).not.toBeNull();
+    expect(screen.queryByText(`${COMPANY} ${OTHER_BUSINESS}`)).toBeNull();
+    expect(rememberBusiness).toHaveBeenCalledWith({
+      company_id: COMPANY,
+      business_id: THIRD_BUSINESS,
+    });
   });
 });
