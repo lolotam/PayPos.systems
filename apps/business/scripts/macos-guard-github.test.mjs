@@ -158,6 +158,75 @@ describe('creating and moving a slot', () => {
   });
 });
 
+describe('creating an admission commit', () => {
+  it('reuses the tree of the parent commit and never creates a tree', async () => {
+    const { impl, calls } = fakeFetch((call) =>
+      call.method === 'POST'
+        ? { status: 201, body: { sha: 'sha-new' } }
+        : { status: 200, body: { tree: { sha: 'tree-1' } } },
+    );
+    const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
+    const payload = { owner: '100/1/ios/staging' };
+    const sha = await io.createCommit(payload, 'parent-1');
+    assert.equal(sha, 'sha-new');
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].url, `${API}/repos/o/r/git/commits/parent-1`);
+    assert.equal(calls[0].method, 'GET');
+    assert.equal(calls[1].url, `${API}/repos/o/r/git/commits`);
+    assert.equal(calls[1].method, 'POST');
+    assert.deepEqual(JSON.parse(calls[1].body.message), payload);
+    assert.equal(calls[1].body.tree, 'tree-1');
+    assert.deepEqual(calls[1].body.parents, ['parent-1']);
+    assert.ok(!calls.some((call) => call.url.includes('/git/trees')));
+  });
+
+  it('takes the head sha as the parent when there is no parent sha', async () => {
+    const { impl, calls } = fakeFetch((call) =>
+      call.method === 'POST'
+        ? { status: 201, body: { sha: 'sha-new' } }
+        : { status: 200, body: { tree: { sha: 'tree-1' } } },
+    );
+    const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
+    await io.createCommit({ owner: '100/1/ios/staging' }, null);
+    assert.equal(calls[0].url, `${API}/repos/o/r/git/commits/head-1`);
+    assert.deepEqual(calls[1].body.parents, ['head-1']);
+  });
+
+  it('refuses when the admission commit is rejected', async () => {
+    const { impl, calls } = fakeFetch((call) =>
+      call.method === 'POST'
+        ? { status: 422, body: { message: 'the tree is invalid' } }
+        : { status: 200, body: { tree: { sha: 'tree-1' } } },
+    );
+    const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
+    await assert.rejects(
+      () => io.createCommit({ owner: '100/1/ios/staging' }, 'parent-1'),
+      (error) => error.message.includes('admission commit answered 422'),
+    );
+    assert.equal(calls.length, 2);
+  });
+
+  it('refuses when the parent commit cannot be read', async () => {
+    const { impl, calls } = fakeFetch(() => ({ status: 404, body: {} }));
+    const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
+    await assert.rejects(
+      () => io.createCommit({ owner: '100/1/ios/staging' }, 'parent-1'),
+      (error) => error.message.includes('parent commit answered 404'),
+    );
+    assert.equal(calls.length, 1);
+  });
+
+  it('refuses when the parent commit has no tree', async () => {
+    const { impl, calls } = fakeFetch(() => ({ status: 200, body: { message: '{}' } }));
+    const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
+    await assert.rejects(
+      () => io.createCommit({ owner: '100/1/ios/staging' }, 'parent-1'),
+      (error) => error.message.includes('the parent commit has no tree'),
+    );
+    assert.equal(calls.length, 1);
+  });
+});
+
 describe('reading the macOS jobs', () => {
   it('reads the jobs of this workflow only, with filter=all and pagination', async () => {
     const { impl, calls } = fakeFetch((call) => {
