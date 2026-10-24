@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { createGuard } from './macos-guard.mjs';
+import { configFromEnv, createGuard } from './macos-guard.mjs';
 
 const NOW = Date.parse('2026-10-24T10:00:00.000Z');
 const OWNER = '100/1/ios/staging';
@@ -52,7 +52,7 @@ function runningJob({ runId = '1', runAttempt = '1' }) {
   };
 }
 
-function createIo({ jobs = [], slots = {}, failures = {} } = {}) {
+function createIo({ jobs = [], slots = new Map(), failures = {} } = {}) {
   const calls = [];
   return {
     calls,
@@ -64,27 +64,27 @@ function createIo({ jobs = [], slots = {}, failures = {} } = {}) {
     readSlot: async (index) => {
       calls.push(`readSlot:${index}`);
       if (failures.all || failures.read) throw new Error('the slot is unreadable');
-      return slots[index] ?? null;
+      return slots.get(index) ?? null;
     },
     createSlot: async (index, admission) => {
       calls.push(`createSlot:${index}`);
       if (failures.all || failures.create) throw new Error('the ref creation failed');
-      if (slots[index] !== undefined) {
+      if (slots.has(index)) {
         const error = new Error(`the slot ${index} is taken`);
         error.code = 'conflict';
         throw error;
       }
-      slots[index] = { slot: index, ...admission };
+      slots.set(index, { slot: index, ...admission });
     },
     deleteSlot: async (index) => {
       calls.push(`deleteSlot:${index}`);
       if (failures.all || failures.delete) throw new Error('the slot cannot be freed');
-      if (slots[index] === undefined) {
+      if (!slots.has(index)) {
         const error = new Error(`the slot ${index} is gone`);
         error.code = 'not-found';
         throw error;
       }
-      delete slots[index];
+      slots.delete(index);
     },
   };
 }
@@ -120,7 +120,10 @@ describe('the macOS guard (ADR-0055 decision 6)', () => {
 
   it('refuses when every slot is held', async () => {
     const io = createIo({
-      slots: { 1: slot(1, '7/1/ios/staging'), 2: slot(2, '7/1/ios/production') },
+      slots: new Map([
+        [1, slot(1, '7/1/ios/staging')],
+        [2, slot(2, '7/1/ios/production')],
+      ]),
     });
     const result = await createGuard({ io, config: config() }).admit();
     assert.equal(result.admitted, false);
@@ -128,12 +131,12 @@ describe('the macOS guard (ADR-0055 decision 6)', () => {
   });
 
   it('reclaims a slot whose lease expired', async () => {
-    const slots = { 1: slot(1, '7/1/ios/staging', -5) };
+    const slots = new Map([[1, slot(1, '7/1/ios/staging', -5)]]);
     const io = createIo({ slots });
     const result = await createGuard({ io, config: config() }).admit();
     assert.equal(result.admitted, true);
     assert.equal(result.slot, 1);
-    assert.equal(slots[1].owner, OWNER);
+    assert.equal(slots.get(1).owner, OWNER);
   });
 
   it('refuses when the job history cannot be read', async () => {
@@ -151,7 +154,7 @@ describe('the macOS guard (ADR-0055 decision 6)', () => {
   it('counts a finished job by its minutes and an admitted running job by its timeout, once each', async () => {
     const io = createIo({
       jobs: [finishedJob({ runId: '1', minutes: 2.5 }), runningJob({ runId: '2' })],
-      slots: { 1: slot(1, '2/1/ios/staging') },
+      slots: new Map([[1, slot(1, '2/1/ios/staging')]]),
     });
     const result = await createGuard({
       io,
@@ -162,31 +165,63 @@ describe('the macOS guard (ADR-0055 decision 6)', () => {
   });
 
   it('accepts only the exact owner key', async () => {
-    const io = createIo({ slots: { 1: slot(1, '100/1/ios/production') } });
+    const io = createIo({ slots: new Map([[1, slot(1, '100/1/ios/production')]]) });
     const result = await createGuard({ io, config: config() }).accept();
     assert.equal(result.accepted, false);
   });
 
   it('refuses an admission whose lease expired', async () => {
-    const io = createIo({ slots: { 1: slot(1, OWNER, -1) } });
+    const io = createIo({ slots: new Map([[1, slot(1, OWNER, -1)]]) });
     const result = await createGuard({ io, config: config() }).accept();
     assert.equal(result.accepted, false);
   });
 
   it('accepts an unexpired admission of this job', async () => {
-    const io = createIo({ slots: { 1: slot(1, OWNER) } });
+    const io = createIo({ slots: new Map([[1, slot(1, OWNER)]]) });
     const result = await createGuard({ io, config: config() }).accept();
     assert.equal(result.accepted, true);
     assert.equal(result.slot, 1);
   });
 
   it('releases its own slot only', async () => {
-    const slots = { 1: slot(1, OWNER), 2: slot(2, '7/1/ios/staging') };
+    const slots = new Map([
+      [1, slot(1, OWNER)],
+      [2, slot(2, '7/1/ios/staging')],
+    ]);
     const io = createIo({ slots });
     const result = await createGuard({ io, config: config() }).release();
     assert.equal(result.released, true);
     assert.equal(result.slot, 1);
-    assert.equal(slots[1], undefined);
-    assert.ok(slots[2] !== undefined);
+    assert.equal(slots.has(1), false);
+    assert.equal(slots.has(2), true);
+  });
+});
+
+describe('the guard environment', () => {
+  it('reads the mode, the owner key and the constants from the workflow environment', () => {
+    const config = configFromEnv({
+      MACOS_GUARD_MODE: 'public',
+      RUNNER_OS: 'Linux',
+      GITHUB_RUN_ID: '100',
+      GITHUB_RUN_ATTEMPT: '2',
+      MACOS_GUARD_JOB_KEY: 'ios',
+      MACOS_GUARD_FLAVOUR: 'staging',
+      MACOS_GUARD_SLOTS: '2',
+      MACOS_GUARD_JOB_TIMEOUT_MINUTES: '45',
+      MACOS_GUARD_LEASE_MINUTES: '120',
+      MACOS_GUARD_ALLOWANCE_MINUTES: '120',
+    });
+    assert.equal(config.mode, 'public');
+    assert.equal(config.runnerOs, 'Linux');
+    assert.equal(config.owner, '100/2/ios/staging');
+    assert.equal(config.slots, 2);
+    assert.equal(config.timeoutMinutes, 45);
+    assert.equal(config.leaseMinutes, 120);
+    assert.equal(config.allowanceMinutes, 120);
+  });
+
+  it('never guesses the mode: anything but public is enforce', () => {
+    assert.equal(configFromEnv({ MACOS_GUARD_MODE: 'nonsense' }).mode, 'enforce');
+    assert.equal(configFromEnv({}).mode, 'enforce');
   });
 });

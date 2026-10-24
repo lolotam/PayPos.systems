@@ -1,7 +1,8 @@
 name: Mobile
 
-# No paths filter: the `changes` job decides, so the workflow دي بتعمل تقرير دايماً وتقدر
-# تتحوّل لـ required check بعد ما تبقى مستقرة (ADR-0055 قرار 6).
+# مفيش paths filter على مستوى الـ workflow لأن الـ `changes` job هو اللي بيقرر إيه اللي اتغيّر،
+# فالتقرير بيطلع دايماً والـ workflow دي تقدر تتحوّل لـ required check بعد ما تبقى مستقرة
+# (ADR-0055 قرار 6).
 on:
   push:
     branches: [main]
@@ -191,9 +192,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # نفس التعبير في كل الـ prefights: على الـ PR مفيش `guard` input أصلاً، فالنتيجة واحدة.
       - name: Admit
         env:
-          MODE: ${{ github.event.repository.private == false && inputs.guard != 'enforce' && 'public' || 'enforce' }}
+          MACOS_GUARD_MODE: ${{ github.event.repository.private == false && inputs.guard != 'enforce' && 'public' || 'enforce' }}
           MACOS_GUARD_FLAVOUR: ${{ matrix.flavour }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node apps/business/scripts/macos-guard.mjs admit
@@ -218,23 +220,24 @@ jobs:
 
       - name: Admit
         env:
-          MODE: ${{ github.event.repository.private == false && 'public' || 'enforce' }}
+          MACOS_GUARD_MODE: ${{ github.event.repository.private == false && inputs.guard != 'enforce' && 'public' || 'enforce' }}
           MACOS_GUARD_FLAVOUR: ${{ matrix.flavour }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node apps/business/scripts/macos-guard.mjs admit
 
-  # الـ runner على macOS مينفعش يبدأ من غير قبول صالح (ADR-0055 قرار 6). الـ concurrency
-  # per ref بيخلي تشغيل جديد على نفس الفرع يستنى، بس ما بيلغيش تشغيل شغال.
+  # الـ runner على macOS مينفعش يبدأ من غير قبول صالح (ADR-0055 قرار 6)، وهو مالوش أي حق
+  # كتابة: الشغلانة دي بتثبّت وتبني كود تالت، فالتوكين بتاعها يفضل read بس. والـ concurrency
+  # per ref per flavour بيخلي تشغيل جديد على نفس الفرع يستنى، بس ما بيلغيش تشغيل شغال.
   ios:
     name: ios ${{ matrix.flavour }}
-    needs: [changes, macos-preflight]
-    if: needs.changes.outputs.app == 'true' && needs.macos-preflight.result == 'success' && needs.macos-preflight.outputs.admitted == 'true'
+    needs: [changes, macos-preflight, macos-preflight-pr]
+    if: always() && needs.changes.outputs.app == 'true' && (needs.macos-preflight.outputs.admitted == 'true' || needs.macos-preflight-pr.outputs.admitted == 'true')
     runs-on: macos-latest
     timeout-minutes: 45
     permissions:
-      contents: write
+      contents: read
     concurrency:
-      group: mobile-macos-${{ github.ref }}
+      group: mobile-macos-${{ github.ref }}-${{ matrix.flavour }}
       cancel-in-progress: false
     strategy:
       fail-fast: false
@@ -243,12 +246,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # أول خطوة: من غير قبول مظبوط الشغلانة بتوقف في أول دقيقة (ADR-0055 قرار 6).
+      # أول خطوة: من غير قبول مظبوط الشغلانة بتوقف في أول دقيقة (ADR-0055 قرار 6). رقم الخانة
+      # hint من الـ preflight اللي شغّل، والتطابق الحقيقي دايماً على الـ owner key بتاعنا.
       - name: Accept the admission
         env:
-          MODE: ${{ github.event.repository.private == false && inputs.guard != 'enforce' && 'public' || 'enforce' }}
+          MACOS_GUARD_MODE: ${{ github.event.repository.private == false && inputs.guard != 'enforce' && 'public' || 'enforce' }}
           MACOS_GUARD_FLAVOUR: ${{ matrix.flavour }}
-          MACOS_GUARD_EXPECTED_SLOT: ${{ needs.macos-preflight.outputs.slot }}
+          MACOS_GUARD_EXPECTED_SLOT: ${{ needs.macos-preflight.outputs.slot || needs.macos-preflight-pr.outputs.slot }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node apps/business/scripts/macos-guard.mjs accept
 
@@ -322,27 +326,18 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-      # آخر خطوة وبتعمل دايماً: الخانة بترجع، وإلا هي لازم تفضل محجوزة لحد ما الإيجار يخلص.
-      - name: Release the slot
-        if: always()
-        env:
-          MODE: ${{ github.event.repository.private == false && inputs.guard != 'enforce' && 'public' || 'enforce' }}
-          MACOS_GUARD_FLAVOUR: ${{ matrix.flavour }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node apps/business/scripts/macos-guard.mjs release
-
-  # نفس شغلانة iOS على الـ PR، بس من غير حق الكتابة على المستودع: فمفيش خانة تتحرر هنا.
-  ios-pr:
-    name: ios (PR) ${{ matrix.flavour }}
-    needs: [changes, macos-preflight-pr]
-    if: needs.changes.outputs.app == 'true' && needs.macos-preflight-pr.result == 'success' && needs.macos-preflight-pr.outputs.admitted == 'true'
-    runs-on: macos-latest
-    timeout-minutes: 45
+  # تحرير الخانة شغلانة لوحدها، عشان شغلانة الـ iOS ما تمسكش حق الكتابة على المستودع وهي
+  # بتثبّت وتبني كود تالت. بتشتغل بعد الـ iOS على طول (نجحت أو فشلت)، ودي شغلانة على
+  # push و dispatch بس: الـ preflight بتاع الـ PR بيتخطّى، فبتتخطّى هي كمان.
+  macos-release:
+    name: release the macOS slot ${{ matrix.flavour }}
+    needs: [macos-preflight, ios]
+    if: always() && needs.macos-preflight.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
-      contents: read
-    concurrency:
-      group: mobile-macos-${{ github.ref }}
-      cancel-in-progress: false
+      actions: read
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -350,87 +345,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Accept the admission
-        env:
-          MODE: ${{ github.event.repository.private == false && 'public' || 'enforce' }}
-          MACOS_GUARD_FLAVOUR: ${{ matrix.flavour }}
-          MACOS_GUARD_EXPECTED_SLOT: ${{ needs.macos-preflight-pr.outputs.slot }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node apps/business/scripts/macos-guard.mjs accept
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Build the web assets and sync the native project
-        env:
-          VITE_API_URL: ${{ matrix.flavour == 'staging' && 'https://api.staging.pospay.systems' || 'https://api.pospay.systems' }}
-          FLAVOUR: ${{ matrix.flavour }}
-        run: |
-          pnpm --filter @pospay/pos build:native
-          pnpm --filter @pospay/business sync:${{ matrix.flavour }}
-
-      - name: xcodebuild (simulator, no signing)
-        working-directory: apps/business
-        env:
-          FLAVOUR: ${{ matrix.flavour }}
-        run: |
-          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -xcconfig "ios/${FLAVOUR}.xcconfig" CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM= build
-
-      - name: Check the built app
-        working-directory: apps/business
-        env:
-          FLAVOUR: ${{ matrix.flavour }}
-        run: |
-          set -euo pipefail
-          case "$FLAVOUR" in
-            staging) expected_id='systems.pospay.business.staging'; expected_host='pos.staging.pospay.systems' ;;
-            production) expected_id='systems.pospay.business'; expected_host='pos.pospay.systems' ;;
-          esac
-          app="$(ls -td ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Debug-iphonesimulator/App.app | sed -n '1p')"
-          echo "app=$app"
-          identifier="$(plutil -extract CFBundleIdentifier raw -o - "$app/Info.plist")"
-          if [ "$identifier" != "$expected_id" ]; then
-            echo "::error::the bundle id is $identifier, expected $expected_id"
-            exit 1
-          fi
-          localizations="$(plutil -extract CFBundleLocalizations json -o - "$app/Info.plist")"
-          echo "localizations=$localizations"
-          case "$localizations" in
-            *'"ar"'*) ;;
-            *) echo "::error::CFBundleLocalizations has no ar"; exit 1 ;;
-          esac
-          case "$localizations" in
-            *'"en"'*) ;;
-            *) echo "::error::CFBundleLocalizations has no en"; exit 1 ;;
-          esac
-          entitlements="$(codesign -d --entitlements :- "$app" 2>&1)"
-          echo "$entitlements"
-          case "$entitlements" in
-            *"applinks:${expected_host}"*) ;;
-            *) echo "::error::the entitlements have no applinks:${expected_host}"; exit 1 ;;
-          esac
-          mkdir -p out
-          ditto -c -k --sequesterRsrc --keepParent "$app" "out/${FLAVOUR}-App.zip"
-
-      - name: Upload the simulator build
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-pr-${{ matrix.flavour }}-app
-          path: apps/business/out/${{ matrix.flavour }}-App.zip
-          retention-days: 14
-          if-no-files-found: error
-
       - name: Release the slot
-        if: always()
         env:
-          MODE: ${{ github.event.repository.private == false && 'public' || 'enforce' }}
+          MACOS_GUARD_MODE: ${{ github.event.repository.private == false && inputs.guard != 'enforce' && 'public' || 'enforce' }}
           MACOS_GUARD_FLAVOUR: ${{ matrix.flavour }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node apps/business/scripts/macos-guard.mjs release
@@ -439,7 +356,7 @@ jobs:
   # القبول = فشل (fail closed)، وما بيتبانش أخضر أبداً.
   mobile-gate:
     name: mobile-gate
-    needs: [changes, android, macos-preflight, macos-preflight-pr, ios, ios-pr]
+    needs: [changes, android, macos-preflight, macos-preflight-pr, ios, macos-release]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -452,11 +369,11 @@ jobs:
           PREFLIGHT: ${{ needs.macos-preflight.result }}
           PREFLIGHT_PR: ${{ needs.macos-preflight-pr.result }}
           IOS: ${{ needs.ios.result }}
-          IOS_PR: ${{ needs.ios-pr.result }}
+          RELEASE: ${{ needs.macos-release.result }}
           IOS_PR_CHANGED: ${{ needs.changes.outputs.ios_pr }}
         run: |
           set -euo pipefail
-          echo "changes=$CHANGES android=$ANDROID preflight=$PREFLIGHT preflight_pr=$PREFLIGHT_PR ios=$IOS ios_pr=$IOS_PR app=$APP"
+          echo "changes=$CHANGES android=$ANDROID preflight=$PREFLIGHT preflight_pr=$PREFLIGHT_PR ios=$IOS release=$RELEASE app=$APP"
           [ "$CHANGES" = "success" ] || exit 1
           if [ "$APP" != "true" ]; then
             [ "$ANDROID" = "skipped" ] || exit 1
@@ -467,14 +384,15 @@ jobs:
             pull_request)
               if [ "$IOS_PR_CHANGED" = "true" ]; then
                 [ "$PREFLIGHT_PR" = "success" ] || exit 1
-                [ "$IOS_PR" = "success" ] || exit 1
+                [ "$IOS" = "success" ] || exit 1
               else
                 [ "$PREFLIGHT_PR" = "skipped" ] || exit 1
-                [ "$IOS_PR" = "skipped" ] || exit 1
+                [ "$IOS" = "skipped" ] || exit 1
               fi
               ;;
             *)
               [ "$PREFLIGHT" = "success" ] || exit 1
               [ "$IOS" = "success" ] || exit 1
+              [ "$RELEASE" = "success" ] || exit 1
               ;;
           esac

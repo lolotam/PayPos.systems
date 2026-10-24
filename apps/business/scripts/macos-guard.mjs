@@ -7,7 +7,10 @@
 import { appendFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-export const SLOT_REF_PREFIX = 'refs/mobile-guard/slot-';
+import { createGithubIo, SLOT_REF_PREFIX } from './macos-guard-github.mjs';
+
+export { SLOT_REF_PREFIX };
+
 export const DEFAULT_SLOTS = 2;
 export const DEFAULT_TIMEOUT_MINUTES = 45;
 export const DEFAULT_LEASE_MINUTES = 120;
@@ -17,7 +20,6 @@ const MINUTE_MS = 60_000;
 
 /**
  * مفتاح المالك بتاع الحجز: من غيره حد تاني يقدر ياخد خانة العامل ده.
- *
  * @param {{ runId: string, runAttempt: string, jobKey: string, flavour: string }} parts
  * @returns {string}
  */
@@ -27,7 +29,6 @@ export function ownerKey({ runId, runAttempt, jobKey, flavour }) {
 
 /**
  * الحارس نفسه: تلات أوامر، وكل واحدة بترجع النتيجة بتاعتها من غير ما تكسر الـ job.
- *
  * @param {{ io: object, config: object }} parts
  * @returns {{ admit: () => Promise<object>, accept: (hint?: object) => Promise<object>, release: () => Promise<object> }}
  */
@@ -52,11 +53,6 @@ async function readSlots(io, config) {
   return slots;
 }
 
-function monthStart(now) {
-  const date = new Date(now);
-  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
-}
-
 function isMacosJob(job) {
   return job.labels.some((label) => label === 'macos' || label.startsWith('macos-'));
 }
@@ -71,13 +67,15 @@ function countMacosMinutes(jobs, { slots, timeoutMinutes, now }) {
   const admittedRuns = new Set(
     slots.map((slot) => String(slot.owner).split('/').slice(0, 2).join('/')),
   );
+  const date = new Date(now);
+  const month = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
   let total = 0;
   for (const job of jobs) {
     if (!isMacosJob(job)) continue;
     const finished = job.conclusion !== null && job.conclusion !== undefined;
     if (finished) {
       if (job.startedAt === null || job.completedAt === null) continue;
-      if (job.startedAt < monthStart(now)) continue;
+      if (job.startedAt < month) continue;
       total += Math.ceil((job.completedAt - job.startedAt) / MINUTE_MS);
       continue;
     }
@@ -206,113 +204,6 @@ async function release({ io, config }) {
   return { released: true, slot: mine.slot, failed: false, reason: null };
 }
 
-/**
- * io الحقيقي: REST على api.github.com بـ GITHUB_TOKEN بتاع الـ workflow.
- */
-function createGithubIo({ token, repository, headSha }) {
-  const [owner, repo] = String(repository ?? '').split('/');
-
-  async function request(path, { method = 'GET', body } = {}) {
-    if (!owner || !repo) throw new Error('GITHUB_REPOSITORY is missing');
-    return fetch(`https://api.github.com${path}`, {
-      method,
-      headers: {
-        accept: 'application/vnd.github+json',
-        authorization: `Bearer ${token ?? ''}`,
-        'x-github-api-version': '2022-11-28',
-        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  }
-
-  async function listMacosJobs() {
-    const since = `${new Date().toISOString().slice(0, 7)}-01`;
-    const runs = [];
-    for (let page = 1; page <= 10; page += 1) {
-      const response = await request(
-        `/repos/${owner}/${repo}/actions/runs?created=>=${since}&per_page=100&page=${page}`,
-      );
-      if (!response.ok) throw new Error(`the run history answered ${response.status}`);
-      const data = await response.json();
-      runs.push(...data.workflow_runs);
-      if (data.workflow_runs.length < 100) break;
-      if (page === 10) throw new Error('the run history of this month is too long to read');
-    }
-    const jobs = [];
-    for (const run of runs) {
-      const response = await request(
-        `/repos/${owner}/${repo}/actions/runs/${run.id}/jobs?per_page=100`,
-      );
-      if (!response.ok) throw new Error(`the job history answered ${response.status}`);
-      const data = await response.json();
-      for (const job of data.jobs) {
-        jobs.push({
-          runId: String(run.id),
-          runAttempt: String(run.run_attempt ?? 1),
-          labels: job.labels ?? [],
-          conclusion: job.conclusion ?? null,
-          startedAt: job.started_at === null ? null : Date.parse(job.started_at),
-          completedAt: job.completed_at === null ? null : Date.parse(job.completed_at),
-        });
-      }
-    }
-    return jobs;
-  }
-
-  async function readSlot(index) {
-    const response = await request(`/repos/${owner}/${repo}/git/ref/${SLOT_REF_PREFIX}${index}`);
-    if (response.status === 404) return null;
-    if (!response.ok) throw new Error(`the slot ${index} answered ${response.status}`);
-    const data = await response.json();
-    const commit = await request(`/repos/${owner}/${repo}/git/commits/${data.object.sha}`);
-    if (!commit.ok) throw new Error(`the admission answered ${commit.status}`);
-    const payload = JSON.parse((await commit.json()).message);
-    return { slot: index, owner: payload.owner, leaseEnd: payload.leaseEnd };
-  }
-
-  async function createSlot(index, admission) {
-    if (!headSha) throw new Error('GITHUB_SHA is missing');
-    // الحجز بيتخزن في commit message، فالـ ref هو اللي بياخد الذرّية: إنشاؤه بيفشل لو موجود.
-    const tree = await request(`/repos/${owner}/${repo}/git/trees`, {
-      method: 'POST',
-      body: { tree: [] },
-    });
-    if (!tree.ok) throw new Error(`the tree answered ${tree.status}`);
-    const treeSha = (await tree.json()).sha;
-    const commit = await request(`/repos/${owner}/${repo}/git/commits`, {
-      method: 'POST',
-      body: { message: JSON.stringify(admission), tree: treeSha, parents: [headSha] },
-    });
-    if (!commit.ok) throw new Error(`the admission commit answered ${commit.status}`);
-    const sha = (await commit.json()).sha;
-    const ref = await request(`/repos/${owner}/${repo}/git/refs`, {
-      method: 'POST',
-      body: { ref: `${SLOT_REF_PREFIX}${index}`, sha },
-    });
-    if (ref.status === 422) {
-      const error = new Error(`the slot ${index} is taken`);
-      error.code = 'conflict';
-      throw error;
-    }
-    if (!ref.ok) throw new Error(`the slot ${index} answered ${ref.status}`);
-  }
-
-  async function deleteSlot(index) {
-    const response = await request(`/repos/${owner}/${repo}/git/refs/${SLOT_REF_PREFIX}${index}`, {
-      method: 'DELETE',
-    });
-    if (response.status === 404 || response.status === 422) {
-      const error = new Error(`the slot ${index} is gone`);
-      error.code = 'not-found';
-      throw error;
-    }
-    if (!response.ok) throw new Error(`the slot ${index} answered ${response.status}`);
-  }
-
-  return { listMacosJobs, readSlot, createSlot, deleteSlot };
-}
-
 function numberFromEnv(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -324,8 +215,8 @@ export function configFromEnv(env) {
   const jobKey = env.MACOS_GUARD_JOB_KEY ?? '';
   const flavour = env.MACOS_GUARD_FLAVOUR ?? '';
   return {
-    // MODE هو قرار الـ workflow: public (المستودع العام) ولا enforce (الحجز والعدّ).
-    mode: env.MODE === 'public' ? 'public' : 'enforce',
+    // MACOS_GUARD_MODE هو قرار الـ workflow: public (المستودع العام) ولا enforce (الحجز والعدّ).
+    mode: env.MACOS_GUARD_MODE === 'public' ? 'public' : 'enforce',
     runnerOs: env.RUNNER_OS ?? '',
     owner: ownerKey({ runId, runAttempt, jobKey, flavour }),
     slots: numberFromEnv(env.MACOS_GUARD_SLOTS, DEFAULT_SLOTS),
@@ -341,6 +232,13 @@ function writeOutputs(values) {
   if (!file) return;
   const lines = Object.entries(values).map(([key, value]) => `${key}=${value}`);
   appendFileSync(file, `${lines.join('\n')}\n`);
+}
+
+// الرفض بيوقّف الـ job هنا: القرار مرفوض مفيش runner على macOS، وقرار القبول مرفوض
+// الشغلانة بتوقف في أول دقيقة.
+function fail(message) {
+  process.stderr.write(`${message}\n`);
+  process.exit(1);
 }
 
 async function main(command) {
@@ -359,10 +257,7 @@ async function main(command) {
       slot: result.slot === null ? '' : String(result.slot),
       owner: result.owner,
     });
-    if (!result.admitted) {
-      process.stderr.write(`macos-guard refused the admission: ${result.reason}\n`);
-      process.exit(1);
-    }
+    if (!result.admitted) fail(`macos-guard refused the admission: ${result.reason}`);
     return;
   }
 
@@ -371,19 +266,13 @@ async function main(command) {
     const result = await guard.accept(
       Number.isFinite(hintSlot) && hintSlot > 0 ? { slot: hintSlot } : undefined,
     );
-    if (!result.accepted) {
-      process.stderr.write(`macos-guard refused the admission: ${result.reason}\n`);
-      process.exit(1);
-    }
+    if (!result.accepted) fail(`macos-guard refused the admission: ${result.reason}`);
     return;
   }
 
   if (command === 'release') {
     const result = await guard.release();
-    if (result.failed) {
-      process.stderr.write(`macos-guard did not release a slot: ${result.reason}\n`);
-      process.exit(1);
-    }
+    if (result.failed) fail(`macos-guard did not release a slot: ${result.reason}`);
     return;
   }
 
