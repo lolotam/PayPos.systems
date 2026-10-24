@@ -387,7 +387,8 @@ OTP path, so the GitHub simulator cannot receive the code that check (c), the pe
 **Decision (PP-58.2, Waleed, 2026-10-25, option 1, confirmed on the corrected wording).** The M-1c gate for M-1d onward
 and for the Apple fee is **(a) device pairing and (b) staff PIN**: on a real Android phone and on the iOS simulator. The
 checks that need a real WhatsApp code or a real device, Android (c)–(e) once WhatsApp Business is ready and iOS (c)–(e)
-on the first iPhone, must pass before any employee receives the app, but they do not hold back M-1d or M-2. Device pairing uses the
+on the first iPhone, must pass before any employee receives the app, but they do not hold back M-1d or M-2. Waleed
+confirmed this reading (PP-58.4, 2026-10-25). Device pairing uses the
 device token, so only (b) answers the cookie question of decision 3 on iOS; the personal-session cookie (c) is first
 tested on the first real iPhone (M-1c-ii, the first TestFlight build of M-2a), after the fee. M-1c-ii repeats (a) and
 (b) and adds (c), (d) and (e) on iOS; no employee receives the iOS app until it passes.
