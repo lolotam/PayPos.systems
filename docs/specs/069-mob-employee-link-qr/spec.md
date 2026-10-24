@@ -153,22 +153,28 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
 - **The logo (FR-004, the print sheet).** The salon logo is a stored file, so showing it is a private-file access
   with its audit (`CLAUDE.md` §8). No existing read serves it to this screen: `readStatementLogo` is worker-only and
   needs a file id and a render id (ADR-0056 §2–3), and the business identity read needs another permission. **How**
-  the logo reaches the screen is an **ADR-0056 addendum**, written and accepted with `/speckit-plan` (`TODO(spec)`,
-  technical, Waleed). This spec fixes only what it must satisfy:
+  the logo reaches the screen is an **ADR-0056 addendum**, written with `/speckit-plan` and reviewed like any ADR
+  (`TODO(spec)`, technical). It is not an owner question: if writing it turns up a choice the owners must make, that
+  question is recorded in [owner-questions.ar.md](owner-questions.ar.md) and asked then. This spec fixes only what it must satisfy:
   - **Access:** the same rule as the screen (EL-Q3): a session whose active membership, in the company named by a
     validated `x-company-id` (parsed as `me/memberships` does), reaches the business. The company is never looked up
     from the business id. One 404 for an unknown business, another company's business, an unreached business and a
     business with no logo.
-  - **Audit:** each access writes the `file_access_audit` row and the `file`/`access` `audit_log` entry, as
-    ADR-0056 §3 does, in the module that owns `file_access_audit`. Because it writes, it is not a `queries/` read
+  - **One transaction, then the image:** the access check, resolving the logo file and both audit records (the
+    `file_access_audit` row and the `file`/`access` `audit_log` entry, as ADR-0056 §3 does, in the module that owns
+    `file_access_audit`) run in **one** `withTenant(company, …, { userId })` transaction, so a revoked membership can
+    never be audited as allowed and the two records commit together or not at all. The image is delivered only after
+    that commit, outside any transaction. Because it writes, it is not a `queries/` read
     (`CLAUDE.md` §6), it carries the PP-7.1 write declaration, and its ids come from the injected `IdGenerator`.
   - **Constraints the addendum must resolve, not decided here:** the module that owns the read, and how it learns the
     `logo_file_id` of `settings` without a new reverse dependency (`docs/module-map.md`); how the image travels
     without breaking ADR-0046 §4 (storage IO never in a request, a consumer or a transaction) or the 200 ms rule of
-    `CLAUDE.md` §6, for example a short-lived signed URL issued after the audited check, or a re-encoded copy; and
-    `Cache-Control: private, no-store` on anything it returns.
-  - **When the logo cannot be shown** (its object is missing, or storage fails or times out): the print action shows
-    the message «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry, and never prints without the logo silently.
+    `CLAUDE.md` §6, and every delivered image counts as an audited access: either the addendum makes issuing a URL the audited access,
+    with an exact short lifetime and `Cache-Control: private, no-store` on the stored object's own answer, or every
+    fetch goes through the check and the audit; and `Cache-Control: private, no-store` on anything the API returns.
+  - **When the logo cannot be shown:** a bound logo whose stored object is missing counts as no logo, and the sheet
+    prints with the name only, as ADR-0056 does for statements. A storage error or timeout shows «اللوجو مش متاح
+    دلوقتي، جرّبي تاني» with a retry, and the sheet does not print without the logo in that case.
   - **Delivery:** the print action ships together with this read, never without it. The link, copy, QR and WhatsApp
     button may land first; the print sheet lands complete, with the salon logo as EL-Q4 describes.
 - **POS host (FR-002):** a new build-time variable `NEXT_PUBLIC_POS_URL` for `apps/admin`, set per environment like
@@ -204,9 +210,11 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   same company and business back, so the two sides cannot drift.
 - **Integration (apps/api), the logo read only** (its exact shape follows the ADR-0056 addendum): `EL-I01` a member whose membership reaches the business gets the
   image · `EL-I02` a member of the same company whose membership does not reach that business, an unknown business,
-  and a business of another company all get the same 404 · `EL-I03` a business with no logo gets that 404, and every image answer writes one `file_access_audit` row and one `file`/`access` `audit_log` entry, before the image is
-  served · `EL-I05` whatever it returns carries `Cache-Control: private, no-store` · `EL-T10` (apps/admin) a logo that
-  cannot be read shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry, and no print without the logo · `EL-I04`
+  and a business of another company all get the same 404 · `EL-I03` a business with no logo gets that 404, and every image answer writes one `file_access_audit` row and one
+  `file`/`access` `audit_log` entry in the same transaction as the access check, committed before the image is
+  delivered; a failure between them leaves neither · `EL-I05` whatever it returns carries `Cache-Control: private, no-store` · `EL-T10` (apps/admin) a storage
+  failure shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry and no print, while a missing logo object prints the
+  name only · `EL-I04`
   no session gets 401, and a missing or malformed `x-company-id` gets 400.
 - **Queries**: none new (the names come from `me/workspaces`, already tested).
 - **RLS negative**: no new table; EL-I02's other-company case runs under `withTenant` and is the negative test.
