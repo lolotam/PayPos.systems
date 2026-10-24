@@ -110,7 +110,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    audit log has one entry for that download (BR-09).
 4. The PDF has `dir="rtl" lang="ar"`, the logo and the Arabic official name, «فرع السالمية», the period, one row per
    employee with coverage at the branch in the period (FR-013a: a counted session, a contract day that had ended, an
-   approved leave on a contract day, or a scheduled shift that had ended; under a shift filter, only on the dates
+   approved leave on a contract date of a period that has at least one contract day, or a scheduled shift that had
+   ended; FR-013a "Coverage" defines both terms; under a shift filter, only on the dates
    scheduled on the selected pair), a signature column, the
    manager's signature line and the footer (BR-01, BR-02, BR-04, BR-06).
 5. For a full calendar month at one branch with no shift filter, whose every scheduled shift end and default-entry end
