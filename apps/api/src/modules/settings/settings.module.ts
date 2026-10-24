@@ -1,5 +1,10 @@
 import type { Provider } from '@nestjs/common';
-import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
+import {
+  readBusinessIdentity,
+  type IdGenerator,
+  type TenantWrappers,
+  type Tx,
+} from '@pospay/db';
 import type { Redis } from 'ioredis';
 
 import { SelectedCompanyGuard } from '../../shared/selected-company.guard.ts';
@@ -19,7 +24,6 @@ import { ReplaceStaffColumns } from './use-cases/replace-staff-columns/replace-s
 import { identityCapabilityAccess } from './persistence/business-identity-access.adapter.ts';
 import { BUSINESS_IDENTITY_READER } from './queries/business-identity.query.ts';
 import { IDENTITY_CAPABILITY_ACCESS } from './queries/identity-capability.query.ts';
-import { readBusinessIdentity } from './persistence/read-business-identity.ts';
 import { createRedisSettingsCache } from './persistence/redis-settings-cache.ts';
 import { createSettingsTransactions } from './persistence/settings-transactions.ts';
 import { UpdateBusinessSettings } from './use-cases/update-business-settings/update-business-settings.ts';

@@ -140,7 +140,9 @@ expired does not delete it (ADR-0052 §7).
    (private forms and caches on logout; the push record on an explicit sign-out) are unchanged.
 2. **One own-scope display flag.** The personal session read (`GET /v1/staff/personal-session`) and the personal
    sign-in answer carry `back_office: boolean`: whether the signed-in user counts, under the owner's answer to SO-Q1,
-   as someone the back office is for in the session's business. It is computed on the server on each read from the
-   user's own memberships in the session's company, after proof. It is a display hint only: the personal purpose gains
+   as someone the back office is for in the session's business. It is computed on the server on each read, after proof,
+   only from the user's own memberships active now whose scope covers the session's business (the whole company, that
+   business, or one of its branches); a membership in another business of the same company never counts (spec 067
+   FR-010, BR-003). It is a display hint only: the personal purpose gains
    no capability, no guard or query may read it to allow an action, and it reveals nothing about anyone else. This
    ADR's rule against returning account information applies to the pre-proof eligibility read and is unchanged.

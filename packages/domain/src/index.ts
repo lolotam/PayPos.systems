@@ -34,6 +34,13 @@ export { employeeNameMatchKey } from './employee-name-key.js';
 export { containsPhoneLikeNumber } from './phone-like.js';
 
 export { defaultShiftMinutes, contractedMinutes, dayDiffersFromDefault, type DefaultShift, type WeekdayDefaultShift } from './default-shifts.js';
+export {
+  statementIdentity,
+  type BusinessDisplayNames,
+  type StatementIdentity,
+  type StatementLanguage,
+  type StoredBusinessIdentity,
+} from './statement-identity.js';
 export * from './attendance-report-types.js';
 export * from './attendance-worked-minutes.js';
 export * from './attendance-contracted-minutes.js';

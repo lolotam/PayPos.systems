@@ -90,7 +90,8 @@ export async function pushHarness(options: { pushEnabled?: boolean } = {}) {
     subscribe,
     subscribeRevoked: (company: string, id: string, userId: string) =>
       db.withTenant(company, (tx) => tx.execute(revokedSubscription(company, id, userId))),
-    request: (recipients: object[]) => request(db, ids, recipients),
+    request: (recipients: object[], eventType = 'ShiftNotClockedIn') =>
+      request(db, ids, recipients, eventType),
     ...pushQueries(owner),
     close: async () => {
       await db.close();
@@ -147,6 +148,7 @@ async function request(
   db: Database,
   ids: ReturnType<typeof systemUuidV7>,
   recipients: object[],
+  eventType = 'ShiftNotClockedIn',
 ): Promise<ClaimedEvent> {
   const id = ids.newId();
   const payload = {
@@ -158,7 +160,7 @@ async function request(
     appendOutboxEvent(tx, id, {
       aggregateType: 'test',
       aggregateId: id,
-      eventType: 'ShiftNotClockedIn',
+      eventType,
       payload,
     }),
   );
@@ -167,7 +169,7 @@ async function request(
     companyId: TENANT.A.company,
     aggregateType: 'test',
     aggregateId: id,
-    eventType: 'ShiftNotClockedIn',
+    eventType,
     payload,
     attempt: 1,
   };

@@ -1,4 +1,5 @@
 import { businessLogo, businessSettings, errorEnvelope } from '@pospay/contracts';
+import { readBusinessIdentity } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
@@ -9,7 +10,6 @@ import {
   seedOverride,
   type PermissionFixture,
 } from '../../../../test/permissions-fixture.ts';
-import { readBusinessIdentity } from '../persistence/read-business-identity.ts';
 import { createSettingsTransactions } from '../persistence/settings-transactions.ts';
 import { SetBusinessLogo } from '../use-cases/set-business-logo/set-business-logo.ts';
 import {
