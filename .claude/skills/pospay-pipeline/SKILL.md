@@ -343,6 +343,7 @@ pins the PosPay rules on top of it.
    ```powershell
    & {   # a child scope, so the caller's $ErrorActionPreference comes back after any outcome
    $ErrorActionPreference = 'Stop'
+   $savedCwd = Get-Location   # restored in the finally block, with PATH, XDG_CONFIG_HOME and PWD
    Set-Location F:\Dev\Worktrees\PosPay\<branch>
    if (-not (Test-Path .git -PathType Leaf)) { throw 'MiniMax runs only at a worktree root, where .git is a file' }
    # git fetch and git archive below stage the guards through this worktree's .git pointer, so it must lead to the
@@ -438,6 +439,7 @@ pins the PosPay rules on top of it.
        $env:PATH = $savedPath
        $env:XDG_CONFIG_HOME = $savedXdg
        $env:PWD = $savedPwd
+       Set-Location $savedCwd
        # The env files come back only once the stopper confirmed MiniMax has stopped ($stopExit is 0, or the run never
        # started); after a failed or thrown stop they stay stashed (MergePilot on #416). A file MiniMax planted under the
        # same name is moved aside to the guard folder and reported, never overwritten silently.
