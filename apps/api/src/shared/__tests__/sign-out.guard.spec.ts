@@ -1,16 +1,19 @@
+import { randomUUID } from 'node:crypto';
 import { createLogger } from '@pospay/observability';
 import { errorEnvelope } from '@pospay/contracts';
 import type { PersonalSessions, StaffSessions } from '@pospay/auth';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { expect, it } from 'vitest';
 
 import { createApp } from '../../app.ts';
 import { ApiError } from '../errors.ts';
+import { API_LOG_EVENTS } from '../log-events.ts';
 import type { PersonalAuthentication } from '../personal-authentication.ts';
 import type { RateLimiter } from '../ports/rate-limiter.port.ts';
 import {
   SIGN_OUT_ROUTE,
   SignOutRoute,
+  signOutAnswer,
   signOutRequest,
   type SignOutWiring,
 } from '../sign-out.guard.ts';
@@ -62,6 +65,23 @@ const codeOf = async (promise: Promise<boolean>): Promise<string> =>
     (error: unknown) => (error instanceof ApiError ? error.code : 'NOT_AN_API_ERROR'),
   );
 
+// The answer writes one log line and at most one header; both are recorded here, nothing else is faked.
+const recordingRequest = () => {
+  const lines: unknown[][] = [];
+  const request = {
+    log: { info: (...args: unknown[]) => lines.push(args) },
+  } as unknown as FastifyRequest;
+  return { lines, request };
+};
+
+const recordingReply = () => {
+  const headers: [string, unknown][] = [];
+  const reply = {
+    header: (name: string, value: unknown) => headers.push([name, value]),
+  } as unknown as FastifyReply;
+  return { headers, reply };
+};
+
 it('SO-15 every missing wiring piece refuses with not ready, before the origin is read', async () => {
   const limiter = fakeLimiter(true).limiter;
   const missing: [SignOutWiring, 'staff' | 'personal'][] = [
@@ -69,6 +89,8 @@ it('SO-15 every missing wiring piece refuses with not ready, before the origin i
     [wiringFor({ staffOrigin: null, limiter }), 'staff'],
     [wiringFor({ personal: null, limiter }), 'personal'],
     [wiringFor({ limiter: null }), 'staff'],
+    [wiringFor({ limiter: null }), 'personal'],
+    [wiringFor({ personal: { ...personalAuthentication, origin: null }, limiter }), 'personal'],
   ];
   for (const [wiring, kind] of missing) {
     const { request } = requestWith({ origin: 'https://wrong.synthetic.invalid' });
@@ -107,10 +129,12 @@ it('the personal branch refuses any authorization header', async () => {
   expect(fake.calls).toEqual([]);
 });
 
-it('a refused request never reaches the limiter', async () => {
+it('a wrong origin on the personal route never reaches the limiter', async () => {
   const fake = fakeLimiter(true);
-  const { request } = requestWith({ origin: PERSONAL_ORIGIN, authorization: 'Device revoked' });
-  await codeOf(signOutRequest(request, 'personal', wiringFor({ limiter: fake.limiter })));
+  const { request } = requestWith({ origin: 'https://wrong.synthetic.invalid' });
+  expect(
+    await codeOf(signOutRequest(request, 'personal', wiringFor({ limiter: fake.limiter }))),
+  ).toBe('FORBIDDEN');
   expect(fake.calls).toEqual([]);
 });
 
@@ -144,6 +168,43 @@ it('the sign-out decorator marks the handler it is put on', () => {
   const handler = () => undefined;
   SignOutRoute('personal')({}, 'signOut', { value: handler });
   expect(Reflect.getMetadata(SIGN_OUT_ROUTE, handler)).toBe('personal');
+});
+
+it('the sign-out answer clears the cookie it was given and logs the route and the status only', () => {
+  const cookie = 'pospay-staff.session_token=; Path=/v1; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  const userId = randomUUID();
+  const ended = recordingRequest();
+  const endedReply = recordingReply();
+  expect(
+    signOutAnswer(ended.request, endedReply.reply, 'staff', { cookie, ended: true, userId }),
+  ).toEqual({ status: 'SIGNED_OUT' });
+  expect(endedReply.headers).toEqual([['set-cookie', cookie]]);
+  expect(ended.lines).toEqual([
+    [{ sign_out: { route: 'staff', status: 'SIGNED_OUT' } }, 'staff session sign-out'],
+  ]);
+  const none = recordingRequest();
+  const noneReply = recordingReply();
+  expect(
+    signOutAnswer(none.request, noneReply.reply, 'personal', { cookie, ended: false }),
+  ).toEqual({
+    status: 'NO_SESSION',
+  });
+  expect(noneReply.headers).toEqual([['set-cookie', cookie]]);
+  expect(none.lines).toEqual([
+    [{ sign_out: { route: 'personal', status: 'NO_SESSION' } }, 'staff session sign-out'],
+  ]);
+  const bare = recordingRequest();
+  const bareReply = recordingReply();
+  expect(
+    signOutAnswer(bare.request, bareReply.reply, 'staff', { cookie: null, ended: false }),
+  ).toEqual({ status: 'NO_SESSION' });
+  expect(bareReply.headers).toEqual([]);
+  for (const lines of [ended.lines, none.lines, bare.lines]) {
+    const logged = JSON.stringify(lines);
+    expect(logged).not.toContain('session_token');
+    expect(logged).not.toContain(userId);
+  }
+  expect(API_LOG_EVENTS).toContain('staff session sign-out');
 });
 
 it('an API without the sign-out wiring answers not ready on both routes, never 401', async () => {

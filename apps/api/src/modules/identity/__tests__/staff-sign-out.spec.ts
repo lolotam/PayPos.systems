@@ -198,7 +198,7 @@ it('SO-12 two concurrent sign-outs end the session once', async () => {
   expect(answers).toEqual(['NO_SESSION', 'SIGNED_OUT']);
 });
 
-it('SO-13d the sign-out answers signed out and its clearing cookie names the new cookie (D-6)', async () => {
+it("SO-13 a sign-out's clearing cookie names the same cookie and Path=/v1 as a new session's cookie (D-6 limitation)", async () => {
   const cookie = requestCookie(await issueSession(device.id));
   const response = await signOut({ cookie });
   statuses.push(response.statusCode);
@@ -213,7 +213,7 @@ it('SO-13d the sign-out answers signed out and its clearing cookie names the new
   expect(issued).toContain('Path=/v1');
 });
 
-it('SO-13e a replacement session leaves the old cookie with nothing to end', async () => {
+it('SO-13e (sequential) after a replacement the old cookie has nothing to end', async () => {
   const cookie = requestCookie(await issueSession(device.id));
   const replacement = requestCookie(await issueSession(device.id));
   const response = await signOut({ cookie });

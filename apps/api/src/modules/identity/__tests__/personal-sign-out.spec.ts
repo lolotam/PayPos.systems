@@ -80,6 +80,32 @@ it('SO-03 a sign-out without a cookie clears nothing, and a replaced one still c
   expect(String(response.headers['set-cookie'])).toContain('pospay-personal.session_token=');
 });
 
+it('SO-03 an expired personal session answers no session and its row is cleaned up', async () => {
+  const issued = await f.auth.personal.issue(
+    f.userId,
+    { purpose: 'STAFF_PERSONAL', companyId: f.companyId, businessId: f.businessId },
+    async () => true,
+  );
+  const cookie = requestCookie(issued.cookie);
+  const [row] = await f.owner`SELECT token FROM session WHERE id=${issued.session.sessionId}`;
+  // The row's own timestamps are immutable (STAFF_SESSION_IMMUTABLE), so the expired row is written fresh with
+  // the same token: the cookie the caller holds stays the same one.
+  const expiredAt = new Date(Date.now() - 60_000);
+  const authenticatedAt = new Date(Date.now() - 9 * 60 * 60 * 1000);
+  await f.owner`DELETE FROM session WHERE id=${issued.session.sessionId}`;
+  await f.owner`INSERT INTO session(id,token,user_id,expires_at,purpose,staff_personal_context,
+      staff_authenticated_at,staff_absolute_deadline)
+    VALUES(${issued.session.sessionId},${row?.['token']},${f.userId},${expiredAt},'STAFF_PERSONAL',
+      ${f.owner.json({ purpose: 'STAFF_PERSONAL', companyId: f.companyId, businessId: f.businessId })},
+      ${authenticatedAt},${expiredAt})`;
+  const response = await signOut({ cookie });
+  statuses.push(response.statusCode);
+  expect(response.statusCode).toBe(200);
+  expect(signOutResult.parse(response.json())).toEqual({ status: 'NO_SESSION' });
+  expect(String(response.headers['set-cookie'])).toContain('pospay-personal.session_token=');
+  expect(await sessionRows(issued.session.sessionId)).toEqual([]);
+});
+
 it('SO-04 a user who lost eligibility still ends her session and the row is gone', async () => {
   const cookie = requestCookie(await issueSession());
   const sessionId = (

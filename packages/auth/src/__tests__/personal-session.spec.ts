@@ -178,3 +178,16 @@ it('lets exactly one of two concurrent sign-outs end the session', async () => {
   ]);
   expect(results.filter((result) => result.ended)).toHaveLength(1);
 });
+
+it('ends a personal session of a user whose phone approval was removed', async () => {
+  const issued = await auth.personal.issue(userId, workspace, async () => true);
+  const [bound] = await owner`SELECT phone_binding_approved_at FROM "user" WHERE id=${userId}`;
+  const approvedAt = bound?.['phone_binding_approved_at'] ?? null;
+  await owner`UPDATE "user" SET phone_binding_approved_at=NULL WHERE id=${userId}`;
+  try {
+    expect((await auth.personal.signOut(headers(issued.cookie))).ended).toBe(true);
+  } finally {
+    await owner`UPDATE "user" SET phone_binding_approved_at=${approvedAt} WHERE id=${userId}`;
+  }
+  expect(await rowsOf(issued.session.sessionId)).toEqual([]);
+});
