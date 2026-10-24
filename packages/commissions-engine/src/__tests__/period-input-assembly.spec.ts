@@ -11,10 +11,7 @@ import type {
   ReceivedCommissionCorrection,
 } from '../period-input-types.ts';
 import type { CommissionPeriodInput, CommissionSalary } from '../plan-types.ts';
-import {
-  selectSalaryEntryOnLastDay,
-  selectSalaryOnLastDay,
-} from '../salary-thresholds.ts';
+import { selectSalaryEntryOnLastDay, selectSalaryOnLastDay } from '../salary-thresholds.ts';
 import { line, pct, sale, version } from './engine-ii-fixtures.ts';
 
 function projectedLine(patch: Partial<ProjectedCommissionLine> = {}): ProjectedCommissionLine {
@@ -25,11 +22,7 @@ function projectedSale(patch: Partial<ProjectedPackageSale> = {}): ProjectedPack
   return { ...sale(), status: 'ACTIVE', ...patch };
 }
 
-function salaryEntry(
-  employeeId: string,
-  effectiveFrom: string,
-  amount: bigint,
-): CommissionSalary {
+function salaryEntry(employeeId: string, effectiveFrom: string, amount: bigint): CommissionSalary {
   return { employeeId, effectiveFrom, amount };
 }
 
@@ -75,9 +68,7 @@ function correction(
   };
 }
 
-function projection(
-  patch: Partial<CommissionPeriodProjection> = {},
-): CommissionPeriodProjection {
+function projection(patch: Partial<CommissionPeriodProjection> = {}): CommissionPeriodProjection {
   return {
     employeeId: 'employee-a',
     period: '2026-10',
