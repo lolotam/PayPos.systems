@@ -2,12 +2,13 @@ import { render, screen } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { isNativeShell } from '@/shared/platform/native-shell';
+import { isNativeShell, isStagingApp } from '@/shared/platform/native-shell';
 
 import { App } from './app';
 
 vi.mock('@/shared/platform/native-shell', () => ({
   isNativeShell: vi.fn(),
+  isStagingApp: vi.fn(),
 }));
 vi.mock('@/app/device-screen', () => ({
   DeviceScreen: () => <h2>device screen</h2>,
@@ -24,6 +25,7 @@ describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(isNativeShell).mockReturnValue(false);
+    vi.mocked(isStagingApp).mockReturnValue(false);
     window.localStorage.setItem('pospay.locale', 'ar');
     window.history.pushState({}, '', '/');
   });
@@ -51,5 +53,17 @@ describe('App', () => {
       await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') }),
     ).not.toBeNull();
     expect(screen.queryByRole('heading', { name: 'device screen' })).toBeNull();
+  });
+
+  it('shows the staging strip above the screen in the staging app', async () => {
+    vi.mocked(isNativeShell).mockReturnValue(true);
+    vi.mocked(isStagingApp).mockReturnValue(true);
+    render(<App />);
+
+    const strip = await screen.findByRole('note');
+    const heading = await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') });
+
+    expect(strip.textContent).toBe(t('ar', 'nativeShell.stagingStrip'));
+    expect(strip.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 });

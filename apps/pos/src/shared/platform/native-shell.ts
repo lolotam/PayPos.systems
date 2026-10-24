@@ -24,3 +24,16 @@ export function nativePosHost(): string {
   if (!host) throw new Error('NATIVE_POS_HOST_MISSING');
   return host;
 }
+
+/**
+ * هل نسخة التطبيق اللي قدام المستخدم دلوقتي هي نسخة التجربة (staging)؟
+ *
+ * لازم الإجابة تكون واضحة من غير ما أي شاشة تفحص المنصة بنفسها (FR-006)، لأن نسخة
+ * التجربة بتتكلم مع سيرفر التجربة وبياناتها بيانات اختبار: المختبِر لازم ما يخلطهاش
+ * بالنسخة الحقيقية فيدخل على بيانات زبائن حقيقية بالغلط (APP-Q13).
+ *
+ * @returns true في نسخة التطبيق من نوع staging، false في نسخة الإنتاج أو في نسخة الويب
+ */
+export function isStagingApp(): boolean {
+  return isNativeShell() && import.meta.env.VITE_NATIVE_FLAVOUR === 'staging';
+}
