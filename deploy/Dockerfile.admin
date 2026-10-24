@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # apps/admin — multi-stage Next.js standalone on node:24-alpine (ADR-0016).
-# NEXT_PUBLIC_API_URL is inlined at build time. An empty build arg fails closed in the browser.
+# NEXT_PUBLIC_API_URL and NEXT_PUBLIC_POS_URL are inlined at build time. An empty build arg fails closed in the browser.
 # No secret is copied in. The image is not wired into compose or a deploy script.
 
 FROM node:24-alpine AS build
@@ -9,6 +9,8 @@ WORKDIR /repo
 COPY . .
 ARG NEXT_PUBLIC_API_URL=
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_POS_URL=
+ENV NEXT_PUBLIC_POS_URL=$NEXT_PUBLIC_POS_URL
 RUN pnpm install --frozen-lockfile
 RUN pnpm turbo run build --filter=@pospay/admin...
 

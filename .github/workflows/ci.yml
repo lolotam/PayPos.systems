@@ -233,6 +233,8 @@ jobs:
       SHA: ${{ github.sha }}
       PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       STAGING_API_URL: https://api.staging.pospay.systems
+      STAGING_POS_URL: https://pos.staging.pospay.systems
+      PRODUCTION_POS_URL: https://pos.pospay.systems
     steps:
       - uses: actions/checkout@v7
 
@@ -252,10 +254,10 @@ jobs:
           docker build -f deploy/Dockerfile.api --target migrate -t "$registry/pospay-migrate:$SHA" .
           docker build -f deploy/Dockerfile.worker -t "$registry/pospay-worker:$SHA" .
           docker build -f deploy/Dockerfile.backup -t "$registry/pospay-backup:$SHA" .
-          docker build -f deploy/Dockerfile.admin -t "$registry/pospay-admin:$SHA" .
+          docker build -f deploy/Dockerfile.admin --build-arg NEXT_PUBLIC_POS_URL="$PRODUCTION_POS_URL" -t "$registry/pospay-admin:$SHA" .
           docker build -f deploy/Dockerfile.pos -t "$registry/pospay-pos:$SHA" .
           # Staging variants: the API origin is baked into both front ends at build time.
-          docker build -f deploy/Dockerfile.admin --build-arg NEXT_PUBLIC_API_URL="$STAGING_API_URL" -t "$registry/pospay-admin-staging:$SHA" .
+          docker build -f deploy/Dockerfile.admin --build-arg NEXT_PUBLIC_API_URL="$STAGING_API_URL" --build-arg NEXT_PUBLIC_POS_URL="$STAGING_POS_URL" -t "$registry/pospay-admin-staging:$SHA" .
           docker build -f deploy/Dockerfile.pos --build-arg VITE_API_URL="$STAGING_API_URL" -t "$registry/pospay-pos-staging:$SHA" .
           echo "REGISTRY_LC=$registry" >> "$GITHUB_ENV"
 
