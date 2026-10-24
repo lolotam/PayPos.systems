@@ -112,7 +112,8 @@ its own `business` value.
   and its paste (FR-012 of spec 065) read the same thing.
 - **FR-004**: The screen offers (EL-Q4): «نسخ اللينك»; the QR; «طباعة» for a print sheet (the business name and its
   logo, the QR, the link and the line «نزّلي تطبيق PosPay Business وامسحي الكود»); and a WhatsApp button. The WhatsApp
-  button is a plain link `https://wa.me/?text=<the instruction line and the link, URL-encoded>`: it opens WhatsApp on
+  button is a plain link `https://wa.me/?text=<its own line and the link, URL-encoded>`; its line is «افتحي اللينك ده
+  عشان توصّلي تطبيق الموظفات بصالون <اسم الصالون>», not the print sheet's «scan the code» line, since she receives a link: it opens WhatsApp on
   the manager's own device with that text typed, she picks the recipient, and the system sends nothing (no outbound
   message is added, no phone is read).
 - **FR-005**: Anyone who uses the back office may open the screen (EL-Q3), for a business her membership reaches; no
@@ -154,10 +155,13 @@ None. Nothing is stored apart from the logo read's access audit, which uses the 
   The existing reader cannot be reused as it is: `readStatementLogo` is exposed only from the worker, and it needs a
   file id and a render id (ADR-0056 §2–3). The logo binding (`logo_file_id`) belongs to `settings`, not tenancy.
   So the logo needs its own API-side read: `GET /v1/businesses/{businessId}/employee-app-link/logo` under
-  `@Authenticated()`, checking an active membership that reaches the business inside its own `withTenant`
-  transaction. It resolves the logo file through settings' public reader, reads the bytes through `files`, and
+  `@Authenticated()`. The company comes from the `x-company-id` header, parsed and refused with 400 `BAD_REQUEST` when it
+  is not an id, exactly as `me/memberships` does (`companyHeader` in `me.controller.ts`). The business is never used to
+  look the company up. Inside `withTenant(that company)` the read checks that the caller has an active membership in
+  that company reaching the business, and that the business belongs to it. It resolves the logo file through settings' public reader, reads the bytes through `files`, and
   writes the access audit, with a fresh request id as the audit key, since a read has no `Idempotency-Key`. It answers
-  one 404 `NOT_FOUND` for an unknown, other-company or unreached business and for a business with no logo. Its
+  one 404 `NOT_FOUND` for an unknown business, a business of another company (it is invisible inside that company's
+  `withTenant`), an unreached business and a business with no logo. Its
   module, ports and `docs/module-map.md` rows are an **ADR-0056 addendum**, written and accepted with
   `/speckit-plan` (`TODO(spec)`, technical, Waleed). **Until that addendum lands, the print sheet shows the business
   name without the logo**; the screen's other parts do not wait for it.
@@ -189,13 +193,13 @@ None. Nothing is stored apart from the logo read's access audit, which uses the 
   clipboard and shows the confirmation; a refused clipboard shows the failure and the link stays visible · `EL-T04` an open
   business missing from the workspaces answer shows the no-access state and no link · `EL-T05` a missing `NEXT_PUBLIC_POS_URL` shows the
   not-set-up message and no QR · `EL-T06` the print view holds only the name, the logo (or the name alone when there is
-  none), the QR, the link and the instruction line · `EL-T07` another business selected changes the link and the QR · `EL-T08` a `NEXT_PUBLIC_POS_URL` host that is not one of the shared POS hosts shows the not-set-up message, and the staging deploy check finds the staging POS host in the staging back office's link · `EL-T09` the WhatsApp button's link is `https://wa.me/?text=` with the instruction line and the link URL-encoded, and pressing it sends no request to the API.
+  none), the QR, the link and the instruction line · `EL-T07` another business selected changes the link and the QR · `EL-T08` a `NEXT_PUBLIC_POS_URL` host that is not one of the shared POS hosts shows the not-set-up message, and the staging deploy check finds the staging POS host in the staging back office's link · `EL-T09` the WhatsApp button's link is `https://wa.me/?text=` with the WhatsApp line (not the print line) and the link URL-encoded, and pressing it sends no request to the API.
 - **Cross-check with the app**: a test in `apps/pos` feeds the admin helper's output to `parseManagerLink` and gets the
   same company and business back, so the two sides cannot drift.
 - **Integration (apps/api), the logo read only**: `EL-I01` a member whose membership reaches the business gets the
   image · `EL-I02` a member of the same company whose membership does not reach that business, an unknown business,
   and a business of another company all get the same 404 · `EL-I03` a business with no logo gets that 404, and every image answer writes one file-access audit row · `EL-I04`
-  no session gets 401.
+  no session gets 401, and a missing or malformed `x-company-id` gets 400.
 - **Queries**: none new (the names come from `me/workspaces`, already tested).
 - **RLS negative**: no new table; EL-I02's other-company case runs under `withTenant` and is the negative test.
 
