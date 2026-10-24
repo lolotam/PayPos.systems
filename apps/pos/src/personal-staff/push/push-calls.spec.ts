@@ -75,9 +75,7 @@ it('answers a push that is not configured as not ready', async () => {
 });
 
 it('refuses a registration made under a key the server no longer serves', async () => {
-  fetcher.mockResolvedValue(
-    json({ code: 'PUSH_KEY_STALE', message_ar: '', message_en: '' }, 409),
-  );
+  fetcher.mockResolvedValue(json({ code: 'PUSH_KEY_STALE', message_ar: '', message_en: '' }, 409));
 
   await expect(pushCalls.register(subscription)).rejects.toThrow('PUSH_KEY_STALE');
 });

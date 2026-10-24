@@ -105,7 +105,9 @@ describe('the modifiers of the control', () => {
   });
 
   it('shows off with a reconnecting note while the comparison failed', () => {
-    const decision = decidePushState(input({ record: record({ suspended: true }), reconnecting: true }));
+    const decision = decidePushState(
+      input({ record: record({ suspended: true }), reconnecting: true }),
+    );
 
     expect(decision.state).toBe('off');
     expect(decision.reconnecting).toBe(true);
@@ -122,7 +124,12 @@ describe('the modifiers of the control', () => {
 
   it('drops the reconnecting note once the notifications are on', () => {
     const decision = decidePushState(
-      input({ permission: 'granted', record: record(), browserSubscribed: true, reconnecting: true }),
+      input({
+        permission: 'granted',
+        record: record(),
+        browserSubscribed: true,
+        reconnecting: true,
+      }),
     );
 
     expect(decision.state).toBe('on');

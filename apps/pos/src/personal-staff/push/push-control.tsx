@@ -23,7 +23,9 @@ export function PushControl({ companyId }: { companyId: string }) {
       ) : null}
       {state.state === 'install-first' ? <PushInstallHint /> : null}
       {state.state === 'unsupported' ? (
-        <p>{t(locale, state.storageBlocked ? 'staffPush.storageBlocked' : 'staffPush.unsupported')}</p>
+        <p>
+          {t(locale, state.storageBlocked ? 'staffPush.storageBlocked' : 'staffPush.unsupported')}
+        </p>
       ) : null}
       {state.state === 'blocked' ? <p>{t(locale, 'staffPush.blocked')}</p> : null}
       {state.state === 'off' ? <p>{t(locale, 'staffPush.off')}</p> : null}
@@ -37,7 +39,12 @@ export function PushControl({ companyId }: { companyId: string }) {
         </Button>
       ) : null}
       {state.state === 'on' ? (
-        <Button size="touch" variant="outline" disabled={buttonDisabled} onClick={() => void state.disable()}>
+        <Button
+          size="touch"
+          variant="outline"
+          disabled={buttonDisabled}
+          onClick={() => void state.disable()}
+        >
           {t(locale, 'staffPush.disable')}
         </Button>
       ) : null}

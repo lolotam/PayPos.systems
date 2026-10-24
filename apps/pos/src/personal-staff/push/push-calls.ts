@@ -79,7 +79,16 @@ export const pushCalls = {
     throw new PushApiError(code ?? 'PUSH_CONFIG_REFUSED');
   },
   register: async (input: PushSubscriptionInput): Promise<void> => {
-    const result = await client().PUT('/v1/staff/push/subscription', { body: input });
+    // الحقل الاختياري في العقد بيسمح بـ undefined، لكن جسم الطلب المولّد ما بيقبلش غير
+    // رقم أو null، فبنبعته null بدل ما نسيبه (exactOptionalPropertyTypes).
+    const body = {
+      ...input,
+      subscription: {
+        ...input.subscription,
+        expirationTime: input.subscription.expirationTime ?? null,
+      },
+    };
+    const result = await client().PUT('/v1/staff/push/subscription', { body });
     if (result.response.ok) return;
     const code = errorCode(result.error);
     if (code === 'PUSH_KEY_STALE') throw new PushKeyStaleError();

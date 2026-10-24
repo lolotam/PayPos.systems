@@ -72,7 +72,7 @@ export async function currentSubscription(): Promise<PushSubscriptionLike | null
 }
 
 export async function subscribePush(
-  applicationServerKey: Uint8Array,
+  applicationServerKey: Uint8Array<ArrayBuffer>,
 ): Promise<PushSubscriptionLike> {
   const registration = await globalThis.navigator.serviceWorker.ready;
   return registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
@@ -99,11 +99,11 @@ export function pushSubscriptionBody(subscription: PushSubscriptionLike): {
 }
 
 /** المفتاح العام بيجي base64url من الـ API، والمتصفح عايزه بايتات. */
-export function base64UrlToBytes(value: string): Uint8Array {
+export function base64UrlToBytes(value: string): Uint8Array<ArrayBuffer> {
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
   const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
   const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
+  const bytes = new Uint8Array(new ArrayBuffer(binary.length));
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
   return bytes;
 }

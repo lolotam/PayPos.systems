@@ -23,7 +23,7 @@ export interface SwRegistration {
 export interface SwClient {
   url: string;
   focus(): Promise<SwClient>;
-  navigate?(url: string): Promise<SwClient>;
+  navigate?(url: string): Promise<SwClient | null>;
 }
 
 /** مجموعة النوافذ المفتوحة. */
@@ -179,6 +179,7 @@ export async function handleNotificationClick(input: {
   const open = windows.find((client) => isSameOrigin(client.url, input.origin));
   if (open !== undefined) {
     await open.focus();
+    // المتصفح بيرجع null لما يفضلش في نفس المسار، والنافذة هي اللي اتركزت (ADR-0052 §7).
     if (typeof open.navigate === 'function') await open.navigate(url);
     return;
   }

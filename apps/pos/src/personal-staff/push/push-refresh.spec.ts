@@ -61,7 +61,7 @@ vi.mock('./push-browser', () => ({
           }),
         }
       : null,
-  subscribePush: async (key: Uint8Array) => {
+  subscribePush: async (key: Uint8Array<ArrayBuffer>) => {
     fakes.state.subscribedWithKey = Array.from(key);
     fakes.state.subscribed = true;
     return {

@@ -279,7 +279,9 @@ it('turns the notifications on and registers the subscription', async () => {
   const body = vi.mocked(pushCalls.register).mock.calls[0]?.[0];
   expect(body?.installation_id).toBe(fakes.state.installationId);
   expect(body?.vapid_key_id).toBe('0123456789abcdef');
-  expect(body?.delivery_token).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  expect(body?.delivery_token).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
   expect(body?.locale).toBe('en');
   expect(fakes.state.writes[0]?.company_id).toBe('company');
   expect(fakes.state.writes[0]?.suspended).toBe(false);

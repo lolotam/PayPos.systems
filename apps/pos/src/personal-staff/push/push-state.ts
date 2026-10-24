@@ -39,9 +39,7 @@ export function decidePushState(input: PushStateInput): PushStateDecision {
   // "بنتصل تاني" بتخص السجل المعلّق للشركة اللي في الجلسة بس؛ سجل شركة تانية
   // بيعرض "مقفول" عادي، لأن الموظفة غيرت الشركة (WP-Q4).
   const ownSuspended =
-    input.record !== null &&
-    input.record.suspended &&
-    input.record.company_id === input.companyId;
+    input.record !== null && input.record.suspended && input.record.company_id === input.companyId;
   const modifiers = {
     storageBlocked: input.storageBlocked,
     offline,
@@ -52,7 +50,11 @@ export function decidePushState(input: PushStateInput): PushStateDecision {
     return { state: 'unsupported', visible: true, ...modifiers };
   }
   if (!input.supported) {
-    return { state: input.installFirst ? 'install-first' : 'unsupported', visible: true, ...modifiers };
+    return {
+      state: input.installFirst ? 'install-first' : 'unsupported',
+      visible: true,
+      ...modifiers,
+    };
   }
   if (input.permission === 'denied') {
     return { state: 'blocked', visible: true, ...modifiers };
