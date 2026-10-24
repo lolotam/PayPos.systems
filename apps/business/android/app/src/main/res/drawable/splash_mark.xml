@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- حرف P بتاع PosPay على شاشة الفتح بتاعة أندرويد (APP-Q11، APP-Q25)؛ نفس مسار apps/pos/public/icon.svg. -->
+<!-- لوجو PosPay البرتقالي على شاشة الفتح من أندرويد 12 (APP-Q11، APP-Q25)؛ نفس apps/pos/public/icon.svg، ومتصغّر
+     جوّه دايرة الـ 72 من 108 اللي النظام بيقصّ عليها، عشان أركان المربع ما تتقصّش. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="288dp"
     android:height="288dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <group
-        android:translateX="26.8"
-        android:translateY="28"
-        android:scaleX="0.8"
-        android:scaleY="0.8">
+        android:translateX="29"
+        android:translateY="29"
+        android:scaleX="0.78125"
+        android:scaleY="0.78125">
+        <path
+            android:fillColor="#FF6421"
+            android:pathData="M11.52,0H52.48A11.52,11.52 0,0 1,64 11.52V52.48A11.52,11.52 0,0 1,52.48 64H11.52A11.52,11.52 0,0 1,0 52.48V11.52A11.52,11.52 0,0 1,11.52 0Z" />
         <path
             android:fillColor="#0D1522"
             android:pathData="M16,12H36C47,12 52,19 52,27S46,42 35,42H27V53H16Z" />

@@ -91,6 +91,6 @@ ignore pattern يقدر يخمّن اسم الملف ده.
 ويندوز بخط Segoe UI لحرف «B» وكلمة «تجربة»)، بسكربت عند المنسق مش جوّه الريبو، ومتسجّلة كملفات متولّدة: أي تعديل في الشكل
 يبدأ من الـ SVG وبعدين الصور كلها تتولّد تاني. أندرويد بياخد أيقونة التجربة لوحده من
 فولدر الـ flavour، وiOS بيختارها من `ASSETCATALOG_COMPILER_APPICON_NAME` في `ios/staging.xcconfig`. شاشة الفتح خلفيتها
-برتقالي وفيها الحرف P وتحته «PosPay Business» (APP-Q11، APP-Q25): قبل أندرويد 12 من `drawable*/splash.png`، ومن أندرويد 12
-النظام بيرسمها من `windowSplashScreen*` في `values/styles.xml` و`values-v31/styles.xml` (`drawable/splash_mark.xml` للحرف،
+كريمي فاتح وفيها لوجو PosPay البرتقالي وتحته «PosPay Business» بالكحلي (APP-Q11، APP-Q25 اختيار أبو سالم): قبل أندرويد 12 من `drawable*/splash.png`، ومن أندرويد 12
+النظام بيرسمها من `windowSplashScreen*` في `values/styles.xml` و`values-v31/styles.xml` (`drawable/splash_mark.xml` للوجو، و`values/splash_background.xml` للون،
 و`drawable-xxxhdpi/splash_branding.png` للاسم).
