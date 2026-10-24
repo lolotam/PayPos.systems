@@ -1,7 +1,7 @@
 -- ربط قيود D-21 بياخد قفل على الجداول الثلاثة؛ المهلة القصيرة تخلّي الهجرة تفشل بسرعة وتتعاد بدل ما تقف ورا الحركة.
 SET LOCAL lock_timeout = '5s';
 --> statement-breakpoint
--- لو بناء 0178 اتقطع ممكن يسيب فهرس INVALID (زي #293)؛ ربط قيد أو مفتاح بفهرس مش صالح ممنوع، فبنرفض برسالة واضحة.
+-- لو بناء الهجرة السابقة اتقطع ممكن يسيب فهرس INVALID (زي #293)؛ ربط قيد أو مفتاح بفهرس مش صالح ممنوع، فبنرفض برسالة واضحة.
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -17,7 +17,7 @@ BEGIN
     SELECT 1 FROM pg_catalog.pg_index i
     WHERE i.indexrelid = to_regclass('public.dp_session_branch_fk_idx') AND i.indisvalid AND i.indisready
   ) THEN
-    RAISE EXCEPTION 'discount proposal binding index from 0178 is missing or INVALID; drop it and rerun the migration (ADR-0033)';
+    RAISE EXCEPTION 'discount proposal binding index from the previous migration is missing or INVALID; drop it and rerun the migration (ADR-0033)';
   END IF;
 END $$;
 --> statement-breakpoint
