@@ -1,25 +1,29 @@
 'use client';
 
 import type { AlertKindCode, AlertRules, SetAlertRulesInput } from '@pospay/contracts';
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { buildAlertRulesDraft } from '../model/alert-rules-draft';
 
 type AlertRulesForm = UseFormReturn<SetAlertRulesInput>;
+export type AlertRulesReplacement = {
+  all: boolean;
+  kinds: readonly AlertKindCode[];
+} | null;
 
 export function useSyncAlertRulesForm(
   form: AlertRulesForm,
   server: AlertRules,
-  replaceDraft: RefObject<boolean>,
-  replaceKinds: RefObject<Set<AlertKindCode>>,
+  replace: AlertRulesReplacement,
+  setReplace: Dispatch<SetStateAction<AlertRulesReplacement>>,
 ) {
   const seen = useRef<string | null>(null);
   useEffect(() => {
     const draft = buildAlertRulesDraft(server);
     const next = JSON.stringify(draft);
-    const replaceAll = replaceDraft.current;
-    const resetKinds = replaceKinds.current;
-    if (seen.current === next && !replaceAll && resetKinds.size === 0) return;
+    if (replace === null && seen.current === next) return;
+    const replaceAll = replace?.all === true;
+    const resetKinds = new Set(replace?.kinds ?? []);
     const kept = replaceAll
       ? []
       : draft.rules.flatMap((entry, index) =>
@@ -31,10 +35,9 @@ export function useSyncAlertRulesForm(
     for (const entry of kept) {
       form.setValue(`rules.${entry.index}`, entry.value, { shouldDirty: true });
     }
-    // القاعدة المتغيّرة تحتفظ بقراءتها القديمة كاملة، عشان الحفظ يكشف تعارض النسخة بدل ما يكتب فوق مدير تاني.
-    // بعد مسح قاعدة فرع، الموروث بيستبدل مسودة نوعها بس وتعديلات باقي الأنواع بتفضل زي ما هي.
-    replaceDraft.current = false;
-    resetKinds.clear();
+    // الاستبدال state لأن structural sharing ممكن يثبّت server؛ وتسجيله بعد انتظار invalidateQueries
+    // يضمن أن القيم الحالية هي الأحدث حتى لو كانت مساوية للكاش وما غيّرش مرجعه.
+    if (replace !== null) setReplace(null);
     seen.current = next;
-  }, [form, replaceDraft, replaceKinds, server]);
+  }, [form, replace, server, setReplace]);
 }

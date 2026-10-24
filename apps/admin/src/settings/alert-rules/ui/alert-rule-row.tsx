@@ -21,10 +21,12 @@ type AlertRuleRowProps = {
   index: number;
   disabled: boolean;
   onResetDone: () => void;
+  onResetConflict: () => void;
 };
 
 export function AlertRuleRow(props: AlertRuleRowProps) {
-  const { companyId, userId, businessId, branchId, rule, index, disabled, onResetDone } = props;
+  const { companyId, userId, businessId, branchId, rule, index, disabled, onResetDone, onResetConflict } =
+    props;
   const locale = useLocale();
   const { field } = useController<SetAlertRulesInput, `rules.${number}.enabled`>({
     name: `rules.${index}.enabled`,
@@ -66,6 +68,7 @@ export function AlertRuleRow(props: AlertRuleRowProps) {
           index={index}
           disabled={disabled}
           onDone={onResetDone}
+          onConflict={onResetConflict}
         />
       ) : null}
     </fieldset>

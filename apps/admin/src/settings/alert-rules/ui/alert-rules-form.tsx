@@ -1,10 +1,10 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { setAlertRulesInput, type AlertKindCode, type SetAlertRulesInput } from '@pospay/contracts';
+import { setAlertRulesInput, type SetAlertRulesInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { buildAlertRulesDraft } from '../model/alert-rules-draft';
@@ -13,19 +13,18 @@ import { listedAlertKinds } from '../model/listed-alert-kinds';
 import { AlertRuleRow } from './alert-rule-row';
 import { AlertRulesFormStatus, type AlertRulesNotice } from './alert-rules-form-status';
 import { useAlertRulesSubmit, type AlertRulesFormProps } from './use-alert-rules-submit';
-import { useSyncAlertRulesForm } from './use-sync-alert-rules-form';
+import { useSyncAlertRulesForm, type AlertRulesReplacement } from './use-sync-alert-rules-form';
 
 export function AlertRulesForm(props: AlertRulesFormProps) {
   const locale = useLocale();
   const [notice, setNotice] = useState<AlertRulesNotice>(null);
-  const replaceDraft = useRef(false);
-  const replaceKinds = useRef(new Set<AlertKindCode>());
+  const [replace, setReplace] = useState<AlertRulesReplacement>(null);
   const form = useForm<SetAlertRulesInput>({
     resolver: zodResolver(setAlertRulesInput),
     defaultValues: buildAlertRulesDraft(props.server),
   });
-  useSyncAlertRulesForm(form, props.server, replaceDraft, replaceKinds);
-  const { save, submit } = useAlertRulesSubmit(props, form, setNotice, replaceDraft);
+  useSyncAlertRulesForm(form, props.server, replace, setReplace);
+  const { save, submit } = useAlertRulesSubmit(props, form, setNotice, setReplace);
   const rows = listedAlertKinds(props.server.rules, props.branchId !== null);
   return (
     <FormProvider {...form}>
@@ -47,9 +46,10 @@ export function AlertRulesForm(props: AlertRulesFormProps) {
               index={index}
               disabled={save.isPending}
               onResetDone={() => {
-                replaceKinds.current.add(rule.kind);
+                setReplace({ all: false, kinds: [rule.kind] });
                 setNotice('reset');
               }}
+              onResetConflict={() => setReplace({ all: false, kinds: [rule.kind] })}
             />
           ))}
         </fieldset>

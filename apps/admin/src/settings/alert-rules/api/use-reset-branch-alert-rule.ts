@@ -13,6 +13,7 @@ export function useResetBranchAlertRule(
   businessId: string,
   branchId: string,
   onDone: () => void,
+  onConflict: () => void,
 ) {
   const client = useQueryClient();
   const key = alertRulesKey(companyId, userId, businessId, branchId);
@@ -21,12 +22,13 @@ export function useResetBranchAlertRule(
     mutationFn: ({ kind, expected }: ResetInput) =>
       resetBranchAlertRule(companyId, businessId, branchId, kind, expected),
     onSuccess: async () => {
-      onDone();
       await client.invalidateQueries({ queryKey: key });
+      onDone();
     },
-    onError: (error) => {
+    onError: async (error) => {
       if (!isAlertRulesRefusal(error) && alertRulesStatus(error) !== 409) return;
-      void client.invalidateQueries({ queryKey: key });
+      await client.invalidateQueries({ queryKey: key });
+      if (alertRulesStatus(error) === 409) onConflict();
     },
   });
 }

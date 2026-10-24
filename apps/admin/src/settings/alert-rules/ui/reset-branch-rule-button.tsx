@@ -19,6 +19,7 @@ export function ResetBranchRuleButton({
   index,
   disabled,
   onDone,
+  onConflict,
 }: {
   companyId: string;
   userId: string;
@@ -28,10 +29,18 @@ export function ResetBranchRuleButton({
   index: number;
   disabled: boolean;
   onDone: () => void;
+  onConflict: () => void;
 }) {
   const locale = useLocale();
   const form = useFormContext<SetAlertRulesInput>();
-  const mutation = useResetBranchAlertRule(companyId, userId, businessId, branchId, onDone);
+  const mutation = useResetBranchAlertRule(
+    companyId,
+    userId,
+    businessId,
+    branchId,
+    onDone,
+    onConflict,
+  );
   const reset = () => {
     const entry = form.getValues(`rules.${index}`);
     if (entry.expected_rule_id === null || entry.expected_revision === null) return;

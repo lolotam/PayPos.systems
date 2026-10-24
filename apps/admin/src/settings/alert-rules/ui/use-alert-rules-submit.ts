@@ -1,13 +1,14 @@
 'use client';
 
 import type { AlertRules, SetAlertRulesInput } from '@pospay/contracts';
-import type { Dispatch, RefObject, SetStateAction } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { useSaveAlertRules } from '../api/use-save-alert-rules';
 import { buildAlertRulesDraft } from '../model/alert-rules-draft';
 import { alertRulesStatus } from '../model/alert-rules-failure';
 import { alertRulesSaveBody } from '../model/alert-rules-save-body';
 import type { AlertRulesNotice } from './alert-rules-form-status';
+import type { AlertRulesReplacement } from './use-sync-alert-rules-form';
 
 export type AlertRulesFormProps = {
   companyId: string;
@@ -21,7 +22,7 @@ export function useAlertRulesSubmit(
   props: AlertRulesFormProps,
   form: UseFormReturn<SetAlertRulesInput>,
   setNotice: Dispatch<SetStateAction<AlertRulesNotice>>,
-  replaceDraft: RefObject<boolean>,
+  setReplace: Dispatch<SetStateAction<AlertRulesReplacement>>,
 ) {
   const save = useSaveAlertRules(props.companyId, props.userId, props.businessId, props.branchId);
   const submit = form.handleSubmit((data) => {
@@ -37,7 +38,7 @@ export function useAlertRulesSubmit(
         setNotice('saved');
       },
       onError: (error) => {
-        if (alertRulesStatus(error) === 409) replaceDraft.current = true;
+        if (alertRulesStatus(error) === 409) setReplace({ all: true, kinds: [] });
       },
     });
   });

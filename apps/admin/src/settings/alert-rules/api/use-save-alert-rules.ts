@@ -30,9 +30,9 @@ export function useSaveAlertRules(
         predicate: (query) => alertRulesKeyBranch(query.queryKey) !== branchId,
       });
     },
-    onError: (error) => {
+    onError: async (error) => {
       if (!isAlertRulesRefusal(error) && alertRulesStatus(error) !== 409) return;
-      void client.invalidateQueries({ queryKey: key });
+      await client.invalidateQueries({ queryKey: key });
     },
   });
 }
