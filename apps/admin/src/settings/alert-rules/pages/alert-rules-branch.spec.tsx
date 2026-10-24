@@ -1,13 +1,18 @@
 import { t } from '@pospay/i18n';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
+import { alertRulesKey } from '@/settings/alert-rules/api/alert-rules-client';
 import {
   alertRulesFixture,
   branchA,
   branchB,
+  businessId,
+  companyId,
   kindRow,
   kindSwitch,
+  minutesField,
   renderPage,
+  userId,
   withAlertRule,
 } from './fixtures/alert-rules-page.fixture';
 
@@ -118,6 +123,91 @@ it('saves branch changes to the branch path', async () => {
   expect(await screen.findByText(t('en', 'alertRules.saved'))).toBeTruthy();
   expect(api.PUT.mock.calls[0]?.[0]).toBe(branchPath);
   expect(api.PUT.mock.calls[0]?.[1].params.path.branchId).toBe(branchA.id);
+});
+
+it('resets with the edited form revision after a background refetch', async () => {
+  const initial = withAlertRule(
+    { ...alertRulesFixture(), branch_id: branchA.id },
+    'SHIFT_NOT_CLOCKED_IN',
+    { source: 'BRANCH', delay_minutes: 10, revision: 7, rule_id: branchB.id },
+  );
+  const fresh = withAlertRule(initial, 'SHIFT_NOT_CLOCKED_IN', {
+    delay_minutes: 35,
+    revision: 8,
+  });
+  let branchReads = 0;
+  api.GET.mockImplementation((path: string) => {
+    if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
+    branchReads += 1;
+    return Promise.resolve({ data: branchReads === 1 ? initial : fresh });
+  });
+  api.DELETE.mockResolvedValue({
+    error: {
+      code: 'ALERT_RULE_REVISION_CONFLICT',
+      message_ar: 'Synthetic reset conflict',
+      message_en: 'Synthetic reset conflict',
+    },
+    response: { status: 409 },
+  });
+  const { client } = renderPage({ branches: [branchA, branchB] });
+  fireEvent.change(await screen.findByLabelText(t('en', 'alertRules.scopeLabel')), {
+    target: { value: branchA.id },
+  });
+  await screen.findByRole('button', { name: resetName });
+  fireEvent.change(minutesField('SHIFT_NOT_CLOCKED_IN', 'delay'), { target: { value: '15' } });
+  await act(async () => {
+    await client.invalidateQueries({
+      queryKey: alertRulesKey(companyId, userId, businessId, branchA.id),
+    });
+  });
+  expect(minutesField('SHIFT_NOT_CLOCKED_IN', 'delay').value).toBe('15');
+  fireEvent.click(screen.getByRole('button', { name: resetName }));
+  expect((await screen.findByRole('alert')).textContent).toContain('Synthetic reset conflict');
+  expect(api.DELETE.mock.calls[0]?.[1].params.query).toEqual({
+    expected_rule_id: branchB.id,
+    expected_revision: 7,
+  });
+});
+
+it('replaces the reset kind and preserves the other edited kinds', async () => {
+  const initial = withAlertRule(
+    { ...alertRulesFixture(), branch_id: branchA.id },
+    'SHIFT_NOT_CLOCKED_IN',
+    { source: 'BRANCH', delay_minutes: 10, revision: 7, rule_id: branchB.id },
+  );
+  const returned = withAlertRule(initial, 'SHIFT_NOT_CLOCKED_IN', {
+    source: 'BUSINESS',
+    delay_minutes: 20,
+    revision: null,
+    rule_id: null,
+  });
+  let branchReads = 0;
+  api.GET.mockImplementation((path: string) => {
+    if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
+    branchReads += 1;
+    return Promise.resolve({ data: branchReads === 1 ? initial : returned });
+  });
+  api.DELETE.mockResolvedValue({ data: undefined, response: { status: 204 } });
+  api.PUT.mockResolvedValue({
+    data: withAlertRule(returned, 'SERVICE_LINE_CANCELLED', { enabled: false }),
+  });
+  renderPage({ branches: [branchA, branchB] });
+  fireEvent.change(await screen.findByLabelText(t('en', 'alertRules.scopeLabel')), {
+    target: { value: branchA.id },
+  });
+  await screen.findByRole('button', { name: resetName });
+  fireEvent.change(minutesField('SHIFT_NOT_CLOCKED_IN', 'delay'), { target: { value: '15' } });
+  fireEvent.click(kindSwitch('SERVICE_LINE_CANCELLED'));
+  fireEvent.click(screen.getByRole('button', { name: resetName }));
+  expect(await screen.findByText(t('en', 'alertRules.resetDone'))).toBeTruthy();
+  await waitFor(() => expect(minutesField('SHIFT_NOT_CLOCKED_IN', 'delay').value).toBe('20'));
+  expect(within(kindRow('SHIFT_NOT_CLOCKED_IN')).getByText('Business rule')).toBeTruthy();
+  expect(kindSwitch('SERVICE_LINE_CANCELLED').checked).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'alertRules.save') }));
+  expect(await screen.findByText(t('en', 'alertRules.saved'))).toBeTruthy();
+  const body = api.PUT.mock.calls[0]?.[1].body;
+  expect(body.rules).toHaveLength(1);
+  expect(body.rules[0].kind).toBe('SERVICE_LINE_CANCELLED');
 });
 
 it('hides the scope selector when there are no active branches', async () => {

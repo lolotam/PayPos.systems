@@ -63,6 +63,7 @@ export function AlertRuleRow(props: AlertRuleRowProps) {
           businessId={businessId}
           branchId={branchId}
           rule={rule}
+          index={index}
           disabled={disabled}
           onDone={onResetDone}
         />

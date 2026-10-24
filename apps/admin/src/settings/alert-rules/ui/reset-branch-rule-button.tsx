@@ -1,8 +1,9 @@
 'use client';
 
-import type { ResetBranchAlertRuleQuery } from '@pospay/contracts';
+import type { ResetBranchAlertRuleQuery, SetAlertRulesInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
+import { useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useResetBranchAlertRule } from '../api/use-reset-branch-alert-rule';
 import { alertRuleKindLabel, alertRulesText } from '../model/alert-rules-text';
@@ -15,6 +16,7 @@ export function ResetBranchRuleButton({
   businessId,
   branchId,
   rule,
+  index,
   disabled,
   onDone,
 }: {
@@ -23,16 +25,19 @@ export function ResetBranchRuleButton({
   businessId: string;
   branchId: string;
   rule: ListedAlertRuleView;
+  index: number;
   disabled: boolean;
   onDone: () => void;
 }) {
   const locale = useLocale();
+  const form = useFormContext<SetAlertRulesInput>();
   const mutation = useResetBranchAlertRule(companyId, userId, businessId, branchId, onDone);
   const reset = () => {
-    if (rule.rule_id === null || rule.revision === null) return;
+    const entry = form.getValues(`rules.${index}`);
+    if (entry.expected_rule_id === null || entry.expected_revision === null) return;
     const expected: ResetBranchAlertRuleQuery = {
-      expected_rule_id: rule.rule_id,
-      expected_revision: rule.revision,
+      expected_rule_id: entry.expected_rule_id,
+      expected_revision: entry.expected_revision,
     };
     mutation.mutate({ kind: rule.kind, expected });
   };
