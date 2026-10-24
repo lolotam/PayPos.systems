@@ -46,3 +46,18 @@ export interface ReportBranchInputs {
   /** إجازات الموظفة المقبولة من أي فرع وفق AB-Q11؛ الخصم يلتزم بتواريخ ارتباط هذا الفرع ونافذة دوامه. */
   leave_for_branch: readonly ReportLeave[];
 }
+/** فترة عمل من يوم لحد يوم، الطرفين مشمولان؛ بيان الحضور بياخد أي فترة مش شهر بس. */
+export interface AttendancePeriod {
+  from: string;
+  to: string;
+}
+/** زوج بداية ونهاية وردية بالوقت المحلي للفرع؛ هو معنى الشيفت في فلتر BR-11. */
+export interface AttendanceShiftPair {
+  start: string;
+  end: string;
+}
+/** جلسة لسه مفتوحة: يوم العمل ودخول البصمة بس؛ ما بتتحسبش في أي إجمالي. */
+export interface AttendanceOpenSession {
+  working_date: string;
+  clock_in: string;
+}

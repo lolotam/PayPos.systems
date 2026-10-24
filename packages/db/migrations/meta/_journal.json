@@ -1261,6 +1261,13 @@
       "when": 1792819254925,
       "tag": "0181_2026-10-24_discount-proposal-bindings-validate",
       "breakpoints": true
+    },
+    {
+      "idx": 182,
+      "version": "7",
+      "when": 1792844539641,
+      "tag": "0182_2026-10-24_attendance-statement-requests",
+      "breakpoints": true
     }
   ]
 }

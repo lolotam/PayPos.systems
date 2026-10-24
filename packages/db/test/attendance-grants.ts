@@ -31,6 +31,9 @@ export const ATTENDANCE_TABLE_GRANTS = [
   // بند 28c: دفتر «دوامك قرب يخلص» يُدرج ولا يُعدّل ولا يُحذف.
   'attendance_shift_ending_notices:SELECT',
   'attendance_shift_ending_notices:INSERT',
+  // بند 27g: سجل طلب البيان يُدرج ولا يُعدّل ولا يُحذف.
+  'attendance_statement_requests:SELECT',
+  'attendance_statement_requests:INSERT',
 ].sort();
 
 // جداول الحضور المستأجرة؛ فحوص FORCE RLS ومنع dispatcher/auth المشتركة تغطيها كلها.
@@ -39,6 +42,7 @@ export const ATTENDANCE_TENANT_TABLES = [
   'attendance_not_clocked_in_notices',
   'attendance_break_not_returned_notices',
   'attendance_shift_ending_notices',
+  'attendance_statement_requests',
   'attendance_sessions',
   'attendance_exceptions',
   'attendance_clock_challenges',
