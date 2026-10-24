@@ -22,6 +22,8 @@ const fakes = vi.hoisted(() => {
     endpoint: 'https://fcm.googleapis.com/fcm/send/one',
     unsubscribed: 0,
     registers: [] as { token: string; endpoint: string }[],
+    permission: 'default' as 'default' | 'granted' | 'denied',
+    order: [] as string[],
     gate: null as Promise<void> | null,
     gateReached: null as (() => void) | null,
     gateUsed: false,
@@ -51,7 +53,12 @@ vi.mock('./push-record-idb', () => ({
 }));
 
 vi.mock('./push-browser', () => ({
-  notificationPermission: () => 'granted' as const,
+  notificationPermission: () => fakes.state.permission,
+  requestNotificationPermission: async () => {
+    fakes.state.order.push('permission');
+    fakes.state.permission = 'granted';
+    return 'granted' as const;
+  },
   currentSubscription: async () => {
     if (fakes.state.gate !== null && !fakes.state.gateUsed) {
       fakes.state.gateUsed = true;
@@ -129,12 +136,26 @@ function withoutLocks(): void {
   Object.defineProperty(globalThis.navigator, 'locks', { value: undefined, configurable: true });
 }
 
+function recordingLocks(order: string[]): void {
+  Object.defineProperty(globalThis.navigator, 'locks', {
+    value: {
+      request: async (_name: string, run: () => Promise<unknown>) => {
+        order.push('lock');
+        return run();
+      },
+    },
+    configurable: true,
+  });
+}
+
 beforeEach(() => {
   fakes.state.record = { ...RECORD };
   fakes.state.removed = 0;
   fakes.state.endpoint = FIRST;
   fakes.state.unsubscribed = 0;
   fakes.state.registers = [];
+  fakes.state.permission = 'default';
+  fakes.state.order = [];
   fakes.state.gate = null;
   fakes.state.gateReached = null;
   fakes.state.gateUsed = false;
@@ -145,6 +166,20 @@ afterEach(() => {
   if (locksDescriptor !== undefined) {
     Object.defineProperty(globalThis.navigator, 'locks', locksDescriptor);
   }
+});
+
+it('asks for the browser permission before the locked work starts', async () => {
+  recordingLocks(fakes.state.order);
+
+  const outcome = await enablePush({
+    companyId: 'company',
+    locale: 'en',
+    installationId: INSTALLATION,
+    onRegistered: () => undefined,
+  });
+
+  expect(outcome.kind).toBe('enabled');
+  expect(fakes.state.order).toEqual(['permission', 'lock']);
 });
 
 it('turning off while a rotation is in flight leaves the record deleted', async () => {

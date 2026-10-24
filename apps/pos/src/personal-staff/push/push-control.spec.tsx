@@ -9,6 +9,7 @@ import { PushControl } from './push-control';
 import { PushKeyStaleError, pushCalls } from './push-calls';
 import type { PushRecord } from './push-record';
 import { refreshPush } from './push-refresh';
+import type * as PushRefreshModule from './push-refresh';
 import { runSignInPushCheck } from './push-sign-in-check';
 
 const fakes = vi.hoisted(() => {
@@ -243,7 +244,7 @@ it('shows nothing when the server has no push configuration', async () => {
 });
 
 it('turns the notifications on with one registration and shows the notifications are on', async () => {
-  const actual = await vi.importActual<typeof import('./push-refresh')>('./push-refresh');
+  const actual = await vi.importActual<typeof PushRefreshModule>('./push-refresh');
   vi.mocked(refreshPush).mockImplementation(actual.refreshPush);
   mount();
   const button = await screen.findByRole('button', { name: t('en', 'staffPush.enable') });

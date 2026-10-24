@@ -48,15 +48,17 @@ async function subscribeWithConfig(
  * @returns نتيجة المحاولة
  */
 export async function enablePush(input: PushEnableInput): Promise<PushEnableOutcome> {
+  // طلب الإذن لازم يكون أول خطوة في ضغطة المستخدم: المتصفح بيقبل الطلب بس طول ما كان
+  // في تفاعل حي، والقفل أو أي قراءة بتستنى وبتضيّع التفاعل (ADR-0052 §7).
+  const permission = notificationPermission();
+  if (permission === 'denied') return { kind: 'blocked' };
+  if (permission === 'default') {
+    const asked = await requestNotificationPermission();
+    if (asked !== 'granted') return { kind: 'blocked' };
+  }
   return runPushExclusive(async (): Promise<PushEnableOutcome> => {
     // القراءة من جوه القفل: لو شغل تاني غيّر السجل، إحنا بنشوف النسخة الجديدة.
     const previous = await pushRecordStore.read().catch(() => null);
-    const permission = notificationPermission();
-    if (permission === 'denied') return { kind: 'blocked' };
-    if (permission === 'default') {
-      const asked = await requestNotificationPermission();
-      if (asked !== 'granted') return { kind: 'blocked' };
-    }
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const config = await pushCalls.config();
       if (config.kind === 'not-ready') return { kind: 'not-ready' };
