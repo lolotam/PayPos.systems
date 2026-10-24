@@ -66,8 +66,10 @@ it.each([
 });
 
 it('requires a session', async () => {
-  const result = await f.h.send('GET', `/v1/businesses/${f.business}/staff/employee-app-link`, {
-    company: f.company,
+  const response = await f.h.app.inject({
+    method: 'GET',
+    url: `/v1/businesses/${f.business}/staff/employee-app-link`,
+    headers: { 'x-company-id': f.company },
   });
-  expect(result.status).toBe(401);
+  expect(response.statusCode).toBe(401);
 });
