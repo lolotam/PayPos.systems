@@ -1,2 +1,5 @@
 // سطر xcodebuild بـ -xcconfig هو اللي بيختار النسخة دي، وإعدادات الملف بتتغلب على إعدادات المشروع.
 PRODUCT_BUNDLE_IDENTIFIER = systems.pospay.business.staging
+POS_HOST = pos.staging.pospay.systems
+// الـ entitlements متحطّة هنا عشان متحتاجش تعديل في pbxproj، والـ host في نفس الملف.
+CODE_SIGN_ENTITLEMENTS = App/App.entitlements
