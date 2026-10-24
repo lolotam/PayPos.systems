@@ -134,9 +134,12 @@ start screen again.
 
 - **FR-001**: The native build MUST open on a start screen with two choices, «جهاز الكاونتر» and «حسابي كموظفة», until
   one is chosen, then open that flow directly on every later launch.
-  While the chosen flow holds **no pairing and no session** (the counter flow's pairing-code screen; the employee
-  flow's link or sign-in screen), it MUST show a «رجوع لاختيار نوع الجهاز» control that clears only the remembered
-  choice (the remembered business stays) and shows the start screen again. Once a pairing or a session exists, the
+  While the chosen flow holds **no pairing and no session** (the counter flow's pairing-code screen while no pairing request is being sent, or its «not supported here» screen; the
+  employee flow's link or sign-in screen once the server has confirmed there is no session, never on a failed or
+  pending lookup), it MUST show a «رجوع لاختيار نوع الجهاز» control that clears only the remembered
+  choice (the remembered business stays) and shows the start screen again. From the employee flow it first ends any
+  personal session on the server, as the business switch does, and stays put with the existing alert if that fails or
+  the phone is offline. Once a pairing or a session exists, the
   role changes only through FR-008. Without it a wrong first tap could be undone only by clearing the app's data
   (Waleed's M-1c Android check, 2026-10-25; APP-Q16 lets anyone change the role).
 - **FR-002**: The counter flow MUST be the existing paired-device flow of the PWA, unchanged (pairing, waiting, staff
