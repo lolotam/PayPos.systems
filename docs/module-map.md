@@ -314,7 +314,7 @@ packages_restricted:
 # Application composition roots may wire restricted packages (ADR-0018); never a business-module permission.
 composition_roots:
   auth: [apps/api/src/app.ts, apps/api/src/main.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
-  staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts]
+  staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts, packages/auth/src/operator/staging-staff-identity.ts]
   platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
   notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
   documents: [apps/worker/src/main.ts]

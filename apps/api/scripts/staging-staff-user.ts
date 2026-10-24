@@ -76,9 +76,7 @@ function readInput(argv: string[]): CliInput {
 
 function derivedEmail(input: CliInput): string {
   const digest = createHash('sha256')
-    .update(
-      `v1|${input.phone}|${input.companyId}|${input.businessId}|${input.branchId}`,
-    )
+    .update(`v1|${input.phone}|${input.companyId}|${input.businessId}|${input.branchId}`)
     .digest('hex')
     .slice(0, 48);
   return `staging-staff-${digest}@staging.pospay.invalid`;
@@ -105,7 +103,11 @@ function backOfficeOrigin(env: NodeJS.ProcessEnv): string {
   throw new BackOfficeOriginError();
 }
 
-async function createUser(input: CliInput, env: NodeJS.ProcessEnv, email: string): Promise<Identity> {
+async function createUser(
+  input: CliInput,
+  env: NodeJS.ProcessEnv,
+  email: string,
+): Promise<Identity> {
   const redirectTo = backOfficeOrigin(env);
   const ids = systemUuidV7();
   const baseURL = env['BETTER_AUTH_URL'] ?? '';
@@ -181,7 +183,11 @@ async function ensureUser(
   }
 }
 
-async function run(input: CliInput, env: NodeJS.ProcessEnv, out: (line: string) => void): Promise<number> {
+async function run(
+  input: CliInput,
+  env: NodeJS.ProcessEnv,
+  out: (line: string) => void,
+): Promise<number> {
   const identity = await ensureUser(input, env, derivedEmail(input), out);
   const user = identity.emailUser;
   if (user === null) throw new Error('IDENTITY_RECONCILIATION_FAILED');

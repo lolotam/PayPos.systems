@@ -51,7 +51,10 @@ const OPERATOR_SYNTAX = [
     selector: `CallExpression[callee.name='require'][arguments.0.value=${OPERATOR_IMPORT}]`,
     message: OPERATOR_MESSAGE,
   },
-  { selector: `TSImportType[argument.literal.value=${OPERATOR_IMPORT}]`, message: OPERATOR_MESSAGE },
+  {
+    selector: `TSImportType[argument.literal.value=${OPERATOR_IMPORT}]`,
+    message: OPERATOR_MESSAGE,
+  },
 ];
 const facadeRule = (
   allowed,
@@ -133,11 +136,7 @@ const USER_TEXT_SYNTAX = [
   { selector: `JSXText[value=${ARABIC}]`, message: USER_TEXT },
 ];
 
-const restrictedSyntax = ({
-  userText,
-  engine = COMMISSIONS_ENGINE_SYNTAX,
-  operator = true,
-}) => [
+const restrictedSyntax = ({ userText, engine = COMMISSIONS_ENGINE_SYNTAX, operator = true }) => [
   'error',
   ...CREDENTIAL_SYNTAX,
   ...engine,

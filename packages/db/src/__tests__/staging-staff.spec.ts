@@ -67,7 +67,9 @@ describe('staging staff branch membership', () => {
     const input = membershipInput(userId);
     expect(await ensureStaffBranchMembership(input)).toBe('created');
     expect(await ensureStaffBranchMembership(input)).toBe('unchanged');
-    expect(await owner`SELECT id FROM memberships WHERE company_id=${A.company} AND user_id=${userId}`).toHaveLength(1);
+    expect(
+      await owner`SELECT id FROM memberships WHERE company_id=${A.company} AND user_id=${userId}`,
+    ).toHaveLength(1);
     const audits = await owner`SELECT actor_user_id,action,after FROM audit_log
       WHERE company_id=${A.company} AND entity='membership' AND after->>'user_id'=${userId}`;
     expect(audits).toEqual([
@@ -89,7 +91,9 @@ describe('staging staff branch membership', () => {
       await owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at,ends_at)
         VALUES (${A.company},${ids.newId()},${userId},${staffRole},'global','BRANCH',${A.branch},${startsAt},${endsAt})`;
       expect(await ensureStaffBranchMembership(membershipInput(userId))).toBe('created');
-      expect(await owner`SELECT id FROM memberships WHERE company_id=${A.company} AND user_id=${userId}`).toHaveLength(2);
+      expect(
+        await owner`SELECT id FROM memberships WHERE company_id=${A.company} AND user_id=${userId}`,
+      ).toHaveLength(2);
     }
   });
 

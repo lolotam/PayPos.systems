@@ -18,20 +18,30 @@ const eslint = new ESLint({
   ],
 });
 const cases = [
-  ['a named import', "import { ensureStaffBranchMembership } from '@pospay/db/operator/staging-staff';"],
+  [
+    'a named import',
+    "import { ensureStaffBranchMembership } from '@pospay/db/operator/staging-staff';",
+  ],
   ['a namespace import', "import * as staging from '@pospay/db/operator/staging-staff';"],
   ['a re-export', "export { ensureEmployeeUserLink } from '@pospay/db/operator/staging-staff';"],
   ['a dynamic import', "import('@pospay/db/operator/staging-staff');"],
-  ['the auth subpath', "import { readStagingStaffIdentity } from '@pospay/auth/operator/staging-staff';"],
+  [
+    'the auth subpath',
+    "import { readStagingStaffIdentity } from '@pospay/auth/operator/staging-staff';",
+  ],
 ];
 
 for (const [label, code] of cases) {
   it(`refuses ${label} outside the operator CLI`, async () => {
-    const [result] = await eslint.lintText(code, { filePath: 'apps/api/src/modules/identity/probe.ts' });
+    const [result] = await eslint.lintText(code, {
+      filePath: 'apps/api/src/modules/identity/probe.ts',
+    });
     assert.ok(result.messages.some((entry) => entry.message.includes(message)));
   });
   it(`allows ${label} in the operator CLI`, async () => {
-    const [result] = await eslint.lintText(code, { filePath: 'apps/api/scripts/staging-staff-user.ts' });
+    const [result] = await eslint.lintText(code, {
+      filePath: 'apps/api/scripts/staging-staff-user.ts',
+    });
     assert.ok(!result.messages.some((entry) => entry.message.includes(message)));
   });
 }

@@ -55,14 +55,22 @@ afterAll(async () => {
 
 function argv(target = 'staging'): string[] {
   return [
-    '--target', target,
-    '--company', company,
-    '--business', business,
-    '--branch', branch,
-    '--employee', employee,
-    '--phone', phone,
-    '--name', 'Synthetic staging staff',
-    '--operator', 'synthetic.operator',
+    '--target',
+    target,
+    '--company',
+    company,
+    '--business',
+    business,
+    '--branch',
+    branch,
+    '--employee',
+    employee,
+    '--phone',
+    phone,
+    '--name',
+    'Synthetic staging staff',
+    '--operator',
+    'synthetic.operator',
   ];
 }
 
@@ -122,7 +130,8 @@ it('provisions once, supports PIN sign-in, and preserves all rows and the sessio
   });
   expect(signedIn.statusCode).toBe(200);
   expect(signedIn.json().user_id).toBe(userId);
-  const sessions = await h.owner`SELECT id FROM session WHERE user_id=${userId} AND purpose='STAFF_POS'`;
+  const sessions =
+    await h.owner`SELECT id FROM session WHERE user_id=${userId} AND purpose='STAFF_POS'`;
   expect(sessions).toHaveLength(1);
   const before = await rowCounts();
   const second: string[] = [];
@@ -135,7 +144,9 @@ it('provisions once, supports PIN sign-in, and preserves all rows and the sessio
     `next: set the PIN with POST /v1/staff-pins/reset for user ${userId}`,
   ]);
   expect(await rowCounts()).toEqual(before);
-  expect(await h.owner`SELECT id FROM session WHERE user_id=${userId} AND purpose='STAFF_POS'`).toEqual(sessions);
+  expect(
+    await h.owner`SELECT id FROM session WHERE user_id=${userId} AND purpose='STAFF_POS'`,
+  ).toEqual(sessions);
   const refusal: string[] = [];
   expect(await main(argv('production'), stagingEnv(), (line) => refusal.push(line))).toBe(1);
   expect(refusal).toEqual(['refused: not staging']);
