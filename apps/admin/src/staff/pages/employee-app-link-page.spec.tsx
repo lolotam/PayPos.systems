@@ -91,7 +91,7 @@ it('EL-T03 keeps the selectable link visible when copying is rejected', async ()
 it('EL-T04 shows no-access and hides the link and actions on 403', async () => {
   api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
   renderPage();
-  expect(await screen.findByRole('alert')).toHaveTextContent(t('en', 'errors.FORBIDDEN'));
+  expect((await screen.findByRole('alert')).textContent).toContain(t('en', 'errors.FORBIDDEN'));
   expect(screen.queryByText(linkFor(business))).toBeNull();
   expect(screen.queryByRole('button', { name: t('en', 'employeeAppLink.copy') })).toBeNull();
 });
@@ -103,7 +103,7 @@ it.each([
   vi.stubEnv('NEXT_PUBLIC_POS_URL', configuredOrigin);
   mockSuccess();
   renderPage();
-  expect(await screen.findByRole('alert')).toHaveTextContent(
+  expect((await screen.findByRole('alert')).textContent).toContain(
     t('en', 'employeeAppLink.notConfigured'),
   );
   expect(screen.queryByRole('img')).toBeNull();

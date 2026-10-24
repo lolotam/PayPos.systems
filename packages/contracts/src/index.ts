@@ -2,6 +2,7 @@ export { nameAr, nameEn } from './bilingual/names.js';
 export * from './staff/attendance-monthly-report.js';
 export * from './staff/attendance-report-inputs.js';
 export * from './staff/attendance-statement.js';
+export * from './staff/employee-app-link.js';
 export {
   employee,
   createdEmployee,
@@ -377,17 +378,7 @@ export {
   type AttendanceEmployeesQuery,
   type AttendanceEmployeePage,
 } from './staff/attendance-employees.js';
-export {
-  attendanceCapabilities,
-  type AttendanceCapabilities,
-} from './staff/attendance-capabilities.js';
-export {
-  POS_HOSTS,
-  type PosHost,
-  employeeAppLink,
-  type EmployeeAppLink,
-  buildEmployeeAppLink,
-} from './staff/employee-app-link.js';
+export * from './staff/attendance-capabilities.js';
 export * from './orders/service-session.js';
 export * from './orders/session-tips.js';
 export * from './orders/recording-context.js';
