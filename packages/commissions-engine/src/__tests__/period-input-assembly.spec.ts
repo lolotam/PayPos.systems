@@ -265,3 +265,35 @@ it('preserves caller subtype fields and shares kept arrays with engine input', (
   expect(assembled.input.lines).toBe(assembled.lines);
   expect(assembled.input.sales).toBe(assembled.sales);
 });
+
+it('pruning never changes the priced result', () => {
+  const based = (patch: Parameters<typeof version>[0], value: bigint) =>
+    version({ ...patch, base: { enabled: true, calc: pct(value) } });
+  const lines = [projectedLine(), projectedLine({ lineId: 'b', serviceId: 'service-b' })];
+  const versions = [
+    version({ effectiveFrom: '2026-09-01' }),
+    based({ effectiveFrom: '2026-10-20', wholePeriod: true }, 2000n),
+    based({ effectiveFrom: '2026-11-01' }, 5000n),
+    version({ employeeId: 'employee-b' }),
+  ];
+  const overrides = ['2026-10-05', '2026-11-01'].map((effectiveFrom, index) =>
+    serviceOverride({ id: `override-${index}`, effectiveFrom }),
+  );
+  const salaries = ['2026-09-01', '2026-10-15', '2026-11-01'].map((effectiveFrom) =>
+    salaryEntry('employee-a', effectiveFrom, 500000n),
+  );
+  salaries.push(salaryEntry('employee-b', '2026-10-01', 900000n));
+  const unfiltered: CommissionPeriodInput = {
+    employeeId: 'employee-a',
+    period: '2026-10',
+    periodLastDay: '2026-10-31',
+    lines,
+    sales: [],
+    versions,
+    overrides,
+    salaries,
+  };
+  const assembled = assemble({ lines, sales: [], versions, overrides, salaries });
+  expect(computePeriod(assembled.input)).toEqual(computePeriod(unfiltered));
+  expect(computePeriod(assembled.input)).toMatchObject({ ok: true, total: 25000n });
+});

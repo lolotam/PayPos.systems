@@ -16,7 +16,11 @@ function getPeriodLastDay(period: string): string {
   const year = Number(period.slice(0, 4));
   const month = Number(period.slice(5, 7));
   const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-  const days = month === 2 && isLeapYear ? 29 : (MONTH_DAYS[month - 1] ?? 0);
+  const monthDays = MONTH_DAYS[month - 1];
+  if (monthDays === undefined) {
+    throw new RangeError('Commission period must use YYYY-MM with a valid month');
+  }
+  const days = month === 2 && isLeapYear ? 29 : monthDays;
   return `${period}-${String(days).padStart(2, '0')}`;
 }
 

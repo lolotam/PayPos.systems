@@ -55,7 +55,9 @@ export interface CommissionPeriodProjection<
   readonly lines: readonly L[];
   readonly sales: readonly S[];
   readonly salaries: readonly Sal[];
+  /** تبقى بنوع المحرك لأن version وcreatedAt يكفيان هويتها، وتُوسع فقط إذا احتاجت البصمة لذلك. */
   readonly versions: readonly CommissionPlanVersion[];
+  /** تبقى بنوع المحرك لأن id وcreatedAt يكفيان هويتها، وتُوسع فقط إذا احتاجت البصمة لذلك. */
   readonly overrides: readonly ServiceCommissionOverride[];
   readonly tips: readonly T[];
   readonly corrections: readonly C[];
