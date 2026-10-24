@@ -8,6 +8,9 @@ import { EmployeeAppLinkPage } from './employee-app-link-page';
 const api = vi.hoisted(() => ({ GET: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
+vi.mock('qrcode.react', () => ({
+  QRCodeSVG: ({ value }: { value: string }) => <svg data-testid="qr" data-value={value} />,
+}));
 
 const company = '01920000-0000-7000-8000-0000000000c1';
 const business = '01920000-0000-7000-8000-0000000000b1';
@@ -16,17 +19,18 @@ const user = '01920000-0000-7000-8000-0000000000a1';
 const origin = 'https://pos.staging.pospay.systems';
 const linkFor = (id: string) => `${origin}/personal?company=${company}&business=${id}`;
 
-function answer(businessId: string) {
+function answer(businessId: string, businessName?: string) {
   return {
     company_id: company,
     business_id: businessId,
-    business_name_en: businessId === business ? 'Synthetic business' : 'Other business',
+    business_name_en:
+      businessName ?? (businessId === business ? 'Synthetic business' : 'Other business'),
     business_name_ar: null,
   };
 }
 
-function mockSuccess(businessId = business) {
-  api.GET.mockResolvedValue({ data: answer(businessId), response: { status: 200 } });
+function mockSuccess(businessId = business, businessName?: string) {
+  api.GET.mockResolvedValue({ data: answer(businessId, businessName), response: { status: 200 } });
 }
 
 function queryClient() {
@@ -64,6 +68,7 @@ it('EL-T02 renders the QR for the displayed link with its accessible label', asy
   expect(await screen.findByText(linkFor(business))).toBeTruthy();
   const qr = screen.getByRole('img', { name: t('en', 'employeeAppLink.qrLabel') });
   expect(qr.querySelector('svg')).not.toBeNull();
+  expect(screen.getByTestId('qr').getAttribute('data-value')).toBe(linkFor(business));
 });
 
 it('EL-T03 confirms a successful copy and sends the exact link to the clipboard', async () => {
@@ -120,25 +125,31 @@ it('EL-T07 changes the link when another business is selected', async () => {
   const client = queryClient();
   const view = renderPage(business, client);
   expect(await screen.findByText(linkFor(business))).toBeTruthy();
+  expect(screen.getByTestId('qr').getAttribute('data-value')).toBe(linkFor(business));
   view.rerender(
     <QueryClientProvider client={client}>
       <EmployeeAppLinkPage companyId={company} userId={user} businessId={otherBusiness} />
     </QueryClientProvider>,
   );
   expect(await screen.findByText(linkFor(otherBusiness))).toBeTruthy();
+  expect(screen.getByTestId('qr').getAttribute('data-value')).toBe(linkFor(otherBusiness));
   expect(screen.queryByText(linkFor(business))).toBeNull();
 });
 
-it('EL-T09 opens WhatsApp with the encoded line and makes no additional API request', async () => {
-  mockSuccess();
+it.each([
+  { name: 'EL-T09 ordinary business name', businessName: 'Synthetic business' },
+  { name: 'EL-T09 literal replacement patterns', businessName: 'A$&B $$ Salon' },
+])('$name opens WhatsApp without another API request', async ({ businessName }) => {
+  mockSuccess(business, businessName);
   renderPage();
   const link = linkFor(business);
   expect(await screen.findByText(link)).toBeTruthy();
   const whatsapp = screen.getByRole('link', { name: t('en', 'employeeAppLink.whatsapp') });
-  const line = t('en', 'employeeAppLink.whatsappLine').replace('{name}', 'Synthetic business');
+  const line = t('en', 'employeeAppLink.whatsappLine').replace('{name}', () => businessName);
   const href = whatsapp.getAttribute('href') ?? '';
   expect(href.startsWith('https://wa.me/?text=')).toBe(true);
   expect(href).toBe(whatsAppShareHref(line, link));
+  expect(href).toContain(encodeURIComponent(businessName));
   fireEvent.click(whatsapp);
   await waitFor(() => expect(api.GET).toHaveBeenCalledTimes(1));
 });

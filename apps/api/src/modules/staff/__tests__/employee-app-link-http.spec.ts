@@ -65,6 +65,19 @@ it.each([
   }
 });
 
+it('refuses a holder when the staff feature is disabled', async () => {
+  await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
+    VALUES(${f.company},'staff',false,'Synthetic disabled feature',${f.userId})`;
+  try {
+    const result = await send(f.business);
+    expect(result.status).toBe(403);
+    expect(result.body.code).toBe('FEATURE_DISABLED');
+  } finally {
+    await f.h
+      .owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='staff'`;
+  }
+});
+
 it('requires a session', async () => {
   const response = await f.h.app.inject({
     method: 'GET',

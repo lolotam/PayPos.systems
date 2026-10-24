@@ -2,6 +2,7 @@ import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
+import { employeeAppLinkKey } from '@/staff/api/use-employee-app-link';
 import { EmployeeAppLinkButton } from './employee-app-link-button';
 
 const api = vi.hoisted(() => ({ GET: vi.fn() }));
@@ -13,11 +14,12 @@ const label = t('en', 'employeeAppLink.open');
 
 function renderButton() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <EmployeeAppLinkButton companyId={id} userId={id} businessId={id} />
     </QueryClientProvider>,
   );
+  return { client, ...view };
 }
 
 beforeEach(() => {
@@ -41,7 +43,9 @@ it('shows the staff app link when the guarded read succeeds', async () => {
 
 it.each([403, 500])('hides the staff app link when the read fails with %s', async (status) => {
   api.GET.mockResolvedValue({ error: { code: 'REFUSED' }, response: { status } });
-  renderButton();
-  await waitFor(() => expect(api.GET).toHaveBeenCalledTimes(1));
+  const { client } = renderButton();
+  await waitFor(() =>
+    expect(client.getQueryState(employeeAppLinkKey(id, id, id))?.status).toBe('error'),
+  );
   expect(screen.queryByRole('link', { name: label })).toBeNull();
 });
