@@ -7,7 +7,7 @@ import { discountApprovalErrorsAr } from './discount-approval-errors.js';
 import { staffColumnsErrorsAr } from './staff-columns-errors.js';
 import { attendanceAr } from './attendance-ar.js';
 import { clockCardAdminAr, clockCardPosAr } from './clock-card-catalog.js';
-import { employeeImportAr, employeeImportErrorsAr } from './employee-import.js';
+import { employeeImportErrorsAr } from './employee-import.js';
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
 import { leaveAr, leaveDecisionErrorsAr } from './leave-catalog.js';
@@ -24,7 +24,7 @@ import { scheduleShellAr } from './schedule-shell-catalog.js';
 import { employeeDefaultHoursAr } from './employee-default-hours-catalog.js';
 import { employeeNumberErrorsAr } from './employee-number-catalog.js';
 import { employeeNumberAdminAr } from './employee-number-admin-catalog.js';
-import { companyEmployeeNumbersAr } from './company-employee-numbers-catalog.js';
+import { staffScreensAr } from './staff-screens-catalog.js';
 import { businessIdentityAr } from './business-identity-catalog.js';
 import { roleNamesAr } from './role-names-catalog.js';
 
@@ -387,7 +387,6 @@ export const ar: Catalog = {
     unexpected: 'حدث خطأ. حاول مرة أخرى.',
     networkError: 'تعذّر الوصول إلى الخادم. حاول مرة أخرى.',
   },
-  employeeImport: employeeImportAr,
-  companyEmployeeNumbers: companyEmployeeNumbersAr,
+  ...staffScreensAr,
   businessIdentity: businessIdentityAr,
 };

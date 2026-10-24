@@ -17,6 +17,11 @@ on:
         options:
           - auto
           - enforce
+      spike:
+        description: 'Run the M-1c iOS UI test on the staging simulator build (spec 065)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -372,6 +377,53 @@ jobs:
           path: apps/business/out/${{ matrix.flavour }}-App.zip
           retention-days: 14
           if-no-files-found: error
+
+      # الـ spike بيشتغل بس في dispatch متعلّم على `spike`، وعلى بناء staging بس.
+      # بنحطه جوّه شغلانة iOS اللي واخدة قبول بالفعل، فنفس خانة الحارس والـ timeout بيغطّوه
+      # (ADR-0055 قرار 6) من غير شغلانة macOS جديدة تحتاج خانة تانية.
+      # ومفيش أي secret بيتقري هنا.
+      # الخطوات بعد رفع البناء عشان لو اختبار الـ UI فشل، نسخة المحاكي تفضل متاحة للتحميل.
+      - name: Boot a simulator for the UI test
+        if: inputs.spike == true && matrix.flavour == 'staging'
+        working-directory: apps/business
+        run: |
+          set -euo pipefail
+          udid="$(xcrun simctl list devices available --json | node scripts/pick-simulator.mjs)"
+          echo "udid=$udid"
+          # الـ -b بيشغّل المحاكي لو لسه مش شغال، وبعدين بيستنى لحد ما يكون جاهز.
+          xcrun simctl bootstatus "$udid" -b
+          echo "SPIKE_UDID=$udid" >> "$GITHUB_ENV"
+
+      - name: Install the app on the simulator
+        if: inputs.spike == true && matrix.flavour == 'staging'
+        run: |
+          set -euo pipefail
+          app="$(ls -td ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Debug-iphonesimulator/App.app | sed -n '1p')"
+          xcrun simctl uninstall "$SPIKE_UDID" systems.pospay.business.staging || true
+          xcrun simctl install "$SPIKE_UDID" "$app"
+
+      - name: Generate the UI test project
+        if: inputs.spike == true && matrix.flavour == 'staging'
+        working-directory: apps/business
+        run: |
+          set -euo pipefail
+          gem install xcodeproj -v 1.27.0 --no-document --user-install
+          ruby ios/ui-tests/make-project.rb "$RUNNER_TEMP/spike"
+
+      - name: Run the UI test
+        if: inputs.spike == true && matrix.flavour == 'staging'
+        run: |
+          set -euo pipefail
+          xcodebuild test -project "$RUNNER_TEMP/spike/SpikeUITests.xcodeproj" -scheme SpikeUITests -destination "id=$SPIKE_UDID" -resultBundlePath "$RUNNER_TEMP/spike/SpikeUITests.xcresult" CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM=
+
+      - name: Upload the UI test result
+        if: always() && inputs.spike == true && matrix.flavour == 'staging'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-spike-xcresult
+          path: ${{ runner.temp }}/spike/SpikeUITests.xcresult
+          retention-days: 14
+          if-no-files-found: warn
 
   # تحرير الخانة شغلانة لوحدها، عشان شغلانة الـ iOS ما تمسكش حق الكتابة على المستودع وهي
   # بتثبّت وتبني كود تالت. بتشتغل بعد الـ iOS على طول (نجحت أو فشلت)، وبتعمل حاجة واحدة.

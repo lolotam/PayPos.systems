@@ -22,6 +22,7 @@ vi.mock('../api/use-passkeys', () => ({
     data: { items: [], next_cursor: null },
   }),
 }));
+vi.mock('../ui/employee-app-link-button', () => ({ EmployeeAppLinkButton: () => null }));
 vi.mock('../ui/employee-edit-panel', () => ({
   EmployeeEditPanel: (props: object) => {
     state.edit(props);
