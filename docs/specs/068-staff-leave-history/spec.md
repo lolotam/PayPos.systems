@@ -6,7 +6,7 @@
 
 **Status**: Draft — waits for row **27g** to finish (LV-Q1). Owner questions LH-Q1…LH-Q5 (batch 63, PP-47.2…PP-47.6)
 are answered by Waleed on the decisions page (2026-10-24); Abu Salem is **PENDING** on all of them, and work follows
-Waleed's picks until he answers (`CLAUDE.md` §1 5b). Three new questions, LH-Q6…LH-Q8, are **PENDING** for both owners
+Waleed's picks until he answers (`CLAUDE.md` §1 5b). Four new questions, LH-Q6…LH-Q9, are **PENDING** for both owners
 and each blocks only the rule marked `TODO(spec)` below ([owner-questions.ar.md](owner-questions.ar.md)). **No code starts
 before row 27g is done and this spec is merged.**
 
@@ -73,7 +73,7 @@ the السالمية branch manager; هدى is the owner. Today is 24 October 20
    does not change.
 2. **When** she picks the type «سنوية» only, **then** only annual leave shows; picking «غياب من غير عذر» only shows only
    absence rows.
-3. **When** she picks the status «مرفوضة», **then** only rejected requests show (absence rows: LH-Q6, FR-006).
+3. **When** she picks the status «مرفوضة», **then** only rejected requests show (absence rows: `TODO(spec)` LH-Q8, FR-006).
 
 ### User Story 3 — The report for all employees (Priority: P1)
 
@@ -93,8 +93,11 @@ the السالمية branch manager; هدى is the owner. Today is 24 October 20
 
 - ريم had a scheduled shift on 12 October, no session and no leave: one absence row on 12 October (BR-001).
 - A partial approved leave (10:00–12:00) on a scheduled day with no session: a leave row, no absence (BR-002).
-- A pending or rejected request on a scheduled day with no session: the request row **and** an absence row (BR-002).
-- A shift that has not ended yet (today's 16:00–22:00 at 15:00): no absence (BR-004).
+- A pending, rejected or cancelled request on a scheduled day with no session: the request row; whether an absence row
+  shows too is `TODO(spec)` LH-Q7 (BR-002).
+- A shift that has not ended yet (today's 16:00–22:00 at 15:00): no absence under LH-Q7's ⭐ (BR-004).
+- A split day (09:00–12:00 and 16:00–20:00) read at 13:00 with no session: absence under LH-Q7's ⭐, which disappears if
+  she clocks in at 16:00 (BR-003, BR-004).
 - An OPEN session (still clocked in): no absence (BR-003).
 - A voided session only: absence (BR-003).
 - She clocked in at حولي on a day scheduled at السالمية: no absence (BR-003).
@@ -103,8 +106,9 @@ the السالمية branch manager; هدى is the owner. Today is 24 October 20
 - A scheduled date before `hire_date` or after `contract_end`: no absence (BR-006).
 - A soft-deleted employee is not listed anywhere, as in today's leave reads.
 - A leave of 28 December 2025 – 3 January 2026 overlaps the default period and is listed.
-- An approved leave dated next month is outside the default period but counts for the last-taken line only if LH-Q8
-  says so.
+- An approved leave dated next month is outside the default period; whether it counts for the last-taken line is
+  `TODO(spec)` LH-Q9.
+- ريم has a sick leave filed at حولي: منى (السالمية) does not see it in the list or in the last-taken line (FR-008).
 
 ## Requirements *(mandatory)*
 
@@ -115,33 +119,37 @@ the السالمية branch manager; هدى is the owner. Today is 24 October 20
 - **FR-002** A report screen «سجل الإجازات» under staff lists the history of every employee of the selected business,
   with an employee filter (LH-Q1).
 - **FR-003** Both views read one row list ordered by date descending (a request's `from`, an absence's working date),
-  then leave rows before absence rows on the same date, then id; rows overlap the period (`to ≥ period.from` and
+  then leave rows before absence rows on the same date (`row_type`), then id; rows overlap the period (`to ≥ period.from` and
   `from ≤ period.to` for a request, the working date inside the period for an absence).
 - **FR-004** A leave row carries the request as today's `LeaveListItem` does (type, kind, dates, times, time zone,
   status, note, decision, rejection and revocation reasons, branch, employee names) and the same `can_cancel`,
   `can_decide`, `can_revoke` flags. All four statuses are listed (LH-Q3); a revoked approval shows «ملغية» and its
   revocation reason.
-- **FR-005** An absence row carries `working_date`, `branch_id`, the scheduled `start`/`end` of the day's shifts at that
-  branch, and the employee names and number. It has no status and no action (LH-Q4).
+- **FR-005** An absence row carries `working_date`, `branch_id`, `shifts` (every schedule shift of `E` at that branch
+  on that date, each `{ start, end }` in branch-local `HH:MM`, so a split day keeps both ranges), and the employee names
+  and number. It has no status and no action (LH-Q4).
 - **FR-006** Filters: `from`, `to` (required by the API; the screens fill them, FR-007), `types[]` (any of `ANNUAL`,
   `SICK`, `UNPAID`, `OTHER`, `UNEXCUSED_ABSENCE`; empty = all), `statuses[]` (any of `PENDING`, `APPROVED`, `REJECTED`,
   `CANCELLED`; empty = all), `branch_id` (optional, inside the caller's scope), and on the report route only
-  `employee_id`. Whether absence rows show while a status is picked is **`TODO(spec)` LH-Q6**; until it is answered the
-  screens follow the recommended option: absence rows are hidden whenever a status is picked.
+  `employee_id`. How the status filter treats absence rows (an own status value «غياب», or not) is **`TODO(spec)` LH-Q8**: no default is
+  built; 68-1 does not start until it is answered (the sub-PR table).
 - **FR-007** The screens open on 1 January of the current year to today, both in the business's effective time zone
   (LH-Q5); the user can change both dates. A range longer than 366 days is refused with `422 VALIDATION_FAILED`
   (`to`), which keeps the absence scan bounded.
-- **FR-008** The last-taken line shows, for one employee, the latest **approved** `ANNUAL`, `SICK` and `UNPAID` leave
-  over all her history, each with its dates, or «مفيش» (LH-Q5). Whether a leave that has not started yet counts is
-  **`TODO(spec)` LH-Q8** (until answered: only leave that started on or before today). Whether a fourth item «آخر غياب
-  من غير عذر» is added is **`TODO(spec)` LH-Q7** (until answered: not shown). In the report it shows only when one
-  employee is selected.
-- **FR-009** Pagination: an opaque keyset cursor over `(date, row kind, id)` (an absence's id is the first shift id of
+- **FR-008** The last-taken line shows, for one employee, the latest `ANNUAL`, `SICK` and `UNPAID` leave over all her
+  history, each with its dates, or «مفيش» (LH-Q5). Which statuses count, whether a fourth item «آخر غياب من غير عذر» is
+  added, and whether an approved leave that has not started yet counts are **`TODO(spec)` LH-Q9**; no default is built,
+  and 68-1 waits for the answer. The line is computed only over rows the caller may see (FR-010): leave
+  whose `branch_id` is in her read branches, so a branch manager never learns the date of a leave filed at another
+  branch. In the report it shows only when one employee is selected.
+- **FR-009** Pagination: an opaque keyset cursor over `(date, row_type, id)` (an absence's id is the first shift id of
   the date), limit 1–100, default 50. Today's bare-id `next_cursor` is not reused, because the order is not by id.
 - **FR-010** Access (LH-Q2): exactly today's leave read scope, `LeaveReadAccess.check` on `read:leave:branch`, with no new
   permission. A leave row is listed when its `branch_id` is in the caller's read branches; an absence row when its
-  shift's branch is. The tab route also requires the employee to be attached to one of those branches, as today's
-  employee route does.
+  shift's branch is. Both routes, when they name an employee (the tab's path, the report's `employee_id`), require
+  that employee to be attached to one of those branches, as today's employee route does, or answer 404. Whether an
+  absence row, which is attendance-derived, also needs `read:attendance:branch` on its branch is **`TODO(spec)` LH-Q6**
+  (68-1 waits for it).
 - **FR-011** No write: the history is a read; the existing actions keep their routes, guards and `Idempotency-Key`.
 
 ### Business rules (unexcused absence)
@@ -149,21 +157,23 @@ the السالمية branch manager; هدى is the owner. Today is 24 October 20
 - **BR-001** A date `D` is unexcused absence for employee `E` at branch `B` when `E` has a schedule shift at `B` whose
   `working_date` is `D` and all of BR-002…BR-006 hold. One row per (employee, date, branch).
 - **BR-002** No `APPROVED` leave of `E` covers `D` (`from ≤ D ≤ to`), of any type or kind, partial included — the same
-  precedence as spec 061 Story 2 §2 (an approved-leave date shows the leave type). A pending, rejected or cancelled
-  request does not excuse (the LH-Q4 definition: «مافيش حضور ولا إجازة معتمدة»).
+  precedence as spec 061 Story 2 §2 (an approved-leave date shows the leave type). Whether a `PENDING` request on `D`
+  holds the absence back until it is decided, and that a rejected or cancelled one does not, is **`TODO(spec)` LH-Q7**.
 - **BR-003** No non-voided session of `E` has `working_date = D` at **any** branch of the business, whatever its status
   (`OPEN` and `MISSED_OUT` included), the presence rule of spec 064 BR-003. A voided session does not count.
-- **BR-004** Every shift of `E` at `B` on `D` had ended (`ends_at ≤ now`) when the list is read, as spec 061 FR-013a
-  never prints «لا يوجد حضور مسجّل» for a shift that had not ended. `now` comes from the injected `LeaveClock`, passed
-  into the query as a parameter, never `now()` in SQL (`CLAUDE.md` §4.3).
+- **BR-004** When a scheduled shift starts counting as absence is **`TODO(spec)` LH-Q7** (⭐ only after it has ended, as
+  spec 061 ST-Q8 and FR-013a: «لا يوجد حضور مسجّل» shows for an ended shift and never for one that had not ended). Under
+  that option, at least one shift of `E` at `B` on `D` has `ends_at ≤ now`, so a split day read between its shifts is
+  absence until a session of that date appears (BR-003). `now` comes from the injected `LeaveClock`, passed into the
+  query as a parameter, never `now()` in SQL (`CLAUDE.md` §4.3).
 - **BR-005** Absence is per date: a split day with one attended shift is not absence (BR-003 already holds).
 - **BR-006** `D` lies between `hire_date` and `contract_end` (inclusive) of `E`; outside it there is no absence (the
   `INELIGIBLE` rule of spec 064 BR-002).
 
 ### Key Entities
 
-- **LeaveHistoryItem** (contract, new): a discriminated union on `kind`: `LEAVE` (today's `LeaveListItem` fields) or
-  `UNEXCUSED_ABSENCE` (FR-005). Both carry `employee_id`, `employee_name_en`, `employee_name_ar`, `employee_number`.
+- **LeaveHistoryItem** (contract, new): a discriminated union on `row_type`: `LEAVE` (today's `LeaveListItem` fields,
+  its `kind` `FULL_DAY`/`PARTIAL` kept unchanged) or `UNEXCUSED_ABSENCE` (FR-005). Both carry `employee_id`, `employee_name_en`, `employee_name_ar`, `employee_number`.
 - **LeaveHistoryPage** (contract, new): `items`, `next_cursor`, `last_taken` (`{ annual, sick, unpaid }`, each
   `{ from, to } | null`, or `null` when the page is not for one employee), `request_branch_ids` (as today's `LeavePage`).
 
@@ -179,7 +189,7 @@ no event, no audit entry (a read of leave data is not on the `CLAUDE.md` §8 aud
 | TD-1 | **Absence is computed in SQL in `queries/`** (a `NOT EXISTS` anti-join of shifts against sessions and approved leave), because `queries/` may not import `domain/` (`CLAUDE.md` §6). A **parity test** keeps it equal to the 27g day-breakdown function of spec 061 FR-013: on the same fixtures at one branch (overnight shift, split shift, voided session, OPEN session, partial leave, unended shift), the absence dates equal the dates the 27g employee form prints «لا يوجد حضور مسجّل». The only allowed difference is a session at another branch (BR-003), covered by its own test | a read use case that runs the domain function (would need a recorded exception like ADR-0054 §5 for commissions); a stored absence table (a second truth that drifts on every correction) |
 | TD-2 | **New routes, not new query parameters on today's routes.** Today's employee list and pending inbox keep their shape and their clients | widening `leaveListQuery` (changes every caller's contract and its id cursor) |
 | TD-3 | **One builder, two scopes.** `queries/leave-history.query.ts` builds the rows for one employee (tab) or a business (report); the routes differ only in the scope and the `employee_id` filter | two copies of the SQL |
-| TD-4 | **The last-taken line is three `LIMIT 1` lookups** on `leave_requests_company_employee_period_idx`, in the same `withTenant` transaction as the page (`CLAUDE.md` §6 connection budget) | computing it from the page (wrong once the period is narrowed) |
+| TD-4 | **The last-taken line is three `LIMIT 1` lookups** on `leave_requests_company_employee_period_idx`, filtered to the caller's read branches (FR-008), in the same `withTenant` transaction as the page (`CLAUDE.md` §6 connection budget) | computing it from the page (wrong once the period is narrowed) |
 
 ### Schema changes
 
@@ -227,7 +237,7 @@ last-taken labels and the empty state. Dates and times through the existing form
 
 | # | Title | Subtasks | Waits for | Size |
 |---|---|---|---|---|
-| **68-1** | Contracts and the employee read | 1. `packages/contracts/src/staff/leave-history.ts` (FR-003…FR-009 shapes) and the OpenAPI regeneration. 2. `queries/leave-history.query.ts` (leave rows, absence rows BR-001…BR-006, keyset cursor, last-taken lookups) and `GET …/employees/{employeeId}/leave-history`. 3. Result-shape tests, `EXPLAIN ANALYZE` assertions, the TD-1 parity test, and integration tests LH-01…LH-12 | 27g done; this spec merged | 380–480 |
+| **68-1** | Contracts and the employee read | 1. `packages/contracts/src/staff/leave-history.ts` (FR-003…FR-009 shapes) and the OpenAPI regeneration. 2. `queries/leave-history.query.ts` (leave rows, absence rows BR-001…BR-006, keyset cursor, last-taken lookups) and `GET …/employees/{employeeId}/leave-history`. 3. Result-shape tests, `EXPLAIN ANALYZE` assertions, the TD-1 parity test, and integration tests LH-01…LH-12 | 27g done; this spec merged; **LH-Q6…LH-Q9 answered** | 380–480 |
 | **68-2** | The business report read | 1. `GET …/leave-history` with `employee_id` and the business scope over the 68-1 builder. 2. Scope tests (branch manager sees her branch only, a request at another branch hidden, absence by shift branch) and `EXPLAIN ANALYZE` on a seeded volume (50 employees × one year of shifts). 3. The report `last_taken` rule (only with `employee_id`) | 68-1 | 200–300 |
 | **68-3** | Admin «الإجازات» tab | 1. The tab bar in the employee file (FR-001) with today's leave section moved into «الإجازات» unchanged. 2. The history list, the filters with the current-year default, the last-taken line, and the i18n keys. 3. UI tests that assert what the user sees (the default dates, a filtered list, «مفيش», the absence row, the actions still present) | 68-1 | 300–400 |
 | **68-4** | Admin report screen «سجل الإجازات» | 1. The page and its navigation entry, shown to holders of the leave read scope. 2. The employee and branch filters and the last-taken line for one employee. 3. UI tests (visible outcomes) | 68-2, 68-3 | 250–350 |
@@ -239,10 +249,12 @@ last-taken labels and the empty state. Dates and times through the existing form
   `LH-03` type and status filters, absence-only filter · `LH-04` absence on a scheduled day with no session and no leave ·
   `LH-05` approved partial leave excuses; pending and rejected do not · `LH-06` OPEN and `MISSED_OUT` sessions excuse, a
   voided one does not · `LH-07` a session at another branch excuses · `LH-08` an unended shift is not absence (the clock
-  passed in) · `LH-09` split day with one shift attended · `LH-10` dates outside `hire_date`/`contract_end` ·
+  passed in) · `LH-09` split day: one shift attended is not absence; read between its shifts with no session it is · `LH-10` dates outside `hire_date`/`contract_end` ·
   `LH-11` last-taken line over all history, independent of the period · `LH-12` keyset pagination across a date with
-  leave and absence rows, no row twice or lost · plus the access cases of User Story 4 and a cross-tenant read that
+  leave and absence rows, no row twice or lost · `LH-13` the last-taken line ignores a leave at a branch outside the caller's scope · `LH-14` the report's `employee_id` of an employee outside the caller's branches answers 404 · plus the access cases of User Story 4 and a cross-tenant read that
   returns 404.
+- The cases that touch LH-Q6…LH-Q9 (LH-05, LH-08, LH-09, LH-11, the status filter in LH-03) are written to the
+  owners' answers before 68-1 starts.
 - **Queries**: a result-shape test and an `EXPLAIN ANALYZE` assertion for each route (`CLAUDE.md` §9).
 - **Parity (TD-1)**: the absence dates equal the 27g employee form's «لا يوجد حضور مسجّل» dates on shared fixtures.
 - **UI (68-3, 68-4)**: visible outcomes only (`CLAUDE.md` §9).
@@ -252,7 +264,7 @@ last-taken labels and the empty state. Dates and times through the existing form
 
 - 68-1: `docs/module-map.md` only if a new port is added (none is expected: the read stays inside `staff`).
 - 68-4: the roadmap row AS-26 is set done by the orchestrator after the merge (`CLAUDE.md` §1 5c).
-- If Abu Salem picks differently on LH-Q1…LH-Q5, or when LH-Q6…LH-Q8 are answered, this spec and
+- If Abu Salem picks differently on LH-Q1…LH-Q5, or when LH-Q6…LH-Q9 are answered, this spec and
   `owner-questions.ar.md` change first, before the affected sub-PR.
 
 ## Success Criteria *(mandatory)*
