@@ -226,10 +226,10 @@ start screen again.
   (its sub-PR 067-2) adds it, with who counts set by spec 067 BR-003; until 067-2 lands the line is not shown to
   anyone.
 - **FR-018**: The app's identity follows APP-Q10, Q11, Q13 and APP-Q21 … Q25 (batch 69; Waleed, 2026-10-24; Abu
-  Salem pending). Both flavours show the name «PosPay Business» under the icon (APP-Q24). The icon is today's PosPay
+  Salem picked the same on 2026-10-24 except APP-Q25, where his pick binds). Both flavours show the name «PosPay Business» under the icon (APP-Q24). The icon is today's PosPay
   icon with a navy circle holding a «B» in its corner (APP-Q21); the staging icon adds a purple diagonal ribbon
-  reading «تجربة» across its top corner (APP-Q22). The splash is orange with the «P» and «PosPay Business» under it
-  (APP-Q11, APP-Q25), on Android before and from 12 and on iOS. Every screen of the staging native app starts with a
+  reading «تجربة» across its top corner (APP-Q22). The splash is light cream with the orange PosPay logo and «PosPay Business» under
+  it in navy (APP-Q11, APP-Q25), on Android before and from 12 and on iOS. Every screen of the staging native app starts with a
   purple strip reading «نسخة تجربة» / «Test version» that stays at the top while the page scrolls and below the status
   bar (APP-Q23); the production app and the web app (any host) show no strip.
 
@@ -264,7 +264,12 @@ start screen again.
 | APP-Q17 | hide the button, one line with a link to the web app (FR-007) | M-1d |
 | APP-Q18 | «must update» with every new version | M-1f (its own spec) |
 
-### Owner decisions (batch 69: Waleed's picks on 2026-10-24; Abu Salem pending, his pick replaces Waleed's if it differs)
+### Owner decisions (batch 69: Waleed's picks on 2026-10-24; Abu Salem answered on 2026-10-24)
+
+`TODO(spec)`: Abu Salem's notes leave two details open. On APP-Q21 he will send example images for the icon mark
+(«سوف يتم تزويدك بصور أمثلة»). On APP-Q25 he asked that the final look follow the suggestions he sent Waleed
+(«…نجري جميع الاقتراحات من اللي أنا بعثتهم لك»); those are not in the repo yet. What ships now follows his picks. When the
+images and suggestions arrive, a follow-up PR applies them and updates this table and FR-018.
 
 | Question | Waleed's pick | Lands in |
 |---|---|---|
@@ -272,7 +277,7 @@ start screen again.
 | APP-Q22 | a purple diagonal ribbon reading «تجربة» across the staging icon's top corner (FR-018) | M-1e |
 | APP-Q23 | a purple strip reading «نسخة تجربة» on every staging screen (FR-018) | M-1e |
 | APP-Q24 | «PosPay Business» in both flavours (FR-018) | M-1e |
-| APP-Q25 | an orange splash background (FR-018) | M-1e |
+| APP-Q25 | light cream splash background (Abu Salem's pick, binding; Waleed picked orange) (FR-018) | M-1e, then the cream follow-up |
 
 Not asked, because already decided: card attendance on the counter device is online-only
 (`apps/pos/src/attendance/api/clock-by-card.ts`), and what the cashier does offline is set by `CLAUDE.md` §7 (the

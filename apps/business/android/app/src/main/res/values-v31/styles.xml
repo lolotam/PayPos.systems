@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- من أندرويد 12 النظام هو اللي بيرسم شاشة الفتح، فالاسم تحت الحرف بيتحط هنا (APP-Q11، APP-Q25). -->
+    <!-- من أندرويد 12 النظام هو اللي بيرسم شاشة الفتح، فالاسم تحت اللوجو بيتحط هنا (APP-Q11، APP-Q25). -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
-        <item name="windowSplashScreenBackground">@color/ic_launcher_background</item>
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/splash_mark</item>
         <item name="android:windowSplashScreenBrandingImage">@drawable/splash_branding</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
