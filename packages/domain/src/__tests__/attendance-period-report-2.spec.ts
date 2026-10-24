@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
+import { computeAttendanceMonthlyReport } from '../attendance-monthly-report.js';
 import { computeAttendancePeriodReport } from '../attendance-period-report.js';
-import type { ReportBranchInputs, ReportContract, ReportSession } from '../attendance-report-types.js';
+import type { ReportBranchInputs, ReportContract, ReportLeave, ReportSession } from '../attendance-report-types.js';
 
 function dateRange(from: string, to: string): string[] {
   const start = Date.parse(`${from}T00:00:00Z`);
@@ -71,4 +72,39 @@ it('a period before the hire date has no contracted minutes and no sessions', ()
   expect(computeAttendancePeriodReport([row], { from: '2026-10-01', to: '2026-10-10' }, null)).toMatchObject({
     days_present: 0, worked_minutes: 0, contracted_minutes: 0, difference_minutes: 0,
   });
+});
+
+it('a period with a real cutoff gives the same numbers as the monthly report', () => {
+  const contract: ReportContract = { hire_date: '2026-01-01', contract_end: null,
+    links: [{ from: '2026-01-01', to: null }],
+    entries: Array.from({ length: 7 }, (_, day) => ({ day, start: '09:00', end: '17:00' })) };
+  const leaves: ReportLeave[] = [
+    { id: 'annual-10', type: 'ANNUAL', kind: 'FULL_DAY', from: '2026-10-10', to: '2026-10-10',
+      starts_at: '2026-10-10T06:00:00Z', ends_at: '2026-10-11T06:00:00Z' },
+    { id: 'sick-20', type: 'SICK', kind: 'PARTIAL', from: '2026-10-20', to: '2026-10-20',
+      starts_at: '2026-10-20T07:00:00Z', ends_at: '2026-10-20T09:00:00Z' }];
+  const shift = (date: string): ReportBranchInputs['shifts'][number] =>
+    ({ working_date: date, starts_at: `${date}T06:00:00Z`, ends_at: `${date}T14:00:00Z`,
+      break_starts_at: null, break_ends_at: null });
+  const first: ReportBranchInputs = { timezone: 'Asia/Kuwait', leave_for_branch: leaves,
+    contract: { ...contract, links: [{ from: '2026-01-01', to: '2026-10-15' }] },
+    shifts: [shift('2026-10-05')],
+    sessions: [session('2026-10-05'), { ...session('2026-10-12'), status: 'MISSED_OUT' }] };
+  const second: ReportBranchInputs = { timezone: 'Asia/Kuwait', leave_for_branch: leaves.map((entry) => ({ ...entry })),
+    contract: { ...contract, links: [{ from: '2026-10-15', to: null }] },
+    shifts: [shift('2026-10-20')],
+    sessions: [{ ...session('2026-10-20'), source: 'MANUAL', late_minutes: 30,
+      clock_in: '2026-10-20T06:30:00Z', clock_out: '2026-10-20T14:00:00Z' }] };
+  const report = computeAttendancePeriodReport([first, second], { from: '2026-10-01', to: '2026-10-31' },
+    '2026-11-01T06:00:00+03:00');
+  expect(report).toEqual(computeAttendanceMonthlyReport([first, second], '2026-10'));
+  expect(report).toMatchObject({ days_present: 2, worked_minutes: 930, scheduled_minutes: 960,
+    contracted_minutes: 14280, difference_minutes: -13350, late_count: 1, late_minutes: 30,
+    missing_clock_out: 1, manual_days: 1 });
+  expect(report.leave).toEqual([
+    { type: 'ANNUAL', days: 1, partial_minutes: 0 },
+    { type: 'SICK', days: 0, partial_minutes: 120 },
+    { type: 'UNPAID', days: 0, partial_minutes: 0 },
+    { type: 'OTHER', days: 0, partial_minutes: 0 },
+  ]);
 });

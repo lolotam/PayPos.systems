@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { documentRenderErrorCode } from '../documents-render.js';
 import {
   attendanceStatementAccepted,
   attendanceStatementDocument,
@@ -31,7 +32,6 @@ const branchDocument = {
     employee_filter: null,
     shift_filter: null,
   },
-  totals,
   rows: [{ employee_number: 1, name: 'سارة', totals }],
 };
 const employeeDocument = {
@@ -102,8 +102,10 @@ it('the accepted reply carries the render id and the status carries a known stat
   for (const state of ['QUEUED', 'RENDERING', 'READY', 'FAILED', 'EXPIRED', 'CONSUMED']) {
     expect(attendanceStatementStatus.parse({ state })).toEqual({ state });
   }
-  expect(attendanceStatementStatus.safeParse({ state: 'QUEUED', error_code: 'DOCUMENT_RENDER_FAILED' }).success).toBe(true);
-  expect(attendanceStatementStatus.safeParse({ state: 'QUEUED', error_code: 'STATEMENT_EMPTY' }).success).toBe(false);
+  for (const error_code of documentRenderErrorCode.options) {
+    expect(attendanceStatementStatus.safeParse({ state: 'FAILED', error_code }).success).toBe(true);
+  }
+  expect(attendanceStatementStatus.safeParse({ state: 'QUEUED', error_code: 'NOT_A_CODE' }).success).toBe(false);
 });
 it('both statement forms parse with their rows and days', () => {
   expect(attendanceStatementDocument.parse(branchDocument)).toMatchObject({ form: 'BRANCH' });
@@ -113,10 +115,24 @@ it('a filtered statement parses with null contracted and difference hours', () =
   const filtered = {
     ...branchDocument,
     header: { ...branchDocument.header, shift_filter: { start: '09:00', end: '20:00' } },
-    totals: { ...totals, contracted_hours: null, difference_hours: null },
     rows: [{ employee_number: 1, name: 'سارة', totals: { ...totals, contracted_hours: null, difference_hours: null } }],
   };
-  expect(attendanceStatementDocument.parse(filtered)).toMatchObject({ totals: { contracted_hours: null } });
+  expect(attendanceStatementDocument.parse(filtered)).toMatchObject({
+    rows: [{ totals: { contracted_hours: null, difference_hours: null } }],
+  });
+});
+it('the branch form refuses a branch-wide totals row it does not have', () => {
+  expect(attendanceStatementDocument.safeParse({ ...branchDocument, totals }).success).toBe(false);
+});
+it('the document refuses hours that are not in the h:mm form', () => {
+  expect(attendanceStatementDocument.safeParse({
+    ...branchDocument,
+    rows: [{ ...branchDocument.rows[0], totals: { ...totals, worked_hours: '8' } }],
+  }).success).toBe(false);
+  expect(attendanceStatementDocument.safeParse({
+    ...employeeDocument,
+    totals: { ...totals, difference_hours: 'later' },
+  }).success).toBe(false);
 });
 it('the document refuses an extra key on the rows, the header and the days', () => {
   expect(attendanceStatementDocument.safeParse({

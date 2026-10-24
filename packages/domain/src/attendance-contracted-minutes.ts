@@ -1,6 +1,6 @@
 import { contractedMinutes, defaultShiftMinutes } from './default-shifts.js';
 import type { AttendancePeriod, ReportContract, ReportLeave } from './attendance-report-types.js';
-import { attendanceContractPeriodDates, attendanceMonthPeriod, attendancePeriodDates } from './attendance-period-dates.js';
+import { attendanceContractPeriodDates, attendanceLeaveCoversDate, attendanceMonthPeriod, attendancePeriodDates } from './attendance-period-dates.js';
 import { attendanceContractEntryEnded, attendanceLocalFormatter, attendanceLocalMinute } from './attendance-statement-cutoff.js';
 
 /**
@@ -68,7 +68,7 @@ export function attendanceContractedPeriodMinutes(contract: ReportContract | nul
     const entry = defaults.get(weekday);
     if (!entry) return total;
     const length = defaultShiftMinutes(entry);
-    if (full.some((item) => item.from <= date && date <= item.to)) return total + length;
+    if (full.some((item) => attendanceLeaveCoversDate(item, date))) return total + length;
     const start = Date.parse(`${date}T00:00:00Z`) / 60_000 + Number(entry.start.slice(0, 2)) * 60 + Number(entry.start.slice(3, 5));
     return total + mergedOverlap(intervals, start, start + length);
   }, 0);
@@ -99,12 +99,13 @@ export function attendanceContractedMinutes(contract: ReportContract | null, mon
  * @returns أربعة أنواع ثابتة مع الأيام والدقائق الجزئية وفق AB-Q4
  */
 export function attendanceLeaveSummary(leaves: readonly ReportLeave[], dates: readonly { date: string }[]) {
-  const eligibleDates = new Set(dates.map(({ date }) => date));
+  const eligibleDates = [...new Set(dates.map(({ date }) => date))];
   return (['ANNUAL', 'SICK', 'UNPAID', 'OTHER'] as const).map((type) => {
     const entries = leaves.filter((entry) => entry.type === type);
-    return { type, days: [...eligibleDates].filter((date) => entries.some((entry) => entry.kind === 'FULL_DAY' &&
-      entry.from <= date && date <= entry.to)).length,
-    partial_minutes: entries.filter((entry) => entry.kind === 'PARTIAL' && eligibleDates.has(entry.from))
+    return { type, days: eligibleDates.filter((date) => entries.some((entry) => entry.kind === 'FULL_DAY' &&
+      attendanceLeaveCoversDate(entry, date))).length,
+    partial_minutes: entries.filter((entry) => entry.kind === 'PARTIAL' &&
+      eligibleDates.some((date) => attendanceLeaveCoversDate(entry, date)))
       .reduce((total, entry) => total + Math.floor((Date.parse(entry.ends_at) - Date.parse(entry.starts_at)) / 60_000), 0) };
   });
 }

@@ -10,7 +10,7 @@ const shiftTime = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 const count = z.number().int().nonnegative();
 const employeeNumber = z.number().int().min(1).max(999999);
 // الساعات بصيغة h:mm جاهزة للطباعة؛ القالب بياخد نصوص مش أرقام (AB-Q9d).
-const hours = z.string();
+const hours = z.string().regex(/^-?\d+:[0-5]\d$/);
 const leaveType = z.enum(['ANNUAL', 'SICK', 'UNPAID', 'OTHER']);
 
 export const attendanceStatementRequest = z
@@ -71,7 +71,6 @@ const branchStatement = z.strictObject({
     employee_filter: z.strictObject({ name: z.string(), employee_number: employeeNumber }).nullable(),
     shift_filter: z.strictObject({ start: z.string(), end: z.string() }).nullable(),
   }),
-  totals: statementTotals,
   rows: z.array(
     z.strictObject({ employee_number: employeeNumber, name: z.string(), totals: statementTotals }),
   ),

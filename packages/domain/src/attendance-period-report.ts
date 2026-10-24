@@ -4,7 +4,7 @@ import { attendanceContractedPeriodMinutes, attendanceLeaveSummary } from './att
 import { attendanceLateness, isCountedAttendanceSession, workedAttendanceMinutesByDate } from './attendance-worked-minutes.js';
 import { attendanceShiftHasEnded } from './attendance-statement-cutoff.js';
 
-/** أعمدة تقرير الحضور كما هي في مواصفة 049 §5، والدقيقة هي وحدة الحساب. */
+/** عمود الإجازة: أربعة أنواع ثابتة، لكل نوع أيامه ودقائقه الجزئية. */
 export type AttendanceLeaveSummary = ReturnType<typeof attendanceLeaveSummary>;
 
 /** صف الموظفة في بيان الحضور: نفس أعمدة تقرير 27b. */

@@ -106,5 +106,5 @@ it('EXPLAIN ANALYZE reads the schedule through its branch-week index', async () 
       f.company, f.business, { id: f.branch, timezone: 'Asia/Kuwait' }, FROM, TO,
     )}`);
   });
-  expect(JSON.stringify(plans)).toMatch(/staff_schedules_(branch_week_idx|week_key)/);
+  expect(JSON.stringify(plans)).toMatch(/staff_schedules_branch_week_idx/);
 });

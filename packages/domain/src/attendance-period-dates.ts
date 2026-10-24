@@ -32,6 +32,7 @@ export function attendanceContractPeriodDates(contract: ReportContract | null, p
 
 /**
  * يقول إن الإجازة المقبولة تغطي اليوم ده؛ الكامل يغطي كل يوم بين بدايتها ونهايتها، والجزئي يوم بدايته بس.
+ * دقايق الجزئي اللي بتخصم من التعاقد لسه تقاطعها مع نافذة دوام اليوم (AB-Q4).
  * نفس القاعدة بتحسب في عمود الإجازة وفي التغطية عشان ما يختلفوش (ST-Q7).
  *
  * @param leave الإجازة المقبولة
@@ -44,13 +45,13 @@ export function attendanceLeaveCoversDate(leave: ReportLeave, date: string): boo
 
 /**
  * يحوّل الشهر الميلادي لفترة من أول يوم لآخر يوم؛ التقرير الشهري مجرد فترة زي أي فترة.
+ * الشهر بيتحقق منه في العقد قبل ما يوصل هنا، فمفيش حالة شهر غلط (FR-001).
  *
  * @param month الشهر الصحيح YYYY-MM
- * @returns الفترة المقابلة للشهر، أو فترة يوم واحد لو الشهر مش صحيح
+ * @returns الفترة المقابلة للشهر من أول يوم لآخر يوم
  */
 export function attendanceMonthPeriod(month: string): AttendancePeriod {
   const start = Date.parse(`${month}-01T00:00:00Z`);
-  if (Number.isNaN(start)) return { from: `${month}-01`, to: `${month}-01` };
   const next = new Date(start);
   next.setUTCMonth(next.getUTCMonth() + 1);
   return { from: `${month}-01`, to: new Date(next.getTime() - 86_400_000).toISOString().slice(0, 10) };

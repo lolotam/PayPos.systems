@@ -42,6 +42,7 @@ export function attendanceStatementScheduledEmployeesStatement(
       CROSS JOIN LATERAL (SELECT l.id,l.type,l.kind,l."from",l."to",l.starts_at,l.ends_at) v
       WHERE l.company_id=${companyId} AND l.business_id=${businessId}
         AND l.status='APPROVED'
+        AND l.employee_id IN (SELECT employee_id FROM shifts)
         AND l."from"<=${to}::date+1 AND l."to">=${from}::date GROUP BY l.employee_id)
     SELECT e.id AS employee_id,e.name_ar,e.name_en,e.employee_number,json_build_array(json_build_object(
       'timezone',${branch.timezone}::text,'sessions','[]'::json,'shifts',COALESCE(sh.shifts,'[]'::json),

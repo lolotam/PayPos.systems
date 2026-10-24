@@ -102,3 +102,14 @@ it('BR-11: an ended matching shift is coverage under a shift filter', () => {
     ends_at: at('2026-10-23', '20:00') })] });
   expect(hasAttendanceStatementCoverage(row, PERIOD, '2026-10-23T21:00:00+03:00', PAIR)).toBe(true);
 });
+
+it('BR-11: a matching shift that ends exactly at the request is coverage under a shift filter', () => {
+  const row = branch({ shifts: [shift({ working_date: '2026-10-23', starts_at: at('2026-10-23', '09:00'),
+    ends_at: at('2026-10-23', '20:00') })] });
+  expect(hasAttendanceStatementCoverage(row, PERIOD, at('2026-10-23', '20:00'), PAIR)).toBe(true);
+});
+
+it('FR-013a: a contract day that has not ended and nothing else is not coverage', () => {
+  expect(hasAttendanceStatementCoverage(branch({ contract }), { from: '2026-10-23', to: '2026-10-23' },
+    CUTOFF, null)).toBe(false);
+});

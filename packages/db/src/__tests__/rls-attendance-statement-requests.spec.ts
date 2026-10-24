@@ -89,8 +89,9 @@ it('the request table has FORCE RLS', async () => {
 
 it('a row of one tenant is invisible to the other tenant and to a connection without a tenant', async () => {
   await requestRow();
+  await requestRow({ company: B.company, business: B.business, branch: B.branch });
   await db.withTenant(B.company, async (tx) => {
-    expect(await tx.execute(sql`SELECT id FROM attendance_statement_requests`)).toHaveLength(0);
+    expect(await tx.execute(sql`SELECT id FROM attendance_statement_requests`)).toHaveLength(1);
   });
   await db.withTenant(A.company, async (tx) => {
     expect(await tx.execute(sql`SELECT id FROM attendance_statement_requests`)).toHaveLength(1);

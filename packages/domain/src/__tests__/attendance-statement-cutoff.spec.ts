@@ -41,6 +41,14 @@ it('FR-013a: a shift that has not ended adds no scheduled minutes', () => {
   });
 });
 
+it('FR-013a: a shift that ends exactly at the request still counts its scheduled minutes', () => {
+  const branch: ReportBranchInputs = { timezone: 'Asia/Kuwait', contract: null, leave_for_branch: [],
+    shifts: [shift('2026-10-23', '08:00', '09:30')], sessions: [] };
+  expect(computeAttendancePeriodReport([branch], OCTOBER, at('2026-10-23', '09:30'))).toMatchObject({
+    scheduled_minutes: 90,
+  });
+});
+
 it('BR-12: the default entry of a day counts only once it ends', () => {
   const branch = noura();
   expect(computeAttendancePeriodReport([branch], OCTOBER, at('2026-10-23', '16:59'))).toMatchObject({
@@ -61,6 +69,18 @@ it('BR-12: an approved leave shows before the day ends and is subtracted after i
   const late = computeAttendancePeriodReport([branch], OCTOBER, at('2026-10-23', '17:00'));
   expect(late.leave[0]).toEqual({ type: 'ANNUAL', days: 1, partial_minutes: 0 });
   expect(late.contracted_minutes).toBe(10560);
+});
+
+it('BR-12: a partial leave is subtracted only once its day is counted', () => {
+  const partial: ReportLeave = { id: 'partial-23', type: 'SICK', kind: 'PARTIAL', from: '2026-10-23',
+    to: '2026-10-23', starts_at: at('2026-10-23', '10:00'), ends_at: at('2026-10-23', '12:00') };
+  const branch = noura({}, [partial]);
+  expect(computeAttendancePeriodReport([branch], OCTOBER, at('2026-10-23', '13:00'))).toMatchObject({
+    contracted_minutes: 10560,
+  });
+  expect(computeAttendancePeriodReport([branch], OCTOBER, at('2026-10-23', '17:00'))).toMatchObject({
+    contracted_minutes: 10920,
+  });
 });
 
 it('FR-013a: Noura has 179 worked hours and 176 contracted hours at 13:00, then 184 contracted at 17:00', () => {

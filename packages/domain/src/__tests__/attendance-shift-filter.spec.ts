@@ -47,7 +47,7 @@ function reem(): ReportBranchInputs {
 
 it('BR-11: the filtered statement keeps every day of the employee scheduled on the pair', () => {
   const report = computeAttendanceShiftPeriodReport([sara()], OCTOBER, null, PAIR);
-  expect(report).toMatchObject({ days_present: 31, worked_minutes: 14880, scheduled_minutes: 20460,
+  expect(report).toMatchObject({ days_present: 31, worked_minutes: 20460, scheduled_minutes: 20460,
     contracted_minutes: null, difference_minutes: null, late_count: 0, late_minutes: 0,
     missing_clock_out: 0, manual_days: 0 });
 });
@@ -62,7 +62,7 @@ it('BR-11: an employee scheduled only on another pair has no figures and no cove
 
 it('BR-11 and ST-Q7: only the days on the pair count, and the leave follows them', () => {
   const report = computeAttendanceShiftPeriodReport([reem()], OCTOBER, null, PAIR);
-  expect(report).toMatchObject({ days_present: 14, worked_minutes: 6720, scheduled_minutes: 9240,
+  expect(report).toMatchObject({ days_present: 14, worked_minutes: 9240, scheduled_minutes: 9240,
     contracted_minutes: null, difference_minutes: null });
   expect(report.leave).toEqual([
     { type: 'ANNUAL', days: 0, partial_minutes: 0 },
@@ -107,6 +107,12 @@ it('the same instant written in UTC and in Kuwait time matches the same pair', (
     sessions: [session('2026-10-20', '09:00', '16:00', '2026-10-20T13:00:00Z')] };
   expect(computeAttendanceShiftPeriodReport([branch], OCTOBER, null, { start: '09:00', end: '16:00' }))
     .toMatchObject({ days_present: 1, worked_minutes: 420 });
+});
+
+it('the pair read from the request row time columns matches the same days', () => {
+  const fromRow = computeAttendanceShiftPeriodReport([sara()], OCTOBER, null, { start: '09:00:00', end: '20:00:00' });
+  expect(fromRow).toEqual(computeAttendanceShiftPeriodReport([sara()], OCTOBER, null, PAIR));
+  expect(fromRow).toMatchObject({ days_present: 31, worked_minutes: 20460 });
 });
 
 it('a pair that matches nothing gives zero figures and no coverage', () => {

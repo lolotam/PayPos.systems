@@ -76,6 +76,13 @@ it('FR-013a: a shift that has not ended shows the date only', () => {
   expect(days[14]).toMatchObject({ date: '2026-10-15', scheduled: [], no_attendance: false, worked_minutes: 0 });
 });
 
+it('FR-013a: a shift that ends exactly at the request is listed and shows the missing attendance note', () => {
+  const days = computeAttendanceStatementDays(branch({ shifts: [shift({ working_date: '2026-10-15',
+    starts_at: at('2026-10-15', '18:00'), ends_at: at('2026-10-15', '21:00') })] }), [], PERIOD, CUTOFF);
+  expect(days[14]).toMatchObject({ date: '2026-10-15', no_attendance: true, worked_minutes: 0 });
+  expect(days[14]?.scheduled).toEqual([{ starts_at: at('2026-10-15', '18:00'), ends_at: at('2026-10-15', '21:00') }]);
+});
+
 it('AB-Q4: a leave date lists its type on a contract day', () => {
   const leave: ReportLeave = { id: 'annual-05', type: 'ANNUAL', kind: 'FULL_DAY', from: '2026-10-05',
     to: '2026-10-05', starts_at: at('2026-10-05', '00:00'), ends_at: at('2026-10-06', '00:00') };

@@ -18,13 +18,14 @@ function attendanceLocalClock(instant: string, formatter: Intl.DateTimeFormat): 
 }
 
 function shiftMatchesPair(shift: ReportShift, pair: AttendanceShiftPair, formatter: Intl.DateTimeFormat): boolean {
-  return attendanceLocalClock(shift.starts_at, formatter) === pair.start &&
-    attendanceLocalClock(shift.ends_at, formatter) === pair.end;
+  return attendanceLocalClock(shift.starts_at, formatter) === pair.start.slice(0, 5) &&
+    attendanceLocalClock(shift.ends_at, formatter) === pair.end.slice(0, 5);
 }
 
 /**
  * يطابق الوردية مع زوج البداية والنهاية بالوقت المحلي للفرع؛ هو معنى الشيفت في فلتر BR-11.
  * الوردية اللي عدت نص الليل بتقارن بنهاية اليوم اللي بعده بالوقت المحلي.
+ * الزوج بيتقارن بأول خمس خانات بس، عشان وقت سطر الطلب ('09:00' أو '09:00:00') يطابق نفس الوردية.
  *
  * @param shift الوردية المقروءة
  * @param timezone منطقة الفرع
