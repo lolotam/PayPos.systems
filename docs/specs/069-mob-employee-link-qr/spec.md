@@ -122,8 +122,9 @@ its own `business` value.
   it (EL-Q2).
 - **FR-007**: The screen shows the business that is open in the back office now (EL-Q5); switching business switches
   the link and the QR.
-- **FR-008**: The screen writes nothing: no setting, no record and no audit entry, since it only shows identifiers the
-  manager already has.
+- **FR-008**: The screen writes no setting and no business record, since it only shows identifiers the manager already
+  has. The one write is the file-access audit entry of the logo read (Slice design), because reading a stored file
+  is a private-file access (`CLAUDE.md` §8).
 
 ### Key Entities
 
@@ -138,7 +139,7 @@ its own `business` value.
 
 ### Schema changes
 
-None. Nothing is stored (FR-008).
+None. Nothing is stored apart from the logo read's access audit, which uses the existing audit tables (FR-008).
 
 ### API contract
 
@@ -148,15 +149,18 @@ None. Nothing is stored (FR-008).
   tenancy's `describeWorkspaces`. The screen shows the link only for the business that is open (EL-Q5) **and**
   appears in that answer; otherwise it shows the no-access state. The menu entry shows for every back-office user,
   as EL-Q3 says. No new endpoint, no new permission.
-- **The logo (FR-004, the print sheet):** one new read, session only like the one above:
-  `GET /v1/businesses/{businessId}/employee-app-link/logo` · `@Authenticated()` (the `CLAUDE.md` §6 alternative for a
-  decision that depends on the caller) · it checks, inside its own `withTenant` transaction on the selected company,
-  that the caller has an active membership reaching that business, then returns the logo image through the files
-  module's logo reader (`readStatementLogo`, ADR-0056 §2–3). Read-only, so no `Idempotency-Key` and no write
-  declaration. **Errors:** one 404 `NOT_FOUND` for an unknown business, a business of another company, one her
-  membership does not reach, and a business with no logo, so it never reveals whether a business exists. Which module
-  owns the route (files, next to its reader, is the likely one) and how ADR-0056 exposes the reader are settled in
-  `/speckit-plan` (`TODO(spec)`, technical).
+- **The logo (FR-004, the print sheet).** The salon logo is a stored file, so reading it is a private-file
+  access: every read writes the file-access audit entry, as the statement logo does (`CLAUDE.md` §8, ADR-0056 §3).
+  The existing reader cannot be reused as it is: `readStatementLogo` is exposed only from the worker, and it needs a
+  file id and a render id (ADR-0056 §2–3). The logo binding (`logo_file_id`) belongs to `settings`, not tenancy.
+  So the logo needs its own API-side read: `GET /v1/businesses/{businessId}/employee-app-link/logo` under
+  `@Authenticated()`, checking an active membership that reaches the business inside its own `withTenant`
+  transaction. It resolves the logo file through settings' public reader, reads the bytes through `files`, and
+  writes the access audit, with a fresh request id as the audit key, since a read has no `Idempotency-Key`. It answers
+  one 404 `NOT_FOUND` for an unknown, other-company or unreached business and for a business with no logo. Its
+  module, ports and `docs/module-map.md` rows are an **ADR-0056 addendum**, written and accepted with
+  `/speckit-plan` (`TODO(spec)`, technical, Waleed). **Until that addendum lands, the print sheet shows the business
+  name without the logo**; the screen's other parts do not wait for it.
 - **POS host (FR-002):** a new build-time variable `NEXT_PUBLIC_POS_URL` for `apps/admin`, set per environment like
   `NEXT_PUBLIC_API_URL`: listed in `apps/admin/next.config.ts` and `.env.example`, inlined at build time through a
   build arg in `deploy/Dockerfile.admin`, and passed by the image build step of `.github/workflows/ci.yml` (for
@@ -190,7 +194,7 @@ None. Nothing is stored (FR-008).
   same company and business back, so the two sides cannot drift.
 - **Integration (apps/api), the logo read only**: `EL-I01` a member whose membership reaches the business gets the
   image · `EL-I02` a member of the same company whose membership does not reach that business, an unknown business,
-  and a business of another company all get the same 404 · `EL-I03` a business with no logo gets that 404 · `EL-I04`
+  and a business of another company all get the same 404 · `EL-I03` a business with no logo gets that 404, and every image answer writes one file-access audit row · `EL-I04`
   no session gets 401.
 - **Queries**: none new (the names come from `me/workspaces`, already tested).
 - **RLS negative**: no new table; EL-I02's other-company case runs under `withTenant` and is the negative test.

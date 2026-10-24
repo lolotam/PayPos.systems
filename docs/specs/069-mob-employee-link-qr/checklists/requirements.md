@@ -33,5 +33,5 @@
 ## Notes
 
 - Abu Salem's answers to batch 71 are pending; if he picks differently, the spec's «If Abu Salem picks differently»
-  paragraph says what changes. One technical `TODO(spec)` stays for `/speckit-plan`: the module and the ADR-0056
+  paragraph says what changes. One technical `TODO(spec)` stays for `/speckit-plan`: an ADR-0056 addendum for the API-side logo read (until it lands, the print sheet shows the name only); the module and the ADR-0056
   exposure of the logo read. The build waits for the web manager's OK on the `apps/admin` lane.
