@@ -21,7 +21,7 @@
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded
 - [x] Dependencies and assumptions identified
-- [x] **Slice design** complete: no schema change, no new endpoint (the access read depends on EL-Q3), no new permission, no event, the test plan
+- [x] **Slice design** complete: no schema change, one read-only endpoint guarded by the EL-Q3 permission, no new permission, no event, the test plan (UI, integration, queries)
 
 ## Feature Readiness
 

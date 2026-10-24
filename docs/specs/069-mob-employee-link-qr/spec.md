@@ -60,9 +60,9 @@ the QR (M-1h), and is connected to «الأميرة» without anyone sending her
 
 1. **Given** the screen, **Then** it shows a QR code whose content is exactly the link, large enough to scan from a
    printed A4 page (FR-003).
-2. **Given** the print action of EL-Q4, **When** she prints, **Then** the page holds only the business name (and its
-   logo if it has one), the QR, the link as text and one line telling the employee what to do (FR-004), with none of
-   the back office's menus.
+2. **Given** the print action of EL-Q4, **When** she prints, **Then** the page holds only the PosPay logo, the business
+   name, the QR, the link as text and one line telling the employee what to do (FR-004), with none of the back
+   office's menus.
 
 ---
 
@@ -83,7 +83,8 @@ its own `business` value.
 
 - **The POS address is not set for the environment** (FR-002): the screen shows a clear «the link is not set up for
   this environment» message and no link or QR, never a link to a wrong host.
-- **The business has no logo**: the print page shows the name only.
+- **The business's own logo** is not on the print page: reading it needs a permission EL-Q3 may not include, so the
+  page carries the PosPay logo and the business name only.
 - **Arabic and English**: every label goes through `packages/i18n`; the link itself is the same in both languages.
 - **The employee's sign-in is not enabled on the server** (ADR-0019: OTP delivery may be off): the link still opens
   the right business; whether the code is sent is the server's decision, as on the web today. The screen makes no
@@ -107,8 +108,8 @@ its own `business` value.
 - **FR-004**: The manager's actions on the screen are those EL-Q4 decides (copy the link always; the QR always; printing
   and a WhatsApp share button as EL-Q4 says). A WhatsApp share, if chosen, only opens WhatsApp on the manager's own
   device with the link filled in; the system sends nothing. [NEEDS CLARIFICATION: EL-Q4]
-- **FR-005**: Who may open the screen follows EL-Q3, checked by the server on a read the screen needs, never only in
-  the menu (`CLAUDE.md` §8). The menu entry shows only when that read succeeds. [NEEDS CLARIFICATION: EL-Q3]
+- **FR-005**: Who may open the screen follows EL-Q3, checked by the server on the screen's own read (Slice design),
+  never only in the menu (`CLAUDE.md` §8). The menu entry shows only when that read succeeds. [NEEDS CLARIFICATION: EL-Q3]
 - **FR-006**: Where the screen lives in the back office follows EL-Q2. [NEEDS CLARIFICATION: EL-Q2]
 - **FR-007**: With several businesses, the screen shows the business EL-Q5 decides, and only businesses the manager
   may manage. [NEEDS CLARIFICATION: EL-Q5]
@@ -132,12 +133,16 @@ None. Nothing is stored (FR-008).
 
 ### API contract
 
-- **No new endpoint.** The company and business ids are the back office's current selection
-  (`apps/admin/src/shared/api/selection-cookie.ts`); the name and logo come from the existing business identity read
-  (`useBusinessIdentity`, `useBusinessLogo`).
-- **Access (FR-005):** the screen calls one existing server read whose guard matches EL-Q3 (for the recommended
-  answer, the employee list `GET` under `manage:employees:business`, with `limit` 1), and shows the link only when it
-  succeeds; a 403 shows the no-access state.
+- **One new read endpoint, for access and the name together (FR-005).** No existing read fits: the employee list
+  answers an empty page, not a 403, to a caller without `manage:employees:business` (`list-employees.query.ts`), and
+  the business identity read is guarded by `manage:business-identity:business`, a different permission. So:
+  `GET /v1/businesses/{businessId}/staff/employee-app-link` · guard `@Require(<the EL-Q3 permission>)` on the
+  business (for the recommended answer `manage:employees:business`, DENY wins) · staff feature · read-only, so no
+  `Idempotency-Key` · response (Zod in `packages/contracts/src/staff/employee-app-link.ts`):
+  `{ company_id, business_id, business_name_en, business_name_ar | null }`, read from `businesses` under `withTenant`
+  through a `queries/` file (`CLAUDE.md` §6). Errors: 403 `FORBIDDEN` without the permission; an unknown or
+  inaccessible business is `NOT_FOUND` (404), the same answer for both. The screen shows the link only after a 200;
+  the menu entry shows only when that read succeeds.
 - **POS host (FR-002):** a new build-time variable `NEXT_PUBLIC_POS_URL` for `apps/admin`, set per environment like
   `NEXT_PUBLIC_API_URL`: listed in `apps/admin/next.config.ts` and `.env.example`, inlined at build time through a
   build arg in `deploy/Dockerfile.admin`, and passed by the image build step of `.github/workflows/ci.yml` (for
@@ -147,7 +152,7 @@ None. Nothing is stored (FR-008).
 
 ### Permissions
 
-- No new permission. EL-Q3 picks which existing one opens the screen.
+- No new permission. EL-Q3 picks which existing one guards the read above and so opens the screen.
 
 ### Events
 
@@ -161,11 +166,17 @@ None. Nothing is stored (FR-008).
   name show for an allowed manager · `EL-T02` the QR's value equals the link · `EL-T03` copy puts the link on the
   clipboard and shows the confirmation; a refused clipboard shows the failure and the link stays visible · `EL-T04` a
   403 on the access read shows the no-access state and no link · `EL-T05` a missing `NEXT_PUBLIC_POS_URL` shows the
-  not-set-up message and no QR · `EL-T06` the print view holds only the name, logo, QR, link and the instruction line
-  (if EL-Q4 keeps printing) · `EL-T07` another business selected changes the link and the QR.
+  not-set-up message and no QR · `EL-T06` the print view holds only the PosPay logo, the name, the QR, the link and the
+  instruction line (if EL-Q4 keeps printing) · `EL-T07` another business selected changes the link and the QR.
 - **Cross-check with the app**: a test in `apps/pos` feeds the admin helper's output to `parseManagerLink` and gets the
   same company and business back, so the two sides cannot drift.
-- **RLS negative / queries**: none (no table, no query).
+- **Integration (apps/api)**: `EL-I01` an allowed manager gets 200 with the names and ids · `EL-I02` a caller without
+  the EL-Q3 permission gets 403, and a DENY on the business wins over an ALLOW · `EL-I03` another business of the
+  same company the caller cannot manage, and a business of another company, both get 404.
+- **Queries**: the `queries/` file gets a result-shape test and an `EXPLAIN` assertion that it reads `businesses` by
+  its `(company_id, id)` key (`CLAUDE.md` §9).
+- **RLS negative**: no new table; the read runs under `withTenant`, so EL-I03's other-company case is the negative
+  test.
 
 ## Success Criteria *(mandatory)*
 
