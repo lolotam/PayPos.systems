@@ -12,9 +12,13 @@ import { EnrolPasskeyScreen } from './enrol-passkey-screen';
 export function PersonalScreen({
   workspace,
   connect,
+  sessionGate,
 }: {
   workspace?: Pick<PersonalOtpRequestInput, 'company_id' | 'business_id'>;
   connect?: ReactNode;
+  sessionGate?: (
+    session: NonNullable<ReturnType<typeof usePersonalSession>['session']>,
+  ) => ReactNode | null;
 }) {
   const locale = useLocale();
   const state = usePersonalSession();
@@ -35,11 +39,13 @@ export function PersonalScreen({
         ) : state.loading ? (
           <p role="status">{t(locale, 'personalStaff.loading')}</p>
         ) : state.session ? (
-          <EnrolPasskeyScreen
-            key={`${state.epoch}:${state.session.employee_id}`}
-            employeeId={state.session.employee_id}
-            onSignOut={state.signOut}
-          />
+          (sessionGate?.(state.session) ?? (
+            <EnrolPasskeyScreen
+              key={`${state.epoch}:${state.session.employee_id}`}
+              employeeId={state.session.employee_id}
+              onSignOut={state.signOut}
+            />
+          ))
         ) : hint ? (
           <PersonalSignIn key={state.epoch} workspace={hint} changed={state.changed} />
         ) : (

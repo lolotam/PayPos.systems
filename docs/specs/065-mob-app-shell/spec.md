@@ -10,8 +10,8 @@
 iOS and Android, as decided in `docs/adr/0055-store-apps-capacitor-shell.md`. Owner decisions: APP-Q1 … APP-Q8
 ([owner-questions.ar.md](owner-questions.ar.md)); questions APP-Q9 … APP-Q18 (batch 58), answered by Waleed on
 2026-10-23 and by Abu Salem with the same picks the same day (final), so M-1a … M-1f need no further owner question of
-this spec. Who sees FR-017's line is SO-Q1 of spec 067: Waleed answered option 2 on 2026-10-24 (spec 067 BR-003);
-Abu Salem's pick is pending and binds if it differs.
+this spec. Who sees FR-017's line is SO-Q1 of spec 067: Waleed answered option 2 on 2026-10-24 (spec 067 BR-003),
+and Abu Salem picked the same option the same day (final).
 
 **Scope.** The shell, its start screen, offline cold start, the checks of the auth spike (M-1c), and what is hidden on
 native. Out of scope: signed builds and store uploads (M-2), the cashier selling screens (MOB-18, not built yet in the
@@ -182,7 +182,12 @@ start screen again.
   same message, changing nothing). The business switch does not wait on the session fence of #581: the device keeps
   the employee role, so a racing sign-in can only leave the personal session its own fresh OTP just created (spec 067
   D-6), never a counter or another person's session left behind by the switch, and the server still decides
-  eligibility on every request (BR-002); orchestrator, 2026-10-23. With
+  eligibility on every request (BR-002); orchestrator, 2026-10-23. A sign-in racing the switch can still leave a
+  live personal session for the **old** business while the device remembers the new one: when the personal session
+  read names another company or business than the remembered one, the app treats the switch as unfinished. It shows
+  a loading notice instead of the old business's screens, signs that session out once, and then shows the remembered
+  business's sign-in. If that sign-out fails, it shows the «we could not sign you out» message with a «try again»
+  button, and never the old business's screens; there is no automatic retry loop (review of #588, built in B1). With
   the counter role, it does not switch, and offers the role change of FR-008. An invalid or foreign link changes
   nothing and shows the existing «ask your manager for your link» message. The «عندي لينك» paste uses the same parser.
 - **FR-013**: The device credentials and the remembered business MUST NOT travel in an OS backup to another device:
@@ -203,8 +208,8 @@ start screen again.
 - **FR-016**: The app follows the device's rotation on tablets and on phones (APP-Q14, PP-42.6; Waleed, 2026-10-23; Abu Salem picked the same, final); every screen
   of the native build must work in both orientations.
 - **FR-017**: Before MOB-15, a user whose role counts under spec 067 BR-003 (SO-Q1 option 2: owner, general manager,
-  business manager, branch manager, shift supervisor or accountant, in that business; Waleed, 2026-10-24; Abu Salem's
-  pick pending and binding if it differs) who picks «حسابي كموظفة» sees what an employee sees (sign-in and
+  business manager, branch manager, shift supervisor or accountant, in that business; Waleed, 2026-10-24; Abu Salem
+  picked the same, final) who picks «حسابي كموظفة» sees what an employee sees (sign-in and
   their own attendance) plus one small line «لوحة الإدارة على الويب» with a link to the back office (APP-Q15,
   PP-42.7; Waleed, 2026-10-23; Abu Salem picked the same, final). This works only for such a user
   who also has an employee record in that business, because a personal session is issued only to a linked
@@ -298,7 +303,8 @@ None published, none consumed.
   like an opened link · `MOB-T16` a link for a different business while a personal session is open signs out at the
   server first, after the confirmation, and only then remembers the new business (cancelling the confirmation keeps
   the current one) · `MOB-T17` the same link with no network is refused with its
-  message and changes nothing · `MOB-T18` a role change counts the explicit «no session to end» result as done and
+  message and changes nothing · beside them (B1): a personal session of the old business with the new one remembered
+  shows no old-business screen, signs out once, and offers «try again» when that sign-out fails · `MOB-T18` a role change counts the explicit «no session to end» result as done and
   continues, and treats a plain 401 as a failure that stops it · `MOB-T19` one sign-out done and the other failing:
   the first session's private forms are already cleared, the role, the pairing and the remembered business are still
   there after the success and after the failure, and only a new, confirmed change that finishes removes them ·

@@ -60,10 +60,11 @@ settings adapter and the worker files adapter, with no `files → settings` impo
 - The 27b statement returns only its candidates (a session or contracted minutes), so it leaves out an employee whose
   only coverage at the branch is a scheduled shift. 27g reads that set through its own statement,
   `attendanceStatementScheduledEmployeesStatement` in `@pospay/db` beside the 27b one, added by sub-PR 27g-2, without
-  changing the 27b statement. For a branch and a period it returns the employees of the business with a schedule shift
-  there who are not 27b candidates, in the 27b row shape: identity and `employee_number`, the branch time zone, her
-  shifts (working date, start, end, break), her approved leave, and no sessions or contract (spec 061 FR-011b). The
-  worker reader and the API eligibility check both use it.
+  changing the 27b statement. For a branch and a period it returns every employee of the business with a schedule shift
+  there in the period, whether or not she is also a 27b candidate, in the 27b row shape: identity and `employee_number`, the branch time zone, her
+  shifts (working date, start, end, break), her approved leave, and no sessions or contract (spec 061 FR-011b). It does not
+  repeat the 27b candidate rule: rows are merged by employee id and the 27b row wins (`mergeAttendanceStatementRows`
+  in `packages/domain`, issue #561). The worker reader and the API eligibility check both use it.
 
 The worker `staff` module reads identity through a port it owns (`StatementIdentityReader`) whose adapter calls
 `@pospay/db`, the same shape as the worker `files` `LogoReference` row in the module map. **No `staff → settings` import

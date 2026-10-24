@@ -12,6 +12,7 @@ import {
   type DeviceRole,
 } from '@/app/device-role';
 import type { PersonalWorkspace } from '@/app/manager-link';
+import { usePersonalSession } from '@/personal-staff/api/use-personal-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { readLaunchLink } from '@/shared/platform/launch-links';
 
@@ -28,6 +29,9 @@ vi.mock('@/app/device-role', () => ({
 }));
 vi.mock('@/app/device-screen', () => ({
   DeviceScreen: () => <h2>device screen</h2>,
+}));
+vi.mock('@/personal-staff/api/use-personal-session', () => ({
+  usePersonalSession: vi.fn(),
 }));
 vi.mock('@/personal-staff/ui/personal-screen', () => ({
   PersonalScreen: ({ workspace }: { workspace?: { company_id: string; business_id: string } }) => (
@@ -74,6 +78,14 @@ function prepare() {
   vi.mocked(saveDeviceRole).mockResolvedValue(undefined);
   vi.mocked(rememberBusiness).mockResolvedValue(undefined);
   vi.mocked(connectEmployee).mockResolvedValue(undefined);
+  vi.mocked(usePersonalSession).mockReturnValue({
+    epoch: 0,
+    online: true,
+    loading: false,
+    session: null,
+    changed: vi.fn(),
+    signOut: vi.fn(),
+  });
 }
 
 afterEach(() => {
@@ -104,7 +116,7 @@ describe('NativeEntry links that race', () => {
     expect(screen.queryByRole('heading', { name: t('ar', 'nativeShell.title') })).toBeNull();
   });
 
-  it('handles two links one after another and keeps the first business', async () => {
+  it('handles two links one after another and asks to switch to the second business', async () => {
     let storedRole: DeviceRole | null = null;
     let storedBusiness: PersonalWorkspace | null = null;
     vi.mocked(readDeviceRole).mockImplementation(async () => storedRole);
@@ -120,8 +132,7 @@ describe('NativeEntry links that race', () => {
       opened.listener?.(link(HOST, OTHER_BUSINESS));
     });
 
-    const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain(t('ar', 'nativeShell.otherBusiness'));
+    expect(await screen.findByText(t('ar', 'nativeShell.switchBusinessConfirm'))).not.toBeNull();
     expect(connectEmployee).toHaveBeenCalledTimes(1);
     expect(connectEmployee).toHaveBeenCalledWith({
       company_id: COMPANY,

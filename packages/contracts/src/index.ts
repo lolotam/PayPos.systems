@@ -1,6 +1,7 @@
 export { nameAr, nameEn } from './bilingual/names.js';
 export * from './staff/attendance-monthly-report.js';
 export * from './staff/attendance-report-inputs.js';
+export * from './staff/attendance-statement.js';
 export {
   employee,
   createdEmployee,

@@ -110,7 +110,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    audit log has one entry for that download (BR-09).
 4. The PDF has `dir="rtl" lang="ar"`, the logo and the Arabic official name, «فرع السالمية», the period, one row per
    employee with coverage at the branch in the period (FR-013a: a counted session, a contract day that had ended, an
-   approved leave on a contract day, or a scheduled shift that had ended; under a shift filter, only on the dates
+   approved leave on a contract date of a period that has at least one contract day, or a scheduled shift that had
+   ended; FR-013a "Coverage" defines both terms; under a shift filter, only on the dates
    scheduled on the selected pair), a signature column, the
    manager's signature line and the footer (BR-01, BR-02, BR-04, BR-06).
 5. For a full calendar month at one branch with no shift filter, whose every scheduled shift end and default-entry end
@@ -133,7 +134,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    period in date order.
 2. A date with sessions lists each counted session (clock-in, clock-out, lateness, source note «يدوي» / "Manual" for a
    MANUAL session) and the day's worked hours; a date with an uncorrected missed clock-out shows «ناقص بصمة خروج» /
-   "Missing clock-out" and adds 0 hours (BR-05); a date with approved leave shows the leave type; a date with a
+   "Missing clock-out" and adds 0 hours (BR-05); a date with approved leave shows the leave type when it is a
+   contract date (the dates the leave column counts, FR-013a, so the day rows and the totals agree); a date with a
    scheduled shift and no counted session shows the scheduled times and «لا يوجد حضور مسجّل» / "No attendance
    recorded"; any other date shows the date only. A shift that had not ended at the request (FR-013a), on any date,
    adds no scheduled minutes and never prints «لا يوجد حضور مسجّل»; a closed session on that date still counts, its
@@ -293,19 +295,23 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   (spec 049 §5), so an employee whose only coverage is a scheduled shift (no session, no default hours) is not in it.
   27g reads that set through its own statement, `attendanceStatementScheduledEmployeesStatement` in `@pospay/db`
   beside the 27b one (ADR-0056 §2), added in 27g-2; the 27b statement does not change. For the branch and the period
-  (working dates `from − 1` to `to`, as 27b reads shifts for overnight attribution), it returns the employees of the
-  business who have a schedule shift at the branch and are not 27b candidates, in the 27b row shape: `employee_id`,
-  `name_ar`, `name_en`, `employee_number`, the branch time zone, her shifts (`working_date`, `starts_at`, `ends_at`,
-  `break_starts_at`, `break_ends_at`), her approved leave as 27b reads it, no sessions and no contract. The worker
-  reader merges these rows with the 27b rows, and the FR-003 eligibility statement uses the same set. It has a
-  result-shape test and an `EXPLAIN` assertion.
+  it returns every employee of the business who has a schedule shift at the branch with a working date in the period
+  (a shift only on `from − 1` does not qualify), whether or not she is also a 27b candidate, in the 27b row shape:
+  `employee_id`, `name_ar`, `name_en`, `employee_number`, the branch time zone, her shifts (`working_date`,
+  `starts_at`, `ends_at`, `break_starts_at`, `break_ends_at`, read for working dates `from − 1` to `to`, as 27b reads
+  shifts for overnight attribution), her approved leave as 27b reads it, no sessions and no contract. It does not
+  repeat the 27b candidate rule (issue #561): the worker reader merges these rows with the 27b rows by `employee_id`
+  through `mergeAttendanceStatementRows` in `packages/domain`, and when an employee is in both, the 27b row wins (this
+  also covers a session committed between the two reads). The FR-003 eligibility statement uses the same set. It has
+  a result-shape test and an `EXPLAIN` assertion.
 - **FR-012** A missing request row (or one for another company) fails the job with `DOCUMENT_RENDER_FAILED`; it is never
   rendered for anyone.
 - **FR-013** The figures come from pure functions in `packages/domain`: the 27b `computeAttendanceMonthlyReport` rules
   generalised to a `from`–`to` period (the month becomes one period, with the 27b report unchanged), plus a day-by-day
   breakdown for the employee form, plus the BR-11 day selection: the working dates whose schedule shift at the branch,
   in branch-local time, starts and ends at the pair; on such a date the counted sessions are those the 27b rules
-  attribute to the matching shift (on a split-shift day, the other shift's sessions are left out). Each has exhaustive
+  attribute to the matching shift through its `scheduled_end` (on a split-shift day, the other shift's sessions are
+  left out; a session with no `scheduled_end` is attributed to no shift and is left out too). Each has exhaustive
   unit tests, including a parity test that a full calendar month at one branch with no shift filter gives the 27b
   row when both are computed from the same inputs and every scheduled shift end and default-entry end of that month is
   at or before `requested_at`; any other range with no shift filter, under the same condition, is checked against the sum of
@@ -328,10 +334,15 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 
   **Coverage**, the one predicate for who has a row (Story 1.4), admission (FR-003, Story 3.3) and an empty render
   (below): at the branch in the period, a counted session, a contract day whose default entry had ended, an approved
-  leave on a contract day (whether or not that day had ended), or a scheduled shift whose `ends_at` had passed. Under
+  leave on a contract date of the period (a date inside her hire, contract and branch-link bounds, the dates the leave
+  column counts; whether or not that day had ended) when the period has at least one contract day (a contract date
+  whose weekday has a default entry, which makes her a 27b candidate whose contract is read), or a scheduled shift
+  whose `ends_at` had passed. Under
   a shift filter (BR-11) coverage is limited to the dates whose scheduled shift at the branch had the selected pair:
   on such a date, a session the 27b rules attribute to that shift, an approved leave, or that shift having ended.
-  Contract days do not count under the filter, and neither does anything on another date. A period with no coverage
+  Contract days do not count under the filter, and neither does anything on another date: the `from − 1` context
+  shift is read only for break credit, so the return session of an overnight shift of the day before the period is not
+  attributed to it. A period with no coverage
   counts nothing: Story 3.3 refuses the employee form, and the branch table has no row.
 
   A date prints as the date only when it has no counted session, no OPEN session, no approved leave and no scheduled
@@ -351,8 +362,10 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 - **FR-014** The template's input is a Zod schema in `packages/contracts` (`attendanceStatementDocument`). The source
   builds it, after the two calls of FR-010, from the reader's `statement` (FR-011) and the `readStatementLogo` result
   encoded as `logo: { content_type, base64 }`, or `logo: null` when `logoFileId` is `null` or the logo reader returned
-  `null`; it validates it before it formats it for the template (ADR-0049 §2.2). It carries names, numbers, dates,
-  minutes and the logo; never a phone, salary, IBAN or user id. `businessId`, `requesterUserId` and `logoFileId` stay
+  `null`; it validates it before it formats it for the template (ADR-0049 §2.2). It carries names, employee numbers,
+  counts, display strings for dates, times and durations (durations as h:mm, formatted by the source with
+  `attendanceHoursMinutes` from `packages/domain`, because `packages/documents` does not depend on it; FR-015) and
+  the logo; never an id, a phone, salary, IBAN or user id. `businessId`, `requesterUserId` and `logoFileId` stay
   in `AttendanceStatementData`, used only to call `readStatementLogo`, and never reach the template or the PDF.
 - **FR-015** The template (`packages/documents/src/templates/attendance-statement.ts`) uses the 056 `html` kit and base
   layout only: escaped interpolation, `raw()` only for the logo data URI it builds, logical CSS, `<bdi>` around Latin
@@ -400,7 +413,7 @@ admin ── POST …/:renderId/download ──▶ api: one withTenant: binding 
 | `language` | text NOT NULL | CHECK `IN ('ar','en')` |
 | `shift_start`, `shift_end` | time NULL | the BR-11 pair; CHECK both null or both set, and set only when `form = 'BRANCH'` |
 | `logo_file_id` | uuid NULL | the business's bound logo when the request was made, read through the shared `@pospay/db` `readBusinessIdentity` in the request transaction; null = no logo. No FK (ADR-0056 §5) |
-| `requested_by` | uuid NOT NULL | the user; the binding of ADR-0049 §1.5 |
+| `requested_by` | uuid NOT NULL | the user, FK → `user (id)` as `leave_requests.requested_by`, with its own index; the binding of ADR-0049 §1.5 |
 | `requested_at` | timestamptz NOT NULL | from the injected clock |
 
 Indexes (one for every foreign key and every list filter, `CLAUDE.md` §5): `(company_id, business_id, branch_id,
@@ -490,12 +503,13 @@ factory. The code PRs add the two port rows.
   that day adds no scheduled minutes and prints no «لا يوجد حضور مسجّل», a 08:00–09:30 shift that day counts its
   scheduled minutes, 24–31 October print the date only, and a 09:00–17:00 default entry on 23 October adds no
   contracted minutes until 17:00 (BR-12); an approved leave on 23 October is shown and not subtracted before 17:00,
-  and subtracted after; at 13:00 a session from 09:20 to 12:00 on a 09:00–17:00 shift counts with its 20 minutes of
-  lateness while the shift's scheduled minutes do not count yet; نورة at 13:00 on 23 October shows 179 h worked,
+  and subtracted after; نورة (BR-12, her 23 October session 09:00–12:00) at 13:00 on 23 October shows 179 h worked,
   176 h contracted and a +3 h difference (AB-Q8), and after 17:00 her 8 h for that day count and the difference is
-  −5 h; at 01:00 a
-  22:00–06:00 shift of the previous working
-  date adds no scheduled minutes; an OPEN session at render prints «لسه جوّه» on its date.
+  −5 h; a separate employee, otherwise the same, whose 23 October session runs 09:20–12:00 on a 09:00–17:00 shift: at
+  13:00 the session counts with its 20 minutes of lateness while the shift's scheduled minutes do not count yet, so
+  she shows 178 h 40 worked and +2 h 40, and −5 h 20 after 17:00 (lateness does not lengthen the session; issue
+  #561); at 01:00 a 22:00–06:00 shift of the previous working date adds no scheduled minutes; an OPEN session at
+  render prints «لسه جوّه» on its date.
 - **Contracts:** request body (forms, `employee_id` rule, `strictObject`), status reply, the template data schema.
 - **API integration (T2 Postgres, one cloned DB per file, ADR-0006):** 202 and the request row; every refusal of
   Story 3 including `403` without the permission, `404` cross-tenant/other-user/other-branch, and `404` for a business A
@@ -525,7 +539,8 @@ factory. The code PRs add the two port rows.
   employee) belongs to another business of the same company fails on the composite foreign key.
 - **Queries:** every new or moved `queries/` statement has a result-shape test and an `EXPLAIN` assertion, the FR-011b
   statement included: an employee with only schedule shifts at the branch in the period is returned with her shifts
-  and no sessions or contract, an employee who is a 27b candidate is not, and a shift at another branch is not.
+  and no sessions or contract, an employee who is also a 27b candidate is returned too and the merge keeps her 27b row
+  (issue #561), and a shift at another branch, or only on `from − 1`, is not.
 - **Worker:** the source against the T2 Redis with a fake renderer: data read, `readStatementLogo` (file check +
   access audit in its own transaction) as `pospay_app`, the `staff` reader writing nothing in `files`, a retry after the logo was replaced embeds the recorded file and adds no row, a request made with no
   logo stays name-only after a logo is bound, logo fetch outside

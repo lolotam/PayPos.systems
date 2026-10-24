@@ -12,16 +12,15 @@ export function isCountedAttendanceSession(session: ReportSession): boolean {
 }
 
 /**
- * يحسب دقائق العمل وبريك BW-Q8 بين الجلسات المتجاورة لكل وردية حتى عبر منتصف الليل.
- * رصيد الفجوة يستبعد أي وقت محتسب في جلسة أخرى وينسب ليوم الخروج؛ يُختار الشهر بعد حساب التجاور لا قبله.
- * فهرس نهاية الوردية واتحاد الفترات يحفظان قاعدة عدم تكرار الرصيد دون إعادة مسح الشهر لكل بريك.
+ * يحسب دقائق العمل لكل يوم عمل على حدة، مع رصيد بريك BW-Q8 بين الجلسات المتجاورة لكل وردية حتى عبر منتصف الليل.
+ * رصيد الفجوة يستبعد أي وقت محتسب في جلسة أخرى وينسب ليوم الخروج؛ الأيام اللي يختارها المستدعي هي اللي بتتحسب.
+ * فهرس نهاية الوردية واتحاد الفترات يحفظان قاعدة عدم تكرار الرصيد دون إعادة مسح الفترة لكل بريك.
  *
- * @param sessions جلسات الفرع مع سياق الوردية قبل الشهر وبعده
+ * @param sessions جلسات الفرع مع سياق الوردية قبل الفترة وبعدها
  * @param shifts ورديات الفترة وبريكها المثبت
- * @param month الشهر المطلوب أو undefined لجمع كل أيام الدخول
- * @returns دقائق صحيحة، والفترات التي لا تكمل دقيقة لا تضيف دقيقة
+ * @returns الدقائق الصحيحة لكل يوم عمل، مقصوصة لدقيقة كاملة
  */
-export function workedAttendanceMinutes(sessions: readonly ReportSession[], shifts: readonly ReportShift[], month?: string): number {
+export function workedAttendanceMinutesByDate(sessions: readonly ReportSession[], shifts: readonly ReportShift[]): Map<string, number> {
   const counted = sessions.filter(isCountedAttendanceSession)
     .map((session) => ({ session, start: Date.parse(session.clock_in), end: Date.parse(session.clock_out ?? session.clock_in) }))
     .toSorted((a, b) => a.start - b.start);
@@ -49,8 +48,23 @@ export function workedAttendanceMinutes(sessions: readonly ReportSession[], shif
     }
     previousByShift.set(shiftEnd, session);
   }
-  return [...elapsedByDate].filter(([date]) => month === undefined || date.startsWith(`${month}-`))
-    .reduce((minutes, [, elapsed]) => minutes + Math.floor(elapsed / 60_000), 0);
+  return new Map([...elapsedByDate].map(([date, elapsed]) => [date, Math.floor(elapsed / 60_000)]));
+}
+
+/**
+ * يجمع دقائق العمل وبريك BW-Q8 بين الجلسات المتجاورة لكل وردية حتى عبر منتصف الليل.
+ * رصيد الفجوة يستبعد أي وقت محتسب في جلسة أخرى وينسب ليوم الخروج؛ يُختار الشهر بعد حساب التجاور لا قبله.
+ * فهرس نهاية الوردية واتحاد الفترات يحفظان قاعدة عدم تكرار الرصيد دون إعادة مسح الشهر لكل بريك.
+ *
+ * @param sessions جلسات الفرع مع سياق الوردية قبل الشهر وبعده
+ * @param shifts ورديات الفترة وبريكها المثبت
+ * @param month الشهر المطلوب أو undefined لجمع كل أيام الدخول
+ * @returns دقائق صحيحة، والفترات التي لا تكمل دقيقة لا تضيف دقيقة
+ */
+export function workedAttendanceMinutes(sessions: readonly ReportSession[], shifts: readonly ReportShift[], month?: string): number {
+  const byDate = workedAttendanceMinutesByDate(sessions, shifts);
+  return [...byDate].filter(([date]) => month === undefined || date.startsWith(`${month}-`))
+    .reduce((minutes, [, elapsed]) => minutes + elapsed, 0);
 }
 
 function breakGap(previous: ReportSession, next: ReportSession, shift: ReportShift) {
