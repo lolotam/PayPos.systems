@@ -18,9 +18,10 @@ Play internal uploads are M-2, gated on the company that will own the store acco
 **Staff OTP is postponed (PP-58.1, Waleed, 2026-10-25, «نأجّله (مقترح)»).** M-1c runs (a) pairing and (b) staff PIN on
 Android now; (c) the personal OTP session, (d) the attendance camera and (e) passkey attendance wait until WhatsApp
 Business is set up (an approved OTP template and its keys) and are then tested on real WhatsApp, with no test-only OTP
-path. On iOS the simulator UI test covers what needs no OTP. **Open (`TODO(spec)`, PP-58.2):** a simulator on the GitHub
-runner cannot receive a real WhatsApp code, so iOS (c) cannot run unattended; until Waleed answers whether M-1d onward
-and the Apple fee then wait on iOS (a)+(b) only, with (c) moving to M-1c-ii, that gate is pending, not passable.
+path. On iOS the simulator UI test covers what needs no OTP. **PP-58.2 (Waleed, 2026-10-25, option 1, «نكتفي بالكاونتر والـ PIN»;
+his confirmation on the corrected wording is pending):** a simulator on the GitHub runner cannot receive a real
+WhatsApp code, so **M-1d onward and the Apple fee wait on iOS (a) pairing and (b) staff PIN passing on the simulator**,
+and iOS (c), the personal session, moves to the first real iPhone (M-1c-ii).
 So row M-1c below is done in two steps: (a) and (b) now, then (c)–(e) once WhatsApp is ready; the row is complete only
 after both (spec 065, Test plan, Device checks).
 

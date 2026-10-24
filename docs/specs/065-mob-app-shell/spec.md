@@ -363,9 +363,10 @@ None published, none consumed.
   (a)–(c) on the simulator, (d)–(e) on the first real iPhone (M-1c-ii). **Staged by PP-58.1:** (a) and (b) run now on
   Android; (c), (d) and (e) wait until WhatsApp Business is set up and then run on real WhatsApp. The M-1c gate is
   phase one only: Android (a)–(e) and the iOS simulator checks; the real-iPhone checks of M-1c-ii stay outside it
-  (they need the M-2a build). `TODO(spec)`: a simulator on the GitHub runner cannot receive a real WhatsApp code, so
-  iOS (c) cannot run as an unattended test while there is no test-only OTP path; whether M-1d and the Apple fee then
-  wait on iOS (a)+(b) only, with (c) moving to M-1c-ii, is open with Waleed (PP-58.2).
+  (they need the M-2a build). **PP-58.2 (Waleed, 2026-10-25, option 1; his confirmation on the
+  corrected wording is pending):** a simulator on the GitHub runner cannot receive a real WhatsApp code, so M-1d onward
+  and the Apple fee wait on iOS (a) pairing and (b) staff PIN passing on the simulator, and iOS (c), the personal
+  session, moves to the first real iPhone (M-1c-ii).
 - **RLS negative**: not applicable (no tenant table).
 - **Queries**: not applicable (no `queries/` file).
 
@@ -375,8 +376,8 @@ None published, none consumed.
 
 - **SC-001**: On a paired Android tablet, the app opens to the paired-device screen within 3 seconds with no network.
 - **SC-002**: A staff PIN session and a personal session each survive an app restart on Android and on the iOS
-  simulator (M-1c). `TODO(spec)` PP-58.2: under PP-58.1 the personal session cannot be signed in on the simulator, so
-  whether its iOS half moves to the first real iPhone (M-1c-ii) waits on Waleed.
+  simulator (M-1c). Under PP-58.2 (option 1) the iOS half of the personal session is checked on the first real iPhone
+  (M-1c-ii), not on the simulator.
 - **SC-003**: No screen of the native build offers a working-looking control for a capability the platform port
   reports as off.
 - **SC-004**: The web build's behaviour is unchanged: every existing `apps/pos` UI test passes without edits.
