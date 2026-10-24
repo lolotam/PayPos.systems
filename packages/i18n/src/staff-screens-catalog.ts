@@ -1,4 +1,7 @@
-import { companyEmployeeNumbersAr, companyEmployeeNumbersEn } from './company-employee-numbers-catalog.js';
+import {
+  companyEmployeeNumbersAr,
+  companyEmployeeNumbersEn,
+} from './company-employee-numbers-catalog.js';
 import { employeeAppLinkAr, employeeAppLinkEn } from './employee-app-link-catalog.js';
 import { employeeImportAr, employeeImportEn } from './employee-import.js';
 
