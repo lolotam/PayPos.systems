@@ -7,28 +7,27 @@ const COMPANY = '00000000-0000-4000-8000-000000000001';
 
 function record(over: Partial<PushRecord> = {}): PushRecord {
   return {
-    token: 'delivery-token',
-    subscriber_ref: 'subscriber-ref',
-    company_id: COMPANY,
-    vapid_key_id: '0123456789abcdef',
-    suspended: false,
-    ...over,
+    token: over.token ?? 'delivery-token',
+    subscriber_ref: over.subscriber_ref ?? 'subscriber-ref',
+    company_id: over.company_id ?? COMPANY,
+    vapid_key_id: over.vapid_key_id ?? '0123456789abcdef',
+    suspended: over.suspended ?? false,
+    revision: over.revision ?? 0,
   };
 }
 
 function input(over: Partial<PushStateInput> = {}): PushStateInput {
   return {
-    notReady: false,
-    storageBlocked: false,
-    supported: true,
-    installFirst: false,
-    permission: 'default',
-    online: true,
-    record: null,
-    companyId: COMPANY,
-    browserSubscribed: false,
-    reconnecting: false,
-    ...over,
+    notReady: over.notReady ?? false,
+    storageBlocked: over.storageBlocked ?? false,
+    supported: over.supported ?? true,
+    installFirst: over.installFirst ?? false,
+    permission: over.permission ?? 'default',
+    online: over.online ?? true,
+    record: over.record ?? null,
+    companyId: over.companyId ?? COMPANY,
+    browserSubscribed: over.browserSubscribed ?? false,
+    reconnecting: over.reconnecting ?? false,
   };
 }
 

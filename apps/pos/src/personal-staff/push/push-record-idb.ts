@@ -102,7 +102,7 @@ function writeIfGeneration(
         const transaction = database.transaction(STORE_NAME, 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
         const generationRequest = store.get(GENERATION_KEY) as IDBRequest<number | undefined>;
-        let written = false;
+        const written = { value: false };
         generationRequest.onsuccess = () => {
           if (readGeneration(generationRequest.result) !== expected) return;
           const recordRequest = store.get(RECORD_KEY) as IDBRequest<PushRecord | undefined>;
@@ -113,12 +113,12 @@ function writeIfGeneration(
             const clear = options.clearSuspension === true;
             const suspended = stored?.suspended === true && !clear;
             store.put(suspended ? { ...record, suspended: true } : record, RECORD_KEY);
-            written = true;
+            written.value = true;
           };
         };
         transaction.oncomplete = () => {
           database.close();
-          resolve(written);
+          resolve(written.value);
         };
         transaction.onabort = () => {
           database.close();
@@ -160,7 +160,9 @@ export const pushRecordStore: PushRecordStore = {
     const stored = await runTransaction<PushRecord | undefined>('readonly', (store) =>
       store.get(RECORD_KEY),
     );
-    return stored ?? null;
+    if (stored === undefined) return null;
+    // سجل قديم من غير رقم مراجعة: بنعتبره صفر (ADR-0052 §7).
+    return { ...stored, revision: stored.revision ?? 0 };
   },
   write: async (record: PushRecord) => {
     await runTransaction('readwrite', (store) => store.put(record, RECORD_KEY));

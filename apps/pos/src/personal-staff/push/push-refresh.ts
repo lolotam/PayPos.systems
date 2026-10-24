@@ -8,6 +8,7 @@ import {
   pushSubscriptionBody,
   subscribeWithDeadline,
   unsubscribePush,
+  type PushSubscriptionLike,
 } from './push-browser';
 import { pushCalls, withAbortTimeout } from './push-calls';
 import { runPushExclusive } from './push-lock';
@@ -127,20 +128,7 @@ async function rotate(
   }
   const token = crypto.randomUUID();
   try {
-    await withAbortTimeout(
-      (signal) =>
-        pushCalls.register(
-          {
-            installation_id: installationId,
-            vapid_key_id: input.config.vapid_key_id,
-            delivery_token: token,
-            subscription: pushSubscriptionBody(subscription),
-            locale: input.locale,
-          },
-          signal,
-        ),
-      API_TIMEOUT_MS,
-    );
+    await registerRotated(input, subscription, installationId, token);
   } catch {
     await dropSubscription();
     await removeRecord();
@@ -148,33 +136,76 @@ async function rotate(
   }
   let written = false;
   try {
-    written = await pushRecordStore.writeIfGeneration(
-      {
-        token,
-        subscriber_ref: record.subscriber_ref,
-        company_id: record.company_id,
-        vapid_key_id: input.config.vapid_key_id,
-        suspended: false,
-        revision: record.revision,
-      },
-      generation,
-      { expectRevision: record.revision },
-    );
+    written = await writeRotatedRecord(record, input, installationId, token, generation);
   } catch {
     // فشل الكتابة: السجل مش هيتكتب والتسجيل الجديد بيتشال.
-    await dropSubscription();
-    await revoke(installationId);
-    await removeRecord();
+    await failRotation(installationId);
     return { kind: 'cleared' };
   }
   if (!written) {
     // جيل أو مراجعة أحدث: السجل دلوقتي بتاع حد تاني، فبنسيبه ونشيل بس تسجيلنا (ADR-0052 §7).
-    await dropSubscription();
-    await revoke(installationId);
+    await abortRotation(installationId);
     return { kind: 'cleared' };
   }
   notifyPushRecordChanged();
   return { kind: 'rotated', token };
+}
+
+/** تسجيل الاشتراك الجديد عند الـ API بالمفتاح الجديد. */
+async function registerRotated(
+  input: PushRefreshInput,
+  subscription: PushSubscriptionLike,
+  installationId: string,
+  token: string,
+): Promise<void> {
+  await withAbortTimeout(
+    (signal) =>
+      pushCalls.register(
+        {
+          installation_id: installationId,
+          vapid_key_id: input.config.vapid_key_id,
+          delivery_token: token,
+          subscription: pushSubscriptionBody(subscription),
+          locale: input.locale,
+        },
+        signal,
+      ),
+    API_TIMEOUT_MS,
+  );
+}
+
+/** كتابة السجل الجديد بعد التدوير؛ بترجع false لو الجيل أو المراجعة اتغيروا. */
+async function writeRotatedRecord(
+  record: PushRecord,
+  input: PushRefreshInput,
+  installationId: string,
+  token: string,
+  generation: number,
+): Promise<boolean> {
+  return pushRecordStore.writeIfGeneration(
+    {
+      token,
+      subscriber_ref: record.subscriber_ref,
+      company_id: record.company_id,
+      vapid_key_id: input.config.vapid_key_id,
+      suspended: false,
+      revision: record.revision,
+    },
+    generation,
+    { expectRevision: record.revision },
+  );
+}
+
+/** التدوير اتوقف: الاشتراك بيتشال والسطر عند الـ API بيراجع. */
+async function abortRotation(installationId: string): Promise<void> {
+  await dropSubscription();
+  await revoke(installationId);
+}
+
+/** فشل كتابة السجل: السجل الوهمي ما ينفعش يفضل، فبنمسحه. */
+async function failRotation(installationId: string): Promise<void> {
+  await abortRotation(installationId);
+  await removeRecord();
 }
 
 /** الاشتراك الجديد بيتشال: المتصفح مينفعش يفضل مسجل من غير حد يطلبه. */

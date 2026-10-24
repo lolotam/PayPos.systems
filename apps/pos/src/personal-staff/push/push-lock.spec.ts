@@ -224,6 +224,12 @@ beforeEach(() => {
   fakes.state.gate = null;
   fakes.state.gateReached = null;
   fakes.state.gateUsed = false;
+  vi.mocked(pushCalls.register).mockImplementation(async (input) => {
+    fakes.state.registers.push({
+      token: input.delivery_token,
+      endpoint: input.subscription.endpoint,
+    });
+  });
 });
 
 afterEach(() => {

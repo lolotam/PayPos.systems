@@ -82,6 +82,7 @@ it('keeps a late subscription when a newer attempt succeeded', async () => {
   expect(await first).toBeNull();
 
   const second = subscribeWithDeadline(new Uint8Array([2]), 100);
+  await tick();
   resolvers[1]?.(subscription);
   expect(await second).not.toBeNull();
 

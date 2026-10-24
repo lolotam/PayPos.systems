@@ -122,7 +122,14 @@ it('suspends the record before it compares the subscriber reference', async () =
   await runSignInPushCheck();
 
   expect(fakes.state.writesBeforeConfig).toBe(1);
-  expect(fakes.state.writes[0]).toEqual({ ...RECORD, suspended: true });
+  expect(fakes.state.writes[0]).toEqual({ ...RECORD, suspended: true, revision: 1 });
+});
+
+it('increments the revision with every suspension', async () => {
+  await suspendPushForSignIn();
+  await suspendPushForSignIn();
+
+  expect(fakes.state.record?.revision).toBe(2);
 });
 
 it('restores the record when the subscriber reference is the same', async () => {
