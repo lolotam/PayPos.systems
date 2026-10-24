@@ -24,6 +24,16 @@ export { allocateLineShares } from './line-shares.ts';
 export { computeMarginalTierNumerator, findActiveTierStep } from './marginal-tiers.ts';
 export { computePackageSaleCommission } from './package-sale-commission.ts';
 export { computePeriod } from './period-commission.ts';
+export { assembleCommissionPeriodInput } from './period-input-assembly.ts';
+export type {
+  AssembledCommissionPeriod,
+  CommissionPeriodProjection,
+  CommissionProjectionStatus,
+  ProjectedCommissionLine,
+  ProjectedCommissionTip,
+  ProjectedPackageSale,
+  ReceivedCommissionCorrection,
+} from './period-input-types.ts';
 export type {
   CommissionComponent,
   CommissionPackageSale,
@@ -43,6 +53,7 @@ export { selectCommissionPlanVersion } from './plan-version.ts';
 export {
   parseSalaryMultiple,
   resolveCommissionPlan,
+  selectSalaryEntryOnLastDay,
   selectSalaryOnLastDay,
 } from './salary-thresholds.ts';
 export { resolveServiceCommissionRule } from './service-rule.ts';
