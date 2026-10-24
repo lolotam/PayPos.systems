@@ -1,6 +1,6 @@
 ---
 name: pospay-pipeline
-description: "PosPay's fixed delivery pipeline, decided by the owner (Waleed) on 2026-10-07 and updated 2026-10-20. Use it for every row of a phase implementation plan, every new slice or use case, and every fix PR that touches production code in this repo. It pins who does each role (MiniMax-M3.1-Flash via opencode implements, Codex and the MergePilot panel review, Claude orchestrates), the review-round cap, the parallel-task cap, the database review, the guard pass, the staging deploy, the status page and the owner report, so they are never re-asked. It runs on top of waleed-implementation-v2 and replaces that skill's questions and fallback chains for this project. Not for a typo or a question. A docs-only change follows the docs-only lane (§2), and every merge, docs-only included, still updates the decisions page's status tab (§6 step 8)."
+description: "PosPay's fixed delivery pipeline, decided by the owner (Waleed) on 2026-10-07 and updated 2026-10-20. Use it for every row of a phase implementation plan, every new slice or use case, and every fix PR that touches production code in this repo. It pins who does each role (Kimi k3.1-pro#high via opencode implements by default, MiniMax-M3.1-Flash for small pinned backend slices, Codex and the MergePilot panel review, Claude orchestrates), the review-round cap, the parallel-task cap, the database review, the guard pass, the staging deploy, the status page and the owner report, so they are never re-asked. It runs on top of waleed-implementation-v2 and replaces that skill's questions and fallback chains for this project. Not for a typo or a question. A docs-only change follows the docs-only lane (§2), and every merge, docs-only included, still updates the decisions page's status tab (§6 step 8)."
 ---
 
 # PosPay delivery pipeline
@@ -25,7 +25,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 |---|---|---|
 | Orchestrator | Claude Code (this session) | yes — specs, briefs, renumbering, fixes on docs-only PRs (never production code, PP-10.1), and merges without asking once every gate passes (Waleed, SA-11 «ج»: a PosPay merge reaches staging only; production, production data and server changes still need his yes; `docs/owner-decisions.ar.md` item 17) |
 | Design advisors (risky slices only, §3 step 2) | Codex astra 6 medium (`gpt-6-astra`, effort medium) **and** Claude Fable 5.1 medium (`claude-fable-5-1`) | no — read-only |
-| **Implementer** — code, tests, migrations **and PR-finding fix rounds** | **Only opencode `minimax-coding-plan/MiniMax-M3.1-Flash`** (default variant) — owner's rule 2026-10-20 (PP-10.1, tightened the same day: no new Grok or Codex implementation runs; a run already in flight may finish its current round). Every MiniMax brief bans all git commands, edits outside the task, unrelated reformatting and line-squashing to dodge `max-lines`; the reviewer diffs every rewritten SQL function body against the old one and reviews money, DB and permission changes strictly | yes, in its own worktree |
+| **Implementer** — code, tests, migrations **and PR-finding fix rounds** | **opencode `kimi-code-plan-global/k3.1-pro#high` by default; `minimax-coding-plan/MiniMax-M3.1-Flash` (default variant) for small, fully pinned backend and data slices (SQL, RLS, domain math)** — owner's choice 2026-10-24 after the six-task trial (PP-55.1, `docs/owner-decisions.ar.md` item 26), replacing PP-10.1 «MiniMax only». Both run under the same guarded dispatch (§4); only `-m` changes. No Grok or Codex implementation runs. **Wherever this skill says "MiniMax", read "the implementer", whichever of the two the task uses.** Every implementer brief bans all git commands, edits outside the task, unrelated reformatting and line-squashing to dodge `max-lines`; the reviewer diffs every rewritten SQL function body against the old one and reviews money, DB and permission changes strictly | yes, in its own worktree |
 | **Database reviewer** | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) | no |
 | Review layer 1 | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) — owner's choice 2026-10-11 | no |
 | Review layer 2 | **one** fresh Claude reviewer, **Sonnet 5.5 at medium effort** (`claude-sonnet-5-5`), given the diff, the spec and the governing documents (§8 rule 5), never the session history; **high** effort for money, tenant isolation (RLS), auth and migrations; none for a docs-only PR (§8 rule 5) | no |
@@ -37,7 +37,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 There is no separate model check before the first dispatch. Any `opencode` command started outside §4's guarded setup
 loads plugins and config before `check-opencode.cjs` has vetted them, and a bare `opencode run` would also run the model
 under opencode's default, unrestricted permissions. The first guarded run is the check: a missing model id, or an auth
-or quota failure, shows as a nonzero exit (§4 rule 8). Then stop and ask the owner. Never substitute another provider (PP-10.1). On a quota stop, hold and resume the same session after
+or quota failure, shows as a nonzero exit (§4 rule 8). Then stop and ask the owner. Never substitute a provider outside these two (PP-55.1), and never switch a task between them without the owner's yes. On a quota stop, hold and resume the same session after
 the renewal.
 
 ---
@@ -72,7 +72,7 @@ the renewal.
 | # | Step | Owner | Done when |
 |---|---|---|---|
 | 0 | Pick the next row of the phase plan, or the task the owner names | orchestrator + owner | row named in the report |
-| 1 | Spec: `/speckit-specify` → `docs/specs/NNN-<module>-<use-case>/spec.md`; owner questions → the slice's `owner-questions.ar.md` (a question that belongs to no slice, such as a pipeline, docs or process rule, goes to `docs/owner-decisions.ar.md` instead), then published on the decisions page as a new numbered batch, whatever its kind, and sent to Waleed as super-agent cards (`CLAUDE.md` §1 5b, V3.14: on a difference Abu Salem's pick wins); a feature's questions are asked together before its first sub-PR, in one batch | orchestrator | every business rule is in the spec or asked; an unknown rule is a `TODO(spec)` and a stop. **Ask the whole feature at once** (owner, 2026-10-17): before the first sub-PR of a feature starts, list every sub-PR in the plan, collect all of their owner questions, one numbered batch on the page (also sent to Waleed as cards), and add a clickable mockup (an HTML artifact, or a Lovable prototype) when the answer is a screen; late-found questions are the exception, not the routine |
+| 1 | Spec: `/speckit-specify` → `docs/specs/NNN-<module>-<use-case>/spec.md`; owner questions → the slice's `owner-questions.ar.md` (a question that belongs to no slice, such as a pipeline, docs or process rule, goes to `docs/owner-decisions.ar.md` instead), then sent to Waleed as cards; feature and business questions are also published on the decisions page as a new numbered batch (on a difference Abu Salem's pick wins), and technical questions go to Waleed only, never on the page (`CLAUDE.md` §1 5b, V3.17); a feature's questions are asked together before its first sub-PR, in one batch | orchestrator | every business rule is in the spec or asked; an unknown rule is a `TODO(spec)` and a stop. **Ask the whole feature at once** (owner, 2026-10-17): before the first sub-PR of a feature starts, list every sub-PR in the plan, collect all of their owner questions: the feature and business ones in one numbered batch on the page (also sent to Waleed as cards), the technical ones to Waleed only as cards, and add a clickable mockup (an HTML artifact, or a Lovable prototype) when the answer is a screen; late-found questions are the exception, not the routine |
 | 2 | Design advice — **only** when the slice parses files, runs long work, may cross 200 ms, moves money, or changes auth/RLS | both advisors, read-only | the chosen design is written into the spec |
 | 3 | Brief and dispatch the implementer (§4), baseline captured first | orchestrator → MiniMax | MiniMax reports done; the delivery is kept as the first commit, as delivered |
 | 4 | Judge the delivery: diff against the baseline, read it against the spec, merge `main`, renumber migrations/ADRs, `pnpm check` | orchestrator | `pnpm check` green |
@@ -97,9 +97,10 @@ the MergePilot panel reviews each pushed commit by itself. Read every result bef
 
 ## 4. Dispatching MiniMax (opencode)
 
-MiniMax runs through the **opencode CLI** (`opencode` on `PATH`, under `F:\Dev\Runtimes\npm-global`). The model is
-**`minimax-coding-plan/MiniMax-M3.1-Flash`**, on Waleed's flat-rate coding plan. That provider offers no `#high`
-variant, so the model runs at its default. The `opencode-delegate` skill holds the run and relay mechanics. This section
+The implementer runs through the **opencode CLI** (`opencode` on `PATH`, under `F:\Dev\Runtimes\npm-global`). The
+default model is **`kimi-code-plan-global/k3.1-pro#high`** (Kimi For Coding plan, variant `high`); small, fully pinned
+backend and data slices use **`minimax-coding-plan/MiniMax-M3.1-Flash`**, on Waleed's flat-rate coding plan, which
+offers no `#high` variant and runs at its default (PP-55.1). Everything below applies to both; only `-m` differs. The `opencode-delegate` skill holds the run and relay mechanics. This section
 pins the PosPay rules on top of it.
 
 1. **One session per task.** Give the first run a session id with `-s`, and record it in the task's notes
