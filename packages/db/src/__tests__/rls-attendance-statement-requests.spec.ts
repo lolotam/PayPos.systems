@@ -5,7 +5,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createDatabase, type Database } from '../index.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
-import { seedTwoTenants, TENANT } from '../../test/tenancy-fixtures.ts';
+import { seedTwoTenants, TENANT, USER } from '../../test/tenancy-fixtures.ts';
 
 const { A, B } = TENANT;
 const EMPLOYEE_A = '01920000-0000-7000-8000-0000000000e1';
@@ -13,6 +13,7 @@ const EMPLOYEE_B = '01920000-0000-7000-8000-0000000000e2';
 const OTHER_BUSINESS = '01920000-0000-7000-8000-0000000000e3';
 const OTHER_BRANCH = '01920000-0000-7000-8000-0000000000e4';
 const OTHER_EMPLOYEE = '01920000-0000-7000-8000-0000000000e5';
+const NOT_A_USER = '01920000-0000-7000-8000-0000000000e6';
 const REQUESTED_AT = new Date('2026-10-23T08:00:00.000Z');
 
 let testDb: TestDatabase;
@@ -25,6 +26,7 @@ beforeAll(async () => {
   await seedTwoTenants(testDb.ownerUrl);
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   db = createDatabase({ url: testDb.appUrl, ids });
+  await owner`INSERT INTO "user"(id,name,email) VALUES(${USER},'Tenant operator','tenant-operator@example.test')`;
   await owner`INSERT INTO businesses(company_id,id,vertical_type,name_en)
     VALUES(${A.company},${OTHER_BUSINESS},'salon','Second business of company A')`;
   await owner`INSERT INTO branches(company_id,id,business_id,name_en)
@@ -56,6 +58,7 @@ interface RequestRow {
   readonly shiftStart?: string | null;
   readonly shiftEnd?: string | null;
   readonly logoFileId?: string | null;
+  readonly requestedBy?: string;
 }
 
 function requestRow(row: RequestRow = {}) {
@@ -64,7 +67,7 @@ function requestRow(row: RequestRow = {}) {
     VALUES(${row.company ?? A.company},${row.id ?? ids.newId()},${row.business ?? A.business},${row.branch ?? A.branch},
       ${row.form ?? 'BRANCH'},${row.employee ?? null},${row.from ?? '2026-10-01'},${row.to ?? '2026-10-31'},
       ${row.language ?? 'ar'},${row.shiftStart ?? null},${row.shiftEnd ?? null},${row.logoFileId ?? null},
-      ${'01920000-0000-7000-8000-0000000000f1'},${REQUESTED_AT.toISOString()}::timestamptz)`;
+      ${row.requestedBy ?? USER},${REQUESTED_AT.toISOString()}::timestamptz)`;
 }
 
 /** يفشل العمل بالخطأ المطلوب: الـ code والاسم بتوع القيد من الـ error أو من سببه. */
@@ -112,14 +115,14 @@ it('a tenant cannot insert a row carrying another company id and can insert its 
     db.withTenant(A.company, (tx) =>
       tx.execute(sql`INSERT INTO attendance_statement_requests(company_id,id,business_id,branch_id,form,period_from,period_to,language,requested_by,requested_at)
         VALUES(${B.company},${ids.newId()},${B.business},${B.branch},'BRANCH','2026-10-01'::date,'2026-10-31'::date,'ar',
-          ${'01920000-0000-7000-8000-0000000000f1'},${REQUESTED_AT.toISOString()}::timestamptz)`),
+          ${USER},${REQUESTED_AT.toISOString()}::timestamptz)`),
     ),
     '42501',
   );
   await db.withTenant(A.company, (tx) =>
     tx.execute(sql`INSERT INTO attendance_statement_requests(company_id,id,business_id,branch_id,form,period_from,period_to,language,requested_by,requested_at)
       VALUES(${A.company},${ids.newId()},${A.business},${A.branch},'BRANCH','2026-10-01'::date,'2026-10-31'::date,'ar',
-        ${'01920000-0000-7000-8000-0000000000f1'},${REQUESTED_AT.toISOString()}::timestamptz)`),
+        ${USER},${REQUESTED_AT.toISOString()}::timestamptz)`),
   );
   const rows = await db.withTenant(A.company, (tx) =>
     tx.execute(sql`SELECT id FROM attendance_statement_requests WHERE language='ar'`),
@@ -148,6 +151,14 @@ it('the tenant-qualified foreign keys refuse a branch or an employee of another 
     requestRow({ employee: OTHER_EMPLOYEE }),
     '23503',
     'attendance_statement_requests_employee_fk',
+  );
+});
+
+it('a request whose requester is not a user fails on the foreign key', async () => {
+  await rejected(
+    requestRow({ requestedBy: NOT_A_USER }),
+    '23503',
+    'attendance_statement_requests_requested_by_user_id_fk',
   );
 });
 

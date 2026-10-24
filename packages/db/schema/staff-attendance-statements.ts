@@ -14,6 +14,7 @@ import {
 
 import { branches, businesses, companies } from './tenancy.ts';
 import { employees } from './staff.ts';
+import { user } from './identity-auth.ts';
 
 // سجل طلب كشف الحضور الرسمي؛ الصف بيتسجل مرة واحدة وقت الطلب وما بيتعدّلش ولا بيتحذفش (ADR-0056 §5).
 export const attendanceStatementRequests = pgTable(
@@ -34,8 +35,8 @@ export const attendanceStatementRequests = pgTable(
     shiftEnd: time('shift_end'),
     // قرار الشعار وقت الطلب مش مرجع لملف: تقادم الملف أو تنقيته ما يتمنعش بطلب قديم (ADR-0056 §5).
     logoFileId: uuid('logo_file_id'),
-    // المستخدم صف هوية عام مش صف مستأجر، فمفيش مفتاح أجنبي عليه (ADR-0003 §2).
-    requestedBy: uuid('requested_by').notNull(),
+    // طلب البيان مربوط بالمستخدم اللي طلبه؛ ربط الحالة والتحميل بيقارنوا نفس المستخدم (FR-005).
+    requestedBy: uuid('requested_by').notNull().references(() => user.id),
     requestedAt: timestamp('requested_at', { withTimezone: true }).notNull(),
   },
   (t) => [
@@ -71,6 +72,7 @@ export const attendanceStatementRequests = pgTable(
       t.requestedBy,
       t.requestedAt,
     ),
+    index('attendance_statement_requests_requested_by_idx').on(t.requestedBy),
     check('attendance_statement_requests_form', sql`${t.form} IN ('BRANCH','EMPLOYEE')`),
     check('attendance_statement_requests_language', sql`${t.language} IN ('ar','en')`),
     check(

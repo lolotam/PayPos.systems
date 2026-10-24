@@ -115,6 +115,17 @@ it('the pair read from the request row time columns matches the same days', () =
   expect(fromRow).toMatchObject({ days_present: 31, worked_minutes: 20460 });
 });
 
+it('BR-11: a pair shift only on the day before the period does not qualify', () => {
+  const ends = at('2026-10-01', '06:00');
+  const branch: ReportBranchInputs = { timezone: 'Asia/Kuwait', contract: null, leave_for_branch: [],
+    shifts: [{ working_date: '2026-09-30', starts_at: at('2026-09-30', '22:00'), ends_at: ends,
+      break_starts_at: at('2026-10-01', '00:00'), break_ends_at: at('2026-10-01', '01:00') }],
+    sessions: [session('2026-09-30', '22:00', '00:30', ends, '2026-10-01'),
+      session('2026-10-01', '01:00', '06:00', ends)] };
+  const report = computeAttendanceShiftPeriodReport([branch], OCTOBER, null, { start: '22:00', end: '06:00' });
+  expect(report).toMatchObject({ days_present: 0, worked_minutes: 0, scheduled_minutes: 0 });
+});
+
 it('a pair that matches nothing gives zero figures and no coverage', () => {
   const branch = sara();
   expect(computeAttendanceShiftPeriodReport([branch], OCTOBER, null, { start: '12:00', end: '13:00' }))

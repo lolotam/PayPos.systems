@@ -37,24 +37,27 @@ export function attendanceShiftMatchesPair(shift: ReportShift, timezone: string,
 }
 
 /**
- * يجمع مدخلات فلتر الشيفت في الفرع: الورديات على الزوج، والجلسات المنسوبة ليها.
+ * يجمع مدخلات فلتر الشيفت في الفرع: الورديات على الزوج داخل الفترة، والجلسات المنسوبة ليها.
+ * الوردية اللي على الزوج بس بتشتغل لو يومها جوه الفترة؛ وردية اليوم اللي قبل الفترة ما بتحتسبش (BR-11).
  * الجلسة بتنتسب لوردية من الزوج بس لو `scheduled_end` بتاعها هو نفس وقت نهاية الوردية دي؛
  * الجلسة من غير نهاية مجدولة ما بتنتسبش لوردية خالص (FR-013).
  *
  * @param branch مدخلات الموظفة في الفرع
  * @param pair زوج بداية ونهاية الوردية المطلوب
- * @returns الورديات المطابقة للزوج والجلسات المنسوبة ليها
+ * @param period الفترة المطلوبة، الطرفين مشمولين
+ * @returns الورديات المطابقة للزوج داخل الفترة والجلسات المنسوبة ليها
  */
-export function attendanceShiftPairInputs(branch: ReportBranchInputs, pair: AttendanceShiftPair) {
+export function attendanceShiftPairInputs(branch: ReportBranchInputs, pair: AttendanceShiftPair, period: AttendancePeriod) {
   const formatter = attendanceLocalClockFormatter(branch.timezone);
-  const matching = branch.shifts.filter((shift) => shiftMatchesPair(shift, pair, formatter));
+  const matching = branch.shifts.filter((shift) => shift.working_date >= period.from && shift.working_date <= period.to &&
+    shiftMatchesPair(shift, pair, formatter));
   const ends = new Set(matching.map((shift) => Date.parse(shift.ends_at)));
   const kept = branch.sessions.filter((session) => session.scheduled_end !== null && ends.has(Date.parse(session.scheduled_end)));
   return { matching, kept };
 }
 
-function filterBranchByPair(branch: ReportBranchInputs, pair: AttendanceShiftPair) {
-  const { matching, kept } = attendanceShiftPairInputs(branch, pair);
+function filterBranchByPair(branch: ReportBranchInputs, pair: AttendanceShiftPair, period: AttendancePeriod) {
+  const { matching, kept } = attendanceShiftPairInputs(branch, pair, period);
   return { branch: { ...branch, sessions: kept, shifts: matching, contract: null }, matching };
 }
 
@@ -72,11 +75,9 @@ function filterBranchByPair(branch: ReportBranchInputs, pair: AttendanceShiftPai
  */
 export function computeAttendanceShiftPeriodReport(branches: readonly ReportBranchInputs[], period: AttendancePeriod,
   cutoff: string | null, pair: AttendanceShiftPair): AttendanceShiftPeriodReport {
-  const filtered = branches.map((branch) => filterBranchByPair(branch, pair));
+  const filtered = branches.map((branch) => filterBranchByPair(branch, pair, period));
   const report = computeAttendancePeriodReport(filtered.map((entry) => entry.branch), period, cutoff);
-  const pairDates = [...new Set(filtered.flatMap((entry) => entry.matching
-    .filter((shift) => shift.working_date >= period.from && shift.working_date <= period.to)
-    .map((shift) => shift.working_date)))];
+  const pairDates = [...new Set(filtered.flatMap((entry) => entry.matching.map((shift) => shift.working_date)))];
   const employeeLeave = new Map(branches.flatMap((branch) => branch.leave_for_branch).map((entry) => [entry.id, entry]));
   return { ...report, contracted_minutes: null, difference_minutes: null,
     leave: attendanceLeaveSummary([...employeeLeave.values()], pairDates.map((date) => ({ date }))) };
