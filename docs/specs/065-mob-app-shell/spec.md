@@ -49,8 +49,10 @@ her phone and the code (personal OTP, ADR-0027). The app remembers her salon, so
 **Why this priority**: it is the employee half of «PosPay Business»; it depends on how the app learns the salon
 (APP-Q9) and on the iOS session check (M-1c).
 
-**Independent Test**: on an Android phone against staging, connect to a seeded test business, sign in with the test
-OTP, restart the app; repeat (a)–(c) of M-1c on the iOS simulator.
+**Independent Test**: on an Android phone against staging, connect to a seeded test business, sign in with a code
+sent to a real WhatsApp number, restart the app; repeat (a) and (b) of M-1c on the iOS simulator ((c) on the first real iPhone, PP-58.2). **Staff OTP is postponed
+(PP-58.1, Waleed, 2026-10-25):** this sign-in check waits until WhatsApp Business is set up (an approved OTP template
+and its keys); there is no test-only OTP path.
 
 **Acceptance Scenarios**:
 
@@ -123,8 +125,9 @@ start screen again.
 - **Camera permission denied** (Android QR attendance): the attendance screen's existing camera-failure path runs
   (`use-attendance-camera.ts` calls its failure handler), and the native build adds one line on how to allow the camera
   in the phone settings.
-- **The iOS session check fails in M-1c**: User Stories 1.3 and 2.2 cannot pass on iOS; the track stops at M-1c as
-  ADR-0055 decision 3 says. This spec does not change `packages/auth`.
+- **The iOS session check fails**: if (b) fails on the simulator, User Story 1.3 cannot pass on iOS and the track stops
+  at M-1c as ADR-0055 decision 3 says; if the personal session (c) fails on the first real iPhone (M-1c-ii, PP-58.2),
+  the iOS app stays with the owners and decision 3's fallbacks ship in a fix build before any employee receives it. This spec does not change `packages/auth`.
 - **Back button on Android**: on the start screen and on a signed-in home screen it leaves the app; it never navigates
   back into a signed-out session.
 
@@ -144,7 +147,10 @@ start screen again.
   today.
 - **FR-006**: A single platform port MUST report, per capability, whether it is available: Web Push (never on native);
   passkeys (off on both platforms until O-4 is done, on iOS also until #536, on Android also only if M-1c's check
-  passes); attendance camera (Android per M-1c; **iOS off until M-1c-ii passes on a real iPhone**, ADR-0055 decision 3).
+  passes); attendance camera (Android **off until M-1c's camera check (d) passes**, which follows WhatsApp Business under
+  PP-58.1, so no unverified camera control ships. The Android value is a build-time setting of the port: (d) runs on a
+  staging debug build made with the camera on, and once (d) passes a one-line follow-up PR turns it on for every
+  build; **iOS off until M-1c-ii passes on a real iPhone**, ADR-0055 decision 3).
   Screens read the port; no screen tests the platform itself.
 - **FR-007**: A capability that is off MUST NOT offer a working-looking control: its button is hidden and one line says
   it is available in the web app, with a link that opens it (APP-Q17, PP-42.9; Waleed, 2026-10-23; Abu Salem picked the same, final).
@@ -208,7 +214,7 @@ start screen again.
 - **FR-014**: The in-app QR scan reads a QR code whose content is exactly the manager's link of FR-012 and handles it
   with the same parser and the same rules (host and path check, role precedence, confirmation before a business
   switch). It uses the attendance camera capability of the platform port (FR-006): where the camera is off (iOS
-  until M-1c-ii passes; Android if M-1c's check fails), the scan option is hidden with the FR-007 line and the
+  until M-1c-ii passes; Android until M-1c's check (d) passes), the scan option is hidden with the FR-007 line and the
   employee connects by the link or the paste. The QR itself is shown by a back-office screen in `apps/admin` that
   gives the manager the employee-app link and its QR code (one link per business: EL-Q1 of spec 069, Waleed's pick,
   Abu Salem pending); that screen is its own sub-PR (plan M-1g, spec 069),
@@ -358,7 +364,14 @@ None published, none consumed.
   carries the Associated Domains entitlement in its entitlements file (an unsigned simulator build cannot embed it).
 - **Device checks** (M-1c, recorded in [plan.md](plan.md)): (a) pairing, (b) staff PIN session, (c) personal OTP
   session, each surviving a restart; (d) attendance QR camera; (e) passkey behaviour. Android on a real phone; iOS
-  (a)–(c) on the simulator, (d)–(e) on the first real iPhone (M-1c-ii).
+  (a) and (b) on the simulator, (c)–(e) on the first real iPhone (M-1c-ii). **Staged by PP-58.1:** (a) and (b) run now on
+  Android; (c), (d) and (e) wait until WhatsApp Business is set up and then run on real WhatsApp. The M-1c gate for M-1d
+  onward, M-2 and the Apple fee is (a) and (b) on the Android phone and on the iOS simulator; Android (c)–(e) and the
+  real-iPhone checks of M-1c-ii must pass before any employee receives the app, but they do not hold back that work
+  (M-1c-ii needs the M-2a build). **PP-58.2 (Waleed, 2026-10-25, option 1, confirmed on the corrected
+  wording):** a simulator on the GitHub runner cannot receive a real WhatsApp code, so M-1d onward
+  and the Apple fee wait on iOS (a) pairing and (b) staff PIN passing on the simulator, and iOS (c), the personal
+  session, moves to the first real iPhone (M-1c-ii).
 - **RLS negative**: not applicable (no tenant table).
 - **Queries**: not applicable (no `queries/` file).
 
@@ -367,8 +380,8 @@ None published, none consumed.
 ### Measurable Outcomes
 
 - **SC-001**: On a paired Android tablet, the app opens to the paired-device screen within 3 seconds with no network.
-- **SC-002**: A staff PIN session and a personal session each survive an app restart on Android and on the iOS
-  simulator (M-1c).
+- **SC-002**: A staff PIN session survives an app restart on Android and on the iOS simulator, and a personal
+  session survives one on Android (M-1c) and on the first real iPhone (M-1c-ii).
 - **SC-003**: No screen of the native build offers a working-looking control for a capability the platform port
   reports as off.
 - **SC-004**: The web build's behaviour is unchanged: every existing `apps/pos` UI test passes without edits.

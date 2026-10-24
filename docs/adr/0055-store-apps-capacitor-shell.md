@@ -126,14 +126,15 @@ Bundled assets change the page origin, and that is the main technical risk of th
   build through a Mac or a paid Apple account. **How iOS is tested, and what it may cost, is owner question APP-Q8:
   Waleed picked the GitHub macOS runner with the iOS simulator, free minutes only, and nothing may start charging
   without his yes** (Abu Salem picked the same; final). The spike therefore has two steps:
-  - **M-1c, no fee:** Android (a)–(e) on a real phone with a side-loaded debug build; iOS (a)–(c) as an automated UI
-    test on the iOS simulator of the GitHub macOS runner. The simulator runs the iOS WebKit, so it answers the cookie
+  - **M-1c, no fee:** Android (a)–(e) on a real phone with a side-loaded debug build ((a) and (b) are the gate, (c)–(e)
+    follow once WhatsApp Business is ready; see the 2026-10-25 addendum, PP-58.4); iOS (a) and (b) as an automated UI
+    test on the iOS simulator of the GitHub macOS runner ((c) moved to M-1c-ii by PP-58.2, see the 2026-10-25 addendum). The simulator runs the iOS WebKit, so it answers the cookie
     question; it has no camera and no real passkey, so (d) and (e) stay open on iOS.
   - **M-1c-ii, the first real iPhone:** the first TestFlight build of M-2a, installed by the owners only (internal
-    testers), repeats (a)–(c) and adds (d) and (e) on iOS.
-  **M-1d onward waits for M-1c; the Apple fee waits for M-1c's iOS (a)–(c) to pass on the simulator** (and for the
+    testers), repeats (a) and (b) and adds (c), (d) and (e) on iOS.
+  **M-1d onward waits for M-1c's gate ((a) and (b) on both platforms, 2026-10-25 addendum); the Apple fee waits for the same gate, (a) and (b) on the Android phone and on the iOS simulator** (and for the
   company, APP-Q3). **No employee receives the iOS app, and attendance stays hidden on iOS, until M-1c-ii passes.** If (d) fails, the scanner moves to a native camera plugin behind the M-1d port before attendance
-  is enabled in the app. If iOS fails (c) or (b), the fallback, in this order, is:
+  is enabled in the app. If iOS fails (b) on the simulator or (c) on the first real iPhone, the fallback, in this order, is:
   1. Capacitor's native HTTP and cookie plugins (`CapacitorHttp`, `CapacitorCookies`) with the API hosts listed in
      `WKAppBoundDomains`, so session requests leave through the native stack with the native cookie store. M-1c checks
      that the pinned plugin versions carry the POS client's real request shape (`openapi-fetch` 0.17.0 passing a
@@ -378,3 +379,23 @@ run the spike, so their gate is unchanged. A version bump is a one-line change i
 dependency. If the gem stops
 supporting the runner's Xcode, the spike fails before any test runs; the build and its artifact are not affected,
 because the spike steps come after the build upload.
+
+## Addendum 2026-10-25 — the iOS gate after PP-58.1 and PP-58.2
+
+**Context.** PP-58.1 (Waleed, 2026-10-25) postponed staff OTP until WhatsApp Business is set up, with no test-only
+OTP path, so the GitHub simulator cannot receive the code that check (c), the personal session, needs.
+
+**Decision (PP-58.2, Waleed, 2026-10-25, option 1, confirmed on the corrected wording).** The M-1c gate for M-1d onward
+and for the Apple fee is **(a) device pairing and (b) staff PIN**: on a real Android phone and on the iOS simulator. The
+checks that need a real WhatsApp code or a real device, Android (c)–(e) once WhatsApp Business is ready and iOS (c)–(e)
+on the first iPhone, must pass before any employee receives the app, but they do not hold back M-1d or M-2. Waleed
+confirmed this reading (PP-58.4, 2026-10-25). Device pairing uses the
+device token, so only (b) answers the cookie question of decision 3 on iOS; the personal-session cookie (c) is first
+tested on the first real iPhone (M-1c-ii, the first TestFlight build of M-2a), after the fee. M-1c-ii repeats (a) and
+(b) and adds (c), (d) and (e) on iOS; no employee receives the iOS app until it passes.
+
+**Consequences.** M-2 can start once M-1c is green by this gate (with the company formed and M-1f merged), so there is
+no cycle between M-1c and M-2. If (c) fails on the first iPhone, the fallback order of decision 3 applies before any
+employee gets the app; until it passes, the iOS app stays with the owners only. Waleed accepted (PP-58.2) that the
+fee is paid before the personal-session cookie is proven on iOS. The web manager kept PP-58.2 a technical question for
+Waleed alone: it sets the order of the checks, and paying the Apple fee itself was decided earlier.
