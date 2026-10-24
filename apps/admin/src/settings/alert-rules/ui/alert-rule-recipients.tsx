@@ -37,7 +37,9 @@ export function AlertRuleRecipients({
   disabled: boolean;
 }) {
   const locale = useLocale();
-  const { field } = useController<SetAlertRulesInput>({ name: `rules.${index}.recipient_roles` });
+  const { field } = useController<SetAlertRulesInput, `rules.${number}.recipient_roles`>({
+    name: `rules.${index}.recipient_roles`,
+  });
   const selected = field.value;
   const kind = alertRuleKindLabel(locale, rule.kind);
   const toggle = (role: (typeof alertRecipientRole.options)[number]) => {

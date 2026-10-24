@@ -26,7 +26,9 @@ type AlertRuleRowProps = {
 export function AlertRuleRow(props: AlertRuleRowProps) {
   const { companyId, userId, businessId, branchId, rule, index, disabled, onResetDone } = props;
   const locale = useLocale();
-  const { field } = useController<SetAlertRulesInput>({ name: `rules.${index}.enabled` });
+  const { field } = useController<SetAlertRulesInput, `rules.${number}.enabled`>({
+    name: `rules.${index}.enabled`,
+  });
   const id = `alert-rule-${index}-enabled`;
   const label = alertRuleKindLabel(locale, rule.kind);
   return (

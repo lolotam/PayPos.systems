@@ -1,14 +1,18 @@
 import { t, type Locale } from '@pospay/i18n';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
+import { alertRulesKey } from '@/settings/alert-rules/api/alert-rules-client';
 import {
   alertRulesFixture,
   branchA,
+  businessId,
+  companyId,
   kindRow,
   kindSwitch,
   minutesField,
   refusal,
   renderPage,
+  userId,
   withAlertRule,
 } from './fixtures/alert-rules-page.fixture';
 
@@ -18,6 +22,20 @@ vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => locale.value }));
 
 const businessPath = '/v1/businesses/{businessId}/alert-rules';
+const listedKinds = [
+  'SHIFT_NOT_CLOCKED_IN',
+  'SHIFT_BREAK_NOT_RETURNED',
+  'SHIFT_BREAK_RETURNED_OTHER_BRANCH',
+  'SHIFT_ENDS_SOON',
+  'ATTENDANCE_EXCEPTION',
+  'DOCUMENT_EXPIRING',
+  'LATE_SERVICE_SESSION',
+  'SERVICE_LINE_EDITED',
+  'SERVICE_LINE_CANCELLED',
+  'SERVICE_LINE_PERFORMERS_CHANGED',
+  'ATTENDANCE_CHANGE_REQUESTED',
+  'ATTENDANCE_CHANGE_DECIDED',
+] as const;
 
 function businessView() {
   return withAlertRule(alertRulesFixture(), 'SERVICE_LINE_CANCELLED', { enabled: false });
@@ -33,11 +51,18 @@ beforeEach(() => {
 it('shows only the twelve listed kinds with their server values', async () => {
   api.GET.mockResolvedValue({ data: businessView() });
   renderPage();
-  expect((await screen.findByRole('switch', { name: t('en', 'alertRules.kind_SHIFT_NOT_CLOCKED_IN') })) as HTMLInputElement).checked.toBe(true);
+  const first = (await screen.findByRole('switch', {
+    name: t('en', 'alertRules.kind_SHIFT_NOT_CLOCKED_IN'),
+  })) as HTMLInputElement;
+  expect(first.checked).toBe(true);
   expect(kindSwitch('SERVICE_LINE_CANCELLED').checked).toBe(false);
   expect(screen.getAllByRole('switch')).toHaveLength(13);
-  expect(screen.queryByText('Statement awaiting review')).toBeNull();
-  expect(screen.queryByText('Statement awaiting approval')).toBeNull();
+  const names = [
+    t('en', 'alertRules.masterLabel'),
+    ...listedKinds.map((kind) => t('en', `alertRules.kind_${kind}`)),
+  ];
+  const expected = names.map((name) => screen.getByRole('switch', { name }));
+  expect(screen.getAllByRole('switch')).toEqual(expected);
   expect((screen.getByRole('switch', { name: t('en', 'alertRules.masterLabel') }) as HTMLInputElement).checked).toBe(true);
   expect(minutesField('SHIFT_NOT_CLOCKED_IN', 'delay').value).toBe('20');
   expect(minutesField('SHIFT_ENDS_SOON', 'lead').value).toBe('30');
@@ -126,6 +151,9 @@ it('shows a revision conflict and resyncs to the refetched values', async () => 
   expect((await screen.findByRole('alert')).textContent).toContain('Synthetic conflict');
   await waitFor(() => expect(minutesField('SHIFT_NOT_CLOCKED_IN', 'delay').value).toBe('35'));
   expect(api.GET).toHaveBeenCalledTimes(2);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'alertRules.save') }));
+  expect(await screen.findByText(t('en', 'alertRules.nothingChanged'))).toBeTruthy();
+  expect(api.PUT).toHaveBeenCalledTimes(1);
 });
 
 it('shows an invalid-rule response and keeps the draft', async () => {
@@ -171,10 +199,65 @@ it('switches the business master and shows its off note', async () => {
   }));
 });
 
+it('keeps the edited kind concurrency values while refreshing the other kinds', async () => {
+  const initial = withAlertRule(businessView(), 'SHIFT_NOT_CLOCKED_IN', {
+    revision: 7,
+    rule_id: branchA.id,
+  });
+  const fresh = withAlertRule(
+    withAlertRule(initial, 'SHIFT_NOT_CLOCKED_IN', { delay_minutes: 35, revision: 8 }),
+    'SERVICE_LINE_CANCELLED',
+    { enabled: true },
+  );
+  api.GET.mockResolvedValueOnce({ data: initial }).mockResolvedValueOnce({ data: fresh });
+  api.PUT.mockResolvedValue({
+    data: withAlertRule(fresh, 'SHIFT_NOT_CLOCKED_IN', { delay_minutes: 15, revision: 9 }),
+  });
+  const { client } = renderPage();
+  await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
+  fireEvent.change(minutesField('SHIFT_NOT_CLOCKED_IN', 'delay'), { target: { value: '15' } });
+  await act(async () => {
+    await client.invalidateQueries({
+      queryKey: alertRulesKey(companyId, userId, businessId, null),
+    });
+  });
+  await waitFor(() => expect(kindSwitch('SERVICE_LINE_CANCELLED').checked).toBe(true));
+  expect(minutesField('SHIFT_NOT_CLOCKED_IN', 'delay').value).toBe('15');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'alertRules.save') }));
+  expect(await screen.findByText(t('en', 'alertRules.saved'))).toBeTruthy();
+  const body = api.PUT.mock.calls[0]?.[1].body;
+  expect(body.rules).toHaveLength(1);
+  expect(body.rules[0]).toEqual(expect.objectContaining({
+    kind: 'SHIFT_NOT_CLOCKED_IN',
+    delay_minutes: 15,
+    expected_revision: 7,
+  }));
+});
+
+it('refreshes the business read when the master switch is refused', async () => {
+  api.GET.mockResolvedValue({ data: businessView() });
+  api.PUT.mockResolvedValue({
+    error: { code: 'FORBIDDEN', message_ar: 'Synthetic refusal', message_en: 'Synthetic refusal' },
+    response: { status: 403 },
+  });
+  renderPage();
+  const master = await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
+  const panel = master.closest('.rounded-card');
+  if (!panel) throw new Error('Missing master panel');
+  fireEvent.click(master);
+  expect((await within(panel).findByRole('alert')).textContent).toContain(
+    t('en', 'errors.FORBIDDEN'),
+  );
+  await waitFor(() => expect(api.GET).toHaveBeenCalledTimes(2));
+});
+
 it('shows the Arabic title and kind labels', async () => {
   locale.value = 'ar';
   api.GET.mockResolvedValue({ data: businessView() });
   renderPage();
   expect(await screen.findByText(t('ar', 'alertRules.title'))).toBeTruthy();
-  expect(kindSwitch('SHIFT_NOT_CLOCKED_IN', 'ar')).toBeTruthy();
+  const kind = await screen.findByRole('switch', {
+    name: t('ar', 'alertRules.kind_SHIFT_NOT_CLOCKED_IN'),
+  });
+  expect(kind).toBeTruthy();
 });

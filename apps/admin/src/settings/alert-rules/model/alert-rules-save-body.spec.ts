@@ -41,6 +41,12 @@ function server(overrides: Partial<AlertRules['rules'][number]> = {}): AlertRule
   };
 }
 
+function firstRule(draft: ReturnType<typeof buildAlertRulesDraft>) {
+  const rule = draft.rules[0];
+  if (!rule) throw new Error('Missing alert rule draft');
+  return rule;
+}
+
 it('returns null for an untouched draft', () => {
   expect(alertRulesSaveBody(server(), buildAlertRulesDraft(server()))).toBeNull();
 });
@@ -48,23 +54,23 @@ it('returns null for an untouched draft', () => {
 it('sends only the changed kind with its concurrency values', () => {
   const view = server();
   const draft = buildAlertRulesDraft(view);
-  draft.rules[0]!.enabled = false;
+  firstRule(draft).enabled = false;
   expect(alertRulesSaveBody(view, draft)).toEqual({
-    rules: [{ ...draft.rules[0]!, expected_revision: 4, expected_rule_id: ruleId }],
+    rules: [{ ...firstRule(draft), expected_revision: 4, expected_rule_id: ruleId }],
   });
 });
 
 it('treats reordered but equal roles as unchanged', () => {
   const view = server();
   const draft = buildAlertRulesDraft(view);
-  draft.rules[0]!.recipient_roles.reverse();
+  firstRule(draft).recipient_roles.reverse();
   expect(alertRulesSaveBody(view, draft)).toBeNull();
 });
 
 it('sends a changed delay', () => {
   const view = server();
   const draft = buildAlertRulesDraft(view);
-  draft.rules[0]!.delay_minutes = 15;
+  firstRule(draft).delay_minutes = 15;
   expect(alertRulesSaveBody(view, draft)?.rules).toHaveLength(1);
   expect(alertRulesSaveBody(view, draft)?.rules[0]?.delay_minutes).toBe(15);
 });
@@ -72,7 +78,7 @@ it('sends a changed delay', () => {
 it('keeps null concurrency values for the first rule at this scope', () => {
   const view = server({ source: 'DEFAULT', revision: null, rule_id: null });
   const draft = buildAlertRulesDraft(view);
-  draft.rules[0]!.enabled = false;
+  firstRule(draft).enabled = false;
   const entry = alertRulesSaveBody(view, draft)?.rules[0];
   expect(entry?.expected_revision).toBeNull();
   expect(entry?.expected_rule_id).toBeNull();

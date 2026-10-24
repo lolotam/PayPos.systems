@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { setAlertRulesInput, type SetAlertRulesInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { buildAlertRulesDraft } from '../model/alert-rules-draft';
@@ -18,12 +18,13 @@ import { useSyncAlertRulesForm } from './use-sync-alert-rules-form';
 export function AlertRulesForm(props: AlertRulesFormProps) {
   const locale = useLocale();
   const [notice, setNotice] = useState<AlertRulesNotice>(null);
+  const replaceDraft = useRef(false);
   const form = useForm<SetAlertRulesInput>({
     resolver: zodResolver(setAlertRulesInput),
     defaultValues: buildAlertRulesDraft(props.server),
   });
-  useSyncAlertRulesForm(form, props.server);
-  const { save, submit } = useAlertRulesSubmit(props, form, setNotice);
+  useSyncAlertRulesForm(form, props.server, replaceDraft);
+  const { save, submit } = useAlertRulesSubmit(props, form, setNotice, replaceDraft);
   const rows = listedAlertKinds(props.server.rules, props.branchId !== null);
   return (
     <FormProvider {...form}>

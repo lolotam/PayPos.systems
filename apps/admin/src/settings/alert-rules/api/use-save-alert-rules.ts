@@ -2,7 +2,7 @@
 
 import type { SetAlertRulesInput } from '@pospay/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { isAlertRulesRefusal } from '../model/alert-rules-failure';
+import { alertRulesStatus, isAlertRulesRefusal } from '../model/alert-rules-failure';
 import { alertRulesKey, saveAlertRules } from './alert-rules-client';
 
 export function useSaveAlertRules(
@@ -26,11 +26,7 @@ export function useSaveAlertRules(
       });
     },
     onError: (error) => {
-      const status =
-        typeof error === 'object' && error !== null
-          ? (error as { status?: unknown }).status
-          : undefined;
-      if (!isAlertRulesRefusal(error) && status !== 409) return;
+      if (!isAlertRulesRefusal(error) && alertRulesStatus(error) !== 409) return;
       void client.invalidateQueries({ queryKey: key });
     },
   });

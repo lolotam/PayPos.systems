@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { isAlertRulesRefusal } from '../model/alert-rules-failure';
 import { alertRulesKey, setAlertsMaster } from './alert-rules-client';
 
 export function useSetAlertsMaster(companyId: string, userId: string, businessId: string) {
@@ -16,6 +17,10 @@ export function useSetAlertsMaster(companyId: string, userId: string, businessId
         queryKey: ['alert-rules', companyId, userId, businessId],
         predicate: (query) => query.queryKey[4] !== null,
       });
+    },
+    onError: (error) => {
+      if (!isAlertRulesRefusal(error)) return;
+      void client.invalidateQueries({ queryKey: key });
     },
   });
 }

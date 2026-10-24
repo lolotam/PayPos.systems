@@ -2,7 +2,7 @@
 
 import type { AlertKindCode, ResetBranchAlertRuleQuery } from '@pospay/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { isAlertRulesRefusal } from '../model/alert-rules-failure';
+import { alertRulesStatus, isAlertRulesRefusal } from '../model/alert-rules-failure';
 import { alertRulesKey, resetBranchAlertRule } from './alert-rules-client';
 
 type ResetInput = { kind: AlertKindCode; expected: ResetBranchAlertRuleQuery };
@@ -25,11 +25,7 @@ export function useResetBranchAlertRule(
       await client.invalidateQueries({ queryKey: key });
     },
     onError: (error) => {
-      const status =
-        typeof error === 'object' && error !== null
-          ? (error as { status?: unknown }).status
-          : undefined;
-      if (!isAlertRulesRefusal(error) && status !== 409) return;
+      if (!isAlertRulesRefusal(error) && alertRulesStatus(error) !== 409) return;
       void client.invalidateQueries({ queryKey: key });
     },
   });
