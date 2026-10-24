@@ -43,6 +43,7 @@ export function PersonalScreen({
             <EnrolPasskeyScreen
               key={`${state.epoch}:${state.session.employee_id}`}
               employeeId={state.session.employee_id}
+              companyId={state.session.company_id}
               onSignOut={state.signOut}
             />
           ))

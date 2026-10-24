@@ -2,13 +2,16 @@ import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEnrolPasskey } from '../api/use-enrol-passkey';
+import { PushControl } from '../push/push-control';
 import { ClockAttendanceScreen } from './clock-attendance-screen';
 
 export function EnrolPasskeyScreen({
   employeeId,
+  companyId,
   onSignOut,
 }: {
   employeeId: string;
+  companyId: string;
   onSignOut(): Promise<void>;
 }) {
   const locale = useLocale();
@@ -27,6 +30,7 @@ export function EnrolPasskeyScreen({
         </Button>
       ) : null}
       {state.binding?.bound === true ? <ClockAttendanceScreen /> : null}
+      <PushControl companyId={companyId} />
       {state.loading ? <p role="status">{t(locale, 'personalStaff.loading')}</p> : null}
       {state.error ? <p role="alert">{t(locale, message)}</p> : null}
       <Button

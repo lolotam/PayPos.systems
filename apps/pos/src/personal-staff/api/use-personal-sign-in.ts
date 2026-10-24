@@ -5,6 +5,7 @@ import {
   type PersonalOtpRequestInput,
 } from '@pospay/contracts';
 import type { MessageKey } from '@pospay/i18n';
+import { runSignInPushCheck } from '../push/push-sign-in-check';
 import { personalCalls } from './personal-calls';
 
 export function usePersonalSignIn(
@@ -45,6 +46,8 @@ export function usePersonalSignIn(
         );
         if (result === null) throw new Error('PERSONAL_OTP_REFUSED');
         setChallenge(null);
+        // جلسة جديدة: الإشعارات بتتعلّق الأول وبعدين بيتقارن مرجع المشترك (FR-018).
+        void runSignInPushCheck().catch(() => undefined);
         changed();
       }, 'errors.OTP_INVALID'),
     restart: () => {

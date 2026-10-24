@@ -10,6 +10,7 @@ vi.mock('../model/session-change', () => ({
   observePersonalChange: vi.fn(() => () => undefined),
   announcePersonalChange: vi.fn(),
 }));
+vi.mock('../push/push-disable', () => ({ disablePushOnSignOut: vi.fn(async () => undefined) }));
 const session = {
   user_id: 'user',
   employee_id: 'employee',

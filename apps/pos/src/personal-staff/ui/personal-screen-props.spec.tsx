@@ -23,6 +23,23 @@ vi.mock('./enrol-passkey-screen', () => ({
     <p>{`session screen ${employeeId}`}</p>
   ),
 }));
+vi.mock('../push/push-browser', () => ({
+  supportsPush: () => false,
+  isIosDevice: () => false,
+  isStandalone: () => false,
+  notificationPermission: () => 'default' as const,
+  currentSubscription: async () => null,
+}));
+vi.mock('../push/push-calls', () => ({
+  pushCalls: {
+    config: vi.fn(async () => ({ kind: 'not-ready' as const })),
+    register: vi.fn(async () => undefined),
+    revoke: vi.fn(async () => undefined),
+  },
+}));
+vi.mock('../push/push-record-idb', () => ({
+  pushRecordStore: { read: async () => null, write: async () => undefined, remove: async () => undefined },
+}));
 
 const WORKSPACE = {
   company_id: '00000000-0000-4000-8000-000000000001',

@@ -10,6 +10,7 @@ import {
 } from './service-line-performers-catalog.js';
 import { serviceSessionsAr, serviceSessionsEn } from './service-session-catalog.js';
 import { staffAppColumnsAr, staffAppColumnsEn } from './staff-app-columns-catalog.js';
+import { staffPushAr, staffPushEn } from './staff-push-catalog.js';
 
 /** اللغتين اللي المنتج بيدعمهم — العربي الأساسي (CLAUDE.md §0). */
 export type Locale = 'ar' | 'en';
@@ -24,6 +25,7 @@ type RegisteredCatalog = Catalog & {
   readonly serviceLinePerformers: Record<keyof typeof serviceLinePerformersEn, string>;
   readonly sessionTips: Record<keyof typeof sessionTipsEn, string>;
   readonly staffAppColumns: Record<keyof typeof staffAppColumnsEn, string>;
+  readonly staffPush: Record<keyof typeof staffPushEn, string>;
   readonly nativeShell: Record<keyof typeof nativeShellEn, string>;
 };
 
@@ -44,6 +46,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     serviceLinePerformers: serviceLinePerformersAr,
     sessionTips: sessionTipsAr,
     staffAppColumns: staffAppColumnsAr,
+    staffPush: staffPushAr,
     nativeShell: nativeShellAr,
   },
   en: {
@@ -54,6 +57,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     serviceLinePerformers: serviceLinePerformersEn,
     sessionTips: sessionTipsEn,
     staffAppColumns: staffAppColumnsEn,
+    staffPush: staffPushEn,
     nativeShell: nativeShellEn,
   },
 };
