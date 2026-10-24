@@ -196,7 +196,11 @@ worker, embeds bytes in a PDF, and needs a render id.
       answers the 403 and writes nothing. The route therefore never answers `download_url: null` to a caller who
       lost the permission after the guard.
    3. **Allowed with no logo:** 200 `{ download_url: null }`, nothing written; the sheet prints with the name only.
-   4. **Allowed with a logo,** one `withTenant` transaction: insert the `ALLOW` pair, sign the GET URL with
+   4. **Allowed with a logo,** one `withTenant` transaction. First re-lock the binding with `@pospay/db`
+      `lockBusinessLogoReference(tx, company, business, fileId)`, the `business_settings` `FOR UPDATE` lock that binding
+      and removal take (ADR-0046 §4), and check the `file_objects` row again as step 1 did. If the logo was replaced or
+      removed, or the file no longer qualifies, since step 1, answer 200 `{ download_url: null }` and write nothing:
+      a retired file is never signed. Otherwise insert the `ALLOW` pair, sign the GET URL with
       `packages/storage` `presignDownload` (local computation, no network call, so ADR-0046 §4 holds), commit. A
       signing failure rolls the pair back, so an `ALLOW` is never recorded for a URL that was not issued.
    - **Accepted residual:** none of these steps locks the membership rows, so a revocation that commits after step

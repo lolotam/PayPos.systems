@@ -171,8 +171,9 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
     does not print. A permitted user of a business with no logo gets 200 with `download_url: null`.
   - **Sequential steps, as in `IssueDownload`** (`CLAUDE.md` §6, PP-7.2, never nested): resolve the logo file; check
     the permission again for every request (a refusal commits a `DENY` pair when a file exists, then answers 403);
-    with no logo answer `download_url: null`; with a logo write the `ALLOW` pair (`file_access_audit` and the
-    `file`/`access` `audit_log` entry, ADR-0056 §3) and sign the URL in one transaction, so the pair and the URL
+    with no logo answer `download_url: null`; with a logo re-lock the binding (`lockBusinessLogoReference`), and if it still names the same qualifying file write
+    the `ALLOW` pair (`file_access_audit` and the `file`/`access` `audit_log` entry, ADR-0056 §3) and sign the URL in one
+    transaction (a logo replaced or removed meanwhile answers `download_url: null`), so the pair and the URL
     commit together or not at all. The image is delivered only after that commit. Because it writes, it is a use
     case, not a `queries/` read (`CLAUDE.md` §6), and its ids come from the injected `IdGenerator`.
   - **Settled by the addendum** (not repeated here): the read lives in API `files`; it learns `logo_file_id` through
@@ -218,7 +219,8 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
 - **Integration (apps/api)**: the screen's read: `EL-I07` a holder gets 200 with the names and ids · `EL-I08` no
   permission, a DENY on the business, an unknown business and another company's business all get the same 403. The
   logo read: `EL-I01` a holder gets a signed URL · `EL-I02` the same four refusals get the guard's 403 · `EL-I09` a permission revoked after the guard gets the same 403 from the use case's own check, with a committed
-  `DENY` pair when a logo file exists and nothing written when none does, never `download_url: null` · `EL-I10` no
+  `DENY` pair when a logo file exists and nothing written when none does, never `download_url: null` · `EL-I11` a logo replaced or removed between the resolve read and the `ALLOW` transaction answers
+  `download_url: null` with nothing written, and the old file is never signed · `EL-I10` no
   step opens a transaction inside another, and the request never holds two pool connections at once (PP-7.2) · `EL-I03` a
   holder of a business with no logo bound gets 200 with `download_url: null` and no audit record; every URL answer
   writes one `file_access_audit` row and one `file`/`access` `audit_log` entry in the same transaction as the URL
