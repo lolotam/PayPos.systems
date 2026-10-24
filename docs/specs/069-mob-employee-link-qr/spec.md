@@ -169,15 +169,15 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   - **Access:** the same guard as the screen's read, `@Require('manage:employees:business', { business:
     'businessId' })` with the staff feature, so every refusal is the guard's 403; the screen then shows no-access and
     does not print. A permitted user of a business with no logo gets 200 with `download_url: null`.
-  - **One transaction, then the image:** resolving the logo file and both audit records (the
-    `file_access_audit` row and the `file`/`access` `audit_log` entry, as ADR-0056 §3 does, in the module that owns
-    `file_access_audit`) run in **one** `withTenant(company, …, { userId })` transaction, after the guard, so the two
-    records and the signed URL commit together or not at all. The image is delivered only after
-    that commit, outside any transaction. Because it writes, it is a use case, not a `queries/` read (`CLAUDE.md` §6), and its ids come
-    from the injected `IdGenerator`.
+  - **Sequential steps, as in `IssueDownload`** (`CLAUDE.md` §6, PP-7.2, never nested): resolve the logo file; check
+    the permission again for every request (a refusal commits a `DENY` pair when a file exists, then answers 403);
+    with no logo answer `download_url: null`; with a logo write the `ALLOW` pair (`file_access_audit` and the
+    `file`/`access` `audit_log` entry, ADR-0056 §3) and sign the URL in one transaction, so the pair and the URL
+    commit together or not at all. The image is delivered only after that commit. Because it writes, it is a use
+    case, not a `queries/` read (`CLAUDE.md` §6), and its ids come from the injected `IdGenerator`.
   - **Settled by the addendum** (not repeated here): the read lives in API `files`; it learns `logo_file_id` through
     `@pospay/db` `readBusinessIdentity` with no `files → settings` import; it
-    issues a 60-second signed URL, signed inside the audited transaction, with `Cache-Control: private, no-store`; and
+    issues a 60-second signed URL, signed inside the `ALLOW` transaction, with `Cache-Control: private, no-store`; and
     the screen tells a missing logo from a failure by the storage answer (CORS `GET`, EL-TQ1).
   - **When the logo cannot be shown:** a bound logo whose stored object is missing counts as no logo, and the sheet
     prints with the name only, as ADR-0056 does for statements. A storage error or timeout shows «اللوجو مش متاح
@@ -217,11 +217,13 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   same company and business back, so the two sides cannot drift.
 - **Integration (apps/api)**: the screen's read: `EL-I07` a holder gets 200 with the names and ids · `EL-I08` no
   permission, a DENY on the business, an unknown business and another company's business all get the same 403. The
-  logo read: `EL-I01` a holder gets a signed URL · `EL-I02` the same four refusals get the guard's 403 · `EL-I09` a permission revoked after the guard but before the use case's own check gets the same 403 and
-  one `DENY` access audit on the logo file, as `IssueDownload` does · `EL-I03` a
+  logo read: `EL-I01` a holder gets a signed URL · `EL-I02` the same four refusals get the guard's 403 · `EL-I09` a permission revoked after the guard gets the same 403 from the use case's own check, with a committed
+  `DENY` pair when a logo file exists and nothing written when none does, never `download_url: null` · `EL-I10` no
+  step opens a transaction inside another, and the request never holds two pool connections at once (PP-7.2) · `EL-I03` a
   holder of a business with no logo bound gets 200 with `download_url: null` and no audit record; every URL answer
   writes one `file_access_audit` row and one `file`/`access` `audit_log` entry in the same transaction as the URL
-  signature, and a failure anywhere in it, signing included, leaves neither record · `EL-I05` the API answer and the
+  signature, and a failure in that transaction, signing included, leaves neither record (the `DENY` pair of EL-I09
+  is its own committed write) · `EL-I05` the API answer and the
   signed object answer both carry `Cache-Control: private, no-store` · `EL-I06` a signing or storage-configuration
   failure answers 503 (`STORAGE_UNAVAILABLE` / `STORAGE_NOT_CONFIGURED`) with no audit record · `EL-I04` no session
   gets 401.

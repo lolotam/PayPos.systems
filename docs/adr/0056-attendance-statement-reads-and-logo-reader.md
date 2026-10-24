@@ -180,35 +180,33 @@ worker, embeds bytes in a PDF, and needs a render id.
    its single 403, a caller without the permission, a DENY, an unknown business and another company's business, so the
    use case starts only for a permitted caller on a business of that company. The audit id comes from the injected
    `IdGenerator`.
-2. **Phase 1, one transaction** `withTenant(company, …, { userId })`, after the guard, in this order. The permission
-   is checked twice, as `IssueDownload` does: by the route guard, and again by the use case after it has resolved the logo
-   file and right before the audit,
-   through the existing `FilePermissions` port (`allowed(actor, 'manage:employees:business', businessId, null)`),
-   whose adapter calls the shared `RequestAuthorizer` that ADR-0022 exposes to `files`. That is not a `files → identity`
-   arrow. A refusal there writes the `DENY` access audit on that file and answers the guard's same 403, as a download refusal does.
-   Neither check locks the membership rows, so a revocation that commits between the second check and the commit
-   still gets one audited URL that lives 60 seconds. That is the **accepted residual of every download in the
-   project**, since ADR-0022 states that the audit measures URL issuance, and this route is no weaker than
-   `IssueDownload`.
-   - Read the bound `logo_file_id` through `@pospay/db` `readBusinessIdentity` (§2's shared read), through a port
-     `BusinessLogoReference` whose adapter calls `@pospay/db`. There is no `files → settings` import, as with the
-     worker `LogoReference` row.
-   - Check the `file_objects` row as §3 phase 1 does: READY, `owner_module = 'settings'`, owner = the business,
-     `purge_started_at IS NULL`.
-   - Insert the `file_access_audit` row (`outcome = 'ALLOW'`, `actor_user_id` = the caller) and append the
-     `file`/`access` `audit_log` entry.
-   - Sign the GET URL with `packages/storage` `presignDownload`, still inside the transaction. Signing is local
-     computation with no network call (ADR-0046 §4 holds), so a signing failure rolls both audit records back and an
-     `ALLOW` is never recorded for a URL that was not issued. Commit. Both records and the URL stand together or not at all.
-   - **No access** is the guard's 403 before the transaction, so it writes nothing; the screen shows its no-access
-     state and does not print.
-   - **Access but no logo** (none bound, or a bound file that no longer qualifies) answers 200 with
-     `{ download_url: null }` and writes nothing; the sheet prints with the name only. Access and "no logo" are never the
-     same answer.
-   - A **signing or storage-configuration failure is not a miss**: it rolls the transaction back like any error, and
-     answers the files module's existing `STORAGE_UNAVAILABLE` (503), or `STORAGE_NOT_CONFIGURED` when no storage is
-     configured. The screen shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry for these, never the name-only sheet;
-     only the API's `download_url: null` and storage's `NoSuchKey` print the name only.
+2. **The steps run one after the other, as in `IssueDownload`, never nested** (`CLAUDE.md` §6, PP-7.2: one pool
+   connection at a time, no transaction inside another):
+   1. **Resolve the logo**, one short `withTenant(company, …, { userId })` read: the bound `logo_file_id` through
+      `@pospay/db` `readBusinessIdentity` (§2's shared read), through a port `BusinessLogoReference` whose adapter calls
+      `@pospay/db` (no `files → settings` import, as with the worker `LogoReference` row), then the `file_objects` row
+      as §3 phase 1 checks it: READY, `owner_module = 'settings'`, owner = the business, `purge_started_at IS NULL`.
+      The result is a qualifying file or none. It writes nothing.
+   2. **Check the permission again, for every request**, with or without a logo: the existing `FilePermissions` port
+      (`allowed(actor, 'manage:employees:business', businessId, null)`), whose adapter calls the shared
+      `RequestAuthorizer` that ADR-0022 exposes to `files` (not a `files → identity` arrow). It runs in its own
+      transaction after step 1 has committed. A refusal with a resolved file writes the `DENY` access pair
+      (`file_access_audit` with `outcome = 'DENY'` and the `file`/`access` `audit_log` entry, the same pair
+      `IssueDownload`'s audit writes), commits it, and only then answers the guard's 403. A refusal without a file
+      answers the 403 and writes nothing. The route therefore never answers `download_url: null` to a caller who
+      lost the permission after the guard.
+   3. **Allowed with no logo:** 200 `{ download_url: null }`, nothing written; the sheet prints with the name only.
+   4. **Allowed with a logo,** one `withTenant` transaction: insert the `ALLOW` pair, sign the GET URL with
+      `packages/storage` `presignDownload` (local computation, no network call, so ADR-0046 §4 holds), commit. A
+      signing failure rolls the pair back, so an `ALLOW` is never recorded for a URL that was not issued.
+   - **Accepted residual:** none of these steps locks the membership rows, so a revocation that commits after step
+     2 still gets one audited URL that lives 60 seconds. That is the residual of every download in the project
+     (ADR-0022: the audit measures URL issuance), and this route checks the permission exactly as `IssueDownload`
+     does, so it is no weaker.
+   - A **signing or storage-configuration failure is not a miss**: it answers the files module's existing
+     `STORAGE_UNAVAILABLE` (503), or `STORAGE_NOT_CONFIGURED`, with nothing written. The screen shows «اللوجو مش
+     متاح دلوقتي، جرّبي تاني» with a retry, never the name-only sheet; only the API's `download_url: null` and
+     storage's `NoSuchKey` print the name only.
 3. **After the commit:** return the signed URL. No storage network call happens in the request; the browser reads the
    object itself. The URL lives 60 seconds, as `IssueDownload` does. `presignDownload` gains an optional response cache policy so the stored
    object answers `Cache-Control: private, no-store`. The API answer is `{ download_url, expires_in: 60 }` (or `{ download_url: null }` with
