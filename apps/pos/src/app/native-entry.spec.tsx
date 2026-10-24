@@ -353,6 +353,7 @@ async function backFrom(role: DeviceRole, waitMs?: number) {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(waitMs);
     });
+    vi.useRealTimers();
   }
 }
 
@@ -390,6 +391,9 @@ describe('back to the device choice (FR-001)', () => {
 
 describe('back to the device choice refused safely', () => {
   beforeEach(prepare);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it.each([
     { mode: 'failed', alert: 'nativeShell.roleChangeFailed', endings: 1 },
