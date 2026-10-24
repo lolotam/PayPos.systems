@@ -251,6 +251,12 @@ live in `apps/business/`, so the `apps/business/**` input already covers them.
      an admission: it ends in its first minute, and that minute is counted with the finished jobs. Re-runs are done
      with «Re-run all jobs», which repeats the admission.
   6. **It fails closed.** An unreadable job history or a failed reservation refuses the run.
+  **The six rules apply only while the repository is private.** The repository is public on purpose (Waleed,
+  2026-10-23, #540), and standard GitHub-hosted runners, macOS included, are free on a public repository, so the guard
+  admits there with no reservation and no counting. A `workflow_dispatch` input `guard: enforce` runs the six rules on
+  the public repository too; it can only refuse more, never admit more. Larger runners stay forbidden in `mobile.yml`,
+  and the $0 budget below stays the backstop in both cases (M-1b). The write token that the slots need is held only by
+  the two small Ubuntu jobs that reserve and free a slot, which install nothing; the macOS build job reads only.
   **Account-wide usage** (the Linux minutes of `ci.yml`, any other repository) is not read by the guard: Waleed checks
   it on the billing page once a week (APP-Q20). The hard backstop is the account's Actions budget at $0 with usage
   stopped at the limit (O-5): a run past the included minutes is blocked rather than charged, so **no money is spent
