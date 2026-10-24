@@ -47,12 +47,14 @@ export function useForeignSignOut({
     },
     [onOutcome, sessionKey],
   );
+
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
     };
   }, []);
+
   useEffect(() => {
     if (started.current) return;
     started.current = true;
@@ -63,6 +65,7 @@ export function useForeignSignOut({
       begin(false);
     }
   }, [begin, outcome, onOutcome, sessionKey]);
+
   useEffect(() => {
     if (attempt === 0) return;
     const timer = setTimeout(() => {
@@ -74,6 +77,7 @@ export function useForeignSignOut({
     }, waitMs);
     return () => clearTimeout(timer);
   }, [attempt, waitMs]);
+
   const retry = useCallback(() => begin(true), [begin]);
   return { retrying, retry };
 }
