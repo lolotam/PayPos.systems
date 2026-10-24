@@ -22,13 +22,15 @@ it('the request match and the claim use tenant indexes', async () => {
   const approver = await f.user();
   await f.member(approver, 'branch_manager', 'BRANCH', scope.branch);
   const request = await f.request({ scope, lines: 2 });
+  // بصفوف الطلب وحدها كل فهرس يبان بنفس الثمن، فيقدر المخطط يمسح النشاط من أي مفتاح بيبدأ بـ company_id؛ طلبات تانية لنفس النشاط بتخلي المفاتيح الانتقائية هي الأرخص، زي الإنتاج.
+  for (let other = 0; other < 10; other += 1) await f.request({ scope, lines: 20 });
   await f.owner`ANALYZE discount_proposals`;
   await f.owner`ANALYZE discount_approval_notices`;
   const matches = JSON.stringify(await explain(discountApprovalMatchesStatement(request)));
-  // The planner may serve the match through dp_consumed_line_binding_key, which leads with company_id like the other keys.
   expect(matches).toMatch(
-    /dp_(request_input_key|branch_fk_idx|requested_by_idx|requester_membership_idx|consumed_line_binding_key)/,
+    /dp_(request_input_key|branch_fk_idx|requested_by_idx|requester_membership_idx)/,
   );
+  expect(matches).toMatch(/"Index Cond":"[^"]*\b(request_id|requested_by|branch_id)\b/);
   expect(matches).not.toContain('Seq Scan');
   const claim = JSON.stringify(
     await explain(
