@@ -51,18 +51,14 @@ function isMacosJob(job) {
   return job.labels.some((label) => label === 'macos' || label.startsWith('macos-'));
 }
 
-function monthStart(now) {
-  const date = new Date(now);
-  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
-}
-
 /**
  * عدّ الدقائق (قاعدة 3): الدقائق الفعلية للمهام اللي خلصت الشهر ده (كل واحدة مق.round لفوق)،
  * + الـ timeout لكل خانة محجوزة لسه سليمة بتاعة مالك تاني، + الـ timeout لكل شغلانة macOS
  * لسه شغالة مالها خانة ومش من تشغيلنا. فالمهمة الواحدة بتتقصّ مرة واحدة بس.
  */
 function countMacosMinutes(jobs, { slots, timeoutMinutes, now, owner, run }) {
-  const month = monthStart(now);
+  const date = new Date(now);
+  const month = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
   const heldRuns = new Set();
   let total = 0;
   for (const slot of slots) {
@@ -126,43 +122,68 @@ async function admit({ io, config }) {
     return refusal(config, reason, count);
   }
 
-  // قاعدة 2 (ADR-0055 قرار 6): الخانة واحدة من K refs، بتتعمل ذرّياً بإنشاء الـ ref، والإيجار
-  // المنتهي بيرجع — عشان خانة ضايعة ما تحبسش الباقي.
   const admission = {
     version: 1,
     owner: config.owner,
     leaseEnd: new Date(now + config.leaseMinutes * MINUTE_MS).toISOString(),
   };
+  return claimSlot({ io, config, slots, admission, now, count });
+}
+
+/**
+ * قاعدة 2 (ADR-0055 قرار 6): الخانة واحدة من K refs، بتتعمل ذرّياً بإنشاء الـ ref، والإيجار
+ * المنتهي بيرجع — عشان خانة ضايعة ما تحبسش الباقي.
+ */
+async function claimSlot({ io, config, slots, admission, now, count }) {
   for (let index = 1; index <= config.slots; index += 1) {
     const existing = slots.find((slot) => slot.slot === index);
-    if (existing !== undefined) {
-      const leaseEnd = Date.parse(existing.leaseEnd);
-      if (existing.owner === config.owner && leaseEnd > now) {
-        return { admitted: true, slot: index, owner: config.owner, count, reason: null };
-      }
-      if (leaseEnd > now) continue;
-      try {
-        // استرجاع الخانة المنتهية compare-and-swap: الـ commit الجديد ابن الـ commit القديم،
-        // والـ ref بيتنقل force:false — فلو حد تاني نقله في نفس اللحظة، هنخسر الخانة دي
-        // ونجرب اللي بعدها.
-        const sha = await io.createAdmissionCommit(admission, existing.sha);
-        await io.moveSlot(index, sha);
-        return { admitted: true, slot: index, owner: config.owner, count, reason: null };
-      } catch (error) {
-        if (error.code === 'conflict') continue;
-        return refusal(config, `the expired slot could not be reclaimed: ${error.message}`, count);
-      }
-    }
-    try {
-      const sha = await io.createAdmissionCommit(admission, null);
-      await io.createSlot(index, sha);
-      return { admitted: true, slot: index, owner: config.owner, count, reason: null };
-    } catch (error) {
-      if (error.code === 'conflict') continue;
-      return refusal(config, `the slot could not be reserved: ${error.message}`, count);
-    }
+    const result = await claimIndex({ io, config, existing, index, admission, now, count });
+    if (result !== null) return result;
   }
   return refusal(config, 'every slot is taken', count);
+}
+
+async function claimIndex({ io, config, existing, index, admission, now, count }) {
+  if (existing === undefined) return claimFreeSlot(io, config, index, admission, count);
+  const leaseEnd = Date.parse(existing.leaseEnd);
+  if (existing.owner === config.owner && leaseEnd > now) {
+    return { admitted: true, slot: index, owner: config.owner, count, reason: null };
+  }
+  if (leaseEnd > now) return null;
+  // استرجاع الخانة المنتهية compare-and-swap: الـ commit الجديد ابن الـ commit القديم،
+  // والـ ref بيتنقل force:false — فلو حد تاني نقله في نفس اللحظة، هنخسر الخانة دي
+  // ونجرب اللي بعدها.
+  try {
+    const sha = await io.createCommit(admission, existing.sha);
+    await io.moveSlot(index, sha);
+    return { admitted: true, slot: index, owner: config.owner, count, reason: null };
+  } catch (error) {
+    if (error.code === 'conflict') return null;
+    return refusal(config, `the expired slot could not be reclaimed: ${error.message}`, count);
+  }
+}
+
+async function claimFreeSlot(io, config, index, admission, count) {
+  try {
+    const sha = await io.createCommit(admission, null);
+    await io.createSlot(index, sha);
+    return { admitted: true, slot: index, owner: config.owner, count, reason: null };
+  } catch (error) {
+    if (error.code !== 'conflict') {
+      return refusal(config, `the slot could not be reserved: ${error.message}`, count);
+    }
+    // الـ ref موجود: يا خانة حيّة بتاعة حد تاني (مالهاش لينا)، يا خانة محرَّرة (بناخدها
+    // بنفس الـ compare-and-swap بتاع الخانة المنتهية: commit ابن + PATCH force:false).
+    if (error.released !== true) return null;
+    try {
+      const child = await io.createCommit(admission, error.currentSha);
+      await io.moveSlot(index, child);
+      return { admitted: true, slot: index, owner: config.owner, count, reason: null };
+    } catch (moveError) {
+      if (moveError.code === 'conflict') return null;
+      return refusal(config, `the released slot could not be taken: ${moveError.message}`, count);
+    }
+  }
 }
 
 async function accept({ io, config }) {
@@ -179,15 +200,20 @@ async function accept({ io, config }) {
   // قاعدة 5 (ADR-0055 قرار 6): القبول بياخد التطابق التام بس — نفس الـ owner key بتاعنا،
   // وإيجار ما انتهاش.
   const now = config.now();
-  const match = slots.find(
-    (slot) => slot.owner === config.owner && Date.parse(slot.leaseEnd) > now,
-  );
+  const match = slots.find((slot) => slot.owner === config.owner);
   if (match === undefined) {
+    return { accepted: false, slot: null, owner: config.owner, reason: 'no admission for this job' };
+  }
+  // الإيجار لازم يغطي timeout الشغلانة كلها: runner استنى في الطابور طويل يبقى متبقيلوش
+  // وقت يخلص، والخانة بتاعته ممكن تتحرر وتتفتح لشغلانة تانية.
+  const remaining = Date.parse(match.leaseEnd) - now;
+  if (remaining < config.timeoutMinutes * MINUTE_MS) {
+    const minutes = Math.max(0, Math.floor(remaining / MINUTE_MS));
     return {
       accepted: false,
       slot: null,
       owner: config.owner,
-      reason: 'no unexpired admission belongs to this job',
+      reason: `the lease has ${minutes} minutes left, less than the job timeout (${config.timeoutMinutes})`,
     };
   }
   return { accepted: true, slot: match.slot, owner: match.owner, reason: null };
@@ -204,18 +230,23 @@ async function release({ io, config }) {
   } catch (error) {
     return { released: false, slot: null, failed: true, reason: error.message };
   }
-  // الخانة بتاعت الشغلانة دي بس — خانة غيرنا ما بتتمسّش. والحذف بيقفل على نفس الـ commit
-  // اللي اتقرا، فلو الـ ref اتنقل في نفس اللحظة، الخانة مش بقت بتاعتنا.
+  // الخانة بتاعت الشغلانة دي بس — خانة غيرنا ما بتتمسّش. والحرية مش حذف: الـ ref بيتنقل
+  // force:false على commit ابن اللي اتقرا، فـ«الحذف» مابيكسرش حجز حد تاني اتكتب في نفس
+  // اللحظة. ولو التحديث اترفض، الخانة مش بقت بتاعتنا.
   const mine = slots.find((slot) => slot.owner === config.owner);
   if (mine === undefined) {
     return { released: false, slot: null, failed: false, reason: 'this job holds no slot' };
   }
   try {
-    await io.deleteSlot(mine.slot, mine.sha);
+    const sha = await io.createCommit({ version: 1, released: true }, mine.sha);
+    await io.moveSlot(mine.slot, sha);
+    return { released: true, slot: mine.slot, failed: false, reason: null };
   } catch (error) {
+    if (error.code === 'conflict') {
+      return { released: false, slot: mine.slot, failed: false, reason: 'not mine any more' };
+    }
     return { released: false, slot: mine.slot, failed: true, reason: error.message };
   }
-  return { released: true, slot: mine.slot, failed: false, reason: null };
 }
 
 function numberFromEnv(value, fallback) {
@@ -261,9 +292,7 @@ async function main(command) {
   if (command === 'admit') {
     const result = await guard.admit();
     if (!result.admitted) fail(`macos-guard refused the admission: ${result.reason}`);
-    process.stdout.write(
-      `macos-guard admitted the slot ${result.slot ?? 'none'} for ${result.owner}\n`,
-    );
+    process.stdout.write(`macos-guard admitted the slot ${result.slot ?? 'none'} for ${result.owner}\n`);
     return;
   }
 

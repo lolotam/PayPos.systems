@@ -105,6 +105,26 @@ jobs:
           echo "app=$app" >> "$GITHUB_OUTPUT"
           echo "ios_pr=$ios_pr" >> "$GITHUB_OUTPUT"
 
+      # العدّ بيشتغل على تشغيلات الـ workflow ده بس، فأي runner على macOS في workflow تاني
+      # لازم يتشال — وإلا دقايق macOS بتيتنحس من غير ما الحارس يشوفها.
+      - name: no macOS runner in another workflow
+        run: |
+          set -euo pipefail
+          offending=0
+          for file in .github/workflows/*.yml .github/workflows/*.yaml; do
+            if [ ! -f "$file" ]; then
+              continue
+            fi
+            if [ "$file" = ".github/workflows/mobile.yml" ]; then
+              continue
+            fi
+            if grep -nE '^[[:space:]]*runs-on:.*macos' "$file"; then
+              echo "::error::$file runs on macOS, and the guard counts only mobile.yml"
+              offending=1
+            fi
+          done
+          [ "$offending" -eq 0 ]
+
       # قواعد الحارس الست لازم تتثبت على كل تشغيل للـ workflow ده، مش بس بإيد واحدة.
       - name: macOS guard tests
         run: node --test apps/business/scripts/macos-guard.test.mjs apps/business/scripts/macos-guard-github.test.mjs
@@ -254,7 +274,7 @@ jobs:
   ios:
     name: ios ${{ matrix.flavour }}
     needs: [changes, macos-preflight, macos-preflight-pr]
-    if: always() && needs.changes.outputs.app == 'true' && (needs.macos-preflight.result == 'success' || needs.macos-preflight-pr.result == 'success')
+    if: !cancelled() && needs.changes.outputs.app == 'true' && (needs.macos-preflight.result == 'success' || needs.macos-preflight-pr.result == 'success')
     runs-on: macos-latest
     timeout-minutes: 45
     permissions:
