@@ -12,7 +12,7 @@ export const refusingStaffSessions: StaffSessions = {
   confirmCurrent: async () => {
     throw new Error('SYNTHETIC_STAFF_UNAVAILABLE');
   },
-  signOut: async () => '',
+  signOut: async () => ({ cookie: null, ended: false }),
   normalPurpose: async () => true,
   close: async () => undefined,
 };

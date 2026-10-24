@@ -34,20 +34,43 @@ export function staffDeviceSessionLockKey(deviceId: string): string {
  * @param database اتصال الاعتماد
  * @param sessionId معرّف الجلسة الحية
  * @param deviceId الجهاز المثبت
+ * @returns true لو صف اتحذف، false لو المعرّف مش UUID أو مفيش صف
  */
 export async function retireStaffSession(
   database: AuthDatabase,
   sessionId: string,
   deviceId: string,
-): Promise<void> {
-  if (!UUID.test(sessionId) || !UUID.test(deviceId)) return;
+): Promise<boolean> {
+  if (!UUID.test(sessionId) || !UUID.test(deviceId)) return false;
   const key = staffDeviceSessionLockKey(deviceId);
-  await database.db.transaction(async (tx) => {
+  return database.db.transaction(async (tx) => {
     await tx.execute(`SELECT pg_advisory_xact_lock(hashtextextended('${key}', 0))`);
-    await tx.execute(
-      `DELETE FROM session WHERE id = '${sessionId}'::uuid AND purpose = 'STAFF_POS'`,
+    const rows = await tx.execute<{ id: string }>(
+      `DELETE FROM session WHERE id = '${sessionId}'::uuid AND purpose = 'STAFF_POS' RETURNING id`,
     );
+    return rows.length > 0;
   });
+}
+
+/**
+ * يحذف صف الجلسة بمعرّفه وغايته من غير قفل: صف STAFF_POS بسياق مش مظبوط مايعرفش
+ * جهاز يطلبه، فمفيش حاجة تقدر تسابقه؛ وصف STAFF_PERSONAL بيتسلسل على حذف نفسه.
+ *
+ * @param database اتصال الاعتماد
+ * @param sessionId معرّف الجلسة
+ * @param purpose غاية الصف — واحدة من غايتين بس
+ * @returns true لو صف اتحذف، false لو المعرّف مش UUID أو مفيش صف
+ */
+export async function deleteStaffSessionRow(
+  database: AuthDatabase,
+  sessionId: string,
+  purpose: 'STAFF_POS' | 'STAFF_PERSONAL',
+): Promise<boolean> {
+  if (!UUID.test(sessionId)) return false;
+  const rows = await database.db.execute<{ id: string }>(
+    `DELETE FROM session WHERE id = '${sessionId}'::uuid AND purpose = '${purpose}' RETURNING id`,
+  );
+  return rows.length > 0;
 }
 
 /** يطبع صف الجلسة الذي يعيده محول الاعتماد، والتواريخ قد تصل نصاً. */

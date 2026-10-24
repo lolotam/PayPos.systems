@@ -179,7 +179,7 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
     ),
     'PersonalOtpController.signOut': declared(
       'PERSONAL',
-      'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',
+      'apps/api/src/shared/sign-out.guard.ts#signOutRequest',
     ),
     'PushSubscriptionController.register': declared(
       'PERSONAL',
@@ -223,7 +223,7 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
     ),
     'StaffOtpController.signOut': declared(
       'PERSONAL',
-      'apps/api/src/shared/session.guard.ts##staff',
+      'apps/api/src/shared/sign-out.guard.ts#signOutRequest',
     ),
     'StaffOtpController.verify': declared(
       'DEVICE_ONLY',

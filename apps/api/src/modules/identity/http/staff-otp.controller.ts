@@ -15,6 +15,7 @@ import { OTP_LIFETIME_MS, OTP_RETRY_MS, type StaffOtpApi, type StaffSessions } f
 import {
   staffOtpRequestInput,
   staffOtpVerifyInput,
+  type SignOutResult,
   type StaffOtpRequestInput,
   type StaffOtpVerifyInput,
   type StaffSessionContext,
@@ -24,11 +25,13 @@ import { Authenticated } from '../../../shared/access.decorators.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { AllowClosedCompanyDeviceOtp } from '../../../shared/session.guard.ts';
+import { SignOutRoute, signOutAnswer } from '../../../shared/sign-out.guard.ts';
 import { STAFF_ROUTE } from '../../../shared/staff-authentication.ts';
 import { toWebHeaders } from '../../../shared/web-headers.ts';
 
 export const STAFF_OTP_API = Symbol('STAFF_OTP_API');
-export const STAFF_SESSIONS = Symbol('STAFF_SESSIONS');
+export { STAFF_SESSIONS } from '../../../shared/staff-sessions.token.ts';
+import { STAFF_SESSIONS } from '../../../shared/staff-sessions.token.ts';
 export { STAFF_POS_ORIGIN } from '../../../shared/staff-origin.token.ts';
 import { STAFF_POS_ORIGIN } from '../../../shared/staff-origin.token.ts';
 
@@ -113,17 +116,15 @@ export class StaffOtpController {
 
   @Post('staff-session/sign-out')
   @Authenticated()
-  @SetMetadata(STAFF_ROUTE, 'staff')
+  @SignOutRoute('staff')
   @HttpCode(200)
-  async signOut(@Req() request: FastifyRequest, @Res({ passthrough: true }) reply: FastifyReply) {
-    this.validate(request);
-    if (this.sessions === null || request.staffDevice === undefined)
-      throw new ApiError('UNAUTHENTICATED');
-    void reply.header(
-      'set-cookie',
-      await this.sessions.signOut(toWebHeaders(request), request.staffDevice),
-    );
-    return { status: 'SIGNED_OUT' };
+  async signOut(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<SignOutResult> {
+    if (this.sessions === null) throw new ApiError('NOT_READY');
+    const result = await this.sessions.signOut(toWebHeaders(request));
+    return signOutAnswer(request, reply, 'staff', result);
   }
 
   private validate(request: FastifyRequest): void {

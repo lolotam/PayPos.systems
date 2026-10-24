@@ -1,4 +1,9 @@
-import type { StaffOtpRequestInput, StaffOtpVerifyInput, StaffPinInput } from '@pospay/contracts';
+import {
+  signOutResult,
+  type StaffOtpRequestInput,
+  type StaffOtpVerifyInput,
+  type StaffPinInput,
+} from '@pospay/contracts';
 import { staffApiClient } from '@/shared/api/client';
 
 export async function requestStaffCode(input: StaffOtpRequestInput) {
@@ -26,4 +31,6 @@ export async function probeStaffSession() {
 export async function signOutStaff() {
   const response = await staffApiClient().POST('/v1/devices/me/staff-session/sign-out');
   if (!response.response.ok) throw new Error('STAFF_SIGN_OUT_REFUSED');
+  // جواب غامض (200 من غير حالة معروفة) يوقف المتصل؛ مينفعش يعدّ نفسه خرج.
+  if (!signOutResult.safeParse(response.data).success) throw new Error('STAFF_SIGN_OUT_UNCLEAR');
 }

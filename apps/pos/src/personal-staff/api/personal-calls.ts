@@ -1,6 +1,10 @@
 import createClient from 'openapi-fetch';
 import { registerStaffPasskey } from '@pospay/auth/client';
-import type { PersonalOtpRequestInput, PersonalOtpVerifyInput } from '@pospay/contracts';
+import {
+  signOutResult,
+  type PersonalOtpRequestInput,
+  type PersonalOtpVerifyInput,
+} from '@pospay/contracts';
 import { apiOrigin } from '@/shared/api/origin';
 import type { paths } from '@/shared/api/schema';
 import { attendanceInstallationId } from '../model/installation-id';
@@ -27,6 +31,8 @@ export const personalCalls = {
   signOut: async () => {
     const result = await client().POST('/v1/staff/personal-session/sign-out');
     if (!result.response.ok) throw new Error('PERSONAL_SIGN_OUT_REFUSED');
+    // جواب غامض (200 من غير حالة معروفة) يوقف المتصل؛ مينفعش يعدّ نفسه خرج.
+    if (!signOutResult.safeParse(result.data).success) throw new Error('PERSONAL_SIGN_OUT_UNCLEAR');
   },
   enrol: async () => {
     const installation_id = attendanceInstallationId();
