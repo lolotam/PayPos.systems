@@ -262,12 +262,14 @@ export {
   employeeSalary,
   salaryHistoryQuery,
   salaryHistoryPage,
+  salaryChanged,
 } from './staff/salary.js';
 export type {
   SetSalaryInput,
   EmployeeSalary,
   SalaryHistoryQuery,
   SalaryHistoryPage,
+  SalaryChanged,
 } from './staff/salary.js';
 export * from './staff/leave.js';
 export * from './staff/leave-decision.js';

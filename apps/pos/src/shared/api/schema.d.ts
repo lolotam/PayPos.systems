@@ -3529,6 +3529,15 @@ export interface components {
             next_cursor: (string & (string)) | null;
             can_manage: boolean;
         };
+        SalaryChanged: {
+            /** Format: uuid */
+            employee_id: string;
+            /** Format: uuid */
+            business_id?: string;
+            effective_from: string & (string);
+            amount: string;
+            revision: number;
+        };
         UpdateEmployeeInput: {
             /** Format: uuid */
             primary_branch_id: string;

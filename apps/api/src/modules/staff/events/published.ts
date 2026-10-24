@@ -1,10 +1,6 @@
-/** يصدر عند إنشاء أو استبدال راتب تاريخ واحد داخل معاملة الموظف، وتستخدم العمولة النسخة لرفض الأحداث الأقدم. */
-export interface SalaryChanged {
-  employee_id: string;
-  effective_from: string;
-  amount: string;
-  revision: number;
-}
+import type { SalaryChanged as SalaryChangedContract } from '@pospay/contracts';
+/** يصدر عند إنشاء أو استبدال راتب تاريخ واحد داخل معاملة الراتب، ويحمل نشاط صف الراتب، وتستخدم العمولة النسخة لتجاهل الأحداث الأقدم. */
+export type SalaryChanged = SalaryChangedContract;
 /** يصدر بعد إنشاء طلب PENDING، داخل معاملة الطلب فقط دون تفعيل رصيد أو اعتماد. */
 export interface LeaveRequested {
   id: string;
