@@ -63,7 +63,12 @@ curl -s "$B/health"
 
 `choice` is a 0-based index into the question's `options_ar`. A collection response is `{"docs":[{"id":…,"data":{…}}]}`.
 
-## A. Publish a new question batch (every kind of owner question)
+## A. Publish a new question batch (feature and business questions only)
+
+Technical questions (the implementer model, tools and the pipeline, infrastructure, CI, server and storage settings,
+code design) never go on this site: send them to Waleed as cards and record his answer in the slice's
+`owner-questions.ar.md` or in `docs/owner-decisions.ar.md` (`CLAUDE.md` §1 5b, V3.17). When in doubt, ask Waleed
+which kind a question is.
 
 1. **Record first** (`CLAUDE.md` §1 5b, "Always first"). Write each question into the slice's
    `owner-questions.ar.md`, or into `docs/owner-decisions.ar.md` when it belongs to no slice. Mark its answer `PENDING`.
