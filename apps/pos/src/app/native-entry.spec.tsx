@@ -11,6 +11,8 @@ import {
   saveDeviceRole,
   type DeviceRole,
 } from '@/app/device-role';
+import { endPersonalSession } from '@/app/end-sessions';
+import { usePersonalSession } from '@/personal-staff/api/use-personal-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { readLaunchLink } from '@/shared/platform/launch-links';
 
@@ -25,8 +27,14 @@ vi.mock('@/app/device-role', () => ({
   rememberBusiness: vi.fn(),
   connectEmployee: vi.fn(),
 }));
+vi.mock('@/app/end-sessions', () => ({
+  endPersonalSession: vi.fn(),
+}));
 vi.mock('@/app/device-screen', () => ({
   DeviceScreen: () => <h2>device screen</h2>,
+}));
+vi.mock('@/personal-staff/api/use-personal-session', () => ({
+  usePersonalSession: vi.fn(),
 }));
 vi.mock('@/personal-staff/ui/personal-screen', () => ({
   PersonalScreen: ({ workspace }: { workspace?: { company_id: string; business_id: string } }) => (
@@ -78,6 +86,15 @@ function prepare() {
   vi.mocked(saveDeviceRole).mockResolvedValue(undefined);
   vi.mocked(rememberBusiness).mockResolvedValue(undefined);
   vi.mocked(connectEmployee).mockResolvedValue(undefined);
+  vi.mocked(endPersonalSession).mockResolvedValue('done');
+  vi.mocked(usePersonalSession).mockReturnValue({
+    epoch: 0,
+    online: true,
+    loading: false,
+    session: null,
+    changed: vi.fn(),
+    signOut: vi.fn(),
+  });
 }
 
 afterEach(() => {
@@ -241,7 +258,7 @@ describe('NativeEntry link while the app runs', () => {
     });
   });
 
-  it('keeps the remembered business when the link is for another one', async () => {
+  it('asks to switch and keeps the remembered business when the link is for another one', async () => {
     vi.mocked(readLaunchLink).mockResolvedValue(link(HOST, OTHER_BUSINESS));
     vi.mocked(readDeviceRole).mockResolvedValue('employee');
     vi.mocked(readRememberedBusiness).mockResolvedValue({
@@ -250,8 +267,9 @@ describe('NativeEntry link while the app runs', () => {
     });
     mount();
 
-    const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain(t('ar', 'nativeShell.otherBusiness'));
+    expect(
+      await screen.findByText(t('ar', 'nativeShell.switchBusinessConfirm')),
+    ).not.toBeNull();
     expect(rememberBusiness).not.toHaveBeenCalled();
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
   });

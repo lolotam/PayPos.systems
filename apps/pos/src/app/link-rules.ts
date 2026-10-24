@@ -1,3 +1,4 @@
+import type { SwitchOutcome } from './business-switch';
 import {
   connectEmployee,
   readDeviceRole,
@@ -11,15 +12,31 @@ import type { PersonalWorkspace } from './manager-link';
 /** تنبيهات شاشة البداية: حفظ فشل، أو نت، أو لينك مش مقبول. */
 export type StartAlert = 'saveFailed' | 'needsInternet' | 'linkRequired';
 
-/** تنبيهات شاشة الموظفة: لينك مش مقبول، أو نشاط تاني، أو جهاز كاونتر، أو حفظ فشل، أو نت. */
+/** تنبيهات شاشة الموظفة: لينك مش مقبول، أو جهاز كاونتر، أو حفظ فشل، أو نت، أو تبديل نشاط. */
 export type FlowAlert =
-  'linkRequired' | 'otherBusiness' | 'counterDevice' | 'saveFailed' | 'needsInternet';
+  | 'linkRequired'
+  | 'counterDevice'
+  | 'saveFailed'
+  | 'needsInternet'
+  | 'roleChangeOffline'
+  | 'roleChangeFailed';
 
-/** حالة التطبيق: لسه بيقرا، أو شاشة البداية، أو شاشة الموظفة/الكاونتر. */
+/**
+ * حالة التطبيق: لسه بيقرا، أو شاشة البداية، أو شاشة الموظفة/الكاونتر.
+ *
+ * الـ pending هو النشاط الجديد اللي في لينك تاني: الشاشة بتفضل على النشاط
+ * الحالي لحد ما الموظفة تأكد التبديل.
+ */
 export type NativeState =
   | { kind: 'loading' }
   | { kind: 'start'; business: PersonalWorkspace | null; alert?: StartAlert }
-  | { kind: 'flow'; role: DeviceRole; business: PersonalWorkspace | null; alert?: FlowAlert };
+  | {
+      kind: 'flow';
+      role: DeviceRole;
+      business: PersonalWorkspace | null;
+      pending?: PersonalWorkspace;
+      alert?: FlowAlert;
+    };
 
 /** نتيجة تطبيق لينك: شاشة جاهزة، أو فشل الحفظ مع الدور والنشاط اللي اتقروا. */
 export type LinkOutcome =
@@ -28,10 +45,11 @@ export type LinkOutcome =
 
 export const FLOW_ALERT_KEYS = {
   linkRequired: 'personalStaff.linkRequired',
-  otherBusiness: 'nativeShell.otherBusiness',
   counterDevice: 'nativeShell.counterDevice',
   saveFailed: 'nativeShell.saveFailed',
   needsInternet: 'nativeShell.needsInternet',
+  roleChangeOffline: 'nativeShell.roleChangeOffline',
+  roleChangeFailed: 'nativeShell.roleChangeFailed',
 } as const;
 
 /**
@@ -100,8 +118,8 @@ export async function stateAfterLink(
   const same =
     business.company_id === workspace.company_id && business.business_id === workspace.business_id;
   if (same) return { kind: 'flow', role: 'employee', business };
-  // نشاط تاني والموظفة ممكن تكون داخل جلسة: التغيير محتاج تأكيد FR-008، وده Part B.
-  return { kind: 'flow', role: 'employee', business, alert: 'otherBusiness' };
+  // نشاط تاني: الشاشة بتفضل على النشاط الحالي، والتبديل محتاج تأكيد الموظفة (FR-012).
+  return { kind: 'flow', role: 'employee', business, pending: workspace };
 }
 
 /**
@@ -141,6 +159,54 @@ export async function resolveLink(workspace: PersonalWorkspace | null): Promise<
   } catch {
     return { kind: 'failed', role, business };
   }
+}
+
+/**
+ * حالة الشاشة بعد نتيجة لينك: الشاشة الجديدة، أو فشل الحفظ مع اللي اتقروا.
+ *
+ * @param current حالة الشاشة الحالية
+ * @param outcome نتيجة تطبيق اللينك
+ * @returns حالة الشاشة بعد اللينك
+ */
+export function stateFromLink(current: NativeState, outcome: LinkOutcome): NativeState {
+  if (outcome.kind === 'state') return outcome.state;
+  return stateAfterFailure(current, outcome.role, outcome.business);
+}
+
+/**
+ * حالة الشاشة بعد تبديل النشاط.
+ *
+ * النجاح: النشاط الجديد هو المعروض. الفشل: النشاط القديم يفضل زي ما هو
+ * والانتظار بيتبعت، عشان الموظفة تعرف إن مفيش حاجة اتغيرت.
+ *
+ * @param current حالة الشاشة الحالية
+ * @param outcome نتيجة التبديل
+ * @param pending النشاط الجديد
+ * @returns حالة الشاشة بعد التبديل
+ */
+export function stateAfterSwitch(
+  current: NativeState,
+  outcome: SwitchOutcome,
+  pending: PersonalWorkspace,
+): NativeState {
+  if (current.kind !== 'flow') return current;
+  if (outcome === 'switched') return { kind: 'flow', role: current.role, business: pending };
+  const alert = outcome === 'offline' ? 'roleChangeOffline' : 'roleChangeFailed';
+  return { kind: 'flow', role: current.role, business: current.business, alert };
+}
+
+/**
+ * حالة الشاشة بعد إلغاء تبديل النشاط: النشاط القديم والجلسة زي ما هما.
+ *
+ * @param current حالة الشاشة الحالية
+ * @returns حالة الشاشة بعد الإلغاء
+ */
+export function stateWithoutPending(current: NativeState): NativeState {
+  if (current.kind !== 'flow' || current.pending === undefined) return current;
+  if (current.alert === undefined) {
+    return { kind: 'flow', role: current.role, business: current.business };
+  }
+  return { kind: 'flow', role: current.role, business: current.business, alert: current.alert };
 }
 
 /**
