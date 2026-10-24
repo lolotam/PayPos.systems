@@ -402,7 +402,10 @@ and the phone's owner differ. The two tenant writes, a `staff` branch membership
 live in the `@pospay/db/operator/staging-staff` subpath, the identity read in `@pospay/auth/operator/staging-staff`,
 neither on the package's main entry, and ESLint refuses both subpaths everywhere except that one script. No grant, role
 or RLS policy changes. The PIN is then set by the existing guarded `POST /v1/staff-pins/reset`. The script prints fixed
-step lines and the user id, never the phone or the email.
+step lines and the user id, never the phone or the email. The supported way to run it is that compose run in the
+staging image; the `staging:staff-user` package script reads a local `.env` and still has to pass the same guard.
+One phone maps to one test user (the email is derived from the phone alone), so a wrong scope id refuses the run
+without blocking the phone for the corrected rerun.
 
 **2026-10-21, spec 058 TD-13 (first used by PR #468):** a route may be guarded by `@RequireAny([permission, …], target)`. The
 caller passes when at least one listed permission is held at the target with no covering DENY on **that** permission; a
