@@ -102,7 +102,7 @@ function writeIfGeneration(
         const transaction = database.transaction(STORE_NAME, 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
         const generationRequest = store.get(GENERATION_KEY) as IDBRequest<number | undefined>;
-        const written = { value: false };
+        let written: boolean | undefined;
         generationRequest.onsuccess = () => {
           if (readGeneration(generationRequest.result) !== expected) return;
           const recordRequest = store.get(RECORD_KEY) as IDBRequest<PushRecord | undefined>;
@@ -113,12 +113,12 @@ function writeIfGeneration(
             const clear = options.clearSuspension === true;
             const suspended = stored?.suspended === true && !clear;
             store.put(suspended ? { ...record, suspended: true } : record, RECORD_KEY);
-            written.value = true;
+            written = true;
           };
         };
         transaction.oncomplete = () => {
           database.close();
-          resolve(written.value);
+          resolve(written === true);
         };
         transaction.onabort = () => {
           database.close();

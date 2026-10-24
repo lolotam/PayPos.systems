@@ -134,15 +134,13 @@ async function rotate(
     await removeRecord();
     return { kind: 'cleared' };
   }
-  let written = false;
-  try {
-    written = await writeRotatedRecord(record, input, installationId, token, generation);
-  } catch {
+  const outcome = await writeRotatedRecord(record, input, token, generation);
+  if (outcome === 'failed') {
     // فشل الكتابة: السجل مش هيتكتب والتسجيل الجديد بيتشال.
     await failRotation(installationId);
     return { kind: 'cleared' };
   }
-  if (!written) {
+  if (outcome === 'stale') {
     // جيل أو مراجعة أحدث: السجل دلوقتي بتاع حد تاني، فبنسيبه ونشيل بس تسجيلنا (ADR-0052 §7).
     await abortRotation(installationId);
     return { kind: 'cleared' };
@@ -174,26 +172,33 @@ async function registerRotated(
   );
 }
 
-/** كتابة السجل الجديد بعد التدوير؛ بترجع false لو الجيل أو المراجعة اتغيروا. */
+/** نتيجة كتابة سجل التدوير: اتكتب، أو اتغير الجيل، أو فشل. */
+type RotationWrite = 'written' | 'stale' | 'failed';
+
+/** كتابة السجل الجديد بعد التدوير؛ النتيجة بتقول السجل اتكتب، ولا الجيل اتغير، ولا الكتابة فشلت. */
 async function writeRotatedRecord(
   record: PushRecord,
   input: PushRefreshInput,
-  installationId: string,
   token: string,
   generation: number,
-): Promise<boolean> {
-  return pushRecordStore.writeIfGeneration(
-    {
-      token,
-      subscriber_ref: record.subscriber_ref,
-      company_id: record.company_id,
-      vapid_key_id: input.config.vapid_key_id,
-      suspended: false,
-      revision: record.revision,
-    },
-    generation,
-    { expectRevision: record.revision },
-  );
+): Promise<RotationWrite> {
+  try {
+    const written = await pushRecordStore.writeIfGeneration(
+      {
+        token,
+        subscriber_ref: record.subscriber_ref,
+        company_id: record.company_id,
+        vapid_key_id: input.config.vapid_key_id,
+        suspended: false,
+        revision: record.revision,
+      },
+      generation,
+      { expectRevision: record.revision },
+    );
+    return written ? 'written' : 'stale';
+  } catch {
+    return 'failed';
+  }
 }
 
 /** التدوير اتوقف: الاشتراك بيتشال والسطر عند الـ API بيراجع. */
