@@ -21,7 +21,8 @@
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded
 - [x] Dependencies and assumptions identified
-- [x] **Slice design** complete: no schema change, access and names from the existing `GET /v1/me/workspaces`, one session-only logo read, no new permission, no event, the test plan (UI, integration, cross-check)
+- [x] **Slice design** for the link, copy, QR and WhatsApp: no schema change, access and names from the existing `GET /v1/me/workspaces`, no new permission, no event, the test plan (UI, cross-check)
+- [ ] **Slice design** for the print sheet's logo read: its access, audit, constraints and failure message are set, but its module, read path and image transport wait on an ADR-0056 addendum (`TODO(spec)`, technical, at `/speckit-plan`)
 
 ## Feature Readiness
 
@@ -33,5 +34,8 @@
 ## Notes
 
 - Abu Salem's answers to batch 71 are pending; if he picks differently, the spec's «If Abu Salem picks differently»
-  paragraph says what changes. One technical `TODO(spec)` stays for `/speckit-plan`: an ADR-0056 addendum for the API-side logo read (the print action ships with it, never without it); the module and the ADR-0056
-  exposure of the logo read. The build waits for the web manager's OK on the `apps/admin` lane.
+  paragraph says what changes.
+- One technical `TODO(spec)` stays open for `/speckit-plan`: an ADR-0056 addendum that decides which module owns the
+  logo read, how it learns the logo file, and how the image travels. The print action ships with that read, never
+  without it; the rest of the screen does not wait for it.
+- The build waits for the web manager's OK on the `apps/admin` lane.
