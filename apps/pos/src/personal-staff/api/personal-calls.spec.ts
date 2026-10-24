@@ -84,3 +84,13 @@ it('a sign-out resolves on both statuses and refuses a rejection', async () => {
   );
   await expect(personalCalls.signOut()).rejects.toThrow('PERSONAL_SIGN_OUT_REFUSED');
 });
+
+it.each([{}, { status: 'MAYBE' }])('an unclear answer stops the caller', async (body) => {
+  fetcher.mockResolvedValueOnce(
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }),
+  );
+  await expect(personalCalls.signOut()).rejects.toThrow('PERSONAL_SIGN_OUT_UNCLEAR');
+});

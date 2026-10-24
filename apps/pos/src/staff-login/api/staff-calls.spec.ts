@@ -26,6 +26,16 @@ it('a sign-out resolves on both statuses and refuses a rejection', async () => {
   await expect(signOutStaff()).rejects.toThrow('STAFF_SIGN_OUT_REFUSED');
 });
 
+it.each([{}, { status: 'MAYBE' }])('an unclear answer stops the caller', async (body) => {
+  fetcher.mockResolvedValueOnce(
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }),
+  );
+  await expect(signOutStaff()).rejects.toThrow('STAFF_SIGN_OUT_UNCLEAR');
+});
+
 it('the sign-out goes to the staff session route with the browser credentials', async () => {
   fetcher.mockResolvedValue(
     new Response(JSON.stringify({ status: 'NO_SESSION' }), {

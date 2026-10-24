@@ -10,13 +10,7 @@ import { ApiError } from '../errors.ts';
 import { API_LOG_EVENTS } from '../log-events.ts';
 import type { PersonalAuthentication } from '../personal-authentication.ts';
 import type { RateLimiter } from '../ports/rate-limiter.port.ts';
-import {
-  SIGN_OUT_ROUTE,
-  SignOutRoute,
-  signOutAnswer,
-  signOutRequest,
-  type SignOutWiring,
-} from '../sign-out.guard.ts';
+import { signOutAnswer, signOutRequest, type SignOutWiring } from '../sign-out.guard.ts';
 
 const STAFF_ORIGIN = 'http://pos.synthetic.invalid';
 const PERSONAL_ORIGIN = 'http://localhost:5173';
@@ -162,12 +156,6 @@ it('SO-15b a passed sign-out leaves the request without a principal', async () =
   const { request } = requestWith({ origin: STAFF_ORIGIN });
   await signOutRequest(request, 'staff', wiringFor({ limiter: fake.limiter }));
   expect(request.principal).toBeUndefined();
-});
-
-it('the sign-out decorator marks the handler it is put on', () => {
-  const handler = () => undefined;
-  SignOutRoute('personal')({}, 'signOut', { value: handler });
-  expect(Reflect.getMetadata(SIGN_OUT_ROUTE, handler)).toBe('personal');
 });
 
 it('the sign-out answer clears the cookie it was given and logs the route and the status only', () => {

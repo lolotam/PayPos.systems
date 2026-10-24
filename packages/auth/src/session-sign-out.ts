@@ -53,7 +53,7 @@ export function liveStaffRow(row: SignOutRow, now: Date): boolean {
   if (typeof device['companyId'] !== 'string') return false;
   if (typeof device['businessId'] !== 'string') return false;
   if (typeof device['branchId'] !== 'string') return false;
-  if (typeof device['deviceId'] !== 'string' || !UUID.test(device['deviceId'])) return false;
+  if (staffLockDeviceId(row) === null) return false;
   if (row.staffAuthenticatedAt === null || row.staffAuthenticatedAt === undefined) return false;
   const deadline = row.staffAbsoluteDeadline;
   if (deadline === null || deadline === undefined) return false;
