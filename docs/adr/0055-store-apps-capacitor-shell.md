@@ -346,3 +346,27 @@ APP-Q5 privacy-policy URL · APP-Q6 bundle ids · APP-Q7 internal testers — an
 recorded verbatim in `docs/specs/065-mob-app-shell/owner-questions.ar.md` (indexed as PP-39 in
 `docs/owner-decisions.ar.md`); APP-Q2 became final on 2026-10-24 (no Arabic name). Open: the company's legal name
 (APP-Q3). APP-Q8 (batch 56, PP-40.1) is final: the GitHub macOS runner, free minutes only, picked by both owners.
+
+## Addendum 2026-10-25 — the M-1c iOS UI test: Ruby and the `xcodeproj` gem on the runner only (PR #637)
+
+**Context.** M-1c needs an XCUITest on the macOS runner's simulator (APP-Q8), and nobody on the project has a Mac, so
+no one can add a test target in Xcode. `App.xcodeproj` is never hand-edited: M-1b keeps every iOS setting in the
+xcconfig files.
+
+**Decision.**
+- The UI test lives in a separate project, `SpikeUITests.xcodeproj`, generated on the runner by
+  `apps/business/ios/ui-tests/make-project.rb` with the Ruby gem `xcodeproj` (the library CocoaPods uses to write Xcode
+  projects). The test drives the staging app the job already built and installed, by bundle id, so the app build and
+  its `-xcconfig` do not change.
+- Ruby and the gem are **CI tooling on the macOS runner only**: nothing in the apps, the packages or a Docker image
+  uses them, and no developer machine needs them. The gem is pinned to one exact version, **1.27.0**, in two places
+  that must change together: the workflow step installs exactly that version (`gem install xcodeproj -v 1.27.0`), and
+  the script loads exactly that version (`gem 'xcodeproj', '1.27.0'`) or stops with a clear error. An update of the
+  runner image therefore cannot change it.
+- The test runs as steps of the already-admitted `ios` job, on its staging leg, only on a `workflow_dispatch` with the
+  input `spike`. A separate macOS job would need its own slot under K = 2 and its own admission (decision 6). The steps
+  read no secret and declare no environment.
+
+**Consequences.** A version bump is a one-line change in both files, reviewed like any dependency. If the gem stops
+supporting the runner's Xcode, the spike fails before any test runs; the build and its artifact are not affected,
+because the spike steps come after the build upload.

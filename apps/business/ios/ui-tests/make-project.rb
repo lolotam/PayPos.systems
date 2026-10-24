@@ -1,5 +1,7 @@
 # بنولّد مشروع الاختبار على الـ runner عشان مفيش Mac يعدّل مشروع Xcode، وعشان `App.xcodeproj`
 # ممنوع يتعدّل بالإيد. مكتبة `xcodeproj` جاية مع CocoaPods على صورة الـ macOS runner.
+# النسخة متثبّتة هنا وفي خطوة التثبيت في الـ workflow عشان تحديث الصورة ما يغيّرهاش (ملحق ADR-0055 بتاريخ 2026-10-25).
+gem 'xcodeproj', '1.27.0'
 require 'xcodeproj'
 
 out_dir = ARGV[0] || abort('Usage: ruby apps/business/ios/ui-tests/make-project.rb <output-dir>')

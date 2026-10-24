@@ -405,7 +405,10 @@ jobs:
       - name: Generate the UI test project
         if: inputs.spike == true && matrix.flavour == 'staging'
         working-directory: apps/business
-        run: ruby ios/ui-tests/make-project.rb "$RUNNER_TEMP/spike"
+        run: |
+          set -euo pipefail
+          gem install xcodeproj -v 1.27.0 --no-document --user-install
+          ruby ios/ui-tests/make-project.rb "$RUNNER_TEMP/spike"
 
       - name: Run the UI test
         if: inputs.spike == true && matrix.flavour == 'staging'

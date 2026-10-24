@@ -36,9 +36,9 @@ final class SpikeUITests: XCTestCase {
     XCTAssertTrue(pasteField(app).isHittable, "The employee paste field should be hittable \(moment)")
   }
 
-  // الترتيب مهم لأن اختبار الرجوع بعد الإغلاق بيسيب اختيار الموظفة محفوظ، فشاشة البداية لازم تتختبر الأول.
-  func test1StartScreenShowsBothChoices() {
-    let app = launchApp()
+  // الاتنين فحوصات في اختبار واحد لأن التاني محتاج الحالة اللي الأول بيسيبها، وXCTest مش بيضمن ترتيب الاختبارات.
+  func testStartScreenAndEmployeeChoiceSurviveRestart() {
+    var app = launchApp()
 
     XCTAssertTrue(
       element(app, containing: "How do you use this device?").waitForExistence(timeout: 60),
@@ -52,19 +52,7 @@ final class SpikeUITests: XCTestCase {
       element(app, containing: "My employee account").waitForExistence(timeout: 60),
       "The employee-account choice should be visible"
     )
-  }
-
-  func test2EmployeeChoiceSurvivesRestart() {
-    var app = launchApp()
-
-    if element(app, containing: "How do you use this device?").waitForExistence(timeout: 60) {
-      let employeeChoice = element(app, containing: "My employee account")
-      XCTAssertTrue(
-        employeeChoice.waitForExistence(timeout: 60),
-        "The employee-account choice should be visible before it is tapped"
-      )
-      employeeChoice.tap()
-    }
+    element(app, containing: "My employee account").tap()
     assertPasteFieldReady(app, "after choosing the employee flow")
 
     app.terminate()
