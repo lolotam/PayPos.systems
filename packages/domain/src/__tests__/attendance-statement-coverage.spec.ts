@@ -83,10 +83,17 @@ it('BR-11: a pair shift only on the day before the period does not qualify', () 
   expect(hasAttendanceStatementCoverage(row, PERIOD, CUTOFF, { start: '22:00', end: '06:00' })).toBe(false);
 });
 
-it('FR-013a: an approved leave on a contract date without a default entry is not coverage', () => {
+it('FR-013a: a leave on a contract date is coverage only in a period that has a contract day', () => {
   const weekdaysOnly: ReportContract = { ...contract,
     entries: [2, 3, 4, 5].map((day) => ({ day, start: '09:00', end: '17:00' })) };
   const row = branch({ contract: weekdaysOnly, leave_for_branch: [leave('2026-11-06')] });
+  expect(hasAttendanceStatementCoverage(row, { from: '2026-11-06', to: '2026-11-06' }, CUTOFF, null)).toBe(false);
+  expect(hasAttendanceStatementCoverage(row, { from: '2026-11-01', to: '2026-11-30' }, CUTOFF, null)).toBe(true);
+});
+
+it('FR-013a: a leave on a contract date is not coverage without a contract day in the period', () => {
+  const noEntries: ReportContract = { ...contract, entries: [] };
+  const row = branch({ contract: noEntries, leave_for_branch: [leave('2026-11-06')] });
   expect(hasAttendanceStatementCoverage(row, { from: '2026-11-01', to: '2026-11-30' }, CUTOFF, null)).toBe(false);
 });
 

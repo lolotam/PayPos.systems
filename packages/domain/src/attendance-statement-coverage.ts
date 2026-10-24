@@ -20,7 +20,7 @@ function contractDays(branch: ReportBranchInputs, period: AttendancePeriod): { d
 
 /**
  * يقول إن الموظفة عندها تغطية في الفرع خلال الفترة؛ التغطية هي اللي بتخلي لها سطر في البيان.
- * التغطية من غير فلتر: جلسة محتسبة، أو يوم عقد دوامه خلص، أو إجازة على يوم عقد له دوام افتراضي، أو وردية خلصت (FR-013a).
+ * التغطية من غير فلتر: جلسة محتسبة، أو يوم عقد دوامه خلص، أو إجازة على يوم عقد في فترة فيها يوم عقد بدوام افتراضي، أو وردية خلصت (FR-013a).
  * مع فلتر الشيفت أيام الشيفت بس هي اللي بتتحسب؛ أيام العقد ما بتتحسبش (BR-11).
  *
  * @param branch مدخلات الموظفة في الفرع
@@ -44,6 +44,8 @@ export function hasAttendanceStatementCoverage(branch: ReportBranchInputs, perio
   const cutoffMinute = attendanceLocalMinute(cutoff, formatter);
   const days = contractDays(branch, period);
   if (days.some(({ date, entry }) => attendanceContractEntryEnded(date, entry, cutoffMinute))) return true;
-  if (days.some(({ date }) => branch.leave_for_branch.some((leave) => attendanceLeaveCoversDate(leave, date)))) return true;
+  const contractDates = attendanceContractPeriodDates(branch.contract, period).map(({ date }) => date);
+  if (days.length > 0 &&
+    contractDates.some((date) => branch.leave_for_branch.some((leave) => attendanceLeaveCoversDate(leave, date)))) return true;
   return branch.shifts.some((shift) => inPeriod(shift.working_date) && attendanceShiftHasEnded(shift, cutoff));
 }
