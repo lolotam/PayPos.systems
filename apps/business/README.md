@@ -87,7 +87,10 @@ ignore pattern يقدر يخمّن اسم الملف ده.
 مصادر التصميم في `assets/brand/` (SVG): نفس حرف P والنقطة بتوع أيقونة الويب (`apps/pos/public/icon.svg`)، ودايرة كحلي
 فيها «B» في الركن (APP-Q21)، وشريط بنفسجي مايل فيه «تجربة» على أيقونة نسخة التجربة (APP-Q22). صور أندرويد
 (`android/app/src/main/res/mipmap-*` و`drawable*/splash.png`، وأيقونات التجربة في `android/app/src/staging/res/`)
-وصور iOS (`AppIcon` و`AppIconStaging` و`Splash` جوّه `Assets.xcassets`) متولّدة من المصادر دي بـ Playwright، ومتسجّلة
-كملفات متولّدة: أي تعديل في الشكل يبدأ من الـ SVG وبعدين الصور كلها تتولّد تاني. أندرويد بياخد أيقونة التجربة لوحده من
+وصور iOS (`AppIcon` و`AppIconStaging` و`Splash` جوّه `Assets.xcassets`) متولّدة من المصادر دي بـ Playwright (Chromium على
+ويندوز بخط Segoe UI لحرف «B» وكلمة «تجربة»)، بسكربت عند المنسق مش جوّه الريبو، ومتسجّلة كملفات متولّدة: أي تعديل في الشكل
+يبدأ من الـ SVG وبعدين الصور كلها تتولّد تاني. أندرويد بياخد أيقونة التجربة لوحده من
 فولدر الـ flavour، وiOS بيختارها من `ASSETCATALOG_COMPILER_APPICON_NAME` في `ios/staging.xcconfig`. شاشة الفتح خلفيتها
-برتقالي وفيها الحرف P وتحته «PosPay Business» (APP-Q11، APP-Q25).
+برتقالي وفيها الحرف P وتحته «PosPay Business» (APP-Q11، APP-Q25): قبل أندرويد 12 من `drawable*/splash.png`، ومن أندرويد 12
+النظام بيرسمها من `windowSplashScreen*` في `values/styles.xml` و`values-v31/styles.xml` (`drawable/splash_mark.xml` للحرف،
+و`drawable-xxxhdpi/splash_branding.png` للاسم).
