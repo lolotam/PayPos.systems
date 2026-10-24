@@ -517,6 +517,38 @@ try {
   problems.push(`cannot confirm that ${authFile} has no wellknown credential (${error.message})`);
 }
 
+// A bare opencode command without --standalone (debug config, models, auth list) starts the shared
+// `opencode serve --service`, which keeps the global config and OPENCODE_* variables it started with (#635 item 3;
+// three times on 2026-10-25). The dispatch runs only while no such daemon is up.
+const powershellExe = path.join(
+  process.env.SystemRoot || 'C:\\Windows',
+  'System32',
+  'WindowsPowerShell',
+  'v1.0',
+  'powershell.exe',
+);
+try {
+  const commandLines = execFileSync(
+    powershellExe,
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      'Get-CimInstance Win32_Process -Filter "Name=\'opencode.exe\'" | ForEach-Object { $_.CommandLine }',
+    ],
+    { encoding: 'utf8', timeout: 15000 },
+  );
+  const services = commandLines
+    .split(/\r?\n/)
+    .filter((line) => /\bserve\b/i.test(line) && /--service\b/i.test(line));
+  if (services.length)
+    problems.push(
+      `the shared opencode service is running (${services.length} process(es)): stop it before dispatch`,
+    );
+} catch (error) {
+  problems.push(`cannot confirm that the shared opencode service is stopped (${error.message})`);
+}
+
 if (problems.length) {
   console.error(`refused: ${file}\n  - ${problems.join('\n  - ')}`);
   process.exit(1);

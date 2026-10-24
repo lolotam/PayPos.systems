@@ -242,7 +242,10 @@ pins the PosPay rules on top of it.
      global config that mentions `pospay-minimax`;
    - every run uses `--standalone`, a private opencode server started from this checked environment. The shared
      `opencode serve --service` keeps the `OPENCODE_*` variables and config it started with, so checking this
-     shell's environment would prove nothing about it;
+     shell's environment would prove nothing about it. **No opencode command runs without `--standalone` and an
+     isolated `XDG_CONFIG_HOME`, diagnostics included** (`opencode debug config`, `models`, `auth list`): a bare
+     command starts that shared service as a background daemon (2.1.4; three times on 2026-10-25, #635 item 3). The
+     checker refuses the dispatch while an `opencode serve --service` process is running;
    - opencode must be signed in to no account. A signed-in organization's config is fetched and merged after the
      project file, so it could override every rule here (Codex on #416). The checker reads the `account`,
      `account_state` and `control_account` tables of `~/.local/share/opencode/opencode.db` read-only and refuses the
