@@ -272,7 +272,7 @@ it('pruning never changes the priced result', () => {
   const lines = [projectedLine(), projectedLine({ lineId: 'b', serviceId: 'service-b' })];
   const versions = [
     version({ effectiveFrom: '2026-09-01' }),
-    based({ effectiveFrom: '2026-10-20', wholePeriod: true }, 2000n),
+    based({ effectiveFrom: '2026-10-20', wholePeriod: true, createdAt: 2n }, 2000n),
     based({ effectiveFrom: '2026-11-01' }, 5000n),
     version({ employeeId: 'employee-b' }),
   ];
