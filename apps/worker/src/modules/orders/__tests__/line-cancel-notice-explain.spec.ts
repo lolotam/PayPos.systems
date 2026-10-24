@@ -10,7 +10,7 @@ import {
   lineCancelMatchStatement,
 } from '../persistence/service-line-cancel-notice.repository.ts';
 
-// The planner may serve these reads through service_lines_discount_proposal_key; it leads with the primary key columns (company_id, id).
+// The planner may serve these reads through service_lines_discount_proposal_key or service_lines_id_session_key, which lead with the primary key columns (company_id, id), or through service_sessions_branch_id_key, which leads with (company_id, branch_id, id), the columns the session probe filters on.
 let f: LineCancelFixture;
 beforeAll(async () => {
   f = await lineCancelFixture();
@@ -35,10 +35,14 @@ it('matchesLine, the cancellation row, the line context and the claim use tenant
   const match = JSON.stringify(await explain(lineCancelMatchStatement(line)));
   const history = JSON.stringify(await explain(cancellationStatement(line.companyId, line.lineId)));
   const context = JSON.stringify(await explain(lineCancelContextStatement(line)));
-  expect(match).toMatch(/service_lines_(company_id_id_pk|session_fk_idx|discount_proposal_key)/);
-  expect(match).toMatch(/service_sessions_(company_id_id_pk|business_id_key)/);
+  expect(match).toMatch(
+    /service_lines_(company_id_id_pk|session_fk_idx|discount_proposal_key|id_session_key)/,
+  );
+  expect(match).toMatch(/service_sessions_(company_id_id_pk|business_id_key|branch_id_key)/);
   expect(history).toContain('slc_line_uq');
-  expect(context).toMatch(/service_lines_(company_id_id_pk|session_fk_idx|discount_proposal_key)/);
+  expect(context).toMatch(
+    /service_lines_(company_id_id_pk|session_fk_idx|discount_proposal_key|id_session_key)/,
+  );
   for (const plan of [match, history, context]) expect(plan).not.toContain('Seq Scan');
   const claim = JSON.stringify(
     await explain(

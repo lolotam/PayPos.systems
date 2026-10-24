@@ -1240,6 +1240,27 @@
       "when": 1792782838947,
       "tag": "0178_2026-10-23_shift-ending-notices",
       "breakpoints": true
+    },
+    {
+      "idx": 179,
+      "version": "7",
+      "when": 1792819246134,
+      "tag": "0179_2026-10-24_discount-proposal-binding-indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 180,
+      "version": "7",
+      "when": 1792819250621,
+      "tag": "0180_2026-10-24_discount-proposal-bindings",
+      "breakpoints": true
+    },
+    {
+      "idx": 181,
+      "version": "7",
+      "when": 1792819254925,
+      "tag": "0181_2026-10-24_discount-proposal-bindings-validate",
+      "breakpoints": true
     }
   ]
 }
