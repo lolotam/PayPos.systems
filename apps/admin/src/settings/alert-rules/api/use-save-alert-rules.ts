@@ -3,7 +3,12 @@
 import type { SetAlertRulesInput } from '@pospay/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { alertRulesStatus, isAlertRulesRefusal } from '../model/alert-rules-failure';
-import { alertRulesKey, saveAlertRules } from './alert-rules-client';
+import {
+  alertRulesBusinessKey,
+  alertRulesKey,
+  alertRulesKeyBranch,
+  saveAlertRules,
+} from './alert-rules-client';
 
 export function useSaveAlertRules(
   companyId: string,
@@ -12,6 +17,7 @@ export function useSaveAlertRules(
   branchId: string | null,
 ) {
   const client = useQueryClient();
+  const businessKey = alertRulesBusinessKey(companyId, userId, businessId);
   const key = alertRulesKey(companyId, userId, businessId, branchId);
   return useMutation({
     retry: false,
@@ -20,8 +26,8 @@ export function useSaveAlertRules(
       await client.cancelQueries({ queryKey: key });
       client.setQueryData(key, saved);
       await client.invalidateQueries({
-        queryKey: ['alert-rules', companyId, userId, businessId],
-        predicate: (query) => query.queryKey[4] !== branchId,
+        queryKey: businessKey,
+        predicate: (query) => alertRulesKeyBranch(query.queryKey) !== branchId,
       });
     },
     onError: (error) => {

@@ -5,7 +5,7 @@ import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useResetBranchAlertRule } from '../api/use-reset-branch-alert-rule';
-import { alertRuleKindLabel, alertRulesText } from '../model/alert-rules-draft';
+import { alertRuleKindLabel, alertRulesText } from '../model/alert-rules-text';
 import { alertRulesFailureMessage } from '../model/alert-rules-failure';
 import type { ListedAlertRuleView } from '../model/listed-alert-kinds';
 

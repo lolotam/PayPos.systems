@@ -12,13 +12,22 @@ const masterPath = '/v1/businesses/{businessId}/alert-rules/master';
 const branchPath = '/v1/businesses/{businessId}/branches/{branchId}/alert-rules';
 const resetPath = '/v1/businesses/{businessId}/branches/{branchId}/alert-rules/{kind}';
 
+export function alertRulesBusinessKey(companyId: string, userId: string, businessId: string) {
+  return ['alert-rules', companyId, userId, businessId] as const;
+}
+
 export function alertRulesKey(
   companyId: string,
   userId: string,
   businessId: string,
   branchId: string | null,
 ) {
-  return ['alert-rules', companyId, userId, businessId, branchId] as const;
+  return [...alertRulesBusinessKey(companyId, userId, businessId), branchId] as const;
+}
+
+export function alertRulesKeyBranch(queryKey: readonly unknown[]): string | null {
+  const branchId = queryKey[4];
+  return typeof branchId === 'string' ? branchId : null;
 }
 
 export async function readAlertRules(

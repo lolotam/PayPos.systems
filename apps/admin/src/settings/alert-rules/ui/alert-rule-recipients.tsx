@@ -6,7 +6,7 @@ import { permissionName, roleName, t, type Locale } from '@pospay/i18n';
 import { Label } from '@pospay/ui';
 import { useController } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import { alertRuleKindLabel, alertRulesText } from '../model/alert-rules-draft';
+import { alertRuleKindLabel, alertRulesText } from '../model/alert-rules-text';
 import type { ListedAlertRuleView } from '../model/listed-alert-kinds';
 
 type FixedRecipient = ListedAlertRuleView['fixed_recipients'][number];
@@ -73,11 +73,14 @@ export function AlertRuleRecipients({
             );
           })
         : null}
-      {rule.fixed_recipients.map((recipient, recipientIndex) => (
-        <p key={recipientIndex} className="text-sm text-muted-foreground">
-          {fixedText(locale, recipient)}
-        </p>
-      ))}
+      {rule.fixed_recipients.map((recipient, recipientIndex) => {
+        const text = fixedText(locale, recipient);
+        return text === null ? null : (
+          <p key={recipientIndex} className="text-sm text-muted-foreground">
+            {text}
+          </p>
+        );
+      })}
       {rule.channels.includes('IN_APP') ? (
         <p className="text-sm text-muted-foreground">{t(locale, 'alertRules.channelInApp')}</p>
       ) : null}

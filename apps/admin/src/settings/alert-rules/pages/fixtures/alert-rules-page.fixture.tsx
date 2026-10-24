@@ -3,7 +3,7 @@ import { alertKind, type AlertRules, type WorkspaceBranch } from '@pospay/contra
 import { t, type Locale } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
-import { alertRuleKindLabel, alertRulesText } from '../../model/alert-rules-draft';
+import { alertRuleKindLabel, alertRulesText } from '../../model/alert-rules-text';
 import type { ListedAlertKind } from '../../model/listed-alert-kinds';
 import { AlertRulesPage } from '../alert-rules-page';
 

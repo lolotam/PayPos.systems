@@ -6,7 +6,7 @@ import { Badge, Label } from '@pospay/ui';
 import Link from 'next/link';
 import { useController } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import { alertRuleKindLabel } from '../model/alert-rules-draft';
+import { alertRuleKindLabel } from '../model/alert-rules-text';
 import type { ListedAlertRuleView } from '../model/listed-alert-kinds';
 import { AlertRuleMinutesField } from './alert-rule-minutes-field';
 import { AlertRuleRecipients } from './alert-rule-recipients';

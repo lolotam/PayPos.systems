@@ -6,7 +6,7 @@ import { t } from '@pospay/i18n';
 import { Input, Label } from '@pospay/ui';
 import { useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import { alertRuleKindLabel, alertRulesText } from '../model/alert-rules-draft';
+import { alertRuleKindLabel, alertRulesText } from '../model/alert-rules-text';
 import type { ListedAlertRuleView } from '../model/listed-alert-kinds';
 
 export function AlertRuleMinutesField({

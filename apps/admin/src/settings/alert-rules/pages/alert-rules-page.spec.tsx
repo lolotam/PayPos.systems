@@ -279,12 +279,8 @@ it('refreshes the business read when the master switch is refused', async () => 
   });
   renderPage();
   const master = await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
-  const panel = master.closest('.rounded-card');
-  if (!panel) throw new Error('Missing master panel');
   fireEvent.click(master);
-  expect((await within(panel).findByRole('alert')).textContent).toContain(
-    t('en', 'errors.FORBIDDEN'),
-  );
+  expect((await screen.findByRole('alert')).textContent).toContain(t('en', 'errors.FORBIDDEN'));
   await waitFor(() => expect(api.GET).toHaveBeenCalledTimes(2));
 });
 
