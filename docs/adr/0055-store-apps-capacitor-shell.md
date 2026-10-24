@@ -361,8 +361,13 @@ xcconfig files.
 - Ruby and the gem are **CI tooling on the macOS runner only**: nothing in the apps, the packages or a Docker image
   uses them, and no developer machine needs them. The gem is pinned to one exact version, **1.27.0**, in two places
   that must change together: the workflow step installs exactly that version (`gem install xcodeproj -v 1.27.0`), and
-  the script loads exactly that version (`gem 'xcodeproj', '1.27.0'`) or stops with a clear error. An update of the
-  runner image therefore cannot change it.
+  the script loads exactly that version (`gem 'xcodeproj', '1.27.0'`) or stops with a clear error, so an update of
+  the runner image cannot change `xcodeproj` itself. Its own dependencies (`claide`, `CFPropertyList`, `nanaimo`,
+  `atomos`, `colored2`, `rexml`) still resolve inside the ranges that version declares, from the image or from
+  rubygems.org, so a new image or a new release of one of them can still change what loads. That residual is
+  accepted: the spike runs only on a manual dispatch, reads no secret and touches no build output, and pinning every
+  dependency would need a `Gemfile.lock`, which nobody here can generate without Ruby. If a dependency drift breaks
+  the spike, the fix is a `Gemfile` + `Gemfile.lock` generated on the runner and committed.
 - The test runs as steps of the already-admitted `ios` job, on its staging leg, only on a `workflow_dispatch` with the
   input `spike`. A separate macOS job would need its own slot under K = 2 and its own admission (decision 6). The steps
   read no secret and declare no environment.

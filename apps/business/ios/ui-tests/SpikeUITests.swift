@@ -33,7 +33,12 @@ final class SpikeUITests: XCTestCase {
       pasteField(app).waitForExistence(timeout: 60),
       "The employee paste field should be visible \(moment)"
     )
-    XCTAssertTrue(pasteField(app).isHittable, "The employee paste field should be hittable \(moment)")
+    let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: pasteField(app))
+    XCTAssertEqual(
+      XCTWaiter().wait(for: [hittable], timeout: 30),
+      .completed,
+      "The employee paste field should be hittable \(moment)"
+    )
   }
 
   // الاتنين فحوصات في اختبار واحد لأن التاني محتاج الحالة اللي الأول بيسيبها، وXCTest مش بيضمن ترتيب الاختبارات.

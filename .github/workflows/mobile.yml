@@ -390,7 +390,7 @@ jobs:
           set -euo pipefail
           udid="$(xcrun simctl list devices available --json | node scripts/pick-simulator.mjs)"
           echo "udid=$udid"
-          xcrun simctl boot "$udid"
+          # الـ -b بيشغّل المحاكي لو لسه مش شغال، وبعدين بيستنى لحد ما يكون جاهز.
           xcrun simctl bootstatus "$udid" -b
           echo "SPIKE_UDID=$udid" >> "$GITHUB_ENV"
 
