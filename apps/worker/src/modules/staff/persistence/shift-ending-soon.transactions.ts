@@ -1,8 +1,6 @@
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import { activeMembership } from '../../identity/index.ts';
 import type { BranchPlaceReader } from '../ports/branch-place.port.ts';
-import type { LockedShift } from '../ports/not-clocked-in.port.ts';
 import type {
   DueShiftEnd,
   LockedShiftEnding,
@@ -11,6 +9,7 @@ import type {
 } from '../ports/shift-ending-soon.port.ts';
 import { alertRules } from './alert-rule.adapter.ts';
 import { branchManagerRecipientsAdapter } from './branch-manager-recipients.adapter.ts';
+import { userHasAccess } from './employee-push-access.ts';
 import {
   NOT_CLOCKED_IN_TRANSACTION_TIMEOUT_MS,
   lockEmployee,
@@ -68,23 +67,6 @@ export function openSessionStatement(companyId: string, employeeId: string) {
     WHERE company_id = ${companyId} AND employee_id = ${employeeId}
       AND status = 'OPEN' AND voided_at IS NULL
     LIMIT 1`;
-}
-
-/**
- * فروع الموظفة في يوم العمل: فرعها الأساسي شاملاً، وارتباطاتها النشطة في النهار ده.
- * القاعدة هي قاعدة الجلسة الشخصية: العضوية لازم تغطّي أي فرع منهم (ADR-0052 §5).
- */
-export function employeeBranchesStatement(
-  companyId: string,
-  employeeId: string,
-  workingDate: string,
-) {
-  return sql`SELECT primary_branch_id AS branch_id FROM employees
-      WHERE company_id = ${companyId} AND id = ${employeeId}
-    UNION
-    SELECT branch_id FROM employee_branches
-      WHERE company_id = ${companyId} AND employee_id = ${employeeId}
-        AND "from" <= ${workingDate}::date AND ("to" IS NULL OR "to" > ${workingDate}::date)`;
 }
 
 export function shiftEndingSoonTransactions(
@@ -147,24 +129,6 @@ function locked(
 async function hasOpenSession(tx: Tx, companyId: string, employeeId: string): Promise<boolean> {
   const rows = await tx.execute<{ one: number }>(openSessionStatement(companyId, employeeId));
   return rows.length > 0;
-}
-
-// الموظفة ليها حساب بس عضويتها في الشركة انتهت أو مغطّاش نطاقها: مفيش إشعار يوصلها (ADR-0052 §5).
-// فروعها تُقرأ من جداول staff نفسها على نفس المعاملة، من غير اتصال جديد.
-async function userHasAccess(
-  tx: Tx,
-  companyId: string,
-  userId: string,
-  shift: LockedShift,
-  at: Date,
-): Promise<boolean> {
-  const rows = await tx.execute<{ branch_id: string }>(
-    employeeBranchesStatement(companyId, shift.employeeId, shift.workingDate),
-  );
-  return activeMembership(tx, companyId, userId, at, {
-    businessId: shift.businessId,
-    branchIds: rows.map((row) => row.branch_id),
-  });
 }
 
 function toDueShiftEnd(row: DueShiftEndRow): DueShiftEnd {

@@ -1,7 +1,19 @@
-import { appendAuditLog, appendOutboxEvents, type IdGenerator, type Tx } from '@pospay/db';
+import {
+  appendAuditLog,
+  appendOutboxEvents,
+  type IdGenerator,
+  type OutboxEvent,
+  type Tx,
+} from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { inAppRecipientGroups, type NoticeParameter } from '../domain/not-clocked-in.ts';
-import type { NoticeWrite, SuppressedWrite } from '../ports/not-clocked-in.port.ts';
+import type { EmployeePush, NoticeWrite, SuppressedWrite } from '../ports/not-clocked-in.port.ts';
+
+/** حدث التنبيه بلا حمولته: الحمولة بتتضاف مع كل مجموعة مستلمين. */
+type NoticeEvent = Omit<OutboxEvent, 'payload'>;
+
+/** سطر أوتبوكس: معرّفه والحدث اللي هيتكتب. */
+type OutboxEntry = { id: string; event: OutboxEvent };
 
 export async function recordNotClockedIn(
   tx: Tx,
@@ -35,13 +47,25 @@ function outboxEntries(
   notice: NoticeWrite,
   facts: ReturnType<typeof noticeFacts>,
   groups: readonly (readonly string[])[],
-) {
-  const event = {
+): OutboxEntry[] {
+  const event: NoticeEvent = {
     aggregateType: 'employee',
     aggregateId: notice.shift.employeeId,
     eventType: 'ShiftNotClockedIn',
   };
-  const parameters = notice.parameters;
+  const managerEvents = managerEntries(ids, event, notice, facts, groups);
+  const employeePush = notice.employeePush;
+  if (employeePush === null) return managerEvents;
+  return [...managerEvents, pushEntry(ids, event, facts, notice, employeePush)];
+}
+
+function managerEntries(
+  ids: IdGenerator,
+  event: NoticeEvent,
+  notice: NoticeWrite,
+  facts: ReturnType<typeof noticeFacts>,
+  groups: readonly (readonly string[])[],
+): OutboxEntry[] {
   if (groups.length === 0)
     return [
       {
@@ -60,10 +84,41 @@ function outboxEntries(
       payload: {
         ...facts,
         employee_push_user_id: index === 0 ? notice.employeePushUserId : null,
-        notification_recipients: recipientsFor(group, parameters),
+        notification_recipients: recipientsFor(group, notice.parameters),
       },
     },
   }));
+}
+
+// إشعار الموظفة بنفسها بيسافر في طلب لوحده (BR-008)، فمجموعة المديرين ما بتكررشه؛
+// والموعد هو نهاية الوردية، فالتأخير في الطابور ميبعتش إشعار بعد ما الوردية خلصت.
+function pushEntry(
+  ids: IdGenerator,
+  event: NoticeEvent,
+  facts: ReturnType<typeof noticeFacts>,
+  notice: NoticeWrite,
+  employeePush: EmployeePush,
+): OutboxEntry {
+  return {
+    id: ids.newId(),
+    event: {
+      ...event,
+      payload: {
+        ...facts,
+        employee_push_user_id: null,
+        notification_recipients: [
+          {
+            channel: 'PUSH' as const,
+            user_id: employeePush.userId,
+            template_key: 'shift_not_clocked_in_self' as const,
+            template_revision: 1 as const,
+            safe_parameters: employeePush.parameters,
+            send_deadline: notice.shift.endsAt.toISOString(),
+          },
+        ],
+      },
+    },
+  };
 }
 
 function recipientsFor(userIds: readonly string[], parameters: readonly NoticeParameter[]) {

@@ -21,7 +21,7 @@ export interface AttendanceMissedOut {
   readonly recorded_at: string;
 }
 
-/** يصدر مع دفتر التنبيه والتدقيق لكل مجموعة من مئة مستلم كحد أقصى؛ مفتاح الموظف وبداية الوردية يمنع إعادة إصدار كل المجموعات. */
+/** يصدر مع دفتر التنبيه والتدقيق لكل مجموعة من مئة مستلم كحد أقصى؛ مفتاح الموظف وبداية الوردية يمنع إعادة إصدار كل المجموعات. ولما إشعار الموظفة بنفسها يبقى مؤهل، بيصير مع التنبيه حدث واحد زيادة، حملته مستلمة PUSH واحدة بس (قالب shift_not_clocked_in_self، وموعدها نهاية الوردية) و employee_push_user_id فيه null. */
 export interface ShiftNotClockedIn {
   readonly notice_id: string;
   readonly employee_id: string;
@@ -31,7 +31,7 @@ export interface ShiftNotClockedIn {
   readonly shift_ends_at: string;
   readonly alert_due_at: string;
   readonly detected_at: string;
-  /** مستخدم الموظفة للإشعار الثابت: غير null على أول حدث من التنبيه بس (أحداث المجموعات التانية null)، لما الإشعار الثابت للنوع مفعّل والموظفة ليها حساب مرتبط، وبند 28b-5 يبعت الـ PUSH من ذلك الحدث. */
+  /** مستخدم الموظفة للإشعار الثابت: غير null على أول حدث من التنبيه بس (أحداث المجموعات التانية null)، لما الإشعار الثابت للنوع مفعّل والموظفة ليها حساب مرتبط. الإشعار نفسه بيبعت في طلب لوحده (BR-008)، مش من الحدث ده. */
   readonly employee_push_user_id: string | null;
 }
 

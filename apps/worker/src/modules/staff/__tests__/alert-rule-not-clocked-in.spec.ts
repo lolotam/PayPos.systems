@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import type postgres from 'postgres';
 import type { NoticeWrite } from '../ports/not-clocked-in.port.ts';
 import {
   ALERT_AT,
@@ -46,6 +47,16 @@ async function dueAt(company: string, employeeId: string) {
   return new Date(rows[0]?.['alert_due_at'] as string | Date).toISOString();
 }
 
+/** مستلمو الدفع في كل أحداث النوع: القناة بتحدد إن المستلم ده دفع. */
+function pushRecipients(rows: readonly postgres.Row[]) {
+  return rows.flatMap((row) => {
+    const payload = row['payload'] as {
+      notification_recipients?: { channel: string; user_id: string }[];
+    };
+    return (payload.notification_recipients ?? []).filter((item) => item.channel === 'PUSH');
+  });
+}
+
 it('RT-26 a kind switched off writes one suppressed ledger row and sends nothing', async () => {
   const tenant = await f.tenant();
   const employee = await f.employee(tenant, { nameEn: 'Laila' });
@@ -62,6 +73,8 @@ it('RT-26 a kind switched off writes one suppressed ledger row and sends nothing
   expect(rows[0]?.['suppressed_at']).not.toBeNull();
   expect(written).toHaveLength(0);
   expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(0);
+  // القاعدة المقفولة: الإشعار الثابت للموظفة مقفول معها، فمفيش مستلمة دفع في أي مكان.
+  expect(pushRecipients(await outboxRows(ctx, tenant.company, EVENT))).toHaveLength(0);
   expect(await auditRows(ctx, tenant.company)).toHaveLength(0);
 });
 
@@ -187,12 +200,53 @@ it('the notice carries the absent employee user id the fixed push needs', async 
   });
   expect(written).toHaveLength(1);
   expect(written[0]?.employeePushUserId).toBe(userId);
+  expect(written[0]?.employeePush).toBeNull();
   const events = await outboxRows(ctx, tenant.company, EVENT);
   expect(events).toHaveLength(1);
   expect(events[0]?.['payload']).toMatchObject({ employee_push_user_id: userId });
+  // الموظفة ليها حساب بس مفيش ليها عضوية سارية، فمفيش إشعار ليها في أي مكان (ADR-0052 §5).
+  expect(pushRecipients(events)).toHaveLength(0);
   const audit = await auditRows(ctx, tenant.company);
   expect(audit).toHaveLength(1);
   expect(audit[0]?.['after']).not.toHaveProperty('employee_push_user_id');
+});
+
+it('an eligible employee gets exactly one push event of her own beside the managers', async () => {
+  const tenant = await f.tenant();
+  const userId = await f.user('absent');
+  const manager = await f.user('manager');
+  await f.member({
+    tenant,
+    userId: manager,
+    roleId: ROLE.branch_manager,
+    scopeType: 'BRANCH',
+    scopeId: tenant.branch,
+  });
+  // عضوية على فرع الوردية: صلاحيتها الشخصية سارية وقت التنبيه.
+  await f.member({
+    tenant,
+    userId,
+    roleId: ROLE.cashier,
+    scopeType: 'BRANCH',
+    scopeId: tenant.branch,
+  });
+  const employee = await f.employee(tenant, { nameEn: 'Laila', userId });
+  await f.shift(tenant, employee);
+  f.setNow(ALERT_AT);
+  expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
+  const events = await outboxRows(ctx, tenant.company, EVENT);
+  expect(events).toHaveLength(2);
+  const push = pushRecipients(events);
+  expect(push).toHaveLength(1);
+  expect(push[0]).toMatchObject({ user_id: userId });
+  const pushEvent = events.find((event) => pushRecipients([event]).length > 0);
+  const payload = pushEvent?.['payload'] as {
+    employee_push_user_id: string | null;
+    notification_recipients: { channel: string }[];
+  };
+  expect(payload.employee_push_user_id).toBeNull();
+  expect(payload.notification_recipients).toHaveLength(1);
+  expect(eventRecipients(events[0])).toEqual([manager]);
 });
 
 it('an employee without a linked user leaves the push target empty and the event still goes out', async () => {
@@ -207,6 +261,7 @@ it('an employee without a linked user leaves the push target empty and the event
   expect(payload.employee_push_user_id).toBeNull();
   expect('employee_push_user_id' in payload).toBe(true);
   expect(payload).not.toHaveProperty('notification_recipients');
+  expect(pushRecipients(events)).toHaveLength(0);
 });
 
 it('with no stored rule the defaults alert at twenty minutes to the four manager roles', async () => {

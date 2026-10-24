@@ -155,4 +155,4 @@ reads:
   - { from: staff, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts }
   - { from: staff, to: identity, symbol: branchManagerRecipientsStatement, file: apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts }
   - { from: staff, to: identity, symbol: businessPermissionHolders, file: apps/worker/src/modules/staff/persistence/file-reader-recipients.adapter.ts }
-  - { from: staff, to: identity, symbol: activeMembership, file: apps/worker/src/modules/staff/persistence/shift-ending-soon.transactions.ts }
+  - { from: staff, to: identity, symbol: activeMembership, file: apps/worker/src/modules/staff/persistence/employee-push-access.ts }

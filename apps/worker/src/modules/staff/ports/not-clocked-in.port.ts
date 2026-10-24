@@ -1,4 +1,5 @@
 import type { LeaveInterval, NoticeParameter, PresenceSession } from '../domain/not-clocked-in.ts';
+import type { SelfParameter } from '../domain/not-clocked-in-self.ts';
 import type { AlertRulesPort } from './alert-rule.port.ts';
 
 /** موضع الصفحة التالية بترتيب (starts_at ثم id) حتى لا تتكرر وردية أو تسقط بين الصفحات. */
@@ -34,6 +35,12 @@ export interface LockedShift {
   readonly timeZone: string;
 }
 
+/** إشعار الدفع للموظفة بنفسها: المستخدم اللي بيتحمل الرسالة ومعاملات قالبها. */
+export interface EmployeePush {
+  readonly userId: string;
+  readonly parameters: readonly SelfParameter[];
+}
+
 /** ما يُكتب في دفتر المنع والحدث فقط عندما يدرج الصف لأول مرة. */
 export interface NoticeWrite {
   readonly shift: LockedShift;
@@ -41,8 +48,10 @@ export interface NoticeWrite {
   readonly detectedAt: Date;
   readonly recipients: readonly string[];
   readonly parameters: readonly NoticeParameter[];
-  /** مستخدم الموظفة الغائبة للإشعار الثابت؛ بند 28b-5 هو اللي يبعتّه. */
+  /** هدف الإشعار الثابت للموظفة الغائبة: بيتحمل على أول حدث من التنبيه بس؛ الإشعار نفسه بيسافر في طلبه هو (BR-008). */
   readonly employeePushUserId: string | null;
+  /** إشعار الدفع اللي بتبعتاه الموظفة بنفسها، أو null لو مفيش هدفش أو صلاحيتها الشخصية مش سارية. */
+  readonly employeePush: EmployeePush | null;
 }
 
 /** سطر الدفتر اللي بيتكتب والقاعدة مقفولة: سطر دفتر بلا إشعار (spec 060 D-B15). */
@@ -108,6 +117,16 @@ export interface LockedNotClockedIn {
     branchId: string,
     roles: readonly string[],
   ): Promise<readonly string[]>;
+  /**
+   * هل للمستخدم المرتبط عضوية سارية تغطّي الشركة أو نشاط الموظفة أو فرع من فروعها في يوم الوردية؟
+   * عضوية منتهية أو مغطّاش النطاق معناها إن صلاحيته في الشغل انتهت، فمفيش إشعار يوصلها (ADR-0052 §5).
+   *
+   * @param userId المستخدم
+   * @param shift الوردية المقفولة: نشاط الموظفة وفروعها
+   * @param at لحظة القرار
+   * @returns true لو العضوية سارية وتغطّي النطاق
+   */
+  userHasAccess(userId: string, shift: LockedShift, at: Date): Promise<boolean>;
   /**
    * يدرج دفتر المنع مرة واحدة مع التدقيق وحدث لكل مجموعة مستلمين لا تتجاوز مئة، في نفس المعاملة.
    *
