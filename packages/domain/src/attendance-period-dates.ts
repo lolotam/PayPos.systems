@@ -45,7 +45,7 @@ export function attendanceLeaveCoversDate(leave: ReportLeave, date: string): boo
 
 /**
  * يحوّل الشهر الميلادي لفترة من أول يوم لآخر يوم؛ التقرير الشهري مجرد فترة زي أي فترة.
- * الشهر بيتحقق منه في العقد قبل ما يوصل هنا، فمفيش حالة شهر غلط (FR-001).
+ * الشهر بيتحقق منه في عقد `attendanceReportMonth` قبل ما يوصل هنا، فمفيش حالة شهر غلط.
  *
  * @param month الشهر الصحيح YYYY-MM
  * @returns الفترة المقابلة للشهر من أول يوم لآخر يوم

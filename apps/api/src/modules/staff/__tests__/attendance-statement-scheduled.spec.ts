@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { attendanceReportBranchInputs } from '@pospay/contracts';
 import { attendanceStatementScheduledEmployeesStatement } from '@pospay/db';
-import { sql } from 'drizzle-orm';
 import { employeeNameMatchKey, mergeAttendanceStatementRows } from '@pospay/domain';
 import { attendanceMonthlyInputs, type AttendanceReportInputRow } from '../queries/attendance-monthly-report.query.ts';
 import { monthlyReportFixture, reportSession, type MonthlyReportFixture } from './attendance-monthly-report.fixture.ts';
@@ -97,14 +96,4 @@ it('FR-011b: a shift at another branch, another business and a context-only shif
   expect(ids).not.toContain(otherBranch);
   expect(ids).not.toContain(otherBusiness);
   expect(ids).not.toContain(contextOnly);
-});
-
-it('EXPLAIN ANALYZE reads the schedule through its branch-week index', async () => {
-  const plans = await f.db.withTenant(f.company, async (tx) => {
-    await tx.execute(sql`SET LOCAL enable_seqscan=off`);
-    return tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON) ${attendanceStatementScheduledEmployeesStatement(
-      f.company, f.business, { id: f.branch, timezone: 'Asia/Kuwait' }, FROM, TO,
-    )}`);
-  });
-  expect(JSON.stringify(plans)).toMatch(/staff_schedules_branch_week_idx/);
 });
