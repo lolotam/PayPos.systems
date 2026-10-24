@@ -155,7 +155,7 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   needs a file id and a render id (ADR-0056 §2–3), and the business identity read needs another permission. **How**
   the logo reaches the screen is the [ADR-0056 addendum of 2026-10-24](../../adr/0056-attendance-statement-reads-and-logo-reader.md#addendum-2026-10-24--the-employee-app-screens-logo-read-in-the-api-spec-069-m-1g):
   `POST /v1/businesses/{businessId}/employee-app-link/logo-download` in API `files` returns a 60-second signed URL
-  after the audited check. Its one open point is EL-TQ1, a technical question for Waleed. It is not an owner question: if writing it turns up a choice the owners must make, that
+  after the audited check. EL-TQ1 (technical) is decided: Waleed allowed the back office to read it (CORS `GET`, plan.md). It is not an owner question: if writing it turns up a choice the owners must make, that
   question is recorded in [owner-questions.ar.md](owner-questions.ar.md) and asked then. This spec fixes only what it must satisfy:
   - **Access:** the same rule as the screen (EL-Q3): a session whose active membership, in the company named by a
     validated `x-company-id` (parsed as `me/memberships` does), reaches the business. The company is never looked up

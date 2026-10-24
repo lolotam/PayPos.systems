@@ -160,8 +160,8 @@ statement request; the files reader re-checks the file at render time (§3). The
 
 ## Addendum 2026-10-24 — the employee-app screen's logo read in the API (spec 069, M-1g)
 
-- **Status:** Proposed with the spec 069 plan (docs PR); accepted with sub-PR 069-2, which builds it. One point waits
-  on Waleed: EL-TQ1 (below).
+- **Status:** Proposed with the spec 069 plan (docs PR); accepted with sub-PR 069-2, which builds it. EL-TQ1 answered
+  by Waleed on 2026-10-24: (a).
 
 **Context.** Spec 069's print sheet carries the salon logo (EL-Q4, Waleed, 2026-10-24). Anyone who uses the back office
 may open that screen (EL-Q3), so the stored permission of the logo file (`manage:business-identity:business`, ADR-0046
@@ -203,7 +203,8 @@ above). `readStatementLogo` cannot be reused: it lives in the worker, embeds byt
    bounds its reuse, the accepted residual of every download in the project (ADR-0022).
 4. **Missing object versus failure** (spec 069: a missing object prints the name only; a storage error offers a
    retry). The admin reads the object with `fetch` on the signed URL, and that needs the bucket's CORS to allow `GET`
-   from the back-office origins. ADR-0022 documents `PUT` only. That is **EL-TQ1**, a server setting for Waleed:
+   from the back-office origins. ADR-0022 documents `PUT` only. That was **EL-TQ1**, a server setting; Waleed picked (a) on 2026-10-24 and applies the rule himself (spec 069
+   `plan.md`):
    - ⭐ (a) add `GET` from the back-office origins to the bucket's CORS. Then 404 means name only, 403 (an expired URL)
      means one new URL then the retry message, and any other failure or a 10-second timeout means the retry message.
    - (b) keep CORS as is and load the logo with `<img>` only. A load failure cannot tell missing from error, so every

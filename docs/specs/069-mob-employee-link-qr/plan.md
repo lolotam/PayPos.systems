@@ -60,7 +60,7 @@ No violation; Complexity Tracking is empty.
 | Row | What | Files (main) | Depends on | Done when |
 |---|---|---|---|---|
 | 069-1 | The page without printing: link, QR, copy, WhatsApp | `apps/admin/src/staff/employee-app-link/` (page, link helper, QR, copy, WhatsApp link), the route under `apps/admin/app/(dashboard)/staff/`, the staff-menu entry and the employees-page button; `packages/i18n` keys; one shared POS-hosts constant used by `apps/pos/vite.config.ts` and the admin helper; `NEXT_PUBLIC_POS_URL` in `apps/admin/next.config.ts`, `.env.example`, `deploy/Dockerfile.admin` and the staging image build in `.github/workflows/ci.yml`; the staging deploy check of the link host | spec 069; the web manager's OK on the `apps/admin` lane; Waleed sets the staging build arg | EL-T01 … EL-T05, EL-T07 … EL-T09 green; the `apps/pos` cross-check green; on staging the page shows the staging POS host's link |
-| 069-2 | The logo read and the print sheet | API `files`: `use-cases/issue-business-logo-download/`, its controller route, ports `BusinessMemberReach` and `BusinessLogoReference` and their adapters; identity's exported `lockBusinessMemberReach`; `packages/storage` `presignDownload` optional cache policy; `docs/module-map.md` rows; `AUTHENTICATED_WRITES` entry; contract in `packages/contracts/src/files/`; the admin print sheet and its logo fetch | 069-1; EL-TQ1 answered; the ADR-0056 addendum accepted with this PR | EL-I01 … EL-I05 and EL-T06, EL-T10 green; a printed sheet on staging shows the salon logo; the addendum's status reads Accepted |
+| 069-2 | The logo read and the print sheet | API `files`: `use-cases/issue-business-logo-download/`, its controller route, ports `BusinessMemberReach` and `BusinessLogoReference` and their adapters; identity's exported `lockBusinessMemberReach`; `packages/storage` `presignDownload` optional cache policy; `docs/module-map.md` rows; `AUTHENTICATED_WRITES` entry; contract in `packages/contracts/src/files/`; the admin print sheet and its logo fetch | 069-1; the staging CORS rule below set by Waleed; the ADR-0056 addendum accepted with this PR | EL-I01 … EL-I05 and EL-T06, EL-T10 green; a printed sheet on staging shows the salon logo; the addendum's status reads Accepted |
 
 ## Decisions (research)
 
@@ -81,11 +81,34 @@ No violation; Complexity Tracking is empty.
 - **D-6 — Printing is a print-only view** of the same page (`@media print`), black on white, with only the name, the
   logo, the QR, the link and the instruction line.
 
-## Open technical question (Waleed only, recorded in [owner-questions.ar.md](owner-questions.ar.md))
+## Technical decision EL-TQ1 and the storage CORS rule
 
-- **EL-TQ1** — CORS `GET` on the storage bucket for the back-office origins, so the print sheet can tell a missing logo
-  (name only) from a storage error (retry). ⭐ (a) add `GET`; (b) keep CORS as is, and every load failure shows the
-  retry message. Blocks 069-2 only.
+Waleed picked (a) on 2026-10-24 ([owner-questions.ar.md](owner-questions.ar.md) §6): the bucket lets the back office
+read the signed logo URL, so the print sheet tells a missing logo (name only) from a storage error (retry). Waleed
+applies it himself, before 069-2 is tested on staging. **Add** this rule to the **staging** bucket's CORS and keep the
+existing upload (`PUT`) rule of ADR-0022 unchanged:
+
+  ```json
+  {
+    "AllowedOrigins": ["https://app.staging.pospay.systems"],
+    "AllowedMethods": ["GET"],
+    "AllowedHeaders": [],
+    "ExposeHeaders": [],
+    "MaxAgeSeconds": 3600
+  }
+  ```
+
+- **Origins:** the back office only (ADR-0001 §6), never `*`, the POS host or the API host. The production bucket gets
+  the same rule with `https://app.pospay.systems` when 069-2 reaches production, a production change that needs
+  Waleed's yes.
+- **Methods:** `GET` only. The page reads the object with a plain `fetch(url)` and no custom header, which is a simple
+  request: no preflight, so `AllowedHeaders` stays empty and `HEAD` is not needed.
+- **ExposeHeaders:** none; the page needs only the status code (404 = missing, 403 = expired URL), which CORS always
+  exposes.
+- **MaxAgeSeconds:** 3600, an hour of cached preflight answers (none are expected for a simple GET).
+- **Check after setting it:** on staging, the print sheet of a business with a logo shows the logo, and the browser
+  console shows no CORS error for the signed URL.
+
 
 ## Project Structure
 

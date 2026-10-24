@@ -22,7 +22,7 @@
 - [x] Scope is clearly bounded
 - [x] Dependencies and assumptions identified
 - [x] **Slice design** for the link, copy, QR and WhatsApp: no schema change, access and names from the existing `GET /v1/me/workspaces`, no new permission, no event, the test plan (UI, cross-check)
-- [x] **Slice design** for the print sheet's logo read: the ADR-0056 addendum of 2026-10-24 sets its module, transaction, audit and transport; EL-TQ1 (technical, Waleed) is the one open point and blocks sub-PR 069-2 only
+- [x] **Slice design** for the print sheet's logo read: the ADR-0056 addendum of 2026-10-24 sets its module, transaction, audit and transport; EL-TQ1 decided by Waleed (CORS `GET` for the back office, rule in plan.md)
 
 ## Feature Readiness
 
@@ -35,6 +35,6 @@
 
 - Abu Salem's answers to batch 71 are pending; if he picks differently, the spec's «If Abu Salem picks differently»
   paragraph says what changes.
-- The logo read is designed in the ADR-0056 addendum of 2026-10-24 ([plan.md](../plan.md) sub-PR 069-2). EL-TQ1 waits
-  on Waleed and blocks 069-2 only.
+- The logo read is designed in the ADR-0056 addendum of 2026-10-24 ([plan.md](../plan.md) sub-PR 069-2). EL-TQ1 is decided
+  (Waleed, 2026-10-24); he sets the staging CORS rule before 069-2 is tested.
 - The build waits for the web manager's OK on the `apps/admin` lane.
