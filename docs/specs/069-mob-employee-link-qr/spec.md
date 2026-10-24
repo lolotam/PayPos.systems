@@ -16,11 +16,12 @@ adds it.
 EL-Q4 decides. Out of scope: the in-app scan (M-1h), sending the link by SMS or WhatsApp from the server (no outbound
 message is added), and any change to how the employee signs in (OTP on her own phone, ADR-0027).
 
-**A fact that shapes this spec.** The link is `https://<pos host>/personal?company=<company-id>&business=<business-id>`
-(ADR-0027, spec 065 FR-012). It names a business, **not an employee**: every employee of the business uses the same
-link, and she proves who she is with the code sent to her own phone. The link is a routing hint, never a permission
-(ADR-0027, BR-002 of spec 065), so it is not a secret. Spec 065 FR-014 says «each employee's personal link»; that
-wording is corrected by this spec (FR-001 and EL-Q1).
+**A fact that shapes this spec.** Today's link is
+`https://<pos host>/personal?company=<company-id>&business=<business-id>` (ADR-0027, spec 065 FR-012). It names a
+business, **not an employee**: the employee proves who she is with the code sent to her own phone. The link is a
+routing hint, never a permission (ADR-0027, BR-002 of spec 065), so it is not a secret. Whether the screen keeps one
+link for the whole business or gives each employee her own is **EL-Q1, still pending** (`TODO(spec)`); this spec is
+written for the recommended answer, and its Assumptions say what the other answer changes.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -118,14 +119,16 @@ its own `business` value.
 
 ### Key Entities
 
-- **Employee-app link**: derived, never stored: the POS host of the environment, the company id and the business id.
+- **Employee-app link**: derived, never stored: the POS host of the environment, the company id and the business id
+  (and an employee hint only if EL-Q1 picks one link per employee, `TODO(spec)`).
 
 ## Slice design *(mandatory — `CLAUDE.md` §1)*
 
 ### Business rules
 
-- **BR-001**: The link names a business, not a person; it gives no access by itself (ADR-0027). Example: Sara and
-  Huda of «الأميرة» get the same link; each still needs the code sent to her own phone.
+- **BR-001**: The link gives no access by itself (ADR-0027): whoever opens it still needs the code sent to her own
+  phone. `TODO(spec)` EL-Q1: with the recommended answer the link names the business only, so Sara and Huda of
+  «الأميرة» get the same link; with one link per employee each gets her own.
 
 ### Schema changes
 
@@ -147,8 +150,12 @@ None. Nothing is stored (FR-008).
   `NEXT_PUBLIC_API_URL`: listed in `apps/admin/next.config.ts` and `.env.example`, inlined at build time through a
   build arg in `deploy/Dockerfile.admin`, and passed by the image build step of `.github/workflows/ci.yml` (for
   staging, beside `STAGING_API_URL`).
-  Its value is the full origin, for example `https://pos.staging.pospay.systems`; the screen uses only its host and
-  refuses a value that is not an `https:` origin.
+  Its value is the full origin, for example `https://pos.staging.pospay.systems`. The screen uses only its host and
+  accepts it only when it is an `https:` origin **and** one of the POS hosts the native app accepts
+  (`pos.staging.pospay.systems`, `pos.pospay.systems`, today written in `apps/pos/vite.config.ts`): the build moves
+  those two hosts into one shared constant that both apps import, so they cannot drift, and any other value shows the
+  not-set-up message. A swap between environments is caught after each staging deploy: the deploy check opens the
+  staging back office's link host and confirms it is the staging POS host (`EL-T08`).
 
 ### Permissions
 
@@ -167,7 +174,7 @@ None. Nothing is stored (FR-008).
   clipboard and shows the confirmation; a refused clipboard shows the failure and the link stays visible · `EL-T04` a
   403 on the access read shows the no-access state and no link · `EL-T05` a missing `NEXT_PUBLIC_POS_URL` shows the
   not-set-up message and no QR · `EL-T06` the print view holds only the PosPay logo, the name, the QR, the link and the
-  instruction line (if EL-Q4 keeps printing) · `EL-T07` another business selected changes the link and the QR.
+  instruction line (if EL-Q4 keeps printing) · `EL-T07` another business selected changes the link and the QR · `EL-T08` a `NEXT_PUBLIC_POS_URL` host that is not one of the shared POS hosts shows the not-set-up message, and the staging deploy check finds the staging POS host in the staging back office's link.
 - **Cross-check with the app**: a test in `apps/pos` feeds the admin helper's output to `parseManagerLink` and gets the
   same company and business back, so the two sides cannot drift.
 - **Integration (apps/api)**: `EL-I01` an allowed manager gets 200 with the names and ids · `EL-I02` a caller without
