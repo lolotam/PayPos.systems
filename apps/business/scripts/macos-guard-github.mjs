@@ -105,18 +105,19 @@ async function readSlot(context, index) {
 
 async function createCommit({ request, owner, repo, headSha }, payload, parentSha) {
   if (!headSha) throw new Error('GITHUB_SHA is missing');
-  const tree = await request(`/repos/${owner}/${repo}/git/trees`, {
-    method: 'POST',
-    body: { tree: [] },
-  });
-  if (!tree.ok) throw new Error(`the tree answered ${tree.status}`);
-  const treeSha = (await tree.json()).sha;
+  const parent = parentSha ?? headSha;
+  // GitHub بيرفض أي شجرة فاضية بـ 422، والـ commit بتاع القبول بيحمل الرسالة بس — فبناخد
+  // شجرة الـ parent، وبكده مفيش ملف بيتغيّر.
+  const parentCommit = await request(`/repos/${owner}/${repo}/git/commits/${parent}`);
+  if (!parentCommit.ok) throw new Error(`the parent commit answered ${parentCommit.status}`);
+  const treeSha = (await parentCommit.json()).tree?.sha;
+  if (!treeSha) throw new Error('the parent commit has no tree');
   const commit = await request(`/repos/${owner}/${repo}/git/commits`, {
     method: 'POST',
     body: {
       message: JSON.stringify(payload),
       tree: treeSha,
-      parents: [parentSha ?? headSha],
+      parents: [parent],
     },
   });
   if (!commit.ok) throw new Error(`the admission commit answered ${commit.status}`);
