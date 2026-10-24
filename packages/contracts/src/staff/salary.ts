@@ -34,7 +34,18 @@ export const salaryHistoryPage = responseObject({
     can_manage: z.boolean(),
   })
   .meta({ id: 'SalaryHistoryPage' });
+export const salaryChanged = z
+  .strictObject({
+    employee_id: id,
+    // الأحداث المنشورة قبل 21-a لا تحمل النشاط، أما كل حدث جديد فيحمله.
+    business_id: id.optional(),
+    effective_from: salaryDate,
+    amount: salaryAmount,
+    revision: z.number().int().positive(),
+  })
+  .meta({ id: 'SalaryChanged' });
 export type SetSalaryInput = z.infer<typeof setSalaryInput>;
 export type EmployeeSalary = z.infer<typeof employeeSalary>;
 export type SalaryHistoryQuery = z.infer<typeof salaryHistoryQuery>;
 export type SalaryHistoryPage = z.infer<typeof salaryHistoryPage>;
+export type SalaryChanged = z.infer<typeof salaryChanged>;

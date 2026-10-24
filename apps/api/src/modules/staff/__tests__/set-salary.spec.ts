@@ -1,3 +1,4 @@
+import { salaryChanged } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createSalaryTransactions } from '../persistence/drizzle-salary-transactions.ts';
@@ -36,9 +37,25 @@ it('owner sets zero, replaces same date, audits before/after actor/reason and em
   const events = await f.h
     .owner`SELECT payload FROM outbox WHERE company_id=${f.company} AND aggregate_id=${f.employee.id} AND event_type='SalaryChanged' ORDER BY seq`;
   expect(events.map((e) => e['payload'])).toEqual([
-    { employee_id: f.employee.id, effective_from: '2026-01-01', amount: '0.000', revision: 1 },
-    { employee_id: f.employee.id, effective_from: '2026-01-01', amount: '123.456', revision: 2 },
+    {
+      employee_id: f.employee.id,
+      business_id: f.business,
+      effective_from: '2026-01-01',
+      amount: '0.000',
+      revision: 1,
+    },
+    {
+      employee_id: f.employee.id,
+      business_id: f.business,
+      effective_from: '2026-01-01',
+      amount: '123.456',
+      revision: 2,
+    },
   ]);
+  for (const event of events) {
+    const payload = salaryChanged.parse(event['payload']);
+    expect(payload.business_id).toBe(f.business);
+  }
 });
 it('concurrent same-date writers emit both revisions in commit order', async () => {
   const results = await Promise.all([
@@ -49,9 +66,23 @@ it('concurrent same-date writers emit both revisions in commit order', async () 
   const events = await f.h
     .owner`SELECT payload FROM outbox WHERE company_id=${f.company} AND aggregate_id=${f.employee.id} AND payload->>'effective_from'='2026-02-01' ORDER BY seq`;
   expect(events.map((e) => e['payload']['revision'])).toEqual([1, 2]);
+  expect(events.map((e) => e['payload']['business_id'])).toEqual([f.business, f.business]);
   const [row] = await f.h
     .owner`SELECT amount::text FROM employee_salaries WHERE company_id=${f.company} AND employee_id=${f.employee.id} AND effective_from='2026-02-01'`;
   expect(row?.['amount']).toBe(events[1]?.['payload']['amount']);
+});
+it('an uppercase business id in the request still emits the stored lowercase business id', async () => {
+  await f.set.execute({
+    ...salaryCommand(f, '500.000', '2025-06-01'),
+    businessId: f.business.toUpperCase(),
+  });
+  const [event] = await f.h
+    .owner`SELECT payload FROM outbox WHERE company_id=${f.company} AND aggregate_id=${f.employee.id} AND event_type='SalaryChanged' AND payload->>'effective_from'='2025-06-01'`;
+  const [salary] = await f.h
+    .owner`SELECT business_id::text AS business_id FROM employee_salaries WHERE company_id=${f.company} AND employee_id=${f.employee.id} AND effective_from='2025-06-01'`;
+  expect(event?.['payload']['business_id']).toBe(f.business);
+  expect(salary?.['business_id']).toBe(f.business);
+  expect(event?.['payload']['business_id']).toBe(salary?.['business_id']);
 });
 it('replays concurrent duplicate key and rejects a changed fingerprint without another revision', async () => {
   const cmd = salaryCommand(f, '400.000', '2026-03-01');

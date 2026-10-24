@@ -1,5 +1,6 @@
 import { currentAttachment, appendAuditLog, appendOutboxEvent, runIdempotent, IdempotencyKeyBusyError, IdempotencyKeyReusedError, type TenantWrappers, type IdGenerator, type Tx } from '@pospay/db';
 import { parseMoney } from '@pospay/domain';
+import type { SalaryChanged } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 import { SalaryError, salarySnapshot, type SalaryRecord } from '../domain/set-salary.ts';
 import type { SalaryTransactions } from '../ports/salary-transactions.port.ts';
@@ -45,9 +46,11 @@ async function save(
   after: SalaryRecord,
 ) {
   const row = salarySnapshot(after);
-  await tx.execute(sql`INSERT INTO employee_salaries(company_id,id,business_id,employee_id,effective_from,amount,set_by,revision,reason)
+  const [stored] = await tx.execute<{ business_id: string }>(sql`INSERT INTO employee_salaries(company_id,id,business_id,employee_id,effective_from,amount,set_by,revision,reason)
     VALUES (${companyId},${row.id},${businessId},${row.employee_id},${row.effective_from},${row.amount},${row.set_by},${row.revision},${row.reason})
-    ON CONFLICT (company_id,employee_id,effective_from) DO UPDATE SET amount=EXCLUDED.amount,set_by=EXCLUDED.set_by,revision=EXCLUDED.revision,reason=EXCLUDED.reason`);
+    ON CONFLICT (company_id,employee_id,effective_from) DO UPDATE SET amount=EXCLUDED.amount,set_by=EXCLUDED.set_by,revision=EXCLUDED.revision,reason=EXCLUDED.reason
+    RETURNING business_id::text AS business_id`);
+  if (stored === undefined) throw new Error('SALARY_PERSISTENCE_FAILED');
   await appendAuditLog(tx, ids.newId(), {
     entity: 'employee_salary',
     entityId: row.id,
@@ -55,8 +58,9 @@ async function save(
     before: before === null ? null : salarySnapshot(before),
     after: row,
   });
-  const payload = {
+  const payload: SalaryChanged = {
     employee_id: row.employee_id,
+    business_id: stored.business_id,
     effective_from: row.effective_from,
     amount: row.amount,
     revision: row.revision,
