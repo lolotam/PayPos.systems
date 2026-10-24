@@ -1,87 +1,20 @@
 import { expect, it } from 'vitest';
 
-import type { ServiceCommissionOverride } from '../commission-types.ts';
 import { computePeriod } from '../period-commission.ts';
 import { assembleCommissionPeriodInput } from '../period-input-assembly.ts';
-import type {
-  CommissionPeriodProjection,
-  ProjectedCommissionLine,
-  ProjectedCommissionTip,
-  ProjectedPackageSale,
-  ReceivedCommissionCorrection,
-} from '../period-input-types.ts';
-import type { CommissionPeriodInput, CommissionSalary } from '../plan-types.ts';
+import type { CommissionPeriodProjection } from '../period-input-types.ts';
+import type { CommissionPeriodInput } from '../plan-types.ts';
 import { selectSalaryEntryOnLastDay, selectSalaryOnLastDay } from '../salary-thresholds.ts';
-import { line, pct, sale, version } from './engine-ii-fixtures.ts';
-
-function projectedLine(patch: Partial<ProjectedCommissionLine> = {}): ProjectedCommissionLine {
-  return { ...line(), status: 'ACTIVE', ...patch };
-}
-
-function projectedSale(patch: Partial<ProjectedPackageSale> = {}): ProjectedPackageSale {
-  return { ...sale(), status: 'ACTIVE', ...patch };
-}
-
-function salaryEntry(employeeId: string, effectiveFrom: string, amount: bigint): CommissionSalary {
-  return { employeeId, effectiveFrom, amount };
-}
-
-function serviceOverride(
-  patch: Partial<ServiceCommissionOverride> = {},
-): ServiceCommissionOverride {
-  return {
-    id: 'override-a',
-    employeeId: 'employee-a',
-    serviceId: 'service-a',
-    effectiveFrom: '2026-10-01',
-    createdAt: 1n,
-    rule: pct(500n),
-    ...patch,
-  };
-}
-
-function tip(patch: Partial<ProjectedCommissionTip> = {}): ProjectedCommissionTip {
-  return {
-    sessionId: 'session-a',
-    employeeId: 'employee-a',
-    businessDate: '2026-10-10',
-    method: 'CARD',
-    amount: 5000n,
-    ...patch,
-  };
-}
-
-function correction(
-  patch: Partial<ReceivedCommissionCorrection> = {},
-): ReceivedCommissionCorrection {
-  return {
-    employeeId: 'employee-a',
-    sourcePeriod: '2026-09',
-    targetPeriod: '2026-10',
-    sourceRef: 'line:a',
-    kind: 'COMMISSION',
-    amount: 500n,
-    previousAmount: 1000n,
-    newAmount: 1500n,
-    generation: 1n,
-    ...patch,
-  };
-}
-
-function projection(patch: Partial<CommissionPeriodProjection> = {}): CommissionPeriodProjection {
-  return {
-    employeeId: 'employee-a',
-    period: '2026-10',
-    lines: [],
-    sales: [],
-    salaries: [],
-    versions: [version()],
-    overrides: [],
-    tips: [],
-    corrections: [],
-    ...patch,
-  };
-}
+import { pct, version } from './engine-ii-fixtures.ts';
+import {
+  correction,
+  projectedLine,
+  projectedSale,
+  projection,
+  salaryEntry,
+  serviceOverride,
+  tip,
+} from './period-input-fixtures.ts';
 
 const assemble = (patch: Partial<CommissionPeriodProjection> = {}) =>
   assembleCommissionPeriodInput(projection(patch));
@@ -278,21 +211,57 @@ it('does not mutate projection arrays and always returns new arrays', () => {
     tips: [tip()],
     corrections: [correction()],
   });
-  let assembled: ReturnType<typeof assembleCommissionPeriodInput>;
-  const pairs = [
-    ['lines', () => assembled.input.lines, source.lines, [...source.lines]],
-    ['sales', () => assembled.input.sales, source.sales, [...source.sales]],
-    ['salaries', () => assembled.input.salaries, source.salaries, [...source.salaries]],
-    ['versions', () => assembled.input.versions, source.versions, [...source.versions]],
-    ['overrides', () => assembled.input.overrides, source.overrides, [...source.overrides]],
-    ['tips', () => assembled.tips, source.tips, [...source.tips]],
-    ['corrections', () => assembled.corrections, source.corrections, [...source.corrections]],
-  ] as const;
+  const copies = {
+    lines: [...source.lines],
+    sales: [...source.sales],
+    salaries: [...source.salaries],
+    versions: [...source.versions],
+    overrides: [...source.overrides],
+    tips: [...source.tips],
+    corrections: [...source.corrections],
+  };
   deepFreezeProjection(source);
-  assembled = assembleCommissionPeriodInput(source);
+  const assembled = assembleCommissionPeriodInput(source);
+  const pairs = [
+    ['lines', assembled.input.lines, source.lines, copies.lines],
+    ['sales', assembled.input.sales, source.sales, copies.sales],
+    ['salaries', assembled.input.salaries, source.salaries, copies.salaries],
+    ['versions', assembled.input.versions, source.versions, copies.versions],
+    ['overrides', assembled.input.overrides, source.overrides, copies.overrides],
+    ['tips', assembled.tips, source.tips, copies.tips],
+    ['corrections', assembled.corrections, source.corrections, copies.corrections],
+  ] as const;
   for (const [, output, sourceArray, copy] of pairs) {
-    expect(output()).not.toBe(sourceArray);
+    expect(output).not.toBe(sourceArray);
     expect(sourceArray).toHaveLength(copy.length);
     expect(sourceArray.every((row, rowIndex) => row === copy[rowIndex])).toBe(true);
   }
+});
+
+it('preserves caller subtype fields and shares kept arrays with engine input', () => {
+  const activeLine = { ...projectedLine(), revision: 7n, branchId: 'branch-a' };
+  const activeSale = { ...projectedSale(), revision: 8n, branchId: 'branch-a' };
+  const selectedSalary = { ...salaryEntry('employee-a', '2026-10-01', 500000n), revision: 9n };
+  const receivedTip = { ...tip(), revision: 10n };
+  const attachedBranchIds = ['branch-a'] as const;
+  const receivedCorrection = { ...correction(), attachedBranchIds };
+  const assembled = assembleCommissionPeriodInput({
+    employeeId: 'employee-a',
+    period: '2026-10',
+    lines: [activeLine],
+    sales: [activeSale],
+    salaries: [selectedSalary],
+    versions: [version()],
+    overrides: [],
+    tips: [receivedTip],
+    corrections: [receivedCorrection],
+  });
+  expect(assembled.lines[0]?.revision).toBe(7n);
+  expect(assembled.lines[0]?.branchId).toBe('branch-a');
+  expect(assembled.sales[0]?.revision).toBe(8n);
+  expect(assembled.salary?.revision).toBe(9n);
+  expect(assembled.tips[0]?.revision).toBe(10n);
+  expect(assembled.corrections[0]?.attachedBranchIds).toBe(attachedBranchIds);
+  expect(assembled.input.lines).toBe(assembled.lines);
+  expect(assembled.input.sales).toBe(assembled.sales);
 });

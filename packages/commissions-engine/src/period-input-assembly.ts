@@ -1,8 +1,12 @@
 import type {
   AssembledCommissionPeriod,
   CommissionPeriodProjection,
+  ProjectedCommissionLine,
+  ProjectedCommissionTip,
+  ProjectedPackageSale,
+  ReceivedCommissionCorrection,
 } from './period-input-types.ts';
-import type { CommissionPeriodInput, PeriodCommissionLine } from './plan-types.ts';
+import type { CommissionPeriodInput, CommissionSalary } from './plan-types.ts';
 import { selectSalaryEntryOnLastDay } from './salary-thresholds.ts';
 
 const PERIOD_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -18,14 +22,20 @@ function getPeriodLastDay(period: string): string {
 
 /**
  * يجمع مدخل computePeriod لموظفة وشهر من إسقاط أوسع دون تسعير أي مصدر.
- * يستبعد الملغى وغير المنتمي للشهر، ويمرر الإكراميات والتصحيحات منفصلة حتى لا تتغير قواعد المال.
+ * يحفظ حقول revision والفرع للبصمة والفلترة، بينما يشارك المحرك المصفوفات نفسها بلا نسخ ثانٍ.
  *
  * @param projection صفوف الموظفة والفترة مع المرشحين من بقية الموظفين والشهور
- * @returns مدخل المحرك والراتب المختار والإكراميات والتصحيحات المستلمة بترتيبها الأصلي
+ * @returns مدخل المحرك والصفوف المختارة بأنواع المستدعي والإكراميات والتصحيحات بترتيبها
  */
-export function assembleCommissionPeriodInput(
-  projection: CommissionPeriodProjection,
-): AssembledCommissionPeriod {
+export function assembleCommissionPeriodInput<
+  L extends ProjectedCommissionLine = ProjectedCommissionLine,
+  S extends ProjectedPackageSale = ProjectedPackageSale,
+  Sal extends CommissionSalary = CommissionSalary,
+  T extends ProjectedCommissionTip = ProjectedCommissionTip,
+  C extends ReceivedCommissionCorrection = ReceivedCommissionCorrection,
+>(
+  projection: CommissionPeriodProjection<L, S, Sal, T, C>,
+): AssembledCommissionPeriod<L, S, Sal, T, C> {
   if (!PERIOD_PATTERN.test(projection.period)) {
     throw new RangeError('Commission period must use YYYY-MM with a valid month');
   }
@@ -35,7 +45,7 @@ export function assembleCommissionPeriodInput(
     periodLastDay,
     projection.salaries,
   );
-  const lines: PeriodCommissionLine[] = projection.lines.filter(
+  const lines = projection.lines.filter(
     (line) =>
       line.status === 'ACTIVE' &&
       line.employeeId === projection.employeeId &&
@@ -75,5 +85,5 @@ export function assembleCommissionPeriodInput(
     overrides,
     salaries: salary === null ? [] : [salary],
   };
-  return { input, salary, tips, corrections };
+  return { input, lines, sales, salary, tips, corrections };
 }

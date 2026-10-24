@@ -42,24 +42,38 @@ export interface ReceivedCommissionCorrection {
   readonly generation: bigint;
 }
 
-/** يجمع صفوف نشاط كامل ثم يضيقها إلى موظفة وشهر واحدين بقاعدة مشتركة. */
-export interface CommissionPeriodProjection {
+/** يحفظ حقول المستدعي مثل revision وbranchId للبصمة والفلترة بدلاً من ضياعها عند التجميع. */
+export interface CommissionPeriodProjection<
+  L extends ProjectedCommissionLine = ProjectedCommissionLine,
+  S extends ProjectedPackageSale = ProjectedPackageSale,
+  Sal extends CommissionSalary = CommissionSalary,
+  T extends ProjectedCommissionTip = ProjectedCommissionTip,
+  C extends ReceivedCommissionCorrection = ReceivedCommissionCorrection,
+> {
   readonly employeeId: string;
   readonly period: string;
-  readonly lines: readonly ProjectedCommissionLine[];
-  readonly sales: readonly ProjectedPackageSale[];
-  readonly salaries: readonly CommissionSalary[];
+  readonly lines: readonly L[];
+  readonly sales: readonly S[];
+  readonly salaries: readonly Sal[];
   readonly versions: readonly CommissionPlanVersion[];
   readonly overrides: readonly ServiceCommissionOverride[];
-  readonly tips: readonly ProjectedCommissionTip[];
-  readonly corrections: readonly ReceivedCommissionCorrection[];
+  readonly tips: readonly T[];
+  readonly corrections: readonly C[];
 }
 
-/** يفصل مدخل التسعير والراتب المختار عن القيم العرضية غير المسعرة. */
-export interface AssembledCommissionPeriod {
+/** يبقي حقول الصفوف للبصمة وفلتر الفروع بينما يقرأ المحرك مدخل التسعير وحده. */
+export interface AssembledCommissionPeriod<
+  L extends ProjectedCommissionLine = ProjectedCommissionLine,
+  S extends ProjectedPackageSale = ProjectedPackageSale,
+  Sal extends CommissionSalary = CommissionSalary,
+  T extends ProjectedCommissionTip = ProjectedCommissionTip,
+  C extends ReceivedCommissionCorrection = ReceivedCommissionCorrection,
+> {
   readonly input: CommissionPeriodInput;
-  /** الراتب المختار هو وحده المؤثر في حدود الشهر، لا كل تاريخ الرواتب. */
-  readonly salary: CommissionSalary | null;
-  readonly tips: readonly ProjectedCommissionTip[];
-  readonly corrections: readonly ReceivedCommissionCorrection[];
+  readonly lines: readonly L[];
+  readonly sales: readonly S[];
+  /** الراتب المختار يحتفظ بنوع سجل المستدعي لأن بصمته تحتاج بياناته الإضافية. */
+  readonly salary: Sal | null;
+  readonly tips: readonly T[];
+  readonly corrections: readonly C[];
 }

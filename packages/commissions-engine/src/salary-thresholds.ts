@@ -42,12 +42,12 @@ export function selectSalaryOnLastDay(
  * @param salaries تاريخ الرواتب بصف واحد لكل موظفة وتاريخ وفق §4
  * @returns سجل الراتب المختار بمرجعه الأصلي أو null عند غياب راتب سارٍ
  */
-export function selectSalaryEntryOnLastDay(
+export function selectSalaryEntryOnLastDay<Sal extends CommissionSalary>(
   employeeId: string,
   periodLastDay: string,
-  salaries: readonly CommissionSalary[],
-): CommissionSalary | null {
-  let selected: CommissionSalary | undefined;
+  salaries: readonly Sal[],
+): Sal | null {
+  let selected: Sal | undefined;
   for (const salary of salaries) {
     if (salary.employeeId !== employeeId || salary.effectiveFrom > periodLastDay) continue;
     if (selected === undefined || salary.effectiveFrom > selected.effectiveFrom) selected = salary;
