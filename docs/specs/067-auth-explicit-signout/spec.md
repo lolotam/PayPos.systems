@@ -446,9 +446,11 @@ None published, none consumed.
   `SO-12` two concurrent sign-outs of one session → one `SIGNED_OUT`, one `NO_SESSION` ·
   `SO-13` sign-out racing a PIN sign-in on the same device, with the sign-out response delayed until after the
   sign-in's → the new operator's row survives and resolves with the new cookie, and the test records that the late
-  clearing header names the same cookie (the D-6 limitation). As built in 067-1, `SO-13` is proven by `SO-13d`'s
-  assertion that the sign-out's clearing `Set-Cookie` names the same cookie and `Path=/v1` as the new session's
-  cookie; no separate delayed-response test ·
+  clearing header names the same cookie (the D-6 limitation). As built in 067-1, the HTTP response order is not
+  simulated: the API test `SO-13` asserts the one server-side fact, that the sign-out's clearing `Set-Cookie` names
+  the same cookie and `Path=/v1` as a new session's cookie; the commit orders are proven with real lock barriers in
+  `packages/auth/src/__tests__/staff-sign-out-race.spec.ts` (`SO-13d`, `SO-13e`, and that the sign-out waits on the
+  lock of the device named in its row) ·
   `SO-13d` a sign-in started before a sign-out and answered after it, with the sign-out's retirement committing before
   the sign-in's replacement → the sign-out answers `SIGNED_OUT`, and the new session from the fresh OTP/PIN resolves
   with its new cookie (intended, D-6) ·
