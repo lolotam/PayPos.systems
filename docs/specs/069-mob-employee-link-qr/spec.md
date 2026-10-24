@@ -61,9 +61,9 @@ the QR (M-1h), and is connected to «الأميرة» without anyone sending her
 
 1. **Given** the screen, **Then** it shows a QR code whose content is exactly the link, large enough to scan from a
    printed A4 page (FR-003).
-2. **Given** the print action of EL-Q4, **When** she prints, **Then** the page holds only the PosPay logo, the business
-   name, the QR, the link as text and one line telling the employee what to do (FR-004), with none of the back
-   office's menus.
+2. **Given** the print action of EL-Q4, **When** she prints, **Then** the page holds only the business name and its
+   logo (when it has one), the QR, the link as text and one line telling the employee what to do (FR-004, as EL-Q4
+   describes), with none of the back office's menus.
 
 ---
 
@@ -84,8 +84,7 @@ its own `business` value.
 
 - **The POS address is not set for the environment** (FR-002): the screen shows a clear «the link is not set up for
   this environment» message and no link or QR, never a link to a wrong host.
-- **The business's own logo** is not on the print page: reading it needs a permission EL-Q3 may not include, so the
-  page carries the PosPay logo and the business name only.
+- **The business has no logo**: the print page shows the name only.
 - **Arabic and English**: every label goes through `packages/i18n`; the link itself is the same in both languages.
 - **The employee's sign-in is not enabled on the server** (ADR-0019: OTP delivery may be off): the link still opens
   the right business; whether the code is sent is the server's decision, as on the web today. The screen makes no
@@ -142,10 +141,18 @@ None. Nothing is stored (FR-008).
   `GET /v1/businesses/{businessId}/staff/employee-app-link` · guard `@Require(<the EL-Q3 permission>)` on the
   business (for the recommended answer `manage:employees:business`, DENY wins) · staff feature · read-only, so no
   `Idempotency-Key` · response (Zod in `packages/contracts/src/staff/employee-app-link.ts`):
-  `{ company_id, business_id, business_name_en, business_name_ar | null }`, read from `businesses` under `withTenant`
-  through a `queries/` file (`CLAUDE.md` §6). Errors: 403 `FORBIDDEN` without the permission; an unknown or
-  inaccessible business is `NOT_FOUND` (404), the same answer for both. The screen shows the link only after a 200;
-  the menu entry shows only when that read succeeds.
+  `{ company_id, business_id, business_name_en, business_name_ar | null }`, plus `has_logo`. Staff owns no business table, so the
+  names come through a staff port whose adapter calls tenancy's exported `describeWorkspaces` (the `staff → tenancy`
+  arrow is declared in `docs/module-map.md`; the build adds the adapter to its reads list), inside the same
+  `withTenant` transaction as the guard's read, never a direct query on `businesses`. **Errors:** every refusal is the
+  guard's 403 `FORBIDDEN`, whether the caller lacks the permission, a DENY wins, or the business is unknown, of
+  another company or one she cannot manage. The answer is the same for all of them, so it never reveals whether a
+  business exists. The screen shows the link only after a 200, and the menu entry only when that read succeeds.
+- **The logo (FR-004, only if EL-Q4 keeps the print sheet):** a second read under the same guard,
+  `GET /v1/businesses/{businessId}/staff/employee-app-link/logo`, returns the logo image when `has_logo` is true. It
+  reads it through the files module's logo reader (`readStatementLogo`, ADR-0056 §2–3; the `staff → files` arrow is
+  declared), so it needs no business-identity permission. How that reader is exposed to this route is settled in
+  `/speckit-plan` against ADR-0056 (`TODO(spec)`, technical); the product result stays the one EL-Q4 describes.
 - **POS host (FR-002):** a new build-time variable `NEXT_PUBLIC_POS_URL` for `apps/admin`, set per environment like
   `NEXT_PUBLIC_API_URL`: listed in `apps/admin/next.config.ts` and `.env.example`, inlined at build time through a
   build arg in `deploy/Dockerfile.admin`, and passed by the image build step of `.github/workflows/ci.yml` (for
@@ -173,15 +180,17 @@ None. Nothing is stored (FR-008).
   name show for an allowed manager · `EL-T02` the QR's value equals the link · `EL-T03` copy puts the link on the
   clipboard and shows the confirmation; a refused clipboard shows the failure and the link stays visible · `EL-T04` a
   403 on the access read shows the no-access state and no link · `EL-T05` a missing `NEXT_PUBLIC_POS_URL` shows the
-  not-set-up message and no QR · `EL-T06` the print view holds only the PosPay logo, the name, the QR, the link and the
-  instruction line (if EL-Q4 keeps printing) · `EL-T07` another business selected changes the link and the QR · `EL-T08` a `NEXT_PUBLIC_POS_URL` host that is not one of the shared POS hosts shows the not-set-up message, and the staging deploy check finds the staging POS host in the staging back office's link.
+  not-set-up message and no QR · `EL-T06` the print view holds only the name, the logo (or the name alone when there is
+  none), the QR, the link and the instruction line (if EL-Q4 keeps printing) · `EL-T07` another business selected changes the link and the QR · `EL-T08` a `NEXT_PUBLIC_POS_URL` host that is not one of the shared POS hosts shows the not-set-up message, and the staging deploy check finds the staging POS host in the staging back office's link.
 - **Cross-check with the app**: a test in `apps/pos` feeds the admin helper's output to `parseManagerLink` and gets the
   same company and business back, so the two sides cannot drift.
 - **Integration (apps/api)**: `EL-I01` an allowed manager gets 200 with the names and ids · `EL-I02` a caller without
-  the EL-Q3 permission gets 403, and a DENY on the business wins over an ALLOW · `EL-I03` another business of the
-  same company the caller cannot manage, and a business of another company, both get 404.
-- **Queries**: the `queries/` file gets a result-shape test and an `EXPLAIN` assertion that it reads `businesses` by
-  its `(company_id, id)` key (`CLAUDE.md` §9).
+  the EL-Q3 permission gets 403, and a DENY on the business wins over an ALLOW · `EL-I03` an unknown business,
+  another business of the same company she cannot manage, and a business of another company all get the same 403 ·
+  `EL-I04` the logo read returns the image when there is one and 404 `NOT_FOUND` when there is none, under the same
+  guard.
+- **Queries**: no new `queries/` file reads a table (the names come through the tenancy port); the adapter gets a
+  result-shape test.
 - **RLS negative**: no new table; the read runs under `withTenant`, so EL-I03's other-company case is the negative
   test.
 
