@@ -166,13 +166,15 @@ describe('creating an admission commit', () => {
         : { status: 200, body: { tree: { sha: 'tree-1' } } },
     );
     const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
-    const sha = await io.createCommit({ owner: '100/1/ios/staging' }, 'parent-1');
+    const payload = { owner: '100/1/ios/staging' };
+    const sha = await io.createCommit(payload, 'parent-1');
     assert.equal(sha, 'sha-new');
     assert.equal(calls.length, 2);
     assert.equal(calls[0].url, `${API}/repos/o/r/git/commits/parent-1`);
     assert.equal(calls[0].method, 'GET');
     assert.equal(calls[1].url, `${API}/repos/o/r/git/commits`);
     assert.equal(calls[1].method, 'POST');
+    assert.deepEqual(JSON.parse(calls[1].body.message), payload);
     assert.equal(calls[1].body.tree, 'tree-1');
     assert.deepEqual(calls[1].body.parents, ['parent-1']);
     assert.ok(!calls.some((call) => call.url.includes('/git/trees')));
@@ -188,6 +190,20 @@ describe('creating an admission commit', () => {
     await io.createCommit({ owner: '100/1/ios/staging' }, null);
     assert.equal(calls[0].url, `${API}/repos/o/r/git/commits/head-1`);
     assert.deepEqual(calls[1].body.parents, ['head-1']);
+  });
+
+  it('refuses when the admission commit is rejected', async () => {
+    const { impl, calls } = fakeFetch((call) =>
+      call.method === 'POST'
+        ? { status: 422, body: { message: 'the tree is invalid' } }
+        : { status: 200, body: { tree: { sha: 'tree-1' } } },
+    );
+    const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
+    await assert.rejects(
+      () => io.createCommit({ owner: '100/1/ios/staging' }, 'parent-1'),
+      (error) => error.message.includes('admission commit answered 422'),
+    );
+    assert.equal(calls.length, 2);
   });
 
   it('refuses when the parent commit cannot be read', async () => {
