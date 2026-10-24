@@ -189,7 +189,10 @@ start screen again.
   business's sign-in. If that sign-out fails, it shows the «we could not sign you out» message with a «try again»
   button, and never the old business's screens; there is no automatic retry loop (review of #588, built in B1). Each
   sign-out attempt waits at most 10 seconds: one with no answer by then, or one answered while the same session is
-  still read, counts as failed and shows that message and button; a later answer is ignored (#603). When the session
+  still read, counts as failed and shows that message and button; a later answer does not change the notice (#603). A
+  late confirmed sign-out still announces the session change, as every confirmed sign-out does: the server has ended
+  that session, so the fresh read can only lead to the remembered business's sign-in, never to the old business's
+  screens. When the session
   read clears and the same session comes back while an attempt was running, that attempt can no longer answer, so the
   notice shows the failure at once, with no new sign-out (#603). Cancelling the
   switch confirmation after a refused or offline switch also clears that switch's message (#605). With
