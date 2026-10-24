@@ -375,7 +375,8 @@ None published, none consumed.
 
 - **SC-001**: On a paired Android tablet, the app opens to the paired-device screen within 3 seconds with no network.
 - **SC-002**: A staff PIN session and a personal session each survive an app restart on Android and on the iOS
-  simulator (M-1c).
+  simulator (M-1c). `TODO(spec)` PP-58.2: under PP-58.1 the personal session cannot be signed in on the simulator, so
+  whether its iOS half moves to the first real iPhone (M-1c-ii) waits on Waleed.
 - **SC-003**: No screen of the native build offers a working-looking control for a capability the platform port
   reports as off.
 - **SC-004**: The web build's behaviour is unchanged: every existing `apps/pos` UI test passes without edits.
