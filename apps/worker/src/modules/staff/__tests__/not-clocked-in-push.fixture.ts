@@ -15,7 +15,7 @@ export type { NotClockedInFixture, Tenant };
 /** مفتاح VAPID وهمي: 16 حرف هكس، زي اللي بيتخزن مع كل اشتراك. */
 const KEY_ID = '0123456789abcdef';
 
-/** نقطة الدفع الوهمية؛ كل اشتراك ليه تجزئة وجهة مختلفة فتبقى حية كلها. */
+/** نقطة الدفع الوهمية؛ كل اشتراك ليه نقطة خاصة بيه، والتجزئة بتتحسب من النقطة نفسها. */
 const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/synthetic';
 
 /** مفاتيح حقيقية: نقطة P-256 على المنحنى و16 بايت. */
@@ -89,7 +89,10 @@ const liveSubscription = (
   userId: string,
   locale: 'ar' | 'en',
   deliveryToken: string,
-) => sql`INSERT INTO push_subscriptions(company_id,id,user_id,installation_hash,endpoint,p256dh,auth,
+) => {
+  const endpoint = `${ENDPOINT}/${id}`;
+  return sql`INSERT INTO push_subscriptions(company_id,id,user_id,installation_hash,endpoint,p256dh,auth,
     endpoint_hash,delivery_token,generation,locale,vapid_key_id,created_at,last_seen_at,updated_at)
-  VALUES(${company},${id},${userId},${digest(`install:${id}`)},${ENDPOINT},${P256DH},${AUTH},
-    ${digest(`endpoint:${id}`)},${deliveryToken},1,${locale},${KEY_ID},now(),now(),now())`;
+  VALUES(${company},${id},${userId},${digest(`install:${id}`)},${endpoint},${P256DH},${AUTH},
+    ${digest(endpoint)},${deliveryToken},1,${locale},${KEY_ID},now(),now(),now())`;
+};
