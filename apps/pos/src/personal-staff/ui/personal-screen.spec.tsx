@@ -19,6 +19,8 @@ vi.mock('../model/session-change', () => ({
   observePersonalChange: vi.fn(() => () => undefined),
   announcePersonalChange: vi.fn(),
 }));
+vi.mock('../push/push-control', () => ({ PushControl: () => null }));
+vi.mock('../push/push-disable', () => ({ disablePushOnSignOut: vi.fn(async () => undefined) }));
 vi.mock('./attendance-camera', () => ({
   AttendanceCamera: ({ scanned }: { scanned(value: string): Promise<void> }) => (
     <button

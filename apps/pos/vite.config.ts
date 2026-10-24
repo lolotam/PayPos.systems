@@ -33,6 +33,9 @@ export default defineConfig(({ mode }) => {
       testing || native
         ? null
         : VitePWA({
+            strategies: 'injectManifest',
+            srcDir: 'src',
+            filename: 'sw.ts',
             registerType: 'autoUpdate',
             manifestFilename: 'manifest.webmanifest',
             includeAssets: ['icon.svg'],
@@ -48,9 +51,8 @@ export default defineConfig(({ mode }) => {
               background_color: '#FCFAF6',
               icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
             },
-            workbox: {
+            injectManifest: {
               globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
-              navigateFallback: 'index.html',
             },
             devOptions: { enabled: false },
           }),

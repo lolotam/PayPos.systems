@@ -123,7 +123,10 @@ database (`pospay-push`): a random delivery token, the person's `subscriber_ref`
 user id, the same in every company), the company id it was enabled for, the public VAPID key id and a `suspended` flag. It
 holds no phone, code, challenge, credential, name or notice text, is outside the private-cache clearing described above,
 and is deleted on an explicit sign-out and when notifications are switched off. A session that is merely replaced or
-expired does not delete it (ADR-0052 §7).
+expired does not delete it (ADR-0052 §7). Sub-PR 28b-4 also keeps one `localStorage` flag,
+`pospay.push.invitationSeen` = `'1'`, so the one-time invitation to turn notifications on (spec 063 WP-Q1) is shown only
+once on a phone. It names nobody and holds nothing private, and it is never cleared, so a declined invitation stays
+declined on that phone.
 
 ## Addendum 2026-10-23 — explicit sign-out and the back-office signal (spec 067, issue #554 items 2 and 4)
 
