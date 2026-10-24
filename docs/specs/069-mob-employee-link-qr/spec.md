@@ -212,7 +212,9 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   and a business of another company all get the same 404 · `EL-I03` a member of a business with no logo bound gets 200 with `download_url: null`
   and no audit record, while an inaccessible business keeps the 404 and the screen shows no-access and no print; every URL answer writes one `file_access_audit` row and one
   `file`/`access` `audit_log` entry in the same transaction as the access check and the URL signature; a failure anywhere in it,
-  signing included, leaves neither record · `EL-I05` the API answer and the signed object answer both carry `Cache-Control: private, no-store` · `EL-T10` (apps/admin) a storage
+  signing included, leaves neither record · `EL-I05` the API answer and the signed object answer both carry `Cache-Control: private, no-store` · `EL-T11` (apps/admin) the
+  workspaces answer includes the business, then the logo request answers 404 (access revoked after the page loaded): the
+  screen shows the no-access state, and printing is disabled, never the name-only sheet · `EL-T10` (apps/admin) a storage
   failure shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry and no print, while a missing logo object (a 404 `NoSuchKey`) prints the
   name only, and a 404 `NoSuchBucket` or an unreadable answer is treated as the storage failure · `EL-I06` a signing or
   storage-configuration failure answers 503 (`STORAGE_UNAVAILABLE` / `STORAGE_NOT_CONFIGURED`) with no audit record,

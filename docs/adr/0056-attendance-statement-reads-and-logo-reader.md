@@ -180,6 +180,11 @@ above). `readStatementLogo` cannot be reused: it lives in the worker, embeds byt
    - Lock the access the way `lockDocumentAccess` does: the company row `FOR NO KEY UPDATE`, then the company's
      memberships `ORDER BY id FOR SHARE`. A revocation takes the same locks, so it either committed before the check
      (and the check sees it) or waits until this transaction ends.
+   - Confirm the business exists in that company and is not deleted, through tenancy's exported `describeWorkspaces`
+     (the `files → tenancy` arrow is already declared), before any other check. A company-wide membership reaches
+     every business id, and `readBusinessIdentity` answers the same nothing for an unknown business, another
+     company's business (hidden by RLS) and a business with no settings row. Without this step those cases would get
+     the no-logo 200 instead of the 404.
    - Check that the caller has an active membership in that company reaching the business: company, that business,
      or one of its branches. This is the `me/workspaces` rule. The check comes through a port `files` owns,
      `BusinessMemberReach`, whose adapter calls a function identity exports (`lockBusinessMemberReach`). It is a read,
