@@ -1,15 +1,14 @@
 'use client';
 import type { WorkspaceBusiness } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button, PageHeader } from '@pospay/ui';
-import Link from 'next/link';
+import { PageHeader } from '@pospay/ui';
 import { useCallback, useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployees } from '../api/use-employees';
 import { useEmployeeListControls } from '../model/use-employee-list-controls';
 import { EmployeeListPanel } from '../ui/employee-list-panel';
 import { EmployeeNumberStartDialog } from '../ui/employee-number-start-dialog';
-import { EmployeeAppLinkButton } from '../ui/employee-app-link-button';
+import { EmployeesHeaderActions } from '../ui/employees-header-actions';
 import { EmployeeEditPanel } from '../ui/employee-edit-panel';
 import { PasskeyEmployeesPanel } from '../ui/passkey-employees-panel';
 
@@ -36,19 +35,11 @@ export function EmployeesPage({
         title={t(locale, 'staff.listTitle')}
         description={t(locale, 'staff.listLead')}
         action={
-          <div className="flex flex-wrap gap-2">
-            <EmployeeAppLinkButton
-              companyId={companyId}
-              userId={userId}
-              businessId={business.id}
-            />
-            <Button asChild variant="outline">
-              <Link href="/staff/document-types">{t(locale, 'employeeDocuments.typesLink')}</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/staff/create">{t(locale, 'staff.create')}</Link>
-            </Button>
-          </div>
+          <EmployeesHeaderActions
+            companyId={companyId}
+            userId={userId}
+            businessId={business.id}
+          />
         }
       />
       <EmployeeNumberStartDialog companyId={companyId} userId={userId} />
