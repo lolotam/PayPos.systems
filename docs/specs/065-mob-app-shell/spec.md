@@ -363,8 +363,8 @@ None published, none consumed.
   (a)–(c) on the simulator, (d)–(e) on the first real iPhone (M-1c-ii). **Staged by PP-58.1:** (a) and (b) run now on
   Android; (c), (d) and (e) wait until WhatsApp Business is set up and then run on real WhatsApp. The M-1c gate is
   phase one only: Android (a)–(e) and the iOS simulator checks; the real-iPhone checks of M-1c-ii stay outside it
-  (they need the M-2a build). **PP-58.2 (Waleed, 2026-10-25, option 1; his confirmation on the
-  corrected wording is pending):** a simulator on the GitHub runner cannot receive a real WhatsApp code, so M-1d onward
+  (they need the M-2a build). **PP-58.2 (Waleed, 2026-10-25, option 1, confirmed on the corrected
+  wording):** a simulator on the GitHub runner cannot receive a real WhatsApp code, so M-1d onward
   and the Apple fee wait on iOS (a) pairing and (b) staff PIN passing on the simulator, and iOS (c), the personal
   session, moves to the first real iPhone (M-1c-ii).
 - **RLS negative**: not applicable (no tenant table).
