@@ -55,7 +55,7 @@ function linkInput(userId: string, employeeId: string) {
   return { ...membershipInput(userId), employeeId };
 }
 
-async function syntheticEmployee(companyId = A.company): Promise<string> {
+async function syntheticEmployee(companyId: string = A.company): Promise<string> {
   const employeeId = ids.newId();
   await seedEmployee(owner, companyId, employeeId);
   return employeeId;
@@ -73,7 +73,7 @@ describe('staging staff branch membership', () => {
     expect(audits).toEqual([
       {
         actor_user_id: null,
-        action: 'role.granted',
+        action: 'created',
         after: expect.objectContaining({ operator, user_id: userId, scope_id: A.branch }),
       },
     ]);
@@ -91,6 +91,15 @@ describe('staging staff branch membership', () => {
       expect(await ensureStaffBranchMembership(membershipInput(userId))).toBe('created');
       expect(await owner`SELECT id FROM memberships WHERE company_id=${A.company} AND user_id=${userId}`).toHaveLength(2);
     }
+  });
+
+  it('refuses a branch of another business of the same company without writing', async () => {
+    const userId = await syntheticUser();
+    await expect(
+      ensureStaffBranchMembership({ ...membershipInput(userId), branchId: secondBranch }),
+    ).rejects.toMatchObject({ code: 'TARGET_SCOPE_REFUSED' });
+    expect(await owner`SELECT id FROM memberships WHERE user_id=${userId}`).toHaveLength(0);
+    expect(await owner`SELECT id FROM audit_log WHERE after->>'user_id'=${userId}`).toHaveLength(0);
   });
 
   it.each([
@@ -126,7 +135,9 @@ describe('staging employee user link', () => {
       { actor_user_id: null, after: { operator, employee_id: employeeId, user_id: userId } },
     ]);
   });
+});
 
+describe('staging employee user link refusals', () => {
   it('refuses an employee linked to another user without changing it', async () => {
     const userId = await syntheticUser();
     const otherUserId = await syntheticUser();

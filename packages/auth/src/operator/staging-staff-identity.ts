@@ -1,12 +1,5 @@
 import { createAuthDatabase } from '@pospay/db';
-import { sql } from 'drizzle-orm';
-
-type IdentityRow = {
-  kind: 'email' | 'phone';
-  id: string;
-  phone: string | null;
-  phone_approved: boolean;
-};
+import { readStagingStaffIdentityRows } from '@pospay/db/operator/staging-staff';
 
 /**
  * يقرأ تطابق الإيميل والهاتف معاً قبل إنشاء مستخدم PP-58.3، حتى لا يتكرر مالك الهاتف أو تتعارض الهوية.
@@ -26,22 +19,10 @@ export async function readStagingStaffIdentity(input: {
   const database = createAuthDatabase({ url: input.authDatabaseUrl, maxConnections: 1 });
   try {
     await database.ping();
-    const rows = await database.db.execute<IdentityRow>(sql`
-      SELECT 'email' AS kind,id,phone_number AS phone,
-        (phone_binding_approved_at IS NOT NULL) AS phone_approved
-        FROM "user" WHERE email=${input.email}
-      UNION ALL
-      SELECT 'phone' AS kind,id,NULL AS phone,false AS phone_approved
-        FROM "user" WHERE phone_number=${input.phone}`);
-    const email = rows.find((row) => row.kind === 'email');
-    const phone = rows.find((row) => row.kind === 'phone');
-    return {
-      emailUser:
-        email === undefined
-          ? null
-          : { id: email.id, phone: email.phone, phoneApproved: email.phone_approved },
-      phoneOwnerId: phone?.id ?? null,
-    };
+    return await readStagingStaffIdentityRows(database, {
+      email: input.email,
+      phone: input.phone,
+    });
   } finally {
     await database.close();
   }

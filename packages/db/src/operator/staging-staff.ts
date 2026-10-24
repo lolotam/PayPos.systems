@@ -5,6 +5,8 @@ import { appendAuditLog } from '../audit-log.ts';
 import { createDatabase } from '../client.ts';
 import type { IdGenerator, Tx } from '../with-tenant.ts';
 
+export { readStagingStaffIdentityRows } from './staging-staff-identity.ts';
+
 export type StagingStaffRefusalCode =
   | 'TARGET_SCOPE_REFUSED'
   | 'EMPLOYEE_NOT_FOUND'
@@ -36,7 +38,7 @@ type OperatorInput = {
 
 const staffRoleId = (): string => {
   const role = SYSTEM_ROLES.find((candidate) => candidate.code === 'staff');
-  if (role === undefined) throw new StagingStaffRefusal('TARGET_SCOPE_REFUSED');
+  if (role === undefined) throw new Error('STAFF_SYSTEM_ROLE_MISSING');
   return role.id;
 };
 
@@ -102,7 +104,7 @@ export async function ensureStaffBranchMembership(input: {
     await appendAuditLog(tx, input.ids.newId(), {
       entity: 'membership',
       entityId: membershipId,
-      action: 'role.granted',
+      action: 'created',
       after: {
         operator: input.operator,
         membership_id: membershipId,
