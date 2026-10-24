@@ -56,14 +56,14 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.record = record;
       fakes.state.writes.push(record);
     },
-    suspend: async (record: PushRecord) => {
+    suspend: async () => {
       if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
-      fakes.state.record = {
-        ...record,
-        suspended: true,
-        revision: (fakes.state.record?.revision ?? 0) + 1,
-      };
-      fakes.state.writes.push(fakes.state.record);
+      const stored = fakes.state.record;
+      if (stored === null) return 0;
+      const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
+      fakes.state.record = suspended;
+      fakes.state.writes.push(suspended);
+      return suspended.revision;
     },
     remove: async () => {
       fakes.state.removed += 1;
@@ -381,7 +381,7 @@ it('keeps a sign-in suspension that lands while the enable is registering', asyn
   fakes.state.record = { ...RECORD, suspended: true, revision: 2 };
   vi.mocked(pushCalls.register).mockImplementation(async () => {
     // تسجيل دخول وصل وقت التسجيل: التعليق الجديد لازم يفضل والسجل ما يتلمسش.
-    await pushRecordStore.suspend({ ...RECORD, suspended: true });
+    await pushRecordStore.suspend();
   });
 
   const outcome = await enablePush({
