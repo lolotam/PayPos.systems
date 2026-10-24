@@ -271,9 +271,7 @@ describe('NativeEntry link while the app runs', () => {
     });
     mount();
 
-    expect(
-      await screen.findByText(t('ar', 'nativeShell.switchBusinessConfirm')),
-    ).not.toBeNull();
+    expect(await screen.findByText(t('ar', 'nativeShell.switchBusinessConfirm'))).not.toBeNull();
     expect(rememberBusiness).not.toHaveBeenCalled();
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
   });

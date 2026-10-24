@@ -132,9 +132,7 @@ describe('NativeEntry links that race', () => {
       opened.listener?.(link(HOST, OTHER_BUSINESS));
     });
 
-    expect(
-      await screen.findByText(t('ar', 'nativeShell.switchBusinessConfirm')),
-    ).not.toBeNull();
+    expect(await screen.findByText(t('ar', 'nativeShell.switchBusinessConfirm'))).not.toBeNull();
     expect(connectEmployee).toHaveBeenCalledTimes(1);
     expect(connectEmployee).toHaveBeenCalledWith({
       company_id: COMPANY,
