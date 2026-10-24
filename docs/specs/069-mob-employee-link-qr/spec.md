@@ -172,13 +172,13 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   - **Sequential steps, as in `IssueDownload`** (`CLAUDE.md` §6, PP-7.2, never nested): resolve the logo file (only to
     name a `DENY` audit); check the permission again for every request (a refusal commits a `DENY` pair when a file
     exists, then answers 403); then, once allowed, **always** one locked transaction that decides on the current
-    binding (`lockBusinessLogoReference` plus a read of the binding there): nothing qualifying bound now answers
+    binding (`lockBusinessLogoBinding`, which locks the settings row and returns the current logo): nothing qualifying bound now answers
     `download_url: null`, and any qualifying logo, a replacement or one bound meanwhile included, gets the `ALLOW` pair
     (`file_access_audit` and the `file`/`access` `audit_log` entry, ADR-0056 §3) and the signed URL in that same
     transaction, so they commit together or not at all. The image is delivered only after that commit. Because it
     writes, it is a use case, not a `queries/` read (`CLAUDE.md` §6), and its ids come from the injected `IdGenerator`.
   - **Settled by the addendum** (not repeated here): the read lives in API `files`; it learns `logo_file_id` through
-    `@pospay/db` `readBusinessIdentity` with no `files → settings` import; it
+    `@pospay/db` (`readBusinessIdentity`, then `lockBusinessLogoBinding` under the lock) with no `files → settings` import; it
     issues a 60-second signed URL, signed inside the `ALLOW` transaction, with `Cache-Control: private, no-store`; and
     the screen tells a missing logo from a failure by the storage answer (CORS `GET`, EL-TQ1).
   - **When the logo cannot be shown:** a bound logo whose stored object is missing counts as no logo, and the sheet

@@ -196,15 +196,17 @@ worker, embeds bytes in a PDF, and needs a render id.
       answers the 403 and writes nothing. The route therefore never answers `download_url: null` to a caller who
       lost the permission after the guard.
    3. **Allowed: always one locked `withTenant` transaction, with or without a logo found in step 1.** Lock the
-      binding first: `@pospay/db` `lockBusinessLogoReference(tx, company, business, fileId)` (step 1's file id, or
-      none), which takes the `business_settings` `FOR UPDATE` lock that binding and removal take (ADR-0046 §4). Then
-      read the **current** binding in this same transaction (`readBusinessIdentity`) and decide on it, not on step 1:
-      the current file, if any, is checked against its `file_objects` row as step 1 did. Nothing qualifying bound now:
+      binding first with a new lock-only sibling in `@pospay/db`, `lockBusinessLogoBinding(tx, companyId, businessId)`,
+      beside `lockBusinessLogoReference` in `business-logo-reference.ts`. It takes the same `business_settings` lock
+      (the empty-row `INSERT … ON CONFLICT DO NOTHING`, then `FOR UPDATE`), the one binding and removal take
+      (ADR-0046 §4), and returns the **current** `logo_file_id` or `null`. `lockBusinessLogoReference` keeps its
+      signature and its callers. Decide on that current binding, not on step 1: the current file, if any, is checked against its `file_objects` row as step 1 did. Nothing qualifying bound now:
       200 `{ download_url: null }`, nothing written, and the sheet prints the name only. A qualifying file (the step 1
       file, a replacement, or a logo bound after step 1): insert the `ALLOW` pair, sign the GET URL with
       `packages/storage` `presignDownload` (local computation, no network call, so ADR-0046 §4 holds), commit. A
       signing failure rolls the pair back, so an `ALLOW` is never recorded for a URL that was not issued. A retired
-      file is never signed, and a logo that exists when the lock is taken is always printed.
+      file is never signed, and a logo bound when the lock is taken is always audited and issued through a signed URL;
+      a stored object missing at fetch time still prints the name only (§4 of this addendum).
    - **Accepted residual:** none of these steps locks the membership rows, so a revocation that commits after step
      2 still gets one audited URL that lives 60 seconds. That is the residual of every download in the project
      (ADR-0022: the audit measures URL issuance), and this route checks the permission exactly as `IssueDownload`
@@ -231,7 +233,8 @@ worker, embeds bytes in a PDF, and needs a render id.
      message then says so. This changes spec 069's missing-object rule.
 
 **Consequences.** One new route and use case in API `files`, one port row (`BusinessLogoReference` → `@pospay/db`) in
-the module map, and an optional cache policy on `presignDownload`. No new import arrow, table, permission, grant or
+the module map, one new lock-only `@pospay/db` function (`lockBusinessLogoBinding`, beside the unchanged
+`lockBusinessLogoReference`), and an optional cache policy on `presignDownload`. No new import arrow, table, permission, grant or
 role. Every sheet printed with a logo leaves an audit pair for the user who opened it.
 
 **Alternatives rejected.**
