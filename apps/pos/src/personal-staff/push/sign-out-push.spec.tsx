@@ -15,6 +15,8 @@ const fakes = vi.hoisted(() => {
     unsubscribed: 0,
     revokeAttempts: 0,
     generation: 0,
+    suspendOnRemove: false,
+    record: null as PushRecord | null,
   };
   return { state };
 });
@@ -25,6 +27,7 @@ const RECORD: PushRecord = {
   company_id: 'company',
   vapid_key_id: '0123456789abcdef',
   suspended: false,
+  revision: 0,
 };
 
 const session = {
@@ -53,11 +56,18 @@ vi.mock('./push-browser', () => ({
 }));
 vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
-    read: async () => ({ ...RECORD }),
+    read: async () => (fakes.state.record === null ? null : { ...fakes.state.record }),
     write: async () => undefined,
     remove: async () => {
       fakes.state.removed += 1;
+      if (fakes.state.suspendOnRemove) {
+        // موظفة تانية دخلت على نفس الموبايل: سجلها الجديد اتعلق.
+        fakes.state.record = { ...RECORD, token: 'another-token', suspended: true, revision: 1 };
+        return;
+      }
+      fakes.state.record = null;
     },
+    suspend: async () => undefined,
     generation: async () => fakes.state.generation,
     bumpGeneration: async () => {
       fakes.state.generation += 1;
@@ -96,6 +106,8 @@ beforeEach(() => {
   fakes.state.unsubscribed = 0;
   fakes.state.revokeAttempts = 0;
   fakes.state.generation = 0;
+  fakes.state.suspendOnRemove = false;
+  fakes.state.record = null;
   vi.mocked(personalCalls.session).mockResolvedValue(session);
   vi.mocked(personalCalls.signOut).mockResolvedValue(undefined);
 });
@@ -145,6 +157,22 @@ it('removes the record on sign out even when another push operation holds the lo
   });
   expect(personalCalls.signOut).toHaveBeenCalledTimes(1);
   await holding;
+  f.unmount();
+});
+
+it('does not revoke or unsubscribe when another employee signed in meanwhile', async () => {
+  const f = fixture();
+  await waitFor(() => expect(f.result.current.session).toEqual(session));
+  vi.mocked(personalCalls.session).mockResolvedValue(null);
+  fakes.state.suspendOnRemove = true;
+
+  await act(async () => {
+    await f.result.current.signOut();
+  });
+
+  expect(personalCalls.signOut).toHaveBeenCalledTimes(1);
+  expect(fakes.state.revokeAttempts).toBe(0);
+  expect(fakes.state.unsubscribed).toBe(0);
   f.unmount();
 });
 

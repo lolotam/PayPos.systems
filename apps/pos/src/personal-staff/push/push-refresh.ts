@@ -97,6 +97,7 @@ async function resume(record: PushRecord, generation: number): Promise<PushRecor
   try {
     const written = await pushRecordStore.writeIfGeneration(live, generation, {
       clearSuspension: true,
+      expectRevision: record.revision,
     });
     if (!written) return null;
   } catch {
@@ -154,15 +155,22 @@ async function rotate(
         company_id: record.company_id,
         vapid_key_id: input.config.vapid_key_id,
         suspended: false,
+        revision: record.revision,
       },
       generation,
+      { expectRevision: record.revision },
     );
   } catch {
     // فشل الكتابة: السجل مش هيتكتب والتسجيل الجديد بيتشال.
+    await dropSubscription();
+    await revoke(installationId);
+    await removeRecord();
+    return { kind: 'cleared' };
   }
   if (!written) {
-    // جيل تاني غيّر السجل: الاشتراك الجديد بيتشال والسطر عند الـ API بيراجع (ADR-0052 §7).
-    await rollback(installationId);
+    // جيل أو مراجعة أحدث: السجل دلوقتي بتاع حد تاني، فبنسيبه ونشيل بس تسجيلنا (ADR-0052 §7).
+    await dropSubscription();
+    await revoke(installationId);
     return { kind: 'cleared' };
   }
   notifyPushRecordChanged();
@@ -172,13 +180,6 @@ async function rotate(
 /** الاشتراك الجديد بيتشال: المتصفح مينفعش يفضل مسجل من غير حد يطلبه. */
 async function dropSubscription(): Promise<void> {
   await unsubscribePush().catch(() => undefined);
-}
-
-/** رجوع على عقب: الاشتراك يتشال، والسطر عند الـ API يتراجع، والسجل يمسح. */
-async function rollback(installationId: string): Promise<void> {
-  await dropSubscription();
-  await revoke(installationId);
-  await removeRecord();
 }
 
 async function removeRecord(): Promise<void> {

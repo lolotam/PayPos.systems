@@ -45,6 +45,14 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.record = record;
       fakes.state.writes.push(record);
     },
+    suspend: async (record: PushRecord) => {
+      fakes.state.record = {
+        ...record,
+        suspended: true,
+        revision: (fakes.state.record?.revision ?? 0) + 1,
+      };
+      fakes.state.writes.push(fakes.state.record);
+    },
     remove: async () => {
       fakes.state.removed += 1;
       fakes.state.record = null;
@@ -57,17 +65,17 @@ vi.mock('./push-record-idb', () => ({
     writeIfGeneration: async (
       record: PushRecord,
       expected: number,
-      options?: { clearSuspension?: boolean; expectToken?: string | null },
+      options?: { clearSuspension?: boolean; expectRevision?: number },
     ) => {
       if (fakes.state.generation !== expected) return false;
       const stored = fakes.state.record;
-      const sameRecord =
-        options?.expectToken === undefined
-          ? true
-          : options.expectToken === null
-            ? stored === null
-            : stored?.token === options.expectToken;
-      const clear = options?.clearSuspension === true && sameRecord;
+      if (
+        options?.expectRevision !== undefined &&
+        (stored?.revision ?? 0) !== options.expectRevision
+      ) {
+        return false;
+      }
+      const clear = options?.clearSuspension === true;
       const suspended = (stored?.suspended === true || fakes.state.suspendOnWrite) && !clear;
       fakes.state.record = suspended ? { ...record, suspended: true } : record;
       fakes.state.writes.push(fakes.state.record);
@@ -240,6 +248,7 @@ it('tries the registration once when the refresh keeps failing, and again after 
     company_id: 'company',
     vapid_key_id: '0123456789abcdef',
     suspended: false,
+    revision: 0,
   };
   fakes.state.permission = 'granted';
   fakes.state.subscribed = true;
@@ -267,7 +276,16 @@ it('turns the notifications on over a suspended record and ends unsuspended', as
     company_id: 'company',
     vapid_key_id: '0123456789abcdef',
     suspended: true,
+    revision: 0,
   };
+  // أول جواب للـ config مختلف: التحديث وقت الفتح ما يرجعش السجل قبل التشغيل.
+  let configCalls = 0;
+  vi.mocked(pushCalls.config).mockImplementation(async () => {
+    configCalls += 1;
+    return configCalls === 1
+      ? { kind: 'ready', config: { ...CONFIG, subscriber_ref: 'another-ref' } }
+      : { kind: 'ready', config: CONFIG };
+  });
   mount();
   const button = await screen.findByRole('button', { name: t('en', 'staffPush.enable') });
 
@@ -299,6 +317,7 @@ it('runs the refresh again after the browser permission is granted', async () =>
     company_id: 'company',
     vapid_key_id: '0123456789abcdef',
     suspended: false,
+    revision: 0,
   };
   fakes.state.permission = 'default';
   fakes.state.subscribed = true;
@@ -322,6 +341,7 @@ it('starts no second refresh while one is still pending', async () => {
     company_id: 'company',
     vapid_key_id: '0123456789abcdef',
     suspended: false,
+    revision: 0,
   };
   fakes.state.permission = 'granted';
   fakes.state.subscribed = true;

@@ -1,6 +1,7 @@
 /**
  * سجل الإشعارات المحلي على الجهاز: توكن التسليم ومرجع المشترك والشركة ومفتاح VAPID
- * وحالة التعليق. مش بيانات خاصة: التوكن عشوائي ومرجع المشترك مش قابل للعكس (ADR-0052 §7).
+ * وحالة التعليق ورقم المراجعة. مش بيانات خاصة: التوكن عشوائي ومرجع المشترك مش قابل
+ * للعكس (ADR-0052 §7).
  */
 export interface PushRecord {
   token: string;
@@ -8,12 +9,14 @@ export interface PushRecord {
   company_id: string;
   vapid_key_id: string;
   suspended: boolean;
+  /** رقم بيزيد مع كل تعليق: بيقول إن التعليق ده جديد ولا من قديم. */
+  revision: number;
 }
 
 /** خيارات الكتابة المحروسة: التعليق بيتشال بس لما الطلب يقول صريح. */
 export interface PushWriteOptions {
   clearSuspension?: boolean;
-  expectToken?: string | null;
+  expectRevision?: number;
 }
 
 /**
@@ -24,6 +27,7 @@ export interface PushRecordStore {
   read(): Promise<PushRecord | null>;
   write(record: PushRecord): Promise<void>;
   remove(): Promise<void>;
+  suspend(record: PushRecord): Promise<void>;
   generation(): Promise<number>;
   bumpGeneration(): Promise<number>;
   writeIfGeneration(

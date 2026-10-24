@@ -88,9 +88,8 @@ function bumpGeneration(): Promise<number> {
 }
 
 /**
- * بيكتب السجل بس لو جيله زي ما هو، والقراءة والكتابة في transaction واحد.
- * ولو السجل المحفوظ معلّق، السجل الجديد يفضل معلّق إلا لو الطلب قال صريح إن التعليق يتشال
- * والسجل المحفوظ هو نفسه اللي الطلب بدأ منه (التوكن المتوقع).
+ * بيكتب السجل بس لو جيله ورقم مراجعته زي ما هما، والقراءة والكتابة في transaction واحد.
+ * ولو السجل المحفوظ معلّق، السجل الجديد يفضل معلّق إلا لو الطلب قال صريح إن التعليق يتشال.
  */
 function writeIfGeneration(
   record: PushRecord,
@@ -109,13 +108,9 @@ function writeIfGeneration(
           const recordRequest = store.get(RECORD_KEY) as IDBRequest<PushRecord | undefined>;
           recordRequest.onsuccess = () => {
             const stored = recordRequest.result;
-            const sameRecord =
-              options.expectToken === undefined
-                ? true
-                : options.expectToken === null
-                  ? stored === undefined
-                  : stored?.token === options.expectToken;
-            const clear = options.clearSuspension === true && sameRecord;
+            const revision = stored?.revision ?? 0;
+            if (options.expectRevision !== undefined && revision !== options.expectRevision) return;
+            const clear = options.clearSuspension === true;
             const suspended = stored?.suspended === true && !clear;
             store.put(suspended ? { ...record, suspended: true } : record, RECORD_KEY);
             written = true;
@@ -124,6 +119,32 @@ function writeIfGeneration(
         transaction.oncomplete = () => {
           database.close();
           resolve(written);
+        };
+        transaction.onabort = () => {
+          database.close();
+          reject(transaction.error ?? unavailable());
+        };
+      }),
+  );
+}
+
+/**
+ * بيكتب السجل معلقًا وبيزيد رقم المراجعة: التعليق الجديد بيبان إنه جديد على أي تعليق قديم.
+ */
+function suspendRecord(record: PushRecord): Promise<void> {
+  return openDatabase().then(
+    (database) =>
+      new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.get(RECORD_KEY) as IDBRequest<PushRecord | undefined>;
+        request.onsuccess = () => {
+          const revision = (request.result?.revision ?? 0) + 1;
+          store.put({ ...record, suspended: true, revision }, RECORD_KEY);
+        };
+        transaction.oncomplete = () => {
+          database.close();
+          resolve();
         };
         transaction.onabort = () => {
           database.close();
@@ -146,6 +167,9 @@ export const pushRecordStore: PushRecordStore = {
   },
   remove: async () => {
     await runTransaction('readwrite', (store) => store.delete(RECORD_KEY));
+  },
+  suspend: async (record: PushRecord) => {
+    await suspendRecord(record);
   },
   generation: async () => {
     const stored = await runTransaction<number | undefined>('readonly', (store) =>

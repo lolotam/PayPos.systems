@@ -15,19 +15,30 @@ const GENERATION_TIMEOUT_MS = 2000;
  * السجل المحلي بيتمسح في كل الأحوال؛ فشل الشبكة مش بيسيب نص سجل (ADR-0052 §7).
  *
  * @param installationId معرف التثبيت، أو null لو التخزين متعطل فمفيش حاجة تتراجع
+ * @param expected السجل اللي كان موجود وقت البداية، عشان ما نراجعش سطر موظفة تانية
  */
-export async function disablePush(installationId: string | null): Promise<void> {
+export async function disablePush(
+  installationId: string | null,
+  expected: { token: string | null; revision: number } | null = null,
+): Promise<void> {
   await runPushExclusive(async () => {
     // إيقاف الإشعارات بيكسر الجيل: أي تسجيل شغال في تبويب تاني بيمسك نفسه (ADR-0052 §7).
     await withTimeout(pushRecordStore.bumpGeneration(), GENERATION_TIMEOUT_MS).catch(
       () => undefined,
     );
+    const stored = await pushRecordStore.read().catch(() => null);
+    // سجل أحدث (تسجيل موظفة تانية أو تعليق جديد) ما نراجعش سطره ولا نشيل اشتراكه.
+    const newer =
+      expected !== null &&
+      stored !== null &&
+      (stored.token !== expected.token || stored.revision !== expected.revision);
     try {
       await pushRecordStore.remove();
     } catch {
       // التخزين متعطل: مفيش سجل ينمسح أصلاً.
     }
     notifyPushRecordChanged();
+    if (newer) return;
     try {
       await unsubscribePush();
     } catch {
@@ -65,8 +76,10 @@ export async function disablePushOnSignOut(): Promise<void> {
 
 /** التوكين بينمسح بره القفل: لو شغل تاني ماسك القفل على طلب واقف، الخروج يفضل ماشي. */
 async function signOutCleanup(installationId: string | null): Promise<void> {
+  const stored = await pushRecordStore.read().catch(() => null);
+  const expected = { token: stored?.token ?? null, revision: stored?.revision ?? 0 };
   await withTimeout(pushRecordStore.bumpGeneration(), GENERATION_TIMEOUT_MS).catch(() => undefined);
   await withTimeout(pushRecordStore.remove(), SIGN_OUT_RECORD_TIMEOUT_MS).catch(() => undefined);
   notifyPushRecordChanged();
-  await disablePush(installationId);
+  await disablePush(installationId, expected);
 }

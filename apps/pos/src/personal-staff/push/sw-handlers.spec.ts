@@ -12,6 +12,7 @@ const RECORD: PushRecord = {
   company_id: 'company',
   vapid_key_id: '0123456789abcdef',
   suspended: false,
+  revision: 0,
 };
 
 function payload(over: Record<string, unknown> = {}): string {
@@ -37,6 +38,7 @@ function store(record: PushRecord | null): PushRecordStore {
     read: async () => record,
     write: async () => undefined,
     remove: async () => undefined,
+    suspend: async () => undefined,
     generation: async () => 0,
     bumpGeneration: async () => 1,
     writeIfGeneration: async () => true,

@@ -19,8 +19,10 @@ interface StandaloneNavigator extends Navigator {
   standalone?: boolean;
 }
 
-// رقم كل محاولة اشتراك: المحاولة المتأخرة ما تشيلش اشتراك بناءً تشغيل أحدث (ADR-0052 §7).
+// رقم كل محاولة اشتراك، ورقم آخر محاولة نجحت: المحاولة المتأخرة ما تشيلش اشتراك
+// بناءً تشغيل أحدث نجح فعلاً (ADR-0052 §7).
 let subscribeAttempt = 0;
+let lastSucceededAttempt = 0;
 
 export function hasServiceWorker(): boolean {
   return typeof globalThis.navigator !== 'undefined' && 'serviceWorker' in globalThis.navigator;
@@ -108,10 +110,14 @@ export async function subscribeWithDeadline(
   });
   const settled = await Promise.race([pending.then((value) => value).catch(() => null), deadline]);
   window.clearTimeout(timer);
-  if (settled !== null) return settled;
+  if (settled !== null) {
+    lastSucceededAttempt = attempt;
+    return settled;
+  }
   void pending
     .then((late) => {
-      if (subscribeAttempt !== attempt) return undefined;
+      // تشغيل أحدث نجح هو ده اللي ماسك الاشتراك؛ غير كده المتأخر يتشال (ADR-0052 §7).
+      if (lastSucceededAttempt > attempt) return undefined;
       return late.unsubscribe();
     })
     .catch(() => undefined);

@@ -5,6 +5,7 @@ import { disablePush, disablePushOnSignOut } from './push-disable';
 import { enablePush } from './push-enable';
 import { pushCalls } from './push-calls';
 import { runPushExclusive } from './push-lock';
+import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
 import { refreshPush } from './push-refresh';
 import { suspendPushForSignIn } from './push-sign-in-check';
@@ -44,6 +45,7 @@ const RECORD: PushRecord = {
   company_id: 'company',
   vapid_key_id: '0123456789abcdef',
   suspended: false,
+  revision: 0,
 };
 
 vi.mock('./push-record-idb', () => ({
@@ -53,6 +55,15 @@ vi.mock('./push-record-idb', () => ({
       if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       fakes.state.record = record;
       fakes.state.writes.push(record);
+    },
+    suspend: async (record: PushRecord) => {
+      if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
+      fakes.state.record = {
+        ...record,
+        suspended: true,
+        revision: (fakes.state.record?.revision ?? 0) + 1,
+      };
+      fakes.state.writes.push(fakes.state.record);
     },
     remove: async () => {
       fakes.state.removed += 1;
@@ -66,11 +77,19 @@ vi.mock('./push-record-idb', () => ({
     writeIfGeneration: async (
       record: PushRecord,
       expected: number,
-      options?: { clearSuspension?: boolean },
+      options?: { clearSuspension?: boolean; expectRevision?: number },
     ) => {
       if (fakes.state.writeIfGenerationFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       if (fakes.state.generation !== expected) return false;
-      const suspended = fakes.state.record?.suspended === true && options?.clearSuspension !== true;
+      const stored = fakes.state.record;
+      if (
+        options?.expectRevision !== undefined &&
+        (stored?.revision ?? 0) !== options.expectRevision
+      ) {
+        return false;
+      }
+      const clear = options?.clearSuspension === true;
+      const suspended = stored?.suspended === true && !clear;
       fakes.state.record = suspended ? { ...record, suspended: true } : record;
       fakes.state.writes.push(fakes.state.record);
       return true;
@@ -325,9 +344,9 @@ it('keeps the record when the same person signs in again during a rotation', asy
   hold.release();
   const outcome = await rotating;
 
-  expect(outcome.kind).toBe('rotated');
+  expect(outcome.kind).toBe('cleared');
   expect(fakes.state.record?.suspended).toBe(true);
-  expect(fakes.state.record?.vapid_key_id).toBe('0123456789abcdef');
+  expect(fakes.state.record?.vapid_key_id).toBe('oldkey0000000000');
 });
 
 it('deletes the record and revokes when the sign out happens during a rotation', async () => {
@@ -350,6 +369,40 @@ it('deletes the record and revokes when the sign out happens during a rotation',
   expect(fakes.state.record).toBeNull();
   expect(fakes.state.writes).toHaveLength(0);
   expect(pushCalls.revoke).toHaveBeenCalled();
+});
+
+it('keeps a sign-in suspension that lands while the enable is registering', async () => {
+  fakes.state.record = { ...RECORD, suspended: true, revision: 2 };
+  vi.mocked(pushCalls.register).mockImplementation(async () => {
+    // تسجيل دخول وصل وقت التسجيل: التعليق الجديد لازم يفضل والسجل ما يتلمسش.
+    await pushRecordStore.suspend({ ...RECORD, suspended: true });
+  });
+
+  const outcome = await enablePush({
+    companyId: 'company',
+    locale: 'en',
+    installationId: INSTALLATION,
+    onRegistered: () => undefined,
+  });
+
+  expect(outcome.kind).toBe('failed');
+  expect(fakes.state.record?.suspended).toBe(true);
+  expect(fakes.state.record?.revision).toBe(3);
+});
+
+it('turns the notifications on over a suspended record and ends unsuspended', async () => {
+  fakes.state.record = { ...RECORD, suspended: true, revision: 1 };
+
+  const outcome = await enablePush({
+    companyId: 'company',
+    locale: 'en',
+    installationId: INSTALLATION,
+    onRegistered: () => undefined,
+  });
+
+  expect(outcome.kind).toBe('enabled');
+  expect(fakes.state.record?.suspended).toBe(false);
+  expect(fakes.state.record?.revision).toBe(1);
 });
 
 it('runs the work one at a time when the browser has no locks', async () => {

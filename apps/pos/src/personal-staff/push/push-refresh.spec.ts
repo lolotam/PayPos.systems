@@ -28,6 +28,7 @@ const RECORD: PushRecord = {
   company_id: 'company',
   vapid_key_id: '0123456789abcdef',
   suspended: false,
+  revision: 0,
 };
 
 const CONFIG: PushConfig = {
@@ -44,6 +45,15 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.record = record;
       fakes.state.writes.push(record);
     },
+    suspend: async (record: PushRecord) => {
+      if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
+      fakes.state.record = {
+        ...record,
+        suspended: true,
+        revision: (fakes.state.record?.revision ?? 0) + 1,
+      };
+      fakes.state.writes.push(fakes.state.record);
+    },
     remove: async () => {
       fakes.state.removed += 1;
       fakes.state.record = null;
@@ -56,11 +66,19 @@ vi.mock('./push-record-idb', () => ({
     writeIfGeneration: async (
       record: PushRecord,
       expected: number,
-      options?: { clearSuspension?: boolean },
+      options?: { clearSuspension?: boolean; expectRevision?: number },
     ) => {
       if (fakes.state.writeIfGenerationFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       if (fakes.state.generation !== expected) return false;
-      const suspended = fakes.state.record?.suspended === true && options?.clearSuspension !== true;
+      const stored = fakes.state.record;
+      if (
+        options?.expectRevision !== undefined &&
+        (stored?.revision ?? 0) !== options.expectRevision
+      ) {
+        return false;
+      }
+      const clear = options?.clearSuspension === true;
+      const suspended = stored?.suspended === true && !clear;
       fakes.state.record = suspended ? { ...record, suspended: true } : record;
       fakes.state.writes.push(fakes.state.record);
       return true;

@@ -67,9 +67,10 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
     if (asked !== 'granted') return { kind: 'blocked' };
   }
   return runPushExclusive(async (): Promise<PushEnableOutcome> => {
-    // الجيل بيتقرا من IndexedDB عشان كل التبويبات تشوف نفس الرقم (ADR-0052 §7).
+    // الجيل ومراجعة السجل بيتقرا من IndexedDB عشان كل التبويبات تشوف نفس الرقم (ADR-0052 §7).
     const generation = await pushRecordStore.generation();
     const previous = await pushRecordStore.read().catch(() => null);
+    const revision = previous?.revision ?? 0;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const config = await withAbortTimeout((signal) => pushCalls.config(signal), API_TIMEOUT_MS);
       if (config.kind === 'not-ready') return { kind: 'not-ready' };
@@ -100,11 +101,12 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
             company_id: input.companyId,
             vapid_key_id: config.config.vapid_key_id,
             suspended: false,
+            revision,
           },
           generation,
           {
             clearSuspension: previous?.suspended === true,
-            expectToken: previous?.token ?? null,
+            expectRevision: revision,
           },
         );
       } catch {
