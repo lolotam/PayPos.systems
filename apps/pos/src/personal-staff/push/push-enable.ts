@@ -67,7 +67,8 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
     if (asked !== 'granted') return { kind: 'blocked' };
   }
   return runPushExclusive(async (): Promise<PushEnableOutcome> => {
-    // الجيل ومراجعة السجل بيتقرا من IndexedDB عشان كل التبويبات تشوف نفس الرقم (ADR-0052 §7).
+    // الجيل والمراجعة والتوكن بيتقرا من IndexedDB: التبويبات تشوف نفس القيم، والتوكن
+    // بيكشف استبدال عادي مش بيزود المراجعة (ADR-0052 §7).
     const generation = await pushRecordStore.generation();
     const previous = await pushRecordStore.read().catch(() => null);
     const revision = previous?.revision ?? 0;
@@ -107,6 +108,7 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
           {
             clearSuspension: previous?.suspended === true,
             expectRevision: revision,
+            expectToken: previous?.token ?? null,
           },
         );
       } catch {

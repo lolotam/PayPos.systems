@@ -7,7 +7,7 @@ import { LocaleProvider } from '@/shared/locale/locale-context';
 import { attendanceInstallationId } from '../model/installation-id';
 import { PushControl } from './push-control';
 import { pushCalls } from './push-calls';
-import type { PushRecord } from './push-record';
+import type { PushRecord, PushWriteOptions } from './push-record';
 
 const fakes = vi.hoisted(() => {
   const state = {
@@ -45,13 +45,13 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.record = record;
       fakes.state.writes.push(record);
     },
-    suspend: async (record: PushRecord) => {
-      fakes.state.record = {
-        ...record,
-        suspended: true,
-        revision: (fakes.state.record?.revision ?? 0) + 1,
-      };
-      fakes.state.writes.push(fakes.state.record);
+    suspend: async () => {
+      const stored = fakes.state.record;
+      if (stored === null) return 0;
+      const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
+      fakes.state.record = suspended;
+      fakes.state.writes.push(suspended);
+      return suspended.revision;
     },
     remove: async () => {
       fakes.state.removed += 1;
@@ -62,17 +62,16 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.generation += 1;
       return fakes.state.generation;
     },
-    writeIfGeneration: async (
-      record: PushRecord,
-      expected: number,
-      options?: { clearSuspension?: boolean; expectRevision?: number },
-    ) => {
+    writeIfGeneration: async (record: PushRecord, expected: number, options?: PushWriteOptions) => {
       if (fakes.state.generation !== expected) return false;
       const stored = fakes.state.record;
       if (
         options?.expectRevision !== undefined &&
         (stored?.revision ?? 0) !== options.expectRevision
       ) {
+        return false;
+      }
+      if (options?.expectToken !== undefined && (stored?.token ?? null) !== options.expectToken) {
         return false;
       }
       const clear = options?.clearSuspension === true;

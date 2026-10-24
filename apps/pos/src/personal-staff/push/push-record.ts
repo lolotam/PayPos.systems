@@ -13,10 +13,11 @@ export interface PushRecord {
   revision: number;
 }
 
-/** خيارات الكتابة المحروسة: التعليق بيتشال بس لما الطلب يقول صريح. */
+/** خيارات الكتابة المحروسة: التعليق بيتشال صريح، والمراجعة والتوكن بيمنعوا كتابة قديمة. */
 export interface PushWriteOptions {
   clearSuspension?: boolean;
   expectRevision?: number;
+  expectToken?: string | null;
 }
 
 /**
@@ -29,8 +30,8 @@ export interface PushRecordStore {
   remove(): Promise<void>;
   /** بيمسح بس السجل المتوقع، عشان تنظيف قديم ما يمسحش تسجيل تبويب تاني. */
   removeIfMatches(expected: { token: string | null; revision: number }): Promise<boolean>;
-  /** بيرجع مراجعة التعليق الجديد عشان الفحص ما يرجعش تعليقًا أحدث منه. */
-  suspend(record: PushRecord): Promise<number>;
+  /** بيرجع مراجعة التعليق الجديد، أو صفر لو السجل اتمسح قبل التعليق. */
+  suspend(): Promise<number>;
   generation(): Promise<number>;
   bumpGeneration(): Promise<number>;
   writeIfGeneration(

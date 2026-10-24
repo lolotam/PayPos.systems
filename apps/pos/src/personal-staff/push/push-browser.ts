@@ -19,10 +19,11 @@ interface StandaloneNavigator extends Navigator {
   standalone?: boolean;
 }
 
-// رقم كل محاولة اشتراك، ورقم آخر محاولة نجحت: المحاولة المتأخرة ما تشيلش اشتراك
-// بناءً تشغيل أحدث نجح فعلاً (ADR-0052 §7).
+// رقم كل محاولة اشتراك، ورقم آخر محاولة نجحت، واستقرار كل المحاولات اللي بدأت:
+// المحاولة المتأخرة تستنى تشغيل أحدث لسه شغال عشان ما تشيلش اشتراكه (ADR-0052 §7).
 let subscribeAttempt = 0;
 let lastSucceededAttempt = 0;
+let latestAttemptsSettlement: Promise<void> = Promise.resolve();
 
 export function hasServiceWorker(): boolean {
   return typeof globalThis.navigator !== 'undefined' && 'serviceWorker' in globalThis.navigator;
@@ -89,10 +90,20 @@ export async function unsubscribePush(): Promise<boolean> {
   return subscription.unsubscribe();
 }
 
+/** المتأخر يستنى أي محاولة أحدث لسه شغالة: المتصفح ممكن يديها نفس الاشتراك اللي هيشيله. */
+async function discardLateSubscription(attempt: number, late: PushSubscriptionLike): Promise<void> {
+  while (lastSucceededAttempt <= attempt) {
+    const newest = latestAttemptsSettlement;
+    await newest;
+    if (newest === latestAttemptsSettlement) break;
+  }
+  if (lastSucceededAttempt <= attempt) await late.unsubscribe();
+}
+
 /**
  * اشتراك بيتعمل من غير ما ينفع تلغيه: لو الوقت عدّى، الاشتراك اللي يوصل متأخر بيتشال
- * بس لو مفيش تشغيل أحدث تبناه — المتصفح ماسك اشتراك واحد بس، فالتشغيل الجديد ممكن يكون
- * هو نفسه الاشتراك المتأخر (ADR-0052 §7).
+ * بس بعد ما أي تشغيل أحدث يستقر ولو مفيش تشغيل أحدث تبناه — المتصفح ماسك اشتراك واحد بس،
+ * فالتشغيل الجديد ممكن يكون هو نفسه الاشتراك المتأخر (ADR-0052 §7).
  *
  * @param applicationServerKey المفتاح العام
  * @param ms المهلة بالميلي ثانية
@@ -104,23 +115,23 @@ export async function subscribeWithDeadline(
 ): Promise<PushSubscriptionLike | null> {
   const attempt = (subscribeAttempt += 1);
   const pending = subscribePush(applicationServerKey);
+  let settleAttempt = (): void => undefined;
+  const attemptSettlement = new Promise<void>((resolve) => {
+    settleAttempt = resolve;
+  });
+  latestAttemptsSettlement = Promise.all([latestAttemptsSettlement, attemptSettlement]).then(
+    () => undefined,
+  );
   let timer = 0;
   const deadline = new Promise<null>((resolve) => {
     timer = window.setTimeout(() => resolve(null), ms);
   });
   const settled = await Promise.race([pending.then((value) => value).catch(() => null), deadline]);
   window.clearTimeout(timer);
-  if (settled !== null) {
-    lastSucceededAttempt = attempt;
-    return settled;
-  }
-  void pending
-    .then((late) => {
-      // تشغيل أحدث نجح هو ده اللي ماسك الاشتراك؛ غير كده المتأخر يتشال (ADR-0052 §7).
-      if (lastSucceededAttempt > attempt) return undefined;
-      return late.unsubscribe();
-    })
-    .catch(() => undefined);
+  if (settled !== null) lastSucceededAttempt = attempt;
+  settleAttempt();
+  if (settled !== null) return settled;
+  void pending.then((late) => discardLateSubscription(attempt, late)).catch(() => undefined);
   return null;
 }
 

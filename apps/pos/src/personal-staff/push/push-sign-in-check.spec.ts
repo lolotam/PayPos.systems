@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { PushConfig } from '@pospay/contracts';
 
 import { pushCalls, type PushConfigResult } from './push-calls';
-import type { PushRecord } from './push-record';
+import type { PushRecord, PushWriteOptions } from './push-record';
 import { runSignInPushCheck, suspendPushForSignIn } from './push-sign-in-check';
 
 const fakes = vi.hoisted(() => {
@@ -13,6 +13,7 @@ const fakes = vi.hoisted(() => {
     unsubscribed: 0,
     writesBeforeConfig: 0,
     writeFails: false,
+    duringSuspend: undefined as PushRecord | null | undefined,
     generation: 0,
   };
   return { state };
@@ -33,6 +34,25 @@ const CONFIG: PushConfig = {
   subscriber_ref: 'subscriber-ref',
 };
 
+async function writeIfGeneration(
+  record: PushRecord,
+  expected: number,
+  options?: PushWriteOptions,
+): Promise<boolean> {
+  if (fakes.state.generation !== expected) return false;
+  const stored = fakes.state.record;
+  const revisionMatches =
+    options?.expectRevision === undefined || (stored?.revision ?? 0) === options.expectRevision;
+  const tokenMatches =
+    options?.expectToken === undefined || (stored?.token ?? null) === options.expectToken;
+  if (!revisionMatches || !tokenMatches) return false;
+  const clear = options?.clearSuspension === true;
+  const suspended = stored?.suspended === true && !clear;
+  fakes.state.record = suspended ? { ...record, suspended: true } : record;
+  fakes.state.writes.push(fakes.state.record);
+  return true;
+}
+
 vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
     read: async () => (fakes.state.record === null ? null : { ...fakes.state.record }),
@@ -41,15 +61,18 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.record = record;
       fakes.state.writes.push(record);
     },
-    suspend: async (record: PushRecord) => {
+    suspend: async () => {
       if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
-      fakes.state.record = {
-        ...record,
-        suspended: true,
-        revision: (fakes.state.record?.revision ?? 0) + 1,
-      };
-      fakes.state.writes.push(fakes.state.record);
-      return fakes.state.record.revision;
+      if (fakes.state.duringSuspend !== undefined) {
+        fakes.state.record = fakes.state.duringSuspend;
+        fakes.state.duringSuspend = undefined;
+      }
+      const stored = fakes.state.record;
+      if (stored === null) return 0;
+      const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
+      fakes.state.record = suspended;
+      fakes.state.writes.push(suspended);
+      return suspended.revision;
     },
     remove: async () => {
       fakes.state.removed += 1;
@@ -73,25 +96,7 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.generation += 1;
       return fakes.state.generation;
     },
-    writeIfGeneration: async (
-      record: PushRecord,
-      expected: number,
-      options?: { clearSuspension?: boolean; expectRevision?: number },
-    ) => {
-      if (fakes.state.generation !== expected) return false;
-      const stored = fakes.state.record;
-      if (
-        options?.expectRevision !== undefined &&
-        (stored?.revision ?? 0) !== options.expectRevision
-      ) {
-        return false;
-      }
-      const clear = options?.clearSuspension === true;
-      const suspended = stored?.suspended === true && !clear;
-      fakes.state.record = suspended ? { ...record, suspended: true } : record;
-      fakes.state.writes.push(fakes.state.record);
-      return true;
-    },
+    writeIfGeneration,
   },
 }));
 
@@ -125,6 +130,7 @@ beforeEach(() => {
   fakes.state.unsubscribed = 0;
   fakes.state.writesBeforeConfig = 0;
   fakes.state.writeFails = false;
+  fakes.state.duringSuspend = undefined;
   fakes.state.generation = 0;
   vi.mocked(pushCalls.config).mockImplementation(async () => {
     fakes.state.writesBeforeConfig = fakes.state.writes.length;
@@ -139,11 +145,14 @@ it('suspends the record before it compares the subscriber reference', async () =
   expect(fakes.state.writes[0]).toEqual({ ...RECORD, suspended: true, revision: 1 });
 });
 
-it('increments the revision with every suspension', async () => {
+it('increments the revision and keeps a token written by another tab', async () => {
   await suspendPushForSignIn();
+  fakes.state.duringSuspend = { ...RECORD, token: 'new-token', revision: 1 };
   await suspendPushForSignIn();
 
   expect(fakes.state.record?.revision).toBe(2);
+  expect(fakes.state.record?.token).toBe('new-token');
+  expect(fakes.state.record?.suspended).toBe(true);
 });
 
 it('restores the record when the subscriber reference is the same', async () => {
@@ -155,9 +164,9 @@ it('restores the record when the subscriber reference is the same', async () => 
 
 it('keeps a newer suspension from another tab when the reference matches', async () => {
   const pending = deferred<PushConfigResult>();
-  const started = deferred<void>();
+  const started = deferred<undefined>();
   vi.mocked(pushCalls.config).mockImplementation(() => {
-    started.resolve();
+    started.resolve(undefined);
     return pending.promise;
   });
 
@@ -220,12 +229,13 @@ it('ignores the answer of an older run', async () => {
   expect(fakes.state.record?.suspended).toBe(false);
 });
 
-it('does nothing when the phone holds no record', async () => {
-  fakes.state.record = null;
+it('writes nothing when another tab removes the record before suspension', async () => {
+  fakes.state.duringSuspend = null;
 
-  await runSignInPushCheck();
+  await suspendPushForSignIn();
 
   expect(pushCalls.config).not.toHaveBeenCalled();
+  expect(fakes.state.record).toBeNull();
   expect(fakes.state.writes).toHaveLength(0);
 });
 

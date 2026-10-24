@@ -18,7 +18,7 @@ export async function suspendPushForSignIn(): Promise<void> {
   const record = await pushRecordStore.read().catch(() => null);
   if (record === null) return;
   try {
-    await pushRecordStore.suspend({ ...record, suspended: true });
+    await pushRecordStore.suspend();
   } catch {
     // من غير تعليق السجل بيفضل قايم مفتوح، فبنمسحه ونشيل الاشتراك (fail-closed).
     await pushRecordStore.remove().catch(() => undefined);
@@ -41,7 +41,7 @@ export async function runSignInPushCheck(): Promise<void> {
     if (record === null) return;
     let suspensionRevision: number;
     try {
-      suspensionRevision = await pushRecordStore.suspend({ ...record, suspended: true });
+      suspensionRevision = await pushRecordStore.suspend();
     } catch {
       // من غير تعليق السجل بيفضل قايم مفتوح، فبنمسحه ونشيل الاشتراك (fail-closed).
       await pushRecordStore.remove().catch(() => undefined);
@@ -73,6 +73,7 @@ export async function runSignInPushCheck(): Promise<void> {
         .writeIfGeneration({ ...current, suspended: false }, generation, {
           clearSuspension: true,
           expectRevision: suspensionRevision,
+          expectToken: record.token,
         })
         .catch(() => false);
       if (!written) return;

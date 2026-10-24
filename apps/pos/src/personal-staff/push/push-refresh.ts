@@ -91,7 +91,7 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
  *
  * @param record السجل المعلّق
  * @param generation جيل السجل وقت ما الشغل بدأ
- * @returns السجل بعد الرجوع، أو null لما الجيل يتغير
+ * @returns السجل بعد الرجوع، أو null لما الجيل أو المراجعة أو التوكن يتغير
  */
 async function resume(record: PushRecord, generation: number): Promise<PushRecord | null> {
   const live = { ...record, suspended: false };
@@ -99,6 +99,7 @@ async function resume(record: PushRecord, generation: number): Promise<PushRecor
     const written = await pushRecordStore.writeIfGeneration(live, generation, {
       clearSuspension: true,
       expectRevision: record.revision,
+      expectToken: record.token,
     });
     if (!written) return null;
   } catch {
@@ -141,7 +142,7 @@ async function rotate(
     return { kind: 'cleared' };
   }
   if (outcome === 'stale') {
-    // جيل أو مراجعة أحدث: السجل دلوقتي بتاع حد تاني، فبنسيبه ونشيل بس تسجيلنا (ADR-0052 §7).
+    // جيل أو مراجعة أو توكن أحدث: السجل دلوقتي بتاع حد تاني، فبنسيبه ونشيل بس تسجيلنا (ADR-0052 §7).
     await abortRotation(installationId);
     return { kind: 'cleared' };
   }
@@ -193,7 +194,7 @@ async function writeRotatedRecord(
         revision: record.revision,
       },
       generation,
-      { expectRevision: record.revision },
+      { expectRevision: record.revision, expectToken: record.token },
     );
     return written ? 'written' : 'stale';
   } catch {

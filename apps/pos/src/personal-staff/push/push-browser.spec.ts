@@ -91,6 +91,58 @@ it('keeps a late subscription when a newer attempt succeeded', async () => {
   expect(unsubscribe).not.toHaveBeenCalled();
 });
 
+it('waits for a pending newer attempt that succeeds before cleaning up', async () => {
+  const { subscription, unsubscribe } = fakeSubscription();
+  const resolvers: ((value: typeof subscription) => void)[] = [];
+  stubSubscribe(
+    () =>
+      new Promise<typeof subscription>((resolve) => {
+        resolvers.push(resolve);
+      }),
+  );
+
+  const first = subscribeWithDeadline(new Uint8Array([1]), 10);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(await first).toBeNull();
+  const second = subscribeWithDeadline(new Uint8Array([2]), 1000);
+  await tick();
+
+  resolvers[0]?.(subscription);
+  await tick();
+  expect(unsubscribe).not.toHaveBeenCalled();
+  resolvers[1]?.(subscription);
+  expect(await second).not.toBeNull();
+  await tick();
+  expect(unsubscribe).not.toHaveBeenCalled();
+});
+
+it('waits for a pending newer attempt that fails before cleaning up', async () => {
+  const { subscription, unsubscribe } = fakeSubscription();
+  const resolvers: ((value: typeof subscription) => void)[] = [];
+  const rejecters: ((reason: unknown) => void)[] = [];
+  stubSubscribe(
+    () =>
+      new Promise<typeof subscription>((resolve, reject) => {
+        resolvers.push(resolve);
+        rejecters.push(reject);
+      }),
+  );
+
+  const first = subscribeWithDeadline(new Uint8Array([1]), 10);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(await first).toBeNull();
+  const second = subscribeWithDeadline(new Uint8Array([2]), 1000);
+  await tick();
+
+  resolvers[0]?.(subscription);
+  await tick();
+  expect(unsubscribe).not.toHaveBeenCalled();
+  rejecters[1]?.(new Error('SYNTHETIC_SUBSCRIBE_FAILURE'));
+  expect(await second).toBeNull();
+  await tick();
+  expect(unsubscribe).toHaveBeenCalledTimes(1);
+});
+
 it('returns null when the subscribe fails before the deadline', async () => {
   stubSubscribe(() => Promise.reject(new Error('SYNTHETIC_SUBSCRIBE_FAILURE')));
 

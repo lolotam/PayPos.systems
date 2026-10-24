@@ -88,8 +88,9 @@ function bumpGeneration(): Promise<number> {
 }
 
 /**
- * بيكتب السجل بس لو جيله ورقم مراجعته زي ما هما، والقراءة والكتابة في transaction واحد.
- * ولو السجل المحفوظ معلّق، السجل الجديد يفضل معلّق إلا لو الطلب قال صريح إن التعليق يتشال.
+ * بيكتب السجل بس لو جيله ورقم مراجعته وتوكنه زي ما هما، والقراءة والكتابة في transaction واحد.
+ * التوكن بيقفل الاستبدال العادي اللي مش بيزود المراجعة؛ ولو السجل المحفوظ معلّق، السجل الجديد
+ * يفضل معلّق إلا لو الطلب قال صريح إن التعليق يتشال.
  */
 function writeIfGeneration(
   record: PushRecord,
@@ -110,6 +111,12 @@ function writeIfGeneration(
             const stored = recordRequest.result;
             const revision = stored?.revision ?? 0;
             if (options.expectRevision !== undefined && revision !== options.expectRevision) return;
+            if (
+              options.expectToken !== undefined &&
+              (stored?.token ?? null) !== options.expectToken
+            ) {
+              return;
+            }
             const clear = options.clearSuspension === true;
             const suspended = stored?.suspended === true && !clear;
             store.put(suspended ? { ...record, suspended: true } : record, RECORD_KEY);
@@ -162,10 +169,10 @@ function removeIfMatches(expected: { token: string | null; revision: number }): 
 }
 
 /**
- * بيكتب السجل معلقًا وبيزيد رقم المراجعة: التعليق الجديد بيبان إنه جديد على أي تعليق قديم.
- * وبيرجع الرقم الجديد عشان مقارنة قديمة ما تمسحش تعليق اتعمل في تبويب تاني.
+ * بيعلّق النسخة المخزنة جوه نفس الـ transaction عشان لقطة قديمة ما ترجعش توكن اتبدل
+ * أو سجل اتمسح، وبيرجع المراجعة الجديدة عشان مقارنة قديمة ما تمسحش تعليقًا أحدث.
  */
-function suspendRecord(record: PushRecord): Promise<number> {
+function suspendRecord(): Promise<number> {
   return openDatabase().then(
     (database) =>
       new Promise<number>((resolve, reject) => {
@@ -174,8 +181,10 @@ function suspendRecord(record: PushRecord): Promise<number> {
         const request = store.get(RECORD_KEY) as IDBRequest<PushRecord | undefined>;
         let revision = 0;
         request.onsuccess = () => {
-          revision = (request.result?.revision ?? 0) + 1;
-          store.put({ ...record, suspended: true, revision }, RECORD_KEY);
+          const stored = request.result;
+          if (stored === undefined) return;
+          revision = (stored.revision ?? 0) + 1;
+          store.put({ ...stored, suspended: true, revision }, RECORD_KEY);
         };
         transaction.oncomplete = () => {
           database.close();
@@ -207,7 +216,7 @@ export const pushRecordStore: PushRecordStore = {
   },
   removeIfMatches: async (expected: { token: string | null; revision: number }) =>
     removeIfMatches(expected),
-  suspend: async (record: PushRecord) => suspendRecord(record),
+  suspend: async () => suspendRecord(),
   generation: async () => {
     const stored = await runTransaction<number | undefined>('readonly', (store) =>
       store.get(GENERATION_KEY),
