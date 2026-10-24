@@ -1,4 +1,5 @@
 import type { SwitchOutcome } from './business-switch';
+import { endPersonalSession } from './end-sessions';
 import {
   clearDeviceRole,
   connectEmployee,
@@ -237,12 +238,29 @@ export async function resolveChoice(role: DeviceRole): Promise<NativeState> {
 }
 
 /**
- * بيرجع لشاشة اختيار نوع الجهاز من غير ما يمسح النشاط المتذكر.
- * حسب FR-001 الرجوع متاح لما مفيش اقتران ولا جلسة، فمفيش حاجة بتضيع بالرجوع.
+ * بيخلّص الجلسة الشخصية قبل رجوع الموظفة لاختيار نوع الجهاز.
+ * من غير نت أو من غير تأكيد السيرفر الدور والجلسة بيفضلوا زي ما هما (FR-001).
+ *
+ * @param current حالة الشاشة قبل الرجوع
+ * @returns الحالة مع تنبيه فشل الرجوع، أو null عشان الرجوع يكمل
+ */
+export async function endEmployeeSessionFirst(current: NativeState): Promise<NativeState | null> {
+  if (current.kind !== 'flow' || current.role !== 'employee') return null;
+  if (!navigator.onLine) return { ...current, alert: 'roleChangeOffline' };
+  if ((await endPersonalSession()) === 'failed') {
+    return { ...current, alert: 'roleChangeFailed' };
+  }
+  return null;
+}
+
+/**
+ * الشاشات بتقرر إمتى يظهر الرجوع حسب FR-001؛ الخطوة دي بس بتمسح الدور وتحتفظ بالنشاط.
+ * قراءة النشاط الأول بتمنع مسح الدور لو التخزين مش قابل للقراءة.
  *
  * @returns شاشة البداية مع النشاط المتذكر
  */
 export async function resolveStartOver(): Promise<NativeState> {
+  const business = await readRememberedBusiness();
   await clearDeviceRole();
-  return { kind: 'start', business: await readRememberedBusiness() };
+  return { kind: 'start', business };
 }

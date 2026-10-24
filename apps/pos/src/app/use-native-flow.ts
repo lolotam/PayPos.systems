@@ -4,6 +4,7 @@ import { switchBusiness, type SwitchOutcome } from './business-switch';
 import { rememberBusiness, type DeviceRole } from './device-role';
 import { endPersonalSession } from './end-sessions';
 import {
+  endEmployeeSessionFirst,
   resolveChoice,
   resolveLink,
   resolveStartOver,
@@ -31,7 +32,7 @@ export interface NativeFlow {
 }
 
 /**
- * خطوات شاشة النسخة الأصلية: لينك المدير، اختيار نوع الجهاز، وتبديل النشاط.
+ * خطوات شاشة النسخة الأصلية: لينك المدير، اختيار نوع الجهاز، الرجوع له، وتبديل النشاط.
  *
  * كل الخطوات ورا بعض في طابور واحد، وكل خطوة بتقرا الدور والنشاط من التخزين قبل
  * ما تقرر، فخطوة متأخرة ما بتقدّمش على خطوة أحدث (BR-001). تبديل النشاط كمان
@@ -84,6 +85,8 @@ export function useNativeFlow(): NativeFlow {
 
   const startOver = useCallback(() => {
     queue(async () => {
+      const refused = await endEmployeeSessionFirst(latest.current);
+      if (refused !== null) return apply(refused);
       apply(await resolveStartOver());
     });
   }, [apply, queue]);

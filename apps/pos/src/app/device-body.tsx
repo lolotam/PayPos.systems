@@ -9,7 +9,7 @@ import { WaitingScreen } from '@/device/ui/waiting-screen';
 
 import { LoadingNotice } from './loading-notice';
 
-/** الرجوع في كود الاقتران بس، لأن أي حالة تانية معاها اقتران أو بيانات لا يجوز تجاهلها. */
+/** الرجوع قبل الاقتران ومن غير طلب شغال، أو مع جهاز مش مدعوم، عشان الاختيار الغلط ما يقفلش المسار. */
 export function DeviceBody({
   session,
   startOver,
@@ -23,12 +23,19 @@ export function DeviceBody({
     return (
       <>
         <PairingScreen notice={screen.notice} onSubmit={session.submit} />
-        {startOver}
+        {session.submitting ? null : startOver}
       </>
     );
   }
   if (screen.kind === 'waiting') return <WaitingScreen onStartOver={session.startOver} />;
   if (screen.kind === 'offline') return <OfflineNotice onRetry={session.retry} />;
-  if (screen.kind === 'unsupported') return <UnsupportedNotice />;
+  if (screen.kind === 'unsupported') {
+    return (
+      <>
+        <UnsupportedNotice />
+        {startOver}
+      </>
+    );
+  }
   return <ReceptionBody branchId={screen.branchId} retry={session.retry} />;
 }

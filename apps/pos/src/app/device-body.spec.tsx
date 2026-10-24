@@ -42,6 +42,7 @@ function renderBody(session: DeviceSession, startOver?: ReactNode) {
 function makeSession(partialScreen: DeviceSession['screen']): DeviceSession {
   return {
     screen: partialScreen,
+    submitting: false,
     retry: () => Promise.resolve(),
     submit: () => Promise.resolve(null),
     startOver: () => Promise.resolve(),
@@ -78,17 +79,40 @@ describe('DeviceBody', () => {
   });
 
   it.each([
-    { name: 'pairing', screen: { kind: 'pairing', notice: null }, visible: true },
-    { name: 'waiting', screen: { kind: 'waiting' }, visible: false },
+    {
+      name: 'pairing',
+      screen: { kind: 'pairing', notice: null },
+      submitting: false,
+      visible: true,
+    },
+    {
+      name: 'pairing submission',
+      screen: { kind: 'pairing', notice: null },
+      submitting: true,
+      visible: false,
+    },
+    {
+      name: 'waiting',
+      screen: { kind: 'waiting' },
+      submitting: false,
+      visible: false,
+    },
+    {
+      name: 'unsupported',
+      screen: { kind: 'unsupported' },
+      submitting: false,
+      visible: true,
+    },
     {
       name: 'reception',
       screen: { kind: 'ready', branchId: '01923f66-3d2b-7c00-8000-000000000001' },
+      submitting: false,
       visible: false,
     },
   ] as const)(
     'shows the start-over control only for $name when allowed',
-    ({ screen: deviceScreen, visible }) => {
-      renderBody(makeSession(deviceScreen), <button>back</button>);
+    ({ screen: deviceScreen, submitting, visible }) => {
+      renderBody({ ...makeSession(deviceScreen), submitting }, <button>back</button>);
 
       const back = screen.queryByRole('button', { name: 'back' });
       if (visible) expect(back).not.toBeNull();

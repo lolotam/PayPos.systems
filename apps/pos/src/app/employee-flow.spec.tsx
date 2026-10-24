@@ -45,6 +45,7 @@ function sessionState(session: typeof SESSION | null) {
     epoch: 0,
     online: true,
     loading: false,
+    confirmedNoSession: session === null,
     session,
     changed: vi.fn(),
     signOut: vi.fn(),

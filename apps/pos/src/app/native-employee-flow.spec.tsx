@@ -27,6 +27,7 @@ vi.mock('@/personal-staff/api/use-personal-session', () => ({
     epoch: 0,
     online: true,
     loading: false,
+    confirmedNoSession: true,
     session: null,
     changed: vi.fn(),
     signOut: vi.fn(),

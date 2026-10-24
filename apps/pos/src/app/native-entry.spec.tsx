@@ -13,6 +13,7 @@ import {
   saveDeviceRole,
   type DeviceRole,
 } from '@/app/device-role';
+import { endPersonalSession } from '@/app/end-sessions';
 import { usePersonalSession } from '@/personal-staff/api/use-personal-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { readLaunchLink } from '@/shared/platform/launch-links';
@@ -28,6 +29,9 @@ vi.mock('@/app/device-role', () => ({
   saveDeviceRole: vi.fn(),
   rememberBusiness: vi.fn(),
   connectEmployee: vi.fn(),
+}));
+vi.mock('@/app/end-sessions', () => ({
+  endPersonalSession: vi.fn(),
 }));
 vi.mock('@/app/device-screen', () => ({
   DeviceScreen: ({ startOver }: { startOver?: ReactNode }) => (
@@ -98,10 +102,12 @@ function prepare() {
   vi.mocked(saveDeviceRole).mockResolvedValue(undefined);
   vi.mocked(rememberBusiness).mockResolvedValue(undefined);
   vi.mocked(connectEmployee).mockResolvedValue(undefined);
+  vi.mocked(endPersonalSession).mockResolvedValue('done');
   vi.mocked(usePersonalSession).mockReturnValue({
     epoch: 0,
     online: true,
     loading: false,
+    confirmedNoSession: true,
     session: null,
     changed: vi.fn(),
     signOut: vi.fn(),
@@ -336,23 +342,33 @@ describe('NativeEntry remembered business', () => {
   });
 });
 
+async function backFrom(role: DeviceRole) {
+  const heading = role === 'counter' ? 'device screen' : 'personal screen';
+  expect(await screen.findByRole('heading', { name: heading })).not.toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.startOver') }));
+}
+
 describe('back to the device choice (FR-001)', () => {
   beforeEach(prepare);
 
-  it.each(roles)('returns from the $role flow to the start screen', async ({ role, heading }) => {
-    vi.mocked(readDeviceRole).mockResolvedValue(role);
-    mount();
+  it.each(roles)(
+    'returns from the $role flow to the start screen',
+    async ({ role, heading }) => {
+      vi.mocked(readDeviceRole).mockResolvedValue(role);
+      mount();
+      await backFrom(role);
 
-    expect(await screen.findByRole('heading', { name: heading })).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.startOver') }));
-
-    expect(
-      await screen.findByRole('button', { name: t('ar', 'nativeShell.counter') }),
-    ).not.toBeNull();
-    expect(screen.getByRole('button', { name: t('ar', 'nativeShell.employee') })).not.toBeNull();
-    expect(screen.queryByRole('heading', { name: heading })).toBeNull();
-    expect(clearDeviceRole).toHaveBeenCalledTimes(1);
-  });
+      expect(
+        await screen.findByRole('button', { name: t('ar', 'nativeShell.counter') }),
+      ).not.toBeNull();
+      expect(
+        screen.getByRole('button', { name: t('ar', 'nativeShell.employee') }),
+      ).not.toBeNull();
+      expect(screen.queryByRole('heading', { name: heading })).toBeNull();
+      expect(clearDeviceRole).toHaveBeenCalledTimes(1);
+      expect(endPersonalSession).toHaveBeenCalledTimes(role === 'employee' ? 1 : 0);
+    },
+  );
 
   it('keeps the remembered business after going back and choosing employee again', async () => {
     vi.mocked(readDeviceRole).mockResolvedValue('employee');
@@ -361,12 +377,77 @@ describe('back to the device choice (FR-001)', () => {
       business_id: BUSINESS,
     });
     mount();
-
-    expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.startOver') }));
-    fireEvent.click(await screen.findByRole('button', { name: t('ar', 'nativeShell.employee') }));
+    await backFrom('employee');
+    fireEvent.click(
+      await screen.findByRole('button', { name: t('ar', 'nativeShell.employee') }),
+    );
 
     expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
+  });
+});
+
+describe('back to the device choice refused safely', () => {
+  beforeEach(prepare);
+
+  it.each([
+    { mode: 'failed', alert: 'nativeShell.roleChangeFailed', endings: 1 },
+    { mode: 'offline', alert: 'nativeShell.roleChangeOffline', endings: 0 },
+  ] as const)(
+    'keeps the employee flow when sign-out is $mode',
+    async ({ mode, alert, endings }) => {
+      if (mode === 'failed') vi.mocked(endPersonalSession).mockResolvedValue('failed');
+      else vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+      vi.mocked(readDeviceRole).mockResolvedValue('employee');
+      mount();
+      await backFrom('employee');
+
+      const message = await screen.findByRole('alert');
+      expect(message.textContent).toContain(t('ar', alert));
+      expect(screen.getByRole('heading', { name: 'personal screen' })).not.toBeNull();
+      expect(
+        screen.queryByRole('heading', { name: t('ar', 'nativeShell.title') }),
+      ).toBeNull();
+      expect(clearDeviceRole).not.toHaveBeenCalled();
+      expect(endPersonalSession).toHaveBeenCalledTimes(endings);
+    },
+  );
+
+  it('does not clear the role when the remembered business cannot be read', async () => {
+    vi.mocked(readDeviceRole).mockResolvedValue('counter');
+    vi.mocked(readRememberedBusiness)
+      .mockResolvedValueOnce(null)
+      .mockRejectedValue(new Error('SYNTHETIC_READ_FAILURE'));
+    mount();
+    await backFrom('counter');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
+    expect(screen.getByRole('heading', { name: 'device screen' })).not.toBeNull();
+    expect(clearDeviceRole).not.toHaveBeenCalled();
+  });
+});
+
+describe('a manager link after back to the device choice', () => {
+  beforeEach(prepare);
+
+  it('handles the link with no role as on a first launch', async () => {
+    vi.mocked(readDeviceRole).mockResolvedValueOnce('employee').mockResolvedValue(null);
+    mount();
+    await backFrom('employee');
+    expect(
+      await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') }),
+    ).not.toBeNull();
+
+    await act(async () => {
+      opened.listener?.(link());
+    });
+
+    expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
+    expect(connectEmployee).toHaveBeenCalledWith({
+      company_id: COMPANY,
+      business_id: BUSINESS,
+    });
+    expect(rememberBusiness).not.toHaveBeenCalled();
   });
 });

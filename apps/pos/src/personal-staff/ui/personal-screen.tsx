@@ -32,7 +32,7 @@ export function PersonalScreen({
   });
   // نسخة التطبيق بتبعت النشاط المتذكر من غير query string؛ نسخة الويب بتفضل تقرأه من العنوان.
   const hint = workspace ?? (fromQuery.success ? fromQuery.data : undefined);
-  // نسخة التطبيق بس بتبعت الرجوع، والشاشات اللي من غير جلسة بس هي اللي بتعرضه.
+  // نسخة التطبيق بس بتبعت الرجوع، وبيظهر بعد ما السيرفر يأكد إن مفيش جلسة.
   return (
     <AppFrame brand={t(locale, 'pos.appName')} actions={<LocaleSwitch />}>
       <section className="mx-auto grid w-full max-w-md gap-6">
@@ -54,13 +54,13 @@ export function PersonalScreen({
         ) : hint ? (
           <>
             <PersonalSignIn key={state.epoch} workspace={hint} changed={state.changed} />
-            {startOver}
+            {state.confirmedNoSession ? startOver : null}
           </>
         ) : (
           <>
             <p>{t(locale, 'personalStaff.linkRequired')}</p>
             {connect}
-            {startOver}
+            {state.confirmedNoSession ? startOver : null}
           </>
         )}
       </section>
