@@ -1,9 +1,9 @@
 # 60 · Staff push subscriptions — اشتراك موبايل الموظفة في الإشعارات
 
 **Status / الحالة:** shipped in #530 (28b-1: the `push_subscriptions` table, RLS and three personal routes, merged).
-**API only, no screen yet:** the on/off control in the staff app is row 28b-4, and **nothing is sent yet**: the send
-queue, the channel and the worker are rows 28b-2 and 28b-3, and the employee's own not-clocked-in push is row 28b-5. So
-no phone shows a notification today. Two more gates:
+**API only, no screen yet:** the on/off control in the staff app is row 28b-4. The send queue, the channel and the
+worker are rows 28b-2 and 28b-3, and the employee's own not-clocked-in push is row 28b-5 (its producer side is in
+place). Until 28b-4 lets a phone subscribe, no phone shows a notification. Two more gates:
 - The routes need the **personal staff session**, and that needs the WhatsApp OTP, which is **OFF** until the Meta
   templates and secrets are approved ([22](22-personal-phone-passkey.md)). Today the routes run only in tests and local
   seams, as in [26](26-clock-attendance.md).
