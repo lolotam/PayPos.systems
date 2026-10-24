@@ -163,34 +163,24 @@ statement request; the files reader re-checks the file at render time (§3). The
 - **Status:** Proposed with the spec 069 plan (docs PR); accepted with sub-PR 069-2, which builds it. EL-TQ1 answered
   by Waleed on 2026-10-24: (a).
 
-**Context.** Spec 069's print sheet carries the salon logo (EL-Q4, Waleed, 2026-10-24). Anyone who uses the back office
-may open that screen (EL-Q3), so the stored permission of the logo file (`manage:business-identity:business`, ADR-0046
-§5) cannot be the rule, exactly as the attendance statement's requester needs no files or settings permission (§3
-above). `readStatementLogo` cannot be reused: it lives in the worker, embeds bytes in a PDF, and needs a render id.
+**Context.** Spec 069's print sheet carries the salon logo (EL-Q4). The screen opens for a user who may add and edit
+employees of the business (EL-Q3, Abu Salem's binding pick, 2026-10-24): `manage:employees:business`. The stored
+permission of the logo file (`manage:business-identity:business`, ADR-0046 §5) cannot be the rule, because a manager
+who adds employees need not edit the business identity; this is the same reasoning as the attendance statement's
+requester, who needs no files or settings permission (§3 above). `readStatementLogo` cannot be reused: it lives in the
+worker, embeds bytes in a PDF, and needs a render id.
 
 **Decision.**
 
 1. **API `files` owns the read**, as a use case beside `issue-download` (`use-cases/issue-business-logo-download/`),
    because `files` owns `file_access_audit` and `packages/storage`. Route:
-   `POST /v1/businesses/{businessId}/employee-app-link/logo-download`, `@HttpCode(200)`, `@Authenticated()` and
-   `SelectedCompanyGuard`, as `POST files/:id/download` is. The selected company comes from the guard's validated
-   `x-company-id`, never from the business. It writes, so it is listed in `AUTHENTICATED_WRITES` (PP-7.1) with the
-   place of its check. The audit id comes from the injected `IdGenerator`.
-2. **Phase 1, one transaction** `withTenant(company, …, { userId })`, in this order:
-   - Lock the access the way `lockDocumentAccess` does: the company row `FOR NO KEY UPDATE`, then the company's
-     memberships `ORDER BY id FOR SHARE`. A revocation takes the same locks, so it either committed before the check
-     (and the check sees it) or waits until this transaction ends.
-   - Confirm the business exists in that company and is not deleted, through a port `files` owns,
-     `BusinessInCompany`, whose adapter calls tenancy's exported `describeWorkspaces` (the `files → tenancy` arrow is
-     already declared; the module map gains its port row), before any other check. A company-wide membership reaches
-     every business id, and `readBusinessIdentity` answers the same nothing for an unknown business, another
-     company's business (hidden by RLS) and a business with no settings row. Without this step those cases would get
-     the no-logo 200 instead of the 404.
-   - Check that the caller has an active membership in that company reaching the business: company, that business,
-     or one of its branches. This is the `me/workspaces` rule. The check comes through a port `files` owns,
-     `BusinessMemberReach`, whose adapter calls a function identity exports (`lockBusinessMemberReach`). It is a read,
-     so it adds a **`files → identity` read arrow**, declared in `docs/module-map.md` with this addendum. No write
-     crosses modules.
+   `POST /v1/businesses/{businessId}/employee-app-link/logo-download`, `@HttpCode(200)`, guarded by
+   `@Require('manage:employees:business', { business: 'businessId' })` with the staff feature, exactly the guard of
+   the screen's read (spec 069). The guard resolves the company from the validated `x-company-id` and refuses, with
+   its single 403, a caller without the permission, a DENY, an unknown business and another company's business, so the
+   use case starts only for a permitted caller on a business of that company. The audit id comes from the injected
+   `IdGenerator`.
+2. **Phase 1, one transaction** `withTenant(company, …, { userId })`, after the guard, in this order:
    - Read the bound `logo_file_id` through `@pospay/db` `readBusinessIdentity` (§2's shared read), through a port
      `BusinessLogoReference` whose adapter calls `@pospay/db`. There is no `files → settings` import, as with the
      worker `LogoReference` row.
@@ -201,9 +191,8 @@ above). `readStatementLogo` cannot be reused: it lives in the worker, embeds byt
    - Sign the GET URL with `packages/storage` `presignDownload`, still inside the transaction. Signing is local
      computation with no network call (ADR-0046 §4 holds), so a signing failure rolls both audit records back and an
      `ALLOW` is never recorded for a URL that was not issued. Commit. Both records and the URL stand together or not at all.
-   - **No access** (no membership reach, an unknown business, another company's business) answers one 404
-     `NOT_FOUND` and writes nothing, so it never says which case it was. The screen shows its no-access state and does
-     not print.
+   - **No access** is the guard's 403 before the transaction, so it writes nothing; the screen shows its no-access
+     state and does not print.
    - **Access but no logo** (none bound, or a bound file that no longer qualifies) answers 200 with
      `{ download_url: null }` and writes nothing; the sheet prints with the name only. Access and "no logo" are never the
      same answer.
@@ -228,13 +217,14 @@ above). `readStatementLogo` cannot be reused: it lives in the worker, embeds byt
      failure shows the retry message, and a truly missing logo blocks printing until the logo is uploaded again. The
      message then says so. This changes spec 069's missing-object rule.
 
-**Consequences.** One new route and use case in API `files`, one exported identity lock function, three port rows
-(`BusinessInCompany` → tenancy, `BusinessMemberReach` → identity, `BusinessLogoReference` → `@pospay/db`) and the
-`files → identity` read arrow in the module map, and an optional cache policy on `presignDownload`. No new table,
-permission, grant or role. Every sheet printed with a logo leaves an audit pair for the user who opened it.
+**Consequences.** One new route and use case in API `files`, one port row (`BusinessLogoReference` → `@pospay/db`) in
+the module map, and an optional cache policy on `presignDownload`. No new import arrow, table, permission, grant or
+role. Every sheet printed with a logo leaves an audit pair for the user who opened it.
 
 **Alternatives rejected.**
 - **Streaming the bytes through the API:** storage IO in a request (ADR-0046 §4), and up to 10 MiB held by an `api`
   worker.
-- **The logo file's stored permission:** it would hide the logo from most of the people EL-Q3 lets open the screen.
-- **The `me/workspaces` read alone:** it proves membership but writes no audit, and it cannot sign a URL.
+- **The logo file's stored permission:** it would hide the logo from managers EL-Q3 lets open the screen.
+- **A session-only route with its own membership lock** (the design while EL-Q3 followed Waleed's «anyone in the back
+  office»): Abu Salem's pick makes the standard permission guard the rule, which needs no `files → identity` arrow and
+  no lock of its own.

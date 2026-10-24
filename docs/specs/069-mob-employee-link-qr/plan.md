@@ -2,14 +2,15 @@
 
 **Branch**: `docs/069-plan-logo-addendum` | **Date**: 2026-10-24 | **Spec**: [spec.md](spec.md)
 
-**Input**: [spec.md](spec.md), on Waleed's batch 71 picks (EL-Q1 … EL-Q5, 2026-10-24); Abu Salem pending. If he picks
-differently, the spec's «If Abu Salem picks differently» paragraph applies and this plan is revised in a docs PR.
+**Input**: [spec.md](spec.md), on batch 71 as answered by Waleed and Abu Salem on 2026-10-24 (final). EL-Q3 follows
+Abu Salem's binding pick: the page opens for holders of `manage:employees:business`.
 
 ## Summary
 
 A page «تطبيق الموظفات» in the back office's staff menu shows the business's employee-app link
 (`https://<pos host>/personal?company=…&business=…`), its QR, copy, a WhatsApp link and a print sheet with the salon
-logo. Access and the business name come from the existing `GET /v1/me/workspaces`. The logo comes from one new
+logo. Access and the business name come from one new guarded read in API `staff`
+(`GET /v1/businesses/{businessId}/staff/employee-app-link`, `@Require('manage:employees:business')`). The logo comes from one new
 audited read in API `files`, designed in the
 [ADR-0056 addendum of 2026-10-24](../../adr/0056-attendance-statement-reads-and-logo-reader.md#addendum-2026-10-24--the-employee-app-screens-logo-read-in-the-api-spec-069-m-1g).
 Two sub-PRs: the screen without printing first, then the logo read and the print sheet together (spec 069: printing
@@ -37,7 +38,7 @@ Postgres (ADR-0006); a cross-check test in `apps/pos` (the admin link helper's o
 **Constraints**: no new permission, no new table, no storage IO in a request or a transaction (ADR-0046 §4), every
 delivered logo audited (`CLAUDE.md` §8), `NEXT_PUBLIC_POS_URL` limited to the app's POS hosts.
 
-**Scale/Scope**: one page, one API route, one exported identity lock, three port rows and one read arrow.
+**Scale/Scope**: one page, two API routes (the staff read and the files logo read), two port rows, no new arrow.
 
 ## Constitution Check
 
@@ -45,8 +46,8 @@ delivered logo audited (`CLAUDE.md` §8), `NEXT_PUBLIC_POS_URL` limited to the a
 |---|---|
 | One use case per PR (`CLAUDE.md` §1) | 069-1 is UI over an existing read; 069-2 is the one logo use case and the print sheet that needs it |
 | No business logic in controllers / components (§4.2) | the link is built by a pure helper; the logo decision is the `files` use case |
-| Module boundaries (§4.1) | the new `files → identity` read arrow and two port rows are declared by the ADR-0056 addendum and in `docs/module-map.md` in 069-2 |
-| Every route guarded (§6) | the logo route is `@Authenticated()` + `SelectedCompanyGuard`, listed in `AUTHENTICATED_WRITES` (PP-7.1) |
+| Module boundaries (§4.1) | two port rows (staff `EmployeeAppLinkNames` → tenancy, files `BusinessLogoReference` → `@pospay/db`) on arrows already declared; no new arrow |
+| Every route guarded (§6) | both routes use `@Require('manage:employees:business', { business: 'businessId' })` with the staff feature |
 | Guard connection budget (§6, PP-7.2) | one transaction for the check, the reads and both audits; none nested |
 | Clock and ids injected (§4.3) | the audit id from `IdGenerator`, the time from `Clock` |
 | Uploads / private files (§8) | the logo is a private file: audited per issued URL, 60-second URL, `no-store` |
@@ -59,15 +60,16 @@ No violation; Complexity Tracking is empty.
 
 | Row | What | Files (main) | Depends on | Done when |
 |---|---|---|---|---|
-| 069-1 | The page without printing: link, QR, copy, WhatsApp | `apps/admin/src/staff/employee-app-link/` (page, link helper, QR, copy, WhatsApp link), the route under `apps/admin/app/(dashboard)/staff/`, the staff-menu entry and the employees-page button; `packages/i18n` keys; one shared POS-hosts constant used by `apps/pos/vite.config.ts` and the admin helper; `NEXT_PUBLIC_POS_URL` in `apps/admin/next.config.ts`, `.env.example`, `deploy/Dockerfile.admin` and **both** admin image builds in `.github/workflows/ci.yml` (staging with `https://pos.staging.pospay.systems`, production with `https://pos.pospay.systems`, since the value is baked into the image); the staging deploy check of the link host | spec 069; the web manager's OK on the `apps/admin` lane (the POS URL values are fixed in `ci.yml`, so no manual build arg) | EL-T01 … EL-T05, EL-T07 … EL-T09 green; the `apps/pos` cross-check green; on staging the page shows the staging POS host's link |
-| 069-2 | The logo read and the print sheet | API `files`: `use-cases/issue-business-logo-download/`, its controller route, ports `BusinessInCompany`, `BusinessMemberReach` and `BusinessLogoReference` and their adapters; identity's exported `lockBusinessMemberReach`; `packages/storage` `presignDownload` optional cache policy; `docs/module-map.md` rows; `AUTHENTICATED_WRITES` entry; contract in `packages/contracts/src/files/`; the admin print sheet and its logo fetch | 069-1; the staging CORS rule below set by Waleed; the ADR-0056 addendum accepted with this PR; **before production:** the production CORS rule set by Waleed, with his yes, before any production deploy that carries 069-2 | EL-I01 … EL-I06 and EL-T06, EL-T10, EL-T11 green; the three staging CORS cases below pass; a printed sheet on staging shows the salon logo; the addendum's status reads Accepted |
+| 069-1 | The page without printing: link, QR, copy, WhatsApp | API `staff`: `queries/employee-app-link.query.ts`, its controller route under the `@Require('manage:employees:business')` guard, port `EmployeeAppLinkNames` and its adapter over tenancy's `describeWorkspaces`, the contract `packages/contracts/src/staff/employee-app-link.ts`, the module-map port row; `apps/admin/src/staff/employee-app-link/` (page, link helper, QR, copy, WhatsApp link), the route under `apps/admin/app/(dashboard)/staff/`, the staff-menu entry and the employees-page button; `packages/i18n` keys; one shared POS-hosts constant used by `apps/pos/vite.config.ts` and the admin helper; `NEXT_PUBLIC_POS_URL` in `apps/admin/next.config.ts`, `.env.example`, `deploy/Dockerfile.admin` and **both** admin image builds in `.github/workflows/ci.yml` (staging with `https://pos.staging.pospay.systems`, production with `https://pos.pospay.systems`, since the value is baked into the image); the staging deploy check of the link host | spec 069; the web manager's OK on the `apps/admin` lane (the POS URL values are fixed in `ci.yml`, so no manual build arg) | EL-T01 … EL-T05, EL-T07 … EL-T09 green; the `apps/pos` cross-check green; on staging the page shows the staging POS host's link |
+| 069-2 | The logo read and the print sheet | API `files`: `use-cases/issue-business-logo-download/`, its controller route, its controller route under the same guard, port `BusinessLogoReference` and its adapter; `packages/storage` `presignDownload` optional cache policy; `docs/module-map.md` port row; contract in `packages/contracts/src/files/`; the admin print sheet and its logo fetch | 069-1; the staging CORS rule below set by Waleed; the ADR-0056 addendum accepted with this PR; **before production:** the production CORS rule set by Waleed, with his yes, before any production deploy that carries 069-2 | EL-I01 … EL-I06 and EL-T06, EL-T10, EL-T11 green; the three staging CORS cases below pass; a printed sheet on staging shows the salon logo; the addendum's status reads Accepted |
 
 ## Decisions (research)
 
-- **D-1 — Access and names from `me/workspaces`.** EL-Q3 lets any back-office user open the page, and
-  `GET /v1/me/workspaces` already returns the caller's own memberships with business names, read inside `withUser` and
-  `withTenant`. Alternatives rejected: a new guarded staff read (only needed if Abu Salem narrows EL-Q3); the employee
-  list (answers an empty page, not a 403).
+- **D-1 — Access and names from one guarded staff read.** EL-Q3 (Abu Salem, binding) opens the page for holders of
+  `manage:employees:business`, the employees page's permission. The standard `@Require` guard decides it and answers
+  one 403 for every refusal; the read returns the names through a staff port over `describeWorkspaces`. Alternatives
+  rejected: `GET /v1/me/workspaces` (the design for Waleed's «anyone in the back office», replaced); the employee list
+  (answers an empty page, not a 403).
 - **D-2 — The link helper is pure and shared by tests.** `employeeAppLink(origin, companyId, businessId)` returns the
   exact FR-012 form or `null` for an origin outside the shared POS hosts. The `apps/pos` cross-check feeds it to
   `parseManagerLink`.
@@ -76,7 +78,7 @@ No violation; Complexity Tracking is empty.
   refuses.
 - **D-4 — The logo goes through an audited signed URL**, the `IssueDownload` pattern: the check and the audit commit,
   then a local signature, 60 seconds. Alternatives rejected: streaming the bytes through the API (storage IO in a
-  request); the file's stored permission (hides the logo from most EL-Q3 users). See the ADR-0056 addendum.
+  request); the file's stored permission (it would hide the logo from managers who add employees). See the ADR-0056 addendum.
 - **D-5 — WhatsApp is a plain link** `https://wa.me/?text=…` with its own line; no API call, no phone read.
 - **D-6 — Printing is a print-only view** of the same page (`@media print`), black on white, with only the name, the
   logo, the QR, the link and the instruction line.
@@ -128,7 +130,7 @@ docs/specs/069-mob-employee-link-qr/
 apps/admin/src/staff/employee-app-link/   # 069-1 page + helper, 069-2 print sheet
 apps/admin/app/(dashboard)/staff/employee-app-link/page.tsx
 apps/api/src/modules/files/use-cases/issue-business-logo-download/   # 069-2
-apps/api/src/modules/identity/persistence/business-member-reach.ts   # 069-2, exported from identity/index.ts
+apps/api/src/modules/staff/queries/employee-app-link.query.ts         # 069-1, the guarded read
 ```
 
 **Structure Decision**: the page lives in the admin's `staff` area beside the employees page (EL-Q2); the logo read lives
