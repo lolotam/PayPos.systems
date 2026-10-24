@@ -4,9 +4,10 @@
 
 **Created**: 2026-10-24
 
-**Status**: Draft — EL-Q1 … EL-Q5 (batch 71, PP-56.1 … PP-56.5) answered by Waleed on 2026-10-24; Abu Salem pending
-([owner-questions.ar.md](owner-questions.ar.md)). Work follows Waleed's picks; if Abu Salem picks differently, his
-pick replaces Waleed's (`CLAUDE.md` §1 5b) and the paragraph «If Abu Salem picks differently» below says what changes.
+**Status**: Draft. EL-Q1 … EL-Q5 (batch 71, PP-56.1 … PP-56.5) were answered by Waleed and by Abu Salem on 2026-10-24
+([owner-questions.ar.md](owner-questions.ar.md)) and are final. On EL-Q3 Abu Salem picked «the people who add and edit
+employees», not Waleed's «anyone in the back office», and his pick binds (`CLAUDE.md` §1 5b); this spec follows it.
+His note on EL-Q2 awaits a clarification that does not change this spec yet.
 
 **Input**: Track MOB, plan row M-1g of [spec 065's plan](../065-mob-app-shell/plan.md). APP-Q9 (Waleed and Abu Salem,
 2026-10-23, final) decided that an employee connects the «PosPay Business» app, and the web personal page, to her
@@ -40,11 +41,11 @@ field: the app connects to that business (spec 065 FR-012).
 
 **Acceptance Scenarios**:
 
-1. **Given** a back-office user (EL-Q3: anyone who uses the back office) with a business open, **When** she opens the screen, **Then** it shows the
+1. **Given** a user who may add and edit employees of that business (EL-Q3) with a business open, **When** she opens the screen, **Then** it shows the
    business name and the link for that business, built from the environment's POS address (FR-002).
 2. **Given** the screen, **When** she presses «نسخ اللينك», **Then** the exact link is on her clipboard and the
    screen confirms it for a few seconds.
-3. **Given** a user with no membership that reaches the business, **When** she opens the screen's address,
+3. **Given** a user without that permission, **When** she opens the screen's address,
    **Then** she sees the back office's normal «no access» state and no link (FR-005).
 4. **Given** the screen, **When** she presses the WhatsApp button, **Then** WhatsApp opens on her own device with
    the instruction line and the link already typed; she picks whom to send it to, and the system sends nothing
@@ -89,6 +90,8 @@ its own `business` value.
 - **The POS address is not set for the environment** (FR-002): the screen shows a clear «the link is not set up for
   this environment» message and no link or QR, never a link to a wrong host.
 - **The business has no logo**: the print page shows the name only.
+- **A changed business link**: never happens on its own. The link and its QR change only if the business id changed,
+  which it does not, so a printed sheet stays valid.
 - **WhatsApp is not installed** (a computer without WhatsApp Desktop): the button opens WhatsApp Web in a new tab;
   copying the link still works.
 - **Arabic and English**: every label goes through `packages/i18n`; the link itself is the same in both languages.
@@ -109,23 +112,27 @@ its own `business` value.
 - **FR-002**: The POS host comes from the environment the back office runs in (staging and production differ), never
   from the browser's own address, and never typed by the manager. When it is not set, FR-002's edge case applies.
 - **FR-003**: The screen shows a QR code whose content is byte for byte the link of FR-001, so the app's scan (M-1h)
-  and its paste (FR-012 of spec 065) read the same thing.
+  and its paste (FR-012 of spec 065) read the same thing. This QR is **fixed**: it names only the company and the business, so it is
+  printed once and keeps working. It is not the attendance QR on the counter device, which changes every minute and is a
+  different code for clocking in (EL-Q4 note, Abu Salem).
 - **FR-004**: The screen offers (EL-Q4): «نسخ اللينك»; the QR; «طباعة» for a print sheet (the business name and its
   logo, the QR, the link and the line «نزّلي تطبيق PosPay Business وامسحي الكود»); and a WhatsApp button. The WhatsApp
   button is a plain link `https://wa.me/?text=<its own line and the link, URL-encoded>`; its line is «افتحي اللينك ده
   عشان توصّلي تطبيق الموظفات بصالون <اسم الصالون>», not the print sheet's «scan the code» line, since she receives a link: it opens WhatsApp on
   the manager's own device with that text typed, she picks the recipient, and the system sends nothing (no outbound
   message is added, no phone is read).
-- **FR-005**: Anyone who uses the back office may open the screen (EL-Q3), for a business her membership reaches; no
-  extra permission. That is decided by the server, never only in the menu (`CLAUDE.md` §8): the business must be in
-  the caller's own `GET /v1/me/workspaces` answer (Slice design).
+- **FR-005**: Only a user who may add and edit employees of the business may open the screen (EL-Q3, Abu Salem): the
+  existing permission `manage:employees:business` on that business, a DENY winning, as on the employees page. The
+  server decides it on the screen's own read (Slice design), never only in the menu (`CLAUDE.md` §8); the menu entry
+  and the employees-page button show only when that read succeeds.
 - **FR-006**: The screen is a page «تطبيق الموظفات» in the staff menu, and the employees page has a button that opens
   it (EL-Q2).
 - **FR-007**: The screen shows the business that is open in the back office now (EL-Q5); switching business switches
   the link and the QR.
-- **FR-008**: The screen writes no setting and no business record, since it only shows identifiers the manager already
+- **FR-008**: The screen changes no setting and writes no business record, since it only shows identifiers the manager already
   has. The only writes are the logo read's two access-audit records (`file_access_audit` and `audit_log`, Slice design),
-  because reading a stored file is a private-file access (`CLAUDE.md` §8).
+  because reading a stored file is a private-file access (`CLAUDE.md` §8); the logo lock may also create a business's
+  empty defaults settings row, which changes no value.
 
 ### Key Entities
 
@@ -140,42 +147,42 @@ its own `business` value.
 
 ### Schema changes
 
-None. Nothing is stored apart from the logo read's two access-audit records, in the existing audit tables (FR-008).
+None. Nothing is stored apart from the logo read's two access-audit records, in the existing audit tables, and, for a
+business with no settings row yet, the empty defaults row the existing logo lock creates (FR-008, ADR-0056 addendum).
 
 ### API contract
 
-- **Access and the name come from an existing read (FR-005, EL-Q3).** `GET /v1/me/workspaces` (`@Authenticated()`,
-  session only; `apps/api/src/modules/identity/http/me.controller.ts`) already returns the caller's own memberships,
-  each company with its businesses' `id`, `name_en` and `name_ar`, read inside `withUser` and `withTenant` through
-  tenancy's `describeWorkspaces`. The screen shows the link only for the business that is open (EL-Q5) **and**
-  appears in that answer; otherwise it shows the no-access state. The menu entry shows for every back-office user,
-  as EL-Q3 says. No new endpoint, no new permission.
+- **The screen's read (FR-005, EL-Q3).** `GET /v1/businesses/{businessId}/staff/employee-app-link` · guard
+  `@Require('manage:employees:business', { business: 'businessId' })` (DENY wins) · the staff feature, as the
+  employees endpoints · read-only, so no `Idempotency-Key` · a `queries/` read (`CLAUDE.md` §6) · response (Zod in
+  `packages/contracts/src/staff/employee-app-link.ts`): `{ company_id, business_id, business_name_en,
+  business_name_ar | null }`. The names come through a staff port, `EmployeeAppLinkNames`, whose adapter calls
+  tenancy's exported `describeWorkspaces` (the `staff → tenancy` arrow is declared; the module map gains its port
+  row). **Errors:** every refusal is the guard's 403 `FORBIDDEN`, whether the caller lacks the permission, a DENY
+  wins, or the business is unknown or of another company, so the answer never says whether a business exists. The
+  screen shows the link only after a 200, and a 403 shows the no-access state.
 - **The logo (FR-004, the print sheet).** The salon logo is a stored file, so showing it is a private-file access
   with its audit (`CLAUDE.md` §8). No existing read serves it to this screen: `readStatementLogo` is worker-only and
   needs a file id and a render id (ADR-0056 §2–3), and the business identity read needs another permission. **How**
-  the logo reaches the screen is an **ADR-0056 addendum**, written with `/speckit-plan` and reviewed like any ADR
-  (`TODO(spec)`, technical). It is not an owner question: if writing it turns up a choice the owners must make, that
+  the logo reaches the screen is the [ADR-0056 addendum of 2026-10-24](../../adr/0056-attendance-statement-reads-and-logo-reader.md#addendum-2026-10-24--the-employee-app-screens-logo-read-in-the-api-spec-069-m-1g):
+  `POST /v1/businesses/{businessId}/employee-app-link/logo-download` in API `files` returns a 60-second signed URL
+  after the audited check. EL-TQ1 (technical) is decided: Waleed allowed the back office to read it (CORS `GET`, plan.md). It is not an owner question: if writing it turns up a choice the owners must make, that
   question is recorded in [owner-questions.ar.md](owner-questions.ar.md) and asked then. This spec fixes only what it must satisfy:
-  - **Access:** the same rule as the screen (EL-Q3): a session whose active membership, in the company named by a
-    validated `x-company-id` (parsed as `me/memberships` does), reaches the business. The company is never looked up
-    from the business id. One 404 for an unknown business, another company's business, an unreached business and a
-    business with no logo.
-  - **One transaction, then the image:** the access check, resolving the logo file and both audit records (the
-    `file_access_audit` row and the `file`/`access` `audit_log` entry, as ADR-0056 §3 does, in the module that owns
-    `file_access_audit`) run in **one** `withTenant(company, …, { userId })` transaction, so a revoked membership can
-    never be audited as allowed and the two records commit together or not at all. The image is delivered only after
-    that commit, outside any transaction. Because it writes, it is not a `queries/` read
-    (`CLAUDE.md` §6), it carries the PP-7.1 write declaration, and its ids come from the injected `IdGenerator`.
-  - **Constraints the addendum must resolve, not decided here:** the module that owns the read, and how it learns the
-    `logo_file_id` of `settings` without a new reverse dependency (`docs/module-map.md`); how the image travels
-    without breaking ADR-0046 §4 (storage IO never in a request, a consumer or a transaction) or the 200 ms rule of
-    `CLAUDE.md` §6, and every delivered image counts as an audited access: either the addendum makes issuing a URL the audited access,
-    with an exact short lifetime and `Cache-Control: private, no-store` on the stored object's own answer, or every
-    fetch goes through the check and the audit; and `Cache-Control: private, no-store` on anything the API returns.
-    The addendum also settles two more points: how the access check locks the membership so a revocation committing
-    at the same moment cannot be audited as allowed (the same lock order the revocation uses); and how the screen tells
-    a missing logo object from a storage error under the chosen transport (an `<img>` load failure shows no status, a
-    `fetch` needs CORS on the bucket, and an expired URL answers 403), so the two outcomes below stay decidable.
+  - **Access:** the same guard as the screen's read, `@Require('manage:employees:business', { business:
+    'businessId' })` with the staff feature, so every refusal is the guard's 403; the screen then shows no-access and
+    does not print. A permitted user of a business with no logo gets 200 with `download_url: null`.
+  - **Sequential steps, as in `IssueDownload`** (`CLAUDE.md` §6, PP-7.2, never nested): resolve the logo file (only to
+    name a `DENY` audit); check the permission again for every request (a refusal commits a `DENY` pair when a file
+    exists, then answers 403); then, once allowed, **always** one locked transaction that decides on the current
+    binding (`lockBusinessLogoBinding`, which locks the settings row and returns the current logo): nothing qualifying bound now answers
+    `download_url: null`, and any qualifying logo, a replacement or one bound meanwhile included, gets the `ALLOW` pair
+    (`file_access_audit` and the `file`/`access` `audit_log` entry, ADR-0056 §3) and the signed URL in that same
+    transaction, so they commit together or not at all. The image is delivered only after that commit. Because it
+    writes, it is a use case, not a `queries/` read (`CLAUDE.md` §6), and its ids come from the injected `IdGenerator`.
+  - **Settled by the addendum** (not repeated here): the read lives in API `files`; it learns `logo_file_id` through
+    `@pospay/db` (`readBusinessIdentity`, then `lockBusinessLogoBinding` under the lock) with no `files → settings` import; it
+    issues a 60-second signed URL, signed inside the `ALLOW` transaction, with `Cache-Control: private, no-store`; and
+    the screen tells a missing logo from a failure by the storage answer (CORS `GET`, EL-TQ1).
   - **When the logo cannot be shown:** a bound logo whose stored object is missing counts as no logo, and the sheet
     prints with the name only, as ADR-0056 does for statements. A storage error or timeout shows «اللوجو مش متاح
     دلوقتي، جرّبي تاني» with a retry, and the sheet does not print without the logo in that case.
@@ -194,7 +201,7 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
 
 ### Permissions
 
-- No new permission: a back-office session and a membership that reaches the business are enough (EL-Q3).
+- No new permission: the existing `manage:employees:business` opens the screen and the logo read (EL-Q3, Abu Salem).
 
 ### Events
 
@@ -205,34 +212,43 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
 - **Domain unit**: none (no business arithmetic). A pure helper that builds the link from the origin and the two ids
   gets unit tests: exact output, a non-`https:` or empty origin refused, ids placed under `company` and `business`.
 - **UI tests (apps/admin)**, each asserting what is on screen (`CLAUDE.md` §9): `EL-T01` the link and the business
-  name show for a back-office user whose workspaces include the open business · `EL-T02` the QR's value equals the link · `EL-T03` copy puts the link on the
-  clipboard and shows the confirmation; a refused clipboard shows the failure and the link stays visible · `EL-T04` an open
-  business missing from the workspaces answer shows the no-access state and no link · `EL-T05` a missing `NEXT_PUBLIC_POS_URL` shows the
+  name show for a holder of `manage:employees:business` on the open business · `EL-T02` the QR's value equals the link · `EL-T03` copy puts the link on the
+  clipboard and shows the confirmation; a refused clipboard shows the failure and the link stays visible · `EL-T04` a 403 on the
+  screen's read shows the no-access state and no link, and the menu entry is hidden · `EL-T05` a missing `NEXT_PUBLIC_POS_URL` shows the
   not-set-up message and no QR · `EL-T06` the print view holds only the name, the logo (or the name alone when there is
   none), the QR, the link and the instruction line · `EL-T07` another business selected changes the link and the QR · `EL-T08` a `NEXT_PUBLIC_POS_URL` host that is not one of the shared POS hosts shows the not-set-up message, and the staging deploy check finds the staging POS host in the staging back office's link · `EL-T09` the WhatsApp button's link is `https://wa.me/?text=` with the WhatsApp line (not the print line) and the link URL-encoded, and pressing it sends no request to the API.
 - **Cross-check with the app**: a test in `apps/pos` feeds the admin helper's output to `parseManagerLink` and gets the
   same company and business back, so the two sides cannot drift.
-- **Integration (apps/api), the logo read only** (its exact shape follows the ADR-0056 addendum): `EL-I01` a member whose membership reaches the business gets the
-  image · `EL-I02` a member of the same company whose membership does not reach that business, an unknown business,
-  and a business of another company all get the same 404 · `EL-I03` a business with no logo gets that 404, and every image answer writes one `file_access_audit` row and one
-  `file`/`access` `audit_log` entry in the same transaction as the access check, committed before the image is
-  delivered; a failure between them leaves neither · `EL-I05` whatever it returns carries `Cache-Control: private, no-store` · `EL-T10` (apps/admin) a storage
-  failure shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry and no print, while a missing logo object prints the
-  name only · `EL-I04`
-  no session gets 401, and a missing or malformed `x-company-id` gets 400.
-- **Queries**: none new (the names come from `me/workspaces`, already tested).
-- **RLS negative**: no new table; EL-I02's other-company case runs under `withTenant` and is the negative test.
+- **Integration (apps/api)**: the screen's read: `EL-I07` a holder gets 200 with the names and ids · `EL-I08` no
+  permission, a DENY on the business, an unknown business and another company's business all get the same 403. The
+  logo read: `EL-I01` a holder gets a signed URL · `EL-I02` the same four refusals get the guard's 403 · `EL-I09` a permission revoked after the guard gets the same 403 from the use case's own check, with a committed
+  `DENY` pair when a logo file exists and nothing written when none does, never `download_url: null` · `EL-I11` between the resolve read and the locked transaction, a logo replaced gets the new file signed and
+  audited, a logo bound where none was gets it signed and audited, a logo removed answers `download_url: null` with
+  nothing written, and the old file is never signed · `EL-I10` no
+  step opens a transaction inside another, and the request never holds two pool connections at once (PP-7.2) · `EL-I03` a
+  holder of a business with no logo bound gets 200 with `download_url: null` and no audit record; every URL answer
+  writes one `file_access_audit` row and one `file`/`access` `audit_log` entry in the same transaction as the URL
+  signature, and a failure in that transaction, signing included, leaves neither record (the `DENY` pair of EL-I09
+  is its own committed write) · `EL-I05` the API answer and the
+  signed object answer both carry `Cache-Control: private, no-store` · `EL-I06` a signing or storage-configuration
+  failure answers 503 (`STORAGE_UNAVAILABLE` / `STORAGE_NOT_CONFIGURED`) with no audit record · `EL-I04` no session
+  gets 401.
+- **UI, logo cases (apps/admin)**: `EL-T11` the screen's read succeeds, then the logo request answers 403 (permission
+  revoked after the page loaded): the screen shows the no-access state and printing is disabled, never the name-only
+  sheet · `EL-T10` a storage failure shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry and no print, while a
+  missing logo object (a 404 `NoSuchKey`) prints the name only, and a 404 `NoSuchBucket` or an unreadable answer is
+  treated as the storage failure; a 503 from the logo read shows the same retry message.
+- **Queries**: the screen's `queries/` read gets a result-shape test and its own `EXPLAIN ANALYZE` assertion
+  (`CLAUDE.md` §9). It runs the statement it reaches through the tenancy port (`describeWorkspaces`) for one
+  business and asserts an index scan on `businesses` by `(company_id, id)`.
+- **RLS negative**: no new table; EL-I08's and EL-I02's other-company cases are the negative tests.
 
-### If Abu Salem picks differently
+### EL-Q3 history
 
-- **EL-Q3 «the people who add and edit employees» or «owner and general manager only»:** `me/workspaces` is no longer
-  enough. The screen then needs its own guarded read, `GET /v1/businesses/{businessId}/staff/employee-app-link` under
-  `@Require(manage:employees:business)` (or the owner/general-manager roles), answering the guard's single 403 for
-  every refusal and returning the names through a staff port over `describeWorkspaces`; the logo read moves under the
-  same guard.
-- **EL-Q4 without WhatsApp, or without printing:** the button or the print sheet (and so the logo read) is dropped.
-- **EL-Q1 «one link per employee», EL-Q2 or EL-Q5 another option:** the link gains an employee hint and spec 065
-  FR-012 changes (a new owner round); or the screen moves; or it lists every business she reaches.
+Until Abu Salem answered (2026-10-24, 21:36–21:45 Kuwait), this spec followed Waleed's «anyone in the back office»:
+access and names from `GET /v1/me/workspaces`, and a logo read with its own membership lock. Abu Salem's binding pick
+replaced it with the `manage:employees:business` guard above, which needs no `files → identity` arrow and no lock of
+its own. Waleed's answer stays recorded as history in [owner-questions.ar.md](owner-questions.ar.md).
 
 ## Success Criteria *(mandatory)*
 

@@ -157,3 +157,92 @@ statement request; the files reader re-checks the file at render time (§3). The
 - **Printing the name only when the logo cannot be fetched:** quietly produces a statement that differs from what the
   owner set up; a retry or a visible failure is better.
 - **Reading the logo bytes inside the tenant transaction:** storage IO in a transaction (ADR-0046 §4).
+
+## Addendum 2026-10-24 — the employee-app screen's logo read in the API (spec 069, M-1g)
+
+- **Status:** Proposed with the spec 069 plan (docs PR); accepted with sub-PR 069-2, which builds it. EL-TQ1 answered
+  by Waleed on 2026-10-24: (a).
+
+**Context.** Spec 069's print sheet carries the salon logo (EL-Q4). The screen opens for a user who may add and edit
+employees of the business (EL-Q3, Abu Salem's binding pick, 2026-10-24): `manage:employees:business`. The stored
+permission of the logo file (`manage:business-identity:business`, ADR-0046 §5) cannot be the rule, because a manager
+who adds employees need not edit the business identity; this is the same reasoning as the attendance statement's
+requester, who needs no files or settings permission (§3 above). `readStatementLogo` cannot be reused: it lives in the
+worker, embeds bytes in a PDF, and needs a render id.
+
+**Decision.**
+
+1. **API `files` owns the read**, as a use case beside `issue-download` (`use-cases/issue-business-logo-download/`),
+   because `files` owns `file_access_audit` and `packages/storage`. Route:
+   `POST /v1/businesses/{businessId}/employee-app-link/logo-download`, `@HttpCode(200)`, guarded by
+   `@Require('manage:employees:business', { business: 'businessId' })` with the staff feature, exactly the guard of
+   the screen's read (spec 069). The guard resolves the company from the validated `x-company-id` and refuses, with
+   its single 403, a caller without the permission, a DENY, an unknown business and another company's business, so the
+   use case starts only for a permitted caller on a business of that company. The audit id comes from the injected
+   `IdGenerator`.
+2. **The steps run one after the other, as in `IssueDownload`, never nested** (`CLAUDE.md` §6, PP-7.2: one pool
+   connection at a time, no transaction inside another):
+   1. **Resolve the logo**, one short `withTenant(company, …, { userId })` read: the bound `logo_file_id` through
+      `@pospay/db` `readBusinessIdentity` (§2's shared read), through a port `BusinessLogoReference` whose adapter calls
+      `@pospay/db` (no `files → settings` import, as with the worker `LogoReference` row), then the `file_objects` row
+      as §3 phase 1 checks it: READY, `owner_module = 'settings'`, owner = the business, `purge_started_at IS NULL`.
+      The result is a qualifying file or none. It writes nothing.
+   2. **Check the permission again, for every request**, with or without a logo: the existing `FilePermissions` port
+      (`allowed(actor, 'manage:employees:business', businessId, null)`), whose adapter calls the shared
+      `RequestAuthorizer` that ADR-0022 exposes to `files` (not a `files → identity` arrow). It runs in its own
+      transaction after step 1 has committed. A refusal with a resolved file writes the `DENY` access pair
+      (`file_access_audit` with `outcome = 'DENY'` and the `file`/`access` `audit_log` entry, the same pair
+      `IssueDownload`'s audit writes), commits it, and only then answers the guard's 403. A refusal without a file
+      answers the 403 and writes nothing. The route therefore never answers `download_url: null` to a caller who
+      lost the permission after the guard.
+   3. **Allowed: always one locked `withTenant` transaction, with or without a logo found in step 1.** Lock the
+      binding first with a new lock-only sibling in `@pospay/db`, `lockBusinessLogoBinding(tx, companyId, businessId)`,
+      beside `lockBusinessLogoReference` in `business-logo-reference.ts`. It takes the same `business_settings` lock
+      (the empty-row `INSERT … ON CONFLICT DO NOTHING`, then `FOR UPDATE`), the one binding and removal take
+      (ADR-0046 §4), and returns the **current** `logo_file_id` or `null`. For a business that has no `business_settings` row yet, the lock
+      commits an empty row of defaults, exactly as `lockBusinessLogoReference` already does for settings and the
+      worker: it holds no data, and it is what lets a concurrent bind serialize with this read. `lockBusinessLogoReference` keeps its
+      signature and its callers. Decide on that current binding, not on step 1: the current file, if any, is checked against its `file_objects` row as step 1 did. Nothing qualifying bound now:
+      200 `{ download_url: null }`, no audit written (only the empty defaults row above, when none existed), and the sheet prints the name only. A qualifying file (the step 1
+      file, a replacement, or a logo bound after step 1): insert the `ALLOW` pair, sign the GET URL with
+      `packages/storage` `presignDownload` (local computation, no network call, so ADR-0046 §4 holds), commit. A
+      signing failure rolls the pair back, so an `ALLOW` is never recorded for a URL that was not issued. A retired
+      file is never signed, and a logo bound when the lock is taken is always audited and issued through a signed URL;
+      a stored object missing at fetch time still prints the name only (§4 of this addendum).
+   - **Accepted residual:** none of these steps locks the membership rows, so a revocation that commits after step
+     2 still gets one audited URL that lives 60 seconds. That is the residual of every download in the project
+     (ADR-0022: the audit measures URL issuance), and this route checks the permission exactly as `IssueDownload`
+     does, so it is no weaker.
+   - A **signing or storage-configuration failure is not a miss**: it answers the files module's existing
+     `STORAGE_UNAVAILABLE` (503), or `STORAGE_NOT_CONFIGURED`, with nothing written. The screen shows «اللوجو مش
+     متاح دلوقتي، جرّبي تاني» with a retry, never the name-only sheet; only the API's `download_url: null` and
+     storage's `NoSuchKey` print the name only.
+3. **After the commit:** return the signed URL. No storage network call happens in the request; the browser reads the
+   object itself. The URL lives 60 seconds, as `IssueDownload` does. `presignDownload` gains an optional response cache policy so the stored
+   object answers `Cache-Control: private, no-store`. The API answer is `{ download_url, expires_in: 60 }` (or `{ download_url: null }` with
+   no logo), also `no-store`. **Issuing the URL is the audited access:** every URL leaves one audit pair, and the 60-second life
+   bounds its reuse, the accepted residual of every download in the project (ADR-0022).
+4. **Missing object versus failure** (spec 069: a missing object prints the name only; a storage error offers a
+   retry). The admin reads the object with `fetch` on the signed URL, and that needs the bucket's CORS to allow `GET`
+   from the back-office origins. ADR-0022 documents `PUT` only. That was **EL-TQ1**, a server setting; Waleed picked (a) on 2026-10-24 and applies the rule himself (spec 069
+   `plan.md`):
+   - ⭐ (a) add `GET` from the back-office origins to the bucket's CORS. Then a 404 whose body carries the storage error code `NoSuchKey`
+     means name only; a 404 with any other code (`NoSuchBucket` is an outage, as `packages/storage` already treats it,
+     `s3.spec.ts`) or an unreadable body counts as a failure; 403 (an expired URL) means one new URL then the retry
+     message; any other failure or a 10-second timeout means the retry message.
+   - (b) keep CORS as is and load the logo with `<img>` only. A load failure cannot tell missing from error, so every
+     failure shows the retry message, and a truly missing logo blocks printing until the logo is uploaded again. The
+     message then says so. This changes spec 069's missing-object rule.
+
+**Consequences.** One new route and use case in API `files`, one port row (`BusinessLogoReference` → `@pospay/db`) in
+the module map, one new lock-only `@pospay/db` function (`lockBusinessLogoBinding`, beside the unchanged
+`lockBusinessLogoReference`), and an optional cache policy on `presignDownload`. No new import arrow, table, permission, grant or
+role. Every sheet printed with a logo leaves an audit pair for the user who opened it.
+
+**Alternatives rejected.**
+- **Streaming the bytes through the API:** storage IO in a request (ADR-0046 §4), and up to 10 MiB held by an `api`
+  worker.
+- **The logo file's stored permission:** it would hide the logo from managers EL-Q3 lets open the screen.
+- **A session-only route with its own membership lock** (the design while EL-Q3 followed Waleed's «anyone in the back
+  office»): Abu Salem's pick makes the standard permission guard the rule, which needs no `files → identity` arrow and
+  no lock of its own.
