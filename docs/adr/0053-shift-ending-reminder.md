@@ -1,6 +1,6 @@
 # ADR-0053 — Shift-ending reminder: discovery, presence, once-only ledger and rule
 
-Status: Accepted; implemented by 064-1 (#577, rules and ledger), 064-2 (#585, template and delivery) and 064-3 (the
+Status: Accepted; implemented by 064-1 (#577, rules and ledger), 064-2 (#585, template and delivery) and 064-3 (#594, the
 detector in the company job). The owner-dependent points were decided
 by Waleed on the decisions page on 2026-10-22, the recommended option in all six (SE-Q1…SE-Q6, PP-34.1…PP-34.6; see
 [the owner questions](../specs/064-shift-ending-reminder/owner-questions.ar.md)).
