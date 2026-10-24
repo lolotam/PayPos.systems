@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type * as PersonalSessionModule from '../api/use-personal-session';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
@@ -13,7 +14,7 @@ vi.mock('../api/personal-calls', () => ({
   personalCalls: { session: vi.fn(), binding: vi.fn(), signOut: vi.fn() },
 }));
 vi.mock('../api/use-personal-session', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../api/use-personal-session')>();
+  const actual = await importOriginal<typeof PersonalSessionModule>();
   return { usePersonalSession: vi.fn(actual.usePersonalSession) };
 });
 vi.mock('../api/attendance-calls', () => ({
