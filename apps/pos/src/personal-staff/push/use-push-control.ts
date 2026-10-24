@@ -167,13 +167,16 @@ function usePushRefresh(input: {
     void refreshPush({ companyId, locale, config, installationId })
       .then((outcome) => {
         inFlight.current = '';
-        // نتيجة "ولا حاجة" (صلاحية ناقصة أو معرف تثبيت ناقص) ما بتعلّمش التوقيع:
-        // التحديث لازم يتعاد لما المستخدم يرجع ويسمح (FR-019).
-        if (outcome.kind === 'rotated') {
-          refreshed.current = `${outcome.token}|${locale}|${config.vapid_key_id}`;
-        } else if (outcome.kind !== 'none') {
-          refreshed.current = signature;
+        // نتيجة "ولا حاجة" (صلاحية ناقصة أو معرف تثبيت ناقص) بتتعلّم كمحاولة فاشلة:
+        // التحديث بيتعاد بس لما المستخدم يرجع ويسمح، ومفيش إعادة قراءة دايرة (FR-019).
+        if (outcome.kind === 'none') {
+          failed.current = signature;
+          return;
         }
+        refreshed.current =
+          outcome.kind === 'rotated'
+            ? `${outcome.token}|${locale}|${config.vapid_key_id}`
+            : signature;
         void reload();
       })
       .catch(() => {
