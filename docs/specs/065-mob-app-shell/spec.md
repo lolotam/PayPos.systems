@@ -147,7 +147,8 @@ start screen again.
   today.
 - **FR-006**: A single platform port MUST report, per capability, whether it is available: Web Push (never on native);
   passkeys (off on both platforms until O-4 is done, on iOS also until #536, on Android also only if M-1c's check
-  passes); attendance camera (Android per M-1c; **iOS off until M-1c-ii passes on a real iPhone**, ADR-0055 decision 3).
+  passes); attendance camera (Android **off until M-1c's camera check (d) passes**, which follows WhatsApp Business under
+  PP-58.1, so no unverified camera control ships; **iOS off until M-1c-ii passes on a real iPhone**, ADR-0055 decision 3).
   Screens read the port; no screen tests the platform itself.
 - **FR-007**: A capability that is off MUST NOT offer a working-looking control: its button is hidden and one line says
   it is available in the web app, with a link that opens it (APP-Q17, PP-42.9; Waleed, 2026-10-23; Abu Salem picked the same, final).
@@ -211,7 +212,7 @@ start screen again.
 - **FR-014**: The in-app QR scan reads a QR code whose content is exactly the manager's link of FR-012 and handles it
   with the same parser and the same rules (host and path check, role precedence, confirmation before a business
   switch). It uses the attendance camera capability of the platform port (FR-006): where the camera is off (iOS
-  until M-1c-ii passes; Android if M-1c's check fails), the scan option is hidden with the FR-007 line and the
+  until M-1c-ii passes; Android until M-1c's check (d) passes), the scan option is hidden with the FR-007 line and the
   employee connects by the link or the paste. The QR itself is shown by a back-office screen in `apps/admin` that
   gives the manager the employee-app link and its QR code (one link per business: EL-Q1 of spec 069, Waleed's pick,
   Abu Salem pending); that screen is its own sub-PR (plan M-1g, spec 069),

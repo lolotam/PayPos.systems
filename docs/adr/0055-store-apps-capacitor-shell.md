@@ -126,12 +126,13 @@ Bundled assets change the page origin, and that is the main technical risk of th
   build through a Mac or a paid Apple account. **How iOS is tested, and what it may cost, is owner question APP-Q8:
   Waleed picked the GitHub macOS runner with the iOS simulator, free minutes only, and nothing may start charging
   without his yes** (Abu Salem picked the same; final). The spike therefore has two steps:
-  - **M-1c, no fee:** Android (a)–(e) on a real phone with a side-loaded debug build; iOS (a) and (b) as an automated UI
+  - **M-1c, no fee:** Android (a)–(e) on a real phone with a side-loaded debug build ((a) and (b) are the gate, (c)–(e)
+    follow once WhatsApp Business is ready; see the 2026-10-25 addendum, PP-58.4); iOS (a) and (b) as an automated UI
     test on the iOS simulator of the GitHub macOS runner ((c) moved to M-1c-ii by PP-58.2, see the 2026-10-25 addendum). The simulator runs the iOS WebKit, so it answers the cookie
     question; it has no camera and no real passkey, so (d) and (e) stay open on iOS.
   - **M-1c-ii, the first real iPhone:** the first TestFlight build of M-2a, installed by the owners only (internal
     testers), repeats (a) and (b) and adds (c), (d) and (e) on iOS.
-  **M-1d onward waits for M-1c; the Apple fee waits for M-1c's iOS (a) and (b) to pass on the simulator** (and for the
+  **M-1d onward waits for M-1c's gate ((a) and (b) on both platforms, 2026-10-25 addendum); the Apple fee waits for M-1c's iOS (a) and (b) to pass on the simulator** (and for the
   company, APP-Q3). **No employee receives the iOS app, and attendance stays hidden on iOS, until M-1c-ii passes.** If (d) fails, the scanner moves to a native camera plugin behind the M-1d port before attendance
   is enabled in the app. If iOS fails (b) on the simulator or (c) on the first real iPhone, the fallback, in this order, is:
   1. Capacitor's native HTTP and cookie plugins (`CapacitorHttp`, `CapacitorCookies`) with the API hosts listed in
