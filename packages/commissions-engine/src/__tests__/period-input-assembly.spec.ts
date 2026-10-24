@@ -1,0 +1,299 @@
+import { describe, expect, it } from 'vitest';
+
+import type { ServiceCommissionOverride } from '../commission-types.ts';
+import { computePeriod } from '../period-commission.ts';
+import { assembleCommissionPeriodInput } from '../period-input-assembly.ts';
+import type {
+  CommissionPeriodProjection,
+  ProjectedCommissionLine,
+  ProjectedCommissionTip,
+  ProjectedPackageSale,
+  ReceivedCommissionCorrection,
+} from '../period-input-types.ts';
+import type { CommissionPeriodInput, CommissionSalary } from '../plan-types.ts';
+import {
+  selectSalaryEntryOnLastDay,
+  selectSalaryOnLastDay,
+} from '../salary-thresholds.ts';
+import { line, pct, sale, version } from './engine-ii-fixtures.ts';
+
+function projectedLine(patch: Partial<ProjectedCommissionLine> = {}): ProjectedCommissionLine {
+  return { ...line(), status: 'ACTIVE', ...patch };
+}
+
+function projectedSale(patch: Partial<ProjectedPackageSale> = {}): ProjectedPackageSale {
+  return { ...sale(), status: 'ACTIVE', ...patch };
+}
+
+function salaryEntry(
+  employeeId: string,
+  effectiveFrom: string,
+  amount: bigint,
+): CommissionSalary {
+  return { employeeId, effectiveFrom, amount };
+}
+
+function serviceOverride(
+  patch: Partial<ServiceCommissionOverride> = {},
+): ServiceCommissionOverride {
+  return {
+    id: 'override-a',
+    employeeId: 'employee-a',
+    serviceId: 'service-a',
+    effectiveFrom: '2026-10-01',
+    createdAt: 1n,
+    rule: pct(500n),
+    ...patch,
+  };
+}
+
+function tip(patch: Partial<ProjectedCommissionTip> = {}): ProjectedCommissionTip {
+  return {
+    sessionId: 'session-a',
+    employeeId: 'employee-a',
+    businessDate: '2026-10-10',
+    method: 'CARD',
+    amount: 5000n,
+    ...patch,
+  };
+}
+
+function correction(
+  patch: Partial<ReceivedCommissionCorrection> = {},
+): ReceivedCommissionCorrection {
+  return {
+    employeeId: 'employee-a',
+    sourcePeriod: '2026-09',
+    targetPeriod: '2026-10',
+    sourceRef: 'line:a',
+    kind: 'COMMISSION',
+    amount: 500n,
+    previousAmount: 1000n,
+    newAmount: 1500n,
+    generation: 1n,
+    ...patch,
+  };
+}
+
+function projection(
+  patch: Partial<CommissionPeriodProjection> = {},
+): CommissionPeriodProjection {
+  return {
+    employeeId: 'employee-a',
+    period: '2026-10',
+    lines: [],
+    sales: [],
+    salaries: [],
+    versions: [version()],
+    overrides: [],
+    tips: [],
+    corrections: [],
+    ...patch,
+  };
+}
+
+const assemble = (patch: Partial<CommissionPeriodProjection> = {}) =>
+  assembleCommissionPeriodInput(projection(patch));
+
+function computedTotal(input: CommissionPeriodInput): bigint {
+  const result = computePeriod(input);
+  if (!result.ok) throw new Error(`Expected a priced period, received ${result.code}`);
+  return result.total;
+}
+
+describe('assembleCommissionPeriodInput', () => {
+  it('passes every input kind through for the employee and month', () => {
+    const activeLine = projectedLine();
+    const activeSale = projectedSale();
+    const selectedSalary = salaryEntry('employee-a', '2026-10-01', 500000n);
+    const selectedVersion = version();
+    const selectedOverride = serviceOverride();
+    const receivedTip = tip();
+    const receivedCorrection = correction();
+    const assembled = assemble({
+      lines: [activeLine],
+      sales: [activeSale],
+      salaries: [selectedSalary],
+      versions: [selectedVersion],
+      overrides: [selectedOverride],
+      tips: [receivedTip],
+      corrections: [receivedCorrection],
+    });
+    expect(assembled.input).toEqual({
+      employeeId: 'employee-a',
+      period: '2026-10',
+      periodLastDay: '2026-10-31',
+      lines: [activeLine],
+      sales: [activeSale],
+      versions: [selectedVersion],
+      overrides: [selectedOverride],
+      salaries: [selectedSalary],
+    });
+    expect(assembled.tips).toEqual([receivedTip]);
+    expect(assembled.corrections).toEqual([receivedCorrection]);
+  });
+
+  it('drops cancelled lines that would otherwise be priced', () => {
+    const active = projectedLine({ lineId: 'active' });
+    const cancelled = projectedLine({ lineId: 'cancelled', status: 'CANCELLED' });
+    const assembled = assemble({ lines: [active, cancelled] });
+    expect(assembled.input.lines).toEqual([active]);
+    expect(computedTotal(assembled.input)).toBe(
+      computedTotal({ ...assembled.input, lines: [active] }),
+    );
+    expect(computedTotal({ ...assembled.input, lines: [active, cancelled] })).toBe(20000n);
+  });
+
+  it('keeps only active sales explicitly sold by this employee', () => {
+    const active = projectedSale({ saleId: 'active' });
+    const assembled = assemble({
+      sales: [
+        active,
+        projectedSale({ saleId: 'cancelled', status: 'CANCELLED' }),
+        projectedSale({ saleId: 'imported', sellerEmployeeId: null }),
+        projectedSale({ saleId: 'other', sellerEmployeeId: 'employee-b' }),
+      ],
+    });
+    expect(assembled.input.sales).toEqual([active]);
+  });
+
+  it('drops every kind of row belonging to another employee', () => {
+    const assembled = assemble({
+      lines: [projectedLine({ employeeId: 'employee-b' })],
+      sales: [projectedSale({ sellerEmployeeId: 'employee-b' })],
+      salaries: [salaryEntry('employee-b', '2026-10-01', 500000n)],
+      versions: [version({ employeeId: 'employee-b' })],
+      overrides: [serviceOverride({ employeeId: 'employee-b' })],
+      tips: [tip({ employeeId: 'employee-b' })],
+      corrections: [correction({ employeeId: 'employee-b' })],
+    });
+    expect(assembled.input.lines).toEqual([]);
+    expect(assembled.input.sales).toEqual([]);
+    expect(assembled.input.versions).toEqual([]);
+    expect(assembled.input.overrides).toEqual([]);
+    expect(assembled.input.salaries).toEqual([]);
+    expect(assembled.tips).toEqual([]);
+    expect(assembled.corrections).toEqual([]);
+  });
+
+  it('drops adjacent-month activity and selects corrections by target month', () => {
+    const received = correction({ sourcePeriod: '2025-01', sourceRef: 'line:old' });
+    const assembled = assemble({
+      lines: [
+        projectedLine({ lineId: 'previous', businessDate: '2026-09-30' }),
+        projectedLine({ lineId: 'next', businessDate: '2026-11-01' }),
+      ],
+      sales: [
+        projectedSale({ saleId: 'previous', businessDate: '2026-09-30' }),
+        projectedSale({ saleId: 'next', businessDate: '2026-11-01' }),
+      ],
+      tips: [tip({ businessDate: '2026-09-30' }), tip({ businessDate: '2026-11-01' })],
+      corrections: [received, correction({ targetPeriod: '2026-11', sourceRef: 'line:later' })],
+    });
+    expect(assembled.input.lines).toEqual([]);
+    expect(assembled.input.sales).toEqual([]);
+    expect(assembled.tips).toEqual([]);
+    expect(assembled.corrections).toEqual([received]);
+  });
+
+  it('selects the salary entry and preserves amount-selection behavior', () => {
+    const september = salaryEntry('employee-a', '2026-09-01', 400000n);
+    const october = salaryEntry('employee-a', '2026-10-15', 500000n);
+    const november = salaryEntry('employee-a', '2026-11-01', 600000n);
+    const salaries = [september, october, november];
+    const assembled = assemble({ salaries });
+    expect(assembled.salary).toBe(october);
+    expect(assembled.input.salaries).toEqual([october]);
+    expect(selectSalaryEntryOnLastDay('employee-a', '2026-10-31', salaries)).toBe(october);
+    expect(selectSalaryOnLastDay('employee-a', '2026-10-31', salaries)).toBe(october.amount);
+    expect(selectSalaryEntryOnLastDay('employee-a', '2026-08-31', salaries)).toBeNull();
+    const lastDay = salaryEntry('employee-a', '2026-10-31', 550000n);
+    expect(assemble({ salaries: [october, lastDay] }).salary).toBe(lastDay);
+    const empty = assemble({ salaries: [november] });
+    expect(empty.salary).toBeNull();
+    expect(empty.input.salaries).toEqual([]);
+  });
+
+  it('preserves NO_SALARY and NO_PLAN instead of hiding missing configuration', () => {
+    const salaryPlan = version({
+      base: { enabled: false },
+      tiers: {
+        enabled: true,
+        accumulator: 'AMOUNT',
+        mode: 'MARGINAL',
+        steps: [{ from: { kind: 'SALARY_MULTIPLE', value: 200n }, calc: pct(500n) }],
+      },
+    });
+    const noSalary = assemble({ lines: [projectedLine()], versions: [salaryPlan] });
+    expect(computePeriod(noSalary.input)).toEqual({ ok: false, code: 'NO_SALARY' });
+    const noPlan = assemble({ lines: [projectedLine()], versions: [] });
+    expect(computePeriod(noPlan.input)).toEqual({ ok: false, code: 'NO_PLAN' });
+  });
+
+  it.each([
+    ['2026-02', '2026-02-28'],
+    ['2028-02', '2028-02-29'],
+    ['2100-02', '2100-02-28'],
+    ['2000-02', '2000-02-29'],
+    ['2026-11', '2026-11-30'],
+    ['2026-12', '2026-12-31'],
+  ])('computes the calendar last day for %s', (period, expected) => {
+    expect(assemble({ period }).input.periodLastDay).toBe(expected);
+  });
+
+  it('drops future versions and overrides but keeps a whole-period version inside the month', () => {
+    const whole = version({ effectiveFrom: '2026-10-20', wholePeriod: true });
+    const currentOverride = serviceOverride();
+    const assembled = assemble({
+      versions: [version({ effectiveFrom: '2026-11-01' }), whole],
+      overrides: [currentOverride, serviceOverride({ id: 'future', effectiveFrom: '2026-11-01' })],
+    });
+    expect(assembled.input.versions).toEqual([whole]);
+    expect(assembled.input.overrides).toEqual([currentOverride]);
+  });
+
+  it('passes tips and corrections through unchanged without pricing them', () => {
+    const base = projection({ lines: [projectedLine()] });
+    const receivedTip = tip({ amount: 7000n });
+    const receivedCorrection = correction({ amount: -300n, newAmount: 700n });
+    const assembled = assembleCommissionPeriodInput({
+      ...base,
+      tips: [receivedTip],
+      corrections: [receivedCorrection],
+    });
+    expect(assembled.tips[0]).toBe(receivedTip);
+    expect(assembled.corrections[0]).toBe(receivedCorrection);
+    expect(assembled.tips[0]?.amount).toBe(7000n);
+    expect(assembled.corrections[0]?.amount).toBe(-300n);
+    expect(computedTotal(assembled.input)).toBe(computedTotal(assemble(base).input));
+  });
+
+  it.each(['2026-13', '2026-1', '26-10', ''])('rejects malformed period %s', (period) => {
+    expect(() => assemble({ period })).toThrow(RangeError);
+  });
+
+  it('does not mutate projection arrays and always returns new arrays', () => {
+    const source = projection({
+      lines: [projectedLine()],
+      sales: [projectedSale()],
+      salaries: [salaryEntry('employee-a', '2026-10-01', 500000n)],
+      versions: [version()],
+      overrides: [serviceOverride()],
+      tips: [tip()],
+      corrections: [correction()],
+    });
+    const before = structuredClone(source);
+    const assembled = assembleCommissionPeriodInput(source);
+    expect(source).toEqual(before);
+    const pairs = [
+      [assembled.input.lines, source.lines],
+      [assembled.input.sales, source.sales],
+      [assembled.input.salaries, source.salaries],
+      [assembled.input.versions, source.versions],
+      [assembled.input.overrides, source.overrides],
+      [assembled.tips, source.tips],
+      [assembled.corrections, source.corrections],
+    ] as const;
+    for (const [output, input] of pairs) expect(output).not.toBe(input);
+  });
+});
