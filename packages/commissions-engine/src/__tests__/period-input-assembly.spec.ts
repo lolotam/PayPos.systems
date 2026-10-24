@@ -269,31 +269,30 @@ it.each(['2026-13', '2026-1', '26-10', ''])('rejects malformed period %s', (peri
 });
 
 it('does not mutate projection arrays and always returns new arrays', () => {
-  const source: CommissionPeriodProjection = {
-    employeeId: 'employee-a',
-    period: '2026-10',
+  const source = projection({
     lines: [projectedLine()],
     sales: [projectedSale()],
+    salaries: [salaryEntry('employee-a', '2026-10-01', 500000n)],
     versions: [version()],
     overrides: [serviceOverride()],
-    salaries: [salaryEntry('employee-a', '2026-10-01', 500000n)],
     tips: [tip()],
     corrections: [correction()],
-  };
-  const sourceArrays = Object.values(source).filter(Array.isArray);
-  const before = sourceArrays.map((rows) => [...rows]);
+  });
+  let assembled: ReturnType<typeof assembleCommissionPeriodInput>;
+  const pairs = [
+    ['lines', () => assembled.input.lines, source.lines, [...source.lines]],
+    ['sales', () => assembled.input.sales, source.sales, [...source.sales]],
+    ['salaries', () => assembled.input.salaries, source.salaries, [...source.salaries]],
+    ['versions', () => assembled.input.versions, source.versions, [...source.versions]],
+    ['overrides', () => assembled.input.overrides, source.overrides, [...source.overrides]],
+    ['tips', () => assembled.tips, source.tips, [...source.tips]],
+    ['corrections', () => assembled.corrections, source.corrections, [...source.corrections]],
+  ] as const;
   deepFreezeProjection(source);
-  const assembled = assembleCommissionPeriodInput(source);
-  const outputs = [
-    ...Object.values(assembled.input).filter(Array.isArray),
-    assembled.tips,
-    assembled.corrections,
-  ];
-  for (const [index, output] of outputs.entries()) {
-    const current = sourceArrays[index]!;
-    const previous = before[index]!;
-    expect(output).not.toBe(current);
-    expect(current).toHaveLength(previous.length);
-    expect(current.every((row, rowIndex) => row === previous[rowIndex])).toBe(true);
+  assembled = assembleCommissionPeriodInput(source);
+  for (const [, output, sourceArray, copy] of pairs) {
+    expect(output()).not.toBe(sourceArray);
+    expect(sourceArray).toHaveLength(copy.length);
+    expect(sourceArray.every((row, rowIndex) => row === copy[rowIndex])).toBe(true);
   }
 });
