@@ -8,8 +8,6 @@ import { attendanceInstallationId } from '../model/installation-id';
 import { PushControl } from './push-control';
 import { pushCalls } from './push-calls';
 import type { PushRecord } from './push-record';
-import { refreshPush } from './push-refresh';
-import type * as PushRefreshModule from './push-refresh';
 
 const fakes = vi.hoisted(() => {
   const state = {
@@ -25,14 +23,6 @@ const fakes = vi.hoisted(() => {
   };
   return { state };
 });
-
-const RECORD: PushRecord = {
-  token: 'delivery-token',
-  subscriber_ref: 'subscriber-ref',
-  company_id: 'company',
-  vapid_key_id: '0123456789abcdef',
-  suspended: false,
-};
 
 const CONFIG = {
   vapid_public_key: 'public-key',
@@ -78,10 +68,19 @@ vi.mock('./push-browser', () => {
     isIosDevice: () => fakes.state.ios,
     isStandalone: () => fakes.state.standalone,
     notificationPermission: () => fakes.state.permission,
-    requestNotificationPermission: async () => fakes.state.permission,
+    requestNotificationPermission: async () => {
+      fakes.state.permission = 'granted';
+      return 'granted' as const;
+    },
     currentSubscription: async () => (fakes.state.subscribed ? subscription() : null),
-    subscribePush: async () => subscription(),
-    unsubscribePush: async () => true,
+    subscribePush: async () => {
+      fakes.state.subscribed = true;
+      return subscription();
+    },
+    unsubscribePush: async () => {
+      fakes.state.subscribed = false;
+      return true;
+    },
     base64UrlToBytes: () => new Uint8Array([1, 2, 3]),
     pushSubscriptionBody: () => ({
       endpoint: 'https://fcm.googleapis.com/fcm/send/synthetic',
@@ -91,10 +90,19 @@ vi.mock('./push-browser', () => {
   };
 });
 
-vi.mock('./push-calls', () => ({
-  pushCalls: { config: vi.fn(), register: vi.fn(), revoke: vi.fn() },
-  withTimeout: <T,>(promise: Promise<T>) => promise,
-}));
+vi.mock('./push-calls', () => {
+  class PushKeyStaleError extends Error {
+    constructor() {
+      super('PUSH_KEY_STALE');
+      this.name = 'PushKeyStaleError';
+    }
+  }
+  return {
+    PushKeyStaleError,
+    pushCalls: { config: vi.fn(), register: vi.fn(), revoke: vi.fn() },
+    withTimeout: <T,>(promise: Promise<T>) => promise,
+  };
+});
 
 function mount(locale: 'ar' | 'en' = 'en') {
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -120,15 +128,12 @@ beforeEach(() => {
   fakes.state.standalone = false;
   fakes.state.subscribed = false;
   vi.mocked(attendanceInstallationId).mockImplementation(() => fakes.state.installationId);
-  vi.mocked(refreshPush).mockImplementation(async () => ({ kind: 'none' }));
   vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: CONFIG });
   vi.mocked(pushCalls.register).mockResolvedValue(undefined);
   vi.mocked(pushCalls.revoke).mockResolvedValue(undefined);
 });
 
 it('registers the language again when the app language changes', async () => {
-  const actual = await vi.importActual<typeof PushRefreshModule>('./push-refresh');
-  vi.mocked(refreshPush).mockImplementation(actual.refreshPush);
   const view = mount();
   const button = await screen.findByRole('button', { name: t('en', 'staffPush.enable') });
   await act(async () => {
@@ -152,8 +157,6 @@ it('registers the language again when the app language changes', async () => {
 });
 
 it('runs the rotation when the served key changes after enabling', async () => {
-  const actual = await vi.importActual<typeof PushRefreshModule>('./push-refresh');
-  vi.mocked(refreshPush).mockImplementation(actual.refreshPush);
   const view = mount();
   const button = await screen.findByRole('button', { name: t('en', 'staffPush.enable') });
   await act(async () => {
