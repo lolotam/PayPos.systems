@@ -44,7 +44,7 @@ function opencodeExe() {
 
 const dbPath = path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
 // A first round is busy while time_idle is null; a later round sets time_suspended while time_idle still holds
-// the previous round's timestamp (opencode 2.0.32), so both count as working.
+// the previous round's timestamp (opencode 2.0.32, confirmed again on 2.1.4), so both count as working.
 const BUSY_SQL =
   'select id, directory, title, time_created, time_updated from session_v2 ' +
   'where time_archived is null and (time_idle is null or time_suspended is not null)';

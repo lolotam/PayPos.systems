@@ -104,7 +104,7 @@ offers no `#high` variant and runs at its default (PP-55.1). Everything below ap
 pins the PosPay rules on top of it.
 
 1. **One session per task.** Give the first run a session id with `-s`, and record it in the task's notes
-   (`F:\Dev\Worktrees\PosPay\briefs\<task>\sid.txt`). The installed opencode CLI (v2.0.32) documents `-s` as
+   (`F:\Dev\Worktrees\PosPay\briefs\<task>\sid.txt`). The installed opencode CLI (v2.1.4, as v2.0.32 before it) documents `-s` as
    "Session ID to continue, or to create if it does not exist". It refuses an id that does not start with `ses`
    (`Expected a string starting with "ses"`, 2026-10-20), so a plain UUID fails before the model runs. Use opencode's
    own shape, `ses_` followed by 12 hex and 14 base62 characters. If a later version stops creating it, run round one
@@ -143,7 +143,8 @@ pins the PosPay rules on top of it.
      MiniMax smoke test on opencode 2.0.32 asked to read a harmless file on `C:` and was refused with
      `external_directory` both with and without these denies, so they are a second layer. A second test the same day
      tried the `\\?\C:\…`, `\\localhost\C$\…` and `//localhost/C$/…` forms: all were refused, while `README.md` and
-     its absolute `F:\` path inside the worktree still read. Repeat both smoke tests before raising the opencode pin;
+     its absolute `F:\` path inside the worktree still read. Both tests were repeated on opencode 2.1.4 on
+     2026-10-24 (Kimi and MiniMax) with the same results. Repeat both before raising the opencode pin again;
    - `read` and `edit` deny `.git` and anything under it, in both slash styles;
    - `read` and `edit` deny any path with a colon after its first two characters (`??*:*`), that is, an NTFS stream.
      `.env::$DATA` is the `.env` file itself, and a named stream such as `.env:hidden` is a hidden file that git
@@ -265,7 +266,8 @@ pins the PosPay rules on top of it.
      (which enter the model's context past every read rule). The fixed `AGENTS.md` stops opencode falling back to
      `~/.claude/CLAUDE.md`. The checker refuses the run unless `XDG_CONFIG_HOME` is set to a folder outside the
      worktree that holds exactly those two files;
-   - **opencode is pinned to the version the smoke tests passed on** (2.0.32). opencode can update itself in place
+   - **opencode is pinned to the version the smoke tests passed on** (2.1.4; every smoke test in this list was
+     rerun on it on 2026-10-24, with Kimi and MiniMax, and matched 2.0.32). opencode can update itself in place
      (Codex on #416). The isolated config turns auto-update off, but the guard that holds is the checker: it refuses
      the run when the `package.json` beside the exact `opencode.exe` the dispatch runs (passed as its second argument)
      has a version other than `PINNED_OPENCODE`. To upgrade, rerun both smoke

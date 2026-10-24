@@ -439,7 +439,7 @@ try {
 // one version. Auto-update is off above, and the binary the dispatch will run must be the tested one, so the version
 // is read from the package beside that exact opencode.exe, not from the first one on PATH (Codex on #416). Raise
 // PINNED_OPENCODE only after the skill's smoke tests pass on the new version.
-const PINNED_OPENCODE = '2.0.32';
+const PINNED_OPENCODE = '2.1.4';
 const EXE_TAIL = path.join('node_modules', '@opencode', 'cli', 'bin', 'opencode.exe').toLowerCase();
 const exe = process.argv[3] ? path.resolve(process.argv[3]) : '';
 const opencodePackage = path.join(path.dirname(path.dirname(exe)), 'package.json');
