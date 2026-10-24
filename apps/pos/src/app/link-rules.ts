@@ -1,5 +1,6 @@
 import type { SwitchOutcome } from './business-switch';
 import {
+  clearDeviceRole,
   connectEmployee,
   readDeviceRole,
   readRememberedBusiness,
@@ -233,4 +234,15 @@ export async function resolveChoice(role: DeviceRole): Promise<NativeState> {
   } catch {
     return { kind: 'start', business: null, alert: 'saveFailed' };
   }
+}
+
+/**
+ * بيرجع لشاشة اختيار نوع الجهاز من غير ما يمسح النشاط المتذكر.
+ * حسب FR-001 الرجوع متاح لما مفيش اقتران ولا جلسة، فمفيش حاجة بتضيع بالرجوع.
+ *
+ * @returns شاشة البداية مع النشاط المتذكر
+ */
+export async function resolveStartOver(): Promise<NativeState> {
+  await clearDeviceRole();
+  return { kind: 'start', business: await readRememberedBusiness() };
 }

@@ -6,6 +6,7 @@ import { endPersonalSession } from './end-sessions';
 import {
   resolveChoice,
   resolveLink,
+  resolveStartOver,
   stateAfterFailure,
   stateAfterSwitch,
   stateForRole,
@@ -23,6 +24,8 @@ export interface NativeFlow {
   onStart: (role: DeviceRole | null, saved: PersonalWorkspace | null) => void;
   onLink: (workspace: PersonalWorkspace | null) => Promise<void>;
   choose: (role: DeviceRole) => void;
+  /** بيرجع لاختيار نوع الجهاز لما مفيش اقتران ولا جلسة (FR-001). */
+  startOver: () => void;
   confirm: (pending: PersonalWorkspace) => void;
   cancel: () => void;
 }
@@ -79,6 +82,12 @@ export function useNativeFlow(): NativeFlow {
     [apply, queue],
   );
 
+  const startOver = useCallback(() => {
+    queue(async () => {
+      apply(await resolveStartOver());
+    });
+  }, [apply, queue]);
+
   const confirm = useCallback(
     (pending: PersonalWorkspace) => {
       queue(async () => {
@@ -94,7 +103,7 @@ export function useNativeFlow(): NativeFlow {
     apply(stateWithoutPending(latest.current));
   }, [apply]);
 
-  return { state, busy, onStart, onLink, choose, confirm, cancel };
+  return { state, busy, onStart, onLink, choose, startOver, confirm, cancel };
 }
 
 /**

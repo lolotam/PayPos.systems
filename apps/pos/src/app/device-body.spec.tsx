@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
+import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DeviceSession } from '@/device/api/use-device-session';
@@ -26,12 +27,12 @@ vi.mock('@/attendance/api/use-attendance-qr', () => ({
   }),
 }));
 
-function renderBody(session: DeviceSession) {
+function renderBody(session: DeviceSession, startOver?: ReactNode) {
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <DirectionProvider dir="rtl">
         <LocaleProvider locale="ar" setLocale={() => undefined}>
-          <DeviceBody session={session} />
+          <DeviceBody session={session} startOver={startOver} />
         </LocaleProvider>
       </DirectionProvider>
     </QueryClientProvider>,
@@ -75,6 +76,25 @@ describe('DeviceBody', () => {
     expect(screen.getByRole('heading', { name: t('ar', 'staffLogin.title') })).not.toBeNull();
     expect(screen.getByRole('heading', { name: t('ar', 'pos.attendanceTitle') })).not.toBeNull();
   });
+
+  it.each([
+    { name: 'pairing', screen: { kind: 'pairing', notice: null }, visible: true },
+    { name: 'waiting', screen: { kind: 'waiting' }, visible: false },
+    {
+      name: 'reception',
+      screen: { kind: 'ready', branchId: '01923f66-3d2b-7c00-8000-000000000001' },
+      visible: false,
+    },
+  ] as const)(
+    'shows the start-over control only for $name when allowed',
+    ({ screen: deviceScreen, visible }) => {
+      renderBody(makeSession(deviceScreen), <button>back</button>);
+
+      const back = screen.queryByRole('button', { name: 'back' });
+      if (visible) expect(back).not.toBeNull();
+      else expect(back).toBeNull();
+    },
+  );
 });
 
 it('keeps the card screen hidden until an operator exists', () => {

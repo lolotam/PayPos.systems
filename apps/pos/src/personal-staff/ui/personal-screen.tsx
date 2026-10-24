@@ -9,13 +9,16 @@ import { usePersonalSession } from '../api/use-personal-session';
 import { PersonalSignIn } from './personal-sign-in';
 import { EnrolPasskeyScreen } from './enrol-passkey-screen';
 
+/** الرجوع اختياري عشان صفحة الويب المشتركة تفضل من غير أي تحكم جديد. */
 export function PersonalScreen({
   workspace,
   connect,
   sessionGate,
+  startOver,
 }: {
   workspace?: Pick<PersonalOtpRequestInput, 'company_id' | 'business_id'>;
   connect?: ReactNode;
+  startOver?: ReactNode;
   sessionGate?: (
     session: NonNullable<ReturnType<typeof usePersonalSession>['session']>,
   ) => ReactNode | null;
@@ -29,6 +32,7 @@ export function PersonalScreen({
   });
   // نسخة التطبيق بتبعت النشاط المتذكر من غير query string؛ نسخة الويب بتفضل تقرأه من العنوان.
   const hint = workspace ?? (fromQuery.success ? fromQuery.data : undefined);
+  // نسخة التطبيق بس بتبعت الرجوع، والشاشات اللي من غير جلسة بس هي اللي بتعرضه.
   return (
     <AppFrame brand={t(locale, 'pos.appName')} actions={<LocaleSwitch />}>
       <section className="mx-auto grid w-full max-w-md gap-6">
@@ -48,11 +52,15 @@ export function PersonalScreen({
             />
           ))
         ) : hint ? (
-          <PersonalSignIn key={state.epoch} workspace={hint} changed={state.changed} />
+          <>
+            <PersonalSignIn key={state.epoch} workspace={hint} changed={state.changed} />
+            {startOver}
+          </>
         ) : (
           <>
             <p>{t(locale, 'personalStaff.linkRequired')}</p>
             {connect}
+            {startOver}
           </>
         )}
       </section>
