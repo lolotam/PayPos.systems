@@ -15,8 +15,7 @@ export function useSaveAlertRules(
   const key = alertRulesKey(companyId, userId, businessId, branchId);
   return useMutation({
     retry: false,
-    mutationFn: (body: SetAlertRulesInput) =>
-      saveAlertRules(companyId, businessId, branchId, body),
+    mutationFn: (body: SetAlertRulesInput) => saveAlertRules(companyId, businessId, branchId, body),
     onSuccess: async (saved) => {
       await client.cancelQueries({ queryKey: key });
       client.setQueryData(key, saved);

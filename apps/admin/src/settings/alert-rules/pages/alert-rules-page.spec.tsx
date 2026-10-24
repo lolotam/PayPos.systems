@@ -63,7 +63,10 @@ it('shows only the twelve listed kinds with their server values', async () => {
   ];
   const expected = names.map((name) => screen.getByRole('switch', { name }));
   expect(screen.getAllByRole('switch')).toEqual(expected);
-  expect((screen.getByRole('switch', { name: t('en', 'alertRules.masterLabel') }) as HTMLInputElement).checked).toBe(true);
+  expect(
+    (screen.getByRole('switch', { name: t('en', 'alertRules.masterLabel') }) as HTMLInputElement)
+      .checked,
+  ).toBe(true);
   expect(minutesField('SHIFT_NOT_CLOCKED_IN', 'delay').value).toBe('20');
   expect(minutesField('SHIFT_ENDS_SOON', 'lead').value).toBe('30');
   const ending = kindRow('SHIFT_ENDS_SOON');
@@ -102,10 +105,15 @@ it('shows a read failure and retries it', async () => {
 
 it('saves one changed rule and shows the returned state', async () => {
   const initial = withAlertRule(businessView(), 'SHIFT_NOT_CLOCKED_IN', {
-    source: 'BUSINESS', revision: 7, rule_id: branchA.id,
+    source: 'BUSINESS',
+    revision: 7,
+    rule_id: branchA.id,
   });
   const returned = withAlertRule(initial, 'SHIFT_NOT_CLOCKED_IN', {
-    enabled: false, delay_minutes: 15, source: 'BUSINESS', revision: 8,
+    enabled: false,
+    delay_minutes: 15,
+    source: 'BUSINESS',
+    revision: 8,
   });
   api.GET.mockResolvedValue({ data: initial });
   api.PUT.mockResolvedValue({ data: returned });
@@ -122,10 +130,15 @@ it('saves one changed rule and shows the returned state', async () => {
   expect(path).toBe(businessPath);
   expect(options.params.header).toEqual({ 'x-company-id': '01920000-0000-7000-8000-0000000000a2' });
   expect(options.body.rules).toHaveLength(1);
-  expect(options.body.rules[0]).toEqual(expect.objectContaining({
-    kind: 'SHIFT_NOT_CLOCKED_IN', enabled: false, delay_minutes: 15,
-    expected_revision: 7, expected_rule_id: branchA.id,
-  }));
+  expect(options.body.rules[0]).toEqual(
+    expect.objectContaining({
+      kind: 'SHIFT_NOT_CLOCKED_IN',
+      enabled: false,
+      delay_minutes: 15,
+      expected_revision: 7,
+      expected_rule_id: branchA.id,
+    }),
+  );
 });
 
 it('reports nothing changed without sending a PUT', async () => {
@@ -137,11 +150,18 @@ it('reports nothing changed without sending a PUT', async () => {
 });
 
 it('shows a revision conflict and resyncs to the refetched values', async () => {
-  const initial = withAlertRule(businessView(), 'SHIFT_NOT_CLOCKED_IN', { revision: 7, rule_id: branchA.id });
+  const initial = withAlertRule(businessView(), 'SHIFT_NOT_CLOCKED_IN', {
+    revision: 7,
+    rule_id: branchA.id,
+  });
   const fresh = withAlertRule(initial, 'SHIFT_NOT_CLOCKED_IN', { delay_minutes: 35, revision: 8 });
   api.GET.mockResolvedValueOnce({ data: initial }).mockResolvedValueOnce({ data: fresh });
   api.PUT.mockResolvedValue({
-    error: { code: 'ALERT_RULE_REVISION_CONFLICT', message_ar: 'Synthetic conflict', message_en: 'Synthetic conflict' },
+    error: {
+      code: 'ALERT_RULE_REVISION_CONFLICT',
+      message_ar: 'Synthetic conflict',
+      message_en: 'Synthetic conflict',
+    },
     response: { status: 409 },
   });
   renderPage();
@@ -159,7 +179,11 @@ it('shows a revision conflict and resyncs to the refetched values', async () => 
 it('shows an invalid-rule response and keeps the draft', async () => {
   api.GET.mockResolvedValue({ data: businessView() });
   api.PUT.mockResolvedValue({
-    error: { code: 'ALERT_RULE_INVALID', message_ar: 'Synthetic invalid', message_en: 'Synthetic invalid' },
+    error: {
+      code: 'ALERT_RULE_INVALID',
+      message_ar: 'Synthetic invalid',
+      message_en: 'Synthetic invalid',
+    },
     response: { status: 422 },
   });
   renderPage();
@@ -173,13 +197,21 @@ it('shows an invalid-rule response and keeps the draft', async () => {
 it('disables the save button and rule switches while saving', async () => {
   let release: (value: unknown) => void = () => undefined;
   api.GET.mockResolvedValue({ data: businessView() });
-  api.PUT.mockImplementation(() => new Promise((resolve) => { release = resolve; }));
+  api.PUT.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  );
   renderPage();
   await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
   fireEvent.click(kindSwitch('SHIFT_NOT_CLOCKED_IN'));
   fireEvent.click(screen.getByRole('button', { name: t('en', 'alertRules.save') }));
   await waitFor(() => expect(api.PUT).toHaveBeenCalled());
-  expect((screen.getByRole('button', { name: t('en', 'alertRules.save') }) as HTMLButtonElement).disabled).toBe(true);
+  expect(
+    (screen.getByRole('button', { name: t('en', 'alertRules.save') }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
   expect(kindSwitch('SHIFT_NOT_CLOCKED_IN').disabled).toBe(true);
   expect(kindSwitch('SERVICE_LINE_CANCELLED').disabled).toBe(true);
   release({ data: businessView() });
@@ -194,9 +226,12 @@ it('switches the business master and shows its off note', async () => {
   fireEvent.click(master);
   expect(await screen.findByText(t('en', 'alertRules.masterOffNote'))).toBeTruthy();
   expect((master as HTMLInputElement).checked).toBe(false);
-  expect(api.PUT).toHaveBeenCalledWith('/v1/businesses/{businessId}/alert-rules/master', expect.objectContaining({
-    body: { alerts_enabled: false },
-  }));
+  expect(api.PUT).toHaveBeenCalledWith(
+    '/v1/businesses/{businessId}/alert-rules/master',
+    expect.objectContaining({
+      body: { alerts_enabled: false },
+    }),
+  );
 });
 
 it('keeps the edited kind concurrency values while refreshing the other kinds', async () => {
@@ -227,11 +262,13 @@ it('keeps the edited kind concurrency values while refreshing the other kinds', 
   expect(await screen.findByText(t('en', 'alertRules.saved'))).toBeTruthy();
   const body = api.PUT.mock.calls[0]?.[1].body;
   expect(body.rules).toHaveLength(1);
-  expect(body.rules[0]).toEqual(expect.objectContaining({
-    kind: 'SHIFT_NOT_CLOCKED_IN',
-    delay_minutes: 15,
-    expected_revision: 7,
-  }));
+  expect(body.rules[0]).toEqual(
+    expect.objectContaining({
+      kind: 'SHIFT_NOT_CLOCKED_IN',
+      delay_minutes: 15,
+      expected_revision: 7,
+    }),
+  );
 });
 
 it('refreshes the business read when the master switch is refused', async () => {

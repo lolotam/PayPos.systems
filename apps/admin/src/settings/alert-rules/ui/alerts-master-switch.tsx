@@ -33,9 +33,7 @@ export function AlertsMasterSwitch({
         />
         <Label htmlFor="alerts-master">{t(locale, 'alertRules.masterLabel')}</Label>
       </div>
-      {!server.alerts_enabled ? (
-        <p role="status">{t(locale, 'alertRules.masterOffNote')}</p>
-      ) : null}
+      {!server.alerts_enabled ? <p role="status">{t(locale, 'alertRules.masterOffNote')}</p> : null}
       {mutation.isError ? (
         <p role="alert">{alertRulesFailureMessage(mutation.error, locale)}</p>
       ) : null}

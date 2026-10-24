@@ -1,9 +1,5 @@
 import { ALERT_KIND_DEFINITIONS } from '@pospay/domain';
-import {
-  alertKind,
-  type AlertRules,
-  type WorkspaceBranch,
-} from '@pospay/contracts';
+import { alertKind, type AlertRules, type WorkspaceBranch } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';

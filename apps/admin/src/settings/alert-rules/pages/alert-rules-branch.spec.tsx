@@ -20,11 +20,11 @@ const branchPath = '/v1/businesses/{businessId}/branches/{branchId}/alert-rules'
 const resetName = `${t('en', 'alertRules.resetToBusinessText')} — ${t('en', 'alertRules.kind_SHIFT_NOT_CLOCKED_IN')}`;
 
 function branchView() {
-  return withAlertRule(
-    { ...alertRulesFixture(), branch_id: branchA.id },
-    'SHIFT_NOT_CLOCKED_IN',
-    { source: 'BRANCH', revision: 9, rule_id: branchB.id },
-  );
+  return withAlertRule({ ...alertRulesFixture(), branch_id: branchA.id }, 'SHIFT_NOT_CLOCKED_IN', {
+    source: 'BRANCH',
+    revision: 9,
+    rule_id: branchB.id,
+  });
 }
 
 beforeEach(() => {
@@ -38,23 +38,36 @@ it('selects a branch and hides document expiry there', async () => {
     Promise.resolve({ data: path === businessPath ? alertRulesFixture() : branchView() }),
   );
   renderPage({ branches: [branchA, branchB] });
-  const selector = (await screen.findByLabelText(t('en', 'alertRules.scopeLabel'))) as HTMLSelectElement;
-  expect(within(selector).getByRole('option', { name: t('en', 'alertRules.scopeBusiness') })).toBeTruthy();
+  const selector = (await screen.findByLabelText(
+    t('en', 'alertRules.scopeLabel'),
+  )) as HTMLSelectElement;
+  expect(
+    within(selector).getByRole('option', { name: t('en', 'alertRules.scopeBusiness') }),
+  ).toBeTruthy();
   expect(within(selector).getByRole('option', { name: branchA.name_en })).toBeTruthy();
   expect(within(selector).getByRole('option', { name: branchB.name_en })).toBeTruthy();
   fireEvent.change(selector, { target: { value: branchA.id } });
   expect(await screen.findByText(t('en', 'alertRules.documentExpiryBranchNote'))).toBeTruthy();
-  expect(api.GET).toHaveBeenCalledWith(branchPath, expect.objectContaining({
-    params: expect.objectContaining({ path: { businessId: expect.any(String), branchId: branchA.id } }),
-  }));
-  expect(screen.queryByRole('switch', { name: t('en', 'alertRules.kind_DOCUMENT_EXPIRING') })).toBeNull();
+  expect(api.GET).toHaveBeenCalledWith(
+    branchPath,
+    expect.objectContaining({
+      params: expect.objectContaining({
+        path: { businessId: expect.any(String), branchId: branchA.id },
+      }),
+    }),
+  );
+  expect(
+    screen.queryByRole('switch', { name: t('en', 'alertRules.kind_DOCUMENT_EXPIRING') }),
+  ).toBeNull();
   expect(screen.getByText(t('en', 'alertRules.documentExpiryBranchNote'))).toBeTruthy();
 });
 
 it('resets only a branch override and shows the business source afterwards', async () => {
   const initial = withAlertRule(branchView(), 'SERVICE_LINE_CANCELLED', { source: 'BUSINESS' });
   const returned = withAlertRule(initial, 'SHIFT_NOT_CLOCKED_IN', {
-    source: 'BUSINESS', revision: null, rule_id: null,
+    source: 'BUSINESS',
+    revision: null,
+    rule_id: null,
   });
   let branchReads = 0;
   api.GET.mockImplementation((path: string) => {
@@ -71,13 +84,22 @@ it('resets only a branch override and shows the business source afterwards', asy
   expect(within(kindRow('SERVICE_LINE_CANCELLED')).queryByRole('button')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: resetName }));
   expect(await screen.findByText(t('en', 'alertRules.resetDone'))).toBeTruthy();
-  expect(api.DELETE).toHaveBeenCalledWith(`${branchPath}/{kind}`, expect.objectContaining({
-    params: expect.objectContaining({
-      path: { businessId: expect.any(String), branchId: branchA.id, kind: 'SHIFT_NOT_CLOCKED_IN' },
-      query: { expected_rule_id: branchB.id, expected_revision: 9 },
+  expect(api.DELETE).toHaveBeenCalledWith(
+    `${branchPath}/{kind}`,
+    expect.objectContaining({
+      params: expect.objectContaining({
+        path: {
+          businessId: expect.any(String),
+          branchId: branchA.id,
+          kind: 'SHIFT_NOT_CLOCKED_IN',
+        },
+        query: { expected_rule_id: branchB.id, expected_revision: 9 },
+      }),
     }),
-  }));
-  await waitFor(() => expect(within(kindRow('SHIFT_NOT_CLOCKED_IN')).getByText('Business rule')).toBeTruthy());
+  );
+  await waitFor(() =>
+    expect(within(kindRow('SHIFT_NOT_CLOCKED_IN')).getByText('Business rule')).toBeTruthy(),
+  );
   expect(screen.queryByRole('button', { name: resetName })).toBeNull();
 });
 

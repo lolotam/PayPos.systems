@@ -21,10 +21,7 @@ export function alertRuleKindLabel(locale: Locale, kind: ListedAlertKind): strin
   return t(locale, `alertRules.kind_${kind}`);
 }
 
-export function alertRulesText(
-  template: string,
-  values: Readonly<Record<string, string>>,
-): string {
+export function alertRulesText(template: string, values: Readonly<Record<string, string>>): string {
   return Object.entries(values).reduce(
     (text, [name, value]) => text.replaceAll(`{{${name}}}`, value),
     template,

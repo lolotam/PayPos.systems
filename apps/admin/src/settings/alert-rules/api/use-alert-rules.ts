@@ -12,8 +12,7 @@ export function useAlertRules(
   return useQuery({
     queryKey: alertRulesKey(companyId ?? '', userId ?? '', businessId ?? '', branchId),
     enabled: Boolean(companyId && userId && businessId),
-    queryFn: ({ signal }) =>
-      readAlertRules(companyId ?? '', businessId ?? '', branchId, signal),
+    queryFn: ({ signal }) => readAlertRules(companyId ?? '', businessId ?? '', branchId, signal),
     retry: false,
   });
 }

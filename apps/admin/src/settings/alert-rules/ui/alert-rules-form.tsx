@@ -28,7 +28,12 @@ export function AlertRulesForm(props: AlertRulesFormProps) {
   const rows = listedAlertKinds(props.server.rules, props.branchId !== null);
   return (
     <FormProvider {...form}>
-      <form onSubmit={submit} onChange={() => setNotice(null)} noValidate className="flex flex-col gap-6">
+      <form
+        onSubmit={submit}
+        onChange={() => setNotice(null)}
+        noValidate
+        className="flex flex-col gap-6"
+      >
         <fieldset disabled={save.isPending} className="contents">
           {rows.map((rule, index) => (
             <AlertRuleRow
@@ -55,7 +60,9 @@ export function AlertRulesForm(props: AlertRulesFormProps) {
           saving={save.isPending}
           notice={notice}
         />
-        <Button type="submit" disabled={save.isPending}>{t(locale, 'alertRules.save')}</Button>
+        <Button type="submit" disabled={save.isPending}>
+          {t(locale, 'alertRules.save')}
+        </Button>
       </form>
     </FormProvider>
   );

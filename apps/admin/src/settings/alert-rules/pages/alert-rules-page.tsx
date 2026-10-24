@@ -24,7 +24,10 @@ export function AlertRulesPage(props: {
   const refused = query.isError && isAlertRulesRefusal(query.error);
   return (
     <section className="flex min-w-0 flex-col gap-8 text-start">
-      <PageHeader title={t(locale, 'alertRules.title')} description={t(locale, 'alertRules.lead')} />
+      <PageHeader
+        title={t(locale, 'alertRules.title')}
+        description={t(locale, 'alertRules.lead')}
+      />
       <ScopeSelector branches={props.branches} value={branchId} onChange={setBranchId} />
       {query.isPending ? <p role="status">{t(locale, 'admin.loading')}</p> : null}
       {query.isError ? (
