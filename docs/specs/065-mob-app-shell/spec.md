@@ -361,8 +361,11 @@ None published, none consumed.
 - **Device checks** (M-1c, recorded in [plan.md](plan.md)): (a) pairing, (b) staff PIN session, (c) personal OTP
   session, each surviving a restart; (d) attendance QR camera; (e) passkey behaviour. Android on a real phone; iOS
   (a)–(c) on the simulator, (d)–(e) on the first real iPhone (M-1c-ii). **Staged by PP-58.1:** (a) and (b) run now on
-  Android; (c), (d) and (e) wait until WhatsApp Business is set up and then run on real WhatsApp. M-1c is complete only
-  when every check has run; M-1d onward and the Apple fee wait on iOS (c).
+  Android; (c), (d) and (e) wait until WhatsApp Business is set up and then run on real WhatsApp. The M-1c gate is
+  phase one only: Android (a)–(e) and the iOS simulator checks; the real-iPhone checks of M-1c-ii stay outside it
+  (they need the M-2a build). `TODO(spec)`: a simulator on the GitHub runner cannot receive a real WhatsApp code, so
+  iOS (c) cannot run as an unattended test while there is no test-only OTP path; whether M-1d and the Apple fee then
+  wait on iOS (a)+(b) only, with (c) moving to M-1c-ii, is open with Waleed (PP-58.2).
 - **RLS negative**: not applicable (no tenant table).
 - **Queries**: not applicable (no `queries/` file).
 
