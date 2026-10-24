@@ -35,7 +35,8 @@ Postgres (ADR-0006); a cross-check test in `apps/pos` (the admin link helper's o
 **Performance Goals**: the logo read is up to three short sequential transactions after the guard (resolve, the
 permission re-check, and the `ALLOW` or `DENY` write with a local URL signature), each a keyed read or a small insert,
 well under 200 ms
-(`CLAUDE.md` §6); the page itself makes no new request apart from it.
+(`CLAUDE.md` §6); the page makes two requests, the guarded staff read on open and the logo read only on print, and each is
+measured end to end against 200 ms.
 
 **Constraints**: no new permission, no new table, no storage IO in a request or a transaction (ADR-0046 §4), every
 delivered logo audited (`CLAUDE.md` §8), `NEXT_PUBLIC_POS_URL` limited to the app's POS hosts.
