@@ -25,8 +25,9 @@ it('the request match and the claim use tenant indexes', async () => {
   await f.owner`ANALYZE discount_proposals`;
   await f.owner`ANALYZE discount_approval_notices`;
   const matches = JSON.stringify(await explain(discountApprovalMatchesStatement(request)));
+  // The planner may serve the match through dp_consumed_line_binding_key, which leads with company_id like the other keys.
   expect(matches).toMatch(
-    /dp_(request_input_key|branch_fk_idx|requested_by_idx|requester_membership_idx)/,
+    /dp_(request_input_key|branch_fk_idx|requested_by_idx|requester_membership_idx|consumed_line_binding_key)/,
   );
   expect(matches).not.toContain('Seq Scan');
   const claim = JSON.stringify(
