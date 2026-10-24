@@ -11,7 +11,12 @@ export const SLOT_PATH_PREFIX = 'mobile-guard/slot-';
  * @param {{ token?: string, repository?: string, headSha?: string, fetch?: typeof fetch }} parts
  * @returns {{ listMacosJobs: () => Promise<object[]>, readSlot: (index: number) => Promise<object | null>, createAdmissionCommit: (admission: object, parentSha: string | null) => Promise<string>, createSlot: (index: number, sha: string) => Promise<void>, moveSlot: (index: number, sha: string) => Promise<void>, deleteSlot: (index: number, expectedSha: string) => Promise<void> }}
  */
-export function createGithubIo({ token, repository, headSha, fetch: fetchImpl = globalThis.fetch }) {
+export function createGithubIo({
+  token,
+  repository,
+  headSha,
+  fetch: fetchImpl = globalThis.fetch,
+}) {
   const [owner, repo] = String(repository ?? '').split('/');
 
   async function request(path, { method = 'GET', body } = {}) {

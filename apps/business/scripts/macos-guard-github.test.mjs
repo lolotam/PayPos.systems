@@ -83,7 +83,10 @@ describe('the GitHub io of the macOS guard', () => {
       body: { message: 'Reference already exists' },
     }));
     const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
-    await assert.rejects(() => io.createSlot(1, 'sha-2'), (error) => error.code === 'conflict');
+    await assert.rejects(
+      () => io.createSlot(1, 'sha-2'),
+      (error) => error.code === 'conflict',
+    );
   });
 
   it('maps any other 422 to a plain error', async () => {
@@ -144,7 +147,10 @@ describe('the GitHub io of the macOS guard', () => {
     });
     const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
     const jobs = await io.listMacosJobs();
-    assert.equal(calls[0].url, `${API}/repos/o/r/actions/workflows/mobile.yml/runs?per_page=100&page=1`);
+    assert.equal(
+      calls[0].url,
+      `${API}/repos/o/r/actions/workflows/mobile.yml/runs?per_page=100&page=1`,
+    );
     assert.ok(calls[1].url.includes('/actions/runs/5/jobs?filter=all&per_page=100&page=1'));
     assert.ok(calls[2].url.includes('/actions/runs/5/jobs?filter=all&per_page=100&page=2'));
     assert.equal(jobs.length, 101);

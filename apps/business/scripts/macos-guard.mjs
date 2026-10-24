@@ -206,7 +206,8 @@ async function release({ io, config }) {
   }
   // الخانة بتاعت الشغلانة دي بس — خانة غيرنا ما بتتمسّش. والحذف بيقفل على نفس الـ commit
   // اللي اتقرا، فلو الـ ref اتنقل في نفس اللحظة، الخانة مش بقت بتاعتنا.
-  const mine = slots.find((slot) => slot.owner === config.owner);  if (mine === undefined) {
+  const mine = slots.find((slot) => slot.owner === config.owner);
+  if (mine === undefined) {
     return { released: false, slot: null, failed: false, reason: 'this job holds no slot' };
   }
   try {
@@ -260,7 +261,9 @@ async function main(command) {
   if (command === 'admit') {
     const result = await guard.admit();
     if (!result.admitted) fail(`macos-guard refused the admission: ${result.reason}`);
-    process.stdout.write(`macos-guard admitted the slot ${result.slot ?? 'none'} for ${result.owner}\n`);
+    process.stdout.write(
+      `macos-guard admitted the slot ${result.slot ?? 'none'} for ${result.owner}\n`,
+    );
     return;
   }
 
