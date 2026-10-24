@@ -195,17 +195,20 @@ above). `readStatementLogo` cannot be reused: it lives in the worker, embeds byt
    - Sign the GET URL with `packages/storage` `presignDownload`, still inside the transaction. Signing is local
      computation with no network call (ADR-0046 §4 holds), so a signing failure rolls both audit records back and an
      `ALLOW` is never recorded for a URL that was not issued. Commit. Both records and the URL stand together or not at all.
-   - Any failed step answers one 404 `NOT_FOUND`: no membership reach, unknown business, another company's business,
-     no logo bound, or a file that no longer qualifies. Nothing is written in that case, so the answer never says which
-     step failed.
+   - **No access** (no membership reach, an unknown business, another company's business) answers one 404
+     `NOT_FOUND` and writes nothing, so it never says which case it was. The screen shows its no-access state and does
+     not print.
+   - **Access but no logo** (none bound, or a bound file that no longer qualifies) answers 200 with
+     `{ download_url: null }` and writes nothing; the sheet prints with the name only. Access and "no logo" are never the
+     same answer.
    - A **signing or storage-configuration failure is not a miss**: it rolls the transaction back like any error, and
      answers the files module's existing `STORAGE_UNAVAILABLE` (503), or `STORAGE_NOT_CONFIGURED` when no storage is
      configured. The screen shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry for these, never the name-only sheet;
-     only the API's 404 (no logo for this business) and storage's `NoSuchKey` print the name only.
+     only the API's `download_url: null` and storage's `NoSuchKey` print the name only.
 3. **After the commit:** return the signed URL. No storage network call happens in the request; the browser reads the
    object itself. The URL lives 60 seconds, as `IssueDownload` does. `presignDownload` gains an optional response cache policy so the stored
-   object answers `Cache-Control: private, no-store`. The API answer is `{ download_url, expires_in: 60 }`, also
-   `no-store`. **Issuing the URL is the audited access:** every URL leaves one audit pair, and the 60-second life
+   object answers `Cache-Control: private, no-store`. The API answer is `{ download_url, expires_in: 60 }` (or `{ download_url: null }` with
+   no logo), also `no-store`. **Issuing the URL is the audited access:** every URL leaves one audit pair, and the 60-second life
    bounds its reuse, the accepted residual of every download in the project (ADR-0022).
 4. **Missing object versus failure** (spec 069: a missing object prints the name only; a storage error offers a
    retry). The admin reads the object with `fetch` on the signed URL, and that needs the bucket's CORS to allow `GET`

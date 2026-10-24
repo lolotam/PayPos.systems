@@ -159,8 +159,8 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   question is recorded in [owner-questions.ar.md](owner-questions.ar.md) and asked then. This spec fixes only what it must satisfy:
   - **Access:** the same rule as the screen (EL-Q3): a session whose active membership, in the company named by a
     validated `x-company-id` (parsed as `me/memberships` does), reaches the business. The company is never looked up
-    from the business id. One 404 for an unknown business, another company's business, an unreached business and a
-    business with no logo.
+    from the business id. One 404 for an unknown business, another company's business and an unreached business (the screen
+    then shows no-access and does not print); a member of a business with no logo gets 200 with `download_url: null`.
   - **One transaction, then the image:** the access check, resolving the logo file and both audit records (the
     `file_access_audit` row and the `file`/`access` `audit_log` entry, as ADR-0056 §3 does, in the module that owns
     `file_access_audit`) run in **one** `withTenant(company, …, { userId })` transaction, so a revoked membership can
@@ -209,7 +209,8 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   same company and business back, so the two sides cannot drift.
 - **Integration (apps/api), the logo read only** (its exact shape follows the ADR-0056 addendum): `EL-I01` a member whose membership reaches the business gets a
   signed URL · `EL-I02` a member of the same company whose membership does not reach that business, an unknown business,
-  and a business of another company all get the same 404 · `EL-I03` a business with no logo gets that 404, and every URL answer writes one `file_access_audit` row and one
+  and a business of another company all get the same 404 · `EL-I03` a member of a business with no logo bound gets 200 with `download_url: null`
+  and no audit record, while an inaccessible business keeps the 404 and the screen shows no-access and no print; every URL answer writes one `file_access_audit` row and one
   `file`/`access` `audit_log` entry in the same transaction as the access check and the URL signature; a failure anywhere in it,
   signing included, leaves neither record · `EL-I05` the API answer and the signed object answer both carry `Cache-Control: private, no-store` · `EL-T10` (apps/admin) a storage
   failure shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry and no print, while a missing logo object (a 404 `NoSuchKey`) prints the
