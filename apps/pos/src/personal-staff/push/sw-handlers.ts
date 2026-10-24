@@ -23,7 +23,6 @@ export interface SwRegistration {
 export interface SwClient {
   url: string;
   focus(): Promise<SwClient>;
-  navigate?(url: string): Promise<SwClient | null>;
 }
 
 /** مجموعة النوافذ المفتوحة. */
@@ -51,7 +50,8 @@ export interface SwPushPayload {
 
 /**
  * بيتأكد إن الرابط مسار داخلي: مسار بيبدأ بشرطة مائلة واحدة، من غير شرطة خلفية أو
- * محارف تحكم (المتصفح بيقرأ الشرطة الخلفية كأنها مائلة، فبتودّي الرابط بره الأصل).
+ * محارف تحكم (المتصفح بيقرأ الشرطة الخلفية كأنها مائلة، فبتودّي الرابط بره الأصل)،
+ * ومن غير شرائح `.` أو `..` ولا `%2e` (الـ URL بيتسطّحها فبتصير `//evil.example`).
  *
  * @param value الرابط كما جاي في الحمولة
  * @returns المسار الآمن أو صفحة الموظف
@@ -65,6 +65,8 @@ export function safeUrl(value: string | undefined): string {
     const code = value.charCodeAt(index);
     if (code < 0x20 || code === 0x7f) return FALLBACK_URL;
   }
+  if (/%2e/i.test(value)) return FALLBACK_URL;
+  if (value.split('/').some((segment) => segment === '.' || segment === '..')) return FALLBACK_URL;
   return value;
 }
 
@@ -147,24 +149,27 @@ function isSameOrigin(url: string, origin: string): boolean {
 }
 
 /**
- * بيحلّ الرابط بالنسبة لأصل الصفحة:
+ * بيحلّ الرابط بالنسبة لأصل الصفحة: أي رابط بيطلع بره الأصل بيرجع لصفحة الموظف،
+ * والنتيجة رابط مطلق عشان المتصفح ما يفسّرهوش في غير مكانه.
  *
  * @param url المسار المرشّح
  * @param origin أصل الصفحة
- * @returns المسار اللي ينفتح
+ * @returns الرابط اللي ينفتح
  */
 function clickUrl(url: string, origin: string): string {
   try {
-    const resolved = new URL(url, origin);
-    if (resolved.origin !== new URL(origin).origin) return FALLBACK_URL;
-    return resolved.pathname + resolved.search + resolved.hash;
+    const base = new URL(origin);
+    const resolved = new URL(url, base);
+    if (resolved.origin !== base.origin) return new URL(FALLBACK_URL, base).href;
+    return resolved.href;
   } catch {
     return FALLBACK_URL;
   }
 }
 
 /**
- * هاندلر ضغطة الإشعار: بيقفل الإشعار، وبيركّز نافذة مفتوحة من نفس الأصل، أو بيفتح صفحة.
+ * هاندلر ضغطة الإشعار: بيقفل الإشعار، وبيركّز نافذة مفتوحة من نفس الأصل من غير ما يوقّعها
+ * (إعادة التحميل بتضيّع كود الدخول أو خطوة الكاميرا)، وبيفتح صفحة لو مفيش نافذة.
  *
  * @param input الإشعار والنوافذ وأصل الصفحة
  */
@@ -179,8 +184,6 @@ export async function handleNotificationClick(input: {
   const open = windows.find((client) => isSameOrigin(client.url, input.origin));
   if (open !== undefined) {
     await open.focus();
-    // المتصفح بيرجع null لما يفضلش في نفس المسار، والنافذة هي اللي اتركزت (ADR-0052 §7).
-    if (typeof open.navigate === 'function') await open.navigate(url);
     return;
   }
   await input.clients.openWindow(url);

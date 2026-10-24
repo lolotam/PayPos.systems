@@ -37,9 +37,16 @@ function runTransaction<T>(
       new Promise<T>((resolve, reject) => {
         const transaction = database.transaction(STORE_NAME, mode);
         const request = action(transaction.objectStore(STORE_NAME));
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error ?? unavailable());
-        transaction.oncomplete = () => database.close();
+        let result: T | undefined;
+        request.onsuccess = () => {
+          result = request.result;
+        };
+        // النتيجة بتتأكد بس لما الـ transaction يبقى committed؛ فشل الـ commit (الحصة مثلاً)
+        // لازم يبقى رفض مش نجاح (ADR-0052 §7).
+        transaction.oncomplete = () => {
+          database.close();
+          resolve(result as T);
+        };
         transaction.onabort = () => {
           database.close();
           reject(transaction.error ?? unavailable());

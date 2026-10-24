@@ -11,8 +11,10 @@ import {
   type PushSubscriptionLike,
 } from './push-browser';
 import { PushKeyStaleError, pushCalls } from './push-calls';
+import { runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
+import type { PushRecord } from './push-record';
 
 /** نتيجة محاولة التشغيل: اتشغّل، ولا المتصفح رفض، ولا الخدمة مش جاهزة، ولا في خطأ. */
 export type PushEnableOutcome =
@@ -25,59 +27,67 @@ export interface PushEnableInput {
   companyId: string;
   locale: Locale;
   installationId: string;
+  onRegistered(token: string): void;
 }
 
-async function subscribeWithConfig(config: {
-  vapid_public_key: string;
-}): Promise<PushSubscriptionLike> {
+async function subscribeWithConfig(
+  config: { vapid_public_key: string },
+  previous: PushRecord | null,
+): Promise<PushSubscriptionLike> {
   // المتصفح بيقبل اشتراك واحد بس على الـ service worker، فالتسجيل الجديد بيحل محل القديم
   // عشان الشركة اللي آخر مرة هي اللي تستلم (WP-Q4).
   const existing = await currentSubscription();
-  if (existing !== null) await unsubscribePush();
+  if (existing !== null || previous !== null) await unsubscribePush();
   return subscribePush(base64UrlToBytes(config.vapid_public_key));
 }
 
 /**
  * بتشغّل إشعارات الموبايل من ضغطة المستخدم: الإذن، ثم اشتراك جديد، ثم تسجيل عند الـ API.
  *
- * @param input الشركة واللغة ومعرف التثبيت
+ * @param input الشركة واللغة ومعرف التثبيت ودالة التسجيل
  * @returns نتيجة المحاولة
  */
 export async function enablePush(input: PushEnableInput): Promise<PushEnableOutcome> {
-  const permission = notificationPermission();
-  if (permission === 'denied') return { kind: 'blocked' };
-  if (permission === 'default') {
-    const asked = await requestNotificationPermission();
-    if (asked !== 'granted') return { kind: 'blocked' };
-  }
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const config = await pushCalls.config();
-    if (config.kind === 'not-ready') return { kind: 'not-ready' };
-    const subscription = await subscribeWithConfig(config.config);
-    const token = crypto.randomUUID();
-    try {
-      await pushCalls.register({
-        installation_id: input.installationId,
-        vapid_key_id: config.config.vapid_key_id,
-        delivery_token: token,
-        subscription: pushSubscriptionBody(subscription),
-        locale: input.locale,
-      });
-    } catch (cause) {
-      // سجل ناقص أسوأ من مفيش سجل: الاشتراك الجديد بيتشال لو التسجيل مرفوض.
-      await unsubscribePush();
-      if (cause instanceof PushKeyStaleError && attempt === 0) continue;
-      return { kind: 'failed' };
+  return runPushExclusive(async (): Promise<PushEnableOutcome> => {
+    // القراءة من جوه القفل: لو شغل تاني غيّر السجل، إحنا بنشوف النسخة الجديدة.
+    const previous = await pushRecordStore.read().catch(() => null);
+    const permission = notificationPermission();
+    if (permission === 'denied') return { kind: 'blocked' };
+    if (permission === 'default') {
+      const asked = await requestNotificationPermission();
+      if (asked !== 'granted') return { kind: 'blocked' };
     }
-    await pushRecordStore.write({
-      token,
-      subscriber_ref: config.config.subscriber_ref,
-      company_id: input.companyId,
-      vapid_key_id: config.config.vapid_key_id,
-      suspended: false,
-    });
-    notifyPushRecordChanged();
-    return { kind: 'enabled', token };
-  }
-  return { kind: 'failed' };
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const config = await pushCalls.config();
+      if (config.kind === 'not-ready') return { kind: 'not-ready' };
+      const subscription = await subscribeWithConfig(config.config, previous);
+      const token = crypto.randomUUID();
+      try {
+        await pushCalls.register({
+          installation_id: input.installationId,
+          vapid_key_id: config.config.vapid_key_id,
+          delivery_token: token,
+          subscription: pushSubscriptionBody(subscription),
+          locale: input.locale,
+        });
+      } catch (cause) {
+        // سجل ناقص أسوأ من مفيش سجل: الاشتراك الجديد بيتشال لو التسجيل مرفوض.
+        await unsubscribePush();
+        if (cause instanceof PushKeyStaleError && attempt === 0) continue;
+        return { kind: 'failed' };
+      }
+      // السجل بيتكتب بعد ما الـ API يقبل، والزر يعرف التوكن الجديد قبل ما يتغيّر السجل.
+      input.onRegistered(token);
+      await pushRecordStore.write({
+        token,
+        subscriber_ref: config.config.subscriber_ref,
+        company_id: input.companyId,
+        vapid_key_id: config.config.vapid_key_id,
+        suspended: false,
+      });
+      notifyPushRecordChanged();
+      return { kind: 'enabled', token };
+    }
+    return { kind: 'failed' };
+  });
 }

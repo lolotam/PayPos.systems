@@ -97,13 +97,16 @@ afterEach(() => {
 it('removes the local record on an explicit sign out even when the revoke fails', async () => {
   const f = fixture();
   await waitFor(() => expect(f.result.current.session).toEqual(session));
+  vi.mocked(personalCalls.session).mockResolvedValue(null);
 
   await act(async () => {
     await f.result.current.signOut();
   });
 
-  expect(fakes.state.unsubscribed).toBe(1);
+  expect(personalCalls.signOut).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(f.result.current.session).toBeNull());
   expect(fakes.state.removed).toBe(1);
+  expect(fakes.state.unsubscribed).toBe(1);
   expect(fakes.state.revokeAttempts).toBe(1);
   f.unmount();
 });

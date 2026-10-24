@@ -24,22 +24,6 @@ export class PushKeyStaleError extends PushApiError {
   }
 }
 
-/** تسجيل تاني لنفس الجهاز شغال: الطلب مرفوض والتطبيق يعيد المحاولة. */
-export class PushRegistrationBusyError extends PushApiError {
-  constructor() {
-    super('PUSH_REGISTRATION_BUSY');
-    this.name = 'PushRegistrationBusyError';
-  }
-}
-
-/** حد التسجيلات في الساعة ات عدّى: الطلب مرفوض والتطبيق يقول للمستخدم يعيد بعد شوية. */
-export class PushRateLimitedError extends PushApiError {
-  constructor() {
-    super('RATE_LIMITED');
-    this.name = 'PushRateLimitedError';
-  }
-}
-
 /** جواب المسار: جاهز بالمفتاح، أو مش جاهز (الخدمة مش مهيأة). */
 export type PushConfigResult = { kind: 'ready'; config: PushConfig } | { kind: 'not-ready' };
 
@@ -92,8 +76,6 @@ export const pushCalls = {
     if (result.response.ok) return;
     const code = errorCode(result.error);
     if (code === 'PUSH_KEY_STALE') throw new PushKeyStaleError();
-    if (code === 'PUSH_REGISTRATION_BUSY') throw new PushRegistrationBusyError();
-    if (code === 'RATE_LIMITED' || result.response.status === 429) throw new PushRateLimitedError();
     throw new PushApiError(code ?? 'PUSH_SUBSCRIPTION_REFUSED');
   },
   revoke: async (installationId: string): Promise<void> => {

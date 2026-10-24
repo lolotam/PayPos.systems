@@ -156,12 +156,15 @@ function usePushRefresh(input: {
     if (config === null || record === null || installationId === null) return;
     // السجل ده اتسجل دلوقتي: التسجيل نفسه عمل الـ PUT، فالتحديث التاني هيبقى تكرار.
     if (record.token === registered.current) return;
-    const signature = `${record.token}|${locale}`;
+    // المفتاح الجديد كمان جزء من التوقيع: تغيير المفتاح وهو فاتح الشاشة لازم يصلّح الاشتراك.
+    const signature = `${record.token}|${locale}|${config.vapid_key_id}`;
     if (refreshed.current === signature) return;
     refreshed.current = signature;
     void refreshPush({ companyId, locale, config, installationId })
       .then((outcome) => {
-        if (outcome.kind === 'rotated') refreshed.current = `${outcome.token}|${locale}`;
+        if (outcome.kind === 'rotated') {
+          refreshed.current = `${outcome.token}|${locale}|${config.vapid_key_id}`;
+        }
         if (outcome.kind !== 'none') void reload();
       })
       .catch(() => undefined);
@@ -186,8 +189,12 @@ function usePushActions(input: {
     setFailed(false);
     markSeen();
     try {
-      const outcome = await enablePush({ companyId, locale, installationId });
-      if (outcome.kind === 'enabled') onEnabled(outcome.token);
+      const outcome = await enablePush({
+        companyId,
+        locale,
+        installationId,
+        onRegistered: onEnabled,
+      });
       if (outcome.kind === 'failed') setFailed(true);
     } catch {
       setFailed(true);

@@ -10,6 +10,7 @@ import {
   unsubscribePush,
 } from './push-browser';
 import { pushCalls, withTimeout } from './push-calls';
+import { runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
@@ -38,53 +39,53 @@ export interface PushRefreshInput {
  * @returns نتيجة التحديث
  */
 export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshOutcome> {
-  const stored = await pushRecordStore.read().catch(() => null);
-  if (stored === null) return { kind: 'none' };
-  if (stored.company_id !== input.companyId) return { kind: 'none' };
-  if (stored.suspended && !(await resumeSuspended(input, stored))) {
-    return { kind: 'cleared' };
-  }
-  const record = stored.suspended ? { ...stored, suspended: false } : stored;
-  if (notificationPermission() !== 'granted') return { kind: 'none' };
-  if (input.installationId === null) return { kind: 'none' };
-  if (input.config.vapid_key_id !== record.vapid_key_id) {
-    return rotate(input, record, input.installationId);
-  }
-  const subscription = await currentSubscription();
-  if (subscription === null) {
-    await pushRecordStore.remove().catch(() => undefined);
-    notifyPushRecordChanged();
-    await revoke(input.installationId);
-    return { kind: 'cleared' };
-  }
-  await pushCalls.register({
-    installation_id: input.installationId,
-    vapid_key_id: record.vapid_key_id,
-    delivery_token: record.token,
-    subscription: pushSubscriptionBody(subscription),
-    locale: input.locale,
+  return runPushExclusive(async (): Promise<PushRefreshOutcome> => {
+    const record = await pushRecordStore.read().catch(() => null);
+    if (record === null) return { kind: 'none' };
+    if (record.company_id !== input.companyId) return { kind: 'none' };
+    // المقارنة بتتم قبل أي حاجة: مرجع تاني جواب مؤكد إن الجهاز بقى لحد تاني،
+    // فبنشيل الاشتراك والسجل من غير أي PUT (ADR-0052 §7).
+    if (input.config.subscriber_ref !== record.subscriber_ref) {
+      await unsubscribePush().catch(() => undefined);
+      await pushRecordStore.remove().catch(() => undefined);
+      notifyPushRecordChanged();
+      return { kind: 'cleared' };
+    }
+    const live = record.suspended ? await resume(record) : record;
+    if (notificationPermission() !== 'granted') return { kind: 'none' };
+    if (input.installationId === null) return { kind: 'none' };
+    if (input.config.vapid_key_id !== live.vapid_key_id) {
+      return rotate(input, live, input.installationId);
+    }
+    const subscription = await currentSubscription();
+    if (subscription === null) {
+      await pushRecordStore.remove().catch(() => undefined);
+      notifyPushRecordChanged();
+      await revoke(input.installationId);
+      return { kind: 'cleared' };
+    }
+    await pushCalls.register({
+      installation_id: input.installationId,
+      vapid_key_id: live.vapid_key_id,
+      delivery_token: live.token,
+      subscription: pushSubscriptionBody(subscription),
+      locale: input.locale,
+    });
+    return { kind: 'refreshed' };
   });
-  return { kind: 'refreshed' };
 }
 
 /**
- * سجل معلّق بعد فحص توقيع فاشل: بنقارن مرجع المشترك بمرجع الجلسة.
- * نفس المرجع بيرجّع السجل، ومرجع تاني جواب مؤكد فالسجل بيتمسح والاشتراك بيتشال (ADR-0052 §7).
+ * سجل معلّق بعد فحص توقيع فاشل: نفس مرجع المشترك بيرجّعه قايم (ADR-0052 §7).
  *
- * @param input الجلسة الحالية
  * @param record السجل المعلّق
- * @returns true لما السجل يرجع قايم
+ * @returns السجل بعد الرجوع
  */
-async function resumeSuspended(input: PushRefreshInput, record: PushRecord): Promise<boolean> {
-  if (input.config.subscriber_ref === record.subscriber_ref) {
-    await pushRecordStore.write({ ...record, suspended: false }).catch(() => undefined);
-    notifyPushRecordChanged();
-    return true;
-  }
-  await unsubscribePush().catch(() => undefined);
-  await pushRecordStore.remove().catch(() => undefined);
+async function resume(record: PushRecord): Promise<PushRecord> {
+  const live = { ...record, suspended: false };
+  await pushRecordStore.write(live).catch(() => undefined);
   notifyPushRecordChanged();
-  return false;
+  return live;
 }
 
 async function rotate(

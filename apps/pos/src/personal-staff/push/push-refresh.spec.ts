@@ -188,3 +188,15 @@ it('leaves a suspended record of another company untouched', async () => {
   expect(fakes.state.removed).toBe(0);
   expect(pushCalls.register).not.toHaveBeenCalled();
 });
+
+it('removes a record of another person and sends no registration', async () => {
+  fakes.state.record = { ...RECORD };
+
+  const outcome = await refreshPush(input({ ...CONFIG, subscriber_ref: 'another-ref' }));
+
+  expect(outcome).toEqual({ kind: 'cleared' });
+  expect(fakes.state.removed).toBe(1);
+  expect(fakes.state.unsubscribed).toBe(1);
+  expect(fakes.state.record).toBeNull();
+  expect(pushCalls.register).not.toHaveBeenCalled();
+});

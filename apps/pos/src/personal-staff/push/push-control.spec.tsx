@@ -8,6 +8,7 @@ import { attendanceInstallationId } from '../model/installation-id';
 import { PushControl } from './push-control';
 import { PushKeyStaleError, pushCalls } from './push-calls';
 import type { PushRecord } from './push-record';
+import { refreshPush } from './push-refresh';
 import { runSignInPushCheck } from './push-sign-in-check';
 
 const fakes = vi.hoisted(() => {
@@ -60,88 +61,58 @@ vi.mock('./push-record-idb', () => ({
     },
   },
 }));
-
-vi.mock('./push-browser', () => ({
-  hasServiceWorker: () => fakes.state.supported,
-  hasPushManager: () => fakes.state.supported,
-  hasNotification: () => fakes.state.supported,
-  supportsPush: () => fakes.state.supported,
-  isIosDevice: () => fakes.state.ios,
-  isStandalone: () => fakes.state.standalone,
-  notificationPermission: () => fakes.state.permission,
-  requestNotificationPermission: async () => {
-    fakes.state.permissionRequests += 1;
-    fakes.state.permission = fakes.state.requestedPermission;
-    return fakes.state.permission;
-  },
-  currentSubscription: async () =>
-    fakes.state.subscribed
-      ? {
-          endpoint: 'https://fcm.googleapis.com/fcm/send/synthetic',
-          unsubscribe: async () => true,
-          toJSON: () => ({
-            endpoint: 'https://fcm.googleapis.com/fcm/send/synthetic',
-            expirationTime: null,
-            keys: { p256dh: 'p'.repeat(87), auth: 'a'.repeat(22) },
-          }),
-        }
-      : null,
-  subscribePush: async () => {
-    fakes.state.subscribeCalls += 1;
-    fakes.state.subscribed = true;
-    return {
-      endpoint: 'https://fcm.googleapis.com/fcm/send/synthetic',
-      unsubscribe: async () => true,
-      toJSON: () => ({
-        endpoint: 'https://fcm.googleapis.com/fcm/send/synthetic',
-        expirationTime: null,
-        keys: { p256dh: 'p'.repeat(87), auth: 'a'.repeat(22) },
-      }),
-    };
-  },
-  unsubscribePush: async () => {
-    fakes.state.unsubscribeCalls += 1;
-    fakes.state.subscribed = false;
-    return true;
-  },
-  base64UrlToBytes: () => new Uint8Array([1, 2, 3]),
-  pushSubscriptionBody: () => ({
+vi.mock('./push-browser', () => {
+  const subscription = () => ({
     endpoint: 'https://fcm.googleapis.com/fcm/send/synthetic',
-    expirationTime: null,
-    keys: { p256dh: 'p'.repeat(87), auth: 'a'.repeat(22) },
-  }),
-}));
+    unsubscribe: async () => true,
+    toJSON: () => ({
+      endpoint: 'https://fcm.googleapis.com/fcm/send/synthetic',
+      expirationTime: null,
+      keys: { p256dh: 'p'.repeat(87), auth: 'a'.repeat(22) },
+    }),
+  });
+  return {
+    hasServiceWorker: () => fakes.state.supported,
+    hasPushManager: () => fakes.state.supported,
+    hasNotification: () => fakes.state.supported,
+    supportsPush: () => fakes.state.supported,
+    isIosDevice: () => fakes.state.ios,
+    isStandalone: () => fakes.state.standalone,
+    notificationPermission: () => fakes.state.permission,
+    requestNotificationPermission: async () => {
+      fakes.state.permissionRequests += 1;
+      fakes.state.permission = fakes.state.requestedPermission;
+      return fakes.state.permission;
+    },
+    currentSubscription: async () => (fakes.state.subscribed ? subscription() : null),
+    subscribePush: async () => {
+      fakes.state.subscribeCalls += 1;
+      fakes.state.subscribed = true;
+      return subscription();
+    },
+    unsubscribePush: async () => {
+      fakes.state.unsubscribeCalls += 1;
+      fakes.state.subscribed = false;
+      return true;
+    },
+    base64UrlToBytes: () => new Uint8Array([1, 2, 3]),
+    pushSubscriptionBody: () => ({
+      endpoint: 'https://fcm.googleapis.com/fcm/send/synthetic',
+      expirationTime: null,
+      keys: { p256dh: 'p'.repeat(87), auth: 'a'.repeat(22) },
+    }),
+  };
+});
 
 vi.mock('./push-calls', () => {
-  class PushApiError extends Error {
-    constructor(readonly code: string) {
-      super(code);
-      this.name = 'PushApiError';
-    }
-  }
-  class PushKeyStaleError extends PushApiError {
+  class PushKeyStaleError extends Error {
     constructor() {
       super('PUSH_KEY_STALE');
       this.name = 'PushKeyStaleError';
     }
   }
-  class PushRegistrationBusyError extends PushApiError {
-    constructor() {
-      super('PUSH_REGISTRATION_BUSY');
-      this.name = 'PushRegistrationBusyError';
-    }
-  }
-  class PushRateLimitedError extends PushApiError {
-    constructor() {
-      super('RATE_LIMITED');
-      this.name = 'PushRateLimitedError';
-    }
-  }
   return {
-    PushApiError,
     PushKeyStaleError,
-    PushRegistrationBusyError,
-    PushRateLimitedError,
     withTimeout: <T,>(promise: Promise<T>) => promise,
     pushCalls: { config: vi.fn(), register: vi.fn(), revoke: vi.fn() },
   };
@@ -157,13 +128,14 @@ let onlineSpy: { mockRestore(): void } | null = null;
 
 function mount() {
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const view = render(
     <QueryClientProvider client={cache}>
       <LocaleProvider locale="en" setLocale={() => undefined}>
         <PushControl companyId="company" />
       </LocaleProvider>
     </QueryClientProvider>,
   );
+  return { cache, ...view };
 }
 
 beforeEach(() => {
@@ -182,6 +154,7 @@ beforeEach(() => {
   fakes.state.unsubscribeCalls = 0;
   fakes.state.permissionRequests = 0;
   vi.mocked(attendanceInstallationId).mockImplementation(() => fakes.state.installationId);
+  vi.mocked(refreshPush).mockImplementation(async () => ({ kind: 'none' }));
   vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: CONFIG });
   vi.mocked(pushCalls.register).mockResolvedValue(undefined);
   vi.mocked(pushCalls.revoke).mockResolvedValue(undefined);
@@ -260,14 +233,18 @@ it('shows the blocked storage text and makes no call at all', async () => {
 
 it('shows nothing when the server has no push configuration', async () => {
   vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'not-ready' });
-  mount();
+  const view = mount();
 
   await waitFor(() => expect(pushCalls.config).toHaveBeenCalled());
+  await act(async () => {});
   expect(screen.queryByText(t('en', 'staffPush.off'))).toBeNull();
   expect(screen.queryByRole('button', { name: t('en', 'staffPush.enable') })).toBeNull();
+  view.unmount();
 });
 
-it('turns the notifications on and registers the subscription', async () => {
+it('turns the notifications on with one registration and shows the notifications are on', async () => {
+  const actual = await vi.importActual<typeof import('./push-refresh')>('./push-refresh');
+  vi.mocked(refreshPush).mockImplementation(actual.refreshPush);
   mount();
   const button = await screen.findByRole('button', { name: t('en', 'staffPush.enable') });
 
@@ -276,6 +253,7 @@ it('turns the notifications on and registers the subscription', async () => {
   });
 
   expect(await screen.findByText(t('en', 'staffPush.on'))).toBeDefined();
+  expect(pushCalls.register).toHaveBeenCalledTimes(1);
   const body = vi.mocked(pushCalls.register).mock.calls[0]?.[0];
   expect(body?.installation_id).toBe(fakes.state.installationId);
   expect(body?.vapid_key_id).toBe('0123456789abcdef');
@@ -370,4 +348,24 @@ it('shows on after the sign-in check restores a record that was suspended', asyn
 
   expect(await screen.findByText(t('en', 'staffPush.on'))).toBeDefined();
   expect(screen.queryByText(t('en', 'staffPush.reconnecting'))).toBeNull();
+});
+
+it('runs the rotation when the served key changes while the screen stays open', async () => {
+  fakes.state.record = { ...RECORD };
+  fakes.state.permission = 'granted';
+  fakes.state.subscribed = true;
+  const view = mount();
+  await screen.findByText(t('en', 'staffPush.on'));
+  await waitFor(() => expect(refreshPush).toHaveBeenCalledTimes(1));
+
+  vi.mocked(pushCalls.config).mockResolvedValue({
+    kind: 'ready',
+    config: { ...CONFIG, vapid_key_id: 'fedcba9876543210' },
+  });
+  await act(async () => {
+    await view.cache.invalidateQueries({ queryKey: ['staff-push-config'] });
+  });
+
+  await waitFor(() => expect(refreshPush).toHaveBeenCalledTimes(2));
+  expect(vi.mocked(refreshPush).mock.calls[1]?.[0]?.config.vapid_key_id).toBe('fedcba9876543210');
 });

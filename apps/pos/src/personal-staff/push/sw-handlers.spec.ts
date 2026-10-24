@@ -136,6 +136,9 @@ describe('the push handler keeps the link inside the app', () => {
     ['a path that is not internal', 'personal'],
     ['a path with a backslash', '/\\evil.example'],
     ['a path with a control character', `/notice${BELL}`],
+    ['a path that goes up and out', '/a/..//evil.example/path'],
+    ['a path that flattens to another site', '/.//evil.example'],
+    ['a path with an encoded dot', '/%2e//evil.example'],
   ];
 
   it.each(links)('falls back to the staff page for %s', async (_case, url) => {
@@ -153,8 +156,7 @@ describe('the push handler keeps the link inside the app', () => {
 describe('the notification click handler of the service worker', () => {
   function client(url: string) {
     const focus = vi.fn(async () => client(url));
-    const navigate = vi.fn(async () => client(url));
-    return { url, focus, navigate };
+    return { url, focus };
   }
 
   it('closes the notice and focuses the open window of the same origin', async () => {
@@ -171,7 +173,6 @@ describe('the notification click handler of the service worker', () => {
 
     expect(close).toHaveBeenCalledTimes(1);
     expect(open.focus).toHaveBeenCalledTimes(1);
-    expect(open.navigate).toHaveBeenCalledWith('/personal');
     expect(other.focus).not.toHaveBeenCalled();
     expect(openWindow).not.toHaveBeenCalled();
   });
@@ -186,7 +187,7 @@ describe('the notification click handler of the service worker', () => {
       origin: 'https://pos.example',
     });
 
-    expect(openWindow).toHaveBeenCalledWith('/personal');
+    expect(openWindow).toHaveBeenCalledWith('https://pos.example/personal');
   });
 
   it('opens the staff page when the notice carries no link', async () => {
@@ -198,7 +199,7 @@ describe('the notification click handler of the service worker', () => {
       origin: 'https://pos.example',
     });
 
-    expect(openWindow).toHaveBeenCalledWith('/personal');
+    expect(openWindow).toHaveBeenCalledWith('https://pos.example/personal');
   });
 
   it('opens the staff page and not another site', async () => {
@@ -210,6 +211,18 @@ describe('the notification click handler of the service worker', () => {
       origin: 'https://pos.example',
     });
 
-    expect(openWindow).toHaveBeenCalledWith('/personal');
+    expect(openWindow).toHaveBeenCalledWith('https://pos.example/personal');
+  });
+
+  it('opens the staff page and not another site for a flattened path', async () => {
+    const openWindow = vi.fn(async () => null);
+
+    await handleNotificationClick({
+      notification: { close: vi.fn(), data: { url: '/a/..//evil.example/path' } },
+      clients: { matchAll: async () => [], openWindow },
+      origin: 'https://pos.example',
+    });
+
+    expect(openWindow).toHaveBeenCalledWith('https://pos.example/personal');
   });
 });

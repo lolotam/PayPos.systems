@@ -12,6 +12,7 @@ const fakes = vi.hoisted(() => {
     removed: 0,
     unsubscribed: 0,
     writesBeforeConfig: 0,
+    writeFails: false,
   };
   return { state };
 });
@@ -34,6 +35,7 @@ vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
     read: async () => fakes.state.record,
     write: async (record: PushRecord) => {
+      if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       fakes.state.record = record;
       fakes.state.writes.push(record);
     },
@@ -71,6 +73,7 @@ beforeEach(() => {
   fakes.state.removed = 0;
   fakes.state.unsubscribed = 0;
   fakes.state.writesBeforeConfig = 0;
+  fakes.state.writeFails = false;
   vi.mocked(pushCalls.config).mockImplementation(async () => {
     fakes.state.writesBeforeConfig = fakes.state.writes.length;
     return { kind: 'ready', config: CONFIG };
@@ -131,12 +134,10 @@ it('ignores the answer of an older run', async () => {
 
   const older = runSignInPushCheck();
   const newer = runSignInPushCheck();
-  second.resolve({ kind: 'ready', config: CONFIG });
-  await newer;
-  expect(fakes.state.record?.suspended).toBe(false);
-
   first.resolve({ kind: 'ready', config: { ...CONFIG, subscriber_ref: 'another-ref' } });
   await older;
+  second.resolve({ kind: 'ready', config: CONFIG });
+  await newer;
 
   expect(fakes.state.removed).toBe(0);
   expect(fakes.state.record?.suspended).toBe(false);
@@ -175,4 +176,14 @@ it('does not delete a newer record when the subscriber reference differs', async
   expect(fakes.state.removed).toBe(0);
   expect(fakes.state.unsubscribed).toBe(0);
   expect(fakes.state.record?.token).toBe('newer-token');
+});
+
+it('removes the record and stops when the suspend write fails', async () => {
+  fakes.state.writeFails = true;
+
+  await runSignInPushCheck();
+
+  expect(fakes.state.removed).toBe(1);
+  expect(fakes.state.record).toBeNull();
+  expect(pushCalls.config).not.toHaveBeenCalled();
 });
