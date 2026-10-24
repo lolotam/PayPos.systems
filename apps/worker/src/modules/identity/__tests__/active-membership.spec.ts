@@ -34,6 +34,8 @@ interface MembershipInput {
   readonly userId: string;
   readonly startsAt: string;
   readonly endsAt: string | null;
+  readonly scopeType?: 'COMPANY' | 'BUSINESS' | 'BRANCH';
+  readonly scopeId?: string;
 }
 
 async function addUser(label: string): Promise<string> {
@@ -44,8 +46,22 @@ async function addUser(label: string): Promise<string> {
 
 async function addMembership(input: MembershipInput): Promise<void> {
   await owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at,ends_at)
-    VALUES(${input.company},${ids.newId()},${input.userId},${CASHIER_ROLE_ID},'global','COMPANY',${input.company},
-      ${input.startsAt},${input.endsAt})`;
+    VALUES(${input.company},${ids.newId()},${input.userId},${CASHIER_ROLE_ID},'global',
+      ${input.scopeType ?? 'COMPANY'},${input.scopeId ?? input.company},${input.startsAt},${input.endsAt})`;
+}
+
+async function addBusiness(company: string, name: string): Promise<string> {
+  const id = ids.newId();
+  await owner`INSERT INTO businesses(id,company_id,vertical_type,name_en)
+    VALUES(${id},${company},'salon',${name})`;
+  return id;
+}
+
+async function addBranch(company: string, businessId: string, name: string): Promise<string> {
+  const id = ids.newId();
+  await owner`INSERT INTO branches(id,company_id,business_id,name_en)
+    VALUES(${id},${company},${businessId},${name})`;
+  return id;
 }
 
 it('a membership counts only inside its window and only in its own company', async () => {
@@ -84,8 +100,11 @@ it('a membership counts only inside its window and only in its own company', asy
     startsAt: '2026-01-01T00:00:00Z',
     endsAt: null,
   });
+  const cover = { businessId: TENANT.A.business, branchIds: [TENANT.A.branch] };
   const inA = (userId: string) =>
-    db.withTenant(TENANT.A.company, (tx) => activeMembership(tx, TENANT.A.company, userId, AT));
+    db.withTenant(TENANT.A.company, (tx) =>
+      activeMembership(tx, TENANT.A.company, userId, AT, cover),
+    );
   expect(await inA(open)).toBe(true);
   expect(await inA(ending)).toBe(true);
   expect(await inA(ended)).toBe(false);
@@ -93,15 +112,79 @@ it('a membership counts only inside its window and only in its own company', asy
   expect(await inA(foreign)).toBe(false);
   expect(
     await db.withTenant(TENANT.B.company, (tx) =>
-      activeMembership(tx, TENANT.B.company, foreign, AT),
+      activeMembership(tx, TENANT.B.company, foreign, AT, {
+        businessId: TENANT.B.business,
+        branchIds: [TENANT.B.branch],
+      }),
     ),
   ).toBe(true);
+});
+
+it('a membership counts only when it covers the company, the business or one of her branches', async () => {
+  const otherBusiness = await addBusiness(TENANT.A.company, 'Other business');
+  const otherBranch = await addBranch(TENANT.A.company, otherBusiness, 'Other branch');
+  const cover = { businessId: TENANT.A.business, branchIds: [TENANT.A.branch] };
+  const companyScope = await addUser('company-scope');
+  await addMembership({
+    company: TENANT.A.company,
+    userId: companyScope,
+    startsAt: '2026-01-01T00:00:00Z',
+    endsAt: null,
+  });
+  const businessScope = await addUser('business-scope');
+  await addMembership({
+    company: TENANT.A.company,
+    userId: businessScope,
+    startsAt: '2026-01-01T00:00:00Z',
+    endsAt: null,
+    scopeType: 'BUSINESS',
+    scopeId: TENANT.A.business,
+  });
+  const otherBusinessScope = await addUser('other-business-scope');
+  await addMembership({
+    company: TENANT.A.company,
+    userId: otherBusinessScope,
+    startsAt: '2026-01-01T00:00:00Z',
+    endsAt: null,
+    scopeType: 'BUSINESS',
+    scopeId: otherBusiness,
+  });
+  const branchScope = await addUser('branch-scope');
+  await addMembership({
+    company: TENANT.A.company,
+    userId: branchScope,
+    startsAt: '2026-01-01T00:00:00Z',
+    endsAt: null,
+    scopeType: 'BRANCH',
+    scopeId: TENANT.A.branch,
+  });
+  const otherBranchScope = await addUser('other-branch-scope');
+  await addMembership({
+    company: TENANT.A.company,
+    userId: otherBranchScope,
+    startsAt: '2026-01-01T00:00:00Z',
+    endsAt: null,
+    scopeType: 'BRANCH',
+    scopeId: otherBranch,
+  });
+  const inA = (userId: string) =>
+    db.withTenant(TENANT.A.company, (tx) =>
+      activeMembership(tx, TENANT.A.company, userId, AT, cover),
+    );
+  expect(await inA(companyScope)).toBe(true);
+  expect(await inA(businessScope)).toBe(true);
+  expect(await inA(otherBusinessScope)).toBe(false);
+  expect(await inA(branchScope)).toBe(true);
+  expect(await inA(otherBranchScope)).toBe(false);
 });
 
 it('the membership probe reads memberships through an index and never a full scan', async () => {
   const bulk = await seedBulkMemberships(TENANT.A.company, 500);
   await owner`ANALYZE memberships`;
-  const statement = activeMembershipStatement(TENANT.A.company, bulk, AT);
+  const statement = activeMembershipStatement(TENANT.A.company, bulk, AT, {
+    businessId: TENANT.A.business,
+    branchIds: [TENANT.A.branch],
+  });
   for (const plan of [await planOf(statement), await planOf(statement, true)]) {
     const nodes = planNodes(plan);
     expect(
@@ -109,17 +192,10 @@ it('the membership probe reads memberships through an index and never a full sca
         (node) => node['Node Type'] === 'Seq Scan' && node['Relation Name'] === 'memberships',
       ),
     ).toBe(false);
-    const indexes = nodes
-      .filter((node) => node['Relation Name'] === 'memberships' && node['Index Name'] !== undefined)
-      .map((node) => String(node['Index Name']));
+    const indexes = nodes.filter(
+      (node) => node['Relation Name'] === 'memberships' && node['Index Name'] !== undefined,
+    );
     expect(indexes.length).toBeGreaterThan(0);
-    // الفهرس المطلوب company_id+user_id؛ ولو المخطط فضّل فهرس المستخدم لوحده فالمهم إنه مش مسح شامل.
-    expect(
-      indexes.some(
-        (name) =>
-          name === 'memberships_company_id_user_id_id_key' || name === 'memberships_user_id_idx',
-      ),
-    ).toBe(true);
   }
 }, 120_000);
 

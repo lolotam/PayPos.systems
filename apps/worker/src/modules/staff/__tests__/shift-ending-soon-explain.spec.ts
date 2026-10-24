@@ -1,7 +1,10 @@
 import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql, type SQL } from 'drizzle-orm';
-import { dueShiftEndsStatement } from '../persistence/shift-ending-soon.transactions.ts';
+import {
+  dueShiftEndsStatement,
+  employeeBranchesStatement,
+} from '../persistence/shift-ending-soon.transactions.ts';
 import { MORNING_IN } from './break-not-returned.fixture.ts';
 import { SHIFT_END, SHIFT_START, WEEK, WORKING, type Tenant } from './not-clocked-in.fixture.ts';
 import {
@@ -54,6 +57,20 @@ it('the candidate row carries the shift facts and the presence as a column', asy
   ).toHaveLength(0);
 });
 
+it('the branch probe reads the employee and her attachments without a full scan', async () => {
+  const tenant = await f.tenant();
+  const employee = await f.employee(tenant);
+  await f.shift(tenant, employee);
+  // الجداول صغيرة في شركة جديدة، فالمخطط بيميل للمسح الشامل؛ إجباره على الفهرس بيوضح المسار الصح.
+  const nodes = planNodes(
+    await plan(tenant.company, employeeBranchesStatement(tenant.company, employee, WORKING), true),
+  );
+  for (const relation of ['employees', 'employee_branches'])
+    expect(
+      nodes.some((node) => node['Node Type'] === 'Seq Scan' && node['Relation Name'] === relation),
+    ).toBe(false);
+});
+
 it('pages past one hundred running shifts and every probe uses its named index', async () => {
   const tenant = await f.tenant();
   await seedPage(tenant);
@@ -103,10 +120,11 @@ function assertDuePlan(value: unknown) {
     ).toBe(false);
 }
 
-async function plan(company: string, statement: SQL) {
-  return f.db.withTenant(company, (tx) =>
-    tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${statement}`),
-  );
+async function plan(company: string, statement: SQL, force = false) {
+  return f.db.withTenant(company, async (tx) => {
+    if (force) await tx.execute(sql`SET LOCAL enable_seqscan=off`);
+    return tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${statement}`);
+  });
 }
 
 function planNodes(value: unknown): Record<string, unknown>[] {
@@ -156,8 +174,8 @@ async function seedHistory(tenant: Tenant) {
       d::date, 'Asia/Kuwait', d + interval '7 hours', d + interval '15 hours', 'CLOSED', 'EMPLOYEE', 'QR', 'OK', 0
     FROM employees e CROSS JOIN generate_series('2026-07-01'::timestamptz, '2026-09-30'::timestamptz, interval '1 day') AS d
     WHERE e.company_id=${tenant.company} AND e.name_en='Synthetic bulk'`;
-  // سجل الدفتر الكبير: واحد وعشرون صف لكل وردية قديمة، بمفتاح الموظف ولحظة النهاية.
-  // الجملة بتتقسم على ثلاثة: جملة واحدة بستة وثلاثين ألف صف بتعدّي مهلة الـ statement.
+  // سجل الدفتر الكبير: واحد وعشرون صف لكل وردية قديمة (نحو 63 ألف صف)، بمفتاح الموظف ولحظة النهاية.
+  // الجملة بتتقسم على ثلاثة: كل جملة نحو 21 ألف صف، عشان ما تعدّيش مهلة الـ statement.
   for (const [from, to] of [
     [0, 6],
     [7, 13],

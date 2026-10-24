@@ -132,15 +132,21 @@ existing decision:
     or commission (SPEC §7). Audit entry `attendance_notice` / `shift_ending_soon.detected`, actor NULL. Failures of
     one candidate go through the diagnostics port of ADR-0037 §9 (safe error type and code only); the other
     candidates continue and the run is retryable.
-13. **Push eligibility: an active membership at the decision instant** (added with 064-3, 2026-10-24). ADR-0052 §5
-    makes the producer own the eligibility rule: nothing is emitted for a linked user whose personal access has ended.
-    Under the employee lock, the detector asks worker `identity`'s `activeMembership(tx, companyId, userId, at)`
-    whether the employee's linked user holds at least one membership of the company with `starts_at <= at` and
-    `ends_at` null or after `at`, any role and any scope (the window that ADR-0027's `personalMemberships` uses), on
-    the same transaction with no new connection. The staff side reads it behind `LockedShiftEnding.userHasAccess`; the
-    staff → identity arrow already exists, so only the read is declared in `docs/module-map.md`. A user without such a
-    membership is treated as no linked user: the ledger row has `recipient_count = 0` and the event carries no
-    `notification_recipients` (decision 9). Row 28b-5 is expected to reuse the same reader.
+13. **Push eligibility: the personal-access rule at the decision instant** (added with 064-3, 2026-10-24). ADR-0052 §5
+    makes the producer own the eligibility rule: nothing is emitted for a linked user whose personal access has ended,
+    judged by the rule the personal session already uses (ADR-0027). Under the employee lock, staff persistence reads
+    the employee's branches for the shift's working date (`employees.primary_branch_id` plus the `employee_branches`
+    rows with `from <= working date` and `to` null or after it; the personal session uses each branch's local today, and
+    the detector uses the shift's working date instead, so an overnight shift keeps the branches of the day it
+    started), then asks worker `identity`'s
+    `activeMembership(tx, companyId, userId, at, { businessId, branchIds })` whether the linked user holds a membership
+    with `starts_at <= at` and `ends_at` null or after `at` that covers her: scope `COMPANY` on this company, `BUSINESS`
+    on her business, or `BRANCH` on one of those branches. Any role counts. Identity reads only `memberships`; staff
+    owns the employee rows. Everything runs on the same transaction with no new connection, behind
+    `LockedShiftEnding.userHasAccess`. The staff → identity arrow already exists, so only the read is declared in
+    `docs/module-map.md`. A user without such a membership is treated as no linked user: the ledger row has
+    `recipient_count = 0` and the event carries no `notification_recipients` (decision 9). Row 28b-5 is expected to
+    reuse the same reader.
 
 ## Consequences
 

@@ -33,6 +33,34 @@ async function linkedWithoutSession(tenant: Tenant, name = 'Mona') {
   return { userId, employee };
 }
 
+/** موظفة بحساب مرتبط وعضوية في نطاق معيّن، شغالة في يوم الوردية. */
+async function linkedInScope(
+  tenant: Tenant,
+  scope: { type: 'COMPANY' | 'BUSINESS' | 'BRANCH'; id: string },
+  name: string,
+) {
+  const userId = await f.user(`${name}-user`);
+  await f.member({
+    tenant,
+    userId,
+    roleId: ROLE.cashier,
+    scopeType: scope.type,
+    scopeId: scope.id,
+  });
+  const employee = await f.employee(tenant, { userId, nameEn: name });
+  await f.shift(tenant, employee);
+  await f.session(tenant, employee, { clockIn: MORNING_IN });
+  return { userId, employee };
+}
+
+/** سطر دفتر بصفر مستلمين وحدث من غير قائمة مستلمين. */
+async function expectNoRecipient(tenant: Tenant, employee: string) {
+  const [notice] = await f.endingNotices(tenant.company, employee);
+  expect(notice).toMatchObject({ recipient_count: 0 });
+  const [event] = await f.endingEvents(tenant.company);
+  expect('notification_recipients' in (event?.['payload'] as Record<string, unknown>)).toBe(false);
+}
+
 async function expectQuiet(tenant: Tenant, employee: string) {
   expect(await f.detectEndsSoon().execute(tenant.company)).toEqual({ notified: 0 });
   expect(await f.endingNotices(tenant.company, employee)).toHaveLength(0);
@@ -196,6 +224,44 @@ it('SEN-13 a linked user whose membership ended gets no recipient either', async
   expect(notice).toMatchObject({ recipient_count: 0 });
   const [event] = await f.endingEvents(tenant.company);
   expect('notification_recipients' in (event?.['payload'] as Record<string, unknown>)).toBe(false);
+});
+
+it('SEN-13(c) a membership on a branch of another business gets no recipient', async () => {
+  const tenant = await f.tenant();
+  const otherBusiness = await f.business(tenant.company);
+  const otherBranch = await f.branch(tenant, otherBusiness);
+  const { employee } = await linkedInScope(tenant, { type: 'BRANCH', id: otherBranch }, 'OtherBiz');
+  f.setNow(ENDS_SOON_REMIND_AT);
+  expect(await f.detectEndsSoon().execute(tenant.company)).toEqual({ notified: 1 });
+  await expectNoRecipient(tenant, employee);
+});
+
+it('SEN-13(d) a membership on her own business gets the push', async () => {
+  const tenant = await f.tenant();
+  const { employee } = await linkedInScope(
+    tenant,
+    { type: 'BUSINESS', id: tenant.business },
+    'BusinessScope',
+  );
+  f.setNow(ENDS_SOON_REMIND_AT);
+  expect(await f.detectEndsSoon().execute(tenant.company)).toEqual({ notified: 1 });
+  const [notice] = await f.endingNotices(tenant.company, employee);
+  expect(notice).toMatchObject({ recipient_count: 1 });
+  const [event] = await f.endingEvents(tenant.company);
+  const payload = event?.['payload'] as { notification_recipients: unknown[] };
+  expect(payload.notification_recipients).toHaveLength(1);
+});
+
+it('SEN-13(e) a membership on a branch she is attached to gets the push', async () => {
+  const tenant = await f.tenant();
+  const attached = await f.branch(tenant);
+  const { employee } = await linkedInScope(tenant, { type: 'BRANCH', id: attached }, 'Attached');
+  await f.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+    VALUES(${tenant.company},${f.ids.newId()},${tenant.business},${employee},${attached},'2026-10-01')`;
+  f.setNow(ENDS_SOON_REMIND_AT);
+  expect(await f.detectEndsSoon().execute(tenant.company)).toEqual({ notified: 1 });
+  const [notice] = await f.endingNotices(tenant.company, employee);
+  expect(notice).toMatchObject({ recipient_count: 1 });
 });
 
 it('SEN-14 a deleted employee, an ended contract and a deleted company are all skipped', async () => {

@@ -143,10 +143,11 @@ moves Mona's end from 18:00 to 20:00 at 17:40, after her reminder.
   end instant, not the shift row; ADR-0024 replaces rows).
 - An employee with no linked user: the ledger row is written with `recipient_count = 0` and the event carries no
   recipient; it is acknowledged unsent. (SE-Q6).
-- An employee whose linked user has no membership of the company active at the decision instant (it ended, or it has
-  not started yet) is treated exactly like one with no linked user: the ledger row has `recipient_count = 0` and the
-  event carries no recipient, because the producer owns the push eligibility rule and nothing is emitted for a linked
-  user whose personal access has ended (ADR-0052 §5; ADR-0053 decision 13).
+- An employee whose linked user has no membership active at the decision instant that covers her (scope the company,
+  her business, or one of her branches on the shift's working day; it ended, has not started yet, or sits in another
+  business) is treated exactly like one with no linked user: the ledger row has `recipient_count = 0` and the event
+  carries no recipient, because the producer owns the push eligibility rule and nothing is emitted for a linked user
+  whose personal access has ended (ADR-0052 §5; ADR-0053 decision 13).
 - An employee with a linked user who never enabled push: the event is delivered by 28b's channel, which owns the
   silent no-op; nothing else happens.
 - A company deleted or closed: skipped entirely at the eligibility read (ADR-0037 §2).

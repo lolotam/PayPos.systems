@@ -1,6 +1,8 @@
+import { effectiveAlertRule, type EffectiveAlertRule } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { clearRules, setMaster } from './alert-rule.helpers.ts';
 import { ROLE } from './not-clocked-in.fixture.ts';
+import type { ShiftEndingSoonTransactions } from '../ports/shift-ending-soon.port.ts';
 import {
   ENDS_SOON_REMIND_AT,
   shiftEndingSoonFixture,
@@ -38,6 +40,19 @@ async function linkedWithoutSession(name = 'Quiet') {
   const employee = await f.employee(tenant, { userId, nameEn: name });
   await f.shift(tenant, employee);
   return { tenant, employee };
+}
+
+/**
+ * بورت بيرجع قاعدة ثابتة في القراءة المفتوحة؛ القراءة تحت القفل بتوصل القاعدة المخزنة الحقيقية.
+ * ده بيفصل الكاش عن القرار: القاعدة اللي شافها الكاش مش هي اللي بتقرر (ADR-0053 قرار 2).
+ */
+function withRule(rule: EffectiveAlertRule): ShiftEndingSoonTransactions {
+  return {
+    candidates: f.endsSoonTransactions.candidates,
+    rule: async () => rule,
+    run: (company, employeeId, sample, work) =>
+      f.endsSoonTransactions.run(company, employeeId, sample, work),
+  };
 }
 
 it('SEN-06 approved leave reaching the shift end excuses, a pending one does not', async () => {
@@ -80,6 +95,36 @@ it('SEN-06 approved leave reaching the shift end excuses, a pending one does not
   expect(await f.detectEndsSoon().execute(pending.tenant.company)).toEqual({ notified: 1 });
   expect(await f.detectEndsSoon().execute(early.tenant.company)).toEqual({ notified: 1 });
   expect(f.endsSoonFailures).toEqual([]);
+});
+
+it('the locked read decides: a pre-filter that sees the rule on still suppresses an off rule', async () => {
+  const { tenant, employee } = await atWork();
+  await f.endsSoonRule(tenant, { enabled: false });
+  f.setNow(ENDS_SOON_REMIND_AT);
+  const port = withRule(effectiveAlertRule('SHIFT_ENDS_SOON', null, null, null));
+  expect(await f.detectEndsSoon(port).execute(tenant.company)).toEqual({ notified: 0 });
+  const rows = await f.endingNotices(tenant.company, employee);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({ recipient_count: 0 });
+  expect(rows[0]?.['suppressed_at']).not.toBeNull();
+  expect(await f.endingEvents(tenant.company)).toHaveLength(0);
+});
+
+it('the locked read decides: a pre-filter that sees the rule off still reminds an on rule', async () => {
+  const { tenant, employee } = await atWork();
+  f.setNow(ENDS_SOON_REMIND_AT);
+  const port = withRule(
+    effectiveAlertRule(
+      'SHIFT_ENDS_SOON',
+      { enabled: false, recipientRoles: [], channels: [], delayMinutes: null, leadMinutes: 30 },
+      null,
+      null,
+    ),
+  );
+  expect(await f.detectEndsSoon(port).execute(tenant.company)).toEqual({ notified: 1 });
+  const [notice] = await f.endingNotices(tenant.company, employee);
+  expect(notice).toMatchObject({ recipient_count: 1, suppressed_at: null });
+  expect(await f.endingEvents(tenant.company)).toHaveLength(1);
 });
 
 it('SEN-09 the kind switched off writes one suppressed row and sends nothing', async () => {

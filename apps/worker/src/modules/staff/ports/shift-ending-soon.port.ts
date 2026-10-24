@@ -71,13 +71,15 @@ export interface LockedShiftEnding {
    */
   hasOpenSession(employeeId: string): Promise<boolean>;
   /**
-   * هل للمستخدم عضوية سارية في الشركة؟ منتهية العضوية معناها إن صلاحيته في الشغل انتهت (ADR-0052 §5).
+   * هل للمستخدم المرتبط عضوية سارية تغطّي الشركة أو نشاط الموظفة أو فرع من فروعها في يوم الوردية؟
+   * عضوية منتهية أو مغطّاش النطاق معناها إن صلاحيته في الشغل انتهت (ADR-0052 §5).
    *
    * @param userId المستخدم
+   * @param shift الوردية المقفولة: نشاط الموظفة وفروعها
    * @param at لحظة القرار
-   * @returns true لو العضوية سارية
+   * @returns true لو العضوية سارية وتغطّي النطاق
    */
-  userHasAccess(userId: string, at: Date): Promise<boolean>;
+  userHasAccess(userId: string, shift: LockedShift, at: Date): Promise<boolean>;
   /**
    * يدرج سطر الدفتر مرة واحدة مع التدقيق وحدث الإشعار، في نفس المعاملة.
    *

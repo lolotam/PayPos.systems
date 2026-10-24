@@ -156,9 +156,11 @@ export class DetectShiftEndingSoon {
     const userId =
       shift.employeeUserId !== null &&
       plan.employeePush &&
-      (await tx.userHasAccess(shift.employeeUserId, at))
+      (await tx.userHasAccess(shift.employeeUserId, shift, at))
         ? shift.employeeUserId
         : null;
+    // مفيش مستلم = مفيش معاملات قالب؛ سطر الدفتر بيتكتب بصفر مستلمين بدل ما تفشل كل دورة.
+    if (userId === null) return { shift, remindAt, detectedAt: at, userId, parameters: [] };
     const parameters = shiftEndsSoonParameters(
       shift.branchNameAr,
       shift.branchNameEn,
