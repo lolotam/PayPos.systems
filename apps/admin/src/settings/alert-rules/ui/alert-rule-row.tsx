@@ -25,8 +25,17 @@ type AlertRuleRowProps = {
 };
 
 export function AlertRuleRow(props: AlertRuleRowProps) {
-  const { companyId, userId, businessId, branchId, rule, index, disabled, onResetDone, onResetConflict } =
-    props;
+  const {
+    companyId,
+    userId,
+    businessId,
+    branchId,
+    rule,
+    index,
+    disabled,
+    onResetDone,
+    onResetConflict,
+  } = props;
   const locale = useLocale();
   const { field } = useController<SetAlertRulesInput, `rules.${number}.enabled`>({
     name: `rules.${index}.enabled`,
