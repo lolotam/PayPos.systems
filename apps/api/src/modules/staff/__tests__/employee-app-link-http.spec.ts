@@ -44,7 +44,7 @@ it.each([
   { name: 'no grant on the business', business: (f: EmployeeFixture) => f.secondBusiness, deny: false },
   { name: 'a business DENY wins', business: (f: EmployeeFixture) => f.business, deny: true },
   { name: 'another company business', business: (f: EmployeeFixture) => f.foreignBusiness, deny: false },
-  { name: 'unknown business', business: (_f: EmployeeFixture) => unknownBusiness, deny: false },
+  { name: 'unknown business', business: () => unknownBusiness, deny: false },
 ])('EL-I08 $name has the same 403 answer', async ({ business, deny }) => {
   const override = ids.newId();
   if (deny) {

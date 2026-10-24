@@ -100,7 +100,8 @@ import {
 import { attendanceBoardContext } from './persistence/attendance-board-context.adapter.ts';
 import { AttendanceExceptionsReadController } from './http/attendance-exceptions-read.controller.ts';
 import { AttendanceEmployeesController } from './http/attendance-employees.controller.ts';
-import { EmployeeAppLinkController, EMPLOYEE_APP_LINK_NAMES } from './http/employee-app-link.controller.ts';
+import { EmployeeAppLinkController } from './http/employee-app-link.controller.ts';
+import { EMPLOYEE_APP_LINK_NAMES } from './queries/employee-app-link.query.ts';
 import { employeeAppLinkNames } from './persistence/employee-app-link-names.adapter.ts';
 import { AttendanceCapabilitiesController } from './http/attendance-capabilities.controller.ts';
 import { AttendanceCorrectionHistoryController } from './http/attendance-correction-history.controller.ts';

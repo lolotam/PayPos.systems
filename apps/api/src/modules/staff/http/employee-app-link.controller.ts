@@ -1,17 +1,17 @@
 import { Controller, Get, Inject, Param, Req } from '@nestjs/common';
 import { id } from '@pospay/contracts';
-import type { TenantWrappers, Tx } from '@pospay/db';
+import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
-import type { EmployeeAppLinkNames } from '../ports/employee-app-link-names.port.ts';
-import { readEmployeeAppLink } from '../queries/employee-app-link.query.ts';
-
-export const EMPLOYEE_APP_LINK_NAMES = Symbol('EMPLOYEE_APP_LINK_NAMES');
-export type EmployeeAppLinkNamesFactory = (tx: Tx) => EmployeeAppLinkNames;
+import {
+  EMPLOYEE_APP_LINK_NAMES,
+  readEmployeeAppLink,
+  type EmployeeAppLinkNamesFactory,
+} from '../queries/employee-app-link.query.ts';
 
 @Controller('businesses/:businessId/staff/employee-app-link')
 export class EmployeeAppLinkController {

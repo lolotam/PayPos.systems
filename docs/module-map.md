@@ -114,7 +114,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `EmployeeDetailAccess` (read-side interface beside the query) | `identity` | effective grants at the persisted business/primary branch and staff feature; never global user existence (ADR-0021, PR #79) |
 | `staff` | `ScheduleScope`, `ScheduleReadAccess` | `identity` | schedule permissions and staff feature; writes retain company and ordered membership locks (ADR-0024) |
 | `staff` | `ScheduleScope`, `ScheduleReadAccess` | `tenancy` | branch ownership and effective timezone through describeWorkspaces, using PR 19 fallback (ADR-0024) |
-| `staff` | `EmployeeAppLinkNames` | `tenancy` | the business name and id for the employee-app link screen through describeWorkspaces; access is the route's `manage:employees:business` guard (spec 069, EL-Q3) |
+| `staff` | `EmployeeAppLinkNames` (read-side interface beside the query) | `tenancy` | the business name and id for the employee-app link screen through describeWorkspaces; access is the route's `manage:employees:business` guard (spec 069, EL-Q3) |
 | `orders` | `CustomerLookupPort` | `customers` | company-scoped customer existence, name and already-masked phone; reception first finds/creates the customer through customers' own endpoint (ADR-0041) |
 | `orders` | `PerformerCheckPort` | `staff` | dated employee/branch eligibility, persisted user link and attendance/approved-leave warnings at occurredAt; staff owns the working-day calculation (ADR-0041) |
 | `orders` | `DiscountLimitPort` | `settings` | selected recorder's fresh effective limit, including explicit zero/unlimited/not-configured (ADR-0041); spec 057 reuses it for the selected approver membership's limit, read after the proposal locks (ADR-0051, 057-6) |

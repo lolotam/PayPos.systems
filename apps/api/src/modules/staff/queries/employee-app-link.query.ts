@@ -1,5 +1,27 @@
 import { employeeAppLink, type EmployeeAppLink } from '@pospay/contracts';
-import type { EmployeeAppLinkNames } from '../ports/employee-app-link-names.port.ts';
+import type { Tx } from '@pospay/db';
+
+export const EMPLOYEE_APP_LINK_NAMES = Symbol('EMPLOYEE_APP_LINK_NAMES');
+
+export interface EmployeeAppLinkBusiness {
+  readonly id: string;
+  readonly name_en: string;
+  readonly name_ar: string | null;
+}
+
+/** واجهة القراءة بجوار الاستعلام عشان مسار القراءة ما يعتمدش على ports/. */
+export interface EmployeeAppLinkNames {
+  /**
+   * بيرجّع اسم النشاط ومعرّفه للينك، أو null لو النشاط مش تابع للشركة دي.
+   *
+   * @param companyId الشركة المفتوحة في معاملة القراءة
+   * @param businessId النشاط اللي الشاشة بتبني لينكه
+   * @returns اسم النشاط ومعرّفه، أو null لو مش تابع للشركة
+   */
+  business(companyId: string, businessId: string): Promise<EmployeeAppLinkBusiness | null>;
+}
+
+export type EmployeeAppLinkNamesFactory = (tx: Tx) => EmployeeAppLinkNames;
 
 // Screen: admin › staff › تطبيق الموظفات (spec 069 FR-005).
 export async function readEmployeeAppLink(
