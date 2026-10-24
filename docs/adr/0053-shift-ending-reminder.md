@@ -57,7 +57,9 @@ existing decision:
    ledger's unique index, before any lock), each with a boolean *has an OPEN session* (probe on
    `attendance_sessions_one_open`, any branch) computed in the same read; presence is a column, not a filter (decision
    8 needs it). It uses the `(company_id, starts_at)` index ADR-0037 added; this row adds no index on the shifts
-   table. The lead differs per (business, branch), so the due test happens in memory with the cached rule. Only the
+   table. The keyset predicate `(starts_at, employee_id) > cursor` is served by the same index: the planner adds
+   `starts_at >= cursor.starts_at` to the index condition and checks the row comparison as a filter on that bounded
+   range, so no `(company_id, starts_at, employee_id)` index is needed (EXPLAIN assertion in 064-3, issue #514 item 1). The lead differs per (business, branch), so the due test happens in memory with the cached rule. Only the
    due candidates open a locked transaction: with the rule on, only those with an OPEN session; with the rule off,
    every due one (decision 8). The cached rule can be stale by at most one run (minutes); a candidate skipped because the cache said «on» is re-evaluated by the next run, which reads the rule again, so the worst case is the accepted window of decision 2. An idle run therefore costs one company-eligibility read, one rule read per distinct
    pair and ⌈running shifts / 100⌉ unlocked page reads, bounded by the employees working at that moment.
