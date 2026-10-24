@@ -155,7 +155,7 @@ start screen again.
   no sign-in and so no WhatsApp; (d2) attendance by camera, which needs the personal session (WhatsApp, PP-58.1).
   **QR scan** (Android off until (d1) passes) and **attendance camera** (Android off until (d2) passes); both are
   build-time settings of the port: each check runs on a staging debug build made with its capability on, and once it
-  passes a one-line follow-up PR turns that capability on for every build, so between (d1) and (d2) the scan is on and
+  passes a one-line follow-up PR turns that capability on for every Android build, so between (d1) and (d2) the scan is on and
   attendance by camera is off. **iOS: both off until M-1c-ii passes on a real iPhone**, ADR-0055 decision 3).
   Screens read the port; no screen tests the platform itself.
 - **FR-007**: A capability that is off MUST NOT offer a working-looking control: its button is hidden and one line says

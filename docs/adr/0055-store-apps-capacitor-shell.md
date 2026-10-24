@@ -133,8 +133,8 @@ Bundled assets change the page origin, and that is the main technical risk of th
   - **M-1c-ii, the first real iPhone:** the first TestFlight build of M-2a, installed by the owners only (internal
     testers), repeats (a) and (b) and adds (c), (d) and (e) on iOS.
   **M-1d onward waits for M-1c's gate ((a) and (b) on both platforms, 2026-10-25 addendum); the Apple fee waits for the same gate, (a) and (b) on the Android phone and on the iOS simulator** (and for the
-  company, APP-Q3). **No employee receives the iOS app, and attendance stays hidden on iOS, until M-1c-ii passes.** If (d) fails, the scanner moves to a native camera plugin behind the M-1d port before attendance
-  is enabled in the app. If iOS fails (b) on the simulator or (c) on the first real iPhone, the fallback, in this order, is:
+  company, APP-Q3). **No employee receives the iOS app, and attendance stays hidden on iOS, until M-1c-ii passes.** If (d1) fails, the scanner moves to a native camera plugin behind the M-1d port before the QR-scan
+  capability is turned on; if (d2) fails, the same before the attendance-camera capability is turned on (PP-58.5). If iOS fails (b) on the simulator or (c) on the first real iPhone, the fallback, in this order, is:
   1. Capacitor's native HTTP and cookie plugins (`CapacitorHttp`, `CapacitorCookies`) with the API hosts listed in
      `WKAppBoundDomains`, so session requests leave through the native stack with the native cookie store. M-1c checks
      that the pinned plugin versions carry the POS client's real request shape (`openapi-fetch` 0.17.0 passing a
@@ -410,7 +410,9 @@ the camera capability stays off until it is checked, so the check could not run.
 checked through the M-1h connect-screen scan, which needs no sign-in, as soon as M-1h exists. (d2): attendance by
 camera, which waits on the personal session. The platform port reports two capabilities, **QR scan** and **attendance
 camera** (spec 065 FR-006); on Android the first turns on after (d1) and the second after (d2), each through a
-one-line follow-up after its check passes on a staging debug build made with that capability on.
+one-line follow-up that turns it on for every Android build after its check passes on a staging debug build made
+with that capability on. A failed check moves the scanner to a native camera plugin behind the M-1d port before that
+capability is turned on.
 
 **Consequences.** M-1h's scan can ship on Android before WhatsApp is ready, while no attendance camera control ships
 until (d2) passes. iOS keeps both off until M-1c-ii.
