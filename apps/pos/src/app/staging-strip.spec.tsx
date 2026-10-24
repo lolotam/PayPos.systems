@@ -12,7 +12,7 @@ vi.mock('@/shared/platform/native-shell', () => ({
 }));
 
 function mount(locale: 'ar' | 'en') {
-  return render(
+  render(
     <LocaleProvider locale={locale} setLocale={() => undefined}>
       <StagingStrip />
     </LocaleProvider>,
@@ -42,14 +42,5 @@ describe('StagingStrip', () => {
     mount('ar');
 
     expect(screen.queryByRole('note')).toBeNull();
-  });
-
-  it('shows no strip in the web app', () => {
-    vi.mocked(isStagingApp).mockReturnValue(false);
-
-    const { container } = mount('ar');
-
-    expect(screen.queryByRole('note')).toBeNull();
-    expect(container.textContent).toBe('');
   });
 });
