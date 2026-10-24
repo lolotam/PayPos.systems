@@ -372,6 +372,9 @@ xcconfig files.
   input `spike`. A separate macOS job would need its own slot under K = 2 and its own admission (decision 6). The steps
   read no secret and declare no environment.
 
-**Consequences.** A version bump is a one-line change in both files, reviewed like any dependency. If the gem stops
+**Consequences.** A failed UI test fails the `ios` staging job, and so `mobile-gate`, **of that dispatch run only**,
+on purpose: a green gate would hide a failed check, and `mobile-gate` is advisory. Push and pull-request runs never
+run the spike, so their gate is unchanged. A version bump is a one-line change in both files, reviewed like any
+dependency. If the gem stops
 supporting the runner's Xcode, the spike fails before any test runs; the build and its artifact are not affected,
 because the spike steps come after the build upload.
