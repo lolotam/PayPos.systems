@@ -210,7 +210,8 @@ start screen again.
   switch). It uses the attendance camera capability of the platform port (FR-006): where the camera is off (iOS
   until M-1c-ii passes; Android if M-1c's check fails), the scan option is hidden with the FR-007 line and the
   employee connects by the link or the paste. The QR itself is shown by a back-office screen in `apps/admin` that
-  gives the manager each employee's personal link and its QR code; that screen is its own sub-PR (plan M-1g),
+  gives the manager the employee-app link and its QR code (one link per business: EL-Q1 of spec 069, Waleed's pick,
+  Abu Salem pending); that screen is its own sub-PR (plan M-1g, spec 069),
   agreed with the web manager because it is in `apps/admin`.
 - **FR-015**: On first launch the app uses the phone's language: Arabic when the phone is in Arabic, English for any
   other language; the user can change it afterwards with the existing language switch (APP-Q12, PP-42.4; Waleed, 2026-10-23; Abu Salem picked the same, final).
