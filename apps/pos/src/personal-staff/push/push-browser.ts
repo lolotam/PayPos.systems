@@ -19,6 +19,9 @@ interface StandaloneNavigator extends Navigator {
   standalone?: boolean;
 }
 
+// رقم كل محاولة اشتراك: المحاولة المتأخرة ما تشيلش اشتراك بناءً تشغيل أحدث (ADR-0052 §7).
+let subscribeAttempt = 0;
+
 export function hasServiceWorker(): boolean {
   return typeof globalThis.navigator !== 'undefined' && 'serviceWorker' in globalThis.navigator;
 }
@@ -86,7 +89,8 @@ export async function unsubscribePush(): Promise<boolean> {
 
 /**
  * اشتراك بيتعمل من غير ما ينفع تلغيه: لو الوقت عدّى، الاشتراك اللي يوصل متأخر بيتشال
- * عشان ما يفضلش في المتصفح من غير حد يطلبه (ADR-0052 §7).
+ * بس لو مفيش تشغيل أحدث تبناه — المتصفح ماسك اشتراك واحد بس، فالتشغيل الجديد ممكن يكون
+ * هو نفسه الاشتراك المتأخر (ADR-0052 §7).
  *
  * @param applicationServerKey المفتاح العام
  * @param ms المهلة بالميلي ثانية
@@ -96,15 +100,21 @@ export async function subscribeWithDeadline(
   applicationServerKey: Uint8Array<ArrayBuffer>,
   ms: number,
 ): Promise<PushSubscriptionLike | null> {
+  const attempt = (subscribeAttempt += 1);
   const pending = subscribePush(applicationServerKey);
   let timer = 0;
   const deadline = new Promise<null>((resolve) => {
     timer = window.setTimeout(() => resolve(null), ms);
   });
-  const subscription = await Promise.race([pending, deadline]);
+  const settled = await Promise.race([pending.then((value) => value).catch(() => null), deadline]);
   window.clearTimeout(timer);
-  if (subscription !== null) return subscription;
-  void pending.then((late) => late.unsubscribe()).catch(() => undefined);
+  if (settled !== null) return settled;
+  void pending
+    .then((late) => {
+      if (subscribeAttempt !== attempt) return undefined;
+      return late.unsubscribe();
+    })
+    .catch(() => undefined);
   return null;
 }
 

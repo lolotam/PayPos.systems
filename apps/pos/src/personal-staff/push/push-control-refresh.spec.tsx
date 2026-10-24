@@ -21,6 +21,7 @@ const fakes = vi.hoisted(() => {
     ios: false,
     standalone: false,
     subscribed: false,
+    suspendOnWrite: false,
   };
   return { state };
 });
@@ -56,10 +57,18 @@ vi.mock('./push-record-idb', () => ({
     writeIfGeneration: async (
       record: PushRecord,
       expected: number,
-      options?: { clearSuspension?: boolean },
+      options?: { clearSuspension?: boolean; expectToken?: string | null },
     ) => {
       if (fakes.state.generation !== expected) return false;
-      const suspended = fakes.state.record?.suspended === true && options?.clearSuspension !== true;
+      const stored = fakes.state.record;
+      const sameRecord =
+        options?.expectToken === undefined
+          ? true
+          : options.expectToken === null
+            ? stored === null
+            : stored?.token === options.expectToken;
+      const clear = options?.clearSuspension === true && sameRecord;
+      const suspended = (stored?.suspended === true || fakes.state.suspendOnWrite) && !clear;
       fakes.state.record = suspended ? { ...record, suspended: true } : record;
       fakes.state.writes.push(fakes.state.record);
       return true;
@@ -151,6 +160,7 @@ beforeEach(() => {
   fakes.state.ios = false;
   fakes.state.standalone = false;
   fakes.state.subscribed = false;
+  fakes.state.suspendOnWrite = false;
   vi.mocked(attendanceInstallationId).mockImplementation(() => fakes.state.installationId);
   vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: CONFIG });
   vi.mocked(pushCalls.register).mockResolvedValue(undefined);
@@ -236,15 +246,73 @@ it('tries the registration once when the refresh keeps failing, and again after 
   vi.mocked(pushCalls.register).mockRejectedValue(new Error('SYNTHETIC_NETWORK_FAILURE'));
   mount();
 
+  expect(await screen.findByText(t('en', 'staffPush.on'))).toBeDefined();
   await waitFor(() => expect(pushCalls.register).toHaveBeenCalledTimes(1));
   await act(async () => {});
   expect(pushCalls.register).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText(t('en', 'staffPush.error'))).toBeNull();
 
   await act(async () => {
     window.dispatchEvent(new Event('focus'));
   });
 
   await waitFor(() => expect(pushCalls.register).toHaveBeenCalledTimes(2));
+  expect(screen.getByText(t('en', 'staffPush.on'))).toBeDefined();
+});
+
+it('turns the notifications on over a suspended record and ends unsuspended', async () => {
+  fakes.state.record = {
+    token: 'delivery-token',
+    subscriber_ref: 'subscriber-ref',
+    company_id: 'company',
+    vapid_key_id: '0123456789abcdef',
+    suspended: true,
+  };
+  mount();
+  const button = await screen.findByRole('button', { name: t('en', 'staffPush.enable') });
+
+  await act(async () => {
+    fireEvent.click(button);
+  });
+
+  expect(await screen.findByText(t('en', 'staffPush.on'))).toBeDefined();
+  expect(fakes.state.record?.suspended).toBe(false);
+});
+
+it('keeps a suspension that appears while the notifications are being turned on', async () => {
+  fakes.state.suspendOnWrite = true;
+  mount();
+  const button = await screen.findByRole('button', { name: t('en', 'staffPush.enable') });
+
+  await act(async () => {
+    fireEvent.click(button);
+  });
+
+  expect(fakes.state.record?.suspended).toBe(true);
+  expect(await screen.findByText(t('en', 'staffPush.reconnecting'))).toBeDefined();
+});
+
+it('runs the refresh again after the browser permission is granted', async () => {
+  fakes.state.record = {
+    token: 'delivery-token',
+    subscriber_ref: 'subscriber-ref',
+    company_id: 'company',
+    vapid_key_id: '0123456789abcdef',
+    suspended: false,
+  };
+  fakes.state.permission = 'default';
+  fakes.state.subscribed = true;
+  mount();
+
+  expect(await screen.findByText(t('en', 'staffPush.off'))).toBeDefined();
+  expect(pushCalls.register).not.toHaveBeenCalled();
+
+  fakes.state.permission = 'granted';
+  await act(async () => {
+    window.dispatchEvent(new Event('focus'));
+  });
+
+  await waitFor(() => expect(pushCalls.register).toHaveBeenCalledTimes(1));
 });
 
 it('starts no second refresh while one is still pending', async () => {
@@ -260,6 +328,7 @@ it('starts no second refresh while one is still pending', async () => {
   vi.mocked(pushCalls.register).mockImplementation(() => new Promise<void>(() => undefined));
   mount();
 
+  expect(await screen.findByText(t('en', 'staffPush.on'))).toBeDefined();
   await waitFor(() => expect(pushCalls.register).toHaveBeenCalledTimes(1));
   await act(async () => {
     window.dispatchEvent(new Event('focus'));
@@ -267,4 +336,7 @@ it('starts no second refresh while one is still pending', async () => {
   });
 
   expect(pushCalls.register).toHaveBeenCalledTimes(1);
+  const turnOff = screen.getByRole('button', { name: t('en', 'staffPush.disable') });
+  expect(turnOff.hasAttribute('disabled')).toBe(false);
+  expect(screen.queryByText(t('en', 'staffPush.error'))).toBeNull();
 });

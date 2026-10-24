@@ -8,6 +8,7 @@ import { pushRecordStore } from './push-record-idb';
 const REVOKE_TIMEOUT_MS = 5000;
 const SIGN_OUT_TIMEOUT_MS = 5000;
 const SIGN_OUT_RECORD_TIMEOUT_MS = 2000;
+const GENERATION_TIMEOUT_MS = 2000;
 
 /**
  * بتوقّف إشعارات الموبايل: بتمسح السجل المحلي، وبترفع اشتراك المتصفح، وبتراجع السطر عند الـ API.
@@ -18,7 +19,9 @@ const SIGN_OUT_RECORD_TIMEOUT_MS = 2000;
 export async function disablePush(installationId: string | null): Promise<void> {
   await runPushExclusive(async () => {
     // إيقاف الإشعارات بيكسر الجيل: أي تسجيل شغال في تبويب تاني بيمسك نفسه (ADR-0052 §7).
-    await pushRecordStore.bumpGeneration().catch(() => undefined);
+    await withTimeout(pushRecordStore.bumpGeneration(), GENERATION_TIMEOUT_MS).catch(
+      () => undefined,
+    );
     try {
       await pushRecordStore.remove();
     } catch {
@@ -44,7 +47,7 @@ export async function disablePush(installationId: string | null): Promise<void> 
 
 /**
  * تنظيف الإشعارات وقت تسجيل الخروج الصريح: بيكسر جيل السجل ويمسح التوكن من غير ما يستنى
- * القفل، وبعدين بيعمل الإيقاف الكامل تحت مهلة قصيرة. الخروج ما بيقفش أبداً (ADR-0052 §7).
+ * القفل، وبعدين بيعمل الإيقاف الكامل. الخروج ما بيقفش أبداً (ADR-0052 §7).
  */
 export async function disablePushOnSignOut(): Promise<void> {
   let installationId: string | null = null;
@@ -53,17 +56,17 @@ export async function disablePushOnSignOut(): Promise<void> {
   } catch {
     // من غير معرف تثبيت مفيش مراجعة عند الـ API، بس السجل المحلي بينمسح.
   }
-  // التوكين بينمسح بره القفل: لو شغل تاني ماسك القفل على طلب واقف، الخروج يفضل ماشي.
-  await pushRecordStore.bumpGeneration().catch(() => undefined);
   try {
-    await withTimeout(pushRecordStore.remove(), SIGN_OUT_RECORD_TIMEOUT_MS);
-    notifyPushRecordChanged();
+    await withTimeout(signOutCleanup(installationId), SIGN_OUT_TIMEOUT_MS);
   } catch {
-    // IndexedDB معلّق: مش هنقدر نمسح، بس الخروج بيكمل.
+    // الخروج الصريح ما بيقفش أبداً، حتى لو المتصفح أو التخزين اتعلّق.
   }
-  try {
-    await withTimeout(disablePush(installationId), SIGN_OUT_TIMEOUT_MS);
-  } catch {
-    // الخروج الصريح ما بيقفش أبداً، حتى لو المتصفح اتعلّق.
-  }
+}
+
+/** التوكين بينمسح بره القفل: لو شغل تاني ماسك القفل على طلب واقف، الخروج يفضل ماشي. */
+async function signOutCleanup(installationId: string | null): Promise<void> {
+  await withTimeout(pushRecordStore.bumpGeneration(), GENERATION_TIMEOUT_MS).catch(() => undefined);
+  await withTimeout(pushRecordStore.remove(), SIGN_OUT_RECORD_TIMEOUT_MS).catch(() => undefined);
+  notifyPushRecordChanged();
+  await disablePush(installationId);
 }

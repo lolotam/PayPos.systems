@@ -13,6 +13,7 @@ export interface PushRecord {
 /** خيارات الكتابة المحروسة: التعليق بيتشال بس لما الطلب يقول صريح. */
 export interface PushWriteOptions {
   clearSuspension?: boolean;
+  expectToken?: string | null;
 }
 
 /**

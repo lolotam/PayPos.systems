@@ -92,6 +92,7 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
       input.onRegistered(token);
       let written = false;
       try {
+        // التعليق اللي كان موجود قبل التشغيل بيتشال؛ أي تعليق جه مع تسجيل تاني بيتساب.
         written = await pushRecordStore.writeIfGeneration(
           {
             token,
@@ -101,6 +102,10 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
             suspended: false,
           },
           generation,
+          {
+            clearSuspension: previous?.suspended === true,
+            expectToken: previous?.token ?? null,
+          },
         );
       } catch {
         // فشل الكتابة: السجل مش هيتكتب والتسجيل الجديد بيتشال.

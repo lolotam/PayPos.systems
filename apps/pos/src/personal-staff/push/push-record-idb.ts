@@ -89,7 +89,8 @@ function bumpGeneration(): Promise<number> {
 
 /**
  * بيكتب السجل بس لو جيله زي ما هو، والقراءة والكتابة في transaction واحد.
- * ولو السجل المحفوظ معلّق، السجل الجديد يفضل معلّق إلا لو الطلب قال صريح إن التعليق يتشال.
+ * ولو السجل المحفوظ معلّق، السجل الجديد يفضل معلّق إلا لو الطلب قال صريح إن التعليق يتشال
+ * والسجل المحفوظ هو نفسه اللي الطلب بدأ منه (التوكن المتوقع).
  */
 function writeIfGeneration(
   record: PushRecord,
@@ -108,7 +109,14 @@ function writeIfGeneration(
           const recordRequest = store.get(RECORD_KEY) as IDBRequest<PushRecord | undefined>;
           recordRequest.onsuccess = () => {
             const stored = recordRequest.result;
-            const suspended = stored?.suspended === true && options.clearSuspension !== true;
+            const sameRecord =
+              options.expectToken === undefined
+                ? true
+                : options.expectToken === null
+                  ? stored === undefined
+                  : stored?.token === options.expectToken;
+            const clear = options.clearSuspension === true && sameRecord;
+            const suspended = stored?.suspended === true && !clear;
             store.put(suspended ? { ...record, suspended: true } : record, RECORD_KEY);
             written = true;
           };
