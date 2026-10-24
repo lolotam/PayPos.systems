@@ -198,5 +198,39 @@ sub-PR 53-1, and the approval-path groups 5 and 6 by 53-2 and 53-3, as the spec'
 After 53-1, every `ServiceSessionRecorded` or `ServiceSessionLinesAdded` outbox row published before sub-PR 50-1 ships
 and lacking a `commissions.project-inputs` mark counts as pending forever. The `SalaryChanged` obligation of the
 2026-10-08 amendment therefore extends to them: the bootstrap of sub-PR 50-3 (spec D-15, test CM-24) discharges those
-event ids through the lines reader; the outbox rows are retained until then; no placeholder mark is ever written;
+event ids through a controlled replay of the retained outbox events (corrected by the addendum of 2026-10-25, which replaces the "lines reader"); the outbox rows are retained until then; no placeholder mark is ever written;
 publication is not processing.
+
+## Addendum — 2026-10-25: the bootstrap replays the retained events (spec 059 D-15, sub-PRs 50-0 and 50-3)
+
+**Correction.** The 2026-10-22 amendment says the bootstrap of sub-PR 50-3 discharges the pending
+`ServiceSessionRecorded` and `ServiceSessionLinesAdded` event ids "through the lines reader". No such reader exists, and
+the session and line tables of orders do not keep the ids of those events (each use case emits a new outbox id; only the notice ledgers and `session_tip_revisions` store a source event id), so a reader could not
+discharge them. Read that phrase as: **through a controlled replay of the retained outbox events.** Spec 059 D-15 decided
+this on 2026-10-25 (option B; ADR-0041 §6 already allows "a controlled replay of retained recording/append/changed-line
+events to its consumer"). Nothing else in this ADR changes: the consumer id `commissions.project-inputs`, the six counted
+types, the pending predicate and the rule that no placeholder mark is ever written all stand.
+
+**What the replay is.** Sub-PR 50-0 adds a bounded, typed replay facade to `packages/db`, built on the pattern of
+`serviceSessionReplayPage` / `readServiceSessionReplayPage` (`packages/db/src/dispatcher.ts`) and covering
+`ServiceSessionRecorded`, `ServiceSessionLinesAdded`, `ServiceLineChanged` and `SalaryChanged`. It is the executable
+form of the `SalaryChanged` backfill of the 2026-10-08 amendment, which until now was only an obligation. Sub-PR 50-3
+runs it once per tenant after the consumer is live.
+
+**Roles, unchanged.**
+
+- The page is **read** through `createOutboxDispatcherDatabase` as `pospay_dispatcher`: company-qualified, UUID checkpoint
+  and fixed upper bound, keyset paging on the outbox primary key. Published and unpublished rows are both eligible.
+  The dispatcher side never joins `consumed_events`.
+- Each event is **delivered** to `commissions.project-inputs` alone, through `pospay_app` `withTenant(event.company_id)`:
+  the effect and the consumed mark (`markEventConsumed`) commit in one transaction, as `createDeliverer`
+  (`apps/worker/src/outbox/deliver.ts`) does for live events. A repeated delivery finds the mark and does nothing.
+- The replay never resets `published_at` and never touches another consumer's mark.
+- **No provenance column, no new `SECURITY DEFINER` function, no new grant, no `BYPASSRLS`.** The only schema change is
+  an index added by 50-0 for the wider query.
+
+**Why not the alternatives.** An orders-owned line reader with stored event ids (A) needs a provenance column or a
+definer, and a column on the current line row would not cover older events or the independently generated ids of edit
+events. A reader without event ids (C) can build a correct projection but cannot discharge the ids, so the rows stay
+pending forever. The gate stays fail closed: approval does not open until the replay's counts and coverage are proven
+(spec 059 CM-24, the runbook count of 50-3).

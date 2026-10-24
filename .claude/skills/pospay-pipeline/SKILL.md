@@ -49,7 +49,7 @@ the renewal.
   - **P0 / P1** (security, money, tenant isolation, data loss, correctness): both design advisors propose a fix, the
     implementer applies it, and the PR **stays blocked** until it is fixed and confirmed. The cap never lowers the bar.
   - **P2 / P3**: open a GitHub issue per finding, linked from its review thread, then merge.
-- **Parallel work: at most 3 tasks at once**, and only when their file paths are **disjoint**. Two tasks that touch the
+- **Parallel work: keep 5 to 6 tasks running at all times, 6 at most** (Waleed, PP-59, 2026-10-25, `docs/owner-decisions.ar.md` item 28; it replaces the old cap of 3). When a task merges, open a replacement at once. Pick tasks whose file paths are **disjoint**, and run **one migration lane at a time**. Implementation runs on Kimi/MiniMax and Codex gives advice and review, to save Claude quota. Two tasks that touch the
   same file wait for each other. Each task has its own branch, worktree (`F:\Dev\Worktrees\PosPay\<branch>`) and PR.
   Migration and ADR numbers are assigned **at merge time**: renumber the later PR after the earlier one lands. Each
   slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
@@ -100,7 +100,7 @@ the MergePilot panel reviews each pushed commit by itself. Read every result bef
 The implementer runs through the **opencode CLI** (`opencode` on `PATH`, under `F:\Dev\Runtimes\npm-global`). The
 default model is **`kimi-code-plan-global/k3.1-pro#high`** (Kimi For Coding plan, variant `high`); small, fully pinned
 backend and data slices use **`minimax-coding-plan/MiniMax-M3.1-Flash`**, on Waleed's flat-rate coding plan, which
-offers no `#high` variant and runs at its default (PP-55.1). Everything below applies to both; only `-m` differs. The `opencode-delegate` skill holds the run and relay mechanics. This section
+offers no `#high` variant and runs at its default (PP-55.1). **When Kimi hits its usage limit** (a 5-hour window), switch that task to MiniMax in a **new session** briefed on what is done and what is left, and go back to Kimi once its quota renews (Waleed, PP-60, 2026-10-25, `docs/owner-decisions.ar.md` item 29). Everything below applies to both; only `-m` differs. The `opencode-delegate` skill holds the run and relay mechanics. This section
 pins the PosPay rules on top of it.
 
 1. **One session per task.** Give the first run a session id with `-s`, and record it in the task's notes
@@ -668,7 +668,7 @@ typing do not.
 - Never let MiniMax run any git command, read or write anything under `.git`, use any MCP tool, merge, push, or
   touch the server.
 - Never merge with a P0/P1 open, or with CI red on the head being merged.
-- Never exceed 5 review rounds without applying §2 (a docs-only PR has no cap, see the docs-only lane in §2), and never exceed 3 parallel tasks.
+- Never exceed 5 review rounds without applying §2 (a docs-only PR has no cap, see the docs-only lane in §2), and never exceed 6 parallel tasks (PP-59).
 - Never run two tasks in parallel that touch the same file.
 - Never change the staging database by hand without the owner's explicit approval for that change.
 - Never rewrite a pushed branch's history (`--force`) without the owner's explicit approval.
