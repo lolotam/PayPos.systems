@@ -1,11 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import {
-  setAlertRulesInput,
-  type AlertKindCode,
-  type SetAlertRulesInput,
-} from '@pospay/contracts';
+import { setAlertRulesInput, type AlertKindCode, type SetAlertRulesInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useRef, useState } from 'react';
