@@ -5,9 +5,9 @@
 **Created**: 2026-10-24
 
 **Status**: Draft — waits for row **27g** to finish (LV-Q1). Owner questions LH-Q1…LH-Q5 (batch 63, PP-47.2…PP-47.6)
-are answered by Waleed on the decisions page (2026-10-24); Abu Salem is **PENDING** on all of them, and work follows
-Waleed's picks until he answers (`CLAUDE.md` §1 5b). Four new questions, LH-Q6…LH-Q9, are **PENDING** for both owners
-and each blocks only the rule marked `TODO(spec)` below ([owner-questions.ar.md](owner-questions.ar.md)). **No code starts
+are answered by Waleed and Abu Salem on the decisions page (2026-10-24, the same option on each), so they are **final**.
+Four new questions, LH-Q6…LH-Q9 (batch 66, PP-50.1…PP-50.4), are **PENDING** for both owners and each blocks the rule
+marked `TODO(spec)` below ([owner-questions.ar.md](owner-questions.ar.md)). **No code starts
 before row 27g is done and this spec is merged.**
 
 **Input**: Abu Salem's note on ST-Q7 (batch 59, 2026-10-23): a leave filter that shows everything about past leave — the
@@ -43,9 +43,9 @@ BR-003: eligibility and presence at any branch), ADR-0024 (schedules), ADR-0056 
 
 ## Owner answers this spec follows
 
-| Question | Answer (Waleed, decisions page, 2026-10-24; Abu Salem PENDING) | Rule |
+| Question | Answer (Waleed and Abu Salem, decisions page, 2026-10-24, the same option; final) | Rule |
 |---|---|---|
-| LV-Q1 (batch 62, PP-46.1) | Card «مهمة جديدة بعد الكشف»: a new task after 27g, spec and questions before code | this spec; code after 27g |
+| LV-Q1 (batch 62, PP-46.1) | Waleed's card «مهمة جديدة بعد الكشف», Abu Salem the same: a new task after 27g, spec and questions before code | this spec; code after 27g |
 | LH-Q1 (PP-47.2) | Option 3, against the recommendation: «الاتنين: تبويب في الملف، وتقرير لكل الموظفات.» | FR-001, FR-002 |
 | LH-Q2 (PP-47.3) | Option 1: the people who see leave requests today, with no new permission; a branch manager sees her branch only | FR-010 |
 | LH-Q3 (PP-47.4) | Option 2, against the recommendation: «كل الحالات، وجنب كل واحدة حالتها (معتمدة، مرفوضة، مستنية، ملغية).», note «مع فلتر بالحاله» | FR-004, FR-006 |
@@ -131,7 +131,7 @@ the السالمية branch manager; هدى is the owner. Today is 24 October 20
 - **FR-006** Filters: `from`, `to` (required by the API; the screens fill them, FR-007), `types[]` (any of `ANNUAL`,
   `SICK`, `UNPAID`, `OTHER`, `UNEXCUSED_ABSENCE`; empty = all), `statuses[]` (any of `PENDING`, `APPROVED`, `REJECTED`,
   `CANCELLED`; empty = all), `branch_id` (optional, inside the caller's scope), and on the report route only
-  `employee_id`. How the status filter treats absence rows (an own status value «غياب», or not) is **`TODO(spec)` LH-Q8**: no default is
+  `employee_id`. How the status filter treats absence rows (⭐ an own status value «غياب», combined with the type filter by AND) is **`TODO(spec)` LH-Q8**: no default is
   built; 68-1 does not start until it is answered (the sub-PR table).
 - **FR-007** The screens open on 1 January of the current year to today, both in the business's effective time zone
   (LH-Q5); the user can change both dates. A range longer than 366 days is refused with `422 VALIDATION_FAILED`
@@ -264,7 +264,7 @@ last-taken labels and the empty state. Dates and times through the existing form
 
 - 68-1: `docs/module-map.md` only if a new port is added (none is expected: the read stays inside `staff`).
 - 68-4: the roadmap row AS-26 is set done by the orchestrator after the merge (`CLAUDE.md` §1 5c).
-- If Abu Salem picks differently on LH-Q1…LH-Q5, or when LH-Q6…LH-Q9 are answered, this spec and
+- When LH-Q6…LH-Q9 are answered (and, if the owners differ, Abu Salem's pick binds), this spec and
   `owner-questions.ar.md` change first, before the affected sub-PR.
 
 ## Success Criteria *(mandatory)*
