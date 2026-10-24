@@ -80,8 +80,9 @@ No violation; Complexity Tracking is empty.
   `apps/pos/vite.config.ts`, move to one shared constant both apps import, so the admin cannot produce a host the app
   refuses.
 - **D-4 — The logo goes through an audited signed URL**, the `IssueDownload` pattern: after the guard, sequential steps
-  (resolve the logo, re-check the permission, then one transaction that re-locks the binding, writes the `ALLOW` pair and
-  signs locally), then the commit and the 60-second URL, so a signing failure or a logo changed meanwhile leaves no `ALLOW`. Alternatives rejected: streaming the bytes through the API (storage IO in a
+  (resolve the logo for a `DENY` target, re-check the permission, then always one locked transaction that decides on
+  the current binding, writes the `ALLOW` pair and signs locally), then the commit and the 60-second URL. A signing
+  failure leaves no `ALLOW`; a replaced or newly bound logo is re-read, audited and signed under the lock. Alternatives rejected: streaming the bytes through the API (storage IO in a
   request); the file's stored permission (it would hide the logo from managers who add employees). See the ADR-0056 addendum.
 - **D-5 — WhatsApp is a plain link** `https://wa.me/?text=…` with its own line; no API call, no phone read.
 - **D-6 — Printing is a print-only view** of the same page (`@media print`), black on white, with only the name, the
