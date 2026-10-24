@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { attendanceMonthlyReport } from '@pospay/contracts';
+import { attendanceMonthlyInputsStatement } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { computeAttendanceMonthlyReport } from '@pospay/domain';
 import { attendanceReportScope } from '../persistence/attendance-report-access.adapter.ts';
 import { monthlyReportLoadFixture } from './attendance-monthly-report-load.fixture.ts';
 import { reportHeaders, reportUrl, type MonthlyReportFixture } from './attendance-monthly-report.fixture.ts';
-import { attendanceMonthlyInputs, attendanceMonthlyInputsStatement } from '../queries/attendance-monthly-report.query.ts';
+import { attendanceMonthlyInputs } from '../queries/attendance-monthly-report.query.ts';
 
 let f: MonthlyReportFixture;
 beforeAll(async () => { f = await monthlyReportLoadFixture(); });

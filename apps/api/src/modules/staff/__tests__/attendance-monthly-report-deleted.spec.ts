@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { attendanceMonthlyReport } from '@pospay/contracts';
+import { attendanceMonthlyInputsStatement } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import { attendanceMonthlyInputsStatement } from '../queries/attendance-monthly-report.query.ts';
 import { monthlyReportFixture, reportHeaders, reportSession, reportUrl,
   type MonthlyReportFixture } from './attendance-monthly-report.fixture.ts';
 

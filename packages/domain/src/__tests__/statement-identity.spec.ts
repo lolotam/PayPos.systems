@@ -4,7 +4,7 @@ import {
   statementIdentity,
   type BusinessDisplayNames,
   type StoredBusinessIdentity,
-} from '../statement-identity.ts';
+} from '../statement-identity.js';
 
 const LOGO = '01920000-0000-7000-8000-000000000004';
 

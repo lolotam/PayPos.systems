@@ -6,6 +6,13 @@
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<!-- WKWebView بيعرف غير اللغات اللي التطبيق معرفها هنا، فبدون المفتاح ده
+	     تليفون عربي بيفتح بالإنجليزي (FR-015). -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>ar</string>
+		<string>en</string>
+	</array>
 	<key>CFBundleDisplayName</key>
         <string>PosPay Business</string>
 	<key>CFBundleExecutable</key>

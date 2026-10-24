@@ -52,3 +52,9 @@ export class StorageError extends Error {
     super('STORAGE_UNAVAILABLE');
   }
 }
+
+/**
+ * الكائن المطلوب غير موجود (404). القارئ يفرّق بينه وبين انقطاع التخزين: الأول «مفيش ملف» والآخر عطل.
+ * الرسالة وريث رسالة الأب، فكل فحص `instanceof StorageError` بيفضل شغّال.
+ */
+export class StorageObjectMissingError extends StorageError {}

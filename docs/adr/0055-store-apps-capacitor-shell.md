@@ -10,7 +10,7 @@ Arabic name «بوس باي للأعمال»; Abu Salem's option 1 binds, and th
 is still being formed (APP-Q3, `TODO(spec)`). **APP-Q8** (batch 56, PP-40.1) is final: both owners picked
 the GitHub macOS runner with the iOS simulator, inside the free minutes only.
 **APP-Q20** (batch 60, PP-44.1): the guard counts this repository's own macOS minutes, with no account token, and Waleed
-checks account usage weekly (Waleed, 2026-10-23; Abu Salem's pick binds if it differs). It replaces the usage-read token
+checks account usage weekly (Waleed, 2026-10-23; Abu Salem picked the same on 2026-10-23, so it is final). It replaces the usage-read token
 this ADR first described, which GitHub's billing endpoints would not accept in a narrow form.
 
 ## Context

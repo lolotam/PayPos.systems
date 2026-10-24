@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import sharp from 'sharp';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
 import { createS3Storage } from '../adapters/s3-generic.ts';
 import { inspectContent } from '../inspection.ts';
+import { StorageError, StorageObjectMissingError } from '../object-storage.ts';
 import { fakeCredentials, fakeS3 } from '../../test/fake-s3.ts';
 
 let fake: Awaited<ReturnType<typeof fakeS3>>;
@@ -19,6 +22,26 @@ afterAll(async () => {
   storage?.close();
   await fake?.close();
 });
+// سيرفر صغير بيجاوب بخطأ معيّن على كل طلب، عشان نثبت إن خطأ القراءة غير المفقود بيفضل انقطاعاً.
+async function failingStorage(status: number, body: string) {
+  const server = createServer((_request, response) => {
+    response.writeHead(status, { 'content-type': 'application/xml' });
+    response.end(body);
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  if (address === null || typeof address === 'string') throw new Error('FAKE_S3_ADDRESS');
+  return {
+    endpoint: `http://127.0.0.1:${address.port}`,
+    close: async () => {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    },
+  };
+}
 it('signs exact type and size for 120 seconds; wrong headers are refused', async () => {
   const url = await storage.presignUpload('staging/one', 'application/pdf', 4);
   const query = new URL(url).searchParams;
@@ -73,6 +96,58 @@ it('private publication is create-only; GET expiry is 60 seconds and attachment'
   ).toBe(true);
   await storage.remove('verified/one');
   await expect(storage.read('verified/one', 10)).rejects.toThrow('STORAGE_UNAVAILABLE');
+  await expect(storage.read('verified/one', 10)).rejects.toBeInstanceOf(StorageObjectMissingError);
+});
+it('a 403 from the storage is an outage, not a missing object', async () => {
+  const server = await failingStorage(403, '<Error><Code>AccessDenied</Code></Error>');
+  const broken = createS3Storage({
+    endpoint: server.endpoint,
+    region: 'auto',
+    bucket: 'private',
+    ...fakeCredentials,
+  });
+  try {
+    const failure = await broken.read('verified/one', 10).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(StorageError);
+    expect(failure).not.toBeInstanceOf(StorageObjectMissingError);
+  } finally {
+    broken.close();
+    await server.close();
+  }
+});
+it('a 404 on a missing bucket is an outage, not a missing object', async () => {
+  const server = await failingStorage(404, '<Error><Code>NoSuchBucket</Code></Error>');
+  const broken = createS3Storage({
+    endpoint: server.endpoint,
+    region: 'auto',
+    bucket: 'private',
+    ...fakeCredentials,
+  });
+  try {
+    const failure = await broken.read('verified/one', 10).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(StorageError);
+    expect(failure).not.toBeInstanceOf(StorageObjectMissingError);
+  } finally {
+    broken.close();
+    await server.close();
+  }
+});
+it('a 500 from the storage is an outage, not a missing object', async () => {
+  const server = await failingStorage(500, '<Error><Code>InternalError</Code></Error>');
+  const broken = createS3Storage({
+    endpoint: server.endpoint,
+    region: 'auto',
+    bucket: 'private',
+    ...fakeCredentials,
+  });
+  try {
+    const failure = await broken.read('verified/one', 10).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(StorageError);
+    expect(failure).not.toBeInstanceOf(StorageObjectMissingError);
+  } finally {
+    broken.close();
+    await server.close();
+  }
 });
 it('detects content instead of headers and fully re-encodes an image without metadata', async () => {
   const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#112233' } })
