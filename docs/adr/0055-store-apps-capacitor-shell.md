@@ -132,7 +132,7 @@ Bundled assets change the page origin, and that is the main technical risk of th
     question; it has no camera and no real passkey, so (d) and (e) stay open on iOS.
   - **M-1c-ii, the first real iPhone:** the first TestFlight build of M-2a, installed by the owners only (internal
     testers), repeats (a) and (b) and adds (c), (d) and (e) on iOS.
-  **M-1d onward waits for M-1c's gate ((a) and (b) on both platforms, 2026-10-25 addendum); the Apple fee waits for M-1c's iOS (a) and (b) to pass on the simulator** (and for the
+  **M-1d onward waits for M-1c's gate ((a) and (b) on both platforms, 2026-10-25 addendum); the Apple fee waits for the same gate, (a) and (b) on the Android phone and on the iOS simulator** (and for the
   company, APP-Q3). **No employee receives the iOS app, and attendance stays hidden on iOS, until M-1c-ii passes.** If (d) fails, the scanner moves to a native camera plugin behind the M-1d port before attendance
   is enabled in the app. If iOS fails (b) on the simulator or (c) on the first real iPhone, the fallback, in this order, is:
   1. Capacitor's native HTTP and cookie plugins (`CapacitorHttp`, `CapacitorCookies`) with the API hosts listed in

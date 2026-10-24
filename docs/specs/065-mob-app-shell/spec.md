@@ -148,7 +148,9 @@ start screen again.
 - **FR-006**: A single platform port MUST report, per capability, whether it is available: Web Push (never on native);
   passkeys (off on both platforms until O-4 is done, on iOS also until #536, on Android also only if M-1c's check
   passes); attendance camera (Android **off until M-1c's camera check (d) passes**, which follows WhatsApp Business under
-  PP-58.1, so no unverified camera control ships; **iOS off until M-1c-ii passes on a real iPhone**, ADR-0055 decision 3).
+  PP-58.1, so no unverified camera control ships. The Android value is a build-time setting of the port: (d) runs on a
+  staging debug build made with the camera on, and once (d) passes a one-line follow-up PR turns it on for every
+  build; **iOS off until M-1c-ii passes on a real iPhone**, ADR-0055 decision 3).
   Screens read the port; no screen tests the platform itself.
 - **FR-007**: A capability that is off MUST NOT offer a working-looking control: its button is hidden and one line says
   it is available in the web app, with a link that opens it (APP-Q17, PP-42.9; Waleed, 2026-10-23; Abu Salem picked the same, final).

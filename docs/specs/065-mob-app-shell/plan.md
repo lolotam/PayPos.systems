@@ -62,7 +62,7 @@ M-1c-ii), which must pass before any employee receives the app (ADR-0055 addendu
 ## M-2 — signed builds and internal distribution (not started; gated)
 
 APP-Q1 is final and APP-Q2 … APP-Q7 are answered. M-2 starts only when **the company that will own the store accounts
-is formed** (APP-Q3; its legal name is `TODO(spec)` until then — Waleed's temporary working name «PosPay», 2026-10-24, is a note for the docs and the privacy-policy draft only, never for an account or a payment) **and M-1c is green** (Android on a real phone; iOS (a) and (b) on the simulator, PP-58.2) **and M-1f is merged**. It needs, in this
+is formed** (APP-Q3; its legal name is `TODO(spec)` until then — Waleed's temporary working name «PosPay», 2026-10-24, is a note for the docs and the privacy-policy draft only, never for an account or a payment) **and M-1c is green by its gate** ((a) and (b) on the Android phone and on the iOS simulator, PP-58.4) **and M-1f is merged**. It needs, in this
 order:
 
 1. **O-2 (owners):** the account holder (Abu Salem, APP-Q3) enrols in the Apple Developer Program and creates the Google Play developer
