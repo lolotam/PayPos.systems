@@ -255,7 +255,12 @@ start screen again.
 | APP-Q17 | hide the button, one line with a link to the web app (FR-007) | M-1d |
 | APP-Q18 | «must update» with every new version | M-1f (its own spec) |
 
-### Owner decisions (batch 69: Waleed's picks on 2026-10-24; Abu Salem answered on 2026-10-24, final)
+### Owner decisions (batch 69: Waleed's picks on 2026-10-24; Abu Salem answered on 2026-10-24)
+
+`TODO(spec)`: Abu Salem's notes leave two details open. On APP-Q21 he will send example images for the icon mark
+(«سوف يتم تزويدك بصور أمثلة»). On APP-Q25 he asked that the final look follow the suggestions he sent Waleed
+(«…نجري جميع الاقتراحات من اللي أنا بعثتهم لك»); those are not in the repo yet. What ships now follows his picks. When the
+images and suggestions arrive, a follow-up PR applies them and updates this table and FR-018.
 
 | Question | Waleed's pick | Lands in |
 |---|---|---|
