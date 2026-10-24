@@ -180,8 +180,9 @@ above). `readStatementLogo` cannot be reused: it lives in the worker, embeds byt
    - Lock the access the way `lockDocumentAccess` does: the company row `FOR NO KEY UPDATE`, then the company's
      memberships `ORDER BY id FOR SHARE`. A revocation takes the same locks, so it either committed before the check
      (and the check sees it) or waits until this transaction ends.
-   - Confirm the business exists in that company and is not deleted, through tenancy's exported `describeWorkspaces`
-     (the `files → tenancy` arrow is already declared), before any other check. A company-wide membership reaches
+   - Confirm the business exists in that company and is not deleted, through a port `files` owns,
+     `BusinessInCompany`, whose adapter calls tenancy's exported `describeWorkspaces` (the `files → tenancy` arrow is
+     already declared; the module map gains its port row), before any other check. A company-wide membership reaches
      every business id, and `readBusinessIdentity` answers the same nothing for an unknown business, another
      company's business (hidden by RLS) and a business with no settings row. Without this step those cases would get
      the no-logo 200 instead of the 404.
@@ -227,7 +228,8 @@ above). `readStatementLogo` cannot be reused: it lives in the worker, embeds byt
      failure shows the retry message, and a truly missing logo blocks printing until the logo is uploaded again. The
      message then says so. This changes spec 069's missing-object rule.
 
-**Consequences.** One new route and use case in API `files`, one exported identity lock function, two port rows and the
+**Consequences.** One new route and use case in API `files`, one exported identity lock function, three port rows
+(`BusinessInCompany` → tenancy, `BusinessMemberReach` → identity, `BusinessLogoReference` → `@pospay/db`) and the
 `files → identity` read arrow in the module map, and an optional cache policy on `presignDownload`. No new table,
 permission, grant or role. Every sheet printed with a logo leaves an audit pair for the user who opened it.
 
