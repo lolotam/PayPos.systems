@@ -49,9 +49,10 @@ describe('ForeignSessionNotice', () => {
   it('ends the session again when the employee asks and locks the button while it runs', async () => {
     let release!: (result: 'done' | 'failed') => void;
     vi.mocked(endPersonalSession).mockImplementation(
-      () => new Promise((resolve) => {
-        release = resolve;
-      }),
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
     );
     mount('failed');
 

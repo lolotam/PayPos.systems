@@ -39,13 +39,13 @@ export function PersonalScreen({
         ) : state.loading ? (
           <p role="status">{t(locale, 'personalStaff.loading')}</p>
         ) : state.session ? (
-          sessionGate?.(state.session) ?? (
+          (sessionGate?.(state.session) ?? (
             <EnrolPasskeyScreen
               key={`${state.epoch}:${state.session.employee_id}`}
               employeeId={state.session.employee_id}
               onSignOut={state.signOut}
             />
-          )
+          ))
         ) : hint ? (
           <PersonalSignIn key={state.epoch} workspace={hint} changed={state.changed} />
         ) : (

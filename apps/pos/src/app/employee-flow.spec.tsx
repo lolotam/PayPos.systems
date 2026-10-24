@@ -72,13 +72,21 @@ function mount() {
   );
 }
 
+function redraw(view: ReturnType<typeof render>) {
+  view.rerender(
+    <LocaleProvider locale="ar" setLocale={() => undefined}>
+      {flow()}
+    </LocaleProvider>,
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(endPersonalSession).mockResolvedValue('done');
   vi.mocked(usePersonalSession).mockReturnValue(sessionState(SESSION));
 });
 
-describe('EmployeeFlow', () => {
+describe('EmployeeFlow with a session of another business', () => {
   it('hides the old business screens while its session is being ended', async () => {
     mount();
 
@@ -127,28 +135,22 @@ describe('EmployeeFlow', () => {
 
     vi.mocked(usePersonalSession).mockReturnValue(sessionState(null));
     await act(async () => {
-      view.rerender(
-        <LocaleProvider locale="ar" setLocale={() => undefined}>
-          {flow()}
-        </LocaleProvider>,
-      );
+      redraw(view);
     });
     expect(screen.getByText(`sign-in ${COMPANY} ${BUSINESS}`)).not.toBeNull();
 
     vi.mocked(usePersonalSession).mockReturnValue(sessionState({ ...SESSION }));
     await act(async () => {
-      view.rerender(
-        <LocaleProvider locale="ar" setLocale={() => undefined}>
-          {flow()}
-        </LocaleProvider>,
-      );
+      redraw(view);
     });
 
     expect(screen.getByRole('alert')).not.toBeNull();
     expect(screen.getByRole('button', { name: t('ar', 'nativeShell.retry') })).not.toBeNull();
     expect(endPersonalSession).toHaveBeenCalledTimes(1);
   });
+});
 
+describe('EmployeeFlow with a session of the remembered business or none', () => {
   it('shows the session screen of the remembered business, with no sign-out', async () => {
     vi.mocked(usePersonalSession).mockReturnValue(
       sessionState({ ...SESSION, business_id: BUSINESS }),
