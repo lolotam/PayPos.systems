@@ -57,20 +57,21 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
     if (live === null) return { kind: 'none' };
     if (notificationPermission() !== 'granted') return { kind: 'none' };
     if (input.installationId === null) return { kind: 'none' };
+    const installationId: string = input.installationId;
     if (input.config.vapid_key_id !== live.vapid_key_id) {
-      return rotate(input, live, input.installationId, generation);
+      return rotate(input, live, installationId, generation);
     }
     const subscription = await currentSubscription();
     if (subscription === null) {
       await removeRecord();
-      await revoke(input.installationId);
+      await revoke(installationId);
       return { kind: 'cleared' };
     }
     await withAbortTimeout(
       (signal) =>
         pushCalls.register(
           {
-            installation_id: input.installationId,
+            installation_id: installationId,
             vapid_key_id: live.vapid_key_id,
             delivery_token: live.token,
             subscription: pushSubscriptionBody(subscription),
@@ -140,7 +141,7 @@ async function rotate(
       API_TIMEOUT_MS,
     );
   } catch {
-    await unsubscribePush().catch(() => undefined);
+    await dropSubscription();
     await removeRecord();
     return { kind: 'cleared' };
   }
@@ -157,17 +158,27 @@ async function rotate(
       generation,
     );
   } catch {
-    written = false;
+    // فشل الكتابة: السجل مش هيتكتب والتسجيل الجديد بيتشال.
   }
   if (!written) {
     // جيل تاني غيّر السجل: الاشتراك الجديد بيتشال والسطر عند الـ API بيراجع (ADR-0052 §7).
-    await unsubscribePush().catch(() => undefined);
-    await revoke(installationId);
-    await removeRecord();
+    await rollback(installationId);
     return { kind: 'cleared' };
   }
   notifyPushRecordChanged();
   return { kind: 'rotated', token };
+}
+
+/** الاشتراك الجديد بيتشال: المتصفح مينفعش يفضل مسجل من غير حد يطلبه. */
+async function dropSubscription(): Promise<void> {
+  await unsubscribePush().catch(() => undefined);
+}
+
+/** رجوع على عقب: الاشتراك يتشال، والسطر عند الـ API يتراجع، والسجل يمسح. */
+async function rollback(installationId: string): Promise<void> {
+  await dropSubscription();
+  await revoke(installationId);
+  await removeRecord();
 }
 
 async function removeRecord(): Promise<void> {

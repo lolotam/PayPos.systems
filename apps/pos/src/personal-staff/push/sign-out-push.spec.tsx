@@ -53,7 +53,7 @@ vi.mock('./push-browser', () => ({
 }));
 vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
-    read: async () => RECORD,
+    read: async () => ({ ...RECORD }),
     write: async () => undefined,
     remove: async () => {
       fakes.state.removed += 1;

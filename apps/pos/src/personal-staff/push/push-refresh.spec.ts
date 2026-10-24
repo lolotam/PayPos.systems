@@ -12,6 +12,7 @@ const fakes = vi.hoisted(() => {
     record: null as PushRecord | null,
     writes: [] as PushRecord[],
     writeFails: false,
+    writeIfGenerationFails: false,
     generation: 0,
     removed: 0,
     subscribed: false,
@@ -37,7 +38,7 @@ const CONFIG: PushConfig = {
 
 vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
-    read: async () => fakes.state.record,
+    read: async () => (fakes.state.record === null ? null : { ...fakes.state.record }),
     write: async (record: PushRecord) => {
       if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       fakes.state.record = record;
@@ -57,6 +58,7 @@ vi.mock('./push-record-idb', () => ({
       expected: number,
       options?: { clearSuspension?: boolean },
     ) => {
+      if (fakes.state.writeIfGenerationFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       if (fakes.state.generation !== expected) return false;
       const suspended = fakes.state.record?.suspended === true && options?.clearSuspension !== true;
       fakes.state.record = suspended ? { ...record, suspended: true } : record;
@@ -131,6 +133,7 @@ beforeEach(() => {
   fakes.state.record = { ...RECORD };
   fakes.state.writes = [];
   fakes.state.writeFails = false;
+  fakes.state.writeIfGenerationFails = false;
   fakes.state.generation = 0;
   fakes.state.removed = 0;
   fakes.state.subscribed = true;
@@ -189,7 +192,7 @@ it('removes the record when the browser holds no subscription', async () => {
 
   expect(outcome).toEqual({ kind: 'cleared' });
   expect(fakes.state.removed).toBe(1);
-  expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION);
+  expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION, expect.any(AbortSignal));
 });
 
 it('restores a suspended record of this company when the subscriber reference matches', async () => {
@@ -239,7 +242,7 @@ it('removes a record of another person and sends no registration', async () => {
 
 it('removes the record when the rotation cannot write it', async () => {
   fakes.state.record = { ...RECORD, vapid_key_id: 'oldkey0000000000' };
-  fakes.state.writeFails = true;
+  fakes.state.writeIfGenerationFails = true;
 
   const outcome = await refreshPush(input());
 

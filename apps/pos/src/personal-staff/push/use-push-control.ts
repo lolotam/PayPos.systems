@@ -21,6 +21,7 @@ import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
 import { refreshPush } from './push-refresh';
 import { decidePushState } from './push-state';
+import { useRefreshRetry } from './use-refresh-retry';
 
 const INVITATION_KEY = 'pospay.push.invitationSeen';
 
@@ -259,26 +260,7 @@ export function usePushControl({ companyId }: { companyId: string }) {
     },
   });
   const refresh = usePushRefresh({ companyId, locale, config: config.config, local, registered });
-
-  // السماح ممكن يتغير من إعدادات المتصفح من غير إعادة تحميل، والتحديث اللي فشل لازم
-  // يتعاد مرة واحدة لما المستخدم يرجع للتطبيق أو الشبكة تيجي (FR-010).
-  useEffect(() => {
-    const again = () => {
-      refresh.retry();
-      void local.reload();
-    };
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') again();
-    };
-    window.addEventListener('focus', again);
-    window.addEventListener('online', again);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      window.removeEventListener('focus', again);
-      window.removeEventListener('online', again);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [local.reload, refresh.retry]);
+  useRefreshRetry(refresh.retry, local.reload);
   const decision = decidePushState({
     notReady: config.notReady,
     storageBlocked: local.storageBlocked,

@@ -34,7 +34,7 @@ const CONFIG: PushConfig = {
 
 vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
-    read: async () => fakes.state.record,
+    read: async () => (fakes.state.record === null ? null : { ...fakes.state.record }),
     write: async (record: PushRecord) => {
       if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       fakes.state.record = record;

@@ -24,6 +24,7 @@ const fakes = vi.hoisted(() => {
     removed: 0,
     writes: [] as PushRecord[],
     writeFails: false,
+    writeIfGenerationFails: false,
     generation: 0,
     endpoint: 'https://fcm.googleapis.com/fcm/send/one',
     unsubscribed: 0,
@@ -47,7 +48,7 @@ const RECORD: PushRecord = {
 
 vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
-    read: async () => fakes.state.record,
+    read: async () => (fakes.state.record === null ? null : { ...fakes.state.record }),
     write: async (record: PushRecord) => {
       if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       fakes.state.record = record;
@@ -67,6 +68,7 @@ vi.mock('./push-record-idb', () => ({
       expected: number,
       options?: { clearSuspension?: boolean },
     ) => {
+      if (fakes.state.writeIfGenerationFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       if (fakes.state.generation !== expected) return false;
       const suspended = fakes.state.record?.suspended === true && options?.clearSuspension !== true;
       fakes.state.record = suspended ? { ...record, suspended: true } : record;
@@ -193,6 +195,7 @@ beforeEach(() => {
   fakes.state.removed = 0;
   fakes.state.writes = [];
   fakes.state.writeFails = false;
+  fakes.state.writeIfGenerationFails = false;
   fakes.state.generation = 0;
   fakes.state.endpoint = FIRST;
   fakes.state.unsubscribed = 0;
@@ -293,7 +296,7 @@ it('a refresh that resumes after the sign out does not write the record back', a
 });
 
 it('a failed record write leaves no registration behind', async () => {
-  fakes.state.writeFails = true;
+  fakes.state.writeIfGenerationFails = true;
 
   const outcome = await enablePush({
     companyId: 'company',

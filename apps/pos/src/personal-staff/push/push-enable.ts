@@ -103,7 +103,7 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
           generation,
         );
       } catch {
-        written = false;
+        // فشل الكتابة: السجل مش هيتكتب والتسجيل الجديد بيتشال.
       }
       if (!written) {
         // جيل تاني غيّر السجل: التوكين الجديد بيتشال والسطر عند الـ API بيراجع.

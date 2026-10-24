@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { PushRecord } from './push-record';
+import type { PushRecord, PushRecordStore } from './push-record';
 import { handleNotificationClick, handlePush } from './sw-handlers';
 
 const TOKEN = 'delivery-token';
@@ -32,11 +32,23 @@ function registration() {
   return { showNotification };
 }
 
-function store(record: PushRecord | null) {
+function store(record: PushRecord | null): PushRecordStore {
   return {
     read: async () => record,
     write: async () => undefined,
     remove: async () => undefined,
+    generation: async () => 0,
+    bumpGeneration: async () => 1,
+    writeIfGeneration: async () => true,
+  };
+}
+
+function failingStore(): PushRecordStore {
+  return {
+    ...store(null),
+    read: async () => {
+      throw new Error('PUSH_STORE_UNAVAILABLE');
+    },
   };
 }
 
@@ -113,15 +125,8 @@ describe('the push handler shows the neutral notice', () => {
 
   it('when the local store cannot be read', async () => {
     const target = registration();
-    const failing = {
-      read: async () => {
-        throw new Error('PUSH_STORE_UNAVAILABLE');
-      },
-      write: async () => undefined,
-      remove: async () => undefined,
-    };
 
-    await handlePush({ data: payload(), registration: target, store: failing });
+    await handlePush({ data: payload(), registration: target, store: failingStore() });
 
     expect(target.showNotification).toHaveBeenCalledWith('PosPay', {
       data: { url: '/personal' },

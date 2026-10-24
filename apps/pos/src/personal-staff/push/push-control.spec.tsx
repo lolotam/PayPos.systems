@@ -52,7 +52,7 @@ vi.mock('./push-refresh', () => ({
 
 vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
-    read: async () => fakes.state.record,
+    read: async () => (fakes.state.record === null ? null : { ...fakes.state.record }),
     write: async (record: PushRecord) => {
       fakes.state.record = record;
       fakes.state.writes.push(record);
@@ -304,7 +304,10 @@ it('turns the notifications off, removes the record and revokes the subscription
 
   expect(await screen.findByText(t('en', 'staffPush.off'))).toBeDefined();
   expect(fakes.state.removed).toBe(1);
-  expect(pushCalls.revoke).toHaveBeenCalledWith(fakes.state.installationId);
+  expect(pushCalls.revoke).toHaveBeenCalledWith(
+    fakes.state.installationId,
+    expect.any(AbortSignal),
+  );
 });
 
 it('asks for the configuration again and retries once when the key is stale', async () => {

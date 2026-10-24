@@ -39,7 +39,7 @@ vi.mock('../model/installation-id', () => ({
 
 vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
-    read: async () => fakes.state.record,
+    read: async () => (fakes.state.record === null ? null : { ...fakes.state.record }),
     write: async (record: PushRecord) => {
       fakes.state.record = record;
       fakes.state.writes.push(record);
