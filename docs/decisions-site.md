@@ -53,10 +53,18 @@ curl -s -u "$PLAN_AUTH" "$B/api/doc?path=decisions/<docId>"
 # GET decisions/<docId> and Abu Salem's note first: if a decision exists, or Abu Salem picked differently,
 # do not PUT. His pick binds (PP-1.2), so bring the conflict to Waleed instead. When you do overwrite an older
 # decision on Waleed's word, name the old choice in "source" so the history survives.
-# Send that GET's ETag header as If-Match: a 412 {"code":"stale"} means someone wrote in between; GET again and re-decide.
+# Capture the decision's ETag from that GET and stop if it is missing: an empty If-Match is dropped by curl,
+# and a PUT without it writes unconditionally.
+ETAG=$(curl -s -D - -o /dev/null -u "$PLAN_AUTH" "$B/api/doc?path=decisions/<docId>" \
+  | tr -d '\r' | awk 'tolower($1)=="etag:"{print $2}')
+[ -n "$ETAG" ] || { echo "no ETag, not writing"; exit 1; }
+# A 412 {"code":"stale"} means someone wrote in between; GET again and re-decide.
 curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' -H "If-Match: $ETAG" \
   -d '{"qid":"XX-Q1","choice":0,"decidedAt":"<ISO time>","source":"Waleed answered in chat, <date>"}' \
   "$B/api/doc?path=decisions/<docId>"
+# If-Match guards only the document written, not Abu Salem's separate note. GET his note again right after
+# the PUT: if it appeared or changed, his pick still binds, so correct the decision and bring it to Waleed.
+# §C re-reads his notes after every merge and at session start, so a later change is caught there too.
 
 # health, no auth
 curl -s "$B/health"
@@ -90,10 +98,13 @@ Every question also goes to Waleed's super agent as `PP-n` (`CLAUDE.md` §1 5b).
 
 ```bash
 # Waleed's pick from a card: a note under his user id, marked source "card" (choice = 0-based option index).
-# $ETAG is the ETag header of the GET just before; a missing note has one too.
+# Capture the note's ETag first (a missing note has one too) and stop if it is empty.
+N="$B/api/doc?path=reviews/u_kxawXFcE2cQIRRqI4Cn8Iw/notes/<docId>"
+ETAG=$(curl -s -D - -o /dev/null -u "$PLAN_AUTH" "$N" | tr -d '\r' | awk 'tolower($1)=="etag:"{print $2}')
+[ -n "$ETAG" ] || { echo "no ETag, not writing"; exit 1; }
 curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' -H "If-Match: $ETAG" \
   -d '{"qid":"XX-Q1","verdict":"ok","choice":0,"text":"<his words, verbatim>","source":"card","updatedAt":"<ISO time>"}' \
-  "$B/api/doc?path=reviews/u_kxawXFcE2cQIRRqI4Cn8Iw/notes/<docId>"
+  "$N"
 ```
 
 Before the PUT, GET the note: write only when it does not exist (`{"exists":false}`) or its `source` is `"card"`. A note without `source` was made on the page by Waleed himself and is not overwritten. Since 2026-10-24 the API has a conditional write: `GET /api/doc` returns an `ETag` header (a missing document has one too), and a `PUT` that sends it as `If-Match` is refused with `412 {"code":"stale","etag":…}` and writes nothing when the document changed in between. Always send it, which closes the race #461 described: on a 412, GET again and apply the rule above to what is there now. A `PUT` without `If-Match` still writes unconditionally, so never omit it. Also record the card answer in the audit record (`owner-questions.ar.md` or `docs/owner-decisions.ar.md`) before the PUT, so it is never lost; and when Waleed says he picked something else on the page, his page pick wins, and you correct the record. When his card answer matches no option (free text), store it as `"verdict":"change"` with his words in `text` and no `choice`, so the page shows it as his own answer and not as agreement with the recommended option.
