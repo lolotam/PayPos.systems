@@ -49,8 +49,10 @@ her phone and the code (personal OTP, ADR-0027). The app remembers her salon, so
 **Why this priority**: it is the employee half of «PosPay Business»; it depends on how the app learns the salon
 (APP-Q9) and on the iOS session check (M-1c).
 
-**Independent Test**: on an Android phone against staging, connect to a seeded test business, sign in with the test
-OTP, restart the app; repeat (a)–(c) of M-1c on the iOS simulator.
+**Independent Test**: on an Android phone against staging, connect to a seeded test business, sign in with a code
+sent to a real WhatsApp number, restart the app; repeat (a)–(c) of M-1c on the iOS simulator. **Staff OTP is postponed
+(PP-58.1, Waleed, 2026-10-25):** this sign-in check waits until WhatsApp Business is set up (an approved OTP template
+and its keys); there is no test-only OTP path.
 
 **Acceptance Scenarios**:
 
@@ -358,7 +360,9 @@ None published, none consumed.
   carries the Associated Domains entitlement in its entitlements file (an unsigned simulator build cannot embed it).
 - **Device checks** (M-1c, recorded in [plan.md](plan.md)): (a) pairing, (b) staff PIN session, (c) personal OTP
   session, each surviving a restart; (d) attendance QR camera; (e) passkey behaviour. Android on a real phone; iOS
-  (a)–(c) on the simulator, (d)–(e) on the first real iPhone (M-1c-ii).
+  (a)–(c) on the simulator, (d)–(e) on the first real iPhone (M-1c-ii). **Staged by PP-58.1:** (a) and (b) run now on
+  Android; (c), (d) and (e) wait until WhatsApp Business is set up and then run on real WhatsApp. M-1c is complete only
+  when every check has run; M-1d onward and the Apple fee wait on iOS (c).
 - **RLS negative**: not applicable (no tenant table).
 - **Queries**: not applicable (no `queries/` file).
 

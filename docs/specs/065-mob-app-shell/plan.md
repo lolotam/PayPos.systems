@@ -19,6 +19,8 @@ Play internal uploads are M-2, gated on the company that will own the store acco
 Android now; (c) the personal OTP session, (d) the attendance camera and (e) passkey attendance wait until WhatsApp
 Business is set up (an approved OTP template and its keys) and are then tested on real WhatsApp, with no test-only OTP
 path. On iOS the simulator UI test covers what needs no OTP. **M-1d onward and the Apple fee keep waiting on iOS (c).**
+So row M-1c below is done in two steps: (a) and (b) now, then (c)–(e) once WhatsApp is ready; the row is complete only
+after both (spec 065, Test plan, Device checks).
 
 ## Rules that hold for every sub-PR
 
