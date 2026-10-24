@@ -1,8 +1,7 @@
 # ADR-0056 — Attendance statement: where its reads live, the files-owned logo reader, and the request record
 
-- **Status:** Proposed — 2026-10-21, with [spec 061](../specs/061-staff-attendance-statement-pdf/spec.md) (Phase 1 row
-  27g). It becomes Accepted when sub-PR 1 lands. The number is the next free one on `main` and on every remote branch
-  on 2026-10-21; the orchestrator renumbers it at merge if another lane took it.
+- **Status:** Accepted — 2026-10-23, with sub-PR 27g-1 (proposed 2026-10-21 with
+  [spec 061](../specs/061-staff-attendance-statement-pdf/spec.md), Phase 1 row 27g).
 - **Amends:** [ADR-0046](0046-business-identity-settings-reads-and-logo-lifecycle.md) §5 (where the identity read and the
   logo bytes reader live, and the `staff → settings` arrow it left to this ADR); a pointer is added there and in
   ADR-0049 §6.
@@ -55,7 +54,7 @@ settings adapter and the worker files adapter, with no `files → settings` impo
 - The 27b inputs statement (`attendanceMonthlyInputsStatement` and `attendanceReportContractsStatement`) moves to
   `@pospay/db` beside `employee-branch-links.ts` and `employee-default-shifts-projection.ts`, unchanged. It already
   takes `from` and `to` (the monthly report passes its month's first and last day), so a period needs no new SQL. The API 27b query
-  and the worker statement reader both call it; its result-shape and EXPLAIN tests move with it. It keeps leaving OPEN
+  and the worker statement reader both call it; its result-shape and EXPLAIN tests keep running against the shared statement from the API 27b test files, which import it from `@pospay/db` (the precedent of `employeeDefaultShiftsStatement`), so their fixtures are not ported. It keeps leaving OPEN
   sessions out (AB-Q9g); the employee statement shows them from a separate small worker `queries/` read (spec 061
   FR-011a), so the shared statement and the monthly report stay unchanged.
 - The 27b statement returns only its candidates (a session or contracted minutes), so it leaves out an employee whose
@@ -80,8 +79,10 @@ which the module map forbids (§3.1: one recorded exception). Instead no busines
 transaction, one after the other, never nested (PP-7.2). `staff` never imports `files` for this, and `files` never
 imports `staff`.
 
-Worker `files` exports one function, `readStatementLogo(companyId, { businessId, fileId, requesterUserId, renderId },
-signal)`, from `apps/worker/src/modules/files/index.ts`. The source passes the `logo_file_id` the `staff` reader returned
+Worker `files` exposes one function, `readStatementLogo(companyId, { businessId, fileId, requesterUserId, renderId },
+signal)`: the handle that `startFilesWorker` (exported by `apps/worker/src/modules/files/index.ts`) returns carries it,
+bound to the module's database, storage client and clock, and the index exports its type `StatementLogoReader`. When the
+worker has no storage configured, it throws before any transaction, so nothing is written. The source passes the `logo_file_id` the `staff` reader returned
 from the request row (§1, §5); when that is `null` the source does not call it and the statement prints the name only
 (spec 052 BR-04) on every attempt, even if a logo is bound in between. The function has two phases:
 
@@ -99,7 +100,9 @@ from the request row (§1, §5); when that is `null` the source does not call it
 2. **After commit**, outside any transaction: it reads the object through `packages/storage` and re-encodes it with the
    same `sharp` setup as upload inspection to fit 512 × 512 px, PNG for a PNG and JPEG for a JPEG, at most 512 KiB. A
    10 MiB logo (spec 052 BR-10) would otherwise take most of the 4 MiB HTML cap as base64. A missing object returns
-   `null` (name only). A storage error or a timeout of 5 seconds throws, so the job's attempt fails and BullMQ retries
+   `null` (name only); `packages/storage` reports it as `StorageObjectMissingError`, a subclass of `StorageError`, and
+   the re-encoder is its `fitImage`, beside `inspectContent`. The access row written in phase 1 stays: the logo was
+   looked up for her. A stored logo that cannot be re-encoded within the limits throws too. A storage error or a timeout of 5 seconds throws, so the job's attempt fails and BullMQ retries
    it once (spec 056 FR-006). It returns `{ content_type, bytes }` or `null`.
 
 The write stays inside the module that owns `file_access_audit`, in that module's own transaction, so it is not a

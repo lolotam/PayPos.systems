@@ -1,5 +1,6 @@
 import { businessIdentity, errorEnvelope } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
+import { businessIdentityReadStatement, readBusinessIdentity } from '@pospay/db';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import {
@@ -8,10 +9,6 @@ import {
   seedOverride,
   type PermissionFixture,
 } from '../../../../test/permissions-fixture.ts';
-import {
-  businessIdentityReadStatement,
-  readBusinessIdentity,
-} from '../persistence/read-business-identity.ts';
 import { businessIdentityQuery } from '../queries/business-identity.query.ts';
 import { deviceToken, foreignBusinessId, insertLogoFile } from './set-business-logo.support.ts';
 
