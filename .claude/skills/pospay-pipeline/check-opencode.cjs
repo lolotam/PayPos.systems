@@ -517,6 +517,16 @@ try {
   problems.push(`cannot confirm that ${authFile} has no wellknown credential (${error.message})`);
 }
 
+// Splits a Windows command line into arguments, honouring double quotes, so a quoted run title such as
+// "serve --service" stays one argument (MergePilot on #643). On 2.1.4 the daemon's own line is
+// `<path>\opencode.exe serve --service`. Kept identical in check-opencode.cjs and stop-opencode-sessions.cjs.
+function isSharedServiceCommand(commandLine) {
+  const args = [...commandLine.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
+  if (!/(^|[\\/])opencode(\.exe)?$/i.test(args[0] ?? '')) return false;
+  const rest = args.slice(1);
+  return rest.includes('serve') && rest.some((arg) => /^--service(=(true|1))?$/i.test(arg));
+}
+
 // A bare opencode command without --standalone (debug config, models, auth list) starts the shared
 // `opencode serve --service`, which keeps the global config and OPENCODE_* variables it started with (#635 item 3;
 // three times on 2026-10-25). The dispatch runs only while no such daemon is up.
@@ -545,10 +555,7 @@ try {
     .filter(([pid]) => /^\d+$/.test(pid));
   // Windows withholds the command line of an elevated or protected process, which could hide the service.
   const unreadable = processes.filter(([, commandLine = '']) => !commandLine.trim());
-  // `serve` must be the subcommand itself, so a run whose title mentions it never matches (MergePilot on #643).
-  const services = processes.filter(([, commandLine = '']) =>
-    /opencode\.exe"?\s+serve(\s.*)?\s--service(\s|$)/i.test(commandLine),
-  );
+  const services = processes.filter(([, commandLine = '']) => isSharedServiceCommand(commandLine));
   if (services.length)
     problems.push(
       `the shared opencode service is running (PID ${services.map(([pid]) => pid).join(', ')}): stop it before dispatch`,

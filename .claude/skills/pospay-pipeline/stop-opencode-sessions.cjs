@@ -64,6 +64,16 @@ function busySessions() {
   }
 }
 
+// Splits a Windows command line into arguments, honouring double quotes, so a quoted run title such as
+// "serve --service" stays one argument (MergePilot on #643). On 2.1.4 the daemon's own line is
+// `<path>\opencode.exe serve --service`. Kept identical in check-opencode.cjs and stop-opencode-sessions.cjs.
+function isSharedServiceCommand(commandLine) {
+  const args = [...commandLine.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
+  if (!/(^|[\\/])opencode(\.exe)?$/i.test(args[0] ?? '')) return false;
+  const rest = args.slice(1);
+  return rest.includes('serve') && rest.some((arg) => /^--service(=(true|1))?$/i.test(arg));
+}
+
 // A bare opencode command (any subcommand that needs a server, run without --standalone) starts the shared
 // `opencode serve --service` detached, with the global config and MCP servers (2.1.4, #635 item 3). The checker
 // refused the dispatch while one was up, so any found now started during the run: it is stopped and its PID logged.
@@ -105,14 +115,13 @@ function stopSharedService() {
       );
       continue;
     }
-    // `serve` must be the subcommand itself, so a run whose title mentions it never matches (MergePilot on #643).
-    if (!/opencode\.exe"?\s+serve(\s.*)?\s--service(\s|$)/i.test(commandLine)) continue;
-    // Only a service started inside this run's window is stopped. An older one (a stopper run by hand without
-    // --since, or a race with the checker) is reported and left running, so someone else's work is never killed.
-    if (Number(created) < since) {
+    if (!isSharedServiceCommand(commandLine)) continue;
+    // Only a service started inside this run's window is stopped. Without --since there is no window, and an older
+    // or undated one may be someone else's work: each is reported and left running, which fails the cleanup.
+    if (sinceIndex < 0 || !/^\d+$/.test(created) || Number(created) < since) {
       failures++;
       console.error(
-        `the shared opencode service PID ${pid} predates this run: stop it by hand after checking whose it is`,
+        `the shared opencode service PID ${pid} is not known to have started during this run: stop it by hand after checking whose it is`,
       );
       continue;
     }
@@ -122,7 +131,13 @@ function stopSharedService() {
     }
     // taskkill /T exits non-zero when a child of the tree is already gone, so only a PID still alive afterwards fails.
     try {
-      execFileSync('taskkill', ['/PID', pid, '/T', '/F'], { stdio: 'ignore', timeout: 15_000 });
+      // An absolute path, so a taskkill.exe planted in the worktree (the current folder) never runs (Codex on #643).
+      const taskkillExe = path.join(
+        process.env.SystemRoot || 'C:\\Windows',
+        'System32',
+        'taskkill.exe',
+      );
+      execFileSync(taskkillExe, ['/PID', pid, '/T', '/F'], { stdio: 'ignore', timeout: 15_000 });
     } catch {
       // checked below
     }

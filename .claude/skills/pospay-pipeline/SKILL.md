@@ -343,7 +343,8 @@ pins the PosPay rules on top of it.
    ```powershell
    & {   # a child scope, so the caller's $ErrorActionPreference comes back after any outcome
    $ErrorActionPreference = 'Stop'
-   $savedCwd = Get-Location   # restored in the finally block, with PATH, XDG_CONFIG_HOME and PWD
+   $savedCwd = Get-Location   # restored by the finally block below, and by this trap when setup refuses earlier
+   trap { Set-Location $savedCwd; break }
    Set-Location F:\Dev\Worktrees\PosPay\<branch>
    if (-not (Test-Path .git -PathType Leaf)) { throw 'MiniMax runs only at a worktree root, where .git is a file' }
    # git fetch and git archive below stage the guards through this worktree's .git pointer, so it must lead to the
