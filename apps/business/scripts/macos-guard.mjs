@@ -163,7 +163,8 @@ async function accept({ io, config, hint }) {
   }
   // قاعدة 5 (ADR-0055 قرار 6): القبول بياخد التطابق التام بس — نفس الـ owner key بتاع الشغلانة
   // دي، وإيجار ما انتهاش. رقم الخانة اللي الـ preflight بعتاله hint بس؛ التطابق هو اللي بيقرر.
-  const hinted = hint?.slot === undefined ? undefined : slots.find((slot) => slot.slot === hint.slot);
+  const hinted =
+    hint?.slot === undefined ? undefined : slots.find((slot) => slot.slot === hint.slot);
   const candidates = [hinted, ...slots].filter((slot) => slot !== undefined);
   const now = config.now();
   const match = candidates.find(
