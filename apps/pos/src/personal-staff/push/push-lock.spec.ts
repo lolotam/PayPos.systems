@@ -130,6 +130,8 @@ function gate(): { reached: Promise<void>; release: () => void } {
   return { reached: reachedPromise, release: () => release() };
 }
 
+// القفل الأصلي بتاع البيئة (تسلسل حقيقي)؛ الاختبارات اللي بتغيّره بترجّعه تاني عشان
+// اختبارات السباق اللي بعده تشتغل على القفل الحقيقي.
 const locksDescriptor = Object.getOwnPropertyDescriptor(globalThis.navigator, 'locks');
 
 function withoutLocks(): void {
@@ -154,7 +156,7 @@ beforeEach(() => {
   fakes.state.endpoint = FIRST;
   fakes.state.unsubscribed = 0;
   fakes.state.registers = [];
-  fakes.state.permission = 'default';
+  fakes.state.permission = 'granted';
   fakes.state.order = [];
   fakes.state.gate = null;
   fakes.state.gateReached = null;
@@ -169,6 +171,7 @@ afterEach(() => {
 });
 
 it('asks for the browser permission before the locked work starts', async () => {
+  fakes.state.permission = 'default';
   recordingLocks(fakes.state.order);
 
   const outcome = await enablePush({
