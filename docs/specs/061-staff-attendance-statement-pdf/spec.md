@@ -333,12 +333,14 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 
   **Coverage**, the one predicate for who has a row (Story 1.4), admission (FR-003, Story 3.3) and an empty render
   (below): at the branch in the period, a counted session, a contract day whose default entry had ended, an approved
-  leave on a contract date (whether or not that day had ended; a contract date is a date inside her hire, contract
-  and branch-link bounds, with or without a default entry, the same dates the 27b leave column counts), or a
-  scheduled shift whose `ends_at` had passed. Under
+  leave on a contract day (whether or not that day had ended; a contract day is a date inside her hire, contract and
+  branch-link bounds whose weekday has a default entry, so the employee is a 27b candidate and her contract is read),
+  or a scheduled shift whose `ends_at` had passed. Under
   a shift filter (BR-11) coverage is limited to the dates whose scheduled shift at the branch had the selected pair:
   on such a date, a session the 27b rules attribute to that shift, an approved leave, or that shift having ended.
-  Contract days do not count under the filter, and neither does anything on another date. A period with no coverage
+  Contract days do not count under the filter, and neither does anything on another date: the `from − 1` context
+  shift is read only for break credit, so the return session of an overnight shift of the day before the period is not
+  attributed to it. A period with no coverage
   counts nothing: Story 3.3 refuses the employee form, and the branch table has no row.
 
   A date prints as the date only when it has no counted session, no OPEN session, no approved leave and no scheduled
@@ -409,7 +411,7 @@ admin ── POST …/:renderId/download ──▶ api: one withTenant: binding 
 | `language` | text NOT NULL | CHECK `IN ('ar','en')` |
 | `shift_start`, `shift_end` | time NULL | the BR-11 pair; CHECK both null or both set, and set only when `form = 'BRANCH'` |
 | `logo_file_id` | uuid NULL | the business's bound logo when the request was made, read through the shared `@pospay/db` `readBusinessIdentity` in the request transaction; null = no logo. No FK (ADR-0056 §5) |
-| `requested_by` | uuid NOT NULL | the user; the binding of ADR-0049 §1.5 |
+| `requested_by` | uuid NOT NULL | the user, FK → `user (id)` as `leave_requests.requested_by`, with its own index; the binding of ADR-0049 §1.5 |
 | `requested_at` | timestamptz NOT NULL | from the injected clock |
 
 Indexes (one for every foreign key and every list filter, `CLAUDE.md` §5): `(company_id, business_id, branch_id,
