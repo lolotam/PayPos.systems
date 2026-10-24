@@ -18,8 +18,7 @@ const ALERT_CLASS =
 /** تجميع الرجوع هنا بيخلي كل تدفق يقرر من حالته إمتى يعرضه من غير منطق مكرر. */
 export function NativeEntry() {
   const locale = useLocale();
-  const { state, busy, onStart, onLink, choose, startOver, confirm, cancel } =
-    useNativeFlow();
+  const { state, busy, onStart, onLink, choose, startOver, confirm, cancel } = useNativeFlow();
   useNativeLink(onStart, onLink);
   const back = <StartOverButton onStartOver={startOver} busy={busy} />;
 

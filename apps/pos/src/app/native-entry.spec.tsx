@@ -339,23 +339,20 @@ describe('NativeEntry remembered business', () => {
 describe('back to the device choice (FR-001)', () => {
   beforeEach(prepare);
 
-  it.each(roles)(
-    'returns from the $role flow to the start screen',
-    async ({ role, heading }) => {
-      vi.mocked(readDeviceRole).mockResolvedValue(role);
-      mount();
+  it.each(roles)('returns from the $role flow to the start screen', async ({ role, heading }) => {
+    vi.mocked(readDeviceRole).mockResolvedValue(role);
+    mount();
 
-      expect(await screen.findByRole('heading', { name: heading })).not.toBeNull();
-      fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.startOver') }));
+    expect(await screen.findByRole('heading', { name: heading })).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.startOver') }));
 
-      expect(
-        await screen.findByRole('button', { name: t('ar', 'nativeShell.counter') }),
-      ).not.toBeNull();
-      expect(screen.getByRole('button', { name: t('ar', 'nativeShell.employee') })).not.toBeNull();
-      expect(screen.queryByRole('heading', { name: heading })).toBeNull();
-      expect(clearDeviceRole).toHaveBeenCalledTimes(1);
-    },
-  );
+    expect(
+      await screen.findByRole('button', { name: t('ar', 'nativeShell.counter') }),
+    ).not.toBeNull();
+    expect(screen.getByRole('button', { name: t('ar', 'nativeShell.employee') })).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: heading })).toBeNull();
+    expect(clearDeviceRole).toHaveBeenCalledTimes(1);
+  });
 
   it('keeps the remembered business after going back and choosing employee again', async () => {
     vi.mocked(readDeviceRole).mockResolvedValue('employee');
@@ -367,9 +364,7 @@ describe('back to the device choice (FR-001)', () => {
 
     expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.startOver') }));
-    fireEvent.click(
-      await screen.findByRole('button', { name: t('ar', 'nativeShell.employee') }),
-    );
+    fireEvent.click(await screen.findByRole('button', { name: t('ar', 'nativeShell.employee') }));
 
     expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();

@@ -81,11 +81,7 @@ export function EmployeeFlow({
           startOver={startOver}
         />
       ) : (
-        <PersonalScreen
-          connect={connect}
-          sessionGate={sessionGate}
-          startOver={startOver}
-        />
+        <PersonalScreen connect={connect} sessionGate={sessionGate} startOver={startOver} />
       )}
     </>
   );
