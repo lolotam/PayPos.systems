@@ -10,8 +10,8 @@
 iOS and Android, as decided in `docs/adr/0055-store-apps-capacitor-shell.md`. Owner decisions: APP-Q1 … APP-Q8
 ([owner-questions.ar.md](owner-questions.ar.md)); questions APP-Q9 … APP-Q18 (batch 58), answered by Waleed on
 2026-10-23 and by Abu Salem with the same picks the same day (final), so M-1a … M-1f need no further owner question of
-this spec. Who sees FR-017's line is SO-Q1 of spec 067: Waleed answered option 2 on 2026-10-24 (spec 067 BR-003);
-Abu Salem's pick is pending and binds if it differs.
+this spec. Who sees FR-017's line is SO-Q1 of spec 067: Waleed answered option 2 on 2026-10-24 (spec 067 BR-003),
+and Abu Salem picked the same option the same day (final).
 
 **Scope.** The shell, its start screen, offline cold start, the checks of the auth spike (M-1c), and what is hidden on
 native. Out of scope: signed builds and store uploads (M-2), the cashier selling screens (MOB-18, not built yet in the
@@ -208,8 +208,8 @@ start screen again.
 - **FR-016**: The app follows the device's rotation on tablets and on phones (APP-Q14, PP-42.6; Waleed, 2026-10-23; Abu Salem picked the same, final); every screen
   of the native build must work in both orientations.
 - **FR-017**: Before MOB-15, a user whose role counts under spec 067 BR-003 (SO-Q1 option 2: owner, general manager,
-  business manager, branch manager, shift supervisor or accountant, in that business; Waleed, 2026-10-24; Abu Salem's
-  pick pending and binding if it differs) who picks «حسابي كموظفة» sees what an employee sees (sign-in and
+  business manager, branch manager, shift supervisor or accountant, in that business; Waleed, 2026-10-24; Abu Salem
+  picked the same, final) who picks «حسابي كموظفة» sees what an employee sees (sign-in and
   their own attendance) plus one small line «لوحة الإدارة على الويب» with a link to the back office (APP-Q15,
   PP-42.7; Waleed, 2026-10-23; Abu Salem picked the same, final). This works only for such a user
   who also has an employee record in that business, because a personal session is issued only to a linked
