@@ -133,7 +133,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
    period in date order.
 2. A date with sessions lists each counted session (clock-in, clock-out, lateness, source note «يدوي» / "Manual" for a
    MANUAL session) and the day's worked hours; a date with an uncorrected missed clock-out shows «ناقص بصمة خروج» /
-   "Missing clock-out" and adds 0 hours (BR-05); a date with approved leave shows the leave type; a date with a
+   "Missing clock-out" and adds 0 hours (BR-05); a date with approved leave shows the leave type when it is a
+   contract date (the dates the leave column counts, FR-013a, so the day rows and the totals agree); a date with a
    scheduled shift and no counted session shows the scheduled times and «لا يوجد حضور مسجّل» / "No attendance
    recorded"; any other date shows the date only. A shift that had not ended at the request (FR-013a), on any date,
    adds no scheduled minutes and never prints «لا يوجد حضور مسجّل»; a closed session on that date still counts, its
