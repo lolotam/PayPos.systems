@@ -129,9 +129,10 @@ its own `business` value.
   it (EL-Q2).
 - **FR-007**: The screen shows the business that is open in the back office now (EL-Q5); switching business switches
   the link and the QR.
-- **FR-008**: The screen writes no setting and no business record, since it only shows identifiers the manager already
+- **FR-008**: The screen changes no setting and writes no business record, since it only shows identifiers the manager already
   has. The only writes are the logo read's two access-audit records (`file_access_audit` and `audit_log`, Slice design),
-  because reading a stored file is a private-file access (`CLAUDE.md` §8).
+  because reading a stored file is a private-file access (`CLAUDE.md` §8); the logo lock may also create a business's
+  empty defaults settings row, which changes no value.
 
 ### Key Entities
 
@@ -146,7 +147,8 @@ its own `business` value.
 
 ### Schema changes
 
-None. Nothing is stored apart from the logo read's two access-audit records, in the existing audit tables (FR-008).
+None. Nothing is stored apart from the logo read's two access-audit records, in the existing audit tables, and, for a
+business with no settings row yet, the empty defaults row the existing logo lock creates (FR-008, ADR-0056 addendum).
 
 ### API contract
 

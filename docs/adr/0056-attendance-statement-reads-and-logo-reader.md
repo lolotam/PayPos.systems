@@ -199,9 +199,11 @@ worker, embeds bytes in a PDF, and needs a render id.
       binding first with a new lock-only sibling in `@pospay/db`, `lockBusinessLogoBinding(tx, companyId, businessId)`,
       beside `lockBusinessLogoReference` in `business-logo-reference.ts`. It takes the same `business_settings` lock
       (the empty-row `INSERT … ON CONFLICT DO NOTHING`, then `FOR UPDATE`), the one binding and removal take
-      (ADR-0046 §4), and returns the **current** `logo_file_id` or `null`. `lockBusinessLogoReference` keeps its
+      (ADR-0046 §4), and returns the **current** `logo_file_id` or `null`. For a business that has no `business_settings` row yet, the lock
+      commits an empty row of defaults, exactly as `lockBusinessLogoReference` already does for settings and the
+      worker: it holds no data, and it is what lets a concurrent bind serialize with this read. `lockBusinessLogoReference` keeps its
       signature and its callers. Decide on that current binding, not on step 1: the current file, if any, is checked against its `file_objects` row as step 1 did. Nothing qualifying bound now:
-      200 `{ download_url: null }`, nothing written, and the sheet prints the name only. A qualifying file (the step 1
+      200 `{ download_url: null }`, no audit written (only the empty defaults row above, when none existed), and the sheet prints the name only. A qualifying file (the step 1
       file, a replacement, or a logo bound after step 1): insert the `ALLOW` pair, sign the GET URL with
       `packages/storage` `presignDownload` (local computation, no network call, so ADR-0046 §4 holds), commit. A
       signing failure rolls the pair back, so an `ALLOW` is never recorded for a URL that was not issued. A retired
