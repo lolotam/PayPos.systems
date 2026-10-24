@@ -5,6 +5,7 @@ import { present } from '../../../db/test/present.ts';
 import { createTestDatabase, type TestDatabase } from '../../../db/test/test-database.ts';
 import { createAuth, type AuthService } from '../index.ts';
 import { PERSONAL_COOKIE } from '../personal-sessions.ts';
+import { STAFF_COOKIE } from '../staff-sessions.ts';
 
 const ids = systemUuidV7();
 const userId = ids.newId();
@@ -160,12 +161,11 @@ it('deletes a row whose deadline passed and answers no session', async () => {
 
 it('leaves a staff session alone when its value is sent under the personal name', async () => {
   const issued = await auth.staff.issue(userId, staffDevice, async () => true);
-  const renamed = present(issued.cookie.split(';')[0]).replace(
-    'pospay-staff.session_token',
-    PERSONAL_COOKIE,
-  );
+  const renamed = present(issued.cookie.split(';')[0]).replace(STAFF_COOKIE, PERSONAL_COOKIE);
+  expect(renamed.startsWith(`${PERSONAL_COOKIE}=`)).toBe(true);
   const result = await auth.personal.signOut(new Headers({ cookie: renamed }));
   expect(result.ended).toBe(false);
+  expect(result.cookie).toContain('Expires=Thu, 01 Jan 1970');
   expect(await rowsOf(issued.session.sessionId)).toHaveLength(1);
 });
 

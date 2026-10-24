@@ -3,6 +3,7 @@ import { makeSignature } from 'better-auth/crypto';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { present } from '../../../db/test/present.ts';
 import { staffAuthFixture } from './staff-auth.fixture.ts';
+import { PERSONAL_COOKIE } from '../personal-sessions.ts';
 import { STAFF_COOKIE } from '../staff-sessions.ts';
 
 let f: Awaited<ReturnType<typeof staffAuthFixture>>;
@@ -55,12 +56,11 @@ it('refuses a tampered cookie, clears it and leaves its row alone', async () => 
 
 it('leaves a personal session alone when its value is sent under the staff name', async () => {
   const personal = await f.auth.personal.issue(f.userId, personalWorkspace(), async () => true);
-  const renamed = present(personal.cookie.split(';')[0]).replace(
-    'pospay-staff.session_token',
-    STAFF_COOKIE,
-  );
+  const renamed = present(personal.cookie.split(';')[0]).replace(PERSONAL_COOKIE, STAFF_COOKIE);
+  expect(renamed.startsWith(`${STAFF_COOKIE}=`)).toBe(true);
   const result = await f.auth.staff.signOut(new Headers({ cookie: renamed }));
   expect(result.ended).toBe(false);
+  expect(result.cookie).toContain('Expires=Thu, 01 Jan 1970');
   expect(await rowsOf(personal.session.sessionId)).toHaveLength(1);
 });
 
