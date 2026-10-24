@@ -217,7 +217,8 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   same company and business back, so the two sides cannot drift.
 - **Integration (apps/api)**: the screen's read: `EL-I07` a holder gets 200 with the names and ids · `EL-I08` no
   permission, a DENY on the business, an unknown business and another company's business all get the same 403. The
-  logo read: `EL-I01` a holder gets a signed URL · `EL-I02` the same four refusals get the guard's 403 · `EL-I03` a
+  logo read: `EL-I01` a holder gets a signed URL · `EL-I02` the same four refusals get the guard's 403 · `EL-I09` a permission revoked after the guard but before the use case's own check gets the same 403 and
+  one `DENY` access audit on the logo file, as `IssueDownload` does · `EL-I03` a
   holder of a business with no logo bound gets 200 with `download_url: null` and no audit record; every URL answer
   writes one `file_access_audit` row and one `file`/`access` `audit_log` entry in the same transaction as the URL
   signature, and a failure anywhere in it, signing included, leaves neither record · `EL-I05` the API answer and the

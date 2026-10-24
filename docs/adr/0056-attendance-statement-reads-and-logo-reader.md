@@ -181,11 +181,15 @@ worker, embeds bytes in a PDF, and needs a render id.
    use case starts only for a permitted caller on a business of that company. The audit id comes from the injected
    `IdGenerator`.
 2. **Phase 1, one transaction** `withTenant(company, …, { userId })`, after the guard, in this order. The permission
-   is read by the guard, not re-locked in this transaction: a revocation that commits between the guard and the
-   signature still gets one audited URL that lives 60 seconds. That is the **accepted residual of every download in
-   the project**: `IssueDownload` reads the permission and writes the audit separately in the same way, and ADR-0022
-   states that the audit measures URL issuance. Closing it would need a `files → identity` arrow for
-   `lockEmployeeManagementAccess`, which buys one request's window on a file that is printed on paper anyway.
+   is checked twice, as `IssueDownload` does: by the route guard, and again by the use case after it has resolved the logo
+   file and right before the audit,
+   through the existing `FilePermissions` port (`allowed(actor, 'manage:employees:business', businessId, null)`),
+   whose adapter calls the shared `RequestAuthorizer` that ADR-0022 exposes to `files`. That is not a `files → identity`
+   arrow. A refusal there writes the `DENY` access audit on that file and answers the guard's same 403, as a download refusal does.
+   Neither check locks the membership rows, so a revocation that commits between the second check and the commit
+   still gets one audited URL that lives 60 seconds. That is the **accepted residual of every download in the
+   project**, since ADR-0022 states that the audit measures URL issuance, and this route is no weaker than
+   `IssueDownload`.
    - Read the bound `logo_file_id` through `@pospay/db` `readBusinessIdentity` (§2's shared read), through a port
      `BusinessLogoReference` whose adapter calls `@pospay/db`. There is no `files → settings` import, as with the
      worker `LogoReference` row.
