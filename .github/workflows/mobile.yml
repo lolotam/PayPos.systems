@@ -107,7 +107,7 @@ jobs:
 
       # قواعد الحارس الست لازم تتثبت على كل تشغيل للـ workflow ده، مش بس بإيد واحدة.
       - name: macOS guard tests
-        run: node --test apps/business/scripts/
+        run: node --test apps/business/scripts/macos-guard.test.mjs apps/business/scripts/macos-guard-github.test.mjs
 
   android:
     name: android ${{ matrix.flavour }}

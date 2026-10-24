@@ -1,5 +1,6 @@
-// node --test apps/business/scripts/ — القواعد الست بتاعت الحارس (ADR-0055 قرار 6) لازم كل
-// واحدة فيهم تبان في اختبار: من غير شبكة ومن غير runner على macOS.
+// القواعد الست بتاعت الحارس (ADR-0055 قرار 6) لازم كل واحدة فيهم تبان في اختبار: من غير
+// شبكة ومن غير runner على macOS.
+// التشغيل: node --test apps/business/scripts/macos-guard.test.mjs apps/business/scripts/macos-guard-github.test.mjs
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
@@ -277,7 +278,7 @@ describe('the macOS guard (ADR-0055 decision 6)', () => {
   });
 
   it('accepts an unexpired admission of this job', async () => {
-    const io = createIo({ slots: new Map([[1, slot(1, OWNER)]) });
+    const io = createIo({ slots: new Map([[1, slot(1, OWNER)]]) });
     const result = await createGuard({ io, config: config() }).accept();
     assert.equal(result.accepted, true);
     assert.equal(result.slot, 1);
