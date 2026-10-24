@@ -15,7 +15,7 @@ export function PersonalScreen({
   connect,
   sessionGate,
   startOver,
-  locked,
+  locked = false,
 }: {
   workspace?: Pick<PersonalOtpRequestInput, 'company_id' | 'business_id'>;
   connect?: ReactNode;
