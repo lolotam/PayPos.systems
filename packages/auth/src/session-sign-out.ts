@@ -7,8 +7,7 @@ import { parseCookies } from 'better-auth/cookies/utils';
  * `userId` موجود بس مع `ended`، وهو لسطر الـ log بس؛ مابيوصلش في جسم الـ HTTP.
  */
 export type SignOutOutcome = { readonly cookie: string | null } & (
-  | { readonly ended: true; readonly userId: string }
-  | { readonly ended: false }
+  { readonly ended: true; readonly userId: string } | { readonly ended: false }
 );
 
 /**

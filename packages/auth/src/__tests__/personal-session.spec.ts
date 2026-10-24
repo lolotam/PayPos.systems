@@ -1,8 +1,10 @@
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { systemUuidV7 } from '@pospay/ids';
+import { present } from '../../../db/test/present.ts';
 import { createTestDatabase, type TestDatabase } from '../../../db/test/test-database.ts';
 import { createAuth, type AuthService } from '../index.ts';
+import { PERSONAL_COOKIE } from '../personal-sessions.ts';
 
 const ids = systemUuidV7();
 const userId = ids.newId();
@@ -10,6 +12,12 @@ const workspace = {
   purpose: 'STAFF_PERSONAL' as const,
   companyId: ids.newId(),
   businessId: ids.newId(),
+};
+const staffDevice = {
+  companyId: ids.newId(),
+  businessId: ids.newId(),
+  branchId: ids.newId(),
+  deviceId: ids.newId(),
 };
 let test: TestDatabase, owner: postgres.Sql, auth: AuthService;
 let now = new Date();
@@ -114,4 +122,59 @@ it('changing the approved phone invalidates the personal purpose at database lev
   await owner`UPDATE "user" SET phone_number='+99900000002' WHERE id=${userId}`;
   expect(await auth.personal.resolve(headers(issued.cookie))).toBeNull();
   expect(await owner`SELECT id FROM session WHERE id=${issued.session.sessionId}`).toHaveLength(0);
+});
+
+const rowsOf = async (id: string) => owner`SELECT id FROM session WHERE id=${id}`;
+
+it('ends a live personal session, clears its cookie and drops the row', async () => {
+  const issued = await auth.personal.issue(userId, workspace, async () => true);
+  const result = await auth.personal.signOut(headers(issued.cookie));
+  expect(result.ended).toBe(true);
+  expect(result.cookie).toContain('Expires=Thu, 01 Jan 1970');
+  expect(await rowsOf(issued.session.sessionId)).toEqual([]);
+});
+
+it('answers no session on a repeat, and still clears the cookie', async () => {
+  const issued = await auth.personal.issue(userId, workspace, async () => true);
+  await auth.personal.signOut(headers(issued.cookie));
+  const again = await auth.personal.signOut(headers(issued.cookie));
+  expect(again.ended).toBe(false);
+  expect(again.cookie).toContain('Expires=Thu, 01 Jan 1970');
+});
+
+it('carries no cookie and no session when the request had none', async () => {
+  expect(await auth.personal.signOut(new Headers())).toEqual({ cookie: null, ended: false });
+});
+
+it('deletes a row whose deadline passed and answers no session', async () => {
+  const issued = await auth.personal.issue(userId, workspace, async () => true);
+  const during = now;
+  now = issued.session.deadline;
+  try {
+    expect((await auth.personal.signOut(headers(issued.cookie))).ended).toBe(false);
+  } finally {
+    now = during;
+  }
+  expect(await rowsOf(issued.session.sessionId)).toEqual([]);
+});
+
+it('leaves a staff session alone when its value is sent under the personal name', async () => {
+  const issued = await auth.staff.issue(userId, staffDevice, async () => true);
+  const renamed = present(issued.cookie.split(';')[0]).replace(
+    'pospay-staff.session_token',
+    PERSONAL_COOKIE,
+  );
+  const result = await auth.personal.signOut(new Headers({ cookie: renamed }));
+  expect(result.ended).toBe(false);
+  expect(await rowsOf(issued.session.sessionId)).toHaveLength(1);
+});
+
+it('lets exactly one of two concurrent sign-outs end the session', async () => {
+  const issued = await auth.personal.issue(userId, workspace, async () => true);
+  const request = headers(issued.cookie);
+  const results = await Promise.all([
+    auth.personal.signOut(request),
+    auth.personal.signOut(request),
+  ]);
+  expect(results.filter((result) => result.ended)).toHaveLength(1);
 });

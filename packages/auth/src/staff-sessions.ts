@@ -120,7 +120,8 @@ export function createStaffSessions(options: SessionOptions): StaffSessions {
 /**
  * ينهي الجلسة اللي الـ cookie الموقّع بيسمّيها: يقرأ الصف، وبيلغيه تحت قفل الجهاز
  * اللي الصف نفسه ماشي عليه، وبعدين يقرأ الساعة بعد ما الحذف رجع عشان يبقى الجواب
- * على حالة الصف وقت حذفه. صف غايته مش غايته أو سياقه مش مظبوط بيتحذف من غير قفل.
+ * على حالة الصف وقت حذفه. صف غايته مش STAFF_POS مايتلمسش ويجيب «مفيش جلسة»؛ وصف
+ * STAFF_POS سياقه من غير deviceId UUID بيتحذف بمعرّفه وغايته من غير قفل الجهاز (spec 067 D-2).
  */
 async function signOutStaffSession(
   options: SessionOptions,

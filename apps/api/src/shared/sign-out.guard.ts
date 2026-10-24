@@ -60,11 +60,7 @@ export async function signOutRequest(
     throw new ApiError('FORBIDDEN');
   const limiter = wiring.limiter;
   if (
-    !(await limiter.hit(
-      `sign-out:${kind}:${request.ip}`,
-      SIGN_OUT_LIMIT,
-      SIGN_OUT_WINDOW_SECONDS,
-    ))
+    !(await limiter.hit(`sign-out:${kind}:${request.ip}`, SIGN_OUT_LIMIT, SIGN_OUT_WINDOW_SECONDS))
   )
     throw new ApiError('TOO_MANY_REQUESTS');
   return true;

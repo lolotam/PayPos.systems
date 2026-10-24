@@ -65,3 +65,22 @@ it('options and verification send the same installation identifier', async () =>
   expect(options.installation_id).toMatch(/^[a-f0-9-]{36}$/);
   expect(verify.installation_id).toBe(options.installation_id);
 });
+
+it('a sign-out resolves on both statuses and refuses a rejection', async () => {
+  const answered = (status: string) =>
+    new Response(JSON.stringify({ status }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  fetcher.mockResolvedValueOnce(answered('SIGNED_OUT'));
+  await expect(personalCalls.signOut()).resolves.toBeUndefined();
+  fetcher.mockResolvedValueOnce(answered('NO_SESSION'));
+  await expect(personalCalls.signOut()).resolves.toBeUndefined();
+  fetcher.mockResolvedValueOnce(
+    new Response(JSON.stringify({ code: 'FORBIDDEN' }), {
+      status: 403,
+      headers: { 'content-type': 'application/json' },
+    }),
+  );
+  await expect(personalCalls.signOut()).rejects.toThrow('PERSONAL_SIGN_OUT_REFUSED');
+});

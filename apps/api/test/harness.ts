@@ -88,7 +88,7 @@ function recording(tx: Tx, wrapper: 'tenant' | 'user' | 'new-tenant', calls: Har
 
 // The compose Redis (T2): REDIS_URL when set, otherwise built from REDIS_PASSWORD as CI writes it.
 // A key prefix per harness: rate-limit counters and pairing codes never leak between spec files or runs.
-function testRedis(): Redis {
+export function testRedis(): Redis {
   const configured = process.env['REDIS_URL'];
   const password = encodeURIComponent(process.env['REDIS_PASSWORD'] ?? '');
   const url =

@@ -40,7 +40,7 @@ export function createPersonalSessions(options: PersonalOptions) {
     issue: (userId: string, workspace: PersonalWorkspace, validate: () => Promise<boolean>) =>
       issue(options, userId, workspace, validate),
     resolve,
-    /** ينهي جلسة الـ cookie الموقّعة بس؛ امتلاكها هو السلطة، فالأهلية وربط التليفون بيتستشارواوش. */
+    /** ينهي جلسة الـ cookie الموقّعة بس؛ امتلاكها هو السلطة، فالأهلية وربط التليفون ما بيتستشاروش. */
     signOut: (headers: Headers) => signOutPersonalSession(options, headers),
     close: () => options.database.close(),
   };
@@ -53,8 +53,7 @@ async function signOutPersonalSession(
   const token = await verifiedToken(headers, PERSONAL_COOKIE, options.secret);
   const row = token === null ? null : await options.primitive.find(token);
   const clearing = hasCookie(headers, PERSONAL_COOKIE) ? cookie('', new Date(0)) : null;
-  if (row === null || row.purpose !== 'STAFF_PERSONAL')
-    return { cookie: clearing, ended: false };
+  if (row === null || row.purpose !== 'STAFF_PERSONAL') return { cookie: clearing, ended: false };
   const deleted = await deleteStaffSessionRow(options.authDatabase, row.id, 'STAFF_PERSONAL');
   if (!deleted || personalRow(row, options.now()) === null)
     return { cookie: clearing, ended: false };
