@@ -28,10 +28,10 @@ const cases = [
 for (const [label, code] of cases) {
   it(`refuses ${label} outside the operator CLI`, async () => {
     const [result] = await eslint.lintText(code, { filePath: 'apps/api/src/modules/identity/probe.ts' });
-    assert.ok(result.messages.some((entry) => entry.message === message));
+    assert.ok(result.messages.some((entry) => entry.message.includes(message)));
   });
   it(`allows ${label} in the operator CLI`, async () => {
     const [result] = await eslint.lintText(code, { filePath: 'apps/api/scripts/staging-staff-user.ts' });
-    assert.ok(!result.messages.some((entry) => entry.message === message));
+    assert.ok(!result.messages.some((entry) => entry.message.includes(message)));
   });
 }

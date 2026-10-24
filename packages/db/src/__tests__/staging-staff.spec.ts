@@ -93,15 +93,6 @@ describe('staging staff branch membership', () => {
     }
   });
 
-  it('refuses a branch of another business of the same company without writing', async () => {
-    const userId = await syntheticUser();
-    await expect(
-      ensureStaffBranchMembership({ ...membershipInput(userId), branchId: secondBranch }),
-    ).rejects.toMatchObject({ code: 'TARGET_SCOPE_REFUSED' });
-    expect(await owner`SELECT id FROM memberships WHERE user_id=${userId}`).toHaveLength(0);
-    expect(await owner`SELECT id FROM audit_log WHERE after->>'user_id'=${userId}`).toHaveLength(0);
-  });
-
   it.each([
     ['a branch of another business', () => ({ ...membershipInput(''), branchId: secondBranch })],
     [
