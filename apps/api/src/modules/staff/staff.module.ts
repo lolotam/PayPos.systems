@@ -100,10 +100,13 @@ import {
 import { attendanceBoardContext } from './persistence/attendance-board-context.adapter.ts';
 import { AttendanceExceptionsReadController } from './http/attendance-exceptions-read.controller.ts';
 import { AttendanceEmployeesController } from './http/attendance-employees.controller.ts';
+import { EmployeeAppLinkController, EMPLOYEE_APP_LINK_NAMES } from './http/employee-app-link.controller.ts';
+import { employeeAppLinkNames } from './persistence/employee-app-link-names.adapter.ts';
 import { AttendanceCapabilitiesController } from './http/attendance-capabilities.controller.ts';
 import { AttendanceCorrectionHistoryController } from './http/attendance-correction-history.controller.ts';
 export const staffControllers = [
   AttendanceCapabilitiesController,
+  EmployeeAppLinkController,
   AttendanceMonthlyReportController,
   AttendanceBoardController,
   AttendanceChangeRequestsController,
@@ -222,6 +225,7 @@ export function staffProviders(
   return [
     ...attendanceProviders(database, redis, passkeys, ids, logger),
     { provide: ATTENDANCE_BOARD_CONTEXT, useValue: attendanceBoardContext },
+    { provide: EMPLOYEE_APP_LINK_NAMES, useValue: employeeAppLinkNames },
     { provide: ATTENDANCE_BOARD_CLOCK, useValue: systemClock },
     ...cardProviders(database, ids, employeeCardKey, redis, logger),
     { provide: PASSKEY_OPTIONS, useValue: passkeys },

@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@pospay/ui'],
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? '',
+    NEXT_PUBLIC_POS_URL: process.env.NEXT_PUBLIC_POS_URL ?? '',
   },
   // Turbopack does not apply extensionAlias. The kit's NodeNext imports use `.js`
   // specifiers for `.ts` / `.tsx` sources, so the admin build stays on webpack.

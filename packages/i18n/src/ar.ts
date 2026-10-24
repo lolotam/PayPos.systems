@@ -25,6 +25,7 @@ import { employeeDefaultHoursAr } from './employee-default-hours-catalog.js';
 import { employeeNumberErrorsAr } from './employee-number-catalog.js';
 import { employeeNumberAdminAr } from './employee-number-admin-catalog.js';
 import { companyEmployeeNumbersAr } from './company-employee-numbers-catalog.js';
+import { employeeAppLinkAr } from './employee-app-link-catalog.js';
 import { businessIdentityAr } from './business-identity-catalog.js';
 import { roleNamesAr } from './role-names-catalog.js';
 
@@ -389,5 +390,6 @@ export const ar: Catalog = {
   },
   employeeImport: employeeImportAr,
   companyEmployeeNumbers: companyEmployeeNumbersAr,
+  employeeAppLink: employeeAppLinkAr,
   businessIdentity: businessIdentityAr,
 };

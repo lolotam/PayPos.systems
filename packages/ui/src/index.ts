@@ -17,6 +17,7 @@ export {
   KeyRound,
   Languages,
   Upload,
+  Smartphone,
 } from 'lucide-react';
 export { BrandMark, type BrandMarkProps } from './brand-mark.js';
 export { BrandWordmark, type BrandWordmarkProps } from './brand-wordmark.js';

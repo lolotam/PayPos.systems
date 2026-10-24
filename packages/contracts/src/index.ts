@@ -381,6 +381,13 @@ export {
   attendanceCapabilities,
   type AttendanceCapabilities,
 } from './staff/attendance-capabilities.js';
+export {
+  POS_HOSTS,
+  type PosHost,
+  employeeAppLink,
+  type EmployeeAppLink,
+  buildEmployeeAppLink,
+} from './staff/employee-app-link.js';
 export * from './orders/service-session.js';
 export * from './orders/session-tips.js';
 export * from './orders/recording-context.js';

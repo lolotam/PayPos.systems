@@ -8,6 +8,7 @@ import { AttendanceBoardNavItem } from './attendance-board-nav-item';
 import { AttendanceActionsNavItem } from './attendance-actions-nav-item';
 import { AttendanceReportNavItem } from './attendance-report-nav-item';
 import { CompanyEmployeeNumbersNavItem } from './company-employee-numbers-nav-item';
+import { EmployeeAppLinkNavItem } from './employee-app-link-nav-item';
 
 export function StaffNavigation() {
   const locale = useLocale();
@@ -22,12 +23,14 @@ export function StaffNavigation() {
           pathname.startsWith('/staff') &&
           !pathname.startsWith('/staff/import') &&
           !pathname.startsWith('/staff/attendance') &&
-          !pathname.startsWith('/staff/employee-numbers')
+          !pathname.startsWith('/staff/employee-numbers') &&
+          !pathname.startsWith('/staff/employee-app-link')
         }
       >
         <Link href="/staff" />
       </AppSidebarItem>
       <CompanyEmployeeNumbersNavItem />
+      <EmployeeAppLinkNavItem />
       <AppSidebarItem
         asChild
         icon={<Upload />}

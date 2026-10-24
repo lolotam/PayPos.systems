@@ -9,6 +9,7 @@ import { useEmployees } from '../api/use-employees';
 import { useEmployeeListControls } from '../model/use-employee-list-controls';
 import { EmployeeListPanel } from '../ui/employee-list-panel';
 import { EmployeeNumberStartDialog } from '../ui/employee-number-start-dialog';
+import { EmployeeAppLinkButton } from '../ui/employee-app-link-button';
 import { EmployeeEditPanel } from '../ui/employee-edit-panel';
 import { PasskeyEmployeesPanel } from '../ui/passkey-employees-panel';
 
@@ -36,6 +37,11 @@ export function EmployeesPage({
         description={t(locale, 'staff.listLead')}
         action={
           <div className="flex flex-wrap gap-2">
+            <EmployeeAppLinkButton
+              companyId={companyId}
+              userId={userId}
+              businessId={business.id}
+            />
             <Button asChild variant="outline">
               <Link href="/staff/document-types">{t(locale, 'employeeDocuments.typesLink')}</Link>
             </Button>
