@@ -22,13 +22,14 @@ CREATE TABLE "attendance_statement_requests" (
 );
 --> statement-breakpoint
 ALTER TABLE "attendance_statement_requests" ADD CONSTRAINT "attendance_statement_requests_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "attendance_statement_requests" ADD CONSTRAINT "attendance_statement_requests_requested_by_user_id_fk" FOREIGN KEY ("requested_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "attendance_statement_requests" ADD CONSTRAINT "attendance_statement_requests_business_fk" FOREIGN KEY ("company_id","business_id") REFERENCES "public"."businesses"("company_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "attendance_statement_requests" ADD CONSTRAINT "attendance_statement_requests_branch_fk" FOREIGN KEY ("company_id","business_id","branch_id") REFERENCES "public"."branches"("company_id","business_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "attendance_statement_requests" ADD CONSTRAINT "attendance_statement_requests_employee_fk" FOREIGN KEY ("company_id","business_id","employee_id") REFERENCES "public"."employees"("company_id","business_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "attendance_statement_requests_business_branch_idx" ON "attendance_statement_requests" USING btree ("company_id","business_id","branch_id","requested_at");--> statement-breakpoint
 CREATE INDEX "attendance_statement_requests_employee_idx" ON "attendance_statement_requests" USING btree ("company_id","business_id","employee_id");--> statement-breakpoint
-CREATE INDEX "attendance_statement_requests_requester_idx" ON "attendance_statement_requests" USING btree ("company_id","requested_by","requested_at");
---> statement-breakpoint
+CREATE INDEX "attendance_statement_requests_requester_idx" ON "attendance_statement_requests" USING btree ("company_id","requested_by","requested_at");--> statement-breakpoint
+CREATE INDEX "attendance_statement_requests_requested_by_idx" ON "attendance_statement_requests" USING btree ("requested_by");--> statement-breakpoint
 ALTER TABLE attendance_statement_requests ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 ALTER TABLE attendance_statement_requests FORCE ROW LEVEL SECURITY;
