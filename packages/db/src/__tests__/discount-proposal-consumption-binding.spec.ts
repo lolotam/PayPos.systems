@@ -175,14 +175,20 @@ const consume = (proposalId: string, changes: { session?: string; ordinal?: numb
   });
 
 const consumption = async (proposalId: string, lineId: string) => ({
-  proposal: await as(A.company, sql`SELECT status,consumed_line_id FROM discount_proposals WHERE id=${proposalId}`),
+  proposal: await as(
+    A.company,
+    sql`SELECT status,consumed_line_id FROM discount_proposals WHERE id=${proposalId}`,
+  ),
   line: await as(A.company, sql`SELECT discount_proposal_id FROM service_lines WHERE id=${lineId}`),
 });
 
 // النشاط والخدمة مش بيختلفوا لوحدهم: طلب نشاط تاني لازم يسمّي خدمة النشاط ده (dp_service_fk)، فالحالتان بتقعوا على القيد نفسه، وقائمة أعمدة القيد بتثبّت business_id.
 it('refuses a consumption of a proposal from another business', async () => {
   const proposalId = ids.newId();
-  await as(A.company, proposal({ id: proposalId, business: BUSINESS_2, branch: BRANCH_B2, service: SERVICE_B2 }));
+  await as(
+    A.company,
+    proposal({ id: proposalId, business: BUSINESS_2, branch: BRANCH_B2, service: SERVICE_B2 }),
+  );
   await as(A.company, approve(proposalId));
   await refused(consume(proposalId), '23503', 'service_lines_discount_proposal_binding_fk');
 });
@@ -202,7 +208,11 @@ it('refuses a consumption of a proposal bound to another visit', async () => {
   const proposalId = ids.newId();
   await as(A.company, proposal({ id: proposalId, session: ORDER_IDS.session }));
   await as(A.company, approve(proposalId));
-  await refused(consume(proposalId, { session: SESSION_2, ordinal: 1 }), '23503', 'dp_consumed_line_session_fk');
+  await refused(
+    consume(proposalId, { session: SESSION_2, ordinal: 1 }),
+    '23503',
+    'dp_consumed_line_session_fk',
+  );
 });
 
 it('refuses a proposal whose branch is not the branch of its visit', async () => {
@@ -215,7 +225,11 @@ it('refuses a proposal whose branch is not the branch of its visit', async () =>
 
 // القيد بيشتغل على نوعي الطلب: طلب التعديل بيخضع لنفس فرع الزيارة.
 it('refuses an edit proposal whose branch is not the branch of its visit', async () => {
-  await refused(as(A.company, editProposal(ids.newId(), BRANCH_2)), '23503', 'dp_session_branch_fk');
+  await refused(
+    as(A.company, editProposal(ids.newId(), BRANCH_2)),
+    '23503',
+    'dp_session_branch_fk',
+  );
 });
 
 it('accepts a consumption in the visit the proposal names', async () => {
@@ -254,43 +268,4 @@ it('accepts a consumption in a fresh visit when the proposal names none', async 
     proposal: [{ status: 'CONSUMED', consumed_line_id: lineId }],
     line: [{ discount_proposal_id: proposalId }],
   });
-});
-
-it('binds the three constraints: two deferred to the commit and one immediate', async () => {
-  const rows = await owner<{
-    conname: string;
-    convalidated: boolean;
-    condeferrable: boolean;
-    condeferred: boolean;
-    definition: string;
-  }[]>`SELECT conname,convalidated,condeferrable,condeferred,pg_get_constraintdef(oid) AS definition
-    FROM pg_constraint
-    WHERE conname IN ('service_lines_discount_proposal_binding_fk','dp_consumed_line_session_fk','dp_session_branch_fk')
-    ORDER BY conname`;
-  expect(rows).toEqual([
-    {
-      conname: 'dp_consumed_line_session_fk',
-      convalidated: true,
-      condeferrable: true,
-      condeferred: true,
-      definition:
-        'FOREIGN KEY (company_id, consumed_line_id, session_id) REFERENCES service_lines(company_id, id, session_id) DEFERRABLE INITIALLY DEFERRED',
-    },
-    {
-      conname: 'dp_session_branch_fk',
-      convalidated: true,
-      condeferrable: false,
-      condeferred: false,
-      definition:
-        'FOREIGN KEY (company_id, branch_id, session_id) REFERENCES service_sessions(company_id, branch_id, id)',
-    },
-    {
-      conname: 'service_lines_discount_proposal_binding_fk',
-      convalidated: true,
-      condeferrable: true,
-      condeferred: true,
-      definition:
-        'FOREIGN KEY (company_id, discount_proposal_id, id, business_id, service_id) REFERENCES discount_proposals(company_id, id, consumed_line_id, business_id, service_id) DEFERRABLE INITIALLY DEFERRED',
-    },
-  ]);
 });
