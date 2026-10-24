@@ -57,7 +57,9 @@ iOS: the `spike` dispatch of `mobile.yml` on the simulator.
 |---|---|---|---|
 | 2026-10-25 00:15 | Android, APK of run 40119927430 (1ffcf219) | Install and identity: the «نسخة تجربة» strip, the logo, both start choices | ✅ (Waleed) |
 | 2026-10-25 00:15 | Android, same APK | Going back after a first choice | ❌ (Waleed): after «جهاز الكاونتر» or «حسابي كموظفة» there was no way back to the start screen, even with nothing paired or signed in; the back key left the app and a relaunch reopened the same flow. Fixed by the FR-001 back control (PR for this finding). |
-| pending | Android | (a) pairing, (b) staff PIN | waiting for Waleed's run after the fix; (c)–(e) wait for the OTP decision |
+| 2026-10-25 01:26–01:28 | Android, same APK | (a) device pairing | ✅ (Waleed): the web manager issued a pairing code for the Salmiya branch, Waleed entered it (label «Waleed mobile»), the web manager approved it; the counter screen showed (the Salmiya attendance QR rotating every 60 s, the operator-signed-out notice, the staff login screen), and after a full app close and reopen the device stayed paired with no pairing-code prompt |
+| 2026-10-25 01:30 | Android | (b) staff PIN | blocked: staff PIN sign-in takes a phone and a PIN, and the demo company has no staff user with a phone (only OTP creates one). PP-58.3 (Waleed): a reviewed staging-only operator script creates one test staff user; then the PIN is set through `POST /v1/staff-pins/reset` and (b) is run |
+| later | Android | (c)–(e) | after WhatsApp Business is set up (PP-58.1) |
 
 ## M-2 — signed builds and internal distribution (not started; gated)
 
