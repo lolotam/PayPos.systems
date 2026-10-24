@@ -17,6 +17,7 @@ interface Epoch {
 
 export interface DeviceSession {
   screen: DeviceScreenState;
+  submitting: boolean;
   retry: () => Promise<void>;
   submit: (input: RegisterDeviceInput) => Promise<string | null>;
   startOver: () => Promise<void>;
@@ -26,6 +27,7 @@ export function useDeviceSession(): DeviceSession {
   const locale = useLocale();
   const queryClient = useQueryClient();
   const [screen, setScreen] = useState<DeviceScreenState>({ kind: 'loading' });
+  const [submitting, setSubmitting] = useState(false);
   const epoch = useRef<Epoch>({ n: 0 });
   const boot = useCallback(() => runBoot(epoch.current, queryClient, setScreen), [queryClient]);
   useEffect(() => {
@@ -39,11 +41,19 @@ export function useDeviceSession(): DeviceSession {
   }, []);
   useClaimPoll(screen.kind === 'waiting', onApproved, onRefused);
   const submit = useCallback(
-    (input: RegisterDeviceInput) => runSubmit(input, locale, setScreen),
+    async (input: RegisterDeviceInput) => {
+      setSubmitting(true);
+      // طول ما الطلب شغال، رد متأخر ممكن يحفظ اقتران بعد ما الدور اتمسح.
+      try {
+        return await runSubmit(input, locale, setScreen);
+      } finally {
+        setSubmitting(false);
+      }
+    },
     [locale],
   );
   const startOver = useCallback(() => runStartOver(epoch.current, setScreen), []);
-  return { screen, retry: boot, submit, startOver };
+  return { screen, submitting, retry: boot, submit, startOver };
 }
 
 async function runBoot(

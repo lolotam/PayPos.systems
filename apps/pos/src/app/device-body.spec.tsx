@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
+import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DeviceSession } from '@/device/api/use-device-session';
@@ -26,12 +27,12 @@ vi.mock('@/attendance/api/use-attendance-qr', () => ({
   }),
 }));
 
-function renderBody(session: DeviceSession) {
+function renderBody(session: DeviceSession, startOver?: ReactNode, locked = false) {
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <DirectionProvider dir="rtl">
         <LocaleProvider locale="ar" setLocale={() => undefined}>
-          <DeviceBody session={session} />
+          <DeviceBody session={session} startOver={startOver} locked={locked} />
         </LocaleProvider>
       </DirectionProvider>
     </QueryClientProvider>,
@@ -41,11 +42,45 @@ function renderBody(session: DeviceSession) {
 function makeSession(partialScreen: DeviceSession['screen']): DeviceSession {
   return {
     screen: partialScreen,
+    submitting: false,
     retry: () => Promise.resolve(),
     submit: () => Promise.resolve(null),
     startOver: () => Promise.resolve(),
   };
 }
+
+const START_OVER_CASES = [
+  {
+    name: 'pairing',
+    screen: { kind: 'pairing', notice: null },
+    submitting: false,
+    visible: true,
+  },
+  {
+    name: 'pairing submission',
+    screen: { kind: 'pairing', notice: null },
+    submitting: true,
+    visible: false,
+  },
+  {
+    name: 'waiting',
+    screen: { kind: 'waiting' },
+    submitting: false,
+    visible: false,
+  },
+  {
+    name: 'unsupported',
+    screen: { kind: 'unsupported' },
+    submitting: false,
+    visible: false,
+  },
+  {
+    name: 'reception',
+    screen: { kind: 'ready', branchId: '01923f66-3d2b-7c00-8000-000000000001' },
+    submitting: false,
+    visible: false,
+  },
+] as const;
 
 describe('DeviceBody', () => {
   it('renders loading notice when screen state is loading', () => {
@@ -75,6 +110,27 @@ describe('DeviceBody', () => {
     expect(screen.getByRole('heading', { name: t('ar', 'staffLogin.title') })).not.toBeNull();
     expect(screen.getByRole('heading', { name: t('ar', 'pos.attendanceTitle') })).not.toBeNull();
   });
+
+  it.each(START_OVER_CASES)(
+    'shows the start-over control only for $name when allowed',
+    ({ screen: deviceScreen, submitting, visible }) => {
+      renderBody({ ...makeSession(deviceScreen), submitting }, <button>back</button>);
+
+      const back = screen.queryByRole('button', { name: 'back' });
+      if (visible) expect(back).not.toBeNull();
+      else expect(back).toBeNull();
+    },
+  );
+});
+
+it.each([
+  { locked: true, disabled: true },
+  { locked: false, disabled: false },
+])('locks the pairing submit when locked=$locked', ({ locked, disabled }) => {
+  renderBody(makeSession({ kind: 'pairing', notice: null }), undefined, locked);
+
+  const submit = screen.getByRole('button', { name: t('ar', 'pos.pairSubmit') });
+  expect(submit.hasAttribute('disabled')).toBe(disabled);
 });
 
 it('keeps the card screen hidden until an operator exists', () => {

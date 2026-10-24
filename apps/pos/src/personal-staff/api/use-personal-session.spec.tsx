@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { usePersonalSession } from './use-personal-session';
 import { personalCalls } from './personal-calls';
@@ -29,6 +29,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(personalCalls.session).mockResolvedValue(session);
   vi.mocked(personalCalls.signOut).mockResolvedValue(undefined);
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+  // اختبار offline بيسيب حالة TanStack العامة مقفولة للاختبار اللي بعده.
+  onlineManager.setOnline(true);
+  act(() => {
+    window.dispatchEvent(new Event('online'));
+  });
 });
 it('logout and cross-tab replacement remove prior personal cache data', async () => {
   const f = fixture();
@@ -59,5 +67,20 @@ it('a revoked session or offline transition hides prior data and clears private 
   );
   act(() => window.dispatchEvent(new Event('offline')));
   expect(f.result.current.session).toBeNull();
+  f.unmount();
+});
+it('a background refetch is not a new confirmation of no session', async () => {
+  vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true);
+  vi.mocked(personalCalls.session).mockResolvedValue(null);
+  const f = fixture();
+  await waitFor(() => expect(f.result.current.confirmedNoSession).toBe(true));
+  vi.mocked(personalCalls.session).mockImplementation(() => new Promise(() => undefined));
+
+  await act(async () => {
+    void f.cache.invalidateQueries({ queryKey: ['personal-session'] });
+    await Promise.resolve();
+  });
+
+  await waitFor(() => expect(f.result.current.confirmedNoSession).toBe(false));
   f.unmount();
 });

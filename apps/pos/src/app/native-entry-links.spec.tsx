@@ -82,6 +82,7 @@ function prepare() {
     epoch: 0,
     online: true,
     loading: false,
+    confirmedNoSession: true,
     session: null,
     changed: vi.fn(),
     signOut: vi.fn(),

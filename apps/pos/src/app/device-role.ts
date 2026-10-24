@@ -55,6 +55,14 @@ export async function saveDeviceRole(role: DeviceRole): Promise<void> {
 }
 
 /**
+ * بيمسح الدور المتذكر بس عشان الموظفة تقدر ترجع تختار نوع الجهاز.
+ * النشاط المتذكر بيفضل لأنه تلميح توجيه ممكن تحتاجه الموظفة بعد الاختيار الجديد.
+ */
+export async function clearDeviceRole(): Promise<void> {
+  await nativeShellDb.role.delete(CURRENT_ROLE);
+}
+
+/**
  * بيقرأ النشاط المتذكر على الجهاز.
  *
  * النشاط ده تلميح توجيه للتسجيل مش صلاحية: السيرفر لسه بيقرر في كل طلب (BR-002).

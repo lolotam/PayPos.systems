@@ -1,9 +1,11 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  clearDeviceRole,
   connectEmployee,
   readDeviceRole,
   readRememberedBusiness,
@@ -11,32 +13,50 @@ import {
   saveDeviceRole,
   type DeviceRole,
 } from '@/app/device-role';
+import { endPersonalSession } from '@/app/end-sessions';
 import { usePersonalSession } from '@/personal-staff/api/use-personal-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { readLaunchLink } from '@/shared/platform/launch-links';
 
 import { NativeEntry } from './native-entry';
+import { START_OVER_SIGN_OUT_WAIT_MS } from './link-rules';
 
 const opened = vi.hoisted(() => ({ listener: null as ((url: string) => void) | null }));
 
 vi.mock('@/app/device-role', () => ({
+  clearDeviceRole: vi.fn(),
   readDeviceRole: vi.fn(),
   readRememberedBusiness: vi.fn(),
   saveDeviceRole: vi.fn(),
   rememberBusiness: vi.fn(),
   connectEmployee: vi.fn(),
 }));
+vi.mock('@/app/end-sessions', () => ({
+  endPersonalSession: vi.fn(),
+}));
 vi.mock('@/app/device-screen', () => ({
-  DeviceScreen: () => <h2>device screen</h2>,
+  DeviceScreen: ({ startOver }: { startOver?: ReactNode }) => (
+    <>
+      <h2>device screen</h2>
+      {startOver}
+    </>
+  ),
 }));
 vi.mock('@/personal-staff/api/use-personal-session', () => ({
   usePersonalSession: vi.fn(),
 }));
 vi.mock('@/personal-staff/ui/personal-screen', () => ({
-  PersonalScreen: ({ workspace }: { workspace?: { company_id: string; business_id: string } }) => (
+  PersonalScreen: ({
+    workspace,
+    startOver,
+  }: {
+    workspace?: { company_id: string; business_id: string };
+    startOver?: ReactNode;
+  }) => (
     <>
       <h2>personal screen</h2>
       {workspace ? <p>{`${workspace.company_id} ${workspace.business_id}`}</p> : null}
+      {startOver}
     </>
   ),
 }));
@@ -79,13 +99,16 @@ function prepare() {
   vi.mocked(readDeviceRole).mockResolvedValue(null);
   vi.mocked(readRememberedBusiness).mockResolvedValue(null);
   vi.mocked(readLaunchLink).mockResolvedValue(null);
+  vi.mocked(clearDeviceRole).mockResolvedValue(undefined);
   vi.mocked(saveDeviceRole).mockResolvedValue(undefined);
   vi.mocked(rememberBusiness).mockResolvedValue(undefined);
   vi.mocked(connectEmployee).mockResolvedValue(undefined);
+  vi.mocked(endPersonalSession).mockResolvedValue('done');
   vi.mocked(usePersonalSession).mockReturnValue({
     epoch: 0,
     online: true,
     loading: false,
+    confirmedNoSession: true,
     session: null,
     changed: vi.fn(),
     signOut: vi.fn(),
@@ -93,6 +116,7 @@ function prepare() {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -317,5 +341,119 @@ describe('NativeEntry remembered business', () => {
 
     expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
+  });
+});
+
+async function backFrom(role: DeviceRole, waitMs?: number) {
+  const heading = role === 'counter' ? 'device screen' : 'personal screen';
+  expect(await screen.findByRole('heading', { name: heading })).not.toBeNull();
+  if (waitMs !== undefined) vi.useFakeTimers();
+  fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.startOver') }));
+  if (waitMs !== undefined) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(waitMs);
+    });
+    vi.useRealTimers();
+  }
+}
+
+describe('back to the device choice (FR-001)', () => {
+  beforeEach(prepare);
+
+  it.each(roles)('returns from the $role flow to the start screen', async ({ role, heading }) => {
+    vi.mocked(readDeviceRole).mockResolvedValue(role);
+    mount();
+    await backFrom(role);
+
+    expect(
+      await screen.findByRole('button', { name: t('ar', 'nativeShell.counter') }),
+    ).not.toBeNull();
+    expect(screen.getByRole('button', { name: t('ar', 'nativeShell.employee') })).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: heading })).toBeNull();
+    expect(clearDeviceRole).toHaveBeenCalledTimes(1);
+    expect(endPersonalSession).toHaveBeenCalledTimes(role === 'employee' ? 1 : 0);
+  });
+
+  it('keeps the remembered business after going back and choosing employee again', async () => {
+    vi.mocked(readDeviceRole).mockResolvedValue('employee');
+    vi.mocked(readRememberedBusiness).mockResolvedValue({
+      company_id: COMPANY,
+      business_id: BUSINESS,
+    });
+    mount();
+    await backFrom('employee');
+    fireEvent.click(await screen.findByRole('button', { name: t('ar', 'nativeShell.employee') }));
+
+    expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
+    expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
+  });
+});
+
+describe('back to the device choice refused safely', () => {
+  beforeEach(prepare);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each([
+    { mode: 'failed', alert: 'nativeShell.roleChangeFailed', endings: 1 },
+    { mode: 'offline', alert: 'nativeShell.roleChangeOffline', endings: 0 },
+    { mode: 'timeout', alert: 'nativeShell.roleChangeFailed', endings: 1 },
+  ] as const)(
+    'keeps the employee flow when sign-out is $mode',
+    async ({ mode, alert, endings }) => {
+      if (mode === 'failed') vi.mocked(endPersonalSession).mockResolvedValue('failed');
+      else if (mode === 'offline')
+        vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+      else vi.mocked(endPersonalSession).mockReturnValue(new Promise<never>(() => undefined));
+      vi.mocked(readDeviceRole).mockResolvedValue('employee');
+      mount();
+      await backFrom('employee', mode === 'timeout' ? START_OVER_SIGN_OUT_WAIT_MS : undefined);
+
+      const message = await screen.findByRole('alert');
+      expect(message.textContent).toContain(t('ar', alert));
+      expect(screen.getByRole('heading', { name: 'personal screen' })).not.toBeNull();
+      expect(screen.queryByRole('heading', { name: t('ar', 'nativeShell.title') })).toBeNull();
+      expect(clearDeviceRole).not.toHaveBeenCalled();
+      expect(endPersonalSession).toHaveBeenCalledTimes(endings);
+    },
+  );
+
+  it('does not clear the role when the remembered business cannot be read', async () => {
+    vi.mocked(readDeviceRole).mockResolvedValue('counter');
+    vi.mocked(readRememberedBusiness)
+      .mockResolvedValueOnce(null)
+      .mockRejectedValue(new Error('SYNTHETIC_READ_FAILURE'));
+    mount();
+    await backFrom('counter');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.saveFailed'));
+    expect(screen.getByRole('heading', { name: 'device screen' })).not.toBeNull();
+    expect(clearDeviceRole).not.toHaveBeenCalled();
+  });
+});
+
+describe('a manager link after back to the device choice', () => {
+  beforeEach(prepare);
+
+  it('handles the link with no role as on a first launch', async () => {
+    vi.mocked(readDeviceRole).mockResolvedValueOnce('employee').mockResolvedValue(null);
+    mount();
+    await backFrom('employee');
+    expect(
+      await screen.findByRole('heading', { name: t('ar', 'nativeShell.title') }),
+    ).not.toBeNull();
+
+    await act(async () => {
+      opened.listener?.(link());
+    });
+
+    expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
+    expect(connectEmployee).toHaveBeenCalledWith({
+      company_id: COMPANY,
+      business_id: BUSINESS,
+    });
+    expect(rememberBusiness).not.toHaveBeenCalled();
   });
 });

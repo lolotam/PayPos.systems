@@ -18,6 +18,7 @@ export const nativeShellEn = {
   confirm: 'Confirm',
   cancel: 'Cancel',
   stagingStrip: 'Test version',
+  startOver: 'Back to choosing the device type',
 } as const;
 
 /** نفس مفاتيح شاشة النسخة الأصلية بالعربي. */
@@ -40,4 +41,5 @@ export const nativeShellAr: Record<keyof typeof nativeShellEn, string> = {
   confirm: 'تأكيد',
   cancel: 'إلغاء',
   stagingStrip: 'نسخة تجربة',
+  startOver: 'رجوع لاختيار نوع الجهاز',
 };

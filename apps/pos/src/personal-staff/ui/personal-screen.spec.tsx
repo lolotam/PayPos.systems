@@ -1,16 +1,22 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type * as PersonalSessionModule from '../api/use-personal-session';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { attendanceCalls, attendancePosition } from '../api/attendance-calls';
 import { personalCalls } from '../api/personal-calls';
+import { usePersonalSession } from '../api/use-personal-session';
 import { observePersonalChange } from '../model/session-change';
 import { PersonalScreen } from './personal-screen';
 
 vi.mock('../api/personal-calls', () => ({
   personalCalls: { session: vi.fn(), binding: vi.fn(), signOut: vi.fn() },
 }));
+vi.mock('../api/use-personal-session', async (importOriginal) => {
+  const actual = await importOriginal<typeof PersonalSessionModule>();
+  return { usePersonalSession: vi.fn(actual.usePersonalSession) };
+});
 vi.mock('../api/attendance-calls', () => ({
   attendanceCalls: { clock: vi.fn() },
   attendancePosition: vi.fn(),
@@ -45,12 +51,12 @@ const session = {
   business_id: 'business',
   expires_at: '2026-10-05T12:00:00Z',
 };
-function mount() {
+function mount(props: Parameters<typeof PersonalScreen>[0] = {}) {
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(
     <QueryClientProvider client={cache}>
       <LocaleProvider locale="en" setLocale={() => undefined}>
-        <PersonalScreen />
+        <PersonalScreen {...props} />
       </LocaleProvider>
     </QueryClientProvider>,
   );
@@ -154,5 +160,85 @@ it.each(['logout', 'replacement', 'offline'] as const)(
     await waitFor(() => expect(f.signal.aborted).toBe(true));
     expect(f.cache.getQueryData(['private-schedule'])).toBeUndefined();
     f.unmount();
+  },
+);
+
+it.each([
+  {
+    name: 'sign-in',
+    online: true,
+    loading: false,
+    confirmedNoSession: true,
+    session: null,
+    withHint: true,
+    visible: true,
+  },
+  {
+    name: 'link required',
+    online: true,
+    loading: false,
+    confirmedNoSession: true,
+    session: null,
+    withHint: false,
+    visible: true,
+  },
+  {
+    name: 'failed lookup',
+    online: true,
+    loading: false,
+    confirmedNoSession: false,
+    session: null,
+    withHint: true,
+    visible: false,
+  },
+  {
+    name: 'loading',
+    online: true,
+    loading: true,
+    confirmedNoSession: false,
+    session: null,
+    withHint: false,
+    visible: false,
+  },
+  {
+    name: 'offline',
+    online: false,
+    loading: false,
+    confirmedNoSession: false,
+    session: null,
+    withHint: false,
+    visible: false,
+  },
+  {
+    name: 'session',
+    online: true,
+    loading: false,
+    confirmedNoSession: false,
+    session,
+    withHint: false,
+    visible: false,
+  },
+] as const)(
+  'shows the start-over control for $name only when there is no usable session',
+  ({ online, loading, confirmedNoSession, session: currentSession, withHint, visible }) => {
+    vi.mocked(usePersonalSession).mockReturnValue({
+      epoch: 0,
+      online,
+      loading,
+      confirmedNoSession,
+      session: currentSession,
+      changed: vi.fn(),
+      signOut: vi.fn(),
+    });
+    mount({
+      startOver: <button>back</button>,
+      ...(withHint
+        ? { workspace: { company_id: session.company_id, business_id: session.business_id } }
+        : {}),
+    });
+
+    const back = screen.queryByRole('button', { name: 'back' });
+    if (visible) expect(back).not.toBeNull();
+    else expect(back).toBeNull();
   },
 );

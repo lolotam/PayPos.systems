@@ -17,12 +17,14 @@ export interface EmployeeFlowProps {
   pending: PersonalWorkspace | null;
   busy: boolean;
   connect: ReactNode;
+  startOver?: ReactNode;
   onConfirm: (pending: PersonalWorkspace) => void;
   onCancel: () => void;
 }
 
 /**
  * شاشة الموظفة: لوحة تبديل النشاط والشاشة الشخصية مع بعض.
+ * الرجوع لاختيار نوع الجهاز بيتمرر للشاشة الشخصية وهي اللي بتحصره في حالة عدم وجود جلسة.
  *
  * الشاشة الشخصية هي اللي بتقرا الجلسة، فالبوابة بتتبعت ليها: لو الجلسة فاضلة من
  * نشاط تاني بتعرض تنبيه بيخلّصها بدل شاشات الصالون القديم (FR-012).
@@ -32,6 +34,7 @@ export function EmployeeFlow({
   pending,
   busy,
   connect,
+  startOver,
   onConfirm,
   onCancel,
 }: EmployeeFlowProps) {
@@ -64,20 +67,21 @@ export function EmployeeFlow({
     },
     [business, report],
   );
+  const screenProps = {
+    connect,
+    sessionGate,
+    locked: busy,
+    ...(startOver === undefined ? {} : { startOver }),
+  };
   return (
     <>
       {pending ? (
         <SwitchBusinessPanel busy={busy} onConfirm={() => onConfirm(pending)} onCancel={onCancel} />
       ) : null}
       {business ? (
-        <PersonalScreen
-          key={business.business_id}
-          workspace={business}
-          connect={connect}
-          sessionGate={sessionGate}
-        />
+        <PersonalScreen key={business.business_id} workspace={business} {...screenProps} />
       ) : (
-        <PersonalScreen connect={connect} sessionGate={sessionGate} />
+        <PersonalScreen {...screenProps} />
       )}
     </>
   );
