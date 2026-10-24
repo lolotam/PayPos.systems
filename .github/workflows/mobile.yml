@@ -274,7 +274,7 @@ jobs:
   ios:
     name: ios ${{ matrix.flavour }}
     needs: [changes, macos-preflight, macos-preflight-pr]
-    if: !cancelled() && needs.changes.outputs.app == 'true' && (needs.macos-preflight.result == 'success' || needs.macos-preflight-pr.result == 'success')
+    if: ${{ !cancelled() && needs.changes.outputs.app == 'true' && (needs.macos-preflight.result == 'success' || needs.macos-preflight-pr.result == 'success') }}
     runs-on: macos-latest
     timeout-minutes: 45
     permissions:

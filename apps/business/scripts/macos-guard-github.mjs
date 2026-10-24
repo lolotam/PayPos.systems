@@ -128,12 +128,17 @@ async function createSlot({ request, owner, repo }, index, sha) {
   if (response.status === 422) {
     const body = await bodyOf(response);
     const message = String(body.message ?? '');
-    const state = await readSlotState({ request, owner, repo }, index);
-    const error = new Error(`the slot ${index} is taken: ${message}`);
-    error.code = 'conflict';
-    error.currentSha = state?.sha;
-    error.released = state?.released === true;
-    throw error;
+    // الـ 422 الوحيد اللي معناه «الخانة موجودة» هو اللي GitHub بيقول فيه إن الـ reference
+    // موجود فعلاً — أي 422 تاني خطأ عادي، مش تزاحم.
+    if (/already exists/i.test(message)) {
+      const state = await readSlotState({ request, owner, repo }, index);
+      const error = new Error(`the slot ${index} is taken: ${message}`);
+      error.code = 'conflict';
+      error.currentSha = state?.sha;
+      error.released = state?.released === true;
+      throw error;
+    }
+    throw new Error(`the slot ${index} answered 422: ${message}`);
   }
   if (!response.ok) throw new Error(`the slot ${index} answered ${response.status}`);
 }
