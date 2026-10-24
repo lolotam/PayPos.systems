@@ -64,12 +64,71 @@ function busySessions() {
   }
 }
 
+// A bare opencode command (any subcommand that needs a server, run without --standalone) starts the shared
+// `opencode serve --service` detached, with the global config and MCP servers (2.1.4, #635 item 3). The checker
+// refused the dispatch while one was up, so any found now started during the run: it is stopped and its PID logged.
+// A service that cannot be listed or stopped fails the cleanup, so the env files stay stashed.
+function stopSharedService() {
+  const powershellExe = path.join(
+    process.env.SystemRoot || 'C:\\Windows',
+    'System32',
+    'WindowsPowerShell',
+    'v1.0',
+    'powershell.exe',
+  );
+  let listing;
+  try {
+    listing = execFileSync(
+      powershellExe,
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'Get-CimInstance Win32_Process -Filter "Name=\'opencode.exe\'" | ForEach-Object { "$($_.ProcessId)`t$($_.CommandLine)" }',
+      ],
+      { encoding: 'utf8', timeout: 15_000 },
+    );
+  } catch (error) {
+    console.error(`could not list opencode processes: ${error.message}`);
+    return 1;
+  }
+  let failures = 0;
+  for (const line of listing.split(/\r?\n/)) {
+    const [pid, commandLine = ''] = line.split('\t');
+    if (!/^\d+$/.test(pid) || !/\bserve\b/i.test(commandLine) || !/--service\b/i.test(commandLine))
+      continue;
+    if (dryRun) {
+      console.log(`would stop the shared opencode service, PID ${pid}`);
+      continue;
+    }
+    // taskkill /T exits non-zero when a child of the tree is already gone, so only a PID still alive afterwards fails.
+    try {
+      execFileSync('taskkill', ['/PID', pid, '/T', '/F'], { stdio: 'ignore', timeout: 15_000 });
+    } catch {
+      // checked below
+    }
+    let alive = true;
+    try {
+      process.kill(Number(pid), 0);
+    } catch {
+      alive = false;
+    }
+    if (alive) {
+      failures++;
+      console.error(`could not stop the shared opencode service, PID ${pid}`);
+    } else {
+      console.error(`stopped the shared opencode service that started during the run, PID ${pid}`);
+    }
+  }
+  return failures;
+}
+
 // Validated before the database is read, so a wrong --exe fails every run, not only one with a busy session.
 const exe = dryRun ? null : opencodeExe();
 const busy = busySessions();
 if (!busy.length) {
   console.log(`no working opencode session under ${root}`);
-  process.exit(0);
+  process.exit(stopSharedService() ? 1 : 0);
 }
 // The interrupt starts opencode, so it gets the run's isolation even when run by hand from another shell: PWD is the
 // worktree (opencode takes its project folder from PWD, #423), a fresh config home holds only the dispatch's two fixed
@@ -138,4 +197,5 @@ for (const s of busy) {
   }
 }
 if (isolation) fs.rmSync(isolation.configHome, { recursive: true, force: true });
+failed += stopSharedService();
 process.exit(failed ? 1 : 0);
