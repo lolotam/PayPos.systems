@@ -57,7 +57,7 @@ VITE_API_URL=https://api.pospay.systems FLAVOUR=production pnpm turbo run sync:p
 
 ## اختبار iOS على المحاكي (M-1c)
 
-الاتنين تستات بيتأكدوا إن شاشة البداية بتفتح وفيها اختياري الكاونتر وحساب الموظفة، وإن اختيار
+تست واحد (`testStartScreenAndEmployeeChoiceSurviveRestart`) بيتأكد من حاجتين: إن شاشة البداية بتفتح وفيها اختياري الكاونتر وحساب الموظفة، وإن اختيار
 «حسابي كموظفة» بيفضل محفوظ بعد قفل التطبيق وفتحه تاني، فحقل لصق لينك المدير بيرجع يظهر من غير
 شاشة البداية. مشروع الاختبار منفصل و`ios/ui-tests/make-project.rb` بيولّده على الـ runner، عشان
 `App.xcodeproj` ما يتعدّلش.

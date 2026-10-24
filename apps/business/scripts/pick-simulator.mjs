@@ -20,7 +20,7 @@ function compareRuntimes([firstRuntime], [secondRuntime]) {
  * بيرجع `udid` لأول iPhone متاح على أحدث iOS runtime فيه iPhone.
  * بنختار الأحدث بدل اسم جهاز ثابت لأن صورة الـ runner بتتغيّر مع الوقت والاسم الثابت هيكسر الشغلانة.
  *
- * @param {{ devices: Record<string, Array<{ udid: string, name: string, isAvailable: boolean, state: string }> }} list
+ * @param {{ devices: Record<string, Array<{ udid: string, name: string, isAvailable: boolean, state: string }>> }} list
  * @returns {string}
  */
 export function pickSimulator(list) {
