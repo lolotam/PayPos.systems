@@ -180,7 +180,12 @@ worker, embeds bytes in a PDF, and needs a render id.
    its single 403, a caller without the permission, a DENY, an unknown business and another company's business, so the
    use case starts only for a permitted caller on a business of that company. The audit id comes from the injected
    `IdGenerator`.
-2. **Phase 1, one transaction** `withTenant(company, …, { userId })`, after the guard, in this order:
+2. **Phase 1, one transaction** `withTenant(company, …, { userId })`, after the guard, in this order. The permission
+   is read by the guard, not re-locked in this transaction: a revocation that commits between the guard and the
+   signature still gets one audited URL that lives 60 seconds. That is the **accepted residual of every download in
+   the project**: `IssueDownload` reads the permission and writes the audit separately in the same way, and ADR-0022
+   states that the audit measures URL issuance. Closing it would need a `files → identity` arrow for
+   `lockEmployeeManagementAccess`, which buys one request's window on a file that is printed on paper anyway.
    - Read the bound `logo_file_id` through `@pospay/db` `readBusinessIdentity` (§2's shared read), through a port
      `BusinessLogoReference` whose adapter calls `@pospay/db`. There is no `files → settings` import, as with the
      worker `LogoReference` row.

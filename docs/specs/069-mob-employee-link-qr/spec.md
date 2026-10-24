@@ -229,8 +229,9 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   sheet · `EL-T10` a storage failure shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry and no print, while a
   missing logo object (a 404 `NoSuchKey`) prints the name only, and a 404 `NoSuchBucket` or an unreadable answer is
   treated as the storage failure; a 503 from the logo read shows the same retry message.
-- **Queries**: the screen's `queries/` read gets a result-shape test; it reads no table itself (the names come
-  through the tenancy port), so its `EXPLAIN` assertion belongs to `describeWorkspaces`, already tested.
+- **Queries**: the screen's `queries/` read gets a result-shape test and its own `EXPLAIN ANALYZE` assertion
+  (`CLAUDE.md` §9). It runs the statement it reaches through the tenancy port (`describeWorkspaces`) for one
+  business and asserts an index scan on `businesses` by `(company_id, id)`.
 - **RLS negative**: no new table; EL-I08's and EL-I02's other-company cases are the negative tests.
 
 ### EL-Q3 history
