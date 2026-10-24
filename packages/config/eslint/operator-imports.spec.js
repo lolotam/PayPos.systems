@@ -3,10 +3,7 @@ import { it } from 'node:test';
 import { resolve } from 'node:path';
 import { ESLint } from 'eslint';
 
-import config, {
-  allowCommissionsEngineBackend,
-  allowDatabaseFacade,
-} from './index.js';
+import config, { allowCommissionsEngineBackend, allowDatabaseFacade } from './index.js';
 
 const message = 'operator helpers are for apps/api/scripts only (PP-58.3, ADR-0003 addendum)';
 const eslint = new ESLint({
@@ -24,7 +21,9 @@ const eslint = new ESLint({
     // packages/auth/eslint.config.js, with its paths taken from the repository root.
     {
       files: ['packages/auth/**/*.ts'],
-      ...allowDatabaseFacade(['createAuthDatabase', 'createStaffOtpDatabase'], { credentials: true }),
+      ...allowDatabaseFacade(['createAuthDatabase', 'createStaffOtpDatabase'], {
+        credentials: true,
+      }),
     },
     {
       files: ['packages/auth/src/operator/staging-staff-identity.ts'],
@@ -33,13 +32,19 @@ const eslint = new ESLint({
   ],
 });
 const cases = [
-  ['a named import', "import { ensureStaffBranchMembership } from '@pospay/db/operator/staging-staff';"],
+  [
+    'a named import',
+    "import { ensureStaffBranchMembership } from '@pospay/db/operator/staging-staff';",
+  ],
   ['a namespace import', "import * as staging from '@pospay/db/operator/staging-staff';"],
   ['a re-export', "export { ensureEmployeeUserLink } from '@pospay/db/operator/staging-staff';"],
   ['a dynamic import', "import('@pospay/db/operator/staging-staff');"],
   ['a require call', "require('@pospay/db/operator/staging-staff');"],
   ['an import type', "type T = import('@pospay/db/operator/staging-staff').StagingStaffRefusal;"],
-  ['the auth subpath', "import { readStagingStaffIdentity } from '@pospay/auth/operator/staging-staff';"],
+  [
+    'the auth subpath',
+    "import { readStagingStaffIdentity } from '@pospay/auth/operator/staging-staff';",
+  ],
 ];
 // Every place that must refuse the operator subpaths: the plain module folder and the two use-cases/
 // overrides, each of which replaces no-restricted-imports and has to compose the ban back in.
@@ -57,7 +62,9 @@ for (const [label, code] of cases) {
     });
   }
   it(`allows ${label} in the operator CLI`, async () => {
-    const [result] = await eslint.lintText(code, { filePath: 'apps/api/scripts/staging-staff-user.ts' });
+    const [result] = await eslint.lintText(code, {
+      filePath: 'apps/api/scripts/staging-staff-user.ts',
+    });
     assert.ok(!result.messages.some((entry) => entry.message.includes(message)));
     assert.equal(result.fatalErrorCount, 0);
   });

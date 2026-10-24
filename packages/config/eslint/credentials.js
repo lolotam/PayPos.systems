@@ -66,7 +66,10 @@ export const OPERATOR_SYNTAX = [
     selector: `CallExpression[callee.name='require'][arguments.0.value=${OPERATOR_IMPORT}]`,
     message: OPERATOR_MESSAGE,
   },
-  { selector: `TSImportType[argument.literal.value=${OPERATOR_IMPORT}]`, message: OPERATOR_MESSAGE },
+  {
+    selector: `TSImportType[argument.literal.value=${OPERATOR_IMPORT}]`,
+    message: OPERATOR_MESSAGE,
+  },
 ];
 
 const PLAIN =

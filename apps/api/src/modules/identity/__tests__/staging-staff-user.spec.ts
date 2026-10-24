@@ -190,10 +190,8 @@ it('refuses a wrong branch id without burning the phone, and the corrected rerun
   expect(refused.slice(1)).toEqual(['phone binding: approved', 'refused: TARGET_SCOPE_REFUSED']);
   const corrected: string[] = [];
   expect(
-    await main(
-      cliArgs({ phone: freshPhone, employee: 'drop' }),
-      stagingEnv(),
-      (line) => corrected.push(line),
+    await main(cliArgs({ phone: freshPhone, employee: 'drop' }), stagingEnv(), (line) =>
+      corrected.push(line),
     ),
   ).toBe(0);
   expect(corrected).toEqual([
@@ -207,7 +205,8 @@ it('refuses a wrong branch id without burning the phone, and the corrected rerun
 
 it('refuses a phone owned by another user and creates no user', async () => {
   const conflictPhone = `+9655${'3'.padStart(7, '0')}`;
-  const owners = await h.owner`SELECT id FROM "user" WHERE email=${'staging-manager@synthetic.invalid'}`;
+  const owners =
+    await h.owner`SELECT id FROM "user" WHERE email=${'staging-manager@synthetic.invalid'}`;
   const ownerId = owners[0]?.id ?? '';
   expect(ownerId).not.toBe('');
   await h.owner`UPDATE "user" SET phone_number=${conflictPhone} WHERE id=${ownerId}`;
@@ -234,10 +233,8 @@ it('refuses to run without the phone ownership acknowledgement', async () => {
   const before = await rowCounts();
   const refused: string[] = [];
   expect(
-    await main(
-      argv(),
-      stagingEnvWithout('STAFF_PHONE_OWNERSHIP_VERIFIED'),
-      (line) => refused.push(line),
+    await main(argv(), stagingEnvWithout('STAFF_PHONE_OWNERSHIP_VERIFIED'), (line) =>
+      refused.push(line),
     ),
   ).toBe(1);
   expect(refused).toEqual(['refused: phone ownership not acknowledged']);
