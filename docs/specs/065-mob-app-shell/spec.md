@@ -125,6 +125,9 @@ start screen again.
 - **Camera permission denied** (Android QR attendance): the attendance screen's existing camera-failure path runs
   (`use-attendance-camera.ts` calls its failure handler), and the native build adds one line on how to allow the camera
   in the phone settings.
+- **Camera permission denied** (connect-screen QR scan, FR-014): when the user denies or later revokes the camera,
+  or it is unavailable, the scan closes and the connect screen shows the same settings line, with the paste-link
+  option still there, so the employee can still connect the business.
 - **The iOS session check fails**: if (b) fails on the simulator, User Story 1.3 cannot pass on iOS and the track stops
   at M-1c as ADR-0055 decision 3 says; if the personal session (c) fails on the first real iPhone (M-1c-ii, PP-58.2),
   the iOS app stays with the owners and decision 3's fallbacks ship in a fix build before any employee receives it. This spec does not change `packages/auth`.
@@ -351,7 +354,8 @@ None published, none consumed.
   there after the success and after the failure, and only a new, confirmed change that finishes removes them ·
   `MOB-T20` a valid QR scanned in the app connects the business like the link, and where the QR-scan capability is off
   the scan option is hidden with the FR-007 line; with the QR scan on and the attendance camera off (after (d1), before
-  (d2)), the connect screen offers the scan and the attendance screen offers no camera control · `MOB-T21` first launch with the phone in Arabic shows Arabic, with the
+  (d2)), the connect screen offers the scan and the attendance screen offers no camera control; with the camera denied, the
+  connect screen shows the settings line and keeps the paste-link option · `MOB-T21` first launch with the phone in Arabic shows Arabic, with the
   phone in any other language shows English, and the language switch still changes it · `MOB-T22` the start screen,
   the counter flow and the personal flow render without cut-off controls in both orientations (tablet and phone
   viewports) · `MOB-T23` with the role signal present the «لوحة الإدارة على الويب» line and its link show, without it
