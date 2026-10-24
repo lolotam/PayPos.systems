@@ -20,32 +20,17 @@ export type EmployeeAppLink = z.infer<typeof employeeAppLink>;
 /**
  * التطبيق بيرفض أي host غير اللي في القايمة، فأي إعداد غلط لازم يظهر «مش متظبط» مش لينك بايظ.
  * المقارنة بالقايمة المشتركة بتمنع الإدمن والتطبيق يختلفوا على العنوان المقبول.
+ * المطابقة الحرفية بتستغني عن URL غير المتاح في ترجمة contracts، وكمان بترفض الـ host المكتوب بحروف مختلفة.
  */
 export function buildEmployeeAppLink(
   posOrigin: string | undefined,
   companyId: string,
   businessId: string,
 ): string | null {
-  let origin: URL;
-  try {
-    origin = new URL(posOrigin?.trim() ?? '');
-  } catch {
-    return null;
-  }
-  if (
-    origin.protocol !== 'https:' ||
-    origin.port !== '' ||
-    (origin.pathname !== '/' && origin.pathname !== '') ||
-    origin.search !== '' ||
-    origin.hash !== '' ||
-    origin.username !== '' ||
-    origin.password !== '' ||
-    !Object.values(POS_HOSTS).includes(origin.host as PosHost)
-  ) {
-    return null;
-  }
-  const link = new URL('/personal', origin);
-  link.searchParams.set('company', companyId);
-  link.searchParams.set('business', businessId);
-  return link.toString();
+  const origin = posOrigin?.trim() ?? '';
+  const host = Object.values(POS_HOSTS).find(
+    (candidate) => origin === `https://${candidate}` || origin === `https://${candidate}/`,
+  );
+  if (host === undefined) return null;
+  return `https://${host}/personal?company=${encodeURIComponent(companyId)}&business=${encodeURIComponent(businessId)}`;
 }
