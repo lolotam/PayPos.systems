@@ -53,11 +53,12 @@ curl -s -u "$PLAN_AUTH" "$B/api/doc?path=decisions/<docId>"
 # GET decisions/<docId> and Abu Salem's note first: if a decision exists, or Abu Salem picked differently,
 # do not PUT. His pick binds (PP-1.2), so bring the conflict to Waleed instead. When you do overwrite an older
 # decision on Waleed's word, name the old choice in "source" so the history survives.
-# Capture the decision's ETag from that GET and stop if it is missing: an empty If-Match is dropped by curl,
-# and a PUT without it writes unconditionally.
-ETAG=$(curl -s -D - -o /dev/null -u "$PLAN_AUTH" "$B/api/doc?path=decisions/<docId>" \
-  | tr -d '\r' | awk 'tolower($1)=="etag:"{print $2}')
+# Do it as ONE GET that saves both the body you inspect and its ETag, so the ETag belongs to what you read.
+# Stop if the ETag is missing: an empty If-Match is dropped by curl, and a PUT without it writes unconditionally.
+curl -s -u "$PLAN_AUTH" -D decision.headers -o decision.json "$B/api/doc?path=decisions/<docId>"
+ETAG=$(tr -d '\r' < decision.headers | awk 'tolower($1)=="etag:"{print $2}')
 [ -n "$ETAG" ] || { echo "no ETag, not writing"; exit 1; }
+# inspect decision.json (and Abu Salem's note) here; write only if the rule above allows it
 # A 412 {"code":"stale"} means someone wrote in between; GET again and re-decide.
 curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' -H "If-Match: $ETAG" \
   -d '{"qid":"XX-Q1","choice":0,"decidedAt":"<ISO time>","source":"Waleed answered in chat, <date>"}' \
@@ -98,10 +99,12 @@ Every question also goes to Waleed's super agent as `PP-n` (`CLAUDE.md` §1 5b).
 
 ```bash
 # Waleed's pick from a card: a note under his user id, marked source "card" (choice = 0-based option index).
-# Capture the note's ETag first (a missing note has one too) and stop if it is empty.
+# One GET saves the note you inspect and its ETag (a missing note has one too); stop if the ETag is empty.
 N="$B/api/doc?path=reviews/u_kxawXFcE2cQIRRqI4Cn8Iw/notes/<docId>"
-ETAG=$(curl -s -D - -o /dev/null -u "$PLAN_AUTH" "$N" | tr -d '\r' | awk 'tolower($1)=="etag:"{print $2}')
+curl -s -u "$PLAN_AUTH" -D note.headers -o note.json "$N"
+ETAG=$(tr -d '\r' < note.headers | awk 'tolower($1)=="etag:"{print $2}')
 [ -n "$ETAG" ] || { echo "no ETag, not writing"; exit 1; }
+# inspect note.json here: write only when it does not exist or its source is "card" (below)
 curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' -H "If-Match: $ETAG" \
   -d '{"qid":"XX-Q1","verdict":"ok","choice":0,"text":"<his words, verbatim>","source":"card","updatedAt":"<ISO time>"}' \
   "$N"
