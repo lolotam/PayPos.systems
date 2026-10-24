@@ -85,7 +85,7 @@ function stopSharedService() {
         '-NonInteractive',
         '-Command',
         // Stop makes a CIM error throw instead of printing nothing (MergePilot on #643).
-        '$ErrorActionPreference = \'Stop\'; Get-CimInstance Win32_Process -Filter "Name=\'opencode.exe\'" | ForEach-Object { "$($_.ProcessId)`t$($_.CommandLine)" }',
+        '$ErrorActionPreference = \'Stop\'; Get-CimInstance Win32_Process -Filter "Name=\'opencode.exe\'" | ForEach-Object { "$($_.ProcessId)`t$([DateTimeOffset]::new($_.CreationDate).ToUnixTimeMilliseconds())`t$($_.CommandLine)" }',
       ],
       { encoding: 'utf8', timeout: 15_000 },
     );
@@ -95,7 +95,7 @@ function stopSharedService() {
   }
   let failures = 0;
   for (const line of listing.split(/\r?\n/)) {
-    const [pid, commandLine = ''] = line.split('\t');
+    const [pid, created, commandLine = ''] = line.split('\t');
     if (!/^\d+$/.test(pid)) continue;
     // A withheld command line (an elevated or protected process) may hide the service, so it fails the cleanup.
     if (!commandLine.trim()) {
@@ -105,7 +105,17 @@ function stopSharedService() {
       );
       continue;
     }
-    if (!/\bserve\b/i.test(commandLine) || !/--service\b/i.test(commandLine)) continue;
+    // `serve` must be the subcommand itself, so a run whose title mentions it never matches (MergePilot on #643).
+    if (!/opencode\.exe"?\s+serve(\s.*)?\s--service(\s|$)/i.test(commandLine)) continue;
+    // Only a service started inside this run's window is stopped. An older one (a stopper run by hand without
+    // --since, or a race with the checker) is reported and left running, so someone else's work is never killed.
+    if (Number(created) < since) {
+      failures++;
+      console.error(
+        `the shared opencode service PID ${pid} predates this run: stop it by hand after checking whose it is`,
+      );
+      continue;
+    }
     if (dryRun) {
       console.log(`would stop the shared opencode service, PID ${pid}`);
       continue;
@@ -116,11 +126,12 @@ function stopSharedService() {
     } catch {
       // checked below
     }
+    // Only ESRCH proves the process is gone; EPERM or any other error means it may still be running.
     let alive = true;
     try {
       process.kill(Number(pid), 0);
-    } catch {
-      alive = false;
+    } catch (error) {
+      alive = error.code !== 'ESRCH';
     }
     if (alive) {
       failures++;

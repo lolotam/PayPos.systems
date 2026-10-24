@@ -545,8 +545,9 @@ try {
     .filter(([pid]) => /^\d+$/.test(pid));
   // Windows withholds the command line of an elevated or protected process, which could hide the service.
   const unreadable = processes.filter(([, commandLine = '']) => !commandLine.trim());
-  const services = processes.filter(
-    ([, commandLine = '']) => /\bserve\b/i.test(commandLine) && /--service\b/i.test(commandLine),
+  // `serve` must be the subcommand itself, so a run whose title mentions it never matches (MergePilot on #643).
+  const services = processes.filter(([, commandLine = '']) =>
+    /opencode\.exe"?\s+serve(\s.*)?\s--service(\s|$)/i.test(commandLine),
   );
   if (services.length)
     problems.push(
