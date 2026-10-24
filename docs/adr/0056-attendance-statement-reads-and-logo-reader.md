@@ -198,6 +198,10 @@ above). `readStatementLogo` cannot be reused: it lives in the worker, embeds byt
    - Any failed step answers one 404 `NOT_FOUND`: no membership reach, unknown business, another company's business,
      no logo bound, or a file that no longer qualifies. Nothing is written in that case, so the answer never says which
      step failed.
+   - A **signing or storage-configuration failure is not a miss**: it rolls the transaction back like any error, and
+     answers the files module's existing `STORAGE_UNAVAILABLE` (503), or `STORAGE_NOT_CONFIGURED` when no storage is
+     configured. The screen shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry for these, never the name-only sheet;
+     only the API's 404 (no logo for this business) and storage's `NoSuchKey` print the name only.
 3. **After the commit:** return the signed URL. No storage network call happens in the request; the browser reads the
    object itself. The URL lives 60 seconds, as `IssueDownload` does. `presignDownload` gains an optional response cache policy so the stored
    object answers `Cache-Control: private, no-store`. The API answer is `{ download_url, expires_in: 60 }`, also

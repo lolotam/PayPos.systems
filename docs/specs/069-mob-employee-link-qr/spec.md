@@ -213,7 +213,9 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   `file`/`access` `audit_log` entry in the same transaction as the access check and the URL signature; a failure anywhere in it,
   signing included, leaves neither record · `EL-I05` the API answer and the signed object answer both carry `Cache-Control: private, no-store` · `EL-T10` (apps/admin) a storage
   failure shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry and no print, while a missing logo object (a 404 `NoSuchKey`) prints the
-  name only, and a 404 `NoSuchBucket` or an unreadable answer is treated as the storage failure · `EL-I04`
+  name only, and a 404 `NoSuchBucket` or an unreadable answer is treated as the storage failure · `EL-I06` a signing or
+  storage-configuration failure answers 503 (`STORAGE_UNAVAILABLE` / `STORAGE_NOT_CONFIGURED`) with no audit record,
+  and the screen shows the retry message, not the name-only sheet · `EL-I04`
   no session gets 401, and a missing or malformed `x-company-id` gets 400.
 - **Queries**: none new (the names come from `me/workspaces`, already tested).
 - **RLS negative**: no new table; EL-I02's other-company case runs under `withTenant` and is the negative test.
