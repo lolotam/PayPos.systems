@@ -6,6 +6,7 @@ import {
   alertRulesBusinessKey,
   alertRulesKey,
   alertRulesKeyBranch,
+  alertRulesWriteKey,
   setAlertsMaster,
 } from './alert-rules-client';
 
@@ -14,6 +15,7 @@ export function useSetAlertsMaster(companyId: string, userId: string, businessId
   const businessKey = alertRulesBusinessKey(companyId, userId, businessId);
   const key = alertRulesKey(companyId, userId, businessId, null);
   return useMutation({
+    mutationKey: alertRulesWriteKey(companyId, userId, businessId),
     retry: false,
     mutationFn: (enabled: boolean) => setAlertsMaster(companyId, businessId, enabled),
     onSuccess: async (saved) => {

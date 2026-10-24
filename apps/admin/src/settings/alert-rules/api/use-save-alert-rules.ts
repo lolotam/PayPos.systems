@@ -7,6 +7,7 @@ import {
   alertRulesBusinessKey,
   alertRulesKey,
   alertRulesKeyBranch,
+  alertRulesWriteKey,
   saveAlertRules,
 } from './alert-rules-client';
 
@@ -15,11 +16,13 @@ export function useSaveAlertRules(
   userId: string,
   businessId: string,
   branchId: string | null,
+  onConflict: () => void,
 ) {
   const client = useQueryClient();
   const businessKey = alertRulesBusinessKey(companyId, userId, businessId);
   const key = alertRulesKey(companyId, userId, businessId, branchId);
   return useMutation({
+    mutationKey: alertRulesWriteKey(companyId, userId, businessId),
     retry: false,
     mutationFn: (body: SetAlertRulesInput) => saveAlertRules(companyId, businessId, branchId, body),
     onSuccess: async (saved) => {
@@ -32,7 +35,13 @@ export function useSaveAlertRules(
     },
     onError: async (error) => {
       if (!isAlertRulesRefusal(error) && alertRulesStatus(error) !== 409) return;
-      await client.invalidateQueries({ queryKey: key });
+      // فشل إعادة القراءة مش دليل على نسخة جديدة، فالمسودة ورسالة التعارض بتفضل من غير استبدال.
+      try {
+        await client.refetchQueries({ queryKey: key, exact: true }, { throwOnError: true });
+      } catch {
+        return;
+      }
+      if (alertRulesStatus(error) === 409) onConflict();
     },
   });
 }

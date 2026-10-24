@@ -4,6 +4,7 @@ import type { AlertRules } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Label } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import { useAlertRulesWriting } from '../api/use-alert-rules-writing';
 import { useSetAlertsMaster } from '../api/use-set-alerts-master';
 import { alertRulesFailureMessage } from '../model/alert-rules-failure';
 
@@ -19,6 +20,7 @@ export function AlertsMasterSwitch({
   server: AlertRules;
 }) {
   const locale = useLocale();
+  const writing = useAlertRulesWriting(companyId, userId, businessId);
   const mutation = useSetAlertsMaster(companyId, userId, businessId);
   return (
     <div className="flex flex-col gap-2 rounded-card border border-border p-4">
@@ -28,7 +30,7 @@ export function AlertsMasterSwitch({
           type="checkbox"
           role="switch"
           checked={server.alerts_enabled}
-          disabled={mutation.isPending}
+          disabled={writing}
           onChange={(event) => mutation.mutate(event.target.checked)}
         />
         <Label htmlFor="alerts-master">{t(locale, 'alertRules.masterLabel')}</Label>

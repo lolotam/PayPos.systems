@@ -35,7 +35,7 @@ export function useSyncAlertRulesForm(
     for (const entry of kept) {
       form.setValue(`rules.${entry.index}`, entry.value, { shouldDirty: true });
     }
-    // الاستبدال state لأن structural sharing ممكن يثبّت server؛ وتسجيله بعد انتظار invalidateQueries
+    // الاستبدال state لأن structural sharing ممكن يثبّت server؛ وتسجيله بعد نجاح refetchQueries
     // يضمن أن القيم الحالية هي الأحدث حتى لو كانت مساوية للكاش وما غيّرش مرجعه.
     if (replace !== null) setReplace(null);
     seen.current = next;

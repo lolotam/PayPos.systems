@@ -16,6 +16,10 @@ export function alertRulesBusinessKey(companyId: string, userId: string, busines
   return ['alert-rules', companyId, userId, businessId] as const;
 }
 
+export function alertRulesWriteKey(companyId: string, userId: string, businessId: string) {
+  return ['alert-rules-write', companyId, userId, businessId] as const;
+}
+
 export function alertRulesKey(
   companyId: string,
   userId: string,

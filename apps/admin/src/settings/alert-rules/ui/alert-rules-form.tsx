@@ -7,6 +7,7 @@ import { Button } from '@pospay/ui';
 import { useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
+import { useAlertRulesWriting } from '../api/use-alert-rules-writing';
 import { buildAlertRulesDraft } from '../model/alert-rules-draft';
 import { alertRulesFailureMessage } from '../model/alert-rules-failure';
 import { listedAlertKinds } from '../model/listed-alert-kinds';
@@ -17,6 +18,7 @@ import { useSyncAlertRulesForm, type AlertRulesReplacement } from './use-sync-al
 
 export function AlertRulesForm(props: AlertRulesFormProps) {
   const locale = useLocale();
+  const writing = useAlertRulesWriting(props.companyId, props.userId, props.businessId);
   const [notice, setNotice] = useState<AlertRulesNotice>(null);
   const [replace, setReplace] = useState<AlertRulesReplacement>(null);
   const form = useForm<SetAlertRulesInput>({
@@ -34,7 +36,7 @@ export function AlertRulesForm(props: AlertRulesFormProps) {
         noValidate
         className="flex flex-col gap-6"
       >
-        <fieldset disabled={save.isPending} className="contents">
+        <fieldset disabled={writing} className="contents">
           {rows.map((rule, index) => (
             <AlertRuleRow
               key={rule.kind}
@@ -44,7 +46,7 @@ export function AlertRulesForm(props: AlertRulesFormProps) {
               branchId={props.branchId}
               rule={rule}
               index={index}
-              disabled={save.isPending}
+              disabled={writing}
               onResetDone={() => {
                 setReplace({ all: false, kinds: [rule.kind] });
                 setNotice('reset');
@@ -64,7 +66,7 @@ export function AlertRulesForm(props: AlertRulesFormProps) {
           saving={save.isPending}
           notice={notice}
         />
-        <Button type="submit" disabled={save.isPending}>
+        <Button type="submit" disabled={writing}>
           {t(locale, 'alertRules.save')}
         </Button>
       </form>
