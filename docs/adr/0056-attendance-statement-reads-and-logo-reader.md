@@ -205,8 +205,10 @@ above). `readStatementLogo` cannot be reused: it lives in the worker, embeds byt
    retry). The admin reads the object with `fetch` on the signed URL, and that needs the bucket's CORS to allow `GET`
    from the back-office origins. ADR-0022 documents `PUT` only. That was **EL-TQ1**, a server setting; Waleed picked (a) on 2026-10-24 and applies the rule himself (spec 069
    `plan.md`):
-   - ⭐ (a) add `GET` from the back-office origins to the bucket's CORS. Then 404 means name only, 403 (an expired URL)
-     means one new URL then the retry message, and any other failure or a 10-second timeout means the retry message.
+   - ⭐ (a) add `GET` from the back-office origins to the bucket's CORS. Then a 404 whose body carries the storage error code `NoSuchKey`
+     means name only; a 404 with any other code (`NoSuchBucket` is an outage, as `packages/storage` already treats it,
+     `s3.spec.ts`) or an unreadable body counts as a failure; 403 (an expired URL) means one new URL then the retry
+     message; any other failure or a 10-second timeout means the retry message.
    - (b) keep CORS as is and load the logo with `<img>` only. A load failure cannot tell missing from error, so every
      failure shows the retry message, and a truly missing logo blocks printing until the logo is uploaded again. The
      message then says so. This changes spec 069's missing-object rule.

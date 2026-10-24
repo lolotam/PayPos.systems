@@ -103,8 +103,10 @@ existing upload (`PUT`) rule of ADR-0022 unchanged:
   Waleed's yes.
 - **Methods:** `GET` only. The page reads the object with a plain `fetch(url)` and no custom header, which is a simple
   request: no preflight, so `AllowedHeaders` stays empty and `HEAD` is not needed.
-- **ExposeHeaders:** none; the page needs only the status code (404 = missing, 403 = expired URL), which CORS always
-  exposes.
+- **ExposeHeaders:** none; the page needs the status code and the response body, which CORS exposes for an allowed
+  origin. It prints the name only for a 404 whose body code is `NoSuchKey`; a 404 with another code such as
+  `NoSuchBucket` (an outage) or an unreadable body is a failure with a retry, and 403 (an expired URL) asks for one new
+  URL first.
 - **MaxAgeSeconds:** 3600, an hour of cached preflight answers (none are expected for a simple GET).
 - **Check after setting it:** on staging, the print sheet of a business with a logo shows the logo, and the browser
   console shows no CORS error for the signed URL.
