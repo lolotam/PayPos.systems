@@ -150,28 +150,27 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   tenancy's `describeWorkspaces`. The screen shows the link only for the business that is open (EL-Q5) **and**
   appears in that answer; otherwise it shows the no-access state. The menu entry shows for every back-office user,
   as EL-Q3 says. No new endpoint, no new permission.
-- **The logo (FR-004, the print sheet).** The salon logo is a stored file, so reading it is a private-file
-  access with its audit (`CLAUDE.md` §8). `readStatementLogo` cannot be reused as it is: it is exposed only from the
-  worker and needs a file id and a render id (ADR-0056 §2–3), and the logo binding (`logo_file_id`) belongs to
-  `settings`. So the API gets its own logo read, **shaped like ADR-0056 §3**:
-  - `GET /v1/businesses/{businessId}/employee-app-link/logo`, `@Authenticated()`. The company comes from the
-    `x-company-id` header, parsed and refused with 400 `BAD_REQUEST` when it is not an id, exactly as
-    `me/memberships` does (`companyHeader` in `me.controller.ts`); the business is never used to look the company up.
-  - **It writes, so it is a use case, not a `queries/` file** (`CLAUDE.md` §6), and it carries the write declaration
-    of PP-7.1 naming where its access check lives. The audit id comes from the injected `IdGenerator` (`CLAUDE.md`
-    §4.3), since a GET has no `Idempotency-Key`.
-  - **Phase 1, one `withTenant(that company)` transaction:** check an active membership in that company reaching the
-    business and that the business belongs to it; resolve the logo file through settings' public reader; insert the
-    `file_access_audit` row and append the `file`/`access` `audit_log` entry, both as ADR-0056 §3 does; commit.
-  - **Phase 2, after the commit and outside any transaction:** read the bytes from storage through `files` (ADR-0046
-    §4: no storage call inside a tenant transaction) and return them with `Cache-Control: private, no-store`, so a
-    cached copy can never skip the check and the audit.
-  - **Errors:** one 404 `NOT_FOUND` for an unknown business, a business of another company (invisible inside that
-    company's `withTenant`), an unreached business and a business with no logo.
-  - Its module, ports and `docs/module-map.md` rows are an **ADR-0056 addendum**, written and accepted with
-    `/speckit-plan` (`TODO(spec)`, technical, Waleed). **The print action ships together with this read, never
-    without it:** the screen's link, copy, QR and WhatsApp button may land first, and the print sheet lands complete,
-    with the salon logo as EL-Q4 describes.
+- **The logo (FR-004, the print sheet).** The salon logo is a stored file, so showing it is a private-file access
+  with its audit (`CLAUDE.md` §8). No existing read serves it to this screen: `readStatementLogo` is worker-only and
+  needs a file id and a render id (ADR-0056 §2–3), and the business identity read needs another permission. **How**
+  the logo reaches the screen is an **ADR-0056 addendum**, written and accepted with `/speckit-plan` (`TODO(spec)`,
+  technical, Waleed). This spec fixes only what it must satisfy:
+  - **Access:** the same rule as the screen (EL-Q3): a session whose active membership, in the company named by a
+    validated `x-company-id` (parsed as `me/memberships` does), reaches the business. The company is never looked up
+    from the business id. One 404 for an unknown business, another company's business, an unreached business and a
+    business with no logo.
+  - **Audit:** each access writes the `file_access_audit` row and the `file`/`access` `audit_log` entry, as
+    ADR-0056 §3 does, in the module that owns `file_access_audit`. Because it writes, it is not a `queries/` read
+    (`CLAUDE.md` §6), it carries the PP-7.1 write declaration, and its ids come from the injected `IdGenerator`.
+  - **Constraints the addendum must resolve, not decided here:** the module that owns the read, and how it learns the
+    `logo_file_id` of `settings` without a new reverse dependency (`docs/module-map.md`); how the image travels
+    without breaking ADR-0046 §4 (storage IO never in a request, a consumer or a transaction) or the 200 ms rule of
+    `CLAUDE.md` §6, for example a short-lived signed URL issued after the audited check, or a re-encoded copy; and
+    `Cache-Control: private, no-store` on anything it returns.
+  - **When the logo cannot be shown** (its object is missing, or storage fails or times out): the print action shows
+    the message «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry, and never prints without the logo silently.
+  - **Delivery:** the print action ships together with this read, never without it. The link, copy, QR and WhatsApp
+    button may land first; the print sheet lands complete, with the salon logo as EL-Q4 describes.
 - **POS host (FR-002):** a new build-time variable `NEXT_PUBLIC_POS_URL` for `apps/admin`, set per environment like
   `NEXT_PUBLIC_API_URL`: listed in `apps/admin/next.config.ts` and `.env.example`, inlined at build time through a
   build arg in `deploy/Dockerfile.admin`, and passed by the image build step of `.github/workflows/ci.yml` (for
@@ -203,10 +202,11 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   none), the QR, the link and the instruction line · `EL-T07` another business selected changes the link and the QR · `EL-T08` a `NEXT_PUBLIC_POS_URL` host that is not one of the shared POS hosts shows the not-set-up message, and the staging deploy check finds the staging POS host in the staging back office's link · `EL-T09` the WhatsApp button's link is `https://wa.me/?text=` with the WhatsApp line (not the print line) and the link URL-encoded, and pressing it sends no request to the API.
 - **Cross-check with the app**: a test in `apps/pos` feeds the admin helper's output to `parseManagerLink` and gets the
   same company and business back, so the two sides cannot drift.
-- **Integration (apps/api), the logo read only**: `EL-I01` a member whose membership reaches the business gets the
+- **Integration (apps/api), the logo read only** (its exact shape follows the ADR-0056 addendum): `EL-I01` a member whose membership reaches the business gets the
   image · `EL-I02` a member of the same company whose membership does not reach that business, an unknown business,
-  and a business of another company all get the same 404 · `EL-I03` a business with no logo gets that 404, and every image answer writes one `file_access_audit` row and one `file`/`access` `audit_log` entry, committed
-  before the bytes are read · `EL-I05` the image answer carries `Cache-Control: private, no-store` · `EL-I04`
+  and a business of another company all get the same 404 · `EL-I03` a business with no logo gets that 404, and every image answer writes one `file_access_audit` row and one `file`/`access` `audit_log` entry, before the image is
+  served · `EL-I05` whatever it returns carries `Cache-Control: private, no-store` · `EL-T10` (apps/admin) a logo that
+  cannot be read shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry, and no print without the logo · `EL-I04`
   no session gets 401, and a missing or malformed `x-company-id` gets 400.
 - **Queries**: none new (the names come from `me/workspaces`, already tested).
 - **RLS negative**: no new table; EL-I02's other-company case runs under `withTenant` and is the negative test.
