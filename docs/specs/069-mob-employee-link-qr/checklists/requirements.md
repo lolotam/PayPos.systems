@@ -22,7 +22,7 @@
 - [x] Scope is clearly bounded
 - [x] Dependencies and assumptions identified
 - [x] **Slice design** for the link, copy, QR and WhatsApp: no schema change, access and names from the existing `GET /v1/me/workspaces`, no new permission, no event, the test plan (UI, cross-check)
-- [ ] **Slice design** for the print sheet's logo read: its access, audit, constraints and failure message are set, but its module, read path and image transport wait on an ADR-0056 addendum (`TODO(spec)`, technical, at `/speckit-plan`)
+- [x] **Slice design** for the print sheet's logo read: the ADR-0056 addendum of 2026-10-24 sets its module, transaction, audit and transport; EL-TQ1 (technical, Waleed) is the one open point and blocks sub-PR 069-2 only
 
 ## Feature Readiness
 
@@ -35,7 +35,6 @@
 
 - Abu Salem's answers to batch 71 are pending; if he picks differently, the spec's «If Abu Salem picks differently»
   paragraph says what changes.
-- One technical `TODO(spec)` stays open for `/speckit-plan`: an ADR-0056 addendum that decides which module owns the
-  logo read, how it learns the logo file, and how the image travels. The print action ships with that read, never
-  without it; the rest of the screen does not wait for it.
+- The logo read is designed in the ADR-0056 addendum of 2026-10-24 ([plan.md](../plan.md) sub-PR 069-2). EL-TQ1 waits
+  on Waleed and blocks 069-2 only.
 - The build waits for the web manager's OK on the `apps/admin` lane.

@@ -153,8 +153,9 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
 - **The logo (FR-004, the print sheet).** The salon logo is a stored file, so showing it is a private-file access
   with its audit (`CLAUDE.md` §8). No existing read serves it to this screen: `readStatementLogo` is worker-only and
   needs a file id and a render id (ADR-0056 §2–3), and the business identity read needs another permission. **How**
-  the logo reaches the screen is an **ADR-0056 addendum**, written with `/speckit-plan` and reviewed like any ADR
-  (`TODO(spec)`, technical). It is not an owner question: if writing it turns up a choice the owners must make, that
+  the logo reaches the screen is the [ADR-0056 addendum of 2026-10-24](../../adr/0056-attendance-statement-reads-and-logo-reader.md#addendum-2026-10-24--the-employee-app-screens-logo-read-in-the-api-spec-069-m-1g):
+  `POST /v1/businesses/{businessId}/employee-app-link/logo-download` in API `files` returns a 60-second signed URL
+  after the audited check. Its one open point is EL-TQ1, a technical question for Waleed. It is not an owner question: if writing it turns up a choice the owners must make, that
   question is recorded in [owner-questions.ar.md](owner-questions.ar.md) and asked then. This spec fixes only what it must satisfy:
   - **Access:** the same rule as the screen (EL-Q3): a session whose active membership, in the company named by a
     validated `x-company-id` (parsed as `me/memberships` does), reaches the business. The company is never looked up
@@ -212,11 +213,11 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
   none), the QR, the link and the instruction line · `EL-T07` another business selected changes the link and the QR · `EL-T08` a `NEXT_PUBLIC_POS_URL` host that is not one of the shared POS hosts shows the not-set-up message, and the staging deploy check finds the staging POS host in the staging back office's link · `EL-T09` the WhatsApp button's link is `https://wa.me/?text=` with the WhatsApp line (not the print line) and the link URL-encoded, and pressing it sends no request to the API.
 - **Cross-check with the app**: a test in `apps/pos` feeds the admin helper's output to `parseManagerLink` and gets the
   same company and business back, so the two sides cannot drift.
-- **Integration (apps/api), the logo read only** (its exact shape follows the ADR-0056 addendum): `EL-I01` a member whose membership reaches the business gets the
-  image · `EL-I02` a member of the same company whose membership does not reach that business, an unknown business,
-  and a business of another company all get the same 404 · `EL-I03` a business with no logo gets that 404, and every image answer writes one `file_access_audit` row and one
-  `file`/`access` `audit_log` entry in the same transaction as the access check, committed before the image is
-  delivered; a failure between them leaves neither · `EL-I05` whatever it returns carries `Cache-Control: private, no-store` · `EL-T10` (apps/admin) a storage
+- **Integration (apps/api), the logo read only** (its exact shape follows the ADR-0056 addendum): `EL-I01` a member whose membership reaches the business gets a
+  signed URL · `EL-I02` a member of the same company whose membership does not reach that business, an unknown business,
+  and a business of another company all get the same 404 · `EL-I03` a business with no logo gets that 404, and every URL answer writes one `file_access_audit` row and one
+  `file`/`access` `audit_log` entry in the same transaction as the access check, committed before the URL is
+  signed; a failure between them leaves neither · `EL-I05` the API answer and the signed object answer both carry `Cache-Control: private, no-store` · `EL-T10` (apps/admin) a storage
   failure shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry and no print, while a missing logo object prints the
   name only · `EL-I04`
   no session gets 401, and a missing or malformed `x-company-id` gets 400.

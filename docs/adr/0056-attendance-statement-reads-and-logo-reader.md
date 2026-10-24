@@ -157,3 +157,65 @@ statement request; the files reader re-checks the file at render time (§3). The
 - **Printing the name only when the logo cannot be fetched:** quietly produces a statement that differs from what the
   owner set up; a retry or a visible failure is better.
 - **Reading the logo bytes inside the tenant transaction:** storage IO in a transaction (ADR-0046 §4).
+
+## Addendum 2026-10-24 — the employee-app screen's logo read in the API (spec 069, M-1g)
+
+- **Status:** Proposed with the spec 069 plan (docs PR); accepted with sub-PR 069-2, which builds it. One point waits
+  on Waleed: EL-TQ1 (below).
+
+**Context.** Spec 069's print sheet carries the salon logo (EL-Q4, Waleed, 2026-10-24). Anyone who uses the back office
+may open that screen (EL-Q3), so the stored permission of the logo file (`manage:business-identity:business`, ADR-0046
+§5) cannot be the rule, exactly as the attendance statement's requester needs no files or settings permission (§3
+above). `readStatementLogo` cannot be reused: it lives in the worker, embeds bytes in a PDF, and needs a render id.
+
+**Decision.**
+
+1. **API `files` owns the read**, as a use case beside `issue-download` (`use-cases/issue-business-logo-download/`),
+   because `files` owns `file_access_audit` and `packages/storage`. Route:
+   `POST /v1/businesses/{businessId}/employee-app-link/logo-download`, `@HttpCode(200)`, `@Authenticated()` and
+   `SelectedCompanyGuard`, as `POST files/:id/download` is. The selected company comes from the guard's validated
+   `x-company-id`, never from the business. It writes, so it is listed in `AUTHENTICATED_WRITES` (PP-7.1) with the
+   place of its check. The audit id comes from the injected `IdGenerator`.
+2. **Phase 1, one transaction** `withTenant(company, …, { userId })`, in this order:
+   - Lock the access the way `lockDocumentAccess` does: the company row `FOR NO KEY UPDATE`, then the company's
+     memberships `ORDER BY id FOR SHARE`. A revocation takes the same locks, so it either committed before the check
+     (and the check sees it) or waits until this transaction ends.
+   - Check that the caller has an active membership in that company reaching the business: company, that business,
+     or one of its branches. This is the `me/workspaces` rule. The check comes through a port `files` owns,
+     `BusinessMemberReach`, whose adapter calls a function identity exports (`lockBusinessMemberReach`). It is a read,
+     so it adds a **`files → identity` read arrow**, declared in `docs/module-map.md` with this addendum. No write
+     crosses modules.
+   - Read the bound `logo_file_id` through `@pospay/db` `readBusinessIdentity` (§2's shared read), through a port
+     `BusinessLogoReference` whose adapter calls `@pospay/db`. There is no `files → settings` import, as with the
+     worker `LogoReference` row.
+   - Check the `file_objects` row as §3 phase 1 does: READY, `owner_module = 'settings'`, owner = the business,
+     `purge_started_at IS NULL`.
+   - Insert the `file_access_audit` row (`outcome = 'ALLOW'`, `actor_user_id` = the caller) and append the
+     `file`/`access` `audit_log` entry. Commit. Both records commit together or not at all.
+   - Any failed step answers one 404 `NOT_FOUND`: no membership reach, unknown business, another company's business,
+     no logo bound, or a file that no longer qualifies. Nothing is written in that case, so the answer never says which
+     step failed.
+3. **Phase 2, after the commit, with no transaction and no storage network call:** sign a GET URL with
+   `packages/storage` `presignDownload` (signing is local; it does not read the object, so ADR-0046 §4 holds). The URL
+   lives 60 seconds, as `IssueDownload` does. `presignDownload` gains an optional response cache policy so the stored
+   object answers `Cache-Control: private, no-store`. The API answer is `{ download_url, expires_in: 60 }`, also
+   `no-store`. **Issuing the URL is the audited access:** every URL leaves one audit pair, and the 60-second life
+   bounds its reuse, the accepted residual of every download in the project (ADR-0022).
+4. **Missing object versus failure** (spec 069: a missing object prints the name only; a storage error offers a
+   retry). The admin reads the object with `fetch` on the signed URL, and that needs the bucket's CORS to allow `GET`
+   from the back-office origins. ADR-0022 documents `PUT` only. That is **EL-TQ1**, a server setting for Waleed:
+   - ⭐ (a) add `GET` from the back-office origins to the bucket's CORS. Then 404 means name only, 403 (an expired URL)
+     means one new URL then the retry message, and any other failure or a 10-second timeout means the retry message.
+   - (b) keep CORS as is and load the logo with `<img>` only. A load failure cannot tell missing from error, so every
+     failure shows the retry message, and a truly missing logo blocks printing until the logo is uploaded again. The
+     message then says so. This changes spec 069's missing-object rule.
+
+**Consequences.** One new route and use case in API `files`, one exported identity lock function, two port rows and the
+`files → identity` read arrow in the module map, and an optional cache policy on `presignDownload`. No new table,
+permission, grant or role. Every sheet printed with a logo leaves an audit pair for the user who opened it.
+
+**Alternatives rejected.**
+- **Streaming the bytes through the API:** storage IO in a request (ADR-0046 §4), and up to 10 MiB held by an `api`
+  worker.
+- **The logo file's stored permission:** it would hide the logo from most of the people EL-Q3 lets open the screen.
+- **The `me/workspaces` read alone:** it proves membership but writes no audit, and it cannot sign a URL.
