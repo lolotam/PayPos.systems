@@ -8,6 +8,7 @@ import { attendanceInstallationId } from '../model/installation-id';
 import { PushControl } from './push-control';
 import { PushKeyStaleError, pushCalls } from './push-calls';
 import type { PushRecord } from './push-record';
+import { runSignInPushCheck } from './push-sign-in-check';
 
 const fakes = vi.hoisted(() => {
   const state = {
@@ -40,6 +41,10 @@ vi.mock('../model/installation-id', () => ({
   attendanceInstallationId: vi.fn(() => fakes.state.installationId),
   INSTALLATION_KEY: 'pospay.attendance.installation',
   INSTALLATION_STORAGE_BLOCKED: 'INSTALLATION_STORAGE_BLOCKED',
+}));
+
+vi.mock('./push-refresh', () => ({
+  refreshPush: vi.fn(async () => ({ kind: 'none' as const })),
 }));
 
 vi.mock('./push-record-idb', () => ({
@@ -348,4 +353,19 @@ it('shows the invitation once and keeps it away after it is dismissed', async ()
   mount();
   expect(await screen.findByText(t('en', 'staffPush.off'))).toBeDefined();
   expect(screen.queryByText(t('en', 'staffPush.invitationLead'))).toBeNull();
+});
+
+it('shows on after the sign-in check restores a record that was suspended', async () => {
+  fakes.state.record = { ...RECORD, suspended: true };
+  fakes.state.permission = 'granted';
+  fakes.state.subscribed = true;
+  mount();
+  expect(await screen.findByText(t('en', 'staffPush.reconnecting'))).toBeDefined();
+
+  await act(async () => {
+    await runSignInPushCheck();
+  });
+
+  expect(await screen.findByText(t('en', 'staffPush.on'))).toBeDefined();
+  expect(screen.queryByText(t('en', 'staffPush.reconnecting'))).toBeNull();
 });

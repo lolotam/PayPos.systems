@@ -6,74 +6,7 @@ import { LocaleProvider } from '@/shared/locale/locale-context';
 import { personalCalls } from '../api/personal-calls';
 import { EnrolPasskeyScreen } from './enrol-passkey-screen';
 vi.mock('../api/personal-calls', () => ({ personalCalls: { binding: vi.fn(), enrol: vi.fn() } }));
-vi.mock('../push/push-browser', () => ({
-  hasServiceWorker: () => false,
-  hasPushManager: () => false,
-  hasNotification: () => false,
-  supportsPush: () => false,
-  isIosDevice: () => false,
-  isStandalone: () => false,
-  notificationPermission: () => 'default' as const,
-  requestNotificationPermission: async () => 'default' as const,
-  currentSubscription: async () => null,
-  subscribePush: async () => ({
-    endpoint: '',
-    unsubscribe: async () => true,
-    toJSON: () => ({ endpoint: '', keys: { p256dh: '', auth: '' } }),
-  }),
-  unsubscribePush: async () => false,
-  base64UrlToBytes: () => new Uint8Array(),
-  pushSubscriptionBody: () => ({
-    endpoint: '',
-    expirationTime: null,
-    keys: { p256dh: '', auth: '' },
-  }),
-}));
-vi.mock('../push/push-calls', () => {
-  class PushApiError extends Error {
-    constructor(readonly code: string) {
-      super(code);
-      this.name = 'PushApiError';
-    }
-  }
-  class PushKeyStaleError extends PushApiError {
-    constructor() {
-      super('PUSH_KEY_STALE');
-      this.name = 'PushKeyStaleError';
-    }
-  }
-  class PushRegistrationBusyError extends PushApiError {
-    constructor() {
-      super('PUSH_REGISTRATION_BUSY');
-      this.name = 'PushRegistrationBusyError';
-    }
-  }
-  class PushRateLimitedError extends PushApiError {
-    constructor() {
-      super('RATE_LIMITED');
-      this.name = 'PushRateLimitedError';
-    }
-  }
-  return {
-    PushApiError,
-    PushKeyStaleError,
-    PushRegistrationBusyError,
-    PushRateLimitedError,
-    withTimeout: <T,>(promise: Promise<T>) => promise,
-    pushCalls: {
-      config: vi.fn(async () => ({ kind: 'not-ready' as const })),
-      register: vi.fn(async () => undefined),
-      revoke: vi.fn(async () => undefined),
-    },
-  };
-});
-vi.mock('../push/push-record-idb', () => ({
-  pushRecordStore: {
-    read: async () => null,
-    write: async () => undefined,
-    remove: async () => undefined,
-  },
-}));
+vi.mock('../push/push-control', () => ({ PushControl: () => null }));
 function mount(locale: Locale) {
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(

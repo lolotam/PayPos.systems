@@ -155,3 +155,36 @@ it('removes the record when the browser holds no subscription', async () => {
   expect(fakes.state.removed).toBe(1);
   expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION);
 });
+
+it('restores a suspended record of this company when the subscriber reference matches', async () => {
+  fakes.state.record = { ...RECORD, suspended: true };
+
+  const outcome = await refreshPush(input());
+
+  expect(outcome).toEqual({ kind: 'refreshed' });
+  expect(fakes.state.record?.suspended).toBe(false);
+  expect(fakes.state.removed).toBe(0);
+  expect(fakes.state.unsubscribed).toBe(0);
+});
+
+it('removes a suspended record of this company when the subscriber reference differs', async () => {
+  fakes.state.record = { ...RECORD, suspended: true };
+
+  const outcome = await refreshPush(input({ ...CONFIG, subscriber_ref: 'another-ref' }));
+
+  expect(outcome).toEqual({ kind: 'cleared' });
+  expect(fakes.state.removed).toBe(1);
+  expect(fakes.state.unsubscribed).toBe(1);
+  expect(fakes.state.record).toBeNull();
+});
+
+it('leaves a suspended record of another company untouched', async () => {
+  fakes.state.record = { ...RECORD, suspended: true, company_id: 'another-company' };
+
+  const outcome = await refreshPush(input());
+
+  expect(outcome).toEqual({ kind: 'none' });
+  expect(fakes.state.record?.suspended).toBe(true);
+  expect(fakes.state.removed).toBe(0);
+  expect(pushCalls.register).not.toHaveBeenCalled();
+});

@@ -55,12 +55,8 @@ export function usePersonalSession() {
       clear();
     },
     signOut: async () => {
-      try {
-        // الخروج الصريح بيشيل اشتراك الإشعارات من الموبايل؛ فشل الشبكة ما بيمنعش الخروج (ADR-0052 §7).
-        await disablePushOnSignOut();
-      } catch {
-        /* تنظيف الإشعارات ما بيوقفش تسجيل الخروج. */
-      }
+      // الخروج الصريح بيشيل اشتراك الإشعارات من الموبايل؛ التنظيف نفسه ما بيمنعش الخروج (ADR-0052 §7).
+      await disablePushOnSignOut();
       try {
         await personalCalls.signOut();
       } finally {

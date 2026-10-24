@@ -67,7 +67,7 @@ vi.mock('./push-calls', () => ({
       throw new Error('PUSH_REVOKE_REFUSED');
     }),
   },
-  withTimeout: <T>(promise: Promise<T>) => promise,
+  withTimeout: <T,>(promise: Promise<T>) => promise,
 }));
 
 let onlineSpy: { mockRestore(): void } | null = null;

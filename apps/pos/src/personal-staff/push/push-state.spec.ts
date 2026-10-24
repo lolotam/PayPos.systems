@@ -111,6 +111,15 @@ describe('the modifiers of the control', () => {
     expect(decision.reconnecting).toBe(true);
   });
 
+  it('shows off without a reconnecting note for a suspended record of another company', () => {
+    const decision = decidePushState(
+      input({ record: record({ suspended: true, company_id: 'other' }), reconnecting: true }),
+    );
+
+    expect(decision.state).toBe('off');
+    expect(decision.reconnecting).toBe(false);
+  });
+
   it('drops the reconnecting note once the notifications are on', () => {
     const decision = decidePushState(
       input({ permission: 'granted', record: record(), browserSubscribed: true, reconnecting: true }),

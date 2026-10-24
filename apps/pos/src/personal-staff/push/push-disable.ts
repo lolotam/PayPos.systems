@@ -1,6 +1,7 @@
 import { attendanceInstallationId } from '../model/installation-id';
 import { unsubscribePush } from './push-browser';
 import { pushCalls, withTimeout } from './push-calls';
+import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 
 const REVOKE_TIMEOUT_MS = 5000;
@@ -22,6 +23,7 @@ export async function disablePush(installationId: string | null): Promise<void> 
   } catch {
     // التخزين متعطل: مفيش سجل ينمسح أصلاً.
   }
+  notifyPushRecordChanged();
   if (installationId === null) return;
   try {
     await withTimeout(pushCalls.revoke(installationId), REVOKE_TIMEOUT_MS);
@@ -31,7 +33,7 @@ export async function disablePush(installationId: string | null): Promise<void> 
 }
 
 /**
- * تنظيف الإشعارات وقت تسجيل الخروج الصريح: نفس الـ disable، بس مبسوط وما بيمنعش الخروج أبداً.
+ * تنظيف الإشعارات وقت تسجيل الخروج الصريح: بتبلع أي فشل جواه، فتسجيل الخروج ما بيقفش أبداً.
  */
 export async function disablePushOnSignOut(): Promise<void> {
   let installationId: string | null = null;
@@ -40,5 +42,9 @@ export async function disablePushOnSignOut(): Promise<void> {
   } catch {
     // من غير معرف تثبيت مفيش مراجعة عند الـ API، بس السجل المحلي بينمسح.
   }
-  await disablePush(installationId);
+  try {
+    await disablePush(installationId);
+  } catch {
+    // الإيقاف بيلتف؛ الـ catch ده حماية أخيرة عشان تسجيل الخروج ما يتوقفش.
+  }
 }

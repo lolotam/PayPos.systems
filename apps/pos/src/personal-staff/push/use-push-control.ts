@@ -17,6 +17,7 @@ import {
 import { pushCalls } from './push-calls';
 import { disablePush } from './push-disable';
 import { enablePush } from './push-enable';
+import { onPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
 import { refreshPush } from './push-refresh';
@@ -102,6 +103,10 @@ function usePushLocalState(): PushLocalState {
     setSeen(invitationSeen());
     void reload();
   }, [reload, storageBlocked]);
+
+  // فحص التوقيع والتشغيل والإيقاف بيغيّروا السجل من برّه الـ hook، فالزر بيقرأ تاني
+  // كل ما السجل يتغيّر (ADR-0052 §7).
+  useEffect(() => onPushRecordChanged(() => void reload()), [reload]);
 
   return { snapshot, loaded, installationId, storageBlocked, seen, reload, markSeen };
 }

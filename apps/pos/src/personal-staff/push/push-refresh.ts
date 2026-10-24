@@ -10,6 +10,7 @@ import {
   unsubscribePush,
 } from './push-browser';
 import { pushCalls, withTimeout } from './push-calls';
+import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
 
@@ -37,10 +38,13 @@ export interface PushRefreshInput {
  * @returns نتيجة التحديث
  */
 export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshOutcome> {
-  const record = await pushRecordStore.read().catch(() => null);
-  if (record === null) return { kind: 'none' };
-  if (record.company_id !== input.companyId) return { kind: 'none' };
-  if (record.suspended) return { kind: 'none' };
+  const stored = await pushRecordStore.read().catch(() => null);
+  if (stored === null) return { kind: 'none' };
+  if (stored.company_id !== input.companyId) return { kind: 'none' };
+  if (stored.suspended && !(await resumeSuspended(input, stored))) {
+    return { kind: 'cleared' };
+  }
+  const record = stored.suspended ? { ...stored, suspended: false } : stored;
   if (notificationPermission() !== 'granted') return { kind: 'none' };
   if (input.installationId === null) return { kind: 'none' };
   if (input.config.vapid_key_id !== record.vapid_key_id) {
@@ -49,6 +53,7 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
   const subscription = await currentSubscription();
   if (subscription === null) {
     await pushRecordStore.remove().catch(() => undefined);
+    notifyPushRecordChanged();
     await revoke(input.installationId);
     return { kind: 'cleared' };
   }
@@ -60,6 +65,26 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
     locale: input.locale,
   });
   return { kind: 'refreshed' };
+}
+
+/**
+ * سجل معلّق بعد فحص توقيع فاشل: بنقارن مرجع المشترك بمرجع الجلسة.
+ * نفس المرجع بيرجّع السجل، ومرجع تاني جواب مؤكد فالسجل بيتمسح والاشتراك بيتشال (ADR-0052 §7).
+ *
+ * @param input الجلسة الحالية
+ * @param record السجل المعلّق
+ * @returns true لما السجل يرجع قايم
+ */
+async function resumeSuspended(input: PushRefreshInput, record: PushRecord): Promise<boolean> {
+  if (input.config.subscriber_ref === record.subscriber_ref) {
+    await pushRecordStore.write({ ...record, suspended: false }).catch(() => undefined);
+    notifyPushRecordChanged();
+    return true;
+  }
+  await unsubscribePush().catch(() => undefined);
+  await pushRecordStore.remove().catch(() => undefined);
+  notifyPushRecordChanged();
+  return false;
 }
 
 async function rotate(
@@ -87,6 +112,7 @@ async function rotate(
     vapid_key_id: input.config.vapid_key_id,
     suspended: false,
   });
+  notifyPushRecordChanged();
   return { kind: 'rotated', token };
 }
 

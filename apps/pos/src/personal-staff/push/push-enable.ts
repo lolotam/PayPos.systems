@@ -11,6 +11,7 @@ import {
   type PushSubscriptionLike,
 } from './push-browser';
 import { PushKeyStaleError, pushCalls } from './push-calls';
+import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 
 /** نتيجة محاولة التشغيل: اتشغّل، ولا المتصفح رفض، ولا الخدمة مش جاهزة، ولا في خطأ. */
@@ -75,6 +76,7 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
       vapid_key_id: config.config.vapid_key_id,
       suspended: false,
     });
+    notifyPushRecordChanged();
     return { kind: 'enabled', token };
   }
   return { kind: 'failed' };

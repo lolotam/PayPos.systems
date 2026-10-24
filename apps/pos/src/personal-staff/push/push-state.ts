@@ -36,10 +36,16 @@ export interface PushStateDecision {
  */
 export function decidePushState(input: PushStateInput): PushStateDecision {
   const offline = !input.online;
+  // "بنتصل تاني" بتخص السجل المعلّق للشركة اللي في الجلسة بس؛ سجل شركة تانية
+  // بيعرض "مقفول" عادي، لأن الموظفة غيرت الشركة (WP-Q4).
+  const ownSuspended =
+    input.record !== null &&
+    input.record.suspended &&
+    input.record.company_id === input.companyId;
   const modifiers = {
     storageBlocked: input.storageBlocked,
     offline,
-    reconnecting: input.reconnecting,
+    reconnecting: input.reconnecting && ownSuspended,
   };
   if (input.notReady) return { state: 'off', visible: false, ...modifiers };
   if (input.storageBlocked) {
@@ -61,6 +67,6 @@ export function decidePushState(input: PushStateInput): PushStateDecision {
     state: on ? 'on' : 'off',
     visible: true,
     ...modifiers,
-    reconnecting: input.reconnecting && !on,
+    reconnecting: modifiers.reconnecting && !on,
   };
 }

@@ -50,7 +50,8 @@ export interface SwPushPayload {
 }
 
 /**
- * بيتأكد إن الرابط مسار داخلي: مسار بيبدأ بشرطة مائلة واحدة، مش رابط تاني ولا بروتوكول.
+ * بيتأكد إن الرابط مسار داخلي: مسار بيبدأ بشرطة مائلة واحدة، من غير شرطة خلفية أو
+ * محارف تحكم (المتصفح بيقرأ الشرطة الخلفية كأنها مائلة، فبتودّي الرابط بره الأصل).
  *
  * @param value الرابط كما جاي في الحمولة
  * @returns المسار الآمن أو صفحة الموظف
@@ -59,6 +60,11 @@ export function safeUrl(value: string | undefined): string {
   if (typeof value !== 'string') return FALLBACK_URL;
   if (!value.startsWith('/')) return FALLBACK_URL;
   if (value.startsWith('//')) return FALLBACK_URL;
+  if (value.includes('\\')) return FALLBACK_URL;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 0x20 || code === 0x7f) return FALLBACK_URL;
+  }
   return value;
 }
 
@@ -141,6 +147,23 @@ function isSameOrigin(url: string, origin: string): boolean {
 }
 
 /**
+ * بيحلّ الرابط بالنسبة لأصل الصفحة:
+ *
+ * @param url المسار المرشّح
+ * @param origin أصل الصفحة
+ * @returns المسار اللي ينفتح
+ */
+function clickUrl(url: string, origin: string): string {
+  try {
+    const resolved = new URL(url, origin);
+    if (resolved.origin !== new URL(origin).origin) return FALLBACK_URL;
+    return resolved.pathname + resolved.search + resolved.hash;
+  } catch {
+    return FALLBACK_URL;
+  }
+}
+
+/**
  * هاندلر ضغطة الإشعار: بيقفل الإشعار، وبيركّز نافذة مفتوحة من نفس الأصل، أو بيفتح صفحة.
  *
  * @param input الإشعار والنوافذ وأصل الصفحة
@@ -151,7 +174,7 @@ export async function handleNotificationClick(input: {
   origin: string;
 }): Promise<void> {
   input.notification.close();
-  const url = safeUrl(input.notification.data?.url);
+  const url = clickUrl(safeUrl(input.notification.data?.url), input.origin);
   const windows = await input.clients.matchAll({ type: 'window', includeUncontrolled: true });
   const open = windows.find((client) => isSameOrigin(client.url, input.origin));
   if (open !== undefined) {

@@ -150,3 +150,29 @@ it('does nothing when the phone holds no record', async () => {
   expect(pushCalls.config).not.toHaveBeenCalled();
   expect(fakes.state.writes).toHaveLength(0);
 });
+
+it('leaves a newer record alone when the comparison finishes', async () => {
+  vi.mocked(pushCalls.config).mockImplementation(async () => {
+    fakes.state.record = { ...RECORD, token: 'newer-token' };
+    return { kind: 'ready', config: CONFIG };
+  });
+
+  await runSignInPushCheck();
+
+  expect(fakes.state.record?.token).toBe('newer-token');
+  expect(fakes.state.record?.suspended).toBe(false);
+  expect(fakes.state.removed).toBe(0);
+});
+
+it('does not delete a newer record when the subscriber reference differs', async () => {
+  vi.mocked(pushCalls.config).mockImplementation(async () => {
+    fakes.state.record = { ...RECORD, token: 'newer-token' };
+    return { kind: 'ready', config: { ...CONFIG, subscriber_ref: 'another-ref' } };
+  });
+
+  await runSignInPushCheck();
+
+  expect(fakes.state.removed).toBe(0);
+  expect(fakes.state.unsubscribed).toBe(0);
+  expect(fakes.state.record?.token).toBe('newer-token');
+});

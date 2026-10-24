@@ -4,6 +4,7 @@ import type { PushRecord } from './push-record';
 import { handleNotificationClick, handlePush } from './sw-handlers';
 
 const TOKEN = 'delivery-token';
+const BELL = String.fromCharCode(7);
 
 const RECORD: PushRecord = {
   token: TOKEN,
@@ -39,8 +40,8 @@ function store(record: PushRecord | null) {
   };
 }
 
-describe('the push handler of the service worker', () => {
-  it('shows the notice with its title, body, language and direction', async () => {
+describe('the push handler shows the notice of the payload', () => {
+  it('shows the title, the body, the language and the direction', async () => {
     const target = registration();
 
     await handlePush({ data: payload(), registration: target, store: store(RECORD) });
@@ -69,12 +70,14 @@ describe('the push handler of the service worker', () => {
       expect.objectContaining({ dir: 'ltr' }),
     );
   });
+});
 
+describe('the push handler shows the neutral notice', () => {
   it.each([
     ['a token that does not match', payload({ t: 'another-token' })],
     ['a payload that is not json', 'not-json'],
     ['a payload of another version', payload({ v: 2 })],
-  ])('shows the neutral notice for %s', async (_case, data) => {
+  ])('for %s', async (_case, data) => {
     const target = registration();
 
     await handlePush({ data, registration: target, store: store(RECORD) });
@@ -84,7 +87,7 @@ describe('the push handler of the service worker', () => {
     });
   });
 
-  it('shows the neutral notice when there is no record on the phone', async () => {
+  it('when there is no record on the phone', async () => {
     const target = registration();
 
     await handlePush({ data: payload(), registration: target, store: store(null) });
@@ -94,7 +97,7 @@ describe('the push handler of the service worker', () => {
     });
   });
 
-  it('shows the neutral notice while the record is suspended', async () => {
+  it('while the record is suspended', async () => {
     const target = registration();
 
     await handlePush({
@@ -108,7 +111,7 @@ describe('the push handler of the service worker', () => {
     });
   });
 
-  it('shows the neutral notice when the local store cannot be read', async () => {
+  it('when the local store cannot be read', async () => {
     const target = registration();
     const failing = {
       read: async () => {
@@ -124,12 +127,18 @@ describe('the push handler of the service worker', () => {
       data: { url: '/personal' },
     });
   });
+});
 
-  it.each([
+describe('the push handler keeps the link inside the app', () => {
+  const links: [string, string][] = [
     ['a link to another site', 'https://example.com/steal'],
     ['a protocol relative link', '//example.com/steal'],
     ['a path that is not internal', 'personal'],
-  ])('falls back to the staff page for %s', async (_case, url) => {
+    ['a path with a backslash', '/\\evil.example'],
+    ['a path with a control character', `/notice${BELL}`],
+  ];
+
+  it.each(links)('falls back to the staff page for %s', async (_case, url) => {
     const target = registration();
 
     await handlePush({ data: payload({ url }), registration: target, store: store(RECORD) });
@@ -185,6 +194,18 @@ describe('the notification click handler of the service worker', () => {
 
     await handleNotificationClick({
       notification: { close: vi.fn(), data: null },
+      clients: { matchAll: async () => [], openWindow },
+      origin: 'https://pos.example',
+    });
+
+    expect(openWindow).toHaveBeenCalledWith('/personal');
+  });
+
+  it('opens the staff page and not another site', async () => {
+    const openWindow = vi.fn(async () => null);
+
+    await handleNotificationClick({
+      notification: { close: vi.fn(), data: { url: 'https://evil.example/steal' } },
       clients: { matchAll: async () => [], openWindow },
       origin: 'https://pos.example',
     });
