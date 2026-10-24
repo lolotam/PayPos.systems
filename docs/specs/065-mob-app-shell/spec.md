@@ -187,7 +187,10 @@ start screen again.
   read names another company or business than the remembered one, the app treats the switch as unfinished. It shows
   a loading notice instead of the old business's screens, signs that session out once, and then shows the remembered
   business's sign-in. If that sign-out fails, it shows the «we could not sign you out» message with a «try again»
-  button, and never the old business's screens; there is no automatic retry loop (review of #588, built in B1). With
+  button, and never the old business's screens; there is no automatic retry loop (review of #588, built in B1). Each
+  sign-out attempt waits at most 10 seconds: one with no answer by then, or one answered while the same session is
+  still read, counts as failed and shows that message and button; a later answer is ignored (#603). Cancelling the
+  switch confirmation after a refused or offline switch also clears that switch's message (#605). With
   the counter role, it does not switch, and offers the role change of FR-008. An invalid or foreign link changes
   nothing and shows the existing «ask your manager for your link» message. The «عندي لينك» paste uses the same parser.
 - **FR-013**: The device credentials and the remembered business MUST NOT travel in an OS backup to another device:
