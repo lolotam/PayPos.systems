@@ -25,7 +25,7 @@ export function NativeEntry() {
   if (state.kind === 'loading') return <LoadingNotice />;
   if (state.kind === 'flow') {
     const alertText = state.alert ? t(locale, FLOW_ALERT_KEYS[state.alert]) : null;
-    const connect = <PasteLinkForm onConnect={(next) => void onLink(next)} />;
+    const connect = <PasteLinkForm onConnect={(next) => void onLink(next)} locked={busy} />;
     return (
       <>
         {alertText ? (

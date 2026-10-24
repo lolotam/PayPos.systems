@@ -61,3 +61,17 @@ it('a revoked session or offline transition hides prior data and clears private 
   expect(f.result.current.session).toBeNull();
   f.unmount();
 });
+it('a background refetch is not a new confirmation of no session', async () => {
+  vi.mocked(personalCalls.session).mockResolvedValue(null);
+  const f = fixture();
+  await waitFor(() => expect(f.result.current.confirmedNoSession).toBe(true));
+  vi.mocked(personalCalls.session).mockImplementation(() => new Promise(() => undefined));
+
+  await act(async () => {
+    void f.cache.invalidateQueries({ queryKey: ['personal-session'] });
+    await Promise.resolve();
+  });
+
+  await waitFor(() => expect(f.result.current.confirmedNoSession).toBe(false));
+  f.unmount();
+});

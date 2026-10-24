@@ -72,7 +72,7 @@ const START_OVER_CASES = [
     name: 'unsupported',
     screen: { kind: 'unsupported' },
     submitting: false,
-    visible: true,
+    visible: false,
   },
   {
     name: 'reception',

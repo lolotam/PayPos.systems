@@ -237,6 +237,9 @@ export async function resolveChoice(role: DeviceRole): Promise<NativeState> {
   }
 }
 
+/** مهلة إنهاء الجلسة قبل الرجوع عشان الشاشة ما تفضلش مقفولة لو الرد ما وصلش. */
+export const START_OVER_SIGN_OUT_WAIT_MS = 10_000;
+
 /**
  * بيخلّص الجلسة الشخصية قبل رجوع الموظفة لاختيار نوع الجهاز.
  * من غير نت أو من غير تأكيد السيرفر الدور والجلسة بيفضلوا زي ما هما (FR-001).
@@ -247,10 +250,22 @@ export async function resolveChoice(role: DeviceRole): Promise<NativeState> {
 export async function endEmployeeSessionFirst(current: NativeState): Promise<NativeState | null> {
   if (current.kind !== 'flow' || current.role !== 'employee') return null;
   if (!navigator.onLine) return { ...current, alert: 'roleChangeOffline' };
-  if ((await endPersonalSession()) === 'failed') {
+  if ((await endPersonalSessionWithTimeout()) === 'failed') {
     return { ...current, alert: 'roleChangeFailed' };
   }
   return null;
+}
+
+async function endPersonalSessionWithTimeout(): Promise<'done' | 'failed'> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<'failed'>((resolve) => {
+    timer = setTimeout(() => resolve('failed'), START_OVER_SIGN_OUT_WAIT_MS);
+  });
+  try {
+    return await Promise.race([endPersonalSession(), timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 /**

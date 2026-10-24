@@ -14,11 +14,11 @@ const HOST = 'pos.staging.pospay.systems';
 const COMPANY = '00000000-0000-4000-8000-000000000001';
 const BUSINESS = '00000000-0000-4000-8000-000000000002';
 
-function mount() {
+function mount(locked = false) {
   const onConnect = vi.fn();
   render(
     <LocaleProvider locale="ar" setLocale={() => undefined}>
-      <PasteLinkForm onConnect={onConnect} />
+      <PasteLinkForm onConnect={onConnect} locked={locked} />
     </LocaleProvider>,
   );
   return onConnect;
@@ -71,5 +71,12 @@ describe('PasteLinkForm', () => {
     expect(field.getAttribute('type')).toBe('url');
     expect(field.getAttribute('autocomplete')).toBe('off');
     expect(screen.getAllByRole('textbox')).toHaveLength(1);
+  });
+
+  it('disables the submit button while locked', () => {
+    mount(true);
+
+    const submit = screen.getByRole('button', { name: t('ar', 'nativeShell.pasteSubmit') });
+    expect(submit.hasAttribute('disabled')).toBe(true);
   });
 });

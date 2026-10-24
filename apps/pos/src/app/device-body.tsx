@@ -9,7 +9,7 @@ import { WaitingScreen } from '@/device/ui/waiting-screen';
 
 import { LoadingNotice } from './loading-notice';
 
-/** الرجوع قبل الاقتران ومن غير طلب شغال، أو مع جهاز مش مدعوم، عشان الاختيار الغلط ما يقفلش المسار. */
+/** الرجوع في كود الاقتران بس ومن غير طلب شغال؛ عدم الدعم ما بيثبتش إن الجهاز غير مقترن. */
 export function DeviceBody({
   session,
   startOver,
@@ -31,13 +31,6 @@ export function DeviceBody({
   }
   if (screen.kind === 'waiting') return <WaitingScreen onStartOver={session.startOver} />;
   if (screen.kind === 'offline') return <OfflineNotice onRetry={session.retry} />;
-  if (screen.kind === 'unsupported') {
-    return (
-      <>
-        <UnsupportedNotice />
-        {startOver}
-      </>
-    );
-  }
+  if (screen.kind === 'unsupported') return <UnsupportedNotice />;
   return <ReceptionBody branchId={screen.branchId} retry={session.retry} />;
 }

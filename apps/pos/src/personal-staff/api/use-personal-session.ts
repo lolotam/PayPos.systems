@@ -42,8 +42,9 @@ export function usePersonalSession() {
     epoch,
     online,
     loading: online && query.isPending,
-    // فشل قراءة الجلسة مش إثبات إن مفيش جلسة؛ التأكيد بيكون بجواب ناجح بس.
-    confirmedNoSession: online && query.isSuccess && query.data === null,
+    // فشل القراءة أو إعادة الجلب مش إثبات إن مفيش جلسة؛ التأكيد بيكون بجواب ناجح مكتمل بس.
+    confirmedNoSession:
+      online && query.isSuccess && !query.isFetching && query.data === null,
     // الجلب الدوري يحتفظ بالجلسة المؤكدة؛ فشل الشبكة وحده لا يلغي إثباتاً صالحاً.
     session: online ? (query.data ?? null) : null,
     changed: () => {

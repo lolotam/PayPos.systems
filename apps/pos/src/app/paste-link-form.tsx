@@ -9,14 +9,18 @@ import { readManagerLink, type PersonalWorkspace } from './manager-link';
 
 export function PasteLinkForm({
   onConnect,
+  locked = false,
 }: {
   onConnect: (workspace: PersonalWorkspace) => void;
+  locked?: boolean;
 }) {
   const locale = useLocale();
   const [value, setValue] = useState('');
   const [refused, setRefused] = useState(false);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // القفل بيمنع قبول لينك أثناء خطوة بتغيّر الشاشة والدور.
+    if (locked) return;
     const workspace = readManagerLink(value);
     if (workspace === null) {
       setRefused(true);
@@ -36,10 +40,13 @@ export function PasteLinkForm({
         dir="ltr"
         autoComplete="off"
         value={value}
+        disabled={locked}
         onChange={(event) => setValue(event.target.value)}
       />
       {refused ? <p role="alert">{t(locale, 'personalStaff.linkRequired')}</p> : null}
-      <Button type="submit">{t(locale, 'nativeShell.pasteSubmit')}</Button>
+      <Button type="submit" disabled={locked}>
+        {t(locale, 'nativeShell.pasteSubmit')}
+      </Button>
     </form>
   );
 }

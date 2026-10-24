@@ -19,6 +19,7 @@ import { LocaleProvider } from '@/shared/locale/locale-context';
 import { readLaunchLink } from '@/shared/platform/launch-links';
 
 import { NativeEntry } from './native-entry';
+import { START_OVER_SIGN_OUT_WAIT_MS } from './link-rules';
 
 const opened = vi.hoisted(() => ({ listener: null as ((url: string) => void) | null }));
 
@@ -115,6 +116,7 @@ function prepare() {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -342,10 +344,16 @@ describe('NativeEntry remembered business', () => {
   });
 });
 
-async function backFrom(role: DeviceRole) {
+async function backFrom(role: DeviceRole, waitMs?: number) {
   const heading = role === 'counter' ? 'device screen' : 'personal screen';
   expect(await screen.findByRole('heading', { name: heading })).not.toBeNull();
+  if (waitMs !== undefined) vi.useFakeTimers();
   fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.startOver') }));
+  if (waitMs !== undefined) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(waitMs);
+    });
+  }
 }
 
 describe('back to the device choice (FR-001)', () => {
@@ -386,14 +394,19 @@ describe('back to the device choice refused safely', () => {
   it.each([
     { mode: 'failed', alert: 'nativeShell.roleChangeFailed', endings: 1 },
     { mode: 'offline', alert: 'nativeShell.roleChangeOffline', endings: 0 },
+    { mode: 'timeout', alert: 'nativeShell.roleChangeFailed', endings: 1 },
   ] as const)(
     'keeps the employee flow when sign-out is $mode',
     async ({ mode, alert, endings }) => {
       if (mode === 'failed') vi.mocked(endPersonalSession).mockResolvedValue('failed');
-      else vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+      else if (mode === 'offline') vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+      else vi.mocked(endPersonalSession).mockReturnValue(new Promise<never>(() => undefined));
       vi.mocked(readDeviceRole).mockResolvedValue('employee');
       mount();
-      await backFrom('employee');
+      await backFrom(
+        'employee',
+        mode === 'timeout' ? START_OVER_SIGN_OUT_WAIT_MS : undefined,
+      );
 
       const message = await screen.findByRole('alert');
       expect(message.textContent).toContain(t('ar', alert));
