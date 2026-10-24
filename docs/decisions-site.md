@@ -9,7 +9,7 @@ This page explains how the orchestrator runs the shared «قرارات PosPay» 
 | Source repo (private) | `https://github.com/lolotam/plan`, branch `main`. Local clone: `F:\Dev\Projects\plan-pospay` |
 | Question content (static) | `public/decisions.json` (Arabic) **and** `public/decisions.en.json` (Arabic and English). The page loads `decisions.en.json` first and falls back to `decisions.json`, so **always update both** |
 | Project-status tab «المشروع أول بأول» | `public/roadmap.json` (`updated`, `phases[]`, `tracks[]`, `partner[]`) |
-| Answers, reviews, final decisions, suggestions | Live JSON database on the server (`/data/db.json` in the Docker volume `plan-data`). Read and write it **only through the HTTP API**, never through git |
+| Answers, reviews, final decisions, suggestions | Live SQLite database on the server (`/data/db.sqlite` in the Docker volume `plan-data`, since 2026-10-24, PP-51.1), with an append-only log of every change (time, user, path, old and new value); the old `/data/db.json` stays read-only as the rollback source. Read and write it **only through the HTTP API**, never through git or the files |
 | Deploy | Dokploy application `plan-plan-tepef6`. Every push to `main` deploys again on its own in about 10 s, and the database volume survives |
 
 **Login.** The site uses Basic Auth. Use Waleed's account, which is the owner account.
@@ -53,9 +53,19 @@ curl -s -u "$PLAN_AUTH" "$B/api/doc?path=decisions/<docId>"
 # GET decisions/<docId> and Abu Salem's note first: if a decision exists, or Abu Salem picked differently,
 # do not PUT. His pick binds (PP-1.2), so bring the conflict to Waleed instead. When you do overwrite an older
 # decision on Waleed's word, name the old choice in "source" so the history survives.
-curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' \
+# Do it as ONE GET that saves both the body you inspect and its ETag, so the ETag belongs to what you read.
+# Stop if the ETag is missing: an empty If-Match is dropped by curl, and a PUT without it writes unconditionally.
+curl -s -u "$PLAN_AUTH" -D decision.headers -o decision.json "$B/api/doc?path=decisions/<docId>"
+ETAG=$(tr -d '\r' < decision.headers | awk 'tolower($1)=="etag:"{print $2}')
+[ -n "$ETAG" ] || { echo "no ETag, not writing"; exit 1; }
+# inspect decision.json (and Abu Salem's note) here; write only if the rule above allows it
+# A 412 {"code":"stale"} means someone wrote in between; GET again and re-decide.
+curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' -H "If-Match: $ETAG" \
   -d '{"qid":"XX-Q1","choice":0,"decidedAt":"<ISO time>","source":"Waleed answered in chat, <date>"}' \
   "$B/api/doc?path=decisions/<docId>"
+# If-Match guards only the document written, not Abu Salem's separate note. GET his note again right after
+# the PUT: if it appeared or changed, his pick still binds, so correct the decision and bring it to Waleed.
+# §C re-reads his notes after every merge and at session start, so a later change is caught there too.
 
 # health, no auth
 curl -s "$B/health"
@@ -63,7 +73,12 @@ curl -s "$B/health"
 
 `choice` is a 0-based index into the question's `options_ar`. A collection response is `{"docs":[{"id":…,"data":{…}}]}`.
 
-## A. Publish a new question batch (every kind of owner question)
+## A. Publish a new question batch (feature and business questions only)
+
+Technical questions (the implementer model, tools and the pipeline, infrastructure, CI, server and storage settings,
+code design) never go on this site: send them to Waleed as cards and record his answer in the slice's
+`owner-questions.ar.md` or in `docs/owner-decisions.ar.md` (`CLAUDE.md` §1 5b, V3.17). When in doubt, ask Waleed
+which kind a question is.
 
 1. **Record first** (`CLAUDE.md` §1 5b, "Always first"). Write each question into the slice's
    `owner-questions.ar.md`, or into `docs/owner-decisions.ar.md` when it belongs to no slice. Mark its answer `PENDING`.
@@ -83,13 +98,19 @@ curl -s "$B/health"
 Every question also goes to Waleed's super agent as `PP-n` (`CLAUDE.md` §1 5b). When his card answer comes back, record it on the site as his own pick, not as a final decision:
 
 ```bash
-# Waleed's pick from a card: a note under his user id, marked source "card" (choice = 0-based option index)
-curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' \
+# Waleed's pick from a card: a note under his user id, marked source "card" (choice = 0-based option index).
+# One GET saves the note you inspect and its ETag (a missing note has one too); stop if the ETag is empty.
+N="$B/api/doc?path=reviews/u_kxawXFcE2cQIRRqI4Cn8Iw/notes/<docId>"
+curl -s -u "$PLAN_AUTH" -D note.headers -o note.json "$N"
+ETAG=$(tr -d '\r' < note.headers | awk 'tolower($1)=="etag:"{print $2}')
+[ -n "$ETAG" ] || { echo "no ETag, not writing"; exit 1; }
+# inspect note.json here: write only when it does not exist or its source is "card" (below)
+curl -s -u "$PLAN_AUTH" -X PUT -H 'content-type: application/json' -H "If-Match: $ETAG" \
   -d '{"qid":"XX-Q1","verdict":"ok","choice":0,"text":"<his words, verbatim>","source":"card","updatedAt":"<ISO time>"}' \
-  "$B/api/doc?path=reviews/u_kxawXFcE2cQIRRqI4Cn8Iw/notes/<docId>"
+  "$N"
 ```
 
-Before the PUT, GET the note: write only when it does not exist (`{"exists":false}`) or its `source` is `"card"`. A note without `source` was made on the page by Waleed himself and is not overwritten. The API has no conditional write yet, so the GET and the PUT are not atomic: a pick he saves on the page in the moment between them is overwritten, and a GET afterwards cannot detect it, because it returns the note you just wrote. This residual risk is accepted until #461 adds an atomic check. It needs Waleed to answer the same question on the page and by card within the same second. To keep it visible: do the GET and the PUT back to back; record the card answer in the audit record (`owner-questions.ar.md` or `docs/owner-decisions.ar.md`) before the PUT, so it is never lost; and when Waleed says he picked something else on the page, his page pick wins, and you correct the record. When his card answer matches no option (free text), store it as `"verdict":"change"` with his words in `text` and no `choice`, so the page shows it as his own answer and not as agreement with the recommended option.
+Before the PUT, GET the note: write only when it does not exist (`{"exists":false}`) or its `source` is `"card"`. A note without `source` was made on the page by Waleed himself and is not overwritten. Since 2026-10-24 the API has a conditional write: `GET /api/doc` returns an `ETag` header (a missing document has one too), and a `PUT` that sends it as `If-Match` is refused with `412 {"code":"stale","etag":…}` and writes nothing when the document changed in between. Always send it, which closes the race #461 described: on a 412, GET again and apply the rule above to what is there now. A `PUT` without `If-Match` still writes unconditionally, so never omit it. Also record the card answer in the audit record (`owner-questions.ar.md` or `docs/owner-decisions.ar.md`) before the PUT, so it is never lost; and when Waleed says he picked something else on the page, his page pick wins, and you correct the record. When his card answer matches no option (free text), store it as `"verdict":"change"` with his words in `text` and no `choice`, so the page shows it as his own answer and not as agreement with the recommended option.
 
 ## B. After every merge, and after any row change or new partner request
 
