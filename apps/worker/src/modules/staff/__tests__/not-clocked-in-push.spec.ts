@@ -42,6 +42,7 @@ async function branchMember(tenant: Tenant, userId: string, roleId: string): Pro
 /** حقائق محاولة الدفع اللي تهم الاختبار. */
 function attemptFacts(attempts: readonly postgres.Row[]) {
   return attempts.map((attempt) => ({
+    id: String(attempt['id']),
     locale: String(attempt['locale']),
     userId: String(attempt['user_id']),
     templateKey: String(attempt['template_key']),
@@ -50,6 +51,11 @@ function attemptFacts(attempts: readonly postgres.Row[]) {
     deadline: isoOf(attempt['send_deadline'] as string | Date),
     parameters: attempt['safe_parameters'] as SafeParameter[],
   }));
+}
+
+/** معرّفات المحاولات اللي أذنت بإرسالها: حدث إذن واحد لكل محاولة. */
+function authorizedAttemptIds(rows: readonly postgres.Row[]) {
+  return rows.map((row) => String((row['payload'] as { attempt_id: string }).attempt_id)).sort();
 }
 
 it('PW-11 the managers get the bell and the employee gets one push in each of her languages', async () => {
@@ -84,6 +90,10 @@ it('PW-11 the managers get the bell and the employee gets one push in each of he
       { name: 'branch_name_en', type: 'text', value: 'Salmiya' },
     ]);
   }
+  // كل محاولة معلّقة ليها حدث إذن إرسال واحد باسمها؛ ده التسليم للـ worker اللي بيبعت.
+  expect(authorizedAttemptIds(await f.pushAuthorizations(tenant.company))).toEqual(
+    attempts.map((row) => row.id).sort(),
+  );
   const arabic = attempts.find((row) => row.locale === 'ar');
   const english = attempts.find((row) => row.locale === 'en');
   expect(renderPushNotice('shift_not_clocked_in_self', 1, 'ar', arabic?.parameters ?? [])).toEqual({
@@ -100,6 +110,7 @@ it('PW-11 the managers get the bell and the employee gets one push in each of he
   expect(await f.detect().execute(tenant.company)).toEqual({ notified: 0 });
   expect(await f.events(tenant.company)).toHaveLength(2);
   expect(await f.pushAttempts(tenant.company)).toHaveLength(2);
+  expect(await f.pushAuthorizations(tenant.company)).toHaveLength(2);
   expect(await f.inAppRows(tenant.company)).toHaveLength(1);
 }, 60_000);
 

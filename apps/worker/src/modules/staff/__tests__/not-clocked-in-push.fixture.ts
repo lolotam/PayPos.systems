@@ -32,6 +32,8 @@ export interface NotClockedInPushFixture extends NotClockedInFixture {
   subscribe(company: string, userId: string, locale: 'ar' | 'en'): Promise<string>;
   /** محاولات الدفع المسجلة للشركة. */
   pushAttempts(company: string): Promise<postgres.RowList<postgres.Row[]>>;
+  /** أحداث إذن إرسال الدفع: كل محاولة لها واحد. */
+  pushAuthorizations(company: string): Promise<postgres.RowList<postgres.Row[]>>;
   /** صفوف الجرس داخل التطبيق للشركة. */
   inAppRows(company: string): Promise<postgres.RowList<postgres.Row[]>>;
 }
@@ -51,6 +53,9 @@ export async function notClockedInPushFixture(): Promise<NotClockedInPushFixture
     pushAttempts: (company) =>
       base.owner`SELECT id, user_id, template_key, template_revision, locale, status, send_deadline,
           safe_parameters FROM push_attempts WHERE company_id=${company} ORDER BY id`,
+    pushAuthorizations: (company) =>
+      base.owner`SELECT payload FROM outbox
+        WHERE company_id=${company} AND event_type='PushSendAuthorized' ORDER BY seq`,
     inAppRows: (company) =>
       base.owner`SELECT recipient_user_id, template_key FROM in_app_notifications
         WHERE company_id=${company} ORDER BY recipient_user_id`,
