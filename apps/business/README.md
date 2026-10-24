@@ -55,6 +55,16 @@ VITE_API_URL=https://api.staging.pospay.systems FLAVOUR=staging pnpm turbo run s
 VITE_API_URL=https://api.pospay.systems FLAVOUR=production pnpm turbo run sync:production --filter=@pospay/business
 ```
 
+## اختبار iOS على المحاكي (M-1c)
+
+الاتنين تستات بيتأكدوا إن شاشة البداية بتفتح وفيها اختياري الكاونتر وحساب الموظفة، وإن اختيار
+«حسابي كموظفة» بيفضل محفوظ بعد قفل التطبيق وفتحه تاني، فحقل لصق لينك المدير بيرجع يظهر من غير
+شاشة البداية. مشروع الاختبار منفصل و`ios/ui-tests/make-project.rb` بيولّده على الـ runner، عشان
+`App.xcodeproj` ما يتعدّلش.
+
+لتشغيله: افتح Actions → Mobile → Run workflow، اختار الفرع، وعلّم على `spike`. الاختبار بيشتغل على
+نسخة `staging` بس، ونتيجته بتنزل في الـ artifact اسمه `ios-spike-xcresult`.
+
 ## أسرار الـ CI
 
 الملف ده فيه **أسماء** المتغيرات بس. القيم كلها أسرار في environments بتاعت GitHub Actions
