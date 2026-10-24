@@ -48,6 +48,17 @@ Play internal uploads are M-2, gated on the company that will own the store acco
 | M-1g | Back-office employee-app link and QR (`apps/admin`) | a screen in the back office that shows the manager the employee-app link `https://<pos host>/personal?company=…&business=…` and its QR code (one link per business, EL-Q1, Waleed's pick; Abu Salem pending) (APP-Q9: both); its own spec, [069](../069-mob-employee-link-qr/spec.md), owner questions EL-Q1…EL-Q5 pending; agreed with the web manager because it is `apps/admin` | M-1·0 | The manager can copy the link, show and print its QR code, and open WhatsApp with it (EL-Q4) |
 | M-1h | In-app QR scan (FR-014) | in `apps/pos`: a «امسحي كود الصالون» option on the employee connect screen that reads the QR with the attendance camera and hands its content to the FR-012 parser; hidden with the FR-007 line wherever the camera port is off | M-1d (camera port), M-1g (QR exists) | Scanning a valid QR connects the business on Android (M-1c camera check passed); on iOS the option stays hidden until M-1c-ii passes; test MOB-T20 |
 
+## M-1c results
+
+Recorded as each check is run (plan row M-1c). Android: a real phone with the side-loaded staging debug APK;
+iOS: the `spike` dispatch of `mobile.yml` on the simulator.
+
+| Date (Kuwait) | Platform | Check | Result |
+|---|---|---|---|
+| 2026-10-25 00:15 | Android, APK of run 40119927430 (1ffcf219) | Install and identity: the «نسخة تجربة» strip, the logo, both start choices | ✅ (Waleed) |
+| 2026-10-25 00:15 | Android, same APK | Going back after a first choice | ❌ (Waleed): after «جهاز الكاونتر» or «حسابي كموظفة» there was no way back to the start screen, even with nothing paired or signed in; the back key left the app and a relaunch reopened the same flow. Fixed by the FR-001 back control (PR for this finding). |
+| pending | Android | (a) pairing, (b) staff PIN | waiting for Waleed's run after the fix; (c)–(e) wait for the OTP decision |
+
 ## M-2 — signed builds and internal distribution (not started; gated)
 
 APP-Q1 is final and APP-Q2 … APP-Q7 are answered. M-2 starts only when **the company that will own the store accounts
