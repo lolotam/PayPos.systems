@@ -14,6 +14,7 @@ export const nativeShellEn = {
   switchBusinessConfirm: 'Switch to another salon?',
   roleChangeOffline: 'This needs the internet. Nothing was changed.',
   roleChangeFailed: 'We could not sign you out. Nothing was changed; try again.',
+  retry: 'Try again',
   confirm: 'Confirm',
   cancel: 'Cancel',
 } as const;
@@ -34,6 +35,7 @@ export const nativeShellAr: Record<keyof typeof nativeShellEn, string> = {
   switchBusinessConfirm: 'تبدّلي لصالون تاني؟',
   roleChangeOffline: 'ده محتاج نت. ماتغيّرش حاجة.',
   roleChangeFailed: 'مقدرناش نخرّجك. ماتغيّرش حاجة، حاولي تاني.',
+  retry: 'حاولي تاني',
   confirm: 'تأكيد',
   cancel: 'إلغاء',
 };

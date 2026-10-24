@@ -11,7 +11,6 @@ import {
   saveDeviceRole,
   type DeviceRole,
 } from '@/app/device-role';
-import { endPersonalSession } from '@/app/end-sessions';
 import { usePersonalSession } from '@/personal-staff/api/use-personal-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { readLaunchLink } from '@/shared/platform/launch-links';
@@ -26,9 +25,6 @@ vi.mock('@/app/device-role', () => ({
   saveDeviceRole: vi.fn(),
   rememberBusiness: vi.fn(),
   connectEmployee: vi.fn(),
-}));
-vi.mock('@/app/end-sessions', () => ({
-  endPersonalSession: vi.fn(),
 }));
 vi.mock('@/app/device-screen', () => ({
   DeviceScreen: () => <h2>device screen</h2>,
@@ -86,7 +82,6 @@ function prepare() {
   vi.mocked(saveDeviceRole).mockResolvedValue(undefined);
   vi.mocked(rememberBusiness).mockResolvedValue(undefined);
   vi.mocked(connectEmployee).mockResolvedValue(undefined);
-  vi.mocked(endPersonalSession).mockResolvedValue('done');
   vi.mocked(usePersonalSession).mockReturnValue({
     epoch: 0,
     online: true,
@@ -112,6 +107,7 @@ describe('NativeEntry start screen', () => {
     ).not.toBeNull();
     expect(screen.queryByRole('heading', { name: 'device screen' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'personal screen' })).toBeNull();
+    expect(usePersonalSession).not.toHaveBeenCalled();
   });
 
   it.each(roles)(
@@ -124,6 +120,14 @@ describe('NativeEntry start screen', () => {
       expect(screen.queryByRole('heading', { name: t('ar', 'nativeShell.title') })).toBeNull();
     },
   );
+
+  it('never reads the personal session on a counter device', async () => {
+    vi.mocked(readDeviceRole).mockResolvedValue('counter');
+    mount();
+
+    expect(await screen.findByRole('heading', { name: 'device screen' })).not.toBeNull();
+    expect(usePersonalSession).not.toHaveBeenCalled();
+  });
 
   it('shows the loading notice while the stored role is being read', () => {
     vi.mocked(readDeviceRole).mockReturnValue(new Promise<DeviceRole | null>(() => undefined));

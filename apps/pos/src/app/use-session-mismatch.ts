@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { usePersonalSession } from '@/personal-staff/api/use-personal-session';
 
@@ -6,12 +6,13 @@ import { endPersonalSession } from './end-sessions';
 import type { PersonalWorkspace } from './manager-link';
 
 /** الجلسة الشخصية اللي الشاشة بتقراها. */
-type PersonalSession = ReturnType<typeof usePersonalSession>['session'];
+type PersonalSession = NonNullable<ReturnType<typeof usePersonalSession>['session']>;
 
-/** الجلسة اللي الشاشة بتقدر تعرضها، وهل هي لنشاط تاني غير المتذكر. */
-export interface PersonalSessionView {
-  session: PersonalSession;
+/** حالة فروق الجلسة: الجلسة لنشاط تاني، والخروج فشل، وإعادة المحاولة. */
+export interface SessionMismatch {
   mismatched: boolean;
+  failed: boolean;
+  retry: () => void;
 }
 
 /**
@@ -23,25 +24,42 @@ export interface PersonalSessionView {
  * والجلسة القديمة بتخلص.
  *
  * @param remembered النشاط المتذكر على الجهاز
- * @returns الجلسة اللي الشاشة بتقدر تعرضها
+ * @returns هل الجلسة لنشاط تاني، وهل الخروج فشل، ودالة إعادة المحاولة
  */
-export function useSessionMismatch(remembered: PersonalWorkspace | null): PersonalSessionView {
+export function useSessionMismatch(remembered: PersonalWorkspace | null): SessionMismatch {
   const { session } = usePersonalSession();
   const ended = useRef(new Set<string>());
+  const [failed, setFailed] = useState(false);
   const mismatched =
     remembered !== null &&
     session !== null &&
     (session.company_id !== remembered.company_id ||
       session.business_id !== remembered.business_id);
   useEffect(() => {
-    if (!mismatched || session === null) return;
-    const key = `${session.company_id}:${session.business_id}:${session.user_id}:${session.expires_at}`;
+    if (!mismatched || session === null) {
+      setFailed(false);
+      return;
+    }
+    const key = sessionKey(session);
+    // الجلسة دي اتجرّبت قبل كده: من غير حلقة مفرغة، واللي يقدر يعيد المحاولة هو الموظفة.
     if (ended.current.has(key)) return;
     ended.current.add(key);
+    setFailed(false);
     void endPersonalSession().then((result) => {
-      // الخروج المرفوض مش تكرار: القراءة الجاية تحاول تاني، بس من غير حلقة مفرغة.
-      if (result === 'failed') ended.current.delete(key);
+      if (result === 'failed') setFailed(true);
     });
   }, [mismatched, session]);
-  return { session: mismatched ? null : session, mismatched };
+  const retry = useCallback(() => {
+    if (session === null) return;
+    setFailed(false);
+    void endPersonalSession().then((result) => {
+      if (result === 'failed') setFailed(true);
+    });
+  }, [session]);
+  return { mismatched, failed, retry };
+}
+
+/** مفتاح الجلسة: نفس الجلسة بتخلص مرة واحدة بس، واللي يعيدها هو الموظفة. */
+function sessionKey(session: PersonalSession): string {
+  return `${session.company_id}:${session.business_id}:${session.user_id}:${session.expires_at}`;
 }
