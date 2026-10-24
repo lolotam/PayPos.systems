@@ -191,13 +191,15 @@ above). `readStatementLogo` cannot be reused: it lives in the worker, embeds byt
    - Check the `file_objects` row as §3 phase 1 does: READY, `owner_module = 'settings'`, owner = the business,
      `purge_started_at IS NULL`.
    - Insert the `file_access_audit` row (`outcome = 'ALLOW'`, `actor_user_id` = the caller) and append the
-     `file`/`access` `audit_log` entry. Commit. Both records commit together or not at all.
+     `file`/`access` `audit_log` entry.
+   - Sign the GET URL with `packages/storage` `presignDownload`, still inside the transaction. Signing is local
+     computation with no network call (ADR-0046 §4 holds), so a signing failure rolls both audit records back and an
+     `ALLOW` is never recorded for a URL that was not issued. Commit. Both records and the URL stand together or not at all.
    - Any failed step answers one 404 `NOT_FOUND`: no membership reach, unknown business, another company's business,
      no logo bound, or a file that no longer qualifies. Nothing is written in that case, so the answer never says which
      step failed.
-3. **Phase 2, after the commit, with no transaction and no storage network call:** sign a GET URL with
-   `packages/storage` `presignDownload` (signing is local; it does not read the object, so ADR-0046 §4 holds). The URL
-   lives 60 seconds, as `IssueDownload` does. `presignDownload` gains an optional response cache policy so the stored
+3. **After the commit:** return the signed URL. No storage network call happens in the request; the browser reads the
+   object itself. The URL lives 60 seconds, as `IssueDownload` does. `presignDownload` gains an optional response cache policy so the stored
    object answers `Cache-Control: private, no-store`. The API answer is `{ download_url, expires_in: 60 }`, also
    `no-store`. **Issuing the URL is the audited access:** every URL leaves one audit pair, and the 60-second life
    bounds its reuse, the accepted residual of every download in the project (ADR-0022).

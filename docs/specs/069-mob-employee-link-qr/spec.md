@@ -167,16 +167,10 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
     never be audited as allowed and the two records commit together or not at all. The image is delivered only after
     that commit, outside any transaction. Because it writes, it is not a `queries/` read
     (`CLAUDE.md` §6), it carries the PP-7.1 write declaration, and its ids come from the injected `IdGenerator`.
-  - **Constraints the addendum must resolve, not decided here:** the module that owns the read, and how it learns the
-    `logo_file_id` of `settings` without a new reverse dependency (`docs/module-map.md`); how the image travels
-    without breaking ADR-0046 §4 (storage IO never in a request, a consumer or a transaction) or the 200 ms rule of
-    `CLAUDE.md` §6, and every delivered image counts as an audited access: either the addendum makes issuing a URL the audited access,
-    with an exact short lifetime and `Cache-Control: private, no-store` on the stored object's own answer, or every
-    fetch goes through the check and the audit; and `Cache-Control: private, no-store` on anything the API returns.
-    The addendum also settles two more points: how the access check locks the membership so a revocation committing
-    at the same moment cannot be audited as allowed (the same lock order the revocation uses); and how the screen tells
-    a missing logo object from a storage error under the chosen transport (an `<img>` load failure shows no status, a
-    `fetch` needs CORS on the bucket, and an expired URL answers 403), so the two outcomes below stay decidable.
+  - **Settled by the addendum** (not repeated here): the read lives in API `files`; it learns `logo_file_id` through
+    `@pospay/db` `readBusinessIdentity` with no `files → settings` import; it locks like `lockDocumentAccess`; it
+    issues a 60-second signed URL, signed inside the audited transaction, with `Cache-Control: private, no-store`; and
+    the screen tells a missing logo from a failure by the storage answer (CORS `GET`, EL-TQ1).
   - **When the logo cannot be shown:** a bound logo whose stored object is missing counts as no logo, and the sheet
     prints with the name only, as ADR-0056 does for statements. A storage error or timeout shows «اللوجو مش متاح
     دلوقتي، جرّبي تاني» with a retry, and the sheet does not print without the logo in that case.
@@ -216,8 +210,8 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
 - **Integration (apps/api), the logo read only** (its exact shape follows the ADR-0056 addendum): `EL-I01` a member whose membership reaches the business gets a
   signed URL · `EL-I02` a member of the same company whose membership does not reach that business, an unknown business,
   and a business of another company all get the same 404 · `EL-I03` a business with no logo gets that 404, and every URL answer writes one `file_access_audit` row and one
-  `file`/`access` `audit_log` entry in the same transaction as the access check, committed before the URL is
-  signed; a failure between them leaves neither · `EL-I05` the API answer and the signed object answer both carry `Cache-Control: private, no-store` · `EL-T10` (apps/admin) a storage
+  `file`/`access` `audit_log` entry in the same transaction as the access check and the URL signature; a failure anywhere in it,
+  signing included, leaves neither record · `EL-I05` the API answer and the signed object answer both carry `Cache-Control: private, no-store` · `EL-T10` (apps/admin) a storage
   failure shows «اللوجو مش متاح دلوقتي، جرّبي تاني» with a retry and no print, while a missing logo object (a 404 `NoSuchKey`) prints the
   name only, and a 404 `NoSuchBucket` or an unreadable answer is treated as the storage failure · `EL-I04`
   no session gets 401, and a missing or malformed `x-company-id` gets 400.

@@ -59,8 +59,8 @@ No violation; Complexity Tracking is empty.
 
 | Row | What | Files (main) | Depends on | Done when |
 |---|---|---|---|---|
-| 069-1 | The page without printing: link, QR, copy, WhatsApp | `apps/admin/src/staff/employee-app-link/` (page, link helper, QR, copy, WhatsApp link), the route under `apps/admin/app/(dashboard)/staff/`, the staff-menu entry and the employees-page button; `packages/i18n` keys; one shared POS-hosts constant used by `apps/pos/vite.config.ts` and the admin helper; `NEXT_PUBLIC_POS_URL` in `apps/admin/next.config.ts`, `.env.example`, `deploy/Dockerfile.admin` and the staging image build in `.github/workflows/ci.yml`; the staging deploy check of the link host | spec 069; the web manager's OK on the `apps/admin` lane; Waleed sets the staging build arg | EL-T01 … EL-T05, EL-T07 … EL-T09 green; the `apps/pos` cross-check green; on staging the page shows the staging POS host's link |
-| 069-2 | The logo read and the print sheet | API `files`: `use-cases/issue-business-logo-download/`, its controller route, ports `BusinessMemberReach` and `BusinessLogoReference` and their adapters; identity's exported `lockBusinessMemberReach`; `packages/storage` `presignDownload` optional cache policy; `docs/module-map.md` rows; `AUTHENTICATED_WRITES` entry; contract in `packages/contracts/src/files/`; the admin print sheet and its logo fetch | 069-1; the staging CORS rule below set by Waleed; the ADR-0056 addendum accepted with this PR | EL-I01 … EL-I05 and EL-T06, EL-T10 green; a printed sheet on staging shows the salon logo; the addendum's status reads Accepted |
+| 069-1 | The page without printing: link, QR, copy, WhatsApp | `apps/admin/src/staff/employee-app-link/` (page, link helper, QR, copy, WhatsApp link), the route under `apps/admin/app/(dashboard)/staff/`, the staff-menu entry and the employees-page button; `packages/i18n` keys; one shared POS-hosts constant used by `apps/pos/vite.config.ts` and the admin helper; `NEXT_PUBLIC_POS_URL` in `apps/admin/next.config.ts`, `.env.example`, `deploy/Dockerfile.admin` and **both** admin image builds in `.github/workflows/ci.yml` (staging with `https://pos.staging.pospay.systems`, production with `https://pos.pospay.systems`, since the value is baked into the image); the staging deploy check of the link host | spec 069; the web manager's OK on the `apps/admin` lane; Waleed sets the staging build arg | EL-T01 … EL-T05, EL-T07 … EL-T09 green; the `apps/pos` cross-check green; on staging the page shows the staging POS host's link |
+| 069-2 | The logo read and the print sheet | API `files`: `use-cases/issue-business-logo-download/`, its controller route, ports `BusinessMemberReach` and `BusinessLogoReference` and their adapters; identity's exported `lockBusinessMemberReach`; `packages/storage` `presignDownload` optional cache policy; `docs/module-map.md` rows; `AUTHENTICATED_WRITES` entry; contract in `packages/contracts/src/files/`; the admin print sheet and its logo fetch | 069-1; the staging CORS rule below set by Waleed; the ADR-0056 addendum accepted with this PR; **before production:** the production CORS rule set by Waleed, with his yes, before any production deploy that carries 069-2 | EL-I01 … EL-I05 and EL-T06, EL-T10 green; a printed sheet on staging shows the salon logo; the addendum's status reads Accepted |
 
 ## Decisions (research)
 
@@ -99,8 +99,8 @@ existing upload (`PUT`) rule of ADR-0022 unchanged:
   ```
 
 - **Origins:** the back office only (ADR-0001 §6), never `*`, the POS host or the API host. The production bucket gets
-  the same rule with `https://app.pospay.systems` when 069-2 reaches production, a production change that needs
-  Waleed's yes.
+  the same rule with `https://app.pospay.systems` **before** any production deploy that carries 069-2, a production
+  change that needs Waleed's yes; without it every logo fetch fails CORS and printing stays blocked.
 - **Methods:** `GET` only. The page reads the object with a plain `fetch(url)` and no custom header, which is a simple
   request: no preflight, so `AllowedHeaders` stays empty and `HEAD` is not needed.
 - **ExposeHeaders:** none; the page needs the status code and the response body, which CORS exposes for an allowed
