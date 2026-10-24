@@ -125,8 +125,9 @@ start screen again.
 - **Camera permission denied** (Android QR attendance): the attendance screen's existing camera-failure path runs
   (`use-attendance-camera.ts` calls its failure handler), and the native build adds one line on how to allow the camera
   in the phone settings.
-- **The iOS session check fails in M-1c**: User Stories 1.3 and 2.2 cannot pass on iOS; the track stops at M-1c as
-  ADR-0055 decision 3 says. This spec does not change `packages/auth`.
+- **The iOS session check fails**: if (b) fails on the simulator, User Story 1.3 cannot pass on iOS and the track stops
+  at M-1c as ADR-0055 decision 3 says; if the personal session (c) fails on the first real iPhone (M-1c-ii, PP-58.2),
+  the iOS app stays with the owners and decision 3's fallbacks ship in a fix build before any employee receives it. This spec does not change `packages/auth`.
 - **Back button on Android**: on the start screen and on a signed-in home screen it leaves the app; it never navigates
   back into a signed-out session.
 
@@ -361,9 +362,10 @@ None published, none consumed.
 - **Device checks** (M-1c, recorded in [plan.md](plan.md)): (a) pairing, (b) staff PIN session, (c) personal OTP
   session, each surviving a restart; (d) attendance QR camera; (e) passkey behaviour. Android on a real phone; iOS
   (a) and (b) on the simulator, (c)–(e) on the first real iPhone (M-1c-ii). **Staged by PP-58.1:** (a) and (b) run now on
-  Android; (c), (d) and (e) wait until WhatsApp Business is set up and then run on real WhatsApp. The M-1c gate is
-  phase one only: Android (a)–(e) and the iOS simulator checks; the real-iPhone checks of M-1c-ii stay outside it
-  (they need the M-2a build). **PP-58.2 (Waleed, 2026-10-25, option 1, confirmed on the corrected
+  Android; (c), (d) and (e) wait until WhatsApp Business is set up and then run on real WhatsApp. The M-1c gate for M-1d
+  onward, M-2 and the Apple fee is (a) and (b) on the Android phone and on the iOS simulator; Android (c)–(e) and the
+  real-iPhone checks of M-1c-ii must pass before any employee receives the app, but they do not hold back that work
+  (M-1c-ii needs the M-2a build). **PP-58.2 (Waleed, 2026-10-25, option 1, confirmed on the corrected
   wording):** a simulator on the GitHub runner cannot receive a real WhatsApp code, so M-1d onward
   and the Apple fee wait on iOS (a) pairing and (b) staff PIN passing on the simulator, and iOS (c), the personal
   session, moves to the first real iPhone (M-1c-ii).
