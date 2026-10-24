@@ -75,8 +75,9 @@ function readInput(argv: string[]): CliInput {
 }
 
 function derivedEmail(input: CliInput): string {
+  // الهاتف هو المستخدم: الشركة والنشاط والفرع يختاران العضوية فقط، فمعرّف نطاق خاطئ لا يحرق الهاتف.
   const digest = createHash('sha256')
-    .update(`v1|${input.phone}|${input.companyId}|${input.businessId}|${input.branchId}`)
+    .update(`v1|${input.phone}`)
     .digest('hex')
     .slice(0, 48);
   return `staging-staff-${digest}@staging.pospay.invalid`;

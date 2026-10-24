@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { main } from '../../../../scripts/staging-staff-user.ts';
@@ -74,6 +76,17 @@ function argv(target = 'staging'): string[] {
   ];
 }
 
+function cliArgs(options: { phone?: string; branch?: string; employee?: 'drop' } = {}): string[] {
+  const args = argv();
+  if (options.phone !== undefined) args[args.indexOf('--phone') + 1] = options.phone;
+  if (options.branch !== undefined) args[args.indexOf('--branch') + 1] = options.branch;
+  if (options.employee === 'drop') {
+    const index = args.indexOf('--employee');
+    args.splice(index, 2);
+  }
+  return args;
+}
+
 function stagingEnv(): NodeJS.ProcessEnv {
   return {
     DEPLOY_ENV: 'staging',
@@ -87,6 +100,12 @@ function stagingEnv(): NodeJS.ProcessEnv {
     STAFF_PHONE_OWNERSHIP_VERIFIED: 'true',
     STAFF_PHONE_BINDING_APPROVED: 'true',
   };
+}
+
+function stagingEnvWithout(key: string): NodeJS.ProcessEnv {
+  const env = stagingEnv();
+  delete env[key];
+  return env;
 }
 
 function rowCounts() {
@@ -150,7 +169,77 @@ it('provisions once, supports PIN sign-in, and preserves all rows and the sessio
   const refusal: string[] = [];
   expect(await main(argv('production'), stagingEnv(), (line) => refusal.push(line))).toBe(1);
   expect(refusal).toEqual(['refused: not staging']);
+  expect(await rowCounts()).toEqual(before);
   const output = [...first, ...second, ...refusal].join('\n');
   expect(output).not.toContain(phone);
   expect(output).not.toContain('@staging.pospay.invalid');
+}, 60_000);
+
+it('refuses a wrong branch id without burning the phone, and the corrected rerun reuses the user', async () => {
+  const freshPhone = `+9655${'2'.padStart(7, '0')}`;
+  const refused: string[] = [];
+  expect(
+    await main(
+      cliArgs({ phone: freshPhone, branch: randomUUID(), employee: 'drop' }),
+      stagingEnv(),
+      (line) => refused.push(line),
+    ),
+  ).toBe(1);
+  const userId = /^user: created ([0-9a-f-]{36})$/.exec(refused[0] ?? '')?.[1] ?? '';
+  expect(userId).not.toBe('');
+  expect(refused.slice(1)).toEqual(['phone binding: approved', 'refused: TARGET_SCOPE_REFUSED']);
+  const corrected: string[] = [];
+  expect(
+    await main(
+      cliArgs({ phone: freshPhone, employee: 'drop' }),
+      stagingEnv(),
+      (line) => corrected.push(line),
+    ),
+  ).toBe(0);
+  expect(corrected).toEqual([
+    `user: unchanged ${userId}`,
+    'phone binding: unchanged',
+    'membership: created',
+    'employee link: skipped',
+    `next: set the PIN with POST /v1/staff-pins/reset for user ${userId}`,
+  ]);
+}, 60_000);
+
+it('refuses a phone owned by another user and creates no user', async () => {
+  const conflictPhone = `+9655${'3'.padStart(7, '0')}`;
+  const owners = await h.owner`SELECT id FROM "user" WHERE email=${'staging-manager@synthetic.invalid'}`;
+  const ownerId = owners[0]?.id ?? '';
+  expect(ownerId).not.toBe('');
+  await h.owner`UPDATE "user" SET phone_number=${conflictPhone} WHERE id=${ownerId}`;
+  const before = await rowCounts();
+  const refused: string[] = [];
+  expect(
+    await main(cliArgs({ phone: conflictPhone }), stagingEnv(), (line) => refused.push(line)),
+  ).toBe(1);
+  expect(refused).toEqual(['refused: identity conflict']);
+  expect(await rowCounts()).toEqual(before);
+}, 60_000);
+
+it('refuses a malformed phone before touching the database', async () => {
+  const before = await rowCounts();
+  const refused: string[] = [];
+  expect(
+    await main(cliArgs({ phone: 'not-a-phone' }), stagingEnv(), (line) => refused.push(line)),
+  ).toBe(1);
+  expect(refused).toEqual(['refused: bad input']);
+  expect(await rowCounts()).toEqual(before);
+}, 60_000);
+
+it('refuses to run without the phone ownership acknowledgement', async () => {
+  const before = await rowCounts();
+  const refused: string[] = [];
+  expect(
+    await main(
+      argv(),
+      stagingEnvWithout('STAFF_PHONE_OWNERSHIP_VERIFIED'),
+      (line) => refused.push(line),
+    ),
+  ).toBe(1);
+  expect(refused).toEqual(['refused: phone ownership not acknowledged']);
+  expect(await rowCounts()).toEqual(before);
 }, 60_000);

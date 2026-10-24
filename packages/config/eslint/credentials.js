@@ -43,6 +43,32 @@ export const CREDENTIAL_PATTERNS = [{ group: PATTERNS, message: MESSAGE }];
 const DYNAMIC =
   '/^((node:)?crypto|bcrypt|bcryptjs|argon2|scrypt-js|better-auth(\\/.*)?|@better-auth\\/.*|@node-rs\\/(argon2|bcrypt).*|@noble\\/hashes\\/(scrypt|argon2|pbkdf2).*)$/';
 
+// PP-58.3 (ADR-0003 addendum): the operator subpaths exist for the staging operator CLI only. They live here
+// because the layer overrides that replace no-restricted-imports must compose this ban back in, not drop it.
+const OPERATOR_MESSAGE =
+  'operator helpers are for apps/api/scripts only (PP-58.3, ADR-0003 addendum)';
+
+/** no-restricted-imports `patterns` entries for the operator subpaths of @pospay/db and @pospay/auth. */
+export const OPERATOR_PATTERNS = ['db', 'auth'].map((name) => ({
+  regex: `^@pospay/${name}/operator/.*$`,
+  message: OPERATOR_MESSAGE,
+}));
+
+const OPERATOR_IMPORT = '/^@pospay\\/(db|auth)\\/operator\\/.+$/';
+
+/**
+ * no-restricted-syntax entries: import(), require() and import types of the operator subpaths — the static
+ * import ban cannot see them.
+ */
+export const OPERATOR_SYNTAX = [
+  { selector: `ImportExpression[source.value=${OPERATOR_IMPORT}]`, message: OPERATOR_MESSAGE },
+  {
+    selector: `CallExpression[callee.name='require'][arguments.0.value=${OPERATOR_IMPORT}]`,
+    message: OPERATOR_MESSAGE,
+  },
+  { selector: `TSImportType[argument.literal.value=${OPERATOR_IMPORT}]`, message: OPERATOR_MESSAGE },
+];
+
 const PLAIN =
   'import() and require() take a plain string: a template or a variable cannot be checked.';
 

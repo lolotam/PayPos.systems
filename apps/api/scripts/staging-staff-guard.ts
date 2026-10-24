@@ -23,7 +23,7 @@ function sameDatabase(app: URL, auth: URL): boolean {
   );
 }
 
-// NODE_ENV=production على staging، ولذلك نطلب أربع علامات مستقلة؛ DEPLOY_ENV literal لا تحمله إلا staging compose،
+// NODE_ENV=production على staging، ولذلك نطلب خمس علامات مستقلة؛ DEPLOY_ENV literal لا تحمله إلا staging compose،
 // فملف env منسوخ من production لا يكفي، وتطابق قاعدتي الاتصال يمنع الكتابة في قاعدة غير المقصودة.
 export function assertStagingTarget(target: string | undefined, env: NodeJS.ProcessEnv): void {
   const authUrl = parsed(env['BETTER_AUTH_URL']);

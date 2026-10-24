@@ -17,7 +17,13 @@ import {
   COMMISSIONS_ENGINE_VALIDATION_ONLY_SYNTAX,
   USE_CASES_INFRASTRUCTURE_PATTERN,
 } from './boundaries.js';
-import { CREDENTIAL_PATHS, CREDENTIAL_PATTERNS, CREDENTIAL_SYNTAX } from './credentials.js';
+import {
+  CREDENTIAL_PATHS,
+  CREDENTIAL_PATTERNS,
+  CREDENTIAL_SYNTAX,
+  OPERATOR_PATTERNS,
+  OPERATOR_SYNTAX,
+} from './credentials.js';
 import { jsdocConfig } from './jsdoc.js';
 import { frontendConfig } from './frontend.js';
 
@@ -38,24 +44,6 @@ const FACADES = {
   createPlatformWhatsappDatabase:
     'the global messaging facade is wired only by API/worker roots (ADR-0013).',
 };
-const OPERATOR_MESSAGE =
-  'operator helpers are for apps/api/scripts only (PP-58.3, ADR-0003 addendum)';
-const OPERATOR_PATTERNS = ['db', 'auth'].map((name) => ({
-  regex: `^@pospay/${name}/operator/.*$`,
-  message: OPERATOR_MESSAGE,
-}));
-const OPERATOR_IMPORT = '/^@pospay\\/(db|auth)\\/operator\\/.+$/';
-const OPERATOR_SYNTAX = [
-  { selector: `ImportExpression[source.value=${OPERATOR_IMPORT}]`, message: OPERATOR_MESSAGE },
-  {
-    selector: `CallExpression[callee.name='require'][arguments.0.value=${OPERATOR_IMPORT}]`,
-    message: OPERATOR_MESSAGE,
-  },
-  {
-    selector: `TSImportType[argument.literal.value=${OPERATOR_IMPORT}]`,
-    message: OPERATOR_MESSAGE,
-  },
-];
 const facadeRule = (
   allowed,
   credentials = false,
@@ -187,6 +175,7 @@ export const allowCommissionsEngineBackend = () => [
           paths: CREDENTIAL_PATHS,
           patterns: [
             ...CREDENTIAL_PATTERNS,
+            ...OPERATOR_PATTERNS,
             USE_CASES_INFRASTRUCTURE_PATTERN,
             COMMISSIONS_ENGINE_SUBPATH_BAN,
             COMMISSIONS_ENGINE_PATH_BAN,
