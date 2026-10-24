@@ -19,9 +19,7 @@ export async function activeMembership(
   userId: string,
   at: Date,
 ): Promise<boolean> {
-  const rows = await tx.execute<{ one: number }>(
-    activeMembershipStatement(companyId, userId, at),
-  );
+  const rows = await tx.execute<{ one: number }>(activeMembershipStatement(companyId, userId, at));
   return rows.length > 0;
 }
 

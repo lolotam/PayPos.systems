@@ -12,10 +12,7 @@ import {
   shiftEndingSoonDecision,
 } from '../../domain/shift-ending-soon.ts';
 import type { Clock } from '../../ports/clock.port.ts';
-import type {
-  LockedShift,
-  NotClockedInDiagnostics,
-} from '../../ports/not-clocked-in.port.ts';
+import type { LockedShift, NotClockedInDiagnostics } from '../../ports/not-clocked-in.port.ts';
 import type {
   DueShiftEnd,
   LockedShiftEnding,
@@ -53,10 +50,12 @@ export class DetectShiftEndingSoon {
         SHIFT_ENDING_SOON_PAGE_SIZE,
       );
       for (const candidate of page) {
-        const saved = await this.settle(companyId, candidate, cache, now).catch((error: unknown) => {
-          this.diagnostics.failed(companyId, error);
-          return null;
-        });
+        const saved = await this.settle(companyId, candidate, cache, now).catch(
+          (error: unknown) => {
+            this.diagnostics.failed(companyId, error);
+            return null;
+          },
+        );
         progress = recordNotClockedInOutcome(progress, saved);
       }
       const last = page.at(-1);

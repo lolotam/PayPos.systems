@@ -24,14 +24,21 @@ export async function saveRule(
   context: RuleContext,
   target: RuleTarget,
   kind: string,
-  values: { enabled: boolean; roles: readonly string[]; delayMinutes?: number | null },
+  values: {
+    enabled: boolean;
+    roles: readonly string[];
+    delayMinutes?: number | null;
+    leadMinutes?: number | null;
+    channels?: readonly string[];
+  },
 ): Promise<void> {
   // 1009 هو OID ‎_text؛ بتمريره صريحًا تبقى المصفوفة الفاضية نصًا صحيحًا مش سلسلة فاضية.
+  const channels = values.channels ?? ['IN_APP'];
   await context.owner`INSERT INTO alert_rules (company_id,id,business_id,branch_id,kind,enabled,recipient_roles,channels,
       delay_minutes,lead_minutes,updated_by,revision)
     VALUES(${target.company},${context.ids.newId()},${target.business},${target.branchId ?? null},${kind},
-      ${values.enabled},${context.owner.array([...values.roles], 1009)},ARRAY['IN_APP']::text[],
-      ${values.delayMinutes ?? null},NULL,${context.userId},1)`;
+      ${values.enabled},${context.owner.array([...values.roles], 1009)},${context.owner.array([...channels], 1009)},
+      ${values.delayMinutes ?? null},${values.leadMinutes ?? null},${context.userId},1)`;
 }
 
 /** يمسح قواعد النوع في النطاق ده: الفرع يرجع لقاعدة النشاط. */

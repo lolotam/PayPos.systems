@@ -1,6 +1,9 @@
 import { appendAuditLog, appendOutboxEvents, type IdGenerator, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import type { ShiftEndNoticeWrite, ShiftEndSuppressedWrite } from '../ports/shift-ending-soon.port.ts';
+import type {
+  ShiftEndNoticeWrite,
+  ShiftEndSuppressedWrite,
+} from '../ports/shift-ending-soon.port.ts';
 
 export async function recordShiftEndingSoon(
   tx: Tx,
@@ -75,10 +78,7 @@ function noticeFacts(id: string, notice: ShiftEndNoticeWrite) {
 
 // المستلم الواحد هو الموظفة نفسها على قناة الدفع؛ مفيش هاتف ولا لغة، والـ deadline هو نهاية الوردية
 // فالتأخير في الطابور ميبعتش «دوامك قرب يخلص» بعد ما الوردية خلصت (ADR-0052 §5).
-function eventPayload(
-  facts: ReturnType<typeof noticeFacts>,
-  notice: ShiftEndNoticeWrite,
-) {
+function eventPayload(facts: ReturnType<typeof noticeFacts>, notice: ShiftEndNoticeWrite) {
   if (notice.userId === null) return facts;
   return {
     ...facts,

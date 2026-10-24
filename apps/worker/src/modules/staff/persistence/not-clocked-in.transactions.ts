@@ -252,7 +252,7 @@ function toDueShift(row: DueRow): DueShift {
   };
 }
 
-export function toLockedShift(row: ShiftRow, place: BranchPlace): LockedShift {
+function toLockedShift(row: ShiftRow, place: BranchPlace): LockedShift {
   return {
     ...toDueShift(row),
     businessId: row.business_id,

@@ -16,10 +16,7 @@ import {
   readLeaves,
   readShift,
 } from './not-clocked-in.transactions.ts';
-import {
-  recordShiftEndingSoon,
-  suppressShiftEndingSoon,
-} from './shift-ending-soon-writes.ts';
+import { recordShiftEndingSoon, suppressShiftEndingSoon } from './shift-ending-soon-writes.ts';
 
 type Moment = Date | string;
 

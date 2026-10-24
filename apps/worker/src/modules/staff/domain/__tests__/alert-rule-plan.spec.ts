@@ -126,8 +126,13 @@ describe('leadAlertPlan', () => {
     });
   });
 
-  it('gives the employee push when the rule carries the fixed recipient', () => {
-    expect(leadAlertPlan(leadRule()).employeePush).toBe(true);
+  it('closes the plan with the master switch and keeps the kind default lead', () => {
+    const closed = effectiveAlertRule('SHIFT_ENDS_SOON', null, null, false);
+    expect(leadAlertPlan(closed)).toEqual({
+      enabled: false,
+      leadMs: 30 * MINUTE,
+      employeePush: false,
+    });
   });
 
   it('has no employee push when the rule carries no fixed recipient', () => {
