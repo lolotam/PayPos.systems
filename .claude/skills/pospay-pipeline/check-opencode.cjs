@@ -534,16 +534,27 @@ try {
       '-NoProfile',
       '-NonInteractive',
       '-Command',
-      'Get-CimInstance Win32_Process -Filter "Name=\'opencode.exe\'" | ForEach-Object { $_.CommandLine }',
+      // Stop makes a CIM error throw instead of printing nothing (MergePilot on #643).
+      '$ErrorActionPreference = \'Stop\'; Get-CimInstance Win32_Process -Filter "Name=\'opencode.exe\'" | ForEach-Object { "$($_.ProcessId)`t$($_.CommandLine)" }',
     ],
     { encoding: 'utf8', timeout: 15000 },
   );
-  const services = commandLines
+  const processes = commandLines
     .split(/\r?\n/)
-    .filter((line) => /\bserve\b/i.test(line) && /--service\b/i.test(line));
+    .map((line) => line.split('\t'))
+    .filter(([pid]) => /^\d+$/.test(pid));
+  // Windows withholds the command line of an elevated or protected process, which could hide the service.
+  const unreadable = processes.filter(([, commandLine = '']) => !commandLine.trim());
+  const services = processes.filter(
+    ([, commandLine = '']) => /\bserve\b/i.test(commandLine) && /--service\b/i.test(commandLine),
+  );
   if (services.length)
     problems.push(
-      `the shared opencode service is running (${services.length} process(es)): stop it before dispatch`,
+      `the shared opencode service is running (PID ${services.map(([pid]) => pid).join(', ')}): stop it before dispatch`,
+    );
+  if (unreadable.length)
+    problems.push(
+      `cannot read the command line of opencode PID ${unreadable.map(([pid]) => pid).join(', ')}: it may be the shared service`,
     );
 } catch (error) {
   problems.push(`cannot confirm that the shared opencode service is stopped (${error.message})`);

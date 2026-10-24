@@ -84,7 +84,8 @@ function stopSharedService() {
         '-NoProfile',
         '-NonInteractive',
         '-Command',
-        'Get-CimInstance Win32_Process -Filter "Name=\'opencode.exe\'" | ForEach-Object { "$($_.ProcessId)`t$($_.CommandLine)" }',
+        // Stop makes a CIM error throw instead of printing nothing (MergePilot on #643).
+        '$ErrorActionPreference = \'Stop\'; Get-CimInstance Win32_Process -Filter "Name=\'opencode.exe\'" | ForEach-Object { "$($_.ProcessId)`t$($_.CommandLine)" }',
       ],
       { encoding: 'utf8', timeout: 15_000 },
     );
@@ -95,8 +96,16 @@ function stopSharedService() {
   let failures = 0;
   for (const line of listing.split(/\r?\n/)) {
     const [pid, commandLine = ''] = line.split('\t');
-    if (!/^\d+$/.test(pid) || !/\bserve\b/i.test(commandLine) || !/--service\b/i.test(commandLine))
+    if (!/^\d+$/.test(pid)) continue;
+    // A withheld command line (an elevated or protected process) may hide the service, so it fails the cleanup.
+    if (!commandLine.trim()) {
+      failures++;
+      console.error(
+        `cannot read the command line of opencode PID ${pid}: it may be the shared service`,
+      );
       continue;
+    }
+    if (!/\bserve\b/i.test(commandLine) || !/--service\b/i.test(commandLine)) continue;
     if (dryRun) {
       console.log(`would stop the shared opencode service, PID ${pid}`);
       continue;
