@@ -11,6 +11,7 @@ import type {
 } from '../ports/not-clocked-in.port.ts';
 import { branchManagerRecipientsAdapter } from './branch-manager-recipients.adapter.ts';
 import { alertRules } from './alert-rule.adapter.ts';
+import { userHasAccess } from './employee-push-access.ts';
 import { recordNotClockedIn, suppressNotClockedIn } from './not-clocked-in-writes.ts';
 
 export const NOT_CLOCKED_IN_TRANSACTION_TIMEOUT_MS = 15_000;
@@ -139,6 +140,7 @@ function locked(
     clockIns: (id, from, to) => readClockIns(tx, companyId, id, from, to),
     managers: (businessId, branchId, roles) =>
       branchManagerRecipientsAdapter.forBranch(tx, companyId, businessId, branchId, at, roles),
+    userHasAccess: (userId, shift, moment) => userHasAccess(tx, companyId, userId, shift, moment),
     record: (notice) => recordNotClockedIn(tx, ids, companyId, notice),
     suppress: (notice) => suppressNotClockedIn(tx, ids, companyId, notice),
   };

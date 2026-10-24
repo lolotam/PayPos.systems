@@ -1,9 +1,9 @@
 # 60 · Staff push subscriptions — اشتراك موبايل الموظفة في الإشعارات
 
 **Status / الحالة:** shipped in #530 (28b-1: the `push_subscriptions` table, RLS and three personal routes, merged).
-**API only, no screen yet:** the on/off control in the staff app is row 28b-4, and **nothing is sent yet**: the send
-queue, the channel and the worker are rows 28b-2 and 28b-3, and the employee's own not-clocked-in push is row 28b-5. So
-no phone shows a notification today. Two more gates:
+**API only, no screen yet:** the on/off control in the staff app is row 28b-4. The send queue, the channel and the
+worker are rows 28b-2 and 28b-3, and the employee's own not-clocked-in push is row 28b-5 (its producer side is in
+place). Until 28b-4 lets a phone subscribe, no phone shows a notification. Two more gates:
 - The routes need the **personal staff session**, and that needs the WhatsApp OTP, which is **OFF** until the Meta
   templates and secrets are approved ([22](22-personal-phone-passkey.md)). Today the routes run only in tests and local
   seams, as in [26](26-clock-attendance.md).
@@ -25,7 +25,7 @@ them changes these three routes: [owner-questions.ar.md](../specs/063-staff-web-
 
 ## العربي
 
-API بس، لسه مفيش شاشة، ولسه مفيش إشعار بيتبعت لأي موبايل.
+API بس، لسه مفيش شاشة. الإرسال اتبنى (28b-2 و28b-3 و28b-5)، بس مفيش موبايل يقدر يشترك من التطبيق لحد 28b-4، فالدليل ده بيختبر الاشتراك بس.
 
 1. **الإعداد:** منى بتطلب إعداد الإشعارات ← مفتاح عام، ورقم المفتاح، و`subscriber_ref` بتاعها هي (نفسه في أي شركة).
    لو الـ VAPID مش متظبط ← **الخدمة غير جاهزة حالياً** (503).
@@ -51,11 +51,11 @@ API بس، لسه مفيش شاشة، ولسه مفيش إشعار بيتبعت 
 - رقم التثبيت الخام أو المفاتيح يتحفظوا بعد الإلغاء، أو يظهروا في اللوج.
 - الرد يفرّق بين إلغاء اشتراكها واشتراك حد تاني أو اشتراك مش موجود.
 - مدير أو جهاز يسجّل أو يلغي اشتراك موظفة.
-- أي إشعار يتبعت فعلاً (الإرسال لسه ما اتبناش).
+- أي إشعار يتبعت من خطوات الدليل ده (الدليل بيختبر الاشتراك بس؛ الإرسال بيتختبر في 28b-3 و28b-5).
 
 ## English
 
-API only, no screen yet, and no notification is sent to any phone yet.
+API only, no screen yet. Sending is built (28b-2, 28b-3, 28b-5), but no phone can subscribe from the app until 28b-4, so this guide tests the subscription only.
 
 1. **Config:** Mona asks for the push config → the public key, its key id, and her own `subscriber_ref` (the same in
    every company). VAPID not configured → **The service is not ready** (503).
@@ -86,7 +86,7 @@ API only, no screen yet, and no notification is sent to any phone yet.
 - The raw installation id, or the keys after a revoke, stored; or any of them in the logs.
 - A revoke answer that tells her own subscription from someone else's or a missing one.
 - A manager or a device registering or revoking an employee's subscription.
-- Any notification actually sent (sending is not built yet).
+- Any notification sent by the steps of this guide (it tests the subscription only; sending is tested in 28b-3 and 28b-5).
 
 ## For an agent
 
@@ -113,7 +113,7 @@ API only, no screen yet, and no notification is sent to any phone yet.
 - **Assertions:** `push_subscriptions` has `ENABLE` + `FORCE` RLS (cross-tenant read = 0 rows, write = error); a live
   row holds every secret and a revoked row none (`CHECK`); the same installation gives different hashes in two
   companies; `revoked_reason` is `CAP_EXCEEDED` (step 6), `OWNER_CHANGED` (step 7), `UNSUBSCRIBED` (step 8), or
-  `REPLACED` (her same endpoint registered again under a new installation id); no `push_attempts` table exists yet.
+  `REPLACED` (her same endpoint registered again under a new installation id); these steps write no `push_attempts` row.
 - **Sources:** `docs/specs/063-staff-web-push/spec.md` (Story 2, API contract, sub-PR split), `docs/adr/0052-staff-web-push.md`,
   `apps/api/src/modules/notifications/http/push-subscription.controller.ts`,
   `apps/api/src/modules/notifications/use-cases/register-push-subscription/register-push-subscription.ts`,

@@ -17,9 +17,11 @@ import {
   type NameFallback,
   type NotClockedInProgress,
 } from '../../domain/not-clocked-in.ts';
+import { shiftNotClockedInSelfParameters } from '../../domain/not-clocked-in-self.ts';
 import type { Clock } from '../../ports/clock.port.ts';
 import type {
   DueShift,
+  EmployeePush,
   LockedNotClockedIn,
   LockedShift,
   NotClockedInCursor,
@@ -148,6 +150,26 @@ export class DetectNotClockedIns {
       recipients: withoutAbsentEmployee(managers, shift.employeeUserId),
       parameters,
       employeePushUserId: employeePushRecipient(plan, shift.employeeUserId),
+      employeePush: await this.employeePush(tx, shift, at, plan),
     });
+  }
+
+  // إشعار الموظفة بنفسها: هدف ثابت من القاعدة، وصلاحيتها الشخصية لازم تكون سارية لحظة التنبيه (ADR-0052 §5).
+  private async employeePush(
+    tx: LockedNotClockedIn,
+    shift: LockedShift,
+    at: Date,
+    plan: PeriodicAlertPlan,
+  ): Promise<EmployeePush | null> {
+    const target = employeePushRecipient(plan, shift.employeeUserId);
+    if (target === null || !(await tx.userHasAccess(target, shift, at))) return null;
+    const parameters = shiftNotClockedInSelfParameters(
+      shift.branchNameAr,
+      shift.branchNameEn,
+      formatLocalShiftStart(shift.startsAt, shift.timeZone),
+      this.nameFallback,
+    );
+    if (parameters === null) throw new Error('ATTENDANCE_NOT_CLOCKED_IN_PARAMETERS_INVALID');
+    return { userId: target, parameters };
   }
 }

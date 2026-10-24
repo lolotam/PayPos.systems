@@ -10,6 +10,7 @@ import {
   type NotClockedInFixture,
   type Tenant,
 } from './not-clocked-in.fixture.ts';
+import { seedManagers } from './not-clocked-in-push.fixture.ts';
 
 let f: NotClockedInFixture;
 let inbox: ReturnType<typeof notClockedInInbox>;
@@ -73,7 +74,7 @@ it('NCI-10 only the shift branch managers receive it, and the absent employee is
 
 it('101 managers become two contract-valid events and each gets one in-app row', async () => {
   const tenant = await f.tenant();
-  await seedManagers(tenant);
+  await seedManagers(f, tenant, 101);
   const managers = (
     await f.owner`SELECT user_id FROM memberships WHERE company_id=${tenant.company} AND role_id=${ROLE.branch_manager} ORDER BY user_id`
   ).map((row) => String(row['user_id']));
@@ -128,16 +129,24 @@ it('101 managers become two contract-valid events and each gets one in-app row',
   expect(rows.map((row) => String(row['recipient_user_id']))).toEqual([...managers].sort());
 }, 60_000);
 
-it('the employee push target rides on the first event of the notice only', async () => {
+it('the employee push target rides on the first event of the notice only, and a branch member gets her own push event', async () => {
   const tenant = await f.tenant();
-  await seedManagers(tenant);
+  await seedManagers(f, tenant, 101);
   const userId = await f.user('absent');
+  // عضوية على فرع الوردية: صلاحيتها الشخصية سارية، فإشعارها بيتبعت (ADR-0052 §5).
+  await f.member({
+    tenant,
+    userId,
+    roleId: ROLE.cashier,
+    scopeType: 'BRANCH',
+    scopeId: tenant.branch,
+  });
   const employee = await f.employee(tenant, { nameEn: 'Laila', userId });
   await f.shift(tenant, employee);
   f.setNow(ALERT_AT);
   expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
   const events = await f.events(tenant.company);
-  expect(events).toHaveLength(2);
+  expect(events).toHaveLength(3);
   const targets = events.map((event) => {
     const payload = event['payload'] as {
       employee_push_user_id?: string | null;
@@ -149,7 +158,15 @@ it('the employee push target rides on the first event of the notice only', async
   expect(targets).toEqual([
     [userId, 100],
     [null, 1],
+    [null, 1],
   ]);
+  const push = events[2]?.['payload'] as {
+    employee_push_user_id: string | null;
+    notification_recipients: { channel: string; user_id: string }[];
+  };
+  expect(push.employee_push_user_id).toBeNull();
+  expect(push.notification_recipients).toHaveLength(1);
+  expect(push.notification_recipients[0]).toMatchObject({ channel: 'PUSH', user_id: userId });
 }, 60_000);
 
 it('NCI-11 no managers still publishes the event, and the consumer stores nothing', async () => {
@@ -184,14 +201,3 @@ it('a closed company records no notice or event', async () => {
   expect(await f.events(tenant.company)).toHaveLength(0);
   expect(await f.notices(tenant.company, employee)).toHaveLength(0);
 });
-
-async function seedManagers(tenant: Tenant) {
-  await f.owner`WITH seeded AS (
-    INSERT INTO "user"(id, name, email)
-    SELECT gen_random_uuid(), 'Synthetic manager', gen_random_uuid()::text || '@example.test'
-    FROM generate_series(1, 101) RETURNING id
-  )
-  INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at)
-  SELECT ${tenant.company}, gen_random_uuid(), seeded.id, ${ROLE.branch_manager}, 'global', 'BRANCH', ${tenant.branch}, '2026-01-01T00:00:00Z'
-  FROM seeded`;
-}
