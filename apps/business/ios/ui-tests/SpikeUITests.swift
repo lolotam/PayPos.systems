@@ -20,6 +20,22 @@ final class SpikeUITests: XCTestCase {
     app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
   }
 
+  private func pasteField(_ app: XCUIApplication) -> XCUIElement {
+    app.webViews.textFields.firstMatch
+  }
+
+  private func assertPasteFieldReady(_ app: XCUIApplication, _ moment: String) {
+    XCTAssertTrue(
+      element(app, containing: "Paste the link your manager sent you").waitForExistence(timeout: 60),
+      "The employee paste label should be visible \(moment)"
+    )
+    XCTAssertTrue(
+      pasteField(app).waitForExistence(timeout: 60),
+      "The employee paste field should be visible \(moment)"
+    )
+    XCTAssertTrue(pasteField(app).isHittable, "The employee paste field should be hittable \(moment)")
+  }
+
   // الترتيب مهم لأن اختبار الرجوع بعد الإغلاق بيسيب اختيار الموظفة محفوظ، فشاشة البداية لازم تتختبر الأول.
   func test1StartScreenShowsBothChoices() {
     let app = launchApp()
@@ -49,18 +65,12 @@ final class SpikeUITests: XCTestCase {
       )
       employeeChoice.tap()
     }
-    XCTAssertTrue(
-      element(app, containing: "Paste the link your manager sent you").waitForExistence(timeout: 60),
-      "The employee paste field should be visible after choosing the employee flow"
-    )
+    assertPasteFieldReady(app, "after choosing the employee flow")
 
     app.terminate()
     app = launchApp()
 
-    XCTAssertTrue(
-      element(app, containing: "Paste the link your manager sent you").waitForExistence(timeout: 60),
-      "The employee paste field should still be visible after an app restart"
-    )
+    assertPasteFieldReady(app, "after an app restart")
     XCTAssertFalse(
       element(app, containing: "How do you use this device?").exists,
       "The start screen should not return after the employee choice was saved"

@@ -370,10 +370,19 @@ jobs:
           mkdir -p out
           ditto -c -k --sequesterRsrc --keepParent "$app" "out/${FLAVOUR}-App.zip"
 
+      - name: Upload the simulator build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-${{ matrix.flavour }}-app
+          path: apps/business/out/${{ matrix.flavour }}-App.zip
+          retention-days: 14
+          if-no-files-found: error
+
       # الـ spike بيشتغل بس في dispatch متعلّم على `spike`، وعلى بناء staging بس.
       # بنحطه جوّه شغلانة iOS اللي واخدة قبول بالفعل، فنفس خانة الحارس والـ timeout بيغطّوه
       # (ADR-0055 قرار 6) من غير شغلانة macOS جديدة تحتاج خانة تانية.
       # ومفيش أي secret بيتقري هنا.
+      # الخطوات بعد رفع البناء عشان لو اختبار الـ UI فشل، نسخة المحاكي تفضل متاحة للتحميل.
       - name: Boot a simulator for the UI test
         if: inputs.spike == true && matrix.flavour == 'staging'
         working-directory: apps/business
@@ -412,14 +421,6 @@ jobs:
           path: ${{ runner.temp }}/spike/SpikeUITests.xcresult
           retention-days: 14
           if-no-files-found: warn
-
-      - name: Upload the simulator build
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-${{ matrix.flavour }}-app
-          path: apps/business/out/${{ matrix.flavour }}-App.zip
-          retention-days: 14
-          if-no-files-found: error
 
   # تحرير الخانة شغلانة لوحدها، عشان شغلانة الـ iOS ما تمسكش حق الكتابة على المستودع وهي
   # بتثبّت وتبني كود تالت. بتشتغل بعد الـ iOS على طول (نجحت أو فشلت)، وبتعمل حاجة واحدة.
