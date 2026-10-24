@@ -254,9 +254,7 @@ describe('the slots (rule 2)', () => {
   });
 
   it('takes a released slot by the same compare-and-swap', async () => {
-    const slots = new Map([
-      [1, { slot: 1, sha: 'sha-tomb', released: true, version: 1 }],
-    ]);
+    const slots = new Map([[1, { slot: 1, sha: 'sha-tomb', released: true, version: 1 }]]);
     const io = createIo({ slots });
     const result = await createGuard({ io, config: config() }).admit();
     assert.equal(result.admitted, true);

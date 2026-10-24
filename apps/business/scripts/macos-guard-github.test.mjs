@@ -120,7 +120,10 @@ describe('creating and moving a slot', () => {
         : { status: 404, body: {} },
     );
     const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
-    await assert.rejects(() => io.createSlot(1, 'sha-2'), (error) => error.code === 'conflict');
+    await assert.rejects(
+      () => io.createSlot(1, 'sha-2'),
+      (error) => error.code === 'conflict',
+    );
   });
 
   it('maps any other 422 to a plain error', async () => {
@@ -148,7 +151,10 @@ describe('creating and moving a slot', () => {
   it('maps a rejected move to a conflict', async () => {
     const { impl } = fakeFetch(() => ({ status: 422, body: { message: 'not a fast forward' } }));
     const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
-    await assert.rejects(() => io.moveSlot(1, 'sha-2'), (error) => error.code === 'conflict');
+    await assert.rejects(
+      () => io.moveSlot(1, 'sha-2'),
+      (error) => error.code === 'conflict',
+    );
   });
 });
 
@@ -166,7 +172,10 @@ describe('reading the macOS jobs', () => {
     });
     const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
     const jobs = await io.listMacosJobs();
-    assert.equal(calls[0].url, `${API}/repos/o/r/actions/workflows/mobile.yml/runs?per_page=100&page=1`);
+    assert.equal(
+      calls[0].url,
+      `${API}/repos/o/r/actions/workflows/mobile.yml/runs?per_page=100&page=1`,
+    );
     assert.ok(calls[1].url.includes('/actions/runs/5/jobs?filter=all&per_page=100&page=1'));
     assert.ok(calls[2].url.includes('/actions/runs/5/jobs?filter=all&per_page=100&page=2'));
     assert.equal(jobs.length, 101);
@@ -185,7 +194,9 @@ describe('reading the macOS jobs', () => {
     });
     const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
     assert.deepEqual(await io.listMacosJobs(), []);
-    const runCalls = calls.filter((call) => call.url.includes('/actions/workflows/mobile.yml/runs'));
+    const runCalls = calls.filter((call) =>
+      call.url.includes('/actions/workflows/mobile.yml/runs'),
+    );
     assert.equal(runCalls.length, 1);
   });
 
@@ -205,7 +216,9 @@ describe('reading the macOS jobs', () => {
     });
     const io = createGithubIo({ token: 't', repository: 'o/r', headSha: 'head-1', fetch: impl });
     const jobs = await io.listMacosJobs();
-    const runCalls = calls.filter((call) => call.url.includes('/actions/workflows/mobile.yml/runs'));
+    const runCalls = calls.filter((call) =>
+      call.url.includes('/actions/workflows/mobile.yml/runs'),
+    );
     assert.equal(runCalls.length, 2);
     assert.ok(jobs.some((job) => job.runId === '100'));
   });

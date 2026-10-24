@@ -202,7 +202,12 @@ async function accept({ io, config }) {
   const now = config.now();
   const match = slots.find((slot) => slot.owner === config.owner);
   if (match === undefined) {
-    return { accepted: false, slot: null, owner: config.owner, reason: 'no admission for this job' };
+    return {
+      accepted: false,
+      slot: null,
+      owner: config.owner,
+      reason: 'no admission for this job',
+    };
   }
   // الإيجار لازم يغطي timeout الشغلانة كلها: runner استنى في الطابور طويل يبقى متبقيلوش
   // وقت يخلص، والخانة بتاعته ممكن تتحرر وتتفتح لشغلانة تانية.
@@ -292,7 +297,9 @@ async function main(command) {
   if (command === 'admit') {
     const result = await guard.admit();
     if (!result.admitted) fail(`macos-guard refused the admission: ${result.reason}`);
-    process.stdout.write(`macos-guard admitted the slot ${result.slot ?? 'none'} for ${result.owner}\n`);
+    process.stdout.write(
+      `macos-guard admitted the slot ${result.slot ?? 'none'} for ${result.owner}\n`,
+    );
     return;
   }
 

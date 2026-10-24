@@ -88,7 +88,12 @@ async function readSlotState({ request, owner, repo }, index) {
   const commit = await request(`/repos/${owner}/${repo}/git/commits/${sha}`);
   if (!commit.ok) throw new Error(`the admission answered ${commit.status}`);
   const payload = JSON.parse((await commit.json()).message);
-  return { sha, owner: payload.owner, leaseEnd: payload.leaseEnd, released: payload.released === true };
+  return {
+    sha,
+    owner: payload.owner,
+    leaseEnd: payload.leaseEnd,
+    released: payload.released === true,
+  };
 }
 
 async function readSlot(context, index) {
@@ -164,7 +169,12 @@ async function moveSlot({ request, owner, repo }, index, sha) {
  * @param {{ token?: string, repository?: string, headSha?: string, fetch?: typeof fetch }} parts
  * @returns {{ listMacosJobs: () => Promise<object[]>, readSlot: (index: number) => Promise<object | null>, createCommit: (payload: object, parentSha: string | null) => Promise<string>, createSlot: (index: number, sha: string) => Promise<void>, moveSlot: (index: number, sha: string) => Promise<void> }}
  */
-export function createGithubIo({ token, repository, headSha, fetch: fetchImpl = globalThis.fetch }) {
+export function createGithubIo({
+  token,
+  repository,
+  headSha,
+  fetch: fetchImpl = globalThis.fetch,
+}) {
   const [owner, repo] = String(repository ?? '').split('/');
 
   const request = async (path, { method = 'GET', body } = {}) => {
