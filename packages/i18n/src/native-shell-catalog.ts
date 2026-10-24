@@ -1,4 +1,4 @@
-/** شاشة بداية التطبيق الأصلي: اختيار نوع الجهاز قبل أي شاشة تانية (spec 065). */
+/** شاشة النسخة الأصلية: اختيار نوع الجهاز، وتبديل النشاط، ورسائل الشاشة (spec 065). */
 export const nativeShellEn = {
   title: 'How do you use this device?',
   lead: 'Choose how this device is used at the salon: the counter, or your own employee account.',
@@ -10,11 +10,16 @@ export const nativeShellEn = {
   saveFailed: 'The choice could not be saved. Try again.',
   pasteLabel: 'Paste the link your manager sent you',
   pasteSubmit: 'Connect',
-  otherBusiness: 'This device is connected to another salon',
   counterDevice: 'This device is a counter device, and the link is for an employee',
+  switchBusinessConfirm: 'Switch to another salon?',
+  roleChangeOffline: 'This needs the internet. Nothing was changed.',
+  roleChangeFailed: 'We could not sign you out. Nothing was changed; try again.',
+  retry: 'Try again',
+  confirm: 'Confirm',
+  cancel: 'Cancel',
 } as const;
 
-/** نفس مفاتيح شاشة البداية بالعربي. */
+/** نفس مفاتيح شاشة النسخة الأصلية بالعربي. */
 export const nativeShellAr: Record<keyof typeof nativeShellEn, string> = {
   title: 'إنت بتستخدم الجهاز ده إزاي؟',
   lead: 'اختار الجهاز ده بيتستخدم إزاي في الصالون: كاونتر، ولا حسابك كموظفة.',
@@ -26,6 +31,11 @@ export const nativeShellAr: Record<keyof typeof nativeShellEn, string> = {
   saveFailed: 'مقدرناش نحفظ الاختيار ده. حاول تاني.',
   pasteLabel: 'الصقي اللينك اللي بعتهولك المدير',
   pasteSubmit: 'وصّلي',
-  otherBusiness: 'الجهاز ده متوصّل بصالون تاني',
   counterDevice: 'الجهاز ده جهاز كاونتر، واللينك ده لحساب موظفة',
+  switchBusinessConfirm: 'تبدّلي لصالون تاني؟',
+  roleChangeOffline: 'ده محتاج نت. ماتغيّرش حاجة.',
+  roleChangeFailed: 'مقدرناش نخرّجك. ماتغيّرش حاجة، حاولي تاني.',
+  retry: 'حاولي تاني',
+  confirm: 'تأكيد',
+  cancel: 'إلغاء',
 };

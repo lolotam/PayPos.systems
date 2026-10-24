@@ -6,7 +6,8 @@ rests on: APP-Q1 (`docs/owner-decisions.ar.md` §22, PP-38.1, batch 54) — two 
 both picked option 1 on 2026-10-23. That record is added by PR #532, **which merges before this ADR**. Owner questions
 this ADR opened: APP-Q2 … APP-Q7 (`docs/specs/065-mob-app-shell/owner-questions.ar.md`, batch 55, PP-39.1 … PP-39.6),
 **answered by both owners on 2026-10-23** (option 1 ⭐ on all six; on APP-Q2 Waleed then moved to option 2 with the
-Arabic name «بوس باي للأعمال»; Abu Salem's option 1 binds, and the Arabic name waits for his confirmation). Still open: the legal name of the company, which
+Arabic name «بوس باي للأعمال», and on 2026-10-24 he gave Abu Salem's option 1 priority, so APP-Q2 is final: «PosPay
+Business» in every language, with no Arabic name). Still open: the legal name of the company, which
 is still being formed (APP-Q3, `TODO(spec)`). **APP-Q8** (batch 56, PP-40.1) is final: both owners picked
 the GitHub macOS runner with the iOS simulator, inside the free minutes only.
 **APP-Q20** (batch 60, PP-44.1): the guard counts this repository's own macOS minutes, with no account token, and Waleed
@@ -165,9 +166,8 @@ its own installable app that can sit next to the other on one phone:
 
 The ids are reverse-DNS of the domain we own (ADR-0001); they **cannot be changed after the first upload**, which is
 why the owners chose them (APP-Q6). `systems.pospay.app` is reserved for the customer app. The display name is
-«PosPay Business» in every language (APP-Q2: Abu Salem's option 1, which binds). An Arabic name «بوس باي للأعمال» on
-phones set to Arabic is Waleed's later pick and Abu Salem's note points the same way, but it is `TODO(spec)` until Abu
-Salem confirms it. The two flavours are **native build variants**, because `cap sync` copies web assets and plugin
+«PosPay Business» in every language, with no separate Arabic name (APP-Q2, final on 2026-10-24: Abu Salem's option
+1, which Waleed gave priority over his own earlier pick of an Arabic name). The two flavours are **native build variants**, because `cap sync` copies web assets and plugin
 settings but does not rewrite the Android `applicationId` or the Xcode `PRODUCT_BUNDLE_IDENTIFIER`: Android gets two
 `productFlavors` (`staging`, `production`) with their own `applicationId`, and iOS gets two build configurations (or
 `.xcconfig` files) with their own bundle id and display name. `capacitor.config.ts` reads the flavour from a build
@@ -333,5 +333,5 @@ notices keep the PWA installed for them.
 APP-Q2 display name · APP-Q3 account holder and legal name on the developer accounts · APP-Q4 D-U-N-S number ·
 APP-Q5 privacy-policy URL · APP-Q6 bundle ids · APP-Q7 internal testers — answered by both owners on 2026-10-23 and
 recorded verbatim in `docs/specs/065-mob-app-shell/owner-questions.ar.md` (indexed as PP-39 in
-`docs/owner-decisions.ar.md`). Open: Abu Salem's confirmation of the Arabic name (APP-Q2), the company's legal name
+`docs/owner-decisions.ar.md`); APP-Q2 became final on 2026-10-24 (no Arabic name). Open: the company's legal name
 (APP-Q3). APP-Q8 (batch 56, PP-40.1) is final: the GitHub macOS runner, free minutes only, picked by both owners.
