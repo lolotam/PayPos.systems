@@ -118,7 +118,9 @@ function stopSharedService() {
     if (!isSharedServiceCommand(commandLine)) continue;
     // Only a service started inside this run's window is stopped. Without --since there is no window, and an older
     // or undated one may be someone else's work: each is reported and left running, which fails the cleanup.
-    if (sinceIndex < 0 || !/^\d+$/.test(created) || Number(created) < since) {
+    // A --since that is not a positive epoch (0, negative, -Infinity) gives no window either (MergePilot on #643).
+    const windowKnown = sinceIndex > 0 && Number.isSafeInteger(since) && since > 0;
+    if (!windowKnown || !/^\d+$/.test(created) || Number(created) < since) {
       failures++;
       console.error(
         `the shared opencode service PID ${pid} is not known to have started during this run: stop it by hand after checking whose it is`,
