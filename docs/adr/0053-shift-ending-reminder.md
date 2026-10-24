@@ -147,8 +147,9 @@ existing decision:
     owns the employee rows. Everything runs on the same transaction with no new connection, behind
     `LockedShiftEnding.userHasAccess`. The staff → identity arrow already exists, so only the read is declared in
     `docs/module-map.md`. A user without such a membership is treated as no linked user: the ledger row has
-    `recipient_count = 0` and the event carries no `notification_recipients` (decision 9). Row 28b-5 is expected to
-    reuse the same reader.
+    `recipient_count = 0` and the event carries no `notification_recipients` (decision 9). Row 28b-5 reuses the same
+    reader for the employee's not-clocked-in push (`LockedNotClockedIn.userHasAccess`; the shared helper is
+    `persistence/employee-push-access.ts`).
 
 ## Consequences
 
