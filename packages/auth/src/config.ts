@@ -117,7 +117,7 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
   }
   const auth = buildBetterAuth(options, database);
   const staff = staffSessions(options, auth, database);
-  const personal = personalSessions(options, auth);
+  const personal = personalSessions(options, auth, database);
   const passkeys = configuredPasskeys(options, auth, database);
   return {
     staff,
@@ -343,12 +343,14 @@ async function normalPurpose(
 function personalSessions(
   options: AuthOptions,
   auth: ReturnType<typeof buildBetterAuth>,
+  authDatabase: ReturnType<typeof createAuthDatabase>,
 ): PersonalSessions {
   return createPersonalSessions({
     database: createStaffOtpDatabase({
       url: options.databaseUrl,
       phoneLockKey: options.staffPhoneLockKey,
     }),
+    authDatabase,
     secret: options.secret,
     now: () => options.clock?.now() ?? new Date(),
     primitive: {

@@ -127,8 +127,9 @@ expired does not delete it (ADR-0052 §7).
 
 ## Addendum 2026-10-23 — explicit sign-out and the back-office signal (spec 067, issue #554 items 2 and 4)
 
-- **Status:** Proposed. Item 1 becomes Accepted when sub-PR 067-1 merges, item 2 when sub-PR 067-2 merges (after the
-  owner answers SO-Q1).
+- **Status:** Item 1 Accepted with sub-PR 067-1 (2026-10-24). Item 2 stays Proposed and becomes Accepted when
+  sub-PR 067-2 merges (SO-Q1: Waleed picked option 2 on 2026-10-24; Abu Salem's pick is pending and binds if it
+  differs).
 
 1. **Logout without a live session.** `POST /v1/staff/personal-session/sign-out` no longer runs the personal session
    guard. A session-optional sign-out policy checks the exact configured POS origin, refuses an `Authorization` header

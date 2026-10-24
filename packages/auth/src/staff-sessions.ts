@@ -3,12 +3,19 @@ import { makeSignature } from 'better-auth/crypto';
 import { parseCookies } from 'better-auth/cookies/utils';
 import type { AuthDatabase, StaffOtpDatabase } from '@pospay/db';
 import {
+  deleteStaffSessionRow,
   retireStaffSession,
   StaffSessionEnded,
   type StaffSessionProof,
 } from './staff-session-fence.ts';
 import { sameDevice, staffDeadline } from './staff-otp/policy.ts';
 import type { StaffDeviceContext, StaffSession } from './staff-otp/types.ts';
+import {
+  hasCookie,
+  liveStaffRow,
+  staffLockDeviceId,
+  type SignOutOutcome,
+} from './session-sign-out.ts';
 
 export const STAFF_COOKIE = 'pospay-staff.session_token';
 
@@ -66,8 +73,8 @@ export interface StaffSessions {
    * @param proof هوية الجلسة والموعد والجهاز المحمولة من الحارس
    */
   confirmCurrent(proof: StaffSessionProof): Promise<void>;
-  /** يلغي الجلسة تحت قفل الجهاز قبل حذفها، ولا يمس pairing ولا cookie الإدارة. */
-  signOut(headers: Headers, device: StaffDeviceContext): Promise<string>;
+  /** ينهي جلسة الـ cookie الموقّعة بس تحت قفل جهازها هي ويبقي الـ pairing؛ ما يقرأش توكن الجهاز ولا الأهلية ولا ربط التليفون. */
+  signOut(headers: Headers): Promise<SignOutOutcome>;
   /** يمنع استبدال اسم cookie للوصول لمسارات Better Auth العادية. */
   normalPurpose(headers: Headers): Promise<boolean>;
 }
@@ -105,15 +112,32 @@ export function createStaffSessions(options: SessionOptions): StaffSessions {
     issue: (userId, device, validate) => issueStaffSession(options, { userId, device, validate }),
     resolve,
     confirmCurrent: (proof) => confirmCurrentSession(options, proof),
-    signOut: async (headers, device) => {
-      const token = await verifiedToken(headers, STAFF_COOKIE, options.secret);
-      const row = token === null ? null : await options.primitive.find(token);
-      if (row !== null && staffRow(row, device, options.now()) !== null)
-        await retireStaffSession(options.authDatabase, row.id, device.deviceId);
-      return sessionCookie('', new Date(0));
-    },
+    signOut: (headers) => signOutStaffSession(options, headers),
     normalPurpose: (headers) => normalPurpose(options, headers),
   };
+}
+
+/**
+ * ينهي الجلسة اللي الـ cookie الموقّع بيسمّيها: يقرأ الصف، وبيلغيه تحت قفل الجهاز
+ * اللي الصف نفسه ماشي عليه، وبعدين يقرأ الساعة بعد ما الحذف رجع عشان يبقى الجواب
+ * على حالة الصف وقت حذفه. صف غايته مش STAFF_POS مايتلمسش ويجيب «مفيش جلسة»؛ وصف
+ * STAFF_POS سياقه من غير deviceId UUID بيتحذف بمعرّفه وغايته من غير قفل الجهاز (spec 067 D-2).
+ */
+async function signOutStaffSession(
+  options: SessionOptions,
+  headers: Headers,
+): Promise<SignOutOutcome> {
+  const token = await verifiedToken(headers, STAFF_COOKIE, options.secret);
+  const row = token === null ? null : await options.primitive.find(token);
+  const cookie = hasCookie(headers, STAFF_COOKIE) ? sessionCookie('', new Date(0)) : null;
+  if (row === null || row.purpose !== 'STAFF_POS') return { cookie, ended: false };
+  const lock = staffLockDeviceId(row);
+  const deleted =
+    lock === null
+      ? await deleteStaffSessionRow(options.authDatabase, row.id, 'STAFF_POS')
+      : await retireStaffSession(options.authDatabase, row.id, lock);
+  if (!deleted || !liveStaffRow(row, options.now())) return { cookie, ended: false };
+  return { cookie, ended: true, userId: row.userId };
 }
 
 async function confirmCurrentSession(

@@ -250,6 +250,9 @@ function deviceGuard(options: { staff?: 'device' | 'staff'; allowClosed?: true; 
       },
     },
     null,
+    null,
+    null,
+    null,
   );
   return { guard, eligibleCalls: () => calls.eligible };
 }

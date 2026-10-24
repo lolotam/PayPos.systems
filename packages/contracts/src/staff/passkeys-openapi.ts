@@ -29,7 +29,9 @@ export const passkeyPaths = {
   '/v1/staff/personal-session': {
     get: operation('getPersonalSession', '200', 'PersonalSessionContext'),
   },
-  '/v1/staff/personal-session/sign-out': { post: operation('signOutPersonalStaff', '200') },
+  '/v1/staff/personal-session/sign-out': {
+    post: operation('signOutPersonalStaff', '200', 'SignOutResult'),
+  },
   '/v1/staff/my-schedule': {
     get: {
       ...operation('getPersonalSchedule', '200', 'PersonalSchedule'),

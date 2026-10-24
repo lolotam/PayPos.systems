@@ -206,8 +206,9 @@ Sara, a stylist, does not see it. Who counts is SO-Q1.
 ### Technical decisions (no owner question)
 
 **D-1. One guard policy for both routes, kept under `@Authenticated()`.** `SessionGuard` gains one session-optional
-policy for sign-out (proposed: a `SIGN_OUT_ROUTE` metadata value `'staff' | 'personal'`, set by a decorator next to
-`AllowClosedCompanyDeviceOtp`, which is the precedent for a per-handler guard variant). The guard reads it **before**
+policy for sign-out (as built in 067-1: a `SIGN_OUT_ROUTE` metadata value `'staff' | 'personal'`, set by the
+`SignOutRoute` decorator; the policy is `signOutRequest` in `apps/api/src/shared/sign-out.guard.ts`, following the
+per-handler guard variant precedent of `AllowClosedCompanyDeviceOtp`). The guard reads it **before**
 the `PERSONAL_ROUTE` and `STAFF_ROUTE` branches; the two sign-out handlers drop their `STAFF_ROUTE` / `PERSONAL_ROUTE`
 markers. The branch, in this order:
 
@@ -243,14 +244,17 @@ Rejected alternatives:
   agreed. The app calls the two existing routes, one per session kind it may hold.
 
 **D-2. `packages/auth` return shape.** `StaffSessions.signOut(headers)` drops its `device` parameter and returns
-`{ cookie, ended }`; `PersonalSessions.signOut(headers)` returns the same shape. Staff: verify the cookie
+`SignOutOutcome` (`packages/auth/src/session-sign-out.ts`): `{ cookie: string | null, ended }`, plus `userId` only
+when `ended` is true (for the log line; it never reaches the HTTP body). `cookie` is null when the request carried no
+cookie of the route's name (D-6). `PersonalSessions.signOut(headers)` returns the same shape. Staff: verify the cookie
 (`verifiedToken` with `STAFF_COOKIE`), find the row, and when its purpose is `STAFF_POS` and its
 `staffDeviceContext.deviceId` is a UUID, retire it with `retireStaffSession(authDatabase, row.id, deviceId)` using
 the row's **own** device id (server-written, immutable). A `STAFF_POS` row whose context is malformed (no
 `staffDeviceContext` object, or a `deviceId` that is not a UUID, which `retireStaffSession` silently skips) is deleted
 by a second auth operation, `DELETE FROM session WHERE id = … AND purpose = 'STAFF_POS'`, without the device lock: no
-device can resolve such a row, so nothing can race it. Personal: as today, remove the row when its purpose is
-`STAFF_PERSONAL`. `ended` is true only when the deleted row was live under BR-002. The doc comments on both interface
+device can resolve such a row, so nothing can race it (as built: `deleteStaffSessionRow` in
+`packages/auth/src/staff-session-fence.ts`). Personal: remove the row when its purpose is `STAFF_PERSONAL`, by the same
+`deleteStaffSessionRow` with purpose `STAFF_PERSONAL` on the existing auth database connection. `ended` is true only when the deleted row was live under BR-002. The doc comments on both interface
 methods change in the same commit (`CLAUDE.md` §3.1).
 
 **D-3. Two 200 statuses, not one.** The app needs to know the session is gone; it does not strictly need to know
@@ -346,8 +350,9 @@ Paths and methods do not change. Bodies are new Zod schemas in `packages/contrac
 Staff route specifics: the `Authorization: device …` header is not read; a revoked, unknown, closed-company or absent
 device token changes nothing in the table above. There is no 401 row on either route.
 
-- Schema: `signOutResult = z.strictObject({ status: z.enum(['SIGNED_OUT', 'NO_SESSION']) })`, meta id
-  `SignOutResult`, next to `staffSessionContext` in `packages/contracts/src/identity/staff-otp.ts`.
+- Schema: `signOutResult = responseObject({ status: z.enum(['SIGNED_OUT', 'NO_SESSION']) })` (a response schema,
+  ADR-0047: strict in the API tests, unknown keys stripped in clients), meta id `SignOutResult`, next to
+  `staffSessionContext` in `packages/contracts/src/identity/staff-otp.ts`.
 - OpenAPI: the `signOutStaff` operation in `packages/contracts/src/identity/staff-sign-in-openapi.ts` and the
   `signOutPersonalStaff` operation in `packages/contracts/src/staff/passkeys-openapi.ts` both return `SignOutResult`
   on 200. The generated POS client (`apps/pos/src/shared/api/schema.d.ts`) is regenerated.
@@ -382,7 +387,7 @@ device token changes nothing in the table above. There is no 401 row on either r
 - No new permission string; no new grant.
 - Part A: both handlers stay `@Authenticated()` and stay in `AUTHENTICATED_WRITES`
   (`apps/api/src/modules/identity/http/authenticated-writes.ts`) as `PERSONAL` (each ends only the caller's own
-  session). Their `checkedIn` moves to the new guard branch (proposed `apps/api/src/shared/session.guard.ts##signOut`).
+  session). Their `checkedIn` moves to the new guard policy (as built: `apps/api/src/shared/sign-out.guard.ts#signOutRequest`).
   The PP-7.1 startup check (`assertAuthenticatedWritesDeclared`) and the test «every allowlist key is a mounted
   @Authenticated write» keep covering them. `ROUTE_MARKERS` in
   `apps/api/src/modules/identity/__tests__/route-declarations.spec.ts` replaces their `staff` / `personal` markers with
@@ -441,7 +446,11 @@ None published, none consumed.
   `SO-12` two concurrent sign-outs of one session → one `SIGNED_OUT`, one `NO_SESSION` ·
   `SO-13` sign-out racing a PIN sign-in on the same device, with the sign-out response delayed until after the
   sign-in's → the new operator's row survives and resolves with the new cookie, and the test records that the late
-  clearing header names the same cookie (the D-6 limitation) ·
+  clearing header names the same cookie (the D-6 limitation). As built in 067-1, the HTTP response order is not
+  simulated: the API test `SO-13` asserts the one server-side fact, that the sign-out's clearing `Set-Cookie` names
+  the same cookie and `Path=/v1` as a new session's cookie; the commit orders are proven with real lock barriers in
+  `packages/auth/src/__tests__/staff-sign-out-race.spec.ts` (`SO-13d`, `SO-13e`, and that the sign-out waits on the
+  lock of the device named in its row) ·
   `SO-13d` a sign-in started before a sign-out and answered after it, with the sign-out's retirement committing before
   the sign-in's replacement → the sign-out answers `SIGNED_OUT`, and the new session from the fresh OTP/PIN resolves
   with its new cookie (intended, D-6) ·

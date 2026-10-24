@@ -899,7 +899,7 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
 
 ## Addendum 2026-10-23 — explicit, idempotent staff sign-out (spec 067, issue #554 item 2)
 
-- **Status:** Proposed. It becomes Accepted when sub-PR 067-1 merges.
+- **Status:** Accepted with sub-PR 067-1 (2026-10-24).
 
 **Context.** §1 says sign-out clears the staff session and keeps the pairing. The route
 `POST /v1/devices/me/staff-session/sign-out` runs today behind the full staff guard (device token, a live `STAFF_POS`

@@ -177,6 +177,7 @@ const expectedSchemas = [
   'RegisterDeviceInput',
   'RequestFileUpload',
   'RevokePermissionOverrideInput',
+  'SignOutResult',
   'StaffOtpAcknowledgement',
   'StaffOtpRequestInput',
   'StaffOtpVerifyInput',

@@ -1727,7 +1727,14 @@
         "operationId": "signOutPersonalStaff",
         "responses": {
           "200": {
-            "description": "signOutPersonalStaff"
+            "description": "signOutPersonalStaff",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignOutResult"
+                }
+              }
+            }
           },
           "default": {
             "description": "Error envelope",
@@ -13826,10 +13833,17 @@
         "operationId": "signOutStaff",
         "responses": {
           "200": {
-            "description": "Signed out"
+            "description": "Signed out, or no session to end",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignOutResult"
+                }
+              }
+            }
           },
           "default": {
-            "description": "Error",
+            "description": "The API error envelope",
             "content": {
               "application/json": {
                 "schema": {
@@ -28640,6 +28654,21 @@
           "expires_at"
         ],
         "additionalProperties": false
+      },
+      "SignOutResult": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "SIGNED_OUT",
+              "NO_SESSION"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
       },
       "WhatsappWebhookAcknowledgement": {
         "type": "object",
