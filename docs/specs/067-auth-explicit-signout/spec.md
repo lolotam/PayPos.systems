@@ -4,8 +4,8 @@
 
 **Created**: 2026-10-23
 
-**Status**: Draft. Part A needs no owner answer. Part B follows Waleed's SO-Q1 answer (2026-10-24, option 2); Abu
-Salem's pick is pending and binds if it differs ([owner-questions.ar.md](owner-questions.ar.md)).
+**Status**: Draft. Part A needs no owner answer. Part B follows SO-Q1, final: Waleed (2026-10-24, option 2) and
+Abu Salem picked the same on the decisions page (2026-10-24) ([owner-questions.ar.md](owner-questions.ar.md)).
 
 **Input**: Issue #554 items 2 and 4, raised by the reviews of #548 and #558 on `docs/specs/065-mob-app-shell/spec.md`.
 Item 2: both staff sign-out routes need an explicit, idempotent «no session to end» result, because spec 065 FR-008
@@ -200,8 +200,8 @@ Sara, a stylist, does not see it. Who counts is SO-Q1.
   through the super agent): a membership active now whose scope covers the session's business (FR-010), with the
   system role `owner`, `general_manager`, `business_manager`, `branch_manager`, `shift_supervisor` or `accountant`.
   A qualifying role in another business of the same company does not count (`SO-23`), and a company-specific role
-  never counts. Abu Salem's pick is
-  pending; work follows Waleed's pick until then, and Abu Salem's pick replaces it if it differs (`CLAUDE.md` §1 5b).
+  never counts. Abu Salem picked
+  the same option on the decisions page (2026-10-24), so the rule is final.
 
 ### Technical decisions (no owner question)
 
@@ -485,7 +485,7 @@ None published, none consumed.
 | Sub-PR | Content | Waits on |
 |---|---|---|
 | 067-1 | Part A: guard policy, `packages/auth` return shape, both handlers, contracts and OpenAPI, POS client regeneration, tests `SO-01…SO-16`, ADR addenda flipped to Accepted | nothing; it changes auth, so `pospay-pipeline` §3 step 2 design advice applies |
-| 067-2 | Part B: the eligibility reader returns the covering memberships' roles, the SO-Q1 domain function, `back_office` on both reads, contract, tests `SO-20…SO-25` | nothing: SO-Q1 answered by Waleed (option 2); Abu Salem's pick pending |
+| 067-2 | Part B: the eligibility reader returns the covering memberships' roles, the SO-Q1 domain function, `back_office` on both reads, contract, tests `SO-20…SO-25` | nothing: SO-Q1 final (Waleed and Abu Salem, option 2, 2026-10-24) |
 
 The app side (counting the statuses in FR-008, showing the FR-017 line) stays in spec 065's sub-PRs.
 
