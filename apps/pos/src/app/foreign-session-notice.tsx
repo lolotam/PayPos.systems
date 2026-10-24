@@ -1,20 +1,23 @@
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
-import { useEffect, useRef, useState } from 'react';
 
 import { useLocale } from '@/shared/locale/locale-context';
 
-import { endPersonalSession } from './end-sessions';
 import { LoadingNotice } from './loading-notice';
+import { useForeignSignOut, type ForeignSessionOutcome } from './use-foreign-sign-out';
 
-/** حالة الخروج من جلسة نشاط تاني: شغّال أو مرفوض. */
-export type ForeignSessionOutcome = 'running' | 'failed';
+export type { ForeignSessionOutcome } from './use-foreign-sign-out';
+
+// الموظفة ما ينفعش تفضل على تنبيه تحميل من غير حاجة تدوسها (#603)،
+// وأي رد بعد المهلة مش موثوق، فبيتجاهل.
+export const FOREIGN_SIGN_OUT_WAIT_MS = 10_000;
 
 /**
  * تنبيه الجلسة اللي فاضلة من نشاط تاني.
  *
  * الموظفة ما تشوفش شاشات الصالون القديم أبداً، فالجلسة بتخلص من السيرفر أول ما
- * تظهر؛ ولو الخروج اترفض، الموظفة هي اللي تقرر تعيد المحاولة — من غير تلقاء.
+ * تظهر. كل محاولة ليها مهلة؛ لو السيرفر ماردش أو الجلسة لسه مقروءة بعدها، بيظهر
+ * الفشل وزر إعادة المحاولة، وأي رد متأخر بيتجاهل من غير إعادة تلقائية.
  */
 export function ForeignSessionNotice({
   sessionKey,
@@ -26,27 +29,12 @@ export function ForeignSessionNotice({
   onOutcome: (key: string, next: ForeignSessionOutcome) => void;
 }) {
   const locale = useLocale();
-  const started = useRef(false);
-  const [retrying, setRetrying] = useState(false);
-
-  useEffect(() => {
-    // الجلسة دي اتجرّبت قبل كده: من غير حلقة مفرغة، واللي يقدر يعيد المحاولة هو الموظفة.
-    if (outcome !== undefined || started.current) return;
-    started.current = true;
-    onOutcome(sessionKey, 'running');
-    void endPersonalSession().then((result) => {
-      onOutcome(sessionKey, result === 'failed' ? 'failed' : 'running');
-    });
-  }, [outcome, onOutcome, sessionKey]);
-
-  const retry = () => {
-    setRetrying(true);
-    onOutcome(sessionKey, 'running');
-    void endPersonalSession().then((result) => {
-      setRetrying(false);
-      onOutcome(sessionKey, result === 'failed' ? 'failed' : 'running');
-    });
-  };
+  const { retrying, retry } = useForeignSignOut({
+    sessionKey,
+    outcome,
+    onOutcome,
+    waitMs: FOREIGN_SIGN_OUT_WAIT_MS,
+  });
 
   if (outcome !== 'failed' && !retrying) return <LoadingNotice />;
   return (

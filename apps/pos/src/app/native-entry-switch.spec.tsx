@@ -207,6 +207,43 @@ describe('NativeEntry business switch that does not happen', () => {
   });
 });
 
+describe('NativeEntry cancelling a switch that did not happen', () => {
+  beforeEach(prepare);
+
+  it.each([
+    { alertKey: 'nativeShell.roleChangeFailed', refused: true },
+    { alertKey: 'nativeShell.roleChangeOffline', refused: false },
+  ] as const)('cancelling clears the alert from $alertKey', async ({ alertKey, refused }) => {
+    if (refused) {
+      vi.mocked(endPersonalSession).mockResolvedValue('failed');
+    } else {
+      vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    }
+    await mountWithPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.confirm') }));
+    expect((await screen.findByRole('alert')).textContent).toContain(t('ar', alertKey));
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.cancel') }));
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText(t('ar', 'nativeShell.switchBusinessConfirm'))).toBeNull();
+    expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
+  });
+
+  it('keeps an unrelated save failure after cancelling the switch', async () => {
+    vi.mocked(rememberBusiness).mockRejectedValue(new Error('SYNTHETIC_SAVE_FAILURE'));
+    await mountWithPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.confirm') }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.cancel') }));
+
+    expect(screen.getByRole('alert').textContent).toContain(t('ar', 'nativeShell.saveFailed'));
+    expect(screen.queryByText(t('ar', 'nativeShell.switchBusinessConfirm'))).toBeNull();
+    expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
+  });
+});
+
 describe('NativeEntry business switch with a newer link', () => {
   beforeEach(prepare);
 
