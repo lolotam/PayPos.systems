@@ -60,7 +60,7 @@ No violation; Complexity Tracking is empty.
 | Row | What | Files (main) | Depends on | Done when |
 |---|---|---|---|---|
 | 069-1 | The page without printing: link, QR, copy, WhatsApp | `apps/admin/src/staff/employee-app-link/` (page, link helper, QR, copy, WhatsApp link), the route under `apps/admin/app/(dashboard)/staff/`, the staff-menu entry and the employees-page button; `packages/i18n` keys; one shared POS-hosts constant used by `apps/pos/vite.config.ts` and the admin helper; `NEXT_PUBLIC_POS_URL` in `apps/admin/next.config.ts`, `.env.example`, `deploy/Dockerfile.admin` and **both** admin image builds in `.github/workflows/ci.yml` (staging with `https://pos.staging.pospay.systems`, production with `https://pos.pospay.systems`, since the value is baked into the image); the staging deploy check of the link host | spec 069; the web manager's OK on the `apps/admin` lane; Waleed sets the staging build arg | EL-T01 … EL-T05, EL-T07 … EL-T09 green; the `apps/pos` cross-check green; on staging the page shows the staging POS host's link |
-| 069-2 | The logo read and the print sheet | API `files`: `use-cases/issue-business-logo-download/`, its controller route, ports `BusinessMemberReach` and `BusinessLogoReference` and their adapters; identity's exported `lockBusinessMemberReach`; `packages/storage` `presignDownload` optional cache policy; `docs/module-map.md` rows; `AUTHENTICATED_WRITES` entry; contract in `packages/contracts/src/files/`; the admin print sheet and its logo fetch | 069-1; the staging CORS rule below set by Waleed; the ADR-0056 addendum accepted with this PR; **before production:** the production CORS rule set by Waleed, with his yes, before any production deploy that carries 069-2 | EL-I01 … EL-I05 and EL-T06, EL-T10 green; a printed sheet on staging shows the salon logo; the addendum's status reads Accepted |
+| 069-2 | The logo read and the print sheet | API `files`: `use-cases/issue-business-logo-download/`, its controller route, ports `BusinessMemberReach` and `BusinessLogoReference` and their adapters; identity's exported `lockBusinessMemberReach`; `packages/storage` `presignDownload` optional cache policy; `docs/module-map.md` rows; `AUTHENTICATED_WRITES` entry; contract in `packages/contracts/src/files/`; the admin print sheet and its logo fetch | 069-1; the staging CORS rule below set by Waleed; the ADR-0056 addendum accepted with this PR; **before production:** the production CORS rule set by Waleed, with his yes, before any production deploy that carries 069-2 | EL-I01 … EL-I05 and EL-T06, EL-T10 green; the three staging CORS cases below pass; a printed sheet on staging shows the salon logo; the addendum's status reads Accepted |
 
 ## Decisions (research)
 
@@ -108,8 +108,12 @@ existing upload (`PUT`) rule of ADR-0022 unchanged:
   `NoSuchBucket` (an outage) or an unreadable body is a failure with a retry, and 403 (an expired URL) asks for one new
   URL first.
 - **MaxAgeSeconds:** 3600, an hour of cached preflight answers (none are expected for a simple GET).
-- **Check after setting it:** on staging, the print sheet of a business with a logo shows the logo, and the browser
-  console shows no CORS error for the signed URL.
+- **Check after setting it, on staging, three cases** (part of 069-2's done-when): (1) a business with a logo: the
+  print sheet shows it and the console has no CORS error; (2) a signed URL for a deleted object: `fetch` reads the 404
+  and its `NoSuchKey` body (so the bucket sends `Access-Control-Allow-Origin` on error answers too) and the sheet prints
+  the name only; (3) an expired URL: `fetch` reads the 403 and the page asks for one new URL. If (2) or (3) comes back
+  as an opaque network error, R2 does not expose its error answers. 069-2 then stops, and EL-TQ1 goes back to Waleed
+  with that fact, since every missing logo would show the retry message, which is option (b)'s outcome.
 
 
 ## Project Structure
