@@ -1,11 +1,12 @@
 import type { AttendanceOpenSession, AttendancePeriod, ReportBranchInputs, ReportLeave } from './attendance-report-types.js';
-import { attendanceContractPeriodDates, attendancePeriodDates } from './attendance-period-dates.js';
+import { attendanceContractPeriodDates, attendanceLeaveCoversDate, attendancePeriodDates } from './attendance-period-dates.js';
+import { attendanceShiftHasEnded } from './attendance-statement-cutoff.js';
 import { isCountedAttendanceSession, workedAttendanceMinutesByDate } from './attendance-worked-minutes.js';
 
 /** نوع الإجازة المعروضة في يوم واحد من بيان الموظفة. */
 export type AttendanceStatementLeaveType = 'ANNUAL' | 'SICK' | 'UNPAID' | 'OTHER';
 
-/** جلسة يوم واحد في بيان الموظفة؛ الزمن المعروض جاهز للطباعة. */
+/** جلسة يوم واحد في بيان الموظفة؛ أوقات البصمة لحظات ISO، والصياغة شغل مصدر الـ worker. */
 export interface AttendanceStatementDaySession {
   clock_in: string;
   clock_out: string | null;
@@ -29,8 +30,7 @@ export interface AttendanceStatementDay {
 function leaveTypesOnDate(leaves: readonly ReportLeave[], date: string): AttendanceStatementLeaveType[] {
   const types = new Set<AttendanceStatementLeaveType>();
   for (const leave of leaves) {
-    const covered = leave.kind === 'FULL_DAY' ? leave.from <= date && date <= leave.to : leave.from === date;
-    if (covered) types.add(leave.type);
+    if (attendanceLeaveCoversDate(leave, date)) types.add(leave.type);
   }
   return (['ANNUAL', 'SICK', 'UNPAID', 'OTHER'] as const).filter((type) => types.has(type));
 }
@@ -57,7 +57,7 @@ export function computeAttendanceStatementDays(branch: ReportBranchInputs, openS
         late_minutes: session.late_minutes, manual: session.source === 'MANUAL',
         counted: isCountedAttendanceSession(session),
         missing_clock_out: session.status === 'MISSED_OUT' && !session.clock_out_corrected }));
-    const scheduled = branch.shifts.filter((shift) => shift.working_date === date && Date.parse(shift.ends_at) <= Date.parse(cutoff))
+    const scheduled = branch.shifts.filter((shift) => shift.working_date === date && attendanceShiftHasEnded(shift, cutoff))
       .toSorted((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))
       .map((shift) => ({ starts_at: shift.starts_at, ends_at: shift.ends_at }));
     const still_in = openSessions.some((session) => session.working_date === date);

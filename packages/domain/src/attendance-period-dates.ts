@@ -1,4 +1,4 @@
-import type { AttendancePeriod, ReportContract } from './attendance-report-types.js';
+import type { AttendancePeriod, ReportContract, ReportLeave } from './attendance-report-types.js';
 
 /**
  * يبني أيام الفترة من يوم العمل الأول لحد الأخير بترتيب ثابت؛ يوم الأسبوع يبدأ بالسبت مثل دوام الموظفة.
@@ -28,6 +28,18 @@ export function attendanceContractPeriodDates(contract: ReportContract | null, p
   return contract === null ? [] : attendancePeriodDates(period).filter(({ date }) => date >= contract.hire_date &&
     (contract.contract_end === null || date <= contract.contract_end) &&
     contract.links.some((link) => link.from <= date && (link.to === null || date < link.to)));
+}
+
+/**
+ * يقول إن الإجازة المقبولة تغطي اليوم ده؛ الكامل يغطي كل يوم بين بدايتها ونهايتها، والجزئي يوم بدايته بس.
+ * نفس القاعدة بتحسب في عمود الإجازة وفي التغطية عشان ما يختلفوش (ST-Q7).
+ *
+ * @param leave الإجازة المقبولة
+ * @param date يوم العمل المحلي
+ * @returns هل الإجازة تغطي اليوم ده
+ */
+export function attendanceLeaveCoversDate(leave: ReportLeave, date: string): boolean {
+  return leave.kind === 'FULL_DAY' ? leave.from <= date && date <= leave.to : leave.from === date;
 }
 
 /**

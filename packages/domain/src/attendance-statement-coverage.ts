@@ -1,13 +1,14 @@
-import type { AttendancePeriod, AttendanceShiftPair, ReportBranchInputs, ReportLeave } from './attendance-report-types.js';
+import type { AttendancePeriod, AttendanceShiftPair, ReportBranchInputs } from './attendance-report-types.js';
 import type { WeekdayDefaultShift } from './default-shifts.js';
-import { attendanceContractPeriodDates } from './attendance-period-dates.js';
-import { attendanceContractEntryEnded, attendanceLocalFormatter, attendanceLocalMinute } from './attendance-statement-cutoff.js';
-import { attendanceShiftMatchesPair } from './attendance-shift-filter.js';
+import { attendanceContractPeriodDates, attendanceLeaveCoversDate } from './attendance-period-dates.js';
+import {
+  attendanceContractEntryEnded,
+  attendanceLocalFormatter,
+  attendanceLocalMinute,
+  attendanceShiftHasEnded,
+} from './attendance-statement-cutoff.js';
+import { attendanceShiftPairInputs } from './attendance-shift-filter.js';
 import { isCountedAttendanceSession } from './attendance-worked-minutes.js';
-
-function leaveCoversDate(leave: ReportLeave, date: string): boolean {
-  return leave.kind === 'FULL_DAY' ? leave.from <= date && date <= leave.to : leave.from === date;
-}
 
 function contractDays(branch: ReportBranchInputs, period: AttendancePeriod): { date: string; entry: WeekdayDefaultShift }[] {
   const defaults = new Map((branch.contract?.entries ?? []).map((entry) => [entry.day, entry]));
@@ -32,13 +33,11 @@ export function hasAttendanceStatementCoverage(branch: ReportBranchInputs, perio
   cutoff: string, pair: AttendanceShiftPair | null): boolean {
   const inPeriod = (date: string) => date >= period.from && date <= period.to;
   if (pair !== null) {
-    const matching = branch.shifts.filter((shift) => attendanceShiftMatchesPair(shift, branch.timezone, pair));
-    const ends = new Set(matching.map((shift) => Date.parse(shift.ends_at)));
+    const { matching, kept } = attendanceShiftPairInputs(branch, pair);
     const pairDates = new Set(matching.filter((shift) => inPeriod(shift.working_date)).map((shift) => shift.working_date));
-    const kept = branch.sessions.filter((session) => session.scheduled_end !== null && ends.has(Date.parse(session.scheduled_end)));
     if (kept.some((session) => inPeriod(session.working_date) && isCountedAttendanceSession(session))) return true;
-    if ([...pairDates].some((date) => branch.leave_for_branch.some((leave) => leaveCoversDate(leave, date)))) return true;
-    return matching.some((shift) => inPeriod(shift.working_date) && Date.parse(shift.ends_at) <= Date.parse(cutoff));
+    if ([...pairDates].some((date) => branch.leave_for_branch.some((leave) => attendanceLeaveCoversDate(leave, date)))) return true;
+    return matching.some((shift) => inPeriod(shift.working_date) && attendanceShiftHasEnded(shift, cutoff));
   }
   if (branch.sessions.some((session) => inPeriod(session.working_date) && isCountedAttendanceSession(session))) return true;
   const formatter = attendanceLocalFormatter(branch.timezone);
@@ -46,6 +45,6 @@ export function hasAttendanceStatementCoverage(branch: ReportBranchInputs, perio
   const days = contractDays(branch, period);
   if (days.some(({ date, entry }) => attendanceContractEntryEnded(date, entry, cutoffMinute))) return true;
   const contractDates = attendanceContractPeriodDates(branch.contract, period).map(({ date }) => date);
-  if (contractDates.some((date) => branch.leave_for_branch.some((leave) => leaveCoversDate(leave, date)))) return true;
-  return branch.shifts.some((shift) => inPeriod(shift.working_date) && Date.parse(shift.ends_at) <= Date.parse(cutoff));
+  if (contractDates.some((date) => branch.leave_for_branch.some((leave) => attendanceLeaveCoversDate(leave, date)))) return true;
+  return branch.shifts.some((shift) => inPeriod(shift.working_date) && attendanceShiftHasEnded(shift, cutoff));
 }

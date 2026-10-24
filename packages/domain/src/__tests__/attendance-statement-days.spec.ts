@@ -71,9 +71,9 @@ it('FR-013a: an ended shift with no session shows the scheduled times and the mi
 });
 
 it('FR-013a: a shift that has not ended shows the date only', () => {
-  const days = computeAttendanceStatementDays(branch({ shifts: [shift({ working_date: '2026-10-03',
-    starts_at: at('2026-10-03', '18:00'), ends_at: at('2026-10-03', '22:00') })] }), [], PERIOD, CUTOFF);
-  expect(days[2]).toMatchObject({ date: '2026-10-03', scheduled: [], no_attendance: false, worked_minutes: 0 });
+  const days = computeAttendanceStatementDays(branch({ shifts: [shift({ working_date: '2026-10-15',
+    starts_at: at('2026-10-15', '18:00'), ends_at: at('2026-10-15', '22:00') })] }), [], PERIOD, CUTOFF);
+  expect(days[14]).toMatchObject({ date: '2026-10-15', scheduled: [], no_attendance: false, worked_minutes: 0 });
 });
 
 it('AB-Q4: a leave date lists its type on a contract day', () => {

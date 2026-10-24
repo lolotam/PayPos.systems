@@ -15,10 +15,11 @@ export function attendanceLocalFormatter(timezone: string): Intl.DateTimeFormat 
 
 /**
  * يحوّل لحظة إلى دقيقة بالوقت المحلي للمنطقة؛ المقياس ده بيخلّي مقارنة «قبل الطلب» تتم بالساعة مش بالنص.
+ * الرقم بيتحسب من 1 يناير 1970 بساعة الحائط المحلية للحظة دي، عشان لحظتين في يومين مختلفين يبقوا قابلين للمقارنة.
  *
  * @param instant اللحظة بصيغة ISO
- * @param formatter منسوق المنطقة المحلية
- * @returns دقيقة اليوم المحلي بالعدّاد من منتصف ليل اليوم
+ * @param formatter منسق المنطقة المحلية
+ * @returns الدقائق من 1 يناير 1970 بساعة الحائط المحلية للحظة دي
  */
 export function attendanceLocalMinute(instant: string, formatter: Intl.DateTimeFormat): number {
   const parts = Object.fromEntries(formatter.formatToParts(new Date(instant)).map((part) => [part.type, part.value]));

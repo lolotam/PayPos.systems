@@ -53,6 +53,7 @@ export {
 } from './attendance-period-report.js';
 export {
   attendanceShiftMatchesPair,
+  attendanceShiftPairInputs,
   computeAttendanceShiftPeriodReport,
   type AttendanceShiftPeriodReport,
 } from './attendance-shift-filter.js';

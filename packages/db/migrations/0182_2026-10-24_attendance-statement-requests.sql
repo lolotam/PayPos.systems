@@ -28,3 +28,16 @@ ALTER TABLE "attendance_statement_requests" ADD CONSTRAINT "attendance_statement
 CREATE INDEX "attendance_statement_requests_business_branch_idx" ON "attendance_statement_requests" USING btree ("company_id","business_id","branch_id","requested_at");--> statement-breakpoint
 CREATE INDEX "attendance_statement_requests_employee_idx" ON "attendance_statement_requests" USING btree ("company_id","business_id","employee_id");--> statement-breakpoint
 CREATE INDEX "attendance_statement_requests_requester_idx" ON "attendance_statement_requests" USING btree ("company_id","requested_by","requested_at");
+--> statement-breakpoint
+ALTER TABLE attendance_statement_requests ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+ALTER TABLE attendance_statement_requests FORCE ROW LEVEL SECURITY;
+--> statement-breakpoint
+CREATE POLICY attendance_statement_requests_select ON attendance_statement_requests FOR SELECT TO pospay_app USING (company_id = app_company_id());
+--> statement-breakpoint
+CREATE POLICY attendance_statement_requests_insert ON attendance_statement_requests FOR INSERT TO pospay_app WITH CHECK (company_id = app_company_id());
+--> statement-breakpoint
+REVOKE ALL ON attendance_statement_requests FROM PUBLIC, pospay_app, pospay_auth, pospay_dispatcher;
+--> statement-breakpoint
+-- سجل طلب البيان يُدرج مرة واحدة ولا يُعدّل ولا يُحذف.
+GRANT SELECT, INSERT ON attendance_statement_requests TO pospay_app;
