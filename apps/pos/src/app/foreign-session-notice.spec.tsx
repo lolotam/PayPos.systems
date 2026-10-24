@@ -18,13 +18,10 @@ function mount(initialOutcome: 'running' | 'failed' | undefined) {
   const onOutcome = vi.fn();
   function ControlledNotice() {
     const [outcome, setOutcome] = useState(initialOutcome);
-    const report = useCallback(
-      (key: string, next: 'running' | 'failed') => {
-        onOutcome(key, next);
-        setOutcome(next);
-      },
-      [],
-    );
+    const report = useCallback((key: string, next: 'running' | 'failed') => {
+      onOutcome(key, next);
+      setOutcome(next);
+    }, []);
     return <ForeignSessionNotice sessionKey={KEY} outcome={outcome} onOutcome={report} />;
   }
   render(
@@ -104,9 +101,7 @@ describe('ForeignSessionNotice retry', () => {
 
   it('unlocks retry after a retry also never answers for ten seconds', async () => {
     vi.useFakeTimers();
-    vi.mocked(endPersonalSession).mockReturnValue(
-      new Promise<'done' | 'failed'>(() => undefined),
-    );
+    vi.mocked(endPersonalSession).mockReturnValue(new Promise<'done' | 'failed'>(() => undefined));
     mount('failed');
 
     fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }));
@@ -131,9 +126,7 @@ describe('ForeignSessionNotice retry', () => {
 describe('ForeignSessionNotice ten-second wait', () => {
   it('shows an enabled retry after a sign-out never answers for ten seconds', async () => {
     vi.useFakeTimers();
-    vi.mocked(endPersonalSession).mockReturnValue(
-      new Promise<'done' | 'failed'>(() => undefined),
-    );
+    vi.mocked(endPersonalSession).mockReturnValue(new Promise<'done' | 'failed'>(() => undefined));
     mount(undefined);
 
     expect(screen.getByRole('status')).not.toBeNull();
