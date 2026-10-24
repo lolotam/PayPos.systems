@@ -147,12 +147,13 @@ start screen again.
   today.
 - **FR-006**: A single platform port MUST report, per capability, whether it is available: Web Push (never on native);
   passkeys (off on both platforms until O-4 is done, on iOS also until #536, on Android also only if M-1c's check
-  passes); attendance camera (Android **off until M-1c's camera check (d1) passes**, so no unverified camera control ships.
-  **PP-58.5 (Waleed, 2026-10-25) splits (d):** (d1) the camera opens and reads a QR, checked now through the M-1h
-  connect-screen scan, which needs no sign-in and so no WhatsApp; (d2) attendance by camera, which waits on the
-  personal session (WhatsApp, PP-58.1). The Android value is a build-time setting of the port: (d1) runs on a staging
-  debug build made with the camera on, and once (d1) passes a one-line follow-up PR turns the camera capability, and with
-  it the M-1h scan, on for every build; attendance by camera is then used only once (d2) has passed; **iOS off until M-1c-ii passes on a real iPhone**, ADR-0055 decision 3).
+  passes); and two camera capabilities, so no unverified camera control ships. **PP-58.5 (Waleed, 2026-10-25) splits
+  the camera check (d):** (d1) the camera opens and reads a QR, checked through the M-1h connect-screen scan, which needs
+  no sign-in and so no WhatsApp; (d2) attendance by camera, which needs the personal session (WhatsApp, PP-58.1).
+  **QR scan** (Android off until (d1) passes) and **attendance camera** (Android off until (d2) passes); both are
+  build-time settings of the port: each check runs on a staging debug build made with its capability on, and once it
+  passes a one-line follow-up PR turns that capability on for every build, so between (d1) and (d2) the scan is on and
+  attendance by camera is off. **iOS: both off until M-1c-ii passes on a real iPhone**, ADR-0055 decision 3).
   Screens read the port; no screen tests the platform itself.
 - **FR-007**: A capability that is off MUST NOT offer a working-looking control: its button is hidden and one line says
   it is available in the web app, with a link that opens it (APP-Q17, PP-42.9; Waleed, 2026-10-23; Abu Salem picked the same, final).
@@ -215,7 +216,7 @@ start screen again.
   pairs again. Built and checked in M-1a.
 - **FR-014**: The in-app QR scan reads a QR code whose content is exactly the manager's link of FR-012 and handles it
   with the same parser and the same rules (host and path check, role precedence, confirmation before a business
-  switch). It uses the attendance camera capability of the platform port (FR-006): where the camera is off (iOS
+  switch). It uses the **QR scan** capability of the platform port (FR-006), not the attendance camera one: where the QR scan is off (iOS
   until M-1c-ii passes; Android until M-1c's check (d1) passes), the scan option is hidden with the FR-007 line and the
   employee connects by the link or the paste. The QR itself is shown by a back-office screen in `apps/admin` that
   gives the manager the employee-app link and its QR code (one link per business: EL-Q1 of spec 069, Waleed's pick,
@@ -348,8 +349,9 @@ None published, none consumed.
   continues, and treats a plain 401 as a failure that stops it · `MOB-T19` one sign-out done and the other failing:
   the first session's private forms are already cleared, the role, the pairing and the remembered business are still
   there after the success and after the failure, and only a new, confirmed change that finishes removes them ·
-  `MOB-T20` a valid QR scanned in the app connects the business like the link, and where the camera port is off the
-  scan option is hidden with the FR-007 line · `MOB-T21` first launch with the phone in Arabic shows Arabic, with the
+  `MOB-T20` a valid QR scanned in the app connects the business like the link, and where the QR-scan capability is off
+  the scan option is hidden with the FR-007 line; with the QR scan on and the attendance camera off (after (d1), before
+  (d2)), the connect screen offers the scan and the attendance screen offers no camera control · `MOB-T21` first launch with the phone in Arabic shows Arabic, with the
   phone in any other language shows English, and the language switch still changes it · `MOB-T22` the start screen,
   the counter flow and the personal flow render without cut-off controls in both orientations (tablet and phone
   viewports) · `MOB-T23` with the role signal present the «لوحة الإدارة على الويب» line and its link show, without it
@@ -369,7 +371,7 @@ None published, none consumed.
   (d2) attendance by camera; (e) passkey behaviour. Android on a real phone; iOS
   (a) and (b) on the simulator, (c)–(e) on the first real iPhone (M-1c-ii). **Staged by PP-58.1:** (a) and (b) run now on
   Android, and (d1) as soon as M-1h exists (no sign-in needed, PP-58.5); (c), (d2) and (e) wait until WhatsApp Business is set up and then run on real WhatsApp. The M-1c gate for M-1d
-  onward, M-2 and the Apple fee is (a) and (b) on the Android phone and on the iOS simulator; Android (c)–(e) and the
+  onward, M-2 and the Apple fee is (a) and (b) on the Android phone and on the iOS simulator; Android (c), (d2) and (e) and the
   real-iPhone checks of M-1c-ii must pass before any employee receives the app, but they do not hold back that work
   (M-1c-ii needs the M-2a build). **PP-58.2 (Waleed, 2026-10-25, option 1, confirmed on the corrected
   wording):** a simulator on the GitHub runner cannot receive a real WhatsApp code, so M-1d onward
