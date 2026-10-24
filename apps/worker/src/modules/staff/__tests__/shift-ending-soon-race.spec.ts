@@ -36,8 +36,9 @@ function holdClockOut(
       WHERE company_id=${tenant.company} AND employee_id=${employee} FOR UPDATE`);
     opened();
     await release;
-    await tx.execute(sql`UPDATE attendance_sessions SET status='CLOSED', clock_out=${ENDS_SOON_REMIND_AT},
-      closed_by='EMPLOYEE' WHERE company_id=${tenant.company} AND employee_id=${employee} AND status='OPEN'`);
+    await tx.execute(sql`UPDATE attendance_sessions SET status='CLOSED',
+      clock_out=${ENDS_SOON_REMIND_AT.toISOString()}::timestamptz, closed_by='EMPLOYEE'
+      WHERE company_id=${tenant.company} AND employee_id=${employee} AND status='OPEN'`);
   });
 }
 

@@ -157,13 +157,20 @@ async function seedHistory(tenant: Tenant) {
     FROM employees e CROSS JOIN generate_series('2026-07-01'::timestamptz, '2026-09-30'::timestamptz, interval '1 day') AS d
     WHERE e.company_id=${tenant.company} AND e.name_en='Synthetic bulk'`;
   // سجل الدفتر الكبير: واحد وعشرون صف لكل وردية قديمة، بمفتاح الموظف ولحظة النهاية.
-  await f.owner`INSERT INTO attendance_shift_ending_notices(company_id,id,business_id,branch_id,employee_id,
-      shift_starts_at,shift_ends_at,remind_due_at,notified_at,recipient_count)
-    SELECT sh.company_id, gen_random_uuid(), sc.business_id, sc.branch_id, sh.employee_id,
-      sh.starts_at + d * interval '1 day', sh.ends_at + d * interval '1 day',
-      sh.starts_at + d * interval '1 day', '2026-09-01T00:00:00.000Z', 0
-    FROM staff_schedule_shifts sh
-    JOIN staff_schedules sc ON sc.company_id = sh.company_id AND sc.id = sh.schedule_id
-    CROSS JOIN generate_series(0, 20) AS d
-    WHERE sh.company_id = ${tenant.company} AND sh.working_date = '2026-08-30'`;
+  // الجملة بتتقسم على ثلاثة: جملة واحدة بستة وثلاثين ألف صف بتعدّي مهلة الـ statement.
+  for (const [from, to] of [
+    [0, 6],
+    [7, 13],
+    [14, 20],
+  ] as const) {
+    await f.owner`INSERT INTO attendance_shift_ending_notices(company_id,id,business_id,branch_id,employee_id,
+        shift_starts_at,shift_ends_at,remind_due_at,notified_at,recipient_count)
+      SELECT sh.company_id, gen_random_uuid(), sc.business_id, sc.branch_id, sh.employee_id,
+        sh.starts_at + d * interval '1 day', sh.ends_at + d * interval '1 day',
+        sh.starts_at + d * interval '1 day', '2026-09-01T00:00:00.000Z', 0
+      FROM staff_schedule_shifts sh
+      JOIN staff_schedules sc ON sc.company_id = sh.company_id AND sc.id = sh.schedule_id
+      CROSS JOIN generate_series(${from}::int, ${to}::int) AS d
+      WHERE sh.company_id = ${tenant.company} AND sh.working_date = '2026-08-30'`;
+  }
 }
