@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 
+import { POS_HOSTS } from '@pospay/contracts';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -16,7 +17,7 @@ export default defineConfig(({ mode }) => {
   const flavour = process.env.FLAVOUR === 'production' ? 'production' : 'staging';
   // نفس الـ host بتاع نسخة التطبيق (ADR-0055 قرار 4): لينك المدير بيتقرأ من الـ host ده بالظبط،
   // والنسختين (staging و production) ليهما host مختلف.
-  const posHost = flavour === 'production' ? 'pos.pospay.systems' : 'pos.staging.pospay.systems';
+  const posHost = flavour === 'production' ? POS_HOSTS.production : POS_HOSTS.staging;
 
   return {
     envDir: fileURLToPath(new URL('../..', import.meta.url)),

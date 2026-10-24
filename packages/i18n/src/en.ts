@@ -8,7 +8,7 @@ import { discountApprovalErrorsEn } from './discount-approval-errors.js';
 import { staffColumnsErrorsEn } from './staff-columns-errors.js';
 import { attendanceEn } from './attendance-en.js';
 import { clockCardAdminEn, clockCardPosEn } from './clock-card-catalog.js';
-import { employeeImportEn, employeeImportErrorsEn } from './employee-import.js';
+import { employeeImportErrorsEn } from './employee-import.js';
 import { leaveEn, leaveDecisionErrorsEn } from './leave-catalog.js';
 import { attendanceExceptionErrorsEn } from './attendance-exception-catalog.js';
 import { attendanceCorrectionErrorsEn } from './attendance-correction-catalog.js';
@@ -21,7 +21,7 @@ import { catalogServicesEn, serviceErrorsEn } from './catalog-services.js';
 import { employeeIbanEn, employeeIbanErrorsEn } from './employee-iban-catalog.js';
 import { scheduleShellEn } from './schedule-shell-catalog.js'; import { employeeDefaultHoursEn } from './employee-default-hours-catalog.js'; import { employeeNumberErrorsEn } from './employee-number-catalog.js';
 import { employeeNumberAdminEn } from './employee-number-admin-catalog.js';
-import { companyEmployeeNumbersEn } from './company-employee-numbers-catalog.js';
+import { staffScreensEn } from './staff-screens-catalog.js';
 import { businessIdentityEn } from './business-identity-catalog.js';
 import { roleNamesEn } from './role-names-catalog.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
@@ -395,7 +395,6 @@ export const en = {
     unexpected: 'Something went wrong. Try again.',
     networkError: 'The server could not be reached. Try again.',
   },
-  employeeImport: employeeImportEn,
-  companyEmployeeNumbers: companyEmployeeNumbersEn,
+  ...staffScreensEn,
   businessIdentity: businessIdentityEn,
 } as const;

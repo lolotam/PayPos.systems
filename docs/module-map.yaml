@@ -82,6 +82,7 @@ reads:
   - { from: orders, to: tenancy, symbol: activeBusinessTimeZone, file: apps/api/src/modules/orders/persistence/session-recovery.adapter.ts }
   - { from: orders, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/orders/persistence/session-place.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/attendance-board-context.adapter.ts }
+  - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/employee-app-link-names.adapter.ts }
   - { from: staff, to: tenancy, symbol: attendanceBranch, file: apps/api/src/modules/staff/persistence/manual-session-context.adapter.ts }
   - { from: staff, to: identity, symbol: lockAttendanceExceptionAccess, file: apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts }
   - { from: staff, to: identity, symbol: readAttendanceChangeAccess, file: apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts }
