@@ -34,7 +34,7 @@ export function NativeEntry() {
           </p>
         ) : null}
         {state.role === 'counter' ? (
-          <DeviceScreen startOver={back} />
+          <DeviceScreen startOver={back} locked={busy} />
         ) : (
           <EmployeeFlow
             business={state.business}

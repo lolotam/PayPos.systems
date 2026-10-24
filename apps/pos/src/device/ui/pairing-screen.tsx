@@ -10,9 +10,11 @@ import { PairingForm } from './pairing-form';
 export function PairingScreen({
   notice,
   onSubmit,
+  locked = false,
 }: {
   notice: PairingNotice | null;
   onSubmit: (values: RegisterDeviceInput) => Promise<string | null>;
+  locked?: boolean;
 }) {
   const locale = useLocale();
   return (
@@ -30,7 +32,7 @@ export function PairingScreen({
           title={t(locale, notice === 'refused' ? 'pos.refused' : 'pos.removed')}
         />
       ) : null}
-      <PairingForm onSubmit={onSubmit} />
+      <PairingForm onSubmit={onSubmit} locked={locked} />
     </BrandedPanel>
   );
 }

@@ -13,16 +13,18 @@ import { LoadingNotice } from './loading-notice';
 export function DeviceBody({
   session,
   startOver,
+  locked = false,
 }: {
   session: DeviceSession;
   startOver?: ReactNode;
+  locked?: boolean;
 }) {
   const { screen } = session;
   if (screen.kind === 'loading') return <LoadingNotice />;
   if (screen.kind === 'pairing') {
     return (
       <>
-        <PairingScreen notice={screen.notice} onSubmit={session.submit} />
+        <PairingScreen notice={screen.notice} onSubmit={session.submit} locked={locked} />
         {session.submitting ? null : startOver}
       </>
     );

@@ -11,17 +11,22 @@ import { TextField } from './text-field';
 
 export function PairingForm({
   onSubmit,
+  locked = false,
 }: {
   onSubmit: (values: RegisterDeviceInput) => Promise<string | null>;
+  locked?: boolean;
 }) {
   const locale = useLocale();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // أثناء الرجوع لاختيار نوع الجهاز، اقتران جديد هيحفظ حالة خطوة الرجوع مش قادرة تلغيها.
+  const disabled = pending || locked;
   const form = useForm<RegisterDeviceInput>({
     resolver: zodResolver(registerDeviceInput),
     defaultValues: { pairing_code: '', label: '' },
   });
   const submit = async (values: RegisterDeviceInput): Promise<void> => {
+    if (locked) return;
     setPending(true);
     setError(null);
     const message = await onSubmit(values);
@@ -39,7 +44,7 @@ export function PairingForm({
         className="uppercase"
         label={t(locale, 'pos.pairingCodeLabel')}
         error={form.formState.errors.pairing_code ? 'pos.pairingCodeInvalid' : undefined}
-        disabled={pending}
+        disabled={disabled}
         {...form.register('pairing_code')}
       />
       <TextField
@@ -47,7 +52,7 @@ export function PairingForm({
         autoComplete="off"
         label={t(locale, 'pos.deviceLabel')}
         error={form.formState.errors.label ? 'pos.labelInvalid' : undefined}
-        disabled={pending}
+        disabled={disabled}
         {...form.register('label')}
       />
       {error ? (
@@ -59,7 +64,7 @@ export function PairingForm({
           className="p-4"
         />
       ) : null}
-      <Button size="touch" type="submit" disabled={pending}>
+      <Button size="touch" type="submit" disabled={disabled}>
         {t(locale, pending ? 'pos.loading' : 'pos.pairSubmit')}
       </Button>
     </form>

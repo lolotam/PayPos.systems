@@ -27,12 +27,12 @@ vi.mock('@/attendance/api/use-attendance-qr', () => ({
   }),
 }));
 
-function renderBody(session: DeviceSession, startOver?: ReactNode) {
+function renderBody(session: DeviceSession, startOver?: ReactNode, locked = false) {
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <DirectionProvider dir="rtl">
         <LocaleProvider locale="ar" setLocale={() => undefined}>
-          <DeviceBody session={session} startOver={startOver} />
+          <DeviceBody session={session} startOver={startOver} locked={locked} />
         </LocaleProvider>
       </DirectionProvider>
     </QueryClientProvider>,
@@ -121,6 +121,16 @@ describe('DeviceBody', () => {
       else expect(back).toBeNull();
     },
   );
+});
+
+it.each([
+  { locked: true, disabled: true },
+  { locked: false, disabled: false },
+])('locks the pairing submit when locked=$locked', ({ locked, disabled }) => {
+  renderBody(makeSession({ kind: 'pairing', notice: null }), undefined, locked);
+
+  const submit = screen.getByRole('button', { name: t('ar', 'pos.pairSubmit') });
+  expect(submit.hasAttribute('disabled')).toBe(disabled);
 });
 
 it('keeps the card screen hidden until an operator exists', () => {
