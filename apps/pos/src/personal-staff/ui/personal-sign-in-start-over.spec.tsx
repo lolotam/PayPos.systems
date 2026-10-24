@@ -31,11 +31,7 @@ it.each([
   });
   render(
     <LocaleProvider locale="en" setLocale={() => undefined}>
-      <PersonalSignIn
-        workspace={WORKSPACE}
-        changed={vi.fn()}
-        startOver={<button>back</button>}
-      />
+      <PersonalSignIn workspace={WORKSPACE} changed={vi.fn()} startOver={<button>back</button>} />
     </LocaleProvider>,
   );
 

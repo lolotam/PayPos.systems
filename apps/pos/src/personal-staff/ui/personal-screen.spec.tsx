@@ -220,14 +220,7 @@ it.each([
   },
 ] as const)(
   'shows the start-over control for $name only when there is no usable session',
-  ({
-    online,
-    loading,
-    confirmedNoSession,
-    session: currentSession,
-    withHint,
-    visible,
-  }) => {
+  ({ online, loading, confirmedNoSession, session: currentSession, withHint, visible }) => {
     vi.mocked(usePersonalSession).mockReturnValue({
       epoch: 0,
       online,
