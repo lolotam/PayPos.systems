@@ -204,10 +204,11 @@ export function stateAfterSwitch(
  */
 export function stateWithoutPending(current: NativeState): NativeState {
   if (current.kind !== 'flow' || current.pending === undefined) return current;
-  if (current.alert === 'roleChangeFailed' || current.alert === 'roleChangeOffline') {
-    return { kind: 'flow', role: current.role, business: current.business };
-  }
-  if (current.alert === undefined) {
+  if (
+    current.alert === 'roleChangeFailed' ||
+    current.alert === 'roleChangeOffline' ||
+    current.alert === undefined
+  ) {
     return { kind: 'flow', role: current.role, business: current.business };
   }
   return { kind: 'flow', role: current.role, business: current.business, alert: current.alert };

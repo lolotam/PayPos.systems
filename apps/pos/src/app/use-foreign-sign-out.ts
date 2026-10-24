@@ -2,10 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { endPersonalSession } from './end-sessions';
 
+/** حالة الخروج من جلسة نشاط تاني: شغّال أو مرفوض. */
+export type ForeignSessionOutcome = 'running' | 'failed';
+
 interface ForeignSignOutOptions {
   sessionKey: string;
-  outcome: 'running' | 'failed' | undefined;
-  onOutcome: (key: string, next: 'running' | 'failed') => void;
+  outcome: ForeignSessionOutcome | undefined;
+  onOutcome: (key: string, next: ForeignSessionOutcome) => void;
   waitMs: number;
 }
 
@@ -24,31 +27,32 @@ export function useForeignSignOut({
   const [retrying, setRetrying] = useState(false);
   const started = useRef(false);
   const mounted = useRef(false);
-  const current = useRef({ id: 0, accepting: false });
+  const attemptRef = useRef({ id: 0, accepting: false });
+  const reportRef = useRef({ onOutcome, sessionKey });
+  reportRef.current = { onOutcome, sessionKey };
   const begin = useCallback(
     (isRetry: boolean) => {
-      const id = current.current.id + 1;
-      current.current = { id, accepting: true };
+      const id = attemptRef.current.id + 1;
+      attemptRef.current = { id, accepting: true };
       if (isRetry) setRetrying(true);
       setAttempt(id);
       onOutcome(sessionKey, 'running');
       void endPersonalSession().then((result) => {
-        if (!mounted.current || current.current.id !== id || !current.current.accepting) return;
-        if (result === 'failed') current.current.accepting = false;
+        const active = attemptRef.current;
+        if (!mounted.current || active.id !== id || !active.accepting) return;
+        if (result === 'failed') active.accepting = false;
         setRetrying(false);
         onOutcome(sessionKey, result === 'failed' ? 'failed' : 'running');
       });
     },
     [onOutcome, sessionKey],
   );
-
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
     };
   }, []);
-
   useEffect(() => {
     if (started.current) return;
     started.current = true;
@@ -59,18 +63,17 @@ export function useForeignSignOut({
       begin(false);
     }
   }, [begin, outcome, onOutcome, sessionKey]);
-
   useEffect(() => {
     if (attempt === 0) return;
     const timer = setTimeout(() => {
-      if (!mounted.current || current.current.id !== attempt || !current.current.accepting) return;
-      current.current.accepting = false;
+      const active = attemptRef.current;
+      if (!mounted.current || active.id !== attempt || !active.accepting) return;
+      active.accepting = false;
       setRetrying(false);
-      onOutcome(sessionKey, 'failed');
+      reportRef.current.onOutcome(reportRef.current.sessionKey, 'failed');
     }, waitMs);
     return () => clearTimeout(timer);
-  }, [attempt, onOutcome, sessionKey, waitMs]);
-
+  }, [attempt, waitMs]);
   const retry = useCallback(() => begin(true), [begin]);
   return { retrying, retry };
 }

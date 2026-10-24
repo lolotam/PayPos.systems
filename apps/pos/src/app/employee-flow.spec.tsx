@@ -126,8 +126,10 @@ describe('EmployeeFlow with a session of another business', () => {
       release('failed');
     });
   });
+});
 
-  it('shows the alert and the retry again when the same session reads back', async () => {
+describe('EmployeeFlow when the same foreign session reads back', () => {
+  it('shows the alert and the retry again after a refused sign-out', async () => {
     vi.mocked(endPersonalSession).mockResolvedValue('failed');
     const view = mount();
     await screen.findByRole('alert');
@@ -146,6 +148,33 @@ describe('EmployeeFlow with a session of another business', () => {
 
     expect(screen.getByRole('alert')).not.toBeNull();
     expect(screen.getByRole('button', { name: t('ar', 'nativeShell.retry') })).not.toBeNull();
+    expect(endPersonalSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails a done attempt when the same session reads back', async () => {
+    const view = mount();
+    expect(await screen.findByRole('status')).not.toBeNull();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(endPersonalSession).toHaveBeenCalledTimes(1);
+
+    vi.mocked(usePersonalSession).mockReturnValue(sessionState(null));
+    await act(async () => {
+      redraw(view);
+    });
+    expect(screen.getByText(`sign-in ${COMPANY} ${BUSINESS}`)).not.toBeNull();
+
+    vi.mocked(usePersonalSession).mockReturnValue(sessionState({ ...SESSION }));
+    await act(async () => {
+      redraw(view);
+    });
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(t('ar', 'nativeShell.roleChangeFailed'));
+    expect(
+      screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }).hasAttribute('disabled'),
+    ).toBe(false);
     expect(endPersonalSession).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { t } from '@pospay/i18n';
-import { useCallback, useState } from 'react';
+import { StrictMode, useCallback, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { endPersonalSession } from '@/app/end-sessions';
@@ -14,7 +14,7 @@ vi.mock('@/app/end-sessions', () => ({
 
 const KEY = 'session-key';
 
-function mount(initialOutcome: 'running' | 'failed' | undefined) {
+function mount(initialOutcome: 'running' | 'failed' | undefined, strict = false) {
   const onOutcome = vi.fn();
   function ControlledNotice() {
     const [outcome, setOutcome] = useState(initialOutcome);
@@ -24,12 +24,18 @@ function mount(initialOutcome: 'running' | 'failed' | undefined) {
     }, []);
     return <ForeignSessionNotice sessionKey={KEY} outcome={outcome} onOutcome={report} />;
   }
-  render(
+  const view = render(
     <LocaleProvider locale="ar" setLocale={() => undefined}>
-      <ControlledNotice />
+      {strict ? (
+        <StrictMode>
+          <ControlledNotice />
+        </StrictMode>
+      ) : (
+        <ControlledNotice />
+      )}
     </LocaleProvider>,
   );
-  return { onOutcome };
+  return { onOutcome, unmount: view.unmount };
 }
 
 beforeEach(() => {
@@ -68,6 +74,27 @@ describe('ForeignSessionNotice initial outcomes', () => {
       screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }).hasAttribute('disabled'),
     ).toBe(false);
     expect(endPersonalSession).not.toHaveBeenCalled();
+  });
+
+  it('starts the first attempt only once under StrictMode', () => {
+    mount(undefined, true);
+
+    expect(screen.getByRole('status')).not.toBeNull();
+    expect(endPersonalSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not report a timeout after unmounting mid-wait', async () => {
+    vi.useFakeTimers();
+    vi.mocked(endPersonalSession).mockReturnValue(new Promise<'done' | 'failed'>(() => undefined));
+    const { onOutcome, unmount } = mount(undefined);
+
+    unmount();
+    expect(screen.queryByRole('status')).toBeNull();
+    await act(async () => {
+      vi.advanceTimersByTime(FOREIGN_SIGN_OUT_WAIT_MS + 1);
+    });
+
+    expect(onOutcome).not.toHaveBeenCalledWith(KEY, 'failed');
   });
 });
 
@@ -168,6 +195,39 @@ describe('ForeignSessionNotice ten-second wait', () => {
   });
 });
 
+describe('ForeignSessionNotice superseded attempts', () => {
+  it('ignores an older answer while the newest retry is still pending', async () => {
+    vi.useFakeTimers();
+    const releases: Array<(result: 'done' | 'failed') => void> = [];
+    vi.mocked(endPersonalSession).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releases.push(resolve);
+        }),
+    );
+    mount(undefined);
+
+    await act(async () => {
+      vi.advanceTimersByTime(FOREIGN_SIGN_OUT_WAIT_MS);
+    });
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }));
+    expect(endPersonalSession).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      releases[0]?.('done');
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      t('ar', 'nativeShell.roleChangeFailed'),
+    );
+    expect(
+      screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }).hasAttribute('disabled'),
+    ).toBe(true);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+
 describe('ForeignSessionNotice late answers', () => {
   it('ignores a successful answer that arrives after the wait', async () => {
     vi.useFakeTimers();
@@ -197,5 +257,34 @@ describe('ForeignSessionNotice late answers', () => {
     expect(
       screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }).hasAttribute('disabled'),
     ).toBe(false);
+  });
+
+  it('ignores a failed answer that arrives after the wait', async () => {
+    vi.useFakeTimers();
+    let release!: (result: 'done' | 'failed') => void;
+    vi.mocked(endPersonalSession).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    mount(undefined);
+
+    await act(async () => {
+      vi.advanceTimersByTime(FOREIGN_SIGN_OUT_WAIT_MS);
+    });
+
+    await act(async () => {
+      release('failed');
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      t('ar', 'nativeShell.roleChangeFailed'),
+    );
+    expect(
+      screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }).hasAttribute('disabled'),
+    ).toBe(false);
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });

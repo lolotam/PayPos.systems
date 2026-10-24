@@ -4,14 +4,13 @@ import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 
 import { LoadingNotice } from './loading-notice';
-import { useForeignSignOut } from './use-foreign-sign-out';
+import { useForeignSignOut, type ForeignSessionOutcome } from './use-foreign-sign-out';
+
+export type { ForeignSessionOutcome } from './use-foreign-sign-out';
 
 // الموظفة ما ينفعش تفضل على تنبيه تحميل من غير حاجة تدوسها (#603)،
 // وأي رد بعد المهلة مش موثوق، فبيتجاهل.
 export const FOREIGN_SIGN_OUT_WAIT_MS = 10_000;
-
-/** حالة الخروج من جلسة نشاط تاني: شغّال أو مرفوض. */
-export type ForeignSessionOutcome = 'running' | 'failed';
 
 /**
  * تنبيه الجلسة اللي فاضلة من نشاط تاني.
