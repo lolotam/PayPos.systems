@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { t } from '@pospay/i18n';
 import { beforeEach, expect, it, vi } from 'vitest';
 
 import { LocaleProvider } from '@/shared/locale/locale-context';
@@ -38,4 +39,26 @@ it.each([
   const back = screen.queryByRole('button', { name: 'back' });
   if (visible) expect(back).not.toBeNull();
   else expect(back).toBeNull();
+});
+
+it.each([
+  { locked: true, disabled: true },
+  { locked: false, disabled: false },
+])('locks the phone submit when locked=$locked', ({ locked, disabled }) => {
+  vi.mocked(usePersonalSignIn).mockReturnValue({
+    pending: false,
+    challenge: null,
+    error: null,
+    request: vi.fn(async () => undefined),
+    verify: vi.fn(async () => undefined),
+    restart: vi.fn(),
+  });
+  render(
+    <LocaleProvider locale="en" setLocale={() => undefined}>
+      <PersonalSignIn workspace={WORKSPACE} changed={vi.fn()} locked={locked} />
+    </LocaleProvider>,
+  );
+
+  const submit = screen.getByRole('button', { name: t('en', 'staffLogin.request') });
+  expect(submit.hasAttribute('disabled')).toBe(disabled);
 });

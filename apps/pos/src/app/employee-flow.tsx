@@ -79,9 +79,15 @@ export function EmployeeFlow({
           connect={connect}
           sessionGate={sessionGate}
           startOver={startOver}
+          locked={busy}
         />
       ) : (
-        <PersonalScreen connect={connect} sessionGate={sessionGate} startOver={startOver} />
+        <PersonalScreen
+          connect={connect}
+          sessionGate={sessionGate}
+          startOver={startOver}
+          locked={busy}
+        />
       )}
     </>
   );

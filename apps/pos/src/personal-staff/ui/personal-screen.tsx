@@ -15,10 +15,12 @@ export function PersonalScreen({
   connect,
   sessionGate,
   startOver,
+  locked,
 }: {
   workspace?: Pick<PersonalOtpRequestInput, 'company_id' | 'business_id'>;
   connect?: ReactNode;
   startOver?: ReactNode;
+  locked?: boolean;
   sessionGate?: (
     session: NonNullable<ReturnType<typeof usePersonalSession>['session']>,
   ) => ReactNode | null;
@@ -57,6 +59,7 @@ export function PersonalScreen({
             workspace={hint}
             changed={state.changed}
             startOver={state.confirmedNoSession ? startOver : undefined}
+            locked={locked}
           />
         ) : (
           <>
