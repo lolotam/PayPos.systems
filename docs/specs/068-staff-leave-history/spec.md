@@ -9,8 +9,8 @@ are answered by Waleed and Abu Salem on the decisions page (2026-10-24, the same
 Four follow-ups, LH-Q6…LH-Q9 (batch 66, PP-50.1…PP-50.4), are **final**: Abu Salem answered all four on the decisions
 page (2026-10-24, 14:27–14:30), the same as Waleed on LH-Q6 and LH-Q7 and the recommended option on LH-Q8 and LH-Q9, where
 his pick binds over Waleed's cards (15:10) (`CLAUDE.md` §1 5b; [owner-questions.ar.md](owner-questions.ar.md)). One
-follow-up from his LH-Q7 note, LH-Q10 (batch 67, PP-52.1), is PENDING and `TODO(spec)` outside this screen (BR-007,
-Assumptions). **No code starts
+follow-up from his LH-Q7 note, LH-Q10 (batch 67, PP-52.1), is answered by Waleed (card, 15:40: a correction in the next
+month; Abu Salem PENDING) and only sets a rule for the payroll and statement side (BR-007, Assumptions). **No code starts
 before row 27g is done and this spec is merged.**
 
 **Input**: Abu Salem's note on ST-Q7 (batch 59, 2026-10-23): a leave filter that shows everything about past leave — the
@@ -61,7 +61,7 @@ The follow-ups (batch 66; Abu Salem on the decisions page 2026-10-24 14:27–14:
 | Question | Final answer | Rule |
 |---|---|---|
 | LH-Q6 (PP-50.1) | Option 1, both owners: absence rows and the absence filter need `read:attendance:branch` too | FR-010 |
-| LH-Q7 (PP-50.2) | Option 1, both owners: after the shift has ended; a pending request holds the absence back until it is decided; a rejected or cancelled one does not. Abu Salem's note adds a sick leave brought a day or two later (BR-007) and a month-end close before payroll (`TODO(spec)`, Assumptions) | BR-002, BR-004, BR-007 |
+| LH-Q7 (PP-50.2) | Option 1, both owners: after the shift has ended; a pending request holds the absence back until it is decided; a rejected or cancelled one does not. Abu Salem's note adds a sick leave brought a day or two later (BR-007) and a month-end close before payroll (LH-Q10 for a late leave; the close lifecycle is issue #607) | BR-002, BR-004, BR-007 |
 | LH-Q8 (PP-50.3) | Option 1, Abu Salem's pick, binding (Waleed picked option 3 «مع أي حالة», history): «غياب» is its own status value, and the type and status filters combine with AND | FR-006 |
 | LH-Q9 (PP-50.4) | Option 1, Abu Salem's pick, binding (Waleed picked option 3 «التلاتة بأي حالة», history): approved leave that has started by today only, with its range, plus «آخر غياب من غير عذر» for callers allowed to see absences | FR-008 |
 
@@ -187,7 +187,10 @@ In the tab the filters apply to the history (part (b)) only; «طلبات جاي
   branch. In the report it shows only when one employee is selected.
 - **FR-009** Pagination: an opaque keyset cursor over `(date, row_type, id)` with the canonical ids of FR-003; the next
   page compares the same tuple in the same directions (`date` lower, or equal and `row_type` higher, or both equal and
-  `id` lower), so a row is never repeated or skipped while the data does not change. Limit 1–100, default 50. Today's bare-id `next_cursor` is not reused, because the order is not by id.
+  `id` lower), so a row is never repeated or skipped while the data does not change. The cursor also carries the first page's
+  `as_of` (TD-2): every later page reuses that instant for the `excludeOpen` split and for BR-004 instead of reading the
+  clock again, and returns the same `as_of`, so the promise holds across branch-local midnight; a cursor whose `as_of`
+  is not a valid instant is `422 VALIDATION_FAILED`. Limit 1–100, default 50. Today's bare-id `next_cursor` is not reused, because the order is not by id.
 - **FR-010** Access (LH-Q2): exactly today's leave read scope, `LeaveReadAccess.check` on `read:leave:branch`, with no new
   permission. A leave row is listed when its `branch_id` is in the caller's read branches; an absence row when its
   shift's branch is. Both routes, when they name an employee (the tab's path, the report's `employee_id`), require
@@ -220,9 +223,11 @@ In the tab the filters apply to the history (part (b)) only; «طلبات جاي
   BR-002).
 - **BR-007** The history is computed on every read and never stored, so a sick leave (or any leave) approved later for a
   past day replaces that day's «غياب من غير عذر» on the next read, with no correction step (Abu Salem's note on LH-Q7:
-  an employee may be absent and bring a medical leave a day or two later). What a later leave does to a month already
-  closed for payroll is **`TODO(spec)` LH-Q10** (batch 67, PP-52.1, PENDING); it changes the payroll and statement side,
-  not this read. **Accepted limitation:** the same holds for the schedule. A past schedule can be replaced with a reason
+  an employee may be absent and bring a medical leave a day or two later). A leave approved after its month was closed
+  for payroll also shows in this history, but the closed month never changes: the difference is a correction in the next
+  open month, like commission corrections (LH-Q10, batch 67, PP-52.1: Waleed's card 2026-10-24 15:40, the recommended
+  option; Abu Salem PENDING, his pick binds if it differs). The close and correction mechanics belong to the payroll and
+  statement slice (issue #607), not this read. **Accepted limitation:** the same holds for the schedule. A past schedule can be replaced with a reason
   (spec 020, `SCHEDULE_PAST_REASON_REQUIRED`; ADR-0024 removes the replaced shift rows and keeps only the immutable
   audit), so a correction to a past schedule changes the derived history, exactly as it changes the official statement
   (spec 061 reads the same rows, TD-1 parity). An immutable source for past shifts is issue #609.
@@ -317,7 +322,7 @@ last-taken labels and the empty state. Dates and times through the existing form
   voided one does not · `LH-07` a session at another branch excuses · `LH-08` an unended shift is not absence (the clock
   passed in) · `LH-09` split day: one shift attended is not absence; read between its shifts with no session it is · `LH-10` dates outside `hire_date`/`contract_end`, and an open-ended contract (null `contract_end`) still shows absence ·
   `LH-11` last-taken line over all history, independent of the period, approved and started leave only (a future approved and a pending request ignored), the latest absence item shown only with the attendance permission (LH-Q9) · `LH-12` keyset pagination across a date with
-  leave and absence rows, no row twice or lost · `LH-13` the last-taken line ignores a leave at a branch outside the caller's scope · `LH-13b` a caller with `read:leave:branch` on السالمية and حولي but `read:attendance:branch` on السالمية only: the latest-absence item never comes from حولي · `LH-13c` an `APPROVED` or `PENDING` leave filed at حولي keeps an السالمية shift day from being an absence for منى, while the حولي leave row stays hidden from her (BR-002) · `LH-19` replacing a past schedule with a reason changes the derived absence the same way it changes the 27g statement (BR-007, issue #609) · `LH-20` a concurrent leave approval never shows an absence row and a `last_taken` that disagree (one statement, TD-4) · `LH-21` today's employee list with `open=true` returns every request with `to ≥` today (branch date) or `PENDING`, keeps the branch scope (a حولي open request hidden from منى), pages through more than 100 open requests with its cursor, and none of those requests appears in the tab's history rows; without `open` the list is unchanged; the report excludes nothing · `LH-22` the absence id is `(array_agg(shift.id ORDER BY shift.id))[1]`, stable across reads and pages on a split day · `LH-14` the report's `employee_id` of an employee outside the caller's branches answers 404 · `LH-14b` the report lists an old pending request and a request ending today (open requests are never excluded there) · `LH-15` a caller with `read:leave:branch` but not `read:attendance:branch` gets leave rows only and no absence type (LH-Q6) · plus the access cases of User Story 4 and a cross-tenant read that
+  leave and absence rows, no row twice or lost · `LH-13` the last-taken line ignores a leave at a branch outside the caller's scope · `LH-13b` a caller with `read:leave:branch` on السالمية and حولي but `read:attendance:branch` on السالمية only: the latest-absence item never comes from حولي · `LH-13c` an `APPROVED` or `PENDING` leave filed at حولي keeps an السالمية shift day from being an absence for منى, while the حولي leave row stays hidden from her (BR-002) · `LH-19` replacing a past schedule with a reason changes the derived absence the same way it changes the 27g statement (BR-007, issue #609) · `LH-20` a concurrent leave approval never shows an absence row and a `last_taken` that disagree (one statement, TD-4) · `LH-21` today's employee list with `open=true` returns every request with `to ≥` today (branch date) or `PENDING`, keeps the branch scope (a حولي open request hidden from منى), pages through more than 100 open requests with its cursor, and none of those requests appears in the tab's history rows; without `open` the list is unchanged; the report excludes nothing · `LH-22` the absence id is `(array_agg(shift.id ORDER BY shift.id))[1]`, stable across reads and pages on a split day · `LH-23` page 2 read after the branch-local date has rolled over (the clock moved past midnight between pages) reuses the cursor's `as_of`: no row twice, none skipped, the same open split and the same ended shifts · `LH-14` the report's `employee_id` of an employee outside the caller's branches answers 404 · `LH-14b` the report lists an old pending request and a request ending today (open requests are never excluded there) · `LH-15` a caller with `read:leave:branch` but not `read:attendance:branch` gets leave rows only and no absence type (LH-Q6) · plus the access cases of User Story 4 and a cross-tenant read that
   returns 404.
 - `LH-16` a sick leave approved later for a past absent day replaces that day's absence on the next read (BR-007).
 - `LH-17` a date covered only by a `PENDING` request shows the request and no absence, the statement-parity exception of
@@ -332,7 +337,7 @@ last-taken labels and the empty state. Dates and times through the existing form
 
 - 68-1: `docs/module-map.md` only if a new port is added (none is expected: the read stays inside `staff`).
 - 68-4: the roadmap row AS-26 is set done by the orchestrator after the merge (`CLAUDE.md` §1 5c).
-- When the month-end close follow-up (Assumptions, `TODO(spec)`) is answered, the spec that owns it changes, not this one.
+- When the close lifecycle of issue #607 is decided, the payroll and statement spec changes, not this one.
 
 ## Success Criteria *(mandatory)*
 
@@ -351,8 +356,8 @@ last-taken labels and the empty state. Dates and times through the existing form
 - The schedule (ADR-0024) is the only source of scheduled days; default contract hours without a schedule shift never
   create an absence, as spec 061 never prints «لا يوجد حضور مسجّل» for them.
 - No export (PDF or Excel) and no totals per type in this slice; either would be a new owner request.
-- **`TODO(spec)` LH-Q10 — month-end close before payroll** (the close lifecycle itself, mandatory close, who closes, reopening, is issue #607 for the payroll/statement slice) ([owner-questions.ar.md](owner-questions.ar.md) §11, batch 67, PP-52.1, PENDING; Abu Salem's note on LH-Q7: «و نحط في الحسبان الايام الأخير في نهاية
-  الشهر انه لازم يتقفل قبل اصدار تقرير الرواتب»). This screen only reads, so it closes nothing; whether the last days of a
-  month must be closed (absences settled, late leave no longer accepted) before the payroll or attendance-statement
-  report is issued belongs to the payroll and statement side (27b, 27g, payroll), and is a follow-up owner question for
-  the orchestrator to ask. Until it is answered, BR-007 holds for every past day.
+- **Month-end close before payroll** (Abu Salem's note on LH-Q7: «و نحط في الحسبان الايام الأخير في نهاية الشهر انه لازم
+  يتقفل قبل اصدار تقرير الرواتب»). This screen only reads, so it closes nothing. LH-Q10 ([owner-questions.ar.md](owner-questions.ar.md)
+  §11, Waleed: a correction in the next month; Abu Salem PENDING) settles what a late leave does to a closed month
+  (BR-007). The close lifecycle itself (is a close mandatory, who closes, reopening) is **`TODO(spec)`** in the payroll
+  and statement slice, issue #607.
