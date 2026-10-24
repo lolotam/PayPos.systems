@@ -50,12 +50,15 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
 `.claude/skills/pospay-pipeline/SKILL.md`. In short:
 
 1. One row of the phase plan per branch, worktree and PR (`feat/…`, `fix/…`, `docs/…`). **Never push to `main`.**
-2. Spec first (`/speckit-specify`); owner questions go to the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md` when no slice exists: pipeline, docs or process rules), then every question, whatever its kind, goes on the
-   decisions page as a new numbered batch and to Waleed as a super-agent card (`CLAUDE.md` §1 5b, V3.14). On the page,
-   when Waleed and his partner (Abu Salem) differ, the partner's pick binds.
+2. Spec first (`/speckit-specify`); owner questions go to the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md` when no slice exists: pipeline, docs or process rules), then every question goes to Waleed as a card;
+   feature and business questions also go on the decisions page as a new numbered batch, and technical questions go to
+   Waleed only (`CLAUDE.md` §1 5b, V3.17). On the page, when Waleed and his partner (Abu Salem) differ, the partner's
+   pick binds.
    Ask the questions of a whole feature before its first sub-PR, with a mockup when the answer is a screen, in one batch.
-3. The only implementer is **opencode with `minimax-coding-plan/MiniMax-M3.1-Flash`** (owner, PP-10.1, 2026-10-20),
-   for new tasks and for PR-finding fix rounds, one continued session per task. Its briefs ban every git command,
+3. The default implementer is **opencode with `kimi-code-plan-global/k3.1-pro#high`**, and
+   **`minimax-coding-plan/MiniMax-M3.1-Flash`** stays for small, fully pinned backend and data slices (owner, PP-55.1,
+   2026-10-24, after the six-task trial; it replaces PP-10.1 «MiniMax only»). Both run under the same guarded dispatch
+   (`--agent pospay-minimax`, no shell), for new tasks and for PR-finding fix rounds, one continued session per task. Its briefs ban every git command,
    any read or write under `.git`, edits outside the task, and line-squashing. Claude Code orchestrates, judges the diff (including a line-by-line diff
    of every rewritten SQL function) and runs `pnpm check`. MiniMax has no shell (Waleed, SA-7.1): it only reads and
    edits files in its worktree, and the orchestrator runs every gate and test. Skill §4 has the dispatch rules.
