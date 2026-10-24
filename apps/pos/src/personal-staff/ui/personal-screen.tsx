@@ -52,10 +52,12 @@ export function PersonalScreen({
             />
           ))
         ) : hint ? (
-          <>
-            <PersonalSignIn key={state.epoch} workspace={hint} changed={state.changed} />
-            {state.confirmedNoSession ? startOver : null}
-          </>
+          <PersonalSignIn
+            key={state.epoch}
+            workspace={hint}
+            changed={state.changed}
+            startOver={state.confirmedNoSession ? startOver : undefined}
+          />
         ) : (
           <>
             <p>{t(locale, 'personalStaff.linkRequired')}</p>

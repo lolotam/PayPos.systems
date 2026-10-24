@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { announcePersonalChange, observePersonalChange } from '../model/session-change';
@@ -36,14 +37,7 @@ export function usePersonalSession() {
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
   });
-  useEffect(() => {
-    if (!(query.isSuccess && query.data === null)) return;
-    const privateQueries = {
-      predicate: (item: { queryKey: readonly unknown[] }) =>
-        item.queryKey[0] !== 'personal-session',
-    };
-    void cache.cancelQueries(privateQueries).then(() => cache.removeQueries(privateQueries));
-  }, [cache, query.isSuccess, query.data]);
+  usePrivateCacheCleanup(cache, query.isSuccess, query.data);
   return {
     epoch,
     online,
@@ -67,4 +61,15 @@ export function usePersonalSession() {
       }
     },
   };
+}
+
+function usePrivateCacheCleanup(cache: QueryClient, isSuccess: boolean, data: unknown): void {
+  useEffect(() => {
+    if (!(isSuccess && data === null)) return;
+    const privateQueries = {
+      predicate: (item: { queryKey: readonly unknown[] }) =>
+        item.queryKey[0] !== 'personal-session',
+    };
+    void cache.cancelQueries(privateQueries).then(() => cache.removeQueries(privateQueries));
+  }, [cache, isSuccess, data]);
 }

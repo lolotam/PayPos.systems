@@ -49,6 +49,39 @@ function makeSession(partialScreen: DeviceSession['screen']): DeviceSession {
   };
 }
 
+const START_OVER_CASES = [
+  {
+    name: 'pairing',
+    screen: { kind: 'pairing', notice: null },
+    submitting: false,
+    visible: true,
+  },
+  {
+    name: 'pairing submission',
+    screen: { kind: 'pairing', notice: null },
+    submitting: true,
+    visible: false,
+  },
+  {
+    name: 'waiting',
+    screen: { kind: 'waiting' },
+    submitting: false,
+    visible: false,
+  },
+  {
+    name: 'unsupported',
+    screen: { kind: 'unsupported' },
+    submitting: false,
+    visible: true,
+  },
+  {
+    name: 'reception',
+    screen: { kind: 'ready', branchId: '01923f66-3d2b-7c00-8000-000000000001' },
+    submitting: false,
+    visible: false,
+  },
+] as const;
+
 describe('DeviceBody', () => {
   it('renders loading notice when screen state is loading', () => {
     renderBody(makeSession({ kind: 'loading' }));
@@ -78,38 +111,7 @@ describe('DeviceBody', () => {
     expect(screen.getByRole('heading', { name: t('ar', 'pos.attendanceTitle') })).not.toBeNull();
   });
 
-  it.each([
-    {
-      name: 'pairing',
-      screen: { kind: 'pairing', notice: null },
-      submitting: false,
-      visible: true,
-    },
-    {
-      name: 'pairing submission',
-      screen: { kind: 'pairing', notice: null },
-      submitting: true,
-      visible: false,
-    },
-    {
-      name: 'waiting',
-      screen: { kind: 'waiting' },
-      submitting: false,
-      visible: false,
-    },
-    {
-      name: 'unsupported',
-      screen: { kind: 'unsupported' },
-      submitting: false,
-      visible: true,
-    },
-    {
-      name: 'reception',
-      screen: { kind: 'ready', branchId: '01923f66-3d2b-7c00-8000-000000000001' },
-      submitting: false,
-      visible: false,
-    },
-  ] as const)(
+  it.each(START_OVER_CASES)(
     'shows the start-over control only for $name when allowed',
     ({ screen: deviceScreen, submitting, visible }) => {
       renderBody({ ...makeSession(deviceScreen), submitting }, <button>back</button>);
