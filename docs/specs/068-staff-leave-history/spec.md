@@ -161,8 +161,8 @@ the السالمية branch manager; هدى is the owner. Today is 24 October 20
   history, counting only `APPROVED` leave whose `from` is on or before today in the branch-local date (a pending,
   rejected or cancelled request, or an approved leave that has not started, never counts), each with its range (from …
   to …; a multi-day leave counts by its first day), or «مفيش» (LH-Q5; LH-Q9, Abu Salem's option 1, binding; Waleed's
-  option 3 is history). A fourth item «آخر غياب من غير عذر» gives the latest absence date (BR-001…BR-007), shown only
-  to a caller who may see absences (LH-Q6, FR-010). The line is computed only over rows the caller may see (FR-010): leave
+  option 3 is history). A fourth item «آخر غياب من غير عذر» gives the latest absence date (BR-001…BR-007) over
+  `absence_branch_ids` only, shown only to a caller who may see absences (LH-Q6, FR-010). The line is computed only over rows the caller may see (FR-010): leave
   whose `branch_id` is in her read branches, so a branch manager never learns the date of a leave filed at another
   branch. In the report it shows only when one employee is selected.
 - **FR-009** Pagination: an opaque keyset cursor over `(date, row_type, id)` (an absence's id is the first shift id of
@@ -222,7 +222,7 @@ no event, no audit entry (a read of leave data is not on the `CLAUDE.md` §8 aud
 | TD-1 | **Absence is computed in SQL in `queries/`** (a `NOT EXISTS` anti-join of shifts against sessions, `APPROVED` leave and `PENDING` requests covering the date, BR-002), because `queries/` may not import `domain/` (`CLAUDE.md` §6). A **parity test** keeps it equal to the 27g day-breakdown function of spec 061 FR-013: on the same fixtures at one branch (overnight shift, split shift, voided session, OPEN session, partial leave, unended shift), the absence dates equal the dates the 27g employee form prints «لا يوجد حضور مسجّل». Two differences are allowed, each with its own fixture and test: a session at another branch (BR-003), and a date covered only by a `PENDING` request, which the statement still prints as «لا يوجد حضور مسجّل» while this history holds the absence back (BR-002, LH-Q7) | a read use case that runs the domain function (would need a recorded exception like ADR-0054 §5 for commissions); a stored absence table (a second truth that drifts on every correction) |
 | TD-2 | **New routes, not new query parameters on today's routes.** Today's employee list and pending inbox keep their shape and their clients | widening `leaveListQuery` (changes every caller's contract and its id cursor) |
 | TD-3 | **One builder, two scopes.** `queries/leave-history.query.ts` builds the rows for one employee (tab) or a business (report); the routes differ only in the scope and the `employee_id` filter | two copies of the SQL |
-| TD-4 | **The last-taken line is three `LIMIT 1` lookups** (one per type, `APPROVED` and started, latest `from`) plus one latest-absence lookup over the same anti-join as the rows, on `leave_requests_company_employee_period_idx`, filtered to the caller's read branches (FR-008), in the same `withTenant` transaction as the page (`CLAUDE.md` §6 connection budget) | computing it from the page (wrong once the period is narrowed) |
+| TD-4 | **The last-taken line is three `LIMIT 1` lookups** (one per type, `APPROVED` and started, latest `from`) plus one latest-absence lookup over the same anti-join as the rows, on `leave_requests_company_employee_period_idx`; the three leave lookups are filtered to the caller's leave-read branches, the absence lookup to `absence_branch_ids` only (the branches where she also holds `read:attendance:branch`, LH-Q6) (FR-008), in the same `withTenant` transaction as the page (`CLAUDE.md` §6 connection budget) | computing it from the page (wrong once the period is narrowed) |
 
 ### Schema changes
 
@@ -284,7 +284,7 @@ last-taken labels and the empty state. Dates and times through the existing form
   voided one does not · `LH-07` a session at another branch excuses · `LH-08` an unended shift is not absence (the clock
   passed in) · `LH-09` split day: one shift attended is not absence; read between its shifts with no session it is · `LH-10` dates outside `hire_date`/`contract_end`, and an open-ended contract (null `contract_end`) still shows absence ·
   `LH-11` last-taken line over all history, independent of the period, approved and started leave only (a future approved and a pending request ignored), the latest absence item shown only with the attendance permission (LH-Q9) · `LH-12` keyset pagination across a date with
-  leave and absence rows, no row twice or lost · `LH-13` the last-taken line ignores a leave at a branch outside the caller's scope · `LH-14` the report's `employee_id` of an employee outside the caller's branches answers 404 · `LH-15` a caller with `read:leave:branch` but not `read:attendance:branch` gets leave rows only and no absence type (LH-Q6) · plus the access cases of User Story 4 and a cross-tenant read that
+  leave and absence rows, no row twice or lost · `LH-13` the last-taken line ignores a leave at a branch outside the caller's scope · `LH-13b` a caller with `read:leave:branch` on السالمية and حولي but `read:attendance:branch` on السالمية only: the latest-absence item never comes from حولي · `LH-14` the report's `employee_id` of an employee outside the caller's branches answers 404 · `LH-15` a caller with `read:leave:branch` but not `read:attendance:branch` gets leave rows only and no absence type (LH-Q6) · plus the access cases of User Story 4 and a cross-tenant read that
   returns 404.
 - `LH-16` a sick leave approved later for a past absent day replaces that day's absence on the next read (BR-007).
 - `LH-17` a date covered only by a `PENDING` request shows the request and no absence, the statement-parity exception of
@@ -315,7 +315,7 @@ last-taken labels and the empty state. Dates and times through the existing form
 - The schedule (ADR-0024) is the only source of scheduled days; default contract hours without a schedule shift never
   create an absence, as spec 061 never prints «لا يوجد حضور مسجّل» for them.
 - No export (PDF or Excel) and no totals per type in this slice; either would be a new owner request.
-- **`TODO(spec)` LH-Q10 — month-end close before payroll** ([owner-questions.ar.md](owner-questions.ar.md) §11, batch 67, PP-52.1, PENDING; Abu Salem's note on LH-Q7: «و نحط في الحسبان الايام الأخير في نهاية
+- **`TODO(spec)` LH-Q10 — month-end close before payroll** (the close lifecycle itself, mandatory close, who closes, reopening, is issue #607 for the payroll/statement slice) ([owner-questions.ar.md](owner-questions.ar.md) §11, batch 67, PP-52.1, PENDING; Abu Salem's note on LH-Q7: «و نحط في الحسبان الايام الأخير في نهاية
   الشهر انه لازم يتقفل قبل اصدار تقرير الرواتب»). This screen only reads, so it closes nothing; whether the last days of a
   month must be closed (absences settled, late leave no longer accepted) before the payroll or attendance-statement
   report is issued belongs to the payroll and statement side (27b, 27g, payroll), and is a follow-up owner question for
