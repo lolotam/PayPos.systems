@@ -10,11 +10,13 @@ import {
   unsubscribePush,
 } from './push-browser';
 import { pushCalls, withTimeout } from './push-calls';
-import { runPushExclusive } from './push-lock';
+import { currentPushGeneration, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
 
+const API_TIMEOUT_MS = 10_000;
+const SUBSCRIBE_TIMEOUT_MS = 15_000;
 const REVOKE_TIMEOUT_MS = 5000;
 
 /** نتيجة التحديث وقت الفتح: ولا حاجة، أو تحديث عادي، أو إصلاح تدوير المفتاح، أو مسح السجل. */
@@ -40,6 +42,7 @@ export interface PushRefreshInput {
  */
 export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshOutcome> {
   return runPushExclusive(async (): Promise<PushRefreshOutcome> => {
+    const generation = currentPushGeneration();
     const record = await pushRecordStore.read().catch(() => null);
     if (record === null) return { kind: 'none' };
     if (record.company_id !== input.companyId) return { kind: 'none' };
@@ -47,30 +50,32 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
     // فبنشيل الاشتراك والسجل من غير أي PUT (ADR-0052 §7).
     if (input.config.subscriber_ref !== record.subscriber_ref) {
       await unsubscribePush().catch(() => undefined);
-      await pushRecordStore.remove().catch(() => undefined);
-      notifyPushRecordChanged();
+      await removeRecord();
       return { kind: 'cleared' };
     }
-    const live = record.suspended ? await resume(record) : record;
+    const live = record.suspended ? await resume(record, generation) : record;
+    if (live === null) return { kind: 'none' };
     if (notificationPermission() !== 'granted') return { kind: 'none' };
     if (input.installationId === null) return { kind: 'none' };
     if (input.config.vapid_key_id !== live.vapid_key_id) {
-      return rotate(input, live, input.installationId);
+      return rotate(input, live, input.installationId, generation);
     }
     const subscription = await currentSubscription();
     if (subscription === null) {
-      await pushRecordStore.remove().catch(() => undefined);
-      notifyPushRecordChanged();
+      await removeRecord();
       await revoke(input.installationId);
       return { kind: 'cleared' };
     }
-    await pushCalls.register({
-      installation_id: input.installationId,
-      vapid_key_id: live.vapid_key_id,
-      delivery_token: live.token,
-      subscription: pushSubscriptionBody(subscription),
-      locale: input.locale,
-    });
+    await withTimeout(
+      pushCalls.register({
+        installation_id: input.installationId,
+        vapid_key_id: live.vapid_key_id,
+        delivery_token: live.token,
+        subscription: pushSubscriptionBody(subscription),
+        locale: input.locale,
+      }),
+      API_TIMEOUT_MS,
+    );
     return { kind: 'refreshed' };
   });
 }
@@ -79,11 +84,17 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
  * سجل معلّق بعد فحص توقيع فاشل: نفس مرجع المشترك بيرجّعه قايم (ADR-0052 §7).
  *
  * @param record السجل المعلّق
- * @returns السجل بعد الرجوع
+ * @param generation جيل الشغل وقت ما بدأ
+ * @returns السجل بعد الرجوع، أو null لما الجيل يتغير
  */
-async function resume(record: PushRecord): Promise<PushRecord> {
+async function resume(record: PushRecord, generation: number): Promise<PushRecord | null> {
+  if (generation !== currentPushGeneration()) return null;
   const live = { ...record, suspended: false };
-  await pushRecordStore.write(live).catch(() => undefined);
+  try {
+    await pushRecordStore.write(live);
+  } catch {
+    return null;
+  }
   notifyPushRecordChanged();
   return live;
 }
@@ -92,29 +103,64 @@ async function rotate(
   input: PushRefreshInput,
   record: PushRecord,
   installationId: string,
+  generation: number,
 ): Promise<PushRefreshOutcome> {
   // المتصفح ما بيقولش المفتاح اللي اتعمل بيه الاشتراك، فالتسجيل القديم بيتشال والتسجيل
   // الجديد بيتعمل بالمفتاح الجديد — وده مش متعلق بالسطر عند الـ API (ADR-0052 §2).
   const existing = await currentSubscription();
   if (existing !== null) await unsubscribePush();
-  const subscription = await subscribePush(base64UrlToBytes(input.config.vapid_public_key));
+  const subscription = await withTimeout(
+    subscribePush(base64UrlToBytes(input.config.vapid_public_key)),
+    SUBSCRIBE_TIMEOUT_MS,
+  ).catch(() => null);
+  if (subscription === null) {
+    await removeRecord();
+    return { kind: 'cleared' };
+  }
   const token = crypto.randomUUID();
-  await pushCalls.register({
-    installation_id: installationId,
-    vapid_key_id: input.config.vapid_key_id,
-    delivery_token: token,
-    subscription: pushSubscriptionBody(subscription),
-    locale: input.locale,
-  });
-  await pushRecordStore.write({
-    token,
-    subscriber_ref: record.subscriber_ref,
-    company_id: record.company_id,
-    vapid_key_id: input.config.vapid_key_id,
-    suspended: false,
-  });
+  try {
+    await withTimeout(
+      pushCalls.register({
+        installation_id: installationId,
+        vapid_key_id: input.config.vapid_key_id,
+        delivery_token: token,
+        subscription: pushSubscriptionBody(subscription),
+        locale: input.locale,
+      }),
+      API_TIMEOUT_MS,
+    );
+  } catch {
+    await unsubscribePush().catch(() => undefined);
+    await removeRecord();
+    return { kind: 'cleared' };
+  }
+  if (generation !== currentPushGeneration()) {
+    await unsubscribePush().catch(() => undefined);
+    await removeRecord();
+    return { kind: 'cleared' };
+  }
+  try {
+    await pushRecordStore.write({
+      token,
+      subscriber_ref: record.subscriber_ref,
+      company_id: record.company_id,
+      vapid_key_id: input.config.vapid_key_id,
+      suspended: false,
+    });
+  } catch {
+    // السيرفر ماسك توكن من غير سجل محلي: من غيره الـ service worker مش هيلاقيه أبداً.
+    await unsubscribePush().catch(() => undefined);
+    await revoke(installationId);
+    await removeRecord();
+    return { kind: 'cleared' };
+  }
   notifyPushRecordChanged();
   return { kind: 'rotated', token };
+}
+
+async function removeRecord(): Promise<void> {
+  await pushRecordStore.remove().catch(() => undefined);
+  notifyPushRecordChanged();
 }
 
 async function revoke(installationId: string): Promise<void> {

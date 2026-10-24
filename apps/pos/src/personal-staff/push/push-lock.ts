@@ -2,6 +2,7 @@
 // عشان تسجيل قديم ما يكتبش فوق تسجيل جديد ولا تدوير يكمّل بعد إيقاف (ADR-0052 §7).
 
 let chain: Promise<unknown> = Promise.resolve();
+let generation = 0;
 
 /** الطابور البديل للمتصفحات من غير Web Locks: شغل واحد في كل مرة، والفشل ما بيقفش اللي بعده. */
 function runInQueue<T>(work: () => Promise<T>): Promise<T> {
@@ -11,6 +12,26 @@ function runInQueue<T>(work: () => Promise<T>): Promise<T> {
     () => undefined,
   );
   return run;
+}
+
+/**
+ * رقم جيل السجل: كل كتابة بتاخد رقمها وقت ما تشتغل، وتكتب بس لو الرقم لسه هو نفسه.
+ * كده الخروج الصريح بيكسر أي شغل شغال ويخليه ما يكتبش تاني (ADR-0052 §7).
+ *
+ * @returns رقم الجيل الحالي
+ */
+export function currentPushGeneration(): number {
+  return generation;
+}
+
+/**
+ * بيكسر جيل السجل: الشغل اللي شغال دلوقتي بيمسك نفسه وما يكتبش بعد كده.
+ *
+ * @returns رقم الجيل الجديد
+ */
+export function bumpPushGeneration(): number {
+  generation += 1;
+  return generation;
 }
 
 /**

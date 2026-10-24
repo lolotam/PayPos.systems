@@ -4,9 +4,19 @@
 
 type Listener = () => void;
 
+const CHANNEL_NAME = 'pospay-push-record';
+
 const listeners = new Set<Listener>();
 
-/** بيقول لكل المستمعين إن السجل المحلي اتغيّر. */
+function channel(): BroadcastChannel | null {
+  try {
+    return typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(CHANNEL_NAME);
+  } catch {
+    return null;
+  }
+}
+
+/** بيقول لكل المستمعين في التبويب، ولكل التبويبات التانية، إن السجل المحلي اتغيّر. */
 export function notifyPushRecordChanged(): void {
   for (const listener of [...listeners]) {
     try {
@@ -14,6 +24,14 @@ export function notifyPushRecordChanged(): void {
     } catch {
       // مستمع فاشل ما بيمنعش الباقي من يقرأ السجل.
     }
+  }
+  const source = channel();
+  try {
+    source?.postMessage('CHANGED');
+  } catch {
+    // القناة بتفشل: التبويب الحالي بس هو اللي هيعرف.
+  } finally {
+    source?.close();
   }
 }
 
@@ -25,7 +43,10 @@ export function notifyPushRecordChanged(): void {
  */
 export function onPushRecordChanged(listener: Listener): () => void {
   listeners.add(listener);
+  const source = channel();
+  if (source !== null) source.onmessage = () => listener();
   return () => {
     listeners.delete(listener);
+    source?.close();
   };
 }

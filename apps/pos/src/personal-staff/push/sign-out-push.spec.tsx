@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { usePersonalSession } from '../api/use-personal-session';
 import { personalCalls } from '../api/personal-calls';
 import { observePersonalChange } from '../model/session-change';
+import { runPushExclusive } from './push-lock';
 import type { PushRecord } from './push-record';
 
 const fakes = vi.hoisted(() => {
@@ -105,9 +106,35 @@ it('removes the local record on an explicit sign out even when the revoke fails'
 
   expect(personalCalls.signOut).toHaveBeenCalledTimes(1);
   await waitFor(() => expect(f.result.current.session).toBeNull());
-  expect(fakes.state.removed).toBe(1);
+  expect(fakes.state.removed).toBeGreaterThanOrEqual(1);
   expect(fakes.state.unsubscribed).toBe(1);
   expect(fakes.state.revokeAttempts).toBe(1);
+  f.unmount();
+});
+
+it('removes the record on sign out even when another push operation holds the lock', async () => {
+  const f = fixture();
+  await waitFor(() => expect(f.result.current.session).toEqual(session));
+  vi.mocked(personalCalls.session).mockResolvedValue(null);
+  let release = (): void => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const holding = runPushExclusive(() => held);
+
+  let signingOut: Promise<void> = Promise.resolve();
+  await act(async () => {
+    signingOut = f.result.current.signOut();
+  });
+  await waitFor(() => expect(fakes.state.removed).toBeGreaterThanOrEqual(1));
+  expect(personalCalls.signOut).not.toHaveBeenCalled();
+
+  release();
+  await act(async () => {
+    await signingOut;
+  });
+  expect(personalCalls.signOut).toHaveBeenCalledTimes(1);
+  await holding;
   f.unmount();
 });
 

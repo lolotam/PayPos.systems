@@ -49,12 +49,12 @@ export function decidePushState(input: PushStateInput): PushStateDecision {
   if (input.storageBlocked) {
     return { state: 'unsupported', visible: true, ...modifiers };
   }
+  // الآيفون في تاب مش مثبّت: الإشعارات مش بتشتغل أصلاً، فبنشرح الخطوة بدل زرار ميت (WP-Q3).
+  if (input.installFirst) {
+    return { state: 'install-first', visible: true, ...modifiers };
+  }
   if (!input.supported) {
-    return {
-      state: input.installFirst ? 'install-first' : 'unsupported',
-      visible: true,
-      ...modifiers,
-    };
+    return { state: 'unsupported', visible: true, ...modifiers };
   }
   if (input.permission === 'denied') {
     return { state: 'blocked', visible: true, ...modifiers };

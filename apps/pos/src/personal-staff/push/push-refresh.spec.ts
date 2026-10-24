@@ -11,6 +11,7 @@ const fakes = vi.hoisted(() => {
   const state = {
     record: null as PushRecord | null,
     writes: [] as PushRecord[],
+    writeFails: false,
     removed: 0,
     subscribed: false,
     unsubscribed: 0,
@@ -37,6 +38,7 @@ vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
     read: async () => fakes.state.record,
     write: async (record: PushRecord) => {
+      if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       fakes.state.record = record;
       fakes.state.writes.push(record);
     },
@@ -96,6 +98,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   fakes.state.record = { ...RECORD };
   fakes.state.writes = [];
+  fakes.state.writeFails = false;
   fakes.state.removed = 0;
   fakes.state.subscribed = true;
   fakes.state.unsubscribed = 0;
@@ -199,4 +202,15 @@ it('removes a record of another person and sends no registration', async () => {
   expect(fakes.state.unsubscribed).toBe(1);
   expect(fakes.state.record).toBeNull();
   expect(pushCalls.register).not.toHaveBeenCalled();
+});
+
+it('removes the record when the rotation cannot write it', async () => {
+  fakes.state.record = { ...RECORD, vapid_key_id: 'oldkey0000000000' };
+  fakes.state.writeFails = true;
+
+  const outcome = await refreshPush(input());
+
+  expect(outcome).toEqual({ kind: 'cleared' });
+  expect(fakes.state.removed).toBe(1);
+  expect(fakes.state.record).toBeNull();
 });

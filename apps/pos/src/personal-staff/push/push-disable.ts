@@ -1,30 +1,28 @@
 import { attendanceInstallationId } from '../model/installation-id';
 import { unsubscribePush } from './push-browser';
 import { pushCalls, withTimeout } from './push-calls';
-import { runPushExclusive } from './push-lock';
+import { bumpPushGeneration, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 
 const REVOKE_TIMEOUT_MS = 5000;
 const SIGN_OUT_TIMEOUT_MS = 5000;
+const SIGN_OUT_RECORD_TIMEOUT_MS = 2000;
 
 /**
- * بتوقّف إشعارات الموبايل: بتمسح السجل المحلي الأول، وبترفع اشتراك المتصفح، وبتراجع السطر عند الـ API.
+ * بتوقّف إشعارات الموبايل: بتمسح السجل المحلي، وبترفع اشتراك المتصفح، وبتراجع السطر عند الـ API.
  * السجل المحلي بيتمسح في كل الأحوال؛ فشل الشبكة مش بيسيب نص سجل (ADR-0052 §7).
  *
  * @param installationId معرف التثبيت، أو null لو التخزين متعطل فمفيش حاجة تتراجع
  */
 export async function disablePush(installationId: string | null): Promise<void> {
   await runPushExclusive(async () => {
-    const record = await pushRecordStore.read().catch(() => null);
-    if (record !== null) {
-      try {
-        await pushRecordStore.remove();
-      } catch {
-        // التخزين متعطل: مفيش سجل ينمسح أصلاً.
-      }
-      notifyPushRecordChanged();
+    try {
+      await pushRecordStore.remove();
+    } catch {
+      // التخزين متعطل: مفيش سجل ينمسح أصلاً.
     }
+    notifyPushRecordChanged();
     try {
       await unsubscribePush();
     } catch {
@@ -40,8 +38,8 @@ export async function disablePush(installationId: string | null): Promise<void> 
 }
 
 /**
- * تنظيف الإشعارات وقت تسجيل الخروج الصريح: بيتبلع أي فشل ومحدش بيقف، ومهلة قصيرة
- * عشان المتصفح المعلّق ما بيأخرش الخروج (ADR-0052 §7).
+ * تنظيف الإشعارات وقت تسجيل الخروج الصريح: بيكسر جيل السجل ويمسح التوكن من غير ما يستنى
+ * القفل، وبعدين بيعمل الإيقاف الكامل تحت مهلة قصيرة. الخروج ما بيقفش أبداً (ADR-0052 §7).
  */
 export async function disablePushOnSignOut(): Promise<void> {
   let installationId: string | null = null;
@@ -49,6 +47,14 @@ export async function disablePushOnSignOut(): Promise<void> {
     installationId = attendanceInstallationId();
   } catch {
     // من غير معرف تثبيت مفيش مراجعة عند الـ API، بس السجل المحلي بينمسح.
+  }
+  // التوكين بينمسح بره القفل: لو شغل تاني ماسك القفل على طلب واقف، الخروج يفضل ماشي.
+  bumpPushGeneration();
+  try {
+    await withTimeout(pushRecordStore.remove(), SIGN_OUT_RECORD_TIMEOUT_MS);
+    notifyPushRecordChanged();
+  } catch {
+    // IndexedDB معلّق: مش هنقدر نمسح، بس الخروج بيكمل.
   }
   try {
     await withTimeout(disablePush(installationId), SIGN_OUT_TIMEOUT_MS);

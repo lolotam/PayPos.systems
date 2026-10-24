@@ -1,6 +1,6 @@
 import { unsubscribePush } from './push-browser';
 import { pushCalls, withTimeout } from './push-calls';
-import { runPushExclusive } from './push-lock';
+import { bumpPushGeneration, currentPushGeneration, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 
@@ -10,19 +10,41 @@ const CONFIG_TIMEOUT_MS = 8000;
 let sequence = 0;
 
 /**
+ * بيعلّق عرض نص الإشعارات قبل ما الجلسة الجديدة تتأسس: السجل بيتكتب معلق من غير انتظار
+ * القفل، فأي إشعار متسرب للمشترك القديم ما بيعرفش نصه (FR-018).
+ */
+export async function suspendPushForSignIn(): Promise<void> {
+  bumpPushGeneration();
+  const record = await pushRecordStore.read().catch(() => null);
+  if (record === null) return;
+  try {
+    await pushRecordStore.write({ ...record, suspended: true });
+  } catch {
+    // من غير تعليق السجل بيفضل قايم مفتوح، فبنمسحه ونشيل الاشتراك (fail-closed).
+    await pushRecordStore.remove().catch(() => undefined);
+    await unsubscribePush().catch(() => undefined);
+    notifyPushRecordChanged();
+    return;
+  }
+  notifyPushRecordChanged();
+}
+
+/**
  * فحص التوقيع وقت تسجيل الدخول الجديد: بيعلّق عرض النص الأول، وبعدين بيقارن مرجع المشترك.
  * المرجع المختلف جواب مؤكد فالسجل بيتمسح؛ الفشل أو الوقت الضائع بيسيب السجل معلّق (FR-018).
  */
 export async function runSignInPushCheck(): Promise<void> {
   const run = (sequence += 1);
   await runPushExclusive(async (): Promise<void> => {
+    const generation = currentPushGeneration();
     const record = await pushRecordStore.read().catch(() => null);
     if (record === null) return;
     try {
       await pushRecordStore.write({ ...record, suspended: true });
     } catch {
-      // من غير تعليق السجل بيفضل قايم مفتوح، فبنمسحه (fail-closed) بدل ما نكمل (ADR-0052 §7).
+      // من غير تعليق السجل بيفضل قايم مفتوح، فبنمسحه ونشيل الاشتراك (fail-closed).
       await pushRecordStore.remove().catch(() => undefined);
+      await unsubscribePush().catch(() => undefined);
       notifyPushRecordChanged();
       return;
     }
@@ -46,6 +68,7 @@ export async function runSignInPushCheck(): Promise<void> {
       return;
     }
     if (result.config.subscriber_ref === record.subscriber_ref) {
+      if (generation !== currentPushGeneration()) return;
       await pushRecordStore.write({ ...current, suspended: false }).catch(() => undefined);
       notifyPushRecordChanged();
       return;

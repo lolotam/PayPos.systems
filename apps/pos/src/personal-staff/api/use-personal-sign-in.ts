@@ -5,8 +5,11 @@ import {
   type PersonalOtpRequestInput,
 } from '@pospay/contracts';
 import type { MessageKey } from '@pospay/i18n';
-import { runSignInPushCheck } from '../push/push-sign-in-check';
+import { withTimeout } from '../push/push-calls';
+import { runSignInPushCheck, suspendPushForSignIn } from '../push/push-sign-in-check';
 import { personalCalls } from './personal-calls';
+
+const SUSPEND_TIMEOUT_MS = 2000;
 
 export function usePersonalSignIn(
   workspace: { company_id: string; business_id: string },
@@ -46,7 +49,8 @@ export function usePersonalSignIn(
         );
         if (result === null) throw new Error('PERSONAL_OTP_REFUSED');
         setChallenge(null);
-        // جلسة جديدة: الإشعارات بتتعلّق الأول وبعدين بيتقارن مرجع المشترك (FR-018).
+        // جلسة جديدة: نص الإشعارات بيتعلّق الأول وبعدين بيتقارن مرجع المشترك (FR-018).
+        await withTimeout(suspendPushForSignIn(), SUSPEND_TIMEOUT_MS).catch(() => undefined);
         void runSignInPushCheck().catch(() => undefined);
         changed();
       }, 'errors.OTP_INVALID'),

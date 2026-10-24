@@ -7,7 +7,6 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { attendanceInstallationId } from '../model/installation-id';
 import {
   currentSubscription,
-  hasPushManager,
   isIosDevice,
   isStandalone,
   notificationPermission,
@@ -108,6 +107,21 @@ function usePushLocalState(): PushLocalState {
   // كل ما السجل يتغيّر (ADR-0052 §7).
   useEffect(() => onPushRecordChanged(() => void reload()), [reload]);
 
+  // السماح ممكن يتغير من إعدادات المتصفح من غير إعادة تحميل، فالزر بيقرأ تاني لما
+  // الشاشة تركز أو تطلع من الخلفية (FR-010).
+  useEffect(() => {
+    const onFocus = () => void reload();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void reload();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [reload]);
+
   return { snapshot, loaded, installationId, storageBlocked, seen, reload, markSeen };
 }
 
@@ -154,20 +168,24 @@ function usePushRefresh(input: {
   const reload = local.reload;
   useEffect(() => {
     if (config === null || record === null || installationId === null) return;
-    // السجل ده اتسجل دلوقتي: التسجيل نفسه عمل الـ PUT، فالتحديث التاني هيبقى تكرار.
-    if (record.token === registered.current) return;
     // المفتاح الجديد كمان جزء من التوقيع: تغيير المفتاح وهو فاتح الشاشة لازم يصلّح الاشتراك.
     const signature = `${record.token}|${locale}|${config.vapid_key_id}`;
+    // السجل ده اتسجل دلوقتي: التسجيل نفسه عمل الـ PUT، فالتحديث التاني هيبقى تكرار.
+    if (signature === registered.current) return;
     if (refreshed.current === signature) return;
-    refreshed.current = signature;
     void refreshPush({ companyId, locale, config, installationId })
       .then((outcome) => {
-        if (outcome.kind === 'rotated') {
-          refreshed.current = `${outcome.token}|${locale}|${config.vapid_key_id}`;
-        }
-        if (outcome.kind !== 'none') void reload();
+        refreshed.current =
+          outcome.kind === 'rotated'
+            ? `${outcome.token}|${locale}|${config.vapid_key_id}`
+            : signature;
+        void reload();
       })
-      .catch(() => undefined);
+      .catch(() => {
+        // التحديث فشل: التوقيع بيتشال عشان الشاشة تعيد المحاولة مع أول فتح تاني.
+        refreshed.current = '';
+        void reload();
+      });
   }, [companyId, config, installationId, locale, record, registered, reload]);
 }
 
@@ -240,7 +258,8 @@ export function usePushControl({ companyId }: { companyId: string }) {
     reload: local.reload,
     markSeen: local.markSeen,
     onEnabled: (token: string) => {
-      registered.current = token;
+      // التوقيع المسجَّل: نفس السجل بنفس اللغة ونفس المفتاح يعني إن الـ PUT اتعمل خلاص.
+      registered.current = `${token}|${locale}|${config.config?.vapid_key_id ?? ''}`;
     },
   });
   usePushRefresh({ companyId, locale, config: config.config, local, registered });
@@ -248,7 +267,7 @@ export function usePushControl({ companyId }: { companyId: string }) {
     notReady: config.notReady,
     storageBlocked: local.storageBlocked,
     supported: supportsPush(),
-    installFirst: isIosDevice() && !isStandalone() && !hasPushManager(),
+    installFirst: isIosDevice() && !isStandalone(),
     permission: local.snapshot.permission,
     online,
     record: local.snapshot.record,

@@ -3,7 +3,7 @@ import type { PushConfig } from '@pospay/contracts';
 
 import { pushCalls, type PushConfigResult } from './push-calls';
 import type { PushRecord } from './push-record';
-import { runSignInPushCheck } from './push-sign-in-check';
+import { runSignInPushCheck, suspendPushForSignIn } from './push-sign-in-check';
 
 const fakes = vi.hoisted(() => {
   const state = {
@@ -184,6 +184,24 @@ it('removes the record and stops when the suspend write fails', async () => {
   await runSignInPushCheck();
 
   expect(fakes.state.removed).toBe(1);
+  expect(fakes.state.unsubscribed).toBe(1);
   expect(fakes.state.record).toBeNull();
   expect(pushCalls.config).not.toHaveBeenCalled();
+});
+
+it('suspends the record before the session changes', async () => {
+  await suspendPushForSignIn();
+
+  expect(fakes.state.writes[0]).toEqual({ ...RECORD, suspended: true });
+  expect(pushCalls.config).not.toHaveBeenCalled();
+});
+
+it('removes the record and the subscription when the suspend write fails', async () => {
+  fakes.state.writeFails = true;
+
+  await suspendPushForSignIn();
+
+  expect(fakes.state.removed).toBe(1);
+  expect(fakes.state.unsubscribed).toBe(1);
+  expect(fakes.state.record).toBeNull();
 });

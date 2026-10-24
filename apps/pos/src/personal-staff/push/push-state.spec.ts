@@ -47,6 +47,13 @@ describe('the five states of the mobile notifications control', () => {
     expect(decision.visible).toBe(true);
   });
 
+  it('shows the home screen instruction on an iPhone even when the push interfaces exist', () => {
+    const decision = decidePushState(input({ supported: true, installFirst: true }));
+
+    expect(decision.state).toBe('install-first');
+    expect(decision.visible).toBe(true);
+  });
+
   it('says notifications are blocked when the browser denied them', () => {
     const decision = decidePushState(input({ permission: 'denied' }));
 

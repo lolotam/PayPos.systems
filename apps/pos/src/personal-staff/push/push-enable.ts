@@ -1,3 +1,4 @@
+import type { PushConfig, PushSubscriptionInput } from '@pospay/contracts';
 import type { Locale } from '@pospay/i18n';
 
 import {
@@ -10,11 +11,15 @@ import {
   unsubscribePush,
   type PushSubscriptionLike,
 } from './push-browser';
-import { PushKeyStaleError, pushCalls } from './push-calls';
-import { runPushExclusive } from './push-lock';
+import { PushKeyStaleError, pushCalls, withTimeout } from './push-calls';
+import { currentPushGeneration, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
+
+const API_TIMEOUT_MS = 10_000;
+const SUBSCRIBE_TIMEOUT_MS = 15_000;
+const REVOKE_TIMEOUT_MS = 5000;
 
 /** نتيجة محاولة التشغيل: اتشغّل، ولا المتصفح رفض، ولا الخدمة مش جاهزة، ولا في خطأ. */
 export type PushEnableOutcome =
@@ -33,12 +38,20 @@ export interface PushEnableInput {
 async function subscribeWithConfig(
   config: { vapid_public_key: string },
   previous: PushRecord | null,
-): Promise<PushSubscriptionLike> {
+): Promise<PushSubscriptionLike | null> {
   // المتصفح بيقبل اشتراك واحد بس على الـ service worker، فالتسجيل الجديد بيحل محل القديم
   // عشان الشركة اللي آخر مرة هي اللي تستلم (WP-Q4).
   const existing = await currentSubscription();
   if (existing !== null || previous !== null) await unsubscribePush();
-  return subscribePush(base64UrlToBytes(config.vapid_public_key));
+  try {
+    return await withTimeout(
+      subscribePush(base64UrlToBytes(config.vapid_public_key)),
+      SUBSCRIBE_TIMEOUT_MS,
+    );
+  } catch {
+    await unsubscribePush().catch(() => undefined);
+    return null;
+  }
 }
 
 /**
@@ -57,39 +70,74 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
     if (asked !== 'granted') return { kind: 'blocked' };
   }
   return runPushExclusive(async (): Promise<PushEnableOutcome> => {
+    const generation = currentPushGeneration();
     // القراءة من جوه القفل: لو شغل تاني غيّر السجل، إحنا بنشوف النسخة الجديدة.
     const previous = await pushRecordStore.read().catch(() => null);
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const config = await pushCalls.config();
+      const config = await withTimeout(pushCalls.config(), API_TIMEOUT_MS);
       if (config.kind === 'not-ready') return { kind: 'not-ready' };
       const subscription = await subscribeWithConfig(config.config, previous);
+      if (subscription === null) return { kind: 'failed' };
       const token = crypto.randomUUID();
       try {
-        await pushCalls.register({
-          installation_id: input.installationId,
-          vapid_key_id: config.config.vapid_key_id,
-          delivery_token: token,
-          subscription: pushSubscriptionBody(subscription),
-          locale: input.locale,
-        });
+        await withTimeout(
+          pushCalls.register(registerBody(input, config.config, subscription, token)),
+          API_TIMEOUT_MS,
+        );
       } catch (cause) {
         // سجل ناقص أسوأ من مفيش سجل: الاشتراك الجديد بيتشال لو التسجيل مرفوض.
-        await unsubscribePush();
+        await unsubscribePush().catch(() => undefined);
         if (cause instanceof PushKeyStaleError && attempt === 0) continue;
+        return { kind: 'failed' };
+      }
+      // الخروج أو جيل تاني كسر الشغل ده: السجل ما يتكتبش، والتوكن الجديد بيتشال.
+      if (generation !== currentPushGeneration()) {
+        await unsubscribePush().catch(() => undefined);
         return { kind: 'failed' };
       }
       // السجل بيتكتب بعد ما الـ API يقبل، والزر يعرف التوكن الجديد قبل ما يتغيّر السجل.
       input.onRegistered(token);
-      await pushRecordStore.write({
-        token,
-        subscriber_ref: config.config.subscriber_ref,
-        company_id: input.companyId,
-        vapid_key_id: config.config.vapid_key_id,
-        suspended: false,
-      });
+      try {
+        await pushRecordStore.write({
+          token,
+          subscriber_ref: config.config.subscriber_ref,
+          company_id: input.companyId,
+          vapid_key_id: config.config.vapid_key_id,
+          suspended: false,
+        });
+      } catch {
+        // السيرفر ماسك توكن من غير سجل محلي: من غيره الـ service worker مش هيلاقيه أبداً.
+        await unsubscribePush().catch(() => undefined);
+        await revoke(input.installationId);
+        return { kind: 'failed' };
+      }
       notifyPushRecordChanged();
       return { kind: 'enabled', token };
     }
     return { kind: 'failed' };
   });
+}
+
+async function revoke(installationId: string): Promise<void> {
+  try {
+    await withTimeout(pushCalls.revoke(installationId), REVOKE_TIMEOUT_MS);
+  } catch {
+    // المراجعة على السيرفر أفضل effort: السجل مش هيتكتب، فالتوكن مش هيلاقي حد.
+  }
+}
+
+/** جسم التسجيل: المعرف والمفتاح والتوكن واللغة والاشتراك (ADR-0052 §4). */
+function registerBody(
+  input: PushEnableInput,
+  config: PushConfig,
+  subscription: PushSubscriptionLike,
+  token: string,
+): PushSubscriptionInput {
+  return {
+    installation_id: input.installationId,
+    vapid_key_id: config.vapid_key_id,
+    delivery_token: token,
+    subscription: pushSubscriptionBody(subscription),
+    locale: input.locale,
+  };
 }
