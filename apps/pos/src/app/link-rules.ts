@@ -197,12 +197,16 @@ export function stateAfterSwitch(
 
 /**
  * حالة الشاشة بعد إلغاء تبديل النشاط: النشاط القديم والجلسة زي ما هما.
+ * رسالتا الرفض والانقطاع تخصّان التبديل اللي اتلغى، فبتختفي معاه وأي تنبيه تاني بيفضل.
  *
  * @param current حالة الشاشة الحالية
  * @returns حالة الشاشة بعد الإلغاء
  */
 export function stateWithoutPending(current: NativeState): NativeState {
   if (current.kind !== 'flow' || current.pending === undefined) return current;
+  if (current.alert === 'roleChangeFailed' || current.alert === 'roleChangeOffline') {
+    return { kind: 'flow', role: current.role, business: current.business };
+  }
   if (current.alert === undefined) {
     return { kind: 'flow', role: current.role, business: current.business };
   }
