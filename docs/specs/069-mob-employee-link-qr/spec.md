@@ -172,6 +172,10 @@ None. Nothing is stored apart from the logo read's two access-audit records, in 
     `CLAUDE.md` §6, and every delivered image counts as an audited access: either the addendum makes issuing a URL the audited access,
     with an exact short lifetime and `Cache-Control: private, no-store` on the stored object's own answer, or every
     fetch goes through the check and the audit; and `Cache-Control: private, no-store` on anything the API returns.
+    The addendum also settles two more points: how the access check locks the membership so a revocation committing
+    at the same moment cannot be audited as allowed (the same lock order the revocation uses); and how the screen tells
+    a missing logo object from a storage error under the chosen transport (an `<img>` load failure shows no status, a
+    `fetch` needs CORS on the bucket, and an expired URL answers 403), so the two outcomes below stay decidable.
   - **When the logo cannot be shown:** a bound logo whose stored object is missing counts as no logo, and the sheet
     prints with the name only, as ADR-0056 does for statements. A storage error or timeout shows «اللوجو مش متاح
     دلوقتي، جرّبي تاني» with a retry, and the sheet does not print without the logo in that case.
