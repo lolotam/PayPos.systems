@@ -30,12 +30,29 @@ export function selectSalaryOnLastDay(
   periodLastDay: string,
   salaries: readonly CommissionSalary[],
 ): bigint | null {
-  let selected: CommissionSalary | undefined;
+  return selectSalaryEntryOnLastDay(employeeId, periodLastDay, salaries)?.amount ?? null;
+}
+
+/**
+ * يعيد سجل الراتب الذي تحدد منه قواعد الشهر، لا مبلغه فقط، لتحمل بصمة المدخل السجل نفسه.
+ * الاختيار لأحدث effectiveFrom لا يتجاوز آخر يوم، مع عزل بقية الموظفين والرواتب المستقبلية.
+ *
+ * @param employeeId الموظفة صاحبة الراتب المطلوب
+ * @param periodLastDay آخر يوم نشاط في الفترة محسوم من المستدعي
+ * @param salaries تاريخ الرواتب بصف واحد لكل موظفة وتاريخ وفق §4
+ * @returns سجل الراتب المختار بمرجعه الأصلي أو null عند غياب راتب سارٍ
+ */
+export function selectSalaryEntryOnLastDay<Sal extends CommissionSalary>(
+  employeeId: string,
+  periodLastDay: string,
+  salaries: readonly Sal[],
+): Sal | null {
+  let selected: Sal | undefined;
   for (const salary of salaries) {
     if (salary.employeeId !== employeeId || salary.effectiveFrom > periodLastDay) continue;
     if (selected === undefined || salary.effectiveFrom > selected.effectiveFrom) selected = salary;
   }
-  return selected?.amount ?? null;
+  return selected ?? null;
 }
 
 /**

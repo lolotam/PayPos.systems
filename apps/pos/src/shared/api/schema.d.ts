@@ -3529,6 +3529,15 @@ export interface components {
             next_cursor: (string & (string)) | null;
             can_manage: boolean;
         };
+        SalaryChanged: {
+            /** Format: uuid */
+            employee_id: string;
+            /** Format: uuid */
+            business_id?: string;
+            effective_from: string & (string);
+            amount: string;
+            revision: number;
+        };
         UpdateEmployeeInput: {
             /** Format: uuid */
             primary_branch_id: string;
@@ -5796,6 +5805,10 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
         };
+        SignOutResult: {
+            /** @enum {string} */
+            status: "SIGNED_OUT" | "NO_SESSION";
+        };
         WhatsappWebhookAcknowledgement: {
             /** @enum {boolean} */
             received: true;
@@ -7912,7 +7925,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SignOutResult"];
+                };
             };
             /** @description Error envelope */
             default: {
@@ -14887,14 +14902,16 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Signed out */
+            /** @description Signed out, or no session to end */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SignOutResult"];
+                };
             };
-            /** @description Error */
+            /** @description The API error envelope */
             default: {
                 headers: {
                     [name: string]: unknown;

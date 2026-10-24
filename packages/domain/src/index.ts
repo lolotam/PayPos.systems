@@ -44,6 +44,27 @@ export {
 export * from './attendance-report-types.js';
 export * from './attendance-worked-minutes.js';
 export * from './attendance-contracted-minutes.js';
+export * from './attendance-period-dates.js';
+export * from './attendance-statement-cutoff.js';
+export {
+  computeAttendancePeriodReport,
+  type AttendanceLeaveSummary,
+  type AttendancePeriodReport,
+} from './attendance-period-report.js';
+export {
+  attendanceShiftMatchesPair,
+  attendanceShiftPairInputs,
+  computeAttendanceShiftPeriodReport,
+  type AttendanceShiftPeriodReport,
+} from './attendance-shift-filter.js';
+export { hasAttendanceStatementCoverage } from './attendance-statement-coverage.js';
+export { mergeAttendanceStatementRows } from './attendance-statement-rows.js';
+export {
+  computeAttendanceStatementDays,
+  type AttendanceStatementDay,
+  type AttendanceStatementDaySession,
+  type AttendanceStatementLeaveType,
+} from './attendance-statement-days.js';
 export { computeAttendanceMonthlyReport } from './attendance-monthly-report.js';
 export {
   EMPLOYEE_NUMBER_MAX,

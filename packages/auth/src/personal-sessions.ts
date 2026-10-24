@@ -1,13 +1,16 @@
 import { makeSignature } from 'better-auth/crypto';
-import type { StaffOtpDatabase } from '@pospay/db';
+import type { AuthDatabase, StaffOtpDatabase } from '@pospay/db';
+import { deleteStaffSessionRow } from './staff-session-fence.ts';
 import { verifiedToken, type SessionRow } from './staff-sessions.ts';
 import { staffDeadline } from './staff-otp/policy.ts';
 import type { PersonalSession, PersonalWorkspace } from './staff-otp/types.ts';
+import { hasCookie, type SignOutOutcome } from './session-sign-out.ts';
 
 export const PERSONAL_COOKIE = 'pospay-personal.session_token';
 
 interface PersonalOptions {
   database: StaffOtpDatabase;
+  authDatabase: AuthDatabase;
   secret: string;
   now(): Date;
   primitive: {
@@ -37,14 +40,24 @@ export function createPersonalSessions(options: PersonalOptions) {
     issue: (userId: string, workspace: PersonalWorkspace, validate: () => Promise<boolean>) =>
       issue(options, userId, workspace, validate),
     resolve,
-    signOut: async (headers: Headers) => {
-      const token = await verifiedToken(headers, PERSONAL_COOKIE, options.secret);
-      const row = token === null ? null : await options.primitive.find(token);
-      if (row?.purpose === 'STAFF_PERSONAL') await options.primitive.remove(row.token);
-      return cookie('', new Date(0));
-    },
+    /** ينهي جلسة الـ cookie الموقّعة بس؛ امتلاكها هو السلطة، فالأهلية وربط التليفون ما بيتستشاروش. */
+    signOut: (headers: Headers) => signOutPersonalSession(options, headers),
     close: () => options.database.close(),
   };
+}
+
+async function signOutPersonalSession(
+  options: PersonalOptions,
+  headers: Headers,
+): Promise<SignOutOutcome> {
+  const token = await verifiedToken(headers, PERSONAL_COOKIE, options.secret);
+  const row = token === null ? null : await options.primitive.find(token);
+  const clearing = hasCookie(headers, PERSONAL_COOKIE) ? cookie('', new Date(0)) : null;
+  if (row === null || row.purpose !== 'STAFF_PERSONAL') return { cookie: clearing, ended: false };
+  const deleted = await deleteStaffSessionRow(options.authDatabase, row.id, 'STAFF_PERSONAL');
+  if (!deleted || personalRow(row, options.now()) === null)
+    return { cookie: clearing, ended: false };
+  return { cookie: clearing, ended: true, userId: row.userId };
 }
 
 export type PersonalSessions = ReturnType<typeof createPersonalSessions>;

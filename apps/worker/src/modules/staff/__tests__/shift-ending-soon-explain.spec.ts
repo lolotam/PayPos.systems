@@ -1,10 +1,8 @@
 import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql, type SQL } from 'drizzle-orm';
-import {
-  dueShiftEndsStatement,
-  employeeBranchesStatement,
-} from '../persistence/shift-ending-soon.transactions.ts';
+import { employeeBranchesStatement } from '../persistence/employee-push-access.ts';
+import { dueShiftEndsStatement } from '../persistence/shift-ending-soon.transactions.ts';
 import { MORNING_IN } from './break-not-returned.fixture.ts';
 import { SHIFT_END, SHIFT_START, WEEK, WORKING, type Tenant } from './not-clocked-in.fixture.ts';
 import {

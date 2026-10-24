@@ -21,6 +21,10 @@ export {
 } from './attendance-monthly-inputs.ts';
 export { attendanceReportContractsStatement } from './attendance-report-contracts.ts';
 export {
+  attendanceStatementScheduledEmployeesStatement,
+  type AttendanceStatementBranch,
+} from './attendance-statement-scheduled-employees.ts';
+export {
   businessIdentityReadStatement,
   readBusinessIdentity,
 } from './business-identity-read.ts';

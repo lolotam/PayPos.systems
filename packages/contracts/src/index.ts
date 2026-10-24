@@ -1,6 +1,7 @@
 export { nameAr, nameEn } from './bilingual/names.js';
 export * from './staff/attendance-monthly-report.js';
 export * from './staff/attendance-report-inputs.js';
+export * from './staff/attendance-statement.js';
 export {
   employee,
   createdEmployee,
@@ -204,6 +205,7 @@ export {
   staffOtpVerifyInput,
   staffOtpAcknowledgement,
   staffSessionContext,
+  signOutResult,
   staffOtpJob,
   staffPinInput,
   staffPinResetInput,
@@ -213,6 +215,7 @@ export {
   type StaffOtpVerifyInput,
   type StaffOtpAcknowledgement,
   type StaffSessionContext,
+  type SignOutResult,
 } from './identity/staff-otp.js';
 export {
   updateEmployeeInput,
@@ -259,12 +262,14 @@ export {
   employeeSalary,
   salaryHistoryQuery,
   salaryHistoryPage,
+  salaryChanged,
 } from './staff/salary.js';
 export type {
   SetSalaryInput,
   EmployeeSalary,
   SalaryHistoryQuery,
   SalaryHistoryPage,
+  SalaryChanged,
 } from './staff/salary.js';
 export * from './staff/leave.js';
 export * from './staff/leave-decision.js';

@@ -11,6 +11,7 @@ import {
   saveDeviceRole,
   type DeviceRole,
 } from '@/app/device-role';
+import { usePersonalSession } from '@/personal-staff/api/use-personal-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { readLaunchLink } from '@/shared/platform/launch-links';
 
@@ -27,6 +28,9 @@ vi.mock('@/app/device-role', () => ({
 }));
 vi.mock('@/app/device-screen', () => ({
   DeviceScreen: () => <h2>device screen</h2>,
+}));
+vi.mock('@/personal-staff/api/use-personal-session', () => ({
+  usePersonalSession: vi.fn(),
 }));
 vi.mock('@/personal-staff/ui/personal-screen', () => ({
   PersonalScreen: ({ workspace }: { workspace?: { company_id: string; business_id: string } }) => (
@@ -78,6 +82,14 @@ function prepare() {
   vi.mocked(saveDeviceRole).mockResolvedValue(undefined);
   vi.mocked(rememberBusiness).mockResolvedValue(undefined);
   vi.mocked(connectEmployee).mockResolvedValue(undefined);
+  vi.mocked(usePersonalSession).mockReturnValue({
+    epoch: 0,
+    online: true,
+    loading: false,
+    session: null,
+    changed: vi.fn(),
+    signOut: vi.fn(),
+  });
 }
 
 afterEach(() => {
@@ -95,6 +107,7 @@ describe('NativeEntry start screen', () => {
     ).not.toBeNull();
     expect(screen.queryByRole('heading', { name: 'device screen' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'personal screen' })).toBeNull();
+    expect(usePersonalSession).not.toHaveBeenCalled();
   });
 
   it.each(roles)(
@@ -107,6 +120,14 @@ describe('NativeEntry start screen', () => {
       expect(screen.queryByRole('heading', { name: t('ar', 'nativeShell.title') })).toBeNull();
     },
   );
+
+  it('never reads the personal session on a counter device', async () => {
+    vi.mocked(readDeviceRole).mockResolvedValue('counter');
+    mount();
+
+    expect(await screen.findByRole('heading', { name: 'device screen' })).not.toBeNull();
+    expect(usePersonalSession).not.toHaveBeenCalled();
+  });
 
   it('shows the loading notice while the stored role is being read', () => {
     vi.mocked(readDeviceRole).mockReturnValue(new Promise<DeviceRole | null>(() => undefined));
@@ -241,7 +262,7 @@ describe('NativeEntry link while the app runs', () => {
     });
   });
 
-  it('keeps the remembered business when the link is for another one', async () => {
+  it('asks to switch and keeps the remembered business when the link is for another one', async () => {
     vi.mocked(readLaunchLink).mockResolvedValue(link(HOST, OTHER_BUSINESS));
     vi.mocked(readDeviceRole).mockResolvedValue('employee');
     vi.mocked(readRememberedBusiness).mockResolvedValue({
@@ -250,8 +271,7 @@ describe('NativeEntry link while the app runs', () => {
     });
     mount();
 
-    const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain(t('ar', 'nativeShell.otherBusiness'));
+    expect(await screen.findByText(t('ar', 'nativeShell.switchBusinessConfirm'))).not.toBeNull();
     expect(rememberBusiness).not.toHaveBeenCalled();
     expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
   });

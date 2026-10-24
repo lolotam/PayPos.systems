@@ -3,8 +3,17 @@ import { FakeChannel } from '@pospay/notifications';
 import type postgres from 'postgres';
 import { createNotificationModule } from '../../../notifications/index.ts';
 
+/** خيارات سلّم الأحداث: الدفع بيفتح أو يقفل جاهزية الدفع في المستهلك (ADR-0052 قرار 2). */
+export interface NotClockedInInboxOptions {
+  readonly push?: boolean;
+}
+
 /** يسلّم أحداث عدم الحضور لمستهلك الإشعار داخل التطبيق على نفس قاعدة الاختبار. */
-export function notClockedInInbox(ids: IdGenerator, database: Database) {
+export function notClockedInInbox(
+  ids: IdGenerator,
+  database: Database,
+  options: NotClockedInInboxOptions = {},
+) {
   const channel = new FakeChannel(() => new Date('2026-10-04T07:20:00.000Z'));
   const notifications = createNotificationModule({
     database,
@@ -17,6 +26,7 @@ export function notClockedInInbox(ids: IdGenerator, database: Database) {
     },
     production: false,
     channel,
+    push: { enabled: options.push === true },
   });
   return {
     channel,

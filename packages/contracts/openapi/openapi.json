@@ -1727,7 +1727,14 @@
         "operationId": "signOutPersonalStaff",
         "responses": {
           "200": {
-            "description": "signOutPersonalStaff"
+            "description": "signOutPersonalStaff",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignOutResult"
+                }
+              }
+            }
           },
           "default": {
             "description": "Error envelope",
@@ -13826,10 +13833,17 @@
         "operationId": "signOutStaff",
         "responses": {
           "200": {
-            "description": "Signed out"
+            "description": "Signed out, or no session to end",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignOutResult"
+                }
+              }
+            }
           },
           "default": {
-            "description": "Error",
+            "description": "The API error envelope",
             "content": {
               "application/json": {
                 "schema": {
@@ -19101,6 +19115,51 @@
           "next_cursor",
           "can_manage"
         ]
+      },
+      "SalaryChanged": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "effective_from": {
+            "type": "string",
+            "allOf": [
+              {
+                "type": "string",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!0000)"
+              }
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d{0,10})\\.\\d{3}$"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "employee_id",
+          "effective_from",
+          "amount",
+          "revision"
+        ],
+        "additionalProperties": false
       },
       "UpdateEmployeeInput": {
         "type": "object",
@@ -28640,6 +28699,21 @@
           "expires_at"
         ],
         "additionalProperties": false
+      },
+      "SignOutResult": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "SIGNED_OUT",
+              "NO_SESSION"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
       },
       "WhatsappWebhookAcknowledgement": {
         "type": "object",

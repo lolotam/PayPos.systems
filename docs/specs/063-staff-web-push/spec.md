@@ -48,6 +48,10 @@ each; Abu Salem picked the same on 2026-10-23, so they are final). The rules, no
   app, so it serves one company at a time: the notices come from the company she turned notifications on for **last**; to
   switch to the other salon she turns them on there again (answered by Waleed, PP-33.4, batch 50, the first option; Abu
   Salem picked the same on 2026-10-23).
+- **WP-Q5 — Browser now, or wait for the «PosPay Business» app?** Staff push ships now from the browser (Android, and
+  iPhone after Add to Home Screen); when the native app ships it carries the same notices, only the delivery changes
+  (Waleed, 2026-10-24, via the super agent, batch 63, the first option; Abu Salem picked the same on the decisions page,
+  2026-10-24, so it is final).
 
 ## User Scenarios & Testing *(mandatory)*
 

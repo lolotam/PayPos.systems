@@ -34,6 +34,7 @@ import {
   employeeSalary,
   salaryHistoryQuery,
   salaryHistoryPage,
+  salaryChanged,
 } from './staff/salary.js';
 import { settingsPaths } from './settings/settings-openapi.js';
 import { alertRulePaths, alertRuleSchemas } from './settings/alert-rules-openapi.js';
@@ -74,6 +75,7 @@ import {
   staffOtpVerifyInput,
   staffOtpAcknowledgement,
   staffSessionContext,
+  signOutResult,
   staffPinInput,
   staffPinResetInput,
 } from './identity/staff-otp.js';
@@ -150,6 +152,7 @@ const SCHEMAS = [
   employeeSalary,
   salaryHistoryQuery,
   salaryHistoryPage,
+  salaryChanged,
   updateEmployeeInput,
   employeeDetailRecord,
   employeeListItem,
@@ -186,6 +189,7 @@ const SCHEMAS = [
   staffOtpVerifyInput,
   staffOtpAcknowledgement,
   staffSessionContext,
+  signOutResult,
   whatsappWebhookAcknowledgement,
   whatsappEnvelope,
   whatsappHandshake,

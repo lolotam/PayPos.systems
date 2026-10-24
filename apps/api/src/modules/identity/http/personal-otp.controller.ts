@@ -16,6 +16,7 @@ import {
   personalOtpVerifyInput,
   type PersonalOtpRequestInput,
   type PersonalOtpVerifyInput,
+  type SignOutResult,
 } from '@pospay/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Authenticated } from '../../../shared/access.decorators.ts';
@@ -26,6 +27,7 @@ import {
   type PersonalAuthentication,
 } from '../../../shared/personal-authentication.ts';
 import { ApiError } from '../../../shared/errors.ts';
+import { SignOutRoute, signOutAnswer } from '../../../shared/sign-out.guard.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { toWebHeaders } from '../../../shared/web-headers.ts';
 
@@ -120,12 +122,15 @@ export class PersonalOtpController {
 
   @Post('personal-session/sign-out')
   @Authenticated()
-  @SetMetadata(PERSONAL_ROUTE, true)
+  @SignOutRoute('personal')
   @HttpCode(200)
-  async signOut(@Req() request: FastifyRequest, @Res({ passthrough: true }) reply: FastifyReply) {
-    if (this.auth === null) throw new ApiError('UNAUTHENTICATED');
-    void reply.header('set-cookie', await this.auth.sessions.signOut(toWebHeaders(request)));
-    return { status: 'SIGNED_OUT' };
+  async signOut(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<SignOutResult> {
+    if (this.auth === null) throw new ApiError('NOT_READY');
+    const result = await this.auth.sessions.signOut(toWebHeaders(request));
+    return signOutAnswer(request, reply, 'personal', result);
   }
 
   private validate(request: FastifyRequest) {
