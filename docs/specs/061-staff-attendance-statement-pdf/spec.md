@@ -333,9 +333,10 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
 
   **Coverage**, the one predicate for who has a row (Story 1.4), admission (FR-003, Story 3.3) and an empty render
   (below): at the branch in the period, a counted session, a contract day whose default entry had ended, an approved
-  leave on a contract day (whether or not that day had ended; a contract day is a date inside her hire, contract and
-  branch-link bounds whose weekday has a default entry, so the employee is a 27b candidate and her contract is read),
-  or a scheduled shift whose `ends_at` had passed. Under
+  leave on a contract date of the period (a date inside her hire, contract and branch-link bounds, the dates the leave
+  column counts; whether or not that day had ended) when the period has at least one contract day (a contract date
+  whose weekday has a default entry, which makes her a 27b candidate whose contract is read), or a scheduled shift
+  whose `ends_at` had passed. Under
   a shift filter (BR-11) coverage is limited to the dates whose scheduled shift at the branch had the selected pair:
   on such a date, a session the 27b rules attribute to that shift, an approved leave, or that shift having ended.
   Contract days do not count under the filter, and neither does anything on another date: the `from − 1` context
