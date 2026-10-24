@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,12 +15,14 @@ vi.mock('@/app/end-sessions', () => ({
 vi.mock('@/personal-staff/api/use-personal-session', () => ({
   usePersonalSession: vi.fn(),
 }));
-vi.mock('@/personal-staff/ui/personal-screen', () => ({
-  PersonalScreen: ({ workspace }: { workspace?: { company_id: string; business_id: string } }) => (
-    <>
-      <h2>personal screen</h2>
-      {workspace ? <p>{`${workspace.company_id} ${workspace.business_id}`}</p> : null}
-    </>
+vi.mock('@/personal-staff/ui/enrol-passkey-screen', () => ({
+  EnrolPasskeyScreen: ({ employeeId }: { employeeId: string }) => (
+    <p>{`session screen ${employeeId}`}</p>
+  ),
+}));
+vi.mock('@/personal-staff/ui/personal-sign-in', () => ({
+  PersonalSignIn: ({ workspace }: { workspace: { company_id: string; business_id: string } }) => (
+    <p>{`sign-in ${workspace.company_id} ${workspace.business_id}`}</p>
   ),
 }));
 
@@ -49,17 +51,23 @@ function sessionState(session: typeof SESSION | null) {
   };
 }
 
-function mount(business: PersonalWorkspace | null = REMEMBERED) {
-  render(
+function flow() {
+  return (
+    <EmployeeFlow
+      business={REMEMBERED}
+      pending={null}
+      busy={false}
+      connect={<p>connect</p>}
+      onConfirm={vi.fn()}
+      onCancel={vi.fn()}
+    />
+  );
+}
+
+function mount() {
+  return render(
     <LocaleProvider locale="ar" setLocale={() => undefined}>
-      <EmployeeFlow
-        business={business}
-        pending={null}
-        busy={false}
-        connect={<p>connect</p>}
-        onConfirm={vi.fn()}
-        onCancel={vi.fn()}
-      />
+      {flow()}
     </LocaleProvider>,
   );
 }
@@ -75,8 +83,7 @@ describe('EmployeeFlow', () => {
     mount();
 
     expect(await screen.findByRole('status')).not.toBeNull();
-    expect(screen.getByText(t('ar', 'pos.loading'))).not.toBeNull();
-    expect(screen.queryByRole('heading', { name: 'personal screen' })).toBeNull();
+    expect(screen.queryByText(`session screen ${SESSION.employee_id}`)).toBeNull();
     expect(endPersonalSession).toHaveBeenCalledTimes(1);
   });
 
@@ -86,29 +93,78 @@ describe('EmployeeFlow', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain(t('ar', 'nativeShell.roleChangeFailed'));
-    expect(screen.queryByRole('heading', { name: 'personal screen' })).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }));
-    expect(endPersonalSession).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(`session screen ${SESSION.employee_id}`)).toBeNull();
   });
 
-  it('shows the remembered business when its own session is open', async () => {
+  it('ends the session again when the employee asks and locks the button while it runs', async () => {
+    vi.mocked(endPersonalSession).mockResolvedValueOnce('failed');
+    let release!: (result: 'done' | 'failed') => void;
+    vi.mocked(endPersonalSession).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    mount();
+
+    fireEvent.click(await screen.findByRole('button', { name: t('ar', 'nativeShell.retry') }));
+
+    expect(endPersonalSession).toHaveBeenCalledTimes(2);
+    expect(
+      screen.getByRole('button', { name: t('ar', 'nativeShell.retry') }).hasAttribute('disabled'),
+    ).toBe(true);
+
+    await act(async () => {
+      release('failed');
+    });
+  });
+
+  it('shows the alert and the retry again when the same session reads back', async () => {
+    vi.mocked(endPersonalSession).mockResolvedValue('failed');
+    const view = mount();
+    await screen.findByRole('alert');
+    expect(endPersonalSession).toHaveBeenCalledTimes(1);
+
+    vi.mocked(usePersonalSession).mockReturnValue(sessionState(null));
+    await act(async () => {
+      view.rerender(
+        <LocaleProvider locale="ar" setLocale={() => undefined}>
+          {flow()}
+        </LocaleProvider>,
+      );
+    });
+    expect(screen.getByText(`sign-in ${COMPANY} ${BUSINESS}`)).not.toBeNull();
+
+    vi.mocked(usePersonalSession).mockReturnValue(sessionState({ ...SESSION }));
+    await act(async () => {
+      view.rerender(
+        <LocaleProvider locale="ar" setLocale={() => undefined}>
+          {flow()}
+        </LocaleProvider>,
+      );
+    });
+
+    expect(screen.getByRole('alert')).not.toBeNull();
+    expect(screen.getByRole('button', { name: t('ar', 'nativeShell.retry') })).not.toBeNull();
+    expect(endPersonalSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the session screen of the remembered business, with no sign-out', async () => {
     vi.mocked(usePersonalSession).mockReturnValue(
       sessionState({ ...SESSION, business_id: BUSINESS }),
     );
     mount();
 
-    expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
-    expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
+    expect(await screen.findByText(`session screen ${SESSION.employee_id}`)).not.toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
+    expect(usePersonalSession).toHaveBeenCalledTimes(1);
   });
 
-  it('shows the remembered business when there is no session', async () => {
+  it('shows the sign-in of the remembered business when there is no session', async () => {
     vi.mocked(usePersonalSession).mockReturnValue(sessionState(null));
     mount();
 
-    expect(await screen.findByRole('heading', { name: 'personal screen' })).not.toBeNull();
-    expect(screen.getByText(`${COMPANY} ${BUSINESS}`)).not.toBeNull();
+    expect(await screen.findByText(`sign-in ${COMPANY} ${BUSINESS}`)).not.toBeNull();
     expect(endPersonalSession).not.toHaveBeenCalled();
   });
 });

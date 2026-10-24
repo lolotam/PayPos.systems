@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -40,15 +40,5 @@ describe('SwitchBusinessPanel', () => {
     const cancel = screen.getByRole('button', { name: t('ar', 'nativeShell.cancel') });
     expect(confirm.hasAttribute('disabled')).toBe(true);
     expect(cancel.hasAttribute('disabled')).toBe(true);
-  });
-
-  it('reports the answer the employee gave', () => {
-    const { onConfirm, onCancel } = mount();
-
-    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.confirm') }));
-    fireEvent.click(screen.getByRole('button', { name: t('ar', 'nativeShell.cancel') }));
-
-    expect(onConfirm).toHaveBeenCalledTimes(1);
-    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });

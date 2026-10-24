@@ -8,7 +8,7 @@ import { FLOW_ALERT_KEYS } from './link-rules';
 import { LoadingNotice } from './loading-notice';
 import { PasteLinkForm } from './paste-link-form';
 import { StartScreen } from './start-screen';
-import { useBusinessSwitch } from './use-business-switch';
+import { useNativeFlow } from './use-native-flow';
 import { useNativeLink } from './use-native-link';
 
 const ALERT_CLASS =
@@ -16,7 +16,7 @@ const ALERT_CLASS =
 
 export function NativeEntry() {
   const locale = useLocale();
-  const { state, busy, onStart, onLink, choose, confirm, cancel } = useBusinessSwitch();
+  const { state, busy, onStart, onLink, choose, confirm, cancel } = useNativeFlow();
   useNativeLink(onStart, onLink);
 
   if (state.kind === 'loading') return <LoadingNotice />;

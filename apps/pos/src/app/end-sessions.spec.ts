@@ -25,20 +25,15 @@ describe('endPersonalSession', () => {
     expect(announcePersonalChange).toHaveBeenCalledTimes(1);
   });
 
-  it.each(['PERSONAL_SIGN_OUT_REFUSED', 'PERSONAL_SIGN_OUT_UNCLEAR'])(
-    'fails without announcing when the server answers %s',
+  it.each(['PERSONAL_SIGN_OUT_REFUSED', 'PERSONAL_SIGN_OUT_UNCLEAR', 'TypeError'])(
+    'fails without announcing when the sign-out ends with %s',
     async (code) => {
-      vi.mocked(personalCalls.signOut).mockRejectedValue(new Error(code));
+      vi.mocked(personalCalls.signOut).mockRejectedValue(
+        code === 'TypeError' ? new TypeError('Failed to fetch') : new Error(code),
+      );
 
       await expect(endPersonalSession()).resolves.toBe('failed');
       expect(announcePersonalChange).not.toHaveBeenCalled();
     },
   );
-
-  it('fails without announcing when the network is down', async () => {
-    vi.mocked(personalCalls.signOut).mockRejectedValue(new TypeError('Failed to fetch'));
-
-    await expect(endPersonalSession()).resolves.toBe('failed');
-    expect(announcePersonalChange).not.toHaveBeenCalled();
-  });
 });

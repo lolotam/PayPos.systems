@@ -36,7 +36,7 @@ export interface NativeFlow {
  *
  * @returns حالة الشاشة والخطوات اللي بتغيّرها
  */
-export function useBusinessSwitch(): NativeFlow {
+export function useNativeFlow(): NativeFlow {
   const [state, setState] = useState<NativeState>({ kind: 'loading' });
   const onError = useCallback(() => {
     setState((current) => stateAfterFailure(current, null, null));
