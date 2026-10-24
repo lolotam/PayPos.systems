@@ -49,10 +49,24 @@ vi.mock('./push-record-idb', () => ({
         revision: (fakes.state.record?.revision ?? 0) + 1,
       };
       fakes.state.writes.push(fakes.state.record);
+      return fakes.state.record.revision;
     },
     remove: async () => {
       fakes.state.removed += 1;
       fakes.state.record = null;
+    },
+    removeIfMatches: async (expected: { token: string | null; revision: number }) => {
+      const stored = fakes.state.record;
+      if (
+        stored === null ||
+        stored.token !== expected.token ||
+        stored.revision !== expected.revision
+      ) {
+        return false;
+      }
+      fakes.state.removed += 1;
+      fakes.state.record = null;
+      return true;
     },
     generation: async () => fakes.state.generation,
     bumpGeneration: async () => {
@@ -137,6 +151,24 @@ it('restores the record when the subscriber reference is the same', async () => 
 
   expect(fakes.state.record?.suspended).toBe(false);
   expect(fakes.state.removed).toBe(0);
+});
+
+it('keeps a newer suspension from another tab when the reference matches', async () => {
+  const pending = deferred<PushConfigResult>();
+  const started = deferred<void>();
+  vi.mocked(pushCalls.config).mockImplementation(() => {
+    started.resolve();
+    return pending.promise;
+  });
+
+  const checking = runSignInPushCheck();
+  await started.promise;
+  expect(fakes.state.record?.revision).toBe(1);
+  await suspendPushForSignIn();
+  pending.resolve({ kind: 'ready', config: CONFIG });
+  await checking;
+
+  expect(fakes.state.record).toEqual({ ...RECORD, suspended: true, revision: 2 });
 });
 
 it('deletes the record and unsubscribes when the subscriber reference is another person', async () => {

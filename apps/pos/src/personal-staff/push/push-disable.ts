@@ -12,7 +12,8 @@ const GENERATION_TIMEOUT_MS = 2000;
 
 /**
  * بتوقّف إشعارات الموبايل: بتمسح السجل المحلي، وبترفع اشتراك المتصفح، وبتراجع السطر عند الـ API.
- * السجل المحلي بيتمسح في كل الأحوال؛ فشل الشبكة مش بيسيب نص سجل (ADR-0052 §7).
+ * السجل اللي بدأ بيه الإيقاف بيتمسح حتى لو الشبكة فشلت؛ أما سجل أحدث لموظفة تانية فبيفضل
+ * بتوكنه واشتراكه وسطره على السيرفر (ADR-0052 §7).
  *
  * @param installationId معرف التثبيت، أو null لو التخزين متعطل فمفيش حاجة تتراجع
  * @param expected السجل اللي كان موجود وقت البداية، عشان ما نراجعش سطر موظفة تانية
@@ -27,18 +28,23 @@ export async function disablePush(
       () => undefined,
     );
     const stored = await pushRecordStore.read().catch(() => null);
-    // سجل أحدث (تسجيل موظفة تانية أو تعليق جديد) ما نراجعش سطره ولا نشيل اشتراكه.
     const newer =
       expected !== null &&
       stored !== null &&
       (stored.token !== expected.token || stored.revision !== expected.revision);
+    let removed = true;
     try {
-      await pushRecordStore.remove();
+      if (expected !== null) {
+        removed = await pushRecordStore.removeIfMatches(expected);
+      } else {
+        await pushRecordStore.remove();
+      }
     } catch {
       // التخزين متعطل: مفيش سجل ينمسح أصلاً.
     }
     notifyPushRecordChanged();
-    if (newer) return;
+    // المطابقة والمسح في transaction واحد: سجل موظفة تانية ما يتمسحش ولا يتراجع سطره.
+    if (newer || (!removed && stored !== null)) return;
     try {
       await unsubscribePush();
     } catch {

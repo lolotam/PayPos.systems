@@ -39,8 +39,9 @@ export async function runSignInPushCheck(): Promise<void> {
     const generation = await pushRecordStore.generation();
     const record = await pushRecordStore.read().catch(() => null);
     if (record === null) return;
+    let suspensionRevision: number;
     try {
-      await pushRecordStore.suspend({ ...record, suspended: true });
+      suspensionRevision = await pushRecordStore.suspend({ ...record, suspended: true });
     } catch {
       // من غير تعليق السجل بيفضل قايم مفتوح، فبنمسحه ونشيل الاشتراك (fail-closed).
       await pushRecordStore.remove().catch(() => undefined);
@@ -71,15 +72,18 @@ export async function runSignInPushCheck(): Promise<void> {
       const written = await pushRecordStore
         .writeIfGeneration({ ...current, suspended: false }, generation, {
           clearSuspension: true,
-          expectRevision: current.revision,
+          expectRevision: suspensionRevision,
         })
         .catch(() => false);
       if (!written) return;
       notifyPushRecordChanged();
       return;
     }
+    const removed = await pushRecordStore
+      .removeIfMatches({ token: record.token, revision: suspensionRevision })
+      .catch(() => false);
+    if (!removed) return;
     await unsubscribePush().catch(() => undefined);
-    await pushRecordStore.remove().catch(() => undefined);
     notifyPushRecordChanged();
   });
 }

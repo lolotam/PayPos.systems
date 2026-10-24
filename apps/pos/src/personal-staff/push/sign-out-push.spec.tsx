@@ -67,7 +67,20 @@ vi.mock('./push-record-idb', () => ({
       }
       fakes.state.record = null;
     },
-    suspend: async () => undefined,
+    removeIfMatches: async (expected: { token: string | null; revision: number }) => {
+      const stored = fakes.state.record;
+      if (
+        stored === null ||
+        stored.token !== expected.token ||
+        stored.revision !== expected.revision
+      ) {
+        return false;
+      }
+      fakes.state.removed += 1;
+      fakes.state.record = null;
+      return true;
+    },
+    suspend: async () => 0,
     generation: async () => fakes.state.generation,
     bumpGeneration: async () => {
       fakes.state.generation += 1;
@@ -171,6 +184,37 @@ it('does not revoke or unsubscribe when another employee signed in meanwhile', a
   });
 
   expect(personalCalls.signOut).toHaveBeenCalledTimes(1);
+  expect(fakes.state.revokeAttempts).toBe(0);
+  expect(fakes.state.unsubscribed).toBe(0);
+  f.unmount();
+});
+
+it('keeps a new record written while sign-out cleanup is queued', async () => {
+  const f = fixture();
+  await waitFor(() => expect(f.result.current.session).toEqual(session));
+  vi.mocked(personalCalls.session).mockResolvedValue(null);
+  fakes.state.record = { ...RECORD };
+  let release = (): void => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const holding = runPushExclusive(() => held);
+
+  let signingOut: Promise<void> = Promise.resolve();
+  await act(async () => {
+    signingOut = f.result.current.signOut();
+  });
+  await waitFor(() => expect(fakes.state.record).toBeNull());
+  fakes.state.record = { ...RECORD, token: 'new-token', revision: 1 };
+
+  release();
+  await act(async () => {
+    await signingOut;
+  });
+  await holding;
+
+  expect(f.result.current.session).toBeNull();
+  expect(fakes.state.record).toEqual({ ...RECORD, token: 'new-token', revision: 1 });
   expect(fakes.state.revokeAttempts).toBe(0);
   expect(fakes.state.unsubscribed).toBe(0);
   f.unmount();

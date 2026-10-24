@@ -128,23 +128,58 @@ function writeIfGeneration(
   );
 }
 
-/**
- * بيكتب السجل معلقًا وبيزيد رقم المراجعة: التعليق الجديد بيبان إنه جديد على أي تعليق قديم.
- */
-function suspendRecord(record: PushRecord): Promise<void> {
+/** بيمسح السجل بس لو لسه هو نفسه: تسجيل موظفة تانية ما يضيعش أثناء تنظيف قديم. */
+function removeIfMatches(expected: { token: string | null; revision: number }): Promise<boolean> {
   return openDatabase().then(
     (database) =>
-      new Promise<void>((resolve, reject) => {
+      new Promise<boolean>((resolve, reject) => {
         const transaction = database.transaction(STORE_NAME, 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
         const request = store.get(RECORD_KEY) as IDBRequest<PushRecord | undefined>;
+        let removed = false;
         request.onsuccess = () => {
-          const revision = (request.result?.revision ?? 0) + 1;
+          const stored = request.result;
+          if (
+            stored === undefined ||
+            stored.token !== expected.token ||
+            (stored.revision ?? 0) !== expected.revision
+          ) {
+            return;
+          }
+          store.delete(RECORD_KEY);
+          removed = true;
+        };
+        transaction.oncomplete = () => {
+          database.close();
+          resolve(removed);
+        };
+        transaction.onabort = () => {
+          database.close();
+          reject(transaction.error ?? unavailable());
+        };
+      }),
+  );
+}
+
+/**
+ * بيكتب السجل معلقًا وبيزيد رقم المراجعة: التعليق الجديد بيبان إنه جديد على أي تعليق قديم.
+ * وبيرجع الرقم الجديد عشان مقارنة قديمة ما تمسحش تعليق اتعمل في تبويب تاني.
+ */
+function suspendRecord(record: PushRecord): Promise<number> {
+  return openDatabase().then(
+    (database) =>
+      new Promise<number>((resolve, reject) => {
+        const transaction = database.transaction(STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.get(RECORD_KEY) as IDBRequest<PushRecord | undefined>;
+        let revision = 0;
+        request.onsuccess = () => {
+          revision = (request.result?.revision ?? 0) + 1;
           store.put({ ...record, suspended: true, revision }, RECORD_KEY);
         };
         transaction.oncomplete = () => {
           database.close();
-          resolve();
+          resolve(revision);
         };
         transaction.onabort = () => {
           database.close();
@@ -170,9 +205,9 @@ export const pushRecordStore: PushRecordStore = {
   remove: async () => {
     await runTransaction('readwrite', (store) => store.delete(RECORD_KEY));
   },
-  suspend: async (record: PushRecord) => {
-    await suspendRecord(record);
-  },
+  removeIfMatches: async (expected: { token: string | null; revision: number }) =>
+    removeIfMatches(expected),
+  suspend: async (record: PushRecord) => suspendRecord(record),
   generation: async () => {
     const stored = await runTransaction<number | undefined>('readonly', (store) =>
       store.get(GENERATION_KEY),

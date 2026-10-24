@@ -27,7 +27,10 @@ export interface PushRecordStore {
   read(): Promise<PushRecord | null>;
   write(record: PushRecord): Promise<void>;
   remove(): Promise<void>;
-  suspend(record: PushRecord): Promise<void>;
+  /** بيمسح بس السجل المتوقع، عشان تنظيف قديم ما يمسحش تسجيل تبويب تاني. */
+  removeIfMatches(expected: { token: string | null; revision: number }): Promise<boolean>;
+  /** بيرجع مراجعة التعليق الجديد عشان الفحص ما يرجعش تعليقًا أحدث منه. */
+  suspend(record: PushRecord): Promise<number>;
   generation(): Promise<number>;
   bumpGeneration(): Promise<number>;
   writeIfGeneration(
