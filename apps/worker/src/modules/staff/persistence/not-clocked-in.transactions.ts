@@ -157,7 +157,7 @@ export async function lockEmployee(tx: Tx, companyId: string, employeeId: string
     WHERE company_id = ${companyId} AND id = ${employeeId} FOR SHARE`);
 }
 
-async function readShift(
+export async function readShift(
   tx: Tx,
   companyId: string,
   employeeId: string,

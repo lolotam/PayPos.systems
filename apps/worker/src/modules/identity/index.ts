@@ -3,6 +3,10 @@ export {
   branchManagerRecipientsStatement,
 } from './persistence/branch-manager-recipients.ts';
 export {
+  activeMembership,
+  activeMembershipStatement,
+} from './persistence/active-membership.ts';
+export {
   discountApproverRecipients,
   discountApproverCandidatesStatement,
   discountApproverGrantsStatement,

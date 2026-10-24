@@ -41,6 +41,35 @@ export function periodicAlertPlan(rule: PeriodicAlertRule): PeriodicAlertPlan {
   };
 }
 
+/** خطة التنبيه اللي ليها وقت قبل الحدث (lead) مش تأخير بعده. */
+export interface LeadAlertPlan {
+  readonly enabled: boolean;
+  readonly leadMs: number;
+  readonly employeePush: boolean;
+}
+
+/**
+ * بيحوّل القاعدة الفعلية لنوع تنبيه ليه وقت قبل الحدث إلى خطة الكاشف: التشغيل والوقت المسبق والإشعار الثابت للموظفة.
+ * النوع ده مالوش تأخير بعد الحدث، فالمهلة اللي بتتحسب هنا هي الوقت اللي قبل الوردية ينتهي (spec 060 D-B13).
+ * القاعدة المقفولة (أو المفتاح العام مقفول) بتدّي إشعار ثابت فاضي، بس بتحتفظ بالوقت المسبق المحفوظ
+ * عشان مسار الكبح يعرف إمتى كان التنبيه مستحقاً وهو مقفول (effectiveAlertRule بيفصل المهلة عن التشغيل).
+ *
+ * @param rule القاعدة الفعلية بعد المفتاح العام
+ * @returns خطة التنبيه: التشغيل والوقت المسبق والإشعار الثابت للموظفة
+ */
+export function leadAlertPlan(
+  rule: Pick<EffectiveAlertRule, 'kind' | 'enabled' | 'fixedRecipients' | 'leadMinutes'>,
+): LeadAlertPlan {
+  const minutes =
+    rule.leadMinutes ?? ALERT_KIND_DEFINITIONS[rule.kind].defaults.leadMinutes ?? 30;
+  return {
+    enabled: rule.enabled,
+    leadMs: minutes * 60_000,
+    employeePush:
+      rule.enabled && rule.fixedRecipients.some((recipient) => recipient.selector === 'EMPLOYEE_PUSH'),
+  };
+}
+
 /**
  * مستلم الإشعار الثابت للموظفة نفسها: معرف مستخدمها أو null.
  * العقد: بند 28b-5 هو اللي يبعت الإشعار للموظفة؛ 62-2 بيحمل القيمة بس.

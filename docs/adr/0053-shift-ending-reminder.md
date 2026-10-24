@@ -1,6 +1,7 @@
 # ADR-0053 — Shift-ending reminder: discovery, presence, once-only ledger and rule
 
-Status: Proposed (draft for row 28c; number provisional, renumbered at merge). The owner-dependent points were decided
+Status: Accepted; implemented by 064-1 (#577, rules and ledger), 064-2 (#585, template and delivery) and 064-3 (#594, the
+detector in the company job). The owner-dependent points were decided
 by Waleed on the decisions page on 2026-10-22, the recommended option in all six (SE-Q1…SE-Q6, PP-34.1…PP-34.6; see
 [the owner questions](../specs/064-shift-ending-reminder/owner-questions.ar.md)).
 Date: 2026-10-22. Scope: spec 064, Phase 1 row 28c. Owner decisions already taken: spec 036 NC-Q1 and its
@@ -56,7 +57,9 @@ existing decision:
    ledger's unique index, before any lock), each with a boolean *has an OPEN session* (probe on
    `attendance_sessions_one_open`, any branch) computed in the same read; presence is a column, not a filter (decision
    8 needs it). It uses the `(company_id, starts_at)` index ADR-0037 added; this row adds no index on the shifts
-   table. The lead differs per (business, branch), so the due test happens in memory with the cached rule. Only the
+   table. The keyset predicate `(starts_at, employee_id) > cursor` is served by the same index: the planner adds
+   `starts_at >= cursor.starts_at` to the index condition and checks the row comparison as a filter on that bounded
+   range, so no `(company_id, starts_at, employee_id)` index is needed (EXPLAIN assertion in 064-3, issue #514 item 1). The lead differs per (business, branch), so the due test happens in memory with the cached rule. Only the
    due candidates open a locked transaction: with the rule on, only those with an OPEN session; with the rule off,
    every due one (decision 8). The cached rule can be stale by at most one run (minutes); a candidate skipped because the cache said «on» is re-evaluated by the next run, which reads the rule again, so the worst case is the accepted window of decision 2. An idle run therefore costs one company-eligibility read, one rule read per distinct
    pair and ⌈running shifts / 100⌉ unlocked page reads, bounded by the employees working at that moment.
@@ -131,6 +134,21 @@ existing decision:
     or commission (SPEC §7). Audit entry `attendance_notice` / `shift_ending_soon.detected`, actor NULL. Failures of
     one candidate go through the diagnostics port of ADR-0037 §9 (safe error type and code only); the other
     candidates continue and the run is retryable.
+13. **Push eligibility: the personal-access rule at the decision instant** (added with 064-3, 2026-10-24). ADR-0052 §5
+    makes the producer own the eligibility rule: nothing is emitted for a linked user whose personal access has ended,
+    judged by the rule the personal session already uses (ADR-0027). Under the employee lock, staff persistence reads
+    the employee's branches for the shift's working date (`employees.primary_branch_id` plus the `employee_branches`
+    rows with `from <= working date` and `to` null or after it; the personal session uses each branch's local today, and
+    the detector uses the shift's working date instead, so an overnight shift keeps the branches of the day it
+    started), then asks worker `identity`'s
+    `activeMembership(tx, companyId, userId, at, { businessId, branchIds })` whether the linked user holds a membership
+    with `starts_at <= at` and `ends_at` null or after `at` that covers her: scope `COMPANY` on this company, `BUSINESS`
+    on her business, or `BRANCH` on one of those branches. Any role counts. Identity reads only `memberships`; staff
+    owns the employee rows. Everything runs on the same transaction with no new connection, behind
+    `LockedShiftEnding.userHasAccess`. The staff → identity arrow already exists, so only the read is declared in
+    `docs/module-map.md`. A user without such a membership is treated as no linked user: the ledger row has
+    `recipient_count = 0` and the event carries no `notification_recipients` (decision 9). Row 28b-5 is expected to
+    reuse the same reader.
 
 ## Consequences
 

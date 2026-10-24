@@ -24,6 +24,8 @@ import { notClockedInTransactions } from './persistence/not-clocked-in.transacti
 import { startNotClockedInProcessor } from './jobs/not-clocked-in.processor.ts';
 import { DetectBreakNotReturned } from './use-cases/detect-break-not-returned/detect-break-not-returned.ts';
 import { breakNotReturnedTransactions } from './persistence/break-not-returned.transactions.ts';
+import { DetectShiftEndingSoon } from './use-cases/detect-shift-ending-soon/detect-shift-ending-soon.ts';
+import { shiftEndingSoonTransactions } from './persistence/shift-ending-soon.transactions.ts';
 
 // أحداث الحضور التي يعرفها هذا الإصدار؛ AttendanceClockedIn وحده يسجل جدول الشركة ولا مستهلك أعمال لأي منها.
 const ATTENDANCE_EVENT_TYPES = [
@@ -129,7 +131,7 @@ function createAttendanceJobs(
   return { processor, expiry };
 }
 
-// تنبيه عدم الرجوع من البريك يركب نفس جدولة الشركة (BW-Q5)، فلا طابور ولا تسجيل جديد.
+// تنبيه عدم الرجوع من البريك وتذكير «دوامك قرب يخلص» يركبوا نفس جدولة الشركة (BW-Q5، ADR-0053)، فلا طابور ولا تسجيل جديد.
 function createNotClockedInDetectors(
   database: Pick<TenantWrappers, 'withTenant'>,
   ids: IdGenerator,
@@ -148,6 +150,12 @@ function createNotClockedInDetectors(
       clock,
       NOT_CLOCKED_IN_NAME_FALLBACK,
       notClockedInDiagnostics(logger, 'ATTENDANCE_BREAK_NOT_RETURNED_RETRY'),
+    ),
+    new DetectShiftEndingSoon(
+      shiftEndingSoonTransactions(database, ids, branchPlaceAdapter),
+      clock,
+      NOT_CLOCKED_IN_NAME_FALLBACK,
+      notClockedInDiagnostics(logger, 'ATTENDANCE_SHIFT_ENDING_SOON_RETRY'),
     ),
   ];
 }

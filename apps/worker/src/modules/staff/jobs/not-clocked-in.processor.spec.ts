@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { Queue } from 'bullmq';
+import { Job, Queue } from 'bullmq';
 import type { ClaimedEvent } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import {
@@ -130,6 +130,52 @@ it('AttendanceClockedIn repairs a lost scheduler and reuses the CompanyCreated i
       key, every: NOT_CLOCKED_IN_EVERY_MS, template: { data: { companyId: created.companyId } },
     });
     expect(next).toHaveBeenCalledTimes(4);
+  } finally {
+    await processor.close();
+    await queue.obliterate({ force: true });
+    await queue.close();
+  }
+});
+
+it('one company job runs three detectors in order; the third still runs and the job fails with the first error', async () => {
+  const prefix = `attendance-not-clocked-in-test-${ids.newId()}`;
+  const calls: string[] = [];
+  const notClockedIn = vi.fn(async (companyId: string) => {
+    calls.push(`not-clocked-in:${companyId}`);
+    throw new Error('synthetic first failure');
+  });
+  const breakNotReturned = vi.fn(async (companyId: string) => {
+    calls.push(`break:${companyId}`);
+    throw new Error('synthetic second failure');
+  });
+  const shiftEndingSoon = vi.fn(async (companyId: string) => {
+    calls.push(`ends-soon:${companyId}`);
+    return { notified: 0 };
+  });
+  const processor = startNotClockedInProcessor(
+    [
+      { execute: notClockedIn },
+      { execute: breakNotReturned },
+      { execute: shiftEndingSoon },
+    ],
+    redisUrl,
+    prefix,
+  );
+  const queue = new Queue(ATTENDANCE_NOT_CLOCKED_IN_QUEUE, { connection: { url: redisUrl }, prefix });
+  const companyId = ids.newId();
+  try {
+    await processor.ready();
+    const job = await queue.add('detect', { companyId }, { attempts: 1 });
+    for (let i = 0; i < 200 && !(await job.isFailed()); i++)
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(await job.isFailed()).toBe(true);
+    expect(calls).toEqual([
+      `not-clocked-in:${companyId}`,
+      `break:${companyId}`,
+      `ends-soon:${companyId}`,
+    ]);
+    const failed = await Job.fromId(queue, job.id ?? '');
+    expect(failed?.failedReason).toContain('first');
   } finally {
     await processor.close();
     await queue.obliterate({ force: true });
