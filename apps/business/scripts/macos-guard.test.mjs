@@ -1,5 +1,5 @@
-// node --test apps/business/scripts/macos-guard.test.mjs — القواعد الست بتاعت الحارس
-// (ADR-0055 قرار 6) لازم كل واحدة فيهم تبان في اختبار: من غير شبكة ومن غير runner على macOS.
+// node --test apps/business/scripts/ — القواعد الست بتاعت الحارس (ADR-0055 قرار 6) لازم كل
+// واحدة فيهم تبان في اختبار: من غير شبكة ومن غير runner على macOS.
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
@@ -13,10 +13,11 @@ function config(overrides = {}) {
     mode: 'enforce',
     runnerOs: 'Linux',
     owner: OWNER,
+    run: '100/1',
     slots: 2,
     timeoutMinutes: 45,
     leaseMinutes: 120,
-    allowanceMinutes: 120,
+    allowanceMinutes: 1000,
     now: () => NOW,
     ...overrides,
   };
@@ -26,8 +27,8 @@ function lease(offsetMinutes) {
   return new Date(NOW + offsetMinutes * 60_000).toISOString();
 }
 
-function slot(index, owner, offsetMinutes = 60) {
-  return { slot: index, owner, leaseEnd: lease(offsetMinutes) };
+function slot(index, owner, offsetMinutes = 60, sha = `sha-${index}`) {
+  return { slot: index, owner, leaseEnd: lease(offsetMinutes), sha };
 }
 
 function finishedJob({ runId = '1', runAttempt = '1', minutes = 10 }) {
@@ -54,6 +55,13 @@ function runningJob({ runId = '1', runAttempt = '1' }) {
 
 function createIo({ jobs = [], slots = new Map(), failures = {} } = {}) {
   const calls = [];
+  const commits = new Map();
+  let counter = 0;
+  const refuse = (message) => {
+    const error = new Error(message);
+    error.code = 'conflict';
+    return error;
+  };
   return {
     calls,
     listMacosJobs: async () => {
@@ -66,30 +74,53 @@ function createIo({ jobs = [], slots = new Map(), failures = {} } = {}) {
       if (failures.all || failures.read) throw new Error('the slot is unreadable');
       return slots.get(index) ?? null;
     },
-    createSlot: async (index, admission) => {
+    createAdmissionCommit: async (admission, parentSha) => {
+      calls.push(`createAdmissionCommit:${parentSha ?? 'head'}`);
+      if (failures.all || failures.commit) throw new Error('the commit creation failed');
+      counter += 1;
+      const sha = `sha-new-${counter}`;
+      commits.set(sha, { admission, parentSha });
+      return sha;
+    },
+    createSlot: async (index, sha) => {
       calls.push(`createSlot:${index}`);
       if (failures.all || failures.create) throw new Error('the ref creation failed');
-      if (slots.has(index)) {
-        const error = new Error(`the slot ${index} is taken`);
-        error.code = 'conflict';
-        throw error;
-      }
-      slots.set(index, { slot: index, ...admission });
+      if (slots.has(index)) throw refuse(`the slot ${index} is taken`);
+      slots.set(index, { slot: index, sha, ...commits.get(sha).admission });
     },
-    deleteSlot: async (index) => {
+    moveSlot: async (index, sha) => {
+      calls.push(`moveSlot:${index}`);
+      if (failures.all || failures.move) throw new Error('the ref move failed');
+      const current = slots.get(index);
+      if (current === undefined) throw new Error(`the slot ${index} is gone`);
+      const commit = commits.get(sha);
+      if (failures.moved || commit.parentSha !== current.sha) {
+        throw refuse(`the slot ${index} moved to another commit`);
+      }
+      slots.set(index, { slot: index, sha, ...commit.admission });
+    },
+    deleteSlot: async (index, expectedSha) => {
       calls.push(`deleteSlot:${index}`);
       if (failures.all || failures.delete) throw new Error('the slot cannot be freed');
-      if (!slots.has(index)) {
-        const error = new Error(`the slot ${index} is gone`);
-        error.code = 'not-found';
-        throw error;
-      }
+      const current = slots.get(index);
+      if (current === undefined) throw new Error(`the slot ${index} is gone`);
+      if (current.sha !== expectedSha) throw refuse(`the slot ${index} moved to another commit`);
       slots.delete(index);
     },
   };
 }
 
 describe('the macOS guard (ADR-0055 decision 6)', () => {
+  it('refuses on any runner but ubuntu, without touching GitHub', async () => {
+    const io = createIo({ failures: { all: true } });
+    const result = await createGuard({
+      io,
+      config: config({ runnerOs: 'macOS' }),
+    }).admit();
+    assert.equal(result.admitted, false);
+    assert.deepEqual(io.calls, []);
+  });
+
   it('public mode admits without touching GitHub', async () => {
     const io = createIo({ failures: { all: true } });
     const result = await createGuard({ io, config: config({ mode: 'public' }) }).admit();
@@ -107,15 +138,75 @@ describe('the macOS guard (ADR-0055 decision 6)', () => {
     assert.deepEqual(io.calls, []);
   });
 
+  it('refuses when the allowance leaves no room for the K slots', async () => {
+    const io = createIo({});
+    const result = await createGuard({
+      io,
+      config: config({ slots: 2, timeoutMinutes: 45, allowanceMinutes: 89 }),
+    }).admit();
+    assert.equal(result.admitted, false);
+    assert.ok(!io.calls.some((call) => call.startsWith('createSlot')));
+  });
+
   it('refuses when the monthly allowance is reached and takes no slot', async () => {
     const io = createIo({ jobs: [finishedJob({ minutes: 45 })] });
     const result = await createGuard({
       io,
-      config: config({ slots: 1, allowanceMinutes: 45 }),
+      config: config({ slots: 1, timeoutMinutes: 45, allowanceMinutes: 45 }),
     }).admit();
     assert.equal(result.admitted, false);
     assert.equal(result.count, 45);
     assert.ok(!io.calls.some((call) => call.startsWith('createSlot')));
+  });
+
+  it('counts a slot held by another owner at its timeout', async () => {
+    const io = createIo({ slots: new Map([[1, slot(1, '7/1/ios/staging')]]) });
+    const result = await createGuard({
+      io,
+      config: config({ slots: 2, timeoutMinutes: 45, allowanceMinutes: 120 }),
+    }).admit();
+    assert.equal(result.count, 45);
+    assert.equal(result.admitted, false);
+  });
+
+  it('does not count the queued jobs of the current run against it', async () => {
+    const io = createIo({ jobs: [runningJob({ runId: '100', runAttempt: '1' })] });
+    const result = await createGuard({
+      io,
+      config: config({ slots: 1, timeoutMinutes: 45, allowanceMinutes: 90 }),
+    }).admit();
+    assert.equal(result.count, 0);
+    assert.equal(result.admitted, true);
+  });
+
+  it('counts the queued jobs of another run at their timeout', async () => {
+    const io = createIo({ jobs: [runningJob({ runId: '7', runAttempt: '1' })] });
+    const result = await createGuard({
+      io,
+      config: config({ slots: 1, timeoutMinutes: 45, allowanceMinutes: 80 }),
+    }).admit();
+    assert.equal(result.count, 45);
+    assert.equal(result.admitted, false);
+  });
+
+  it('never lets two admissions together pass the allowance', async () => {
+    const io = createIo({});
+    const first = await createGuard({
+      io,
+      config: config({ slots: 2, timeoutMinutes: 45, allowanceMinutes: 90 }),
+    }).admit();
+    assert.equal(first.admitted, true);
+    const second = await createGuard({
+      io,
+      config: config({
+        owner: '100/1/ios/production',
+        slots: 2,
+        timeoutMinutes: 45,
+        allowanceMinutes: 90,
+      }),
+    }).admit();
+    assert.equal(second.admitted, false);
+    assert.equal(second.count, 45);
   });
 
   it('refuses when every slot is held', async () => {
@@ -137,6 +228,15 @@ describe('the macOS guard (ADR-0055 decision 6)', () => {
     assert.equal(result.admitted, true);
     assert.equal(result.slot, 1);
     assert.equal(slots.get(1).owner, OWNER);
+  });
+
+  it('moves on when the reclaim loses the compare-and-swap', async () => {
+    const slots = new Map([[1, slot(1, '7/1/ios/staging', -5)]]);
+    const io = createIo({ slots, failures: { moved: true } });
+    const result = await createGuard({ io, config: config() }).admit();
+    assert.equal(result.admitted, true);
+    assert.equal(result.slot, 2);
+    assert.equal(slots.get(2).owner, OWNER);
   });
 
   it('refuses when the job history cannot be read', async () => {
@@ -177,10 +277,16 @@ describe('the macOS guard (ADR-0055 decision 6)', () => {
   });
 
   it('accepts an unexpired admission of this job', async () => {
-    const io = createIo({ slots: new Map([[1, slot(1, OWNER)]]) });
+    const io = createIo({ slots: new Map([[1, slot(1, OWNER)]) });
     const result = await createGuard({ io, config: config() }).accept();
     assert.equal(result.accepted, true);
     assert.equal(result.slot, 1);
+  });
+
+  it('refuses when the slot cannot be read on accept', async () => {
+    const io = createIo({ failures: { read: true } });
+    const result = await createGuard({ io, config: config() }).accept();
+    assert.equal(result.accepted, false);
   });
 
   it('releases its own slot only', async () => {
@@ -194,6 +300,13 @@ describe('the macOS guard (ADR-0055 decision 6)', () => {
     assert.equal(result.slot, 1);
     assert.equal(slots.has(1), false);
     assert.equal(slots.has(2), true);
+  });
+
+  it('fails when the slot cannot be read on release', async () => {
+    const io = createIo({ failures: { read: true } });
+    const result = await createGuard({ io, config: config() }).release();
+    assert.equal(result.released, false);
+    assert.equal(result.failed, true);
   });
 });
 
@@ -209,15 +322,16 @@ describe('the guard environment', () => {
       MACOS_GUARD_SLOTS: '2',
       MACOS_GUARD_JOB_TIMEOUT_MINUTES: '45',
       MACOS_GUARD_LEASE_MINUTES: '120',
-      MACOS_GUARD_ALLOWANCE_MINUTES: '120',
+      MACOS_GUARD_ALLOWANCE_MINUTES: '180',
     });
     assert.equal(config.mode, 'public');
     assert.equal(config.runnerOs, 'Linux');
     assert.equal(config.owner, '100/2/ios/staging');
+    assert.equal(config.run, '100/2');
     assert.equal(config.slots, 2);
     assert.equal(config.timeoutMinutes, 45);
     assert.equal(config.leaseMinutes, 120);
-    assert.equal(config.allowanceMinutes, 120);
+    assert.equal(config.allowanceMinutes, 180);
   });
 
   it('never guesses the mode: anything but public is enforce', () => {

@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-// حارس الـ macOS (ADR-0055 قرار 6): هو اللي بيقول «ابدأ runner على macOS ولا لأ».
-//
-// القرار بيتاخد على Ubuntu قبل أي runner على macOS (قاعدة 1)، وكل نداء لـ GitHub بيعدي
-// من io واحد متحقق فيه — عشان الاختبار يقود القواعد الست كلها من غير شبكة.
+// حارس الـ macOS (ADR-0055 قرار 6): هو اللي بيقول «ابدأ runner على macOS ولا لأ». القرار
+// بيتاخد على Ubuntu قبل أي runner على macOS (قاعدة 1)، وكل نداء لـ GitHub بيعدي من io واحد
+// متحقق فيه — عشان الاختبار يقود القواعد الست كلها من غير شبكة.
 
-import { appendFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 import { createGithubIo, SLOT_REF_PREFIX } from './macos-guard-github.mjs';
@@ -14,7 +12,7 @@ export { SLOT_REF_PREFIX };
 export const DEFAULT_SLOTS = 2;
 export const DEFAULT_TIMEOUT_MINUTES = 45;
 export const DEFAULT_LEASE_MINUTES = 120;
-export const DEFAULT_ALLOWANCE_MINUTES = 120;
+export const DEFAULT_ALLOWANCE_MINUTES = 180;
 
 const MINUTE_MS = 60_000;
 
@@ -27,15 +25,11 @@ export function ownerKey({ runId, runAttempt, jobKey, flavour }) {
   return `${runId}/${runAttempt}/${jobKey}/${flavour}`;
 }
 
-/**
- * الحارس نفسه: تلات أوامر، وكل واحدة بترجع النتيجة بتاعتها من غير ما تكسر الـ job.
- * @param {{ io: object, config: object }} parts
- * @returns {{ admit: () => Promise<object>, accept: (hint?: object) => Promise<object>, release: () => Promise<object> }}
- */
+/** الحارس نفسه: تلات أوامر، وكل واحدة بترجع النتيجة بتاعتها من غير ما تكسر الـ job. */
 export function createGuard({ io, config }) {
   return {
     admit: () => admit({ io, config }),
-    accept: (hint) => accept({ io, config, hint }),
+    accept: () => accept({ io, config }),
     release: () => release({ io, config }),
   };
 }
@@ -57,19 +51,26 @@ function isMacosJob(job) {
   return job.labels.some((label) => label === 'macos' || label.startsWith('macos-'));
 }
 
-/**
- * عدّ الدقائق (قاعدة 3): المهمة اللي خلصت بتتقصّ بدقائقها الحقيقية، والدقيقة الناقصة
- * بتتقصّ لفوق؛ والمهمة اللي لسه شغالة بتتقصّ بالـ timeout بتاعها. العدّ بيتعمل على الـ
- * jobs نفسها، فالمهمة الواحدة بتتقصّ مرة واحدة بس — مش مرتين (دقائقها الحقيقية و timeout
- * في نفس الوقت).
- */
-function countMacosMinutes(jobs, { slots, timeoutMinutes, now }) {
-  const admittedRuns = new Set(
-    slots.map((slot) => String(slot.owner).split('/').slice(0, 2).join('/')),
-  );
+function monthStart(now) {
   const date = new Date(now);
-  const month = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+}
+
+/**
+ * عدّ الدقائق (قاعدة 3): الدقائق الفعلية للمهام اللي خلصت الشهر ده (كل واحدة مق.round لفوق)،
+ * + الـ timeout لكل خانة محجوزة لسه سليمة بتاعة مالك تاني، + الـ timeout لكل شغلانة macOS
+ * لسه شغالة مالها خانة ومش من تشغيلنا. فالمهمة الواحدة بتتقصّ مرة واحدة بس.
+ */
+function countMacosMinutes(jobs, { slots, timeoutMinutes, now, owner, run }) {
+  const month = monthStart(now);
+  const heldRuns = new Set();
   let total = 0;
+  for (const slot of slots) {
+    if (Date.parse(slot.leaseEnd) <= now) continue;
+    heldRuns.add(String(slot.owner).split('/').slice(0, 2).join('/'));
+    if (slot.owner === owner) continue;
+    total += timeoutMinutes;
+  }
   for (const job of jobs) {
     if (!isMacosJob(job)) continue;
     const finished = job.conclusion !== null && job.conclusion !== undefined;
@@ -79,8 +80,9 @@ function countMacosMinutes(jobs, { slots, timeoutMinutes, now }) {
       total += Math.ceil((job.completedAt - job.startedAt) / MINUTE_MS);
       continue;
     }
-    const admitted = admittedRuns.has(`${job.runId}/${job.runAttempt}`);
-    if (job.startedAt === null && !admitted) continue;
+    const jobRun = `${job.runId}/${job.runAttempt}`;
+    if (jobRun === run) continue;
+    if (heldRuns.has(jobRun)) continue;
     total += timeoutMinutes;
   }
   return total;
@@ -105,20 +107,27 @@ async function admit({ io, config }) {
     return refusal(config, `the guard could not read the repository: ${error.message}`);
   }
 
-  const count = countMacosMinutes(jobs, { slots, timeoutMinutes: config.timeoutMinutes, now });
+  const count = countMacosMinutes(jobs, {
+    slots,
+    timeoutMinutes: config.timeoutMinutes,
+    now,
+    owner: config.owner,
+    run: config.run,
+  });
 
-  // قاعدة 4 (ADR-0055 قرار 6): لازم السقف يسع K شغال في نفس الوقت، ولازم يفضل اتنين
-  // تحت السقف قبل ما شغلانة جديدة تنزل.
+  // قاعدة 4 (ADR-0055 قرار 6): لازم السقف يسع K شغال كلهم في نفس الوقت، ولازم يفضل تحت
+  // السقف بعد ما كل الخانات تاخد timeout بتاعها — فتلات تشغيلات مع بعض ما تتجاوزوش السقف.
   if (config.allowanceMinutes < config.slots * config.timeoutMinutes) {
     return refusal(config, 'the allowance leaves no room for the K slots', count);
   }
-  if (count + config.timeoutMinutes >= config.allowanceMinutes) {
-    const reason = `the monthly allowance is reached (${count} + ${config.timeoutMinutes} >= ${config.allowanceMinutes})`;
+  const room = config.slots * config.timeoutMinutes;
+  if (count + room > config.allowanceMinutes) {
+    const reason = `the monthly allowance is reached (${count} + ${room} > ${config.allowanceMinutes})`;
     return refusal(config, reason, count);
   }
 
-  // قاعدة 2 (ADR-0055 قرار 6): الخانة واحدة من K refs، بتتعمل ذرّياً بإنشاء الـ ref — اللي
-  // بيوجد فعلاً بيفشل. والإيجار المنتهي بيرجع، عشان خانة ضايعة ما تحبسش الباقي.
+  // قاعدة 2 (ADR-0055 قرار 6): الخانة واحدة من K refs، بتتعمل ذرّياً بإنشاء الـ ref، والإيجار
+  // المنتهي بيرجع — عشان خانة ضايعة ما تحبسش الباقي.
   const admission = {
     version: 1,
     owner: config.owner,
@@ -133,14 +142,20 @@ async function admit({ io, config }) {
       }
       if (leaseEnd > now) continue;
       try {
-        await io.deleteSlot(index);
+        // استرجاع الخانة المنتهية compare-and-swap: الـ commit الجديد ابن الـ commit القديم،
+        // والـ ref بيتنقل force:false — فلو حد تاني نقله في نفس اللحظة، هنخسر الخانة دي
+        // ونجرب اللي بعدها.
+        const sha = await io.createAdmissionCommit(admission, existing.sha);
+        await io.moveSlot(index, sha);
+        return { admitted: true, slot: index, owner: config.owner, count, reason: null };
       } catch (error) {
-        if (error.code === 'not-found') continue;
+        if (error.code === 'conflict') continue;
         return refusal(config, `the expired slot could not be reclaimed: ${error.message}`, count);
       }
     }
     try {
-      await io.createSlot(index, admission);
+      const sha = await io.createAdmissionCommit(admission, null);
+      await io.createSlot(index, sha);
       return { admitted: true, slot: index, owner: config.owner, count, reason: null };
     } catch (error) {
       if (error.code === 'conflict') continue;
@@ -150,7 +165,7 @@ async function admit({ io, config }) {
   return refusal(config, 'every slot is taken', count);
 }
 
-async function accept({ io, config, hint }) {
+async function accept({ io, config }) {
   // المستودع العام: مفيش حجز، فالمحاولة بتقبل على طول.
   if (config.mode === 'public') {
     return { accepted: true, slot: null, owner: config.owner, reason: null };
@@ -161,13 +176,10 @@ async function accept({ io, config, hint }) {
   } catch (error) {
     return { accepted: false, slot: null, owner: config.owner, reason: error.message };
   }
-  // قاعدة 5 (ADR-0055 قرار 6): القبول بياخد التطابق التام بس — نفس الـ owner key بتاع الشغلانة
-  // دي، وإيجار ما انتهاش. رقم الخانة اللي الـ preflight بعتاله hint بس؛ التطابق هو اللي بيقرر.
-  const hinted =
-    hint?.slot === undefined ? undefined : slots.find((slot) => slot.slot === hint.slot);
-  const candidates = [hinted, ...slots].filter((slot) => slot !== undefined);
+  // قاعدة 5 (ADR-0055 قرار 6): القبول بياخد التطابق التام بس — نفس الـ owner key بتاعنا،
+  // وإيجار ما انتهاش.
   const now = config.now();
-  const match = candidates.find(
+  const match = slots.find(
     (slot) => slot.owner === config.owner && Date.parse(slot.leaseEnd) > now,
   );
   if (match === undefined) {
@@ -192,13 +204,13 @@ async function release({ io, config }) {
   } catch (error) {
     return { released: false, slot: null, failed: true, reason: error.message };
   }
-  // الخانة بتاعت الشغلانة دي بس — خانة غيرنا ما بتتمسّش.
-  const mine = slots.find((slot) => slot.owner === config.owner);
-  if (mine === undefined) {
+  // الخانة بتاعت الشغلانة دي بس — خانة غيرنا ما بتتمسّش. والحذف بيقفل على نفس الـ commit
+  // اللي اتقرا، فلو الـ ref اتنقل في نفس اللحظة، الخانة مش بقت بتاعتنا.
+  const mine = slots.find((slot) => slot.owner === config.owner);  if (mine === undefined) {
     return { released: false, slot: null, failed: false, reason: 'this job holds no slot' };
   }
   try {
-    await io.deleteSlot(mine.slot);
+    await io.deleteSlot(mine.slot, mine.sha);
   } catch (error) {
     return { released: false, slot: mine.slot, failed: true, reason: error.message };
   }
@@ -220,6 +232,7 @@ export function configFromEnv(env) {
     mode: env.MACOS_GUARD_MODE === 'public' ? 'public' : 'enforce',
     runnerOs: env.RUNNER_OS ?? '',
     owner: ownerKey({ runId, runAttempt, jobKey, flavour }),
+    run: `${runId}/${runAttempt}`,
     slots: numberFromEnv(env.MACOS_GUARD_SLOTS, DEFAULT_SLOTS),
     timeoutMinutes: numberFromEnv(env.MACOS_GUARD_JOB_TIMEOUT_MINUTES, DEFAULT_TIMEOUT_MINUTES),
     leaseMinutes: numberFromEnv(env.MACOS_GUARD_LEASE_MINUTES, DEFAULT_LEASE_MINUTES),
@@ -228,15 +241,8 @@ export function configFromEnv(env) {
   };
 }
 
-function writeOutputs(values) {
-  const file = process.env.GITHUB_OUTPUT;
-  if (!file) return;
-  const lines = Object.entries(values).map(([key, value]) => `${key}=${value}`);
-  appendFileSync(file, `${lines.join('\n')}\n`);
-}
-
-// الرفض بيوقّف الـ job هنا: القرار مرفوض مفيش runner على macOS، وقرار القبول مرفوض
-// الشغلانة بتوقف في أول دقيقة.
+// الرفض بيوقّف الـ job هنا: القرار مرفوض مفيش runner على macOS، والقبول المرفوض بيوقّف
+// الشغلانة في أول دقيقة.
 function fail(message) {
   process.stderr.write(`${message}\n`);
   process.exit(1);
@@ -253,20 +259,13 @@ async function main(command) {
 
   if (command === 'admit') {
     const result = await guard.admit();
-    writeOutputs({
-      admitted: String(result.admitted),
-      slot: result.slot === null ? '' : String(result.slot),
-      owner: result.owner,
-    });
     if (!result.admitted) fail(`macos-guard refused the admission: ${result.reason}`);
+    process.stdout.write(`macos-guard admitted the slot ${result.slot ?? 'none'} for ${result.owner}\n`);
     return;
   }
 
   if (command === 'accept') {
-    const hintSlot = Number(process.env.MACOS_GUARD_EXPECTED_SLOT);
-    const result = await guard.accept(
-      Number.isFinite(hintSlot) && hintSlot > 0 ? { slot: hintSlot } : undefined,
-    );
+    const result = await guard.accept();
     if (!result.accepted) fail(`macos-guard refused the admission: ${result.reason}`);
     return;
   }
@@ -283,6 +282,4 @@ async function main(command) {
 
 const isMain =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
-if (isMain) {
-  await main(process.argv[2]);
-}
+if (isMain) await main(process.argv[2]);

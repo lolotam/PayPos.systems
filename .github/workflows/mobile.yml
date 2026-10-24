@@ -21,16 +21,18 @@ on:
 permissions:
   contents: read
 
-# ثوابت الحارس (ADR-0055 قرار 6). السقف 120 دقيقة macOS في الشهر: عند مضاعف 10 دي 1200
-# دقيقة من included، والباقي بيستنى Linux بتاع ci.yml. K = 2 عشان نسخة التثبيت الواحدة
-# (staging + production) تبني في نفس الوقت. الإيجار 120 دقيقة: أطول انتظار في طابور
-# الـ runner زائد timeout الشغلانة. والرقم 45 لازم يبقى مساوي لـ timeout-minutes بتاع
-# شغلانة iOS، لأن الحساب بياخد timeout الشغلانة طول ما هي مش خلصت.
+# ثوابت الحارس (ADR-0055 قرار 6). السقف 180 دقيقة macOS في الشهر: عند مضاعف 10 دي 1800
+# دقيقة من included، والباقي بيستنى Linux بتاع ci.yml. ولازم السقف يسع K شغال كلهم في
+# نفس الوقت (2 × 45) زائد الدقائق الفعلية للشهر، عشان تشغيلين مع بعض ما يتجاوزوش السقف.
+# K = 2 عشان نسخة التثبيت الواحدة (staging + production) تبني في نفس الوقت. الإيجار 120
+# دقيقة: أطول انتظار في طابور الـ runner زائد timeout الشغلانة. والرقم 45 لازم يبقى
+# مساوي لـ timeout-minutes بتاع شغلانة iOS، لأن الحساب بياخد timeout الشغلانة طول ما هي
+# مش خلصت.
 env:
   MACOS_GUARD_SLOTS: '2'
   MACOS_GUARD_JOB_TIMEOUT_MINUTES: '45'
   MACOS_GUARD_LEASE_MINUTES: '120'
-  MACOS_GUARD_ALLOWANCE_MINUTES: '120'
+  MACOS_GUARD_ALLOWANCE_MINUTES: '180'
   MACOS_GUARD_JOB_KEY: 'ios'
 
 jobs:
@@ -45,6 +47,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # Fails closed: أي base مش معروف أو أي خطأ في git بيتحسب تغيير، زي ci.yml بالظبط.
       - id: diff
@@ -65,6 +68,7 @@ jobs:
           if [ "$EVENT" = "workflow_dispatch" ]; then
             # الـ dispatch طلب صريح للبناء، فمفيش commit يقارن بيه.
             app=true
+            ios_pr=true
           elif [ -n "$base" ] && [ "$base" != "0000000000000000000000000000000000000000" ]; then
             files="$(mktemp)"
             if git diff --no-renames --name-only -z "$base" "$HEAD_SHA" > "$files"; then
@@ -79,21 +83,31 @@ jobs:
               done < "$files"
             else
               app=true
+              ios_pr=true
             fi
-            # سطر فيه @capacitor/* في أي package.json بيقدر يكسر بناء iOS لوحده.
-            if git diff --no-renames --unified=0 "$base" "$HEAD_SHA" -- ':(glob)**/package.json' \
-              | grep -qE '^\+.*@capacitor/'; then
+            # سطر فيه @capacitor/* (مضاف أو مشيل) في أي package.json أو في الـ lock file
+            # بيقدر يكسر بناء iOS لوحده. الـ diff بيتكتب في ملف الأول، عشان grep ما ياخدش
+            # SIGPIPE من الـ pipefail ويحسبها «مفيش تغيير».
+            deps="$(mktemp)"
+            if git diff --no-renames --unified=0 "$base" "$HEAD_SHA" \
+              -- ':(glob)**/package.json' pnpm-lock.yaml pnpm-workspace.yaml > "$deps"; then
+              if grep -qE '^[+-].*@capacitor/' "$deps"; then
+                ios_pr=true
+              fi
+            else
+              app=true
               ios_pr=true
             fi
           else
             app=true
+            ios_pr=true
           fi
           echo "app=$app" >> "$GITHUB_OUTPUT"
           echo "ios_pr=$ios_pr" >> "$GITHUB_OUTPUT"
 
       # قواعد الحارس الست لازم تتثبت على كل تشغيل للـ workflow ده، مش بس بإيد واحدة.
       - name: macOS guard tests
-        run: node --test apps/business/scripts/macos-guard.test.mjs
+        run: node --test apps/business/scripts/
 
   android:
     name: android ${{ matrix.flavour }}
@@ -107,6 +121,8 @@ jobs:
         flavour: [staging, production]
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v6
 
@@ -124,13 +140,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # نسخة واحدة end to end: نفس الـ API origin والـ flavour في البناء وفي المزامنة.
+      # الأمر ده واحد: Turbo بيبني الـ packages الأول وبعدين نسخة التطبيق الأصلي وبعدين
+      # المزامنة — من غيره الـ dist/ بتاع الـ packages بتكون ناقصة والبناء بيفشل.
       - name: Build the web assets and sync the native project
         env:
           VITE_API_URL: ${{ matrix.flavour == 'staging' && 'https://api.staging.pospay.systems' || 'https://api.pospay.systems' }}
           FLAVOUR: ${{ matrix.flavour }}
-        run: |
-          pnpm --filter @pospay/pos build:native
-          pnpm --filter @pospay/business sync:${{ matrix.flavour }}
+        run: pnpm turbo run sync:${{ matrix.flavour }} --filter=@pospay/business
 
       - name: Gradle (debug APK + unsigned AAB)
         working-directory: apps/business/android
@@ -191,11 +207,15 @@ jobs:
         flavour: [staging, production]
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
-      # نفس التعبير في كل الـ prefights: على الـ PR مفيش `guard` input أصلاً، فالنتيجة واحدة.
+      # نفس التعبير في كل الـ preflights: على الـ PR مفيش `guard` input أصلاً، فالنتيجة واحدة.
+      # والوضع العام بيتقفل على `private: false` الصريح بس (toJSON بيفرّق بين false و null)،
+      # فأي حقل ناقص بيطلع enforce مش public.
       - name: Admit
         env:
-          MACOS_GUARD_MODE: ${{ github.event.repository.private == false && inputs.guard != 'enforce' && 'public' || 'enforce' }}
+          MACOS_GUARD_MODE: ${{ toJSON(github.event.repository.private) == 'false' && inputs.guard != 'enforce' && 'public' || 'enforce' }}
           MACOS_GUARD_FLAVOUR: ${{ matrix.flavour }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node apps/business/scripts/macos-guard.mjs admit
@@ -217,21 +237,24 @@ jobs:
         flavour: [staging, production]
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Admit
         env:
-          MACOS_GUARD_MODE: ${{ github.event.repository.private == false && inputs.guard != 'enforce' && 'public' || 'enforce' }}
+          MACOS_GUARD_MODE: ${{ toJSON(github.event.repository.private) == 'false' && inputs.guard != 'enforce' && 'public' || 'enforce' }}
           MACOS_GUARD_FLAVOUR: ${{ matrix.flavour }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node apps/business/scripts/macos-guard.mjs admit
 
   # الـ runner على macOS مينفعش يبدأ من غير قبول صالح (ADR-0055 قرار 6)، وهو مالوش أي حق
   # كتابة: الشغلانة دي بتثبّت وتبني كود تالت، فالتوكين بتاعها يفضل read بس. والـ concurrency
-  # per ref per flavour بيخلي تشغيل جديد على نفس الفرع يستنى، بس ما بيلغيش تشغيل شغال.
+  # per ref per flavour: تشغيل أقدم لسه مستني في نفس المجموعة بيتلغى، والتشغيل اللي شغال
+  # بيخلص من غير ما يتلغى.
   ios:
     name: ios ${{ matrix.flavour }}
     needs: [changes, macos-preflight, macos-preflight-pr]
-    if: always() && needs.changes.outputs.app == 'true' && (needs.macos-preflight.outputs.admitted == 'true' || needs.macos-preflight-pr.outputs.admitted == 'true')
+    if: always() && needs.changes.outputs.app == 'true' && (needs.macos-preflight.result == 'success' || needs.macos-preflight-pr.result == 'success')
     runs-on: macos-latest
     timeout-minutes: 45
     permissions:
@@ -245,14 +268,15 @@ jobs:
         flavour: [staging, production]
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
-      # أول خطوة: من غير قبول مظبوط الشغلانة بتوقف في أول دقيقة (ADR-0055 قرار 6). رقم الخانة
-      # hint من الـ preflight اللي شغّل، والتطابق الحقيقي دايماً على الـ owner key بتاعنا.
+      # أول خطوة: من غير قبول مظبوط الشغلانة بتوقف في أول دقيقة (ADR-0055 قرار 6). مفيش رقم
+      # خانة من الـ preflight — القبول بيتطابق على الـ owner key بتاعنا هو.
       - name: Accept the admission
         env:
-          MACOS_GUARD_MODE: ${{ github.event.repository.private == false && inputs.guard != 'enforce' && 'public' || 'enforce' }}
+          MACOS_GUARD_MODE: ${{ toJSON(github.event.repository.private) == 'false' && inputs.guard != 'enforce' && 'public' || 'enforce' }}
           MACOS_GUARD_FLAVOUR: ${{ matrix.flavour }}
-          MACOS_GUARD_EXPECTED_SLOT: ${{ needs.macos-preflight.outputs.slot || needs.macos-preflight-pr.outputs.slot }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node apps/business/scripts/macos-guard.mjs accept
 
@@ -266,13 +290,12 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # أمر واحد: Turbo بيبني الـ packages وبعدين نسخة التطبيق الأصلي وبعدين المزامنة.
       - name: Build the web assets and sync the native project
         env:
           VITE_API_URL: ${{ matrix.flavour == 'staging' && 'https://api.staging.pospay.systems' || 'https://api.pospay.systems' }}
           FLAVOUR: ${{ matrix.flavour }}
-        run: |
-          pnpm --filter @pospay/pos build:native
-          pnpm --filter @pospay/business sync:${{ matrix.flavour }}
+        run: pnpm turbo run sync:${{ matrix.flavour }} --filter=@pospay/business
 
       - name: xcodebuild (simulator, no signing)
         working-directory: apps/business
@@ -281,7 +304,7 @@ jobs:
         run: |
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -xcconfig "ios/${FLAVOUR}.xcconfig" CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM= build
 
-      # الـ id والـ localizations والـ entitlement لازم يبقوا بتوع النسخة دي بالظبط.
+      # الـ id والـ localizations لازم يبقوا بتوع النسخة دي بالظبط.
       - name: Check the built app
         working-directory: apps/business
         env:
@@ -309,12 +332,16 @@ jobs:
             *'"en"'*) ;;
             *) echo "::error::CFBundleLocalizations has no en"; exit 1 ;;
           esac
-          entitlements="$(codesign -d --entitlements :- "$app" 2>&1)"
-          echo "$entitlements"
-          case "$entitlements" in
-            *"applinks:${expected_host}"*) ;;
-            *) echo "::error::the entitlements have no applinks:${expected_host}"; exit 1 ;;
-          esac
+          # الـ entitlement ممكن تكون في توقيع الكود أو في قسم __TEXT,__entitlements جوّه
+          # الـ executable — والبناء بـ ad-hoc على المحاكي بيسيبها في القسم، فالمكانين اتنين
+          # لازم يتقروا.
+          signed="$(codesign -d --entitlements :- "$app" 2>&1 || true)"
+          embedded="$(grep -a -F "applinks:${expected_host}" "$app/App" || true)"
+          echo "$signed"
+          if [[ -z "$embedded" && "$signed" != *"applinks:${expected_host}"* ]]; then
+            echo "::error::the entitlements have no applinks:${expected_host} (neither in the code signature nor in __TEXT,__entitlements)"
+            exit 1
+          fi
           mkdir -p out
           ditto -c -k --sequesterRsrc --keepParent "$app" "out/${FLAVOUR}-App.zip"
 
@@ -327,12 +354,11 @@ jobs:
           if-no-files-found: error
 
   # تحرير الخانة شغلانة لوحدها، عشان شغلانة الـ iOS ما تمسكش حق الكتابة على المستودع وهي
-  # بتثبّت وتبني كود تالت. بتشتغل بعد الـ iOS على طول (نجحت أو فشلت)، ودي شغلانة على
-  # push و dispatch بس: الـ preflight بتاع الـ PR بيتخطّى، فبتتخطّى هي كمان.
+  # بتثبّت وتبني كود تالت. بتشتغل بعد الـ iOS على طول (نجحت أو فشلت)، وبتعمل حاجة واحدة.
   macos-release:
     name: release the macOS slot ${{ matrix.flavour }}
     needs: [macos-preflight, ios]
-    if: always() && needs.macos-preflight.result != 'skipped'
+    if: always() && github.event_name != 'pull_request' && needs.macos-preflight.result != 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -344,10 +370,12 @@ jobs:
         flavour: [staging, production]
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Release the slot
         env:
-          MACOS_GUARD_MODE: ${{ github.event.repository.private == false && inputs.guard != 'enforce' && 'public' || 'enforce' }}
+          MACOS_GUARD_MODE: ${{ toJSON(github.event.repository.private) == 'false' && inputs.guard != 'enforce' && 'public' || 'enforce' }}
           MACOS_GUARD_FLAVOUR: ${{ matrix.flavour }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node apps/business/scripts/macos-guard.mjs release
