@@ -403,14 +403,12 @@ describe('back to the device choice refused safely', () => {
     'keeps the employee flow when sign-out is $mode',
     async ({ mode, alert, endings }) => {
       if (mode === 'failed') vi.mocked(endPersonalSession).mockResolvedValue('failed');
-      else if (mode === 'offline') vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+      else if (mode === 'offline')
+        vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
       else vi.mocked(endPersonalSession).mockReturnValue(new Promise<never>(() => undefined));
       vi.mocked(readDeviceRole).mockResolvedValue('employee');
       mount();
-      await backFrom(
-        'employee',
-        mode === 'timeout' ? START_OVER_SIGN_OUT_WAIT_MS : undefined,
-      );
+      await backFrom('employee', mode === 'timeout' ? START_OVER_SIGN_OUT_WAIT_MS : undefined);
 
       const message = await screen.findByRole('alert');
       expect(message.textContent).toContain(t('ar', alert));
