@@ -1,3 +1,4 @@
+import { alertRulesAr, alertRulesEn } from './alert-rules-catalog.js';
 import { ar } from './ar.js';
 import { en } from './en.js';
 import { nativeShellAr, nativeShellEn } from './native-shell-catalog.js';
@@ -18,6 +19,7 @@ export type Locale = 'ar' | 'en';
 export type Catalog = { readonly [S in keyof typeof en]: Record<keyof (typeof en)[S], string> };
 
 type RegisteredCatalog = Catalog & {
+  readonly alertRules: Record<keyof typeof alertRulesEn, string>;
   readonly serviceSessions: Record<keyof typeof serviceSessionsEn, string>;
   readonly serviceLineEdit: Record<keyof typeof serviceLineEditEn, string>;
   readonly serviceLineCancel: Record<keyof typeof serviceLineCancelEn, string>;
@@ -38,6 +40,7 @@ export type ErrorMessageCode = keyof typeof en.errors;
 const CATALOGS: Record<Locale, RegisteredCatalog> = {
   ar: {
     ...ar,
+    alertRules: alertRulesAr,
     serviceSessions: serviceSessionsAr,
     serviceLineEdit: serviceLineEditAr,
     serviceLineCancel: serviceLineCancelAr,
@@ -48,6 +51,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
   },
   en: {
     ...en,
+    alertRules: alertRulesEn,
     serviceSessions: serviceSessionsEn,
     serviceLineEdit: serviceLineEditEn,
     serviceLineCancel: serviceLineCancelEn,
