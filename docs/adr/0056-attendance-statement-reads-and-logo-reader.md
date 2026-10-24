@@ -198,9 +198,11 @@ worker, embeds bytes in a PDF, and needs a render id.
    3. **Allowed with no logo:** 200 `{ download_url: null }`, nothing written; the sheet prints with the name only.
    4. **Allowed with a logo,** one `withTenant` transaction. First re-lock the binding with `@pospay/db`
       `lockBusinessLogoReference(tx, company, business, fileId)`, the `business_settings` `FOR UPDATE` lock that binding
-      and removal take (ADR-0046 §4), and check the `file_objects` row again as step 1 did. If the logo was replaced or
-      removed, or the file no longer qualifies, since step 1, answer 200 `{ download_url: null }` and write nothing:
-      a retired file is never signed. Otherwise insert the `ALLOW` pair, sign the GET URL with
+      and removal take (ADR-0046 §4), and decide on the **locked current state**, not on step 1's answer: if the binding still names the step 1 file, use
+      it; if it now names another file (the logo was replaced), read that current binding in this same transaction
+      (`readBusinessIdentity`) and use it. Check the chosen file's `file_objects` row as step 1 did. Only when nothing
+      qualifying is bound now does it answer 200 `{ download_url: null }`, writing nothing. A retired file is never
+      signed, and a replaced logo is printed, not dropped. Otherwise insert the `ALLOW` pair, sign the GET URL with
       `packages/storage` `presignDownload` (local computation, no network call, so ADR-0046 §4 holds), commit. A
       signing failure rolls the pair back, so an `ALLOW` is never recorded for a URL that was not issued.
    - **Accepted residual:** none of these steps locks the membership rows, so a revocation that commits after step
