@@ -15,6 +15,11 @@ an iOS simulator build on `main` and the iOS cookie question is answered on the 
 starts now at no cost. The first real-iPhone check is the first TestFlight build (M-1c-ii, inside M-2). **M-1 pays nothing and creates no store account.** Signed builds and TestFlight /
 Play internal uploads are M-2, gated on the company that will own the store accounts being formed (APP-Q3).
 
+**Staff OTP is postponed (PP-58.1, Waleed, 2026-10-25, «نأجّله (مقترح)»).** M-1c runs (a) pairing and (b) staff PIN on
+Android now; (c) the personal OTP session, (d) the attendance camera and (e) passkey attendance wait until WhatsApp
+Business is set up (an approved OTP template and its keys) and are then tested on real WhatsApp, with no test-only OTP
+path. On iOS the simulator UI test covers what needs no OTP. **M-1d onward and the Apple fee keep waiting on iOS (c).**
+
 ## Rules that hold for every sub-PR
 
 - One sub-PR per row below, each with its own branch, worktree and PR; PR body starts
