@@ -325,14 +325,16 @@ ADR-0019 and ADR-0027. Phone-level permissions the app asks for: only the camera
 and QR attendance, asked the first time either is used.
 
 - **Android:** M-1h, the first step that uses the camera, adds `<uses-permission android:name="android.permission.CAMERA"/>`
-  to the manifest together with `<uses-feature android:name="android.hardware.camera" android:required="false"/>`, so
+  to the manifest together with `<uses-feature android:required="false"/>` for both `android.hardware.camera` and
+  `android.hardware.camera.autofocus` (the `CAMERA` permission implies both), so
   Google Play does not hide the app from counter tablets without a back camera. Without the permission line the WebView
   camera request is always refused, and a (d1) failure would be misread as a reason for the native plugin.
 - **iOS:** the camera stays off until M-1c-ii, so M-1 asks for nothing there. The owners-only build that M-1c-ii checks
   is made with both camera capabilities on (as the Android checks run on a staging debug build made with the
-  capability on), and adds `NSCameraUsageDescription` through localized `ar.lproj/InfoPlist.strings` and
-  `en.lproj/InfoPlist.strings` (iOS refuses camera access without it, and one `Info.plist` value cannot hold two
-  languages). The permission prompt and the denied path of the edge cases are part of the M-1c-ii checks; each
+  capability on), and adds the `NSCameraUsageDescription` key to `Info.plist` (iOS refuses camera access without it), translated by
+  `ar.lproj/InfoPlist.strings` and `en.lproj/InfoPlist.strings`, which only translate a key `Info.plist` already has;
+  the Xcode project gains the `ar` region in `knownRegions` and the `InfoPlist.strings` variant group in its Resources
+  phase. The permission prompt and the denied path of the edge cases are part of the M-1c-ii checks; each
   capability is then turned on for every iOS build by a follow-up only after its check passes.
 
 ### Events
