@@ -8,6 +8,10 @@
     ".": {
       "types": "./dist/src/index.d.ts",
       "import": "./dist/src/index.js"
+    },
+    "./operator/staging-staff": {
+      "types": "./dist/src/operator/staging-staff.d.ts",
+      "import": "./dist/src/operator/staging-staff.js"
     }
   },
   "scripts": {

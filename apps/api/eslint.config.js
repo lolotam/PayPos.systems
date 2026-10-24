@@ -21,5 +21,6 @@ export default [
     },
   },
   { files: ['src/main.ts'], ...allowDatabaseFacade('createPlatformWhatsappDatabase') },
+  { files: ['scripts/staging-staff-user.ts'], ...allowDatabaseFacade([], { operator: true }) },
   { files: ['src/modules/notifications/domain/whatsapp-command.ts'], ...allowUserFacingText() },
 ];
