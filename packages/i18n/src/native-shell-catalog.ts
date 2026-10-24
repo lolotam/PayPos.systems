@@ -17,6 +17,7 @@ export const nativeShellEn = {
   retry: 'Try again',
   confirm: 'Confirm',
   cancel: 'Cancel',
+  stagingStrip: 'Test version',
 } as const;
 
 /** نفس مفاتيح شاشة النسخة الأصلية بالعربي. */
@@ -38,4 +39,5 @@ export const nativeShellAr: Record<keyof typeof nativeShellEn, string> = {
   retry: 'حاولي تاني',
   confirm: 'تأكيد',
   cancel: 'إلغاء',
+  stagingStrip: 'نسخة تجربة',
 };

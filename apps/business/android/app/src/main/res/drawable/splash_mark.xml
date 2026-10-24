@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- حرف P بتاع PosPay على شاشة الفتح بتاعة أندرويد (APP-Q11، APP-Q25)؛ نفس مسار apps/pos/public/icon.svg. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="26.8"
+        android:translateY="28"
+        android:scaleX="0.8"
+        android:scaleY="0.8">
+        <path
+            android:fillColor="#0D1522"
+            android:pathData="M16,12H36C47,12 52,19 52,27S46,42 35,42H27V53H16Z" />
+        <path
+            android:fillColor="#F7F1E8"
+            android:pathData="M26.5,27a6.5,6.5 0,1 1,13 0a6.5,6.5 0,1 1,-13 0" />
+    </group>
+</vector>

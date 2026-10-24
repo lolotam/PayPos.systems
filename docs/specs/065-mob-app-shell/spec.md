@@ -216,6 +216,13 @@ start screen again.
   employee (ADR-0027). Showing the line needs a role signal the personal session does not carry today. Spec 067 Part B
   (its sub-PR 067-2) adds it, with who counts set by spec 067 BR-003; until 067-2 lands the line is not shown to
   anyone.
+- **FR-018**: The app's identity follows APP-Q10, Q11, Q13 and APP-Q21 … Q25 (batch 69; Waleed, 2026-10-24; Abu
+  Salem pending). Both flavours show the name «PosPay Business» under the icon (APP-Q24). The icon is today's PosPay
+  icon with a navy circle holding a «B» in its corner (APP-Q21); the staging icon adds a purple diagonal ribbon
+  reading «تجربة» across its top corner (APP-Q22). The splash is orange with the «P» and «PosPay Business» under it
+  (APP-Q11, APP-Q25), on Android before and from 12 and on iOS. Every screen of the staging native app starts with a
+  purple strip reading «نسخة تجربة» / «Test version» that stays at the top while the page scrolls and below the status
+  bar (APP-Q23); the production app and the web app (any host) show no strip.
 
 ### Key Entities
 
@@ -247,6 +254,16 @@ start screen again.
 | APP-Q16 | anyone holding the device, after a clear confirmation; counter re-pairing needs a manager (FR-008) | M-1a |
 | APP-Q17 | hide the button, one line with a link to the web app (FR-007) | M-1d |
 | APP-Q18 | «must update» with every new version | M-1f (its own spec) |
+
+### Owner decisions (batch 69: Waleed's picks on 2026-10-24; Abu Salem pending, his pick replaces Waleed's if it differs)
+
+| Question | Waleed's pick | Lands in |
+|---|---|---|
+| APP-Q21 | a navy circle with a «B» in the icon's corner (FR-018) | M-1e |
+| APP-Q22 | a purple diagonal ribbon reading «تجربة» across the staging icon's top corner (FR-018) | M-1e |
+| APP-Q23 | a purple strip reading «نسخة تجربة» on every staging screen (FR-018) | M-1e |
+| APP-Q24 | «PosPay Business» in both flavours (FR-018) | M-1e |
+| APP-Q25 | an orange splash background (FR-018) | M-1e |
 
 Not asked, because already decided: card attendance on the counter device is online-only
 (`apps/pos/src/attendance/api/clock-by-card.ts`), and what the cashier does offline is set by `CLAUDE.md` §7 (the
@@ -313,7 +330,11 @@ None published, none consumed.
   phone in any other language shows English, and the language switch still changes it · `MOB-T22` the start screen,
   the counter flow and the personal flow render without cut-off controls in both orientations (tablet and phone
   viewports) · `MOB-T23` with the role signal present the «لوحة الإدارة على الويب» line and its link show, without it
-  they do not.
+  they do not · `MOB-T24` (FR-018) the staging native app shows the «نسخة تجربة» strip in Arabic and «Test version»
+  in English above the screen, and the production native app and the web app show none.
+- **Build checks** (M-1e, FR-018): the staging and production Android builds and iOS builds compile with their own
+  icon sets (`src/staging/res`, `AppIconStaging`), and the native build compiles the strip check to a constant for
+  each flavour.
 - **Build checks** (M-1a): the `native` build output registers no service worker; the web build output still does; a
   staging and a production debug build carry different app ids and their own API origin; the Android manifest and the
   iOS project exclude the app's storage from cloud backup and device transfer (FR-013: `allowBackup`,

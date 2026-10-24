@@ -3,3 +3,5 @@ PRODUCT_BUNDLE_IDENTIFIER = systems.pospay.business
 POS_HOST = pos.pospay.systems
 // الـ entitlements متحطّة هنا عشان متحتاجش تعديل في pbxproj، والـ host في نفس الملف.
 CODE_SIGN_ENTITLEMENTS = App/App.entitlements
+// أيقونة النسخة الحقيقية؛ كتالوج الأصول فيه أيقونة النسخة التجريبية («تجربة») كمان.
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon

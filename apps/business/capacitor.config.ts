@@ -22,6 +22,9 @@ const config: CapacitorConfig = {
   // الـ hostname والـ scheme ما يتغيروش بعد أول إصدار: تغييرهم معناه origin جديد،
   // والـ IndexedDB (ربط الجهاز وطابور المزامنة) بيضيع (حالة «تحديث التطبيق» في spec 065).
   server,
+  // الـ web view على iOS بيرسم تحت شريط الحالة والـ notch، فحافة التطبيق (وشريط نسخة
+  // التجربة كمان) لازم تفضل تحتهم، وإلا الشريط بيختفي أول ما التطبيق يفتح.
+  ios: { contentInset: 'always' },
 };
 
 export default config;

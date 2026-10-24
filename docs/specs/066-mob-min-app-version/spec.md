@@ -119,7 +119,7 @@ it is online (APP-Q19).
   API route (`CLAUDE.md` §6 allows no unguarded endpoint). Its URL is
   `https://<the flavour's POS host>/app-version/<flavour>.json`, with flavour `staging` or `production`. The same POS
   image serves both environments, so the flavour, not the host, picks the entry. The flavour is a build constant of the
-  native build (`VITE_FLAVOUR`, set in the `native` mode of `apps/pos/vite.config.ts` from `FLAVOUR`, like
+  native build (`VITE_NATIVE_FLAVOUR`, set in the `native` mode of `apps/pos/vite.config.ts` from `FLAVOUR`, like
   `VITE_POS_HOST` in spec 065), never read from the page: on iOS both flavours run on `capacitor://localhost`.
 - **FR-003**: The app MUST read the file through Capacitor's native HTTP (`CapacitorHttp`, part of `@capacitor/core`),
   never through a WebView `fetch`. On Android the app's own hostname is the POS host, and Capacitor answers it from the
