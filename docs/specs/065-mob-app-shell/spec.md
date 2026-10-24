@@ -50,7 +50,7 @@ her phone and the code (personal OTP, ADR-0027). The app remembers her salon, so
 (APP-Q9) and on the iOS session check (M-1c).
 
 **Independent Test**: on an Android phone against staging, connect to a seeded test business, sign in with a code
-sent to a real WhatsApp number, restart the app; repeat (a)–(c) of M-1c on the iOS simulator. **Staff OTP is postponed
+sent to a real WhatsApp number, restart the app; repeat (a) and (b) of M-1c on the iOS simulator ((c) on the first real iPhone, PP-58.2). **Staff OTP is postponed
 (PP-58.1, Waleed, 2026-10-25):** this sign-in check waits until WhatsApp Business is set up (an approved OTP template
 and its keys); there is no test-only OTP path.
 
@@ -360,7 +360,7 @@ None published, none consumed.
   carries the Associated Domains entitlement in its entitlements file (an unsigned simulator build cannot embed it).
 - **Device checks** (M-1c, recorded in [plan.md](plan.md)): (a) pairing, (b) staff PIN session, (c) personal OTP
   session, each surviving a restart; (d) attendance QR camera; (e) passkey behaviour. Android on a real phone; iOS
-  (a)–(c) on the simulator, (d)–(e) on the first real iPhone (M-1c-ii). **Staged by PP-58.1:** (a) and (b) run now on
+  (a) and (b) on the simulator, (c)–(e) on the first real iPhone (M-1c-ii). **Staged by PP-58.1:** (a) and (b) run now on
   Android; (c), (d) and (e) wait until WhatsApp Business is set up and then run on real WhatsApp. The M-1c gate is
   phase one only: Android (a)–(e) and the iOS simulator checks; the real-iPhone checks of M-1c-ii stay outside it
   (they need the M-2a build). **PP-58.2 (Waleed, 2026-10-25, option 1, confirmed on the corrected
@@ -375,9 +375,8 @@ None published, none consumed.
 ### Measurable Outcomes
 
 - **SC-001**: On a paired Android tablet, the app opens to the paired-device screen within 3 seconds with no network.
-- **SC-002**: A staff PIN session and a personal session each survive an app restart on Android and on the iOS
-  simulator (M-1c). Under PP-58.2 (option 1) the iOS half of the personal session is checked on the first real iPhone
-  (M-1c-ii), not on the simulator.
+- **SC-002**: A staff PIN session survives an app restart on Android and on the iOS simulator, and a personal
+  session survives one on Android (M-1c) and on the first real iPhone (M-1c-ii).
 - **SC-003**: No screen of the native build offers a working-looking control for a capability the platform port
   reports as off.
 - **SC-004**: The web build's behaviour is unchanged: every existing `apps/pos` UI test passes without edits.
