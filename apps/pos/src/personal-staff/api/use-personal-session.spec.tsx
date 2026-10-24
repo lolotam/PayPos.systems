@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { usePersonalSession } from './use-personal-session';
@@ -32,6 +32,8 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
+  // اختبار offline بيسيب حالة TanStack العامة مقفولة للاختبار اللي بعده.
+  onlineManager.setOnline(true);
   act(() => {
     window.dispatchEvent(new Event('online'));
   });
