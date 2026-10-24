@@ -67,27 +67,21 @@ export function EmployeeFlow({
     },
     [business, report],
   );
+  const screenProps = {
+    connect,
+    sessionGate,
+    locked: busy,
+    ...(startOver === undefined ? {} : { startOver }),
+  };
   return (
     <>
       {pending ? (
         <SwitchBusinessPanel busy={busy} onConfirm={() => onConfirm(pending)} onCancel={onCancel} />
       ) : null}
       {business ? (
-        <PersonalScreen
-          key={business.business_id}
-          workspace={business}
-          connect={connect}
-          sessionGate={sessionGate}
-          startOver={startOver}
-          locked={busy}
-        />
+        <PersonalScreen key={business.business_id} workspace={business} {...screenProps} />
       ) : (
-        <PersonalScreen
-          connect={connect}
-          sessionGate={sessionGate}
-          startOver={startOver}
-          locked={busy}
-        />
+        <PersonalScreen {...screenProps} />
       )}
     </>
   );
