@@ -257,7 +257,11 @@ live in `apps/business/`, so the `apps/business/**` input already covers them.
   the public repository too; it can only refuse more, never admit more. Larger runners stay forbidden in `mobile.yml`,
   and the $0 budget below stays the backstop in both cases (M-1b). The write token that the slots need is held only by
   the two small Ubuntu jobs that reserve and free a slot (one leg per flavour), which install nothing and keep no
-  checkout credentials; the macOS build job reads only.
+  checkout credentials; the macOS build job reads only. macOS runners are allowed only in `mobile.yml`: its `changes`
+  job fails the run when another workflow names a macOS runner, so rule 3's «this repository's macOS minutes» is read
+  from `mobile.yml`'s own runs. Those runs are read newest first back to 30 days before the month starts, because
+  GitHub re-runs a run only within 30 days of its creation. The first public run (#614) took about 6 macOS minutes for
+  both flavours (1 min 37 s and 3 min 39 s).
   **Account-wide usage** (the Linux minutes of `ci.yml`, any other repository) is not read by the guard: Waleed checks
   it on the billing page once a week (APP-Q20). The hard backstop is the account's Actions budget at $0 with usage
   stopped at the limit (O-5): a run past the included minutes is blocked rather than charged, so **no money is spent
