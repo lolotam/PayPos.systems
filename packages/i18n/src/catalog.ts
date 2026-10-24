@@ -1,3 +1,4 @@
+import { alertRulesAr, alertRulesEn } from './alert-rules-catalog.js';
 import { ar } from './ar.js';
 import { en } from './en.js';
 import { nativeShellAr, nativeShellEn } from './native-shell-catalog.js';
@@ -10,6 +11,7 @@ import {
 } from './service-line-performers-catalog.js';
 import { serviceSessionsAr, serviceSessionsEn } from './service-session-catalog.js';
 import { staffAppColumnsAr, staffAppColumnsEn } from './staff-app-columns-catalog.js';
+import { staffPushAr, staffPushEn } from './staff-push-catalog.js';
 
 /** اللغتين اللي المنتج بيدعمهم — العربي الأساسي (CLAUDE.md §0). */
 export type Locale = 'ar' | 'en';
@@ -18,12 +20,14 @@ export type Locale = 'ar' | 'en';
 export type Catalog = { readonly [S in keyof typeof en]: Record<keyof (typeof en)[S], string> };
 
 type RegisteredCatalog = Catalog & {
+  readonly alertRules: Record<keyof typeof alertRulesEn, string>;
   readonly serviceSessions: Record<keyof typeof serviceSessionsEn, string>;
   readonly serviceLineEdit: Record<keyof typeof serviceLineEditEn, string>;
   readonly serviceLineCancel: Record<keyof typeof serviceLineCancelEn, string>;
   readonly serviceLinePerformers: Record<keyof typeof serviceLinePerformersEn, string>;
   readonly sessionTips: Record<keyof typeof sessionTipsEn, string>;
   readonly staffAppColumns: Record<keyof typeof staffAppColumnsEn, string>;
+  readonly staffPush: Record<keyof typeof staffPushEn, string>;
   readonly nativeShell: Record<keyof typeof nativeShellEn, string>;
 };
 
@@ -38,22 +42,26 @@ export type ErrorMessageCode = keyof typeof en.errors;
 const CATALOGS: Record<Locale, RegisteredCatalog> = {
   ar: {
     ...ar,
+    alertRules: alertRulesAr,
     serviceSessions: serviceSessionsAr,
     serviceLineEdit: serviceLineEditAr,
     serviceLineCancel: serviceLineCancelAr,
     serviceLinePerformers: serviceLinePerformersAr,
     sessionTips: sessionTipsAr,
     staffAppColumns: staffAppColumnsAr,
+    staffPush: staffPushAr,
     nativeShell: nativeShellAr,
   },
   en: {
     ...en,
+    alertRules: alertRulesEn,
     serviceSessions: serviceSessionsEn,
     serviceLineEdit: serviceLineEditEn,
     serviceLineCancel: serviceLineCancelEn,
     serviceLinePerformers: serviceLinePerformersEn,
     sessionTips: sessionTipsEn,
     staffAppColumns: staffAppColumnsEn,
+    staffPush: staffPushEn,
     nativeShell: nativeShellEn,
   },
 };

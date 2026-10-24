@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { announcePersonalChange, observePersonalChange } from '../model/session-change';
+import { disablePushOnSignOut } from '../push/push-disable';
 import { personalCalls } from './personal-calls';
 
 export function usePersonalSession() {
@@ -54,6 +55,8 @@ export function usePersonalSession() {
       clear();
     },
     signOut: async () => {
+      // الخروج الصريح بيشيل اشتراك الإشعارات من الموبايل؛ التنظيف نفسه ما بيمنعش الخروج (ADR-0052 §7).
+      await disablePushOnSignOut();
       try {
         await personalCalls.signOut();
       } finally {

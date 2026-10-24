@@ -6,12 +6,17 @@ import { LocaleProvider } from '@/shared/locale/locale-context';
 import { personalCalls } from '../api/personal-calls';
 import { EnrolPasskeyScreen } from './enrol-passkey-screen';
 vi.mock('../api/personal-calls', () => ({ personalCalls: { binding: vi.fn(), enrol: vi.fn() } }));
+vi.mock('../push/push-control', () => ({ PushControl: () => null }));
 function mount(locale: Locale) {
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={cache}>
       <LocaleProvider locale={locale} setLocale={() => undefined}>
-        <EnrolPasskeyScreen employeeId="synthetic" onSignOut={async () => undefined} />
+        <EnrolPasskeyScreen
+          employeeId="synthetic"
+          companyId="00000000-0000-4000-8000-000000000001"
+          onSignOut={async () => undefined}
+        />
       </LocaleProvider>
     </QueryClientProvider>,
   );

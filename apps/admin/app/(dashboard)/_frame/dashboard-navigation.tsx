@@ -4,6 +4,7 @@ import { AppSidebarGroup, AppSidebarItem, House, Inbox, ShieldCheck, Clock3 } fr
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale } from '@/shared/locale/locale-context';
+import { AlertRulesNavItem } from './alert-rules-nav-item';
 import { BusinessIdentityNavItem } from './business-identity-nav-item';
 import { CatalogNavItem } from './catalog-nav-item';
 import { SessionDayNavItem } from './session-day-nav-item';
@@ -54,6 +55,7 @@ export function DashboardNavigation() {
       <StaffNavigation />
       <BusinessIdentityNavItem />
       <StaffAppColumnsNavItem />
+      <AlertRulesNavItem />
     </AppSidebarGroup>
   );
 }
