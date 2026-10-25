@@ -17,6 +17,7 @@ import { DocumentKindUnknownError } from './kind-error.ts';
 import { produceDocument } from './produce-document.ts';
 import type { DocumentSourceRegistry } from './source-registry.ts';
 import { markFailed, markRendering, storeReady } from './status-store.ts';
+import { AttendanceStatementEmptyError } from './statement-empty-error.ts';
 
 const JOB_DEADLINE_MS = 30_000;
 /** بعد المهلة، كتابة الفشل لسه بتاخد محاولة قصيرة ومقفولة. */
@@ -53,11 +54,16 @@ function errorCode(error: unknown): DocumentRenderErrorCode {
   if (error instanceof DocumentKindUnknownError) return 'DOCUMENT_KIND_UNKNOWN';
   if (error instanceof DocumentTooLargeError) return 'DOCUMENT_TOO_LARGE';
   if (error instanceof DocumentRenderTimeoutError) return 'DOCUMENT_RENDER_TIMEOUT';
+  if (error instanceof AttendanceStatementEmptyError) return 'STATEMENT_EMPTY';
   return 'DOCUMENT_RENDER_FAILED';
 }
 
 function failsAtOnce(code: DocumentRenderErrorCode): boolean {
-  return code === 'DOCUMENT_KIND_UNKNOWN' || code === 'DOCUMENT_TOO_LARGE';
+  return (
+    code === 'DOCUMENT_KIND_UNKNOWN' ||
+    code === 'DOCUMENT_TOO_LARGE' ||
+    code === 'STATEMENT_EMPTY'
+  );
 }
 
 function armDeadline(ms: number): { signal: AbortSignal; stop: () => void } {
