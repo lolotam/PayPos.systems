@@ -11,6 +11,7 @@ import type {
   AttendanceStatementNames,
   AttendanceStatementRequestRow,
 } from '../domain/attendance-statement-data.ts';
+import type { BranchPlaceReader } from '../ports/branch-place.port.ts';
 import type {
   StatementIdentityReader,
   StatementInputsReader,
@@ -41,14 +42,11 @@ type RequestRow = {
   requested_at: Date | string;
 };
 
-type PlacesRow = {
-  branch_name_ar: string | null;
-  branch_name_en: string;
-  branch_timezone: string | null;
-  business_name_ar: string | null;
-  business_name_en: string;
-  business_timezone: string;
-};
+/**
+ * مهلة جملة واحدة داخل معاملة البيان: رندر ملغى أو تالف لازم يسيب اتصاله من الـ pool
+ * بدل ما يقعد عليه. أقل من مهلة الـ worker كلها (30 ثانية في process-job.ts).
+ */
+export const STATEMENT_READ_TIMEOUT_MS = 20_000;
 
 /**
  * مدخلات البيان من جدول الطلبات: معلماته ولحظة طلبه؛ مفيش أي رقم محسوب هنا.
@@ -62,29 +60,15 @@ export function attendanceStatementRequestStatement(companyId: string, renderId:
 }
 
 /**
- * أسماء الفرع والنشاط ومنطقتيهما في جملة واحدة؛ منطقة الفرع وإلا منطقة النشاط (PRD D-10).
- * الجدولان ملك التينانسي، بس الـ worker مافيشش describeWorkspaces زي الـ API، والصف لازم يتقرا
- * في نفس معاملة الطلب؛ فالجملة هنا بتقرا الجدولين بعينهم من غير استيراد لوحدة تانية.
- */
-export function attendanceStatementPlacesStatement(
-  companyId: string,
-  businessId: string,
-  branchId: string,
-) {
-  return sql`SELECT b.name_ar AS branch_name_ar, b.name_en AS branch_name_en, b.timezone AS branch_timezone,
-      bu.name_ar AS business_name_ar, bu.name_en AS business_name_en, bu.timezone AS business_timezone
-    FROM branches b JOIN businesses bu ON bu.company_id = b.company_id AND bu.id = b.business_id
-    WHERE b.company_id = ${companyId} AND b.company_id = app_company_id()
-      AND b.business_id = ${businessId}::uuid AND b.id = ${branchId}::uuid`;
-}
-
-/**
  * قارئ مدخلات البيان: معاملة قراءة واحدة بالترتيب ده، وبعدها بتتقفل قبل أي حساب.
  * الطلب بيتقرا الأول عشان معلماته هي اللي بتحدد الفرع والفترة، والبقية بتتبني عليها.
+ * الجلسات المفتوحة بتتقرا قبل جملة 27b: جلسة بتتقفل بين القراءتين بتكون في التانية
+ * مش في الأولى، فالترتيب ده بيمنع ضياعها (FR-011a).
  */
 export function attendanceStatementTransactions(
   database: Pick<TenantWrappers, 'withTenant'>,
   identity: StatementIdentityReader<Tx>,
+  branchPlace: BranchPlaceReader<Tx>,
   openSessions: StatementOpenSessionsReader<Tx>,
 ): StatementInputsReader {
   return {
@@ -92,15 +76,24 @@ export function attendanceStatementTransactions(
       // الرندر الملغى ما يفتحش معاملة؛ طبقة الـ documents بتحوّل الإلغاء لخطأ المهلة.
       signal?.throwIfAborted();
       return database.withTenant(companyId, async (tx) => {
+        // أول جملة في المعاملة: مهلة لكل جملة بعدها، عشان الرندر الملغى يسيب الاتصال.
+        await tx.execute(`SET LOCAL statement_timeout = '${STATEMENT_READ_TIMEOUT_MS}ms'`);
+        // الإلغاء بيتفحص قبل كل قراءة: رندر ملغى بيقف عند أقرب جملة، والمعاملة بتتقفل.
+        signal?.throwIfAborted();
         const request = await readRequest(tx, companyId, renderId);
         if (request === null) return null;
-        const names = await readNames(tx, companyId, request);
+        signal?.throwIfAborted();
+        const open = await readOpenSessions(openSessions, tx, companyId, request);
+        signal?.throwIfAborted();
+        const names = await readNames(tx, companyId, request, branchPlace);
+        signal?.throwIfAborted();
         const period = { from: request.period.from, to: request.period.to };
         const branch = { id: request.branchId, timezone: names.timezone };
         const scope: AttendanceReportScope = { businessId: request.businessId, branches: [branch] };
         const reportRows = await tx.execute<StatementInputRow>(
           attendanceMonthlyInputsStatement(companyId, scope, period.from, period.to),
         );
+        signal?.throwIfAborted();
         const scheduledRows = await tx.execute<StatementInputRow>(
           attendanceStatementScheduledEmployeesStatement(
             companyId,
@@ -110,13 +103,16 @@ export function attendanceStatementTransactions(
             period.to,
           ),
         );
+        signal?.throwIfAborted();
+        const stored = await identity.read(tx, companyId, request.businessId);
+        signal?.throwIfAborted();
         return {
           request,
           names,
-          identity: await identity.read(tx, companyId, request.businessId),
+          identity: stored,
           reportRows,
           scheduledRows,
-          openSessions: await readOpenSessions(openSessions, tx, companyId, request),
+          openSessions: open,
         };
       });
     },
@@ -151,21 +147,23 @@ async function readRequest(
   };
 }
 
+/**
+ * أسماء الفرع والنشاط ومنطقته الفعّالة؛ الجدولان ملك التينانسي، فبينتقرا من بوابة
+ * BranchPlaceReader على معاملة الطلب نفسها (ADR-0056 §2).
+ */
 async function readNames(
   tx: Tx,
   companyId: string,
   request: AttendanceStatementRequestRow,
+  branchPlace: BranchPlaceReader<Tx>,
 ): Promise<AttendanceStatementNames> {
-  const rows = await tx.execute<PlacesRow>(
-    attendanceStatementPlacesStatement(companyId, request.businessId, request.branchId),
-  );
-  const row = rows[0];
+  const place = await branchPlace.forBranch(tx, companyId, request.businessId, request.branchId);
   // الفرع لازم يكون موجود: مفتاح الطلب المركّب بيمنع غيره، فالغياب يعني صف مكسور.
-  if (row === undefined) throw new Error('ATTENDANCE_STATEMENT_BRANCH_MISSING');
+  if (place === null) throw new Error('ATTENDANCE_STATEMENT_BRANCH_MISSING');
   return {
-    business: { name_ar: row.business_name_ar, name_en: row.business_name_en },
-    branch: { nameAr: row.branch_name_ar, nameEn: row.branch_name_en },
-    timezone: row.branch_timezone ?? row.business_timezone,
+    business: { name_ar: place.businessNameAr, name_en: place.businessNameEn },
+    branch: { nameAr: place.nameAr, nameEn: place.nameEn },
+    timezone: place.timeZone,
   };
 }
 

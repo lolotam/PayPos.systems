@@ -5,6 +5,7 @@ import {
   hasAttendanceStatementCoverage,
   mergeAttendanceStatementRows,
   statementIdentity,
+  type AttendanceOpenSession,
   type AttendancePeriod,
   type AttendanceShiftPair,
   type ReportBranchInputs,
@@ -130,10 +131,38 @@ function employeeStatement(
           employeeNumber: row.employee_number,
         },
         totals: statementTotals(row.branches, period, cutoff, null),
-        days: computeAttendanceStatementDays(branch, openSessions, period, cutoff),
+        days: computeAttendanceStatementDays(
+          branch,
+          stillOpen(branch, openSessions),
+          period,
+          cutoff,
+        ),
       },
     },
   };
+}
+
+/**
+ * الجلسات المفتوحة اللي اتقفلت بين القراءتين: الجملة الأولى شافتها مفتوحة والتانية شافتها
+ * مقفولة، فالمفتوحة دي بتتشال عشان اليوم ما يطبعش «لسه جوّه» والجلسة المقفولة بتتحسب
+ * كأنها مقفولة (FR-011a). المقارنة بلحظة الدخول مش بنص النص.
+ *
+ * @param branch مدخلات الموظفة في الفرع
+ * @param openSessions الجلسات المفتوحة كما قراها القارئ
+ * @returns الجلسات المفتوحة اللي لسه مفتوحة فعلاً
+ */
+function stillOpen(
+  branch: ReportBranchInputs,
+  openSessions: readonly AttendanceOpenSession[],
+): AttendanceOpenSession[] {
+  return openSessions.filter(
+    (open) =>
+      !branch.sessions.some(
+        (session) =>
+          session.working_date === open.working_date &&
+          Date.parse(session.clock_in) === Date.parse(open.clock_in),
+      ),
+  );
 }
 
 // أرقام الموظفة في الفترة؛ مع فلتر الشيفت بتطلع الساعات التعاقدية والفرق فاضيين (BR-11).

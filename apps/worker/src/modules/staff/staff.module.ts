@@ -66,6 +66,7 @@ export function createAttendanceStatementReader(database: Pick<TenantWrappers, '
     attendanceStatementTransactions(
       database,
       statementIdentityReader,
+      branchPlaceAdapter,
       attendanceStatementOpenSessions,
     ),
   );

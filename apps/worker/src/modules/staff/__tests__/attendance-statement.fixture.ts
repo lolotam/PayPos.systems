@@ -22,6 +22,11 @@ export interface Tenant {
   readonly branch: string;
 }
 
+interface TenantOptions {
+  /** اسم الفرع بالعربي؛ null معناه إن الفرع مالهوش اسم عربي. */
+  readonly branchNameAr?: string | null;
+}
+
 interface EmployeeOptions {
   readonly nameEn?: string;
   readonly nameAr?: string | null;
@@ -100,7 +105,7 @@ export async function attendanceStatementFixture() {
     testDb,
     reader,
     requesterId,
-    tenant: () => addTenant(owner, ids, requesterId),
+    tenant: (options: TenantOptions = {}) => addTenant(owner, ids, requesterId, options),
     employee: (tenant: Tenant, options: EmployeeOptions = {}) =>
       addEmployee(owner, ids, tenant, options),
     defaultShifts: (tenant: Tenant, employeeId: string, days: readonly number[]) =>
@@ -141,16 +146,18 @@ async function addTenant(
   owner: postgres.Sql,
   ids: IdGenerator,
   ownerUserId: string,
+  options: TenantOptions,
 ): Promise<Tenant> {
   const company = ids.newId();
   const business = ids.newId();
   const branch = ids.newId();
+  const branchNameAr = options.branchNameAr === undefined ? 'السالمية' : options.branchNameAr;
   await owner`INSERT INTO companies(id,name_en,owner_user_id,plan_id)
     VALUES(${company},'Synthetic statement',${ownerUserId},${PROVISIONAL_PLAN_ID})`;
   await owner`INSERT INTO businesses(id,company_id,vertical_type,name_ar,name_en,timezone)
     VALUES(${business},${company},'salon','صالون الأميرة','Princess Salon',${TIMEZONE})`;
   await owner`INSERT INTO branches(id,company_id,business_id,name_ar,name_en,timezone)
-    VALUES(${branch},${company},${business},'السالمية','Salmiya',null)`;
+    VALUES(${branch},${company},${business},${branchNameAr},'Salmiya',null)`;
   return { company, business, branch };
 }
 

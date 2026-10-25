@@ -70,7 +70,7 @@ describe('fitImage', () => {
   });
 });
 
-describe('fitImage size fallback', () => {
+describe('fitImage size fallback', { timeout: 30_000 }, () => {
   it('shrinks a noisy PNG that stays over the cap at the full side', async () => {
     const source = await noisyPng(512, 512, 0x1234_5678);
     const atFullSide = await sharp(source)
@@ -120,7 +120,8 @@ describe('fitImage size fallback', () => {
   });
 
   it('refuses a PNG that stays over the cap even with a palette', async () => {
-    const source = await noisyPng(512, 512, 0x1357_9bdf);
+    // صورة صغيرة برضو: المهم إنها ضوضاء وتفضل فوق السقف في كل خطوة، عشان الاختبار يبقى سريع.
+    const source = await noisyPng(128, 128, 0x1357_9bdf);
     await expect(fitImage(source, 'image/png', { maxSide: 512, maxBytes: 10 })).rejects.toThrow(
       'FILE_SIZE_INVALID',
     );

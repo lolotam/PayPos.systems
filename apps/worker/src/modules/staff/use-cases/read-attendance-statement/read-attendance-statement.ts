@@ -14,7 +14,8 @@ export class AttendanceStatementRequestMissing extends Error {
 
 /**
  * يقرأ كشف الحضور الرسمي: مدخلات الطلب في معاملة واحدة، وبعدها الأرقام من packages/domain.
- * TODO(spec): issue #552 — الأرقام بتتقرا بحالتها وقت الرندر مش وقت الطلب؛ تثبيت المدخلات عند الطلب قرار تصميم لسه ما اتاخدش.
+ * الأرقام بتتقرا بحالتها وقت التجهيز مش وقت الطلب، وده قرار نهائي (PP-61، issue #552):
+ * الكشف بيطبع وقت إصداره وأي تعديل بعد التجهيز بيظهر في كشف جديد بس.
  */
 export class ReadAttendanceStatement {
   constructor(private readonly inputs: StatementInputsReader) {}

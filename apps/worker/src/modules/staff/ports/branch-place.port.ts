@@ -1,8 +1,10 @@
-/** اسم الفرع باللغتين والمنطقة الزمنية الفعّالة كما يملكها التينانسي. */
+/** اسم الفرع وأسماء النشاط ومنطقته الزمنية الفعّالة كما يملكها التينانسي. */
 export interface BranchPlace {
   readonly nameAr: string | null;
   readonly nameEn: string;
   readonly timeZone: string;
+  readonly businessNameAr: string | null;
+  readonly businessNameEn: string;
 }
 
 /**
@@ -11,7 +13,7 @@ export interface BranchPlace {
  */
 export interface BranchPlaceReader<Transaction> {
   /**
-   * اسم الفرع باللغتين ومنطقته الزمنية الفعّالة لرسالة عدم الحضور.
+   * اسم الفرع وأسماء النشاط ومنطقته الزمنية الفعّالة لرسالة عدم الحضور.
    *
    * @param tx معاملة الشركة بعد قفل State
    * @param companyId الشركة المجدولة

@@ -160,6 +160,12 @@ it('the header name follows the stored identity', async () => {
     clockIn: SHIFT_START,
     clockOut: SHIFT_END,
   });
+  const plain = await f.request(tenant);
+  expect(branchBody(await f.reader(tenant.company, plain)).businessName).toBe('صالون الأميرة');
+  const plainEnglish = await f.request(tenant, { language: 'en' });
+  expect(branchBody(await f.reader(tenant.company, plainEnglish)).businessName).toBe(
+    'Princess Salon',
+  );
   await f.identity(tenant, {
     officialNameAr: 'صالون الأميرة الرسمي',
     officialNameEn: 'Official Princess Salon',
@@ -172,6 +178,18 @@ it('the header name follows the stored identity', async () => {
   expect(branchBody(await f.reader(tenant.company, english)).businessName).toBe(
     'Official Princess Salon',
   );
+});
+
+it('the branch name falls back from Arabic to English', async () => {
+  const tenant = await f.tenant({ branchNameAr: null });
+  const sara = await f.employee(tenant, { nameEn: 'Sara' });
+  await f.session(tenant, sara, {
+    workingDate: WORKING,
+    clockIn: SHIFT_START,
+    clockOut: SHIFT_END,
+  });
+  const renderId = await f.request(tenant);
+  expect(branchBody(await f.reader(tenant.company, renderId)).branchName).toBe('Salmiya');
 });
 
 it('a missing request row fails the render with the typed error', async () => {

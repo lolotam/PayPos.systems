@@ -280,6 +280,44 @@ it('the employee form has one day per date and prints the open session as still 
   expect(statement.totals.daysPresent).toBe(1);
 });
 
+it('FR-011a: a session that closed between the two reads counts as closed and not still in', () => {
+  const result = assembleAttendanceStatement(
+    inputs({
+      request: request({ form: 'EMPLOYEE', employeeId: 'e-1' }),
+      reportRows: [
+        row({
+          branches: [
+            branch({
+              sessions: [
+                session({
+                  working_date: '2026-10-02',
+                  clock_in: '2026-10-02T05:30:00.000Z',
+                  clock_out: at('2026-10-02', '17:00'),
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+      openSessions: [{ working_date: '2026-10-02', clock_in: at('2026-10-02', '08:30') }],
+    }),
+  );
+  const statement = employeeBody(result);
+  expect(statement.days[1]).toMatchObject({ still_in: false, worked_minutes: 510 });
+});
+
+it('FR-011a: a session that is still open stays still in', () => {
+  const result = assembleAttendanceStatement(
+    inputs({
+      request: request({ form: 'EMPLOYEE', employeeId: 'e-1' }),
+      reportRows: [row({ branches: [branch({ sessions: [session()] })] })],
+      openSessions: [{ working_date: '2026-10-02', clock_in: '2026-10-02T05:30:00.000Z' }],
+    }),
+  );
+  const statement = employeeBody(result);
+  expect(statement.days[1]).toMatchObject({ still_in: true, worked_minutes: 0 });
+});
+
 it('an employee form without coverage is empty', () => {
   const result = assembleAttendanceStatement(
     inputs({
