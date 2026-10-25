@@ -33,13 +33,14 @@ revoked devices, and any change to pairing, approval or claim.
 
 - Read path (`CLAUDE.md` §6): a `queries/` file in the `identity` module, its read interface beside it, a thin
   controller, wired in `identity.module.ts`. The query runs under `withTenant` and projects straight into the DTO.
-- Index: `devices_company_id_branch_id_idx (company_id, branch_id)` already serves the filter; no migration.
+- Index: the `(company_id, branch_id)` indexes (`devices_company_id_branch_id_idx`, and the unique
+  `devices_company_branch_id_key` the planner picks) already serve the filter; no migration.
 - Contract: a Zod schema in `packages/contracts` plus its OpenAPI path, regenerated into `openapi.json` and the two
   frontends' `schema.d.ts`.
 
 ## Tests
 
 - Query: the result shape, newest first, only `PENDING` rows of that branch, the 50 cap, a cross-tenant read returns no
-  rows (RLS), and an `EXPLAIN ANALYZE` assertion that uses `devices_company_id_branch_id_idx`.
+  rows (RLS), and an `EXPLAIN ANALYZE` assertion that uses one of those indexes, never a sequential scan.
 - HTTP: 200 for a manager with `manage:devices:branch`, 403 without it, 400 for a missing or unknown `status`, and no
   forbidden field in the body.
