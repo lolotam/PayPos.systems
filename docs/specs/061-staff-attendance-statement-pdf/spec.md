@@ -241,8 +241,14 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   900-second TTL, then adds the BullMQ job `{ company_id, render_id, kind: 'attendance-statement' }` with
   `jobId = render_id` (ADR-0049 §1.1–§1.3), and answers `202 { render_id }`. `render_id` comes from the injected
   `IdGenerator`; the clock from the injected `Clock`.
-- **FR-004** If the enqueue fails after the status hash was written, the use case sets the status `FAILED` with
-  `DOCUMENT_RENDER_FAILED` and answers `503 RENDERER_UNAVAILABLE`. The request row stays (it records the attempt).
+- **FR-004** An enqueue error is reconciled atomically against the BullMQ job and render status. If the job exists
+  or its state has progressed beyond `QUEUED`, admission is established: preserve that state and answer
+  `202 { render_id }` with the original identifier. Otherwise set `FAILED / DOCUMENT_RENDER_FAILED` and answer
+  `503 RENDERER_UNAVAILABLE`. If Redis cannot establish the outcome, answer `503 RENDERER_UNAVAILABLE` without
+  overwriting the status: an unknown outcome is neither confirmed admission nor a definite render failure.
+  No background retry/outbox is promised for that unknown outcome; a later user request is a new attempt and may
+  duplicate work that was accepted before the connection failed. The request row stays in every case (it records
+  the attempt). Return `202` only when admission is established, so a never-enqueued job is not reported as accepted.
 - **FR-005** `GET …/attendance-statements/:renderId` is a **read**, so it goes through `queries/`, not a use case
   (`CLAUDE.md` §6): `queries/attendance-statement-status.query.ts` reads the request-row binding with SQL (result-shape
   test and `EXPLAIN` assertion), and the Redis status hash through a read-side interface declared **beside the query**
