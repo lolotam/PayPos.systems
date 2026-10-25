@@ -123,7 +123,7 @@ afterAll(async () => {
   await testDb.drop();
 });
 
-describe('listPendingDevices', () => {
+describe('listPendingDevices — rows and isolation', () => {
   it('returns the branch pending devices newest first, with nothing but id, label and created_at', async () => {
     const body = pendingDevicesResponse.parse(await pending(A.company, A.branch, firstPage));
     expect(body.items.map((device) => device.id)).toEqual([PENDING_NEW, PENDING_OLD]);
@@ -154,7 +154,9 @@ describe('listPendingDevices', () => {
     expect(ids).toContain(PENDING_NEW);
     expect(ids).not.toContain(OTHER_TENANT);
   });
+});
 
+describe('listPendingDevices — paging and plan', () => {
   it('pages through every pending device with a cursor, each one exactly once', async () => {
     const ids: string[] = [];
     const cursors: (string | null)[] = [];
