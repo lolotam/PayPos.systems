@@ -190,7 +190,12 @@ provider-owned reader and bound at the composition root, the way the root-bound 
 | notification recipients | `identity` |
 | the employee's business and dated branch attachments (FR-018b, FR-033) | `staff` |
 | customer full names (D-20) | `customers` |
-| tips, lines and package sales for the bootstrap (ADR-0041 §6) | `orders` |
+| tips and package sales for the bootstrap (ADR-0041 §6) | `orders` |
+
+**Lines and salaries are not a binding.** Spec 059 D-15 (decided 2026-10-25) replays the retained `ServiceSessionRecorded`,
+`ServiceSessionLinesAdded`, `ServiceLineChanged` and `SalaryChanged` events from the outbox through a typed replay facade
+in `packages/db` (read as `pospay_dispatcher`, effect and mark through `pospay_app` `withTenant`), so commissions needs
+no orders reader for them; how a legacy `SalaryChanged` without `business_id` is routed to a business during the replay is open: spec 059 50-3 item (e), `TODO(spec)`. See the ADR-0012 addendum of 2026-10-25.
 
 A root-bound read adds a **Port row** to `docs/module-map.md` §3 and **no import arrow** and **no `reads:` line** (a
 `reads` line is for an import arrow and must name its adapter file, so it is added only by a sub-PR that really needs an

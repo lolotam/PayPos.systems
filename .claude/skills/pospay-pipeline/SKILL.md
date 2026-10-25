@@ -37,8 +37,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 There is no separate model check before the first dispatch. Any `opencode` command started outside §4's guarded setup
 loads plugins and config before `check-opencode.cjs` has vetted them, and a bare `opencode run` would also run the model
 under opencode's default, unrestricted permissions. The first guarded run is the check: a missing model id, or an auth
-or quota failure, shows as a nonzero exit (§4 rule 8). Then stop and ask the owner. Never substitute a provider outside these two (PP-55.1), and never switch a task between them without the owner's yes. On a quota stop, hold and resume the same session after
-the renewal.
+or quota failure, shows as a nonzero exit (§4 rule 8). Then stop and ask the owner. Never substitute a provider outside these two (PP-55.1), and never switch a task between them without the owner's yes. **A Kimi usage limit is the exception, and the procedure is the owner's PP-60 yes already given:** do not stop and ask; switch that task to MiniMax in a new session (§4) and return to Kimi after the renewal. The cases: (1) a task that runs on MiniMax by design hits MiniMax's usage limit: hold, then resume the same session after the renewal, and never move it to Kimi without the owner's yes; (2) a temporary PP-60 MiniMax session goes back to Kimi as soon as Kimi renews, and if MiniMax runs out first, hold until either one renews; (3) any failure that is not a usage limit (authentication, configuration, an unavailable model) follows the rule above: stop and ask the owner. Hold-and-resume applies only to the usage-limit cases (1) and (2).
 
 ---
 
@@ -49,7 +48,7 @@ the renewal.
   - **P0 / P1** (security, money, tenant isolation, data loss, correctness): both design advisors propose a fix, the
     implementer applies it, and the PR **stays blocked** until it is fixed and confirmed. The cap never lowers the bar.
   - **P2 / P3**: open a GitHub issue per finding, linked from its review thread, then merge.
-- **Parallel work: at most 3 tasks at once**, and only when their file paths are **disjoint**. Two tasks that touch the
+- **Parallel work: keep 5 to 6 tasks running at all times, 6 at most** (Waleed, PP-59, 2026-10-25, `docs/owner-decisions.ar.md` item 28; it replaces the old cap of 3, and `.specify/memory/constitution.md` Principle I carries the same limit since version 3.1.0). When a task merges, open a replacement at once. Pick tasks whose file paths are **disjoint**, and run **one migration lane at a time**. Implementation runs on Kimi/MiniMax and Codex gives advice and review, to save Claude quota. Two tasks that touch the
   same file wait for each other. Each task has its own branch, worktree (`F:\Dev\Worktrees\PosPay\<branch>`) and PR.
   Migration and ADR numbers are assigned **at merge time**: renumber the later PR after the earlier one lands. Each
   slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
@@ -100,10 +99,10 @@ the MergePilot panel reviews each pushed commit by itself. Read every result bef
 The implementer runs through the **opencode CLI** (`opencode` on `PATH`, under `F:\Dev\Runtimes\npm-global`). The
 default model is **`kimi-code-plan-global/k3.1-pro#high`** (Kimi For Coding plan, variant `high`); small, fully pinned
 backend and data slices use **`minimax-coding-plan/MiniMax-M3.1-Flash`**, on Waleed's flat-rate coding plan, which
-offers no `#high` variant and runs at its default (PP-55.1). Everything below applies to both; only `-m` differs. The `opencode-delegate` skill holds the run and relay mechanics. This section
+offers no `#high` variant and runs at its default (PP-55.1). **When Kimi hits its usage limit** (a 5-hour window), switch that task to MiniMax in a **new session** briefed on what is done and what is left, and go back to Kimi once its quota renews (Waleed, PP-60, 2026-10-25, `docs/owner-decisions.ar.md` item 29). Everything below applies to both; only `-m` differs. The `opencode-delegate` skill holds the run and relay mechanics. This section
 pins the PosPay rules on top of it.
 
-1. **One session per task.** Give the first run a session id with `-s`, and record it in the task's notes
+1. **One session per task, and only one session works on it at a time.** The one exception to a single session id is PP-60: a Kimi usage limit moves the task to a new MiniMax session, which replaces the Kimi session while the limit lasts (the Kimi session stays idle, never running beside it), and the task goes back to a Kimi session after the renewal. Give the first run a session id with `-s`, and record it in the task's notes
    (`F:\Dev\Worktrees\PosPay\briefs\<task>\sid.txt`). The installed opencode CLI (v2.1.4, as v2.0.32 before it) documents `-s` as
    "Session ID to continue, or to create if it does not exist". It refuses an id that does not start with `ses`
    (`Expected a string starting with "ses"`, 2026-10-20), so a plain UUID fails before the model runs. Use opencode's
@@ -677,7 +676,7 @@ typing do not.
 - Never let MiniMax run any git command, read or write anything under `.git`, use any MCP tool, merge, push, or
   touch the server.
 - Never merge with a P0/P1 open, or with CI red on the head being merged.
-- Never exceed 5 review rounds without applying §2 (a docs-only PR has no cap, see the docs-only lane in §2), and never exceed 3 parallel tasks.
+- Never exceed 5 review rounds without applying §2 (a docs-only PR has no cap, see the docs-only lane in §2), and never exceed 6 parallel tasks (PP-59).
 - Never run two tasks in parallel that touch the same file.
 - Never change the staging database by hand without the owner's explicit approval for that change.
 - Never rewrite a pushed branch's history (`--force`) without the owner's explicit approval.
