@@ -103,8 +103,8 @@ caches while the session still lives at the server.
 
 **Acceptance Scenarios**:
 
-1. **Given** a live session, **When** a sign-out arrives with any `Origin` other than the configured POS origin,
-   **Then** the answer is 403 `FORBIDDEN` and the session still resolves afterwards.
+1. **Given** a live session, **When** a sign-out arrives with any `Origin` other than the configured POS origin (or, for the staff
+   route, a configured native origin: ADR-0019 addendum 2026-10-25, PP-62), **Then** the answer is 403 `FORBIDDEN` and the session still resolves afterwards.
 2. **Given** a live personal session, **When** the personal sign-out carries an `Authorization` header, **Then** the
    answer is 403 `FORBIDDEN` and the session still resolves.
 
@@ -163,7 +163,8 @@ Sara, a stylist, does not see it. Who counts is SO-Q1.
   `Authorization` header on the personal route) MUST get 403; missing configuration (sessions, POS origin setting or
   rate limiter not wired) MUST get 503, checked first; rate limit 429.
 - **FR-004**: The authority to end a session MUST be possession of that session's server-signed cookie, from the
-  configured POS origin, and nothing else. The staff route MUST NOT read the device token at all, so its answer can
+  configured POS origin (for the staff route also a configured native origin, `STAFF_NATIVE_ORIGINS`, staging only:
+  ADR-0019 addendum 2026-10-25, PP-62), and nothing else. The staff route MUST NOT read the device token at all, so its answer can
   never depend on whether the device is active, revoked, unknown or of a closed company.
 - **FR-005**: Ending a session MUST NOT depend on the user's eligibility, membership or phone binding.
 - **FR-006**: Ending the staff session MUST keep the device pairing and MUST go through the existing retirement path,
@@ -216,7 +217,8 @@ markers. The branch, in this order:
    `RATE_LIMITER` must be wired; otherwise 503 `NOT_READY`. For staff that means `StaffSessions` or the
    `STAFF_POS_ORIGIN` binding is null, the same condition under which no staff sign-in works at all; whether OTP is
    enabled is never consulted. A missing origin **setting** is configuration, not a refusal;
-1. the request's `Origin` header must equal that setting: for staff the `STAFF_OTP_POS_ORIGIN` environment variable
+1. the request's `Origin` header must equal that setting (for staff, or one entry of `STAFF_NATIVE_ORIGINS`,
+   which only staging sets to `capacitor://localhost`: PP-62): for staff the `STAFF_OTP_POS_ORIGIN` environment variable
    (injected as the `STAFF_POS_ORIGIN` token, the value the staff OTP routes compare today). Despite its name it is
    not an OTP-only setting: the composition root binds it whether or not OTP is enabled (`apps/api/src/main.ts`,
    `staff.origin: process.env['STAFF_OTP_POS_ORIGIN'] || null`, next to `api: otp ?? null`; provided as
@@ -338,7 +340,7 @@ Paths and methods do not change. Bodies are new Zod schemas in `packages/contrac
 | Case | Status | Body | `Set-Cookie` |
 |---|---|---|---|
 | Sessions, the POS origin setting or the limiter not wired (checked first) | 503 | `NOT_READY` envelope | none |
-| `Origin` header missing or not the configured POS origin | 403 | `FORBIDDEN` envelope | none |
+| `Origin` header missing or not the configured POS origin (staff: or a configured native origin) | 403 | `FORBIDDEN` envelope | none |
 | Personal route with an `Authorization` header | 403 | `FORBIDDEN` envelope | none |
 | Rate limit reached | 429 | `TOO_MANY_REQUESTS` envelope | none |
 | The request ended a live session (BR-002) | 200 | `{ "status": "SIGNED_OUT" }` | clears the route's cookie |
