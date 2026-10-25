@@ -206,7 +206,7 @@ jobs:
           fi
 
       - name: Upload the debug APK and the unsigned AAB
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-${{ matrix.flavour }}
           path: |
@@ -372,7 +372,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$app" "out/${FLAVOUR}-App.zip"
 
       - name: Upload the simulator build
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-${{ matrix.flavour }}-app
           path: apps/business/out/${{ matrix.flavour }}-App.zip
@@ -422,7 +422,7 @@ jobs:
 
       - name: Upload the UI test result
         if: always() && inputs.spike == true && matrix.flavour == 'staging'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-spike-xcresult
           path: ${{ runner.temp }}/spike/SpikeUITests.xcresult

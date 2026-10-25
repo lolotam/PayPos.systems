@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url';
 
 import {
   changeDevice,
+  cookieValues,
   fetchPendingDevicePages,
   findDeviceByLabel,
   issuePairingCode,
@@ -21,7 +22,6 @@ import {
 import {
   buildDeviceLabel,
   buildUiTestEnvironment,
-  cookieValues,
   matchDeviceLabel,
   summaryLines,
 } from './counter-auth-labels.mjs';
