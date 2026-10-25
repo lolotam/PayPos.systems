@@ -42,10 +42,14 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
   the branch's previous live code**, so a code the manager replaced, for example because someone saw it, stops
   working at once. This needs a pointer keyed by `(company_id, branch_id)` in the pairing-code store. Issuing a code, replacing the
   pointer, deleting the old key, and checking and consuming at register time each run as **one atomic Redis step** (a
-  Lua script), so a replaced code can never be consumed (071-1).
+  Lua script), so a replaced code can never be consumed. Register first **claims** the code for a client
+  nonce, and only a committed registration consumes it, so a database retry with the same nonce succeeds while any
+  other claimant is refused. The code's stored value also keeps the **issuing user's id**, which is the actor of an
+  automatic approval (071-1).
 - **FR-002** The same screen lists the branch's pending devices, with «موافقة» and «رفض»; refuse uses revoke. Each row
   shows the device's name, its time, and a **check code**: four symbols of the pairing-code alphabet (no look-alike characters), taken from a hash of the
-  whole device id. The id is UUID v7, so its time-ordered prefix must never be used. The
+  whole device id (the id is UUID v7, so its time-ordered prefix must never be used). The server keeps it unique among
+  the branch's current pending devices: on a clash it rehashes with a counter until the code is free. The
   counter app's waiting screen shows the same check code. The manager approves only when the two match, because a
   label can be typed by anyone holding the code.
   - While a code is live, the list refreshes every 5 seconds, and it has a «تحديث» button, so a device that registers
@@ -53,7 +57,7 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
   - The list follows `next_cursor` with a «عرض المزيد» action, so no pending device is ever hidden past the first page.
   - Whether approval stays a separate step is DV-Q2, `TODO(spec)`. If the owners pick «the code is enough», the API
     must approve on register a device that used a live code, in the same transaction, writing the same approval audit
-    row as a manual approval with the source `pairing_code` (`CLAUDE.md` §8). The check code then has no admin row to
+    row as a manual approval, with the code's issuer as the actor and the source `pairing_code` (`CLAUDE.md` §8). The check code then has no admin row to
     sit on, so it is shown on the device only.
 - **FR-003** Active devices with «إزالة» (DV-Q3, `TODO(spec)`). It needs `status=active` on the spec 070 route, with
   the same cursor paging and «عرض المزيد».
@@ -74,8 +78,15 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
   unless **every active branch of the target** is a branch the caller manages. The PIN is company-wide, so a manager of
   one branch must not set the PIN of an employee who also works in a branch she does not manage; the owner sets those.
   A target with any `COMPANY`- or `BUSINESS`-scoped membership is always the owner's to set. Her coverage is never
-  read as an empty set of branches. If the target later gains a branch the setter does not manage, her PIN is cleared
-  and the owner sets it again. The 071-3 sub-spec settles where that clearing runs.
+  read as an empty set of branches. Before 071-3 starts, its sub-spec must make all of these hold, each with a test:
+  - a target with no active branch is refused;
+  - the eligibility read returns a second server-computed boolean, `can_set_by_caller`, so the button shows the
+    owner-only state instead of failing on submit;
+  - a PIN set by a branch manager is cleared, in the **same transaction** as the change that causes it, when the target
+    gains a branch the setter does not manage **or** the setter loses her authority over the target (role, scope,
+    grant or DENY);
+  - the PIN sign-in fails closed while that clearing is pending.
+  If those cannot be met simply, 071-3 falls back to the owner only, and the owners are told before it ships.
 - **FR-007** All strings come from `packages/i18n`, the screens are RTL, and every UI test asserts what the user sees
   (`CLAUDE.md` §7, §9).
 
@@ -95,7 +106,7 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
   - a replaced code is refused at register, including in a race test against the atomic step;
   - a pointer of company A never affects company B;
   - the check code matches between the admin row and the device, and two devices registered in the same millisecond
-    get different codes;
+    get different codes, and a forced hash clash among pending devices is resolved by the rehash;
   - a device that registers after the screen opened appears within one refresh;
   - pending devices past the first page are reachable;
   - DV-Q2 «the code is enough»: an auto-approved device has its approval audit row.
@@ -105,5 +116,6 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
   - an employee without a phone binding shows as not ready;
   - with DV-Q5 option 2, a branch manager is refused for a target outside her branches, or with a `COMPANY` or
     `BUSINESS` membership;
-  - the PIN never appears in the DOM after it is set.
+  - the PIN typed by the setter never appears in the DOM after it is set. If DV-Q6 picks the generated PIN, it is
+    shown once in the success view, cleared when the view closes, and never stored or logged by the browser.
 - **Every UI test** asserts what the user sees (`CLAUDE.md` §9).
