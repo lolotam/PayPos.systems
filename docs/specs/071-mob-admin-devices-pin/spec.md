@@ -7,7 +7,7 @@
 **Status**: Draft. Waleed answered the owner questions DV-Q1 … DV-Q7 (decisions page batch 72, PP-63.1 … PP-63.7) on
 2026-10-25; Abu Salem has not answered yet ([owner-questions.ar.md](owner-questions.ar.md)). Work follows Waleed's
 picks, named under each rule below. Each rule keeps its `TODO(spec)` marker until Abu Salem answers, because his pick
-binds if it differs (`CLAUDE.md` §1 5b). DV-Q8 (batch 73, PP-63.8) is a follow-up question; Waleed answered it the same day.
+binds if it differs (`CLAUDE.md` §1 5b). DV-Q8 (batch 73, PP-63.8) is a follow-up question whose options are being rewritten (issue #682).
 
 **Input**: Issue #634. Today a counter device can only be paired, approved or removed, and a staff PIN can only be set,
 through the API by hand. For M-1c the web manager did each step with `curl` and read a device id from the database.
@@ -19,7 +19,7 @@ and `POST /v1/staff-pins/reset`. No screen in `apps/admin` calls any of them.
 those changes are needed whatever the owners answer: a new code invalidates the previous one, there is a check code
 for approval, and there is a PIN eligibility read. Others apply only for one answer: DV-Q2 «the code is enough» means
 auto-approval on register, DV-Q3 means an `active` filter, and DV-Q5 means a branch-scoped PIN reset. Out of scope:
-the staff OTP sign-in (PP-58.1), and the employee's own PIN change, except the change after a one-time PIN (DV-Q8, 071-4).
+the staff OTP sign-in (PP-58.1), and the employee's own PIN change, except the safeguard the new DV-Q8 answer needs (071-4).
 
 ## Facts that shape the questions
 
@@ -74,14 +74,16 @@ the staff OTP sign-in (PP-58.1), and the employee's own PIN change, except the c
   - **The setter knows the PIN** (DV-Q6). ADR-0019 §1 says a manager may reset an employee's PIN but must never sign
     in as her, and every action records the actual actor. A PIN the setter typed is a reusable credential the setter
     knows, so the setter, owner or branch manager, could sign in as the employee afterwards. The fix is DV-Q8,
-    `TODO(spec)`. Waleed: the set PIN works once, then the employee picks her own on the counter device (071-4).
-    A residual risk stays: whoever holds the one-time PIN can use it before the employee and choose the permanent PIN.
-    The employee then cannot sign in and asks for a reset, so it is visible, and the audit records the reset and the
-    change as separate actions. Gating the change on a WhatsApp code would close it but locks out a STOP-suppressed
-    employee, whose own PIN is ADR-0019's recovery path, and staff OTP is postponed (PP-58.1). How to narrow the risk
-    (a short validity for the one-time PIN, a notice to the owner when it is changed) gets design advice in issue #682.
+    `TODO(spec)`. Waleed first picked a one-time PIN, which the employee replaces with her own. Review then showed that
+    a one-time PIN does not meet ADR-0019 either: the setter knows it, can redeem it first and choose the permanent PIN,
+    and the server cannot tell which person changed it, because both hold the same credential, so the audit cannot name
+    the actual actor. Only a proof the employee alone controls (a WhatsApp code to her phone, or a passkey, ADR-0027)
+    meets the rule. A WhatsApp code locks out a STOP-suppressed employee, whose own PIN is ADR-0019's recovery path, and
+    staff OTP is postponed (PP-58.1). Without such a proof, ADR-0019 itself must be revised by a recorded decision. The
+    options are being rewritten from design advice (issue #682) and republished as a new owner question; the decisions
+    page says nobody should pick until then.
 
-    071-3 does not start before DV-Q8 is answered, and its PIN action never reaches staff without 071-4.
+    071-3 does not start before that question is answered, and its PIN action never reaches staff without the safeguard it picks.
   - The list needs a guarded read, the **PIN eligibility read** (071-3). For each employee it returns the linked
     `user_id` (or none) and one boolean: whether a PIN would let that person sign in on the chosen branch's devices. That is `staffEligible`
     (`apps/api/src/modules/identity/domain/staff-eligibility.ts`: a membership covering that branch and the effective
@@ -117,10 +119,9 @@ the staff OTP sign-in (PP-58.1), and the employee's own PIN change, except the c
 2. **071-2** Active devices and remove. Only if DV-Q3 says yes; adds `status=active` to the spec 070 route.
 3. **071-3** The staff PIN action and the PIN eligibility read. If DV-Q5 picks branch managers, it also adds the
    branch-scoped reset of FR-006.
-4. **071-4** The one-time PIN (DV-Q8, Waleed's pick). A PIN set by someone else is stored as one-time. Signing in with
-   it opens only the PIN-change screen on the counter device, never a staff session, and the new PIN is the employee's
-   own. Its sub-spec, after the design advice in issue #682, states the state transitions, the route, its guard, the
-   UI and the tests. 071-3 never ships to staff without it.
+4. **071-4** The employee-side PIN safeguard, shaped by the new DV-Q8 answer (issue #682). Its sub-spec states the PIN
+   states and transitions, including which of them FR-006's clearing applies to: a PIN someone else set, never a PIN
+   the employee chose behind her own proof. 071-3 never ships to staff without it.
 
 ## Acceptance and tests (each sub-PR's own spec states its exact routes, schemas, guards and errors)
 
