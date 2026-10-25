@@ -44,8 +44,8 @@ commit → every service created in one transaction with its audit row, and the 
 - SI-08: a workbook over 2 MiB or over 500 data rows is refused before any write.
 - SI-09 (`TODO(spec)` SI-Q1, SI-Q2): a row whose `name_en` equals an existing service of the business, or equals
   another row of the same file, is a named row error; nothing is skipped silently and nothing is updated.
-- SI-11: before committing, the manager sees every row as the server resolved it (names, price, the commission rule
-  that will be stored, whether it was a default, the tier flag), so a blank commission cell turned into `FOLLOW_PLAN`
+- SI-11: before committing, the manager sees every error-free row as the server resolved it (names, price, the commission rule
+  that will be stored, whether it was a default, the tier flag; a clean preview therefore shows all rows), so a blank commission cell turned into `FOLLOW_PLAN`
   (SI-Q3) is never a surprise; see FR-014.
 - SI-10: money never becomes a JavaScript number or a float: a price cell is converted to the contract's 3-decimal
   string by string handling, and a fourth decimal is a row error, not a rounding.
@@ -92,13 +92,13 @@ did. A decision that depends on an owner answer says so.
 |---|---|---|
 | D-1 | **The preview is stored in the existing `import_previews` table with `entity = 'services'`.** `entity` is free text under `CHECK (entity ~ '^[a-z][a-z0-9_]{1,31}$')`, `rows` and `errors` are `jsonb`, and the status, count and expiry checks and the RLS policies and grants do not look at `entity`; ADR-0034 and the schema comment announce `services` as the next entity. No migration. | A `service_import_previews` table (a second table, its RLS, its grants and a second negative test, for no benefit) |
 | D-2 | **Catalog owns its whole import flow** (API use cases, worker module, sweep). Staff's flow is not generalised in place: its queries, its commit transaction and its sweep filter `entity = 'employees'` and write employee rows. Only entity-agnostic pieces move to `apps/api/src/shared/import/` (see Touched outside the slice) and `readSheet` / the zip and XML guards are reused as they are. "A plug-in, not a second engine" (ADR-0034, spec 030) is read as: one sheet engine, one preview table, one API shape, one UI shell; the per-entity commit lives with the entity. | Making staff's use cases entity-generic: it rewrites merged, heavily hardened code (ADR-0034 "Review hardening") for a second consumer |
-| D-3 | **Authorization is the guard the services controller already uses:** `@Require('manage:services:business', { business: 'businessId' })` plus `@RequiresFeature('catalog')` on all four routes. There is no identity read inside the use-case transaction (the employee import needed one for the PR 7 lock protocol; services have no such protocol, and create-service authorizes by the guard alone). As in ADR-0034 IM-08, authorization is checked at acceptance; a later revocation does not cancel an accepted commit, and the worker does not recheck the feature flag. | Copying the employee import's in-transaction identity locks (adds an import arrow `catalog → identity`, ADR required, for no rule that needs it) |
+| D-3 | **Authorization is the guard the services controller already uses:** `@Require('manage:services:business', { business: 'businessId' })` plus `@RequiresFeature('catalog')` on all five routes (template, preview, rows, commit, status). There is no identity read inside the use-case transaction (the employee import needed one for the PR 7 lock protocol; services have no such protocol, and create-service authorizes by the guard alone). As in ADR-0034 IM-08, authorization is checked at acceptance; a later revocation does not cancel an accepted commit, and the worker does not recheck the feature flag. | Copying the employee import's in-transaction identity locks (adds an import arrow `catalog → identity`, ADR required, for no rule that needs it) |
 | D-4 | **File facts and file bytes come through catalog-owned ports bound at the composition root** (`ImportFileFactsPort`, `ObjectBytesReader`), the pattern of spec 059 D-16: no `catalog → files` import arrow. Catalog may import `tenancy` only (module-map §2), and `packages/storage` is restricted to `files`. `TODO(spec)` **SI-T1** (technical, Waleed only): the alternative is the arrow with an ADR. | A `catalog → files` arrow |
 | D-5 | **One new event type, `ServiceImportCommitRequested`** (id-only `{ preview_id }`, company in the outbox envelope), emitted in the acceptance transaction, as `EmployeeImportCommitRequested` is. **No per-service event and no summary event:** spec 031 SV-10 records that no consumer needs a service event, and an unconsumed outbox row is a cost with no reader. The record of what was imported is the preview row (`status = committed`, `created_count`, `committed_at`) and the audit rows. The module-map §4 row lands in 32b-0 (documentation only); the event type is added to `apps/worker/src/outbox/known-event-types.ts` in 32b-3 together with the catalog worker transport, and the API producer ships last (32b-5), after the worker consumer and the sweep are deployed everywhere, so a rolling deployment never has an event whose consumer is missing. | Reusing `ImportCommitted` (a staff event whose payload carries `employee_ids`) |
 | D-6 | **A new worker module `apps/worker/src/modules/catalog`** (today the worker has no catalog module): the BullMQ jobs `service-import-commit` and `service-import-recovery` (the per-company stale-request sweep, with the tenant discovery and scheduler protocol of PR 24 / ADR-0022, exactly as staff registers its own), wired in the worker composition root. The `catalog → tenancy` arrow already covers api and worker. The sweep reads only `entity = 'services'`, and staff's sweep, which reads only `entity = 'employees'`, never touches a services preview. | Extending staff's sweep to other entities |
 | D-7 | **Preview stays synchronous, commit moves to the worker.** Spec 031 already says the service import "is the heavy path and uses the PR 11 worker framework", and CLAUDE.md §6 sends anything over 200 ms to the worker. The API acceptance transaction must stay under 200 ms warm (asserted in an integration test, as ADR-0034 did). The synchronous preview of a 500-row workbook is measured in 32b-2 (one warm-up and five runs, median under 200 ms, the ADR-0034 method); if it is not, 32b-2 stops and reports instead of weakening a bound. | A synchronous commit: not allowed by the 200 ms rule without a measurement that does not exist yet |
 | D-8 | **Row validation reuses the create-service rules exactly (SR-006):** the plug-in converts the cells of a row to the contract shape (strings for money, an integer for `PCT`), runs `serviceTerms`, which calls `validateServiceDraft`, and maps the named `ServiceError` it throws (`SERVICE_NAME_INVALID`, `SERVICE_PRICE_INVALID`, `SERVICE_COMMISSION_RULE_INVALID`) to the row error of the column that failed. There is no second validation engine. | A parallel validator in the import code |
-| D-9 | **The stored `rows` are the contract shape** (`name_en`, `name_ar`, `price` as a 3-decimal string, `commission_rule`, `counts_toward_threshold`), never a number for money. The worker consumes immutable validated rows and re-checks only what can change after the preview (that the business still exists and, `TODO(spec)` SI-Q1, that no service now has the same name), as the staff worker re-checks only branches. | Re-parsing the workbook in the worker |
+| D-9 | **The stored `rows` are the normalized preview rows of FR-014:** `{ row, name_en, name_ar, price (3-decimal string), commission_rule, commission_rule_defaulted, counts_toward_threshold }`, never a number for money. The worker consumes them as immutable validated rows and projects only the service fields into the insert (dropping `row` and `commission_rule_defaulted`); it re-checks only what can change after the preview (that the business still exists and, `TODO(spec)` SI-Q1, that no service now has the same name), as the staff worker re-checks only branches. | Re-parsing the workbook in the worker |
 
 ### Functional requirements
 
@@ -125,11 +125,12 @@ did. A decision that depends on an owner answer says so.
   | `counts_toward_threshold` | no | counts toward the commission tiers | blank means `true` (SR-005); else a boolean cell, or the text `true`/`false`, `yes`/`no`, `نعم`/`لا`, case-insensitive |
 
   `TODO(spec)` SI-Q5: no duration or category column in this row.
-- FR-005: **money in cells.** An Excel numeric cell arrives as a JavaScript number. The moved sheet reader hands the plug-in, for every numeric cell, the decimal text stored in the file (the `<v>` text
-  its XML scan already reads) next to the number; the plug-in uses the text only, so a price is never parsed to a double
-  and back. If the design advice of 32b-1 finds the reader cannot expose it, the fallback is the number's shortest decimal
-  form, which is exact for any value of at most 15 significant digits (a price has at most 11 + 3), and a cell
-  with more significant digits is refused. Either way the plug-in converts a price (and a `FIXED` value) to the
+- FR-005: **money in cells.** An Excel numeric cell arrives as a JavaScript number. A numeric cell reaches the plug-in as the number the file holds, used only as a carrier and turned into text at once,
+  never added, multiplied or compared as a number: the plug-in takes the number's shortest round-trip decimal form,
+  which returns exactly what the manager typed for any value of at most 15 significant digits (a price has at most
+  11 + 3), even though Excel stores `0.57` in the file as `0.56999999999999995`. A cell whose shortest form has more
+  than 15 significant digits is refused. The raw `<v>` text of the file is deliberately not used, because Excel writes
+  17-digit forms there. A text cell is read as typed. The plug-in converts a price (and a `FIXED` value) to the
   contract's 3-decimal string with string handling, never with float arithmetic: `12.5` becomes `"12.500"`, `0` becomes `"0.000"`. A value with a fourth decimal, a
   negative value, an exponent form (`1e21`), a thousands separator, a non-ASCII digit, or a value at or above
   `10^11` KWD is `IMPORT_PRICE_INVALID` (or `IMPORT_COMMISSION_VALUE_INVALID` for the `FIXED` value); it is never
@@ -182,14 +183,16 @@ did. A decision that depends on an owner answer says so.
   company, business and user in session storage so reopening the page reads its status again. A link to it sits on the
   services list.
 - FR-014: **the preview shows what will be saved.** Besides counts and errors, the preview returns the normalized
-  rows the commit will insert, in sheet order, each `{ row, name_en, name_ar, price, commission_rule,
+  rows the commit will insert, in sheet order. **Only error-free rows are returned**; a row with an error appears in
+  `errors` by its row number and column and is never echoed back, so there is no half-valid row to represent, and the
+  two lists align by `row`. A clean preview, the only one that can commit, returns every row. Each row is `{ row, name_en, name_ar, price, commission_rule,
   commission_rule_defaulted, counts_toward_threshold }`, with `price` the 3-decimal string and `commission_rule` the
   contract shape (never a number for money; no duration, since the service has none, `TODO(spec)` SI-Q5). The POST
   response carries the first 100 rows and a `next_cursor`; `GET .../previews/{previewId}/rows?cursor&limit` (1 to
   100) pages the rest, creator-only, with the same unknown-preview refusal as the status read. The screen lists them
   in a table, marks a defaulted rule ("حسب الخطة (افتراضي)" / "Follow plan (default)"), and keeps the commit button
   disabled until the preview is clean; a test must show the defaulted rule on screen. `commission_rule_defaulted` is
-  stored with each row in `rows`. The status read stays small and returns no rows.
+  stored with each row in `rows` (D-9). The status read stays small and returns no rows.
 - FR-013: no strings in JSX; all text through `packages/i18n` keys in ar and en. RTL-safe CSS.
 
 ### Edge cases
@@ -263,7 +266,7 @@ the row error enum are the service import's own (not the employee import's).
 
 ### Permissions
 
-`manage:services:business` for all four routes, defaults as spec 031 (owner, general manager, business manager);
+`manage:services:business` for all five routes (the rows read included, never `read:services:business`), defaults as spec 031 (owner, general manager, business manager);
 Branch Manager and Device are refused by the PR 7 matrix. No new permission, no role default change, no seeding
 migration. `read:services:business` is not enough to import.
 
@@ -384,11 +387,13 @@ approach 200 ms) and 32b-3 (worker, long work), pipeline §3 step 2.
 | **32b-0** | ADR and map, no behaviour | 1. ADR-0034 addendum (or a new ADR, numbered at merge) recording D-1 to D-9, the `catalog` worker module, the new event and the rollout order, and the answer to SI-T1. 2. `docs/module-map.md`: the Port rows (or the arrow), the worker `catalog` module row, the `ServiceImportCommitRequested` event row (no code registers the event yet). 3. The design advisors' findings written back into this spec in the same PR | this spec merged; SI-T1 answered; design advisors | 100 to 200 |
 | **32b-1** | Contracts, moved adapters, pure rules | 1. `service-import.ts` contracts (including the normalized row and the rows page), OpenAPI registration and the i18n error messages (ar and en). 2. Move the entity-agnostic import adapters to `apps/api/src/shared/import/` with staff re-importing them (staff tests unchanged), and extend the reader to hand over numeric cells as stored text plus number format (FR-005, FR-006). 3. The domain plug-in: cell converters, row mapper over `serviceTerms`, duplicate-key function and in-file duplicates, with the domain unit tests | 32b-0; SI-Q2, SI-Q3, SI-Q4 and SI-Q5 answered (they fix the cells and the in-file rule); design advisors | 450 to 650 |
 | **32b-2** | Template, preview, rows, status | 1. Template use case and workbook (headers, comments, reference sheet). 2. Preview use case: file facts and bytes ports, sheet read, normalized rows, existing-names read, save with `entity = 'services'`. 3. HTTP (preview with first rows page, rows page, status) with their `EXPLAIN` tests, SIT-01, SIT-02, SIT-06, SIT-07, SIT-08, SIT-10, SIT-13, SIT-14 and the preview timing | 32b-1; SI-Q1 answered; design advisors | 500 to 700 |
-| **32b-3** | Worker commit | 1. The worker `catalog` module: processor, the transport of the request event, and the registration of the event type in `known-event-types.ts`. 2. The commit transaction: per-business advisory lock, name re-check, inserts, audit rows with the requesting manager as actor, status. 3. SIT-03, SIT-04, SIT-11, SIT-15, driven by a seeded `commit_requested` preview and event (no API route yet) | 32b-2; design advisors | 450 to 650 |
+| **32b-3** | Worker commit | 1. The worker `catalog` module: processor, the transport of the request event, and the registration of the event type in `known-event-types.ts`. 2. The commit transaction: per-business advisory lock, name re-check, inserts, audit rows with the requesting manager as actor, status. 3. SIT-03, SIT-04, SIT-11, SIT-15, driven by a seeded `commit_requested` preview and event (no API route yet) | 32b-1; SI-Q1 answered; design advisors | 450 to 650 |
 | **32b-4** | Stale-request sweep | 1. Per-company sweep registration (ADR-0022 protocol) in the catalog worker, done before the transport acknowledges an event. 2. The recovery use case and transactions. 3. SIT-12 | 32b-3 | 200 to 320 |
-| **32b-5** | Commit request (the producer) | 1. Commit-request use case and route (202, idempotency, the id-only event). 2. Wiring and rollout note: ships only after 32b-3 and 32b-4 are deployed to the environment, so no event is emitted without its consumer and sweep. 3. SIT-05, SIT-09 and the acceptance timing | 32b-3, 32b-4 | 250 to 400 |
+| **32b-5** | Commit request (the producer) | 1. Commit-request use case and route (202, idempotency, the id-only event). 2. Wiring and rollout note: ships only after 32b-3 and 32b-4 are deployed to the environment, so no event is emitted without its consumer and sweep. 3. SIT-05, SIT-09 and the acceptance timing | 32b-2, 32b-3, 32b-4 | 250 to 400 |
 | **32b-6** | The screen | 1. The `catalog/import` page and panel, with the polling hook and the stored request id. 2. The table of resolved rows with the defaulted-rule marker, the link on the services list and the ar/en keys. 3. Component tests that assert visible outcomes; the journey doc `docs/journey/NN-services-import.md` follows in its own docs PR (pipeline step 14) | 32b-5 | 350 to 500 |
 
-The order is a chain after 32b-1 (32b-2 and 32b-3 touch disjoint paths and may run side by side). The screen cannot
-reach users before the sweep exists: 32b-6 depends on 32b-5, which depends on 32b-4. No PR adds a migration; if any finds that one is needed, it stops and amends the Schema
+The graph is: 32b-0, then 32b-1, then 32b-2 and 32b-3 in parallel (the API catalog files and the worker catalog
+files are disjoint paths; 32b-3 is tested with a seeded preview, so it does not wait for 32b-2), then 32b-4 after
+32b-3, then 32b-5 after 32b-2, 32b-3 and 32b-4, then 32b-6 after 32b-5. The screen cannot reach users before the
+sweep exists. No PR adds a migration; if any finds that one is needed, it stops and amends the Schema
 changes section first.
