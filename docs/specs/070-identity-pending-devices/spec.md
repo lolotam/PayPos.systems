@@ -19,8 +19,9 @@ revoked devices, and any change to pairing, approval or claim.
 ## Requirements
 
 - **FR-001** `GET /v1/branches/{branchId}/devices?status=pending` returns the branch's devices whose `status` is
-  `PENDING`, newest first, as `{ items: [{ id, label, created_at }] }`: at most 50, a bounded list with no cursor,
-  since a branch has a handful of devices waiting at a time.
+  `PENDING`, newest first, as a cursor page (`CLAUDE.md` §6): `{ items: [{ id, label, created_at }], next_cursor }`,
+  with the shared `limit` (default 20, at most 100) and an opaque `cursor` keyed on `(created_at, id)` and bound to
+  the company and branch. A malformed or foreign cursor is a 400 `VALIDATION_FAILED`.
 - **FR-002** Guarded by `@Require('manage:devices:branch', { branch: 'branchId' })`, the same permission as approve
   and the pairing code. The company comes from `x-company-id` as on every tenant route.
 - **FR-003** `status` is required and only `pending` is accepted for now; any other value, or none, is a 400
@@ -34,13 +35,15 @@ revoked devices, and any change to pairing, approval or claim.
 - Read path (`CLAUDE.md` §6): a `queries/` file in the `identity` module, its read interface beside it, a thin
   controller, wired in `identity.module.ts`. The query runs under `withTenant` and projects straight into the DTO.
 - Index: the `(company_id, branch_id)` indexes (`devices_company_id_branch_id_idx`, and the unique
-  `devices_company_branch_id_key` the planner picks) already serve the filter; no migration.
+  `devices_company_branch_id_key` the planner picks) serve the filter today; a partial index on
+  `(company_id, branch_id, created_at DESC, id DESC) WHERE status = 'PENDING'` is #655, held while another PR has the one
+  migration lane.
 - Contract: a Zod schema in `packages/contracts` plus its OpenAPI path, regenerated into `openapi.json` and the two
   frontends' `schema.d.ts`.
 
 ## Tests
 
-- Query: the result shape, newest first, only `PENDING` rows of that branch, the 50 cap, a cross-tenant read returns no
+- Query: the result shape, newest first, only `PENDING` rows of that branch, paging every pending device exactly once through `next_cursor`, a foreign cursor refused, a cross-tenant read returns no
   rows (RLS), and an `EXPLAIN ANALYZE` assertion that uses one of those indexes, never a sequential scan.
 - HTTP: 200 for a manager with `manage:devices:branch`, 403 without it, 400 for a missing or unknown `status`, and no
   forbidden field in the body.
