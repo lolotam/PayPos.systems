@@ -257,12 +257,17 @@ export async function endEmployeeSessionFirst(current: NativeState): Promise<Nat
 }
 
 async function endPersonalSessionWithTimeout(): Promise<'done' | 'failed'> {
+  const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<'failed'>((resolve) => {
-    timer = setTimeout(() => resolve('failed'), START_OVER_SIGN_OUT_WAIT_MS);
+    timer = setTimeout(() => {
+      // جواب متأخر بعد انتهاء المهلة بيعمل Set-Cookie بيمسح جلسة أحدث، فبنلغي الطلب بدل ما نستناه.
+      controller.abort();
+      resolve('failed');
+    }, START_OVER_SIGN_OUT_WAIT_MS);
   });
   try {
-    return await Promise.race([endPersonalSession(), timeout]);
+    return await Promise.race([endPersonalSession(controller.signal), timeout]);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }

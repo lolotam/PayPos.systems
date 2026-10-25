@@ -28,8 +28,17 @@ export const personalCalls = {
     (await client().POST('/v1/staff/personal-otp/request', { body: input })).data ?? null,
   verify: async (input: PersonalOtpVerifyInput) =>
     (await client().POST('/v1/staff/personal-otp/verify', { body: input })).data ?? null,
-  signOut: async () => {
-    const result = await client().POST('/v1/staff/personal-session/sign-out');
+  /**
+   * بيوقّع الجلسة الشخصية عند السيرفر.
+   *
+   * @param signal إشارة إلغاء اختيارية: لو اتلغت، الطلب بيترفض والرد المتأخر ما بيلمسش كوكي جلسة أحدث
+   * @returns ما فيش رد يرجع؛ الرد المرفوض أو الغامض بيرمي استثناء
+   */
+  signOut: async (signal?: AbortSignal) => {
+    const result = await client().POST(
+      '/v1/staff/personal-session/sign-out',
+      signal === undefined ? {} : { signal },
+    );
     if (!result.response.ok) throw new Error('PERSONAL_SIGN_OUT_REFUSED');
     // جواب غامض (200 من غير حالة معروفة) يوقف المتصل؛ مينفعش يعدّ نفسه خرج.
     if (!signOutResult.safeParse(result.data).success) throw new Error('PERSONAL_SIGN_OUT_UNCLEAR');
