@@ -9417,7 +9417,7 @@
             }
           },
           "400": {
-            "description": "The bilingual error envelope; a foreign branch and a missing permission share the same 403.",
+            "description": "The status query is missing or not pending",
             "content": {
               "application/json": {
                 "schema": {

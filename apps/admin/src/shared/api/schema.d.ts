@@ -12180,7 +12180,7 @@ export interface operations {
                     "application/json": components["schemas"]["PendingDevicesResponse"];
                 };
             };
-            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
+            /** @description The status query is missing or not pending */
             400: {
                 headers: {
                     [name: string]: unknown;

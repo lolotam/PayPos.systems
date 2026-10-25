@@ -41,7 +41,13 @@ import { alertRulePaths, alertRuleSchemas } from './settings/alert-rules-openapi
 import { staffColumnsPaths, staffColumnsSchemas } from './settings/staff-columns-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
-import { employee, createdEmployee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
+import {
+  employee,
+  createdEmployee,
+  createEmployeeInput,
+  employeeRoleCode,
+  employeeDate,
+} from './staff/employee.js';
 import {
   employeeImportColumn,
   employeeImportErrorCode,
@@ -68,7 +74,7 @@ import {
   devicePaths,
   pendingDevicesPaths,
   pendingDevicesSchemas,
-} from './identity/pending-devices-openapi.js';
+} from './identity/devices-openapi.js';
 import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
 import { mePaths } from './identity/me-openapi.js';
 import { customer, findOrCreateCustomerInput } from './customers.js';
@@ -118,12 +124,17 @@ import {
   pushSubscriptionInput,
 } from './push-subscription.js';
 import {
-  businessIdentity, businessIdentityNames, businessLogo, businessSettings, identityCapability,
+  businessIdentity,
+  businessIdentityNames,
+  businessLogo,
+  businessSettings,
+  identityCapability,
   calendar,
   language,
   setBusinessLogoInput,
   taxRule,
-  updateBusinessIdentityNamesInput, updateBusinessSettingsInput,
+  updateBusinessIdentityNamesInput,
+  updateBusinessSettingsInput,
 } from './settings/business-settings.js';
 import { currency } from './reference/currency.js';
 import { timeZone } from './reference/time-zone.js';
@@ -167,7 +178,8 @@ const SCHEMAS = [
   ...pendingDevicesSchemas,
   ...fileSchemas,
   ...staffColumnsSchemas,
-  employee, createdEmployee,
+  employee,
+  createdEmployee,
   createEmployeeInput,
   employeeRoleCode,
   employeeDate,
@@ -234,8 +246,14 @@ const SCHEMAS = [
   workspaceBranch,
   workspaceBusiness,
   workspaceCompany,
-  businessIdentity, businessIdentityNames, businessLogo, businessSettings, identityCapability,
-  setBusinessLogoInput, updateBusinessIdentityNamesInput, updateBusinessSettingsInput,
+  businessIdentity,
+  businessIdentityNames,
+  businessLogo,
+  businessSettings,
+  identityCapability,
+  setBusinessLogoInput,
+  updateBusinessIdentityNamesInput,
+  updateBusinessSettingsInput,
   // المكوّنات المتداخلة لازم تتسجل هي كمان، وإلا Zod بيحطها تحت __shared بدل components.
   verticalType,
   currency,
@@ -272,7 +290,9 @@ const PATHS = {
   ...catalogPaths,
   ...alertRulePaths,
   ...serviceSessionPaths,
-  ...serviceSessionFormPaths, ...serviceSessionRecoveryPaths, ...discountApprovalPaths,
+  ...serviceSessionFormPaths,
+  ...serviceSessionRecoveryPaths,
+  ...discountApprovalPaths,
   '/v1/devices/me/attendance-qr': {
     post: {
       ...operation(

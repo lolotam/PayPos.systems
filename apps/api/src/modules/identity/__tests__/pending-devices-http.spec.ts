@@ -9,13 +9,41 @@ import { startHarness, type Harness } from '../../../../test/harness.ts';
 let h: Harness;
 let owner: string;
 let company: string;
+let business: string;
 let branch: string;
+let otherBranch: string;
 let cashier: string;
+let branchManager: string;
 
 function roleId(code: string): string {
   const found = SYSTEM_ROLES.find((role) => role.code === code);
   if (found === undefined) throw new Error(`missing role ${code}`);
   return found.id;
+}
+
+async function createBranch(key: string, name: string): Promise<string> {
+  const res = await h.send('POST', `/v1/businesses/${business}/branches`, {
+    cookie: owner,
+    company,
+    key,
+    body: { name_en: name },
+  });
+  expect(res.status).toBe(201);
+  return res.body['id'] as string;
+}
+
+// A member of the company whose role and scope decide what the caller may manage.
+async function member(
+  email: string,
+  role: string,
+  scopeType: 'COMPANY' | 'BRANCH',
+  scopeId: string,
+): Promise<string> {
+  const cookie = await h.signedInOperator(email);
+  const [holder] = await h.owner`SELECT id FROM "user" WHERE email = ${email}`;
+  await h.owner`INSERT INTO memberships (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id)
+    VALUES (${company}, ${randomUUID()}, ${holder?.['id'] as string}, ${roleId(role)}, 'global', ${scopeType}, ${scopeId})`;
+  return cookie;
 }
 
 async function pairingCode(): Promise<string> {
@@ -45,27 +73,22 @@ beforeAll(async () => {
   h = await startHarness();
   owner = await h.signedInOperator('pending-devices-owner@example.test');
   company = await h.onboard(owner, 'Pending Devices Co');
-  const business = await h.send('POST', '/v1/businesses', {
+  const created = await h.send('POST', '/v1/businesses', {
     cookie: owner,
     company,
     key: 'pending-devices-business',
     body: { vertical_type: 'restaurant', name_en: 'Diner' },
   });
-  const created = await h.send(
-    'POST',
-    `/v1/businesses/${business.body['id'] as string}/branches`,
-    {
-      cookie: owner,
-      company,
-      key: 'pending-devices-branch',
-      body: { name_en: 'Till branch' },
-    },
+  business = created.body['id'] as string;
+  branch = await createBranch('pending-devices-branch', 'Till branch');
+  otherBranch = await createBranch('pending-devices-branch-2', 'Other branch');
+  cashier = await member('pending-devices-cashier@example.test', 'cashier', 'COMPANY', company);
+  branchManager = await member(
+    'pending-devices-manager@example.test',
+    'branch_manager',
+    'BRANCH',
+    otherBranch,
   );
-  branch = created.body['id'] as string;
-  cashier = await h.signedInOperator('pending-devices-cashier@example.test');
-  const [holder] = await h.owner`SELECT id FROM "user" WHERE email='pending-devices-cashier@example.test'`;
-  await h.owner`INSERT INTO memberships (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id)
-    VALUES (${company}, ${randomUUID()}, ${holder?.['id'] as string}, ${roleId('cashier')}, 'global', 'COMPANY', ${company})`;
 });
 
 afterAll(async () => {
@@ -88,15 +111,19 @@ describe('GET /v1/branches/{branch}/devices', () => {
   it('refuses a missing status and a status other than pending', async () => {
     for (const query of ['', '?status=active']) {
       const res = await list(query);
-      expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([
-        400,
-        'VALIDATION_FAILED',
-      ]);
+      expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([400, 'VALIDATION_FAILED']);
     }
   });
 
   it('refuses a caller without manage:devices:branch', async () => {
     const res = await list('?status=pending', cashier);
     expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([403, 'FORBIDDEN']);
+  });
+
+  it('refuses a manager of another branch of the same company', async () => {
+    const deviceId = await register('Hidden till');
+    const res = await list('?status=pending', branchManager);
+    expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([403, 'FORBIDDEN']);
+    expect(JSON.stringify(res.body)).not.toContain(deviceId);
   });
 });

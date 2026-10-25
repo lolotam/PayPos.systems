@@ -1,12 +1,16 @@
 import { json, operation } from '../openapi-operation.js';
 import { pendingDevicesQuery, pendingDevicesResponse } from './pending-devices.js';
 
-// مسارات أجهزة الهوية: التسجيل والطلب والتعريف، وقائمة الأجهزة المستنية في الفرع (spec 070).
-// openapi.ts كان عند حد الـ 400 سطر، فمسارات الأجهزة كلها معروضة من هنا.
+// مسارات أجهزة الهوية كلها: التسجيل والطلب والتعريف، وقائمة الأجهزة المستنية في الفرع (spec 070).
+// openapi.ts كان عند حد الـ 400 سطر، فمسارات الأجهزة معروضة من هنا.
 
 const errors = {
   description:
     'The bilingual error envelope; a foreign branch and a missing permission share the same 403.',
+  content: json('ErrorEnvelope'),
+};
+const badStatus = {
+  description: 'The status query is missing or not pending',
   content: json('ErrorEnvelope'),
 };
 
@@ -27,7 +31,12 @@ export const pendingDevicesPaths = {
           required: true,
           schema: { type: 'string', format: 'uuid' },
         },
-        { in: 'path', name: 'branchId', required: true, schema: { type: 'string', format: 'uuid' } },
+        {
+          in: 'path',
+          name: 'branchId',
+          required: true,
+          schema: { type: 'string', format: 'uuid' },
+        },
         {
           in: 'query',
           name: 'status',
@@ -40,7 +49,7 @@ export const pendingDevicesPaths = {
           description: 'The branch devices waiting for approval',
           content: json('PendingDevicesResponse'),
         },
-        '400': errors,
+        '400': badStatus,
         '403': errors,
         default: errors,
       },

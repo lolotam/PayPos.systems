@@ -1,10 +1,5 @@
 import { pendingDevicesResponse } from '@pospay/contracts';
-import {
-  createDatabase,
-  type Database,
-  type TenantWrappers,
-  type Tx,
-} from '@pospay/db';
+import { createDatabase, type Database, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -20,6 +15,10 @@ import { listPendingDevices } from '../pending-devices.query.ts';
 const { A, B } = TENANT;
 const APPROVER = '01920000-0000-7000-8000-0000000000f2';
 const CAP_BRANCH = '01920000-0000-7000-8000-0000000000f3';
+
+type DeviceIdRow = {
+  readonly id: string;
+};
 
 const deviceId = (n: number): string =>
   `01920000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -96,8 +95,12 @@ async function seed(owner: postgres.Sql): Promise<void> {
   await owner`ANALYZE devices`;
 }
 
+function inTenant<T>(companyId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return db.withTenant(companyId, fn);
+}
+
 function pending(companyId: string, branchId: string) {
-  return db.withTenant(companyId, (tx) => listPendingDevices(tx, companyId, branchId));
+  return inTenant(companyId, (tx) => listPendingDevices(tx, companyId, branchId));
 }
 
 beforeAll(async () => {
@@ -139,6 +142,15 @@ describe('listPendingDevices', () => {
     expect(await pending(A.company, B.branch)).toEqual({ items: [] });
   });
 
+  it('RLS hides another tenant device even without a company filter', async () => {
+    const ids = await inTenant(A.company, async (tx) => {
+      const rows = await tx.execute<DeviceIdRow>(sql`SELECT id FROM devices`);
+      return Array.from(rows).map((row) => row.id);
+    });
+    expect(ids).toContain(PENDING_NEW);
+    expect(ids).not.toContain(OTHER_TENANT);
+  });
+
   it('stops at fifty devices', async () => {
     const body = await pending(A.company, CAP_BRANCH);
     expect(body.items).toHaveLength(50);
@@ -148,11 +160,9 @@ describe('listPendingDevices', () => {
 
   it('EXPLAIN ANALYZE looks the devices up by index and never scans them sequentially', async () => {
     plans.length = 0;
-    await explaining(db).withTenant(A.company, (tx) =>
-      listPendingDevices(tx, A.company, A.branch),
-    );
+    await explaining(db).withTenant(A.company, (tx) => listPendingDevices(tx, A.company, A.branch));
     const plan = plans.find((entry) => entry.includes('devices')) ?? '';
-    expect(plan).toMatch(/devices_(company_id_branch_id_idx|company_branch_id_key|pkey)/);
+    expect(plan).toMatch(/devices_(company_id_branch_id_idx|company_branch_id_key)/);
     expect(plan).not.toContain('Seq Scan');
   });
 });
