@@ -55,7 +55,11 @@ export const commissionPlanVersionPaths = {
       operationId: 'listCommissionPlanVersions',
       parameters: [
         ...parameters,
-        { in: 'query', name: 'cursor', schema: { type: 'integer', minimum: 1 } },
+        {
+          in: 'query',
+          name: 'cursor',
+          schema: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+        },
         {
           in: 'query',
           name: 'limit',
