@@ -6,9 +6,11 @@ import { validatePerformerCardinality } from '../../domain/session-performers.ts
 import { sessionTime, validateAppendWindow } from '../../domain/session-time.ts';
 import { planSessionWrite, recordedSessionLine } from '../../domain/session-write.ts';
 import { sessionLineSnapshot, sessionSnapshot } from '../../domain/session-snapshot.ts';
+import type { SessionRecord } from '../../domain/session-types.ts';
 import type { SessionRecoveryPort } from '../../ports/session-recovery.port.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 import { sessionDrafts } from '../../domain/session-drafts.ts';
+import { approvalDecisions, commitDiscountApprovals, lockApprovalProposals } from '../consume-discount-approval/consume-discount-approvals.ts';
 
 type AppendContext = SessionWriteContext & { sessionId: string; input: AppendServiceSessionLinesInput };
 /** يضيف المصحح أو الخدمة الجديدة لنفس الزيارة دون تغيير أي بند محفوظ. */
@@ -50,6 +52,7 @@ export class AppendServiceSessionLinesUseCase {
     await tx.catalog.lock(serviceIds);
     await tx.performers.lock(employeeIds);
     const limit = await tx.discount.read(membershipId);
+    const locked = await lockApprovalProposals(tx, context.input.lines);
     const at = this.clock.now();
     resolveSessionRecorder(await tx.access.read(at), membershipId, original.recorded_by, context.userId);
     if (await tx.place.read() === null) throw new SessionError('FORBIDDEN');
@@ -57,14 +60,27 @@ export class AppendServiceSessionLinesUseCase {
     const time = sessionTime(original.occurred_at, at, original.business_timezone);
     const services = await tx.catalog.read(serviceIds);
     const employees = await tx.performers.read(employeeIds, original.occurred_at);
-    const plan = planSessionWrite(prepareSessionLines(sessionDrafts(context.input.lines), services, employees, context.userId), limit, original.lines, tx.discountMessages);
+    const prepared = prepareSessionLines(sessionDrafts(context.input.lines), services, employees, context.userId);
+    const decisions = approvalDecisions(tx, { prepared, limit, terms: this.terms(context, original, membershipId), actor: this.actor(context, membershipId) }, locked, at);
+    const plan = planSessionWrite(prepared, limit, original.lines, tx.discountMessages, decisions);
     const lines = plan.accepted.map((line, i) => recordedSessionLine(line,
       { id: this.ids.newId(), session_id: original.id, ordinal: plan.ordinals[i] as number, performer_ids: line.performers.map(() => this.ids.newId()) },
       { userId: context.userId, membershipId, at, late: time.late }, limit));
     const record = { ...original, lines: [...original.lines, ...lines] };
     await tx.repository.insertLines(lines);
+    await commitDiscountApprovals(tx, lines, decisions, at);
     await tx.audit(record, lines, plan.outcome, true);
     await tx.emit(record, lines, true);
     return { outcome: plan.outcome, session: sessionSnapshot(record), added_lines: lines.map(sessionLineSnapshot), rejected_lines: plan.rejected_lines };
+  }
+  /** شروط الاستهلاك لزيارة محفوظة: هي نفسها وتاريخها وعميلتها كما حُفظت. */
+  private terms(context: AppendContext, original: SessionRecord, membershipId: string) {
+    return { company_id: context.companyId, business_id: context.businessId, branch_id: context.branchId,
+      customer_id: original.customer.id, session_id: original.id, requested_by: context.userId,
+      requested_by_membership_id: membershipId, occurred_business_date: original.business_date };
+  }
+  /** من يستهلك الموافقة: الفرع والمستخدم والعضوية التي سجّلت. */
+  private actor(context: AppendContext, membershipId: string) {
+    return { branch_id: context.branchId, user_id: context.userId, membership_id: membershipId };
   }
 }

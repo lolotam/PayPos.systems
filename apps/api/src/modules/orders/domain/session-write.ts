@@ -1,37 +1,73 @@
 import { moneyToString } from '@pospay/domain';
-import { authorizedDiscountAmounts, appendOrdinals, partitionDiscountLines, sessionTotal } from './session-pricing.ts';
+import { type ApprovalDecision } from './discount-consumption.ts';
+import type { ApprovalRefusal } from './discount-approval-rules.ts';
+import { appendOrdinals, authorizedDiscountAmounts, partitionDiscountLines, sessionTotal } from './session-pricing.ts';
 import { SessionError } from './session-error.ts';
 import type { PreparedSessionLine, SessionLimit, SessionLine, SessionRecord } from './session-types.ts';
 type RejectionMessages = { message_ar: string; message_en: string };
 type LineIdentity = { id: string; session_id: string; ordinal: number; performer_ids: readonly string[] };
 type LineRecorder = { userId: string; membershipId: string; at: Date; late: boolean };
+type RejectedLine = {
+  input_index: number; service_id: string; name_en: string; name_ar: string | null;
+  code: 'SESSION_DISCOUNT_ABOVE_LIMIT'; message_ar: string; message_en: string;
+  list_price: string; price: string; discount: string; net: string; effective_discount_bps: number;
+  limit_bps: number; limit_source: 'PERSON' | 'BUSINESS' | 'NOT_CONFIGURED';
+  minimum_net: string; max_discount_amount: string;
+  approval_refusal?: ApprovalRefusal; discount_proposal_id?: string;
+};
 
 /**
  * يحدد المقبول قبل أي حفظ ويفحص إجمالي النشط وحده؛ الملغى يحتفظ بترتيبه وسعته.
+ * سطر فوق الحدّ مع موافقة مقبولة يصبح مقبولاً يحملها، وسطر فوق الحدّ مع موافقة مرفوضة يرجع بسببها.
+ * القاعدة: الموافقة تُغيّر القبول فقط، وبقية بيانات الرفض كما هي (FR-019، FR-021).
  *
  * @param lines كل البنود المتحقق منها
  * @param limit السلطة المالية الموثقة
  * @param existing البنود القديمة؛ الملغاة تستهلك سعة الزيارة
  * @param messages رسالتا الحد من كتالوج الترجمة
+ * @param decisions قرارات استهلاك الموافقة لكل سطر يطلب واحدة
  * @returns المقبول وترتيبه والرفض الكامل أو رفض الكل قبل أي كتابة
  */
-export function planSessionWrite(lines: readonly PreparedSessionLine[], limit: SessionLimit, existing: readonly SessionLine[], messages: RejectionMessages) {
-  const { accepted, rejected } = partitionDiscountLines(lines, limit);
-  const rejected_lines = rejected.map((l) => {
-    if (limit.source === 'OWNER') throw new SessionError('FORBIDDEN');
-    const amounts = authorizedDiscountAmounts(l.service.price, l.price, limit.bps);
-    return { input_index: l.input_index, service_id: l.service.id, name_en: l.service.name_en, name_ar: l.service.name_ar,
-      code: 'SESSION_DISCOUNT_ABOVE_LIMIT' as const, ...messages, list_price: moneyToString(l.service.price), price: moneyToString(l.price),
-      discount: moneyToString(l.discount), net: moneyToString(l.net), effective_discount_bps: l.effective_discount_bps,
-      limit_bps: limit.bps, limit_source: limit.source, minimum_net: moneyToString(amounts.minimum_net), max_discount_amount: moneyToString(amounts.max_discount_amount) };
-  });
+export function planSessionWrite(lines: readonly PreparedSessionLine[], limit: SessionLimit, existing: readonly SessionLine[], messages: RejectionMessages, decisions: readonly ApprovalDecision[] = []) {
+  const aboveLimit = new Set(partitionDiscountLines(lines, limit).rejected.map((line) => line.input_index));
+  const byIndex = new Map(decisions.map((decision) => [decision.input_index, decision]));
+  const accepted: PreparedSessionLine[] = [], rejected_lines: RejectedLine[] = [];
+  for (const line of lines) {
+    const decision = byIndex.get(line.input_index);
+    if (!aboveLimit.has(line.input_index)) { accepted.push(line); continue; }
+    if (decision !== undefined && decision.refusal === null) {
+      accepted.push({ ...line, consumed_proposal_id: decision.proposal_id });
+      continue;
+    }
+    rejected_lines.push(rejectedLine(line, limit, messages, decision));
+  }
   if (accepted.length === 0) throw new SessionError('SESSION_DISCOUNT_ABOVE_LIMIT', { rejected_lines });
   sessionTotal([...existing.filter((line) => line.status === 'ACTIVE'), ...accepted].map((l) => l.net));
   const ordinals = appendOrdinals(existing.map((line) => line.ordinal), accepted.length);
-  return { accepted, rejected_lines, ordinals, outcome: rejected.length === 0 ? 'COMPLETE' as const : 'PARTIAL' as const };
+  return { accepted, rejected_lines, ordinals, outcome: rejected_lines.length === 0 ? 'COMPLETE' as const : 'PARTIAL' as const };
+}
+/**
+ * يبني تفاصيل رفض السطر كما تُعرض للتصحيح، ويضيف سبب رفض الموافقة إن وُجدت.
+ *
+ * @param line البند المحضّر المرفوض
+ * @param limit حدّ المسجّلة
+ * @param messages رسالتا الحد من كتالوج الترجمة
+ * @param decision قرار استهلاك الموافقة للسطر، إن وُجد
+ * @returns تفاصيل الرفض المعروضة
+ */
+function rejectedLine(line: PreparedSessionLine, limit: SessionLimit, messages: RejectionMessages, decision: ApprovalDecision | undefined): RejectedLine {
+  if (limit.source === 'OWNER') throw new SessionError('FORBIDDEN');
+  const amounts = authorizedDiscountAmounts(line.service.price, line.price, limit.bps);
+  const base: RejectedLine = { input_index: line.input_index, service_id: line.service.id, name_en: line.service.name_en, name_ar: line.service.name_ar,
+    code: 'SESSION_DISCOUNT_ABOVE_LIMIT', ...messages, list_price: moneyToString(line.service.price), price: moneyToString(line.price),
+    discount: moneyToString(line.discount), net: moneyToString(line.net), effective_discount_bps: line.effective_discount_bps,
+    limit_bps: limit.bps, limit_source: limit.source, minimum_net: moneyToString(amounts.minimum_net), max_discount_amount: moneyToString(amounts.max_discount_amount) };
+  if (decision === undefined || decision.refusal === null) return base;
+  return { ...base, approval_refusal: decision.refusal, discount_proposal_id: decision.proposal_id };
 }
 /**
  * يثبّت هويات المقبول ووقت كاتبته، دون استعمال input_index كترتيب الزيارة.
+ * السطر الذي استهلك موافقة يحملها في `discount_proposal_id`، وحدّه يبقى حدّ المسجّلة نفسها (D-8).
  *
  * @param line البند الصحيح المقبول
  * @param identity هويات مولدة من port وترتيب خصص تحت القفل
@@ -41,7 +77,8 @@ export function planSessionWrite(lines: readonly PreparedSessionLine[], limit: S
  */
 export function recordedSessionLine(line: PreparedSessionLine, identity: LineIdentity, recorder: LineRecorder, limit: SessionLimit): SessionLine {
   return { ...line, ...identity, recorded_by: recorder.userId, recorded_by_membership_id: recorder.membershipId,
-    recorded_at: recorder.at, late: recorder.late, limit, status: 'ACTIVE', revision: 1 };
+    recorded_at: recorder.at, late: recorder.late, limit, status: 'ACTIVE', revision: 1,
+    ...(line.consumed_proposal_id === undefined ? {} : { discount_proposal_id: line.consumed_proposal_id }) };
 }
 /**
  * غلاف الحدث ينقل بنود هذه الكتابة وحدها؛ لا هاتف ولا مسودات مرفوضة ولا إعادة إصدار للقديم.

@@ -10,7 +10,10 @@ import { sessionSnapshot } from '../../domain/session-snapshot.ts';
 import type { SessionRecord } from '../../domain/session-types.ts';
 import type { SessionRecoveryPort } from '../../ports/session-recovery.port.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
+import { approvalDecisions, commitDiscountApprovals, lockApprovalProposals } from '../consume-discount-approval/consume-discount-approvals.ts';
 export { SessionError } from '../../domain/session-error.ts';
+
+type RecordContext = SessionWriteContext & { input: RecordServiceSessionInput };
 
 /** يسجل زيارة واحدة؛ كل المقبول وأثره والرد المحفوظ يلتزمون معاً. */
 export class RecordServiceSessionUseCase {
@@ -39,6 +42,7 @@ export class RecordServiceSessionUseCase {
     await tx.catalog.lock(serviceIds);
     await tx.performers.lock(employeeIds);
     const limit = await tx.discount.read(membershipId);
+    const locked = await lockApprovalProposals(tx, context.input.lines);
     const at = this.clock.now();
     resolveSessionRecorder(await tx.access.read(at), membershipId, undefined, context.userId);
     const place = await tx.place.read();
@@ -49,7 +53,9 @@ export class RecordServiceSessionUseCase {
     const services = await tx.catalog.read(serviceIds);
     const employees = await tx.performers.read(employeeIds, time.occurred_at);
     const drafts = sessionDrafts(context.input.lines);
-    const plan = planSessionWrite(prepareSessionLines(drafts, services, employees, context.userId), limit, [], tx.discountMessages);
+    const prepared = prepareSessionLines(drafts, services, employees, context.userId);
+    const decisions = approvalDecisions(tx, { prepared, limit, terms: this.terms(context, membershipId, time.business_date), actor: this.actor(context, membershipId) }, locked, at);
+    const plan = planSessionWrite(prepared, limit, [], tx.discountMessages, decisions);
     const sessionId = this.ids.newId();
     const lines = plan.accepted.map((line, i) => recordedSessionLine(line,
       { id: this.ids.newId(), session_id: sessionId, ordinal: plan.ordinals[i] as number, performer_ids: line.performers.map(() => this.ids.newId()) },
@@ -58,8 +64,19 @@ export class RecordServiceSessionUseCase {
       recorded_by: context.userId, recorded_by_membership_id: membershipId, recorded_at: at, business_timezone: place.timezone, ...time, lines };
     await tx.repository.insertSession(record);
     await tx.repository.insertLines(lines);
+    await commitDiscountApprovals(tx, lines, decisions, at);
     await tx.audit(record, lines, plan.outcome, false);
     await tx.emit(record, lines, false);
     return { outcome: plan.outcome, session: sessionSnapshot(record), rejected_lines: plan.rejected_lines };
+  }
+  /** شروط الاستهلاك لزيارة جديدة: بلا زيارة، واليوم من لحظة الزيارة كما حسبها التسجيل. */
+  private terms(context: RecordContext, membershipId: string, businessDate: string) {
+    return { company_id: context.companyId, business_id: context.businessId, branch_id: context.branchId,
+      customer_id: context.input.customer_id, session_id: null, requested_by: context.userId,
+      requested_by_membership_id: membershipId, occurred_business_date: businessDate };
+  }
+  /** من يستهلك الموافقة: الفرع والمستخدم والعضوية التي سجّلت. */
+  private actor(context: SessionWriteContext, membershipId: string) {
+    return { branch_id: context.branchId, user_id: context.userId, membership_id: membershipId };
   }
 }

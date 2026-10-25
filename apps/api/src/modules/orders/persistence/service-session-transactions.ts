@@ -5,6 +5,7 @@ import type { Clock, ServiceSessionTransactions, SessionTransaction, SessionWrit
 import { insertLines, insertSession } from './session-writes.ts';
 import { loadSession } from './session-records.ts';
 import { auditSession } from './session-audit.ts';
+import { discountConsumption } from './discount-proposal-consumption.adapter.ts';
 import { cleanSessionWrite, linkCommittedProof } from './session-recovery-proof.ts';
 
 export type SessionReaders = Pick<SessionTransaction, 'place' | 'access' | 'catalog' | 'customer' | 'performers' | 'discount' | 'discountMessages'>;
@@ -27,6 +28,7 @@ export function createServiceSessionTransactions(database: TenantWrappers, ids: 
           insertSession: (record) => insertSession(tx, context.companyId, record),
           insertLines: (lines) => insertLines(tx, context.companyId, context.businessId, lines),
         },
+        consumption: discountConsumption(tx, context.companyId, context.businessId),
         audit: (record, lines, outcome, append) => auditSession(tx, ids, record, lines, outcome, append),
         emit: (record, lines, append) => appendOutboxEvent(tx, ids.newId(), { aggregateType: 'service_session', aggregateId: record.id,
           eventType: append ? 'ServiceSessionLinesAdded' : 'ServiceSessionRecorded', payload: sessionBatchEvent(record, lines) }),
