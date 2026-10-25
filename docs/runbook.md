@@ -89,7 +89,6 @@ Closed companies keep their schedulers. A company with `deleted_at` set records 
 `ATTENDANCE_NOT_CLOCKED_IN_RETRY` log requires investigation even if other shifts succeeded. Logs contain safe
 error types/codes and cause types/codes, never employee names, error messages or query parameters.
 
-
 ## 35b-2: recover retained late service-session bells
 
 After every replica runs the 35b-2 consumer/template, use the new release from apps/worker with ordinary
@@ -297,3 +296,43 @@ re-subscribed or signed out before the send; no call was made), `KEY_ROTATED`, `
 key pair), `PROVIDER_429`, `PROVIDER_5XX` and `NETWORK_UNKNOWN` (the outcome is unknown and the notice is never repeated).
 A `PushSendAuthorized` event that kept coming back undelivered while push was disabled is parked after the outbox's last attempt (log `outbox event parked`); its attempt stays `PENDING` and the notice is not sent unless an operator replays the event after push is enabled. A row stuck in `SENDING` means the worker stopped between taking the send and recording the result; it is never retried.
 Logs carry the attempt id, the subscription id, the status code and the failure code only.
+
+## 59-1: bootstrap of rating requests (spec 060 FR-B02b)
+
+The bootstrap schedules the rating requests of the sessions that were recorded before the rating track went live.
+It is an operator run, once per company — not a BullMQ job — and it never sends anything by itself.
+
+1. **Order first.** Deploy the worker that carries the 59-1 consumers on **every** replica and wait until all of them
+   are running. Every `ServiceSessionRecorded`, `ServiceSessionLinesAdded` and `ServiceLineChanged` published after
+   that is consumed live; only the older sessions are left to the bootstrap.
+2. **Command.** From the repository root, after the build, with `DATABASE_URL` pointing at `pospay_app`:
+
+   ```sh
+   node --env-file-if-exists=.env apps/worker/dist/bootstrap-rating-requests.js --company <uuid> --cutoff <ISO>
+   ```
+
+   The cutoff is the job's start minus 48 hours, so every deadline that is still ahead lies inside the range. A
+   deadline-free session (a branch with no opening hours) older than the cutoff is deliberately not rated and is not
+   counted. The same cutoff reaches the authoritative scheduling decision: an in-range cancelled visit cannot
+   create or reopen a request using only an older deadline-free visit. Existing live requests are preserved while
+   that older visit remains active; a day with no active visits still cancels its prior request.
+   The optional flags are `--checkpoint <uuid>` (resume), `--max-session-id <uuid>` and
+   `--recorded-before <ISO>` (reuse the frozen range of an earlier run), and `--page-size <1..200>`.
+
+3. **What it prints.** One line with the frozen range (`range cutoff=… maxSessionId=… recordedAtOrBefore=…`), one
+   `frozen expected=<n> alreadyDone=<n>` line with the counts taken when the range froze, one
+   `checkpoint=<sessionId> processed=<n>` line after every page, and a final
+   `processed=<n> alreadyDone=<n> expected=<n> verifiedExpected=<n> complete=<true|false>` line. The exit code is **1**
+   when `complete=false`.
+4. **Restart.** Re-run with the last printed `--checkpoint` together with the printed `--max-session-id` and
+   `--recorded-before`, so the range stays frozen and the counts stay comparable. A page that fails is read again
+   from its checkpoint; the scheduling use case is idempotent.
+5. **Stop rule.** A mismatch between `processed + alreadyDone` and `expected` stops the rollout — investigate
+   before running the next company. Both counts are frozen before processing. Pages and counts include all
+   sessions in the frozen range, including cancelled sessions; the scheduling use case applies the current line
+   eligibility. Cancellation therefore cannot change the population being checked. The final count
+   `verifiedExpected` must also equal the frozen `expected`: a transaction with an old recording time may commit
+   after the initial count and behind the page cursor. On this mismatch, rerun the frozen range without a checkpoint
+   so the newly visible sessions are processed; do not continue from the last cursor.
+6. **Until 59-2 ships**, the rating-request switch is off for every business, so the bootstrap schedules nothing
+   yet; it only proves the frozen range and the coverage.
