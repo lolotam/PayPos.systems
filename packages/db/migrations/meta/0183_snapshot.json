@@ -1,5 +1,5 @@
 {
-  "id": "e0c180f9-7eb7-428e-85c3-0b054c93d241",
+  "id": "757f981d-d2db-4d7c-998d-79ab4141e7eb",
   "prevId": "2a711973-e49d-48ae-8156-da18985259de",
   "version": "7",
   "dialect": "postgresql",
@@ -21764,6 +21764,12 @@
               "nulls": "last"
             },
             {
+              "expression": "reviewed_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
               "expression": "reviewed_membership_id",
               "isExpression": false,
               "asc": true,
@@ -21837,10 +21843,12 @@
           "tableTo": "memberships",
           "columnsFrom": [
             "company_id",
+            "reviewed_by",
             "reviewed_membership_id"
           ],
           "columnsTo": [
             "company_id",
+            "user_id",
             "id"
           ],
           "onDelete": "no action",

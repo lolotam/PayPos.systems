@@ -247,14 +247,7 @@ it('the line checks refuse a detail on a row that has none and a commission row 
   );
 });
 
-it('the line checks refuse a malformed source period and an amount that is not a number', async () => {
-  await expectPgError(
-    withApproved((tx, statementId) =>
-      insertCommissionLine(tx, A, statementId, ids, { sourcePeriod: '2026-13' }),
-    ),
-    '23514',
-    'commission_statement_lines_source_period',
-  );
+it('the line checks refuse an amount that is not a number', async () => {
   await expectPgError(
     withApproved((tx, statementId) =>
       insertCommissionLine(tx, A, statementId, ids, { kind: 'COMMISSION', amount: 'NaN' }),
@@ -264,14 +257,44 @@ it('the line checks refuse a malformed source period and an amount that is not a
   );
 });
 
-// شهر المصدر مطلوب في التصحيحات والcarry بس، وسنة 0000 مرفوضة في كل الشهور.
+// صيغة شهر المصدر بتتأكد على نوع بيلزمه شهر مصدر؛ الأنواع التانية بترفض أي شهر، فالفرق بين
+// الشهر الغلط والسنة الغلط بيضيع لو اتأكد على نوع مش محتاج شهر.
+it('the source period format is proved on a kind that carries one', async () => {
+  const accepted = await withApproved((tx, statementId) =>
+    insertCommissionLine(tx, A, statementId, ids, { kind: 'CORRECTION', sourcePeriod: '2026-12' }),
+  );
+  expect(
+    await asA(sql`SELECT id FROM commission_statement_lines WHERE statement_id=${accepted}`),
+  ).toHaveLength(1);
+  await expectPgError(
+    withApproved((tx, statementId) =>
+      insertCommissionLine(tx, A, statementId, ids, {
+        kind: 'CORRECTION',
+        sourcePeriod: '2026-13',
+      }),
+    ),
+    '23514',
+    'commission_statement_lines_source_period',
+  );
+  await expectPgError(
+    withApproved((tx, statementId) =>
+      insertCommissionLine(tx, A, statementId, ids, {
+        kind: 'CORRECTION',
+        sourcePeriod: '0000-05',
+      }),
+    ),
+    '23514',
+    'commission_statement_lines_source_period',
+  );
+});
+
+// شهر المصدر مطلوب في التصحيحات والcarry بس، وباقي الأنواع ما ليهاش شهر مصدر.
 const SOURCE_PERIOD_CASES = [
   { kind: 'CORRECTION', sourcePeriod: null },
   { kind: 'CARRY_COMMISSION', sourcePeriod: null },
   { kind: 'COMMISSION', sourcePeriod: '2026-09' },
   { kind: 'SALE', sourcePeriod: '2026-09' },
   { kind: 'EMPLOYEE', sourcePeriod: '2026-09' },
-  { kind: 'CORRECTION', sourcePeriod: '0000-05' },
 ];
 
 it.each(SOURCE_PERIOD_CASES)(

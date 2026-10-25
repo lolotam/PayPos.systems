@@ -78,17 +78,13 @@ const prepare = async (period: string, state: string): Promise<void> => {
   });
 };
 
-const transition = async (period: string, to: string): Promise<boolean> => {
-  const work = db.withTenant(A.company, (tx) =>
+// تحديث الحالة؛ المسموح يعدّي زي ما هو، والمرفوض لازم يبان اسم قيد التريغر نفسه: قيد المرحلة
+// (commission_statements_stage) بيرفض نفس التحديث لو التريغر مكسور، فاسم القيد هو الدليل الوحيد.
+const transition = (period: string, to: string) =>
+  db.withTenant(A.company, (tx) =>
     tx.execute(sql`UPDATE commission_statements SET ${setClause(to)}
       WHERE company_id=${A.company} AND business_id=${A.business} AND period=${period}`),
   );
-  const error = await work.then(
-    () => null,
-    (caught: unknown) => caught,
-  );
-  return error === null;
-};
 
 it('a statement is inserted DRAFT only', async () => {
   const id = ids.newId();
@@ -102,6 +98,7 @@ it('a statement is inserted DRAFT only', async () => {
       asA(sql`INSERT INTO commission_statements(company_id,id,business_id,period,status)
         VALUES(${A.company},${ids.newId()},${A.business},${nextPeriod()},${status})`),
       '23514',
+      'commission_statements_insert_draft',
     );
   }
   expect(await asA(sql`SELECT status FROM commission_statements WHERE status <> 'DRAFT'`)).toEqual(
@@ -109,29 +106,45 @@ it('a statement is inserted DRAFT only', async () => {
   );
 });
 
-const TRANSITIONS = [
-  { from: 'DRAFT', to: 'REVIEWED', allowed: true },
-  { from: 'DRAFT', to: 'APPROVED', allowed: false },
-  { from: 'DRAFT', to: 'PAID', allowed: false },
-  { from: 'REVIEWED', to: 'APPROVED', allowed: true },
-  { from: 'REVIEWED', to: 'DRAFT', allowed: true },
-  { from: 'REVIEWED', to: 'PAID', allowed: false },
-  { from: 'APPROVED', to: 'PAID', allowed: true },
-  { from: 'APPROVED', to: 'REVIEWED', allowed: false },
-  { from: 'APPROVED', to: 'DRAFT', allowed: false },
-  { from: 'PAID', to: 'DRAFT', allowed: false },
-  { from: 'PAID', to: 'REVIEWED', allowed: false },
-  { from: 'PAID', to: 'APPROVED', allowed: false },
-  { from: 'PAID', to: 'PAID', allowed: false },
-] as const;
+const ALLOWED_TRANSITIONS = [
+  { from: 'DRAFT', to: 'REVIEWED' },
+  { from: 'REVIEWED', to: 'APPROVED' },
+  { from: 'REVIEWED', to: 'DRAFT' },
+  { from: 'APPROVED', to: 'PAID' },
+];
 
-it.each(TRANSITIONS)('from $from to $to is $allowed', async ({ from, to, allowed }) => {
+// كل انتقال مرفوض واسم قيد التريغر اللي رفضه؛ نفس القيد هيتكرر مع كل الحالات اللي بتترفض بنفس السبب.
+const REFUSED_TRANSITIONS = [
+  { from: 'DRAFT', to: 'APPROVED', refusal: 'commission_statements_transition' },
+  { from: 'DRAFT', to: 'PAID', refusal: 'commission_statements_transition' },
+  { from: 'REVIEWED', to: 'PAID', refusal: 'commission_statements_transition' },
+  { from: 'APPROVED', to: 'APPROVED', refusal: 'commission_statements_approved_frozen' },
+  { from: 'APPROVED', to: 'REVIEWED', refusal: 'commission_statements_approved_frozen' },
+  { from: 'APPROVED', to: 'DRAFT', refusal: 'commission_statements_approved_frozen' },
+  { from: 'PAID', to: 'DRAFT', refusal: 'commission_statements_paid_immutable' },
+  { from: 'PAID', to: 'REVIEWED', refusal: 'commission_statements_paid_immutable' },
+  { from: 'PAID', to: 'APPROVED', refusal: 'commission_statements_paid_immutable' },
+  { from: 'PAID', to: 'PAID', refusal: 'commission_statements_paid_immutable' },
+];
+
+it.each(ALLOWED_TRANSITIONS)('from $from to $to is allowed', async ({ from, to }) => {
   const period = nextPeriod();
   await prepare(period, from);
-  expect(await transition(period, to)).toBe(allowed);
+  await transition(period, to);
   const rows = await asA(sql`SELECT status FROM commission_statements WHERE period=${period}`);
-  expect(rows[0]?.['status']).toBe(allowed ? to : from);
+  expect(rows[0]?.['status']).toBe(to);
 });
+
+it.each(REFUSED_TRANSITIONS)(
+  'from $from to $to is refused by $refusal',
+  async ({ from, to, refusal }) => {
+    const period = nextPeriod();
+    await prepare(period, from);
+    await expectPgError(transition(period, to), '23514', refusal);
+    const rows = await asA(sql`SELECT status FROM commission_statements WHERE period=${period}`);
+    expect(rows[0]?.['status']).toBe(from);
+  },
+);
 
 it('a change that is not a transition touches an open month only', async () => {
   const draftPeriod = nextPeriod();
@@ -149,6 +162,7 @@ it('a change that is not a transition touches an open month only', async () => {
     asA(sql`UPDATE commission_statements SET current_fingerprint=${FINGERPRINTS.current}
       WHERE company_id=${A.company} AND id=${approvedId}`),
     '23514',
+    'commission_statements_approved_frozen',
   );
   const paidPeriod = nextPeriod();
   const paidId = await walkCommissionStatement(db, {
@@ -161,6 +175,7 @@ it('a change that is not a transition touches an open month only', async () => {
     asA(sql`UPDATE commission_statements SET current_fingerprint=${FINGERPRINTS.current}
       WHERE company_id=${A.company} AND id=${paidId}`),
     '23514',
+    'commission_statements_paid_immutable',
   );
 });
 

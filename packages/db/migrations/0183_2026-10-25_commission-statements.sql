@@ -128,7 +128,7 @@ ALTER TABLE "commission_statements" ADD CONSTRAINT "commission_statements_compan
 ALTER TABLE "commission_statements" ADD CONSTRAINT "commission_statements_reviewed_by_user_id_fk" FOREIGN KEY ("reviewed_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "commission_statements" ADD CONSTRAINT "commission_statements_approved_by_user_id_fk" FOREIGN KEY ("approved_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "commission_statements" ADD CONSTRAINT "commission_statements_business_fk" FOREIGN KEY ("company_id","business_id") REFERENCES "public"."businesses"("company_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "commission_statements" ADD CONSTRAINT "commission_statements_reviewed_membership_fk" FOREIGN KEY ("company_id","reviewed_membership_id") REFERENCES "public"."memberships"("company_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commission_statements" ADD CONSTRAINT "commission_statements_reviewed_membership_fk" FOREIGN KEY ("company_id","reviewed_by","reviewed_membership_id") REFERENCES "public"."memberships"("company_id","user_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "commission_statement_attachments_statement_idx" ON "commission_statement_attachments" USING btree ("company_id","business_id","statement_id");--> statement-breakpoint
 CREATE INDEX "commission_statement_attachments_statement_employee_idx" ON "commission_statement_attachments" USING btree ("company_id","statement_id","employee_id");--> statement-breakpoint
 CREATE INDEX "commission_statement_attachments_employee_idx" ON "commission_statement_attachments" USING btree ("company_id","business_id","employee_id");--> statement-breakpoint
@@ -140,7 +140,7 @@ CREATE INDEX "commission_statement_lines_source_branch_idx" ON "commission_state
 CREATE INDEX "commission_statement_lines_attached_branches_idx" ON "commission_statement_lines" USING gin ("attached_branch_ids");--> statement-breakpoint
 CREATE INDEX "commission_statements_reviewed_by_idx" ON "commission_statements" USING btree ("reviewed_by");--> statement-breakpoint
 CREATE INDEX "commission_statements_approved_by_idx" ON "commission_statements" USING btree ("approved_by");--> statement-breakpoint
-CREATE INDEX "commission_statements_reviewed_membership_idx" ON "commission_statements" USING btree ("company_id","reviewed_membership_id");
+CREATE INDEX "commission_statements_reviewed_membership_idx" ON "commission_statements" USING btree ("company_id","reviewed_by","reviewed_membership_id");
 --> statement-breakpoint
 -- عزل المستأجر: كل جدول من الثلاثة بيقفل على company_id بتاع الجلسة، والـ FORCE بيمنع أي مسار يتجاوز السياسة.
 ALTER TABLE commission_statements ENABLE ROW LEVEL SECURITY;
@@ -279,6 +279,12 @@ BEGIN
   END IF;
   IF statement_status IS DISTINCT FROM 'APPROVED' OR statement_proof IS DISTINCT FROM pg_current_xact_id() THEN
     RAISE EXCEPTION 'a statement is frozen only by the transaction that approved it' USING ERRCODE = '23514', CONSTRAINT = TG_TABLE_NAME || '_frozen_by_approval';
+  END IF;
+  -- شهر المصدر لازم يكون قبل شهر الكشف: التصحيح أو الـ carry بينزل في شهر بعد مصدره (D-13 و D-22).
+  IF TG_TABLE_NAME = 'commission_statement_lines' THEN
+    IF NEW.source_period IS NOT NULL AND NEW.source_period::text >= statement_period::text THEN
+      RAISE EXCEPTION 'the source month of a correction or carry precedes the statement month' USING ERRCODE = '23514', CONSTRAINT = 'commission_statement_lines_source_before_statement';
+    END IF;
   END IF;
   -- لقطة الارتباط مقصوصة على شهر الكشف (FR-033)، فمداها لازم يبقى جوه الشهر؛
   -- الفحص جوه شرط مستقل لأن عمود المدة مش موجود أصلاً في جدول السطور.

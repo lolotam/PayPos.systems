@@ -75,9 +75,10 @@ const statementRelations = (t: StatementSelf) => [
     foreignColumns: [businesses.companyId, businesses.id],
   }),
   foreignKey({
+    // المراجع والعضوية لازم يكونوا لنفس الشخص: المفتاح المركّب على (الشركة، اليوزر، العضوية).
     name: 'commission_statements_reviewed_membership_fk',
-    columns: [t.companyId, t.reviewedMembershipId],
-    foreignColumns: [memberships.companyId, memberships.id],
+    columns: [t.companyId, t.reviewedBy, t.reviewedMembershipId],
+    foreignColumns: [memberships.companyId, memberships.userId, memberships.id],
   }),
 ];
 
@@ -123,7 +124,11 @@ const statementChecks = (t: StatementSelf) => [
 const statementIndexes = (t: StatementSelf) => [
   index('commission_statements_reviewed_by_idx').on(t.reviewedBy),
   index('commission_statements_approved_by_idx').on(t.approvedBy),
-  index('commission_statements_reviewed_membership_idx').on(t.companyId, t.reviewedMembershipId),
+  index('commission_statements_reviewed_membership_idx').on(
+    t.companyId,
+    t.reviewedBy,
+    t.reviewedMembershipId,
+  ),
 ];
 
 export const commissionStatements = pgTable(
