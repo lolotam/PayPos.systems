@@ -18,6 +18,7 @@ const fakes = vi.hoisted(() => ({
   unsubscribed: 0,
   removed: 0,
   raceBeforeRemove: false,
+  racedToken: 'stale-tab-token',
 }));
 
 const RECORD: PushRecord = {
@@ -49,7 +50,7 @@ vi.mock('./push-record-idb', () => ({
       if (fakes.raceBeforeRemove && fakes.record !== null) {
         fakes.record = {
           ...fakes.record,
-          token: 'replaced-by-another-tab',
+          token: fakes.racedToken,
           revision: fakes.record.revision + 1,
         };
       }
@@ -217,7 +218,7 @@ it('leaves the browser subscription alone when another tab replaced the record f
   const outcome = await refreshPush(input());
 
   expect(outcome).toEqual({ kind: 'none' });
-  expect(fakes.record?.token).toBe('replaced-by-another-tab');
+  expect(fakes.record?.token).toBe(fakes.racedToken);
   expect(fakes.unsubscribed).toBe(0);
 });
 
