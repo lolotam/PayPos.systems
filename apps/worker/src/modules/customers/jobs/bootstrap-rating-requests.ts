@@ -103,6 +103,7 @@ async function processPage(
         customerId: session.customerId,
         branchId: session.branchId,
         occurredAt: session.occurredAt,
+        bootstrapCutoff: params.cutoff,
       }),
     );
   }
@@ -156,7 +157,7 @@ export async function runRatingBootstrap(
   const pageSize = pageSizeOf(params.pageSize);
   const frozen = await freezeRange(deps, params);
   if (!frozen.hasSessions) {
-    deps.log('processed=0 alreadyDone=0 expected=0 complete=true');
+    deps.log('processed=0 alreadyDone=0 expected=0 verifiedExpected=0 complete=true');
     return emptyResult(frozen.range, params.checkpoint ?? null);
   }
   const range = frozen.range;

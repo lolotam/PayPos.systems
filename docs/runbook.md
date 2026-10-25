@@ -313,7 +313,10 @@ It is an operator run, once per company — not a BullMQ job — and it never se
 
    The cutoff is the job's start minus 48 hours, so every deadline that is still ahead lies inside the range. A
    deadline-free session (a branch with no opening hours) older than the cutoff is deliberately not rated and is not
-   counted. The optional flags are `--checkpoint <uuid>` (resume), `--max-session-id <uuid>` and
+   counted. The same cutoff reaches the authoritative scheduling decision: an in-range cancelled visit cannot
+   create or reopen a request using only an older deadline-free visit. Existing live requests are preserved while
+   that older visit remains active; a day with no active visits still cancels its prior request.
+   The optional flags are `--checkpoint <uuid>` (resume), `--max-session-id <uuid>` and
    `--recorded-before <ISO>` (reuse the frozen range of an earlier run), and `--page-size <1..200>`.
 
 3. **What it prints.** One line with the frozen range (`range cutoff=… maxSessionId=… recordedAtOrBefore=…`), one

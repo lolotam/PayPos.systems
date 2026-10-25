@@ -1,5 +1,5 @@
 import type { Tx } from '@pospay/db';
-import { decideRequest } from '../../domain/schedule-decision.ts';
+import { decideRequest, outsideBootstrapWindow } from '../../domain/schedule-decision.ts';
 import { ratingSchedule } from '../../domain/rating-schedule.ts';
 import { requestDayOf } from '../../domain/request-day.ts';
 import {
@@ -32,6 +32,7 @@ export interface ScheduleRatingRequestInput {
   readonly customerId: string;
   readonly branchId: string;
   readonly occurredAt: Date;
+  readonly bootstrapCutoff?: Date;
 }
 
 export interface ScheduleRatingRequestPorts {
@@ -87,7 +88,8 @@ export class ScheduleRatingRequest {
       return 'LEFT_AS_IS';
     const state = await this.dayState(tx, input, day, place);
     const now = this.clock.now();
-    const decision = decideRequest(state.sessions, state.placeByBranch, now);
+    const decision = decideRequest(state.sessions, state.placeByBranch, now, input.bootstrapCutoff);
+    if (decision.kind === 'OUTSIDE_BOOTSTRAP_WINDOW') return 'LEFT_AS_IS';
     if (decision.kind === 'NO_ACTIVE_LINE') {
       if (row.status === 'SCHEDULED')
         await this.ports.requests.cancel(tx, key, 'NO_ACTIVE_LINE', now);
@@ -116,6 +118,8 @@ export class ScheduleRatingRequest {
     const latestPlace = initial.placeByBranch.get(latest.branchId);
     if (latestPlace === undefined) throw new RangeError('BRANCH_SCHEDULE_MISSING');
     const schedule = ratingSchedule(latest, latestPlace.openingHours, latestPlace.timeZone);
+    if (outsideBootstrapWindow(latest.occurredAt, schedule.sendDeadline, input.bootstrapCutoff))
+      return null;
     await this.ports.requests.insertIfAbsent(tx, key, {
       id: this.ids.newId(),
       branchId: latest.branchId,

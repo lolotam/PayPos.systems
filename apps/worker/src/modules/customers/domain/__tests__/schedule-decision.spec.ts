@@ -86,3 +86,19 @@ it('throws when the latest session branch has no schedule', () => {
     new RangeError('BRANCH_SCHEDULE_MISSING'),
   );
 });
+
+it('bounds only deadline-free bootstrap decisions, leaving live deliveries and known deadlines unchanged', () => {
+  const sessions = [session('one', 'branch-1', '2026-10-05T12:10:00Z')];
+  const now = new Date('2026-10-05T13:00:00Z');
+  const cutoff = new Date('2026-10-05T12:30:00Z');
+  const noHours = new Map([['branch-1', { openingHours: null, timeZone: 'Asia/Kuwait' }]]);
+  expect(decideRequest(sessions, noHours, now, cutoff)).toEqual({
+    kind: 'OUTSIDE_BOOTSTRAP_WINDOW',
+  });
+  expect(decideRequest(sessions, noHours, now).kind).toBe('SCHEDULED');
+  expect(decideRequest(sessions, noHours, now, sessions[0]?.occurredAt).kind).toBe('SCHEDULED');
+  expect(decideRequest(sessions, new Map([['branch-1', hours('22:00')]]), now, cutoff).kind).toBe(
+    'SCHEDULED',
+  );
+  expect(decideRequest([], noHours, now, cutoff)).toEqual({ kind: 'NO_ACTIVE_LINE' });
+});
