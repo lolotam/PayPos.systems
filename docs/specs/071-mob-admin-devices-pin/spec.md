@@ -40,16 +40,21 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
 - **FR-001** A devices screen for the chosen branch (place: DV-Q1, `TODO(spec)`). It has a «كود ربط جهاز» button that
   issues a code and shows it large with its 10-minute countdown, and a "new code" action. **Issuing a code cancels
   the branch's previous live code**, so a code the manager replaced, for example because someone saw it, stops
-  working at once. This needs a per-branch pointer in the pairing-code store (071-1).
+  working at once. This needs a pointer keyed by `(company_id, branch_id)` in the pairing-code store. Issuing a code, replacing the
+  pointer, deleting the old key, and checking and consuming at register time each run as **one atomic Redis step** (a
+  Lua script), so a replaced code can never be consumed (071-1).
 - **FR-002** The same screen lists the branch's pending devices, with «موافقة» and «رفض»; refuse uses revoke. Each row
-  shows the device's name, its time, and a **check code**: four characters the server derives from the device id. The
+  shows the device's name, its time, and a **check code**: four symbols of the pairing-code alphabet (no look-alike characters), taken from a hash of the
+  whole device id. The id is UUID v7, so its time-ordered prefix must never be used. The
   counter app's waiting screen shows the same check code. The manager approves only when the two match, because a
   label can be typed by anyone holding the code.
   - While a code is live, the list refreshes every 5 seconds, and it has a «تحديث» button, so a device that registers
     after the page opened appears without a reload.
   - The list follows `next_cursor` with a «عرض المزيد» action, so no pending device is ever hidden past the first page.
   - Whether approval stays a separate step is DV-Q2, `TODO(spec)`. If the owners pick «the code is enough», the API
-    must approve on register a device that used a live code, and the check code is then shown only for the record.
+    must approve on register a device that used a live code, in the same transaction, writing the same approval audit
+    row as a manual approval with the source `pairing_code` (`CLAUDE.md` §8). The check code then has no admin row to
+    sit on, so it is shown on the device only.
 - **FR-003** Active devices with «إزالة» (DV-Q3, `TODO(spec)`). It needs `status=active` on the spec 070 route, with
   the same cursor paging and «عرض المزيد».
 - **FR-004** Who sees the screen and its actions: DV-Q4, `TODO(spec)`. Today: `manage:devices:branch`.
@@ -57,16 +62,20 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
   - The rules for who may use it (DV-Q5), how the PIN is chosen (DV-Q6) and what an employee without an app account
     sees (DV-Q7) are all `TODO(spec)`.
   - The list needs a guarded read, the **PIN eligibility read** (071-3). For each employee it returns the linked
-    `user_id` (or none) and one boolean: whether a PIN would let that person sign in on the chosen branch's devices. It uses the same rule as the
-    PIN sign-in itself (`staffEligible` in `apps/api/src/modules/identity/domain/staff-eligibility.ts`): an active
-    membership covering that branch, the effective `login:staff:branch` grant with no covering DENY, and an approved
-    phone binding. The server computes it; the phone number never reaches the back office. Its design reads
+    `user_id` (or none) and one boolean: whether a PIN would let that person sign in on the chosen branch's devices. That is `staffEligible`
+    (`apps/api/src/modules/identity/domain/staff-eligibility.ts`: a membership covering that branch and the effective
+    `login:staff:branch` grant with no covering DENY) **and**, as a separate check, an approved phone binding, the two
+    checks `SignInStaffPin` makes. The server computes it; the phone number never reaches the back office. Its route, contract and guard are written
+    in the 071-3 sub-spec. The guard is the same permission as the PIN reset (DV-Q5), checked at the chosen branch. Its design reads
     the auth-owned phone binding, so it needs design advice and, if it adds an auth facade method, an ADR-0003 note.
     `TODO(spec)`.
   - The PIN is never shown again after it is set, and is never stored or logged in the browser.
-- **FR-006** If DV-Q5 lets branch managers set PINs, the reset route takes the branch, and the reset use case refuses
+- **FR-006** `TODO(spec)` (DV-Q5). If DV-Q5 lets branch managers set PINs, the reset route takes the branch, and the reset use case refuses
   unless **every active branch of the target** is a branch the caller manages. The PIN is company-wide, so a manager of
   one branch must not set the PIN of an employee who also works in a branch she does not manage; the owner sets those.
+  A target with any `COMPANY`- or `BUSINESS`-scoped membership is always the owner's to set. Her coverage is never
+  read as an empty set of branches. If the target later gains a branch the setter does not manage, her PIN is cleared
+  and the owner sets it again. The 071-3 sub-spec settles where that clearing runs.
 - **FR-007** All strings come from `packages/i18n`, the screens are RTL, and every UI test asserts what the user sees
   (`CLAUDE.md` §7, §9).
 
@@ -79,3 +88,22 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
 2. **071-2** Active devices and remove. Only if DV-Q3 says yes; adds `status=active` to the spec 070 route.
 3. **071-3** The staff PIN action and the PIN eligibility read. If DV-Q5 picks branch managers, it also adds the
    branch-scoped reset of FR-006.
+
+## Acceptance and tests (each sub-PR's own spec states its exact routes, schemas, guards and errors)
+
+- **071-1:**
+  - a replaced code is refused at register, including in a race test against the atomic step;
+  - a pointer of company A never affects company B;
+  - the check code matches between the admin row and the device, and two devices registered in the same millisecond
+    get different codes;
+  - a device that registers after the screen opened appears within one refresh;
+  - pending devices past the first page are reachable;
+  - DV-Q2 «the code is enough»: an auto-approved device has its approval audit row.
+- **071-2:** active devices page through, and «إزالة» revokes and audits.
+- **071-3:**
+  - the eligibility read refuses a caller without the guard permission and returns no phone;
+  - an employee without a phone binding shows as not ready;
+  - with DV-Q5 option 2, a branch manager is refused for a target outside her branches, or with a `COMPANY` or
+    `BUSINESS` membership;
+  - the PIN never appears in the DOM after it is set.
+- **Every UI test** asserts what the user sees (`CLAUDE.md` §9).
