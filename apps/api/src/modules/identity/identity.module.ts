@@ -34,6 +34,7 @@ import {
   type CashierPinUseCases,
 } from './http/cashier-pins.controller.ts';
 import { CompaniesController } from './http/companies.controller.ts';
+import { PendingDevicesController } from './http/pending-devices.controller.ts';
 import { MeController, WORKSPACE_NAMES } from './http/me.controller.ts';
 import {
   DEVICE_USE_CASES,
@@ -77,6 +78,7 @@ export const identityControllers = [
   BusinessPermissionsController,
   CompaniesController,
   DevicesController,
+  PendingDevicesController,
   CashierPinsController,
   MeController,
   StaffOtpController,
