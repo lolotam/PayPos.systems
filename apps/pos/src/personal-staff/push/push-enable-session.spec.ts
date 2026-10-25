@@ -45,9 +45,10 @@ vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
     generation: async () => 0,
     read: async () => (fakes.record === null ? null : { ...fakes.record }),
-    suspend: async () => {
+    suspend: async (options?: { unlessOwner?: string }) => {
       const stored = fakes.record;
       if (stored === null) return null;
+      if (options?.unlessOwner === stored.subscriber_ref) return null;
       const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
       fakes.record = suspended;
       return { record: suspended, generation: 0 };
@@ -168,6 +169,41 @@ it('suspends the old record before touching the subscription when another person
   expect(pushCalls.register).not.toHaveBeenCalled();
   expect(fakes.record?.suspended).toBe(true);
   expect(fakes.record?.revision).toBe(RECORD.revision + 1);
+});
+
+it('leaves the record of the person who owns the session untouched when the session flips back', async () => {
+  // سجل B على التليفون، وA بيفعّل، والجلسة بترجع لـ B قبل تبديل الاشتراك: سجل B ملكه.
+  const recordB: PushRecord = { ...RECORD, subscriber_ref: 'person-b' };
+  fakes.record = { ...recordB };
+  vi.mocked(pushCalls.config)
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: 'person-b' } });
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'failed' });
+  expect(fakes.record).toEqual(recordB);
+  expect(fakes.subscribes).toBe(0);
+  expect(unsubscribePush).not.toHaveBeenCalled();
+  expect(pushCalls.register).not.toHaveBeenCalled();
+  expect(notifyPushRecordChanged).not.toHaveBeenCalled();
+});
+
+it('leaves the record of the session owner untouched when the session flips back before the PUT', async () => {
+  const recordB: PushRecord = { ...RECORD, subscriber_ref: 'person-b' };
+  fakes.record = { ...recordB };
+  vi.mocked(pushCalls.config)
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: 'person-b' } });
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'failed' });
+  expect(fakes.record).toEqual(recordB);
+  expect(pushCalls.register).not.toHaveBeenCalled();
+  // واحد لتبديل الاشتراك القديم وواحد للاشتراك الجديد بتاع التبويب ده بس.
+  expect(unsubscribePush).toHaveBeenCalledTimes(2);
 });
 
 it('suspends the old record and drops the new subscription when the session changed', async () => {

@@ -10,10 +10,14 @@ export type RefreshSessionAbort = { kind: 'none' } | { kind: 'session-changed' }
  * بيعلّق السجل فور ما يتأكد إن الجلسة بقت لشخص تاني، عشان النص القديم ما يفضلش
  * ظاهر لحد ما الواجهة تعيد القراءة. فشل التعليق نفسه بيمشي على التنظيف المقفل الموجود.
  *
+ * @param currentSubscriberRef مرجع شخص الجلسة الحالية: سجله هو ما بيتعلّقش، والقرار على
+ * صاحب السجل المخزن مش على إعدادات اللي نادى
  * @returns نتيجة تمنع التحديث وتطلب من الواجهة قراءة هوية الجلسة الجديدة
  */
-export async function suspendChangedSession(): Promise<{ kind: 'session-changed' }> {
-  await suspendPushForSignIn();
+export async function suspendChangedSession(
+  currentSubscriberRef: string,
+): Promise<{ kind: 'session-changed' }> {
+  await suspendPushForSignIn(currentSubscriberRef);
   return { kind: 'session-changed' };
 }
 
@@ -27,7 +31,7 @@ export async function suspendChangedSession(): Promise<{ kind: 'session-changed'
  */
 export async function checkBeforeMutation(config: PushConfig): Promise<RefreshSessionAbort | null> {
   const session = await checkSession(identityOf(config));
-  if (session === 'mismatch') return suspendChangedSession();
-  if (session !== 'match') return { kind: 'none' };
+  if (session.kind === 'mismatch') return suspendChangedSession(session.current.subscriber_ref);
+  if (session.kind !== 'match') return { kind: 'none' };
   return null;
 }

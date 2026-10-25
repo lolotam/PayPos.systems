@@ -226,7 +226,7 @@ it('restores a suspended record of this company when the subscriber reference ma
   expect(fakes.state.unsubscribed).toBe(0);
 });
 
-it('removes a suspended record of this company when the subscriber reference differs', async () => {
+it('leaves a suspended record of another person suspended without writing it again', async () => {
   fakes.state.record = { ...RECORD, suspended: true };
   vi.mocked(pushCalls.config).mockResolvedValue({
     kind: 'ready',
@@ -235,10 +235,11 @@ it('removes a suspended record of this company when the subscriber reference dif
 
   const outcome = await refreshPush(input({ ...CONFIG, subscriber_ref: 'another-ref' }));
 
-  expect(outcome).toEqual({ kind: 'cleared' });
-  expect(fakes.state.removed).toBe(1);
-  expect(fakes.state.unsubscribed).toBe(1);
-  expect(fakes.state.record).toBeNull();
+  expect(outcome).toEqual({ kind: 'session-changed' });
+  expect(fakes.state.record).toEqual({ ...RECORD, suspended: true });
+  expect(fakes.state.writes).toEqual([]);
+  expect(fakes.state.removed).toBe(0);
+  expect(fakes.state.unsubscribed).toBe(0);
 });
 
 it('leaves a suspended record of another company untouched', async () => {
@@ -252,7 +253,7 @@ it('leaves a suspended record of another company untouched', async () => {
   expect(pushCalls.register).not.toHaveBeenCalled();
 });
 
-it('removes a record of another person and sends no registration', async () => {
+it('suspends a record of another person and sends no registration', async () => {
   fakes.state.record = { ...RECORD };
   vi.mocked(pushCalls.config).mockResolvedValue({
     kind: 'ready',
@@ -261,10 +262,11 @@ it('removes a record of another person and sends no registration', async () => {
 
   const outcome = await refreshPush(input({ ...CONFIG, subscriber_ref: 'another-ref' }));
 
-  expect(outcome).toEqual({ kind: 'cleared' });
-  expect(fakes.state.removed).toBe(1);
-  expect(fakes.state.unsubscribed).toBe(1);
-  expect(fakes.state.record).toBeNull();
+  expect(outcome).toEqual({ kind: 'session-changed' });
+  expect(fakes.state.record?.suspended).toBe(true);
+  expect(fakes.state.record?.revision).toBe(RECORD.revision + 1);
+  expect(fakes.state.record?.token).toBe(RECORD.token);
+  expect(fakes.state.removed).toBe(0);
   expect(pushCalls.register).not.toHaveBeenCalled();
 });
 

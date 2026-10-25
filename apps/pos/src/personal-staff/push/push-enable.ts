@@ -187,8 +187,8 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
  */
 async function confirmBeforeSubscribe(config: PushConfig): Promise<boolean> {
   const session = await checkSession(identityOf(config));
-  if (session === 'mismatch') await suspendChangedSession();
-  return session === 'match';
+  if (session.kind === 'mismatch') await suspendChangedSession(session.current.subscriber_ref);
+  return session.kind === 'match';
 }
 
 /**
@@ -204,8 +204,8 @@ async function confirmAndRegister(
   token: string,
 ): Promise<boolean> {
   const session = await checkSession(identityOf(config));
-  if (session !== 'match') {
-    if (session === 'mismatch') await suspendChangedSession();
+  if (session.kind !== 'match') {
+    if (session.kind === 'mismatch') await suspendChangedSession(session.current.subscriber_ref);
     await unsubscribePush().catch(() => undefined);
     return false;
   }

@@ -140,14 +140,18 @@ beforeEach(() => {
 it('turns the control off once another person is confirmed in the session', async () => {
   const view = mount();
 
-  // السجل بيتعلّق أول ما الاختلاف يتأكد، وبعد ما الشاشة تقرا الجلسة الجديدة بيتمسح.
-  await waitFor(() => expect(fakes.record).toBeNull());
-  expect(await screen.findByText(t('en', 'staffPush.off'))).toBeDefined();
+  // سجل شخص تاني بيتعلّق مرة واحدة أول ما الاختلاف يتأكد، ومفيش كتابة تانية بعد كده.
+  expect(await screen.findByText(t('en', 'staffPush.reconnecting'))).toBeDefined();
+  expect(screen.getByText(t('en', 'staffPush.off'))).toBeDefined();
   expect(screen.queryByText(t('en', 'staffPush.on'))).toBeNull();
+  expect(fakes.record?.suspended).toBe(true);
+  expect(fakes.record?.revision).toBe(RECORD_A.revision + 1);
   expect(screen.getByRole('button', { name: t('en', 'staffPush.enable') })).toBeDefined();
   expect(pushCalls.register).not.toHaveBeenCalled();
-  // الإعدادات اتطلبت من الشاشة مرة واحدة بس زيادة، والتحديث ما اشتغلش في حلقة.
-  await waitFor(() => expect(screenRequests()).toBe(2));
-  expect(vi.mocked(refreshPush).mock.calls.length).toBeLessThanOrEqual(2);
+  // الإعدادات اتقرت تاني مرتين بالكتير (الجلسة الجديدة وتأكيدها)، والتحديث ما اشتغلش في حلقة.
+  await waitFor(() => expect(screenRequests()).toBe(3));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(screenRequests()).toBe(3);
+  expect(vi.mocked(refreshPush).mock.calls.length).toBeLessThanOrEqual(3);
   view.unmount();
 });

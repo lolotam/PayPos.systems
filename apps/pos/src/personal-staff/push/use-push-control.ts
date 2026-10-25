@@ -213,6 +213,9 @@ function usePushRefresh(input: {
         // التحديث بيتعاد بس لما المستخدم يرجع ويسمح، ومفيش إعادة قراءة دايرة (FR-019).
         if (outcome.kind === 'none') {
           failed.current = signature;
+          // الاشتراك الجديد ممكن يكون اتشال: اللقطة المحلية لازم تتقرا تاني عشان الزر ما
+          // يفضلش «شغال» من غير اشتراك (ADR-0052 §7).
+          void reload();
           return;
         }
         if (outcome.kind === 'rotated') {

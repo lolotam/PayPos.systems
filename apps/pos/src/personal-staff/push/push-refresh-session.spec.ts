@@ -133,7 +133,8 @@ it.each([false, true])(
 
     expect(outcome).toEqual({ kind: 'session-changed' });
     expect(fakes.record?.suspended).toBe(true);
-    expect(fakes.record?.revision).toBe(RECORD.revision + 1);
+    // سجل معلّق أصلاً ما بيتكتبش تاني.
+    expect(fakes.record?.revision).toBe(RECORD.revision + (suspended ? 0 : 1));
     expect(fakes.removed).toBe(0);
     expect(fakes.unsubscribed).toBe(0);
     expect(pushCalls.register).not.toHaveBeenCalled();

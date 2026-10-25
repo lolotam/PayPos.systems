@@ -40,8 +40,10 @@ export interface PushRecordStore {
    * بيرجع السجل المعلق كما خزنته نفس العملية اللي علّقته (التوكن ومرجع المشترك
    * والمراجعة بعد الزيادة) مع الجيل اللي اتشاف في نفس العملية، أو null لو مفيش سجل
    * مخزن. الرجوع المحروس لازم يستعمل الجيل ده، مش الجيل المقروء قبل التعليق.
+   * لو اتمرر `unlessOwner` وسجل المخزن بتاع نفس المشترك، مفيش تعليق والنتيجة null:
+   * سجل صاحب الجلسة الحالية ما يتعلّقش، والقرار جوه نفس العملية عشان تسجيل تاني ما يسبقش.
    */
-  suspend(): Promise<PushSuspension | null>;
+  suspend(options?: { unlessOwner?: string }): Promise<PushSuspension | null>;
   generation(): Promise<number>;
   bumpGeneration(): Promise<number>;
   writeIfGeneration(

@@ -16,11 +16,14 @@ let sequence = 0;
  * التعليق مش بيكسر الجيل: تسجيل نفس الموظفة أثناء تدوير لازم يفضل محفوظ (ADR-0052 §7).
  * اللقطة اللي بنقارن بيها هي السجل اللي رجعته عملية التعليق نفسها، فمفيش سباق
  * بين القراءة والتعليق: لو السجل اتمسح قبل التعليق، التعليق بيرجع null ومفيش حاجة تتغير.
+ * لو اتمرر `unlessOwner` فسجل صاحب الجلسة الحالية ما بيتعلّقش.
  */
-export async function suspendPushForSignIn(): Promise<void> {
+export async function suspendPushForSignIn(unlessOwner?: string): Promise<void> {
   let snapshot: PushSuspension | null;
   try {
-    snapshot = await pushRecordStore.suspend();
+    snapshot = await pushRecordStore.suspend(
+      unlessOwner === undefined ? undefined : { unlessOwner },
+    );
   } catch {
     // من غير تعليق السجل بيفضل قايم مفتوح، فبنمسحه ونشيل الاشتراك (fail-closed).
     await pushRecordStore.remove().catch(() => undefined);

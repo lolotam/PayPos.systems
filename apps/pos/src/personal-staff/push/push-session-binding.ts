@@ -18,7 +18,11 @@ export interface SessionIdentity {
  * أو قراءة ما اتأكدتش. نفس الشخص في شركة تانية مش اختلاف بيعلّق السجل (FR-018، WP-Q4):
  * مفيش تعليق ولا مسح ولا PUT. والمجهول كمان: فشل الشبكة ما بيعملش تعليق ولا مسح ولا PUT.
  */
-export type SessionCheck = 'match' | 'mismatch' | 'other-company' | 'unknown';
+export type SessionCheck =
+  | { kind: 'match' }
+  | { kind: 'mismatch'; current: SessionIdentity }
+  | { kind: 'other-company' }
+  | { kind: 'unknown' };
 
 /**
  * بيقرأ إعدادات الإشعارات بجلسة الطلب الحالية، لأن السيرفر بيربط تسجيل PUT بشخص الجلسة
@@ -52,14 +56,15 @@ export function identityOf(config: PushConfig): SessionIdentity {
  * عشان فشل الشبكة ما يعملش تعليق أو مسح ولا يسمح بـ PUT.
  *
  * @param expected مرجع الشخص والشركة المطلوب تأكيدهم
- * @returns match للتطابق الكامل، mismatch لشخص تاني، other-company لنفس الشخص في شركة
- * تانية، unknown لما القراءة ما تكتملش
+ * @returns match للتطابق الكامل، mismatch لشخص تاني (مع هوية الجلسة الحالية عشان قرار
+ * التعليق يتبني على صاحب السجل)، other-company لنفس الشخص في شركة تانية، unknown لما
+ * القراءة ما تكتملش
  */
 export async function checkSession(expected: SessionIdentity): Promise<SessionCheck> {
   const config = await fetchSessionConfig();
-  if (config === null) return 'unknown';
+  if (config === null) return { kind: 'unknown' };
   const current = identityOf(config);
-  if (current.subscriber_ref !== expected.subscriber_ref) return 'mismatch';
-  if (current.company_id !== expected.company_id) return 'other-company';
-  return 'match';
+  if (current.subscriber_ref !== expected.subscriber_ref) return { kind: 'mismatch', current };
+  if (current.company_id !== expected.company_id) return { kind: 'other-company' };
+  return { kind: 'match' };
 }

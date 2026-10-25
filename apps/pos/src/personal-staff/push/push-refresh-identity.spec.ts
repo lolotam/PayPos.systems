@@ -151,6 +151,18 @@ it('suspends first when another person signed in to another company', async () =
   expect(pushCalls.register).not.toHaveBeenCalled();
 });
 
+it('uses the current session and suspends nothing when only the caller config is stale', async () => {
+  vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: CONFIG_A });
+
+  const outcome = await refreshPush(input(OTHER_PERSON));
+
+  expect(outcome).toEqual({ kind: 'refreshed' });
+  expect(fakes.record).toEqual(RECORD);
+  expect(vi.mocked(pushCalls.register).mock.calls[0]?.[0]?.vapid_key_id).toBe(
+    CONFIG_A.vapid_key_id,
+  );
+});
+
 it('suspends the record at once when the session belongs to another person', async () => {
   vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: OTHER_PERSON });
 

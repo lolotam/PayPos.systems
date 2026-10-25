@@ -134,8 +134,10 @@ it('never registers the old person under the new shared-phone session', async ()
     installationId: INSTALLATION,
   });
 
-  expect(current).toEqual({ kind: 'cleared' });
-  expect(model.record).toBeNull();
+  // سجل الشخص التاني فضل معلّق زي ما هو: الجلسة الجديدة مش صاحبته.
+  expect(current).toEqual({ kind: 'session-changed' });
+  expect(model.record?.subscriber_ref).toBe(PERSON_A);
+  expect(model.record?.suspended).toBe(true);
   expect(pushCalls.register).not.toHaveBeenCalled();
   expect(model.rows.get(`${COMPANY}:${INSTALLATION}`)).toEqual(serverRow);
 });

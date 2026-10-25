@@ -52,39 +52,40 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
   if (!hasCrossTabLock()) return { kind: 'none' };
   return runPushExclusive(async (): Promise<PushRefreshOutcome> => {
     const generation = await pushRecordStore.generation();
-    const record = await readOwnRecord(input);
+    const record = await readStoredRecord();
     if (record === null) return { kind: 'none' };
     // قراءة غير مؤكدة: من غير هوية الجلسة ما فيش تسجيل ولا تغيير (ADR-0052 §7).
     const fresh = await fetchSessionConfig();
     if (fresh === null) return { kind: 'none' };
-    // اختلاف مؤكد: السجل بيتعلّق في نفس الخطوة عشان نص الموظفة القديمة ما يوصلش
-    // للجلسة الجديدة (ADR-0052 §7).
-    if (fresh.subscriber_ref !== input.config.subscriber_ref) return suspendChangedSession();
+    // القرار على صاحب السجل المخزن مش على إعدادات اللي نادى (ممكن تكون قديمة): سجل شخص
+    // تاني بيتعلّق في نفس الخطوة عشان نصه ما يوصلش للجلسة دي (ADR-0052 §7).
+    if (fresh.subscriber_ref !== record.subscriber_ref) {
+      // سجل معلّق أصلاً مش محتاج كتابة تانية: الواجهة بس تقرا الجلسة الجديدة.
+      if (record.suspended) return { kind: 'session-changed' };
+      return suspendChangedSession(fresh.subscriber_ref);
+    }
     // نفس الشخص في شركة تانية: مفيش تغيير (FR-018، FR-019، WP-Q4). الفحص ده بعد فحص الشخص
-    // عشان النتيجة ماتعتمدش على توقيت الكاش.
-    if (record.company_id !== fresh.company_id) return { kind: 'none' };
+    // عشان النتيجة ماتعتمدش على توقيت الكاش، والتحديث دايمًا بإعدادات الجلسة الحالية.
+    if (record.company_id !== fresh.company_id || record.company_id !== input.companyId) {
+      return { kind: 'none' };
+    }
     return refreshWithConfig({ ...input, config: fresh }, record, generation);
   });
 }
 
 /**
- * بيقرأ السجل المحلي وبيرفض سجل شركة تانية: السجل ده مش بتاع الجلسة دي، فمفيش أي
- * تغيير عليه مهما كانت الجلسة (FR-019).
+ * بيقرأ السجل المحلي زي ما هو، لأن القرار بيتبني على صاحبه (الشخص ثم الشركة) مش على
+ * الشركة اللي الشاشة مفتوحة فيها.
  *
- * @param input الشركة اللي الجلسة مفتوحة فيها
- * @returns السجل لو كان بتاع الشركة دي، أو null
+ * @returns السجل المخزن، أو null لما مفيش سجل أو القراءة فشلت
  */
-async function readOwnRecord(input: PushRefreshInput): Promise<PushRecord | null> {
-  let record: PushRecord | null;
+async function readStoredRecord(): Promise<PushRecord | null> {
   try {
-    record = await pushRecordStore.read();
+    return await pushRecordStore.read();
   } catch {
     // السجل مش معروف: من غير ما نمسح ولا نسجل، مفيش حاجة نعملها.
     return null;
   }
-  if (record === null) return null;
-  if (record.company_id !== input.companyId) return null;
-  return record;
 }
 
 async function refreshWithConfig(
@@ -92,15 +93,6 @@ async function refreshWithConfig(
   record: PushRecord,
   generation: number,
 ): Promise<PushRefreshOutcome> {
-  // مرجع تاني جواب مؤكد إن الجهاز بقى لحد تاني، فبنشيل الاشتراك والسجل
-  // من غير أي PUT (ADR-0052 §7).
-  if (input.config.subscriber_ref !== record.subscriber_ref) {
-    // السجل بيتشال قبل ما الإلغاء يخلص: طول ما الإلغاء معلّق، نص الموظفة القديمة يقدر
-    // يظهر وهي لسه على الشاشة (ADR-0052 §7).
-    await removeRecord();
-    await unsubscribePush().catch(() => undefined);
-    return { kind: 'cleared' };
-  }
   if (record.suspended) {
     const aborted = await checkBeforeMutation(input.config);
     if (aborted !== null) return aborted;
@@ -129,8 +121,8 @@ async function refreshPlain(
   subscription: PushSubscriptionLike,
 ): Promise<PushRefreshOutcome> {
   const session = await checkSession(identityOf(input.config));
-  if (session === 'mismatch') return suspendChangedSession();
-  if (session !== 'match') return { kind: 'none' };
+  if (session.kind === 'mismatch') return suspendChangedSession(session.current.subscriber_ref);
+  if (session.kind !== 'match') return { kind: 'none' };
   await withAbortTimeout(
     (signal) =>
       pushCalls.register(
@@ -174,14 +166,14 @@ async function rotate(
   }
   const token = crypto.randomUUID();
   const session = await checkSession(identityOf(input.config));
-  if (session === 'mismatch') {
+  if (session.kind === 'mismatch') {
     // التعليق قبل الإلغاء: طول ما الإلغاء معلّق، السجل القديم بيفضل مفتوح ونص صاحبه
     // يقدر يظهر (ADR-0052 §7).
-    const aborted = await suspendChangedSession();
+    const aborted = await suspendChangedSession(session.current.subscriber_ref);
     await dropSubscription();
     return aborted;
   }
-  if (session !== 'match') {
+  if (session.kind !== 'match') {
     // القراءة المجروفة أو شركة تانية: بنشيل الاشتراك اللي اتعمل دلوقتي بس ومفيش PUT،
     // والتحديث الجاي يدور تاني.
     await dropSubscription();
