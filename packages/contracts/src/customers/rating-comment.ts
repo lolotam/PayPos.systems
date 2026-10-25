@@ -13,8 +13,8 @@ const LINK_OR_MARKUP_PATTERNS = [
   /\]\(/,
 ];
 
-// نطاقات تقنية: أي كتابة بتعدّي كدومين.
-const TECHNICAL_TLDS = new Set([
+// نطاقات الـ TLD كلها (تقنية وكلمات عادية) في set واحد.
+const TLDS = new Set([
   'com',
   'net',
   'org',
@@ -73,10 +73,6 @@ const TECHNICAL_TLDS = new Set([
   'ke',
   'ar',
   'mx',
-]);
-
-// نطاقات كلمات: ممكن تيجي في نص عادي، فبترفضها بس لو صغيرة أو مش Capitalised.
-const WORD_TLDS = new Set([
   'me',
   'us',
   'co',
@@ -115,23 +111,33 @@ const WORD_TLDS = new Set([
   'website',
 ]);
 
-const TOKEN_SPLIT = /[^a-z0-9.]+/i;
+// تقسيم خطّي: مفيش quantifiers متداخلة، عشان مدخل زي a.a.a... ما يحرقش الحلقة.
+const TOKEN_SPLIT = /[^a-z0-9.@/:]+/i;
 const LABEL = /^[a-z0-9]+$/i;
-const CAPITALISED = /^[A-Z][a-z]+$/;
+const LETTER = /[a-z]/i;
+const SENTENCE_BREAK = /^[A-Z][a-z]+$/;
 
-// الدومين بيتفحص بتقسيم النص لأجزاء، مش بـ regexp مع quantifiers متداخلة، عشان مدخل زي a.a.a... ما يحرقش الحلقة.
-// نطاقات الـ TLD التقنية دومين بأي كتابة، ونطاقات الكلمات دومين إلا لو مكتوبة Capitalised بعد النقطة.
-// المقايضة إن Example.Me يعدّي، وكل دومين صغير ناقصة فاصلة بيرفض.
+// القاعدة: توكين بنقطة دومين لو فيه @ أو /، أو 3 أجزاء (ماعدا الاختصارات)، أو جزئين والتاني TLD ومش Capitalised.
+// Capitalised بعد النقطة = نهاية جملة (It, My, Me, Shop)، فـ example.Shop وexample.Com يعدّوا وده مقبول.
+// ADR-0011 بيعرض التعليق نص متهرب ومبيتحولش لدومين؛ ورفض كل TLD Capitalised هيرفض جمل عادي.
+// زي Great service.It was perfect اللي مفيش فيها مسافة بعد النقطة.
 function containsBareDomain(value: string): boolean {
   for (const token of value.split(TOKEN_SPLIT)) {
     if (!token.includes('.')) continue;
-    const labels = token.split('.').filter((label) => label.length > 0);
+    const hasAt = token.includes('@');
+    const hasSlash = token.includes('/');
+    let core = hasAt ? token.slice(token.lastIndexOf('@') + 1) : token;
+    if (core.includes('/')) core = core.slice(0, core.indexOf('/'));
+    const labels = core.split('.').filter((label) => label.length > 0);
     if (labels.length < 2) continue;
     if (!labels.every((label) => LABEL.test(label))) continue;
-    for (const label of labels.slice(1)) {
-      const lower = label.toLowerCase();
-      if (TECHNICAL_TLDS.has(lower)) return true;
-      if (WORD_TLDS.has(lower) && !CAPITALISED.test(label)) return true;
+    if (!labels.some((label) => LETTER.test(label))) continue;
+    if (hasAt || hasSlash) return true;
+    if (labels.length >= 3 && !labels.every((label) => label.length === 1)) return true;
+    if (labels.length === 2) {
+      const last = labels[1];
+      if (last === undefined) continue;
+      if (TLDS.has(last.toLowerCase()) && !SENTENCE_BREAK.test(last)) return true;
     }
   }
   return false;

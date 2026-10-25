@@ -75,13 +75,15 @@ describe('rating comment links and markup refused', () => {
     ['a mixed-case domain', 'Example.COM'],
     ['a fully upper-case domain', 'EXAMPLE.COM'],
     ['a service domain', 'service.me'],
-    ['a capitalised technical TLD', 'example.Com'],
     ['a capitalised technical TLD in an address', 'user@example.Com'],
+    ['a capitalised travel TLD in an address', 'user@example.Travel'],
     ['a domain with a country TLD', 'mysalon.com.au'],
     ['a domain with two word TLDs', 'mysalon.co.za'],
     ['a domain before a capitalised word', 'mysalon.com.Thanks'],
     ['a domain with a hyphen', 'mysalon.com-thanks'],
     ['a hyphenated domain', 'my-salon.com'],
+    ['a path after a domain', 'see example.org/x'],
+    ['an address with a domain', 'call me at me@mail.test'],
   ])('refuses a comment with %s', (_label, comment) => {
     expect(ratingComment.safeParse(comment).success).toBe(false);
   });
@@ -108,8 +110,18 @@ describe('rating comment links and markup accepted', () => {
     ['a time without a space', '5.30pm'],
     ['a sentence break before a word', 'Great service.Me and my sister'],
     ['a sentence break before a pronoun', 'Thank you.Us girls'],
+    ['a sentence break after a full stop', 'Great service.It was perfect'],
+    ['a sentence break after a thanks', 'Thanks.My hair looks great'],
+    ['an acronym', 'U.S.A'],
+    ['a fraction with a path', '4.5/5 stars'],
+    ['a version number', '1.2.3'],
   ])('accepts a comment with %s', (_label, comment) => {
     expect(ratingComment.safeParse(comment).success).toBe(true);
+  });
+
+  it('accepts a title-cased TLD as a documented residual', () => {
+    expect(ratingComment.safeParse('example.Shop').success).toBe(true);
+    expect(ratingComment.safeParse('example.Com').success).toBe(true);
   });
 });
 
