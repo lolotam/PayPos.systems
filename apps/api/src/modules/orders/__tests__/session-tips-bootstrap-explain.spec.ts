@@ -18,15 +18,15 @@ beforeAll(async () => {
 afterAll(async () => { await f?.close(); });
 
 async function seed(sample: string) {
-  const extras = Array.from({ length: 3999 }, () => ({ id: ids.newId(), rev: ids.newId(), tip: ids.newId() }));
+  const extras = Array.from({ length: 7999 }, (_, n) => ({ id: ids.newId(), rev: ids.newId(), tip: ids.newId(), n: (n % 200) + 1 }));
   const copies = JSON.stringify(extras);
   const all = JSON.stringify([{ id: sample, rev: ids.newId(), tip: ids.newId() }, ...extras]);
   const employee = must(f.employees[0]);
   await f.h.owner`INSERT INTO service_sessions(company_id,id,business_id,branch_id,customer_id,customer_name,customer_phone_masked,
     occurred_at,recorded_at,business_date,business_timezone,recorded_by,recorded_by_membership_id,late)
     SELECT s.company_id,r.id,s.business_id,s.branch_id,s.customer_id,s.customer_name,s.customer_phone_masked,
-      s.occurred_at,s.recorded_at,s.business_date,s.business_timezone,s.recorded_by,s.recorded_by_membership_id,s.late
-    FROM jsonb_to_recordset(${copies}::text::jsonb) r(id uuid)
+      s.occurred_at,s.recorded_at,s.business_date - r.n,s.business_timezone,s.recorded_by,s.recorded_by_membership_id,s.late
+    FROM jsonb_to_recordset(${copies}::text::jsonb) r(id uuid, n int)
     CROSS JOIN service_sessions s WHERE s.company_id=${f.company} AND s.id=${sample}`;
   await f.h.owner.begin(async (tx) => {
     await tx`INSERT INTO session_tip_revisions(company_id,id,business_id,session_id,revision,previous_revision,
@@ -40,8 +40,13 @@ async function seed(sample: string) {
 }
 
 it('pages current revisions without sequential scans on the session or tip tables', async () => {
-  const statement = currentSessionTipsStatement(f.company, f.business,
-    { from: '2026-10-14', to: '2026-10-14' }, { after: null, limit: 50 });
+  // المخطط يمشي بترتيب الزيارة ويقرأ اليوم ببحث بالمفتاح الأساسي، فتنمو الشغل مع التاريخ؛
+  // فهرس (company_id, business_id, business_date, id) الذي يحلّها متتبّع في المشكلة #649 وينزل
+  // مع هجرة الفهارس فقط للصف 50-0، لا في هذا المسار (من غير هجرة هنا).
+  const [row] = await f.h.owner`SELECT to_char(business_date,'YYYY-MM-DD') AS day FROM service_sessions WHERE company_id=${f.company} AND id=${sessionId}`;
+  const day = String(must(row)['day']);
+  const from = new Date(new Date(`${day}T00:00:00Z`).getTime() - 3 * 86_400_000).toISOString().slice(0, 10);
+  const statement = currentSessionTipsStatement(f.company, f.business, { from, to: day }, { after: null, limit: 50 });
   await f.db.withTenant(f.company, async (tx) => {
     const rows = await tx.execute<{ 'QUERY PLAN': { Plan: PlanNode }[] }>(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${statement}`);
     const plan = nodes(must(must(rows[0])['QUERY PLAN'][0]).Plan);

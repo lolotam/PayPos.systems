@@ -90,15 +90,26 @@ function groupRows(rows: readonly CurrentSessionTipsRow[]): CurrentSessionTips[]
   return [...sessions.values()];
 }
 
+// سطر واحد يكشف ربطاً غلطاً: شركة لا تطابق مستأجر المعاملة تفشل بصوت عالٍ بدل صفحة فارغة تُقرأ كـ«لا بقشيش».
+async function assertTenant(tx: Tx, companyId: string): Promise<void> {
+  const rows = await tx.execute<{ company_id: string | null }>(
+    sql`SELECT app_company_id()::text AS company_id`);
+  const tenant = rows[0]?.company_id ?? null;
+  if (tenant === null || tenant.toLowerCase() !== companyId.toLowerCase())
+    throw new Error('SESSION_TIPS_BOOTSTRAP_TENANT_MISMATCH');
+}
+
 /**
  * يرجع صفحة من الزيارات التي لها مراجعات بقشيش، ومع كل زيارة أحدث مراجعة ومجموعتها الكاملة
  * وكل معرّفات أحداث مراجعاتها بترتيبها، بلا هاتف أو اسم عميلة أو سبب تعديل.
  * الاستعلام الواحد يثبّت المراجعة والمدخلات والأحداث في لقطة واحدة، والمؤشر على معرّف الزيارة الثابت
  * يمنع تكرارها أو فقدها بين الصفحات؛ أي مراجعة تُكتب بعد قراءة صفحتها يوصلها المستهلك الحي،
  * لذلك يبدأ المستهلك قبل أول صفحة ولا يعتمد bootstrap على إعادة قراءة الزيارة نفسها.
+ * واختلاف شركة الاستدعاء عن مستأجر المعاملة يفشل بـ SESSION_TIPS_BOOTSTRAP_TENANT_MISMATCH
+ * بدل صفحة فارغة، لأن Bootstrap يقرأ الصفحة الفارغة كـ«لا بقشيش» فيختفي خطأ الربط في صورة غياب بيانات.
  *
  * @param tx معاملة المستأجر التي فتحها المستدعي؛ القارئ لا يفتح معاملة ولا يكتب
- * @param companyId معرّف الشركة ويجب أن يطابق مستأجر المعاملة
+ * @param companyId معرّف الشركة ويجب أن يطابق مستأجر المعاملة؛ الاختلاف يفشل بـ SESSION_TIPS_BOOTSTRAP_TENANT_MISMATCH
  * @param businessId معرّف النشاط المقصود
  * @param range يوما العمل بصيغة YYYY-MM-DD وكلاهما داخل النطاق
  * @param page مؤشر آخر زيارة في الصفحة السابقة وعدد الزيارات المطلوب من 1 إلى 200
@@ -109,6 +120,7 @@ export async function listCurrentSessionTips(
   range: CurrentSessionTipsRange, page: CurrentSessionTipsPageRequest,
 ): Promise<CurrentSessionTipsPage> {
   validateRequest(companyId, businessId, range, page);
+  await assertTenant(tx, companyId);
   const normalized = { after: page.after?.toLowerCase() ?? null, limit: page.limit };
   const rows = await tx.execute<CurrentSessionTipsRow>(
     currentSessionTipsStatement(companyId, businessId, range, normalized));

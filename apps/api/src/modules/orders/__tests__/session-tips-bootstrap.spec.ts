@@ -108,12 +108,13 @@ it.each(invalidCases)('rejects $code before touching the database', async (inval
   expect(queried).toBe(false);
 });
 
-it('returns an empty page for another tenant, business, or mismatched company argument', async () => {
+it('returns an empty page for another tenant or business, and fails loudly on a mismatched company argument', async () => {
   const visit = await recordVisit(f);
   await runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '1.500')]));
   const other = ids.newId();
   expect(await f.db.withTenant(other, (tx) => listCurrentSessionTips(tx, other, f.business, RANGE, ALL))).toEqual(EMPTY);
   expect(await read(f.company, ids.newId())).toEqual(EMPTY);
-  expect(await f.db.withTenant(f.company, (tx) => listCurrentSessionTips(tx, other, f.business, RANGE, ALL))).toEqual(EMPTY);
+  await expect(f.db.withTenant(f.company, (tx) => listCurrentSessionTips(tx, other, f.business, RANGE, ALL)))
+    .rejects.toThrow('SESSION_TIPS_BOOTSTRAP_TENANT_MISMATCH');
   expect((await read()).items.map((item) => item.session_id)).toContain(visit.sessionId);
 });
