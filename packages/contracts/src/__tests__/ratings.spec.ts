@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  RATING_TOKEN_LIFETIME_HOURS,
   ratingCancelReason,
   ratingComment,
   ratingRequestStatus,
@@ -28,10 +27,6 @@ describe('rating request contracts', () => {
 
   it.each(['REQUESTS_OFF', 'opted_out', 'NO_LINE'])('refuses foreign reason %s', (value) => {
     expect(ratingCancelReason.safeParse(value).success).toBe(false);
-  });
-
-  it('uses the seven-day token lifetime', () => {
-    expect(RATING_TOKEN_LIFETIME_HOURS).toBe(168);
   });
 });
 

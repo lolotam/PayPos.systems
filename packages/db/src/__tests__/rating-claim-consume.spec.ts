@@ -132,13 +132,21 @@ it('commits consume, rating and all attributions together', async () => {
   );
 });
 
-it('rolls back consumption and rating when the transaction fails before attribution', async () => {
+it('rolls back the consumption, the rating and its attributions when the transaction fails', async () => {
   const { id, tokenHash } = await claimed();
   await expect(
     db.withTenant(A.company, async (tx) => {
       const consumed = await consumeRow(tx, A, tokenHash, NOW);
       expect(consumed).toHaveLength(1);
-      await insertRating(tx, { tenant: A, requestId: id, stars: 5, now: NOW });
+      const ratingId = await insertRating(tx, { tenant: A, requestId: id, stars: 5, now: NOW });
+      await insertAttribution(tx, {
+        tenant: A,
+        requestId: id,
+        ratingId,
+        employeeId: A.employees[0],
+        stars: 5,
+        now: NOW,
+      });
       throw new Error('synthetic rollback');
     }),
   ).rejects.toThrow('synthetic rollback');
@@ -146,6 +154,9 @@ it('rolls back consumption and rating when the transaction fails before attribut
     { consumed_at: null },
   ]);
   expect(await owner`SELECT id FROM ratings WHERE request_id=${id}`).toEqual([]);
+  expect(await owner`SELECT id FROM rating_attributions WHERE request_id=${id}`).toEqual([]);
+  const later = await db.withTenant(A.company, (tx) => consumeRow(tx, A, tokenHash, NOW));
+  expect(later).toHaveLength(1);
 });
 
 it('refuses a rating outside the consuming transaction or after an earlier consume', async () => {
