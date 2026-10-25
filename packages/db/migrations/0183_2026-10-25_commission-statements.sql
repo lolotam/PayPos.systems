@@ -62,7 +62,8 @@ CREATE TABLE "commission_statement_lines" (
 	CONSTRAINT "commission_statement_lines_commission_detail" CHECK ("commission_statement_lines"."kind" <> 'COMMISSION' OR
         ("commission_statement_lines"."line_id" IS NOT NULL AND "commission_statement_lines"."session_id" IS NOT NULL
           AND "commission_statement_lines"."service_id" IS NOT NULL AND "commission_statement_lines"."business_date" IS NOT NULL)),
-	CONSTRAINT "commission_statement_lines_source_period" CHECK ("commission_statement_lines"."source_period" IS NULL OR "commission_statement_lines"."source_period" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$')
+	CONSTRAINT "commission_statement_lines_source_period" CHECK (("commission_statement_lines"."source_period" IS NOT NULL) = ("commission_statement_lines"."kind" IN ('CORRECTION','CORRECTION_TIP_CARD','CORRECTION_TIP_CASH','CARRY_COMMISSION','CARRY_TIP_CARD'))
+        AND ("commission_statement_lines"."source_period" IS NULL OR "commission_statement_lines"."source_period" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' AND substr("commission_statement_lines"."source_period", 1, 4) <> '0000'))
 );
 --> statement-breakpoint
 CREATE TABLE "commission_statements" (
@@ -88,7 +89,7 @@ CREATE TABLE "commission_statements" (
 	CONSTRAINT "commission_statements_period_key" UNIQUE("company_id","business_id","period"),
 	CONSTRAINT "commission_statements_period_id_key" UNIQUE("company_id","business_id","period","id"),
 	CONSTRAINT "commission_statements_company_business_id_key" UNIQUE("company_id","business_id","id"),
-	CONSTRAINT "commission_statements_period" CHECK ("commission_statements"."period" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+	CONSTRAINT "commission_statements_period" CHECK ("commission_statements"."period" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' AND substr("commission_statements"."period", 1, 4) <> '0000'),
 	CONSTRAINT "commission_statements_status" CHECK ("commission_statements"."status" IN ('DRAFT','REVIEWED','APPROVED','PAID')),
 	CONSTRAINT "commission_statements_fingerprints" CHECK (("commission_statements"."current_fingerprint" IS NULL OR "commission_statements"."current_fingerprint" ~ '^[0-9a-f]{64}$')
         AND ("commission_statements"."reviewed_fingerprint" IS NULL OR "commission_statements"."reviewed_fingerprint" ~ '^[0-9a-f]{64}$')
@@ -110,9 +111,9 @@ CREATE TABLE "commission_statements" (
           AND "commission_statements"."reviewed_statement_fingerprint" IS NOT NULL AND "commission_statements"."reviewed_by" IS NOT NULL
           AND "commission_statements"."reviewed_membership_id" IS NOT NULL AND "commission_statements"."reviewed_at" IS NOT NULL
           AND "commission_statements"."input_fingerprint" IS NOT NULL AND "commission_statements"."statement_fingerprint" IS NOT NULL
-          AND "commission_statements"."approved_by" IS NOT NULL AND "commission_statements"."approved_at" IS NOT NULL
-          AND "commission_statements"."approval_xact_id" IS NOT NULL
-          AND "commission_statements"."statement_fingerprint" = "commission_statements"."reviewed_statement_fingerprint"))
+          AND "commission_statements"."approved_by" IS NOT NULL AND "commission_statements"."approved_at" IS NOT NULL AND "commission_statements"."approval_xact_id" IS NOT NULL
+          AND "commission_statements"."statement_fingerprint" = "commission_statements"."reviewed_statement_fingerprint")),
+	CONSTRAINT "commission_statements_input_matches_review" CHECK ("commission_statements"."status" NOT IN ('APPROVED','PAID') OR "commission_statements"."input_fingerprint" = "commission_statements"."reviewed_fingerprint")
 );
 --> statement-breakpoint
 ALTER TABLE "commission_statement_attachments" ADD CONSTRAINT "commission_statement_attachments_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -140,7 +141,6 @@ CREATE INDEX "commission_statement_lines_attached_branches_idx" ON "commission_s
 CREATE INDEX "commission_statements_reviewed_by_idx" ON "commission_statements" USING btree ("reviewed_by");--> statement-breakpoint
 CREATE INDEX "commission_statements_approved_by_idx" ON "commission_statements" USING btree ("approved_by");--> statement-breakpoint
 CREATE INDEX "commission_statements_reviewed_membership_idx" ON "commission_statements" USING btree ("company_id","reviewed_membership_id");
-
 --> statement-breakpoint
 -- عزل المستأجر: كل جدول من الثلاثة بيقفل على company_id بتاع الجلسة، والـ FORCE بيمنع أي مسار يتجاوز السياسة.
 ALTER TABLE commission_statements ENABLE ROW LEVEL SECURITY;
@@ -238,6 +238,14 @@ BEGIN
   END IF;
   -- دليل الاعتماد هو معرّف المعاملة التي اعتمدته هو، مش أي معاملة تانية.
   IF OLD.status = 'REVIEWED' AND NEW.status = 'APPROVED' THEN
+    -- الدليل المجمّد للمراجعة (مين راجع وإيه شاف) ما يتعادش كتابته في تحديث الاعتماد.
+    IF NEW.reviewed_fingerprint IS DISTINCT FROM OLD.reviewed_fingerprint
+       OR NEW.reviewed_statement_fingerprint IS DISTINCT FROM OLD.reviewed_statement_fingerprint
+       OR NEW.reviewed_by IS DISTINCT FROM OLD.reviewed_by
+       OR NEW.reviewed_membership_id IS DISTINCT FROM OLD.reviewed_membership_id
+       OR NEW.reviewed_at IS DISTINCT FROM OLD.reviewed_at THEN
+      RAISE EXCEPTION 'approving a commission statement keeps the review evidence' USING ERRCODE = '23514', CONSTRAINT = 'commission_statements_review_evidence';
+    END IF;
     NEW.approval_xact_id := pg_current_xact_id();
   ELSE
     NEW.approval_xact_id := OLD.approval_xact_id;

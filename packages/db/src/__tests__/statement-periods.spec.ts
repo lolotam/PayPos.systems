@@ -214,7 +214,7 @@ it('CM-03 refuses every closed period and rolls back the simulated writer', asyn
   expect(new StatementPeriodClosedError(['2027-05']).periods).toEqual(['2027-05']);
 });
 
-it.each(['2026-13', '26-10', '2026-1', ''])(
+it.each(['2026-13', '26-10', '2026-1', '0000-01', ''])(
   'rejects malformed period %s before drawing an id',
   async (period) => {
     const calls = ids.calls.length;

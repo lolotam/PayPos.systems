@@ -1,5 +1,5 @@
 {
-  "id": "a165f35b-5710-4b05-9556-f9e360bc3112",
+  "id": "e0c180f9-7eb7-428e-85c3-0b054c93d241",
   "prevId": "2a711973-e49d-48ae-8156-da18985259de",
   "version": "7",
   "dialect": "postgresql",
@@ -21602,7 +21602,7 @@
         },
         "commission_statement_lines_source_period": {
           "name": "commission_statement_lines_source_period",
-          "value": "\"commission_statement_lines\".\"source_period\" IS NULL OR \"commission_statement_lines\".\"source_period\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+          "value": "(\"commission_statement_lines\".\"source_period\" IS NOT NULL) = (\"commission_statement_lines\".\"kind\" IN ('CORRECTION','CORRECTION_TIP_CARD','CORRECTION_TIP_CASH','CARRY_COMMISSION','CARRY_TIP_CARD'))\n        AND (\"commission_statement_lines\".\"source_period\" IS NULL OR \"commission_statement_lines\".\"source_period\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' AND substr(\"commission_statement_lines\".\"source_period\", 1, 4) <> '0000')"
         }
       },
       "isRLSEnabled": false
@@ -21890,7 +21890,7 @@
       "checkConstraints": {
         "commission_statements_period": {
           "name": "commission_statements_period",
-          "value": "\"commission_statements\".\"period\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+          "value": "\"commission_statements\".\"period\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' AND substr(\"commission_statements\".\"period\", 1, 4) <> '0000'"
         },
         "commission_statements_status": {
           "name": "commission_statements_status",
@@ -21906,7 +21906,11 @@
         },
         "commission_statements_stage": {
           "name": "commission_statements_stage",
-          "value": "(\"commission_statements\".\"status\" = 'DRAFT' AND \"commission_statements\".\"reviewed_fingerprint\" IS NULL\n          AND \"commission_statements\".\"reviewed_statement_fingerprint\" IS NULL AND \"commission_statements\".\"reviewed_by\" IS NULL\n          AND \"commission_statements\".\"reviewed_membership_id\" IS NULL AND \"commission_statements\".\"reviewed_at\" IS NULL\n          AND \"commission_statements\".\"input_fingerprint\" IS NULL AND \"commission_statements\".\"statement_fingerprint\" IS NULL\n          AND \"commission_statements\".\"approved_by\" IS NULL AND \"commission_statements\".\"approved_at\" IS NULL AND \"commission_statements\".\"approval_xact_id\" IS NULL)\n        OR (\"commission_statements\".\"status\" = 'REVIEWED' AND \"commission_statements\".\"reviewed_fingerprint\" IS NOT NULL\n          AND \"commission_statements\".\"reviewed_statement_fingerprint\" IS NOT NULL AND \"commission_statements\".\"reviewed_by\" IS NOT NULL\n          AND \"commission_statements\".\"reviewed_membership_id\" IS NOT NULL AND \"commission_statements\".\"reviewed_at\" IS NOT NULL\n          AND \"commission_statements\".\"input_fingerprint\" IS NULL AND \"commission_statements\".\"statement_fingerprint\" IS NULL\n          AND \"commission_statements\".\"approved_by\" IS NULL AND \"commission_statements\".\"approved_at\" IS NULL AND \"commission_statements\".\"approval_xact_id\" IS NULL)\n        OR (\"commission_statements\".\"status\" IN ('APPROVED','PAID') AND \"commission_statements\".\"reviewed_fingerprint\" IS NOT NULL\n          AND \"commission_statements\".\"reviewed_statement_fingerprint\" IS NOT NULL AND \"commission_statements\".\"reviewed_by\" IS NOT NULL\n          AND \"commission_statements\".\"reviewed_membership_id\" IS NOT NULL AND \"commission_statements\".\"reviewed_at\" IS NOT NULL\n          AND \"commission_statements\".\"input_fingerprint\" IS NOT NULL AND \"commission_statements\".\"statement_fingerprint\" IS NOT NULL\n          AND \"commission_statements\".\"approved_by\" IS NOT NULL AND \"commission_statements\".\"approved_at\" IS NOT NULL\n          AND \"commission_statements\".\"approval_xact_id\" IS NOT NULL\n          AND \"commission_statements\".\"statement_fingerprint\" = \"commission_statements\".\"reviewed_statement_fingerprint\")"
+          "value": "(\"commission_statements\".\"status\" = 'DRAFT' AND \"commission_statements\".\"reviewed_fingerprint\" IS NULL\n          AND \"commission_statements\".\"reviewed_statement_fingerprint\" IS NULL AND \"commission_statements\".\"reviewed_by\" IS NULL\n          AND \"commission_statements\".\"reviewed_membership_id\" IS NULL AND \"commission_statements\".\"reviewed_at\" IS NULL\n          AND \"commission_statements\".\"input_fingerprint\" IS NULL AND \"commission_statements\".\"statement_fingerprint\" IS NULL\n          AND \"commission_statements\".\"approved_by\" IS NULL AND \"commission_statements\".\"approved_at\" IS NULL AND \"commission_statements\".\"approval_xact_id\" IS NULL)\n        OR (\"commission_statements\".\"status\" = 'REVIEWED' AND \"commission_statements\".\"reviewed_fingerprint\" IS NOT NULL\n          AND \"commission_statements\".\"reviewed_statement_fingerprint\" IS NOT NULL AND \"commission_statements\".\"reviewed_by\" IS NOT NULL\n          AND \"commission_statements\".\"reviewed_membership_id\" IS NOT NULL AND \"commission_statements\".\"reviewed_at\" IS NOT NULL\n          AND \"commission_statements\".\"input_fingerprint\" IS NULL AND \"commission_statements\".\"statement_fingerprint\" IS NULL\n          AND \"commission_statements\".\"approved_by\" IS NULL AND \"commission_statements\".\"approved_at\" IS NULL AND \"commission_statements\".\"approval_xact_id\" IS NULL)\n        OR (\"commission_statements\".\"status\" IN ('APPROVED','PAID') AND \"commission_statements\".\"reviewed_fingerprint\" IS NOT NULL\n          AND \"commission_statements\".\"reviewed_statement_fingerprint\" IS NOT NULL AND \"commission_statements\".\"reviewed_by\" IS NOT NULL\n          AND \"commission_statements\".\"reviewed_membership_id\" IS NOT NULL AND \"commission_statements\".\"reviewed_at\" IS NOT NULL\n          AND \"commission_statements\".\"input_fingerprint\" IS NOT NULL AND \"commission_statements\".\"statement_fingerprint\" IS NOT NULL\n          AND \"commission_statements\".\"approved_by\" IS NOT NULL AND \"commission_statements\".\"approved_at\" IS NOT NULL AND \"commission_statements\".\"approval_xact_id\" IS NOT NULL\n          AND \"commission_statements\".\"statement_fingerprint\" = \"commission_statements\".\"reviewed_statement_fingerprint\")"
+        },
+        "commission_statements_input_matches_review": {
+          "name": "commission_statements_input_matches_review",
+          "value": "\"commission_statements\".\"status\" NOT IN ('APPROVED','PAID') OR \"commission_statements\".\"input_fingerprint\" = \"commission_statements\".\"reviewed_fingerprint\""
         }
       },
       "isRLSEnabled": false

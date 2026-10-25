@@ -47,7 +47,14 @@ export const FINGERPRINTS = {
   current: 'a'.repeat(64),
   reviewed: 'b'.repeat(64),
   statement: 'c'.repeat(64),
-  input: 'd'.repeat(64),
+  // بصمة المدخلات المجمّدة عند الاعتماد هي بصمة المراجعة نفسها: الاعتماد ما يقدرش يجمّد غير اللي اتراجع.
+  input: 'b'.repeat(64),
+} as const;
+
+// مراجع تاني في نفس الشركة: اختبارات دليل المراجعة محتاجة قيمة مختلفة وصالحة.
+export const SECOND_REVIEWER = {
+  user: '01920000-0000-7000-8000-00000000ce01',
+  membership: '01920000-0000-7000-8000-00000000ce02',
 } as const;
 
 async function seedEmployee(
@@ -75,6 +82,8 @@ export async function seedCommissionStatementTenants(ownerUrl: string): Promise<
   try {
     await owner`INSERT INTO "user"(id,name,email)
       VALUES(${USER},'Commission operator','commission-operator@example.test')`;
+    await owner`INSERT INTO "user"(id,name,email)
+      VALUES(${SECOND_REVIEWER.user},'Second reviewer','second-reviewer@example.test')`;
     const ownerRole = SYSTEM_ROLES.find((role) => role.code === 'owner');
     if (ownerRole === undefined) throw new Error('the owner role is missing from SYSTEM_ROLES');
     for (const [index, tenant] of [COMMISSION_TENANT.A, COMMISSION_TENANT.B].entries()) {
@@ -82,6 +91,12 @@ export async function seedCommissionStatementTenants(ownerUrl: string): Promise<
       await owner`INSERT INTO memberships(
         company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
         VALUES (${tenant.company},${tenant.membership},${USER},${ownerRole.id},'global','BUSINESS',${tenant.business})`;
+      if (index === 0) {
+        await owner`INSERT INTO memberships(
+          company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+          VALUES (${tenant.company},${SECOND_REVIEWER.membership},${SECOND_REVIEWER.user},${ownerRole.id},
+            'global','BUSINESS',${tenant.business})`;
+      }
     }
     const other = OTHER_COMMISSION_IDS;
     await owner`INSERT INTO businesses(company_id,id,vertical_type,name_en)
@@ -110,6 +125,8 @@ export interface WalkStatementOptions {
   readonly period: string;
   readonly ids: IdGenerator;
   readonly to?: Exclude<StatementStatus, 'DRAFT'>;
+  // بصمة المدخلات المجمّدة عند الاعتماد؛ الافتراضي بصمة المراجعة نفسها، وما تتغيّرش إلا في حالة الرفض.
+  readonly inputFingerprint?: string;
   readonly afterReviewed?: (tx: Tx, statementId: string) => Promise<void>;
   readonly afterApproved?: (tx: Tx, statementId: string) => Promise<void>;
 }
@@ -143,7 +160,7 @@ export async function walkCommissionStatement(
     await options.afterReviewed?.(tx, statementId);
     if (options.to === 'REVIEWED') return;
     await tx.execute(sql`UPDATE commission_statements SET status='APPROVED', approved_by=${USER},
-      approved_at='2026-11-02T08:00:00Z', input_fingerprint=${FINGERPRINTS.input},
+      approved_at='2026-11-02T08:00:00Z', input_fingerprint=${options.inputFingerprint ?? FINGERPRINTS.input},
       statement_fingerprint=${FINGERPRINTS.statement}
       WHERE company_id=${tenant.company} AND id=${statementId}`);
     await options.afterApproved?.(tx, statementId);
@@ -194,8 +211,11 @@ export async function insertCommissionLine(
 ): Promise<void> {
   const kind = row['kind'] ?? 'EMPLOYEE';
   const correction = typeof kind === 'string' && kind.startsWith('CORRECTION');
-  const noSource = kind === 'EMPLOYEE' || kind === 'CARRY_COMMISSION' || kind === 'CARRY_TIP_CARD';
+  const carry = kind === 'CARRY_COMMISSION' || kind === 'CARRY_TIP_CARD';
+  const noSource = kind === 'EMPLOYEE' || carry;
   const value = (key: string, fallback: unknown) => (key in row ? row[key] : fallback);
+  // شهر المصدر مطلوب في التصحيحات والcarry بس، والصفوف التانية مالهاش شهر مصدر.
+  const defaultSourcePeriod = correction || carry ? '2026-09' : null;
   const attachedBranchIds = value('attachedBranchIds', []) as readonly string[];
   await tx.execute(sql`INSERT INTO commission_statement_lines(
     company_id,id,business_id,statement_id,employee_id,employee_number,employee_name_ar,employee_name_en,
@@ -206,7 +226,7 @@ export async function insertCommissionLine(
       ${value('employeeNameEn', 'Frozen employee')},${value('sourceRef', `employee:${tenant.employee}`)},${kind},
       ${value('amount', kind === 'EMPLOYEE' ? '0.000' : correction ? '5.000' : '10.000')},
       ${value('previousAmount', correction ? '10.000' : null)},${value('newAmount', correction ? '15.000' : null)},
-      ${value('sourcePeriod', null)},${value('sourceBranchId', noSource ? null : tenant.branch)},
+      ${value('sourcePeriod', defaultSourcePeriod)},${value('sourceBranchId', noSource ? null : tenant.branch)},
       ${value('sourceBusinessDate', noSource ? null : '2026-10-15')},${uuidArraySql(attachedBranchIds)},
       ${value('lineId', kind === 'COMMISSION' ? OTHER_COMMISSION_IDS.line : null)},
       ${value('sessionId', kind === 'COMMISSION' ? OTHER_COMMISSION_IDS.session : null)},

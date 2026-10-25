@@ -62,7 +62,10 @@ export class StatementPeriodFormatError extends Error {
 
 function normalizePeriods(periods: readonly string[]): string[] {
   for (const period of periods) {
-    if (!PERIOD.test(period)) throw new StatementPeriodFormatError(period);
+    // سنة 0000 مرفوضة زي أي صيغة غلط: to_date مش بيعرف يحوّلها، والجدول نفسه بيطلب سنة حقيقية.
+    if (!PERIOD.test(period) || period.startsWith('0000-')) {
+      throw new StatementPeriodFormatError(period);
+    }
   }
   return [...new Set(periods)].sort();
 }

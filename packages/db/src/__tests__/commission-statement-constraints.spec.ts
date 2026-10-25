@@ -264,6 +264,38 @@ it('the line checks refuse a malformed source period and an amount that is not a
   );
 });
 
+// شهر المصدر مطلوب في التصحيحات والcarry بس، وسنة 0000 مرفوضة في كل الشهور.
+const SOURCE_PERIOD_CASES = [
+  { kind: 'CORRECTION', sourcePeriod: null },
+  { kind: 'CARRY_COMMISSION', sourcePeriod: null },
+  { kind: 'COMMISSION', sourcePeriod: '2026-09' },
+  { kind: 'SALE', sourcePeriod: '2026-09' },
+  { kind: 'EMPLOYEE', sourcePeriod: '2026-09' },
+  { kind: 'CORRECTION', sourcePeriod: '0000-05' },
+];
+
+it.each(SOURCE_PERIOD_CASES)(
+  'the source period of a $kind row is refused',
+  async ({ kind, sourcePeriod }) => {
+    await expectPgError(
+      withApproved((tx, statementId) =>
+        insertCommissionLine(tx, A, statementId, ids, { kind, sourcePeriod }),
+      ),
+      '23514',
+      'commission_statement_lines_source_period',
+    );
+  },
+);
+
+it('the year zero is refused by the statement period', async () => {
+  await expectPgError(
+    owner`INSERT INTO commission_statements(company_id,id,business_id,period,status)
+      VALUES(${A.company},${ids.newId()},${A.business},'0000-05','DRAFT')`,
+    '23514',
+    'commission_statements_period',
+  );
+});
+
 it('the attachment check refuses a range that ends before it starts', async () => {
   await expectPgError(
     withApproved((tx, statementId, period) =>
