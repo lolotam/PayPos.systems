@@ -16,7 +16,11 @@ import { STAFF_ROUTE } from '../../../shared/staff-authentication.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import type { SignInStaffPin } from '../use-cases/sign-in-staff-pin/sign-in-staff-pin.ts';
 import type { ResetStaffPin } from '../use-cases/reset-staff-pin/reset-staff-pin.ts';
-import { STAFF_POS_ORIGIN } from './staff-otp.controller.ts';
+import {
+  isStaffOrigin,
+  STAFF_POS_ORIGIN,
+  type StaffOrigins,
+} from '../../../shared/staff-origin.token.ts';
 
 export const STAFF_PIN_USE_CASES = Symbol('STAFF_PIN_USE_CASES');
 export interface StaffPinUseCases {
@@ -28,7 +32,7 @@ export interface StaffPinUseCases {
 export class StaffPinController {
   constructor(
     @Inject(STAFF_PIN_USE_CASES) private readonly pins: StaffPinUseCases | null,
-    @Inject(STAFF_POS_ORIGIN) private readonly origin: string | null,
+    @Inject(STAFF_POS_ORIGIN) private readonly origin: StaffOrigins | null,
   ) {}
 
   @Post('devices/me/staff-pin/sign-in')
@@ -41,11 +45,7 @@ export class StaffPinController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<StaffSessionContext> {
-    if (
-      this.origin === null ||
-      request.headers.origin !== this.origin ||
-      request.staffDevice === undefined
-    )
+    if (!isStaffOrigin(this.origin, request.headers.origin) || request.staffDevice === undefined)
       throw new ApiError('FORBIDDEN');
     if (this.pins === null) throw new ApiError('NOT_READY');
     const issued = await this.pins.signIn

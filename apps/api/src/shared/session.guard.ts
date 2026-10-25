@@ -30,7 +30,7 @@ import { personalSessionRequest } from './personal-session.guard.ts';
 import type { RateLimiter } from './ports/rate-limiter.port.ts';
 import { PUBLIC_ROUTE } from './public.decorator.ts';
 import { SIGN_OUT_ROUTE, signOutRequest } from './sign-out.guard.ts';
-import { STAFF_POS_ORIGIN } from './staff-origin.token.ts';
+import { STAFF_POS_ORIGIN, type StaffOrigins } from './staff-origin.token.ts';
 import { STAFF_SESSIONS } from './staff-sessions.token.ts';
 import { toWebHeaders } from './web-headers.ts';
 import {
@@ -79,7 +79,7 @@ export class SessionGuard implements CanActivate {
     @Inject(STAFF_AUTHENTICATION) private readonly staff: StaffAuthentication | null,
     @Inject(PERSONAL_AUTHENTICATION) private readonly personal: PersonalAuthentication | null,
     @Inject(STAFF_SESSIONS) private readonly staffSessions: StaffSessions | null,
-    @Inject(STAFF_POS_ORIGIN) private readonly staffOrigin: string | null,
+    @Inject(STAFF_POS_ORIGIN) private readonly staffOrigin: StaffOrigins | null,
     @Inject(RATE_LIMITER) private readonly limiter: RateLimiter | null,
   ) {
     this.#reflector = reflector;

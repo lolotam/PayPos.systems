@@ -7,6 +7,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ApiError } from './errors.ts';
 import type { PersonalAuthentication } from './personal-authentication.ts';
 import type { RateLimiter } from './ports/rate-limiter.port.ts';
+import { isStaffOrigin, type StaffOrigins } from './staff-origin.token.ts';
 
 /** العلامة اللي بتقول لمسار الخروج الصريح أي نوع جلسة بينهيه. */
 export const SIGN_OUT_ROUTE = Symbol('SIGN_OUT_ROUTE');
@@ -30,7 +31,7 @@ const SIGN_OUT_WINDOW_SECONDS = 60;
  */
 export interface SignOutWiring {
   readonly staffSessions: StaffSessions | null;
-  readonly staffOrigin: string | null;
+  readonly staffOrigin: StaffOrigins | null;
   readonly personal: PersonalAuthentication | null;
   readonly limiter: RateLimiter | null;
 }
@@ -55,7 +56,13 @@ export async function signOutRequest(
   const sessions = kind === 'staff' ? wiring.staffSessions : (wiring.personal?.sessions ?? null);
   if (sessions === null || origin === null || wiring.limiter === null)
     throw new ApiError('NOT_READY');
-  if (request.headers.origin !== origin) throw new ApiError('FORBIDDEN');
+  // المصدر المسموح بيتحسب مرة واحدة: مصدر الموظف قائمة مصادر (الـ POS والتطبيق)، ومصدر الشخصي نص واحد؛
+  // فالمقارنة ما تقدرش تقارن نصاً بكائن لو النوع اتغيّر بعدين.
+  const allowed =
+    kind === 'staff'
+      ? isStaffOrigin(wiring.staffOrigin, request.headers.origin)
+      : request.headers.origin === wiring.personal?.origin;
+  if (!allowed) throw new ApiError('FORBIDDEN');
   if (kind === 'personal' && request.headers.authorization !== undefined)
     throw new ApiError('FORBIDDEN');
   const limiter = wiring.limiter;

@@ -179,6 +179,7 @@ interface HarnessOptions {
   files?: FilesRuntime;
   logs?: DestinationStream;
   staffOrigin?: string;
+  staffNativeOrigins?: readonly string[];
   clock?: { now(): Date };
   ordersClock?: { now(): Date };
   staffOtpFactory?: (
@@ -284,7 +285,14 @@ function describeHarness(
 function staffWiring(options: HarnessOptions, api: StaffOtpApi | undefined, auth: AuthService) {
   return options.staffOrigin === undefined
     ? {}
-    : { staff: { api: api ?? null, sessions: auth.staff ?? null, origin: options.staffOrigin } };
+    : {
+        staff: {
+          api: api ?? null,
+          sessions: auth.staff ?? null,
+          origin: options.staffOrigin,
+          nativeOrigins: options.staffNativeOrigins ?? [],
+        },
+      };
 }
 
 function harnessLogger(options: HarnessOptions) {

@@ -30,6 +30,7 @@ import { createActivePasskeyBindings, createPersonalEligibility } from './module
 import { membershipCompanies, staffOtpDependencies } from './modules/identity/index.ts';
 import { readConfig } from './shared/config.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
+import { staffNativeOriginsFrom } from './shared/staff-origin.token.ts';
 
 const config = readConfig(process.env);
 const logger = createLogger(config.LOG_LEVEL, { events: API_LOG_EVENTS });
@@ -325,6 +326,7 @@ try {
         api: otp ?? null,
         sessions: service.staff,
         origin: process.env['STAFF_OTP_POS_ORIGIN'] || null,
+        nativeOrigins: staffNativeOriginsFrom(process.env['STAFF_NATIVE_ORIGINS']),
       },
       database,
       files,
