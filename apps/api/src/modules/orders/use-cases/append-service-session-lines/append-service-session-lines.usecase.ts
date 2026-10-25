@@ -51,8 +51,8 @@ export class AppendServiceSessionLinesUseCase {
     const employeeIds = context.input.lines.flatMap((l) => l.performers.map((p) => p.employee_id));
     await tx.catalog.lock(serviceIds);
     await tx.performers.lock(employeeIds);
-    const limit = await tx.discount.read(membershipId);
     const locked = await lockApprovalProposals(tx, context.input.lines);
+    const limit = await tx.discount.read(membershipId);
     const at = this.clock.now();
     resolveSessionRecorder(await tx.access.read(at), membershipId, original.recorded_by, context.userId);
     if (await tx.place.read() === null) throw new SessionError('FORBIDDEN');
