@@ -7,7 +7,7 @@ import type { RendererLiveness } from './liveness.ts';
 export interface LiveQueue {
   worker: Worker;
   connection: Redis;
-  liveness: RendererLiveness;
+  liveness?: RendererLiveness;
 }
 
 /** طابور اتبنى ولسه مستنّى Redis. المهلة بتقفله قبل ما يبقى live. */
@@ -18,13 +18,17 @@ export interface HeldQueue {
 
 export interface AttemptBinder {
   cancelled(): boolean;
+  /** إشارة بتقطع انتظار الإقلاع؛ الإيقاف أو فشل المحاولة بيوقظها. */
+  readonly signal: AbortSignal;
   setRenderer(renderer: DocumentRenderer): void;
   setLive(live: LiveQueue): void;
+  setLiveness(liveness: RendererLiveness): void;
   holdQueue(queue: HeldQueue): void;
 }
 
 interface Slot {
   token: number;
+  controller: AbortController;
   renderer?: DocumentRenderer | undefined;
   live?: LiveQueue | undefined;
   queue?: HeldQueue | undefined;
@@ -81,8 +85,8 @@ async function release(slot: Slot): Promise<void> {
   slot.queue = undefined;
   slot.renderer = undefined;
   if (live !== undefined) {
+    await live.liveness?.stop().catch(() => undefined);
     await closeHeld(live.worker, live.connection, false);
-    await live.liveness.stop().catch(() => undefined);
   } else if (queue !== undefined) {
     // لسه مش جاهز وماسكش وظيفة، فالقوة بتقطع إعادة اتصال Redis
     await closeHeld(queue.worker, queue.connection, true);
@@ -135,6 +139,7 @@ function binder(state: SessionState, slot: Slot, graceMs: number): AttemptBinder
   const cancelled = (): boolean => state.closed || !state.accept || slot.token !== state.generation;
   return {
     cancelled,
+    signal: slot.controller.signal,
     setRenderer: (renderer) => {
       // التخزين بعد الإلغاء بيسيب متصفح من غير حد يقفله.
       if (cancelled()) {
@@ -146,6 +151,14 @@ function binder(state: SessionState, slot: Slot, graceMs: number): AttemptBinder
     setLive: (live) => {
       slot.live = live;
       slot.queue = undefined;
+      if (state.timer !== undefined) clearTimeout(state.timer);
+    },
+    setLiveness: (liveness) => {
+      if (cancelled() || slot.live === undefined) {
+        void liveness.stop().catch(() => undefined);
+        return;
+      }
+      slot.live.liveness = liveness;
     },
     holdQueue: (queue) => {
       slot.queue = queue;
@@ -154,7 +167,7 @@ function binder(state: SessionState, slot: Slot, graceMs: number): AttemptBinder
 }
 
 function arm(state: SessionState, input: StartupSessionInput): void {
-  const slot: Slot = { token: state.generation };
+  const slot: Slot = { token: state.generation, controller: new AbortController() };
   state.current = slot;
   state.timer = setTimeout(() => {
     void fail(state, input, slot, new Error('DOCUMENT_START_TIMEOUT'));
@@ -191,6 +204,7 @@ async function fail(
 ): Promise<void> {
   if (state.closed || !state.accept || slot.token !== state.generation) return;
   state.generation += 1;
+  slot.controller.abort();
   if (state.timer !== undefined) clearTimeout(state.timer);
   input.onFailed(error);
   // تنظيف المتصفح المعلّق ما يؤجّلش المحاولة الجاية. القفل يكمل لو عدّى المهلة.
@@ -209,12 +223,13 @@ async function fail(
 
 async function stopSession(state: SessionState, force: boolean): Promise<void> {
   state.accept = false;
+  state.current.controller.abort();
   state.wake?.();
   const live = state.current.live;
   if (live === undefined) return;
   // المفتاح لو فضل بعد قفل المستهلك، الطلب الجاي هيلاقي متصفح من غير حد يستقبل.
   // Chromium بيفضل عشان الرندر الجاري، وبيتقفل آخر حاجة في close.
-  await live.liveness.stop().catch(() => undefined);
+  await live.liveness?.stop().catch(() => undefined);
   await live.worker.close(force).catch(() => undefined);
 }
 
@@ -222,6 +237,7 @@ async function closeSession(state: SessionState): Promise<void> {
   if (state.closed) return;
   state.closed = true;
   state.accept = false;
+  state.current.controller.abort();
   state.generation += 1;
   if (state.timer !== undefined) clearTimeout(state.timer);
   state.wake?.();
@@ -241,7 +257,7 @@ export function trackDocumentStartup(input: StartupSessionInput): StartupSession
     closed: false,
     accept: true,
     settled: false,
-    current: { token: 0 },
+    current: { token: 0, controller: new AbortController() },
     resolveStart,
   };
   arm(state, input);

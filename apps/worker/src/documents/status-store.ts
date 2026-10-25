@@ -1,5 +1,6 @@
 import {
   DOCUMENT_BYTES_TTL_SECONDS,
+  DOCUMENT_PDF_MIME_TYPE,
   DOCUMENT_STATUS_TTL_SECONDS,
   documentBytesKey,
   documentStatusKey,
@@ -9,7 +10,7 @@ import type { Redis } from 'ioredis';
 
 /**
  * أمر واحد. بين SET البايتات وHSET الحالة كان فيه شباك: المستخدم يعمل GETDEL
- * وإعادة المحاولة تنشر PDF تاني.
+ * وإعادة المحاولة تنشر بايتات المستند تاني.
  */
 const MARK_RENDERING = `
 local state = redis.call('HGET', KEYS[1], 'state')
@@ -32,7 +33,7 @@ if state ~= 'RENDERING' then
   return 0
 end
 redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[2], 'NX')
-redis.call('HSET', KEYS[1], 'state', 'READY')
+redis.call('HSET', KEYS[1], 'state', 'READY', 'mime_type', ARGV[5])
 redis.call('HDEL', KEYS[1], 'error_code')
 redis.call('EXPIRE', KEYS[1], ARGV[3])
 return 1
@@ -82,13 +83,14 @@ export async function markFailed(
   return moved(await redis.eval(MARK_FAILED, 1, key, code, String(DOCUMENT_STATUS_TTL_SECONDS)));
 }
 
-/** من RENDERING بس وقبل مهلة الساعة على Redis. رد متأخر ما ينشرش READY. */
+/** من RENDERING بس وقبل مهلة Redis. رد متأخر ما ينشرش READY، وMIME بيتسجل لتحميل البايتات بنوعها. */
 export async function storeReady(
   redis: Redis,
   companyId: string,
   renderId: string,
-  pdf: Uint8Array,
+  bytes: Uint8Array,
   deadlineAtMs: number,
+  mimeType = DOCUMENT_PDF_MIME_TYPE,
 ): Promise<StoreReadyResult> {
   const statusKey = documentStatusKey(companyId, renderId);
   return readyResult(
@@ -97,10 +99,11 @@ export async function storeReady(
       2,
       statusKey,
       documentBytesKey(companyId, renderId),
-      Buffer.from(pdf),
+      Buffer.from(bytes),
       String(DOCUMENT_BYTES_TTL_SECONDS),
       String(DOCUMENT_STATUS_TTL_SECONDS),
       String(deadlineAtMs),
+      mimeType,
     ),
   );
 }

@@ -4,7 +4,11 @@ export {
   DocumentRendererUnavailableError,
   DocumentTooLargeError,
 } from './domain/errors.ts';
-export { assertHtmlWithinLimit, assertPdfWithinLimit } from './domain/limits.ts';
+export {
+  assertBytesWithinLimit,
+  assertHtmlWithinLimit,
+  assertPdfWithinLimit,
+} from './domain/limits.ts';
 export { escapeHtml } from './domain/escape.ts';
 export { rendererFailureText, type RendererFailureText } from './domain/failure-text.ts';
 export type { HtmlFragment } from './html/fragment.ts';

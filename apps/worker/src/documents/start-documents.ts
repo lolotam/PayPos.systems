@@ -8,10 +8,12 @@ import type { Logger } from '@pospay/observability';
 import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 
-import { startRendererLiveness, type RendererLiveness } from './liveness.ts';
+import { deferPdfWhileStarting, PDF_DEFER_WINDOW_MS, type RendererStartup } from './defer-pdf.ts';
+import { startRendererLiveness } from './liveness.ts';
 import type { EpochClock } from './process-job.ts';
 import { DocumentSourceRegistry } from './source-registry.ts';
 import { trackDocumentStartup, type AttemptBinder, type HeldQueue } from './startup-session.ts';
+import { startWithin, waitOrAbort } from './startup-wait.ts';
 
 const LOCK_MS = 45_000;
 const STARTUP_MS = 30_000;
@@ -21,7 +23,7 @@ export interface DocumentRendering {
   stop(force?: boolean): Promise<void>;
   close(): Promise<void>;
   readonly registry: DocumentSourceRegistry;
-  /** بيتكمّل لما الطابور يبقى جاهز، أو لما الإيقاف يقفل الإقلاع. */
+  /** بيتكمّل لما الطابور يبقى جاهز والمتصفح يستقر، أو لما الإيقاف يقفل الإقلاع. */
   readonly started: Promise<void>;
 }
 
@@ -112,6 +114,7 @@ async function openWorker(
   registry: DocumentSourceRegistry,
   renderer: DocumentRenderer,
   attempt: AttemptBinder,
+  startup: RendererStartup,
 ): Promise<{ worker: Worker; connection: Redis }> {
   const { processDocumentJob, recordExternalJobFailure } = await import('./process-job.ts');
   const connection = openQueueConnection(input.redisUrl);
@@ -119,14 +122,16 @@ async function openWorker(
   try {
     worker = new Worker(
       DOCUMENTS_RENDER_QUEUE,
-      (job) =>
-        processDocumentJob(job, {
+      async (job, token) => {
+        await deferPdfWhileStarting(job, token, startup, registry);
+        return processDocumentJob(job, {
           redis: input.redis,
           registry,
           renderer,
           clock: input.clock,
           logger: input.logger,
-        }),
+        });
+      },
       {
         connection,
         concurrency: 2,
@@ -163,37 +168,80 @@ function halted(input: StartDocumentsInput, attempt: AttemptBinder): boolean {
   return attempt.cancelled() || input.isStopping?.() === true;
 }
 
+/**
+ * إقلاع Chromium بعد ما الطابور بقى live. الإقلاع له مهلة واحدة، وناشر الحياة بيعيد
+ * المحاولة لو Redis مش جاهز: الطابور ما بيتقفلش، والمتصفح الحقيقي بيرجع لوحده.
+ */
+async function startRenderer(
+  input: StartDocumentsInput,
+  renderer: DocumentRenderer,
+  attempt: AttemptBinder,
+): Promise<void> {
+  try {
+    const start = await startWithin(renderer, input.startupMs ?? STARTUP_MS, attempt.signal);
+    if (start.state !== 'started') logUnavailable(input.logger, 'SETUP_FAILED', start.error);
+    await publishLiveness(input, renderer, attempt);
+  } catch (error) {
+    logUnavailable(input.logger, 'SETUP_FAILED', error);
+  }
+}
+
+async function publishLiveness(
+  input: StartDocumentsInput,
+  renderer: DocumentRenderer,
+  attempt: AttemptBinder,
+): Promise<void> {
+  const delays = input.retryDelaysMs ?? RETRY_DELAYS_MS;
+  for (let attemptNo = 0; !halted(input, attempt); attemptNo += 1) {
+    try {
+      const liveness = await startRendererLiveness({
+        redis: input.redis,
+        renderer,
+        ...(input.livenessIntervalMs === undefined ? {} : { intervalMs: input.livenessIntervalMs }),
+      });
+      if (halted(input, attempt)) {
+        await liveness.stop().catch(() => undefined);
+        return;
+      }
+      attempt.setLiveness(liveness);
+      return;
+    } catch (error) {
+      if (halted(input, attempt)) return;
+      logUnavailable(input.logger, 'SETUP_FAILED', error);
+    }
+    const delayMs = delays[Math.min(attemptNo, delays.length - 1)] ?? 60_000;
+    await waitOrAbort(delayMs, attempt.signal, input.sleep);
+  }
+}
+
 async function bringUp(
   input: StartDocumentsInput,
   registry: DocumentSourceRegistry,
   attempt: AttemptBinder,
+  startup: RendererStartup,
 ): Promise<boolean> {
-  let liveness: RendererLiveness | undefined;
-  try {
-    if (halted(input, attempt)) return false;
-    const renderer = await openRenderer(input);
-    attempt.setRenderer(renderer);
-    if (halted(input, attempt)) return false;
-    await renderer.start();
-    if (halted(input, attempt)) return false;
-    liveness = await startRendererLiveness({
-      redis: input.redis,
-      renderer,
-      ...(input.livenessIntervalMs === undefined ? {} : { intervalMs: input.livenessIntervalMs }),
-    });
-    if (halted(input, attempt)) return false;
-    const opened = await openWorker(input, registry, renderer, attempt);
-    if (halted(input, attempt)) {
-      await opened.worker.close().catch(() => undefined);
-      opened.connection.disconnect();
-      return false;
-    }
-    attempt.setLive({ ...opened, liveness });
-    liveness = undefined;
-    return true;
-  } finally {
-    await liveness?.stop().catch(() => undefined);
+  if (halted(input, attempt)) return false;
+  // من هنا لحد ما المتصفح يطلع أو يخلص سقف التأجيل، PDF بيتأجل بدل ما يستهلك محاولة.
+  startup.starting = true;
+  startup.deadlineAt = Date.now() + PDF_DEFER_WINDOW_MS;
+  const renderer = await openRenderer(input);
+  attempt.setRenderer(renderer);
+  if (halted(input, attempt)) return false;
+  // التأجيل بيقفل لما المتصفح يبقى متاح، مش بمهلة الإقلاع.
+  renderer.onAvailable(() => {
+    if (!attempt.cancelled()) startup.starting = false;
+  });
+  if (!attempt.cancelled() && renderer.isAvailable()) startup.starting = false;
+  const opened = await openWorker(input, registry, renderer, attempt, startup);
+  if (halted(input, attempt)) {
+    await opened.worker.close().catch(() => undefined);
+    opened.connection.disconnect();
+    return false;
   }
+  // الطابور بقى شغّال قبل Chromium؛ بطئه ما يقفلش القدرة وما يوقفلش الطابور.
+  attempt.setLive(opened);
+  await startRenderer(input, renderer, attempt);
+  return true;
 }
 
 /**
@@ -201,6 +249,7 @@ async function bringUp(
  */
 export function beginDocumentRendering(input: StartDocumentsInput): DocumentRendering {
   const registry = input.registry ?? new DocumentSourceRegistry();
+  const startup: RendererStartup = { starting: false, deadlineAt: 0 };
   if (input.renderer !== undefined) bindAvailableLog(input.logger, input.renderer);
   const runtime = trackDocumentStartup({
     startupMs: input.startupMs ?? STARTUP_MS,
@@ -209,7 +258,7 @@ export function beginDocumentRendering(input: StartDocumentsInput): DocumentRend
     ...(input.closeGraceMs === undefined ? {} : { closeGraceMs: input.closeGraceMs }),
     stopped: () => input.isStopping?.() === true,
     onFailed: (error) => logUnavailable(input.logger, 'SETUP_FAILED', error),
-    run: (attempt) => bringUp(input, registry, attempt),
+    run: (attempt) => bringUp(input, registry, attempt, startup),
   });
   return {
     stop: (force) => runtime.stop(force ?? false),
@@ -230,7 +279,7 @@ export async function startCoreBeforeDocuments(
 }
 
 /**
- * قدرة اختيارية: فشل Chromium بيتسجل والإقلاع بيعيد المحاولة، والوركر يكمل.
+ * قدرة اختيارية: المتصفح بيتأخر عن الطابور، ففشل إقلاعه بعد فتح الطابور بيتسجل بس ما بيقفلش القدرة.
  * الإيقاف بيقفل طابور BullMQ الأول، وبعدين المتصفح.
  */
 export async function startDocumentRendering(

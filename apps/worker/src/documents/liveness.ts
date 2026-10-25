@@ -118,7 +118,33 @@ function armInterval(state: PublishState): void {
   }, state.intervalMs);
 }
 
+interface RendererHooks {
+  target: PublishState | undefined;
+}
+
+/** اشتراك واحد لكل متصفح؛ كل ناشر جديد بياخد نفس المكان بدل ما يزاكم مستمع. */
+const hooks = new WeakMap<DocumentRenderer, RendererHooks>();
+
+function attachHooks(renderer: DocumentRenderer, state: PublishState): void {
+  const existing = hooks.get(renderer);
+  if (existing !== undefined) {
+    existing.target = state;
+    return;
+  }
+  const hook: RendererHooks = { target: state };
+  hooks.set(renderer, hook);
+  renderer.onAvailable(() => {
+    if (hook.target !== undefined) armInterval(hook.target);
+  });
+  renderer.onUnavailable(() => {
+    if (hook.target !== undefined) void haltPublish(hook.target);
+  });
+}
+
 function stopLiveness(state: PublishState): Promise<void> {
+  // الناشر بيقف عن نفس المتصفح، فالمستمع المشترك ما يبقاش ماسك لواحد قديم.
+  const hook = hooks.get(state.renderer);
+  if (hook !== undefined && hook.target === state) hook.target = undefined;
   state.stopped = true;
   return haltPublish(state);
 }
@@ -128,6 +154,8 @@ function stopLiveness(state: PublishState): Promise<void> {
  * SET اتبدأ قبل القطع بيتمسح بعد ما يخلّص، عشان الرد المتأخر ما يعلنش متصفح ميت.
  * الانتهاء بعد ٣ ثواني لسه بيمسك الانهيار لو المسح نفسه ما لحقش.
  * أمر واحد في الطيران، وانتظاره متسقوف، عشان Redis الساكت ما يكدّسش أوامر ولا يعلّق الإيقاف.
+ * لو الإقلاع فشل، ما بيتبقاش حاجة مسلّحة: المستمع الميت بيلاقي الناشر واقف.
+ * الاشتراك في المتصفح بيتعمل مرة واحدة بس، وكل ناشر جديد بياخد نفس المكان.
  */
 export async function startRendererLiveness(input: {
   readonly redis: Redis;
@@ -148,14 +176,15 @@ export async function startRendererLiveness(input: {
     busy: false,
     timer: undefined,
   };
-  input.renderer.onAvailable(() => {
-    armInterval(state);
-  });
-  input.renderer.onUnavailable(() => {
-    void haltPublish(state);
-  });
-  await whenRedisReady(input.redis, input.readyTimeoutMs ?? READY_TIMEOUT_MS);
-  await publishOnce(state);
+  attachHooks(input.renderer, state);
+  try {
+    await whenRedisReady(input.redis, input.readyTimeoutMs ?? READY_TIMEOUT_MS);
+    await publishOnce(state);
+  } catch (error) {
+    // الناشر الفاشل لازم يقف من غير ما يسيب مستمع يسلّح تيك من بعده.
+    await stopLiveness(state).catch(() => undefined);
+    throw error;
+  }
   if (isLive(state) && state.timer === undefined) {
     state.timer = setInterval(() => {
       void publishOnce(state);

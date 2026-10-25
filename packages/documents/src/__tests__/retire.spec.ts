@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 
 import { DocumentRenderTimeoutError } from '../domain/errors.ts';
 import type { PdfBrowser, PdfBrowserFactory, PdfContext, PdfPage } from '../playwright/browser.ts';
+import { closeHungContext } from '../playwright/context-guards.ts';
 import { PlaywrightDocumentRenderer } from '../playwright/renderer.ts';
 
 const HTML = '<p>x</p>';
@@ -284,4 +285,57 @@ it('does not relaunch when close runs while retire is pending', async () => {
     scene.gate.releaseAll();
     await scene.renderer.close();
   }
+});
+
+it('kills a browser whose close rejects when the context never settles', async () => {
+  let kills = 0;
+  const renderer = new PlaywrightDocumentRenderer({
+    factory: {
+      launch: async () => ({
+        newContext: () => new Promise(() => undefined),
+        close: () => Promise.reject(new Error('close failed')),
+        kill: () => {
+          kills += 1;
+        },
+        on: () => undefined,
+      }),
+    },
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    backoffMs: [100],
+    overallTimeoutMs: OVERALL_MS,
+    closeGraceMs: 30,
+    stableForMs: 60_000,
+  });
+  try {
+    await renderer.start();
+    await expect(renderer.render(HTML)).rejects.toBeInstanceOf(DocumentRenderTimeoutError);
+    await ticks(5);
+    expect(kills).toBe(1);
+  } finally {
+    await renderer.close();
+  }
+});
+
+it('treats a context whose close fails as hung', async () => {
+  const never = (): Promise<void> => new Promise<void>(() => undefined);
+  const rejecting: PdfContext = {
+    route: async () => undefined,
+    newPage: async () => hangPage(),
+    close: () => Promise.reject(new Error('close failed')),
+  };
+  expect(await closeHungContext(rejecting, 30, never)).toBe(true);
+  const throwing: PdfContext = {
+    route: async () => undefined,
+    newPage: async () => hangPage(),
+    close: () => {
+      throw new Error('close failed');
+    },
+  };
+  expect(await closeHungContext(throwing, 30, never)).toBe(true);
+  const closing: PdfContext = {
+    route: async () => undefined,
+    newPage: async () => hangPage(),
+    close: async () => undefined,
+  };
+  expect(await closeHungContext(closing, 30, never)).toBe(false);
 });
