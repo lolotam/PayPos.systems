@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-25
 
-**Status**: Draft. The owner questions DP-Q1 … DP-Q7 are `PENDING` ([owner-questions.ar.md](owner-questions.ar.md));
+**Status**: Draft. The owner questions DV-Q1 … DV-Q7 (decisions page batch 72, PP-63.1 … PP-63.7) are `PENDING` ([owner-questions.ar.md](owner-questions.ar.md));
 every rule that depends on one is marked `TODO(spec)` until it is answered.
 
 **Input**: Issue #634. Today a counter device can only be paired, approved or removed, and a staff PIN can only be set,
@@ -13,7 +13,7 @@ The API routes all exist: `POST /v1/branches/{branchId}/devices/pairing-code`, t
 `GET /v1/branches/{branchId}/devices?status=pending` (spec 070), `POST …/devices/{deviceId}/approve` and `/revoke`,
 and `POST /v1/staff-pins/reset`. No screen in `apps/admin` calls any of them.
 
-**Scope.** Back-office screens over the existing routes. Plus, only if DP-Q3 or DP-Q5 is answered that way, one small
+**Scope.** Back-office screens over the existing routes. Plus, only if DV-Q3 or DV-Q5 is answered that way, one small
 API change each (an `active` filter on the device list, or a branch-scoped PIN reset). Out of scope: the counter app's
 own pairing screen (unchanged), the staff OTP sign-in (PP-58.1), and the employee's own PIN change.
 
@@ -31,14 +31,14 @@ own pairing screen (unchanged), the staff OTP sign-in (PP-58.1), and the employe
 
 ## Requirements (draft)
 
-- **FR-001** A devices screen for the chosen branch (place: DP-Q1, `TODO(spec)`). It has a «كود ربط جهاز» button that
+- **FR-001** A devices screen for the chosen branch (place: DV-Q1, `TODO(spec)`). It has a «كود ربط جهاز» button that
   issues a code and shows it large with its 10-minute countdown, and a "new code" action.
 - **FR-002** The same screen lists the branch's pending devices (name and time) with «موافقة» and «رفض». Refuse uses
-  revoke. Whether approval stays a separate step is DP-Q2, `TODO(spec)`.
-- **FR-003** Active devices with «إزالة» (DP-Q3, `TODO(spec)`; needs `status=active` on the spec 070 route).
-- **FR-004** Who sees the screen and its actions: DP-Q4, `TODO(spec)`. Today: `manage:devices:branch`.
-- **FR-005** On the employees list, a «تعيين رقم سري» action. The rules for who (DP-Q5), how the PIN is chosen
-  (DP-Q6) and what an employee without an app account sees (DP-Q7) are all `TODO(spec)`. The PIN is never shown
+  revoke. Whether approval stays a separate step is DV-Q2, `TODO(spec)`.
+- **FR-003** Active devices with «إزالة» (DV-Q3, `TODO(spec)`; needs `status=active` on the spec 070 route).
+- **FR-004** Who sees the screen and its actions: DV-Q4, `TODO(spec)`. Today: `manage:devices:branch`.
+- **FR-005** On the employees list, a «تعيين رقم سري» action. The rules for who (DV-Q5), how the PIN is chosen
+  (DV-Q6) and what an employee without an app account sees (DV-Q7) are all `TODO(spec)`. The PIN is never shown
   again after it is set, and is never stored or logged in the browser.
 - **FR-006** All strings come from `packages/i18n`, the screens are RTL, and every UI test asserts what the user sees
   (`CLAUDE.md` §7, §9).
@@ -46,5 +46,5 @@ own pairing screen (unchanged), the staff OTP sign-in (PP-58.1), and the employe
 ## Sub-PRs (draft)
 
 1. **071-1** The devices screen: issue code, pending list, approve and refuse. No API change.
-2. **071-2** Active devices and remove. Only if DP-Q3 says yes; adds `status=active` to the spec 070 route.
-3. **071-3** The staff PIN action. If DP-Q5 picks branch managers, the PIN reset route also gets a branch scope.
+2. **071-2** Active devices and remove. Only if DV-Q3 says yes; adds `status=active` to the spec 070 route.
+3. **071-3** The staff PIN action. If DV-Q5 picks branch managers, the PIN reset route also gets a branch scope.
