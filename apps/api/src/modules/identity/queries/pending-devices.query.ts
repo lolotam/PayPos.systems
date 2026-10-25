@@ -2,11 +2,11 @@ import { pendingDevicesResponse, type PendingDevicesResponse } from '@pospay/con
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-interface PendingDeviceRow {
+type PendingDeviceRow = {
   readonly id: string;
   readonly label: string;
   readonly created_at: Date | string;
-}
+};
 
 // الـ driver بيردّ بالـ Date أو بالـ string؛ الرد دايماً ISO واحد عشان كل عميل يفسّر نفس اللحظة بنفسه.
 function iso(value: Date | string): string {

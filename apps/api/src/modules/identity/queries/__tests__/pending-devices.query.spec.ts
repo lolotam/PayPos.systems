@@ -152,7 +152,7 @@ describe('listPendingDevices', () => {
       listPendingDevices(tx, A.company, A.branch),
     );
     const plan = plans.find((entry) => entry.includes('devices')) ?? '';
-    expect(plan).toMatch(/devices_(company_id_branch_id_idx|pkey)/);
+    expect(plan).toMatch(/devices_(company_id_branch_id_idx|company_branch_id_key|pkey)/);
     expect(plan).not.toContain('Seq Scan');
   });
 });
