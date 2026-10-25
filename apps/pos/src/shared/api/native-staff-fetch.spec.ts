@@ -9,7 +9,7 @@ vi.mock('@capacitor/core', () => ({ CapacitorHttp: { request: requestMock } }));
 function nativeResponse(overrides = {}) {
   return {
     status: 200,
-    data: '{"ok":true}',
+    data: { ok: true },
     headers: { 'Content-Type': 'application/json' },
     url: 'http://127.0.0.1:3000/v1/devices/me/staff-session',
     ...overrides,
@@ -77,6 +77,17 @@ describe('nativeStaffFetch requests', () => {
     await expect(nativeStaffFetch(request)).rejects.toThrow('NATIVE_FETCH_FOREIGN_URL');
     expect(requestMock).not.toHaveBeenCalled();
   });
+
+  it('accepts an equivalent origin with different host case and a default port', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://api-host.example');
+    const request = new Request('https://API-HOST.example:443/v1/devices/me/staff-session');
+
+    const response = await nativeStaffFetch(request);
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('{"ok":true}');
+    expect(requestMock).toHaveBeenCalledOnce();
+  });
 });
 
 describe('nativeStaffFetch response headers and empty bodies', () => {
@@ -122,7 +133,12 @@ describe('nativeStaffFetch response bodies and HTTP errors', () => {
   it('serializes object data and preserves string data', async () => {
     requestMock
       .mockResolvedValueOnce(nativeResponse({ data: { authenticated: true } }))
-      .mockResolvedValueOnce(nativeResponse({ data: 'plain-response' }));
+      .mockResolvedValueOnce(
+        nativeResponse({
+          data: 'plain-response',
+          headers: { 'Content-Type': 'text/plain' },
+        }),
+      );
     const request = () => new Request('http://127.0.0.1:3000/v1/devices/me/staff-session');
 
     const objectResponse = await nativeStaffFetch(request());
@@ -133,11 +149,23 @@ describe('nativeStaffFetch response bodies and HTTP errors', () => {
     expect(objectResponse.headers.get('Content-Type')).toBe('application/json');
     expect(stringResponse.status).toBe(200);
     expect(await stringResponse.text()).toBe('plain-response');
-    expect(stringResponse.headers.get('Content-Type')).toBe('application/json');
+    expect(stringResponse.headers.get('Content-Type')).toBe('text/plain');
+  });
+
+  it('quotes a JSON string fragment in the response body', async () => {
+    requestMock.mockResolvedValue(nativeResponse({ data: 'parsed-fragment' }));
+
+    const response = await nativeStaffFetch(
+      new Request('http://127.0.0.1:3000/v1/devices/me/staff-session'),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('"parsed-fragment"');
+    expect(response.headers.get('Content-Type')).toBe('application/json');
   });
 
   it('resolves an HTTP 401 with its body instead of rejecting', async () => {
-    requestMock.mockResolvedValue(nativeResponse({ status: 401, data: '{"code":"UNAUTHORIZED"}' }));
+    requestMock.mockResolvedValue(nativeResponse({ status: 401, data: { code: 'UNAUTHORIZED' } }));
 
     const response = await nativeStaffFetch(
       new Request('http://127.0.0.1:3000/v1/devices/me/staff-session'),
@@ -146,6 +174,42 @@ describe('nativeStaffFetch response bodies and HTTP errors', () => {
     expect(response.status).toBe(401);
     expect(await response.text()).toBe('{"code":"UNAUTHORIZED"}');
     expect(response.headers.get('Content-Type')).toBe('application/json');
+  });
+});
+
+describe('nativeStaffFetch aborts', () => {
+  stubNativeTransport();
+
+  it('rejects an already aborted request without calling the plugin', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const request = new Request('http://127.0.0.1:3000/v1/devices/me/staff-session', {
+      signal: controller.signal,
+    });
+
+    await expect(nativeStaffFetch(request)).rejects.toMatchObject({ name: 'AbortError' });
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
+  it('drops the native result when the request is aborted during the call', async () => {
+    let resolveNative!: (value: ReturnType<typeof nativeResponse>) => void;
+    requestMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveNative = resolve;
+        }),
+    );
+    const controller = new AbortController();
+    const request = new Request('http://127.0.0.1:3000/v1/devices/me/staff-session', {
+      signal: controller.signal,
+    });
+
+    const pending = nativeStaffFetch(request);
+    await vi.waitFor(() => expect(requestMock).toHaveBeenCalledOnce());
+    controller.abort();
+    resolveNative(nativeResponse());
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
   });
 });
 

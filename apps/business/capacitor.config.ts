@@ -19,6 +19,8 @@ const config: CapacitorConfig = {
   appId: flavour === 'production' ? 'systems.pospay.business' : 'systems.pospay.business.staging',
   appName: 'PosPay Business',
   webDir: '../pos/dist-native',
+  // استدعاءات الإضافات بتحمل بيانات دخول الموظف، فممنوع توصل بخياراتها ونتائجها لسجل الجهاز.
+  loggingBehavior: 'none',
   // الـ hostname والـ scheme ما يتغيروش بعد أول إصدار: تغييرهم معناه origin جديد،
   // والـ IndexedDB (ربط الجهاز وطابور المزامنة) بيضيع (حالة «تحديث التطبيق» في spec 065).
   server,

@@ -477,12 +477,20 @@ The native `URLSession` keeps the cookie in `HTTPCookieStorage.shared` and sends
 sign-in, the session read, sign-out, the OTP and clock-by-card all share one cookie store. The `Set-Cookie` header is
 stripped before the response reaches page code.
 
-Nothing changes in the API, `packages/auth`, the cookie attributes, `apps/business/capacitor.config.ts` or Android.
+Nothing changes in the API, `packages/auth`, the cookie attributes or Android. The only shell change is
+`loggingBehavior: 'none'` in `apps/business/capacitor.config.ts`: in a Debug build, Capacitor logs plugin calls with their
+options and results, which would put the staff `Authorization`, the phone, the PIN and the `Set-Cookie` in the device log.
 Codex gave design advice before the slice (2026-10-25): no P0, and its P1/P2 points are built in.
 
 **Why the explicit `Origin` keeps PP-62's intent.** `Origin` defends browsers against CSRF; it never proved which app
 sent a request. A browser page still cannot send `capacitor://localhost`. Native code in another app could, but it
 has neither our cookie store nor the paired device's `Device` token (ADR-0019 addendum, PP-62).
+
+**Residual points.** Capacitor also copies the cookie into the `WKWebView` store and back. After sign-out a stale copy
+could return to the native jar, but the server has already ended the session, so the next read is 401. The spike
+checks that sign-out shows staff sign-in again. Script running in the page can call `CapacitorHttp` and reach the API
+with the native cookie, just as script on the Android page can with the WebView cookie, so this is parity, not a new
+exposure; the page must stay free of XSS on both platforms.
 
 **Consequences.** The fix is accepted only when the iOS spike passes (b), including the restart and sign-out steps.
 If the native cookie does not survive a restart, fallback 2 of decision 3 applies (a native token), and it needs its

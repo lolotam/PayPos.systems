@@ -1,15 +1,40 @@
 import { apiOrigin } from './origin';
 
+function assertApiOrigin(requestUrl: string): void {
+  if (new URL(requestUrl).origin !== new URL(apiOrigin()).origin) {
+    throw new Error('NATIVE_FETCH_FOREIGN_URL');
+  }
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
+}
+
+function safeResponseHeaders(nativeHeaders: Record<string, string>): Headers {
+  return new Headers(
+    Object.fromEntries(
+      Object.entries(nativeHeaders).filter(([name]) => name.toLowerCase() !== 'set-cookie'),
+    ),
+  );
+}
+
+function responseBodyText(data: unknown, contentType: string): string | undefined {
+  if (contentType.toLowerCase().includes('application/json')) return JSON.stringify(data);
+  return typeof data === 'string' ? data : JSON.stringify(data);
+}
+
 // الـ web view على iOS مابيبعتش كوكي مضيف الـ API من `capacitor://localhost` والمتصفح بيسقط `Origin`، فالطلبات دي بتعدي أصلية.
 export async function nativeStaffFetch(request: Request): Promise<Response> {
-  if (!request.url.startsWith(`${apiOrigin()}/`)) throw new Error('NATIVE_FETCH_FOREIGN_URL');
-
+  assertApiOrigin(request.url);
+  throwIfAborted(request.signal);
   const headers = {
     ...Object.fromEntries(request.headers.entries()),
     Origin: 'capacitor://localhost',
   };
   const body = request.method === 'GET' || request.method === 'HEAD' ? '' : await request.text();
+  throwIfAborted(request.signal);
   const { CapacitorHttp } = await import('@capacitor/core');
+  throwIfAborted(request.signal);
   const nativeResponse = await CapacitorHttp.request({
     url: request.url,
     method: request.method,
@@ -20,14 +45,11 @@ export async function nativeStaffFetch(request: Request): Promise<Response> {
     readTimeout: 15000,
     responseType: 'text',
   });
-  const responseHeaders = Object.fromEntries(
-    Object.entries(nativeResponse.headers).filter(([name]) => name.toLowerCase() !== 'set-cookie'),
-  );
+  throwIfAborted(request.signal);
+  const responseHeaders = safeResponseHeaders(nativeResponse.headers);
   const empty = request.method === 'HEAD' || [204, 205, 304].includes(nativeResponse.status);
   const responseBody = empty
     ? null
-    : typeof nativeResponse.data === 'string'
-      ? nativeResponse.data
-      : JSON.stringify(nativeResponse.data);
+    : responseBodyText(nativeResponse.data, responseHeaders.get('content-type') ?? '');
   return new Response(responseBody, { status: nativeResponse.status, headers: responseHeaders });
 }
