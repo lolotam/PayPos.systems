@@ -1,6 +1,8 @@
 import createClient from 'openapi-fetch';
 
+import { usesNativeStaffTransport } from '../platform/native-shell';
 import { currentDeviceToken } from './device-auth';
+import { nativeStaffFetch } from './native-staff-fetch';
 import { apiOrigin } from './origin';
 import type { paths } from './schema';
 
@@ -10,10 +12,14 @@ function withDevice(request: Request, token: string): Request {
   return new Request(request, { headers });
 }
 
-export function createApiClient(credentials: RequestCredentials = 'omit') {
+export function createApiClient(
+  credentials: RequestCredentials = 'omit',
+  fetch?: (request: Request) => Promise<Response>,
+) {
   const client = createClient<paths>({
     baseUrl: apiOrigin(),
     credentials,
+    ...(fetch === undefined ? {} : { fetch }),
   });
   client.use({
     async onRequest({ request }) {
@@ -31,7 +37,10 @@ let singleton: ApiClient | undefined;
 let staffSingleton: ApiClient | undefined;
 
 export function staffApiClient(): ApiClient {
-  staffSingleton ??= createApiClient('include');
+  staffSingleton ??= createApiClient(
+    'include',
+    usesNativeStaffTransport() ? nativeStaffFetch : undefined,
+  );
   return staffSingleton;
 }
 

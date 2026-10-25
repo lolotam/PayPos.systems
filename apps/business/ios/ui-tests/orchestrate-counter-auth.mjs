@@ -2,7 +2,7 @@
 // وبيستطلع الأجهزة المعلّقة. الشبكة في counter-auth-api.mjs والأسماء في counter-auth-labels.mjs.
 
 import { spawn } from 'node:child_process';
-import { mkdir, open } from 'node:fs/promises';
+import { mkdir, open, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -19,6 +19,7 @@ import {
 import {
   buildDeviceLabel,
   buildUiTestEnvironment,
+  failureLine,
   matchDeviceLabel,
   summaryLines,
 } from './counter-auth-labels.mjs';
@@ -57,6 +58,7 @@ export function defaultDeps() {
   return {
     fetch: (...args) => fetch(...args),
     spawn,
+    readFile: (...args) => readFile(...args),
     log: (line) => console.log(line),
     now: () => Date.now(),
     sleep: (milliseconds, signal) => sleepReal(milliseconds, signal),
@@ -238,6 +240,14 @@ async function finalize(deps, config, runtime, summary, startRevoke, stop) {
   process.removeListener('SIGINT', stop);
   process.removeListener('SIGTERM', stop);
   for (const line of summaryLines(summary)) deps.log(line);
+  if (summary.ui === 'failed') {
+    const path = join(config.RUNNER_TEMP, 'spike', 'private', 'counter-auth-xcodebuild.log');
+    try {
+      deps.log(failureLine(await deps.readFile(path, 'utf8')));
+    } catch {
+      deps.log('ui failure: unknown');
+    }
+  }
 }
 
 export async function run(config, deps = defaultDeps()) {
