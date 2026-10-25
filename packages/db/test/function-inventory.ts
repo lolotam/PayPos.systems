@@ -183,6 +183,11 @@ export const FUNCTION_INVENTORY = [
     proconfig: ['search_path=pg_catalog, public'],
   },
   {
+    proname: 'rating_requests_consumed_has_rating',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
     proname: 'rating_performers_insert_guard',
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],

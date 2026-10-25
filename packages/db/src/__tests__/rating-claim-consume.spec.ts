@@ -155,7 +155,22 @@ it('rolls back the consumption, the rating and its attributions when the transac
   ]);
   expect(await owner`SELECT id FROM ratings WHERE request_id=${id}`).toEqual([]);
   expect(await owner`SELECT id FROM rating_attributions WHERE request_id=${id}`).toEqual([]);
-  const later = await db.withTenant(A.company, (tx) => consumeRow(tx, A, tokenHash, NOW));
+  const later = await db.withTenant(A.company, async (tx) => {
+    const consumed = await consumeRow(tx, A, tokenHash, NOW);
+    const requestId = consumed[0]?.['id'] as string;
+    const ratingId = await insertRating(tx, { tenant: A, requestId, stars: 5, now: NOW });
+    for (const employeeId of A.employees) {
+      await insertAttribution(tx, {
+        tenant: A,
+        requestId,
+        ratingId,
+        employeeId,
+        stars: 5,
+        now: NOW,
+      });
+    }
+    return consumed;
+  });
   expect(later).toHaveLength(1);
 });
 
@@ -260,10 +275,43 @@ it('requires every snapshotted performer at commit and accepts a complete set', 
   );
 });
 
+it('refuses a commit that burns the link without keeping the rating', async () => {
+  const { id, tokenHash } = await claimed([A.employees[0]]);
+  await expectPgError(
+    db.withTenant(A.company, (tx) => consumeRow(tx, A, tokenHash, NOW)),
+    '23514',
+    'rating_requests_consumed_has_rating',
+  );
+  expect(await owner`SELECT consumed_at FROM rating_requests WHERE id=${id}`).toEqual([
+    { consumed_at: null },
+  ]);
+  expect(await owner`SELECT id FROM ratings WHERE request_id=${id}`).toEqual([]);
+  const ratingId = await db.withTenant(A.company, (tx) =>
+    consumeAndRate(tx, {
+      tenant: A,
+      requestId: id,
+      tokenHash,
+      now: NOW,
+      stars: 5,
+      attribute: [A.employees[0]],
+    }),
+  );
+  expect(ratingId).not.toBeNull();
+});
+
 it('makes the second sequential consume affect zero rows', async () => {
-  const { tokenHash } = await claimed([A.employees[0]]);
+  const { id, tokenHash } = await claimed([A.employees[0]]);
   const counts = await db.withTenant(A.company, async (tx) => {
     const first = await consumeRow(tx, A, tokenHash, NOW);
+    const ratingId = await insertRating(tx, { tenant: A, requestId: id, stars: 5, now: NOW });
+    await insertAttribution(tx, {
+      tenant: A,
+      requestId: id,
+      ratingId,
+      employeeId: A.employees[0],
+      stars: 5,
+      now: NOW,
+    });
     const second = await consumeRow(tx, A, tokenHash, NOW);
     return [first.length, second.length];
   });
@@ -276,6 +324,15 @@ it('treats expiry equality as expired and one millisecond before as valid', asyn
   const counts = await db.withTenant(A.company, async (tx) => {
     const atExpiry = await consumeRow(tx, A, expired.tokenHash, '2026-06-09T00:00:00Z');
     const beforeExpiry = await consumeRow(tx, A, valid.tokenHash, '2026-06-08T23:59:59.999Z');
+    const ratingId = await insertRating(tx, { tenant: A, requestId: valid.id, stars: 5, now: NOW });
+    await insertAttribution(tx, {
+      tenant: A,
+      requestId: valid.id,
+      ratingId,
+      employeeId: A.employees[0],
+      stars: 5,
+      now: NOW,
+    });
     return [atExpiry.length, beforeExpiry.length];
   });
   expect(counts).toEqual([0, 1]);

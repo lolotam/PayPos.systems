@@ -16,9 +16,10 @@ export type RatingCancelReason = z.infer<typeof ratingCancelReason>;
 export const ratingStars = z.number().int().min(1).max(5);
 
 // العد بـ Unicode code points علشان العربي والحروف المركّبة والـ astral ما يتحسبوش بوحدات UTF-16.
-// قاعدة الروابط والمحتوى مسؤولية صف 60-1، وليست جزءاً من عقد التخزين ده.
+// كل الـ control characters مرفوضة: التعليق نص عادي من غير أسطر ولا tabs، وPostgres مش بيقبل NUL أصلاً.
 export const ratingComment = z
   .string()
+  .regex(/^[^\p{Cc}]*(?![\s\S])/u)
   .refine((value) => Array.from(value).length <= 1000, { message: 'At most 1000 characters' });
 
 export const submitRatingInput = z
@@ -30,7 +31,7 @@ export const ratingViewState = z.enum(['open', 'submitted']);
 
 // الرد العام كله: أي حقل إضافي هنا يوسّع الإفصاح الممنوع في ADR-0011 §4.
 export const ratingView = responseObject({
-  business_name: z.string().min(1).max(200),
+  business_name: z.string().min(1).max(255),
   state: ratingViewState,
 }).meta({ id: 'RatingView' });
 export type RatingView = z.infer<typeof ratingView>;

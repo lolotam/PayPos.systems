@@ -48,13 +48,26 @@ describe('rating submission contract', () => {
     expect(ratingComment.safeParse(character.repeat(1001)).success).toBe(false);
   });
 
+  it.each([
+    ['U+0000', String.fromCharCode(0)],
+    ['a newline', String.fromCharCode(10)],
+    ['a tab', String.fromCharCode(9)],
+    ['U+007F', String.fromCharCode(127)],
+  ])('refuses a comment carrying %s', (_label, character) => {
+    expect(ratingComment.safeParse(`comment${character}`).success).toBe(false);
+  });
+
+  it('accepts an empty comment', () => {
+    expect(ratingComment.parse('')).toBe('');
+  });
+
   it('accepts stars alone and an optional comment', () => {
     expect(submitRatingInput.parse({ stars: 5 })).toEqual({ stars: 5 });
     expect(submitRatingInput.parse({ stars: 2, comment: '' })).toEqual({ stars: 2, comment: '' });
   });
 
   it.each([
-    { stars: 5, token: 'synthetic' },
+    { stars: 5, token: 'test-rating-token-a' },
     { stars: 5, company_id: '01920000-0000-7000-8000-0000000000a0' },
     { stars: 5, performer_ids: ['01920000-0000-7000-8000-0000000000a3'] },
   ])('refuses a client-selected capability key: %j', (body) => {
@@ -69,5 +82,14 @@ describe('public rating view allowlist', () => {
       business_name: 'Synthetic salon',
       state: 'open',
     });
+  });
+
+  it('accepts the longest persisted business name and refuses one character more', () => {
+    expect(ratingView.safeParse({ business_name: 'a'.repeat(255), state: 'open' }).success).toBe(
+      true,
+    );
+    expect(ratingView.safeParse({ business_name: 'a'.repeat(256), state: 'open' }).success).toBe(
+      false,
+    );
   });
 });

@@ -137,6 +137,18 @@ it('reschedules, claims and sends through the full happy path', async () => {
   expect(new Date(String(rows[0]?.due_at)).toISOString()).toBe(dueAt);
 });
 
+it('writes the send time once and refuses a different one', async () => {
+  const id = await newRequest();
+  await claim(id);
+  await update(id, sql`status='SENT',sent_at=${NOW}`);
+  await expectPgError(
+    update(id, sql`sent_at='2026-06-03T00:00:00Z'`),
+    '23514',
+    'rating_requests_sent_once',
+  );
+  await update(id, sql`sent_at=${NOW}`);
+});
+
 const REFUSED_TRANSITIONS = [
   { from: 'SENT', to: 'SENDING' },
   { from: 'SENDING', to: 'SCHEDULED' },

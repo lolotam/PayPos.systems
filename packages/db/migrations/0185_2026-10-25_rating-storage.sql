@@ -226,6 +226,10 @@ BEGIN
   IF NOT valid_transition THEN
     RAISE EXCEPTION 'the rating request status transition is not allowed' USING ERRCODE = '23514', CONSTRAINT = 'rating_requests_transition';
   END IF;
+  -- وقت الإرسال بيتكتب مرة واحدة؛ نتيجة إرسال متكررة ما تكتبش فوق وقت الإرسال الأصلي.
+  IF OLD.sent_at IS NOT NULL AND NEW.sent_at IS DISTINCT FROM OLD.sent_at THEN
+    RAISE EXCEPTION 'the send time of a rating request is written once' USING ERRCODE = '23514', CONSTRAINT = 'rating_requests_sent_once';
+  END IF;
   IF OLD.token_hash IS NULL AND NEW.token_hash IS NOT NULL THEN
     NEW.claim_xact_id := pg_current_xact_id();
   ELSE
@@ -352,3 +356,27 @@ GRANT EXECUTE ON FUNCTION ratings_attributions_complete() TO pospay_app;
 --> statement-breakpoint
 CREATE CONSTRAINT TRIGGER ratings_attributions_complete AFTER INSERT ON ratings
 DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ratings_attributions_complete();
+--> statement-breakpoint
+-- الرابط واحد الاستخدام؛ حرقه من غير حفظ التقييم بيضيّع إجابة العميل، فالتقييم لازم يتكتب في نفس المعاملة.
+CREATE FUNCTION rating_requests_consumed_has_rating() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
+DECLARE
+  rating_count bigint;
+BEGIN
+  SELECT count(*) INTO rating_count
+    FROM public.ratings r
+   WHERE r.company_id = NEW.company_id AND r.request_id = NEW.id;
+  IF rating_count = 0 THEN
+    RAISE EXCEPTION 'a consumed rating request must keep its rating' USING ERRCODE = '23514', CONSTRAINT = 'rating_requests_consumed_has_rating';
+  END IF;
+  RETURN NULL;
+END $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION rating_requests_consumed_has_rating() FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION rating_requests_consumed_has_rating() TO pospay_app;
+--> statement-breakpoint
+CREATE CONSTRAINT TRIGGER rating_requests_consumed_has_rating AFTER UPDATE ON rating_requests
+DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+WHEN (OLD.consumed_at IS NULL AND NEW.consumed_at IS NOT NULL)
+EXECUTE FUNCTION rating_requests_consumed_has_rating();

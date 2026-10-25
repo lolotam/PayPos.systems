@@ -151,9 +151,19 @@ it('a consume issued before the claim commits affects no row', async () => {
   if (failure !== undefined) throw failure;
   expect(early).toBeNull();
 
-  const after = await db.withTenant(A.company, (tx) =>
-    consumeRequest(tx, { tenant: A, tokenHash, now: NOW }),
-  );
+  const after = await db.withTenant(A.company, async (tx) => {
+    const consumed = await consumeRequest(tx, { tenant: A, tokenHash, now: NOW });
+    const ratingId = await insertRating(tx, { tenant: A, requestId, stars: 5, now: NOW });
+    await insertAttribution(tx, {
+      tenant: A,
+      requestId,
+      ratingId,
+      employeeId: A.employees[0],
+      stars: 5,
+      now: NOW,
+    });
+    return consumed;
+  });
   expect(after).toBe(requestId);
   const request = await owner<{ consumed_at: Date }[]>`
     SELECT consumed_at FROM rating_requests WHERE id=${requestId}`;
