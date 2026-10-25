@@ -224,9 +224,12 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   pair when the branch form carries both `employee_id` and `shift`. An employee whose only
   coverage has not happened yet (hired today with a 17:00 default entry and a 17:00 shift, no leave, asked at 10:00) is
   refused here; one whose scheduled shift had ended is admitted even with no session and no default hours, so the
-  missed attendance shows. The check is an eligibility statement in `@pospay/db` beside the shared 27b inputs statement
-  (ADR-0056 §2) that evaluates the FR-013a coverage predicate for that one employee, with the instant as a parameter;
-  the 27b statement takes no instant and stays unchanged. It is a quick pre-check on the current state, and the render reads the current state again
+  missed attendance shows. The check reads the same inputs the render reads (the shared 27b inputs statement and the FR-011b schedule-only
+  statement, both in `@pospay/db`, merged by `mergeAttendanceStatementRows`) and evaluates the FR-013a coverage predicate
+  `hasAttendanceStatementCoverage` of `packages/domain` for that one employee, with the instant as a parameter, so admission
+  and the render share one predicate and no second SQL copy of it exists (ADR-0056 §2); the 27b statement takes no
+  instant. Both statements accept an optional employee predicate inside their aggregations for this admission check;
+  without it their full-branch report/render behavior stays unchanged. It is a quick pre-check on the current state, and the render reads the current state again
   (FR-013a): if the render then finds no coverage for the employee or for the whole statement, the job ends `FAILED /
   STATEMENT_EMPTY` (a visible status, FR-005) and no PDF is produced. Otherwise `404
   ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` before any insert (no request row, no job). An employee whose only activity
@@ -238,8 +241,14 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   900-second TTL, then adds the BullMQ job `{ company_id, render_id, kind: 'attendance-statement' }` with
   `jobId = render_id` (ADR-0049 §1.1–§1.3), and answers `202 { render_id }`. `render_id` comes from the injected
   `IdGenerator`; the clock from the injected `Clock`.
-- **FR-004** If the enqueue fails after the status hash was written, the use case sets the status `FAILED` with
-  `DOCUMENT_RENDER_FAILED` and answers `503 RENDERER_UNAVAILABLE`. The request row stays (it records the attempt).
+- **FR-004** An enqueue error is reconciled atomically against the BullMQ job and render status. If the job exists
+  or its state has progressed beyond `QUEUED`, admission is established: preserve that state and answer
+  `202 { render_id }` with the original identifier. Otherwise set `FAILED / DOCUMENT_RENDER_FAILED` and answer
+  `503 RENDERER_UNAVAILABLE`. If Redis cannot establish the outcome, answer `503 RENDERER_UNAVAILABLE` without
+  overwriting the status: an unknown outcome is neither confirmed admission nor a definite render failure.
+  No background retry/outbox is promised for that unknown outcome; a later user request is a new attempt and may
+  duplicate work that was accepted before the connection failed. The request row stays in every case (it records
+  the attempt). Return `202` only when admission is established, so a never-enqueued job is not reported as accepted.
 - **FR-005** `GET …/attendance-statements/:renderId` is a **read**, so it goes through `queries/`, not a use case
   (`CLAUDE.md` §6): `queries/attendance-statement-status.query.ts` reads the request-row binding with SQL (result-shape
   test and `EXPLAIN` assertion), and the Redis status hash through a read-side interface declared **beside the query**

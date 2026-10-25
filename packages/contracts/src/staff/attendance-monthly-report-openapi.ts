@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { attendanceMonthlyReport } from './attendance-monthly-report.js';
+import { attendanceStatementPaths } from './attendance-statement-openapi.js';
 
 const parameters = [
   { in: 'header', name: 'x-company-id', required: true, schema: { type: 'string', format: 'uuid' } },
@@ -16,6 +17,8 @@ const csvResponse = { '200': { description: 'UTF-8 attendance CSV', content: { '
 const csvDescription = ' Arabic RFC 4180 CSV with UTF-8 BOM, h:mm and two-decimal hour columns, employee number and names only. One audit per successful export.';
 const allDescription = `${description} Every active branch of this business must have a covering grant and no covering DENY.`;
 export const attendanceMonthlyReportPaths = {
+  // مسارات التقرير والكشف بتشارك تصديراً واحداً عشان ملف التجميع يفضل داخل حد حجمه.
+  ...attendanceStatementPaths,
   '/v1/businesses/{businessId}/branches/{branchId}/attendance-report': { get: {
     operationId: 'attendanceMonthlyReport', description, parameters: [...parameters, branch], responses: jsonResponse,
   } },

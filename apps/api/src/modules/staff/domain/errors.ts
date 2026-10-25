@@ -34,3 +34,26 @@ export class SetEmployeeNumberStartError extends Error {
     super(code);
   }
 }
+
+/** رفض طلب أو استلام كشف الحضور يحمل كوداً موحداً لمحول HTTP في الجولات المختلفة. */
+export class AttendanceStatementError extends Error {
+  /**
+   * يحفظ سبب الرفض دون كشف بيانات نشاط أو مستند لمستخدم غير مصرح له.
+   *
+   * @param code كود رفض كشف الحضور
+   */
+  constructor(
+    readonly code:
+      | 'BRANCH_NOT_FOUND'
+      | 'PERIOD_INVALID'
+      | 'SHIFT_FILTER_INVALID'
+      | 'EMPLOYEE_NOT_FOUND'
+      | 'RATE_LIMITED'
+      | 'RENDERER_UNAVAILABLE'
+      | 'NOT_FOUND'
+      | 'NOT_READY'
+      | 'EXPIRED',
+  ) {
+    super(code);
+  }
+}

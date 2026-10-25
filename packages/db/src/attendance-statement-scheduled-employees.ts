@@ -17,6 +17,7 @@ export interface AttendanceStatementBranch {
  * @param branch الفرع والمنطقة المحلية بتاعته
  * @param from أول يوم عمل في الفترة
  * @param to آخر يوم عمل في الفترة
+ * @param employeeId يحد قراءة القبول بموظفة واحدة قبل تجميع الجداول؛ غيابه يحافظ على قراءة الكشف الكامل
  * @returns الاستعلام اللي بيرجع صفوف الموظفات بنفس شكل تقرير 27b
  */
 export function attendanceStatementScheduledEmployeesStatement(
@@ -25,6 +26,7 @@ export function attendanceStatementScheduledEmployeesStatement(
   branch: AttendanceStatementBranch,
   from: string,
   to: string,
+  employeeId?: string,
 ) {
   // شاشة كشف الحضور الرسمي تقرأ الموظفات المجدول بس في الفرع؛ يوم الـ context قبل البداية بيجيب معاهم.
   return sql`WITH shifts AS MATERIALIZED (
@@ -32,6 +34,7 @@ export function attendanceStatementScheduledEmployeesStatement(
       FROM staff_schedules sc JOIN staff_schedule_shifts sh ON sh.company_id=sc.company_id AND sh.schedule_id=sc.id
         CROSS JOIN LATERAL (SELECT sh.working_date,sh.starts_at,sh.ends_at,sh.break_starts_at,sh.break_ends_at) v
       WHERE sc.company_id=${companyId} AND sc.business_id=${businessId} AND sc.branch_id=${branch.id}::uuid
+        ${employeeId === undefined ? sql`` : sql`AND sc.employee_id=${employeeId}::uuid`}
         AND sc.week_start BETWEEN (${from}::date-7) AND ${to}::date
         AND sh.working_date BETWEEN (${from}::date-1) AND ${to}::date
       GROUP BY sc.employee_id

@@ -2,7 +2,8 @@ import { sql, type SQL } from 'drizzle-orm';
 
 // تقرير كل الفروع يحتاج إسقاط 16d مرة واحدة؛ الربط والتجميع لا يحسبان ساعات العمل أو الإجازة.
 // حذف الموظفة لاحقاً لا يمحو تعاقد الشهر السابق؛ بداية الشهر محلية لكل فرع.
-export function attendanceReportContractsStatement(companyId: string, businessId: string, branchIds: SQL, zones: SQL, from: string, to: string) {
+// مرشح الموظفة الاختياري يحد قراءة القبول قبل تجميع الدوام والروابط، دون تغيير التقرير الكامل.
+export function attendanceReportContractsStatement(companyId: string, businessId: string, branchIds: SQL, zones: SQL, from: string, to: string, employeeId?: string) {
   // AB-Q12: يوم الحذف المحلي محسوب مثل آخر يوم للعقد؛ الإسقاط يمرر الحد نفسه لدالة التعاقد.
   const contractEnd = sql`LEAST(e.contract_end,(e.deleted_at AT TIME ZONE z.timezone)::date)`;
   const deletion = sql`(e.deleted_at IS NULL OR e.deleted_at>=(${from}::date::timestamp AT TIME ZONE z.timezone))`;
@@ -11,6 +12,7 @@ export function attendanceReportContractsStatement(companyId: string, businessId
     jsonb_agg(jsonb_build_object('day',d.day,'start',left(d.start::text,5),
       'end',left(d."end"::text,5)) ORDER BY d.day) AS entries
     FROM employee_default_shifts d WHERE d.company_id=${companyId} AND d.business_id=${businessId}
+      ${employeeId === undefined ? sql`` : sql`AND d.employee_id=${employeeId}::uuid`}
       AND d.branch_id=ANY(${branchIds}) GROUP BY d.employee_id,d.branch_id),
     links AS MATERIALIZED (SELECT e.id AS employee_id,eb.branch_id,
       to_char(e.hire_date,'YYYY-MM-DD') AS hire_date,to_char(${contractEnd},'YYYY-MM-DD') AS contract_end,
@@ -19,6 +21,7 @@ export function attendanceReportContractsStatement(companyId: string, businessId
       FROM employees e JOIN employee_branches eb ON eb.company_id=e.company_id AND eb.employee_id=e.id
       JOIN zones z ON z.branch_id=eb.branch_id
       WHERE e.company_id=${companyId} AND e.business_id=${businessId}
+        ${employeeId === undefined ? sql`` : sql`AND e.id=${employeeId}::uuid`}
         AND ${deletion}
         AND e.hire_date<=${to}::date AND (e.contract_end IS NULL OR e.contract_end>=${from}::date)
         AND eb.branch_id=ANY(${branchIds}) AND eb."from"<=${to}::date AND (eb."to" IS NULL OR eb."to">${from}::date)
