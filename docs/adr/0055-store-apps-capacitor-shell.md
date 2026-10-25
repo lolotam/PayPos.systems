@@ -498,3 +498,22 @@ own ADR-0019 addendum and Waleed's yes. The personal OTP clients (`apps/pos/src/
 web view, and iOS (c) on the first iPhone (M-1c-ii) decides whether they move to the same transport. When the UI test
 fails, the spike now prints `ui failure: <step>`, taken only from a fixed list of the XCUITest's own assertion
 messages, and never any other line of the private xcodebuild log.
+
+## Addendum 2026-10-25 (e) — iOS restart: a native cookie-persistence fix comes before fallback 2 (PP-65)
+
+**Context.** After addendum (d) the iOS spike (run 40189531765) passed (a) and the staff PIN sign-in. It then failed at
+`The staff session should survive the restart`: after the test terminated and relaunched the app, the session was
+gone, although the staff cookie has an `Expires`. The likely cause is that the native cookie store had not written the
+cookie to disk before the process was killed.
+
+**Decision (PP-65, Waleed, technical, 2026-10-25, final).** This replaces the next step in the consequences of
+addendum (d). One fix comes before fallback 2:
+- **First:** a small native fix inside `apps/business`. Codex design advice comes first. The fix then writes the staff
+  cookie to persistent storage right after sign-in, with no change to the API, `packages/auth` or the cookie attributes.
+  Its addendum records the exact mechanism once it is chosen.
+- **Only if it fails** (the spike's restart step still fails): fallback 2 of decision 3, a native token. Before
+  implementation, fallback 2 needs its own ADR-0055 addendum, an ADR-0019 addendum and the web manager's agreement.
+
+Spec 065 acceptance 3 (the session survives an app restart) stays the bar. Accepting a new sign-in after an iOS
+restart would change the product, so it is not part of this decision. It would be a feature question for both owners.
+The fix starts after the 2026-10-25 handover (Waleed, ~13:30).
