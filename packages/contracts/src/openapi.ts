@@ -268,7 +268,6 @@ const PATHS = {
   ...attendanceChangePaths,
   ...permissionPaths,
   ...pendingDevicesPaths,
-  ...devicePaths,
   ...customerPaths,
   ...catalogPaths,
   ...alertRulePaths,
@@ -341,6 +340,7 @@ const PATHS = {
   },
   ...notificationPaths,
   ...mePaths,
+  ...devicePaths,
 };
 
 /**

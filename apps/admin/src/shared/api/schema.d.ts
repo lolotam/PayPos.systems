@@ -1514,6 +1514,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/branches/{branchId}/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The branch devices whose status is PENDING, newest first, at most fifty. Requires manage:devices:branch at the branch. */
+        get: operations["listPendingDevices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/customers/find-or-create": {
         parameters: {
             query?: never;
@@ -3703,6 +3720,19 @@ export interface components {
             /** @default false */
             discount_limit_editing_enabled: boolean;
             discount_limit: components["schemas"]["DiscountLimit"];
+        };
+        PendingDevicesQuery: {
+            /** @enum {string} */
+            status: "pending";
+        };
+        PendingDevicesResponse: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                label: string;
+                /** Format: date-time */
+                created_at: string;
+            }[];
         };
         RequestFileUpload: {
             owner_module: string;
@@ -12116,6 +12146,59 @@ export interface operations {
                 };
             };
             /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listPendingDevices: {
+        parameters: {
+            query: {
+                status: "pending";
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The branch devices waiting for approval */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingDevicesResponse"];
+                };
+            };
+            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
             default: {
                 headers: {
                     [name: string]: unknown;
