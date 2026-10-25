@@ -56,12 +56,13 @@ export async function signOutRequest(
   const sessions = kind === 'staff' ? wiring.staffSessions : (wiring.personal?.sessions ?? null);
   if (sessions === null || origin === null || wiring.limiter === null)
     throw new ApiError('NOT_READY');
-  if (
+  // المصدر المسموح بيتحسب مرة واحدة: مصدر الموظف قائمة مصادر (الـ POS والتطبيق)، ومصدر الشخصي نص واحد؛
+  // فالمقارنة ما تقدرش تقارن نصاً بكائن لو النوع اتغيّر بعدين.
+  const allowed =
     kind === 'staff'
-      ? !isStaffOrigin(wiring.staffOrigin, request.headers.origin)
-      : request.headers.origin !== origin
-  )
-    throw new ApiError('FORBIDDEN');
+      ? isStaffOrigin(wiring.staffOrigin, request.headers.origin)
+      : request.headers.origin === wiring.personal?.origin;
+  if (!allowed) throw new ApiError('FORBIDDEN');
   if (kind === 'personal' && request.headers.authorization !== undefined)
     throw new ApiError('FORBIDDEN');
   const limiter = wiring.limiter;

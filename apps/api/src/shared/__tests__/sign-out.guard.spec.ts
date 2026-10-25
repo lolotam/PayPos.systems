@@ -14,6 +14,7 @@ import { signOutAnswer, signOutRequest, type SignOutWiring } from '../sign-out.g
 
 const STAFF_ORIGIN = 'http://pos.synthetic.invalid';
 const PERSONAL_ORIGIN = 'http://localhost:5173';
+const NATIVE_ORIGIN = 'capacitor://localhost';
 
 const fakeLimiter = (allowed: boolean) => {
   const calls: { key: string; limit: number; window: number }[] = [];
@@ -112,6 +113,40 @@ it('the staff branch accepts a revoked device credential and never reads it', as
   ).resolves.toBe(true);
   expect(reads).not.toContain('authorization');
   expect(fake.calls).toHaveLength(1);
+});
+
+it('the staff branch accepts a configured native origin', async () => {
+  const fake = fakeLimiter(true);
+  const { request } = requestWith({ origin: NATIVE_ORIGIN });
+  await expect(
+    signOutRequest(
+      request,
+      'staff',
+      wiringFor({
+        staffOrigin: { pos: STAFF_ORIGIN, native: [NATIVE_ORIGIN] },
+        limiter: fake.limiter,
+      }),
+    ),
+  ).resolves.toBe(true);
+  expect(fake.calls).toHaveLength(1);
+});
+
+it('the personal branch refuses the staff native origin', async () => {
+  const fake = fakeLimiter(true);
+  const { request } = requestWith({ origin: NATIVE_ORIGIN });
+  expect(
+    await codeOf(
+      signOutRequest(
+        request,
+        'personal',
+        wiringFor({
+          staffOrigin: { pos: STAFF_ORIGIN, native: [NATIVE_ORIGIN] },
+          limiter: fake.limiter,
+        }),
+      ),
+    ),
+  ).toBe('FORBIDDEN');
+  expect(fake.calls).toEqual([]);
 });
 
 it('the personal branch refuses any authorization header', async () => {
