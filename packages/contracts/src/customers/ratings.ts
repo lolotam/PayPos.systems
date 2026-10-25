@@ -18,10 +18,15 @@ export const ratingStars = z.number().int().min(1).max(5);
 // ADR-0011 §4: التعليق من غير روابط ولا صور ولا مرفقات؛ العرض بيتهرب ودي طبقة تانية فوقه.
 const LINK_OR_MARKUP_PATTERNS = [
   /https?:\/\//i,
+  /\b(?:ftps?|sftp|file):\/\//i,
+  /\b(?:mailto|javascript):/i,
+  /(?:^|\s)\/\/[a-z0-9]/i,
   /(?:^|[^a-z0-9])www\./i,
   /<\/?[a-z][a-z0-9-]*[\s/>]/i,
   /!\[/,
   /\]\(/,
+  // نطاقات الـ TLD مقصودة: لو كانت القاعدة أي word.word كانت هترفض نص عادي زي e.g. أو نقطة ناقصة بعد الكلمة.
+  /(?:^|[^a-z0-9])[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|info|biz|edu|gov|io|co|me|app|dev|xyz|online|site|shop|store|link|ly|gl|tv|cc|ws|us|uk|kw|sa|ae|eg|qa|bh|om)(?![a-z0-9])/i,
 ];
 
 // العد بـ Unicode code points علشان العربي والحروف المركّبة والـ astral ما يتحسبوش بوحدات UTF-16.

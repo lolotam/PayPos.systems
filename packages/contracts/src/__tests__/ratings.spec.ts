@@ -89,6 +89,14 @@ describe('rating comment links and markup', () => {
     ['an HTML tag with attributes', '<img src=x onerror=alert(1)>'],
     ['an HTML tag', '<b>bold</b>'],
     ['a self-closing HTML tag', 'line<br/>break'],
+    ['a bare domain', 'visit example.com'],
+    ['an upper-case bare domain', 'Visit EXAMPLE.COM'],
+    ['a domain with a country TLD', 'shop.sa/path'],
+    ['an ftp URL', 'ftp://example.com/file'],
+    ['a mailto link', 'mailto:user@example.com'],
+    ['an email address', 'contact me at a@mail.example.com'],
+    ['a protocol-relative URL', '//example.com/x'],
+    ['a file URL', 'file:///etc/passwd'],
   ])('refuses a comment with %s', (_label, comment) => {
     expect(ratingComment.safeParse(comment).success).toBe(false);
   });
@@ -98,8 +106,12 @@ describe('rating comment links and markup', () => {
     ['a comparison', 'a<b'],
     ['a spaced angle bracket', 'x < y'],
     ['Arabic with a line break', `ممتاز جداً${String.fromCharCode(10)}شكراً لكم`],
-    ['a bare domain', 'wow.example'],
+    ['a domain that is not a listed TLD', 'wow.example'],
     ['plain words', 'write a review: 5 stars'],
+    ['an abbreviation', 'e.g. nice service'],
+    ['a decimal number', '4.5 stars'],
+    ['a sentence ending in a word', 'great service.thanks'],
+    ['Arabic with a full stop', 'ممتاز جداً.شكراً'],
   ])('accepts a comment with %s', (_label, comment) => {
     expect(ratingComment.safeParse(comment).success).toBe(true);
   });
