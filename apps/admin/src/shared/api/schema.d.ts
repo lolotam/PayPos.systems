@@ -1521,7 +1521,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description The branch devices whose status is PENDING, newest first, at most fifty. Requires manage:devices:branch at the branch. */
+        /** @description The branch devices whose status is PENDING, newest first, one page of at most a hundred. Requires manage:devices:branch at the branch. */
         get: operations["listPendingDevices"];
         put?: never;
         post?: never;
@@ -3722,6 +3722,9 @@ export interface components {
             discount_limit: components["schemas"]["DiscountLimit"];
         };
         PendingDevicesQuery: {
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
             /** @enum {string} */
             status: "pending";
         };
@@ -3733,6 +3736,7 @@ export interface components {
                 /** Format: date-time */
                 created_at: string;
             }[];
+            next_cursor: string | null;
         };
         RequestFileUpload: {
             owner_module: string;
@@ -12160,6 +12164,8 @@ export interface operations {
         parameters: {
             query: {
                 status: "pending";
+                cursor?: string;
+                limit?: number;
             };
             header: {
                 "x-company-id": string;

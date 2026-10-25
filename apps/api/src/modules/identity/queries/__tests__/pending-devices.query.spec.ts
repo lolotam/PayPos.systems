@@ -1,10 +1,5 @@
 import { pendingDevicesResponse, type PendingDevicesQuery } from '@pospay/contracts';
-import {
-  createDatabase,
-  type Database,
-  type TenantWrappers,
-  type Tx,
-} from '@pospay/db';
+import { createDatabase, type Database, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -14,10 +9,7 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from '../../../../../../../packages/db/test/test-database.ts';
-import {
-  listPendingDevices,
-  PendingDevicesCursorError,
-} from '../pending-devices.query.ts';
+import { listPendingDevices, PendingDevicesCursorError } from '../pending-devices.query.ts';
 
 // CLAUDE.md §9: the pending-device read has a result-shape test and an EXPLAIN ANALYZE assertion on a seeded dataset.
 const { A, B } = TENANT;

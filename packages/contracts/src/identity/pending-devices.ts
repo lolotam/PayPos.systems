@@ -11,15 +11,23 @@ import { timestamp } from '../scalars/timestamp.js';
 export const pendingDevicesQuery = pageQuery
   .extend({
     status: z.literal('pending'),
-    cursor: z.string().min(1).max(512).regex(/^[A-Za-z0-9_-]+$/).optional(),
+    cursor: z
+      .string()
+      .min(1)
+      .max(512)
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .optional(),
   })
   .strict()
   .meta({ id: 'PendingDevicesQuery' });
 
 /** المؤشر يحمل (created_at, id) معًا حتى لا تتكرر أو تُفقد أجهزة اللحظة الواحدة بين الصفحات. */
 export const pendingDevicesCursor = z.strictObject({
-  v: z.literal(1), company: id, branch: id,
-  at: timestamp.regex(/^(?!0000-)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/), id,
+  v: z.literal(1),
+  company: id,
+  branch: id,
+  at: timestamp.regex(/^(?!0000-)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/),
+  id,
 });
 
 export const pendingDevicesResponse = responseObject({

@@ -13,10 +13,7 @@ import { actorOf } from '../../../shared/actor.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
-import {
-  listPendingDevices,
-  PendingDevicesCursorError,
-} from '../queries/pending-devices.query.ts';
+import { listPendingDevices, PendingDevicesCursorError } from '../queries/pending-devices.query.ts';
 
 @Controller('branches/:branchId/devices')
 export class PendingDevicesController {

@@ -9373,7 +9373,7 @@
     "/v1/branches/{branchId}/devices": {
       "get": {
         "operationId": "listPendingDevices",
-        "description": "The branch devices whose status is PENDING, newest first, at most fifty. Requires manage:devices:branch at the branch.",
+        "description": "The branch devices whose status is PENDING, newest first, one page of at most a hundred. Requires manage:devices:branch at the branch.",
         "parameters": [
           {
             "in": "header",
@@ -9402,6 +9402,26 @@
               "enum": [
                 "pending"
               ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
             }
           }
         ],
@@ -19951,6 +19971,18 @@
       "PendingDevicesQuery": {
         "type": "object",
         "properties": {
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -19960,13 +19992,14 @@
         },
         "required": [
           "status"
-        ]
+        ],
+        "additionalProperties": false
       },
       "PendingDevicesResponse": {
         "type": "object",
         "properties": {
           "items": {
-            "maxItems": 50,
+            "maxItems": 100,
             "type": "array",
             "items": {
               "type": "object",
@@ -19991,10 +20024,16 @@
                 "created_at"
               ]
             }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 512
           }
         },
         "required": [
-          "items"
+          "items",
+          "next_cursor"
         ]
       },
       "RequestFileUpload": {

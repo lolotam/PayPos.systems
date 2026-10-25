@@ -72,7 +72,13 @@ export async function listPendingDevices(
     next_cursor:
       rows.length > query.limit && last !== undefined
         ? Buffer.from(
-            JSON.stringify({ v: 1, company: companyId, branch: branchId, at: last.created_at, id: last.id }),
+            JSON.stringify({
+              v: 1,
+              company: companyId,
+              branch: branchId,
+              at: last.created_at,
+              id: last.id,
+            }),
           ).toString('base64url')
         : null,
   });
