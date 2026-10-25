@@ -75,6 +75,13 @@ describe('rating comment links and markup refused', () => {
     ['a mixed-case domain', 'Example.COM'],
     ['a fully upper-case domain', 'EXAMPLE.COM'],
     ['a service domain', 'service.me'],
+    ['a capitalised technical TLD', 'example.Com'],
+    ['a capitalised technical TLD in an address', 'user@example.Com'],
+    ['a domain with a country TLD', 'mysalon.com.au'],
+    ['a domain with two word TLDs', 'mysalon.co.za'],
+    ['a domain before a capitalised word', 'mysalon.com.Thanks'],
+    ['a domain with a hyphen', 'mysalon.com-thanks'],
+    ['a hyphenated domain', 'my-salon.com'],
   ])('refuses a comment with %s', (_label, comment) => {
     expect(ratingComment.safeParse(comment).success).toBe(false);
   });

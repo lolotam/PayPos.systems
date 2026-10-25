@@ -13,32 +13,22 @@ const LINK_OR_MARKUP_PATTERNS = [
   /\]\(/,
 ];
 
-// نطاقات الـ TLD مقصودة: قاعدة عامة زي word.word كانت هترفض نص عادي زي e.g. أو نقطة ناقصة بعد الكلمة.
-const BARE_DOMAIN_TLDS = new Set([
+// نطاقات تقنية: أي كتابة بتعدّي كدومين.
+const TECHNICAL_TLDS = new Set([
   'com',
   'net',
   'org',
-  'info',
   'biz',
   'edu',
   'gov',
   'io',
-  'co',
-  'me',
-  'app',
   'dev',
   'xyz',
-  'online',
-  'site',
-  'shop',
-  'store',
-  'link',
   'ly',
   'gl',
   'tv',
   'cc',
   'ws',
-  'us',
   'uk',
   'kw',
   'sa',
@@ -47,35 +37,9 @@ const BARE_DOMAIN_TLDS = new Set([
   'qa',
   'bh',
   'om',
-  'travel',
-  'news',
-  'blog',
-  'club',
-  'live',
-  'pro',
-  'tech',
-  'cloud',
-  'website',
-  'page',
-  'top',
-  'vip',
-  'fun',
-  'life',
-  'world',
-  'today',
-  'email',
-  'space',
-  'agency',
-  'digital',
-  'media',
-  'group',
-  'team',
-  'studio',
-  'design',
   'ru',
   'de',
   'fr',
-  'in',
   'pk',
   'jp',
   'cn',
@@ -91,24 +55,84 @@ const BARE_DOMAIN_TLDS = new Set([
   'ye',
   'sd',
   'ps',
+  'au',
+  'za',
+  'br',
+  'nz',
+  'my',
+  'ca',
+  'ch',
+  'es',
+  'it',
+  'nl',
+  'se',
+  'sg',
+  'hk',
+  'id',
+  'ng',
+  'ke',
+  'ar',
+  'mx',
 ]);
 
-const TOKEN_SPLIT = /[^a-z0-9.-]+/i;
-const LABEL = /^[a-z0-9-]+$/i;
-const SENTENCE_BREAK = /^[A-Z][a-z]/;
+// نطاقات كلمات: ممكن تيجي في نص عادي، فبترفضها بس لو صغيرة أو مش Capitalised.
+const WORD_TLDS = new Set([
+  'me',
+  'us',
+  'co',
+  'app',
+  'shop',
+  'store',
+  'site',
+  'link',
+  'online',
+  'info',
+  'in',
+  'top',
+  'live',
+  'life',
+  'world',
+  'today',
+  'news',
+  'blog',
+  'club',
+  'page',
+  'space',
+  'team',
+  'group',
+  'media',
+  'design',
+  'studio',
+  'digital',
+  'agency',
+  'email',
+  'tech',
+  'cloud',
+  'travel',
+  'fun',
+  'pro',
+  'vip',
+  'website',
+]);
+
+const TOKEN_SPLIT = /[^a-z0-9.]+/i;
+const LABEL = /^[a-z0-9]+$/i;
+const CAPITALISED = /^[A-Z][a-z]+$/;
 
 // الدومين بيتفحص بتقسيم النص لأجزاء، مش بـ regexp مع quantifiers متداخلة، عشان مدخل زي a.a.a... ما يحرقش الحلقة.
+// نطاقات الـ TLD التقنية دومين بأي كتابة، ونطاقات الكلمات دومين إلا لو مكتوبة Capitalised بعد النقطة.
+// المقايضة إن Example.Me يعدّي، وكل دومين صغير ناقصة فاصلة بيرفض.
 function containsBareDomain(value: string): boolean {
   for (const token of value.split(TOKEN_SPLIT)) {
     if (!token.includes('.')) continue;
     const labels = token.split('.').filter((label) => label.length > 0);
     if (labels.length < 2) continue;
     if (!labels.every((label) => LABEL.test(label))) continue;
-    const last = labels[labels.length - 1];
-    if (last === undefined) continue;
-    // حرف كبير وبعده حرف صغير بعد النقطة = نهاية جملة (Me, Us) مش دومين؛ المقايضة إن دومين صغيرة ناقصة فاصلة بترفض.
-    if (SENTENCE_BREAK.test(last)) continue;
-    if (BARE_DOMAIN_TLDS.has(last.toLowerCase())) return true;
+    for (const label of labels.slice(1)) {
+      const lower = label.toLowerCase();
+      if (TECHNICAL_TLDS.has(lower)) return true;
+      if (WORD_TLDS.has(lower) && !CAPITALISED.test(label)) return true;
+    }
   }
   return false;
 }
