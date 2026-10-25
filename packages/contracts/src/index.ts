@@ -102,6 +102,7 @@ export {
   type PairingCode,
   type RegisterDeviceInput,
 } from './identity/devices.js';
+export * from './identity/pending-devices.js';
 export {
   cashierPinVerified,
   verifyCashierPinInput,

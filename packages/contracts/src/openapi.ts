@@ -64,6 +64,11 @@ import {
   employeeListQuery,
 } from './staff/update-employee.js';
 import { permissionPaths, permissionSchemas } from './identity/permissions-openapi.js';
+import {
+  devicePaths,
+  pendingDevicesPaths,
+  pendingDevicesSchemas,
+} from './identity/pending-devices-openapi.js';
 import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
 import { mePaths } from './identity/me-openapi.js';
 import { customer, findOrCreateCustomerInput } from './customers.js';
@@ -159,6 +164,7 @@ const SCHEMAS = [
   employeePage,
   employeeListQuery,
   ...permissionSchemas,
+  ...pendingDevicesSchemas,
   ...fileSchemas,
   ...staffColumnsSchemas,
   employee, createdEmployee,
@@ -261,6 +267,8 @@ const PATHS = {
   ...attendanceCorrectionPaths,
   ...attendanceChangePaths,
   ...permissionPaths,
+  ...pendingDevicesPaths,
+  ...devicePaths,
   ...customerPaths,
   ...catalogPaths,
   ...alertRulePaths,
@@ -333,27 +341,6 @@ const PATHS = {
   },
   ...notificationPaths,
   ...mePaths,
-  '/v1/devices/register': {
-    post: operation(
-      'registerDevice',
-      '201',
-      'The device is registered and waits for approval',
-      'DeviceRegistration',
-      'RegisterDeviceInput',
-    ),
-  },
-  '/v1/devices/claim': {
-    post: operation(
-      'claimDeviceToken',
-      '200',
-      'The approved device receives its token',
-      'DeviceToken',
-      'ClaimDeviceInput',
-    ),
-  },
-  '/v1/devices/me': {
-    get: operation('getDeviceIdentity', '200', 'The calling device', 'DeviceIdentity'),
-  },
 };
 
 /**
