@@ -58,6 +58,12 @@ export const outbox = pgTable(
       .on(t.companyId, t.id)
       .concurrently()
       .where(sql`${t.eventType} IN ('ServiceSessionRecorded','ServiceSessionLinesAdded')`),
+    // إعادة تشغيل مدخلات العمولة (السطور والرواتب) تقرأ نفس الأوتبوكس المحتفظ به؛ الفهرس الجزئي
+    // بنفس ترتيب الأنواع في الاستعلام، فالمخطط يثبته بدل ما يمسح كل أحداث الشركة.
+    index('outbox_commission_input_replay_idx')
+      .on(t.companyId, t.id)
+      .concurrently()
+      .where(sql`${t.eventType} IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','SalaryChanged')`),
     check('outbox_event_type_format', sql`${t.eventType} ~ '^[A-Z][A-Za-z0-9]{1,99}$'`),
     check('outbox_aggregate_type_format', sql`${t.aggregateType} ~ '^[a-z][a-z0-9_]{1,62}$'`),
     check('outbox_attempts_non_negative', sql`${t.attempts} >= 0`),

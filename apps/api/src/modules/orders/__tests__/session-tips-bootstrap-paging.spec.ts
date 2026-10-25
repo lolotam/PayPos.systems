@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { listCurrentSessionTips, type CurrentSessionTips } from '../queries/session-tips-bootstrap.query.ts';
+import { listCurrentSessionTips, type CurrentSessionTips, type CurrentSessionTipsCursor,
+  type CurrentSessionTipsPage } from '../queries/session-tips-bootstrap.query.ts';
 import { must, pairLine, recordVisitAt, runTips, tip, tipFixture, tipInput, tipRows,
   type TipFixture } from '../../../../test/session-tips.fixture.ts';
 
@@ -7,9 +8,13 @@ let f: TipFixture;
 beforeAll(async () => { f = await tipFixture(); });
 afterAll(async () => { await f?.close(); });
 
-function read(day: string, after: string | null = null, limit = 200) {
+function read(day: string, after: CurrentSessionTipsCursor | null = null, limit = 200) {
   return f.db.withTenant(f.company, (tx) => listCurrentSessionTips(tx, f.company, f.business,
     { from: `2026-10-${day}`, to: `2026-10-${day}` }, { after, limit }));
+}
+function readRange(from: string, to: string, after: CurrentSessionTipsCursor | null = null, limit = 200) {
+  return f.db.withTenant(f.company, (tx) => listCurrentSessionTips(tx, f.company, f.business,
+    { from, to }, { after, limit }));
 }
 async function seed(day: string, count: number, severalEntries = false) {
   const visits: string[] = [];
@@ -23,9 +28,9 @@ async function seed(day: string, count: number, severalEntries = false) {
   }
   return visits;
 }
-async function restOfPages(day: string, firstCursor: string) {
+async function restOfPages(day: string, firstCursor: CurrentSessionTipsCursor) {
   const pages = [];
-  let cursor: string | null = firstCursor;
+  let cursor: CurrentSessionTipsCursor | null = firstCursor;
   while (cursor !== null) {
     const page = await read(day, cursor, 2);
     pages.push(page);
@@ -35,6 +40,9 @@ async function restOfPages(day: string, firstCursor: string) {
 }
 function idsOf(items: readonly CurrentSessionTips[]) {
   return items.map((item) => item.session_id);
+}
+function cursorOf(item: CurrentSessionTips): CurrentSessionTipsCursor {
+  return { business_date: item.business_date, session_id: item.session_id };
 }
 
 it('pages sessions rather than entries and concatenates to the unpaged result', async () => {
@@ -46,8 +54,8 @@ it('pages sessions rather than entries and concatenates to the unpaged result', 
   const pages = [first, second, third];
   expect(pages.map((page) => page.items.length)).toEqual([2, 2, 1]);
   expect(pages.flatMap((page) => page.items)).toEqual(unpaged.items);
-  expect(first.next_cursor).toBe(must(first.items.at(-1)).session_id);
-  expect(second.next_cursor).toBe(must(second.items.at(-1)).session_id);
+  expect(first.next_cursor).toEqual(cursorOf(must(first.items.at(-1))));
+  expect(second.next_cursor).toEqual(cursorOf(must(second.items.at(-1))));
   expect(third.next_cursor).toBeNull();
   const ids = pages.flatMap((page) => idsOf(page.items));
   expect(new Set(ids).size).toBe(ids.length);
@@ -70,7 +78,8 @@ it('keeps the keyset stable across revisions and newly tipped visits', async () 
   expect(new Set(seenIds).size).toBe(seenIds.length);
   for (const id of oldIds) expect(seenIds.filter((seenId) => seenId === id)).toHaveLength(1);
   expect(seenIds.filter((id) => id === added.sessionId).length).toBeLessThanOrEqual(1);
-  if (added.sessionId > must(first.next_cursor)) {
+  const cursor = must(first.next_cursor);
+  if (added.sessionId > cursor.session_id) {
     expect(must(seen.find((item) => item.session_id === added.sessionId)).tips)
       .toEqual([{ employee_id: must(f.employees[0]), method: 'CARD', amount: '3.000' }]);
   }
@@ -99,4 +108,43 @@ it('never tears a revision from its event ids or entries during interleaved writ
   const final = must((await read('03')).items[0]);
   expect(final.revision).toBe(6);
   expect(final.event_ids).toEqual((await tipRows(f, id)).revisions.map((row) => row.event_id));
+});
+
+// المؤشر بقى (يوم، معرّف) عشان يمشي على أيام النشاط؛ لازم يتجاوز عبر يوم في نفس الصفحة.
+it('pages across business days: the cursor carries the day of its last item', async () => {
+  const days = ['06', '07', '08'];
+  const seeded: string[] = [];
+  for (const day of days) seeded.push(...(await seed(day, 2)));
+  const unpaged = await readRange('2026-10-06', '2026-10-08', null, 200);
+  const pages: CurrentSessionTipsPage[] = [];
+  let cursor: CurrentSessionTipsCursor | null = null;
+  for (;;) {
+    const page = await readRange('2026-10-06', '2026-10-08', cursor, 4);
+    pages.push(page);
+    if (page.next_cursor === null) break;
+    cursor = page.next_cursor;
+  }
+  const paged = pages.flatMap((page) => page.items);
+  expect(paged).toEqual(unpaged.items);
+  expect(paged.map((item) => item.business_date)).toEqual([
+    '2026-10-06', '2026-10-06', '2026-10-07', '2026-10-07', '2026-10-08', '2026-10-08',
+  ]);
+  expect(idsOf(paged).sort()).toEqual([...seeded].sort());
+  for (const day of ['2026-10-06', '2026-10-07', '2026-10-08']) {
+    const sameDay = idsOf(paged.filter((item) => item.business_date === day));
+    expect(sameDay).toEqual([...sameDay].sort());
+  }
+  const firstPage = must(pages[0]);
+  const firstCursor = must(firstPage.next_cursor);
+  const lastOfFirstPage = must(firstPage.items.at(-1));
+  expect(firstCursor.business_date).toBe(lastOfFirstPage.business_date);
+  expect(firstCursor.session_id).toBe(lastOfFirstPage.session_id);
+  expect(firstCursor.business_date > must(firstPage.items[0]).business_date).toBe(true);
+  const before = await readRange('2026-10-06', '2026-10-08',
+    { business_date: '2026-10-05', session_id: must(seeded[0]) }, 200);
+  expect(before.items).toEqual(unpaged.items);
+  const after = await readRange('2026-10-06', '2026-10-08',
+    { business_date: '2026-10-09', session_id: must(seeded[0]) }, 200);
+  expect(after.items).toEqual([]);
+  expect(after.next_cursor).toBeNull();
 });

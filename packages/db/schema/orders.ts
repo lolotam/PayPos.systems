@@ -26,6 +26,8 @@ export const serviceSessions = pgTable('service_sessions', {
   foreignKey({ name: 'service_sessions_customer_fk', columns: [t.companyId, t.customerId], foreignColumns: [customers.companyId, customers.id] }),
   foreignKey({ name: 'service_sessions_recorder_fk', columns: [t.companyId, t.recordedByMembershipId], foreignColumns: [memberships.companyId, memberships.id] }),
   index('service_sessions_day_idx').on(t.companyId, t.branchId, t.businessDate, t.occurredAt, t.id),
+  // قارئ bootstrap للبقشيش يمشي على مفاتيح النشاط بيوم العمل، فالتكلفة تبقى حجم الصفحة لا حجم جدول الزيارات.
+  index('service_sessions_business_day_idx').on(t.companyId, t.businessId, t.businessDate, t.id).concurrently(),
   index('service_sessions_branch_fk_idx').on(t.companyId, t.businessId, t.branchId),
   index('service_sessions_customer_day_idx').on(t.companyId, t.customerId, t.businessId, t.businessDate, t.id),
   index('service_sessions_late_day_idx').on(t.companyId, t.branchId, t.businessDate, t.occurredAt, t.id).where(sql`${t.late}`),

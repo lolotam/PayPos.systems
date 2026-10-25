@@ -2,7 +2,9 @@ import type { Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 
 export interface CurrentSessionTipsRange { from: string; to: string }
-export interface CurrentSessionTipsPageRequest { after: string | null; limit: number }
+/** مؤشر الصفحة: يوم الزيارة ومعرّفها معاً، عشان الترتيب باليوم ثم بالمعرّف يبقى ثابتاً. */
+export interface CurrentSessionTipsCursor { business_date: string; session_id: string }
+export interface CurrentSessionTipsPageRequest { after: CurrentSessionTipsCursor | null; limit: number }
 export interface CurrentSessionTipEntry { employee_id: string; method: 'CASH' | 'CARD'; amount: string }
 export interface CurrentSessionTips {
   session_id: string;
@@ -11,7 +13,7 @@ export interface CurrentSessionTips {
   tips: CurrentSessionTipEntry[];
   event_ids: string[];
 }
-export interface CurrentSessionTipsPage { items: CurrentSessionTips[]; next_cursor: string | null }
+export interface CurrentSessionTipsPage { items: CurrentSessionTips[]; next_cursor: CurrentSessionTipsCursor | null }
 
 type CurrentSessionTipsRow = {
   session_id: string;
@@ -42,37 +44,45 @@ function validateRequest(companyId: string, businessId: string,
     throw new RangeError('SESSION_TIPS_BOOTSTRAP_RANGE_INVALID');
   if (!Number.isInteger(page.limit) || page.limit < 1 || page.limit > 200)
     throw new RangeError('SESSION_TIPS_BOOTSTRAP_LIMIT_INVALID');
-  if (page.after !== null && !UUID.test(page.after))
+  // يوم المؤشر بره النطاق مش رفض: هو بس بيمشي بالصفحة لأول نقطة بعده في النطاق.
+  if (page.after !== null && (!validDate(page.after.business_date) || !UUID.test(page.after.session_id)))
     throw new RangeError('SESSION_TIPS_BOOTSTRAP_CURSOR_INVALID');
   if (!UUID.test(companyId) || !UUID.test(businessId))
     throw new RangeError('SESSION_TIPS_BOOTSTRAP_SCOPE_INVALID');
 }
 
 // مستهلك bootstrap في الصف 50 يقرأ آخر مراجعة ومدخلاتها ومعرّفات أحداثها من لقطة واحدة.
-// المدخلات تُربط جانبياً لأن ترتيبها داخل الاستعلام الفرعي يُبقي المخطط على فحص فهرس لكل زيارة لا على
-// ربط هاش فوق جدول المدخلات كله، فتساوي تكلفة الصفحة حجمها لا حجم الجدول.
+// الصفحة بتُقاد من زيارات اليوم بمفتاح (اليوم، المعرّف) عشان التكلفة تبقى حجم الصفحة لا حجم
+// جدول المراجعات كله؛ والزيارة بتعدّي بس لو عندها مراجعة بقشيش واحدة على الأقل.
 export function currentSessionTipsStatement(companyId: string, businessId: string,
   range: CurrentSessionTipsRange, page: CurrentSessionTipsPageRequest): SQL {
-  const after = page.after === null ? sql`TRUE` : sql`r.session_id > ${page.after}::uuid`;
+  const after = page.after === null
+    ? sql`TRUE`
+    : sql`(s.business_date, s.id) > (${page.after.business_date}::date, ${page.after.session_id}::uuid)`;
   return sql`WITH picked AS (
-    SELECT r.session_id, max(r.revision) AS revision,
-      (array_agg(r.id ORDER BY r.revision DESC))[1] AS revision_id,
-      min(s.business_date) AS business_date,
-      array_agg(r.event_id ORDER BY r.revision) AS event_ids
-    FROM session_tip_revisions r
-    JOIN service_sessions s ON s.company_id = r.company_id AND s.id = r.session_id AND s.business_id = r.business_id
-      AND s.company_id = ${companyId} AND s.company_id = app_company_id() AND s.business_id = ${businessId}
-    WHERE r.company_id = ${companyId} AND r.company_id = app_company_id() AND r.business_id = ${businessId}
+    SELECT s.id AS session_id, s.business_date
+    FROM service_sessions s
+    WHERE s.company_id = ${companyId} AND s.company_id = app_company_id() AND s.business_id = ${businessId}
       AND s.business_date BETWEEN ${range.from}::date AND ${range.to}::date AND ${after}
-    GROUP BY r.session_id ORDER BY r.session_id LIMIT ${page.limit + 1})
-  SELECT p.session_id, to_char(p.business_date, 'YYYY-MM-DD') AS business_date, p.revision, p.event_ids,
+      AND EXISTS (SELECT 1 FROM session_tip_revisions r
+        WHERE r.company_id = s.company_id AND r.company_id = app_company_id()
+          AND r.session_id = s.id AND r.business_id = s.business_id)
+    ORDER BY s.business_date, s.id LIMIT ${page.limit + 1})
+  SELECT p.session_id, to_char(p.business_date, 'YYYY-MM-DD') AS business_date, v.revision, v.event_ids,
     t.employee_id, t.method, t.amount::text AS amount
   FROM picked p
+  LEFT JOIN LATERAL (
+    SELECT max(r.revision) AS revision,
+      (array_agg(r.id ORDER BY r.revision DESC))[1] AS revision_id,
+      array_agg(r.event_id ORDER BY r.revision) AS event_ids
+    FROM session_tip_revisions r
+    WHERE r.company_id = ${companyId} AND r.company_id = app_company_id() AND r.business_id = ${businessId}
+      AND r.session_id = p.session_id) v ON true
   LEFT JOIN LATERAL (SELECT t.employee_id, t.method, t.amount FROM session_tips t
     WHERE t.company_id = ${companyId} AND t.company_id = app_company_id() AND t.business_id = ${businessId}
-      AND t.session_id = p.session_id AND t.revision_id = p.revision_id
+      AND t.session_id = p.session_id AND t.revision_id = v.revision_id
     ORDER BY t.employee_id, t.method) t ON true
-  ORDER BY p.session_id, t.employee_id, t.method`;
+  ORDER BY p.business_date, p.session_id, t.employee_id, t.method`;
 }
 
 function groupRows(rows: readonly CurrentSessionTipsRow[]): CurrentSessionTips[] {
@@ -102,8 +112,9 @@ async function assertTenant(tx: Tx, companyId: string): Promise<void> {
 /**
  * يرجع صفحة من الزيارات التي لها مراجعات بقشيش، ومع كل زيارة أحدث مراجعة ومجموعتها الكاملة
  * وكل معرّفات أحداث مراجعاتها بترتيبها، بلا هاتف أو اسم عميلة أو سبب تعديل.
- * الاستعلام الواحد يثبّت المراجعة والمدخلات والأحداث في لقطة واحدة، والمؤشر على معرّف الزيارة الثابت
- * يمنع تكرارها أو فقدها بين الصفحات؛ أي مراجعة تُكتب بعد قراءة صفحتها يوصلها المستهلك الحي،
+ * الاستعلام الواحد يثبّت المراجعة والمدخلات والأحداث في لقطة واحدة، والمؤشر بقى (يوم الزيارة،
+ * معرّف الزيارة) والترتيب بقى باليوم ثم بالمعرّف، فالصفحة تمشي على فهرس اليوم بتاع النشاط
+ * بدل ما تقرأ تاريخ المراجعات كله؛ أي مراجعة تُكتب بعد قراءة صفحتها يوصلها المستهلك الحي،
  * لذلك يبدأ المستهلك قبل أول صفحة ولا يعتمد bootstrap على إعادة قراءة الزيارة نفسها.
  * واختلاف شركة الاستدعاء عن مستأجر المعاملة يفشل بـ SESSION_TIPS_BOOTSTRAP_TENANT_MISMATCH
  * بدل صفحة فارغة، لأن Bootstrap يقرأ الصفحة الفارغة كـ«لا بقشيش» فيختفي خطأ الربط في صورة غياب بيانات.
@@ -112,8 +123,8 @@ async function assertTenant(tx: Tx, companyId: string): Promise<void> {
  * @param companyId معرّف الشركة ويجب أن يطابق مستأجر المعاملة؛ الاختلاف يفشل بـ SESSION_TIPS_BOOTSTRAP_TENANT_MISMATCH
  * @param businessId معرّف النشاط المقصود
  * @param range يوما العمل بصيغة YYYY-MM-DD وكلاهما داخل النطاق
- * @param page مؤشر آخر زيارة في الصفحة السابقة وعدد الزيارات المطلوب من 1 إلى 200
- * @returns زيارات مرتبة بمعرّفها مع مؤشر الصفحة التالية أو null عند نهاية النتائج
+ * @param page مؤشر آخر زيارة في الصفحة السابقة (يومها ومعرّفها) وعدد الزيارات المطلوب من 1 إلى 200
+ * @returns زيارات مرتبة باليوم ثم بالمعرّف مع مؤشر الصفحة التالية أو null عند نهاية النتائج
  */
 export async function listCurrentSessionTips(
   tx: Tx, companyId: string, businessId: string,
@@ -121,10 +132,22 @@ export async function listCurrentSessionTips(
 ): Promise<CurrentSessionTipsPage> {
   validateRequest(companyId, businessId, range, page);
   await assertTenant(tx, companyId);
-  const normalized = { after: page.after?.toLowerCase() ?? null, limit: page.limit };
+  const normalized = {
+    after: page.after === null ? null : {
+      business_date: page.after.business_date,
+      session_id: page.after.session_id.toLowerCase(),
+    },
+    limit: page.limit,
+  };
   const rows = await tx.execute<CurrentSessionTipsRow>(
     currentSessionTipsStatement(companyId, businessId, range, normalized));
   const sessions = groupRows(rows);
   const items = sessions.slice(0, page.limit);
-  return { items, next_cursor: sessions.length > page.limit ? (items.at(-1)?.session_id ?? null) : null };
+  const last = items.at(-1);
+  return {
+    items,
+    next_cursor: sessions.length > page.limit && last !== undefined
+      ? { business_date: last.business_date, session_id: last.session_id }
+      : null,
+  };
 }

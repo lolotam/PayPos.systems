@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
@@ -38,6 +38,10 @@ export interface OutboxDispatcherDatabase {
   serviceSessionReplayPage(companyId: string, afterId: string | null, throughId: string | null, limit: number): Promise<{
     throughId: string | null; events: readonly ClaimedEvent[];
   }>;
+  /** يقرأ صفحة أحداث مدخلات العمولة (السطور والرواتب) لشركة محددة؛ القراءة فقط، والتوصيل بيعمله المستهلك (50-3) بـ pospay_app داخل withTenant. */
+  commissionInputReplayPage(companyId: string, afterId: string | null, throughId: string | null, limit: number): Promise<{
+    throughId: string | null; events: readonly ClaimedEvent[];
+  }>;
   ping(): Promise<void>;
   close(): Promise<void>;
 }
@@ -68,6 +72,13 @@ const MAX_BATCH = 100;
 const DEFAULT_LEASE_MS = 5 * 60 * 1000;
 const DEFAULT_MAX_ATTEMPTS = 10;
 const RETURNING = sql`o.company_id, o.id, o.aggregate_type, o.aggregate_id, o.event_type, o.payload, o.attempts`;
+
+// مرشّح أنواع أحداث إعادة تشغيل الجلسات الأصلية: مكتوب حرفياً ومش من مدخل المستدعي، فالاستعلام
+// ما يتفسّرش من برّه؛ ونفس الترتيب في الفهرس الجزئي عشان شرط الاستعلام يشمل شرط الفهرس فيثبته المخطط.
+const SERVICE_SESSION_REPLAY_TYPES = sql`event_type IN ('ServiceSessionRecorded','ServiceSessionLinesAdded')`;
+// إعادة تشغيل مدخلات العمولة: السطور والرواتب المحفوظة في الأوتبوكس، بنفس النمط: شركة ومؤشر UUID
+// وحدّ أعلى ممسوك من أول نداء، والصفحات المنشورة وغير المنشورة على السواء.
+const COMMISSION_INPUT_REPLAY_TYPES = sql`event_type IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','SalaryChanged')`;
 
 // event محاولاته خلصت وحجزه انتهى من غير نتيجة: الـ worker وقع في كل مرة قبل ما يسجّل، فمحدش هيعمل له park.
 // بيقف هنا في نفس transaction الـ claim، وبيفضل ماسك الـ aggregate زي أي event parked.
@@ -189,7 +200,11 @@ export function createOutboxDispatcherDatabase(options: {
     },
     serviceSessionReplayPage: (companyId, afterId, throughId, limit) => db.transaction(async (tx) => {
       await assertRole(tx);
-      return readServiceSessionReplayPage(tx, companyId, afterId, throughId, limit);
+      return readReplayPage(tx, companyId, afterId, throughId, limit, SERVICE_SESSION_REPLAY_TYPES);
+    }),
+    commissionInputReplayPage: (companyId, afterId, throughId, limit) => db.transaction(async (tx) => {
+      await assertRole(tx);
+      return readReplayPage(tx, companyId, afterId, throughId, limit, COMMISSION_INPUT_REPLAY_TYPES);
     }),
     sweepExpiredIdempotencyKeys: async (batchSize) => {
       const [row] = await db.transaction(async (tx) => {
@@ -206,15 +221,14 @@ export function createOutboxDispatcherDatabase(options: {
   };
 }
 
-async function readServiceSessionReplayPage(
+async function readReplayPage(
   tx: Pick<PostgresJsDatabase, 'execute'>, companyId: string, afterId: string | null,
-  throughId: string | null, limit: number,
+  throughId: string | null, limit: number, types: SQL,
 ) {
   const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
   if (!uuid.test(companyId) || (afterId !== null && !uuid.test(afterId)) ||
     (throughId !== null && !uuid.test(throughId))) throw new TypeError('REPLAY_SCOPE_INVALID');
   validate(limit, DEFAULT_LEASE_MS, DEFAULT_MAX_ATTEMPTS);
-  const types = sql`event_type IN ('ServiceSessionRecorded','ServiceSessionLinesAdded')`;
   const end = throughId ?? (await tx.execute<{ id: string }>(sql`SELECT id FROM outbox
     WHERE company_id=${companyId} AND ${types} ORDER BY id DESC LIMIT 1`))[0]?.id ?? null;
   if (end === null) return { throughId: null, events: [] };
