@@ -33,12 +33,12 @@ export function PushControl({ companyId }: { companyId: string }) {
       {state.offline ? <p role="status">{t(locale, 'staffPush.offline')}</p> : null}
       {state.reconnecting ? <p role="status">{t(locale, 'staffPush.reconnecting')}</p> : null}
       {state.failed ? <p role="alert">{t(locale, 'staffPush.error')}</p> : null}
-      {state.state === 'off' ? (
+      {state.state === 'off' && state.canEnable ? (
         <Button size="touch" disabled={buttonDisabled} onClick={() => void state.enable()}>
           {t(locale, 'staffPush.enable')}
         </Button>
       ) : null}
-      {state.state === 'on' ? (
+      {state.canDisable ? (
         <Button
           size="touch"
           variant="outline"

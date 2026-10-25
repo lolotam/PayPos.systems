@@ -287,10 +287,13 @@ export function usePushControl({ companyId }: { companyId: string }) {
     storageBlocked: decision.storageBlocked,
     offline: decision.offline,
     reconnecting: decision.reconnecting,
+    canEnable: decision.canEnable,
+    canDisable: decision.canDisable,
     pending: actions.pending,
     failed: actions.failed,
     invitation:
       decision.visible &&
+      decision.canEnable &&
       decision.state === 'off' &&
       local.snapshot.permission === 'default' &&
       !local.seen,

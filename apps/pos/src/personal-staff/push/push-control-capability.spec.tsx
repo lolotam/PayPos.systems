@@ -91,6 +91,18 @@ function stubBrowser(withLocks: boolean): void {
   vi.stubGlobal('Notification', function Notification() {});
 }
 
+/** سجل الشركة دي على الموبايل: موجود أو معلّق. */
+function ownRecord(suspended: boolean): PushRecord {
+  return {
+    token: EXISTING,
+    subscriber_ref: 'subscriber-ref',
+    company_id: 'company',
+    vapid_key_id: '0123456789abcdef',
+    suspended,
+    revision: suspended ? 1 : 0,
+  };
+}
+
 function mount() {
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(
@@ -123,26 +135,47 @@ it('says the browser is unsupported when there is no cross tab lock', async () =
 
   expect(await screen.findByText(t('en', 'staffPush.unsupported'))).toBeDefined();
   expect(screen.queryByRole('button', { name: t('en', 'staffPush.enable') })).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'staffPush.disable') })).toBeNull();
 });
 
-it('keeps the turn off button for an existing subscription without a cross tab lock', async () => {
+it('shows the notifications on and the turn off button for an own subscription', async () => {
   stubBrowser(false);
   fakes.subscribed = true;
   fakes.permission = 'granted';
-  fakes.record = {
-    token: EXISTING,
-    subscriber_ref: 'subscriber-ref',
-    company_id: 'company',
-    vapid_key_id: '0123456789abcdef',
-    suspended: false,
-    revision: 0,
-  };
+  fakes.record = ownRecord(false);
 
   mount();
 
-  expect(await screen.findByRole('button', { name: t('en', 'staffPush.disable') })).toBeDefined();
+  expect(await screen.findByText(t('en', 'staffPush.on'))).toBeDefined();
+  expect(screen.getByRole('button', { name: t('en', 'staffPush.disable') })).toBeDefined();
+});
+
+it('shows off and reconnecting for a suspended own record and keeps the turn off button', async () => {
+  stubBrowser(false);
+  fakes.subscribed = true;
+  fakes.permission = 'granted';
+  fakes.record = ownRecord(true);
+
+  mount();
+
+  expect(await screen.findByText(t('en', 'staffPush.off'))).toBeDefined();
+  expect(screen.getByText(t('en', 'staffPush.reconnecting'))).toBeDefined();
+  expect(screen.getByRole('button', { name: t('en', 'staffPush.disable') })).toBeDefined();
   expect(screen.queryByRole('button', { name: t('en', 'staffPush.enable') })).toBeNull();
-  expect(screen.queryByText(t('en', 'staffPush.unsupported'))).toBeNull();
+  expect(screen.queryByText(t('en', 'staffPush.on'))).toBeNull();
+});
+
+it('shows blocked and keeps the turn off button when the browser denied the notifications', async () => {
+  stubBrowser(false);
+  fakes.subscribed = true;
+  fakes.permission = 'denied';
+  fakes.record = ownRecord(false);
+
+  mount();
+
+  expect(await screen.findByText(t('en', 'staffPush.blocked'))).toBeDefined();
+  expect(screen.getByRole('button', { name: t('en', 'staffPush.disable') })).toBeDefined();
+  expect(screen.queryByRole('button', { name: t('en', 'staffPush.enable') })).toBeNull();
 });
 
 it('offers the turn on button when the browser has a cross tab lock', async () => {

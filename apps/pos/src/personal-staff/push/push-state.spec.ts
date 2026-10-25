@@ -94,23 +94,25 @@ describe('the five states of the mobile notifications control', () => {
 });
 
 describe('a browser without the cross tab lock', () => {
-  it('says the browser is unsupported when nothing is stored', () => {
+  it('says the browser is unsupported when there is nothing to turn off', () => {
     const decision = decidePushState(input({ canEnable: false }));
 
     expect(decision.state).toBe('unsupported');
-    expect(decision.visible).toBe(true);
+    expect(decision.canDisable).toBe(false);
+    expect(decision.canEnable).toBe(false);
   });
 
-  it('keeps the turn off button for an own subscription of this company', () => {
+  it('shows on with an own subscription of this company', () => {
     const decision = decidePushState(
       input({ canEnable: false, permission: 'granted', record: record(), browserSubscribed: true }),
     );
 
     expect(decision.state).toBe('on');
-    expect(decision.reconnecting).toBe(false);
+    expect(decision.canDisable).toBe(true);
+    expect(decision.canEnable).toBe(false);
   });
 
-  it('keeps the turn off button even when the own record is suspended', () => {
+  it('shows off and reconnecting for a suspended own record', () => {
     const decision = decidePushState(
       input({
         canEnable: false,
@@ -121,11 +123,21 @@ describe('a browser without the cross tab lock', () => {
       }),
     );
 
-    expect(decision.state).toBe('on');
-    expect(decision.reconnecting).toBe(false);
+    expect(decision.state).toBe('off');
+    expect(decision.reconnecting).toBe(true);
+    expect(decision.canDisable).toBe(true);
   });
 
-  it('says the browser is unsupported for a subscription of another company', () => {
+  it('keeps the turn off action when the browser blocked the notifications', () => {
+    const decision = decidePushState(
+      input({ canEnable: false, permission: 'denied', record: record(), browserSubscribed: true }),
+    );
+
+    expect(decision.state).toBe('blocked');
+    expect(decision.canDisable).toBe(true);
+  });
+
+  it('cannot turn off a subscription of another company', () => {
     const decision = decidePushState(
       input({
         canEnable: false,
@@ -135,8 +147,14 @@ describe('a browser without the cross tab lock', () => {
       }),
     );
 
-    expect(decision.state).toBe('unsupported');
-    expect(decision.visible).toBe(true);
+    expect(decision.canDisable).toBe(false);
+  });
+
+  it('shows off with nothing to turn off when the browser can enable', () => {
+    const decision = decidePushState(input({ canEnable: true }));
+
+    expect(decision.state).toBe('off');
+    expect(decision.canDisable).toBe(false);
   });
 });
 
