@@ -256,9 +256,10 @@ All routes `@Authenticated()` + `PERSONAL_ROUTE`, personal session only, `Cache-
 `revoke` `POST` are declared in `AUTHENTICATED_WRITES` (access `PERSONAL`); the `GET` is a read, served from `queries/`, and is not (the route-declarations test requires the allowlist to equal the
 mounted authenticated writes; the route coverage guard classes every `POST` as a write, so `revoke` is declared).
 
-- `GET /v1/staff/push/config` → `{ vapid_public_key, vapid_key_id, subscriber_ref }` · `NOT_READY` when unconfigured ·
+- `GET /v1/staff/push/config` → `{ vapid_public_key, vapid_key_id, subscriber_ref, company_id }` · `NOT_READY` when unconfigured ·
   `subscriber_ref` = SHA-256 hex of `pospay.push.subscriber.v1` and the caller's global user id: equal across companies,
-  never another person's.
+  never another person's. `company_id` is the caller's current session company, distinguishing company A from company B
+  for the same person.
 - `PUT /v1/staff/push/subscription` · body `pushSubscriptionInput` `{ installation_id, vapid_key_id, delivery_token, subscription:
   { endpoint, keys: { p256dh, auth } }, locale }` · naturally idempotent, no `Idempotency-Key` · response `204`.
 - `POST /v1/staff/push/subscription/revoke` · body `{ installation_id }` · response `204`, identical for own, foreign and

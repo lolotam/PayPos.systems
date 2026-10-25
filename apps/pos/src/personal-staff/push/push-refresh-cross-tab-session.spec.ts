@@ -34,6 +34,7 @@ const CONFIG = {
   vapid_public_key: 'public-key',
   vapid_key_id: '0123456789abcdef',
   subscriber_ref: PERSON_A,
+  company_id: COMPANY,
 };
 
 let model: CrossTabModel = createCrossTabModel();

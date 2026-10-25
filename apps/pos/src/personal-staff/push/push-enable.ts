@@ -16,7 +16,8 @@ import { hasCrossTabLock, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
-import { sessionStillMatches } from './push-session-binding';
+import { suspendChangedSession } from './push-refresh-session';
+import { checkSession, identityOf } from './push-session-binding';
 
 const API_TIMEOUT_MS = 10_000;
 const SUBSCRIBE_TIMEOUT_MS = 15_000;
@@ -138,6 +139,9 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const config = await withAbortTimeout((signal) => pushCalls.config(signal), API_TIMEOUT_MS);
       if (config.kind === 'not-ready') return { kind: 'not-ready' };
+      // الإعدادات بتاعة شركة تانية: التسجيل لازم يتم للشركة اللي الشاشة بتقولها، وإلا
+      // السطر على السيرفر بيروح في شركة تانية غير اللي الموظفة فتحت شاشة الموظف فيها.
+      if (config.config.company_id !== input.companyId) return { kind: 'failed' };
       const subscription = await subscribeWithConfig(config.config, previous);
       if (subscription === null) return { kind: 'failed' };
       const token = crypto.randomUUID();
@@ -172,14 +176,22 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
   });
 }
 
-/** الجلسة لازم تفضل لنفس الشخص قبل PUT؛ الاشتراك الجديد بيتشال لو الهوية اتغيرت. */
+/**
+ * التأكيد قبل PUT: السيرفر بيربط التسجيل بشخص الجلسة وشركتها، فالقراءة المجهولة بتوقف
+ * من غير ما تبعث حاجة ومش بتمسح الاشتراك الجديد، والاختلاف المؤكد بيعلّق السجل القديم
+ * الأول (طول ما الإلغاء معلّق نص صاحبه يقدر يظهر) وبيشيل اشتراك هذا التبويب بس، وهو
+ * لسه ما اتسجلش في السيرفر.
+ */
 async function confirmAndRegister(
   input: PushEnableInput,
   config: PushConfig,
   subscription: PushSubscriptionLike,
   token: string,
 ): Promise<boolean> {
-  if (!(await sessionStillMatches(config.subscriber_ref))) {
+  const session = await checkSession(identityOf(config));
+  if (session === 'unknown') return false;
+  if (session === 'mismatch') {
+    await suspendChangedSession();
     await unsubscribePush().catch(() => undefined);
     return false;
   }

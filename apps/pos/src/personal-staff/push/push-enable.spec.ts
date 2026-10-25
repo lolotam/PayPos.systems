@@ -10,6 +10,7 @@ const CONFIG = {
   vapid_public_key: 'public-key',
   vapid_key_id: '0123456789abcdef',
   subscriber_ref: 'subscriber-ref',
+  company_id: 'company',
 };
 const PREVIOUS = 'test-previous-a';
 
@@ -41,6 +42,13 @@ vi.mock('./push-record-idb', () => ({
     read: async () => {
       if (fakes.readFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       return fakes.record === null ? null : { ...fakes.record };
+    },
+    suspend: async () => {
+      const stored = fakes.record;
+      if (stored === null) return null;
+      const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
+      fakes.record = suspended;
+      return { record: suspended, generation: fakes.generation };
     },
     writeIfGeneration: async (record: PushRecord, expected: number, options?: PushWriteOptions) => {
       if (expected !== fakes.generation) return false;
@@ -186,7 +194,7 @@ it('fails without touching the network when the local record cannot be read', as
   expect(pushCalls.revoke).not.toHaveBeenCalled();
 });
 
-it('drops the new subscription when the session changes before registration', async () => {
+it('suspends the old record and drops the new subscription when the session changes', async () => {
   fakes.record = { ...RECORD };
   vi.mocked(pushCalls.config)
     .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
@@ -201,7 +209,9 @@ it('drops the new subscription when the session changes before registration', as
   expect(pushCalls.register).not.toHaveBeenCalled();
   expect(unsubscribePush).toHaveBeenCalledTimes(2);
   expect(pushCalls.revoke).not.toHaveBeenCalled();
-  expect(fakes.record).toEqual(RECORD);
+  // التعليق بيحصل قبل الإلغاء: السجل القديم ما يفضلش مفتوح ونص صاحبه يظهر.
+  expect(fakes.record?.suspended).toBe(true);
+  expect(fakes.record?.revision).toBe(RECORD.revision + 1);
 });
 
 it('registers after the current session confirms the same person', async () => {

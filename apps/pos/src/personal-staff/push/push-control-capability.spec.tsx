@@ -49,6 +49,7 @@ vi.mock('./push-calls', () => ({
         vapid_public_key: 'public-key',
         vapid_key_id: '0123456789abcdef',
         subscriber_ref: 'subscriber-ref',
+        company_id: 'company',
       },
     })),
     register: vi.fn(),

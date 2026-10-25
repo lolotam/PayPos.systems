@@ -5,9 +5,24 @@ import { pushCalls, withAbortTimeout } from './push-calls';
 const CONFIG_TIMEOUT_MS = 8000;
 
 /**
+ * هوية الجلسة اللي السيرفر بيربط بيها التسجيل: الشخص والشركة مع بعض.
+ * مرجع الشخص لوحده مش كفاية: نفس الموظفة ليها نفس المرجع في كل الشركات.
+ */
+export interface SessionIdentity {
+  subscriber_ref: string;
+  company_id: string;
+}
+
+/**
+ * نتيجة فحص الجلسة: تطابق، أو اختلاف مؤكد، أو قراءة ما اتأكدتش.
+ * المجهول مش اختلاف ولا تطابق: فشل الشبكة ما بيعملش تعليق ولا مسح ولا يسمح بـ PUT.
+ */
+export type SessionCheck = 'match' | 'mismatch' | 'unknown';
+
+/**
  * بيقرأ إعدادات الإشعارات بجلسة الطلب الحالية، لأن السيرفر بيربط تسجيل PUT بشخص الجلسة
- * اللي بعته مش بصاحب الاشتراك القديم. أي فشل أو مهلة أو خدمة مش جاهزة بيبقى حالة مجهولة
- * تمنع التسجيل بدل ما يتبني قرار على بيانات قديمة.
+ * وشركتها مش بصاحب الاشتراك القديم. أي فشل أو مهلة أو خدمة مش جاهزة بيبقى حالة مجهولة
+ * تمنع التسجيل من غير ما تتحسب اختلاف مؤكد.
  *
  * @returns الإعدادات الجاهزة للجلسة الحالية، أو null لما الهوية أو الجاهزية ما تتأكدش
  */
@@ -21,13 +36,27 @@ export async function fetchSessionConfig(): Promise<PushConfig | null> {
 }
 
 /**
- * بيتأكد إن الشخص اللي هيسجّل هو نفسه صاحب الإعدادات، لأن السيرفر بيربط PUT بشخص
- * الجلسة الحالية؛ أي قراءة فاشلة أو مرجع مختلف بيقفل التسجيل.
+ * بيستخرج هوية الجلسة من الإعدادات، لأن مرجع الشخص لوحده بيسمح بخلط شركتين لنفس الموظفة.
  *
- * @param subscriberRef مرجع المشترك اللي لازم تطابقه الجلسة الحالية
- * @returns true بس لما إعدادات الجلسة الحالية تؤكد نفس المرجع
+ * @param config إعدادات الجلسة اللي رجعت من الـ API
+ * @returns مرجع الشخص وشركة الجلسة اللي لازم يتطابقوا قبل التسجيل
  */
-export async function sessionStillMatches(subscriberRef: string): Promise<boolean> {
+export function identityOf(config: PushConfig): SessionIdentity {
+  return { subscriber_ref: config.subscriber_ref, company_id: config.company_id };
+}
+
+/**
+ * بيقارن شخص الجلسة الحالية وشركتها بالهوية المتوقعة قبل التسجيل. القراءة المجهولة مش
+ * مطابقة ومش اختلاف مؤكد، عشان فشل الشبكة ما يعملش تعليق أو مسح ولا يسمح بـ PUT.
+ *
+ * @param expected مرجع الشخص والشركة المطلوب تأكيدهم
+ * @returns match للتطابق الكامل، mismatch لاختلاف مؤكد، unknown لما القراءة ما تكتملش
+ */
+export async function checkSession(expected: SessionIdentity): Promise<SessionCheck> {
   const config = await fetchSessionConfig();
-  return config?.subscriber_ref === subscriberRef;
+  if (config === null) return 'unknown';
+  const current = identityOf(config);
+  if (current.subscriber_ref !== expected.subscriber_ref) return 'mismatch';
+  if (current.company_id !== expected.company_id) return 'mismatch';
+  return 'match';
 }

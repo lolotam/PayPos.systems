@@ -62,6 +62,7 @@ it('answers the ready configuration with the public key and the subscriber refer
     vapid_public_key: 'public-key',
     vapid_key_id: '0123456789abcdef',
     subscriber_ref: 'r'.repeat(64),
+    company_id: '01920000-0000-4000-8000-000000000001',
   };
   fetcher.mockResolvedValue(json(config));
 

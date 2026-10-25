@@ -239,12 +239,14 @@ it('serves the caller own subscriber reference', async () => {
   expect(mine.status).toBe(200);
   expect(mine.body['vapid_public_key']).toBe(f.config.publicKey);
   expect(mine.body['vapid_key_id']).toBe(f.config.keyId);
+  expect(mine.body['company_id']).toBe(f.companyId);
   const colleague = await f.seedStaff('Synthetic other user');
   const theirs = await f.send('GET', '/v1/staff/push/config', { headers: colleague.headers });
   expect(theirs.body['subscriber_ref']).not.toBe(mine.body['subscriber_ref']);
   const other = await f.seedCompany('Synthetic third company');
   const elsewhere = await f.send('GET', '/v1/staff/push/config', { headers: other.headers });
   expect(elsewhere.body['subscriber_ref']).toBe(mine.body['subscriber_ref']);
+  expect(elsewhere.body['company_id']).toBe(other.companyId);
   await f.primarySession();
 });
 

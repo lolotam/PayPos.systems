@@ -96,6 +96,7 @@ beforeEach(() => {
       vapid_public_key: 'public-key',
       vapid_key_id: NEW_VAPID,
       subscriber_ref: 'subscriber-ref',
+      company_id: COMPANY,
     },
   });
   vi.mocked(pushCalls.register).mockImplementation((body) => {
@@ -134,6 +135,7 @@ it('drops the rotation registration when a sign in suspension takes the record',
       vapid_public_key: 'public-key',
       vapid_key_id: NEW_VAPID,
       subscriber_ref: 'subscriber-ref',
+      company_id: COMPANY,
     },
     installationId: INSTALLATION,
   });

@@ -7,14 +7,18 @@ import { LocaleProvider } from '@/shared/locale/locale-context';
 import { PushControl } from './push-control';
 import { pushCalls } from './push-calls';
 import type { PushRecord } from './push-record';
+import { refreshPush } from './push-refresh';
+import type * as PushRefreshModule from './push-refresh';
 
 const DELIVERY = 'test-delivery-a';
 const CONFIG_A = {
   vapid_public_key: 'public-key',
   vapid_key_id: '0123456789abcdef',
   subscriber_ref: 'person-a',
+  company_id: 'company',
 };
-const CONFIG_B = { ...CONFIG_A, subscriber_ref: 'person-b' };
+// نفس الموظفة في شركة تانية: مرجع المشترك واحد، بس هوية الجلسة اتغيرت.
+const CONFIG_B = { ...CONFIG_A, company_id: 'company-b' };
 const RECORD_A: PushRecord = {
   token: DELIVERY,
   subscriber_ref: 'person-a',
@@ -48,6 +52,13 @@ vi.mock('./push-record-idb', () => ({
     read: async () => (fakes.record === null ? null : { ...fakes.record }),
     remove: async () => {
       fakes.record = null;
+    },
+    suspend: async () => {
+      const stored = fakes.record;
+      if (stored === null) return null;
+      const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
+      fakes.record = suspended;
+      return { record: suspended, generation: 0 };
     },
     writeIfGeneration: async (record: PushRecord) => {
       fakes.record = record;
@@ -92,6 +103,11 @@ vi.mock('./push-calls', () => ({
   withAbortTimeout: <T,>(run: (signal: AbortSignal) => Promise<T>) =>
     run(new AbortController().signal),
 }));
+// التحديث الحقيقي بيتشغّل، بس بيتحسب عدد مراته: التحديث ما يشتغلش في حلقة.
+vi.mock('./push-refresh', async (importOriginal) => {
+  const actual = await importOriginal<typeof PushRefreshModule>();
+  return { refreshPush: vi.fn(actual.refreshPush) };
+});
 
 function mount() {
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -102,6 +118,11 @@ function mount() {
       </LocaleProvider>
     </QueryClientProvider>,
   );
+}
+
+/** طلبات الإعدادات من شاشة الموظف (من غير إشارة): الطلب الأول والمعيد بعد الجلسة اتغيرت. */
+function screenRequests(): number {
+  return vi.mocked(pushCalls.config).mock.calls.filter((call) => call[0] === undefined).length;
 }
 
 beforeEach(() => {
@@ -116,14 +137,17 @@ beforeEach(() => {
   vi.mocked(pushCalls.revoke).mockResolvedValue(undefined);
 });
 
-it('shows the new session off state after a stale refresh is refused', async () => {
+it('shows the suspended state after the session changed', async () => {
   const view = mount();
 
-  expect(await screen.findByText(t('en', 'staffPush.off'))).toBeDefined();
-  await waitFor(() => expect(pushCalls.config).toHaveBeenCalledTimes(4));
-  expect(screen.getByRole('button', { name: t('en', 'staffPush.enable') })).toBeDefined();
+  expect(await screen.findByText(t('en', 'staffPush.reconnecting'))).toBeDefined();
+  expect(screen.getByText(t('en', 'staffPush.off'))).toBeDefined();
   expect(screen.queryByText(t('en', 'staffPush.on'))).toBeNull();
-  expect(fakes.record).toBeNull();
+  expect(fakes.record?.revision).toBe(RECORD_A.revision + 1);
+  expect(screen.getByRole('button', { name: t('en', 'staffPush.enable') })).toBeDefined();
   expect(pushCalls.register).not.toHaveBeenCalled();
+  // الإعدادات اتطلبت من الشاشة مرة واحدة بس زيادة، والتحديث ما اشتغلش في حلقة.
+  await waitFor(() => expect(screenRequests()).toBe(2));
+  expect(vi.mocked(refreshPush).mock.calls.length).toBeLessThanOrEqual(2);
   view.unmount();
 });

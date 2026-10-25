@@ -30,6 +30,7 @@ const CONFIG: PushConfig = {
   vapid_public_key: 'public-key',
   vapid_key_id: '0123456789abcdef',
   subscriber_ref: 'person-a',
+  company_id: 'company',
 };
 const OTHER: PushConfig = { ...CONFIG, subscriber_ref: 'person-b' };
 
@@ -40,6 +41,14 @@ vi.mock('./push-record-idb', () => ({
     remove: async () => {
       fakes.removed += 1;
       fakes.record = null;
+    },
+    suspend: async () => {
+      const stored = fakes.record;
+      if (stored === null) return null;
+      const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
+      fakes.record = suspended;
+      fakes.writes.push(suspended);
+      return { record: suspended, generation: 0 };
     },
     writeIfGeneration: async (
       record: PushRecord,
@@ -115,17 +124,16 @@ const input = (config: PushConfig = CONFIG) => ({
 });
 
 it.each([false, true])(
-  'keeps an old record when the session belongs to another person',
+  'suspends the record when the session belongs to another person',
   async (suspended) => {
     fakes.record = { ...RECORD, suspended };
-    const before = { ...fakes.record };
     vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: OTHER });
 
     const outcome = await refreshPush(input());
 
     expect(outcome).toEqual({ kind: 'session-changed' });
-    expect(fakes.record).toEqual(before);
-    expect(fakes.writes).toEqual([]);
+    expect(fakes.record?.suspended).toBe(true);
+    expect(fakes.record?.revision).toBe(RECORD.revision + 1);
     expect(fakes.removed).toBe(0);
     expect(fakes.unsubscribed).toBe(0);
     expect(pushCalls.register).not.toHaveBeenCalled();
@@ -149,7 +157,7 @@ it('sends nothing when the session changes between the fresh read and the PUT', 
   const outcome = await refreshPush(input());
 
   expect(outcome).toEqual({ kind: 'session-changed' });
-  expect(fakes.record).toEqual(RECORD);
+  expect(fakes.record?.suspended).toBe(true);
   expect(pushCalls.register).not.toHaveBeenCalled();
   expect(fakes.unsubscribed).toBe(0);
 });
@@ -178,16 +186,16 @@ it('drops only the new rotation subscription when the session changes before its
   fakes.record = { ...RECORD, vapid_key_id: OLD_VAPID };
   vi.mocked(pushCalls.config)
     .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
     .mockResolvedValueOnce({ kind: 'ready', config: OTHER });
 
   const outcome = await refreshPush(input());
 
   expect(outcome).toEqual({ kind: 'session-changed' });
-  expect(fakes.record).toEqual({ ...RECORD, vapid_key_id: OLD_VAPID });
+  expect(fakes.record?.suspended).toBe(true);
+  expect(fakes.record?.vapid_key_id).toBe(OLD_VAPID);
   expect(fakes.unsubscribed).toBe(2);
   expect(fakes.subscribed).toBe(false);
-  expect(fakes.writes).toEqual([]);
-  expect(fakes.removed).toBe(0);
   expect(pushCalls.register).not.toHaveBeenCalled();
   expect(pushCalls.revoke).not.toHaveBeenCalled();
 });
@@ -197,7 +205,11 @@ it('rotates with the fresh key id rather than the caller config', async () => {
 
   const outcome = await refreshPush(input({ ...CONFIG, vapid_key_id: OLD_VAPID }));
 
-  expect(outcome.kind).toBe('rotated');
-  expect(pushCalls.config).toHaveBeenCalledTimes(2);
+  expect(outcome).toEqual({
+    kind: 'rotated',
+    token: expect.any(String),
+    vapid_key_id: CONFIG.vapid_key_id,
+  });
+  expect(pushCalls.config).toHaveBeenCalledTimes(3);
   expect(vi.mocked(pushCalls.register).mock.calls[0]?.[0].vapid_key_id).toBe(CONFIG.vapid_key_id);
 });

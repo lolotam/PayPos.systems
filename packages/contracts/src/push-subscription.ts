@@ -119,6 +119,7 @@ export const pushConfig = z
     vapid_public_key: z.string().min(1).max(256),
     vapid_key_id: z.string().regex(/^[0-9a-f]{16}$/),
     subscriber_ref: z.string().regex(/^[0-9a-f]{64}$/),
+    company_id: z.string().uuid(),
   })
   .meta({ id: 'PushConfig' });
 

@@ -6608,6 +6608,8 @@ export interface components {
             vapid_public_key: string;
             vapid_key_id: string;
             subscriber_ref: string;
+            /** Format: uuid */
+            company_id: string;
         };
         PushEndpoint: string;
         PushRevokeInput: {
