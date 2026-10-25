@@ -5,6 +5,36 @@ import { randomBytes } from 'node:crypto';
 const DEVICE_LABEL_PREFIX = 'CI-IOS-';
 const LEFTOVER_MIN_AGE_MS = 30 * 60_000;
 
+export const FAILURE_MESSAGES = Object.freeze([
+  'The counter auth test environment is incomplete',
+  'The start screen should be visible',
+  'The counter-device choice should be tappable',
+  'The pairing-code field should be ready',
+  'The device-name field should be ready',
+  'The pairing button should be tappable',
+  'The approval wait should be visible',
+  'Staff sign-in should follow device approval',
+  'Staff sign-in should survive the restart',
+  'Pairing should not restart',
+  'The PIN choice should be tappable',
+  'The phone field should be ready',
+  'The PIN field should be ready',
+  'The PIN sign-in button should be tappable',
+  'Staff sign-in should succeed',
+  'The staff session should survive the restart',
+  'The sign-out button should be tappable',
+  'Sign-out should show staff sign-in',
+]);
+
+/** تشخيص الفشل بيذكر رسالة معروفة بس، من غير ما يخرج أي سر من سجل xcodebuild الخاص. */
+export function failureLine(logText) {
+  for (const line of String(logText).split(/\r?\n/)) {
+    const message = FAILURE_MESSAGES.find((candidate) => line.includes(candidate));
+    if (message !== undefined) return `ui failure: ${message}`;
+  }
+  return 'ui failure: unknown';
+}
+
 /** المطابقة مش حساسة لحالة الحروف: iOS بيعمل auto-capitalisation لاسم الجهاز. */
 export function matchDeviceLabel(pages, label) {
   const wanted = String(label).toUpperCase();
