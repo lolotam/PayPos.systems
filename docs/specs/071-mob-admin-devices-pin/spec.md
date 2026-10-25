@@ -4,8 +4,10 @@
 
 **Created**: 2026-10-25
 
-**Status**: Draft. The owner questions DV-Q1 … DV-Q7 (decisions page batch 72, PP-63.1 … PP-63.7) are `PENDING` ([owner-questions.ar.md](owner-questions.ar.md));
-every rule that depends on one is marked `TODO(spec)` until it is answered.
+**Status**: Draft. Waleed answered the owner questions DV-Q1 … DV-Q7 (decisions page batch 72, PP-63.1 … PP-63.7) on
+2026-10-25; Abu Salem has not answered yet ([owner-questions.ar.md](owner-questions.ar.md)). Work follows Waleed's
+picks, named under each rule below. Each rule keeps its `TODO(spec)` marker until Abu Salem answers, because his pick
+binds if it differs (`CLAUDE.md` §1 5b). DV-Q8 is a follow-up question, still `PENDING`.
 
 **Input**: Issue #634. Today a counter device can only be paired, approved or removed, and a staff PIN can only be set,
 through the API by hand. For M-1c the web manager did each step with `curl` and read a device id from the database.
@@ -17,7 +19,7 @@ and `POST /v1/staff-pins/reset`. No screen in `apps/admin` calls any of them.
 those changes are needed whatever the owners answer: a new code invalidates the previous one, there is a check code
 for approval, and there is a PIN eligibility read. Others apply only for one answer: DV-Q2 «the code is enough» means
 auto-approval on register, DV-Q3 means an `active` filter, and DV-Q5 means a branch-scoped PIN reset. Out of scope:
-the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
+the staff OTP sign-in (PP-58.1), and the employee's own PIN change unless the DV-Q8 answer needs one (then 071-4, written with DV-Q8, which 071-3 never ships to staff without).
 
 ## Facts that shape the questions
 
@@ -37,7 +39,7 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
 
 ## Requirements (draft)
 
-- **FR-001** A devices screen for the chosen branch (place: DV-Q1, `TODO(spec)`). It has a «كود ربط جهاز» button that
+- **FR-001** A devices screen for the chosen branch (place: DV-Q1, `TODO(spec)`; Waleed: a «الأجهزة» page in the menu, for the branch chosen at the top). It has a «كود ربط جهاز» button that
   issues a code and shows it large with its 10-minute countdown, and a "new code" action. **Issuing a code cancels
   the branch's previous live code**, so a code the manager replaced, for example because someone saw it, stops
   working at once. This needs a pointer keyed by `(company_id, branch_id)` in the pairing-code store. Issuing a code, replacing the
@@ -57,16 +59,31 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
   - While a code is live, the list refreshes every 5 seconds, and it has a «تحديث» button, so a device that registers
     after the page opened appears without a reload.
   - The list follows `next_cursor` with a «عرض المزيد» action, so no pending device is ever hidden past the first page.
-  - Whether approval stays a separate step is DV-Q2, `TODO(spec)`. If the owners pick «the code is enough», the API
+  - Whether approval stays a separate step is DV-Q2, `TODO(spec)`; Waleed: approval stays a separate step. If the owners pick «the code is enough», the API
     must approve on register a device that used a live code, in the same transaction, writing the same approval audit
     row as a manual approval, with the code's issuer as the actor and the source `pairing_code` (`CLAUDE.md` §8). The check code then has no admin row to
     sit on, so it is shown on the device only.
-- **FR-003** Active devices with «إزالة» (DV-Q3, `TODO(spec)`). It needs `status=active` on the spec 070 route, with
+- **FR-003** Active devices with «إزالة» (DV-Q3, `TODO(spec)`; Waleed: yes). It needs `status=active` on the spec 070 route, with
   the same cursor paging and «عرض المزيد».
-- **FR-004** Who sees the screen and its actions: DV-Q4, `TODO(spec)`. Today: `manage:devices:branch`.
+- **FR-004** Who sees the screen and its actions: DV-Q4, `TODO(spec)`. Waleed: as today, `manage:devices:branch`.
 - **FR-005** On the employees list, a «تعيين رقم سري» action.
   - The rules for who may use it (DV-Q5), how the PIN is chosen (DV-Q6) and what an employee without an app account
-    sees (DV-Q7) are all `TODO(spec)`.
+    sees (DV-Q7) are all `TODO(spec)`. Waleed: the owner and the branch manager for her branch's staff (DV-Q5,
+    option 2, with FR-006); the setter types the PIN (DV-Q6); the action shows disabled with the line «الموظفة لازم
+    تدخل التطبيق برقمها الأول» (DV-Q7).
+  - **The setter knows the PIN** (DV-Q6). ADR-0019 §1 says a manager may reset an employee's PIN but must never sign
+    in as her, and every action records the actual actor. A PIN the setter typed is a reusable credential the setter
+    knows, so the setter, owner or branch manager, could sign in as the employee afterwards. The fix is DV-Q8,
+    `TODO(spec)`. Its options are not written yet. They wait on design advice (issue #682), because the first drafts
+    failed review on three points:
+    - a forced change at first use is racy: whoever holds the temporary PIN can use it first;
+    - a change gated on a WhatsApp code locks out a STOP-suppressed employee, whose own PIN is ADR-0019's recovery
+      path, and it also fails while staff OTP is postponed (PP-58.1);
+    - any option that waits for staff OTP blocks the whole PIN action until WhatsApp goes live.
+
+    071-3 does not start before DV-Q8 is answered, and its PIN action does not reach staff before the safeguard DV-Q8
+    picks has shipped. If that safeguard needs a sub-PR of its own, it is added to the list below as 071-4 with DV-Q8, and
+    071-3 ships to staff only with it.
   - The list needs a guarded read, the **PIN eligibility read** (071-3). For each employee it returns the linked
     `user_id` (or none) and one boolean: whether a PIN would let that person sign in on the chosen branch's devices. That is `staffEligible`
     (`apps/api/src/modules/identity/domain/staff-eligibility.ts`: a membership covering that branch and the effective
@@ -76,7 +93,7 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
     the auth-owned phone binding, so it needs design advice and, if it adds an auth facade method, an ADR-0003 note.
     `TODO(spec)`.
   - The PIN is never shown again after it is set, and is never stored or logged in the browser.
-- **FR-006** `TODO(spec)` (DV-Q5). If DV-Q5 lets branch managers set PINs, the reset route takes the branch, and the reset use case refuses
+- **FR-006** `TODO(spec)` (DV-Q5; Waleed: option 2). If DV-Q5 lets branch managers set PINs, the reset route takes the branch, and the reset use case refuses
   unless **every active branch of the target** is a branch the caller manages. The PIN is company-wide, so a manager of
   one branch must not set the PIN of an employee who also works in a branch she does not manage; the owner sets those.
   A target with any `COMPANY`- or `BUSINESS`-scoped membership is always the owner's to set. Her coverage is never
