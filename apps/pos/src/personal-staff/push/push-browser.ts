@@ -1,5 +1,6 @@
 // طبقة المتصفح: كل حاجة بتلمس PushManager أو Notification أو service worker موجودة هنا،
 // وباقي ملفات الإشعارات بتستعمل الدوال دي بس عشان الاختبارات تقدر تستبدلها (ADR-0052 §7).
+import { hasCrossTabLock } from './push-lock';
 
 /** حالة إذن الإشعارات في المتصفح. */
 export type PushPermission = 'default' | 'granted' | 'denied';
@@ -37,9 +38,13 @@ export function hasNotification(): boolean {
   return 'Notification' in globalThis;
 }
 
-/** المتصفح بيقدر يستقبل إشعارات: service worker و PushManager و Notification موجودين. */
+/**
+ * المتصفح بيقدر يستقبل إشعارات: service worker و PushManager و Notification موجودين، وفي
+ * قفل حقيقي بين التبويبات. من غير القفل، تشغيلين متوازيين بيركبوا على اشتراك واحد وسطر
+ * واحد على السيرفر، فالمتصفح بيتعامل كغير داعم (ADR-0052 §7).
+ */
 export function supportsPush(): boolean {
-  return hasServiceWorker() && hasPushManager() && hasNotification();
+  return hasServiceWorker() && hasPushManager() && hasNotification() && hasCrossTabLock();
 }
 
 /** آيفون أو آيباد: iPadOS بيبعت نفسه MacIntel وبيحسب نقاط اللمس على الشاشة. */
