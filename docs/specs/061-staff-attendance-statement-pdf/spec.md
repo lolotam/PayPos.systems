@@ -224,9 +224,11 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   pair when the branch form carries both `employee_id` and `shift`. An employee whose only
   coverage has not happened yet (hired today with a 17:00 default entry and a 17:00 shift, no leave, asked at 10:00) is
   refused here; one whose scheduled shift had ended is admitted even with no session and no default hours, so the
-  missed attendance shows. The check is an eligibility statement in `@pospay/db` beside the shared 27b inputs statement
-  (ADR-0056 §2) that evaluates the FR-013a coverage predicate for that one employee, with the instant as a parameter;
-  the 27b statement takes no instant and stays unchanged. It is a quick pre-check on the current state, and the render reads the current state again
+  missed attendance shows. The check reads the same inputs the render reads (the shared 27b inputs statement and the FR-011b schedule-only
+  statement, both in `@pospay/db`, merged by `mergeAttendanceStatementRows`) and evaluates the FR-013a coverage predicate
+  `hasAttendanceStatementCoverage` of `packages/domain` for that one employee, with the instant as a parameter, so admission
+  and the render share one predicate and no second SQL copy of it exists (ADR-0056 §2); the 27b statement takes no
+  instant and stays unchanged. It is a quick pre-check on the current state, and the render reads the current state again
   (FR-013a): if the render then finds no coverage for the employee or for the whole statement, the job ends `FAILED /
   STATEMENT_EMPTY` (a visible status, FR-005) and no PDF is produced. Otherwise `404
   ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` before any insert (no request row, no job). An employee whose only activity

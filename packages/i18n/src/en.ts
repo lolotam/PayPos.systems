@@ -5,7 +5,7 @@ import { inAppEn } from './in-app-catalog.js';
 import { permissionCodesEn } from './permission-codes-catalog.js';
 import { catalogPackageTypesEn, packageTypeErrorsEn } from './catalog-package-types.js';
 import { discountApprovalErrorsEn } from './discount-approval-errors.js';
-import { staffColumnsErrorsEn } from './staff-columns-errors.js';
+import { staffErrorsEn } from './staff-errors.js';
 import { attendanceEn } from './attendance-en.js';
 import { clockCardAdminEn, clockCardPosEn } from './clock-card-catalog.js';
 import { employeeImportErrorsEn } from './employee-import.js';
@@ -220,7 +220,7 @@ export const en = {
     ALERT_RULE_INVALID: 'A value is outside what this alert kind allows (minutes, roles or channels).',
     ...packageTypeErrorsEn,
     ...discountApprovalErrorsEn,
-    ...staffColumnsErrorsEn,
+    ...staffErrorsEn,
     PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',

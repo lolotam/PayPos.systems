@@ -7,7 +7,9 @@ import { scheduleProviders } from './staff-schedule.providers.ts';
 import { defaultShiftsProviders } from './staff-default-shifts.providers.ts';
 import { employeeNumberProviders } from './staff-employee-number.providers.ts';
 import { attendanceReportProviders } from './staff-report.providers.ts';
+import { attendanceStatementProviders } from './staff-statement.providers.ts';
 import { AttendanceMonthlyReportController } from './http/attendance-monthly-report.controller.ts';
+import { AttendanceStatementsController } from './http/attendance-statements.controller.ts';
 import {
   documentProviders,
   employeeIbanProviders,
@@ -109,6 +111,7 @@ export const staffControllers = [
   AttendanceCapabilitiesController,
   EmployeeAppLinkController,
   AttendanceMonthlyReportController,
+  AttendanceStatementsController,
   AttendanceBoardController,
   AttendanceChangeRequestsController,
   EmployeeDefaultShiftsController,
@@ -237,6 +240,7 @@ export function staffProviders(
     ...employeeNumberProviders(database, ids, systemClock),
     { provide: EMPLOYEE_NUMBERS_SEARCH, useValue: employeeListSearch },
     ...attendanceReportProviders(database, ids),
+    ...attendanceStatementProviders(database, redis, ids),
     ...leaveProviders(database, ids),
     ...attendanceExceptionProviders(database, ids),
     ...attendanceCorrectionProviders(database, ids),

@@ -2,6 +2,7 @@ export { nameAr, nameEn } from './bilingual/names.js';
 export * from './staff/attendance-monthly-report.js';
 export * from './staff/attendance-report-inputs.js';
 export * from './staff/attendance-statement.js';
+export * from './staff/attendance-statement-shifts.js';
 export * from './staff/employee-app-link.js';
 export {
   employee,

@@ -22,3 +22,8 @@ export {
   discountApprovalRefusals,
   type DiscountApprovalRefusalCode,
 } from './discount-approval-errors.js';
+export {
+  attendanceStatementErrorsEn,
+  attendanceStatementErrorsAr,
+  attendanceStatementRenderErrors,
+} from './attendance-statement-errors.js';

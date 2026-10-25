@@ -4,6 +4,74 @@
  */
 
 export interface paths {
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Human read:attendance:branch permission, staff feature and tenant membership required. Returns 403 for permission refusal, 404 for branch or employee, 422 for period or shift filter, 429 for the user rate limit, and 503 when the renderer is unavailable. */
+        post: operations["requestAttendanceStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-statements/{renderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch permission, staff feature and tenant membership required. Cache-Control: no-store. Every render id outside the requester and route scope returns the same 404. */
+        get: operations["attendanceStatementStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-statements/{renderId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Human read:attendance:branch permission, staff feature and tenant membership required. Collects once with one audit entry. Cache-Control: no-store. Returns 409 DOCUMENT_NOT_READY or 410 DOCUMENT_EXPIRED. */
+        post: operations["downloadAttendanceStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-statement-shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch permission, staff feature and tenant membership required. */
+        get: operations["attendanceStatementShifts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/attendance-report": {
         parameters: {
             query?: never;
@@ -6979,6 +7047,179 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    requestAttendanceStatement: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    form: "BRANCH" | "EMPLOYEE";
+                    /** Format: date */
+                    from: string;
+                    /** Format: date */
+                    to: string;
+                    /** Format: uuid */
+                    employee_id?: string;
+                    /** @enum {string} */
+                    language: "ar" | "en";
+                    shift?: {
+                        start: string;
+                        end: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Statement queued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        render_id: string;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceStatementStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                renderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Statement state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        state: "QUEUED" | "RENDERING" | "READY" | "FAILED" | "EXPIRED" | "CONSUMED";
+                        /** @enum {string} */
+                        error_code?: "DOCUMENT_KIND_UNKNOWN" | "DOCUMENT_TOO_LARGE" | "DOCUMENT_RENDER_TIMEOUT" | "DOCUMENT_RENDER_FAILED" | "STATEMENT_EMPTY";
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    downloadAttendanceStatement: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                renderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attendance statement PDF */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceStatementShifts: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Distinct branch-local shift pairs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        shifts: {
+                            start: string;
+                            end: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     attendanceMonthlyReport: {
         parameters: {
             query: {
