@@ -5,6 +5,7 @@ import {
   DOCUMENT_XLSX_MIME_TYPE,
   documentKindMimeType,
   documentKindNeedsRenderer,
+  documentRenderErrorCode,
   documentRenderJob,
 } from '../documents-render.js';
 
@@ -45,4 +46,9 @@ it('keeps document kinds as non-empty free strings up to 64 characters', () => {
   }
   expect(documentRenderJob.safeParse({ ...base, kind: '' }).success).toBe(false);
   expect(documentRenderJob.safeParse({ ...base, kind: 'x'.repeat(65) }).success).toBe(false);
+});
+
+it('accepts the empty-statement error code', () => {
+  expect(documentRenderErrorCode.safeParse('STATEMENT_EMPTY').success).toBe(true);
+  expect(documentRenderErrorCode.options).toContain('STATEMENT_EMPTY');
 });

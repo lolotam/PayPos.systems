@@ -3,11 +3,49 @@ import { documentRenderErrorCode } from '../documents-render.js';
 import {
   attendanceStatementAccepted,
   attendanceStatementDocument,
+  attendanceStatementLabelKeys,
   attendanceStatementRequest,
   attendanceStatementStatus,
 } from './attendance-statement.js';
 
 const employeeId = '01920000-0000-7000-8000-0000000000a1';
+const labels = {
+  branchTitle: 'بيان الفرع',
+  employeeTitle: 'بيان الموظفة',
+  periodLabel: 'الفترة',
+  branchLabel: 'الفرع',
+  employeeLabel: 'الموظفة',
+  employeeNumberLabel: 'رقم الموظف',
+  employeeFilterLabel: 'فلتر الموظفة',
+  shiftFilterLabel: 'فلتر الوردية',
+  employeeNumber: 'رقم الموظف',
+  employeeName: 'اسم الموظفة',
+  date: 'التاريخ',
+  sessions: 'الجلسات',
+  notes: 'ملاحظات',
+  daysPresent: 'أيام الحضور',
+  workedHours: 'ساعات العمل',
+  scheduledHours: 'ساعات الجدول',
+  contractedHours: 'الساعات المتفق عليها',
+  difference: 'الفرق',
+  lateCount: 'عدد التأخير',
+  lateMinutes: 'دقائق التأخير',
+  missingClockOut: 'ناقص بصمة خروج',
+  manualDays: 'أيام يدوية',
+  leaveAnnual: 'إجازة سنوية',
+  leaveSick: 'إجازة مرضية',
+  leaveUnpaid: 'إجازة بدون راتب',
+  leaveOther: 'إجازة أخرى',
+  signature: 'التوقيع',
+  employeeSignature: 'توقيع الموظفة',
+  managerSignature: 'توقيع المدير',
+  totalsTitle: 'الإجماليات',
+  stillIn: 'لسه جوّه',
+  noAttendance: 'لا يوجد حضور مسجّل',
+  manual: 'يدوي',
+  footer: 'صادر من نظام PosPay للحضور والانصراف',
+  issuedAt: 'تاريخ الإصدار',
+};
 const totals = {
   days_present: 22,
   worked_hours: '179:00',
@@ -24,6 +62,7 @@ const branchDocument = {
   form: 'BRANCH',
   language: 'ar',
   issued_at: '2/11/2026 10:14',
+  labels,
   header: {
     business_name: 'صالون الأميرة',
     branch_name: 'فرع السالمية',
@@ -38,6 +77,7 @@ const employeeDocument = {
   form: 'EMPLOYEE',
   language: 'en',
   issued_at: '2/11/2026 10:14',
+  labels,
   header: {
     business_name: 'Salon Al Amira',
     branch_name: 'Salmiya branch',
@@ -153,4 +193,20 @@ it('the document refuses a logo of another content type', () => {
     ...branchDocument,
     header: { ...branchDocument.header, logo: { content_type: 'image/gif', base64: 'R0lGOD' } },
   }).success).toBe(false);
+});
+it('the document refuses missing labels and labels it does not know', () => {
+  expect(attendanceStatementDocument.safeParse({ ...branchDocument, labels: undefined }).success).toBe(false);
+  expect(attendanceStatementDocument.safeParse({
+    ...branchDocument,
+    labels: { ...labels, extra: 'زيادة' },
+  }).success).toBe(false);
+  expect(attendanceStatementDocument.safeParse({
+    ...branchDocument,
+    labels: { ...labels, stillIn: '' },
+  }).success).toBe(false);
+});
+it('the label keys are the ones the template prints, and both forms take them', () => {
+  expect(Object.keys(labels).sort()).toEqual([...attendanceStatementLabelKeys].sort());
+  expect(attendanceStatementDocument.parse(branchDocument).labels).toEqual(labels);
+  expect(attendanceStatementDocument.parse(employeeDocument).labels).toEqual(labels);
 });

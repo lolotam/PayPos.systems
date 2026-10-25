@@ -71,6 +71,8 @@ export const documentRenderErrorCodes = [
   'DOCUMENT_TOO_LARGE',
   'DOCUMENT_RENDER_TIMEOUT',
   'DOCUMENT_RENDER_FAILED',
+  // رندر البيان لقى مفيش تغطية في الفترة؛ الفشل نهائي من أول مرة وبيتقفل من غير PDF (FR-013a).
+  'STATEMENT_EMPTY',
 ] as const;
 
 export const documentRenderErrorCode = z.enum(documentRenderErrorCodes);
