@@ -434,12 +434,18 @@ manager to approve the device, and a staff user with a PIN, so the spike can no 
   code (masked in the log), starts `xcodebuild test` for `CounterAuthUITests` with the values as `TEST_RUNNER_`
   environment variables (the `STAGING_UI_*` logins are not passed on), and approves the one pending device carrying
   the run's unique label through `GET /v1/branches/{branch}/devices?status=pending` (spec 070). It always revokes that
-  device at the end, and it prints fixed status lines only.
+  device at the end (and, before it starts, any `CI-IOS-` test device left pending for over 30 minutes by a killed
+  run), signs the owner out, and prints fixed status lines only.
 - **No raw result of that test is uploaded.** `typeText` records the typed code, phone and PIN in the `.xcresult`,
   and the repository is public, so `CounterAuth.xcresult` and the `xcodebuild` log stay on the runner. The
   start-screen test keeps its uploaded result, since it types nothing secret.
 
-**Consequences.** A dispatch from `main` can read the four staging test values, and nothing else can. Until the
+**Consequences.** Only a dispatch from `main` can read the four staging test values. A residual risk is
+accepted: the same job installs third-party packages (`pnpm install`, the CocoaPods and `xcodeproj` gems) before
+that step, and a compromised package could write a value to `$GITHUB_ENV` that a later step loads. The step clears
+`NODE_OPTIONS`, but a determined package could still reach the values. They are staging test logins only, never a
+signing key or a production credential, and they can be rotated on staging at any time. A required reviewer on the
+environment would close the gap but would stop the run from being unattended, so it is not set. Until the
 staff routes accept the iOS origin (the `STAFF_NATIVE_ORIGINS` slice, waiting on Waleed), check (b) is expected to
 end in the 403 that this ADR's decision 3 predicts; that run records the baseline. Revoked test devices stay as
 `REVOKED` rows on staging.
