@@ -31,14 +31,18 @@ export async function closeHungContext(
   sleep: (ms: number) => Promise<void>,
 ): Promise<boolean> {
   let finished = false;
-  const closing = context.close().then(
+  let closing: Promise<unknown>;
+  try {
+    closing = context.close();
+  } catch {
+    closing = Promise.reject(new Error('close failed'));
+  }
+  const pending = closing.then(
     () => {
       finished = true;
     },
-    () => {
-      finished = true;
-    },
+    () => undefined,
   );
-  await Promise.race([closing, sleep(graceMs)]);
+  await Promise.race([pending, sleep(graceMs)]);
   return !finished;
 }

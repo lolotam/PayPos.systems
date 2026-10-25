@@ -225,13 +225,13 @@ async function bringUp(
   startup.starting = true;
   startup.deadlineAt = Date.now() + PDF_DEFER_WINDOW_MS;
   const renderer = await openRenderer(input);
-  // التأجيل بيقفل لما المتصفح يبقى متاح، مش بمهلة الإقلاع.
-  renderer.onAvailable(() => {
-    startup.starting = false;
-  });
-  if (renderer.isAvailable()) startup.starting = false;
   attempt.setRenderer(renderer);
   if (halted(input, attempt)) return false;
+  // التأجيل بيقفل لما المتصفح يبقى متاح، مش بمهلة الإقلاع.
+  renderer.onAvailable(() => {
+    if (!attempt.cancelled()) startup.starting = false;
+  });
+  if (!attempt.cancelled() && renderer.isAvailable()) startup.starting = false;
   const opened = await openWorker(input, registry, renderer, attempt, startup);
   if (halted(input, attempt)) {
     await opened.worker.close().catch(() => undefined);

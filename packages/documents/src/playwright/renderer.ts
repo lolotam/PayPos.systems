@@ -65,15 +65,13 @@ async function dropRetiredBrowser(
   try {
     closing = browser.close();
   } catch {
-    return;
+    closing = Promise.reject(new Error('close failed'));
   }
   const pending = closing.then(
     () => {
       finished = true;
     },
-    () => {
-      finished = true;
-    },
+    () => undefined,
   );
   await Promise.race([pending, sleep(graceMs)]).catch(() => undefined);
   if (finished) return;

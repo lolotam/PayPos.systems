@@ -99,15 +99,13 @@ async function closeLateBrowser(browser: PdfBrowser, graceMs: number): Promise<v
   try {
     closing = browser.close();
   } catch {
-    return;
+    closing = Promise.reject(new Error('close failed'));
   }
   const pending = closing.then(
     () => {
       finished = true;
     },
-    () => {
-      finished = true;
-    },
+    () => undefined,
   );
   const grace = armGrace(graceMs);
   try {
