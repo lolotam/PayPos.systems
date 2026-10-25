@@ -957,4 +957,8 @@ requires, on top of the origin, that token or our staff cookie. The staff sign-o
 **Consequences.** iOS (b) can run on the simulator and record whether `WKWebView` keeps the `HttpOnly; Secure;
 SameSite=Lax` staff cookie from the api host across a restart. If it does not, ADR-0055 decision 3's fallbacks
 apply (native HTTP and cookies first, then a native token, which needs its own addendum). Production behaviour does
-not change while the list is unset.
+not change while the list is unset. On staging the iOS app also needs CORS, which the api takes from `AUTH_TRUSTED_ORIGINS`, the
+same list Better Auth trusts for its own origin checks. So staging, live since O-1 on 2026-10-24 and now also in the
+compose default, trusts `capacitor://localhost` on every Better Auth route, not only the staff routes. This is
+accepted for staging, since no browser can send that origin and staging holds test data only. Splitting the CORS list
+from Better Auth's trusted origins, before any production use, is issue #669.
