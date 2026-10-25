@@ -5,6 +5,7 @@ import type { PreparedSessionLine, SessionDraft, SessionEmployee, SessionService
 
 /**
  * يتحقق من كل بند قبل رفض الخصم فقط جزئياً، فلا تحفظ مقدمة طلب به مرجع أو نسبة خاطئة.
+ * ومعرّف الموافقة المرسل مع السطر ينتقل كما هو، فيعرف الاستهلاك أي طلب يطابق.
  *
  * @param drafts مدخلات المال الصحيحة الشكل
  * @param services لقطات الكتالوج في النشاط
@@ -30,6 +31,7 @@ export function prepareSessionLines(drafts: readonly SessionDraft[], services: r
     const defaults = equalShares(performers.length);
     return { input_index, service, price: draft.price, discount, net, effective_discount_bps: effectiveDiscountBps(service.price, net), performers,
       has_performer_warning: performers.some((p) => p.not_clocked_in_warning || p.approved_leave_warning),
-      explicit_unequal_shares: draft.performers.every((p) => p.share_bps !== undefined) && shares.some((s, i) => s !== defaults[i]) };
+      explicit_unequal_shares: draft.performers.every((p) => p.share_bps !== undefined) && shares.some((s, i) => s !== defaults[i]),
+      ...(draft.approval_proposal_id === undefined ? {} : { approval_proposal_id: draft.approval_proposal_id }) };
   });
 }

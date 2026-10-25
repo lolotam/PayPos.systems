@@ -11,6 +11,7 @@ type LineRow = {
   limit_source: 'OWNER' | 'PERSON' | 'BUSINESS' | 'NOT_CONFIGURED'; name_en: string; name_ar: string | null; catalog_revision: number;
   rule_kind: SessionRule['kind']; rule_pct_bps: number | null; rule_fixed_amount: string | null;
   counts_toward_threshold: boolean; has_performer_warning: boolean; recorded_by: string; recorded_by_membership_id: string; recorded_at: Date; late: boolean;
+  discount_proposal_id: string | null;
 };
 type PerformerRow = { id: string; line_id: string; employee_id: string; name_en: string; name_ar: string | null; share_bps: number; not_clocked_in_warning: boolean; approved_leave_warning: boolean };
 
@@ -32,6 +33,7 @@ function storedLine(row: LineRow, performers: readonly PerformerRow[]): SessionL
     limit: row.limit_source === 'OWNER' ? { source: 'OWNER', bps: null } : { source: row.limit_source, bps: row.limit_bps_applied as number },
     recorded_by: row.recorded_by, recorded_by_membership_id: row.recorded_by_membership_id, recorded_at: new Date(row.recorded_at), late: row.late,
     has_performer_warning: row.has_performer_warning, explicit_unequal_shares: false, performer_ids: members.map((p) => p.id),
+    ...(row.discount_proposal_id === null ? {} : { discount_proposal_id: row.discount_proposal_id }),
     performers: members.map((p) => ({ employee: { id: p.employee_id, name_en: p.name_en, name_ar: p.name_ar, user_id: null,
       eligible: true, clocked_in: !p.not_clocked_in_warning, approved_leave: p.approved_leave_warning }, share_bps: p.share_bps,
       not_clocked_in_warning: p.not_clocked_in_warning, approved_leave_warning: p.approved_leave_warning })) };
@@ -44,7 +46,7 @@ export async function loadSession(tx: Tx, companyId: string, businessId: string,
   if (header === undefined) return null;
   const lines = await tx.execute<LineRow>(sql`SELECT id,session_id,service_id,ordinal,input_index,status,revision,list_price::text,price::text,discount::text,net::text,
     effective_discount_bps,limit_bps_applied,limit_source,name_en,name_ar,catalog_revision,rule_kind,rule_pct_bps,rule_fixed_amount::text,
-    counts_toward_threshold,has_performer_warning,recorded_by,recorded_by_membership_id,recorded_at,late FROM service_lines
+    counts_toward_threshold,has_performer_warning,recorded_by,recorded_by_membership_id,recorded_at,late,discount_proposal_id FROM service_lines
     WHERE company_id=${companyId} AND session_id=${sessionId} ORDER BY ordinal`);
   const performers = await tx.execute<PerformerRow>(sql`SELECT p.id,p.line_id,p.employee_id,p.name_en,p.name_ar,p.share_bps,p.not_clocked_in_warning,p.approved_leave_warning
     FROM line_performers p JOIN service_lines l ON l.company_id=p.company_id AND l.id=p.line_id

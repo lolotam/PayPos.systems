@@ -360,8 +360,9 @@ second branch manager who also performs services.
   (FR-013) → requester rule (D-5) → performer flag (FR-014) → CAS `UPDATE … WHERE status = 'PENDING'` → audit →
   (an approve with any flagged proposal) one `DiscountApprovedByPerformer` (D-19). (DA-Q9 = PP-20.3: a rejection runs
   FR-012 only, since it moves no money; no limit check, no requester or own-service check, no flag.) All-or-nothing (D-3). The
-  approver's limit is read **after** the row locks; the line writers read the recorder's limit **before** locking
-  proposals; neither path takes an `orders` lock after a proposal lock, so no cycle.
+  approver's limit is read **after** the row locks; the line writers also read the recorder's limit **after** locking
+  proposals (the lock may wait, and a limit change that commits during the wait must be seen, `DiscountLimitPort`); neither
+  path takes an `orders` lock after a proposal lock, so no cycle.
 - **FR-012** (DA-Q1) Authority = `approve:discounts:branch` at the proposal's branch, DENY wins, `orders` feature on,
   through a new consumer-owned `DiscountApprovalAccessPort` (identity) with `lock()` then `read(at)` like
   `SessionEditAccessPort`. Remote: the user's memberships (D-11). PIN: the PIN holder's memberships covering the
@@ -395,8 +396,8 @@ second branch manager who also performs services.
 - **FR-018** Approve and reject responses: `{ proposals: [{ id, status, expires_at }] }`; never the PIN, never the
   phone.
 - **FR-019** (row 41) The spec 050 create and append line input gains optional `discount_proposal_id`. For a line above
-  the recorder's limit **with** it: after the recorder's limit read and the visit lock, lock the named proposals
-  `FOR UPDATE` in ascending id order, recompute the line's terms (FR-009, D-4 for a `RECORD` proposal) and run the CAS of DP-20; success → the line
+  the recorder's limit **with** it: after the visit lock, lock the named proposals `FOR UPDATE` in ascending id order,
+  then read the recorder's limit (never before the proposal lock, which may wait), recompute the line's terms (FR-009, D-4 for a `RECORD` proposal) and run the CAS of DP-20; success → the line
   is accepted with `discount_proposal_id`; failure → the line joins `rejected_lines` with `approval_refusal` ∈
   `NOT_FOUND | NOT_APPROVED | EXPIRED | CONSUMED | TERMS_MISMATCH` (D-13). Without it: today's refusal, unchanged.
 - **FR-020** The same proposal id twice in one request → the second line refused `CONSUMED` (the first consumes).
@@ -420,7 +421,7 @@ second branch manager who also performs services.
   proposal with its `base_*` values, writes the audit entry and appends `DiscountApprovalRequested` (FR-024,
   `line_count` 1); response FR-007.
 - **FR-026** (D-20) The 35d `PATCH` body gains optional `discount_proposal_id`. Above the editor's limit **with** it:
-  after the editor's limit read and the line lock, lock the proposal `FOR UPDATE`, recompute the edit terms from the
+  after the line lock, lock the proposal `FOR UPDATE`, then read the editor's limit, recompute the edit terms from the
   request and the locked line, and CAS `APPROVED → CONSUMED` with `consumed_edit_id` = the `service_line_edits` row
   inserted in the same transaction with `discount_proposal_id`; a failure → 422 `SESSION_DISCOUNT_ABOVE_LIMIT` with
   `approval_refusal` ∈ FR-019's values (a `RECORD` proposal → `NOT_FOUND`). Within the editor's limit with it → saved
