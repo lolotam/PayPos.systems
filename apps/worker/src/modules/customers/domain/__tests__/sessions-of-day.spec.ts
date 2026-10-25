@@ -92,7 +92,7 @@ it('separates the two-branch midnight case using each branch timezone', () => {
   expect(onDubaiDay.map((session) => session.sessionId)).toEqual(['dubai']);
 });
 
-it('drops a session of a branch closed on that weekday and keeps the open branch session', () => {
+it('keeps a session of a branch whose hours miss that weekday', () => {
   const placeByBranch = new Map<string, BranchSchedule>([
     [
       'branch-1',
@@ -111,10 +111,10 @@ it('drops a session of a branch closed on that weekday and keeps the open branch
   ]);
   const lines = [
     line('open', 'open-line', '2026-10-05T10:00:00Z', 'branch-1'),
-    line('closed', 'closed-line', '2026-10-05T11:00:00Z', 'branch-2'),
+    line('missing', 'missing-line', '2026-10-05T11:00:00Z', 'branch-2'),
   ];
   const result = sessionsOfDay(lines, placeByBranch, '2026-10-05');
-  expect(result.map((session) => session.sessionId)).toEqual(['open']);
+  expect(result.map((session) => session.sessionId)).toEqual(['open', 'missing']);
 });
 
 it('keeps the sessions of a branch without opening hours', () => {

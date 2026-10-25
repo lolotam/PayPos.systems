@@ -108,7 +108,7 @@ async function processPage(
   }
 }
 
-// العدّان في معاملة واحدة عشان يبانوا من نفس اللقطة.
+// العدّان بيتجمدوا قبل المعالجة، وعضوية النطاق لا تعتمد على حالة السطور القابلة للتغيير.
 async function coverageOf(
   deps: BootstrapDeps,
   params: BootstrapParams,
@@ -128,10 +128,22 @@ async function coverageOf(
   });
 }
 
+function emptyResult(range: BootstrapRange, lastSessionId: string | null): BootstrapResult {
+  return {
+    range,
+    processed: 0,
+    alreadyDone: 0,
+    expected: 0,
+    complete: true,
+    lastSessionId,
+  };
+}
+
 /**
  * يشغّل bootstrap طلبات التقييم لشركة واحدة: تجميد النطاق مرة واحدة، ثم قراءة صفحات keyset
  * وتمرير كل زيارة على نفس مسار الجدولة الحي، ثم مقارنة التغطية بالعدد المتوقع.
  * الزيارة المسجلة بعد بداية المهمة بره النطاق المجمد، فالمستهلك الحي بياخدها.
+ * التغطية بتتجمد قبل المعالجة، وكل زيارة في النطاق بتتعد حتى لو اتلغت سطورها أثناء الشغل.
  *
  * @param deps قارئ الزيارات وحالة الجدولة والساعة وسطر الطباعة
  * @param params الشركة والقطع ومدى الاستئناف اختياري
@@ -145,16 +157,11 @@ export async function runRatingBootstrap(
   const frozen = await freezeRange(deps, params);
   if (!frozen.hasSessions) {
     deps.log('processed=0 alreadyDone=0 expected=0 complete=true');
-    return {
-      range: frozen.range,
-      processed: 0,
-      alreadyDone: 0,
-      expected: 0,
-      complete: true,
-      lastSessionId: params.checkpoint ?? null,
-    };
+    return emptyResult(frozen.range, params.checkpoint ?? null);
   }
   const range = frozen.range;
+  const { expected: frozenExpected, alreadyDone } = await coverageOf(deps, params, range);
+  deps.log(`frozen expected=${frozenExpected} alreadyDone=${alreadyDone}`);
   let cursor = params.checkpoint ?? null;
   let processed = 0;
   for (;;) {
@@ -168,10 +175,17 @@ export async function runRatingBootstrap(
     deps.log(`checkpoint=${cursor ?? 'none'} processed=${processed}`);
     if (page.length < pageSize) break;
   }
-  const { expected, alreadyDone } = await coverageOf(deps, params, range);
-  const complete = alreadyDone + processed === expected;
+  const covered = alreadyDone + processed;
+  const complete = covered === frozenExpected;
   deps.log(
-    `processed=${processed} alreadyDone=${alreadyDone} expected=${expected} complete=${complete}`,
+    `processed=${processed} alreadyDone=${alreadyDone} expected=${frozenExpected} complete=${complete}`,
   );
-  return { range, processed, alreadyDone, expected, complete, lastSessionId: cursor };
+  return {
+    range,
+    processed,
+    alreadyDone,
+    expected: frozenExpected,
+    complete,
+    lastSessionId: cursor,
+  };
 }

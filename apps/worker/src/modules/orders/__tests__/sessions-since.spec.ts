@@ -44,7 +44,7 @@ it('resumes from a checkpoint and reads only the sessions after it', async () =>
   expect(rest.map((session) => session.sessionId)).toEqual(sessions.slice(3));
 });
 
-it('leaves out the sessions outside the frozen range', async () => {
+it('leaves out sessions outside the frozen range but retains cancelled sessions', async () => {
   const day = '2026-06-03';
   const older = await createSession('2026-05-01');
   const inside = await createSession(day);
@@ -57,7 +57,11 @@ it('leaves out the sessions outside the frozen range', async () => {
   );
   await createSession(day);
   const sessions = await read(range, null, 10);
-  expect(sessions.map((session) => session.sessionId)).toEqual([inside.sessionId]);
+  expect(sessions.map((session) => session.sessionId)).toEqual([
+    inside.sessionId,
+    cancelled.sessionId,
+  ]);
+  expect(await count(range)).toBe(2);
 });
 
 it('counts the sessions the pages return and the ones already done', async () => {

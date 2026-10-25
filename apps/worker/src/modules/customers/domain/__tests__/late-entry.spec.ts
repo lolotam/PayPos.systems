@@ -34,4 +34,15 @@ describe('isLateEntry', () => {
     expect(isLateEntry(new Date('2026-10-05T21:15:00Z'), DAY, KUWAIT, null)).toBe(false);
     expect(isLateEntry(new Date('2026-10-05T21:31:00Z'), DAY, KUWAIT, null)).toBe(true);
   });
+
+  it('ends the day at the branch-local midnight for a missing weekday and for an empty list', () => {
+    const missingWeekday: OpeningHoursValue = [
+      { weekday: 2, intervals: [{ opens: '09:00', closes: '22:00' }] },
+    ];
+    const emptyList: OpeningHoursValue = [];
+    expect(isLateEntry(new Date('2026-10-05T21:30:00Z'), DAY, KUWAIT, missingWeekday)).toBe(false);
+    expect(isLateEntry(new Date('2026-10-05T21:31:00Z'), DAY, KUWAIT, missingWeekday)).toBe(true);
+    expect(isLateEntry(new Date('2026-10-05T21:30:00Z'), DAY, KUWAIT, emptyList)).toBe(false);
+    expect(isLateEntry(new Date('2026-10-05T21:31:00Z'), DAY, KUWAIT, emptyList)).toBe(true);
+  });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OpeningHoursValue } from '../opening-hours.ts';
-import { dayClose, dayEnd, isClosedDay, requestDayOf } from '../request-day.ts';
+import { dayClose, dayEnd, requestDayOf } from '../request-day.ts';
 
 const KUWAIT = 'Asia/Kuwait';
 
@@ -58,26 +58,6 @@ describe('requestDayOf', () => {
   });
 });
 
-describe('isClosedDay', () => {
-  it('is true for a weekday missing from non-empty hours', () => {
-    expect(isClosedDay('2026-10-06', splitDay)).toBe(true);
-  });
-
-  it('is false for a weekday present in the hours', () => {
-    expect(isClosedDay('2026-10-05', splitDay)).toBe(false);
-  });
-
-  it('is false for null and empty hours', () => {
-    expect(isClosedDay('2026-10-05', null)).toBe(false);
-    expect(isClosedDay('2026-10-05', [])).toBe(false);
-  });
-
-  it('is true for a weekday whose entry carries no intervals', () => {
-    const hours: OpeningHoursValue = [{ weekday: 1, intervals: [] }];
-    expect(isClosedDay('2026-10-05', hours)).toBe(true);
-  });
-});
-
 describe('dayClose and dayEnd', () => {
   it('uses the last close of a split day', () => {
     expect(dayClose('2026-10-05', KUWAIT, splitDay)?.toISOString()).toBe(
@@ -91,10 +71,12 @@ describe('dayClose and dayEnd', () => {
     );
   });
 
-  it('returns null for null hours, empty hours, and a closed weekday', () => {
+  it('returns null for null hours, empty hours, a missing weekday and an entry without intervals', () => {
+    const withoutIntervals: OpeningHoursValue = [{ weekday: 1, intervals: [] }];
     expect(dayClose('2026-10-05', KUWAIT, null)).toBeNull();
     expect(dayClose('2026-10-05', KUWAIT, [])).toBeNull();
     expect(dayClose('2026-10-06', KUWAIT, splitDay)).toBeNull();
+    expect(dayClose('2026-10-05', KUWAIT, withoutIntervals)).toBeNull();
   });
 
   it('ends a day without a close at the next branch-local midnight', () => {

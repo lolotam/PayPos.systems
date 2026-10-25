@@ -241,6 +241,7 @@ async function event(
   const company = saved['company_id'] as string;
   await db.withTenant(company, (tx) =>
     appendOutboxEvent(tx, id, {
+      // نفس هوية المنتجين: service-session-transactions.ts وline-write-transactions.ts في API orders.
       aggregateType: 'service_session',
       aggregateId: sessionId,
       eventType,

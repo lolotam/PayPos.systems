@@ -88,8 +88,10 @@ it('uses visit plus one hour and no deadline with null or empty hours', () => {
   }
 });
 
-it('has no close time on a closed weekday, so ratingSchedule gives no deadline', () => {
+it('RT-Q15 a missing weekday, an empty list and null hours give the same schedule', () => {
   expectSchedule('2026-10-06T12:00:00Z', mondayHours, KUWAIT, '2026-10-06T13:00:00.000Z', null);
+  expectSchedule('2026-10-06T12:00:00Z', [], KUWAIT, '2026-10-06T13:00:00.000Z', null);
+  expectSchedule('2026-10-06T12:00:00Z', null, KUWAIT, '2026-10-06T13:00:00.000Z', null);
 });
 
 it('uses Dubai closing time rather than assuming UTC+3', () => {

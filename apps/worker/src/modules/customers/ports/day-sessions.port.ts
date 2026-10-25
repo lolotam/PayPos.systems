@@ -39,7 +39,7 @@ export interface DaySessionsPort {
     toInstant: Date,
   ): Promise<readonly ActiveLine[]>;
   /**
-   * يرجع صفحة keyset من الزيارات النشطة ضمن النطاق المجمد لاستكمال الـ bootstrap.
+   * يرجع صفحة keyset من كل زيارات النطاق المجمد؛ الجدولة تفحص البنود النشطة عشان الإلغاء ما يغيّرش عدّ التغطية.
    *
    * @param tx معاملة المستأجر
    * @param companyId الشركة المالكة للزيارات

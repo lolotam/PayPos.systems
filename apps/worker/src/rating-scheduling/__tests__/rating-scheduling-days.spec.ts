@@ -190,7 +190,7 @@ it('RT-01b the same two visits in the opposite order give the same two requests'
   expect(rows.map((row) => row['branch_id'])).toEqual([kuwait, dubai]);
 });
 
-it('RT-Q15 a visit on a closed weekday of a branch with opening hours creates no request', async () => {
+it('RT-Q15 a visit on a closed weekday schedules one hour later with no deadline', async () => {
   const hours = everyDay([{ opens: '10:00', closes: '22:00' }]).filter((day) => day.weekday !== 5);
   const branchId = await f.branch({ timezone: KUWAIT, openingHours: hours });
   const customer = await f.customer();
@@ -200,7 +200,25 @@ it('RT-Q15 a visit on a closed weekday of a branch with opening hours creates no
     occurredAt: new Date('2026-06-19T09:00:00.000Z'),
   });
   await f.deliver(await f.event(session.sessionId, 'ServiceSessionRecorded'));
-  expect(await f.requests(customer)).toHaveLength(0);
+  const rows = await f.requests(customer);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.['due_at']).toEqual(new Date('2026-06-19T10:00:00.000Z'));
+  expect(rows[0]?.['send_deadline']).toBeNull();
+});
+
+it('RT-Q15 a branch with an empty schedule schedules one hour later with no deadline', async () => {
+  const branchId = await f.branch({ timezone: KUWAIT, openingHours: [] });
+  const customer = await f.customer();
+  const session = await f.session({
+    customerId: customer,
+    branchId,
+    occurredAt: new Date('2026-06-21T09:00:00.000Z'),
+  });
+  await f.deliver(await f.event(session.sessionId, 'ServiceSessionRecorded'));
+  const rows = await f.requests(customer);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.['due_at']).toEqual(new Date('2026-06-21T10:00:00.000Z'));
+  expect(rows[0]?.['send_deadline']).toBeNull();
 });
 
 it('RT-07 a business with the switch off schedules nothing and schedules on the next event', async () => {

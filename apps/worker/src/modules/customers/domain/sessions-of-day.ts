@@ -1,6 +1,6 @@
 import { isLateEntry } from './late-entry.ts';
 import type { OpeningHoursValue } from './opening-hours.ts';
-import { isClosedDay, requestDayOf } from './request-day.ts';
+import { requestDayOf } from './request-day.ts';
 import { addCivilDays } from './zoned-time.ts';
 
 const MAX_POSITIVE_OFFSET_MS = 14 * 60 * 60 * 1000;
@@ -49,7 +49,6 @@ export function dayWindow(day: string): { from: Date; to: Date } {
 
 /**
  * يجمع البنود في زيارات ويحتفظ بيوم الطلب المطلوب والتسجيل غير المتأخر فقط، مرتباً زمنياً.
- * زيارة يوم طلبه مقفول في مواعيد فرعها ما بتتشملش: مفيش قاعدة معتمدة لليوم المقفول لحد ما يجاوب المالك (RT-Q15).
  *
  * @param lines البنود النشطة داخل نافذة البحث الواسعة
  * @param placeByBranch مواعيد ومنطقة كل فرع ظاهر في البنود
@@ -74,7 +73,6 @@ export function sessionsOfDay(
     const place = placeByBranch.get(first.branchId);
     if (place === undefined) throw new RangeError('BRANCH_SCHEDULE_MISSING');
     if (requestDayOf(first.occurredAt, place.timeZone, place.openingHours) !== day) continue;
-    if (isClosedDay(day, place.openingHours)) continue;
     if (isLateEntry(first.recordedAt, day, place.timeZone, place.openingHours)) continue;
     sessions.push({
       sessionId,

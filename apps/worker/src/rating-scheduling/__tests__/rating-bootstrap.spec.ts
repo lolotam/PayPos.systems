@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { daySessionsReader } from '../../modules/orders/index.ts';
 import {
   everyDay,
   ratingSchedulingFixture,
@@ -79,12 +80,13 @@ it('FR-B02b a restart from the checkpoint of the second page processes only the 
   });
   expect(first.processed).toBe(10);
   const range = rangeOf(logs[0] ?? '');
+  const checkpoints = logs.filter((line) => line.startsWith('checkpoint='));
   const restart = await f.bootstrap(() => undefined)({
     companyId: f.tenant.company,
     cutoff: range.cutoff,
     maxSessionId: range.maxSessionId,
     recordedAtOrBefore: range.recordedAtOrBefore,
-    checkpoint: checkpointOf(logs[2] ?? ''),
+    checkpoint: checkpointOf(checkpoints[1] ?? ''),
   });
   expect(restart.processed).toBe(4);
   expect(restart.alreadyDone).toBe(6);
@@ -258,3 +260,65 @@ it('FR-B02b with the switch off the job schedules nothing', async () => {
   expect(await f.requests(customer)).toHaveLength(0);
   f.enabled.on = true;
 });
+
+it.each([
+  { day: '2026-12-29', cancelledIndexes: [4], resume: false },
+  { day: '2027-01-02', cancelledIndexes: [0], resume: false },
+  { day: '2027-01-06', cancelledIndexes: [0, 4], resume: false },
+  { day: '2027-01-10', cancelledIndexes: [0, 4], resume: true },
+])(
+  'FR-B02b freezes coverage through mid-run cancellation: $day',
+  async ({ day, cancelledIndexes, resume }) => {
+    const start = startOf(day);
+    const branchId = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
+    const sessions: { sessionId: string; lineId: string }[] = [];
+    for (let index = 0; index < 6; index += 1) {
+      sessions.push(
+        await f.session({
+          customerId: await f.customer(),
+          branchId,
+          occurredAt: new Date(start.getTime() - HOUR),
+        }),
+      );
+    }
+    f.clock.at = start;
+    let calls = 0;
+    let counts = 0;
+    const reader: typeof daySessionsReader = {
+      ...daySessionsReader,
+      countSince: async (...args) => {
+        expect(calls).toBe(0);
+        counts += 1;
+        return daySessionsReader.countSince(...args);
+      },
+      sessionsSince: async (tx, companyId, range, afterSessionId, limit) => {
+        calls += 1;
+        if (calls === 2) {
+          for (const index of cancelledIndexes) {
+            const session = sessions[index];
+            if (session === undefined) throw new Error('SESSION_MISSING');
+            await f.cancelLine(session.lineId);
+          }
+        }
+        return daySessionsReader.sessionsSince(tx, companyId, range, afterSessionId, limit);
+      },
+    };
+    const checkpoint = sessions[1]?.sessionId;
+    if (checkpoint === undefined) throw new Error('SESSION_MISSING');
+    const result = await f.bootstrap(
+      () => undefined,
+      reader,
+    )({
+      companyId: f.tenant.company,
+      cutoff: new Date(start.getTime() - 48 * HOUR),
+      ...(resume ? { checkpoint } : {}),
+      pageSize: 2,
+    });
+    expect(counts).toBe(resume ? 2 : 1);
+    expect(result.expected).toBe(6);
+    expect(result.alreadyDone).toBe(resume ? 2 : 0);
+    expect(result.processed).toBe(resume ? 4 : 6);
+    expect(result.processed + result.alreadyDone).toBe(result.expected);
+    expect(result.complete).toBe(true);
+  },
+);

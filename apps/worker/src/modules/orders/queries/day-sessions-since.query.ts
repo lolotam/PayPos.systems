@@ -48,7 +48,7 @@ async function assertTenant(tx: Tx, companyId: string): Promise<void> {
     throw new Error('DAY_SESSIONS_TENANT_MISMATCH');
 }
 
-// مهمة bootstrap لطلبات التقييم تقرأ صفحة keyset ضمن نطاقها المجمد (FR-B02b).
+// حالة السطور متغيرة؛ عضوية صفحات bootstrap ثابتة والجدولة نفسها بتتعامل مع الإلغاء (FR-B02b).
 export function sessionsSinceStatement(
   companyId: string,
   range: BootstrapRangeRead,
@@ -63,9 +63,6 @@ export function sessionsSinceStatement(
       AND s.id <= ${range.maxSessionId}::uuid
       AND s.recorded_at <= ${range.recordedAtOrBefore.toISOString()}::timestamptz
       AND ${after}
-      AND EXISTS (SELECT 1 FROM service_lines l
-        WHERE l.company_id = ${companyId} AND l.company_id = app_company_id()
-          AND l.business_id = s.business_id AND l.session_id = s.id AND l.status = 'ACTIVE')
     ORDER BY s.id LIMIT ${limit}`;
 }
 
@@ -99,10 +96,7 @@ export function countSessionsSinceStatement(companyId: string, range: BootstrapR
     WHERE s.company_id = ${companyId} AND s.company_id = app_company_id()
       AND s.occurred_at >= ${range.cutoff.toISOString()}::timestamptz
       AND s.id <= ${range.maxSessionId}::uuid
-      AND s.recorded_at <= ${range.recordedAtOrBefore.toISOString()}::timestamptz
-      AND EXISTS (SELECT 1 FROM service_lines l
-        WHERE l.company_id = ${companyId} AND l.company_id = app_company_id()
-          AND l.business_id = s.business_id AND l.session_id = s.id AND l.status = 'ACTIVE')`;
+      AND s.recorded_at <= ${range.recordedAtOrBefore.toISOString()}::timestamptz`;
 }
 
 export async function countSessionsSince(

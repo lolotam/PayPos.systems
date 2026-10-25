@@ -89,7 +89,6 @@ Closed companies keep their schedulers. A company with `deleted_at` set records 
 `ATTENDANCE_NOT_CLOCKED_IN_RETRY` log requires investigation even if other shifts succeeded. Logs contain safe
 error types/codes and cause types/codes, never employee names, error messages or query parameters.
 
-
 ## 35b-2: recover retained late service-session bells
 
 After every replica runs the 35b-2 consumer/template, use the new release from apps/worker with ordinary
@@ -316,15 +315,18 @@ It is an operator run, once per company — not a BullMQ job — and it never se
    deadline-free session (a branch with no opening hours) older than the cutoff is deliberately not rated and is not
    counted. The optional flags are `--checkpoint <uuid>` (resume), `--max-session-id <uuid>` and
    `--recorded-before <ISO>` (reuse the frozen range of an earlier run), and `--page-size <1..200>`.
+
 3. **What it prints.** One line with the frozen range (`range cutoff=… maxSessionId=… recordedAtOrBefore=…`), one
+   `frozen expected=<n> alreadyDone=<n>` line with the counts taken when the range froze, one
    `checkpoint=<sessionId> processed=<n>` line after every page, and a final
-   `processed=<n> alreadyDone=<n> expected=<n> complete=<true|false>` line. The exit code is **1** when
-   `complete=false`.
+   `processed=<n> alreadyDone=<n> expected=<n> complete=<true|false>` line. The exit code is **1**
+   when `complete=false`.
 4. **Restart.** Re-run with the last printed `--checkpoint` together with the printed `--max-session-id` and
    `--recorded-before`, so the range stays frozen and the counts stay comparable. A page that fails is read again
    from its checkpoint; the scheduling use case is idempotent.
 5. **Stop rule.** A mismatch between `processed + alreadyDone` and `expected` stops the rollout — investigate
-   before running the next company. A session recorded after the job started is outside the frozen range and is
-   consumed live, so the count still matches.
+   before running the next company. Both counts are frozen before processing. Pages and counts include all
+   sessions in the frozen range, including cancelled sessions; the scheduling use case applies the current line
+   eligibility. Cancellation therefore cannot change the population being checked.
 6. **Until 59-2 ships**, the rating-request switch is off for every business, so the bootstrap schedules nothing
    yet; it only proves the frozen range and the coverage.

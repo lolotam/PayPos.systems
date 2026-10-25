@@ -94,7 +94,7 @@ question (what staff earn, `CLAUDE.md` §1 5b) and went to Abu Salem too (both o
 (`CLAUDE.md` V3.14, 2026-10-21) every question is on the shared decisions page for both owners and Abu Salem's pick binds
 on a difference: the product questions among PP-15…PP-23 were republished in batch 40 with Waleed's picks (here PP-18 = MY-Q1…MY-Q8,
 RT-Q1…RT-Q10 and RT-Q12, AL-Q1…AL-Q6; PP-20.4 = RT-Q13; PP-21.1 = MY-Q9; RT-Q11 was asked in batch 46), and AL-Q7
-is in batch 45. All are answered: the last, AL-Q8c (batch 57, PP-41.2: the optional number), by Waleed and Abu Salem on 2026-10-23. The last answered: RT-Q11, RT-Q14 and CS-Q30 in spec 059 on 2026-10-22, AL-Q8 on 2026-10-23 (batch 52, PP-36.1), and AL-Q8b on 2026-10-23 (batch 57, PP-41.1; Waleed and Abu Salem). If Abu Salem picks differently, his pick replaces the answer and the rule it names.
+is in batch 45. All are answered (RT-Q15, a closed weekday, row 59-1: both owners chose option 2 on 2026-10-25, batch 77): the last answered, AL-Q8c (batch 57, PP-41.2: the optional number), by Waleed and Abu Salem on 2026-10-23. The last answered: RT-Q11, RT-Q14 and CS-Q30 in spec 059 on 2026-10-22, AL-Q8 on 2026-10-23 (batch 52, PP-36.1), and AL-Q8b on 2026-10-23 (batch 57, PP-41.1; Waleed and Abu Salem). If Abu Salem picks differently, his pick replaces the answer and the rule it names.
 
 | ID | Subject | Blocks |
 |---|---|---|
@@ -122,6 +122,7 @@ is in batch 45. All are answered: the last, AL-Q8c (batch 57, PP-41.2: the optio
 | RT-Q12 | The message names the performers (first names) when there are several | **Answered (PP-18.20): all first names; more than 3 → «the team of <business>»** (the recommended option; D-B6) |
 | RT-Q13 | Who may switch rating requests on or off for a business (D-B16) | **Answered by Abu Salem (batch 40, 2026-10-22, binding; the recommended option, replacing Waleed's PP-20.4 «نفس صلاحية التنبيهات»):** its own permission «إدارة رسايل التقييم» (`manage:rating-requests:business`), held by the owner only at first, grantable to anyone (59-2) |
 | RT-Q14 | A visit recorded live after the close (22:15 at a 22:00 close): late entry (no message) or on time (rated), issue #452 | **Answered (Waleed, card, 2026-10-22, batch 46):** «تتحسب» — recorded up to 30 minutes after the day end, the visit belongs to the day and is rated; later it is a late entry. Abu Salem picked the same (2026-10-23) (RT-05, RT-06; 59-1) |
+| RT-Q15 | A visit on a weekday that is missing from a branch's configured opening hours (a closed day): no rating request, or a request treated like "no opening hours" | **Answered (Waleed, card, 2026-10-25, batch 77, PP-66), against the recommended option:** treat it like a day with no hours: the request is due one hour after the visit, with no send deadline, and the day ends at the branch-local midnight. Abu Salem confirmed option 2 on the decisions page at 14:56 Kuwait (RT-05; 59-1) |
 | AL-Q1 | Who edits the alert rules | **Answered by Abu Salem (batch 40, 2026-10-22, binding; the recommended option, replacing Waleed's PP-18.21 «نفس إدارة الإعدادات»):** a new permission «إدارة التنبيهات» (proposed code `manage:alert-rules:business`) for the owner, the general manager and the business manager, grantable to anyone. Built by issue #495: the route guards, the access check, the seeding migration 0167 and the tests use it |
 | AL-Q2 | Alert rules per business or per branch | **Answered (PP-18.22): «نشاط، والفرع يغيّر»**, business rules a branch may override (D-B13) — against the recommended option |
 | AL-Q3 | Recipients chosen by role or by named person | **Answered (PP-18.23): by role** (recommended) |
@@ -511,9 +512,12 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
   replay is rejected because it depends on outbox retention and on a dispatcher-facade path this slice does not need).
   Order: the 59-1 consumers are deployed on every replica first, so every event published after that is consumed live;
   then an operator job runs per company. `DaySessionsPort.sessionsSince(tx, companyId, range, afterSessionId, limit)`
-  pages `{ session_id, business_id, customer_id, branch_id, occurred_at }` of sessions with at least one active line,
+  pages `{ session_id, business_id, customer_id, branch_id, occurred_at }` of all sessions in the frozen range,
   `occurred_at >= cutoff`, keyset on the UUID v7 `session_id`, `limit` ≤ 200, with `countSince(tx, companyId, range)`
-  for coverage. **The range is frozen before the first page:** the job reads a watermark once, the highest `session_id`
+  for coverage. Cancelled sessions remain in both the pages and the count so concurrent cancellation cannot change
+  the covered population; the scheduling use case still derives eligibility from active lines and never rates a
+  cancelled visit. `expected` and `alreadyDone` are counted before processing the first page.
+  **The range is frozen before the first page:** the job reads a watermark once, the highest `session_id`
   and its own start instant `T0`, and both reads take the same `range = { cutoff, maxSessionId, recordedAtOrBefore: T0 }`
   (`session_id <= maxSessionId` and `recorded_at <= T0`). A session outside it, recorded after the job started
   (including one synced later with an older offline UUID v7), is left to the live consumer, already running. The cutoff is the job's start minus 48 hours (every deadline still ahead lies inside it). **The same

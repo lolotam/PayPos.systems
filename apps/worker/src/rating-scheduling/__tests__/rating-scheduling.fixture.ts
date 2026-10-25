@@ -59,11 +59,11 @@ export async function ratingSchedulingFixture() {
     consumer,
     deliver,
     tenant: TENANT.A,
-    bootstrap: (log: (line: string) => void) =>
+    bootstrap: (log: (line: string) => void, daySessions = daySessionsReader) =>
       createRatingBootstrap({
         ids,
         clock,
-        daySessions: daySessionsReader,
+        daySessions,
         ratingSwitch: enabled,
         db,
         log,

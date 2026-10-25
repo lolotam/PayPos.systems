@@ -25,20 +25,6 @@ export function requestDayOf(
 }
 
 /**
- * يحدد إن يوم الطلب يوم مقفول: مواعيد الفرع مضبوطة بس اليوم ده مش موجود فيها ولا فيه فترات.
- *
- * @param day يوم الطلب بصيغة YYYY-MM-DD
- * @param openingHours مواعيد الفرع أو null عند عدم ضبطها
- * @returns true لما يكون اليوم مقفول في مواعيد الفرع
- */
-export function isClosedDay(day: string, openingHours: OpeningHoursValue | null): boolean {
-  if (openingHours === null || openingHours.length === 0) return false;
-  const openingDay = openingHours.find((entry) => entry.weekday === isoWeekdayOf(day));
-  // TODO(spec) RT-Q15 (سؤال المالكين رقم 31) هو اللي يقرر معنى اليوم المقفول؛ لحد ما يجاوب، اليوم المقفول ما بياخدش طلب تقييم خالص.
-  return openingDay === undefined || openingDay.intervals.length === 0;
-}
-
-/**
  * يحسب آخر إغلاق بين فترات يوم الطلب، وينقل إغلاق الفترة الليلية إلى اليوم المدني التالي.
  *
  * @param day يوم الطلب بصيغة YYYY-MM-DD
@@ -53,7 +39,7 @@ export function dayClose(
 ): Date | null {
   if (openingHours === null || openingHours.length === 0) return null;
   const openingDay = openingHours.find((entry) => entry.weekday === isoWeekdayOf(day));
-  // TODO(spec) الجدولة مش بتوصل هنا في يوم مقفول لأن sessionsOfDay بيشيل جلسات اليوم ده؛ وdayClose بيرجع null عشان dayEnd وisLateEntry يفضلوا شاملين.
+  // يوم ناقص من المواعيد أو قائمة فاضية أو مواعيد غير مضبوطة: كلها معناها «مفيش إغلاق معروف» (إجابة المالك RT-Q15، PP-66).
   if (openingDay === undefined || openingDay.intervals.length === 0) return null;
   const lastClose = Math.max(
     ...openingDay.intervals.map(
