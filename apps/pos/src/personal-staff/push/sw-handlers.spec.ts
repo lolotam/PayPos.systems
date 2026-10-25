@@ -39,7 +39,7 @@ function store(record: PushRecord | null): PushRecordStore {
     write: async () => undefined,
     remove: async () => undefined,
     removeIfMatches: async () => false,
-    suspend: async () => 0,
+    suspend: async () => null,
     generation: async () => 0,
     bumpGeneration: async () => 1,
     writeIfGeneration: async () => true,

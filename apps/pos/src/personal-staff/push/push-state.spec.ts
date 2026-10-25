@@ -28,6 +28,8 @@ function input(over: Partial<PushStateInput> = {}): PushStateInput {
     companyId: over.companyId ?? COMPANY,
     browserSubscribed: over.browserSubscribed ?? false,
     reconnecting: over.reconnecting ?? false,
+    canEnable: over.canEnable ?? true,
+    recordReadFailed: over.recordReadFailed ?? false,
   };
 }
 
@@ -89,6 +91,97 @@ describe('the five states of the mobile notifications control', () => {
     );
 
     expect(decision.state).toBe('off');
+  });
+});
+
+describe('a browser without the cross tab lock', () => {
+  it('says the browser is unsupported when there is nothing to turn off', () => {
+    const decision = decidePushState(input({ canEnable: false }));
+
+    expect(decision.state).toBe('unsupported');
+    expect(decision.canDisable).toBe(false);
+    expect(decision.canEnable).toBe(false);
+  });
+
+  it('shows on with an own subscription of this company', () => {
+    const decision = decidePushState(
+      input({ canEnable: false, permission: 'granted', record: record(), browserSubscribed: true }),
+    );
+
+    expect(decision.state).toBe('on');
+    expect(decision.canDisable).toBe(true);
+    expect(decision.canEnable).toBe(false);
+  });
+
+  it('shows off and reconnecting for a suspended own record', () => {
+    const decision = decidePushState(
+      input({
+        canEnable: false,
+        permission: 'granted',
+        record: record({ suspended: true }),
+        browserSubscribed: true,
+        reconnecting: true,
+      }),
+    );
+
+    expect(decision.state).toBe('off');
+    expect(decision.reconnecting).toBe(true);
+    expect(decision.canDisable).toBe(true);
+  });
+
+  it('keeps the turn off action when the browser blocked the notifications', () => {
+    const decision = decidePushState(
+      input({ canEnable: false, permission: 'denied', record: record(), browserSubscribed: true }),
+    );
+
+    expect(decision.state).toBe('blocked');
+    expect(decision.canDisable).toBe(true);
+  });
+});
+
+describe('a browser without the cross tab lock and foreign or unknown records', () => {
+  it('cannot turn off a subscription of another company', () => {
+    const decision = decidePushState(
+      input({
+        canEnable: false,
+        permission: 'granted',
+        record: record({ company_id: 'other' }),
+        browserSubscribed: true,
+      }),
+    );
+
+    expect(decision.canDisable).toBe(false);
+  });
+
+  it('shows off with nothing to turn off when the browser can enable', () => {
+    const decision = decidePushState(input({ canEnable: true }));
+
+    expect(decision.state).toBe('off');
+    expect(decision.canDisable).toBe(false);
+  });
+
+  it('never turns off anything when the record could not be read', () => {
+    const decision = decidePushState(
+      input({
+        recordReadFailed: true,
+        canEnable: true,
+        browserSubscribed: true,
+        permission: 'granted',
+      }),
+    );
+
+    expect(decision.state).toBe('unsupported');
+    expect(decision.storageBlocked).toBe(true);
+    expect(decision.canEnable).toBe(false);
+    expect(decision.canDisable).toBe(false);
+  });
+
+  it('turns off a real subscription of this company when the record is really empty', () => {
+    const decision = decidePushState(
+      input({ canEnable: false, browserSubscribed: true, permission: 'granted' }),
+    );
+
+    expect(decision.canDisable).toBe(true);
   });
 });
 

@@ -6,6 +6,7 @@ import type { PushRecord, PushWriteOptions } from './push-record';
 import { refreshPush } from './push-refresh';
 
 const INSTALLATION = '12345678-1234-4234-8234-123456789abc';
+const WINNER = 'test-winner-b';
 
 const fakes = vi.hoisted(() => {
   const state = {
@@ -48,11 +49,11 @@ vi.mock('./push-record-idb', () => ({
     suspend: async () => {
       if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       const stored = fakes.state.record;
-      if (stored === null) return 0;
+      if (stored === null) return null;
       const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
       fakes.state.record = suspended;
       fakes.state.writes.push(suspended);
-      return suspended.revision;
+      return { record: suspended, generation: fakes.state.generation };
     },
     remove: async () => {
       fakes.state.removed += 1;
@@ -257,13 +258,34 @@ it('removes a record of another person and sends no registration', async () => {
   expect(pushCalls.register).not.toHaveBeenCalled();
 });
 
-it('removes the record when the rotation cannot write it', async () => {
+it('leaves the record alone when the rotation cannot write it', async () => {
   fakes.state.record = { ...RECORD, vapid_key_id: 'oldkey0000000000' };
   fakes.state.writeIfGenerationFails = true;
 
   const outcome = await refreshPush(input());
 
+  expect(outcome).toEqual({ kind: 'none' });
+  expect(fakes.state.record?.vapid_key_id).toBe('oldkey0000000000');
+  expect(fakes.state.removed).toBe(0);
+  expect(pushCalls.revoke).not.toHaveBeenCalled();
+  // اشتراك واحد بس: بتاع التدوير نفسه وقت ما يبدّل الاشتراك قبل الكتابة.
+  expect(fakes.state.unsubscribed).toBe(1);
+});
+
+it('drops the rotation registration when another tab took the record', async () => {
+  fakes.state.record = { ...RECORD, vapid_key_id: 'oldkey0000000000' };
+  vi.mocked(pushCalls.register).mockImplementation(async () => {
+    // تسجيل تاني كسب السجل قبل ما كتابة التدوير تتنفذ.
+    fakes.state.record = { ...RECORD, token: WINNER };
+  });
+
+  const outcome = await refreshPush(input());
+
   expect(outcome).toEqual({ kind: 'cleared' });
-  expect(fakes.state.removed).toBe(1);
-  expect(fakes.state.record).toBeNull();
+  expect(fakes.state.record?.token).toBe(WINNER);
+  expect(fakes.state.record?.suspended).toBe(false);
+  expect(fakes.state.removed).toBe(0);
+  // تسجيلنا ما بقى مطلوبش من حد: الاشتراك بيتشال والسطر بتاعنا بيراجع.
+  expect(fakes.state.unsubscribed).toBe(2);
+  expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION, expect.any(AbortSignal));
 });

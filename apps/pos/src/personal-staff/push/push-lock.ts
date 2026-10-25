@@ -25,3 +25,14 @@ export function runPushExclusive<T>(work: () => Promise<T>): Promise<T> {
   if (locks !== undefined) return locks.request('pospay-push', work);
   return runInQueue(work);
 }
+
+/**
+ * بيقول إن في قفل حقيقي بين التبويبات: Web Locks بس هو اللي بيوقف تشغيل وتحديث
+ * متزامنين في تبويبين على نفس الموبايل. الطابور البديل جوه التبويب نفسه مش بيقفش
+ * حاجة، فبدونه التسجيلين بيركبوا على اشتراك واحد وسطر واحد على السيرفر.
+ *
+ * @returns true لو المتصفح عنده Web Locks
+ */
+export function hasCrossTabLock(): boolean {
+  return globalThis.navigator?.locks !== undefined;
+}

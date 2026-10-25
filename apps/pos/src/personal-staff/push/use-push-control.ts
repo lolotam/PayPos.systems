@@ -6,6 +6,7 @@ import type { Locale } from '@pospay/i18n';
 import { useLocale } from '@/shared/locale/locale-context';
 import { attendanceInstallationId } from '../model/installation-id';
 import {
+  canEnablePush,
   currentSubscription,
   isIosDevice,
   isStandalone,
@@ -27,11 +28,18 @@ const INVITATION_KEY = 'pospay.push.invitationSeen';
 
 interface LocalSnapshot {
   record: PushRecord | null;
+  /** قراءة السجل فشلت: السجل مش معروف، فمفيش حاجة نعدّلها. */
+  recordReadFailed: boolean;
   permission: PushPermission;
   subscribed: boolean;
 }
 
-const EMPTY_SNAPSHOT: LocalSnapshot = { record: null, permission: 'default', subscribed: false };
+const EMPTY_SNAPSHOT: LocalSnapshot = {
+  record: null,
+  recordReadFailed: false,
+  permission: 'default',
+  subscribed: false,
+};
 
 interface PushLocalState {
   snapshot: LocalSnapshot;
@@ -78,12 +86,20 @@ function usePushLocalState(): PushLocalState {
   const [seen, setSeen] = useState(true);
 
   const reload = useCallback(async () => {
-    const record = await pushRecordStore.read().catch(() => null);
+    let record: PushRecord | null;
+    let recordReadFailed = false;
+    try {
+      record = await pushRecordStore.read();
+    } catch {
+      // القراءة فشلت: السجل مش معروف، فبنعتبره مش موجود بس من غير ما نمدّ إيدنا.
+      recordReadFailed = true;
+      record = null;
+    }
     const permission = notificationPermission();
     const subscribed = supportsPush()
       ? (await currentSubscription().catch(() => null)) !== null
       : false;
-    setSnapshot({ record, permission, subscribed });
+    setSnapshot({ record, recordReadFailed, permission, subscribed });
     setLoaded(true);
   }, []);
 
@@ -196,6 +212,8 @@ function usePushActions(input: {
   companyId: string;
   locale: Locale;
   installationId: string | null;
+  record: PushRecord | null;
+  recordReadFailed: boolean;
   reload: () => Promise<void>;
   markSeen: () => void;
   onEnabled: (token: string) => void;
@@ -227,17 +245,24 @@ function usePushActions(input: {
 
   const disable = useCallback(async () => {
     if (pending) return;
+    // القراءة اللي على الشاشة فشلت: السجل مش معروف، فمفيش حاجة نمسحها.
+    if (input.recordReadFailed) return;
     setPending(true);
     setFailed(false);
     try {
-      await disablePush(installationId);
+      // الإيقاف بيمشي على لقطة السجل المعروضة: لو تبويب تاني غيّره، ما نعملش حاجة.
+      const outcome = await disablePush(installationId, {
+        token: input.record?.token ?? null,
+        revision: input.record?.revision ?? 0,
+      });
+      if (outcome === 'failed') setFailed(true);
     } catch {
       // الإيقاف بيمسح السجل في كل الأحوال؛ فشل الشبكة بيسيب الحالة مقفولة.
     } finally {
       setPending(false);
       await reload();
     }
-  }, [installationId, pending, reload]);
+  }, [installationId, input.record, input.recordReadFailed, pending, reload]);
 
   return { pending, failed, enable, disable };
 }
@@ -258,6 +283,8 @@ export function usePushControl({ companyId }: { companyId: string }) {
     companyId,
     locale,
     installationId: local.installationId,
+    record: local.snapshot.record,
+    recordReadFailed: local.snapshot.recordReadFailed,
     reload: local.reload,
     markSeen: local.markSeen,
     onEnabled: (token: string) => {
@@ -278,6 +305,8 @@ export function usePushControl({ companyId }: { companyId: string }) {
     companyId,
     browserSubscribed: local.snapshot.subscribed,
     reconnecting: local.snapshot.record?.suspended === true,
+    canEnable: canEnablePush(),
+    recordReadFailed: local.snapshot.recordReadFailed,
   });
   return {
     visible: decision.visible && local.loaded && config.settled,
@@ -285,10 +314,13 @@ export function usePushControl({ companyId }: { companyId: string }) {
     storageBlocked: decision.storageBlocked,
     offline: decision.offline,
     reconnecting: decision.reconnecting,
+    canEnable: decision.canEnable,
+    canDisable: decision.canDisable,
     pending: actions.pending,
     failed: actions.failed,
     invitation:
       decision.visible &&
+      decision.canEnable &&
       decision.state === 'off' &&
       local.snapshot.permission === 'default' &&
       !local.seen,

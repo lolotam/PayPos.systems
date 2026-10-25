@@ -60,15 +60,28 @@ vi.mock('./push-record-idb', () => ({
     },
     suspend: async () => {
       const stored = fakes.state.record;
-      if (stored === null) return 0;
+      if (stored === null) return null;
       const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
       fakes.state.record = suspended;
       fakes.state.writes.push(suspended);
-      return suspended.revision;
+      return { record: suspended, generation: fakes.state.generation };
     },
     remove: async () => {
       fakes.state.removed += 1;
       fakes.state.record = null;
+    },
+    removeIfMatches: async (expected: { token: string | null; revision: number }) => {
+      const stored = fakes.state.record;
+      if (
+        stored === null ||
+        stored.token !== expected.token ||
+        stored.revision !== expected.revision
+      ) {
+        return false;
+      }
+      fakes.state.removed += 1;
+      fakes.state.record = null;
+      return true;
     },
     generation: async () => fakes.state.generation,
     bumpGeneration: async () => {
@@ -110,6 +123,7 @@ vi.mock('./push-browser', () => {
     hasPushManager: () => fakes.state.supported,
     hasNotification: () => fakes.state.supported,
     supportsPush: () => fakes.state.supported,
+    canEnablePush: () => fakes.state.supported,
     isIosDevice: () => fakes.state.ios,
     isStandalone: () => fakes.state.standalone,
     notificationPermission: () => fakes.state.permission,

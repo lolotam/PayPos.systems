@@ -11,12 +11,25 @@ const CONFIG = {
   vapid_key_id: '0123456789abcdef',
   subscriber_ref: 'subscriber-ref',
 };
+const PREVIOUS = 'test-previous-a';
+
+const RECORD: PushRecord = {
+  token: PREVIOUS,
+  subscriber_ref: 'subscriber-ref',
+  company_id: 'company',
+  vapid_key_id: '0123456789abcdef',
+  suspended: false,
+  revision: 0,
+};
 
 const fakes = vi.hoisted(() => ({
   record: null as PushRecord | null,
+  generation: 0,
+  readFails: false,
 }));
 
 vi.mock('./push-lock', () => ({
+  hasCrossTabLock: () => true,
   runPushExclusive: <T>(work: () => Promise<T>) => work(),
 }));
 
@@ -24,10 +37,13 @@ vi.mock('./push-record-events', () => ({ notifyPushRecordChanged: vi.fn() }));
 
 vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
-    generation: async () => 0,
-    read: async () => (fakes.record === null ? null : { ...fakes.record }),
+    generation: async () => fakes.generation,
+    read: async () => {
+      if (fakes.readFails) throw new Error('PUSH_STORE_UNAVAILABLE');
+      return fakes.record === null ? null : { ...fakes.record };
+    },
     writeIfGeneration: async (record: PushRecord, expected: number, options?: PushWriteOptions) => {
-      if (expected !== 0) return false;
+      if (expected !== fakes.generation) return false;
       const stored = fakes.record;
       if (
         options?.expectRevision !== undefined &&
@@ -80,9 +96,18 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+const input = {
+  companyId: 'company',
+  locale: 'en' as const,
+  installationId: INSTALLATION,
+  onRegistered: vi.fn(),
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   fakes.record = null;
+  fakes.generation = 0;
+  fakes.readFails = false;
   vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: CONFIG });
   vi.mocked(pushCalls.revoke).mockResolvedValue(undefined);
 });
@@ -97,12 +122,6 @@ it('refuses the second enable when both started from an empty record', async () 
     if (registrations === 2) bothRegistered.resolve(undefined);
     return registrations === 1 ? firstRegistration.promise : secondRegistration.promise;
   });
-  const input = {
-    companyId: 'company',
-    locale: 'en' as const,
-    installationId: INSTALLATION,
-    onRegistered: vi.fn(),
-  };
 
   const first = enablePush(input);
   const second = enablePush(input);
@@ -120,4 +139,47 @@ it('refuses the second enable when both started from an empty record', async () 
   expect(fakes.record?.token).toBe(firstToken);
   expect(unsubscribePush).toHaveBeenCalledTimes(1);
   expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION, expect.any(AbortSignal));
+});
+
+it('tears the registration down when the record was removed while it was registering', async () => {
+  vi.mocked(pushCalls.register).mockImplementation(async () => {
+    // خروج في تبويب تاني كسر الجيل ومسح السجل أثناء تسجيلنا.
+    fakes.generation = 1;
+    fakes.record = null;
+  });
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'failed' });
+  expect(unsubscribePush).toHaveBeenCalledTimes(1);
+  expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION, expect.any(AbortSignal));
+});
+
+it('tears the registration down when a sign-in suspension bumped the record revision', async () => {
+  fakes.record = { ...RECORD };
+  vi.mocked(pushCalls.register).mockImplementation(async () => {
+    // تعليق دخول وصل وقت التسجيل: نفس التوكن بمراجعة أعلى.
+    fakes.record = { ...RECORD, suspended: true, revision: 1 };
+  });
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'failed' });
+  // واحد لتبديل الاشتراك القديم وواحد للتفكيك.
+  expect(unsubscribePush).toHaveBeenCalledTimes(2);
+  expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION, expect.any(AbortSignal));
+  expect(fakes.record?.suspended).toBe(true);
+  expect(fakes.record?.revision).toBe(1);
+});
+
+it('fails without touching the network when the local record cannot be read', async () => {
+  fakes.readFails = true;
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'failed' });
+  expect(pushCalls.config).not.toHaveBeenCalled();
+  expect(pushCalls.register).not.toHaveBeenCalled();
+  expect(unsubscribePush).not.toHaveBeenCalled();
+  expect(pushCalls.revoke).not.toHaveBeenCalled();
 });
