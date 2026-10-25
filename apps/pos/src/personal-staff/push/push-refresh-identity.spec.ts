@@ -17,6 +17,7 @@ const fakes = vi.hoisted(() => ({
   writes: [] as PushRecord[],
   unsubscribed: 0,
   removed: 0,
+  raceBeforeRemove: false,
 }));
 
 const RECORD: PushRecord = {
@@ -44,6 +45,26 @@ vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
     generation: async () => 0,
     read: async () => (fakes.record === null ? null : { ...fakes.record }),
+    removeIfMatches: async (expected: { token: string | null; revision: number }) => {
+      if (fakes.raceBeforeRemove && fakes.record !== null) {
+        fakes.record = {
+          ...fakes.record,
+          token: 'replaced-by-another-tab',
+          revision: fakes.record.revision + 1,
+        };
+      }
+      const stored = fakes.record;
+      if (
+        stored === null ||
+        stored.token !== expected.token ||
+        stored.revision !== expected.revision
+      ) {
+        return false;
+      }
+      fakes.removed += 1;
+      fakes.record = null;
+      return true;
+    },
     remove: async () => {
       fakes.removed += 1;
       fakes.record = null;
@@ -112,6 +133,7 @@ beforeEach(() => {
   fakes.writes = [];
   fakes.unsubscribed = 0;
   fakes.removed = 0;
+  fakes.raceBeforeRemove = false;
   vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: CONFIG_A });
   vi.mocked(pushCalls.register).mockResolvedValue(undefined);
   vi.mocked(pushCalls.revoke).mockResolvedValue(undefined);
@@ -138,7 +160,7 @@ it('changes nothing when the same person signed in to another company', async ()
   expect(pushCalls.revoke).not.toHaveBeenCalled();
 });
 
-it('suspends first when another person signed in to another company', async () => {
+it('clears the record when another person signed in to another company', async () => {
   vi.mocked(pushCalls.config).mockResolvedValue({
     kind: 'ready',
     config: { ...CONFIG_B, subscriber_ref: OTHER_PERSON.subscriber_ref },
@@ -146,8 +168,9 @@ it('suspends first when another person signed in to another company', async () =
 
   const outcome = await refreshPush(input());
 
-  expect(outcome).toEqual({ kind: 'session-changed' });
-  expect(fakes.record?.suspended).toBe(true);
+  expect(outcome).toEqual({ kind: 'cleared' });
+  expect(fakes.record).toBeNull();
+  expect(fakes.unsubscribed).toBe(1);
   expect(pushCalls.register).not.toHaveBeenCalled();
 });
 
@@ -163,16 +186,39 @@ it('uses the current session and suspends nothing when only the caller config is
   );
 });
 
-it('suspends the record at once when the session belongs to another person', async () => {
+it('deletes the record and drops the subscription when the session belongs to another person', async () => {
   vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: OTHER_PERSON });
 
   const outcome = await refreshPush(input());
 
-  expect(outcome).toEqual({ kind: 'session-changed' });
-  expect(fakes.record?.suspended).toBe(true);
-  expect(fakes.record?.revision).toBe(RECORD.revision + 1);
+  expect(outcome).toEqual({ kind: 'cleared' });
+  expect(fakes.record).toBeNull();
+  expect(fakes.removed).toBe(1);
+  expect(fakes.unsubscribed).toBe(1);
   expect(pushCalls.register).not.toHaveBeenCalled();
   expect(notifyPushRecordChanged).toHaveBeenCalled();
+});
+
+it('also deletes a suspended record of another person on a successful open', async () => {
+  fakes.record = { ...RECORD, suspended: true, revision: 4 };
+  vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: OTHER_PERSON });
+
+  const outcome = await refreshPush(input());
+
+  expect(outcome).toEqual({ kind: 'cleared' });
+  expect(fakes.record).toBeNull();
+  expect(fakes.unsubscribed).toBe(1);
+});
+
+it('leaves the browser subscription alone when another tab replaced the record first', async () => {
+  fakes.raceBeforeRemove = true;
+  vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: OTHER_PERSON });
+
+  const outcome = await refreshPush(input());
+
+  expect(outcome).toEqual({ kind: 'none' });
+  expect(fakes.record?.token).toBe('replaced-by-another-tab');
+  expect(fakes.unsubscribed).toBe(0);
 });
 
 it('suspends the record again when the session changes before the PUT', async () => {

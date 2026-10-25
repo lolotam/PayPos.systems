@@ -47,6 +47,19 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.record = record;
       fakes.state.writes.push(record);
     },
+    removeIfMatches: async (expected: { token: string | null; revision: number }) => {
+      const stored = fakes.state.record;
+      if (
+        stored === null ||
+        stored.token !== expected.token ||
+        stored.revision !== expected.revision
+      ) {
+        return false;
+      }
+      fakes.state.removed += 1;
+      fakes.state.record = null;
+      return true;
+    },
     suspend: async () => {
       if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       const stored = fakes.state.record;
@@ -226,7 +239,7 @@ it('restores a suspended record of this company when the subscriber reference ma
   expect(fakes.state.unsubscribed).toBe(0);
 });
 
-it('leaves a suspended record of another person suspended without writing it again', async () => {
+it('removes a suspended record of another person on a successful open', async () => {
   fakes.state.record = { ...RECORD, suspended: true };
   vi.mocked(pushCalls.config).mockResolvedValue({
     kind: 'ready',
@@ -235,11 +248,10 @@ it('leaves a suspended record of another person suspended without writing it aga
 
   const outcome = await refreshPush(input({ ...CONFIG, subscriber_ref: 'another-ref' }));
 
-  expect(outcome).toEqual({ kind: 'session-changed' });
-  expect(fakes.state.record).toEqual({ ...RECORD, suspended: true });
-  expect(fakes.state.writes).toEqual([]);
-  expect(fakes.state.removed).toBe(0);
-  expect(fakes.state.unsubscribed).toBe(0);
+  expect(outcome).toEqual({ kind: 'cleared' });
+  expect(fakes.state.record).toBeNull();
+  expect(fakes.state.removed).toBe(1);
+  expect(fakes.state.unsubscribed).toBe(1);
 });
 
 it('leaves a suspended record of another company untouched', async () => {
@@ -253,7 +265,7 @@ it('leaves a suspended record of another company untouched', async () => {
   expect(pushCalls.register).not.toHaveBeenCalled();
 });
 
-it('suspends a record of another person and sends no registration', async () => {
+it('removes a record of another person and sends no registration', async () => {
   fakes.state.record = { ...RECORD };
   vi.mocked(pushCalls.config).mockResolvedValue({
     kind: 'ready',
@@ -262,11 +274,10 @@ it('suspends a record of another person and sends no registration', async () => 
 
   const outcome = await refreshPush(input({ ...CONFIG, subscriber_ref: 'another-ref' }));
 
-  expect(outcome).toEqual({ kind: 'session-changed' });
-  expect(fakes.state.record?.suspended).toBe(true);
-  expect(fakes.state.record?.revision).toBe(RECORD.revision + 1);
-  expect(fakes.state.record?.token).toBe(RECORD.token);
-  expect(fakes.state.removed).toBe(0);
+  expect(outcome).toEqual({ kind: 'cleared' });
+  expect(fakes.state.record).toBeNull();
+  expect(fakes.state.removed).toBe(1);
+  expect(fakes.state.unsubscribed).toBe(1);
   expect(pushCalls.register).not.toHaveBeenCalled();
 });
 

@@ -57,12 +57,10 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
     // قراءة غير مؤكدة: من غير هوية الجلسة ما فيش تسجيل ولا تغيير (ADR-0052 §7).
     const fresh = await fetchSessionConfig();
     if (fresh === null) return { kind: 'none' };
-    // القرار على صاحب السجل المخزن مش على إعدادات اللي نادى (ممكن تكون قديمة): سجل شخص
-    // تاني بيتعلّق في نفس الخطوة عشان نصه ما يوصلش للجلسة دي (ADR-0052 §7).
+    // القرار على صاحب السجل المخزن مش على إعدادات اللي نادى (ممكن تكون قديمة): اختلاف
+    // مؤكد في الشخص معناه إن المقارنة خلصت، فالسجل بيتمسح والمتصفح بيشيل الاشتراك (ADR-0052 §7).
     if (fresh.subscriber_ref !== record.subscriber_ref) {
-      // سجل معلّق أصلاً مش محتاج كتابة تانية: الواجهة بس تقرا الجلسة الجديدة.
-      if (record.suspended) return { kind: 'session-changed' };
-      return suspendChangedSession(fresh.subscriber_ref);
+      return discardOtherPersonRecord(record, fresh.subscriber_ref);
     }
     // نفس الشخص في شركة تانية: مفيش تغيير (FR-018، FR-019، WP-Q4). الفحص ده بعد فحص الشخص
     // عشان النتيجة ماتعتمدش على توقيت الكاش، والتحديث دايمًا بإعدادات الجلسة الحالية.
@@ -71,6 +69,35 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
     }
     return refreshWithConfig({ ...input, config: fresh }, record, generation);
   });
+}
+
+/**
+ * بيمسح سجل شخص تاني واتأكد اختلافه ويشيل اشتراك المتصفح، تحت القفل. المسح بيمشي على
+ * التوكن والمراجعة اللي اتقرت (لو تبويب تاني كسب السجل مبيتمسحش ومفيش إلغاء)، وبيحصل
+ * قبل الإلغاء عشان نص الموظفة القديمة ما يظهرش وهي لسه على الشاشة. لو المخزن رمى استثناء
+ * بنرجع للتعليق المحروس بصاحب الجلسة (fail-closed).
+ *
+ * @param record السجل المقروء تحت القفل وصاحبه مختلف عن الجلسة
+ * @param currentSubscriberRef مرجع شخص الجلسة الحالية
+ * @returns cleared لما اتمسح، none لما تبويب تاني كسب السجل، session-changed بعد التعليق
+ */
+async function discardOtherPersonRecord(
+  record: PushRecord,
+  currentSubscriberRef: string,
+): Promise<PushRefreshOutcome> {
+  let removed: boolean;
+  try {
+    removed = await pushRecordStore.removeIfMatches({
+      token: record.token,
+      revision: record.revision,
+    });
+  } catch {
+    return suspendChangedSession(currentSubscriberRef);
+  }
+  if (!removed) return { kind: 'none' };
+  notifyPushRecordChanged();
+  await dropSubscription();
+  return { kind: 'cleared' };
 }
 
 /**

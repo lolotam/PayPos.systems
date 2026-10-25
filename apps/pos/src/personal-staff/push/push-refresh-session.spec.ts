@@ -38,6 +38,19 @@ vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
     generation: async () => 0,
     read: async () => (fakes.record === null ? null : { ...fakes.record }),
+    removeIfMatches: async (expected: { token: string | null; revision: number }) => {
+      const stored = fakes.record;
+      if (
+        stored === null ||
+        stored.token !== expected.token ||
+        stored.revision !== expected.revision
+      ) {
+        return false;
+      }
+      fakes.removed += 1;
+      fakes.record = null;
+      return true;
+    },
     remove: async () => {
       fakes.removed += 1;
       fakes.record = null;
@@ -124,19 +137,17 @@ const input = (config: PushConfig = CONFIG) => ({
 });
 
 it.each([false, true])(
-  'suspends the record when the session belongs to another person',
+  'deletes the record when the session belongs to another person (suspended: %s)',
   async (suspended) => {
     fakes.record = { ...RECORD, suspended };
     vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: OTHER });
 
     const outcome = await refreshPush(input());
 
-    expect(outcome).toEqual({ kind: 'session-changed' });
-    expect(fakes.record?.suspended).toBe(true);
-    // سجل معلّق أصلاً ما بيتكتبش تاني.
-    expect(fakes.record?.revision).toBe(RECORD.revision + (suspended ? 0 : 1));
-    expect(fakes.removed).toBe(0);
-    expect(fakes.unsubscribed).toBe(0);
+    expect(outcome).toEqual({ kind: 'cleared' });
+    expect(fakes.record).toBeNull();
+    expect(fakes.removed).toBe(1);
+    expect(fakes.unsubscribed).toBe(1);
     expect(pushCalls.register).not.toHaveBeenCalled();
     expect(pushCalls.revoke).not.toHaveBeenCalled();
   },

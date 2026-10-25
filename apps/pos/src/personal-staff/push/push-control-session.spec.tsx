@@ -50,6 +50,18 @@ vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
     generation: async () => 0,
     read: async () => (fakes.record === null ? null : { ...fakes.record }),
+    removeIfMatches: async (expected: { token: string | null; revision: number }) => {
+      const stored = fakes.record;
+      if (
+        stored === null ||
+        stored.token !== expected.token ||
+        stored.revision !== expected.revision
+      ) {
+        return false;
+      }
+      fakes.record = null;
+      return true;
+    },
     remove: async () => {
       fakes.record = null;
     },
@@ -140,18 +152,17 @@ beforeEach(() => {
 it('turns the control off once another person is confirmed in the session', async () => {
   const view = mount();
 
-  // سجل شخص تاني بيتعلّق مرة واحدة أول ما الاختلاف يتأكد، ومفيش كتابة تانية بعد كده.
-  expect(await screen.findByText(t('en', 'staffPush.reconnecting'))).toBeDefined();
-  expect(screen.getByText(t('en', 'staffPush.off'))).toBeDefined();
+  // الاختلاف اتأكد على فتح ناجح: سجل الشخص التاني اتمسح والاشتراك اتشال.
+  await waitFor(() => expect(fakes.record).toBeNull());
+  expect(await screen.findByText(t('en', 'staffPush.off'))).toBeDefined();
+  expect(screen.queryByText(t('en', 'staffPush.reconnecting'))).toBeNull();
   expect(screen.queryByText(t('en', 'staffPush.on'))).toBeNull();
-  expect(fakes.record?.suspended).toBe(true);
-  expect(fakes.record?.revision).toBe(RECORD_A.revision + 1);
+  expect(fakes.subscribed).toBe(false);
   expect(screen.getByRole('button', { name: t('en', 'staffPush.enable') })).toBeDefined();
   expect(pushCalls.register).not.toHaveBeenCalled();
   // الإعدادات اتقرت تاني مرتين بالكتير (الجلسة الجديدة وتأكيدها)، والتحديث ما اشتغلش في حلقة.
-  await waitFor(() => expect(screenRequests()).toBe(3));
   await new Promise((resolve) => setTimeout(resolve, 100));
-  expect(screenRequests()).toBe(3);
-  expect(vi.mocked(refreshPush).mock.calls.length).toBeLessThanOrEqual(3);
+  expect(screenRequests()).toBeLessThanOrEqual(2);
+  expect(vi.mocked(refreshPush).mock.calls.length).toBeLessThanOrEqual(2);
   view.unmount();
 });

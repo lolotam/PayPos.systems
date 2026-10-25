@@ -122,10 +122,11 @@ it('never registers the old person under the new shared-phone session', async ()
     installationId: INSTALLATION,
   });
 
-  expect(stale).toEqual({ kind: 'session-changed' });
+  // الشخص التاني اتأكد على فتح ناجح: سجل A (المعلّق) اتمسح، ومفيش PUT بتوكنه.
+  expect(stale).toEqual({ kind: 'cleared' });
   expect(pushCalls.register).not.toHaveBeenCalled();
   expect(model.rows.get(`${COMPANY}:${INSTALLATION}`)).toEqual(serverRow);
-  expect(model.record?.suspended).toBe(true);
+  expect(model.record).toBeNull();
 
   const current = await refreshPush({
     companyId: COMPANY,
@@ -134,10 +135,8 @@ it('never registers the old person under the new shared-phone session', async ()
     installationId: INSTALLATION,
   });
 
-  // سجل الشخص التاني فضل معلّق زي ما هو: الجلسة الجديدة مش صاحبته.
-  expect(current).toEqual({ kind: 'session-changed' });
-  expect(model.record?.subscriber_ref).toBe(PERSON_A);
-  expect(model.record?.suspended).toBe(true);
+  expect(current).toEqual({ kind: 'none' });
+  expect(model.record).toBeNull();
   expect(pushCalls.register).not.toHaveBeenCalled();
   expect(model.rows.get(`${COMPANY}:${INSTALLATION}`)).toEqual(serverRow);
 });
