@@ -137,6 +137,23 @@ describe('the accepted request', () => {
 });
 
 describe('the enqueue failure', () => {
+  it('returns the original render ID when reconciliation finds an accepted job', async () => {
+    f.state.queueFails = true;
+    f.state.acceptedAfterError = true;
+    await expect(f.execute()).resolves.toEqual({ render_id: 'render-1' });
+    expect(f.state.inserted).toHaveLength(1);
+    expect(f.state.failed).toEqual([]);
+    expect(f.state.limitHits).toBe(1);
+  });
+
+  it('fails closed when Redis cannot establish whether the job was accepted', async () => {
+    f.state.queueFails = true;
+    f.state.reconciliationFails = true;
+    await expectRefusal({}, 'RENDERER_UNAVAILABLE');
+    expect(f.state.inserted).toHaveLength(1);
+    expect(f.state.failed).toEqual([]);
+  });
+
   it('keeps the request and marks the render failed when enqueueing fails', async () => {
     f.state.queueFails = true;
     await expectRefusal({}, 'RENDERER_UNAVAILABLE');

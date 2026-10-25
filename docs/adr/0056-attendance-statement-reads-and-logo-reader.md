@@ -71,6 +71,10 @@ The worker `staff` module reads identity through a port it owns (`StatementIdent
 arrow is added**; the module map gains a port row (`worker staff | StatementIdentityReader | @pospay/db`). Settings
 still owns the table and the rule; the shared package is only where the one copy lives.
 
+27g-4 adds an optional employee predicate to the shared attendance and schedule inputs for the API eligibility
+check. Filtering happens before aggregation. Existing monthly report and worker callers omit it, retaining their
+full-branch result shape and behavior; no candidate, coverage, or calculation rule changes.
+
 ### 3. The logo is read and audited by worker `files` in its own step, called by the documents source
 
 The logo read writes an access audit, so a call into it from `staff` would be a second synchronous cross-module write,

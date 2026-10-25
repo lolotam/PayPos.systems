@@ -45,6 +45,8 @@ export function inputsWithShift(end: string): ReportBranchInputs {
 export interface StatementRequestState {
   alive: boolean;
   queueFails: boolean;
+  acceptedAfterError: boolean;
+  reconciliationFails: boolean;
   limitHits: number;
   branch: { id: string; timezone: string } | null;
   inputs: ReportBranchInputs | null;
@@ -62,6 +64,8 @@ function statementState(): StatementRequestState {
   return {
     alive: true,
     queueFails: false,
+    acceptedAfterError: false,
+    reconciliationFails: false,
     limitHits: 0,
     branch: { id: 'branch-1', timezone: 'Asia/Kuwait' },
     inputs: inputsWithShift('09:30'),
@@ -106,7 +110,10 @@ function statementTransport(state: StatementRequestState): DocumentRenderTranspo
       state.queued.push(job);
     },
     markFailed: async (companyId, renderId) => {
+      if (state.reconciliationFails) throw new Error('Redis unavailable');
+      if (state.acceptedAfterError) return false;
       state.failed.push(`${companyId}:${renderId}`);
+      return true;
     },
   };
 }

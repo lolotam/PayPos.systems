@@ -61,7 +61,7 @@ it('queueing writes the queued status with its TTL and one job with the render i
 
 it('a failed render leaves the status failed with its error code', async () => {
   const failedId = salaryIds.newId();
-  await transport.markFailed(companyId, failedId);
+  expect(await transport.markFailed(companyId, failedId)).toBe(true);
   const hash = await redis.hgetall(documentStatusKey(companyId, failedId));
   expect(hash).toMatchObject({ state: 'FAILED', error_code: 'DOCUMENT_RENDER_FAILED' });
 });
@@ -75,7 +75,7 @@ it('an accepted job survives an ambiguous enqueue failure while queued', async (
     requestedBy: salaryIds.newId(),
     filename,
   });
-  await transport.markFailed(companyId, acceptedId);
+  expect(await transport.markFailed(companyId, acceptedId)).toBe(false);
   expect(await redis.hget(documentStatusKey(companyId, acceptedId), 'state')).toBe('QUEUED');
   expect((await queue.getJob(acceptedId))?.data).toMatchObject({ render_id: acceptedId });
 });
@@ -85,7 +85,7 @@ it.each(['RENDERING', 'READY', 'CONSUMED'])(
   async (state) => {
     const acceptedId = salaryIds.newId();
     await redis.hset(documentStatusKey(companyId, acceptedId), 'state', state);
-    await transport.markFailed(companyId, acceptedId);
+    expect(await transport.markFailed(companyId, acceptedId)).toBe(false);
     expect(await redis.hget(documentStatusKey(companyId, acceptedId), 'state')).toBe(state);
   },
 );

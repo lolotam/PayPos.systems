@@ -47,6 +47,7 @@ vi.mock('../staff.module.ts', async (original) => {
         .expire(key, DOCUMENT_STATUS_TTL_SECONDS)
         .exec();
       control.failed.push(renderId);
+      return true;
     },
   };
   return {

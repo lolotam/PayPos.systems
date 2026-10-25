@@ -56,13 +56,14 @@ export function createDocumentRenderTransport(
     },
     markFailed: async (companyId, renderId) => {
       const key = `${redis.options.keyPrefix ?? ''}${documentStatusKey(companyId, renderId)}`;
-      await connection.eval(
+      const result = await connection.eval(
         MARK_ENQUEUE_FAILED,
         2,
         key,
         queue.toKey(renderId),
         String(DOCUMENT_STATUS_TTL_SECONDS),
       );
+      return result !== 0;
     },
     close,
     onModuleDestroy: close,

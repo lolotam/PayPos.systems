@@ -111,7 +111,8 @@ export class RequestAttendanceStatementUseCase {
         filename: statementFilename(input.form, input.from, input.to),
       });
     } catch {
-      await this.transport.markFailed(companyId, renderId).catch(() => undefined);
+      const failed = await this.transport.markFailed(companyId, renderId).catch(() => true);
+      if (!failed) return;
       throw new AttendanceStatementError('RENDERER_UNAVAILABLE');
     }
   }

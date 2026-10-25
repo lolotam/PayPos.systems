@@ -112,9 +112,9 @@ export interface DocumentRenderTransport {
    *
    * @param companyId شركة المستند
    * @param renderId معرف المستند
-   * @returns اكتمال تسجيل الفشل على أساس أفضل جهد
+   * @returns true لو النقل فشل، أو false لو الطابور قبل المهمة أو العامل تقدم فيها؛ خطأ الاتصال يظل غير محسوم
    */
-  markFailed(companyId: string, renderId: string): Promise<void>;
+  markFailed(companyId: string, renderId: string): Promise<boolean>;
 }
 
 /** حقائق حالة المستند في Redis: الحالة وصاحب الطلب ونوع الملف. */
