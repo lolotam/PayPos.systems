@@ -8,7 +8,10 @@ import { seedTwoTenants, TENANT } from '../../../../../packages/db/test/tenancy-
 import { seedOrders } from '../../../../../packages/db/test/orders-fixture.ts';
 import { createDeliverer } from '../../outbox/deliver.ts';
 import { daySessionsReader } from '../../modules/orders/index.ts';
-import { createRatingBootstrap, createRatingSchedulingConsumer } from '../../modules/customers/index.ts';
+import {
+  createRatingBootstrap,
+  createRatingSchedulingConsumer,
+} from '../../modules/customers/index.ts';
 import type { RatingRequestsSwitchPort } from '../../modules/customers/ports/rating-requests-switch.port.ts';
 import { schedulingData } from './rating-scheduling-data.ts';
 

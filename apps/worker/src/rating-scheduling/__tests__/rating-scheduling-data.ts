@@ -151,21 +151,8 @@ async function cancelLine(context: SchedulingDataContext, lineId: string): Promi
   );
 }
 
-async function event(
-  context: SchedulingDataContext,
-  sessionId: string,
-  eventType: RatingEventType,
-): Promise<ClaimedEvent> {
-  const { owner, db, ids } = context;
-  const [saved] =
-    await owner`SELECT s.*, s.business_date::text AS saved_date FROM service_sessions s
-    WHERE s.id=${sessionId}`;
-  if (saved === undefined) throw new Error('EVENT_SESSION_MISSING');
-  const [line] = await owner`SELECT l.*, p.employee_id, p.share_bps FROM service_lines l
-    JOIN line_performers p ON p.company_id = l.company_id AND p.line_id = l.id
-    WHERE l.session_id=${sessionId} ORDER BY p.performer_ordinal LIMIT 1`;
-  if (line === undefined) throw new Error('EVENT_LINE_MISSING');
-  const identity = {
+function identityOf(saved: postgres.Row, sessionId: string): Record<string, unknown> {
+  return {
     session_id: sessionId,
     business_id: saved['business_id'],
     branch_id: saved['branch_id'],
@@ -177,7 +164,13 @@ async function event(
     recorded_by: USER,
     recorded_by_membership_id: ORDER_IDS.membership,
   };
-  const lineBody = {
+}
+
+function lineBodyOf(
+  identity: Record<string, unknown>,
+  line: postgres.Row,
+): Record<string, unknown> {
+  return {
     ...identity,
     line_id: line['id'],
     service_id: line['service_id'],
@@ -192,33 +185,58 @@ async function event(
     package: null,
     revision: line['revision'],
   };
-  const payload =
-    eventType === 'ServiceLineChanged'
-      ? {
-          ...lineBody,
-          ...(line['status'] === 'CANCELLED'
-            ? {
-                change: {
-                  kind: 'LINE_CANCELLED',
-                  changed_at: (saved['recorded_at'] as Date).toISOString(),
-                  changed_by: USER,
-                  changed_by_membership_id: ORDER_IDS.membership,
-                  previous: {
-                    revision: Number(line['revision']) - 1,
-                    price: '1.000',
-                    discount: '0.000',
-                    net: '1.000',
-                  },
-                },
-              }
-            : {}),
-        }
-      : {
-          ...identity,
-          schema_version: 1,
-          business_timezone: saved['business_timezone'],
-          lines: [lineBody],
-        };
+}
+
+function cancellationOf(saved: postgres.Row, line: postgres.Row): Record<string, unknown> {
+  return {
+    kind: 'LINE_CANCELLED',
+    changed_at: (saved['recorded_at'] as Date).toISOString(),
+    changed_by: USER,
+    changed_by_membership_id: ORDER_IDS.membership,
+    previous: {
+      revision: Number(line['revision']) - 1,
+      price: '1.000',
+      discount: '0.000',
+      net: '1.000',
+    },
+  };
+}
+
+function payloadOf(
+  eventType: RatingEventType,
+  identity: Record<string, unknown>,
+  lineBody: Record<string, unknown>,
+  saved: postgres.Row,
+  line: postgres.Row,
+): Record<string, unknown> {
+  if (eventType !== 'ServiceLineChanged')
+    return {
+      ...identity,
+      schema_version: 1,
+      business_timezone: saved['business_timezone'],
+      lines: [lineBody],
+    };
+  if (line['status'] !== 'CANCELLED') return { ...lineBody };
+  return { ...lineBody, change: cancellationOf(saved, line) };
+}
+
+async function event(
+  context: SchedulingDataContext,
+  sessionId: string,
+  eventType: RatingEventType,
+): Promise<ClaimedEvent> {
+  const { owner, db, ids } = context;
+  const [saved] =
+    await owner`SELECT s.*, s.business_date::text AS saved_date FROM service_sessions s
+    WHERE s.id=${sessionId}`;
+  if (saved === undefined) throw new Error('EVENT_SESSION_MISSING');
+  const [line] = await owner`SELECT l.*, p.employee_id, p.share_bps FROM service_lines l
+    JOIN line_performers p ON p.company_id = l.company_id AND p.line_id = l.id
+    WHERE l.session_id=${sessionId} ORDER BY p.performer_ordinal LIMIT 1`;
+  if (line === undefined) throw new Error('EVENT_LINE_MISSING');
+  const identity = identityOf(saved, sessionId);
+  const lineBody = lineBodyOf(identity, line);
+  const payload = payloadOf(eventType, identity, lineBody, saved, line);
   const id = ids.newId();
   const company = saved['company_id'] as string;
   await db.withTenant(company, (tx) =>

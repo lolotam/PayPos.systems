@@ -22,30 +22,44 @@ afterAll(async () => {
 
 const KUWAIT = 'Asia/Kuwait';
 const TEN_TO_TEN = everyDay([{ opens: '10:00', closes: '22:00' }]);
-const TOKEN = Buffer.alloc(32, 7);
+
+/** البصمة فريدة لكل صف مُطالَب؛ عشان كده كل مطالبة في الملف ليها بذرة مختلفة. */
+const tokenOf = (seed: number): Buffer => Buffer.alloc(32, seed);
+
+async function scheduledRequest(customer: string, branchId: string, date: string): Promise<string> {
+  return insertRequest(f.owner, {
+    tenant: { ...RATING_TENANT.A, customer },
+    branch: branchId,
+    date,
+    dueAt: new Date(`${date}T13:10:00.000Z`),
+    sendDeadline: new Date(`${date}T19:30:00.000Z`),
+    status: 'SCHEDULED',
+  });
+}
+
+async function claimRequestRow(
+  customer: string,
+  requestId: string,
+  seed: number,
+  claimedAt: string,
+): Promise<void> {
+  await f.db.withTenant(TENANT.A.company, (tx) =>
+    claimRequest(tx, {
+      tenant: { ...RATING_TENANT.A, customer },
+      requestId,
+      tokenHash: tokenOf(seed),
+      readyEventId: f.ids.newId(),
+      now: new Date(claimedAt),
+      performers: [],
+    }),
+  );
+}
 
 it('a SENDING row is left untouched by a new session of the same day', async () => {
   const branchId = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
   const customer = await f.customer();
-  const tenant = { ...RATING_TENANT.A, customer };
-  const requestId = await insertRequest(f.owner, {
-    tenant,
-    branch: branchId,
-    date: '2026-06-20',
-    dueAt: new Date('2026-06-20T13:10:00.000Z'),
-    sendDeadline: new Date('2026-06-20T19:30:00.000Z'),
-    status: 'SCHEDULED',
-  });
-  await f.db.withTenant(TENANT.A.company, (tx) =>
-    claimRequest(tx, {
-      tenant,
-      requestId,
-      tokenHash: TOKEN,
-      readyEventId: f.ids.newId(),
-      now: new Date('2026-06-20T12:00:00.000Z'),
-      performers: [],
-    }),
-  );
+  const requestId = await scheduledRequest(customer, branchId, '2026-06-20');
+  await claimRequestRow(customer, requestId, 1, '2026-06-20T12:00:00.000Z');
   const before = (await f.requests(customer))[0];
   const session = await f.session({
     customerId: customer,
@@ -57,34 +71,30 @@ it('a SENDING row is left untouched by a new session of the same day', async () 
   expect(before?.['status']).toBe('SENDING');
 });
 
-it('a SENT row and a cancelled row are left untouched by a new session of the same day', async () => {
+it('a SENT row is left untouched by a new session of the same day', async () => {
   const branchId = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
-  const sent = await f.customer();
-  const sentTenant = { ...RATING_TENANT.A, customer: sent };
-  const sentRequestId = await insertRequest(f.owner, {
-    tenant: sentTenant,
-    branch: branchId,
-    date: '2026-06-21',
-    dueAt: new Date('2026-06-21T13:10:00.000Z'),
-    sendDeadline: new Date('2026-06-21T19:30:00.000Z'),
-    status: 'SCHEDULED',
-  });
-  await f.db.withTenant(TENANT.A.company, (tx) =>
-    claimRequest(tx, {
-      tenant: sentTenant,
-      requestId: sentRequestId,
-      tokenHash: TOKEN,
-      readyEventId: f.ids.newId(),
-      now: new Date('2026-06-21T12:00:00.000Z'),
-      performers: [],
-    }),
-  );
+  const customer = await f.customer();
+  const requestId = await scheduledRequest(customer, branchId, '2026-06-21');
+  await claimRequestRow(customer, requestId, 2, '2026-06-21T12:00:00.000Z');
   await f.owner`UPDATE rating_requests SET status='SENT',
     sent_at=${new Date('2026-06-21T13:30:00.000Z')}::timestamptz
-    WHERE company_id=${TENANT.A.company} AND id=${sentRequestId}`;
-  const cancelled = await f.customer();
+    WHERE company_id=${TENANT.A.company} AND id=${requestId}`;
+  const before = (await f.requests(customer))[0];
+  const session = await f.session({
+    customerId: customer,
+    branchId,
+    occurredAt: new Date('2026-06-21T12:10:00.000Z'),
+  });
+  await f.deliver(await f.event(session.sessionId, 'ServiceSessionRecorded'));
+  expect(await f.requests(customer)).toEqual([before]);
+  expect(before?.['status']).toBe('SENT');
+});
+
+it('a cancelled row is left untouched by a new session of the same day', async () => {
+  const branchId = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
+  const optedOut = await f.customer();
   await insertRequest(f.owner, {
-    tenant: { ...RATING_TENANT.A, customer: cancelled },
+    tenant: { ...RATING_TENANT.A, customer: optedOut },
     branch: branchId,
     date: '2026-06-21',
     dueAt: new Date('2026-06-21T13:10:00.000Z'),
@@ -102,32 +112,23 @@ it('a SENT row and a cancelled row are left untouched by a new session of the sa
     status: 'CANCELLED',
     cancelReason: 'PAST_DEADLINE',
   });
-  const beforeSent = (await f.requests(sent))[0];
-  const beforeCancelled = (await f.requests(cancelled))[0];
+  const beforeOptedOut = (await f.requests(optedOut))[0];
   const beforeExpired = (await f.requests(expired))[0];
-  const session = await f.session({
-    customerId: sent,
+  const first = await f.session({
+    customerId: optedOut,
     branchId,
     occurredAt: new Date('2026-06-21T12:10:00.000Z'),
   });
-  await f.deliver(await f.event(session.sessionId, 'ServiceSessionRecorded'));
-  const other = await f.session({
-    customerId: cancelled,
-    branchId,
-    occurredAt: new Date('2026-06-21T12:10:00.000Z'),
-  });
-  await f.deliver(await f.event(other.sessionId, 'ServiceSessionRecorded'));
-  const last = await f.session({
+  await f.deliver(await f.event(first.sessionId, 'ServiceSessionRecorded'));
+  const second = await f.session({
     customerId: expired,
     branchId,
     occurredAt: new Date('2026-06-21T12:10:00.000Z'),
   });
-  await f.deliver(await f.event(last.sessionId, 'ServiceSessionRecorded'));
-  expect(await f.requests(sent)).toEqual([beforeSent]);
-  expect(await f.requests(cancelled)).toEqual([beforeCancelled]);
+  await f.deliver(await f.event(second.sessionId, 'ServiceSessionRecorded'));
+  expect(await f.requests(optedOut)).toEqual([beforeOptedOut]);
   expect(await f.requests(expired)).toEqual([beforeExpired]);
-  expect(beforeSent?.['status']).toBe('SENT');
-  expect(beforeCancelled?.['cancel_reason']).toBe('OPTED_OUT');
+  expect(beforeOptedOut?.['cancel_reason']).toBe('OPTED_OUT');
   expect(beforeExpired?.['cancel_reason']).toBe('PAST_DEADLINE');
 });
 
