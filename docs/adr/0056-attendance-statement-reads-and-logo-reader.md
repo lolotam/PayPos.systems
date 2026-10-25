@@ -246,3 +246,8 @@ role. Every sheet printed with a logo leaves an audit pair for the user who open
 - **A session-only route with its own membership lock** (the design while EL-Q3 followed Waleed's «anyone in the back
   office»): Abu Salem's pick makes the standard permission guard the rule, which needs no `files → identity` arrow and
   no lock of its own.
+
+## Addendum 2026-10-25 — the statement shows the data as of render time (issue #552)
+
+- **Status:** Accepted. Waleed, 2026-10-25 (PP-61, technical, Waleed only): «كشف الحضور الرسمي: يطلع ببيانات وقت التجهيز (المقترح)».
+- The worker reads sessions, approved leave and schedule shifts in their state at render time (spec 061 FR-013a); `requested_at` only decides which scheduled shifts and default working-hours entries had ended. The statement prints its generation time, and an edit made after the request shows only in a newly requested statement. No snapshot, history table or migration is added. The alternative (the state at the request instant) was rejected.
