@@ -59,6 +59,24 @@ describe('createApiClient', () => {
     expect(req.url).toBe('http://127.0.0.1:3000/v1/devices/me');
   });
 
+  it('uses a custom fetch with device Authorization and returns its parsed result', async () => {
+    setDeviceTokenReader(async () => 'test-device-token');
+    const customFetch = vi.fn(async (request: Request) => {
+      expect(request.headers.get('Authorization')).toBe('Device test-device-token');
+      return new Response(JSON.stringify({ device_id: 'd1', company_id: 'c1', branch_id: 'b1' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const client = createApiClient('omit', customFetch);
+
+    const result = await client.GET('/v1/devices/me');
+
+    expect(result.data).toEqual({ device_id: 'd1', company_id: 'c1', branch_id: 'b1' });
+    expect(customFetch).toHaveBeenCalledOnce();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('aborts without sending a network request if reading stored token fails', async () => {
     setDeviceTokenReader(async () => {
       throw new Error('storage read failed');
