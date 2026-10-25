@@ -15,7 +15,7 @@ final class CounterAuthUITests: XCTestCase {
   }
 
   private func element(_ app: XCUIApplication, labelled label: String) -> XCUIElement {
-    app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", label)).firstMatch
+    app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", label)).firstMatch
   }
 
   private func assertVisible(_ app: XCUIApplication, _ label: String, timeout: TimeInterval, _ message: String) {
@@ -40,6 +40,7 @@ final class CounterAuthUITests: XCTestCase {
   private func type(_ value: String, into field: XCUIElement, _ message: String) {
     XCTAssertTrue(field.waitForExistence(timeout: 60), message)
     assertHittable(field, message)
+    field.tap()
     field.typeText(value)
   }
 

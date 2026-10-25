@@ -2,11 +2,22 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildUiTestEnvironment,
   collectCookies,
   fetchPendingDevicePages,
   matchDeviceLabel,
   summaryLines,
 } from './orchestrate-counter-auth.mjs';
+
+test('UI test environment excludes staging credentials and includes only its four spike values', () => {
+  const config = { STAGING_UI_STAFF_PHONE: 'phone-fixture', STAGING_UI_STAFF_PIN: 'pin-fixture' };
+  const env = buildUiTestEnvironment({ PATH: 'path-fixture', STAGING_UI_OWNER_PASSWORD: 'password-fixture' }, config, 'code-fixture', 'label-fixture');
+  assert.equal(Object.keys(env).some((key) => key.startsWith('STAGING_UI_')), false);
+  assert.deepEqual(
+    [env.TEST_RUNNER_SPIKE_PAIRING_CODE, env.TEST_RUNNER_SPIKE_DEVICE_LABEL, env.TEST_RUNNER_SPIKE_STAFF_PHONE, env.TEST_RUNNER_SPIKE_STAFF_PIN],
+    ['code-fixture', 'label-fixture', 'phone-fixture', 'pin-fixture'],
+  );
+});
 
 test('cookie collection keeps every Set-Cookie name/value pair', () => {
   const headers = {

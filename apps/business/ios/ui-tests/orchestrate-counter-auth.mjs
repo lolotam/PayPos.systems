@@ -162,6 +162,19 @@ async function pollForApproval(fetchImpl, config, cookie, label, signal, onFound
   return 'not found';
 }
 
+export function buildUiTestEnvironment(environment, config, code, label) {
+  const inherited = Object.fromEntries(
+    Object.entries(environment).filter(([key]) => !key.startsWith('STAGING_UI_')),
+  );
+  return {
+    ...inherited,
+    TEST_RUNNER_SPIKE_PAIRING_CODE: code,
+    TEST_RUNNER_SPIKE_DEVICE_LABEL: label,
+    TEST_RUNNER_SPIKE_STAFF_PHONE: config.STAGING_UI_STAFF_PHONE,
+    TEST_RUNNER_SPIKE_STAFF_PIN: config.STAGING_UI_STAFF_PIN,
+  };
+}
+
 async function startUiTest(config, code, label) {
   const spike = join(config.RUNNER_TEMP, 'spike');
   const privateDir = join(spike, 'private');
@@ -179,13 +192,7 @@ async function startUiTest(config, code, label) {
       'CODE_SIGNING_REQUIRED=NO',
       'DEVELOPMENT_TEAM=',
     ], {
-      env: {
-        ...process.env,
-        TEST_RUNNER_SPIKE_PAIRING_CODE: code,
-        TEST_RUNNER_SPIKE_DEVICE_LABEL: label,
-        TEST_RUNNER_SPIKE_STAFF_PHONE: config.STAGING_UI_STAFF_PHONE,
-        TEST_RUNNER_SPIKE_STAFF_PIN: config.STAGING_UI_STAFF_PIN,
-      },
+      env: buildUiTestEnvironment(process.env, config, code, label),
       stdio: ['ignore', log.fd, log.fd],
     });
     return { child, closeLog: () => log.close() };
