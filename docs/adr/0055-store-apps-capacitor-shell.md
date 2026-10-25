@@ -445,7 +445,9 @@ accepted: the same job installs third-party packages (`pnpm install`, the CocoaP
 that step, and a compromised package could write a value to `$GITHUB_ENV` that a later step loads. The step clears
 `NODE_OPTIONS`, but a determined package could still reach the values. They are staging test logins only, never a
 signing key or a production credential, and they can be rotated on staging at any time. A required reviewer on the
-environment would close the gap but would stop the run from being unattended, so it is not set. Until the
+environment would close the gap but would stop the run from being unattended, so it is not set. To keep that risk
+bounded, every third-party action in the `ios` job is pinned to a full commit SHA (the tag kept as a comment), so a
+moved tag cannot change what runs beside the values. Until the
 staff routes accept the iOS origin (the `STAFF_NATIVE_ORIGINS` slice, waiting on Waleed), check (b) is expected to
 end in the 403 that this ADR's decision 3 predicts; that run records the baseline. Revoked test devices stay as
 `REVOKED` rows on staging.
