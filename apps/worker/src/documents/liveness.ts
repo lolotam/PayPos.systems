@@ -128,6 +128,7 @@ function stopLiveness(state: PublishState): Promise<void> {
  * SET اتبدأ قبل القطع بيتمسح بعد ما يخلّص، عشان الرد المتأخر ما يعلنش متصفح ميت.
  * الانتهاء بعد ٣ ثواني لسه بيمسك الانهيار لو المسح نفسه ما لحقش.
  * أمر واحد في الطيران، وانتظاره متسقوف، عشان Redis الساكت ما يكدّسش أوامر ولا يعلّق الإيقاف.
+ * لو الإقلاع فشل، ما بيتبقاش حاجة مسلّحة: المستمع الميت بيلاقي الناشر واقف.
  */
 export async function startRendererLiveness(input: {
   readonly redis: Redis;
@@ -154,8 +155,14 @@ export async function startRendererLiveness(input: {
   input.renderer.onUnavailable(() => {
     void haltPublish(state);
   });
-  await whenRedisReady(input.redis, input.readyTimeoutMs ?? READY_TIMEOUT_MS);
-  await publishOnce(state);
+  try {
+    await whenRedisReady(input.redis, input.readyTimeoutMs ?? READY_TIMEOUT_MS);
+    await publishOnce(state);
+  } catch (error) {
+    // الناشر الفاشل لازم يقف من غير ما يسيب مستمع يسلّح تيك من بعده.
+    await stopLiveness(state).catch(() => undefined);
+    throw error;
+  }
   if (isLive(state) && state.timer === undefined) {
     state.timer = setInterval(() => {
       void publishOnce(state);

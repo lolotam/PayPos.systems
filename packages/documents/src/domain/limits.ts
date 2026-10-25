@@ -1,4 +1,8 @@
-import { DOCUMENT_HTML_MAX_BYTES, DOCUMENT_PDF_MAX_BYTES } from '@pospay/contracts';
+import {
+  DOCUMENT_BYTES_MAX_BYTES,
+  DOCUMENT_HTML_MAX_BYTES,
+  DOCUMENT_PDF_MAX_BYTES,
+} from '@pospay/contracts';
 
 import { DocumentTooLargeError } from './errors.ts';
 
@@ -23,4 +27,16 @@ export function assertHtmlWithinLimit(html: string): void {
 export function assertPdfWithinLimit(pdf: Uint8Array): Uint8Array {
   if (pdf.byteLength > DOCUMENT_PDF_MAX_BYTES) throw new DocumentTooLargeError('pdf');
   return pdf;
+}
+
+/**
+ * بيرفض بايتات مستند أطول من السقف قبل ما تتكتب في Redis.
+ * سقفها نفس سقف PDF عشان نسخة أكبر ما تقعدش في الذاكرة لحد ما المفتاح يخلص.
+ *
+ * @param bytes بايتات المستند
+ * @returns نفس البايتات لما تكون جوه السقف
+ */
+export function assertBytesWithinLimit(bytes: Uint8Array): Uint8Array {
+  if (bytes.byteLength > DOCUMENT_BYTES_MAX_BYTES) throw new DocumentTooLargeError('bytes');
+  return bytes;
 }

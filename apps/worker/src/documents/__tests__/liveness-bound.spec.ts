@@ -29,6 +29,30 @@ function redisStub(status: string | undefined): Redis {
   } as unknown as Redis;
 }
 
+function recordingRedisStub(status: string): { redis: Redis; sets: string[] } {
+  const sets: string[] = [];
+  const redis = {
+    status,
+    on() {
+      return this;
+    },
+    off() {
+      return this;
+    },
+    async set(key: string) {
+      sets.push(key);
+      return 'OK';
+    },
+    async del() {
+      return 1;
+    },
+    connect() {
+      return Promise.resolve();
+    },
+  } as unknown as Redis;
+  return { redis, sets };
+}
+
 it('bounds a Redis client that never becomes ready', async () => {
   const started = Date.now();
   await expect(
@@ -126,4 +150,17 @@ it('keeps a single SET pending when redis never answers', async () => {
   expect(Date.now() - started).toBeLessThan(commandMs + 80);
   expect(sets).toBe(1);
   expect(dels).toBe(1);
+});
+
+it('leaves nothing armed when the liveness start fails', async () => {
+  const { redis, sets } = recordingRedisStub('end');
+  const renderer = new FakeRenderer();
+  renderer.available = false;
+  await expect(startRendererLiveness({ redis, renderer, intervalMs: 5 })).rejects.toThrow(
+    'redis ended',
+  );
+  renderer.available = true;
+  await renderer.start();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(sets).toEqual([]);
 });

@@ -8,9 +8,9 @@ export class DocumentTooLargeError extends Error {
   /**
    * بيسجّل أي سقف اتكسر من غير ما يحط حجم المحتوى في الرسالة.
    *
-   * @param limit أي سقف اتكسر: HTML قبل الرندر أو PDF بعده
+   * @param limit أي سقف اتكسر: HTML قبل الرندر أو PDF بعده أو بايتات المستند قبل الكتابة
    */
-  constructor(readonly limit: 'html' | 'pdf') {
+  constructor(readonly limit: 'html' | 'pdf' | 'bytes') {
     super('DOCUMENT_TOO_LARGE');
     this.name = 'DocumentTooLargeError';
   }

@@ -10,11 +10,12 @@ import { redisUrl } from './render-harness.ts';
 
 function hungRenderer(
   release: { go: () => void },
-  flags: { launched: boolean; closed: boolean },
+  flags: { launched: boolean; closed: boolean; entered: boolean },
 ): DocumentRenderer {
   return {
     start: () =>
       new Promise<void>((resolve) => {
+        flags.entered = true;
         release.go = () => {
           flags.launched = true;
           resolve();
@@ -31,7 +32,7 @@ function hungRenderer(
 }
 
 it('finishes core startup while the renderer launch is still pending', async () => {
-  const flags = { launched: false, closed: false };
+  const flags = { launched: false, closed: false, entered: false };
   const release = { go: () => undefined };
   const logger = createLogger('info', {
     events: WORKER_LOG_EVENTS,
@@ -61,6 +62,11 @@ it('finishes core startup while the renderer launch is still pending', async () 
   });
   expect(coreStarted).toBe(true);
   expect(flags.launched).toBe(false);
+  // المتصفح بيتأخر عن الطابور، فنستنى لحد ما إقلاعه يدخل قبل ما نقفل القدرة.
+  for (let i = 0; i < 200 && !flags.entered; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  expect(flags.entered).toBe(true);
   await handle.close();
   expect(flags.closed).toBe(true);
   expect(flags.launched).toBe(false);

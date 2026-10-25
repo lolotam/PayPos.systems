@@ -5,9 +5,7 @@ import {
   type DocumentRenderJob,
 } from '@pospay/contracts';
 import {
-  assertHtmlWithinLimit,
   DocumentRenderTimeoutError,
-  DocumentRendererUnavailableError,
   DocumentTooLargeError,
   rendererFailureText,
   type DocumentRenderer,
@@ -16,6 +14,7 @@ import type { Logger } from '@pospay/observability';
 import type { Redis } from 'ioredis';
 
 import { DocumentKindUnknownError } from './kind-error.ts';
+import { produceDocument } from './produce-document.ts';
 import type { DocumentSourceRegistry } from './source-registry.ts';
 import { markFailed, markRendering, storeReady } from './status-store.ts';
 
@@ -99,44 +98,6 @@ function failWindow(deadlineAtMs: number): number {
   return Math.min(left, MARK_FAILED_FLOOR_MS);
 }
 
-function untilAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) {
-    work.catch(() => undefined);
-    return Promise.reject(new DocumentRenderTimeoutError());
-  }
-  return new Promise((resolve, reject) => {
-    const onAbort = (): void => reject(new DocumentRenderTimeoutError());
-    signal.addEventListener('abort', onAbort, { once: true });
-    work.then(
-      (value) => {
-        signal.removeEventListener('abort', onAbort);
-        resolve(value);
-      },
-      (error: unknown) => {
-        signal.removeEventListener('abort', onAbort);
-        reject(error);
-      },
-    );
-  });
-}
-
-async function renderHtml(
-  deps: ProcessDocumentDeps,
-  companyId: string,
-  renderId: string,
-  kind: string,
-  signal: AbortSignal,
-): Promise<Uint8Array> {
-  const source = deps.registry.get(kind);
-  if (source === undefined) throw new DocumentKindUnknownError();
-  if (!deps.renderer.isAvailable()) throw new DocumentRendererUnavailableError();
-  if (signal.aborted) throw new DocumentRenderTimeoutError();
-  const html = await untilAbort(source.load(companyId, renderId, signal), signal);
-  assertHtmlWithinLimit(html);
-  if (signal.aborted) throw new DocumentRenderTimeoutError();
-  return untilAbort(deps.renderer.render(html, { signal }), signal);
-}
-
 function logOutcome(
   logger: Logger,
   fields: {
@@ -203,7 +164,7 @@ async function failFinal(
 }
 
 /**
- * بيخلّص وظيفة رندر واحدة: حالة، ثم HTML، ثم بايتات بنص قصير.
+ * بيخلّص وظيفة مستند واحدة: حالة، ثم إنتاج HTML أو بايتات، ثم تخزين بنص قصير.
  * الفشل العابر بيترمي عشان BullMQ يعيد. النوع المجهول والحجم الزايد بيتقفلوا من أول مرة.
  */
 export async function processDocumentJob(job: Job, deps: ProcessDocumentDeps): Promise<void> {
@@ -238,10 +199,23 @@ async function runGuarded(
       return;
     }
     if (signal.aborted) throw new DocumentRenderTimeoutError();
-    const pdf = await renderHtml(deps, data.company_id, data.render_id, data.kind, signal);
+    const produced = await produceDocument(
+      deps,
+      data.company_id,
+      data.render_id,
+      data.kind,
+      signal,
+    );
     if (signal.aborted) throw new DocumentRenderTimeoutError();
     const stored = await withinBudget(deadlineAtMs - Date.now(), () =>
-      storeReady(deps.redis, data.company_id, data.render_id, pdf, deadlineAtMs),
+      storeReady(
+        deps.redis,
+        data.company_id,
+        data.render_id,
+        produced.bytes,
+        deadlineAtMs,
+        produced.mimeType,
+      ),
     );
     if (stored === 'late') throw new DocumentRenderTimeoutError();
     if (stored !== 'stored') {

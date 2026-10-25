@@ -7,7 +7,7 @@ import type { RendererLiveness } from './liveness.ts';
 export interface LiveQueue {
   worker: Worker;
   connection: Redis;
-  liveness: RendererLiveness;
+  liveness?: RendererLiveness;
 }
 
 /** طابور اتبنى ولسه مستنّى Redis. المهلة بتقفله قبل ما يبقى live. */
@@ -20,6 +20,7 @@ export interface AttemptBinder {
   cancelled(): boolean;
   setRenderer(renderer: DocumentRenderer): void;
   setLive(live: LiveQueue): void;
+  setLiveness(liveness: RendererLiveness): void;
   holdQueue(queue: HeldQueue): void;
 }
 
@@ -81,8 +82,8 @@ async function release(slot: Slot): Promise<void> {
   slot.queue = undefined;
   slot.renderer = undefined;
   if (live !== undefined) {
+    await live.liveness?.stop().catch(() => undefined);
     await closeHeld(live.worker, live.connection, false);
-    await live.liveness.stop().catch(() => undefined);
   } else if (queue !== undefined) {
     // لسه مش جاهز وماسكش وظيفة، فالقوة بتقطع إعادة اتصال Redis
     await closeHeld(queue.worker, queue.connection, true);
@@ -146,6 +147,14 @@ function binder(state: SessionState, slot: Slot, graceMs: number): AttemptBinder
     setLive: (live) => {
       slot.live = live;
       slot.queue = undefined;
+      if (state.timer !== undefined) clearTimeout(state.timer);
+    },
+    setLiveness: (liveness) => {
+      if (cancelled() || slot.live === undefined) {
+        void liveness.stop().catch(() => undefined);
+        return;
+      }
+      slot.live.liveness = liveness;
     },
     holdQueue: (queue) => {
       slot.queue = queue;
@@ -214,7 +223,7 @@ async function stopSession(state: SessionState, force: boolean): Promise<void> {
   if (live === undefined) return;
   // المفتاح لو فضل بعد قفل المستهلك، الطلب الجاي هيلاقي متصفح من غير حد يستقبل.
   // Chromium بيفضل عشان الرندر الجاري، وبيتقفل آخر حاجة في close.
-  await live.liveness.stop().catch(() => undefined);
+  await live.liveness?.stop().catch(() => undefined);
   await live.worker.close(force).catch(() => undefined);
 }
 

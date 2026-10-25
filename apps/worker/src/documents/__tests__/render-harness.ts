@@ -11,7 +11,12 @@ import { systemUuidV7 } from '@pospay/ids';
 import { createLogger, type Logger } from '@pospay/observability';
 
 import { DocumentSourceRegistry } from '../source-registry.ts';
-import { startDocumentRendering, type DocumentRendering } from '../start-documents.ts';
+import {
+  beginDocumentRendering,
+  startDocumentRendering,
+  type DocumentRendering,
+  type StartDocumentsInput,
+} from '../start-documents.ts';
 import { WORKER_LOG_EVENTS } from '../../shared/log-events.ts';
 
 const ids = systemUuidV7();
@@ -77,18 +82,24 @@ function sink(lines: string[]): Writable {
   });
 }
 
-export async function openRender(options?: {
+export interface RenderOptions {
   readonly renderer?: DocumentRenderer;
   readonly intervalMs?: number;
-}): Promise<Opened> {
+  /** السجل الذي بتتحقق منه الاختبارات. بيتبنى من غير خريطة الإنتاج افتراضيًا. */
+  readonly registry?: DocumentSourceRegistry;
+  /** false: تفتح القدرة من غير ما تستنى `started`، عشان اختبار مستقل عن Chromium. */
+  readonly awaitStarted?: boolean;
+}
+
+export async function openRender(options?: RenderOptions): Promise<Opened> {
   const prefix = `documents-test-${ids.newId()}`;
   const lines: string[] = [];
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false });
-  const registry = new DocumentSourceRegistry();
+  const registry = options?.registry ?? new DocumentSourceRegistry();
   const renderer = options?.renderer ?? new FakeRenderer();
   const logger = createLogger('info', { events: WORKER_LOG_EVENTS, destination: sink(lines) });
   let tick = 0;
-  const handle = await startDocumentRendering({
+  const input: StartDocumentsInput = {
     redis,
     redisUrl,
     logger,
@@ -102,7 +113,11 @@ export async function openRender(options?: {
       },
     },
     ...(options?.intervalMs === undefined ? {} : { livenessIntervalMs: options.intervalMs }),
-  });
+  };
+  const handle =
+    options?.awaitStarted === false
+      ? beginDocumentRendering(input)
+      : await startDocumentRendering(input);
   const queue = new Queue(DOCUMENTS_RENDER_QUEUE, { connection: { url: redisUrl }, prefix });
   // القارئ بيبدأ من أول المجرى عشان ما يضيعش حدث اتبعت قبل أول قراءة، والبريفكس جديد لكل اختبار.
   const events = new QueueEvents(DOCUMENTS_RENDER_QUEUE, {
@@ -174,7 +189,7 @@ export async function seedQueued(opened: Opened, companyId: string, id: string):
 
 export async function useRender(
   run: (opened: Opened) => Promise<void>,
-  options?: { readonly renderer?: DocumentRenderer; readonly intervalMs?: number },
+  options?: RenderOptions,
 ): Promise<void> {
   const opened = await openRender(options);
   try {
