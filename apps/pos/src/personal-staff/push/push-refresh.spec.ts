@@ -258,15 +258,18 @@ it('removes a record of another person and sends no registration', async () => {
   expect(pushCalls.register).not.toHaveBeenCalled();
 });
 
-it('removes the record when the rotation cannot write it', async () => {
+it('leaves the record alone when the rotation cannot write it', async () => {
   fakes.state.record = { ...RECORD, vapid_key_id: 'oldkey0000000000' };
   fakes.state.writeIfGenerationFails = true;
 
   const outcome = await refreshPush(input());
 
-  expect(outcome).toEqual({ kind: 'cleared' });
-  expect(fakes.state.removed).toBe(1);
-  expect(fakes.state.record).toBeNull();
+  expect(outcome).toEqual({ kind: 'none' });
+  expect(fakes.state.record?.vapid_key_id).toBe('oldkey0000000000');
+  expect(fakes.state.removed).toBe(0);
+  expect(pushCalls.revoke).not.toHaveBeenCalled();
+  // اشتراك واحد بس: بتاع التدوير نفسه وقت ما يبدّل الاشتراك قبل الكتابة.
+  expect(fakes.state.unsubscribed).toBe(1);
 });
 
 it('drops the rotation registration when another tab took the record', async () => {

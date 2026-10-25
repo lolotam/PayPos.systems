@@ -332,7 +332,9 @@ it('a failed record write leaves no registration behind', async () => {
 
   expect(outcome.kind).toBe('failed');
   expect(fakes.state.record).toEqual(RECORD);
-  expect(fakes.state.unsubscribed).toBeGreaterThan(0);
+  // حالة المخزن مجهولة: الاشتراك القديم بيفضل، ومفيش مراجعة للسطر على السيرفر.
+  expect(fakes.state.unsubscribed).toBe(1);
+  expect(pushCalls.revoke).not.toHaveBeenCalled();
 });
 
 it('keeps the record when the same person signs in again during a rotation', async () => {

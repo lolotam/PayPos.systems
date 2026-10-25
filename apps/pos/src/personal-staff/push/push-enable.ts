@@ -73,6 +73,9 @@ async function readStartSnapshot(): Promise<StartSnapshot | null> {
   }
 }
 
+/** نتيجة كتابة سجل التشغيل: اتكتب، ولا السجل اتغيّر قبل الكتابة، ولا المخزن رما استثناء. */
+type EnabledWrite = 'written' | 'lost' | 'error';
+
 /**
  * كتابة السجل بعد ما الـ API قبل التسجيل: الكتابة المحروسة هي اللي بتحدد مين كسب
  * السجل، والتوقعات (الجيل والمراجعة والتوكن) بتمنع الكتابة فوق سجل أحدث.
@@ -82,10 +85,10 @@ async function writeEnabledRecord(
   config: PushConfig,
   token: string,
   snapshot: StartSnapshot,
-): Promise<boolean> {
+): Promise<EnabledWrite> {
   try {
     // التعليق اللي كان موجود قبل التشغيل بيتشال؛ أي تعليق جه مع تسجيل تاني بيتساب.
-    return await pushRecordStore.writeIfGeneration(
+    const written = await pushRecordStore.writeIfGeneration(
       {
         token,
         subscriber_ref: config.subscriber_ref,
@@ -101,9 +104,9 @@ async function writeEnabledRecord(
         expectToken: snapshot.previous?.token ?? null,
       },
     );
+    return written ? 'written' : 'lost';
   } catch {
-    // فشل الكتابة: السجل مش هيتكتب والتسجيل الجديد بيتشال.
-    return false;
+    return 'error';
   }
 }
 
@@ -152,11 +155,16 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
       // السجل بيتكتب بعد ما الـ API يقبل، والزر يعرف التوكن الجديد قبل ما يتغيّر السجل.
       input.onRegistered(token);
       const written = await writeEnabledRecord(input, config.config, token, snapshot);
-      if (!written) {
+      if (written === 'lost') {
         // السجل اتغيّر تحتنا (خروج أو تعليق دخول أو إيقاف): التشغيلين متسلسلين بالقفل،
         // فمحدش كسب السجل — تسجيلنا مش مطلوب من حد، فبيتشال وسطره بيراجع.
         await unsubscribePush().catch(() => undefined);
         await revoke(input.installationId);
+        return { kind: 'failed' };
+      }
+      if (written === 'error') {
+        // حالة المخزن مجهولة: من غير ما نمسح ولا نراجع، التحديث وقت الفتح أو زر الإيقاف
+        // بيراجعوا السجل.
         return { kind: 'failed' };
       }
       notifyPushRecordChanged();

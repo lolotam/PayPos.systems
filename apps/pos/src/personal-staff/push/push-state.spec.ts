@@ -162,11 +162,18 @@ describe('a browser without the cross tab lock and foreign or unknown records', 
 
   it('never turns off anything when the record could not be read', () => {
     const decision = decidePushState(
-      input({ recordReadFailed: true, browserSubscribed: true, permission: 'granted' }),
+      input({
+        recordReadFailed: true,
+        canEnable: true,
+        browserSubscribed: true,
+        permission: 'granted',
+      }),
     );
 
+    expect(decision.state).toBe('unsupported');
+    expect(decision.storageBlocked).toBe(true);
+    expect(decision.canEnable).toBe(false);
     expect(decision.canDisable).toBe(false);
-    expect(decision.state).not.toBe('on');
   });
 
   it('turns off a real subscription of this company when the record is really empty', () => {

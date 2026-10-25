@@ -47,7 +47,13 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
   if (!hasCrossTabLock()) return { kind: 'none' };
   return runPushExclusive(async (): Promise<PushRefreshOutcome> => {
     const generation = await pushRecordStore.generation();
-    const record = await pushRecordStore.read().catch(() => null);
+    let record: PushRecord | null;
+    try {
+      record = await pushRecordStore.read();
+    } catch {
+      // السجل مش معروف: من غير ما نمسح ولا نسجل، مفيش حاجة نعملها.
+      return { kind: 'none' };
+    }
     if (record === null) return { kind: 'none' };
     if (record.company_id !== input.companyId) return { kind: 'none' };
     // المقارنة بتتم قبل أي حاجة: مرجع تاني جواب مؤكد إن الجهاز بقى لحد تاني،
@@ -140,9 +146,8 @@ async function rotate(
   }
   const outcome = await writeRotatedRecord(record, input, token, generation);
   if (outcome === 'failed') {
-    // فشل الكتابة: السجل مش هيتكتب والتسجيل الجديد بيتشال.
-    await failRotation(installationId);
-    return { kind: 'cleared' };
+    // حالة المخزن مجهولة: السجل بيفضل بمفتاحه القديم، والتحديث الجاي يدور تاني.
+    return { kind: 'none' };
   }
   if (outcome === 'stale') {
     // جيل أو مراجعة أو توكن أحدث: السجل بقى بتاع حد تاني (خروج أو تعليق دخول أو إيقاف)،
@@ -210,12 +215,6 @@ async function writeRotatedRecord(
 async function abortRotation(installationId: string): Promise<void> {
   await dropSubscription();
   await revoke(installationId);
-}
-
-/** فشل كتابة السجل: السجل الوهمي ما ينفعش يفضل، فبنمسحه. */
-async function failRotation(installationId: string): Promise<void> {
-  await abortRotation(installationId);
-  await removeRecord();
 }
 
 /** الاشتراك الجديد بيتشال: المتصفح مينفعش يفضل مسجل من غير حد يطلبه. */

@@ -220,16 +220,7 @@ function usePushActions(input: {
 }) {
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
-  const {
-    companyId,
-    locale,
-    installationId,
-    record,
-    recordReadFailed,
-    reload,
-    markSeen,
-    onEnabled,
-  } = input;
+  const { companyId, locale, installationId, reload, markSeen, onEnabled } = input;
 
   const enable = useCallback(async () => {
     if (pending || installationId === null) return;
@@ -255,22 +246,23 @@ function usePushActions(input: {
   const disable = useCallback(async () => {
     if (pending) return;
     // القراءة اللي على الشاشة فشلت: السجل مش معروف، فمفيش حاجة نمسحها.
-    if (recordReadFailed) return;
+    if (input.recordReadFailed) return;
     setPending(true);
     setFailed(false);
     try {
       // الإيقاف بيمشي على لقطة السجل المعروضة: لو تبويب تاني غيّره، ما نعملش حاجة.
-      await disablePush(installationId, {
-        token: record?.token ?? null,
-        revision: record?.revision ?? 0,
+      const outcome = await disablePush(installationId, {
+        token: input.record?.token ?? null,
+        revision: input.record?.revision ?? 0,
       });
+      if (outcome === 'failed') setFailed(true);
     } catch {
       // الإيقاف بيمسح السجل في كل الأحوال؛ فشل الشبكة بيسيب الحالة مقفولة.
     } finally {
       setPending(false);
       await reload();
     }
-  }, [installationId, pending, record, recordReadFailed, reload]);
+  }, [installationId, input.record, input.recordReadFailed, pending, reload]);
 
   return { pending, failed, enable, disable };
 }

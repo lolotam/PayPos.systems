@@ -12,7 +12,6 @@ export function PushControl({ companyId }: { companyId: string }) {
   const state = usePushControl({ companyId });
   if (!state.visible) return null;
   const buttonDisabled = state.pending || state.offline;
-  // زرار واحد لكل حالة: التشغيل والإيقاف ما بيظهروا مع بعض.
   const showEnable = state.state === 'off' && state.canEnable;
   return (
     <section className="grid gap-3">

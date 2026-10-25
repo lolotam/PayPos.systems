@@ -227,7 +227,20 @@ it('shows no turn off button when the record could not be read', async () => {
 
   mount();
 
-  expect(await screen.findByText(t('en', 'staffPush.unsupported'))).toBeDefined();
+  expect(await screen.findByText(t('en', 'staffPush.storageBlocked'))).toBeDefined();
+  expect(screen.queryByRole('button', { name: t('en', 'staffPush.disable') })).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'staffPush.enable') })).toBeNull();
+});
+
+it('shows no button at all when the record could not be read on a lock capable browser', async () => {
+  stubBrowser(true);
+  fakes.subscribed = true;
+  fakes.permission = 'granted';
+  fakes.readFails = true;
+
+  mount();
+
+  expect(await screen.findByText(t('en', 'staffPush.storageBlocked'))).toBeDefined();
   expect(screen.queryByRole('button', { name: t('en', 'staffPush.disable') })).toBeNull();
   expect(screen.queryByRole('button', { name: t('en', 'staffPush.enable') })).toBeNull();
 });
