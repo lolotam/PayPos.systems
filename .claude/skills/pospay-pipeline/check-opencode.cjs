@@ -517,6 +517,57 @@ try {
   problems.push(`cannot confirm that ${authFile} has no wellknown credential (${error.message})`);
 }
 
+// Splits a Windows command line into arguments, honouring double quotes, so a quoted run title such as
+// "serve --service" stays one argument (MergePilot on #643). On 2.1.4 the daemon's own line is
+// `<path>\opencode.exe serve --service`. Kept identical in check-opencode.cjs and stop-opencode-sessions.cjs.
+function isSharedServiceCommand(commandLine) {
+  const args = [...commandLine.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
+  if (!/(^|[\\/])opencode(\.exe)?$/i.test(args[0] ?? '')) return false;
+  const rest = args.slice(1);
+  return rest.includes('serve') && rest.some((arg) => /^--service(=(true|1))?$/i.test(arg));
+}
+
+// A bare opencode command without --standalone (debug config, models, auth list) starts the shared
+// `opencode serve --service`, which keeps the global config and OPENCODE_* variables it started with (#635 item 3;
+// three times on 2026-10-25). The dispatch runs only while no such daemon is up.
+const powershellExe = path.join(
+  process.env.SystemRoot || 'C:\\Windows',
+  'System32',
+  'WindowsPowerShell',
+  'v1.0',
+  'powershell.exe',
+);
+try {
+  const commandLines = execFileSync(
+    powershellExe,
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      // Stop makes a CIM error throw instead of printing nothing (MergePilot on #643).
+      '$ErrorActionPreference = \'Stop\'; Get-CimInstance Win32_Process -Filter "Name=\'opencode.exe\'" | ForEach-Object { "$($_.ProcessId)`t$($_.CommandLine)" }',
+    ],
+    { encoding: 'utf8', timeout: 15000 },
+  );
+  const processes = commandLines
+    .split(/\r?\n/)
+    .map((line) => line.split('\t'))
+    .filter(([pid]) => /^\d+$/.test(pid));
+  // Windows withholds the command line of an elevated or protected process, which could hide the service.
+  const unreadable = processes.filter(([, commandLine = '']) => !commandLine.trim());
+  const services = processes.filter(([, commandLine = '']) => isSharedServiceCommand(commandLine));
+  if (services.length)
+    problems.push(
+      `the shared opencode service is running (PID ${services.map(([pid]) => pid).join(', ')}): stop it before dispatch`,
+    );
+  if (unreadable.length)
+    problems.push(
+      `cannot read the command line of opencode PID ${unreadable.map(([pid]) => pid).join(', ')}: it may be the shared service`,
+    );
+} catch (error) {
+  problems.push(`cannot confirm that the shared opencode service is stopped (${error.message})`);
+}
+
 if (problems.length) {
   console.error(`refused: ${file}\n  - ${problems.join('\n  - ')}`);
   process.exit(1);

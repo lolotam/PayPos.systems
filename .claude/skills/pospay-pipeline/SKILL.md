@@ -242,7 +242,13 @@ pins the PosPay rules on top of it.
      global config that mentions `pospay-minimax`;
    - every run uses `--standalone`, a private opencode server started from this checked environment. The shared
      `opencode serve --service` keeps the `OPENCODE_*` variables and config it started with, so checking this
-     shell's environment would prove nothing about it;
+     shell's environment would prove nothing about it. **No opencode command runs without `--standalone` and an
+     isolated `XDG_CONFIG_HOME`, diagnostics included** (`opencode debug config`, `models`, `auth list`): a bare
+     command starts that shared service as a background daemon (2.1.4; three times on 2026-10-25, #635 item 3).
+     Measured on 2.1.4: `opencode models` starts it even under an isolated `XDG_CONFIG_HOME`; `--standalone`,
+     `--version` and `service get` do not, and no flag or variable turns the autostart off. The checker refuses the
+     dispatch while an `opencode serve --service` process is running, and the `finally` stopper ends any that started
+     during the run (process tree, PID logged; one still alive fails the cleanup);
    - opencode must be signed in to no account. A signed-in organization's config is fetched and merged after the
      project file, so it could override every rule here (Codex on #416). The checker reads the `account`,
      `account_state` and `control_account` tables of `~/.local/share/opencode/opencode.db` read-only and refuses the
@@ -337,6 +343,8 @@ pins the PosPay rules on top of it.
    ```powershell
    & {   # a child scope, so the caller's $ErrorActionPreference comes back after any outcome
    $ErrorActionPreference = 'Stop'
+   $savedCwd = Get-Location   # restored by the finally block below, and by this trap when setup refuses earlier
+   trap { Set-Location $savedCwd; break }
    Set-Location F:\Dev\Worktrees\PosPay\<branch>
    if (-not (Test-Path .git -PathType Leaf)) { throw 'MiniMax runs only at a worktree root, where .git is a file' }
    # git fetch and git archive below stage the guards through this worktree's .git pointer, so it must lead to the
@@ -432,6 +440,7 @@ pins the PosPay rules on top of it.
        $env:PATH = $savedPath
        $env:XDG_CONFIG_HOME = $savedXdg
        $env:PWD = $savedPwd
+       Set-Location $savedCwd
        # The env files come back only once the stopper confirmed MiniMax has stopped ($stopExit is 0, or the run never
        # started); after a failed or thrown stop they stay stashed (MergePilot on #416). A file MiniMax planted under the
        # same name is moved aside to the guard folder and reported, never overwritten silently.
