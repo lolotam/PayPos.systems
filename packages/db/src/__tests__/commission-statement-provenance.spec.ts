@@ -80,13 +80,20 @@ it('the reviewer and the membership of the same person are accepted', async () =
   ]);
 });
 
-// شهر المصدر لازم يكون قبل شهر الكشف بس: المساوي أو اللي بعده مرفوض، واللي قبله مقبول.
-const SOURCE_MONTH_REFUSALS = [
-  { kind: 'CORRECTION', relation: 'equal' },
-  { kind: 'CORRECTION', relation: 'later' },
-  { kind: 'CARRY_COMMISSION', relation: 'equal' },
-  { kind: 'CARRY_COMMISSION', relation: 'later' },
+// الأنواع الخمسة اللي لازم تحمل شهر المصدر: التصحيحات التلاتة والـ carry اتنين.
+const SOURCE_PERIOD_KINDS = [
+  'CORRECTION',
+  'CORRECTION_TIP_CARD',
+  'CORRECTION_TIP_CASH',
+  'CARRY_COMMISSION',
+  'CARRY_TIP_CARD',
 ];
+
+// شهر المصدر لازم يكون قبل شهر الكشف بس: المساوي أو اللي بعده مرفوض، واللي قبله مقبول.
+// الحالات المرفوضة هي كل نوع في كل علاقة: مساوي أو بعده.
+const SOURCE_MONTH_REFUSALS = SOURCE_PERIOD_KINDS.flatMap((kind) =>
+  ['equal', 'later'].map((relation) => ({ kind, relation })),
+);
 
 it.each(SOURCE_MONTH_REFUSALS)(
   'a $kind line whose source month is $relation to the statement month is refused',
@@ -107,7 +114,7 @@ it.each(SOURCE_MONTH_REFUSALS)(
   },
 );
 
-it.each(['CORRECTION', 'CARRY_COMMISSION'])(
+it.each(SOURCE_PERIOD_KINDS)(
   'a %s line from an earlier month is frozen with its statement',
   async (kind) => {
     const period = nextPeriod();
