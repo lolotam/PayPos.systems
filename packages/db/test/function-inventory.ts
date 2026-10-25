@@ -157,4 +157,19 @@ export const FUNCTION_INVENTORY = [
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],
   },
+  {
+    proname: 'commission_statements_insert_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'commission_statements_update_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'commission_statement_frozen_insert_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
 ].sort((a, b) => a.proname.localeCompare(b.proname));

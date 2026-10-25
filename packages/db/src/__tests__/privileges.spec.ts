@@ -21,6 +21,7 @@ import { ALERT_RULE_COLUMN_GRANTS } from '../../test/alert-rule-grants.ts';
 import { PUSH_SUBSCRIPTION_COLUMN_GRANTS } from '../../test/push-subscription-grants.ts';
 import { PUSH_ATTEMPT_COLUMN_GRANTS } from '../../test/push-attempt-grants.ts';
 import { DISCOUNT_PROPOSAL_COLUMN_GRANTS } from '../../test/discount-proposal-grants.ts';
+import { COMMISSION_STATEMENT_COLUMN_GRANTS } from '../../test/commission-statement-grants.ts';
 import { ALLOWED_TABLE_GRANTS } from '../../test/table-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -132,6 +133,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...PUSH_SUBSCRIPTION_COLUMN_GRANTS,
         ...PUSH_ATTEMPT_COLUMN_GRANTS,
         ...DISCOUNT_PROPOSAL_COLUMN_GRANTS,
+        ...COMMISSION_STATEMENT_COLUMN_GRANTS,
       ].sort(),
     );
   });

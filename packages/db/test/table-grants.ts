@@ -1,5 +1,6 @@
 import { ATTENDANCE_TABLE_GRANTS } from './attendance-grants.ts';
 import { DISCOUNT_PROPOSAL_TABLE_GRANTS } from './discount-proposal-grants.ts';
+import { COMMISSION_STATEMENT_TABLE_GRANTS } from './commission-statement-grants.ts';
 import { SCHEDULE_TABLE_GRANTS } from './schedule-grants.ts';
 
 // منح الجداول المراجَع (plan v4 T5، closes #16): أي صلاحية جدول جديدة من هجرة لازم تُكتب هنا، وإلا فشل الاختبار.
@@ -25,6 +26,7 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'cashier_pins:INSERT',
     'cashier_pins:SELECT',
     'cashier_pins:UPDATE',
+    ...COMMISSION_STATEMENT_TABLE_GRANTS,
     'companies:INSERT',
     'companies:SELECT',
     'companies:UPDATE',
