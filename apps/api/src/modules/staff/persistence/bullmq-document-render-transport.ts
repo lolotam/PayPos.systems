@@ -25,18 +25,13 @@ export function createDocumentRenderTransport(
   redis: Redis,
   prefix = 'bull',
 ): DocumentRenderTransport & { close(): Promise<void>; onModuleDestroy(): Promise<void> } {
-  const connection = redis.duplicate({
-    maxRetriesPerRequest: 1,
-    enableOfflineQueue: false,
-    commandTimeout: 5000,
-    keyPrefix: '',
-  });
-  connection.on('error', () => undefined);
-  const queue = new Queue(DOCUMENTS_RENDER_QUEUE, { connection, prefix });
-  queue.on('error', () => undefined);
+  // الاتصال الإضافي يتفتح عند أول طلب مستند، مش مع تهيئة كل مسارات الموظفين.
+  let resources: ReturnType<typeof createQueueResources> | undefined;
+  const queueResources = () => (resources ??= createQueueResources(redis, prefix));
   const close = async () => {
-    await queue.close();
-    connection.disconnect();
+    if (resources === undefined) return;
+    await resources.queue.close();
+    resources.connection.disconnect();
   };
   return {
     rendererAlive: async () => (await redis.exists(DOCUMENT_RENDERER_ALIVE_KEY)) === 1,
@@ -52,9 +47,13 @@ export function createDocumentRenderTransport(
         .hset(key, 'state', 'QUEUED', 'requested_by', job.requestedBy, 'filename', job.filename)
         .expire(key, DOCUMENT_STATUS_TTL_SECONDS)
         .exec();
+      const { queue } = queueResources();
+      await waitForQueue(queue);
       await queue.add('render', payload, documentRenderJobOptions(job.renderId));
     },
     markFailed: async (companyId, renderId) => {
+      const { connection, queue } = queueResources();
+      await waitForQueue(queue);
       const key = `${redis.options.keyPrefix ?? ''}${documentStatusKey(companyId, renderId)}`;
       const result = await connection.eval(
         MARK_ENQUEUE_FAILED,
@@ -68,4 +67,32 @@ export function createDocumentRenderTransport(
     close,
     onModuleDestroy: close,
   };
+}
+
+function createQueueResources(redis: Redis, prefix: string) {
+  const connection = redis.duplicate({
+    maxRetriesPerRequest: 1,
+    enableOfflineQueue: false,
+    commandTimeout: 5000,
+    keyPrefix: '',
+  });
+  connection.on('error', () => undefined);
+  const queue = new Queue(DOCUMENTS_RENDER_QUEUE, { connection, prefix });
+  queue.on('error', () => undefined);
+  return { connection, queue };
+}
+
+// أول استعمال يستنى الاتصال بمهلة محدودة؛ انقطاع Redis ما يعلّقش طلب HTTP بلا نهاية.
+async function waitForQueue(queue: Queue): Promise<void> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      queue.waitUntilReady(),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error('Document queue connection timed out')), 5000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
 }

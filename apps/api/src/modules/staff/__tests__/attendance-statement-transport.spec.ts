@@ -66,6 +66,17 @@ it('a failed render leaves the status failed with its error code', async () => {
   expect(hash).toMatchObject({ state: 'FAILED', error_code: 'DOCUMENT_RENDER_FAILED' });
 });
 
+it('reconciliation can be the first operation on a fresh transport connection', async () => {
+  const fresh = createDocumentRenderTransport(redis, `test-${salaryIds.newId()}`);
+  const failedId = salaryIds.newId();
+  try {
+    expect(await fresh.markFailed(companyId, failedId)).toBe(true);
+    expect(await redis.hget(documentStatusKey(companyId, failedId), 'state')).toBe('FAILED');
+  } finally {
+    await fresh.close();
+  }
+});
+
 it('an accepted job survives an ambiguous enqueue failure while queued', async () => {
   const acceptedId = salaryIds.newId();
   await transport.queue({
