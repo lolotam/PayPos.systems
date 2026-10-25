@@ -226,7 +226,7 @@ async function sweepAndPair(deps, config, controller, runtime, summary) {
   } catch {}
 }
 
-/** آخر تنظيف: مراجعة الجهاز حتى تنجح، إنهاء جلسة الـ owner، وطباعة سطور النتيجة. */
+/** آخر تنظيف: مرور أخير محدود لمراجعة الجهاز لو لسه ما اتلغاش، إنهاء جلسة الـ owner، وطباعة سطور النتيجة. */
 async function finalize(deps, config, runtime, summary, startRevoke, stop) {
   await startRevoke();
   if (summary.revoke !== 'done' && runtime.label !== '') {
