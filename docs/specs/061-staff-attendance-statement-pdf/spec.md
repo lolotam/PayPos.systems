@@ -349,8 +349,11 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   shift that had ended; the future dates of a current-month period are such dates unless they have approved leave.
   - **Render-time state:** sessions, approved leave and schedule shifts are read in their state at render time, as
     27b reads them, and admission reads the same current state. An edit made after the request (a void, a correction,
-    a leave decision, a schedule edit) changes the figures, and a retry reads them again (`TODO(spec)`, issue #552:
-    freezing the inputs at the request is a separate design). A session prints «لسه جوّه» when it is still OPEN at
+    a leave decision, a schedule edit) changes the figures, and a retry reads them again. **This is final** (Waleed,
+    2026-10-25, PP-61, issue #552: «كشف الحضور الرسمي: يطلع ببيانات وقت التجهيز (المقترح)»): the statement shows the
+    data as of render time and prints its generation time (the footer's issue date and time, FR-016); an edit made
+    before the render reads (even after the request) shows in it, an edit made after it was generated shows only in a
+    newly requested statement, and nothing is snapshotted at the request (no history table, no migration). A session prints «لسه جوّه» when it is still OPEN at
     render time, and a `MISSED_OUT` session is judged by its state at render. On a date with an OPEN session,
     «لسه جوّه» takes precedence: that date never prints «لا يوجد حضور مسجّل».
   - **Empty at render:** if the render finds no coverage for the requested employee, or for every branch row, the

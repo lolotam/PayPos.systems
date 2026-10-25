@@ -1,8 +1,10 @@
-/** اسم الفرع باللغتين والمنطقة الزمنية الفعّالة كما يملكها التينانسي. */
+/** اسم الفرع وأسماء النشاط ومنطقته الزمنية الفعّالة كما يملكها التينانسي. */
 export interface BranchPlace {
   readonly nameAr: string | null;
   readonly nameEn: string;
   readonly timeZone: string;
+  readonly businessNameAr: string | null;
+  readonly businessNameEn: string;
 }
 
 /**
@@ -11,9 +13,10 @@ export interface BranchPlace {
  */
 export interface BranchPlaceReader<Transaction> {
   /**
-   * اسم الفرع باللغتين ومنطقته الزمنية الفعّالة لرسالة عدم الحضور.
+   * اسم الفرع وأسماء النشاط ومنطقته الزمنية الفعّالة؛ القارئ ده بيخدم قراءتين: رسالة عدم
+   * الحضور بتقراها بعد قفل State، وبيان الحضور بيقراه في معاملة قراءة عادية من غير قفل.
    *
-   * @param tx معاملة الشركة بعد قفل State
+   * @param tx معاملة الشركة: بعد قفل State في رسالة عدم الحضور، ومعاملة قراءة عادية في البيان
    * @param companyId الشركة المجدولة
    * @param businessId نشاط الوردية
    * @param branchId فرع الوردية

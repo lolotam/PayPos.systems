@@ -13,7 +13,7 @@ import { statementLogoStorage } from './statement-logo-storage.adapter.ts';
 const file = { storageKey: 'company/business/verified/file', contentType: 'image/png' } as const;
 
 function fakeStorage(
-  read: (key: string, maxBytes: number) => Promise<Uint8Array>,
+  read: (key: string, maxBytes: number, signal?: AbortSignal) => Promise<Uint8Array>,
 ): ObjectStorage {
   return {
     presignUpload: vi.fn(async () => 'https://storage.test/upload'),
@@ -94,6 +94,49 @@ it('refuses an aborted render before it touches the storage', async () => {
     code: 'ABORTED',
   });
   expect(storage.read).not.toHaveBeenCalled();
+});
+
+it('cancels the storage request when the read deadline fires', async () => {
+  vi.useFakeTimers();
+  let handed: AbortSignal | undefined;
+  const storage = fakeStorage(async (_key, _maxBytes, signal) => {
+    handed = signal;
+    return new Promise<Uint8Array>(() => undefined);
+  });
+  const pending = statementLogoStorage(storage).read(file);
+  const assertion = expect(pending).rejects.toMatchObject({ code: 'READ_TIMEOUT' });
+  await vi.advanceTimersByTimeAsync(STATEMENT_LOGO_LIMITS.readTimeoutMs);
+  await assertion;
+  expect(handed?.aborted).toBe(true);
+});
+
+it('cancels the storage request when the caller aborts the render', async () => {
+  const controller = new AbortController();
+  let handed: AbortSignal | undefined;
+  const storage = fakeStorage(async (_key, _maxBytes, signal) => {
+    handed = signal;
+    return new Promise<Uint8Array>(() => undefined);
+  });
+  const pending = statementLogoStorage(storage).read(file, controller.signal);
+  const assertion = expect(pending).rejects.toMatchObject({ code: 'ABORTED' });
+  controller.abort();
+  await assertion;
+  expect(handed?.aborted).toBe(true);
+});
+
+it('keeps the aborted render apart from the read timeout', async () => {
+  vi.useFakeTimers();
+  const controller = new AbortController();
+  const timedOut = fakeStorage(() => new Promise<Uint8Array>(() => undefined));
+  const pendingTimeout = statementLogoStorage(timedOut).read(file);
+  const timeoutAssertion = expect(pendingTimeout).rejects.toMatchObject({ code: 'READ_TIMEOUT' });
+  await vi.advanceTimersByTimeAsync(STATEMENT_LOGO_LIMITS.readTimeoutMs);
+  await timeoutAssertion;
+  const aborted = fakeStorage(() => new Promise<Uint8Array>(() => undefined));
+  const pendingAbort = statementLogoStorage(aborted).read(file, controller.signal);
+  const abortAssertion = expect(pendingAbort).rejects.toMatchObject({ code: 'ABORTED' });
+  controller.abort();
+  await abortAssertion;
 });
 
 it('rethrows a broken stored logo so the attempt fails visibly', async () => {

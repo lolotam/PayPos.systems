@@ -16,5 +16,6 @@ export { html, type HtmlSlot } from './html/template.ts';
 export { baseLayout, bdi, type LayoutInput } from './html/layout.ts';
 export { fixtureDocument, type FixtureInput } from './html/fixture.ts';
 export { imageDataUri, type ImageMime } from './html/image.ts';
+export { attendanceStatementHtml } from './templates/attendance-statement.ts';
 export { fontFaceCss } from './fonts/ibm-plex.ts';
 export { PlaywrightDocumentRenderer, type RendererOptions } from './playwright/renderer.ts';

@@ -42,6 +42,40 @@ async function failingStorage(status: number, body: string) {
     },
   };
 }
+// سيرفر بيبعت الترويسة بس ما بيقفلش الـ body، عشان نثبت إن الإلغاء بيقطع القراءة الجارية.
+async function slowStorage() {
+  let onRequest: () => void = () => undefined;
+  const requestReceived = new Promise<void>((resolve) => {
+    onRequest = () => resolve();
+  });
+  let onClose: () => void = () => undefined;
+  const connectionClosed = new Promise<void>((resolve) => {
+    onClose = () => resolve();
+  });
+  const server = createServer((request, response) => {
+    request.on('error', () => undefined);
+    response.on('error', () => undefined);
+    response.writeHead(200, { 'content-length': '4096' });
+    response.write(Buffer.alloc(16));
+    onRequest();
+    response.on('close', () => onClose());
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  if (address === null || typeof address === 'string') throw new Error('FAKE_S3_ADDRESS');
+  return {
+    endpoint: `http://127.0.0.1:${address.port}`,
+    requestReceived,
+    connectionClosed,
+    close: async () => {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    },
+  };
+}
 it('signs exact type and size for 120 seconds; wrong headers are refused', async () => {
   const url = await storage.presignUpload('staging/one', 'application/pdf', 4);
   const query = new URL(url).searchParams;
@@ -148,6 +182,37 @@ it('a 500 from the storage is an outage, not a missing object', async () => {
     broken.close();
     await server.close();
   }
+});
+it('an abort signal cancels the read that is still running', async () => {
+  const server = await slowStorage();
+  const broken = createS3Storage({
+    endpoint: server.endpoint,
+    region: 'auto',
+    bucket: 'private',
+    ...fakeCredentials,
+  });
+  const controller = new AbortController();
+  try {
+    const pending = broken.read('verified/slow', 4096, controller.signal);
+    await server.requestReceived;
+    controller.abort();
+    await expect(pending).rejects.toThrow('STORAGE_UNAVAILABLE');
+    await server.connectionClosed;
+  } finally {
+    broken.close();
+    await server.close();
+  }
+});
+it('a read without a signal, or with one that never fires, returns the object as before', async () => {
+  await storage.put('verified/plain', Buffer.from('synthetic bytes'), 'application/pdf');
+  expect(Buffer.from(await storage.read('verified/plain', 64))).toEqual(
+    Buffer.from('synthetic bytes'),
+  );
+  const controller = new AbortController();
+  expect(Buffer.from(await storage.read('verified/plain', 64, controller.signal))).toEqual(
+    Buffer.from('synthetic bytes'),
+  );
+  await storage.remove('verified/plain');
 });
 it('detects content instead of headers and fully re-encodes an image without metadata', async () => {
   const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#112233' } })

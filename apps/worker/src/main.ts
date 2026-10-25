@@ -1,4 +1,5 @@
 import { createDatabase, createOutboxDispatcherDatabase } from '@pospay/db';
+import { ATTENDANCE_STATEMENT_DOCUMENT_KIND } from '@pospay/contracts';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
@@ -22,7 +23,11 @@ import {
   startOptionalCapabilities,
   type OptionalCapabilities,
 } from './start-optional-capabilities.ts';
-import { createStaffDocumentDefaults, startStaffWorker } from './modules/staff/index.ts';
+import {
+  createAttendanceStatementReader,
+  createStaffDocumentDefaults,
+  startStaffWorker,
+} from './modules/staff/index.ts';
 import {
   createLateServiceSessionNoticeConsumer,
   createLineCancelNoticeConsumer,
@@ -36,6 +41,8 @@ import {
   startCoreBeforeDocuments,
   type DocumentRendering,
 } from './documents/start-documents.ts';
+import { DocumentSourceRegistry } from './documents/source-registry.ts';
+import { createAttendanceStatementSource } from './documents/sources/attendance-statement.source.ts';
 import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
 
 const config = readConfig(process.env);
@@ -228,14 +235,26 @@ async function startWorkerCore(): Promise<void> {
 try {
   documents = await startCoreBeforeDocuments({
     startCore: startWorkerCore,
-    beginDocuments: () =>
-      beginDocumentRendering({
+    beginDocuments: () => {
+      // FR-010: النوع بيتسجل هنا في composition root، والمصدر نفسه بياخد القراءين محقونين.
+      const registry = new DocumentSourceRegistry();
+      registry.register(
+        ATTENDANCE_STATEMENT_DOCUMENT_KIND,
+        createAttendanceStatementSource({
+          readStatement: createAttendanceStatementReader(app),
+          readLogo: files.readStatementLogo,
+          clock: { now: () => new Date() },
+        }),
+      );
+      return beginDocumentRendering({
         redis,
         redisUrl: config.REDIS_URL,
         logger,
         clock: { now: () => Date.now() },
         isStopping: () => stopping,
-      }),
+        registry,
+      });
+    },
     isStopping: () => stopping,
   });
   void documents.started.catch(() => undefined);

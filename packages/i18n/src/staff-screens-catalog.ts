@@ -1,3 +1,4 @@
+import { attendanceStatementAr, attendanceStatementEn } from './attendance-statement-catalog.js';
 import {
   companyEmployeeNumbersAr,
   companyEmployeeNumbersEn,
@@ -7,6 +8,7 @@ import { employeeImportAr, employeeImportEn } from './employee-import.js';
 
 /** كتالوجات شاشات منطقة الموظفين مجمعة عشان en.ts وar.ts يفضلوا تحت حد عدد السطور. */
 export const staffScreensEn = {
+  attendanceStatement: attendanceStatementEn,
   companyEmployeeNumbers: companyEmployeeNumbersEn,
   employeeAppLink: employeeAppLinkEn,
   employeeImport: employeeImportEn,
@@ -14,6 +16,7 @@ export const staffScreensEn = {
 
 /** نفس المفاتيح بالعربي. */
 export const staffScreensAr = {
+  attendanceStatement: attendanceStatementAr,
   companyEmployeeNumbers: companyEmployeeNumbersAr,
   employeeAppLink: employeeAppLinkAr,
   employeeImport: employeeImportAr,

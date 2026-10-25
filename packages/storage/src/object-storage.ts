@@ -18,12 +18,15 @@ export interface ObjectStorage {
   presignDownload(key: string, type: string): Promise<string>;
   /**
    * يقرأ بايتات محدودة في الذاكرة لكي لا يستنزف الملف المزيف العامل.
+   * الإشارة، لو بتيت، بتلغي الطلب الجاري وقت ما تتلغى؛ من غيرها الطلب بيفضل شغّال في الخلفية
+   * وبيتحمّل الملف من غير حدّ، والمحاولة اللي فشلت ممكن تتقاطع مع تحميل متروك.
    *
    * @param key المفتاح الداخلي
    * @param maxBytes حد الذاكرة
+   * @param signal إلغاء اختياري للطلب الجاري
    * @returns نتيجة العملية المطلوبة
    */
-  read(key: string, maxBytes: number): Promise<Uint8Array>;
+  read(key: string, maxBytes: number, signal?: AbortSignal): Promise<Uint8Array>;
   /**
    * ينشر نسخة موثقة تحت مفتاح جديد لا يقبل استبدال النسخة الموجودة.
    *

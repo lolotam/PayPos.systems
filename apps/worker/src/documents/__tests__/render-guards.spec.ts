@@ -1,5 +1,5 @@
 import { Writable } from 'node:stream';
-import type { Job } from 'bullmq';
+import { UnrecoverableError, type Job } from 'bullmq';
 import { documentBytesKey, documentStatusKey } from '@pospay/contracts';
 import type { Redis } from 'ioredis';
 import { createLogger } from '@pospay/observability';
@@ -8,6 +8,7 @@ import { expect, it } from 'vitest';
 import { processDocumentJob, recordExternalJobFailure } from '../process-job.ts';
 import { DocumentSourceRegistry } from '../source-registry.ts';
 import { storeReady } from '../status-store.ts';
+import { AttendanceStatementEmptyError } from '../statement-empty-error.ts';
 import { WORKER_LOG_EVENTS } from '../../shared/log-events.ts';
 import { FakeRenderer, renderId, seedQueued, statusOf, useRender } from './render-harness.ts';
 
@@ -172,5 +173,66 @@ it('does not store READY after the deadline', async () => {
       'stored',
     );
     expect((await statusOf(opened, companyId, openId))['state']).toBe('READY');
+  });
+});
+
+it('ends an empty statement as a final failure with no retry and no PDF', async () => {
+  await useRender(async (opened) => {
+    const companyId = renderId();
+    const id = renderId();
+    let loads = 0;
+    opened.registry.register('attendance-statement', {
+      load: async () => {
+        loads += 1;
+        throw new AttendanceStatementEmptyError();
+      },
+    });
+    await seedQueued(opened, companyId, id);
+    const started = Date.now();
+    const failure = await processDocumentJob(
+      asJob(job(companyId, id, 'attendance-statement'), { attemptsMade: 0 }),
+      {
+        redis: opened.redis,
+        registry: opened.registry,
+        renderer: opened.renderer,
+        clock: { now: () => started },
+        logger: opened.logger,
+      },
+    ).catch((error: unknown) => error);
+    // الخطأ غير قابل لإعادة المحاولة، فBullMQ مش هيعيد الوظيفة.
+    expect(failure).toBeInstanceOf(UnrecoverableError);
+    expect((failure as Error).message).toBe('STATEMENT_EMPTY');
+    expect(loads).toBe(1);
+    const status = await statusOf(opened, companyId, id);
+    expect(status['state']).toBe('FAILED');
+    expect(status['error_code']).toBe('STATEMENT_EMPTY');
+    expect(await opened.redis.exists(documentBytesKey(companyId, id))).toBe(0);
+  });
+});
+
+it('maps any other source failure to DOCUMENT_RENDER_FAILED', async () => {
+  await useRender(async (opened) => {
+    const companyId = renderId();
+    const id = renderId();
+    opened.registry.register('attendance-statement', {
+      load: async () => {
+        throw new Error('boom');
+      },
+    });
+    await seedQueued(opened, companyId, id);
+    const started = Date.now();
+    await expect(
+      processDocumentJob(asJob(job(companyId, id, 'attendance-statement'), { attemptsMade: 1 }), {
+        redis: opened.redis,
+        registry: opened.registry,
+        renderer: opened.renderer,
+        clock: { now: () => started },
+        logger: opened.logger,
+      }),
+    ).rejects.toThrow('DOCUMENT_RENDER_FAILED');
+    const status = await statusOf(opened, companyId, id);
+    expect(status['state']).toBe('FAILED');
+    expect(status['error_code']).toBe('DOCUMENT_RENDER_FAILED');
+    expect(await opened.redis.exists(documentBytesKey(companyId, id))).toBe(0);
   });
 });
