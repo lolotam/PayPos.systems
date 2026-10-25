@@ -85,6 +85,38 @@ it('a sign-out resolves on both statuses and refuses a rejection', async () => {
   await expect(personalCalls.signOut()).rejects.toThrow('PERSONAL_SIGN_OUT_REFUSED');
 });
 
+it('an aborted sign-out rejects and the late answer changes nothing', async () => {
+  const controller = new AbortController();
+  let late: ((response: Response) => void) | undefined;
+  fetcher.mockImplementationOnce(
+    (request: Request) =>
+      new Promise<Response>((resolve, reject) => {
+        late = resolve;
+        request.signal.addEventListener('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'));
+        });
+      }),
+  );
+
+  const promise = personalCalls.signOut(controller.signal);
+  await Promise.resolve();
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  const request = fetcher.mock.calls[0]?.[0] as Request;
+  expect(request.signal.aborted).toBe(false);
+
+  controller.abort();
+  await expect(promise).rejects.toThrow();
+  expect(request.signal.aborted).toBe(true);
+
+  late?.(
+    new Response(JSON.stringify({ status: 'SIGNED_OUT' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }),
+  );
+  await expect(promise).rejects.toThrow();
+});
+
 it.each([{}, { status: 'MAYBE' }])('an unclear answer stops the caller', async (body) => {
   fetcher.mockResolvedValueOnce(
     new Response(JSON.stringify(body), {

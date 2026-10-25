@@ -10,12 +10,13 @@ import { disablePushOnSignOut } from '@/personal-staff/push/push-disable';
  * فيه جلسة ولا لأ، وسيرفر هو اللي جاوب صراحةً (spec 067) — وده هو الدليل الوحيد.
  * أي حاجة تانية (رفض، جواب غامض، شبكة مقطوعة) معناها الجلسة لسه شغالة.
  *
+ * @param signal إشارة إلغاء اختيارية: المتصل بيلغي الطلب عشان جواب متأخر ما يمسحش جلسة أحدث
  * @returns «done» لما السيرفر أكّد، و«failed» لما رفض أو الشبكة وقعت
  */
-export async function endPersonalSession(): Promise<'done' | 'failed'> {
+export async function endPersonalSession(signal?: AbortSignal): Promise<'done' | 'failed'> {
   await disablePushOnSignOut();
   try {
-    await personalCalls.signOut();
+    await personalCalls.signOut(signal);
   } catch {
     return 'failed';
   }

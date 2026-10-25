@@ -34,6 +34,28 @@ describe('endPersonalSession', () => {
     expect(announcePersonalChange).toHaveBeenCalledTimes(1);
   });
 
+  it('passes the abort signal to the sign-out, and nothing when there is none', async () => {
+    vi.mocked(personalCalls.signOut).mockResolvedValue(undefined);
+    const controller = new AbortController();
+
+    await expect(endPersonalSession(controller.signal)).resolves.toBe('done');
+    expect(personalCalls.signOut).toHaveBeenNthCalledWith(1, controller.signal);
+
+    await expect(endPersonalSession()).resolves.toBe('done');
+    expect(personalCalls.signOut).toHaveBeenNthCalledWith(2, undefined);
+  });
+
+  it('an aborted sign-out fails without announcing the change', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    vi.mocked(personalCalls.signOut).mockImplementation(async (signal?: AbortSignal) => {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    });
+
+    await expect(endPersonalSession(controller.signal)).resolves.toBe('failed');
+    expect(announcePersonalChange).not.toHaveBeenCalled();
+  });
+
   it.each(['PERSONAL_SIGN_OUT_REFUSED', 'PERSONAL_SIGN_OUT_UNCLEAR', 'TypeError'])(
     'fails without announcing when the sign-out ends with %s',
     async (code) => {
