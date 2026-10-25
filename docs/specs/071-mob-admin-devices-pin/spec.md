@@ -7,7 +7,7 @@
 **Status**: Draft. Waleed answered the owner questions DV-Q1 … DV-Q7 (decisions page batch 72, PP-63.1 … PP-63.7) on
 2026-10-25; Abu Salem has not answered yet ([owner-questions.ar.md](owner-questions.ar.md)). Work follows Waleed's
 picks, named under each rule below. Each rule keeps its `TODO(spec)` marker until Abu Salem answers, because his pick
-binds if it differs (`CLAUDE.md` §1 5b). DV-Q8 (batch 73, PP-63.8) is a follow-up question; Waleed answered it, and a review finding on his pick went back to him.
+binds if it differs (`CLAUDE.md` §1 5b). DV-Q8 (batch 73, PP-63.8) is a follow-up question; Waleed answered it, and DV-Q9 follows from a review finding on his pick.
 
 **Input**: Issue #634. Today a counter device can only be paired, approved or removed, and a staff PIN can only be set,
 through the API by hand. For M-1c the web manager did each step with `curl` and read a device id from the database.
@@ -80,10 +80,11 @@ the staff OTP sign-in (PP-58.1), and the employee's own PIN change, except the s
     because both hold the same credential. The only employee-held proof today is a WhatsApp code to her phone; a passkey
     is enrolled only inside a personal session that itself follows a WhatsApp code (ADR-0027), and backs attendance,
     not sign-in. The code locks out a STOP-suppressed employee, whose own PIN is ADR-0019's recovery path, and staff OTP
-    is postponed (PP-58.1). This finding went back to Waleed: keep the one-time PIN and record the accepted risk as an
-    ADR-0019 addendum, or wait for other options from design advice (issue #682).
+    is postponed (PP-58.1). Whether to accept that risk is a roles question for both owners, DV-Q9, `TODO(spec)`:
+    accept it with a short validity for the one-time PIN, an owner notice on every change and an ADR-0019 addendum, or
+    wait for staff OTP and gate the change on a WhatsApp code. Design advice for the safeguards is issue #682.
 
-    071-3 does not start before Waleed answers, and its PIN action never reaches staff without 071-4.
+    071-3 does not start before DV-Q9 is answered, and its PIN action never reaches staff without 071-4.
   - The list needs a guarded read, the **PIN eligibility read** (071-3). For each employee it returns the linked
     `user_id` (or none) and one boolean: whether a PIN would let that person sign in on the chosen branch's devices. That is `staffEligible`
     (`apps/api/src/modules/identity/domain/staff-eligibility.ts`: a membership covering that branch and the effective
