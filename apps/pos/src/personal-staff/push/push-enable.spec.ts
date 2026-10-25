@@ -11,9 +11,10 @@ const CONFIG = {
   vapid_key_id: '0123456789abcdef',
   subscriber_ref: 'subscriber-ref',
 };
+const PREVIOUS = 'test-previous-a';
 
 const RECORD: PushRecord = {
-  token: 'previous-token',
+  token: PREVIOUS,
   subscriber_ref: 'subscriber-ref',
   company_id: 'company',
   vapid_key_id: '0123456789abcdef',
@@ -24,9 +25,11 @@ const RECORD: PushRecord = {
 const fakes = vi.hoisted(() => ({
   record: null as PushRecord | null,
   generation: 0,
+  readFails: false,
 }));
 
 vi.mock('./push-lock', () => ({
+  hasCrossTabLock: () => true,
   runPushExclusive: <T>(work: () => Promise<T>) => work(),
 }));
 
@@ -35,7 +38,10 @@ vi.mock('./push-record-events', () => ({ notifyPushRecordChanged: vi.fn() }));
 vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
     generation: async () => fakes.generation,
-    read: async () => (fakes.record === null ? null : { ...fakes.record }),
+    read: async () => {
+      if (fakes.readFails) throw new Error('PUSH_STORE_UNAVAILABLE');
+      return fakes.record === null ? null : { ...fakes.record };
+    },
     writeIfGeneration: async (record: PushRecord, expected: number, options?: PushWriteOptions) => {
       if (expected !== fakes.generation) return false;
       const stored = fakes.record;
@@ -101,11 +107,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   fakes.record = null;
   fakes.generation = 0;
+  fakes.readFails = false;
   vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: CONFIG });
   vi.mocked(pushCalls.revoke).mockResolvedValue(undefined);
 });
 
-it('leaves the winner subscription alone when the second enable loses the record', async () => {
+it('refuses the second enable when both started from an empty record', async () => {
   const firstRegistration = deferred<undefined>();
   const secondRegistration = deferred<undefined>();
   const bothRegistered = deferred<undefined>();
@@ -130,9 +137,8 @@ it('leaves the winner subscription alone when the second enable loses the record
 
   expect(secondToken).not.toBe(firstToken);
   expect(fakes.record?.token).toBe(firstToken);
-  // الخاسر ما يشيلش اشتراك اللي كسب، ولا يراجع سطره على السيرفر (ADR-0052 §7).
-  expect(unsubscribePush).not.toHaveBeenCalled();
-  expect(pushCalls.revoke).not.toHaveBeenCalled();
+  expect(unsubscribePush).toHaveBeenCalledTimes(1);
+  expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION, expect.any(AbortSignal));
 });
 
 it('tears the registration down when the record was removed while it was registering', async () => {
@@ -164,4 +170,16 @@ it('tears the registration down when a sign-in suspension bumped the record revi
   expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION, expect.any(AbortSignal));
   expect(fakes.record?.suspended).toBe(true);
   expect(fakes.record?.revision).toBe(1);
+});
+
+it('fails without touching the network when the local record cannot be read', async () => {
+  fakes.readFails = true;
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'failed' });
+  expect(pushCalls.config).not.toHaveBeenCalled();
+  expect(pushCalls.register).not.toHaveBeenCalled();
+  expect(unsubscribePush).not.toHaveBeenCalled();
+  expect(pushCalls.revoke).not.toHaveBeenCalled();
 });

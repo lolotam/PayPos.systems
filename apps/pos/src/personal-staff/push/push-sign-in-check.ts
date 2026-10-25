@@ -3,7 +3,7 @@ import { pushCalls, withAbortTimeout } from './push-calls';
 import { runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
-import type { PushRecord } from './push-record';
+import type { PushSuspension } from './push-record';
 
 const CONFIG_TIMEOUT_MS = 8000;
 
@@ -18,9 +18,9 @@ let sequence = 0;
  * بين القراءة والتعليق: لو السجل اتمسح قبل التعليق، التعليق بيرجع null ومفيش حاجة تتغير.
  */
 export async function suspendPushForSignIn(): Promise<void> {
-  let suspended: PushRecord | null;
+  let snapshot: PushSuspension | null;
   try {
-    suspended = await pushRecordStore.suspend();
+    snapshot = await pushRecordStore.suspend();
   } catch {
     // من غير تعليق السجل بيفضل قايم مفتوح، فبنمسحه ونشيل الاشتراك (fail-closed).
     await pushRecordStore.remove().catch(() => undefined);
@@ -28,7 +28,7 @@ export async function suspendPushForSignIn(): Promise<void> {
     notifyPushRecordChanged();
     return;
   }
-  if (suspended === null) return;
+  if (snapshot === null) return;
   notifyPushRecordChanged();
 }
 
@@ -36,15 +36,15 @@ export async function suspendPushForSignIn(): Promise<void> {
  * فحص التوقيع وقت تسجيل الدخول الجديد: بيعلّق عرض النص الأول، وبعدين بيقارن مرجع المشترك.
  * المرجع المختلف جواب مؤكد فالسجل بيتمسح؛ الفشل أو الوقت الضائع بيسيب السجل معلّق (FR-018).
  * المقارنة بتتم على السجل اللي رجع من عملية التعليق نفسها: هو ده اللي اتعلق فعلاً، فأي
- * تسجيل تاني كسب السجل قبلها مايتقارنش بسجل قديم.
+ * تسجيل تاني كسب السجل قبلها مايتقارنش بسجل قديم. والرجوع المحروس بيستعمل الجيل اللي
+ * رجع مع التعليق، مش جيل مقروء قبله، عشان ما يفشلش رجوع صالح (ADR-0052 §7).
  */
 export async function runSignInPushCheck(): Promise<void> {
   const run = (sequence += 1);
   await runPushExclusive(async (): Promise<void> => {
-    const generation = await pushRecordStore.generation();
-    let suspended: PushRecord | null;
+    let snapshot: PushSuspension | null;
     try {
-      suspended = await pushRecordStore.suspend();
+      snapshot = await pushRecordStore.suspend();
     } catch {
       // من غير تعليق السجل بيفضل قايم مفتوح، فبنمسحه ونشيل الاشتراك (fail-closed).
       await pushRecordStore.remove().catch(() => undefined);
@@ -52,7 +52,8 @@ export async function runSignInPushCheck(): Promise<void> {
       notifyPushRecordChanged();
       return;
     }
-    if (suspended === null) return;
+    if (snapshot === null) return;
+    const suspended = snapshot.record;
     notifyPushRecordChanged();
     let result: Awaited<ReturnType<typeof pushCalls.config>>;
     try {
@@ -74,7 +75,7 @@ export async function runSignInPushCheck(): Promise<void> {
     }
     if (result.config.subscriber_ref === suspended.subscriber_ref) {
       const written = await pushRecordStore
-        .writeIfGeneration({ ...current, suspended: false }, generation, {
+        .writeIfGeneration({ ...current, suspended: false }, snapshot.generation, {
           clearSuspension: true,
           expectRevision: suspended.revision,
           expectToken: suspended.token,

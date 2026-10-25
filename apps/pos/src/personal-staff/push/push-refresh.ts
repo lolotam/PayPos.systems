@@ -11,8 +11,7 @@ import {
   type PushSubscriptionLike,
 } from './push-browser';
 import { pushCalls, withAbortTimeout } from './push-calls';
-import { runPushExclusive } from './push-lock';
-import { newerRecordHoldsSubscription } from './push-newer-record';
+import { hasCrossTabLock, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
@@ -43,6 +42,9 @@ export interface PushRefreshInput {
  * @returns نتيجة التحديث
  */
 export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshOutcome> {
+  // من غير قفل بين التبويبات، تحديثين متوازيين بيركبوا على اشتراك واحد وسطر واحد على
+  // السيرفر. بنرفض قبل أي قراءة أو تسجيل (ADR-0052 §7).
+  if (!hasCrossTabLock()) return { kind: 'none' };
   return runPushExclusive(async (): Promise<PushRefreshOutcome> => {
     const generation = await pushRecordStore.generation();
     const record = await pushRecordStore.read().catch(() => null);
@@ -143,9 +145,8 @@ async function rotate(
     return { kind: 'cleared' };
   }
   if (outcome === 'stale') {
-    // جيل أو مراجعة أو توكن أحدث: لو تسجيل تاني كسب السجل، فاشتراكه والسطر بتاعه على
-    // السيرفر بيفضلوا زي ما هما؛ غير كده بنشيل تسجيلنا ونراجع سطرنا (ADR-0052 §7).
-    if (await newerRecordHoldsSubscription(record.token)) return { kind: 'cleared' };
+    // جيل أو مراجعة أو توكن أحدث: السجل بقى بتاع حد تاني (خروج أو تعليق دخول أو إيقاف)،
+    // فبنسيبه ونشيل بس تسجيلنا (ADR-0052 §7).
     await abortRotation(installationId);
     return { kind: 'cleared' };
   }

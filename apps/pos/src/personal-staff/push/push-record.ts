@@ -13,6 +13,12 @@ export interface PushRecord {
   revision: number;
 }
 
+/** لقطة التعليق: السجل المعلق والجيل اللي اتشاف في نفس عملية التعليق. */
+export interface PushSuspension {
+  record: PushRecord;
+  generation: number;
+}
+
 /** خيارات الكتابة المحروسة: التعليق بيتشال صريح، والمراجعة والتوكن بيمنعوا كتابة قديمة. */
 export interface PushWriteOptions {
   clearSuspension?: boolean;
@@ -32,10 +38,10 @@ export interface PushRecordStore {
   removeIfMatches(expected: { token: string | null; revision: number }): Promise<boolean>;
   /**
    * بيرجع السجل المعلق كما خزنته نفس العملية اللي علّقته (التوكن ومرجع المشترك
-   * والمراجعة بعد الزيادة)، أو null لو مفيش سجل مخزن. المقارنة بتتم مع السجل اللي
-   * رجع هنا دايماً، مش مع أي قراءة قبله.
+   * والمراجعة بعد الزيادة) مع الجيل اللي اتشاف في نفس العملية، أو null لو مفيش سجل
+   * مخزن. الرجوع المحروس لازم يستعمل الجيل ده، مش الجيل المقروء قبل التعليق.
    */
-  suspend(): Promise<PushRecord | null>;
+  suspend(): Promise<PushSuspension | null>;
   generation(): Promise<number>;
   bumpGeneration(): Promise<number>;
   writeIfGeneration(

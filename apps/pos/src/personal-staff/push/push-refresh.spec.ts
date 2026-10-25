@@ -6,6 +6,7 @@ import type { PushRecord, PushWriteOptions } from './push-record';
 import { refreshPush } from './push-refresh';
 
 const INSTALLATION = '12345678-1234-4234-8234-123456789abc';
+const WINNER = 'test-winner-b';
 
 const fakes = vi.hoisted(() => {
   const state = {
@@ -52,7 +53,7 @@ vi.mock('./push-record-idb', () => ({
       const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
       fakes.state.record = suspended;
       fakes.state.writes.push(suspended);
-      return suspended;
+      return { record: suspended, generation: fakes.state.generation };
     },
     remove: async () => {
       fakes.state.removed += 1;
@@ -268,20 +269,20 @@ it('removes the record when the rotation cannot write it', async () => {
   expect(fakes.state.record).toBeNull();
 });
 
-it('leaves the winner alone when another tab took the record during the rotation', async () => {
+it('drops the rotation registration when another tab took the record', async () => {
   fakes.state.record = { ...RECORD, vapid_key_id: 'oldkey0000000000' };
   vi.mocked(pushCalls.register).mockImplementation(async () => {
     // تسجيل تاني كسب السجل قبل ما كتابة التدوير تتنفذ.
-    fakes.state.record = { ...RECORD, token: 'winner-token' };
+    fakes.state.record = { ...RECORD, token: WINNER };
   });
 
   const outcome = await refreshPush(input());
 
   expect(outcome).toEqual({ kind: 'cleared' });
-  expect(fakes.state.record?.token).toBe('winner-token');
+  expect(fakes.state.record?.token).toBe(WINNER);
   expect(fakes.state.record?.suspended).toBe(false);
   expect(fakes.state.removed).toBe(0);
-  // اشتراك واحد بس: اللي عملناه إحنا، من غير تفكيك بعده ومن غير مراجعة للسطر.
-  expect(fakes.state.unsubscribed).toBe(1);
-  expect(pushCalls.revoke).not.toHaveBeenCalled();
+  // تسجيلنا ما بقى مطلوبش من حد: الاشتراك بيتشال والسطر بتاعنا بيراجع.
+  expect(fakes.state.unsubscribed).toBe(2);
+  expect(pushCalls.revoke).toHaveBeenCalledWith(INSTALLATION, expect.any(AbortSignal));
 });

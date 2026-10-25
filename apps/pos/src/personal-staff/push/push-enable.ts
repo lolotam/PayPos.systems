@@ -12,8 +12,7 @@ import {
   type PushSubscriptionLike,
 } from './push-browser';
 import { PushKeyStaleError, pushCalls, withAbortTimeout } from './push-calls';
-import { runPushExclusive } from './push-lock';
-import { newerRecordHoldsSubscription } from './push-newer-record';
+import { hasCrossTabLock, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
@@ -36,6 +35,13 @@ export interface PushEnableInput {
   onRegistered(token: string): void;
 }
 
+/** لقطة السجل قبل التشغيل: الجيل والسجل اللي بدأ منه ومراجعته. */
+interface StartSnapshot {
+  generation: number;
+  previous: PushRecord | null;
+  revision: number;
+}
+
 async function subscribeWithConfig(
   config: { vapid_public_key: string },
   previous: PushRecord | null,
@@ -53,12 +59,64 @@ async function subscribeWithConfig(
 }
 
 /**
+ * لقطة السجل قبل التشغيل: من غير قراءة سليمة مفيش تسجيل يتعمل، والجيل لازم يتقرا مع
+ * السجل عشان الكتابة المحروسة تشوف نفس القيم (ADR-0052 §7).
+ */
+async function readStartSnapshot(): Promise<StartSnapshot | null> {
+  const generation = await pushRecordStore.generation();
+  try {
+    const previous = await pushRecordStore.read();
+    return { generation, previous, revision: previous?.revision ?? 0 };
+  } catch {
+    // التخزين مش شغال: مفيش سجل نكتب عليه ولا نسجل من غيره، فالمحاولة بتتقفل.
+    return null;
+  }
+}
+
+/**
+ * كتابة السجل بعد ما الـ API قبل التسجيل: الكتابة المحروسة هي اللي بتحدد مين كسب
+ * السجل، والتوقعات (الجيل والمراجعة والتوكن) بتمنع الكتابة فوق سجل أحدث.
+ */
+async function writeEnabledRecord(
+  input: PushEnableInput,
+  config: PushConfig,
+  token: string,
+  snapshot: StartSnapshot,
+): Promise<boolean> {
+  try {
+    // التعليق اللي كان موجود قبل التشغيل بيتشال؛ أي تعليق جه مع تسجيل تاني بيتساب.
+    return await pushRecordStore.writeIfGeneration(
+      {
+        token,
+        subscriber_ref: config.subscriber_ref,
+        company_id: input.companyId,
+        vapid_key_id: config.vapid_key_id,
+        suspended: false,
+        revision: snapshot.revision,
+      },
+      snapshot.generation,
+      {
+        clearSuspension: snapshot.previous?.suspended === true,
+        expectRevision: snapshot.revision,
+        expectToken: snapshot.previous?.token ?? null,
+      },
+    );
+  } catch {
+    // فشل الكتابة: السجل مش هيتكتب والتسجيل الجديد بيتشال.
+    return false;
+  }
+}
+
+/**
  * بتشغّل إشعارات الموبايل من ضغطة المستخدم: الإذن، ثم اشتراك جديد، ثم تسجيل عند الـ API.
  *
  * @param input الشركة واللغة ومعرف التثبيت ودالة التسجيل
  * @returns نتيجة المحاولة
  */
 export async function enablePush(input: PushEnableInput): Promise<PushEnableOutcome> {
+  // من غير قفل بين التبويبات، تشغيلين متوازيين بيركبوا على اشتراك واحد وسطر واحد على
+  // السيرفر. بنرفض قبل أي إذن أو تسجيل (ADR-0052 §7).
+  if (!hasCrossTabLock()) return { kind: 'failed' };
   // طلب الإذن لازم يكون أول خطوة في ضغطة المستخدم: المتصفح بيقبل الطلب بس طول ما كان
   // في تفاعل حي، والقفل أو أي قراءة بتستنى وبتضيّع التفاعل (ADR-0052 §7).
   const permission = notificationPermission();
@@ -70,9 +128,9 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
   return runPushExclusive(async (): Promise<PushEnableOutcome> => {
     // الجيل والمراجعة والتوكن بيتقرا من IndexedDB: التبويبات تشوف نفس القيم، والتوكن
     // بيكشف استبدال عادي مش بيزود المراجعة (ADR-0052 §7).
-    const generation = await pushRecordStore.generation();
-    const previous = await pushRecordStore.read().catch(() => null);
-    const revision = previous?.revision ?? 0;
+    const snapshot = await readStartSnapshot();
+    if (snapshot === null) return { kind: 'failed' };
+    const { previous } = snapshot;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const config = await withAbortTimeout((signal) => pushCalls.config(signal), API_TIMEOUT_MS);
       if (config.kind === 'not-ready') return { kind: 'not-ready' };
@@ -93,30 +151,12 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
       }
       // السجل بيتكتب بعد ما الـ API يقبل، والزر يعرف التوكن الجديد قبل ما يتغيّر السجل.
       input.onRegistered(token);
-      let written = false;
-      try {
-        // التعليق اللي كان موجود قبل التشغيل بيتشال؛ أي تعليق جه مع تسجيل تاني بيتساب.
-        written = await pushRecordStore.writeIfGeneration(
-          {
-            token,
-            subscriber_ref: config.config.subscriber_ref,
-            company_id: input.companyId,
-            vapid_key_id: config.config.vapid_key_id,
-            suspended: false,
-            revision,
-          },
-          generation,
-          {
-            clearSuspension: previous?.suspended === true,
-            expectRevision: revision,
-            expectToken: previous?.token ?? null,
-          },
-        );
-      } catch {
-        // فشل الكتابة: السجل مش هيتكتب والتسجيل الجديد بيتشال.
-      }
+      const written = await writeEnabledRecord(input, config.config, token, snapshot);
       if (!written) {
-        await dropLostRegistration(input.installationId, previous?.token ?? null);
+        // السجل اتغيّر تحتنا (خروج أو تعليق دخول أو إيقاف): التشغيلين متسلسلين بالقفل،
+        // فمحدش كسب السجل — تسجيلنا مش مطلوب من حد، فبيتشال وسطره بيراجع.
+        await unsubscribePush().catch(() => undefined);
+        await revoke(input.installationId);
         return { kind: 'failed' };
       }
       notifyPushRecordChanged();
@@ -124,19 +164,6 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
     }
     return { kind: 'failed' };
   });
-}
-
-/** التسجيل اللي خسر السجل: بيتشال وسطره على السيرفر بيراجع، إلا لو تسجيل تاني كسب. */
-async function dropLostRegistration(
-  installationId: string,
-  previousToken: string | null,
-): Promise<void> {
-  // تسجيل تاني كسب السجل: اشتراكه لازم يفضل، فتسجيلنا ما ينفعش يشيله ولا يراجع
-  // سطره عشان ما نضيعش اشتراك اللي كسب (ADR-0052 §7).
-  if (await newerRecordHoldsSubscription(previousToken)) return;
-  // مفيش غيرنا كسب: توكننا مش مطلوب من حد، فبيتشال والسطر عند الـ API بيراجع.
-  await unsubscribePush().catch(() => undefined);
-  await revoke(installationId);
 }
 
 async function revoke(installationId: string): Promise<void> {
