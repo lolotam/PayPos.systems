@@ -396,3 +396,4 @@ export * from './orders/service-line-performers-notice.js';
 export * from './documents-render.js';
 export * from './orders/discount-approval.js';
 export * from './orders/discount-approval-events.js';
+export * from './customers/ratings.js';
