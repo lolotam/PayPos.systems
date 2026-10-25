@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import type { PushConfig } from '@pospay/contracts';
 import type { Locale } from '@pospay/i18n';
@@ -163,6 +163,7 @@ function usePushRefresh(input: {
   local: PushLocalState;
   registered: RefObject<string | null>;
 }) {
+  const queryClient = useQueryClient();
   const refreshed = useRef('');
   const inFlight = useRef('');
   const failed = useRef('');
@@ -183,6 +184,10 @@ function usePushRefresh(input: {
     void refreshPush({ companyId, locale, config, installationId })
       .then((outcome) => {
         inFlight.current = '';
+        if (outcome.kind === 'session-changed') {
+          void queryClient.invalidateQueries({ queryKey: ['staff-push-config'] });
+          return;
+        }
         // نتيجة "ولا حاجة" (صلاحية ناقصة أو معرف تثبيت ناقص) بتتعلّم كمحاولة فاشلة:
         // التحديث بيتعاد بس لما المستخدم يرجع ويسمح، ومفيش إعادة قراءة دايرة (FR-019).
         if (outcome.kind === 'none') {
@@ -201,7 +206,7 @@ function usePushRefresh(input: {
         inFlight.current = '';
         failed.current = signature;
       });
-  }, [companyId, config, installationId, locale, record, registered, reload]);
+  }, [companyId, config, installationId, locale, queryClient, record, registered, reload]);
   const retry = useCallback(() => {
     failed.current = '';
   }, []);

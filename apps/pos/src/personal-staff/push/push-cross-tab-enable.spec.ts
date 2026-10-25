@@ -159,9 +159,11 @@ it('serializes two enables with the cross tab lock', async () => {
 });
 
 it('lets the second person of the same company take the record', async () => {
-  // الإجابة الأولى للـ config تخص التبويب الأول، والتانية تخص التبويب التاني.
+  // أول إجابتين للتبويب الأول، والتالتة والرابعة للتاني مع تأكيد الجلسة قبل كل PUT.
   vi.mocked(pushCalls.config)
     .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: PERSON_A } })
+    .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: PERSON_A } })
+    .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: PERSON_B } })
     .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: PERSON_B } });
   let personAToken = '';
   let personBToken = '';

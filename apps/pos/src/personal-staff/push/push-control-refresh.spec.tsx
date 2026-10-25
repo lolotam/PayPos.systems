@@ -295,9 +295,11 @@ it('turns the notifications on over a suspended record and ends unsuspended', as
   let configCalls = 0;
   vi.mocked(pushCalls.config).mockImplementation(async () => {
     configCalls += 1;
-    return configCalls === 1
-      ? { kind: 'ready', config: { ...CONFIG, subscriber_ref: 'another-ref' } }
-      : { kind: 'ready', config: CONFIG };
+    if (configCalls === 1) {
+      return { kind: 'ready', config: { ...CONFIG, subscriber_ref: 'another-ref' } };
+    }
+    if (configCalls === 2) return { kind: 'not-ready' };
+    return { kind: 'ready', config: CONFIG };
   });
   mount();
   const button = await screen.findByRole('button', { name: t('en', 'staffPush.enable') });

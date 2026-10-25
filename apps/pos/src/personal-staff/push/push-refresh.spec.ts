@@ -157,6 +157,7 @@ beforeEach(() => {
   fakes.state.subscribed = true;
   fakes.state.unsubscribed = 0;
   fakes.state.subscribedWithKey = null;
+  vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: CONFIG });
   vi.mocked(pushCalls.register).mockResolvedValue(undefined);
   vi.mocked(pushCalls.revoke).mockResolvedValue(undefined);
 });
@@ -226,6 +227,10 @@ it('restores a suspended record of this company when the subscriber reference ma
 
 it('removes a suspended record of this company when the subscriber reference differs', async () => {
   fakes.state.record = { ...RECORD, suspended: true };
+  vi.mocked(pushCalls.config).mockResolvedValue({
+    kind: 'ready',
+    config: { ...CONFIG, subscriber_ref: 'another-ref' },
+  });
 
   const outcome = await refreshPush(input({ ...CONFIG, subscriber_ref: 'another-ref' }));
 
@@ -248,6 +253,10 @@ it('leaves a suspended record of another company untouched', async () => {
 
 it('removes a record of another person and sends no registration', async () => {
   fakes.state.record = { ...RECORD };
+  vi.mocked(pushCalls.config).mockResolvedValue({
+    kind: 'ready',
+    config: { ...CONFIG, subscriber_ref: 'another-ref' },
+  });
 
   const outcome = await refreshPush(input({ ...CONFIG, subscriber_ref: 'another-ref' }));
 

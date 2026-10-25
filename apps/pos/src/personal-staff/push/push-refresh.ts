@@ -15,17 +15,19 @@ import { hasCrossTabLock, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
+import { fetchSessionConfig, sessionStillMatches } from './push-session-binding';
 
 const API_TIMEOUT_MS = 10_000;
 const SUBSCRIBE_TIMEOUT_MS = 15_000;
 const REVOKE_TIMEOUT_MS = 5000;
 
-/** نتيجة التحديث وقت الفتح: ولا حاجة، أو تحديث عادي، أو إصلاح تدوير المفتاح، أو مسح السجل. */
+/** نتيجة التحديث: ولا حاجة، أو تحديث، أو تدوير، أو مسح، أو جلسة اتغيرت فمنعت التسجيل. */
 export type PushRefreshOutcome =
   | { kind: 'none' }
   | { kind: 'refreshed' }
   | { kind: 'rotated'; token: string }
-  | { kind: 'cleared' };
+  | { kind: 'cleared' }
+  | { kind: 'session-changed' };
 
 export interface PushRefreshInput {
   companyId: string;
@@ -56,43 +58,69 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
     }
     if (record === null) return { kind: 'none' };
     if (record.company_id !== input.companyId) return { kind: 'none' };
-    // المقارنة بتتم قبل أي حاجة: مرجع تاني جواب مؤكد إن الجهاز بقى لحد تاني،
-    // فبنشيل الاشتراك والسجل من غير أي PUT (ADR-0052 §7).
-    if (input.config.subscriber_ref !== record.subscriber_ref) {
-      await unsubscribePush().catch(() => undefined);
-      await removeRecord();
-      return { kind: 'cleared' };
+    const fresh = await fetchSessionConfig();
+    if (fresh === null) return { kind: 'none' };
+    if (fresh.subscriber_ref !== input.config.subscriber_ref) {
+      return { kind: 'session-changed' };
     }
-    const live = record.suspended ? await resume(record, generation) : record;
-    if (live === null) return { kind: 'none' };
-    if (notificationPermission() !== 'granted') return { kind: 'none' };
-    if (input.installationId === null) return { kind: 'none' };
-    const installationId: string = input.installationId;
-    if (input.config.vapid_key_id !== live.vapid_key_id) {
-      return rotate(input, live, installationId, generation);
-    }
-    const subscription = await currentSubscription();
-    if (subscription === null) {
-      await removeRecord();
-      await revoke(installationId);
-      return { kind: 'cleared' };
-    }
-    await withAbortTimeout(
-      (signal) =>
-        pushCalls.register(
-          {
-            installation_id: installationId,
-            vapid_key_id: live.vapid_key_id,
-            delivery_token: live.token,
-            subscription: pushSubscriptionBody(subscription),
-            locale: input.locale,
-          },
-          signal,
-        ),
-      API_TIMEOUT_MS,
-    );
-    return { kind: 'refreshed' };
+    const current: PushRefreshInput = { ...input, config: fresh };
+    return refreshWithConfig(current, record, generation);
   });
+}
+
+async function refreshWithConfig(
+  input: PushRefreshInput,
+  record: PushRecord,
+  generation: number,
+): Promise<PushRefreshOutcome> {
+  // مرجع تاني جواب مؤكد إن الجهاز بقى لحد تاني، فبنشيل الاشتراك والسجل
+  // من غير أي PUT (ADR-0052 §7).
+  if (input.config.subscriber_ref !== record.subscriber_ref) {
+    await unsubscribePush().catch(() => undefined);
+    await removeRecord();
+    return { kind: 'cleared' };
+  }
+  const live = record.suspended ? await resume(record, generation) : record;
+  if (live === null) return { kind: 'none' };
+  if (notificationPermission() !== 'granted') return { kind: 'none' };
+  if (input.installationId === null) return { kind: 'none' };
+  const installationId: string = input.installationId;
+  if (input.config.vapid_key_id !== live.vapid_key_id) {
+    return rotate(input, live, installationId, generation);
+  }
+  const subscription = await currentSubscription();
+  if (subscription === null) {
+    await removeRecord();
+    await revoke(installationId);
+    return { kind: 'cleared' };
+  }
+  return refreshPlain(input, live, installationId, subscription);
+}
+
+async function refreshPlain(
+  input: PushRefreshInput,
+  record: PushRecord,
+  installationId: string,
+  subscription: PushSubscriptionLike,
+): Promise<PushRefreshOutcome> {
+  if (!(await sessionStillMatches(input.config.subscriber_ref))) {
+    return { kind: 'session-changed' };
+  }
+  await withAbortTimeout(
+    (signal) =>
+      pushCalls.register(
+        {
+          installation_id: installationId,
+          vapid_key_id: input.config.vapid_key_id,
+          delivery_token: record.token,
+          subscription: pushSubscriptionBody(subscription),
+          locale: input.locale,
+        },
+        signal,
+      ),
+    API_TIMEOUT_MS,
+  );
+  return { kind: 'refreshed' };
 }
 
 /**
@@ -137,6 +165,10 @@ async function rotate(
     return { kind: 'cleared' };
   }
   const token = crypto.randomUUID();
+  if (!(await sessionStillMatches(input.config.subscriber_ref))) {
+    await dropSubscription();
+    return { kind: 'session-changed' };
+  }
   try {
     await registerRotated(input, subscription, installationId, token);
   } catch {

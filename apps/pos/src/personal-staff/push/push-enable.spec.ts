@@ -105,6 +105,8 @@ const input = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(pushCalls.register).mockReset();
+  vi.mocked(pushCalls.register).mockResolvedValue(undefined);
   fakes.record = null;
   fakes.generation = 0;
   fakes.readFails = false;
@@ -181,5 +183,32 @@ it('fails without touching the network when the local record cannot be read', as
   expect(pushCalls.config).not.toHaveBeenCalled();
   expect(pushCalls.register).not.toHaveBeenCalled();
   expect(unsubscribePush).not.toHaveBeenCalled();
+  expect(pushCalls.revoke).not.toHaveBeenCalled();
+});
+
+it('drops the new subscription when the session changes before registration', async () => {
+  fakes.record = { ...RECORD };
+  vi.mocked(pushCalls.config)
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({
+      kind: 'ready',
+      config: { ...CONFIG, subscriber_ref: 'another-ref' },
+    });
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'failed' });
+  expect(pushCalls.register).not.toHaveBeenCalled();
+  expect(unsubscribePush).toHaveBeenCalledTimes(2);
+  expect(pushCalls.revoke).not.toHaveBeenCalled();
+  expect(fakes.record).toEqual(RECORD);
+});
+
+it('registers after the current session confirms the same person', async () => {
+  const outcome = await enablePush(input);
+
+  expect(outcome.kind).toBe('enabled');
+  expect(pushCalls.config).toHaveBeenCalledTimes(2);
+  expect(pushCalls.register).toHaveBeenCalledTimes(1);
   expect(pushCalls.revoke).not.toHaveBeenCalled();
 });

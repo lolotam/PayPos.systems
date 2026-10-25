@@ -16,6 +16,7 @@ import { hasCrossTabLock, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
+import { sessionStillMatches } from './push-session-binding';
 
 const API_TIMEOUT_MS = 10_000;
 const SUBSCRIBE_TIMEOUT_MS = 15_000;
@@ -141,11 +142,8 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
       if (subscription === null) return { kind: 'failed' };
       const token = crypto.randomUUID();
       try {
-        await withAbortTimeout(
-          (signal) =>
-            pushCalls.register(registerBody(input, config.config, subscription, token), signal),
-          API_TIMEOUT_MS,
-        );
+        const registered = await confirmAndRegister(input, config.config, subscription, token);
+        if (!registered) return { kind: 'failed' };
       } catch (cause) {
         // سجل ناقص أسوأ من مفيش سجل: الاشتراك الجديد بيتشال لو التسجيل مرفوض.
         await unsubscribePush().catch(() => undefined);
@@ -172,6 +170,24 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
     }
     return { kind: 'failed' };
   });
+}
+
+/** الجلسة لازم تفضل لنفس الشخص قبل PUT؛ الاشتراك الجديد بيتشال لو الهوية اتغيرت. */
+async function confirmAndRegister(
+  input: PushEnableInput,
+  config: PushConfig,
+  subscription: PushSubscriptionLike,
+  token: string,
+): Promise<boolean> {
+  if (!(await sessionStillMatches(config.subscriber_ref))) {
+    await unsubscribePush().catch(() => undefined);
+    return false;
+  }
+  await withAbortTimeout(
+    (signal) => pushCalls.register(registerBody(input, config, subscription, token), signal),
+    API_TIMEOUT_MS,
+  );
+  return true;
 }
 
 async function revoke(installationId: string): Promise<void> {
