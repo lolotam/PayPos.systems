@@ -87,6 +87,44 @@ export interface DiscountRequestPlanInput {
   sha256Hex: (text: string) => string;
 }
 
+/** حقائق الشروط المشتركة بين الطلب والاستهلاك: من ومتى وأين، بلا مبالغ السطر. */
+export interface DiscountTermsFacts {
+  company_id: string;
+  business_id: string;
+  branch_id: string;
+  customer_id: string;
+  session_id: string | null;
+  requested_by: string;
+  requested_by_membership_id: string;
+  occurred_business_date: string;
+}
+
+/**
+ * يبني شروط الخصم لسطر واحد من حقائق الزيارة والطلب ومن البند المحضّر.
+ * القاعدة: الطلب والاستهلاك يبنيان الشروط بنفس هذه الدالة، فتساوي البصمة شرط الاستهلاك (D-4).
+ *
+ * @param facts هوية الطلب والزيارة التي طلبت الموافقة
+ * @param line البند المحضّر كما سيُكتب
+ * @returns شروط الخصم الموقّعة بصيغتها القانونية
+ */
+export function discountTermsOfLine(facts: DiscountTermsFacts, line: PreparedSessionLine): DiscountTermsV1 {
+  return buildDiscountTerms({
+    company_id: facts.company_id,
+    business_id: facts.business_id,
+    branch_id: facts.branch_id,
+    customer_id: facts.customer_id,
+    session_id: facts.session_id,
+    service_id: line.service.id,
+    requested_by: facts.requested_by,
+    requested_by_membership_id: facts.requested_by_membership_id,
+    occurred_business_date: facts.occurred_business_date,
+    list_price: line.service.price,
+    price: line.price,
+    discount: line.discount,
+    performer_ids: line.performers.map((performer) => performer.employee.id),
+  });
+}
+
 /**
  * يختار دور العضوية التي طلبت، فاللقطة المحفوظة على الطلب تُنسب للعضوية المختارة لا لأي عضوية.
  * القاعدة: طلب بلا عضوية صالحة ممنوع، فالرفض موحّد ولا يكشف العضويات (FR-005).
@@ -143,7 +181,7 @@ function proposalFromLine(
 ): Omit<DiscountProposalPlan, 'performers'> {
   const proposalId = input.proposal_ids[index];
   if (proposalId === undefined) throw new RangeError('A proposal id is missing');
-  const terms = termsForLine(input, line);
+  const terms = discountTermsOfLine(input, line);
   return {
     id: proposalId,
     request_id: input.request_id,
@@ -162,24 +200,6 @@ function proposalFromLine(
     requested_at: input.requested_at,
     expires_at: expiresAt,
   };
-}
-
-function termsForLine(input: DiscountRequestPlanInput, line: PreparedSessionLine): DiscountTermsV1 {
-  return buildDiscountTerms({
-    company_id: input.company_id,
-    business_id: input.business_id,
-    branch_id: input.branch_id,
-    customer_id: input.customer_id,
-    session_id: input.session_id,
-    service_id: line.service.id,
-    requested_by: input.requested_by,
-    requested_by_membership_id: input.requested_by_membership_id,
-    occurred_business_date: input.occurred_business_date,
-    list_price: line.service.price,
-    price: line.price,
-    discount: line.discount,
-    performer_ids: line.performers.map((performer) => performer.employee.id),
-  });
 }
 
 function requesterSnapshot(input: DiscountRequestPlanInput) {

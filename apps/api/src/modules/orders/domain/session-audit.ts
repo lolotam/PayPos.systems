@@ -1,8 +1,10 @@
 import { moneyToString } from '@pospay/domain';
+import { discountConsumptionAudits } from './discount-consumption.ts';
 import type { SessionLine, SessionRecord } from './session-types.ts';
 
 /**
  * يسجل أثر المقبول فقط؛ تجاوز السعر والخصم الموجب كلاهما تغيير مالي مدقق.
+ * وكل سطر استهلك موافقة يترك أثره على الطلب نفسه، بعد أثر الزيارة والمال (FR-022).
  *
  * @param record زيارة محفوظة أو موسعة
  * @param added بنود الكتابة الحالية
@@ -23,5 +25,5 @@ export function sessionAuditEntries(record: SessionRecord, added: readonly Sessi
     after: { session_id: record.id, line_id: l.id, recorded_by: l.recorded_by, recorded_by_membership_id: l.recorded_by_membership_id,
       recorded_at: l.recorded_at.toISOString(), list_price: moneyToString(l.service.price), price: moneyToString(l.price), discount: moneyToString(l.discount),
       net: moneyToString(l.net), effective_discount_bps: l.effective_discount_bps, limit_bps_applied: l.limit.bps, limit_source: l.limit.source } }));
-  return [header, ...prices];
+  return [header, ...prices, ...discountConsumptionAudits(added, record.id)];
 }

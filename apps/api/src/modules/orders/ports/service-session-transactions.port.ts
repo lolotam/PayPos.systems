@@ -1,4 +1,5 @@
 import type { SessionLine, SessionRecord } from '../domain/session-types.ts';
+import type { DiscountConsumptionPort } from './discount-consumption.port.ts';
 import type { CatalogReaderPort, CustomerLookupPort, DiscountLimitPort, PerformerCheckPort, SessionPlacePort, SessionRecordAccessPort } from './session-readers.port.ts';
 
 /** الساعة المحقونة تضمن وقتاً جديداً بعد أقفال قد تستغرق انتظاراً. */
@@ -43,6 +44,8 @@ export interface SessionTransaction {
   discountMessages: { message_ar: string; message_en: string };
   place: SessionPlacePort; access: SessionRecordAccessPort; catalog: CatalogReaderPort; customer: CustomerLookupPort;
   performers: PerformerCheckPort; discount: DiscountLimitPort; repository: SessionRepository;
+  /** قفل طلبات الموافقة واستهلاكها في معاملة السطر نفسها، فالسطر والموافقة يلتزمان معاً. */
+  consumption: DiscountConsumptionPort;
   /**
    * يحفظ الرد والآثار معاً أو يعيد الرد الأصلي دون إعادة حساب المال.
    *
