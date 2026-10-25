@@ -18,6 +18,12 @@ final class CounterAuthUITests: XCTestCase {
     app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", label)).firstMatch
   }
 
+  private func button(_ app: XCUIApplication, _ label: String) -> XCUIElement {
+    let predicate = NSPredicate(format: "label == %@", label)
+    let webButton = app.webViews.buttons.matching(predicate).firstMatch
+    return webButton.exists ? webButton : app.buttons.matching(predicate).firstMatch
+  }
+
   private func assertVisible(_ app: XCUIApplication, _ label: String, timeout: TimeInterval, _ message: String) {
     XCTAssertTrue(element(app, labelled: label).waitForExistence(timeout: timeout), message)
   }
