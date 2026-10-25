@@ -82,7 +82,7 @@ the staff OTP sign-in (PP-58.1), and the employee's own PIN change, except the s
     not sign-in. The code locks out a STOP-suppressed employee, whose own PIN is ADR-0019's recovery path, and staff OTP
     is postponed (PP-58.1). Whether to accept that risk is a roles question for both owners, DV-Q9, `TODO(spec)`:
     accept it with a short validity for the one-time PIN, an owner notice on every change and an ADR-0019 addendum, or
-    wait for staff OTP and gate the change on a WhatsApp code. Design advice for the safeguards is issue #682.
+    gate every change on a fresh WhatsApp code, which reopens ADR-0019 STOP recovery. Under both, an employee needs her first WhatsApp sign-in before any PIN works (DV-Q7). Design advice for the safeguards is issue #682.
 
     071-3 does not start before DV-Q9 is answered, and its PIN action never reaches staff without 071-4.
   - The list needs a guarded read, the **PIN eligibility read** (071-3). For each employee it returns the linked
