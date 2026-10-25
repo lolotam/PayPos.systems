@@ -400,7 +400,9 @@ acknowledgements in env. It creates the user through `createPlatformUser` (audit
 and the phone's owner differ. The two tenant writes, a `staff` branch membership and an optional employee link, run as
 `pospay_app` under `withTenant` and write an `AuditLog` row with a NULL actor and the operator named in `after`; they
 live in the `@pospay/db/operator/staging-staff` subpath, the identity read in `@pospay/auth/operator/staging-staff`,
-neither on the package's main entry, and ESLint refuses both subpaths everywhere except that one script. No grant, role
+neither on the package's main entry. ESLint refuses both subpaths everywhere except two files: that script, and
+`packages/auth/src/operator/staging-staff-identity.ts`, which wraps the identity read and may reach only the
+`@pospay/db` operator subpath (its override in `packages/auth/eslint.config.js` is scoped to that one file). No grant, role
 or RLS policy changes. The PIN is then set by the existing guarded `POST /v1/staff-pins/reset`. The script prints fixed
 step lines and the user id, never the phone or the email. The supported way to run it is that compose run in the
 staging image; the `staging:staff-user` package script reads a local `.env` and still has to pass the same guard.
