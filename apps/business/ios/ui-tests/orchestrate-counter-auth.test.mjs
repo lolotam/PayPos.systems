@@ -173,7 +173,12 @@ function fakeFetch(state, options, clock) {
       state.child?.finish(options.uiExitCode ?? 0);
       return fakeResponse({ status: 204 });
     }
-    if (parsed.pathname.endsWith('/revoke')) return fakeResponse({ status: 204 });
+    if (parsed.pathname.endsWith('/revoke')) {
+      state.revokeCalls += 1;
+      // أول محاولات المراجعة بتفشل عمدًا: الاختبار بيتأكد إن المرور النهائي بيعيد المحاولة.
+      if (state.revokeCalls <= (options.revokeFailures ?? 0)) return fakeResponse({ status: 500 });
+      return fakeResponse({ status: 204 });
+    }
     throw new Error(`unexpected request ${call.method} ${parsed.pathname}`);
   };
 }
@@ -190,6 +195,7 @@ function makeHarness(options = {}) {
     childClosed: false,
     listCalls: 0,
     pollCalls: 0,
+    revokeCalls: 0,
     calls: [],
     logs: [],
   };
@@ -292,6 +298,17 @@ test('a device that registers after the abort is still revoked', async () => {
   assert.equal(harness.summary('device revoke'), 'device revoke: done');
   assert.equal(harness.revokes().length, 1);
   assert.equal(harness.revokes()[0].url.pathname.endsWith('/device-run/revoke'), true);
+});
+
+test('a revoke that fails three times is retried on the known id and the device is revoked', async () => {
+  const harness = makeHarness({ revokeFailures: 3 });
+  const code = await run(harness.config, harness.deps);
+
+  assert.equal(harness.summary('device revoke'), 'device revoke: done');
+  const revokes = harness.revokes();
+  assert.equal(revokes.length, 4);
+  assert.equal(revokes.every((call) => call.url.pathname.endsWith('/device-run/revoke')), true);
+  assert.equal(code, 0);
 });
 
 test('one failed poll round is retried and the device is approved', async () => {
