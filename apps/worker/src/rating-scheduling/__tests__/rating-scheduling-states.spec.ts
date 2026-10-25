@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { TENANT } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
-import { ORDER_IDS } from '../../../../../../packages/db/test/orders-fixture.ts';
+import { TENANT } from '../../../../../packages/db/test/tenancy-fixtures.ts';
+import { ORDER_IDS } from '../../../../../packages/db/test/orders-fixture.ts';
 import {
   claimRequest,
   insertRequest,
   RATING_TENANT,
-} from '../../../../../../packages/db/test/rating-fixtures.ts';
+} from '../../../../../packages/db/test/rating-fixtures.ts';
 import {
   everyDay,
   ratingSchedulingFixture,
@@ -61,16 +61,27 @@ it('a SENT row and a cancelled row are left untouched by a new session of the sa
   const branchId = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
   const sent = await f.customer();
   const sentTenant = { ...RATING_TENANT.A, customer: sent };
-  await insertRequest(f.owner, {
+  const sentRequestId = await insertRequest(f.owner, {
     tenant: sentTenant,
     branch: branchId,
     date: '2026-06-21',
     dueAt: new Date('2026-06-21T13:10:00.000Z'),
     sendDeadline: new Date('2026-06-21T19:30:00.000Z'),
-    status: 'SENT',
-    tokenHash: TOKEN,
-    sentAt: new Date('2026-06-21T13:30:00.000Z'),
+    status: 'SCHEDULED',
   });
+  await f.db.withTenant(TENANT.A.company, (tx) =>
+    claimRequest(tx, {
+      tenant: sentTenant,
+      requestId: sentRequestId,
+      tokenHash: TOKEN,
+      readyEventId: f.ids.newId(),
+      now: new Date('2026-06-21T12:00:00.000Z'),
+      performers: [],
+    }),
+  );
+  await f.owner`UPDATE rating_requests SET status='SENT',
+    sent_at=${new Date('2026-06-21T13:30:00.000Z')}::timestamptz
+    WHERE company_id=${TENANT.A.company} AND id=${sentRequestId}`;
   const cancelled = await f.customer();
   await insertRequest(f.owner, {
     tenant: { ...RATING_TENANT.A, customer: cancelled },

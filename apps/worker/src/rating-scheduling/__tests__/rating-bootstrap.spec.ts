@@ -131,9 +131,12 @@ it('FR-B02b a session recorded after the start or above the frozen bound is outs
     cutoff: range.cutoff,
     maxSessionId: range.maxSessionId,
     recordedAtOrBefore: range.recordedAtOrBefore,
+    checkpoint: first.lastSessionId,
   });
   expect(second.expected).toBe(1);
   expect(second.processed).toBe(0);
+  expect(second.alreadyDone).toBe(1);
+  expect(second.complete).toBe(true);
   expect(await f.requests(after)).toHaveLength(0);
 });
 

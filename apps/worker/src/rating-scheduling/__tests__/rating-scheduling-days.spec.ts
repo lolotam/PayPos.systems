@@ -16,6 +16,7 @@ afterAll(async () => {
 const KUWAIT = 'Asia/Kuwait';
 const DUBAI = 'Asia/Dubai';
 const TEN_TO_TEN = everyDay([{ opens: '10:00', closes: '22:00' }]);
+const TEN_TO_LATE = everyDay([{ opens: '10:00', closes: '23:59' }]);
 const SPLIT_DAY = everyDay([
   { opens: '10:00', closes: '13:00' },
   { opens: '16:00', closes: '22:00' },
@@ -146,8 +147,8 @@ it('RT-06 a 22:15 visit at a 22:00 close is due at once with a 22:30 deadline', 
 });
 
 it('RT-01b a 23:30 Kuwait visit and a 00:10 Dubai visit make two requests in either order', async () => {
-  const kuwait = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
-  const dubai = await f.branch({ timezone: DUBAI, openingHours: TEN_TO_TEN });
+  const kuwait = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_LATE });
+  const dubai = await f.branch({ timezone: DUBAI, openingHours: TEN_TO_LATE });
   const customer = await f.customer();
   const late = await f.session({
     customerId: customer,
@@ -168,8 +169,8 @@ it('RT-01b a 23:30 Kuwait visit and a 00:10 Dubai visit make two requests in eit
 });
 
 it('RT-01b the same two visits in the opposite order give the same two requests', async () => {
-  const kuwait = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
-  const dubai = await f.branch({ timezone: DUBAI, openingHours: TEN_TO_TEN });
+  const kuwait = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_LATE });
+  const dubai = await f.branch({ timezone: DUBAI, openingHours: TEN_TO_LATE });
   const customer = await f.customer();
   const late = await f.session({
     customerId: customer,

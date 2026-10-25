@@ -196,5 +196,6 @@ it('D-B3 the row is keyed on the branch day, not on the stored business date', a
   const rows = await f.requests(customer);
   expect(rows).toHaveLength(1);
   expect(rows[0]?.['day']).toBe('2026-06-08');
-  expect(rows[0]?.['due_at']).toEqual(new Date('2026-06-08T18:00:00.000Z'));
+  expect(rows[0]?.['due_at']).toEqual(new Date('2026-06-07T21:30:00.000Z'));
+  expect(rows[0]?.['send_deadline']).toEqual(new Date('2026-06-08T18:30:00.000Z'));
 });

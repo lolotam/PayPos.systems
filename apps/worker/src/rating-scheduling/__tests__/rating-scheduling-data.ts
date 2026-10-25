@@ -1,10 +1,10 @@
 import type postgres from 'postgres';
 import { appendOutboxEvent, type ClaimedEvent, type Database, type IdGenerator } from '@pospay/db';
-import { TENANT, USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
-import { ORDER_IDS } from '../../../../../../packages/db/test/orders-fixture.ts';
-import { cancelServiceLine } from '../../../../../../packages/db/test/service-line-cancellation.ts';
-import { localParts } from '../domain/zoned-time.ts';
-import type { OpeningHoursValue } from '../domain/opening-hours.ts';
+import { TENANT, USER } from '../../../../../packages/db/test/tenancy-fixtures.ts';
+import { ORDER_IDS } from '../../../../../packages/db/test/orders-fixture.ts';
+import { cancelServiceLine } from '../../../../../packages/db/test/service-line-cancellation.ts';
+import { localParts } from '../../modules/customers/domain/zoned-time.ts';
+import type { OpeningHoursValue } from '../../modules/customers/domain/opening-hours.ts';
 
 export type RatingEventType =
   'ServiceSessionRecorded' | 'ServiceSessionLinesAdded' | 'ServiceLineChanged';
@@ -72,7 +72,7 @@ async function setHours(
       WHERE company_id=${TENANT.A.company} AND id=${branchId}`;
     return;
   }
-  await owner`UPDATE branches SET opening_hours=${owner.json(openingHours)}, timezone=${timezone}
+  await owner`UPDATE branches SET opening_hours=${owner.json(openingHours as unknown as postgres.JSONValue)}, timezone=${timezone}
     WHERE company_id=${TENANT.A.company} AND id=${branchId}`;
 }
 
