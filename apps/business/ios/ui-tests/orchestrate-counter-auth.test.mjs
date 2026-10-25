@@ -258,7 +258,9 @@ test('a failed UI run revokes the device and prints only its failure step after 
   const code = await run(harness.config, harness.deps);
 
   assert.equal(code, 1);
+  assert.equal(harness.summary('ui test'), 'ui test: failed');
   assert.equal(harness.summary('device revoke'), 'device revoke: done');
+  assert.equal(harness.revokes().length, 1);
   assert.equal(harness.state.logs.at(-2), 'leftover sweep: 0 revoked');
   assert.equal(harness.state.logs.at(-1), 'ui failure: Staff sign-in should succeed');
   assert.equal(harness.state.logs.some((line) => line.includes(secret)), false);

@@ -451,3 +451,42 @@ moved tag cannot change what runs beside the values. Until the
 staff routes accept the iOS origin (the `STAFF_NATIVE_ORIGINS` slice, waiting on Waleed), check (b) is expected to
 end in the 403 that this ADR's decision 3 predicts; that run records the baseline. Revoked test devices stay as
 `REVOKED` rows on staging.
+
+## Addendum 2026-10-25 (d) — iOS (b) failed on the simulator; the staff client goes native
+
+**Context.** The first iOS spike run (run 40169446017, 2026-10-25 09:40 Kuwait, staging on `dcd99725` with
+`STAFF_NATIVE_ORIGINS=capacitor://localhost`) passed (a): the device registered, was approved and claimed. It failed
+(b). `POST /v1/devices/me/staff-pin/sign-in` returned 200, but every `GET /v1/devices/me/staff-session` after it
+returned 401 until the test timed out. Every CORS preflight returned 204, so PP-62 and CORS worked. As decision 3
+presumed, `WKWebView` does not send the api host's `HttpOnly; Secure; SameSite=Lax` staff cookie from
+`capacitor://localhost`. Android passed (b), because its page origin is the POS host.
+
+**Decision.** This is fallback 1 of decision 3, in its adapter form. The global patch (`CapacitorHttp` `enabled: true`,
+with `CapacitorCookies` and `WKAppBoundDomains`) is not used:
+- the patched `fetch` builds the native headers from the page's `Request`, where a browser forbids `Origin`, so every
+  native write arrives with no `Origin`, and the staff routes refuse that (`isStaffOrigin`, PP-62);
+- it would also move every request of both platforms to native HTTP, Android included, which works today.
+
+Instead, on iOS only (`usesNativeStaffTransport()` in `apps/pos/src/shared/platform/native-shell.ts`), the staff
+client (`staffApiClient()`) passes `nativeStaffFetch` to `openapi-fetch`. It calls `CapacitorHttp.request` with:
+- the page's headers plus an explicit `Origin: capacitor://localhost`;
+- `disableRedirects: true` and 15-second timeouts;
+- only URLs under the built-in API origin.
+
+The native `URLSession` keeps the cookie in `HTTPCookieStorage.shared` and sends it on later native calls, so
+sign-in, the session read, sign-out, the OTP and clock-by-card all share one cookie store. The `Set-Cookie` header is
+stripped before the response reaches page code.
+
+Nothing changes in the API, `packages/auth`, the cookie attributes, `apps/business/capacitor.config.ts` or Android.
+Codex gave design advice before the slice (2026-10-25): no P0, and its P1/P2 points are built in.
+
+**Why the explicit `Origin` keeps PP-62's intent.** `Origin` defends browsers against CSRF; it never proved which app
+sent a request. A browser page still cannot send `capacitor://localhost`. Native code in another app could, but it
+has neither our cookie store nor the paired device's `Device` token (ADR-0019 addendum, PP-62).
+
+**Consequences.** The fix is accepted only when the iOS spike passes (b), including the restart and sign-out steps.
+If the native cookie does not survive a restart, fallback 2 of decision 3 applies (a native token), and it needs its
+own ADR-0019 addendum and Waleed's yes. The personal OTP clients (`apps/pos/src/personal-staff/api/*`) still use the
+web view, and iOS (c) on the first iPhone (M-1c-ii) decides whether they move to the same transport. When the UI test
+fails, the spike now prints `ui failure: <step>`, taken only from a fixed list of the XCUITest's own assertion
+messages, and never any other line of the private xcodebuild log.

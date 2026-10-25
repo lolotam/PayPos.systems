@@ -16,7 +16,7 @@ function nativeResponse(overrides = {}) {
   };
 }
 
-describe('nativeStaffFetch', () => {
+function stubNativeTransport(): void {
   beforeEach(() => {
     vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:3000');
     requestMock.mockReset();
@@ -26,6 +26,10 @@ describe('nativeStaffFetch', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
+}
+
+describe('nativeStaffFetch requests', () => {
+  stubNativeTransport();
 
   it('sends an API POST natively with the required origin, credentials and body', async () => {
     const request = new Request('http://127.0.0.1:3000/v1/devices/me/staff-pin/sign-in', {
@@ -63,8 +67,20 @@ describe('nativeStaffFetch', () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toBe('{"ok":true}');
     expect(response.headers.get('Content-Type')).toBe('application/json');
-    expect(requestMock.mock.calls[0][0]).not.toHaveProperty('data');
+    const [options] = requestMock.mock.calls[0] ?? [];
+    expect(options).not.toHaveProperty('data');
   });
+
+  it('rejects a foreign URL without calling the plugin', async () => {
+    const request = new Request('https://outside.example/v1/devices/me/staff-session');
+
+    await expect(nativeStaffFetch(request)).rejects.toThrow('NATIVE_FETCH_FOREIGN_URL');
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('nativeStaffFetch response headers and empty bodies', () => {
+  stubNativeTransport();
 
   it('removes Set-Cookie response headers in any letter case', async () => {
     requestMock.mockResolvedValue(
@@ -98,6 +114,10 @@ describe('nativeStaffFetch', () => {
     expect(await response.text()).toBe('');
     expect([...response.headers]).toEqual([]);
   });
+});
+
+describe('nativeStaffFetch response bodies and HTTP errors', () => {
+  stubNativeTransport();
 
   it('serializes object data and preserves string data', async () => {
     requestMock
@@ -127,13 +147,10 @@ describe('nativeStaffFetch', () => {
     expect(await response.text()).toBe('{"code":"UNAUTHORIZED"}');
     expect(response.headers.get('Content-Type')).toBe('application/json');
   });
+});
 
-  it('rejects a foreign URL without calling the plugin', async () => {
-    const request = new Request('https://outside.example/v1/devices/me/staff-session');
-
-    await expect(nativeStaffFetch(request)).rejects.toThrow('NATIVE_FETCH_FOREIGN_URL');
-    expect(requestMock).not.toHaveBeenCalled();
-  });
+describe('nativeStaffFetch transport failures', () => {
+  stubNativeTransport();
 
   it('rejects with the plugin transport error', async () => {
     const failure = new Error('native transport failed');
