@@ -37,7 +37,7 @@ export interface ScheduleRatingRequestInput {
 export interface ScheduleRatingRequestPorts {
   readonly switch: RatingRequestsSwitchPort;
   readonly hours: BranchScheduleHoursPort;
-  readonly daySessions: Pick<DaySessionsPort, 'activeLines'>;
+  readonly daySessions: DaySessionsPort;
   readonly requests: RatingRequestRepository;
 }
 

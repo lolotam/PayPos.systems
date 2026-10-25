@@ -1,19 +1,17 @@
-import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type {
-  RatingRequestKey,
   RatingRequestRepository,
   RatingRequestRow,
 } from '../ports/rating-request.repository.ts';
 
-interface StoredRequestRow {
+type StoredRequestRow = {
   readonly id: string;
   readonly status: RatingRequestRow['status'];
   readonly cancel_reason: string | null;
   readonly branch_id: string;
   readonly due_at: Date | string;
   readonly send_deadline: Date | string | null;
-}
+};
 
 function instant(value: Date | string): Date {
   return new Date(value instanceof Date ? value.getTime() : value);

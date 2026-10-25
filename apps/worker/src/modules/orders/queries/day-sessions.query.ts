@@ -11,7 +11,7 @@ export interface ActiveLineRead {
   readonly performers: { employeeId: string; shareBps: number }[];
 }
 
-interface ActiveLineRow {
+type ActiveLineRow = {
   readonly line_id: string;
   readonly session_id: string;
   readonly branch_id: string;
@@ -20,7 +20,7 @@ interface ActiveLineRow {
   readonly business_timezone: string;
   readonly employee_id: string;
   readonly share_bps: number;
-}
+};
 
 function instant(value: Date | string): Date {
   return new Date(value instanceof Date ? value.getTime() : value);

@@ -34,6 +34,10 @@ export interface RatingRequestRepository {
    * @param tx معاملة المستأجر
    * @param key مفتاح العميل والنشاط واليوم
    * @param row المعرف والفرع والمواعيد الابتدائية
+   * @param row.id معرف طلب التقييم الجديد
+   * @param row.branchId فرع أحدث زيارة
+   * @param row.dueAt موعد استحقاق الطلب
+   * @param row.sendDeadline الموعد النهائي للإرسال أو null
    * @returns اكتمال محاولة الإدخال
    */
   insertIfAbsent(
@@ -47,6 +51,9 @@ export interface RatingRequestRepository {
    * @param tx معاملة المستأجر
    * @param key مفتاح العميل والنشاط واليوم
    * @param row الفرع والمواعيد المعاد حسابها
+   * @param row.branchId فرع أحدث زيارة
+   * @param row.dueAt موعد الاستحقاق المعاد حسابه
+   * @param row.sendDeadline الموعد النهائي المعاد حسابه أو null
    * @param at لحظة التحديث
    * @returns اكتمال التحديث
    */

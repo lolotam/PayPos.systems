@@ -64,4 +64,12 @@ export interface DaySessionsPort {
    * @returns عدد الزيارات المشمولة
    */
   countSince(tx: Tx, companyId: string, range: BootstrapRange): Promise<number>;
+  /**
+   * يرجع أعلى معرف زيارة لتجميد نطاق الـ bootstrap قبل أول صفحة.
+   *
+   * @param tx معاملة المستأجر
+   * @param companyId الشركة المالكة للزيارات
+   * @returns أعلى session_id أو null عندما لا توجد زيارات
+   */
+  watermark(tx: Tx, companyId: string): Promise<string | null>;
 }
