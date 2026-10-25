@@ -281,7 +281,7 @@ jobs:
     needs: [changes, macos-preflight, macos-preflight-pr]
     if: ${{ !cancelled() && needs.changes.outputs.app == 'true' && (needs.macos-preflight.result == 'success' || needs.macos-preflight-pr.result == 'success') }}
     runs-on: macos-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.spike == true && matrix.flavour == 'staging' && 'staging-ui-test' || '' }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.spike == true && matrix.flavour == 'staging' && github.ref == 'refs/heads/main' && 'staging-ui-test' || '' }}
     timeout-minutes: 45
     permissions:
       contents: read
@@ -387,6 +387,8 @@ jobs:
       # الخطوات بعد رفع البناء عشان لو اختبار الـ UI فشل، نسخة المحاكي تفضل متاحة للتحميل.
       # إعادة التثبيت واختبار الاقتران بيشتغلوا بـ !cancelled(): لو اختبار شاشة البداية فشل،
       # اختبار الاقتران لسه مفروض يتشغّل عشان نتيجة M-1c تبقى واضحة.
+      # وهما كمان بس على main: بيئة staging-ui-test مرفوضة على أي فرع تاني، فعلى فرع الـ PR
+      # اختبار الاقتران مش بيشتغل خالص، واللي بيشتغل هو اختبار شاشة البداية بس.
       - name: Boot a simulator for the UI test
         if: inputs.spike == true && matrix.flavour == 'staging'
         working-directory: apps/business
@@ -430,7 +432,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Reinstall the app
-        if: ${{ !cancelled() && inputs.spike == true && matrix.flavour == 'staging' }}
+        if: ${{ github.ref == 'refs/heads/main' && !cancelled() && inputs.spike == true && matrix.flavour == 'staging' }}
         run: |
           set -euo pipefail
           app="$(ls -td ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Debug-iphonesimulator/App.app | sed -n '1p')"
@@ -438,7 +440,7 @@ jobs:
           xcrun simctl install "$SPIKE_UDID" "$app"
 
       - name: Run the counter pairing and staff PIN test
-        if: ${{ !cancelled() && inputs.spike == true && matrix.flavour == 'staging' }}
+        if: ${{ github.ref == 'refs/heads/main' && !cancelled() && inputs.spike == true && matrix.flavour == 'staging' }}
         timeout-minutes: 25
         env:
           # أي NODE_OPTIONS كتبته خطوة قبلها في GITHUB_ENV ما يحملش كود في الخطوة اللي فيها الأسرار.

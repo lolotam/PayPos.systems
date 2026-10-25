@@ -185,3 +185,32 @@ export async function sweepLeftovers(deps, config, cookie, signal) {
   }
   return `${ids.length} revoked`;
 }
+
+/** تنظيف بقايا التشغيلات المقتولة، ثم كود الاقتران الجديد: النتيجة والكود. */
+export async function preparePairing(deps, config, cookie, signal) {
+  let leftover = 'failed';
+  try {
+    leftover = await sweepLeftovers(deps, config, cookie, signal);
+  } catch {
+    leftover = 'failed';
+  }
+  let code = '';
+  try {
+    code = await issuePairingCode(deps.fetch, config, cookie, signal);
+  } catch {}
+  return { leftover, code };
+}
+
+/**
+ * مراجعة الجهاز بالاسم: بحث محدود بالاسم لو الـ id لسه مش معروف، وبعدها مراجعة الجهاز.
+ * بترجع الـ id اللي اتقفل (أو null) ونتيجة المراجعة.
+ */
+export async function revokeDeviceByLabel(deps, config, cookie, label, deviceId) {
+  let id = deviceId;
+  if (id === null && label !== '') {
+    const found = await findDeviceByLabel(deps.fetch, config, cookie, label);
+    if (found !== null) id = found;
+  }
+  if (id === null) return { id: null, outcome: 'skipped' };
+  return { id, outcome: await revokeWithRetries(deps, config, cookie, id) };
+}

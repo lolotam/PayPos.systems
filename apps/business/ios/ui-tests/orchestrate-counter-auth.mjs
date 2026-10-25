@@ -1,6 +1,5 @@
-// منسّق اختبار الاقتران والـ PIN على محاكي iOS (spec 065، M-1c): هو اللي بيشغّل
-// الـ xcodebuild، وبيستطلع الأجهزة المعلّقة، وبيقرّر إمتى يتقفل الجهاز. الشبكة
-// في counter-auth-api.mjs والأسماء الصافية في counter-auth-labels.mjs.
+// منسّق اختبار الاقتران والـ PIN على محاكي iOS (spec 065، M-1c): بيشغّل الـ xcodebuild
+// وبيستطلع الأجهزة المعلّقة. الشبكة في counter-auth-api.mjs والأسماء في counter-auth-labels.mjs.
 
 import { spawn } from 'node:child_process';
 import { mkdir, open } from 'node:fs/promises';
@@ -11,13 +10,11 @@ import {
   changeDevice,
   cookieValues,
   fetchPendingDevicePages,
-  findDeviceByLabel,
-  issuePairingCode,
+  preparePairing,
   readConfig,
-  revokeWithRetries,
+  revokeDeviceByLabel,
   signInOwner,
   signOutOwner,
-  sweepLeftovers,
 } from './counter-auth-api.mjs';
 import {
   buildDeviceLabel,
@@ -74,10 +71,8 @@ async function startUiTest(deps, config, code, label) {
   try {
     const child = deps.spawn('xcodebuild', [
       'test',
-      '-project', join(spike, 'SpikeUITests.xcodeproj'),
-      '-scheme', 'SpikeUITests',
-      '-only-testing:SpikeUITests/CounterAuthUITests',
-      '-destination', `id=${config.SPIKE_UDID}`,
+      '-project', join(spike, 'SpikeUITests.xcodeproj'), '-scheme', 'SpikeUITests',
+      '-only-testing:SpikeUITests/CounterAuthUITests', '-destination', `id=${config.SPIKE_UDID}`,
       '-resultBundlePath', join(spike, 'CounterAuth.xcresult'),
       'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO', 'DEVELOPMENT_TEAM=',
     ], {
@@ -186,15 +181,62 @@ async function runUiTest(deps, config, code, runtime, summary, controller) {
 
 /** آخر بحث بالاسم ثم مراجعة الجهاز: بتتشال من غير ما نستنى الـ close. */
 async function revokeDevice(deps, config, runtime, summary) {
+  const outcome = await revokeDeviceByLabel(
+    deps, config, runtime.cookie, runtime.label, runtime.deviceId,
+  );
+  if (outcome.id !== null) runtime.deviceId = outcome.id;
+  summary.revoke = outcome.outcome;
+}
+
+/** أول إشارة بتوقف التشغيل وبتبدأ المراجعة مع القتل، مش بعد ما الطفل يخرج. */
+function listenForStop(deps, controller, runtime, startRevoke) {
+  const stop = () => {
+    if (runtime.interrupted) return;
+    runtime.interrupted = true;
+    controller.abort();
+    void startRevoke();
+    escalateKill(deps, runtime);
+  };
+  process.once('SIGINT', stop);
+  process.once('SIGTERM', stop);
+  if (deps.signal?.aborted === true) stop();
+  else deps.signal?.addEventListener('abort', stop, { once: true });
+  return stop;
+}
+
+/** دخول الـ owner وقناع قيم الـ cookie عشان ما تظهرش في الـ log. */
+async function signInOwnerAndMask(deps, config, controller, runtime, summary) {
+  try {
+    runtime.cookie = await signInOwner(deps.fetch, config, controller.signal);
+    for (const value of cookieValues(runtime.cookie)) deps.log(`::add-mask::${value}`);
+    summary.owner = 'ok';
+  } catch {}
+}
+
+/** كود الاقتران وتشغيل اختبار iOS على المحاكي. */
+async function sweepAndPair(deps, config, controller, runtime, summary) {
+  const { leftover, code } = await preparePairing(deps, config, runtime.cookie, controller.signal);
+  summary.leftover = leftover;
+  if (code === '') return;
+  deps.log(`::add-mask::${code}`);
+  summary.pairing = 'issued';
+  runtime.label = buildDeviceLabel(config);
+  try {
+    await runUiTest(deps, config, code, runtime, summary, controller);
+  } catch {}
+}
+
+/** آخر تنظيف: مراجعة الجهاز، إنهاء جلسة الـ owner، وطباعة سطور النتيجة. */
+async function finalize(deps, config, runtime, summary, startRevoke, stop) {
+  await startRevoke();
   if (runtime.deviceId === null && runtime.label !== '') {
-    const found = await findDeviceByLabel(deps.fetch, config, runtime.cookie, runtime.label);
-    if (found !== null) runtime.deviceId = found;
+    // الجهاز ممكن يكون اتسجّل بعد ما الإلغاء وصل: بحث جديد بالاسم بعد ما الطفل يخلص.
+    await revokeDevice(deps, config, runtime, summary);
   }
-  if (runtime.deviceId === null) {
-    summary.revoke = 'skipped';
-    return;
-  }
-  summary.revoke = await revokeWithRetries(deps, config, runtime.cookie, runtime.deviceId);
+  summary.signOut = runtime.cookie === '' ? 'skipped' : await signOutOwner(deps.fetch, runtime.cookie);
+  process.removeListener('SIGINT', stop);
+  process.removeListener('SIGTERM', stop);
+  for (const line of summaryLines(summary)) deps.log(line);
 }
 
 export async function run(config, deps = defaultDeps()) {
@@ -214,9 +256,9 @@ export async function run(config, deps = defaultDeps()) {
     child: null,
     closed: false,
     escalated: false,
+    interrupted: false,
   };
   const controller = new AbortController();
-  let interrupted = false;
   let revokeTask = null;
 
   // المراجعة بتبدأ مع القتل مش بعده: مفيش انتظار مفتوح على close قبل ما الجهاز يتشال.
@@ -226,54 +268,14 @@ export async function run(config, deps = defaultDeps()) {
     return revokeTask;
   };
 
-  const stop = () => {
-    if (interrupted) return;
-    interrupted = true;
-    controller.abort();
-    void startRevoke();
-    escalateKill(deps, runtime);
-  };
-
-  process.once('SIGINT', stop);
-  process.once('SIGTERM', stop);
-  if (deps.signal?.aborted === true) stop();
-  else deps.signal?.addEventListener('abort', stop, { once: true });
-
+  const stop = listenForStop(deps, controller, runtime, startRevoke);
   try {
-    try {
-      runtime.cookie = await signInOwner(deps.fetch, config, controller.signal);
-      for (const value of cookieValues(runtime.cookie)) deps.log(`::add-mask::${value}`);
-      summary.owner = 'ok';
-    } catch {}
-
-    if (runtime.cookie !== '') {
-      try {
-        summary.leftover = await sweepLeftovers(deps, config, runtime.cookie, controller.signal);
-      } catch {
-        summary.leftover = 'failed';
-      }
-      let code = '';
-      try {
-        code = await issuePairingCode(deps.fetch, config, runtime.cookie, controller.signal);
-        deps.log(`::add-mask::${code}`);
-        summary.pairing = 'issued';
-      } catch {}
-      if (code !== '') {
-        runtime.label = buildDeviceLabel(config);
-        try {
-          await runUiTest(deps, config, code, runtime, summary, controller);
-        } catch {}
-      }
-    }
+    await signInOwnerAndMask(deps, config, controller, runtime, summary);
+    if (runtime.cookie !== '') await sweepAndPair(deps, config, controller, runtime, summary);
   } finally {
-    await startRevoke();
-    summary.signOut =
-      runtime.cookie === '' ? 'skipped' : await signOutOwner(deps.fetch, runtime.cookie);
-    process.removeListener('SIGINT', stop);
-    process.removeListener('SIGTERM', stop);
-    for (const line of summaryLines(summary)) deps.log(line);
+    await finalize(deps, config, runtime, summary, startRevoke, stop);
   }
-  return !interrupted && summary.ui === 'passed' && summary.revoke === 'done' ? 0 : 1;
+  return !runtime.interrupted && summary.ui === 'passed' && summary.revoke === 'done' ? 0 : 1;
 }
 
 const direct = process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;

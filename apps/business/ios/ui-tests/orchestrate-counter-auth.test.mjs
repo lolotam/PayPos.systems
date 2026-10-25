@@ -115,24 +115,23 @@ function fakeChild({ ignoreSigterm = false } = {}) {
   return emitter;
 }
 
-/**
- * Harness للتشغيل كامل: شبكة وطفل وclock وlog كلهم وهمية. الـ options بتتحكم في
- * السلوك اللي الاختبار بيفحصه.
- */
-function makeHarness(options = {}) {
-  const clock = fakeClock();
-  const state = { child: null, label: null, listCalls: 0, pollCalls: 0, calls: [], logs: [] };
+/** الأجهزة المعلّقة اللي السيرفر بيرجّعها في الطلب ده. */
+function pendingItems(state, options, clock) {
+  const items = [...(options.leftovers ?? [])];
+  const visible =
+    state.label !== null
+    && options.runDevice !== false
+    && (options.deviceAfterChildClose !== true || state.childClosed);
+  if (visible) {
+    const label = options.lowercaseLabel === true ? state.label.toLowerCase() : state.label;
+    items.push({ id: 'device-run', label, created_at: new Date(clock.now()).toISOString() });
+  }
+  return items;
+}
 
-  const pendingItems = () => {
-    const items = [...(options.leftovers ?? [])];
-    if (state.label !== null && options.runDevice !== false) {
-      const label = options.lowercaseLabel === true ? state.label.toLowerCase() : state.label;
-      items.push({ id: 'device-run', label, created_at: new Date(clock.now()).toISOString() });
-    }
-    return items;
-  };
-
-  const fetchImpl = async (url, fetchOptions = {}) => {
+/** السيرفر الوهمي: بيجاوب على كل مسار زي السيرفر الحقيقي. */
+function fakeFetch(state, options, clock) {
+  return async (url, fetchOptions = {}) => {
     const parsed = new URL(url);
     const call = {
       url: parsed,
@@ -163,7 +162,8 @@ function makeHarness(options = {}) {
       if (state.pollCalls > 0 && state.pollCalls <= failures) {
         throw new Error('the network is down');
       }
-      return fakeResponse({ body: { items: pendingItems(), next_cursor: null } });
+      const items = pendingItems(state, options, clock);
+      return fakeResponse({ body: { items, next_cursor: null } });
     }
     if (parsed.pathname.endsWith('/approve')) {
       if (options.approveFails === true) {
@@ -176,17 +176,35 @@ function makeHarness(options = {}) {
     if (parsed.pathname.endsWith('/revoke')) return fakeResponse({ status: 204 });
     throw new Error(`unexpected request ${call.method} ${parsed.pathname}`);
   };
+}
 
-  const spawnImpl = (command, args, spawnOptions) => {
-    state.child = fakeChild({ ignoreSigterm: options.ignoreSigterm === true });
-    state.label = spawnOptions.env.TEST_RUNNER_SPIKE_DEVICE_LABEL;
-    options.onSpawn?.(state);
-    return state.child;
+/**
+ * Harness للتشغيل كامل: شبكة وطفل وclock وlog كلهم وهمية. الـ options بتتحكم في
+ * السلوك اللي الاختبار بيفحصه.
+ */
+function makeHarness(options = {}) {
+  const clock = fakeClock();
+  const state = {
+    child: null,
+    label: null,
+    childClosed: false,
+    listCalls: 0,
+    pollCalls: 0,
+    calls: [],
+    logs: [],
   };
 
   const deps = {
-    fetch: fetchImpl,
-    spawn: spawnImpl,
+    fetch: fakeFetch(state, options, clock),
+    spawn: (command, args, spawnOptions) => {
+      state.child = fakeChild({ ignoreSigterm: options.ignoreSigterm === true });
+      state.label = spawnOptions.env.TEST_RUNNER_SPIKE_DEVICE_LABEL;
+      state.child.on('close', () => {
+        state.childClosed = true;
+      });
+      options.onSpawn?.(state);
+      return state.child;
+    },
     log: (line) => state.logs.push(line),
     now: clock.now,
     sleep: clock.sleep,
@@ -258,6 +276,22 @@ test('a child that ignores SIGTERM is killed with SIGKILL', async () => {
   await run(harness.config, harness.deps);
 
   assert.deepEqual(harness.state.child.signals, ['SIGTERM', 'SIGKILL']);
+});
+
+test('a device that registers after the abort is still revoked', async () => {
+  const controller = new AbortController();
+  const harness = makeHarness({
+    signal: controller.signal,
+    // الجهاز بيتسجّل بعد ما الطفل يخلص: البحث اللي بيحصل وقت الإلغاء مابيلقاهش،
+    // والبحث النهائي بعد ما الطفل يخلص بيلقاه.
+    deviceAfterChildClose: true,
+    onSpawn: () => controller.abort(),
+  });
+  await run(harness.config, harness.deps);
+
+  assert.equal(harness.summary('device revoke'), 'device revoke: done');
+  assert.equal(harness.revokes().length, 1);
+  assert.equal(harness.revokes()[0].url.pathname.endsWith('/device-run/revoke'), true);
 });
 
 test('one failed poll round is retried and the device is approved', async () => {
