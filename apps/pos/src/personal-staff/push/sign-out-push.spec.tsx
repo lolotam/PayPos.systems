@@ -80,7 +80,7 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.record = null;
       return true;
     },
-    suspend: async () => 0,
+    suspend: async () => null,
     generation: async () => fakes.state.generation,
     bumpGeneration: async () => {
       fakes.state.generation += 1;

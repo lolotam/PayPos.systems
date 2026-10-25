@@ -13,6 +13,7 @@ import {
 } from './push-browser';
 import { PushKeyStaleError, pushCalls, withAbortTimeout } from './push-calls';
 import { runPushExclusive } from './push-lock';
+import { newerRecordHoldsSubscription } from './push-newer-record';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
@@ -115,9 +116,7 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
         // فشل الكتابة: السجل مش هيتكتب والتسجيل الجديد بيتشال.
       }
       if (!written) {
-        // جيل تاني غيّر السجل: التوكين الجديد بيتشال والسطر عند الـ API بيراجع.
-        await unsubscribePush().catch(() => undefined);
-        await revoke(input.installationId);
+        await dropLostRegistration(input.installationId, previous?.token ?? null);
         return { kind: 'failed' };
       }
       notifyPushRecordChanged();
@@ -125,6 +124,19 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
     }
     return { kind: 'failed' };
   });
+}
+
+/** التسجيل اللي خسر السجل: بيتشال وسطره على السيرفر بيراجع، إلا لو تسجيل تاني كسب. */
+async function dropLostRegistration(
+  installationId: string,
+  previousToken: string | null,
+): Promise<void> {
+  // تسجيل تاني كسب السجل: اشتراكه لازم يفضل، فتسجيلنا ما ينفعش يشيله ولا يراجع
+  // سطره عشان ما نضيعش اشتراك اللي كسب (ADR-0052 §7).
+  if (await newerRecordHoldsSubscription(previousToken)) return;
+  // مفيش غيرنا كسب: توكننا مش مطلوب من حد، فبيتشال والسطر عند الـ API بيراجع.
+  await unsubscribePush().catch(() => undefined);
+  await revoke(installationId);
 }
 
 async function revoke(installationId: string): Promise<void> {

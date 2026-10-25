@@ -30,8 +30,12 @@ export interface PushRecordStore {
   remove(): Promise<void>;
   /** بيمسح بس السجل المتوقع، عشان تنظيف قديم ما يمسحش تسجيل تبويب تاني. */
   removeIfMatches(expected: { token: string | null; revision: number }): Promise<boolean>;
-  /** بيرجع مراجعة التعليق الجديد، أو صفر لو السجل اتمسح قبل التعليق. */
-  suspend(): Promise<number>;
+  /**
+   * بيرجع السجل المعلق كما خزنته نفس العملية اللي علّقته (التوكن ومرجع المشترك
+   * والمراجعة بعد الزيادة)، أو null لو مفيش سجل مخزن. المقارنة بتتم مع السجل اللي
+   * رجع هنا دايماً، مش مع أي قراءة قبله.
+   */
+  suspend(): Promise<PushRecord | null>;
   generation(): Promise<number>;
   bumpGeneration(): Promise<number>;
   writeIfGeneration(

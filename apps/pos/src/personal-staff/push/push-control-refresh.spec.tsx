@@ -47,11 +47,11 @@ vi.mock('./push-record-idb', () => ({
     },
     suspend: async () => {
       const stored = fakes.state.record;
-      if (stored === null) return 0;
+      if (stored === null) return null;
       const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
       fakes.state.record = suspended;
       fakes.state.writes.push(suspended);
-      return suspended.revision;
+      return suspended;
     },
     remove: async () => {
       fakes.state.removed += 1;

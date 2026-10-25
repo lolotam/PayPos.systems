@@ -170,25 +170,25 @@ function removeIfMatches(expected: { token: string | null; revision: number }): 
 
 /**
  * بيعلّق النسخة المخزنة جوه نفس الـ transaction عشان لقطة قديمة ما ترجعش توكن اتبدل
- * أو سجل اتمسح، وبيرجع المراجعة الجديدة عشان مقارنة قديمة ما تمسحش تعليقًا أحدث.
+ * أو سجل اتمسح، وبيرجع السجل المعلق كما اتخزن عشان المقارنة تبقى على نفس اللقطة.
  */
-function suspendRecord(): Promise<number> {
+function suspendRecord(): Promise<PushRecord | null> {
   return openDatabase().then(
     (database) =>
-      new Promise<number>((resolve, reject) => {
+      new Promise<PushRecord | null>((resolve, reject) => {
         const transaction = database.transaction(STORE_NAME, 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
         const request = store.get(RECORD_KEY) as IDBRequest<PushRecord | undefined>;
-        let revision = 0;
+        let suspended: PushRecord | null = null;
         request.onsuccess = () => {
           const stored = request.result;
           if (stored === undefined) return;
-          revision = (stored.revision ?? 0) + 1;
-          store.put({ ...stored, suspended: true, revision }, RECORD_KEY);
+          suspended = { ...stored, suspended: true, revision: (stored.revision ?? 0) + 1 };
+          store.put(suspended, RECORD_KEY);
         };
         transaction.oncomplete = () => {
           database.close();
-          resolve(revision);
+          resolve(suspended);
         };
         transaction.onabort = () => {
           database.close();

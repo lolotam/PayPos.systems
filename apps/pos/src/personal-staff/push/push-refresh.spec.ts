@@ -48,11 +48,11 @@ vi.mock('./push-record-idb', () => ({
     suspend: async () => {
       if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       const stored = fakes.state.record;
-      if (stored === null) return 0;
+      if (stored === null) return null;
       const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
       fakes.state.record = suspended;
       fakes.state.writes.push(suspended);
-      return suspended.revision;
+      return suspended;
     },
     remove: async () => {
       fakes.state.removed += 1;
@@ -266,4 +266,22 @@ it('removes the record when the rotation cannot write it', async () => {
   expect(outcome).toEqual({ kind: 'cleared' });
   expect(fakes.state.removed).toBe(1);
   expect(fakes.state.record).toBeNull();
+});
+
+it('leaves the winner alone when another tab took the record during the rotation', async () => {
+  fakes.state.record = { ...RECORD, vapid_key_id: 'oldkey0000000000' };
+  vi.mocked(pushCalls.register).mockImplementation(async () => {
+    // تسجيل تاني كسب السجل قبل ما كتابة التدوير تتنفذ.
+    fakes.state.record = { ...RECORD, token: 'winner-token' };
+  });
+
+  const outcome = await refreshPush(input());
+
+  expect(outcome).toEqual({ kind: 'cleared' });
+  expect(fakes.state.record?.token).toBe('winner-token');
+  expect(fakes.state.record?.suspended).toBe(false);
+  expect(fakes.state.removed).toBe(0);
+  // اشتراك واحد بس: اللي عملناه إحنا، من غير تفكيك بعده ومن غير مراجعة للسطر.
+  expect(fakes.state.unsubscribed).toBe(1);
+  expect(pushCalls.revoke).not.toHaveBeenCalled();
 });

@@ -12,6 +12,7 @@ import {
 } from './push-browser';
 import { pushCalls, withAbortTimeout } from './push-calls';
 import { runPushExclusive } from './push-lock';
+import { newerRecordHoldsSubscription } from './push-newer-record';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
@@ -142,7 +143,9 @@ async function rotate(
     return { kind: 'cleared' };
   }
   if (outcome === 'stale') {
-    // جيل أو مراجعة أو توكن أحدث: السجل دلوقتي بتاع حد تاني، فبنسيبه ونشيل بس تسجيلنا (ADR-0052 §7).
+    // جيل أو مراجعة أو توكن أحدث: لو تسجيل تاني كسب السجل، فاشتراكه والسطر بتاعه على
+    // السيرفر بيفضلوا زي ما هما؛ غير كده بنشيل تسجيلنا ونراجع سطرنا (ADR-0052 §7).
+    if (await newerRecordHoldsSubscription(record.token)) return { kind: 'cleared' };
     await abortRotation(installationId);
     return { kind: 'cleared' };
   }

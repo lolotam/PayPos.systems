@@ -3,6 +3,7 @@ import { pushCalls, withAbortTimeout } from './push-calls';
 import { runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
+import type { PushRecord } from './push-record';
 
 const CONFIG_TIMEOUT_MS = 8000;
 
@@ -13,12 +14,13 @@ let sequence = 0;
  * بيعلّق عرض نص الإشعارات قبل ما الجلسة الجديدة تتأسس: السجل بيتكتب معلق من غير انتظار
  * القفل، فأي إشعار متسرب للمشترك القديم ما بيعرفش نصه (FR-018).
  * التعليق مش بيكسر الجيل: تسجيل نفس الموظفة أثناء تدوير لازم يفضل محفوظ (ADR-0052 §7).
+ * اللقطة اللي بنقارن بيها هي السجل اللي رجعته عملية التعليق نفسها، فمفيش سباق
+ * بين القراءة والتعليق: لو السجل اتمسح قبل التعليق، التعليق بيرجع null ومفيش حاجة تتغير.
  */
 export async function suspendPushForSignIn(): Promise<void> {
-  const record = await pushRecordStore.read().catch(() => null);
-  if (record === null) return;
+  let suspended: PushRecord | null;
   try {
-    await pushRecordStore.suspend();
+    suspended = await pushRecordStore.suspend();
   } catch {
     // من غير تعليق السجل بيفضل قايم مفتوح، فبنمسحه ونشيل الاشتراك (fail-closed).
     await pushRecordStore.remove().catch(() => undefined);
@@ -26,22 +28,23 @@ export async function suspendPushForSignIn(): Promise<void> {
     notifyPushRecordChanged();
     return;
   }
+  if (suspended === null) return;
   notifyPushRecordChanged();
 }
 
 /**
  * فحص التوقيع وقت تسجيل الدخول الجديد: بيعلّق عرض النص الأول، وبعدين بيقارن مرجع المشترك.
  * المرجع المختلف جواب مؤكد فالسجل بيتمسح؛ الفشل أو الوقت الضائع بيسيب السجل معلّق (FR-018).
+ * المقارنة بتتم على السجل اللي رجع من عملية التعليق نفسها: هو ده اللي اتعلق فعلاً، فأي
+ * تسجيل تاني كسب السجل قبلها مايتقارنش بسجل قديم.
  */
 export async function runSignInPushCheck(): Promise<void> {
   const run = (sequence += 1);
   await runPushExclusive(async (): Promise<void> => {
     const generation = await pushRecordStore.generation();
-    const record = await pushRecordStore.read().catch(() => null);
-    if (record === null) return;
-    let suspensionRevision: number;
+    let suspended: PushRecord | null;
     try {
-      suspensionRevision = await pushRecordStore.suspend();
+      suspended = await pushRecordStore.suspend();
     } catch {
       // من غير تعليق السجل بيفضل قايم مفتوح، فبنمسحه ونشيل الاشتراك (fail-closed).
       await pushRecordStore.remove().catch(() => undefined);
@@ -49,6 +52,7 @@ export async function runSignInPushCheck(): Promise<void> {
       notifyPushRecordChanged();
       return;
     }
+    if (suspended === null) return;
     notifyPushRecordChanged();
     let result: Awaited<ReturnType<typeof pushCalls.config>>;
     try {
@@ -63,17 +67,17 @@ export async function runSignInPushCheck(): Promise<void> {
     // لأن توكنها القديم كان هيخفي إشعارات صاحبها الحقيقيين (ADR-0052 §7).
     if (
       current === null ||
-      current.token !== record.token ||
-      current.subscriber_ref !== record.subscriber_ref
+      current.token !== suspended.token ||
+      current.subscriber_ref !== suspended.subscriber_ref
     ) {
       return;
     }
-    if (result.config.subscriber_ref === record.subscriber_ref) {
+    if (result.config.subscriber_ref === suspended.subscriber_ref) {
       const written = await pushRecordStore
         .writeIfGeneration({ ...current, suspended: false }, generation, {
           clearSuspension: true,
-          expectRevision: suspensionRevision,
-          expectToken: record.token,
+          expectRevision: suspended.revision,
+          expectToken: suspended.token,
         })
         .catch(() => false);
       if (!written) return;
@@ -81,7 +85,7 @@ export async function runSignInPushCheck(): Promise<void> {
       return;
     }
     const removed = await pushRecordStore
-      .removeIfMatches({ token: record.token, revision: suspensionRevision })
+      .removeIfMatches({ token: suspended.token, revision: suspended.revision })
       .catch(() => false);
     if (!removed) return;
     await unsubscribePush().catch(() => undefined);
