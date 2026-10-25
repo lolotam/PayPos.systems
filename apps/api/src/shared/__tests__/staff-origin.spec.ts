@@ -36,15 +36,11 @@ describe('staffNativeOriginsFrom', () => {
   });
 
   it('accepts the iOS Capacitor origin', () => {
-    expect(staffNativeOriginsFrom('capacitor://localhost')).toEqual([
-      'capacitor://localhost',
-    ]);
+    expect(staffNativeOriginsFrom('capacitor://localhost')).toEqual(['capacitor://localhost']);
   });
 
   it('trims entries and drops a trailing empty entry', () => {
-    expect(staffNativeOriginsFrom('capacitor://localhost, ')).toEqual([
-      'capacitor://localhost',
-    ]);
+    expect(staffNativeOriginsFrom('capacitor://localhost, ')).toEqual(['capacitor://localhost']);
   });
 
   it.each(['https://evil.example', 'capacitor://other', 'CAPACITOR://LOCALHOST'])(
