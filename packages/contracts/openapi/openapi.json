@@ -9410,7 +9410,9 @@
             "required": false,
             "schema": {
               "type": "string",
-              "maxLength": 512
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$"
             }
           },
           {

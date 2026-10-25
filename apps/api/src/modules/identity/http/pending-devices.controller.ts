@@ -19,7 +19,6 @@ import { listPendingDevices, PendingDevicesCursorError } from '../queries/pendin
 export class PendingDevicesController {
   constructor(@Inject(DATABASE) private readonly database: TenantWrappers | null) {}
 
-  // الـ status لازم يكون 'pending' (FR-003): الـ pipe بيرفض غيره بـ 400 قبل أي قراءة.
   @Get()
   @Require('manage:devices:branch', { branch: 'branchId' })
   async list(
@@ -36,7 +35,6 @@ export class PendingDevicesController {
         { userId: actor.userId },
       );
     } catch (error) {
-      // المؤشر الغلط أو بتاع فرع تاني: 400 زي أي طلب مرفوض.
       if (error instanceof PendingDevicesCursorError) throw new ApiError('VALIDATION_FAILED');
       throw error;
     }
