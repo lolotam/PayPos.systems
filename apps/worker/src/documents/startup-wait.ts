@@ -15,6 +15,8 @@ export async function startWithin(
   timeoutMs: number,
   signal: AbortSignal,
 ): Promise<RendererStart> {
+  // المتصفح اتلغى قبل ما نبدأ: ما بنناديش launch بتاعه خالص.
+  if (signal.aborted) return { state: 'pending' };
   const launched = Promise.resolve().then(() => renderer.start());
   let timer: ReturnType<typeof setTimeout> | undefined;
   let onAbort: (() => void) | undefined;

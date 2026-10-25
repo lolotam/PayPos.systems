@@ -107,9 +107,10 @@ it('fails an oversized bytes document on the first attempt', async () => {
 
 it('refuses a PDF kind when the renderer is unavailable', async () => {
   const renderer = new FakeRenderer();
-  renderer.available = false;
   await useRender(
     async (opened) => {
+      // المتصفح نزل بعد الإقلاع؛ الطلب بيرفض من غير تأجيل.
+      renderer.available = false;
       const companyId = renderId();
       const id = renderId();
       let loads = 0;

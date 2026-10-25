@@ -6,6 +6,7 @@ import {
 } from '../domain/errors.ts';
 import type { DocumentRenderer, RenderOptions } from '../ports/document-renderer.ts';
 import type { PdfBrowser, PdfBrowserFactory, PdfContext } from './browser.ts';
+import { closeHungContext, openWithinGrace } from './context-guards.ts';
 import { playwrightFactory } from './factory.ts';
 import { finishWithinGrace, launchWithinTimeout } from './launch.ts';
 import { renderPage, type RenderPageHooks } from './render-page.ts';
@@ -48,49 +49,6 @@ function asRendererError(error: unknown): Error {
     return new DocumentRenderTimeoutError();
   if (error instanceof Error) return error;
   return new Error('DOCUMENT_RENDER_FAILED');
-}
-
-/**
- * newContext المعلّق لو استنيناه بلا سقف، المهلة الكلية ما بتخلّصش الرندر.
- * رجوع السياق جوّه المهلة يتقفل لوحده؛ اللي ما جاش بيتساب معلّق والمتصل يتقاعد من غير close.
- */
-async function openWithinGrace(
-  opening: Promise<PdfContext>,
-  graceMs: number,
-  sleep: (ms: number) => Promise<void>,
-): Promise<{ readonly settled: boolean; readonly context: PdfContext | undefined }> {
-  let settled = false;
-  let context: PdfContext | undefined;
-  const pending = opening.then(
-    (opened) => {
-      settled = true;
-      context = opened;
-    },
-    () => {
-      settled = true;
-    },
-  );
-  await Promise.race([pending, sleep(graceMs)]);
-  return { settled, context };
-}
-
-/** قفل السياق جوّه المهلة يسيب المتصفح. اللي ما خلّصش بيتقاعد من برّه، من غير close بلا حد. */
-async function closeHungContext(
-  context: PdfContext,
-  graceMs: number,
-  sleep: (ms: number) => Promise<void>,
-): Promise<boolean> {
-  let finished = false;
-  const closing = context.close().then(
-    () => {
-      finished = true;
-    },
-    () => {
-      finished = true;
-    },
-  );
-  await Promise.race([closing, sleep(graceMs)]);
-  return !finished;
 }
 
 /**
@@ -144,6 +102,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   readonly #onLaunchError: ((error: unknown) => void) | undefined;
   readonly #onDocumentHtml: ((outerHtml: string) => void) | undefined;
   #browser: PdfBrowser | null = null;
+  #launchController: AbortController | null = null;
   #available = false;
   #closing = false;
   #launchFailures = 0;
@@ -186,6 +145,8 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
 
   async close(): Promise<void> {
     this.#closing = true;
+    // الإطلاق المعلّق بيتلغي فورًا؛ المتصفح اللي يوصل بعدين بيتقفل في الكور.
+    this.#launchController?.abort();
     this.#clearStable();
     this.#markUnavailable();
     const browser = this.#browser;
@@ -202,12 +163,16 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
   }
 
   async #launchOnce(): Promise<void> {
+    const controller = new AbortController();
+    this.#launchController = controller;
     try {
       const outcome = await launchWithinTimeout(
         this.#factory.launch(),
         this.#launchTimeoutMs,
         this.#closeGraceMs,
+        controller.signal,
       );
+      if (outcome.kind === 'cancelled') return;
       if (outcome.kind === 'timeout') {
         this.#onLaunchError?.(new Error('DOCUMENT_LAUNCH_TIMEOUT'));
         this.#markUnavailable();

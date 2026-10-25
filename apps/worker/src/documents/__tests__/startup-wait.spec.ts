@@ -16,6 +16,17 @@ it('ends the wait when the signal aborts', async () => {
   expect(vi.getTimerCount()).toBe(0);
 });
 
+it('never starts the renderer when the signal is already aborted', async () => {
+  vi.useFakeTimers();
+  const controller = new AbortController();
+  controller.abort();
+  const start = vi.fn(() => Promise.resolve());
+  const outcome = await startWithin({ start }, 30_000, controller.signal);
+  expect(outcome.state).toBe('pending');
+  expect(start).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
 it('resolves pending when the renderer start is aborted', async () => {
   vi.useFakeTimers();
   const controller = new AbortController();

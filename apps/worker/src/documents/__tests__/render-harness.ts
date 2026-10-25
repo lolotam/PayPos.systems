@@ -89,6 +89,8 @@ export interface RenderOptions {
   readonly registry?: DocumentSourceRegistry;
   /** false: تفتح القدرة من غير ما تستنى `started`، عشان اختبار مستقل عن Chromium. */
   readonly awaitStarted?: boolean;
+  /** مهلة إقلاع المتصفح؛ الاختبار بيقصّرها عشان ما يستناش. */
+  readonly startupMs?: number;
 }
 
 export async function openRender(options?: RenderOptions): Promise<Opened> {
@@ -113,6 +115,7 @@ export async function openRender(options?: RenderOptions): Promise<Opened> {
       },
     },
     ...(options?.intervalMs === undefined ? {} : { livenessIntervalMs: options.intervalMs }),
+    ...(options?.startupMs === undefined ? {} : { startupMs: options.startupMs }),
   };
   const handle =
     options?.awaitStarted === false

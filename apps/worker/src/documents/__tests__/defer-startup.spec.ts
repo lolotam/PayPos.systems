@@ -16,9 +16,30 @@ import {
 
 /** متصفح بيقوم ببطء: الطلب اللي في الطابور لازم يتأجل لحد ما يطلع. */
 class SlowStartRenderer extends FakeRenderer {
+  constructor() {
+    super();
+    this.available = false;
+  }
+
   override async start(): Promise<void> {
     await new Promise<void>((resolve) => setTimeout(resolve, 6_000));
+    this.available = true;
     await super.start();
+  }
+}
+
+/** متصفح بيتأخر عن مهلة الإقلاع: PDF يفضل متأجل لحد ما المتصفح يبقى متاح. */
+class LateAvailableRenderer extends FakeRenderer {
+  constructor() {
+    super();
+    this.available = false;
+  }
+
+  override async start(): Promise<void> {
+    setTimeout(() => {
+      this.available = true;
+      void super.start();
+    }, 6_500);
   }
 }
 
@@ -60,7 +81,12 @@ it('defers only PDF jobs while the renderer starts', async () => {
     data: job(renderId(), renderId(), 'fixtureXlsx'),
     moveToDelayed: bytesDelayed,
   } as unknown as Job;
-  await deferPdfWhileStarting(bytesJob, 'token', { starting: true }, bytesRegistry);
+  await deferPdfWhileStarting(
+    bytesJob,
+    'token',
+    { starting: true, deadlineAt: Date.now() + 60_000 },
+    bytesRegistry,
+  );
   expect(bytesDelayed).not.toHaveBeenCalled();
 
   const pdfRegistry = new DocumentSourceRegistry();
@@ -71,7 +97,49 @@ it('defers only PDF jobs while the renderer starts', async () => {
     moveToDelayed: pdfDelayed,
   } as unknown as Job;
   await expect(
-    deferPdfWhileStarting(pdfJob, 'token', { starting: true }, pdfRegistry),
+    deferPdfWhileStarting(
+      pdfJob,
+      'token',
+      { starting: true, deadlineAt: Date.now() + 60_000 },
+      pdfRegistry,
+    ),
   ).rejects.toThrow(DelayedError);
   expect(pdfDelayed).toHaveBeenCalledTimes(1);
 });
+
+it('stops deferring once the deferral window passes', async () => {
+  const registry = new DocumentSourceRegistry();
+  registry.register('fixture', { load: async () => '<p>ok</p>' });
+  const delayed = vi.fn();
+  const pdfJob = {
+    data: job(renderId(), renderId(), 'fixture'),
+    moveToDelayed: delayed,
+  } as unknown as Job;
+  await deferPdfWhileStarting(
+    pdfJob,
+    'token',
+    { starting: true, deadlineAt: Date.now() - 1 },
+    registry,
+  );
+  expect(delayed).not.toHaveBeenCalled();
+});
+
+it('keeps a queued PDF deferred while a launch takes longer than the start bound', async () => {
+  const renderer = new LateAvailableRenderer();
+  const opened = await openRender({ renderer, awaitStarted: false, startupMs: 200 });
+  try {
+    const companyId = renderId();
+    const id = renderId();
+    opened.registry.register('fixture', { load: async () => '<p>ok</p>' });
+    await seedQueued(opened, companyId, id);
+    const done = finishJob(opened, job(companyId, id, 'fixture'), id);
+    await new Promise((resolve) => setTimeout(resolve, 5_500));
+    expect((await statusOf(opened, companyId, id))['state']).not.toBe('FAILED');
+    expect(renderer.seen).toEqual([]);
+    await done;
+    expect((await statusOf(opened, companyId, id))['state']).toBe('READY');
+    expect(renderer.seen).toEqual(['<p>ok</p>']);
+  } finally {
+    await closeRender(opened);
+  }
+}, 30_000);
