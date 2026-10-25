@@ -11,7 +11,7 @@ import {
   type PushSubscriptionLike,
 } from './push-browser';
 import { pushCalls, withAbortTimeout } from './push-calls';
-import { runPushExclusive } from './push-lock';
+import { hasCrossTabLock, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
@@ -42,9 +42,18 @@ export interface PushRefreshInput {
  * @returns نتيجة التحديث
  */
 export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshOutcome> {
+  // من غير قفل بين التبويبات، تحديثين متوازيين بيركبوا على اشتراك واحد وسطر واحد على
+  // السيرفر. بنرفض قبل أي قراءة أو تسجيل (ADR-0052 §7).
+  if (!hasCrossTabLock()) return { kind: 'none' };
   return runPushExclusive(async (): Promise<PushRefreshOutcome> => {
     const generation = await pushRecordStore.generation();
-    const record = await pushRecordStore.read().catch(() => null);
+    let record: PushRecord | null;
+    try {
+      record = await pushRecordStore.read();
+    } catch {
+      // السجل مش معروف: من غير ما نمسح ولا نسجل، مفيش حاجة نعملها.
+      return { kind: 'none' };
+    }
     if (record === null) return { kind: 'none' };
     if (record.company_id !== input.companyId) return { kind: 'none' };
     // المقارنة بتتم قبل أي حاجة: مرجع تاني جواب مؤكد إن الجهاز بقى لحد تاني،
@@ -137,12 +146,12 @@ async function rotate(
   }
   const outcome = await writeRotatedRecord(record, input, token, generation);
   if (outcome === 'failed') {
-    // فشل الكتابة: السجل مش هيتكتب والتسجيل الجديد بيتشال.
-    await failRotation(installationId);
-    return { kind: 'cleared' };
+    // حالة المخزن مجهولة: السجل بيفضل بمفتاحه القديم، والتحديث الجاي يدور تاني.
+    return { kind: 'none' };
   }
   if (outcome === 'stale') {
-    // جيل أو مراجعة أو توكن أحدث: السجل دلوقتي بتاع حد تاني، فبنسيبه ونشيل بس تسجيلنا (ADR-0052 §7).
+    // جيل أو مراجعة أو توكن أحدث: السجل بقى بتاع حد تاني (خروج أو تعليق دخول أو إيقاف)،
+    // فبنسيبه ونشيل بس تسجيلنا (ADR-0052 §7).
     await abortRotation(installationId);
     return { kind: 'cleared' };
   }
@@ -206,12 +215,6 @@ async function writeRotatedRecord(
 async function abortRotation(installationId: string): Promise<void> {
   await dropSubscription();
   await revoke(installationId);
-}
-
-/** فشل كتابة السجل: السجل الوهمي ما ينفعش يفضل، فبنمسحه. */
-async function failRotation(installationId: string): Promise<void> {
-  await abortRotation(installationId);
-  await removeRecord();
 }
 
 /** الاشتراك الجديد بيتشال: المتصفح مينفعش يفضل مسجل من غير حد يطلبه. */

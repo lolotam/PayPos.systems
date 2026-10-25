@@ -59,11 +59,11 @@ vi.mock('./push-record-idb', () => ({
     suspend: async () => {
       if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       const stored = fakes.state.record;
-      if (stored === null) return 0;
+      if (stored === null) return null;
       const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
       fakes.state.record = suspended;
       fakes.state.writes.push(suspended);
-      return suspended.revision;
+      return { record: suspended, generation: fakes.state.generation };
     },
     remove: async () => {
       fakes.state.removed += 1;
@@ -332,7 +332,9 @@ it('a failed record write leaves no registration behind', async () => {
 
   expect(outcome.kind).toBe('failed');
   expect(fakes.state.record).toEqual(RECORD);
-  expect(fakes.state.unsubscribed).toBeGreaterThan(0);
+  // حالة المخزن مجهولة: الاشتراك القديم بيفضل، ومفيش مراجعة للسطر على السيرفر.
+  expect(fakes.state.unsubscribed).toBe(1);
+  expect(pushCalls.revoke).not.toHaveBeenCalled();
 });
 
 it('keeps the record when the same person signs in again during a rotation', async () => {

@@ -1,4 +1,4 @@
-import type { PushRecord, PushRecordStore, PushWriteOptions } from './push-record';
+import type { PushRecord, PushRecordStore, PushSuspension, PushWriteOptions } from './push-record';
 
 // داتابيز مستقلة عن داتابيز التطبيق: السجل ده بيشتغل مع التطبيق ومع الـ service worker،
 // ومالهوش علاقة بمسح الكاش الخاص اللي بيعمله مسار الدخول الشخصي (ADR-0027، ADR-0052 §7).
@@ -170,25 +170,39 @@ function removeIfMatches(expected: { token: string | null; revision: number }): 
 
 /**
  * بيعلّق النسخة المخزنة جوه نفس الـ transaction عشان لقطة قديمة ما ترجعش توكن اتبدل
- * أو سجل اتمسح، وبيرجع المراجعة الجديدة عشان مقارنة قديمة ما تمسحش تعليقًا أحدث.
+ * أو سجل اتمسح، وبيرجع السجل المعلق مع الجيل اللي اتشاف في نفس العملية عشان الرجوع
+ * المحروس يستعمل نفس الأرقام اللي اتعلّق عليها.
  */
-function suspendRecord(): Promise<number> {
+function suspendRecord(): Promise<PushSuspension | null> {
   return openDatabase().then(
     (database) =>
-      new Promise<number>((resolve, reject) => {
+      new Promise<PushSuspension | null>((resolve, reject) => {
         const transaction = database.transaction(STORE_NAME, 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
-        const request = store.get(RECORD_KEY) as IDBRequest<PushRecord | undefined>;
-        let revision = 0;
-        request.onsuccess = () => {
-          const stored = request.result;
+        const recordRequest = store.get(RECORD_KEY) as IDBRequest<PushRecord | undefined>;
+        let suspension: PushSuspension | null = null;
+        recordRequest.onsuccess = () => {
+          const stored = recordRequest.result;
           if (stored === undefined) return;
-          revision = (stored.revision ?? 0) + 1;
-          store.put({ ...stored, suspended: true, revision }, RECORD_KEY);
+          // الجيل بيتقرا جوه نفس الـ transaction: طلب جديد من جوّه معالج الطلب بيخلي
+          // الـ transaction لسه شغال، فالتعليق والجيل بيتافقوا على نفس اللحظة.
+          const generationRequest = store.get(GENERATION_KEY) as IDBRequest<number | undefined>;
+          generationRequest.onsuccess = () => {
+            const suspended = {
+              ...stored,
+              suspended: true,
+              revision: (stored.revision ?? 0) + 1,
+            };
+            store.put(suspended, RECORD_KEY);
+            suspension = {
+              record: suspended,
+              generation: readGeneration(generationRequest.result),
+            };
+          };
         };
         transaction.oncomplete = () => {
           database.close();
-          resolve(revision);
+          resolve(suspension);
         };
         transaction.onabort = () => {
           database.close();

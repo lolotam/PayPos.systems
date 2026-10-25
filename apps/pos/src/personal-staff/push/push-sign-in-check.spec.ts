@@ -14,6 +14,7 @@ const fakes = vi.hoisted(() => {
     writesBeforeConfig: 0,
     writeFails: false,
     duringSuspend: undefined as PushRecord | null | undefined,
+    generationDuringSuspend: undefined as number | undefined,
     generation: 0,
   };
   return { state };
@@ -33,6 +34,7 @@ const CONFIG: PushConfig = {
   vapid_key_id: '0123456789abcdef',
   subscriber_ref: 'subscriber-ref',
 };
+const NEWER = 'test-newer-c';
 
 async function writeIfGeneration(
   record: PushRecord,
@@ -63,16 +65,21 @@ vi.mock('./push-record-idb', () => ({
     },
     suspend: async () => {
       if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
+      const bump = fakes.state.generationDuringSuspend;
+      if (bump !== undefined) {
+        fakes.state.generation = bump;
+        fakes.state.generationDuringSuspend = undefined;
+      }
       if (fakes.state.duringSuspend !== undefined) {
         fakes.state.record = fakes.state.duringSuspend;
         fakes.state.duringSuspend = undefined;
       }
       const stored = fakes.state.record;
-      if (stored === null) return 0;
+      if (stored === null) return null;
       const suspended = { ...stored, suspended: true, revision: stored.revision + 1 };
       fakes.state.record = suspended;
       fakes.state.writes.push(suspended);
-      return suspended.revision;
+      return { record: suspended, generation: fakes.state.generation };
     },
     remove: async () => {
       fakes.state.removed += 1;
@@ -131,6 +138,7 @@ beforeEach(() => {
   fakes.state.writesBeforeConfig = 0;
   fakes.state.writeFails = false;
   fakes.state.duringSuspend = undefined;
+  fakes.state.generationDuringSuspend = undefined;
   fakes.state.generation = 0;
   vi.mocked(pushCalls.config).mockImplementation(async () => {
     fakes.state.writesBeforeConfig = fakes.state.writes.length;
@@ -232,11 +240,62 @@ it('ignores the answer of an older run', async () => {
 it('writes nothing when another tab removes the record before suspension', async () => {
   fakes.state.duringSuspend = null;
 
-  await suspendPushForSignIn();
+  await runSignInPushCheck();
 
+  // التعليق رجع null: مفيش سجل اتعلّق، فمفيش مقارنة ومفيش كتابة ولا مسح.
   expect(pushCalls.config).not.toHaveBeenCalled();
   expect(fakes.state.record).toBeNull();
   expect(fakes.state.writes).toHaveLength(0);
+  expect(fakes.state.removed).toBe(0);
+});
+
+it('suspends a record that appears while the sign-in is running', async () => {
+  fakes.state.record = null;
+  fakes.state.duringSuspend = { ...RECORD };
+
+  await suspendPushForSignIn();
+
+  expect(fakes.state.record).toEqual({ ...RECORD, suspended: true, revision: 1 });
+  expect(fakes.state.writes).toHaveLength(1);
+});
+
+it('restores the record another tab wrote when the subscriber reference matches', async () => {
+  fakes.state.duringSuspend = { ...RECORD, token: NEWER };
+
+  await runSignInPushCheck();
+
+  expect(fakes.state.record?.token).toBe(NEWER);
+  expect(fakes.state.record?.suspended).toBe(false);
+  expect(fakes.state.removed).toBe(0);
+  expect(fakes.state.unsubscribed).toBe(0);
+});
+
+it('removes the record another tab wrote when the subscriber reference differs', async () => {
+  fakes.state.duringSuspend = { ...RECORD, token: NEWER };
+  vi.mocked(pushCalls.config).mockResolvedValue({
+    kind: 'ready',
+    config: { ...CONFIG, subscriber_ref: 'another-ref' },
+  });
+
+  await runSignInPushCheck();
+
+  expect(fakes.state.record).toBeNull();
+  expect(fakes.state.removed).toBe(1);
+  expect(fakes.state.unsubscribed).toBe(1);
+});
+
+it('restores a replacement record when another tab bumped the generation', async () => {
+  // تبويب تاني كسر الجيل وكتب سجل بديل قبل التعليق: الرجوع المحروس لازم يستعمل
+  // الجيل اللي رجع مع التعليق، مش الجيل المقروء قبله.
+  fakes.state.duringSuspend = { ...RECORD, token: NEWER };
+  fakes.state.generationDuringSuspend = 1;
+
+  await runSignInPushCheck();
+
+  expect(fakes.state.record?.token).toBe(NEWER);
+  expect(fakes.state.record?.suspended).toBe(false);
+  expect(fakes.state.removed).toBe(0);
+  expect(fakes.state.unsubscribed).toBe(0);
 });
 
 it('leaves a newer record alone when the comparison finishes', async () => {

@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { subscribeWithDeadline } from './push-browser';
+import { canEnablePush, subscribeWithDeadline, supportsPush } from './push-browser';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -25,6 +25,27 @@ function stubSubscribe(subscribe: (key: Uint8Array) => Promise<unknown>): void {
 }
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+/** متصفح قادر على الإشعارات: service worker و PushManager و Notification، وقفل اختياري. */
+function stubCapableBrowser(withLocks: boolean): void {
+  vi.stubGlobal('navigator', {
+    serviceWorker: {},
+    ...(withLocks ? { locks: { request: async () => undefined } } : {}),
+  });
+  vi.stubGlobal('PushManager', function PushManager() {});
+  vi.stubGlobal('Notification', function Notification() {});
+}
+
+it('can enable push only when the browser has a cross tab lock', () => {
+  stubCapableBrowser(true);
+  expect(supportsPush()).toBe(true);
+  expect(canEnablePush()).toBe(true);
+
+  vi.unstubAllGlobals();
+  stubCapableBrowser(false);
+  expect(supportsPush()).toBe(true);
+  expect(canEnablePush()).toBe(false);
+});
 
 it('unsubscribes a subscription that arrives after its deadline', async () => {
   const { subscription, unsubscribe } = fakeSubscription();

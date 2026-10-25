@@ -165,6 +165,8 @@ const expectedSchemas = [
   'PasskeyRegistrationOptions',
   'PasskeyOptionsInput',
   'PasskeyVerifyInput',
+  'PendingDevicesQuery',
+  'PendingDevicesResponse',
   'PersonalOtpRequestInput',
   'PersonalOtpVerifyInput',
   'PersonalSchedule',
