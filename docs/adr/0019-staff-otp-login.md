@@ -963,3 +963,44 @@ decision 3), trusts `capacitor://localhost` on every Better Auth route, not only
 accepted for staging, since no browser can send that origin and staging holds test data only. They are one list on purpose,
 so they cannot drift apart (ADR-0001, consequences; `apps/api/src/shared/config.ts`). Whether to split the CORS list
 from Better Auth's trusted origins before any production use, which needs an ADR-0001 addendum, is issue #669.
+
+## Addendum 2026-10-25 (c) — a PIN set by someone else is one-time (spec 071, DV-Q8 / DV-Q9)
+
+**Context.** Spec 071 lets the owner, and with DV-Q5 the branch manager, set an employee's cashier PIN from the back
+office, and DV-Q6 has the setter type it. §1 above says a manager may reset an employee's PIN but must never sign in
+as her, and every action records the actual actor. A PIN the setter typed is a credential the setter knows.
+
+**Decision (Waleed's picks, 2026-10-25; Abu Salem's pick binds if it differs, `CLAUDE.md` §1 5b).**
+- A PIN set by anyone other than the employee is one-time (DV-Q8). Signing in with it opens only the PIN-change screen
+  on the counter device, never a staff session, and the employee then sets her own PIN.
+- The residual risk is accepted (DV-Q9): the setter can redeem the one-time PIN before the employee and choose the
+  permanent PIN. The server cannot tell which person did it, because both hold the same credential. It is narrowed,
+  not closed: the one-time PIN expires after a short validity, the owner is notified of every PIN change, and the audit
+  names the setter of the one-time PIN. The exact values come from the design advice in issue #682.
+- No change of the PIN needs a fresh WhatsApp code, so the employee's own PIN stays the recovery path of a
+  STOP-suppressed employee who signed in once (§1, Q8).
+
+**Rules the 071-4 sub-spec must keep, each with a test.**
+- **Every other PIN check refuses a one-time PIN.** That covers staff sign-in, the private-view step-up of the
+  2026-10-21 addendum, and any later PIN check. Only the PIN-change screen accepts it.
+- **Redemption is one atomic, conditional step.** The one-time PIN moves from active to consumed and issues a
+  single-use change capability. A concurrent or later claim with the same PIN fails, and a new one-time PIN supersedes
+  the old one. The capability expires no later than the one-time PIN would have, and it carries the PIN's generation:
+  any reset or PIN change makes it unusable. A retry of the same redemption request returns the same outcome.
+- **The audit says what is known, and "every action records the actual actor" is narrowed for this one step.** The
+  change row records the credential's subject (the employee), the setter of the one-time PIN, the device and the
+  request id, and marks the person who redeemed it as unknown. It never claims that the employee did it.
+- **Provenance.** A permanent PIN chosen by redeeming a one-time PIN keeps that PIN's setter as its origin, and so does
+  every later change made with only that PIN, since no change needs an independent proof. FR-006's clearing (spec 071)
+  applies to all of them as it does to the one-time PIN, because the setter may know them.
+- **Sign-ins carry the origin.** A staff sign-in with a PIN that has a setter origin records that origin with the
+  session, so the audit of the session names the employee's account and the possible setter, not the employee as the
+  certain actor.
+
+The protocol details (exact validity, the capability's form, the retry shape) are settled in the 071-4 sub-spec, from
+the design advice in issue #682.
+
+**Consequences.** This narrows §1's "must never impersonate" for this one case and records the accepted risk; it does
+not allow a manager's own PIN to sign anyone in. Spec 071's 071-4 implements it and merges before or with 071-3. An
+employee who sent STOP before her first sign-in has no phone binding and so no PIN at all (issue #686). If Abu Salem
+picks the WhatsApp-code option of DV-Q9, this addendum is replaced before 071-4 ships.
