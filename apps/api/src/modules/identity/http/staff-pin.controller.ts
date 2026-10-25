@@ -45,10 +45,7 @@ export class StaffPinController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<StaffSessionContext> {
-    if (
-      !isStaffOrigin(this.origin, request.headers.origin) ||
-      request.staffDevice === undefined
-    )
+    if (!isStaffOrigin(this.origin, request.headers.origin) || request.staffDevice === undefined)
       throw new ApiError('FORBIDDEN');
     if (this.pins === null) throw new ApiError('NOT_READY');
     const issued = await this.pins.signIn

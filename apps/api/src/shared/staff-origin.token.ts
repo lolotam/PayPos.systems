@@ -7,10 +7,7 @@ export interface StaffOrigins {
 }
 
 // قاعدة CSRF واحدة لكل مسارات الموظفين حتى لا تختلف سياساتها.
-export function isStaffOrigin(
-  origins: StaffOrigins | null,
-  origin: string | undefined,
-): boolean {
+export function isStaffOrigin(origins: StaffOrigins | null, origin: string | undefined): boolean {
   return (
     origins !== null &&
     origin !== undefined &&
