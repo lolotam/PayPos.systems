@@ -958,7 +958,8 @@ requires, on top of the origin, that token or our staff cookie. The staff sign-o
 SameSite=Lax` staff cookie from the api host across a restart. If it does not, ADR-0055 decision 3's fallbacks
 apply (native HTTP and cookies first, then a native token, which needs its own addendum). Production behaviour does
 not change while the list is unset. On staging the iOS app also needs CORS, which the api takes from `AUTH_TRUSTED_ORIGINS`, the
-same list Better Auth trusts for its own origin checks. So staging, live since O-1 on 2026-10-24 and now also in the
-compose default, trusts `capacitor://localhost` on every Better Auth route, not only the staff routes. This is
-accepted for staging, since no browser can send that origin and staging holds test data only. Splitting the CORS list
-from Better Auth's trusted origins, before any production use, is issue #669.
+same list Better Auth trusts for its own origin checks. So staging, where the web manager set it in Dokploy on 2026-10-24 (O-1; an operations change, never code: ADR-0055
+decision 3), trusts `capacitor://localhost` on every Better Auth route, not only the staff routes. This is
+accepted for staging, since no browser can send that origin and staging holds test data only. They are one list on purpose,
+so they cannot drift apart (ADR-0001, consequences; `apps/api/src/shared/config.ts`). Whether to split the CORS list
+from Better Auth's trusted origins before any production use, which needs an ADR-0001 addendum, is issue #669.
