@@ -2,6 +2,10 @@ import { z } from 'zod';
 
 import { responseObject } from '../response-object.js';
 
+import { ratingComment } from './rating-comment.js';
+
+export { ratingComment } from './rating-comment.js';
+
 export const ratingRequestStatus = z
   .enum(['SCHEDULED', 'SENDING', 'SENT', 'CANCELLED'])
   .meta({ id: 'RatingRequestStatus' });
@@ -14,30 +18,6 @@ export const ratingCancelReason = z
 export type RatingCancelReason = z.infer<typeof ratingCancelReason>;
 
 export const ratingStars = z.number().int().min(1).max(5);
-
-// ADR-0011 §4: التعليق من غير روابط ولا صور ولا مرفقات؛ العرض بيتهرب ودي طبقة تانية فوقه.
-const LINK_OR_MARKUP_PATTERNS = [
-  /https?:\/\//i,
-  /\b[a-z][a-z0-9+.-]*:\/\//i,
-  /\b(?:mailto|tel|sms|data|javascript|vbscript|callto|whatsapp|skype|geo|magnet|blob):[^\s]/i,
-  /(?:^|\s)\/\/[a-z0-9]/i,
-  /(?:^|[^a-z0-9])www\./i,
-  /<\/?[a-z][a-z0-9-]*[\s/>]/i,
-  /!\[/,
-  /\]\(/,
-  // نطاقات الـ TLD مقصودة: لو كانت القاعدة أي word.word كانت هترفض نص عادي زي e.g. أو نقطة ناقصة بعد الكلمة.
-  /(?:^|[^a-z0-9])[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|info|biz|edu|gov|io|co|me|app|dev|xyz|online|site|shop|store|link|ly|gl|tv|cc|ws|us|uk|kw|sa|ae|eg|qa|bh|om|travel|news|blog|club|live|pro|tech|cloud|website|page|top|vip|fun|life|world|today|email|space|agency|digital|media|group|team|studio|design|ru|de|fr|in|pk|jp|cn|tr|ir|iq|jo|lb|ma|dz|tn|ly|sy|ye|sd|ps)(?![a-z0-9])/i,
-];
-
-// العد بـ Unicode code points علشان العربي والحروف المركّبة والـ astral ما يتحسبوش بوحدات UTF-16.
-// نص عادي: سطر جديد وtabs مسموحين، وباقي الـ control characters مرفوضة (NUL وDEL ونطاق C1) لأن Postgres مش بيقبلها.
-export const ratingComment = z
-  .string()
-  .regex(/^(?:[^\p{Cc}]|[\t\n\r])*(?![\s\S])/u)
-  .refine((value) => Array.from(value).length <= 1000, { message: 'At most 1000 characters' })
-  .refine((value) => !LINK_OR_MARKUP_PATTERNS.some((pattern) => pattern.test(value)), {
-    message: 'Links and markup are not allowed',
-  });
 
 export const submitRatingInput = z
   .strictObject({ stars: ratingStars, comment: ratingComment.optional() })
