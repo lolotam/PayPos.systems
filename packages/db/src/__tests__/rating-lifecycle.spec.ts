@@ -8,6 +8,7 @@ import {
   claimRequest,
   consumeAndRate,
   expectPgError,
+  insertPerformer,
   insertRequest,
   OTHER_RATING_BUSINESS,
   RATING_TENANT,
@@ -260,4 +261,31 @@ it('sets consumed_at once and never clears or changes it', async () => {
     '23514',
     'rating_requests_consumed_once',
   );
+});
+
+it('freezes the performer snapshot once the link is consumed', async () => {
+  const id = await newRequest();
+  const tokenHash = await claim(id);
+  await expectPgError(
+    db.withTenant(A.company, async (tx) => {
+      await consumeAndRate(tx, {
+        tenant: A,
+        requestId: id,
+        tokenHash,
+        now: NOW,
+        stars: 5,
+        attribute: [A.employees[0]],
+      });
+      await tx.execute(sql`SET CONSTRAINTS ratings_attributions_complete IMMEDIATE`);
+      await insertPerformer(tx, { tenant: A, requestId: id, employeeId: A.employees[1] });
+    }),
+    '23514',
+    'rating_performers_claim_only',
+  );
+  expect(await owner`SELECT consumed_at FROM rating_requests WHERE id=${id}`).toEqual([
+    { consumed_at: null },
+  ]);
+  expect(await owner`SELECT employee_id FROM rating_performers WHERE request_id=${id}`).toEqual([
+    { employee_id: A.employees[0] },
+  ]);
 });

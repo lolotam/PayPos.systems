@@ -253,20 +253,23 @@ GRANT EXECUTE ON FUNCTION rating_requests_update_guard() TO pospay_app;
 CREATE TRIGGER rating_requests_update_guard BEFORE UPDATE ON rating_requests
 FOR EACH ROW EXECUTE FUNCTION rating_requests_update_guard();
 --> statement-breakpoint
--- لقطة النسب لا تتغير بعد المطالبة، فلا يكتبها إلا معاملتها؛ والـ savepoint لا يغيّر pg_current_xact_id().
+-- لقطة النسب لا تتغير بعد المطالبة، فلا يكتبها إلا معاملتها، وبعد الاستهلاك بتتقفل؛ والـ savepoint لا يغيّر pg_current_xact_id().
 CREATE FUNCTION rating_performers_insert_guard() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
 DECLARE
   request_status text;
   request_proof xid8;
+  request_consumed_at timestamptz;
 BEGIN
-  SELECT r.status, r.claim_xact_id INTO request_status, request_proof
+  SELECT r.status, r.claim_xact_id, r.consumed_at INTO request_status, request_proof, request_consumed_at
     FROM public.rating_requests r
    WHERE r.company_id = NEW.company_id AND r.id = NEW.request_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'the request of a rating performer does not exist' USING ERRCODE = '23503', CONSTRAINT = 'rating_performers_request_fk';
   END IF;
-  IF request_status IS DISTINCT FROM 'SENDING' OR request_proof IS DISTINCT FROM pg_current_xact_id() THEN
+  IF request_status IS DISTINCT FROM 'SENDING'
+     OR request_proof IS DISTINCT FROM pg_current_xact_id()
+     OR request_consumed_at IS NOT NULL THEN
     RAISE EXCEPTION 'performers are inserted only by the claiming transaction' USING ERRCODE = '23514', CONSTRAINT = 'rating_performers_claim_only';
   END IF;
   RETURN NEW;

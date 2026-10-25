@@ -76,11 +76,40 @@ describe('rating submission contract', () => {
     expect(ratingComment.safeParse(newline.repeat(1000)).success).toBe(true);
     expect(ratingComment.safeParse(newline.repeat(1001)).success).toBe(false);
   });
+});
+
+describe('rating comment links and markup', () => {
+  it.each([
+    ['a URL with a scheme', 'see https://example.com'],
+    ['an upper-case URL', 'HTTP://EXAMPLE.COM'],
+    ['a bare www host', 'visit www.example.com'],
+    ['a www host in brackets', 'Check (www.example.com)'],
+    ['a Markdown link', '[click](x)'],
+    ['a Markdown image', '![pic](x)'],
+    ['an HTML tag with attributes', '<img src=x onerror=alert(1)>'],
+    ['an HTML tag', '<b>bold</b>'],
+    ['a self-closing HTML tag', 'line<br/>break'],
+  ])('refuses a comment with %s', (_label, comment) => {
+    expect(ratingComment.safeParse(comment).success).toBe(false);
+  });
+
+  it.each([
+    ['a fraction', '5/5'],
+    ['a comparison', 'a<b'],
+    ['a spaced angle bracket', 'x < y'],
+    ['Arabic with a line break', `ممتاز جداً${String.fromCharCode(10)}شكراً لكم`],
+    ['a bare domain', 'wow.example'],
+    ['plain words', 'write a review: 5 stars'],
+  ])('accepts a comment with %s', (_label, comment) => {
+    expect(ratingComment.safeParse(comment).success).toBe(true);
+  });
 
   it('accepts an empty comment', () => {
     expect(ratingComment.parse('')).toBe('');
   });
+});
 
+describe('rating submission body', () => {
   it('accepts stars alone and an optional comment', () => {
     expect(submitRatingInput.parse({ stars: 5 })).toEqual({ stars: 5 });
     expect(submitRatingInput.parse({ stars: 2, comment: '' })).toEqual({ stars: 2, comment: '' });
