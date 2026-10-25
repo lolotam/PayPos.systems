@@ -91,12 +91,43 @@ export interface RenderOptions {
   readonly awaitStarted?: boolean;
   /** مهلة إقلاع المتصفح؛ الاختبار بيقصّرها عشان ما يستناش. */
   readonly startupMs?: number;
+  /** عنوان اتصال الهارنيس نفسه (اللي الاختبار بيكتب بيه)؛ الطابور وقارئ الأحداث والعامل بياخدوا `redisUrl` الحقيقي. */
+  readonly redisUrl?: string;
+}
+
+/** مع `enableOfflineQueue: false` أي أمر قبل `ready` بيترفض، فبنستنى الجاهزية قبل ما نسلّم الاتصال. */
+export function whenRedisReady(redis: Redis): Promise<void> {
+  if (redis.status === 'ready') return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => finish(new Error('redis ready timed out')), 5_000);
+    function finish(error?: Error): void {
+      clearTimeout(timer);
+      redis.off('ready', onReady);
+      redis.off('error', onError);
+      if (error === undefined) resolve();
+      else reject(error);
+    }
+    const onReady = (): void => finish();
+    const onError = (error: Error): void => finish(error);
+    redis.once('ready', onReady);
+    redis.once('error', onError);
+    if (redis.status === 'ready') finish();
+  });
 }
 
 export async function openRender(options?: RenderOptions): Promise<Opened> {
   const prefix = `documents-test-${ids.newId()}`;
   const lines: string[] = [];
-  const redis = new Redis(redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false });
+  const redis = new Redis(options?.redisUrl ?? redisUrl, {
+    maxRetriesPerRequest: 1,
+    enableOfflineQueue: false,
+  });
+  try {
+    await whenRedisReady(redis);
+  } catch (error) {
+    redis.disconnect();
+    throw error;
+  }
   const registry = options?.registry ?? new DocumentSourceRegistry();
   const renderer = options?.renderer ?? new FakeRenderer();
   const logger = createLogger('info', { events: WORKER_LOG_EVENTS, destination: sink(lines) });

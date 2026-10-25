@@ -5,23 +5,7 @@ import { expect, it } from 'vitest';
 
 import { startRendererLiveness } from '../liveness.ts';
 import { trackDocumentStartup } from '../startup-session.ts';
-import { FakeRenderer, redisUrl } from './render-harness.ts';
-
-function whenReady(redis: Redis): Promise<void> {
-  if (redis.status === 'ready') return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const onReady = (): void => {
-      redis.off('error', onError);
-      resolve();
-    };
-    const onError = (error: Error): void => {
-      redis.off('ready', onReady);
-      reject(error);
-    };
-    redis.once('ready', onReady);
-    redis.once('error', onError);
-  });
-}
+import { FakeRenderer, redisUrl, whenRedisReady } from './render-harness.ts';
 
 it('drops the alive key on stop while an in-flight render can finish', async () => {
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false });
@@ -40,7 +24,7 @@ it('drops the alive key on stop while an in-flight render can finish', async () 
   } as unknown as Worker;
   let session: ReturnType<typeof trackDocumentStartup> | undefined;
   try {
-    await whenReady(redis);
+    await whenRedisReady(redis);
     session = trackDocumentStartup({
       startupMs: 5_000,
       retryDelaysMs: [60_000],
