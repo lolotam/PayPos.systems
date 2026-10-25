@@ -17,6 +17,7 @@ export interface RatingSchedule {
  * يجدول الطلب بعد ساعة أو عند آخر إغلاق أيهما أسبق، ويمنح الإرسال ثلاثين دقيقة بعده.
  *
  * @param lastSession آخر زيارة نشطة في يوم الطلب
+ * @param lastSession.occurredAt لحظة حدوث آخر زيارة
  * @param openingHours مواعيد فرع آخر زيارة أو null
  * @param timeZone المنطقة الفعّالة لذلك الفرع
  * @returns dueAt وsendDeadline؛ الموعد النهائي null بلا إغلاق معروف
