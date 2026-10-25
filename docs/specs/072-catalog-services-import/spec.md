@@ -47,8 +47,7 @@ commit → every service created in one transaction with its audit row, and the 
 - SI-11: before committing, the manager sees every error-free row as the server resolved it (names, price, the commission rule
   that will be stored, whether it was a default, the tier flag; a clean preview therefore shows all rows), so a blank commission cell turned into `FOLLOW_PLAN`
   (SI-Q3) is never a surprise; see FR-014.
-- SI-10: money never becomes a JavaScript number or a float: a price cell is converted to the contract's 3-decimal
-  string by string handling, and a fourth decimal is a row error, not a rounding.
+- SI-10: money never undergoes float arithmetic and is never stored or passed on as a number past the reader boundary: a price cell follows the single rule of FR-005 and becomes the contract's 3-decimal string, and a fourth decimal is a row error, not a rounding.
 
 ## Requirements
 
@@ -125,12 +124,7 @@ did. A decision that depends on an owner answer says so.
   | `counts_toward_threshold` | no | counts toward the commission tiers | blank means `true` (SR-005); else a boolean cell, or the text `true`/`false`, `yes`/`no`, `نعم`/`لا`, case-insensitive |
 
   `TODO(spec)` SI-Q5: no duration or category column in this row.
-- FR-005: **money in cells.** An Excel numeric cell arrives as a JavaScript number. A numeric cell reaches the plug-in as the number the file holds, used only as a carrier and turned into text at once,
-  never added, multiplied or compared as a number: the plug-in takes the number's shortest round-trip decimal form,
-  which returns exactly what the manager typed for any value of at most 15 significant digits (a price has at most
-  11 + 3), even though Excel stores `0.57` in the file as `0.56999999999999995`. A cell whose shortest form has more
-  than 15 significant digits is refused. The raw `<v>` text of the file is deliberately not used, because Excel writes
-  17-digit forms there. A text cell is read as typed. The plug-in converts a price (and a `FIXED` value) to the
+- FR-005: **money in cells (one rule, the same in SI-10 and the delivery table).** No arithmetic on money in floating point. A numeric cell's value is used only as a carrier: it is turned at once into its shortest round-trip decimal text (ECMAScript Number to String), refused if that text has more than 15 significant digits or uses exponent form, and from there everything is string to bigint mills. A text cell is parsed as text. The shortest form returns exactly what the manager typed for any value of at most 15 significant digits (a price has at most 11 + 3), even though Excel stores `0.57` in the file as `0.56999999999999995`; the raw `<v>` text is deliberately not read. The plug-in converts a price (and a `FIXED` value) to the
   contract's 3-decimal string with string handling, never with float arithmetic: `12.5` becomes `"12.500"`, `0` becomes `"0.000"`. A value with a fourth decimal, a
   negative value, an exponent form (`1e21`), a thousands separator, a non-ASCII digit, or a value at or above
   `10^11` KWD is `IMPORT_PRICE_INVALID` (or `IMPORT_COMMISSION_VALUE_INVALID` for the `FIXED` value); it is never
@@ -141,7 +135,7 @@ did. A decision that depends on an owner answer says so.
   percent with at most two decimals (`20` or `12.5`) converted by string handling to basis points (`2000`,
   `1250`), a value above 100 refused; the alternative is basis points as typed in the manual form. `FIXED` needs a
   KWD amount under the FR-005 rule, and, as in spec 031, it may exceed the price. **A cell formatted as a percentage in Excel stores the fraction** (typing `20%` stores `0.2`): the reader
-  also hands the plug-in the cell's number format, a percentage-formatted cell is scaled by two decimal places with
+  also hands the plug-in the cell's number format (a number format only; the value stays the reader's number, FR-005), a percentage-formatted cell is scaled by two decimal places with
   string handling (`0.2` is `20`, `0.125` is `12.5`) before the rule above, and an unformatted `0.2` stays `0.2`
   percent (20 basis points). The template's `commission_value` column is not percentage-formatted, its Arabic comment says
   "type 20 for 20 percent", and FR-014 shows every resolved rule before commit, so a misread value is visible.
@@ -287,7 +281,7 @@ audit rows runs in the worker. The synchronous preview is measured in 32b-2 (D-7
 
 - **Domain unit** (`catalog/domain`, no database): the cell converters (price strings: `12.5`, `0`, `7.500`, `7.5555`,
   `-1`, `1e21`, `١٢`, `10^11`; boolean tokens; the kind token; the percent-to-bps conversion for `20`, `12.5`, `12.55`,
-  `12.555`, `100`, `100.01`, `0`, and a percentage-formatted `0.2`), the mapping from each `ServiceError` code to a column and code, the duplicate-key
+  `12.555`, `100`, `100.01`, `0`, numeric cells `0.57`, `2.3` and `1e21`, and percentage-formatted cells `0.07` (7%) and `0.2` (20%) giving 7 and 20), the mapping from each `ServiceError` code to a column and code, the duplicate-key
   function, and the plug-in over a full matrix (all valid; each error code once; many errors in one file, all
   reported).
 - **Sheet adapter** (moved code): the existing staff adapter tests run unchanged against the moved module; new tests
@@ -385,7 +379,7 @@ approach 200 ms) and 32b-3 (worker, long work), pipeline §3 step 2.
 | PR | Result | Subtasks | Blocked on | Size |
 |---|---|---|---|---|
 | **32b-0** | ADR and map, no behaviour | 1. ADR-0034 addendum (or a new ADR, numbered at merge) recording D-1 to D-9, the `catalog` worker module, the new event and the rollout order, and the answer to SI-T1. 2. `docs/module-map.md`: the Port rows (or the arrow), the worker `catalog` module row, the `ServiceImportCommitRequested` event row (no code registers the event yet). 3. The design advisors' findings written back into this spec in the same PR | this spec merged; SI-T1 answered; design advisors | 100 to 200 |
-| **32b-1** | Contracts, moved adapters, pure rules | 1. `service-import.ts` contracts (including the normalized row and the rows page), OpenAPI registration and the i18n error messages (ar and en). 2. Move the entity-agnostic import adapters to `apps/api/src/shared/import/` with staff re-importing them (staff tests unchanged), and extend the reader to hand over numeric cells as stored text plus number format (FR-005, FR-006). 3. The domain plug-in: cell converters, row mapper over `serviceTerms`, duplicate-key function and in-file duplicates, with the domain unit tests | 32b-0; SI-Q2, SI-Q3, SI-Q4 and SI-Q5 answered (they fix the cells and the in-file rule); design advisors | 450 to 650 |
+| **32b-1** | Contracts, moved adapters, pure rules | 1. `service-import.ts` contracts (including the normalized row and the rows page), OpenAPI registration and the i18n error messages (ar and en). 2. Move the entity-agnostic import adapters to `apps/api/src/shared/import/` with staff re-importing them (staff tests unchanged), and extend the reader to hand over the cell's number format (for percent detection, FR-006); numeric values keep the existing reader's number, handled per FR-005. 3. The domain plug-in: cell converters, row mapper over `serviceTerms`, duplicate-key function and in-file duplicates, with the domain unit tests | 32b-0; SI-Q2, SI-Q3, SI-Q4 and SI-Q5 answered (they fix the cells and the in-file rule); design advisors | 450 to 650 |
 | **32b-2** | Template, preview, rows, status | 1. Template use case and workbook (headers, comments, reference sheet). 2. Preview use case: file facts and bytes ports, sheet read, normalized rows, existing-names read, save with `entity = 'services'`. 3. HTTP (preview with first rows page, rows page, status) with their `EXPLAIN` tests, SIT-01, SIT-02, SIT-06, SIT-07, SIT-08, SIT-10, SIT-13, SIT-14 and the preview timing | 32b-1; SI-Q1 answered; design advisors | 500 to 700 |
 | **32b-3** | Worker commit | 1. The worker `catalog` module: processor, the transport of the request event, and the registration of the event type in `known-event-types.ts`. 2. The commit transaction: per-business advisory lock, name re-check, inserts, audit rows with the requesting manager as actor, status. 3. SIT-03, SIT-04, SIT-11, SIT-15, driven by a seeded `commit_requested` preview and event (no API route yet) | 32b-1; SI-Q1 answered; design advisors | 450 to 650 |
 | **32b-4** | Stale-request sweep | 1. Per-company sweep registration (ADR-0022 protocol) in the catalog worker, done before the transport acknowledges an event. 2. The recovery use case and transactions. 3. SIT-12 | 32b-3 | 200 to 320 |
