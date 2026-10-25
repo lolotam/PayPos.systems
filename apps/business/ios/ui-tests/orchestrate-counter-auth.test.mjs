@@ -250,10 +250,10 @@ test('a refused approval still leaves the device revoked', async () => {
 });
 
 test('a failed UI run revokes the device and prints only its failure step after the summary', async () => {
-  const secret = 'fixture-secret-that-must-stay-private';
+  const privateText = 'private-log-text-for-the-test';
   const harness = makeHarness({
     uiExitCode: 1,
-    readFile: async () => `xcodebuild Staff sign-in should succeed ${secret}`,
+    readFile: async () => `xcodebuild Staff sign-in should succeed ${privateText}`,
   });
   const code = await run(harness.config, harness.deps);
 
@@ -263,7 +263,7 @@ test('a failed UI run revokes the device and prints only its failure step after 
   assert.equal(harness.revokes().length, 1);
   assert.equal(harness.state.logs.at(-2), 'leftover sweep: 0 revoked');
   assert.equal(harness.state.logs.at(-1), 'ui failure: Staff sign-in should succeed');
-  assert.equal(harness.state.logs.some((line) => line.includes(secret)), false);
+  assert.equal(harness.state.logs.some((line) => line.includes(privateText)), false);
 });
 
 test('an abort kills the child and the device is still revoked', async () => {

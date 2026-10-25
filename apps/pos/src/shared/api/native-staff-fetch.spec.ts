@@ -191,14 +191,9 @@ describe('nativeStaffFetch aborts', () => {
     expect(requestMock).not.toHaveBeenCalled();
   });
 
-  it('drops the native result when the request is aborted during the call', async () => {
-    let resolveNative!: (value: ReturnType<typeof nativeResponse>) => void;
-    requestMock.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveNative = resolve;
-        }),
-    );
+  it('rejects at once when the request is aborted during the call', async () => {
+    // الطلب الأصلي ما بيرجعش أبدًا: الإلغاء هو الوحيد اللي يقدر يردّ.
+    requestMock.mockImplementation(() => new Promise(() => undefined));
     const controller = new AbortController();
     const request = new Request('http://127.0.0.1:3000/v1/devices/me/staff-session', {
       signal: controller.signal,
@@ -207,9 +202,18 @@ describe('nativeStaffFetch aborts', () => {
     const pending = nativeStaffFetch(request);
     await vi.waitFor(() => expect(requestMock).toHaveBeenCalledOnce());
     controller.abort();
-    resolveNative(nativeResponse());
 
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('removes the abort listener after a normal response', async () => {
+    const request = new Request('http://127.0.0.1:3000/v1/devices/me/staff-session');
+    const removeListener = vi.spyOn(request.signal, 'removeEventListener');
+
+    const response = await nativeStaffFetch(request);
+
+    expect(response.status).toBe(200);
+    expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function));
   });
 });
 

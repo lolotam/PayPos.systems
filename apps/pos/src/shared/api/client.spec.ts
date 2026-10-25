@@ -117,14 +117,12 @@ describe('staffApiClient transport selection', () => {
   beforeEach(() => {
     vi.resetModules();
     staffRequestMock.mockReset();
-    fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(
-        new Response(JSON.stringify({ source: 'fetch' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      );
+    fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ source: 'fetch' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
   });
 
   afterEach(() => {
