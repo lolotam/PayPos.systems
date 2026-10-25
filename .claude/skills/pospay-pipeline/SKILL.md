@@ -37,8 +37,8 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 There is no separate model check before the first dispatch. Any `opencode` command started outside §4's guarded setup
 loads plugins and config before `check-opencode.cjs` has vetted them, and a bare `opencode run` would also run the model
 under opencode's default, unrestricted permissions. The first guarded run is the check: a missing model id, or an auth
-or quota failure, shows as a nonzero exit (§4 rule 8). Then stop and ask the owner. Never substitute a provider outside these two (PP-55.1), and never switch a task between them without the owner's yes. **A Kimi usage limit is the exception, and the procedure is the owner's PP-60 yes already given:** do not stop and ask; switch that task to MiniMax in a new session (§4) and return to Kimi after the renewal. A temporary MiniMax session goes back to Kimi as soon as Kimi renews; a MiniMax quota stop is waited out (hold and resume that session) only while Kimi is still out. For any other quota stop (a failure that is not a usage limit), hold and resume the same session after
-the renewal.
+or quota failure, shows as a nonzero exit (§4 rule 8). Then stop and ask the owner. Never substitute a provider outside these two (PP-55.1), and never switch a task between them without the owner's yes. **A Kimi usage limit is the exception, and the procedure is the owner's PP-60 yes already given:** do not stop and ask; switch that task to MiniMax in a new session (§4) and return to Kimi after the renewal. A temporary PP-60 MiniMax session goes back to Kimi as soon as Kimi renews; if MiniMax runs out first, it is waited out (hold and resume that session) only while Kimi is still out. For any other quota stop (the usage limit of a task that runs on MiniMax by design, or a failure that is not a usage limit), hold and resume the same session after
+the renewal; such a task never moves to Kimi without the owner's yes.
 
 ---
 
