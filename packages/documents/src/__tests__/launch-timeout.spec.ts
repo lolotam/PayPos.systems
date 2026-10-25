@@ -206,6 +206,53 @@ it('kills a late browser whose close never finishes', async () => {
   await renderer.close();
 });
 
+async function finalCloseKills(close: PdfBrowser['close']): Promise<number> {
+  let kills = 0;
+  const factory: PdfBrowserFactory = {
+    launch: async () => ({
+      newContext: async () => context(async () => Uint8Array.from([1])),
+      close,
+      kill: () => {
+        kills += 1;
+      },
+      on: () => undefined,
+    }),
+  };
+  const renderer = new PlaywrightDocumentRenderer({
+    factory,
+    closeGraceMs: 20,
+    backoffMs: [0],
+    sleep: async () => undefined,
+  });
+  await renderer.start();
+  await renderer.close();
+  return kills;
+}
+
+it('kills the browser when the final close rejects', async () => {
+  const kills = await finalCloseKills(() => Promise.reject(new Error('close failed')));
+  expect(kills).toBe(1);
+});
+
+it('kills the browser when the final close throws', async () => {
+  const kills = await finalCloseKills(() => {
+    throw new Error('close failed');
+  });
+  expect(kills).toBe(1);
+});
+
+it('kills the browser when the final close never settles', async () => {
+  const started = Date.now();
+  const kills = await finalCloseKills(() => new Promise<void>(() => undefined));
+  expect(Date.now() - started).toBeGreaterThanOrEqual(15);
+  expect(kills).toBe(1);
+});
+
+it('does not kill the browser when the final close finishes', async () => {
+  const kills = await finalCloseKills(async () => undefined);
+  expect(kills).toBe(0);
+});
+
 it('kills a late browser whose close rejects', async () => {
   const kills = await lateBrowserKills(() => Promise.reject(new Error('close failed')));
   expect(kills).toBe(1);

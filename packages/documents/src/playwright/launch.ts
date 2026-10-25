@@ -14,30 +14,6 @@ function armGrace(ms: number): { done: Promise<void>; stop: () => void } {
   };
 }
 
-/**
- * بروتوكول Chromium المعلّق ما يمسكش المستدعي.
- * المؤقّت مش sleep بتاع إعادة الإطلاق، عشان الإغلاق ما يطولش التأخير.
- * القفل نفسه بيفضل شغال بعد المهلة لحد ما يخلّص أو يقع.
- */
-export async function finishWithinGrace(work: Promise<unknown>, graceMs: number): Promise<void> {
-  let finished = false;
-  const pending = work.then(
-    () => {
-      finished = true;
-    },
-    () => {
-      finished = true;
-    },
-  );
-  const grace = armGrace(graceMs);
-  try {
-    await Promise.race([pending, grace.done]);
-  } finally {
-    grace.stop();
-  }
-  if (!finished) void pending;
-}
-
 type LaunchOutcome =
   | { readonly kind: 'browser'; readonly browser: PdfBrowser }
   | { readonly kind: 'error'; readonly error: unknown }
@@ -61,7 +37,7 @@ export async function launchWithinTimeout(
   const guarded = launching.then(
     (browser) => {
       if (!abandoned) return { kind: 'browser', browser } as const;
-      void closeLateBrowser(browser, graceMs);
+      void closeOrKill(browser, graceMs);
       return { kind: 'cancelled' } as const;
     },
     (error: unknown) => ({ kind: 'error', error }) as const,
@@ -92,8 +68,11 @@ export async function launchWithinTimeout(
   return outcome;
 }
 
-/** متصفح وصل بعد مهلة الإطلاق؛ القفل المعلّق ما بيهمّ، فهو مش المتصفح الحالي. */
-async function closeLateBrowser(browser: PdfBrowser, graceMs: number): Promise<void> {
+/**
+ * يقفل المتصفح جوّه المهلة، وبيقتله إلا لو close خلّص في وقتها.
+ * بتستخدمه للمتصفح اللي وصل متأخر وللإغلاق الأخير.
+ */
+export async function closeOrKill(browser: PdfBrowser, graceMs: number): Promise<void> {
   let finished = false;
   let closing: Promise<unknown>;
   try {

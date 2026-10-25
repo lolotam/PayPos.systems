@@ -8,7 +8,7 @@ import type { DocumentRenderer, RenderOptions } from '../ports/document-renderer
 import type { PdfBrowser, PdfBrowserFactory, PdfContext } from './browser.ts';
 import { closeHungContext, openWithinGrace } from './context-guards.ts';
 import { playwrightFactory } from './factory.ts';
-import { finishWithinGrace, launchWithinTimeout } from './launch.ts';
+import { closeOrKill, launchWithinTimeout } from './launch.ts';
 import { renderPage, type RenderPageHooks } from './render-page.ts';
 
 const DEFAULT_BACKOFF_MS = [250, 500, 1000, 2000, 5000] as const;
@@ -150,7 +150,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
     const browser = this.#browser;
     this.#browser = null;
     if (browser === null) return;
-    await finishWithinGrace(browser.close(), this.#closeGraceMs);
+    await closeOrKill(browser, this.#closeGraceMs);
   }
 
   async render(html: string, options?: RenderOptions): Promise<Uint8Array> {
@@ -179,7 +179,7 @@ export class PlaywrightDocumentRenderer implements DocumentRenderer {
       if (outcome.kind === 'error') throw outcome.error;
       const browser = outcome.browser;
       if (this.#closing) {
-        await finishWithinGrace(browser.close(), this.#closeGraceMs);
+        await closeOrKill(browser, this.#closeGraceMs);
         return;
       }
       this.#browser = browser;
