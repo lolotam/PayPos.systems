@@ -57,8 +57,10 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
   - The rules for who may use it (DV-Q5), how the PIN is chosen (DV-Q6) and what an employee without an app account
     sees (DV-Q7) are all `TODO(spec)`.
   - The list needs a guarded read, the **PIN eligibility read** (071-3). For each employee it returns the linked
-    `user_id` (or none) and one boolean: whether a PIN would let that person sign in (an active membership plus an
-    approved phone binding). The server computes it; the phone number never reaches the back office. Its design reads
+    `user_id` (or none) and one boolean: whether a PIN would let that person sign in on the chosen branch's devices. It uses the same rule as the
+    PIN sign-in itself (`staffEligible` in `apps/api/src/modules/identity/domain/staff-eligibility.ts`): an active
+    membership covering that branch, the effective `login:staff:branch` grant with no covering DENY, and an approved
+    phone binding. The server computes it; the phone number never reaches the back office. Its design reads
     the auth-owned phone binding, so it needs design advice and, if it adds an auth facade method, an ADR-0003 note.
     `TODO(spec)`.
   - The PIN is never shown again after it is set, and is never stored or logged in the browser.
