@@ -28,6 +28,7 @@ function input(over: Partial<PushStateInput> = {}): PushStateInput {
     companyId: over.companyId ?? COMPANY,
     browserSubscribed: over.browserSubscribed ?? false,
     reconnecting: over.reconnecting ?? false,
+    canEnable: over.canEnable ?? true,
   };
 }
 
@@ -89,6 +90,53 @@ describe('the five states of the mobile notifications control', () => {
     );
 
     expect(decision.state).toBe('off');
+  });
+});
+
+describe('a browser without the cross tab lock', () => {
+  it('says the browser is unsupported when nothing is stored', () => {
+    const decision = decidePushState(input({ canEnable: false }));
+
+    expect(decision.state).toBe('unsupported');
+    expect(decision.visible).toBe(true);
+  });
+
+  it('keeps the turn off button for an own subscription of this company', () => {
+    const decision = decidePushState(
+      input({ canEnable: false, permission: 'granted', record: record(), browserSubscribed: true }),
+    );
+
+    expect(decision.state).toBe('on');
+    expect(decision.reconnecting).toBe(false);
+  });
+
+  it('keeps the turn off button even when the own record is suspended', () => {
+    const decision = decidePushState(
+      input({
+        canEnable: false,
+        permission: 'granted',
+        record: record({ suspended: true }),
+        browserSubscribed: true,
+        reconnecting: true,
+      }),
+    );
+
+    expect(decision.state).toBe('on');
+    expect(decision.reconnecting).toBe(false);
+  });
+
+  it('says the browser is unsupported for a subscription of another company', () => {
+    const decision = decidePushState(
+      input({
+        canEnable: false,
+        permission: 'granted',
+        record: record({ company_id: 'other' }),
+        browserSubscribed: true,
+      }),
+    );
+
+    expect(decision.state).toBe('unsupported');
+    expect(decision.visible).toBe(true);
   });
 });
 

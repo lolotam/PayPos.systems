@@ -110,6 +110,7 @@ vi.mock('./push-browser', () => {
     hasPushManager: () => fakes.state.supported,
     hasNotification: () => fakes.state.supported,
     supportsPush: () => fakes.state.supported,
+    canEnablePush: () => fakes.state.supported,
     isIosDevice: () => fakes.state.ios,
     isStandalone: () => fakes.state.standalone,
     notificationPermission: () => fakes.state.permission,

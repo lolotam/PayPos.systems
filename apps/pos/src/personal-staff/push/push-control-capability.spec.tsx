@@ -6,8 +6,17 @@ import { t } from '@pospay/i18n';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { PushControl } from './push-control';
 import type * as PushBrowserModule from './push-browser';
-import type { PushRecordStore } from './push-record';
+import type { PushRecord, PushRecordStore } from './push-record';
 import { refreshPush } from './push-refresh';
+
+const EXISTING = 'test-existing-d';
+const EXISTING_ENDPOINT = 'https://fcm.googleapis.com/fcm/send/existing';
+
+const fakes = vi.hoisted(() => ({
+  record: null as PushRecord | null,
+  subscribed: false,
+  permission: 'default' as 'default' | 'granted' | 'denied',
+}));
 
 vi.mock('../model/installation-id', () => ({
   attendanceInstallationId: vi.fn(() => '12345678-1234-4234-8234-123456789abc'),
@@ -21,7 +30,7 @@ vi.mock('./push-refresh', () => ({
 
 vi.mock('./push-record-idb', () => ({
   pushRecordStore: {
-    read: async () => null,
+    read: async () => (fakes.record === null ? null : { ...fakes.record }),
     write: async () => undefined,
     remove: async () => undefined,
     removeIfMatches: async () => false,
@@ -51,17 +60,28 @@ vi.mock('./push-calls', () => ({
     run(new AbortController().signal),
 }));
 
-// supportsPush بيفضل حقيقي: الاختبار بيتأكد إن المتصفح من غير قفل بين التبويبات
-// بيتعامل كغير داعم، فباقي دوال المتصفح بس هي اللي بتتسخّ.
+// supportsPush و canEnablePush بيفضلوا حقيقيين: الاختبار بيتأكد إن المتصفح من غير قفل
+// بين التبويبات بيفضل يقدر يوقّف الإشعارات، فباقي دوال المتصفح بس هي اللي بتتسخّ.
 vi.mock('./push-browser', async (importOriginal) => ({
   ...(await importOriginal<typeof PushBrowserModule>()),
-  notificationPermission: () => 'default' as const,
-  currentSubscription: async () => null,
+  notificationPermission: () => fakes.permission,
+  currentSubscription: async () =>
+    fakes.subscribed
+      ? {
+          endpoint: EXISTING_ENDPOINT,
+          unsubscribe: async () => true,
+          toJSON: () => ({
+            endpoint: EXISTING_ENDPOINT,
+            expirationTime: null,
+            keys: { p256dh: 'p'.repeat(87), auth: 'a'.repeat(22) },
+          }),
+        }
+      : null,
   isIosDevice: () => false,
   isStandalone: () => true,
 }));
 
-/** متصفح بحالة locks معيّنة: القفل هو الفرق بين زر شغال وزر بيقفل. */
+/** متصفح بحالة locks معيّنة: القفل هو الفرق بين زر تشغيل وزر إيقاف. */
 function stubBrowser(withLocks: boolean): void {
   vi.stubGlobal('navigator', {
     serviceWorker: {},
@@ -86,6 +106,9 @@ function mount() {
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
+  fakes.record = null;
+  fakes.subscribed = false;
+  fakes.permission = 'default';
   vi.mocked(refreshPush).mockImplementation(async () => ({ kind: 'none' }));
 });
 
@@ -100,6 +123,26 @@ it('says the browser is unsupported when there is no cross tab lock', async () =
 
   expect(await screen.findByText(t('en', 'staffPush.unsupported'))).toBeDefined();
   expect(screen.queryByRole('button', { name: t('en', 'staffPush.enable') })).toBeNull();
+});
+
+it('keeps the turn off button for an existing subscription without a cross tab lock', async () => {
+  stubBrowser(false);
+  fakes.subscribed = true;
+  fakes.permission = 'granted';
+  fakes.record = {
+    token: EXISTING,
+    subscriber_ref: 'subscriber-ref',
+    company_id: 'company',
+    vapid_key_id: '0123456789abcdef',
+    suspended: false,
+    revision: 0,
+  };
+
+  mount();
+
+  expect(await screen.findByRole('button', { name: t('en', 'staffPush.disable') })).toBeDefined();
+  expect(screen.queryByRole('button', { name: t('en', 'staffPush.enable') })).toBeNull();
+  expect(screen.queryByText(t('en', 'staffPush.unsupported'))).toBeNull();
 });
 
 it('offers the turn on button when the browser has a cross tab lock', async () => {

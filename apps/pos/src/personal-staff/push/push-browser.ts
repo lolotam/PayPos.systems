@@ -38,13 +38,20 @@ export function hasNotification(): boolean {
   return 'Notification' in globalThis;
 }
 
-/**
- * المتصفح بيقدر يستقبل إشعارات: service worker و PushManager و Notification موجودين، وفي
- * قفل حقيقي بين التبويبات. من غير القفل، تشغيلين متوازيين بيركبوا على اشتراك واحد وسطر
- * واحد على السيرفر، فالمتصفح بيتعامل كغير داعم (ADR-0052 §7).
- */
+/** المتصفح بيقدر يستقبل إشعارات: service worker و PushManager و Notification موجودين. */
 export function supportsPush(): boolean {
-  return hasServiceWorker() && hasPushManager() && hasNotification() && hasCrossTabLock();
+  return hasServiceWorker() && hasPushManager() && hasNotification();
+}
+
+/**
+ * التشغيل محتاج كمان قفل حقيقي بين التبويبات: تشغيلين متوازيين بيركبوا على اشتراك واحد
+ * وسطر واحد على السيرفر. الإلغاء وكشف اشتراك موجود بيبقوا بـ supportsPush بس عشان يفضلوا
+ * متاحين على الموبايل المشترك (ADR-0052 §7).
+ *
+ * @returns true لو المتصفح يقدر يشغّل إشعاراته
+ */
+export function canEnablePush(): boolean {
+  return supportsPush() && hasCrossTabLock();
 }
 
 /** آيفون أو آيباد: iPadOS بيبعت نفسه MacIntel وبيحسب نقاط اللمس على الشاشة. */

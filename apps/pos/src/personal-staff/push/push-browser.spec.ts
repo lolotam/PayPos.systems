@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { subscribeWithDeadline, supportsPush } from './push-browser';
+import { canEnablePush, subscribeWithDeadline, supportsPush } from './push-browser';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -36,13 +36,15 @@ function stubCapableBrowser(withLocks: boolean): void {
   vi.stubGlobal('Notification', function Notification() {});
 }
 
-it('supports push only when the browser has a cross tab lock', () => {
+it('can enable push only when the browser has a cross tab lock', () => {
   stubCapableBrowser(true);
   expect(supportsPush()).toBe(true);
+  expect(canEnablePush()).toBe(true);
 
   vi.unstubAllGlobals();
   stubCapableBrowser(false);
-  expect(supportsPush()).toBe(false);
+  expect(supportsPush()).toBe(true);
+  expect(canEnablePush()).toBe(false);
 });
 
 it('unsubscribes a subscription that arrives after its deadline', async () => {

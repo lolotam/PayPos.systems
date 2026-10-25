@@ -16,6 +16,8 @@ export interface PushStateInput {
   companyId: string;
   browserSubscribed: boolean;
   reconnecting: boolean;
+  /** هل المتصفح يقدر يشغّل الإشعارات: محتاج قفل حقيقي بين التبويبات. */
+  canEnable: boolean;
 }
 
 /** الحالة اللي بتتعرض، والمؤشرات اللي بتعدّلها. */
@@ -30,6 +32,8 @@ export interface PushStateDecision {
 /**
  * بتقرّر حالة الزر: واحدة من الخمسة، مع المؤشرات (بلا نت، بتتصل تاني، التخزين متعطل).
  * "مفعّل" يعني إن في سجل لنفس الشركة والسجل مش معلّق والسماح مُتاح والاشتراك موجود في المتصفح.
+ * ومتصفح من غير قفل بين التبويبات ما يقدرش يشغّل، بس الإلغاء يفضل متاح عشان الموبايل
+ * المشترك يقدر يوقّف الإشعارات (ADR-0052 §7).
  *
  * @param input كل الوقائع المعروفة عن الجهاز والسجل
  * @returns الحالة المعروضة والمؤشرات
@@ -65,6 +69,18 @@ export function decidePushState(input: PushStateInput): PushStateDecision {
     !input.record.suspended &&
     input.permission === 'granted' &&
     input.browserSubscribed;
+  if (!input.canEnable) {
+    // من غير قفل ما فيش تشغيل، بس لو المتصفح ماسك اشتراك الشركة دي فالإلغاء يفضل
+    // متاح عشان الموظفة تقدر توقّف الإشعارات من الموبايل المشترك.
+    const ownSubscription =
+      input.record !== null &&
+      input.record.company_id === input.companyId &&
+      input.browserSubscribed;
+    if (ownSubscription) {
+      return { state: 'on', visible: true, ...modifiers, reconnecting: false };
+    }
+    return { state: 'unsupported', visible: true, ...modifiers };
+  }
   return {
     state: on ? 'on' : 'off',
     visible: true,

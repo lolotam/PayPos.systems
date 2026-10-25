@@ -6,6 +6,7 @@ import type { Locale } from '@pospay/i18n';
 import { useLocale } from '@/shared/locale/locale-context';
 import { attendanceInstallationId } from '../model/installation-id';
 import {
+  canEnablePush,
   currentSubscription,
   isIosDevice,
   isStandalone,
@@ -278,6 +279,7 @@ export function usePushControl({ companyId }: { companyId: string }) {
     companyId,
     browserSubscribed: local.snapshot.subscribed,
     reconnecting: local.snapshot.record?.suspended === true,
+    canEnable: canEnablePush(),
   });
   return {
     visible: decision.visible && local.loaded && config.settled,
