@@ -5,13 +5,15 @@ import { attendanceReportContractsStatement } from './attendance-report-contract
 export interface AttendanceReportScope {
   businessId: string;
   branches: { id: string; timezone: string }[];
+  /** قبول كشف موظفة واحدة يحد التجميع قبل تنفيذه؛ التقرير الكامل لا يمرر هذا المرشح. */
+  employeeId?: string;
 }
 
 // يوم السياق على طرفي الشهر يحفظ تجاور بريك الوردية الليلية؛ المرشحون والحساب النهائي يلتزمان بالشهر المطلوب.
 export function attendanceMonthlyInputsStatement(companyId: string, scope: AttendanceReportScope, from: string, to: string) {
   const branchIds = sql`ARRAY[${sql.join(scope.branches.map((branch) => sql`${branch.id}::uuid`), sql`, `)}]::uuid[]`;
   const zones = sql.join(scope.branches.map((branch) => sql`(${branch.id}::uuid,${branch.timezone}::text)`), sql`, `);
-  const contracts = attendanceReportContractsStatement(companyId, scope.businessId, branchIds, zones, from, to);
+  const contracts = attendanceReportContractsStatement(companyId, scope.businessId, branchIds, zones, from, to, scope.employeeId);
   // شاشة تقرير الحضور الشهري وملف CSV يقرآن مدخلات حساب كل موظفة (رقمها واسمها وجلساتها وورديتها وعقدها وإجازاتها) من هذا الاستعلام.
   return sql`WITH contracts AS MATERIALIZED (${contracts}),
     zones(branch_id,timezone) AS (VALUES ${zones}),
@@ -23,6 +25,7 @@ export function attendanceMonthlyInputsStatement(companyId: string, scope: Atten
         s.status='MISSED_OUT' AND EXISTS(SELECT 1 FROM attendance_corrections ac
           WHERE ac.company_id=s.company_id AND ac.session_id=s.id AND ac.field='CLOCK_OUT') AS clock_out_corrected) v
       WHERE s.company_id=${companyId} AND s.business_id=${scope.businessId}
+        ${scope.employeeId === undefined ? sql`` : sql`AND s.employee_id=${scope.employeeId}::uuid`}
         AND s.branch_id=ANY(${branchIds}) AND s.working_date BETWEEN (${from}::date-1) AND (${to}::date+1)
         AND s.voided_at IS NULL AND s.status<>'OPEN' GROUP BY s.employee_id,s.branch_id),
     shifts AS MATERIALIZED (
@@ -30,6 +33,7 @@ export function attendanceMonthlyInputsStatement(companyId: string, scope: Atten
       FROM staff_schedules sc JOIN staff_schedule_shifts sh ON sh.company_id=sc.company_id AND sh.schedule_id=sc.id
         CROSS JOIN LATERAL (SELECT sh.working_date,sh.starts_at,sh.ends_at,sh.break_starts_at,sh.break_ends_at) v
       WHERE sc.company_id=${companyId} AND sc.business_id=${scope.businessId} AND sc.branch_id=ANY(${branchIds})
+        ${scope.employeeId === undefined ? sql`` : sql`AND sc.employee_id=${scope.employeeId}::uuid`}
         AND sc.week_start BETWEEN (${from}::date-7) AND ${to}::date
         AND sh.working_date BETWEEN (${from}::date-1) AND ${to}::date GROUP BY sc.employee_id,sc.branch_id),
     approved_employee_leave AS MATERIALIZED (
@@ -37,6 +41,7 @@ export function attendanceMonthlyInputsStatement(companyId: string, scope: Atten
       FROM leave_requests l
       CROSS JOIN LATERAL (SELECT l.id,l.type,l.kind,l."from",l."to",l.starts_at,l.ends_at) v
       WHERE l.company_id=${companyId} AND l.business_id=${scope.businessId}
+        ${scope.employeeId === undefined ? sql`` : sql`AND l.employee_id=${scope.employeeId}::uuid`}
         AND l.status='APPROVED'
         AND l."from"<=${to}::date+1 AND l."to">=${from}::date GROUP BY l.employee_id),
     candidates AS (SELECT employee_id,branch_id FROM sessions WHERE in_month UNION

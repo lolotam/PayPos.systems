@@ -228,7 +228,8 @@ session never appears (ACR-Q20); no phone, salary or IBAN on any export (AB-Q9e)
   statement, both in `@pospay/db`, merged by `mergeAttendanceStatementRows`) and evaluates the FR-013a coverage predicate
   `hasAttendanceStatementCoverage` of `packages/domain` for that one employee, with the instant as a parameter, so admission
   and the render share one predicate and no second SQL copy of it exists (ADR-0056 §2); the 27b statement takes no
-  instant and stays unchanged. It is a quick pre-check on the current state, and the render reads the current state again
+  instant. Both statements accept an optional employee predicate inside their aggregations for this admission check;
+  without it their full-branch report/render behavior stays unchanged. It is a quick pre-check on the current state, and the render reads the current state again
   (FR-013a): if the render then finds no coverage for the employee or for the whole statement, the job ends `FAILED /
   STATEMENT_EMPTY` (a visible status, FR-005) and no PDF is produced. Otherwise `404
   ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND` before any insert (no request row, no job). An employee whose only activity

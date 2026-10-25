@@ -66,6 +66,30 @@ it('a failed render leaves the status failed with its error code', async () => {
   expect(hash).toMatchObject({ state: 'FAILED', error_code: 'DOCUMENT_RENDER_FAILED' });
 });
 
+it('an accepted job survives an ambiguous enqueue failure while queued', async () => {
+  const acceptedId = salaryIds.newId();
+  await transport.queue({
+    companyId,
+    renderId: acceptedId,
+    kind: 'attendance-statement',
+    requestedBy: salaryIds.newId(),
+    filename,
+  });
+  await transport.markFailed(companyId, acceptedId);
+  expect(await redis.hget(documentStatusKey(companyId, acceptedId), 'state')).toBe('QUEUED');
+  expect((await queue.getJob(acceptedId))?.data).toMatchObject({ render_id: acceptedId });
+});
+
+it.each(['RENDERING', 'READY', 'CONSUMED'])(
+  'never overwrites %s after an enqueue error',
+  async (state) => {
+    const acceptedId = salaryIds.newId();
+    await redis.hset(documentStatusKey(companyId, acceptedId), 'state', state);
+    await transport.markFailed(companyId, acceptedId);
+    expect(await redis.hget(documentStatusKey(companyId, acceptedId), 'state')).toBe(state);
+  },
+);
+
 it('the renderer liveness follows the key and the previous value comes back', async () => {
   const previous = await redis.get(DOCUMENT_RENDERER_ALIVE_KEY);
   try {

@@ -139,6 +139,7 @@ it('does not deliver a PDF if the audit write fails', async () => {
     expect(response.body).not.toBe('synthetic-pdf-bytes');
     expect(await statementAudits(f, renderId)).toHaveLength(0);
     expect(await f.h.redis.hget(documentStatusKey(f.company, renderId), 'state')).toBe('READY');
+    expect((await statementStatusHttp(f, renderId)).body).toEqual({ state: 'EXPIRED' });
   } finally {
     await f.h.owner`DROP TRIGGER reject_statement_audit ON audit_log`;
     await f.h.owner`DROP FUNCTION reject_statement_audit()`;

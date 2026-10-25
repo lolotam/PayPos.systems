@@ -3,8 +3,38 @@ import {
   type AttendanceStatementShiftOptions,
   type AttendanceStatementShiftPeriod,
 } from '@pospay/contracts';
-import type { Tx } from '@pospay/db';
+import type { TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+
+import { ApiError } from '../../../shared/errors.ts';
+
+export const ATTENDANCE_STATEMENT_SHIFTS_QUERY = Symbol('ATTENDANCE_STATEMENT_SHIFTS_QUERY');
+
+export type AttendanceStatementShiftsQuery = (
+  scope: AttendanceStatementShiftScope & { userId: string },
+  period: AttendanceStatementShiftPeriod,
+) => Promise<AttendanceStatementShiftOptions>;
+
+export function createAttendanceStatementShiftsQuery(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  branchRead: (
+    tx: Tx,
+    companyId: string,
+    businessId: string,
+    branchId: string,
+  ) => Promise<AttendanceStatementShiftBranch | null>,
+): AttendanceStatementShiftsQuery {
+  return (scope, period) =>
+    database.withTenant(
+      scope.companyId,
+      async (tx) => {
+        const branch = await branchRead(tx, scope.companyId, scope.businessId, scope.branchId);
+        if (branch === null) throw new ApiError('ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND');
+        return readAttendanceStatementShifts(tx, scope, branch, period);
+      },
+      { userId: scope.userId },
+    );
+}
 
 interface ShiftPairRow extends Record<string, unknown> {
   pair_start: string;
@@ -18,7 +48,7 @@ export interface AttendanceStatementShiftScope {
   branchId: string;
 }
 
-/** الفرع بعد ما المسارأكد إنه في النشاط، ومعاه منطقته الفعالة. */
+/** الفرع بعد تأكيد تبعيته للنشاط، ومعاه منطقته الفعالة. */
 export interface AttendanceStatementShiftBranch {
   id: string;
   timezone: string;
@@ -51,9 +81,9 @@ export function attendanceStatementShiftPairsStatement(
 
 /**
  * أزواج الشيفت المتاحة في فرع وفي فترة؛ بتخدم منتقي الشيفت في شاشة كشف الحضور (FR-001a).
- * المسار بيفتح المعاملة وبيأكد الفرع قبل ما ينادي هنا.
+ * مشغّل الاستعلام بيفتح معاملة واحدة وبيأكد الفرع قبل ما ينادي هنا.
  *
- * @param tx معاملة المستأجر اللي اتفتحت في المسار
+ * @param tx معاملة المستأجر اللي اتفتحت في مشغّل الاستعلام
  * @param scope الشركة والنشاط والفرع من المسار
  * @param branch الفرع بعد ما اتأكد إنه في النشاط
  * @param period أول وآخر يوم في الفترة

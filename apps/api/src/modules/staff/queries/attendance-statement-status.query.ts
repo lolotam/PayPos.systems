@@ -9,7 +9,19 @@ import { sql } from 'drizzle-orm';
 
 import { ApiError } from '../../../shared/errors.ts';
 
-export const DOCUMENT_STATUS_READ = Symbol('DOCUMENT_STATUS_READ');
+export const ATTENDANCE_STATEMENT_STATUS_QUERY = Symbol('ATTENDANCE_STATEMENT_STATUS_QUERY');
+
+export type AttendanceStatementStatusQuery = (
+  scope: AttendanceStatementScope,
+  renderId: string,
+) => Promise<AttendanceStatementStatus>;
+
+export function createAttendanceStatementStatusQuery(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  status: DocumentStatusRead,
+): AttendanceStatementStatusQuery {
+  return (scope, renderId) => readAttendanceStatementStatus(database, status, scope, renderId);
+}
 
 /** نطاق الطلب: الشركة والمستخدم والنشاط والفرع من المسار. */
 export interface AttendanceStatementScope {
@@ -19,7 +31,7 @@ export interface AttendanceStatementScope {
   branchId: string;
 }
 
-/** صف الطلب كما يقرؤه الاستعلام؛ الأعمدة دي هي اللي بيحتاجها التحميل كمان. */
+/** إسقاط قراءة الحالة؛ التحميل له إسقاط مستقل داخل محول الكتابة. */
 export interface AttendanceStatementRequestRow extends Record<string, unknown> {
   form: string;
   employee_id: string | null;
@@ -48,7 +60,7 @@ export interface DocumentStatusRead {
 }
 
 /**
- * جملة صف الطلب المربوط بالمسار والمستخدم؛ نفس الجملة بتخدم التحميل بعدين.
+ * جملة قراءة الحالة المربوطة بالمسار والمستخدم؛ اختبارات HTTP تثبت تكافؤ رفضها مع التحميل.
  */
 export function attendanceStatementRequestStatement(
   companyId: string,

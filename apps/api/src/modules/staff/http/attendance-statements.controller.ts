@@ -18,27 +18,23 @@ import {
   type AttendanceStatementRequest,
   type AttendanceStatementShiftsQuery,
 } from '@pospay/contracts';
-import type { TenantWrappers } from '@pospay/db';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
-import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
-import { readAttendanceStatementShifts } from '../queries/attendance-statement-shifts.query.ts';
 import {
-  DOCUMENT_STATUS_READ,
-  readAttendanceStatementStatus,
-  type DocumentStatusRead,
+  ATTENDANCE_STATEMENT_SHIFTS_QUERY,
+  type AttendanceStatementShiftsQuery as ShiftsQuery,
+} from '../queries/attendance-statement-shifts.query.ts';
+import {
+  ATTENDANCE_STATEMENT_STATUS_QUERY,
+  type AttendanceStatementStatusQuery,
 } from '../queries/attendance-statement-status.query.ts';
 import { CollectAttendanceStatementUseCase } from '../use-cases/collect-attendance-statement/collect-attendance-statement.usecase.ts';
 import { RequestAttendanceStatementUseCase } from '../use-cases/request-attendance-statement/request-attendance-statement.usecase.ts';
 import { AttendanceStatementErrorFilter } from './attendance-statement.filter.ts';
-import {
-  ATTENDANCE_STATEMENT_BRANCH_READ,
-  type AttendanceStatementBranchRead,
-} from './attendance-statements.tokens.ts';
 
 // اسم الملف ASCII، والنسخة المشفّرة بتوصل لنفس الاسم في المتصفحات القديمة (RFC 5987).
 function contentDisposition(filename: string): string {
@@ -53,10 +49,9 @@ export class AttendanceStatementsController {
     private readonly request: RequestAttendanceStatementUseCase | null,
     @Inject(CollectAttendanceStatementUseCase)
     private readonly collect: CollectAttendanceStatementUseCase | null,
-    @Inject(DOCUMENT_STATUS_READ) private readonly statusRead: DocumentStatusRead | null,
-    @Inject(ATTENDANCE_STATEMENT_BRANCH_READ)
-    private readonly branchRead: AttendanceStatementBranchRead | null,
-    @Inject(DATABASE) private readonly database: TenantWrappers | null,
+    @Inject(ATTENDANCE_STATEMENT_STATUS_QUERY)
+    private readonly statusRead: AttendanceStatementStatusQuery | null,
+    @Inject(ATTENDANCE_STATEMENT_SHIFTS_QUERY) private readonly shiftsRead: ShiftsQuery | null,
   ) {}
 
   @Post('branches/:branchId/attendance-statements')
@@ -89,14 +84,11 @@ export class AttendanceStatementsController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    const database = this.database;
     const statusRead = this.statusRead;
-    if (database === null || statusRead === null) throw new ApiError('NOT_READY');
+    if (statusRead === null) throw new ApiError('NOT_READY');
     reply.header('Cache-Control', 'no-store');
     const actor = actorOf(request);
-    return readAttendanceStatementStatus(
-      database,
-      statusRead,
+    return statusRead(
       {
         companyId: actor.companyId,
         userId: actor.userId,
@@ -145,23 +137,15 @@ export class AttendanceStatementsController {
     query: AttendanceStatementShiftsQuery,
     @Req() request: FastifyRequest,
   ) {
-    const database = this.database;
-    const branchRead = this.branchRead;
-    if (database === null || branchRead === null) throw new ApiError('NOT_READY');
+    const shiftsRead = this.shiftsRead;
+    if (shiftsRead === null) throw new ApiError('NOT_READY');
     const actor = actorOf(request);
     const scope = {
       companyId: actor.companyId,
+      userId: actor.userId,
       businessId: businessId.toLowerCase(),
       branchId: branchId.toLowerCase(),
     };
-    return database.withTenant(
-      actor.companyId,
-      async (tx) => {
-        const branch = await branchRead(tx, scope.companyId, scope.businessId, scope.branchId);
-        if (branch === null) throw new ApiError('ATTENDANCE_STATEMENT_BRANCH_NOT_FOUND');
-        return readAttendanceStatementShifts(tx, scope, branch, query);
-      },
-      { userId: actor.userId },
-    );
+    return shiftsRead(scope, query);
   }
 }

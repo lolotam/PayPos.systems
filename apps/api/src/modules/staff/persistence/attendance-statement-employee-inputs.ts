@@ -26,7 +26,7 @@ export async function readAttendanceStatementEmployeeInputs(
   const reportRows = await tx.execute<StatementInputRow>(
     attendanceMonthlyInputsStatement(
       companyId,
-      { businessId, branches: [branch] },
+      { businessId, branches: [branch], employeeId },
       period.from,
       period.to,
     ),
@@ -38,6 +38,7 @@ export async function readAttendanceStatementEmployeeInputs(
       branch,
       period.from,
       period.to,
+      employeeId,
     ),
   );
   const row = mergeAttendanceStatementRows(reportRows, scheduledRows).find(
