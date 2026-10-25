@@ -1,8 +1,7 @@
 import { createDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 
-import { createRatingBootstrap } from './modules/customers/index.ts';
-import { readArguments } from './modules/customers/jobs/bootstrap-arguments.ts';
+import { createRatingBootstrap, readArguments } from './modules/customers/index.ts';
 import { daySessionsReader } from './modules/orders/index.ts';
 
 // رموز أخطاء المشغّل: بتتطبع زي ما هي، وأي فشل تاني باسمه بس — رسالة السائق ممكن تحمل رابط الاتصال.

@@ -287,7 +287,8 @@ it.each([
     const reader: typeof daySessionsReader = {
       ...daySessionsReader,
       countSince: async (...args) => {
-        expect(calls).toBe(0);
+        if (counts < (resume ? 2 : 1)) expect(calls).toBe(0);
+        else expect(calls).toBe(resume ? 3 : 4);
         counts += 1;
         return daySessionsReader.countSince(...args);
       },
@@ -314,7 +315,7 @@ it.each([
       ...(resume ? { checkpoint } : {}),
       pageSize: 2,
     });
-    expect(counts).toBe(resume ? 2 : 1);
+    expect(counts).toBe(resume ? 3 : 2);
     expect(result.expected).toBe(6);
     expect(result.alreadyDone).toBe(resume ? 2 : 0);
     expect(result.processed).toBe(resume ? 4 : 6);
@@ -322,3 +323,47 @@ it.each([
     expect(result.complete).toBe(true);
   },
 );
+
+it('FR-B02b refuses complete when a late-visible in-range session falls behind the cursor', async () => {
+  const start = startOf('2027-01-14');
+  const branchId = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
+  const lateId = f.ids.newId();
+  const lateCustomer = await f.customer();
+  const visible = await f.session({
+    customerId: await f.customer(),
+    branchId,
+    occurredAt: new Date(start.getTime() - HOUR),
+  });
+  f.clock.at = start;
+  let pages = 0;
+  const reader: typeof daySessionsReader = {
+    ...daySessionsReader,
+    sessionsSince: async (tx, companyId, range, afterSessionId, limit) => {
+      pages += 1;
+      if (pages === 2) {
+        expect(afterSessionId).toBe(visible.sessionId);
+        expect(lateId < visible.sessionId).toBe(true);
+        // ظهور صف بوقت تسجيل قديم بعد تجاوز معرفه يمثل commit متأخر لمعاملة بدأت قبل التجميد.
+        await f.owner`INSERT INTO service_sessions SELECT
+          (jsonb_populate_record(NULL::service_sessions, to_jsonb(s) || jsonb_build_object(
+            'id', ${lateId}::text, 'customer_id', ${lateCustomer}::text))).*
+          FROM service_sessions s WHERE s.company_id=${companyId} AND s.id=${visible.sessionId}`;
+      }
+      return daySessionsReader.sessionsSince(tx, companyId, range, afterSessionId, limit);
+    },
+  };
+  const logs: string[] = [];
+  const result = await f.bootstrap(
+    (line) => logs.push(line),
+    reader,
+  )({
+    companyId: f.tenant.company,
+    cutoff: new Date(start.getTime() - 48 * HOUR),
+    pageSize: 1,
+  });
+  expect(result.expected).toBe(1);
+  expect(result.alreadyDone).toBe(0);
+  expect(result.processed).toBe(1);
+  expect(result.complete).toBe(false);
+  expect(logs.at(-1)).toContain('verifiedExpected=2 complete=false');
+});

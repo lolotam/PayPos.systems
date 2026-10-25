@@ -176,9 +176,13 @@ export async function runRatingBootstrap(
     if (page.length < pageSize) break;
   }
   const covered = alreadyDone + processed;
-  const complete = covered === frozenExpected;
+  // معاملة بدأت قبل T0 ممكن تظهر بعد مرور مؤشر الصفحة؛ العد النهائي يكشفها من غير تغيير العد المجمد.
+  const verifiedExpected = await deps.db.withTenant(params.companyId, (tx) =>
+    deps.daySessions.countSince(tx, params.companyId, range),
+  );
+  const complete = covered === frozenExpected && verifiedExpected === frozenExpected;
   deps.log(
-    `processed=${processed} alreadyDone=${alreadyDone} expected=${frozenExpected} complete=${complete}`,
+    `processed=${processed} alreadyDone=${alreadyDone} expected=${frozenExpected} verifiedExpected=${verifiedExpected} complete=${complete}`,
   );
   return {
     range,

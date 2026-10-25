@@ -46,6 +46,7 @@ export function instantOf(value: string | undefined): Date | undefined {
   return instant;
 }
 
+/** يقرأ اختيارات أداة التهيئة ويتأكد من المعرّفات والتواريخ وحدود حجم الصفحة قبل بدء التشغيل. */
 export function readArguments(argv: readonly string[]): BootstrapParams {
   const values = new Map<string, string>();
   for (let index = 0; index < argv.length; index += 2) {

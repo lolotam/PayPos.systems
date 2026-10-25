@@ -319,7 +319,7 @@ It is an operator run, once per company — not a BullMQ job — and it never se
 3. **What it prints.** One line with the frozen range (`range cutoff=… maxSessionId=… recordedAtOrBefore=…`), one
    `frozen expected=<n> alreadyDone=<n>` line with the counts taken when the range froze, one
    `checkpoint=<sessionId> processed=<n>` line after every page, and a final
-   `processed=<n> alreadyDone=<n> expected=<n> complete=<true|false>` line. The exit code is **1**
+   `processed=<n> alreadyDone=<n> expected=<n> verifiedExpected=<n> complete=<true|false>` line. The exit code is **1**
    when `complete=false`.
 4. **Restart.** Re-run with the last printed `--checkpoint` together with the printed `--max-session-id` and
    `--recorded-before`, so the range stays frozen and the counts stay comparable. A page that fails is read again
@@ -327,6 +327,9 @@ It is an operator run, once per company — not a BullMQ job — and it never se
 5. **Stop rule.** A mismatch between `processed + alreadyDone` and `expected` stops the rollout — investigate
    before running the next company. Both counts are frozen before processing. Pages and counts include all
    sessions in the frozen range, including cancelled sessions; the scheduling use case applies the current line
-   eligibility. Cancellation therefore cannot change the population being checked.
+   eligibility. Cancellation therefore cannot change the population being checked. The final count
+   `verifiedExpected` must also equal the frozen `expected`: a transaction with an old recording time may commit
+   after the initial count and behind the page cursor. On this mismatch, rerun the frozen range without a checkpoint
+   so the newly visible sessions are processed; do not continue from the last cursor.
 6. **Until 59-2 ships**, the rating-request switch is off for every business, so the bootstrap schedules nothing
    yet; it only proves the frozen range and the coverage.

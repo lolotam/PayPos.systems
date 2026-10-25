@@ -516,7 +516,8 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
   `occurred_at >= cutoff`, keyset on the UUID v7 `session_id`, `limit` ≤ 200, with `countSince(tx, companyId, range)`
   for coverage. Cancelled sessions remain in both the pages and the count so concurrent cancellation cannot change
   the covered population; the scheduling use case still derives eligibility from active lines and never rates a
-  cancelled visit. `expected` and `alreadyDone` are counted before processing the first page.
+  cancelled visit. `expected` and `alreadyDone` are counted before processing the first page. A final population
+  recount must also match the frozen `expected`, so a late commit behind the page cursor cannot certify completion.
   **The range is frozen before the first page:** the job reads a watermark once, the highest `session_id`
   and its own start instant `T0`, and both reads take the same `range = { cutoff, maxSessionId, recordedAtOrBefore: T0 }`
   (`session_id <= maxSessionId` and `recorded_at <= T0`). A session outside it, recorded after the job started
