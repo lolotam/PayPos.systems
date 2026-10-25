@@ -13,6 +13,7 @@
     "start": "node --env-file-if-exists=../../.env dist/main.js",
     "demo:seed": "tsc -p tsconfig.scripts.json && node --env-file-if-exists=../../.env dist/tools/scripts/seed-demo.js",
     "platform:bind-phone": "node --env-file-if-exists=../../.env scripts/bind-phone.ts",
+    "staging:staff-user": "node --env-file-if-exists=../../.env scripts/staging-staff-user.ts",
     "e2e:seed": "node --env-file-if-exists=../../.env scripts/seed-e2e-session.ts"
   },
   "dependencies": {

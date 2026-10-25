@@ -1,6 +1,6 @@
 import boundaries from 'eslint-plugin-boundaries';
 
-import { CREDENTIAL_PATHS, CREDENTIAL_PATTERNS } from './credentials.js';
+import { CREDENTIAL_PATHS, CREDENTIAL_PATTERNS, OPERATOR_PATTERNS } from './credentials.js';
 
 // ADR-0054 §1 — the commissions engine is a package, and the module-map check cannot see
 // apps/admin or packages/*, so the ESLint scopes below are the enforcement layer (b).
@@ -228,6 +228,8 @@ export const boundariesConfig = [
           paths: CREDENTIAL_PATHS,
           patterns: [
             ...CREDENTIAL_PATTERNS,
+            // The operator subpaths are refused here too; only the staging CLI lifts them (PP-58.3).
+            ...OPERATOR_PATTERNS,
             USE_CASES_INFRASTRUCTURE_PATTERN,
             // The engine is refused here too; only the commissions layers lift it (ADR-0054 §1).
             ...COMMISSIONS_ENGINE_PATTERNS,

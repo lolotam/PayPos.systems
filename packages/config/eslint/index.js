@@ -17,7 +17,13 @@ import {
   COMMISSIONS_ENGINE_VALIDATION_ONLY_SYNTAX,
   USE_CASES_INFRASTRUCTURE_PATTERN,
 } from './boundaries.js';
-import { CREDENTIAL_PATHS, CREDENTIAL_PATTERNS, CREDENTIAL_SYNTAX } from './credentials.js';
+import {
+  CREDENTIAL_PATHS,
+  CREDENTIAL_PATTERNS,
+  CREDENTIAL_SYNTAX,
+  OPERATOR_PATTERNS,
+  OPERATOR_SYNTAX,
+} from './credentials.js';
 import { jsdocConfig } from './jsdoc.js';
 import { frontendConfig } from './frontend.js';
 
@@ -38,7 +44,12 @@ const FACADES = {
   createPlatformWhatsappDatabase:
     'the global messaging facade is wired only by API/worker roots (ADR-0013).',
 };
-const facadeRule = (allowed, credentials = false, engine = COMMISSIONS_ENGINE_PATTERNS) => [
+const facadeRule = (
+  allowed,
+  credentials = false,
+  engine = COMMISSIONS_ENGINE_PATTERNS,
+  operator = false,
+) => [
   'error',
   {
     paths: [
@@ -47,7 +58,11 @@ const facadeRule = (allowed, credentials = false, engine = COMMISSIONS_ENGINE_PA
         .map(([name, message]) => ({ name: '@pospay/db', importNames: [name], message })),
       ...(credentials ? [] : CREDENTIAL_PATHS),
     ],
-    patterns: [...(credentials ? [] : CREDENTIAL_PATTERNS), ...engine],
+    patterns: [
+      ...(credentials ? [] : CREDENTIAL_PATTERNS),
+      ...(operator ? [] : OPERATOR_PATTERNS),
+      ...engine,
+    ],
   },
 ];
 
@@ -55,11 +70,22 @@ const facadeRule = (allowed, credentials = false, engine = COMMISSIONS_ENGINE_PA
  * The override a facade's owner adds: every other facade stays refused.
  *
  * @param {keyof typeof FACADES | (keyof typeof FACADES)[]} allowed the facade this package owns
- * @param {{ credentials?: boolean }} [options] credentials: true only for packages/auth, the one owner of hashing
+ * @param {{ credentials?: boolean, operator?: boolean }} [options] credentials is only for packages/auth;
+ *   operator lifts only the two PP-58.3 subpath bans for the staging CLI
  * @returns {import('eslint').Linter.Config} the override
  */
 export const allowDatabaseFacade = (allowed, options = {}) => ({
-  rules: { 'no-restricted-imports': facadeRule(allowed, options.credentials === true) },
+  rules: {
+    'no-restricted-imports': facadeRule(
+      allowed,
+      options.credentials === true,
+      COMMISSIONS_ENGINE_PATTERNS,
+      options.operator === true,
+    ),
+    ...(options.operator === true
+      ? { 'no-restricted-syntax': restrictedSyntax({ userText: false, operator: false }) }
+      : {}),
+  },
 });
 
 // CLAUDE.md §8 — a log message is a constant event name; data goes in fields, where the sanitiser
@@ -98,11 +124,12 @@ const USER_TEXT_SYNTAX = [
   { selector: `JSXText[value=${ARABIC}]`, message: USER_TEXT },
 ];
 
-const restrictedSyntax = ({ userText, engine = COMMISSIONS_ENGINE_SYNTAX }) => [
+const restrictedSyntax = ({ userText, engine = COMMISSIONS_ENGINE_SYNTAX, operator = true }) => [
   'error',
   ...CREDENTIAL_SYNTAX,
   ...engine,
   ...LOG_SYNTAX,
+  ...(operator ? OPERATOR_SYNTAX : []),
   ...(userText ? [] : USER_TEXT_SYNTAX),
 ];
 
@@ -148,6 +175,7 @@ export const allowCommissionsEngineBackend = () => [
           paths: CREDENTIAL_PATHS,
           patterns: [
             ...CREDENTIAL_PATTERNS,
+            ...OPERATOR_PATTERNS,
             USE_CASES_INFRASTRUCTURE_PATTERN,
             COMMISSIONS_ENGINE_SUBPATH_BAN,
             COMMISSIONS_ENGINE_PATH_BAN,

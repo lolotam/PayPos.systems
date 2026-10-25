@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import pkg from '../../package.json' with { type: 'json' };
 import * as db from '../index.ts';
+import * as operator from '../operator/staging-staff.ts';
 
 const PUBLIC_EXPORTS = [
   'EmployeeNumberExhaustedError',
@@ -71,6 +72,13 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
   });
 
   it('exposes no deep import path into the package', () => {
-    expect(Object.keys(pkg.exports)).toEqual(['.']);
+    // المدخل الإضافي الوحيد هو مسار المشغّل في PP-58.3 (ADR-0003 §6a، 2026-10-25)، وهو محظور خارج
+    // سطر أوامر staging بفحص ESLint.
+    expect(Object.keys(pkg.exports)).toEqual(['.', './operator/staging-staff']);
+  });
+
+  it('exposes no raw client on the operator subpath', () => {
+    const raw = ['createDatabase', 'db', 'client', 'sql'];
+    expect(Object.keys(operator).filter((name) => raw.includes(name))).toEqual([]);
   });
 });

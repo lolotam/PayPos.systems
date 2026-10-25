@@ -388,6 +388,28 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 
 ## 6a. Revisions
 
+**2026-10-25, PP-58.3 (Waleed, technical):** one staging-only operator exception to §5's "memberships are
+administered only through `identity` use cases". The M-1c check (b), a staff PIN sign-in on a paired counter device,
+needs a staff user with an approved phone binding, and staff OTP is postponed (PP-58.1), so no product flow can create
+one. `apps/api/scripts/staging-staff-user.ts` runs once in the staging `api` image (`docker compose … run --rm --no-deps
+api`) and refuses unless all hold: `--target staging`, `DEPLOY_ENV=staging` (a literal set only by
+`deploy/docker-compose.staging-shared.yml`), a `BETTER_AUTH_URL` host under `.staging.pospay.systems`, `COOKIE_DOMAIN`
+`.staging.pospay.systems`, the same database for `DATABASE_URL` and `AUTH_DATABASE_URL`, and the two phone
+acknowledgements in env. It creates the user through `createPlatformUser` (audited `user.created`) under a deterministic
+`@staging.pospay.invalid` email, binds the phone only through `approvePhoneBinding`, and refuses when the email's user
+and the phone's owner differ. The two tenant writes, a `staff` branch membership and an optional employee link, run as
+`pospay_app` under `withTenant` and write an `AuditLog` row with a NULL actor and the operator named in `after`; they
+live in the `@pospay/db/operator/staging-staff` subpath, the identity read in `@pospay/auth/operator/staging-staff`,
+neither on the package's main entry. ESLint refuses both subpaths everywhere except two files: that script, and
+`packages/auth/src/operator/staging-staff-identity.ts`, which wraps the identity read through the `@pospay/db` operator subpath; its override in
+`packages/auth/eslint.config.js` lifts the operator ban for that one file only, and that file is reviewed to import
+nothing else of either subpath. No grant, role
+or RLS policy changes. The PIN is then set by the existing guarded `POST /v1/staff-pins/reset`. The script prints fixed
+step lines and the user id, never the phone or the email. The supported way to run it is that compose run in the
+staging image; the `staging:staff-user` package script reads a local `.env` and still has to pass the same guard.
+One phone maps to one test user (the email is derived from the phone alone), so a wrong scope id refuses the run
+without blocking the phone for the corrected rerun.
+
 **2026-10-21, spec 058 TD-13 (first used by PR #468):** a route may be guarded by `@RequireAny([permission, …], target)`. The
 caller passes when at least one listed permission is held at the target with no covering DENY on **that** permission; a
 DENY on one listed permission does not refuse access through another. Every listed permission has the same scope, so the
