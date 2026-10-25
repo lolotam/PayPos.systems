@@ -1,8 +1,44 @@
+import type { DocumentRenderer } from '@pospay/documents';
 import type { Redis } from 'ioredis';
 import { expect, it } from 'vitest';
 
 import { startRendererLiveness } from '../liveness.ts';
 import { FakeRenderer } from './render-harness.ts';
+
+class CountingRenderer implements DocumentRenderer {
+  available = false;
+  availableCalls = 0;
+  unavailableCalls = 0;
+  readonly #up: Array<() => void> = [];
+  readonly #down: Array<() => void> = [];
+
+  async start(): Promise<void> {
+    if (this.available) for (const listener of this.#up) listener();
+  }
+
+  async close(): Promise<void> {
+    this.available = false;
+    for (const listener of this.#down) listener();
+  }
+
+  isAvailable(): boolean {
+    return this.available;
+  }
+
+  onUnavailable(listener: () => void): void {
+    this.unavailableCalls += 1;
+    this.#down.push(listener);
+  }
+
+  onAvailable(listener: () => void): void {
+    this.availableCalls += 1;
+    this.#up.push(listener);
+  }
+
+  async render(): Promise<Uint8Array> {
+    return new Uint8Array();
+  }
+}
 
 function yieldNow(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
@@ -159,6 +195,22 @@ it('leaves nothing armed when the liveness start fails', async () => {
   await expect(startRendererLiveness({ redis, renderer, intervalMs: 5 })).rejects.toThrow(
     'redis ended',
   );
+  renderer.available = true;
+  await renderer.start();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(sets).toEqual([]);
+});
+
+it('subscribes to the renderer once across failed starts', async () => {
+  const { redis, sets } = recordingRedisStub('end');
+  const renderer = new CountingRenderer();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await expect(startRendererLiveness({ redis, renderer, intervalMs: 5 })).rejects.toThrow(
+      'redis ended',
+    );
+  }
+  expect(renderer.availableCalls).toBe(1);
+  expect(renderer.unavailableCalls).toBe(1);
   renderer.available = true;
   await renderer.start();
   await new Promise((resolve) => setTimeout(resolve, 50));

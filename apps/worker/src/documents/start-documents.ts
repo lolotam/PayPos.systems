@@ -8,10 +8,12 @@ import type { Logger } from '@pospay/observability';
 import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 
+import { deferPdfWhileStarting, type RendererStartup } from './defer-pdf.ts';
 import { startRendererLiveness } from './liveness.ts';
 import type { EpochClock } from './process-job.ts';
 import { DocumentSourceRegistry } from './source-registry.ts';
 import { trackDocumentStartup, type AttemptBinder, type HeldQueue } from './startup-session.ts';
+import { startWithin, waitOrAbort, type RendererStart } from './startup-wait.ts';
 
 const LOCK_MS = 45_000;
 const STARTUP_MS = 30_000;
@@ -112,6 +114,7 @@ async function openWorker(
   registry: DocumentSourceRegistry,
   renderer: DocumentRenderer,
   attempt: AttemptBinder,
+  startup: RendererStartup,
 ): Promise<{ worker: Worker; connection: Redis }> {
   const { processDocumentJob, recordExternalJobFailure } = await import('./process-job.ts');
   const connection = openQueueConnection(input.redisUrl);
@@ -119,14 +122,16 @@ async function openWorker(
   try {
     worker = new Worker(
       DOCUMENTS_RENDER_QUEUE,
-      (job) =>
-        processDocumentJob(job, {
+      async (job, token) => {
+        await deferPdfWhileStarting(job, token, startup, registry);
+        return processDocumentJob(job, {
           redis: input.redis,
           registry,
           renderer,
           clock: input.clock,
           logger: input.logger,
-        }),
+        });
+      },
       {
         connection,
         concurrency: 2,
@@ -171,34 +176,21 @@ async function startRenderer(
   input: StartDocumentsInput,
   renderer: DocumentRenderer,
   attempt: AttemptBinder,
+  startup: RendererStartup,
 ): Promise<void> {
   try {
-    const start = await startRendererWithin(renderer, input.startupMs ?? STARTUP_MS);
+    let start: RendererStart = { state: 'pending' };
+    try {
+      start = await startWithin(renderer, input.startupMs ?? STARTUP_MS, attempt.signal);
+    } finally {
+      // نافذة تأجيل PDF بتقفل أول ما نعرف حالة المتصفح، حتى لو اتلغت المحاولة.
+      startup.starting = false;
+    }
     if (start.state !== 'started') logUnavailable(input.logger, 'SETUP_FAILED', start.error);
     await publishLiveness(input, renderer, attempt);
   } catch (error) {
     logUnavailable(input.logger, 'SETUP_FAILED', error);
   }
-}
-
-async function startRendererWithin(
-  renderer: DocumentRenderer,
-  timeoutMs: number,
-): Promise<{ readonly state: 'started' | 'failed' | 'pending'; readonly error?: unknown }> {
-  // نداء واحد بس؛ الرفض المتأخر بيتبلع جوّه عشان ما يبقاش رفض غير متعامل.
-  const launched = Promise.resolve().then(() => renderer.start());
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const outcome = await Promise.race([
-    launched.then(
-      () => ({ state: 'started' as const }),
-      (error: unknown) => ({ state: 'failed' as const, error }),
-    ),
-    new Promise<{ state: 'pending' }>((resolve) => {
-      timer = setTimeout(() => resolve({ state: 'pending' }), timeoutMs);
-    }),
-  ]);
-  if (timer !== undefined) clearTimeout(timer);
-  return outcome;
 }
 
 async function publishLiveness(
@@ -225,7 +217,7 @@ async function publishLiveness(
       logUnavailable(input.logger, 'SETUP_FAILED', error);
     }
     const delayMs = delays[Math.min(attemptNo, delays.length - 1)] ?? 60_000;
-    await (input.sleep ?? delay)(delayMs);
+    await waitOrAbort(delayMs, attempt.signal, input.sleep);
   }
 }
 
@@ -233,12 +225,15 @@ async function bringUp(
   input: StartDocumentsInput,
   registry: DocumentSourceRegistry,
   attempt: AttemptBinder,
+  startup: RendererStartup,
 ): Promise<boolean> {
   if (halted(input, attempt)) return false;
+  // من هنا لحد ما المتصفح يطلع، PDF بيتأجل بدل ما يستهلك محاولة.
+  startup.starting = true;
   const renderer = await openRenderer(input);
   attempt.setRenderer(renderer);
   if (halted(input, attempt)) return false;
-  const opened = await openWorker(input, registry, renderer, attempt);
+  const opened = await openWorker(input, registry, renderer, attempt, startup);
   if (halted(input, attempt)) {
     await opened.worker.close().catch(() => undefined);
     opened.connection.disconnect();
@@ -246,7 +241,7 @@ async function bringUp(
   }
   // الطابور بقى شغّال قبل Chromium؛ بطئه ما يقفلش القدرة وما يوقفلش الطابور.
   attempt.setLive(opened);
-  await startRenderer(input, renderer, attempt);
+  await startRenderer(input, renderer, attempt, startup);
   return true;
 }
 
@@ -255,6 +250,7 @@ async function bringUp(
  */
 export function beginDocumentRendering(input: StartDocumentsInput): DocumentRendering {
   const registry = input.registry ?? new DocumentSourceRegistry();
+  const startup: RendererStartup = { starting: false };
   if (input.renderer !== undefined) bindAvailableLog(input.logger, input.renderer);
   const runtime = trackDocumentStartup({
     startupMs: input.startupMs ?? STARTUP_MS,
@@ -263,7 +259,7 @@ export function beginDocumentRendering(input: StartDocumentsInput): DocumentRend
     ...(input.closeGraceMs === undefined ? {} : { closeGraceMs: input.closeGraceMs }),
     stopped: () => input.isStopping?.() === true,
     onFailed: (error) => logUnavailable(input.logger, 'SETUP_FAILED', error),
-    run: (attempt) => bringUp(input, registry, attempt),
+    run: (attempt) => bringUp(input, registry, attempt, startup),
   });
   return {
     stop: (force) => runtime.stop(force ?? false),

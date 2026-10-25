@@ -18,6 +18,8 @@ export interface HeldQueue {
 
 export interface AttemptBinder {
   cancelled(): boolean;
+  /** إشارة بتقطع انتظار الإقلاع؛ الإيقاف أو فشل المحاولة بيوقظها. */
+  readonly signal: AbortSignal;
   setRenderer(renderer: DocumentRenderer): void;
   setLive(live: LiveQueue): void;
   setLiveness(liveness: RendererLiveness): void;
@@ -26,6 +28,7 @@ export interface AttemptBinder {
 
 interface Slot {
   token: number;
+  controller: AbortController;
   renderer?: DocumentRenderer | undefined;
   live?: LiveQueue | undefined;
   queue?: HeldQueue | undefined;
@@ -136,6 +139,7 @@ function binder(state: SessionState, slot: Slot, graceMs: number): AttemptBinder
   const cancelled = (): boolean => state.closed || !state.accept || slot.token !== state.generation;
   return {
     cancelled,
+    signal: slot.controller.signal,
     setRenderer: (renderer) => {
       // التخزين بعد الإلغاء بيسيب متصفح من غير حد يقفله.
       if (cancelled()) {
@@ -163,7 +167,7 @@ function binder(state: SessionState, slot: Slot, graceMs: number): AttemptBinder
 }
 
 function arm(state: SessionState, input: StartupSessionInput): void {
-  const slot: Slot = { token: state.generation };
+  const slot: Slot = { token: state.generation, controller: new AbortController() };
   state.current = slot;
   state.timer = setTimeout(() => {
     void fail(state, input, slot, new Error('DOCUMENT_START_TIMEOUT'));
@@ -200,6 +204,7 @@ async function fail(
 ): Promise<void> {
   if (state.closed || !state.accept || slot.token !== state.generation) return;
   state.generation += 1;
+  slot.controller.abort();
   if (state.timer !== undefined) clearTimeout(state.timer);
   input.onFailed(error);
   // تنظيف المتصفح المعلّق ما يؤجّلش المحاولة الجاية. القفل يكمل لو عدّى المهلة.
@@ -218,6 +223,7 @@ async function fail(
 
 async function stopSession(state: SessionState, force: boolean): Promise<void> {
   state.accept = false;
+  state.current.controller.abort();
   state.wake?.();
   const live = state.current.live;
   if (live === undefined) return;
@@ -231,6 +237,7 @@ async function closeSession(state: SessionState): Promise<void> {
   if (state.closed) return;
   state.closed = true;
   state.accept = false;
+  state.current.controller.abort();
   state.generation += 1;
   if (state.timer !== undefined) clearTimeout(state.timer);
   state.wake?.();
@@ -250,7 +257,7 @@ export function trackDocumentStartup(input: StartupSessionInput): StartupSession
     closed: false,
     accept: true,
     settled: false,
-    current: { token: 0 },
+    current: { token: 0, controller: new AbortController() },
     resolveStart,
   };
   arm(state, input);
