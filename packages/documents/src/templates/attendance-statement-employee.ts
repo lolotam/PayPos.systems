@@ -87,12 +87,24 @@ function employeeDaysTable(statement: EmployeeStatementDocument): HtmlFragment {
           html`<tr>
             <td class="statement-number">${bdi(day.date)}</td>
             <td>${day.sessions.map((session) => sessionCell(labels, session))}</td>
-            <td class="statement-number">${bdi(day.worked_hours)}</td>
+            <td class="statement-number">${dayHours(day)}</td>
             <td>${dayNotes(labels, day)}</td>
           </tr>`,
       )}
     </tbody>
   </table>`;
+}
+
+/**
+ * ساعات اليوم: بتطبع بس لما يكون في جلسة مسجّلة أو الموظفة لسه جوّه. يوم من غير جلسة
+ * ولا وردية خلصت بيطبع التاريخ بس (Story 2.2)، والبصمة الناقصة بتطبع صفر ساعة (BR-05).
+ *
+ * @param day يوم من العقد
+ * @returns خلية ساعات اليوم
+ */
+function dayHours(day: StatementDay): HtmlFragment {
+  if (day.sessions.length === 0 && !day.still_in) return html``;
+  return bdi(day.worked_hours);
 }
 
 /**
@@ -118,6 +130,8 @@ function sessionCell(labels: AttendanceStatementLabels, session: StatementSessio
 /**
  * ملاحظات اليوم: لسه جوّه، والإجازات، والورديات، وغياب الحضور المسجّل.
  * «لسه جوّه» له الأولوية، ويوم ما بيطبعش «لا يوجد حضور مسجّل» (FR-013a).
+ * أوقات الوردية بتطبع مع «لا يوجد حضور مسجّل» بس، فالبصمة الناقصة بتطبع الوردية
+ * معاها؛ واليوم اللي فيه جلسة محتسبة ما بيطبعش الوردية (Story 2.2).
  *
  * @param labels عناوين البيان
  * @param day يوم من العقد
@@ -129,7 +143,7 @@ function dayNotes(labels: AttendanceStatementLabels, day: StatementDay): HtmlFra
   for (const type of day.leave) {
     notes.push(html`<span class="statement-note">${leaveLabel(labels, type)}</span>`);
   }
-  if (day.scheduled.length > 0 && day.sessions.length === 0) {
+  if (day.no_attendance && day.scheduled.length > 0) {
     for (const shift of day.scheduled) {
       notes.push(
         html`<span class="statement-note">${bdi(shift.start)}${RANGE}${bdi(shift.end)}</span>`,
