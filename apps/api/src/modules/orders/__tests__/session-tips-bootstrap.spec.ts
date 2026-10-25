@@ -7,7 +7,7 @@ import { ids, must, pairLine, recordVisit, recordVisitAt, runTips, tip, tipFixtu
 
 let f: TipFixture;
 const RANGE = { from: '2026-10-01', to: '2026-10-31' };
-const ALL = { after: null, limit: 200 };
+const ALL: CurrentSessionTipsPageRequest = { after: null, limit: 200 };
 const EMPTY = { items: [], next_cursor: null };
 
 beforeAll(async () => { f = await tipFixture(); });
@@ -71,7 +71,8 @@ it('excludes untipped and out-of-range visits while including both range bounds'
   const upper = await recordVisitAt(f, '2026-10-10T08:00:00.000Z');
   for (const visit of [lower, upper]) await runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CARD', '2.000')]));
   const result = await read(f.company, f.business, range);
-  expect(result.items.map((item) => item.session_id)).toEqual([lower.sessionId, upper.sessionId].sort());
+  expect(result.items.map((item) => item.business_date)).toEqual([range.from, range.to]);
+  expect(result.items.map((item) => item.session_id)).toEqual([lower.sessionId, upper.sessionId]);
   expect(must(result.items.find((item) => item.session_id === lower.sessionId)).business_date).toBe(range.from);
   expect(must(result.items.find((item) => item.session_id === upper.sessionId)).business_date).toBe(range.to);
   expect(result.items.map((item) => item.session_id)).not.toContain(noTip.sessionId);
@@ -93,7 +94,10 @@ const invalidCases: InvalidCase[] = [
   { code: 'SESSION_TIPS_BOOTSTRAP_LIMIT_INVALID', page: { after: null, limit: 0 } },
   { code: 'SESSION_TIPS_BOOTSTRAP_LIMIT_INVALID', page: { after: null, limit: 201 } },
   { code: 'SESSION_TIPS_BOOTSTRAP_LIMIT_INVALID', page: { after: null, limit: 1.5 } },
-  { code: 'SESSION_TIPS_BOOTSTRAP_CURSOR_INVALID', page: { after: 'not-a-uuid', limit: 10 } },
+  { code: 'SESSION_TIPS_BOOTSTRAP_CURSOR_INVALID',
+    page: { after: { business_date: '2026-10-01', session_id: 'not-a-uuid' }, limit: 10 } },
+  { code: 'SESSION_TIPS_BOOTSTRAP_CURSOR_INVALID',
+    page: { after: { business_date: '2026-02-30', session_id: '01920000-0000-7000-8000-0000000000a1' }, limit: 10 } },
   { code: 'SESSION_TIPS_BOOTSTRAP_SCOPE_INVALID', companyId: 'bad' },
   { code: 'SESSION_TIPS_BOOTSTRAP_SCOPE_INVALID', businessId: 'bad' },
 ];

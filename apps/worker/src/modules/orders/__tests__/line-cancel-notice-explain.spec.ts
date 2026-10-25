@@ -38,7 +38,7 @@ it('matchesLine, the cancellation row, the line context and the claim use tenant
   expect(match).toMatch(
     /service_lines_(company_id_id_pk|session_fk_idx|discount_proposal_key|id_session_key)/,
   );
-  expect(match).toMatch(/service_sessions_(company_id_id_pk|business_id_key|branch_id_key)/);
+  expect(match).toMatch(/service_sessions_(company_id_id_pk|business_id_key|branch_id_key|business_day_idx)/);
   expect(history).toContain('slc_line_uq');
   expect(context).toMatch(
     /service_lines_(company_id_id_pk|session_fk_idx|discount_proposal_key|id_session_key)/,
