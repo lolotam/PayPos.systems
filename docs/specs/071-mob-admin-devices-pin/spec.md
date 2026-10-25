@@ -80,11 +80,15 @@ the staff OTP sign-in (PP-58.1), and the employee's own PIN change, except the s
     because both hold the same credential. The only employee-held proof today is a WhatsApp code to her phone; a passkey
     is enrolled only inside a personal session that itself follows a WhatsApp code (ADR-0027), and backs attendance,
     not sign-in. The code locks out a STOP-suppressed employee, whose own PIN is ADR-0019's recovery path, and staff OTP
-    is postponed (PP-58.1). Whether to accept that risk is a roles question for both owners, DV-Q9 (batch 75, PP-63.9), `TODO(spec)`; Waleed: accept it with the extra protection:
-    accept it with a short validity for the one-time PIN, an owner notice on every change and an ADR-0019 addendum, or
-    gate every change on a fresh WhatsApp code, which reopens ADR-0019 STOP recovery. Under both, an employee needs her first WhatsApp sign-in before any PIN works (DV-Q7). Design advice for the safeguards is issue #682.
+    is postponed (PP-58.1). Whether to accept that risk is a roles question for both owners, DV-Q9 (batch 75, PP-63.9), `TODO(spec)`.
+    Waleed picked option 1: accept it with a short validity for the one-time PIN, an owner notice on every PIN change and
+    the setter named in the audit, recorded in the ADR-0019 addendum of 2026-10-25 (c). The other option, which Abu
+    Salem may still pick, gates every change on a fresh WhatsApp code and reopens ADR-0019's STOP recovery. Under both,
+    an employee needs her first WhatsApp sign-in before any PIN works (DV-Q7). Design advice for the safeguards is issue
+    #682.
 
-    071-3 and 071-4 are planned on Waleed's DV-Q9 pick until Abu Salem answers, and 071-3's PIN action never reaches staff without 071-4. The ADR-0019 addendum recording the accepted risk lands with the 071-4 sub-spec.
+    071-3 and 071-4 are planned on Waleed's DV-Q9 pick until Abu Salem answers. 071-4 merges before 071-3, or in the
+    same PR, so no build ever exposes the PIN action without the one-time PIN.
   - The list needs a guarded read, the **PIN eligibility read** (071-3). For each employee it returns the linked
     `user_id` (or none) and one boolean: whether a PIN would let that person sign in on the chosen branch's devices. That is `staffEligible`
     (`apps/api/src/modules/identity/domain/staff-eligibility.ts`: a membership covering that branch and the effective
@@ -118,7 +122,7 @@ the staff OTP sign-in (PP-58.1), and the employee's own PIN change, except the s
    (`apps/pos`). API: the per-branch code pointer, and the check code in the pending list and the register response.
    Plus, only for DV-Q2 «the code is enough», auto-approval on register.
 2. **071-2** Active devices and remove. Only if DV-Q3 says yes; adds `status=active` to the spec 070 route.
-3. **071-3** The staff PIN action and the PIN eligibility read. If DV-Q5 picks branch managers, it also adds the
+3. **071-3** The staff PIN action and the PIN eligibility read. It depends on 071-4, which merges first or with it. If DV-Q5 picks branch managers, it also adds the
    branch-scoped reset of FR-006.
 4. **071-4** The employee-side PIN safeguard: the one-time PIN of Waleed's DV-Q8 pick, with DV-Q9's protection (a short validity, an owner notice on every PIN change, the setter named in the audit), and its exact values from the design advice in issue #682. Its sub-spec states the PIN
    states and transitions, including which of them FR-006's clearing applies to: a PIN someone else set, never a PIN
