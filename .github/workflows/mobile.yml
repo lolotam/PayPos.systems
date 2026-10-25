@@ -281,6 +281,7 @@ jobs:
     needs: [changes, macos-preflight, macos-preflight-pr]
     if: ${{ !cancelled() && needs.changes.outputs.app == 'true' && (needs.macos-preflight.result == 'success' || needs.macos-preflight-pr.result == 'success') }}
     runs-on: macos-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.spike == true && matrix.flavour == 'staging' && 'staging-ui-test' || '' }}
     timeout-minutes: 45
     permissions:
       contents: read
@@ -381,7 +382,8 @@ jobs:
       # الـ spike بيشتغل بس في dispatch متعلّم على `spike`، وعلى بناء staging بس.
       # بنحطه جوّه شغلانة iOS اللي واخدة قبول بالفعل، فنفس خانة الحارس والـ timeout بيغطّوه
       # (ADR-0055 قرار 6) من غير شغلانة macOS جديدة تحتاج خانة تانية.
-      # ومفيش أي secret بيتقري هنا.
+      # اختبار الاقتران والـ PIN بس بيقرأ بيئة staging-ui-test، وسياسة فروعها main بس.
+      # نتيجة CounterAuth.xcresult والـ private log ممنوع يترفعوا لأنهم بيسجّلوا القيم الحساسة المكتوبة.
       # الخطوات بعد رفع البناء عشان لو اختبار الـ UI فشل، نسخة المحاكي تفضل متاحة للتحميل.
       - name: Boot a simulator for the UI test
         if: inputs.spike == true && matrix.flavour == 'staging'
@@ -414,7 +416,7 @@ jobs:
         if: inputs.spike == true && matrix.flavour == 'staging'
         run: |
           set -euo pipefail
-          xcodebuild test -project "$RUNNER_TEMP/spike/SpikeUITests.xcodeproj" -scheme SpikeUITests -destination "id=$SPIKE_UDID" -resultBundlePath "$RUNNER_TEMP/spike/SpikeUITests.xcresult" CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM=
+          xcodebuild test -project "$RUNNER_TEMP/spike/SpikeUITests.xcodeproj" -scheme SpikeUITests -only-testing:SpikeUITests/SpikeUITests -destination "id=$SPIKE_UDID" -resultBundlePath "$RUNNER_TEMP/spike/SpikeUITests.xcresult" CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM=
 
       - name: Upload the UI test result
         if: always() && inputs.spike == true && matrix.flavour == 'staging'
@@ -424,6 +426,25 @@ jobs:
           path: ${{ runner.temp }}/spike/SpikeUITests.xcresult
           retention-days: 14
           if-no-files-found: warn
+
+      - name: Reinstall the app
+        if: inputs.spike == true && matrix.flavour == 'staging'
+        run: |
+          set -euo pipefail
+          app="$(ls -td ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Debug-iphonesimulator/App.app | sed -n '1p')"
+          xcrun simctl uninstall "$SPIKE_UDID" systems.pospay.business.staging || true
+          xcrun simctl install "$SPIKE_UDID" "$app"
+
+      - name: Run the counter pairing and staff PIN test
+        if: inputs.spike == true && matrix.flavour == 'staging'
+        env:
+          STAGING_UI_OWNER_EMAIL: ${{ secrets.STAGING_UI_OWNER_EMAIL }}
+          STAGING_UI_OWNER_PASSWORD: ${{ secrets.STAGING_UI_OWNER_PASSWORD }}
+          STAGING_UI_STAFF_PHONE: ${{ secrets.STAGING_UI_STAFF_PHONE }}
+          STAGING_UI_STAFF_PIN: ${{ secrets.STAGING_UI_STAFF_PIN }}
+          STAGING_UI_COMPANY_ID: ${{ vars.STAGING_UI_COMPANY_ID }}
+          STAGING_UI_BRANCH_ID: ${{ vars.STAGING_UI_BRANCH_ID }}
+        run: node apps/business/ios/ui-tests/orchestrate-counter-auth.mjs
 
   # تحرير الخانة شغلانة لوحدها، عشان شغلانة الـ iOS ما تمسكش حق الكتابة على المستودع وهي
   # بتثبّت وتبني كود تالت. بتشتغل بعد الـ iOS على طول (نجحت أو فشلت)، وبتعمل حاجة واحدة.
