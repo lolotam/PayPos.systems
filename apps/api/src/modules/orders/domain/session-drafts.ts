@@ -4,7 +4,7 @@ import type { SessionDraft } from './session-types.ts';
 type DecimalSessionDraft = Omit<SessionDraft, 'price' | 'discount' | 'approval_proposal_id'> & {
   price: string;
   discount: { kind: 'AMOUNT'; amount: string } | { kind: 'PERCENT'; bps: number };
-  discount_proposal_id?: string;
+  discount_proposal_id?: string | undefined;
 };
 
 /**

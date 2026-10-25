@@ -16,7 +16,7 @@ const createInput = (lines: LineInput[]): RecordServiceSessionInput =>
 const create = (lines: LineInput[], actor = f.userId) =>
   f.create.execute({ ...f.context(ids.newId(), actor), input: createInput(lines) });
 
-/** refusal الجواب المتوقع: السطر المرفوض يرجع سببه، والخط العادي يُحفظ، والسطر وحده يرفض الطلب كله. */
+/** الجواب المتوقع: السطر المرفوض يرجع سببه، والخط العادي يُحفظ، والسطر وحده يرفض الطلب كله. */
 async function expectRefusal(proposalId: string, expected: string, actor = f.userId, draft = draftLine(f)) {
   const partial = await create([{ ...draft, discount_proposal_id: proposalId }, f.line()], actor);
   expect(partial.outcome).toBe('PARTIAL');
@@ -76,13 +76,19 @@ it('D-21 an approval of another branch refuses the line as not found and stays a
   const role = must(SYSTEM_ROLES.find((item) => item.code === 'cashier')).id;
   await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,limit_bps,starts_at)
     VALUES(${f.company},${ids.newId()},${f.userId},${role},'global','BRANCH',${f.otherBranch},1000,'2026-01-01T00:00:00Z')`;
+  await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+    VALUES(${f.company},${ids.newId()},${f.business},${must(f.employees[1])},${f.otherBranch},'2026-01-01')`;
   const body = await f.request.execute({
     ...f.context(ids.newId()), branchId: f.otherBranch,
     input: f.requestBody([draftLine(f)], { occurred_at: OCCURRED_AT }),
   });
   const proposalId = must(body.proposals[0]).id;
   await decideProposal(f, proposalId, 'APPROVED');
-  await expectRefusal(proposalId, 'NOT_FOUND');
+  const partial = await create([{ ...draftLine(f), discount_proposal_id: proposalId }, f.line()]);
+  expect(partial.outcome).toBe('PARTIAL');
+  expect(partial.rejected_lines[0]).toMatchObject({ input_index: 0, approval_refusal: 'NOT_FOUND', discount_proposal_id: proposalId });
+  expect(partial.session.lines).toHaveLength(1);
+  expect(partial.session.lines[0]?.discount_proposal_id).toBeUndefined();
   const row = await proposalRow(f, proposalId);
   expect(row?.['status']).toBe('APPROVED');
   expect(row?.['consumed_line_id']).toBeNull();

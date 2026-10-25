@@ -36,7 +36,7 @@ it('DP-20 an append consumes the approval and keeps the recorder own limit colum
 it('DP-20 the append leaves one audit entry and the event shape unchanged', async () => {
   const session = await visit();
   const proposalId = await approvedProposal(f, { session_id: session.id });
-  const result = await append(session.id, [approvedLine(proposalId)]);
+  await append(session.id, [approvedLine(proposalId)]);
   const audits = await consumedAudits(f, proposalId);
   expect(audits).toHaveLength(1);
   expect(audits[0]).toMatchObject({ entity: 'discount_proposal', entity_id: proposalId, action: 'discount_proposal.consumed' });

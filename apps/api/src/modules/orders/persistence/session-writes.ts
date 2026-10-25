@@ -13,7 +13,6 @@ export async function insertSession(tx: Tx, companyId: string, record: SessionRe
 
 export async function insertLines(tx: Tx, companyId: string, businessId: string, lines: readonly SessionLine[]) {
   const rows = lines.map(sessionLineSnapshot);
-  // معرّف الموافقة يُقرأ من حقائق السطر لا من لقطة العرض، فالسطر بلا موافقة يكتب NULL.
   const values = rows.map((line, index) => sql`(${companyId},${line.id},${businessId},${line.session_id},${line.service_id},${line.ordinal},${line.input_index},
     ${line.status},${line.revision},${line.list_price},${line.price},${line.discount},${line.net},${line.effective_discount_bps},${line.limit_bps_applied},
     ${line.limit_source},${line.name_en},${line.name_ar},${line.catalog_revision},${line.rule_snapshot.kind},

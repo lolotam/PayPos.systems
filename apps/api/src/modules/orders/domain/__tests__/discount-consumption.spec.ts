@@ -40,6 +40,12 @@ function decide(claims: ReturnType<typeof approvalClaims>, proposals: LockedProp
   return decideApprovals(claims, (item) => discountTermsOfLine(factsOf, item), proposals, actor, now, sha);
 }
 
+function onlyItem<T>(items: readonly T[]): T {
+  const item = items[0];
+  if (item === undefined) throw new Error('The list is empty');
+  return item;
+}
+
 it('only a line above the limit that names an approval claims it', () => {
   const above = line({ approval_proposal_id: 'proposal-1' });
   expect(approvalClaims([above], limit)).toEqual([{ input_index: 0, proposal_id: 'proposal-1', line: above }]);
@@ -74,7 +80,6 @@ it('a pending or a rejected approval is refused as not approved, and a lapsed on
 });
 
 it('any changed term refuses the approval, and the branch rule comes before the hash', () => {
-  const claims = approvalClaims([line({ approval_proposal_id: 'proposal-1' })], limit);
   const changed = [
     line({ approval_proposal_id: 'proposal-1', discount: 5500n, net: 19500n, effective_discount_bps: 2200 }),
     line({ approval_proposal_id: 'proposal-1', price: 24000n, net: 19000n, effective_discount_bps: 2400 }),
@@ -160,10 +165,12 @@ it('a refused line carries the refusal and the proposal id, and the outcome is p
 
 it('a line above the limit with no decision keeps the plain rejection of today', () => {
   const prepared = line({ approval_proposal_id: 'proposal-1' });
-  const plan = planSessionWrite([prepared], limit, [], messages);
+  const ordinary = line({ input_index: 1, effective_discount_bps: 0, discount: 0n, net: 25000n });
+  const plan = planSessionWrite([prepared, ordinary], limit, [], messages);
   expect(plan.rejected_lines[0]).toMatchObject({ input_index: 0, code: 'SESSION_DISCOUNT_ABOVE_LIMIT', limit_bps: 1000, limit_source: 'PERSON' });
-  expect(plan.rejected_lines[0]?.approval_refusal).toBeUndefined();
-  expect(plan.rejected_lines[0]?.discount_proposal_id).toBeUndefined();
+  expect(onlyItem(plan.rejected_lines)).not.toHaveProperty('approval_refusal');
+  expect(onlyItem(plan.rejected_lines)).not.toHaveProperty('discount_proposal_id');
+  expect(() => planSessionWrite([prepared], limit, [], messages)).toThrow('SESSION_DISCOUNT_ABOVE_LIMIT');
 });
 
 it('every refused line refuses the whole request with the refusal inside', () => {

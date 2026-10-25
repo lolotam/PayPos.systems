@@ -1,6 +1,6 @@
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import type { DiscountConsumptionPort, LockedDiscountProposal } from '../ports/discount-consumption.port.ts';
+import type { DiscountConsumptionPort } from '../ports/discount-consumption.port.ts';
 import { termsHash } from './terms-hash.adapter.ts';
 
 type LockedRow = {

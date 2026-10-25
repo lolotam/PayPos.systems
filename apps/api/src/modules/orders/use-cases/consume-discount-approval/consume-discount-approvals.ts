@@ -6,7 +6,7 @@ import type { LockedDiscountProposal } from '../../ports/discount-consumption.po
 import type { SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 
 /** سطر مدخل كما جاء من العميل: معرّف الموافقة اختياري. */
-type InputLine = { discount_proposal_id?: string };
+type InputLine = { discount_proposal_id?: string | undefined };
 
 /** حقائق الاستهلاك التي يحتاجها قرار كل سطر. */
 export interface ApprovalDecisionFacts {
@@ -23,7 +23,7 @@ export interface ApprovalDecisionFacts {
  *
  * @param tx معاملة السطر نفسها
  * @param inputLines بنود الطلب كما أرسلها العميل
- * @returns الطلبات المقفلة namesake، وفارغة إن لم يسمّ الطلب أي طلب
+ * @returns الطلبات المقفلة، وفارغة إن لم يسمّ الطلب أي طلب
  */
 export async function lockApprovalProposals(
   tx: SessionTransaction,
@@ -40,7 +40,7 @@ export async function lockApprovalProposals(
  *
  * @param tx معاملة السطر نفسها
  * @param facts البنود المحضّرة وحدّ المسجّلة وشروط الطلب ومن يستهلك
- * @param locked الطلبات المقفلة namesake
+ * @param locked الطلبات المقفلة
  * @param at اللحظة المحقونة بعد الأقفال
  * @returns قرار لكل سطر يطلب موافقة، وفارغة إن لم يطلب أي سطر واحدة
  */
