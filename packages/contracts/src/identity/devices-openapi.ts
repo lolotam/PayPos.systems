@@ -47,7 +47,7 @@ export const pendingDevicesPaths = {
           in: 'query',
           name: 'cursor',
           required: false,
-          schema: { type: 'string', maxLength: 512 },
+          schema: { type: 'string', minLength: 1, maxLength: 512, pattern: '^[A-Za-z0-9_-]+$' },
         },
         {
           in: 'query',
