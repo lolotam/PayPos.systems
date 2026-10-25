@@ -125,8 +125,8 @@ the staff OTP sign-in (PP-58.1), and the employee's own PIN change, except the s
 3. **071-3** The staff PIN action and the PIN eligibility read. It depends on 071-4, which merges first or with it. If DV-Q5 picks branch managers, it also adds the
    branch-scoped reset of FR-006.
 4. **071-4** The employee-side PIN safeguard: the one-time PIN of Waleed's DV-Q8 pick, with DV-Q9's protection (a short validity, an owner notice on every PIN change, the setter named in the audit), and its exact values from the design advice in issue #682. Its sub-spec states the PIN
-   states and transitions, including which of them FR-006's clearing applies to: a PIN someone else set, never a PIN
-   the employee chose behind her own proof. 071-3 never ships to staff without it.
+   states and transitions, and the rules of the ADR-0019 addendum 2026-10-25 (c). FR-006's clearing applies to the one-time PIN and to
+   any permanent PIN chosen by redeeming it, since its setter may have chosen it. 071-3 never ships to staff without it.
 
 ## Acceptance and tests (each sub-PR's own spec states its exact routes, schemas, guards and errors)
 
