@@ -160,7 +160,8 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `orders` | `StaffColumnsPort` | `settings` | the business's allowed staff-app columns and `staff_months_back`, read in the «شغلي» transaction so a hidden column never leaves the server (ADR-0010 addendum 2026-10-21, spec 060 D-A3, 57c-1) |
 | worker `orders` | `AlertRulesPort` | worker `settings` | the effective alert rule (branch override, otherwise the business rule, master switch applied) for the late, edit, cancel and performers bells; its roles feed `branchManagerRecipients` (ADR-0010 addendum 2026-10-21, spec 060 D-B14, 62-3) |
 | worker `staff` | `AlertRulesPort` | worker `settings` | the effective alert rule for the not-clocked-in, break-not-returned and break-returned-at-another-branch alerts, read on the detector's locked employee transaction; its delay, roles and on/off drive the decision and the `suppressed_at` ledger row, and the kind's fixed employee push recipient is sent as its own PUSH request event when the linked user's personal access is current (28b-5) (ADR-0010 addendum 2026-10-21, spec 060 D-B14/D-B15, 62-2); also the `SHIFT_ENDS_SOON` rule for the shift-ending reminder, whose lead (not a delay), on/off and fixed employee push recipient drive that detector's decision and ledger row (ADR-0053 decisions 2 and 8, 064-3); also the `ATTENDANCE_EXCEPTION` and `DOCUMENT_EXPIRING` rules for the missed-out and document-expiry jobs (62-2d) |
-| worker `customers` | `BranchScheduleHoursPort` | worker `tenancy` | the branch's opening hours and effective timezone through `branchScheduleHours` on the caller's transaction, for the rating request day and closing time; adapter bound at the customers composition root, not an injected callback (ADR-0010 addendum 2026-10-21, spec 060 D-B3, 59-1, postponed by RT-Q1) |
+| worker `customers` | `BranchScheduleHoursPort` | worker `tenancy` | the branch's opening hours and effective timezone through `branchScheduleHours` on the caller's transaction, for the rating request day and closing time; adapter bound at the customers composition root, not an injected callback (ADR-0010 addendum 2026-10-21, spec 060 D-B3, 59-1) |
+| worker `customers` | `DaySessionsPort` | worker `orders` | bound by an injected callback at the worker composition root; customers does not import orders (ADR-0041, spec 060 D-B2, FR-B06, 59-1) |
 
 ### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
 
@@ -339,6 +340,7 @@ reads:
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/branch-place.adapter.ts
+  - customers -> tenancy.branchScheduleHours @ apps/worker/src/modules/customers/persistence/branch-schedule-hours.adapter.ts
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/price-edit-place.adapter.ts
