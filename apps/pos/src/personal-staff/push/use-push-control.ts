@@ -28,11 +28,18 @@ const INVITATION_KEY = 'pospay.push.invitationSeen';
 
 interface LocalSnapshot {
   record: PushRecord | null;
+  /** قراءة السجل فشلت: السجل مش معروف، فمفيش حاجة نعدّلها. */
+  recordReadFailed: boolean;
   permission: PushPermission;
   subscribed: boolean;
 }
 
-const EMPTY_SNAPSHOT: LocalSnapshot = { record: null, permission: 'default', subscribed: false };
+const EMPTY_SNAPSHOT: LocalSnapshot = {
+  record: null,
+  recordReadFailed: false,
+  permission: 'default',
+  subscribed: false,
+};
 
 interface PushLocalState {
   snapshot: LocalSnapshot;
@@ -79,12 +86,20 @@ function usePushLocalState(): PushLocalState {
   const [seen, setSeen] = useState(true);
 
   const reload = useCallback(async () => {
-    const record = await pushRecordStore.read().catch(() => null);
+    let record: PushRecord | null;
+    let recordReadFailed = false;
+    try {
+      record = await pushRecordStore.read();
+    } catch {
+      // القراءة فشلت: السجل مش معروف، فبنعتبره مش موجود بس من غير ما نمدّ إيدنا.
+      recordReadFailed = true;
+      record = null;
+    }
     const permission = notificationPermission();
     const subscribed = supportsPush()
       ? (await currentSubscription().catch(() => null)) !== null
       : false;
-    setSnapshot({ record, permission, subscribed });
+    setSnapshot({ record, recordReadFailed, permission, subscribed });
     setLoaded(true);
   }, []);
 
@@ -197,13 +212,24 @@ function usePushActions(input: {
   companyId: string;
   locale: Locale;
   installationId: string | null;
+  record: PushRecord | null;
+  recordReadFailed: boolean;
   reload: () => Promise<void>;
   markSeen: () => void;
   onEnabled: (token: string) => void;
 }) {
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
-  const { companyId, locale, installationId, reload, markSeen, onEnabled } = input;
+  const {
+    companyId,
+    locale,
+    installationId,
+    record,
+    recordReadFailed,
+    reload,
+    markSeen,
+    onEnabled,
+  } = input;
 
   const enable = useCallback(async () => {
     if (pending || installationId === null) return;
@@ -228,17 +254,23 @@ function usePushActions(input: {
 
   const disable = useCallback(async () => {
     if (pending) return;
+    // القراءة اللي على الشاشة فشلت: السجل مش معروف، فمفيش حاجة نمسحها.
+    if (recordReadFailed) return;
     setPending(true);
     setFailed(false);
     try {
-      await disablePush(installationId);
+      // الإيقاف بيمشي على لقطة السجل المعروضة: لو تبويب تاني غيّره، ما نعملش حاجة.
+      await disablePush(installationId, {
+        token: record?.token ?? null,
+        revision: record?.revision ?? 0,
+      });
     } catch {
       // الإيقاف بيمسح السجل في كل الأحوال؛ فشل الشبكة بيسيب الحالة مقفولة.
     } finally {
       setPending(false);
       await reload();
     }
-  }, [installationId, pending, reload]);
+  }, [installationId, pending, record, recordReadFailed, reload]);
 
   return { pending, failed, enable, disable };
 }
@@ -259,6 +291,8 @@ export function usePushControl({ companyId }: { companyId: string }) {
     companyId,
     locale,
     installationId: local.installationId,
+    record: local.snapshot.record,
+    recordReadFailed: local.snapshot.recordReadFailed,
     reload: local.reload,
     markSeen: local.markSeen,
     onEnabled: (token: string) => {
@@ -280,6 +314,7 @@ export function usePushControl({ companyId }: { companyId: string }) {
     browserSubscribed: local.snapshot.subscribed,
     reconnecting: local.snapshot.record?.suspended === true,
     canEnable: canEnablePush(),
+    recordReadFailed: local.snapshot.recordReadFailed,
   });
   return {
     visible: decision.visible && local.loaded && config.settled,

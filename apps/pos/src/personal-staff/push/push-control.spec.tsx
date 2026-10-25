@@ -70,6 +70,19 @@ vi.mock('./push-record-idb', () => ({
       fakes.state.removed += 1;
       fakes.state.record = null;
     },
+    removeIfMatches: async (expected: { token: string | null; revision: number }) => {
+      const stored = fakes.state.record;
+      if (
+        stored === null ||
+        stored.token !== expected.token ||
+        stored.revision !== expected.revision
+      ) {
+        return false;
+      }
+      fakes.state.removed += 1;
+      fakes.state.record = null;
+      return true;
+    },
     generation: async () => fakes.state.generation,
     bumpGeneration: async () => {
       fakes.state.generation += 1;

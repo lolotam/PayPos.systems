@@ -85,7 +85,9 @@ vi.mock('./push-browser', async (importOriginal) => ({
 function stubBrowser(withLocks: boolean): void {
   vi.stubGlobal('navigator', {
     serviceWorker: {},
-    ...(withLocks ? { locks: { request: async () => undefined } } : {}),
+    ...(withLocks
+      ? { locks: { request: async (_name: string, work: () => Promise<unknown>) => work() } }
+      : {}),
   });
   vi.stubGlobal('PushManager', function PushManager() {});
   vi.stubGlobal('Notification', function Notification() {});

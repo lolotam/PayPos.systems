@@ -18,6 +18,8 @@ export interface PushStateInput {
   reconnecting: boolean;
   /** هل المتصفح يقدر يشغّل الإشعارات: محتاج قفل حقيقي بين التبويبات. */
   canEnable: boolean;
+  /** قراءة السجل فشلت: السجل مش معروف، فمفيش حاجة نعدّلها. */
+  recordReadFailed: boolean;
 }
 
 /** الحالة اللي بتتعرض، والمؤشرات اللي بتعدّلها. */
@@ -38,7 +40,8 @@ export interface PushStateDecision {
  * "مفعّل" يعني إن في سجل لنفس الشركة والسجل مش معلّق والسماح مُتاح والاشتراك موجود في المتصفح.
  * الحالة دي بتقول الحقيقة دايماً؛ الإلغاء (canDisable) قرار لوحده عشان يفضل متاح على
  * الموبايل المشترك مهما كان القفل ولا الإذن. ومتصفح من غير قفل بين التبويبات ما يقدرش
- * يشغّل الإشعارات (ADR-0052 §7).
+ * يشغّل الإشعارات (ADR-0052 §7). وقراءة السجل الفاشلة معناها إن السجل مش معروف، فمفيش
+ * حاجة تتقفل.
  *
  * @param input كل الوقائع المعروفة عن الجهاز والسجل
  * @returns الحالة المعروضة والمؤشرات
@@ -55,12 +58,13 @@ export function decidePushState(input: PushStateInput): PushStateDecision {
     reconnecting: input.reconnecting && ownSuspended,
   };
   // الإلغاء قرار لوحده: الموبايل المشترك لازم يقدر يوقّف الإشعارات دايماً، من غير ما
-  // القفل ولا الإذن يمنع.
+  // القفل ولا الإذن يمنع. بس قراءة فاشلة معناها إننا مش عارفين السجل، فمفيش حاجة
+  // من الشركة دي تتقفل.
   const usable = !input.notReady && !input.storageBlocked && !input.installFirst && input.supported;
   const holdsOwn =
     (input.record !== null && input.record.company_id === input.companyId) ||
-    (input.record === null && input.browserSubscribed);
-  const canDisable = usable && holdsOwn;
+    (!input.recordReadFailed && input.record === null && input.browserSubscribed);
+  const canDisable = usable && !input.recordReadFailed && holdsOwn;
   const common = { ...modifiers, canEnable: input.canEnable };
   if (input.notReady) {
     return { state: 'off', visible: false, ...common, canDisable: false };

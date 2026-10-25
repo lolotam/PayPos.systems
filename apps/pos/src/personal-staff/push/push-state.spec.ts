@@ -29,6 +29,7 @@ function input(over: Partial<PushStateInput> = {}): PushStateInput {
     browserSubscribed: over.browserSubscribed ?? false,
     reconnecting: over.reconnecting ?? false,
     canEnable: over.canEnable ?? true,
+    recordReadFailed: over.recordReadFailed ?? false,
   };
 }
 
@@ -136,7 +137,9 @@ describe('a browser without the cross tab lock', () => {
     expect(decision.state).toBe('blocked');
     expect(decision.canDisable).toBe(true);
   });
+});
 
+describe('a browser without the cross tab lock and foreign or unknown records', () => {
   it('cannot turn off a subscription of another company', () => {
     const decision = decidePushState(
       input({
@@ -155,6 +158,23 @@ describe('a browser without the cross tab lock', () => {
 
     expect(decision.state).toBe('off');
     expect(decision.canDisable).toBe(false);
+  });
+
+  it('never turns off anything when the record could not be read', () => {
+    const decision = decidePushState(
+      input({ recordReadFailed: true, browserSubscribed: true, permission: 'granted' }),
+    );
+
+    expect(decision.canDisable).toBe(false);
+    expect(decision.state).not.toBe('on');
+  });
+
+  it('turns off a real subscription of this company when the record is really empty', () => {
+    const decision = decidePushState(
+      input({ canEnable: false, browserSubscribed: true, permission: 'granted' }),
+    );
+
+    expect(decision.canDisable).toBe(true);
   });
 });
 

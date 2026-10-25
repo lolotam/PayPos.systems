@@ -14,15 +14,28 @@ const GENERATION_TIMEOUT_MS = 2000;
  * بتوقّف إشعارات الموبايل: بتمسح السجل المحلي، وبترفع اشتراك المتصفح، وبتراجع السطر عند الـ API.
  * السجل اللي بدأ بيه الإيقاف بيتمسح حتى لو الشبكة فشلت؛ أما سجل أحدث لموظفة تانية فبيفضل
  * بتوكنه واشتراكه وسطره على السيرفر (ADR-0052 §7).
+ * الضغطة تحمل لقطة السجل اللي المعروض: لو السجل اتغيّر قبل ما القفل يتاخد، ما نعملش
+ * حاجة خالص — ولا مسح ولا اشتراك ولا مراجعة.
  *
  * @param installationId معرف التثبيت، أو null لو التخزين متعطل فمفيش حاجة تتراجع
- * @param expected السجل اللي كان موجود وقت البداية، عشان ما نراجعش سطر موظفة تانية
+ * @param expected لقطة السجل المعروض وقت الضغطة: لو السجل اتغيّر، ما نعملش حاجة خالص
  */
 export async function disablePush(
   installationId: string | null,
   expected: { token: string | null; revision: number } | null = null,
 ): Promise<void> {
   await runPushExclusive(async () => {
+    if (expected !== null) {
+      const current = await pushRecordStore.read().catch(() => null);
+      const changed =
+        current !== null &&
+        (current.token !== expected.token || current.revision !== expected.revision);
+      if (changed) {
+        // السجل بقى بتاع حد تاني: الضغطة كانت على لقطة قديمة، فمفيش مسح ولا تراجع.
+        notifyPushRecordChanged();
+        return;
+      }
+    }
     // إيقاف الإشعارات بيكسر الجيل: أي تسجيل شغال في تبويب تاني بيمسك نفسه (ADR-0052 §7).
     await withTimeout(pushRecordStore.bumpGeneration(), GENERATION_TIMEOUT_MS).catch(
       () => undefined,
