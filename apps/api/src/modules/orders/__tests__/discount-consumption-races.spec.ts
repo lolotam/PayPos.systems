@@ -55,8 +55,8 @@ it('DP-21 two concurrent creates with one approval leave one line, one consumpti
 });
 
 it('a limit change that commits while the approval lock waits is judged on the new limit', async () => {
-  // The personal limit is cleared so the business default decides, and the default is raised so the line starts
-  // inside the limit; the blocking transaction lowers it again while the writer waits on the approval lock.
+  // يُمسح الحد الشخصي فيحسم الحد الافتراضي للنشاط، ويُرفع ليبدأ السطر داخل الحد؛ ثم تعيد المعاملة الحاجزة
+  // خفضه بينما الكاتب ينتظر قفل الموافقة.
   await f.h.owner`UPDATE memberships SET limit_bps=NULL WHERE company_id=${f.company} AND id=${f.membership}`;
   await f.h.owner`INSERT INTO business_settings (company_id, business_id, limit_bps)
     VALUES(${f.company},${f.business},1000) ON CONFLICT (company_id, business_id) DO UPDATE SET limit_bps=1000`;
