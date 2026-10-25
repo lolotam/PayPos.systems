@@ -14,10 +14,11 @@ export interface SessionIdentity {
 }
 
 /**
- * نتيجة فحص الجلسة: تطابق، أو اختلاف مؤكد، أو قراءة ما اتأكدتش.
- * المجهول مش اختلاف ولا تطابق: فشل الشبكة ما بيعملش تعليق ولا مسح ولا يسمح بـ PUT.
+ * نتيجة فحص الجلسة: تطابق، أو شخص تاني (اختلاف مؤكد)، أو نفس الشخص في شركة تانية،
+ * أو قراءة ما اتأكدتش. نفس الشخص في شركة تانية مش اختلاف بيعلّق السجل (FR-018، WP-Q4):
+ * مفيش تعليق ولا مسح ولا PUT. والمجهول كمان: فشل الشبكة ما بيعملش تعليق ولا مسح ولا PUT.
  */
-export type SessionCheck = 'match' | 'mismatch' | 'unknown';
+export type SessionCheck = 'match' | 'mismatch' | 'other-company' | 'unknown';
 
 /**
  * بيقرأ إعدادات الإشعارات بجلسة الطلب الحالية، لأن السيرفر بيربط تسجيل PUT بشخص الجلسة
@@ -46,17 +47,19 @@ export function identityOf(config: PushConfig): SessionIdentity {
 }
 
 /**
- * بيقارن شخص الجلسة الحالية وشركتها بالهوية المتوقعة قبل التسجيل. القراءة المجهولة مش
- * مطابقة ومش اختلاف مؤكد، عشان فشل الشبكة ما يعملش تعليق أو مسح ولا يسمح بـ PUT.
+ * بيقارن شخص الجلسة الحالية وشركتها بالهوية المتوقعة قبل التسجيل. الشخص بيتقارن الأول،
+ * عشان النتيجة ماتعتمدش على توقيت الكاش. القراءة المجهولة مش مطابقة ومش اختلاف مؤكد،
+ * عشان فشل الشبكة ما يعملش تعليق أو مسح ولا يسمح بـ PUT.
  *
  * @param expected مرجع الشخص والشركة المطلوب تأكيدهم
- * @returns match للتطابق الكامل، mismatch لاختلاف مؤكد، unknown لما القراءة ما تكتملش
+ * @returns match للتطابق الكامل، mismatch لشخص تاني، other-company لنفس الشخص في شركة
+ * تانية، unknown لما القراءة ما تكتملش
  */
 export async function checkSession(expected: SessionIdentity): Promise<SessionCheck> {
   const config = await fetchSessionConfig();
   if (config === null) return 'unknown';
   const current = identityOf(config);
   if (current.subscriber_ref !== expected.subscriber_ref) return 'mismatch';
-  if (current.company_id !== expected.company_id) return 'mismatch';
+  if (current.company_id !== expected.company_id) return 'other-company';
   return 'match';
 }

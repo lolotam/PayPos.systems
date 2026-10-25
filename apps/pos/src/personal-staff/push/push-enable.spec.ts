@@ -198,6 +198,7 @@ it('suspends the old record and drops the new subscription when the session chan
   fakes.record = { ...RECORD };
   vi.mocked(pushCalls.config)
     .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
     .mockResolvedValueOnce({
       kind: 'ready',
       config: { ...CONFIG, subscriber_ref: 'another-ref' },
@@ -218,7 +219,7 @@ it('registers after the current session confirms the same person', async () => {
   const outcome = await enablePush(input);
 
   expect(outcome.kind).toBe('enabled');
-  expect(pushCalls.config).toHaveBeenCalledTimes(2);
+  expect(pushCalls.config).toHaveBeenCalledTimes(3);
   expect(pushCalls.register).toHaveBeenCalledTimes(1);
   expect(pushCalls.revoke).not.toHaveBeenCalled();
 });

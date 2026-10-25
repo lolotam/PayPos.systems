@@ -17,8 +17,8 @@ const CONFIG_A = {
   subscriber_ref: 'person-a',
   company_id: 'company',
 };
-// نفس الموظفة في شركة تانية: مرجع المشترك واحد، بس هوية الجلسة اتغيرت.
-const CONFIG_B = { ...CONFIG_A, company_id: 'company-b' };
+// موظفة تانية دخلت الجلسة: مرجع المشترك اختلف.
+const CONFIG_B = { ...CONFIG_A, subscriber_ref: 'person-b' };
 const RECORD_A: PushRecord = {
   token: DELIVERY,
   subscriber_ref: 'person-a',
@@ -137,13 +137,13 @@ beforeEach(() => {
   vi.mocked(pushCalls.revoke).mockResolvedValue(undefined);
 });
 
-it('shows the suspended state after the session changed', async () => {
+it('turns the control off once another person is confirmed in the session', async () => {
   const view = mount();
 
-  expect(await screen.findByText(t('en', 'staffPush.reconnecting'))).toBeDefined();
-  expect(screen.getByText(t('en', 'staffPush.off'))).toBeDefined();
+  // السجل بيتعلّق أول ما الاختلاف يتأكد، وبعد ما الشاشة تقرا الجلسة الجديدة بيتمسح.
+  await waitFor(() => expect(fakes.record).toBeNull());
+  expect(await screen.findByText(t('en', 'staffPush.off'))).toBeDefined();
   expect(screen.queryByText(t('en', 'staffPush.on'))).toBeNull();
-  expect(fakes.record?.revision).toBe(RECORD_A.revision + 1);
   expect(screen.getByRole('button', { name: t('en', 'staffPush.enable') })).toBeDefined();
   expect(pushCalls.register).not.toHaveBeenCalled();
   // الإعدادات اتطلبت من الشاشة مرة واحدة بس زيادة، والتحديث ما اشتغلش في حلقة.

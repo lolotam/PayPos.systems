@@ -160,12 +160,18 @@ it('serializes two enables with the cross tab lock', async () => {
 });
 
 it('lets the second person of the same company take the record', async () => {
-  // أول إجابتين للتبويب الأول، والتالتة والرابعة للتاني مع تأكيد الجلسة قبل كل PUT.
+  // تلات إجابات لكل تبويب: الإعدادات، وتأكيد قبل تبديل الاشتراك، وتأكيد قبل الـ PUT.
+  const asPerson = (ref: string) => ({
+    kind: 'ready' as const,
+    config: { ...CONFIG, subscriber_ref: ref },
+  });
   vi.mocked(pushCalls.config)
-    .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: PERSON_A } })
-    .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: PERSON_A } })
-    .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: PERSON_B } })
-    .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: PERSON_B } });
+    .mockResolvedValueOnce(asPerson(PERSON_A))
+    .mockResolvedValueOnce(asPerson(PERSON_A))
+    .mockResolvedValueOnce(asPerson(PERSON_A))
+    .mockResolvedValueOnce(asPerson(PERSON_B))
+    .mockResolvedValueOnce(asPerson(PERSON_B))
+    .mockResolvedValueOnce(asPerson(PERSON_B));
   let personAToken = '';
   let personBToken = '';
   const personAHold = createHold(model);

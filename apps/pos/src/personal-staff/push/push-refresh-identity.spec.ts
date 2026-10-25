@@ -124,20 +124,31 @@ const input = (config: PushConfig = CONFIG_A) => ({
   installationId: INSTALLATION,
 });
 
-it('suspends the record of the old company when the person signed in to another one', async () => {
+it('changes nothing when the same person signed in to another company', async () => {
   vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: CONFIG_B });
 
   const outcome = await refreshPush(input());
 
-  expect(outcome).toEqual({ kind: 'session-changed' });
+  expect(outcome).toEqual({ kind: 'none' });
   expect(pushCalls.register).not.toHaveBeenCalled();
-  expect(fakes.record?.suspended).toBe(true);
-  expect(fakes.record?.revision).toBe(RECORD.revision + 1);
-  expect(fakes.record?.company_id).toBe(COMPANY_A);
-  expect(notifyPushRecordChanged).toHaveBeenCalled();
+  expect(fakes.record).toEqual(RECORD);
+  expect(notifyPushRecordChanged).not.toHaveBeenCalled();
   expect(fakes.unsubscribed).toBe(0);
   expect(fakes.removed).toBe(0);
   expect(pushCalls.revoke).not.toHaveBeenCalled();
+});
+
+it('suspends first when another person signed in to another company', async () => {
+  vi.mocked(pushCalls.config).mockResolvedValue({
+    kind: 'ready',
+    config: { ...CONFIG_B, subscriber_ref: OTHER_PERSON.subscriber_ref },
+  });
+
+  const outcome = await refreshPush(input());
+
+  expect(outcome).toEqual({ kind: 'session-changed' });
+  expect(fakes.record?.suspended).toBe(true);
+  expect(pushCalls.register).not.toHaveBeenCalled();
 });
 
 it('suspends the record at once when the session belongs to another person', async () => {

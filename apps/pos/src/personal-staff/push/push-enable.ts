@@ -142,6 +142,8 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
       // الإعدادات بتاعة شركة تانية: التسجيل لازم يتم للشركة اللي الشاشة بتقولها، وإلا
       // السطر على السيرفر بيروح في شركة تانية غير اللي الموظفة فتحت شاشة الموظف فيها.
       if (config.config.company_id !== input.companyId) return { kind: 'failed' };
+      // التأكيد قبل أي تغيير في المتصفح: النتيجة المجهولة بتسيب كل حاجة زي ما هي.
+      if (!(await confirmBeforeSubscribe(config.config))) return { kind: 'failed' };
       const subscription = await subscribeWithConfig(config.config, previous);
       if (subscription === null) return { kind: 'failed' };
       const token = crypto.randomUUID();
@@ -177,10 +179,23 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
 }
 
 /**
- * التأكيد قبل PUT: السيرفر بيربط التسجيل بشخص الجلسة وشركتها، فالقراءة المجهولة بتوقف
- * من غير ما تبعث حاجة ومش بتمسح الاشتراك الجديد، والاختلاف المؤكد بيعلّق السجل القديم
- * الأول (طول ما الإلغاء معلّق نص صاحبه يقدر يظهر) وبيشيل اشتراك هذا التبويب بس، وهو
- * لسه ما اتسجلش في السيرفر.
+ * التأكيد قبل ما المتصفح يبدّل الاشتراك: شخص تاني بيعلّق السجل القديم، وأي نتيجة تانية
+ * (قراءة ما اتأكدتش أو شركة تانية) بتوقف من غير ما تلمس الاشتراك أو السجل.
+ *
+ * @param config إعدادات الجلسة اللي هيتسجل بيها الاشتراك
+ * @returns true لما الجلسة لسه نفس الشخص ونفس الشركة
+ */
+async function confirmBeforeSubscribe(config: PushConfig): Promise<boolean> {
+  const session = await checkSession(identityOf(config));
+  if (session === 'mismatch') await suspendChangedSession();
+  return session === 'match';
+}
+
+/**
+ * التأكيد قبل PUT: السيرفر بيربط التسجيل بشخص الجلسة وشركتها، فأي نتيجة مش مطابقة
+ * بتوقف من غير PUT وبتشيل اشتراك هذا التبويب بس، وهو لسه ما اتسجلش في السيرفر. شخص
+ * تاني بيعلّق السجل القديم الأول (طول ما الإلغاء معلّق نص صاحبه يقدر يظهر)؛ القراءة
+ * المجهولة والشركة التانية ما بيعلّقوش حاجة.
  */
 async function confirmAndRegister(
   input: PushEnableInput,
@@ -189,9 +204,8 @@ async function confirmAndRegister(
   token: string,
 ): Promise<boolean> {
   const session = await checkSession(identityOf(config));
-  if (session === 'unknown') return false;
-  if (session === 'mismatch') {
-    await suspendChangedSession();
+  if (session !== 'match') {
+    if (session === 'mismatch') await suspendChangedSession();
     await unsubscribePush().catch(() => undefined);
     return false;
   }

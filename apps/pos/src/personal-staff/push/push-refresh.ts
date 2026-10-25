@@ -40,7 +40,8 @@ export interface PushRefreshInput {
 /**
  * بتحدّث الاشتراك وقت فتح التطبيق وبتصلّح تدوير مفتاح VAPID.
  * بتشتغل بس في جلسة الشركة اللي السجل بيقول عليها؛ في أي شركة تانية مفيش أي طلب (FR-019).
- * قبل أي تسجيل بتتأكد إن الجلسة لسه لنفس الشخص ونفس الشركة (ADR-0052 §7).
+ * قبل أي تسجيل بتتأكد إن الجلسة لسه لنفس الشخص ونفس الشركة (ADR-0052 §7): شخص تاني
+ * بيعلّق السجل، ونفس الشخص في شركة تانية مفيش معاه أي تغيير (FR-018).
  *
  * @param input الشركة واللغة ومفتاح VAPID الحالي ومعرف التثبيت
  * @returns نتيجة التحديث
@@ -58,8 +59,9 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
     if (fresh === null) return { kind: 'none' };
     // اختلاف مؤكد: السجل بيتعلّق في نفس الخطوة عشان نص الموظفة القديمة ما يوصلش
     // للجلسة الجديدة (ADR-0052 §7).
-    if (!sameSession(fresh, input.config)) return suspendChangedSession();
-    // سجل شركة تانية مش سجلنا: مش ليه دعوة نلمسه (FR-019).
+    if (fresh.subscriber_ref !== input.config.subscriber_ref) return suspendChangedSession();
+    // نفس الشخص في شركة تانية: مفيش تغيير (FR-018، FR-019، WP-Q4). الفحص ده بعد فحص الشخص
+    // عشان النتيجة ماتعتمدش على توقيت الكاش.
     if (record.company_id !== fresh.company_id) return { kind: 'none' };
     return refreshWithConfig({ ...input, config: fresh }, record, generation);
   });
@@ -83,22 +85,6 @@ async function readOwnRecord(input: PushRefreshInput): Promise<PushRecord | null
   if (record === null) return null;
   if (record.company_id !== input.companyId) return null;
   return record;
-}
-
-/**
- * هوية الجلسة الجديدة لازم تكون نفس هوية اللي نادى التحديث: الشخص والشركة مع بعض،
- * لأن مرجع الشخص لوحده واحد في كل الشركات (ADR-0052 §4).
- *
- * @param fresh إعدادات الجلسة اللي رجعت من الـ API
- * @param caller إعدادات الجلسة اللي بدأ بيها التحديث
- * @returns true لما الشخص والشركة يطابقوا
- */
-function sameSession(fresh: PushConfig, caller: PushConfig): boolean {
-  const current = identityOf(fresh);
-  const expected = identityOf(caller);
-  return (
-    current.subscriber_ref === expected.subscriber_ref && current.company_id === expected.company_id
-  );
 }
 
 async function refreshWithConfig(
@@ -143,8 +129,8 @@ async function refreshPlain(
   subscription: PushSubscriptionLike,
 ): Promise<PushRefreshOutcome> {
   const session = await checkSession(identityOf(input.config));
-  if (session === 'unknown') return { kind: 'none' };
   if (session === 'mismatch') return suspendChangedSession();
+  if (session !== 'match') return { kind: 'none' };
   await withAbortTimeout(
     (signal) =>
       pushCalls.register(
@@ -188,14 +174,18 @@ async function rotate(
   }
   const token = crypto.randomUUID();
   const session = await checkSession(identityOf(input.config));
-  // القراءة المجروفة: الاشتراك الجديد يفضل في المتصفح والتحديث الجاي يدور تاني.
-  if (session === 'unknown') return { kind: 'none' };
   if (session === 'mismatch') {
     // التعليق قبل الإلغاء: طول ما الإلغاء معلّق، السجل القديم بيفضل مفتوح ونص صاحبه
     // يقدر يظهر (ADR-0052 §7).
     const aborted = await suspendChangedSession();
     await dropSubscription();
     return aborted;
+  }
+  if (session !== 'match') {
+    // القراءة المجروفة أو شركة تانية: بنشيل الاشتراك اللي اتعمل دلوقتي بس ومفيش PUT،
+    // والتحديث الجاي يدور تاني.
+    await dropSubscription();
+    return { kind: 'none' };
   }
   try {
     await registerRotated(input, subscription, installationId, token);

@@ -163,7 +163,7 @@ it('changes nothing when the check before the rotation cannot confirm the sessio
   expect(pushCalls.revoke).not.toHaveBeenCalled();
 });
 
-it('keeps the new rotation subscription when the check before the PUT cannot confirm', async () => {
+it('drops only its own new rotation subscription when the check before the PUT cannot confirm', async () => {
   vi.mocked(pushCalls.config)
     .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
     .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
@@ -172,9 +172,9 @@ it('keeps the new rotation subscription when the check before the PUT cannot con
   const outcome = await refreshPush(input());
 
   expect(outcome).toEqual({ kind: 'none' });
-  // التبديل بس: الاشتراك الجديد يفضل في المتصفح والتحديث الجاي يدور تاني.
-  expect(fakes.unsubscribed).toBe(1);
-  expect(fakes.subscribed).toBe(true);
+  // واحد لتبديل القديم وواحد للاشتراك الجديد بس: السجل ما اتلمسش والتحديث الجاي يدور تاني.
+  expect(fakes.unsubscribed).toBe(2);
+  expect(fakes.subscribed).toBe(false);
   expect(fakes.writes).toEqual([]);
   expect(pushCalls.register).not.toHaveBeenCalled();
   expect(pushCalls.revoke).not.toHaveBeenCalled();

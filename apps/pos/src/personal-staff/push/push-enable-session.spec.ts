@@ -123,7 +123,8 @@ it('refuses to enable for a company the settings do not name', async () => {
   expect(fakes.record).toBeNull();
 });
 
-it('keeps the new subscription when the session cannot be confirmed', async () => {
+it('touches nothing when the session cannot be confirmed before the subscription is replaced', async () => {
+  fakes.record = { ...RECORD };
   vi.mocked(pushCalls.config)
     .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
     .mockResolvedValueOnce({ kind: 'not-ready' });
@@ -131,16 +132,48 @@ it('keeps the new subscription when the session cannot be confirmed', async () =
   const outcome = await enablePush(input);
 
   expect(outcome).toEqual({ kind: 'failed' });
-  expect(fakes.subscribes).toBe(1);
+  expect(fakes.subscribes).toBe(0);
   expect(unsubscribePush).not.toHaveBeenCalled();
+  expect(pushCalls.register).not.toHaveBeenCalled();
+  expect(fakes.record).toEqual(RECORD);
+});
+
+it('drops only its own new subscription when the check before the PUT cannot confirm', async () => {
+  vi.mocked(pushCalls.config)
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'not-ready' });
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'failed' });
+  expect(fakes.subscribes).toBe(1);
+  expect(unsubscribePush).toHaveBeenCalledTimes(1);
   expect(pushCalls.register).not.toHaveBeenCalled();
   expect(pushCalls.revoke).not.toHaveBeenCalled();
   expect(fakes.record).toBeNull();
 });
 
+it('suspends the old record before touching the subscription when another person signed in', async () => {
+  fakes.record = { ...RECORD };
+  vi.mocked(pushCalls.config)
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
+    .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: 'person-s' } });
+
+  const outcome = await enablePush(input);
+
+  expect(outcome).toEqual({ kind: 'failed' });
+  expect(fakes.subscribes).toBe(0);
+  expect(unsubscribePush).not.toHaveBeenCalled();
+  expect(pushCalls.register).not.toHaveBeenCalled();
+  expect(fakes.record?.suspended).toBe(true);
+  expect(fakes.record?.revision).toBe(RECORD.revision + 1);
+});
+
 it('suspends the old record and drops the new subscription when the session changed', async () => {
   fakes.record = { ...RECORD };
   vi.mocked(pushCalls.config)
+    .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
     .mockResolvedValueOnce({ kind: 'ready', config: CONFIG })
     .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: 'person-s' } });
 
