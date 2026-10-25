@@ -50,11 +50,31 @@ describe('rating submission contract', () => {
 
   it.each([
     ['U+0000', String.fromCharCode(0)],
-    ['a newline', String.fromCharCode(10)],
-    ['a tab', String.fromCharCode(9)],
+    ['U+0001', String.fromCharCode(1)],
+    ['U+0008', String.fromCharCode(8)],
+    ['U+000B', String.fromCharCode(11)],
+    ['U+000C', String.fromCharCode(12)],
     ['U+007F', String.fromCharCode(127)],
+    ['U+0085', String.fromCharCode(133)],
   ])('refuses a comment carrying %s', (_label, character) => {
     expect(ratingComment.safeParse(`comment${character}`).success).toBe(false);
+  });
+
+  it('accepts a multi-line comment, a CRLF and a tab', () => {
+    const lineFeed = String.fromCharCode(10);
+    const carriageReturn = String.fromCharCode(13);
+    const tab = String.fromCharCode(9);
+    expect(ratingComment.safeParse(`first line${lineFeed}second line`).success).toBe(true);
+    expect(
+      ratingComment.safeParse(`first line${carriageReturn}${lineFeed}second line`).success,
+    ).toBe(true);
+    expect(ratingComment.safeParse(`first line${tab}second line`).success).toBe(true);
+  });
+
+  it('accepts a 1000-code-point comment of newlines and refuses 1001', () => {
+    const newline = String.fromCharCode(10);
+    expect(ratingComment.safeParse(newline.repeat(1000)).success).toBe(true);
+    expect(ratingComment.safeParse(newline.repeat(1001)).success).toBe(false);
   });
 
   it('accepts an empty comment', () => {
@@ -66,12 +86,9 @@ describe('rating submission contract', () => {
     expect(submitRatingInput.parse({ stars: 2, comment: '' })).toEqual({ stars: 2, comment: '' });
   });
 
-  it.each([
-    { stars: 5, token: 'test-rating-token-a' },
-    { stars: 5, company_id: '01920000-0000-7000-8000-0000000000a0' },
-    { stars: 5, performer_ids: ['01920000-0000-7000-8000-0000000000a3'] },
-  ])('refuses a client-selected capability key: %j', (body) => {
-    expect(submitRatingInput.safeParse(body).success).toBe(false);
+  // الأسماء دي مفاتيح بيختارها العميل، والقيمة 1 fixture للاختبار ومش بيانات اعتماد.
+  it.each(['token', 'company_id', 'performer_ids'])('refuses the client-selected key %s', (key) => {
+    expect(submitRatingInput.safeParse({ stars: 5, [key]: 1 }).success).toBe(false);
   });
 });
 
@@ -89,6 +106,15 @@ describe('public rating view allowlist', () => {
       true,
     );
     expect(ratingView.safeParse({ business_name: 'a'.repeat(256), state: 'open' }).success).toBe(
+      false,
+    );
+  });
+
+  it('counts the business name in code points, not UTF-16 units', () => {
+    expect(ratingView.safeParse({ business_name: '😀'.repeat(255), state: 'open' }).success).toBe(
+      true,
+    );
+    expect(ratingView.safeParse({ business_name: '😀'.repeat(256), state: 'open' }).success).toBe(
       false,
     );
   });

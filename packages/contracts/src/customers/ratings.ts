@@ -16,10 +16,10 @@ export type RatingCancelReason = z.infer<typeof ratingCancelReason>;
 export const ratingStars = z.number().int().min(1).max(5);
 
 // العد بـ Unicode code points علشان العربي والحروف المركّبة والـ astral ما يتحسبوش بوحدات UTF-16.
-// كل الـ control characters مرفوضة: التعليق نص عادي من غير أسطر ولا tabs، وPostgres مش بيقبل NUL أصلاً.
+// نص عادي: سطر جديد وtabs مسموحين، وباقي الـ control characters مرفوضة (NUL وDEL ونطاق C1) لأن Postgres مش بيقبلها.
 export const ratingComment = z
   .string()
-  .regex(/^[^\p{Cc}]*(?![\s\S])/u)
+  .regex(/^(?:[^\p{Cc}]|[\t\n\r])*(?![\s\S])/u)
   .refine((value) => Array.from(value).length <= 1000, { message: 'At most 1000 characters' });
 
 export const submitRatingInput = z
@@ -30,8 +30,12 @@ export type SubmitRatingInput = z.infer<typeof submitRatingInput>;
 export const ratingViewState = z.enum(['open', 'submitted']);
 
 // الرد العام كله: أي حقل إضافي هنا يوسّع الإفصاح الممنوع في ADR-0011 §4.
+// الطول بالـ code points زي قيد قاعدة البيانات، مش بوحدات UTF-16.
 export const ratingView = responseObject({
-  business_name: z.string().min(1).max(255),
+  business_name: z
+    .string()
+    .min(1)
+    .refine((value) => Array.from(value).length <= 255, { message: 'At most 255 characters' }),
   state: ratingViewState,
 }).meta({ id: 'RatingView' });
 export type RatingView = z.infer<typeof ratingView>;
