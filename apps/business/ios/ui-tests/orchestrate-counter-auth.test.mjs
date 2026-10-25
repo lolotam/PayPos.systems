@@ -157,8 +157,12 @@ function makeHarness(options = {}) {
     if (parsed.pathname.endsWith('/devices')) {
       state.listCalls += 1;
       if (state.child !== null) state.pollCalls += 1;
-      const failures = state.child === null ? 0 : (options.pollFailures ?? 0);
-      if (state.pollCalls <= failures) throw new Error('the network is down');
+      // الفشل المتعمد بيخص جولات الاستطلاع بس: طلب الـ pending devices قبل الاقتران
+      // (تنظيف بقايا تشغيلات مقتولة) السيرفر بيجاوب عليه عادي.
+      const failures = options.pollFailures ?? 0;
+      if (state.pollCalls > 0 && state.pollCalls <= failures) {
+        throw new Error('the network is down');
+      }
       return fakeResponse({ body: { items: pendingItems(), next_cursor: null } });
     }
     if (parsed.pathname.endsWith('/approve')) {

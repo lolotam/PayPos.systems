@@ -18,8 +18,8 @@ final class CounterAuthUITests: XCTestCase {
     app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", label)).firstMatch
   }
 
-  // The buttons are looked up by their exact label: a "contains" match hits the heading
-  // «Pair this device» or the field «Pairing code» before it reaches the button itself.
+  // الأزرار بنتلقى بنصها بالظبط: المطابقة بـ CONTAINS بتوقع في عنوان «Pair this device»
+  // أو في الحقل «Pairing code» قبل ما توصل للزر نفسه.
   private func button(_ app: XCUIApplication, _ label: String) -> XCUIElement {
     let predicate = NSPredicate(format: "label == %@", label)
     let webButton = app.webViews.buttons.matching(predicate).firstMatch
@@ -38,18 +38,17 @@ final class CounterAuthUITests: XCTestCase {
     XCTAssertEqual(XCTWaiter().wait(for: [expectation], timeout: 30), .completed, message)
   }
 
-  // The keyboard can cover a button after typing, so the button stays not hittable until the
-  // keyboard goes. XCUITest scrolls the element into view itself, so waiting for its existence
-  // is enough and the hittable gate would only fail on a covered button.
+  // الكيبورد ممكن يغطي الزر بعد الكتابة، فالزر بيفضل مش hittable طول ما الكيبورد شغال.
+  // XCUITest بيعمل scroll بنفسه للعنصر، فالانتظار لوجوده كفاية، والـ hittable كان هيفشل
+  // بس لأن الزر متغطى.
   private func tapButton(_ app: XCUIApplication, _ label: String, _ message: String) {
     let target = button(app, label)
     XCTAssertTrue(target.waitForExistence(timeout: 60), message)
     target.tap()
   }
 
-  // The software keyboard may stay up after typing and cover the next button. The Return key
-  // of the keyboard submits the form, so the heading of the page is tapped instead: it is text
-  // and not a control, so it only hides the keyboard and sends nothing.
+  // كيبورد النظام ممكن يفضل ظاهر بعد الكتابة ويغطي الزر اللي بعده. زر Return في الكيبورد
+  // بيبعث الفورم، فنضرب على عنوان الصفحة بدله: هو نص مش زر، فبيخفي الكيبورد بس وميبعثش حاجة.
   private func dismissKeyboard(_ app: XCUIApplication, under heading: String) {
     guard app.keyboards.count > 0 else { return }
     let title = app.webViews.staticTexts[heading]
@@ -83,8 +82,8 @@ final class CounterAuthUITests: XCTestCase {
     guard let values = environment() else { return }
     var app = launchApp()
 
-    // The start screen is the native shell: waiting for its heading makes sure the web view
-    // has rendered before the first button is looked up.
+    // شاشة البداية هي الـ native shell: الانتظار لعنونها بيخلي الـ web view يخلص تحميله
+    // قبل ما أول زر يتدور عليه.
     assertVisible(app, "How do you use this device?", timeout: 60, "The start screen should be visible")
     tapButton(app, "Counter device", "The counter-device choice should be tappable")
     type(
