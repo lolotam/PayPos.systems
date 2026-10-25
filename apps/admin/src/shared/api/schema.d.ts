@@ -1514,6 +1514,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/branches/{branchId}/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The branch devices whose status is PENDING, newest first, one page of at most a hundred. Requires manage:devices:branch at the branch. */
+        get: operations["listPendingDevices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/customers/find-or-create": {
         parameters: {
             query?: never;
@@ -3703,6 +3720,23 @@ export interface components {
             /** @default false */
             discount_limit_editing_enabled: boolean;
             discount_limit: components["schemas"]["DiscountLimit"];
+        };
+        PendingDevicesQuery: {
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+            /** @enum {string} */
+            status: "pending";
+        };
+        PendingDevicesResponse: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                label: string;
+                /** Format: date-time */
+                created_at: string;
+            }[];
+            next_cursor: string | null;
         };
         RequestFileUpload: {
             owner_module: string;
@@ -12118,6 +12152,61 @@ export interface operations {
                 };
             };
             /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listPendingDevices: {
+        parameters: {
+            query: {
+                status: "pending";
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The branch devices waiting for approval */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingDevicesResponse"];
+                };
+            };
+            /** @description The status query is missing or not pending */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The bilingual error envelope; a foreign branch and a missing permission share the same 403. */
             default: {
                 headers: {
                     [name: string]: unknown;
