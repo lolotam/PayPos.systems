@@ -10,7 +10,8 @@ project = Xcodeproj::Project.new(File.join(out_dir, 'SpikeUITests.xcodeproj'))
 target = project.new_target(:ui_test_bundle, 'SpikeUITests', :ios, '15.0')
 group = project.main_group.new_group('SpikeUITests')
 source = group.new_file(File.expand_path('SpikeUITests.swift', __dir__))
-target.add_file_references([source])
+counter_auth_source = group.new_file(File.expand_path('CounterAuthUITests.swift', __dir__))
+target.add_file_references([source, counter_auth_source])
 target.build_configurations.each do |config|
   settings = config.build_settings
   settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'systems.pospay.business.spike-ui-tests'

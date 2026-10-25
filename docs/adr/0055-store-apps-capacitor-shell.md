@@ -366,12 +366,13 @@ xcconfig files.
   the runner image cannot change `xcodeproj` itself. Its own dependencies (`claide`, `CFPropertyList`, `nanaimo`,
   `atomos`, `colored2`, `rexml`) still resolve inside the ranges that version declares, from the image or from
   rubygems.org, so a new image or a new release of one of them can still change what loads. That residual is
-  accepted: the spike runs only on a manual dispatch, reads no secret and touches no build output, and pinning every
+  accepted: the spike runs only on a manual dispatch, reads no secret outside addendum (c) and touches no build output, and pinning every
   dependency would need a `Gemfile.lock`, which nobody here can generate without Ruby. If a dependency drift breaks
   the spike, the fix is a `Gemfile` + `Gemfile.lock` generated on the runner and committed.
 - The test runs as steps of the already-admitted `ios` job, on its staging leg, only on a `workflow_dispatch` with the
   input `spike`. A separate macOS job would need its own slot under K = 2 and its own admission (decision 6). The steps
-  read no secret and declare no environment.
+  read no secret and declare no environment (the start-screen test still does not; the (a)+(b) test that came later
+  reads staging test logins, addendum (c)).
 
 **Consequences.** A failed UI test fails the `ios` staging job, and so `mobile-gate`, **of that dispatch run only**,
 on purpose: a green gate would hide a failed check, and `mobile-gate` is advisory. Push and pull-request runs never
@@ -416,3 +417,37 @@ capability is turned on.
 
 **Consequences.** M-1h's scan can ship on Android before WhatsApp is ready, while no attendance camera control ships
 until (d2) passes. iOS keeps both off until M-1c-ii.
+
+## Addendum 2026-10-25 (c) — the iOS (a)+(b) UI test reads staging test logins
+
+**Context.** iOS checks (a) device pairing and (b) a staff PIN session need a fresh pairing code (valid 10 minutes), a
+manager to approve the device, and a staff user with a PIN, so the spike can no longer "read no secret" (the first
+2026-10-25 addendum).
+
+**Decision.**
+- On a `spike` dispatch, the staging leg of the `ios` job declares the GitHub environment **`staging-ui-test`**
+  (deployment branch `main` only). It holds staging test values only: the demo owner's login, the PP-58.3 test staff
+  user's phone and PIN, and the company and branch ids. No other leg or event declares an environment, and no signing
+  environment is ever declared by this job.
+- The values reach one step only, as that step's `env`. A Node orchestrator
+  (`apps/business/ios/ui-tests/orchestrate-counter-auth.mjs`) runs that step: it signs the owner in, issues the pairing
+  code (masked in the log), starts `xcodebuild test` for `CounterAuthUITests` with the values as `TEST_RUNNER_`
+  environment variables (the `STAGING_UI_*` logins are not passed on), and approves the one pending device carrying
+  the run's unique label through `GET /v1/branches/{branch}/devices?status=pending` (spec 070). It always revokes that
+  device at the end (and, before it starts, any `CI-IOS-` test device left pending for over 30 minutes by a killed
+  run), signs the owner out, and prints fixed status lines only.
+- **No raw result of that test is uploaded.** `typeText` records the typed code, phone and PIN in the `.xcresult`,
+  and the repository is public, so `CounterAuth.xcresult` and the `xcodebuild` log stay on the runner. The
+  start-screen test keeps its uploaded result, since it types nothing secret.
+
+**Consequences.** Only a dispatch from `main` can read the four staging test values. A residual risk is
+accepted: the same job installs third-party packages (`pnpm install`, the CocoaPods and `xcodeproj` gems) before
+that step, and a compromised package could write a value to `$GITHUB_ENV` that a later step loads. The step clears
+`NODE_OPTIONS`, but a determined package could still reach the values. They are staging test logins only, never a
+signing key or a production credential, and they can be rotated on staging at any time. A required reviewer on the
+environment would close the gap but would stop the run from being unattended, so it is not set. To keep that risk
+bounded, every third-party action in the `ios` job is pinned to a full commit SHA (the tag kept as a comment), so a
+moved tag cannot change what runs beside the values. Until the
+staff routes accept the iOS origin (the `STAFF_NATIVE_ORIGINS` slice, waiting on Waleed), check (b) is expected to
+end in the 403 that this ADR's decision 3 predicts; that run records the baseline. Revoked test devices stay as
+`REVOKED` rows on staging.

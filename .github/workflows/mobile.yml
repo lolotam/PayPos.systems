@@ -206,7 +206,7 @@ jobs:
           fi
 
       - name: Upload the debug APK and the unsigned AAB
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-${{ matrix.flavour }}
           path: |
@@ -281,6 +281,7 @@ jobs:
     needs: [changes, macos-preflight, macos-preflight-pr]
     if: ${{ !cancelled() && needs.changes.outputs.app == 'true' && (needs.macos-preflight.result == 'success' || needs.macos-preflight-pr.result == 'success') }}
     runs-on: macos-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.spike == true && matrix.flavour == 'staging' && github.ref == 'refs/heads/main' && 'staging-ui-test' || '' }}
     timeout-minutes: 45
     permissions:
       contents: read
@@ -292,7 +293,7 @@ jobs:
       matrix:
         flavour: [staging, production]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
@@ -305,9 +306,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node apps/business/scripts/macos-guard.mjs accept
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -371,7 +372,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$app" "out/${FLAVOUR}-App.zip"
 
       - name: Upload the simulator build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-${{ matrix.flavour }}-app
           path: apps/business/out/${{ matrix.flavour }}-App.zip
@@ -381,8 +382,13 @@ jobs:
       # الـ spike بيشتغل بس في dispatch متعلّم على `spike`، وعلى بناء staging بس.
       # بنحطه جوّه شغلانة iOS اللي واخدة قبول بالفعل، فنفس خانة الحارس والـ timeout بيغطّوه
       # (ADR-0055 قرار 6) من غير شغلانة macOS جديدة تحتاج خانة تانية.
-      # ومفيش أي secret بيتقري هنا.
+      # اختبار الاقتران والـ PIN بس بيقرأ بيئة staging-ui-test، وسياسة فروعها main بس (ملحق ADR-0055 2026-10-25 (c)).
+      # نتيجة CounterAuth.xcresult والـ private log ممنوع يترفعوا لأنهم بيسجّلوا القيم الحساسة المكتوبة.
       # الخطوات بعد رفع البناء عشان لو اختبار الـ UI فشل، نسخة المحاكي تفضل متاحة للتحميل.
+      # إعادة التثبيت واختبار الاقتران بيشتغلوا بـ !cancelled(): لو اختبار شاشة البداية فشل،
+      # اختبار الاقتران لسه مفروض يتشغّل عشان نتيجة M-1c تبقى واضحة.
+      # وهما كمان بس على main: بيئة staging-ui-test مرفوضة على أي فرع تاني، فعلى فرع الـ PR
+      # اختبار الاقتران مش بيشتغل خالص، واللي بيشتغل هو اختبار شاشة البداية بس.
       - name: Boot a simulator for the UI test
         if: inputs.spike == true && matrix.flavour == 'staging'
         working-directory: apps/business
@@ -414,16 +420,38 @@ jobs:
         if: inputs.spike == true && matrix.flavour == 'staging'
         run: |
           set -euo pipefail
-          xcodebuild test -project "$RUNNER_TEMP/spike/SpikeUITests.xcodeproj" -scheme SpikeUITests -destination "id=$SPIKE_UDID" -resultBundlePath "$RUNNER_TEMP/spike/SpikeUITests.xcresult" CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM=
+          xcodebuild test -project "$RUNNER_TEMP/spike/SpikeUITests.xcodeproj" -scheme SpikeUITests -only-testing:SpikeUITests/SpikeUITests -destination "id=$SPIKE_UDID" -resultBundlePath "$RUNNER_TEMP/spike/SpikeUITests.xcresult" CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM=
 
       - name: Upload the UI test result
         if: always() && inputs.spike == true && matrix.flavour == 'staging'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-spike-xcresult
           path: ${{ runner.temp }}/spike/SpikeUITests.xcresult
           retention-days: 14
           if-no-files-found: warn
+
+      - name: Reinstall the app
+        if: ${{ github.ref == 'refs/heads/main' && !cancelled() && inputs.spike == true && matrix.flavour == 'staging' }}
+        run: |
+          set -euo pipefail
+          app="$(ls -td ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Debug-iphonesimulator/App.app | sed -n '1p')"
+          xcrun simctl uninstall "$SPIKE_UDID" systems.pospay.business.staging || true
+          xcrun simctl install "$SPIKE_UDID" "$app"
+
+      - name: Run the counter pairing and staff PIN test
+        if: ${{ github.ref == 'refs/heads/main' && !cancelled() && inputs.spike == true && matrix.flavour == 'staging' }}
+        timeout-minutes: 25
+        env:
+          # أي NODE_OPTIONS كتبته خطوة قبلها في GITHUB_ENV ما يحملش كود في الخطوة اللي فيها الأسرار.
+          NODE_OPTIONS: ''
+          STAGING_UI_OWNER_EMAIL: ${{ secrets.STAGING_UI_OWNER_EMAIL }}
+          STAGING_UI_OWNER_PASSWORD: ${{ secrets.STAGING_UI_OWNER_PASSWORD }}
+          STAGING_UI_STAFF_PHONE: ${{ secrets.STAGING_UI_STAFF_PHONE }}
+          STAGING_UI_STAFF_PIN: ${{ secrets.STAGING_UI_STAFF_PIN }}
+          STAGING_UI_COMPANY_ID: ${{ vars.STAGING_UI_COMPANY_ID }}
+          STAGING_UI_BRANCH_ID: ${{ vars.STAGING_UI_BRANCH_ID }}
+        run: node apps/business/ios/ui-tests/orchestrate-counter-auth.mjs
 
   # تحرير الخانة شغلانة لوحدها، عشان شغلانة الـ iOS ما تمسكش حق الكتابة على المستودع وهي
   # بتثبّت وتبني كود تالت. بتشتغل بعد الـ iOS على طول (نجحت أو فشلت)، وبتعمل حاجة واحدة.
