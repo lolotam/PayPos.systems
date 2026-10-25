@@ -985,12 +985,20 @@ as her, and every action records the actual actor. A PIN the setter typed is a c
   2026-10-21 addendum, and any later PIN check. Only the PIN-change screen accepts it.
 - **Redemption is one atomic, conditional step.** The one-time PIN moves from active to consumed and issues a
   single-use change capability. A concurrent or later claim with the same PIN fails, and a new one-time PIN supersedes
-  the old one.
+  the old one. The capability expires no later than the one-time PIN would have, and it carries the PIN's generation:
+  any reset or PIN change makes it unusable. A retry of the same redemption request returns the same outcome.
 - **The audit says what is known, and "every action records the actual actor" is narrowed for this one step.** The
   change row records the credential's subject (the employee), the setter of the one-time PIN, the device and the
   request id, and marks the person who redeemed it as unknown. It never claims that the employee did it.
-- **Provenance.** A permanent PIN chosen by redeeming a one-time PIN keeps that PIN's setter as its origin. FR-006's
-  clearing (spec 071) applies to it as it does to the one-time PIN, because the setter may have chosen it.
+- **Provenance.** A permanent PIN chosen by redeeming a one-time PIN keeps that PIN's setter as its origin, and so does
+  every later change made with only that PIN, since no change needs an independent proof. FR-006's clearing (spec 071)
+  applies to all of them as it does to the one-time PIN, because the setter may know them.
+- **Sign-ins carry the origin.** A staff sign-in with a PIN that has a setter origin records that origin with the
+  session, so the audit of the session names the employee's account and the possible setter, not the employee as the
+  certain actor.
+
+The protocol details (exact validity, the capability's form, the retry shape) are settled in the 071-4 sub-spec, from
+the design advice in issue #682.
 
 **Consequences.** This narrows §1's "must never impersonate" for this one case and records the accepted risk; it does
 not allow a manager's own PIN to sign anyone in. Spec 071's 071-4 implements it and merges before or with 071-3. An
