@@ -26,6 +26,11 @@ import { DetectBreakNotReturned } from './use-cases/detect-break-not-returned/de
 import { breakNotReturnedTransactions } from './persistence/break-not-returned.transactions.ts';
 import { DetectShiftEndingSoon } from './use-cases/detect-shift-ending-soon/detect-shift-ending-soon.ts';
 import { shiftEndingSoonTransactions } from './persistence/shift-ending-soon.transactions.ts';
+import { attendanceStatementTransactions } from './persistence/attendance-statement.transactions.ts';
+import { statementIdentityReader } from './persistence/attendance-statement-identity.ts';
+import { attendanceStatementOpenSessions } from './queries/attendance-statement-open-sessions.query.ts';
+import { ReadAttendanceStatement } from './use-cases/read-attendance-statement/read-attendance-statement.ts';
+import type { AttendanceStatementRead } from './domain/attendance-statement-data.ts';
 
 // أحداث الحضور التي يعرفها هذا الإصدار؛ AttendanceClockedIn وحده يسجل جدول الشركة ولا مستهلك أعمال لأي منها.
 const ATTENDANCE_EVENT_TYPES = [
@@ -50,6 +55,25 @@ const STAFF_ALERT_NAME_FALLBACK = {
 
 export function createStaffDocumentDefaults(ids: IdGenerator) {
   return companyCreatedConsumer((tx) => new SeedDocumentTypes(createDocumentTypeSeeds(tx), ids));
+}
+
+/**
+ * قارئ كشف الحضور الرسمي في الـ worker: معاملة قراءة واحدة للطلب وللمدخلات، وبعدها الحساب.
+ * المصنع لوحده عشان مصدر الـ documents ياخد القارئ من غير ما يبني طوابير الوظائف (FR-010).
+ */
+export function createAttendanceStatementReader(database: Pick<TenantWrappers, 'withTenant'>) {
+  const useCase = new ReadAttendanceStatement(
+    attendanceStatementTransactions(
+      database,
+      statementIdentityReader,
+      attendanceStatementOpenSessions,
+    ),
+  );
+  return (
+    companyId: string,
+    renderId: string,
+    signal?: AbortSignal,
+  ): Promise<AttendanceStatementRead> => useCase.execute(companyId, renderId, signal);
 }
 
 export function startStaffWorker(

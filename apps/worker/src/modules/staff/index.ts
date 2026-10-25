@@ -1,4 +1,8 @@
-export { createStaffDocumentDefaults, startStaffWorker } from './staff.module.ts';
+export {
+  createAttendanceStatementReader,
+  createStaffDocumentDefaults,
+  startStaffWorker,
+} from './staff.module.ts';
 export type {
   AttendanceExceptionRaised,
   AttendanceMissedOut,
@@ -7,3 +11,13 @@ export type {
   ShiftEndsSoon,
   ShiftNotClockedIn,
 } from './events/published.ts';
+export type {
+  AttendanceStatementBody,
+  AttendanceStatementData,
+  AttendanceStatementRead,
+  BranchStatementBody,
+  EmployeeStatementBody,
+  StatementHeader,
+  StatementTotals,
+} from './domain/attendance-statement-data.ts';
+export { AttendanceStatementRequestMissing } from './use-cases/read-attendance-statement/read-attendance-statement.ts';
