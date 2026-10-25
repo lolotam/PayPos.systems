@@ -15,17 +15,20 @@ import { hasCrossTabLock, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
+import { dropSubscription, removeRecord, resumeRecord, revoke } from './push-refresh-record';
+import { checkBeforeMutation, suspendChangedSession } from './push-refresh-session';
+import { checkSession, fetchSessionConfig, identityOf } from './push-session-binding';
 
 const API_TIMEOUT_MS = 10_000;
 const SUBSCRIBE_TIMEOUT_MS = 15_000;
-const REVOKE_TIMEOUT_MS = 5000;
 
-/** نتيجة التحديث وقت الفتح: ولا حاجة، أو تحديث عادي، أو إصلاح تدوير المفتاح، أو مسح السجل. */
+/** نتيجة التحديث: ولا حاجة، أو تحديث، أو تدوير، أو مسح، أو جلسة اتغيرت فمنعت التسجيل. */
 export type PushRefreshOutcome =
   | { kind: 'none' }
   | { kind: 'refreshed' }
-  | { kind: 'rotated'; token: string }
-  | { kind: 'cleared' };
+  | { kind: 'rotated'; token: string; vapid_key_id: string }
+  | { kind: 'cleared' }
+  | { kind: 'session-changed' };
 
 export interface PushRefreshInput {
   companyId: string;
@@ -37,6 +40,10 @@ export interface PushRefreshInput {
 /**
  * بتحدّث الاشتراك وقت فتح التطبيق وبتصلّح تدوير مفتاح VAPID.
  * بتشتغل بس في جلسة الشركة اللي السجل بيقول عليها؛ في أي شركة تانية مفيش أي طلب (FR-019).
+ * قبل أي تسجيل بتتأكد إن الجلسة لسه لنفس الشخص ونفس الشركة (ADR-0052 §7): لو القراءة
+ * الجديدة أكدت شخص تاني، السجل بيتمسح واشتراك المتصفح بيتشال وبترجّع `cleared`. التغيير
+ * اللي بيتكشف بعد كده (قبل الـ PUT في `refreshPlain` و`rotate`) هو بس اللي بيعلّق السجل
+ * وبيرجّع `session-changed`. نفس الشخص في شركة تانية مفيش معاه أي تغيير (FR-018).
  *
  * @param input الشركة واللغة ومفتاح VAPID الحالي ومعرف التثبيت
  * @returns نتيجة التحديث
@@ -47,83 +54,133 @@ export async function refreshPush(input: PushRefreshInput): Promise<PushRefreshO
   if (!hasCrossTabLock()) return { kind: 'none' };
   return runPushExclusive(async (): Promise<PushRefreshOutcome> => {
     const generation = await pushRecordStore.generation();
-    let record: PushRecord | null;
-    try {
-      record = await pushRecordStore.read();
-    } catch {
-      // السجل مش معروف: من غير ما نمسح ولا نسجل، مفيش حاجة نعملها.
+    const record = await readStoredRecord();
+    if (record === null) return { kind: 'none' };
+    // قراءة غير مؤكدة: من غير هوية الجلسة ما فيش تسجيل ولا تغيير (ADR-0052 §7).
+    const fresh = await fetchSessionConfig();
+    if (fresh === null) return { kind: 'none' };
+    // القرار على صاحب السجل المخزن مش على إعدادات اللي نادى (ممكن تكون قديمة): اختلاف
+    // مؤكد في الشخص معناه إن المقارنة خلصت، فالسجل بيتمسح والمتصفح بيشيل الاشتراك (ADR-0052 §7).
+    if (fresh.subscriber_ref !== record.subscriber_ref) {
+      return discardOtherPersonRecord(record, fresh.subscriber_ref);
+    }
+    // نفس الشخص في شركة تانية: مفيش تغيير (FR-018، FR-019، WP-Q4). الفحص ده بعد فحص الشخص
+    // عشان النتيجة ماتعتمدش على توقيت الكاش، والتحديث دايمًا بإعدادات الجلسة الحالية.
+    if (record.company_id !== fresh.company_id || record.company_id !== input.companyId) {
       return { kind: 'none' };
     }
-    if (record === null) return { kind: 'none' };
-    if (record.company_id !== input.companyId) return { kind: 'none' };
-    // المقارنة بتتم قبل أي حاجة: مرجع تاني جواب مؤكد إن الجهاز بقى لحد تاني،
-    // فبنشيل الاشتراك والسجل من غير أي PUT (ADR-0052 §7).
-    if (input.config.subscriber_ref !== record.subscriber_ref) {
-      await unsubscribePush().catch(() => undefined);
-      await removeRecord();
-      return { kind: 'cleared' };
-    }
-    const live = record.suspended ? await resume(record, generation) : record;
-    if (live === null) return { kind: 'none' };
-    if (notificationPermission() !== 'granted') return { kind: 'none' };
-    if (input.installationId === null) return { kind: 'none' };
-    const installationId: string = input.installationId;
-    if (input.config.vapid_key_id !== live.vapid_key_id) {
-      return rotate(input, live, installationId, generation);
-    }
-    const subscription = await currentSubscription();
-    if (subscription === null) {
-      await removeRecord();
-      await revoke(installationId);
-      return { kind: 'cleared' };
-    }
-    await withAbortTimeout(
-      (signal) =>
-        pushCalls.register(
-          {
-            installation_id: installationId,
-            vapid_key_id: live.vapid_key_id,
-            delivery_token: live.token,
-            subscription: pushSubscriptionBody(subscription),
-            locale: input.locale,
-          },
-          signal,
-        ),
-      API_TIMEOUT_MS,
-    );
-    return { kind: 'refreshed' };
+    return refreshWithConfig({ ...input, config: fresh }, record, generation);
   });
 }
 
 /**
- * سجل معلّق بعد فحص توقيع فاشل: نفس مرجع المشترك بيرجّعه قايم (ADR-0052 §7).
+ * بيمسح سجل شخص تاني واتأكد اختلافه ويشيل اشتراك المتصفح، تحت القفل. المسح بيمشي على
+ * التوكن والمراجعة اللي اتقرت (لو تبويب تاني كسب السجل مبيتمسحش ومفيش إلغاء)، وبيحصل
+ * قبل الإلغاء عشان نص الموظفة القديمة ما يظهرش وهي لسه على الشاشة. لو المخزن رمى استثناء
+ * بنرجع للتعليق المحروس بصاحب الجلسة (fail-closed).
  *
- * @param record السجل المعلّق
- * @param generation جيل السجل وقت ما الشغل بدأ
- * @returns السجل بعد الرجوع، أو null لما الجيل أو المراجعة أو التوكن يتغير
+ * @param record السجل المقروء تحت القفل وصاحبه مختلف عن الجلسة
+ * @param currentSubscriberRef مرجع شخص الجلسة الحالية
+ * @returns cleared لما اتمسح، none لما تبويب تاني كسب السجل، session-changed بعد التعليق
  */
-async function resume(record: PushRecord, generation: number): Promise<PushRecord | null> {
-  const live = { ...record, suspended: false };
+async function discardOtherPersonRecord(
+  record: PushRecord,
+  currentSubscriberRef: string,
+): Promise<PushRefreshOutcome> {
+  let removed: boolean;
   try {
-    const written = await pushRecordStore.writeIfGeneration(live, generation, {
-      clearSuspension: true,
-      expectRevision: record.revision,
-      expectToken: record.token,
+    removed = await pushRecordStore.removeIfMatches({
+      token: record.token,
+      revision: record.revision,
     });
-    if (!written) return null;
   } catch {
-    return null;
+    return suspendChangedSession(currentSubscriberRef);
   }
+  if (!removed) return { kind: 'none' };
   notifyPushRecordChanged();
-  return live;
+  await dropSubscription();
+  return { kind: 'cleared' };
 }
 
+/**
+ * بيقرأ السجل المحلي زي ما هو، لأن القرار بيتبني على صاحبه (الشخص ثم الشركة) مش على
+ * الشركة اللي الشاشة مفتوحة فيها.
+ *
+ * @returns السجل المخزن، أو null لما مفيش سجل أو القراءة فشلت
+ */
+async function readStoredRecord(): Promise<PushRecord | null> {
+  try {
+    return await pushRecordStore.read();
+  } catch {
+    // السجل مش معروف: من غير ما نمسح ولا نسجل، مفيش حاجة نعملها.
+    return null;
+  }
+}
+
+async function refreshWithConfig(
+  input: PushRefreshInput,
+  record: PushRecord,
+  generation: number,
+): Promise<PushRefreshOutcome> {
+  if (record.suspended) {
+    const aborted = await checkBeforeMutation(input.config);
+    if (aborted !== null) return aborted;
+  }
+  const live = record.suspended ? await resumeRecord(record, generation) : record;
+  if (live === null) return { kind: 'none' };
+  if (notificationPermission() !== 'granted') return { kind: 'none' };
+  if (input.installationId === null) return { kind: 'none' };
+  const installationId: string = input.installationId;
+  if (input.config.vapid_key_id !== live.vapid_key_id) {
+    return rotate(input, live, installationId, generation);
+  }
+  const subscription = await currentSubscription();
+  if (subscription === null) {
+    await removeRecord();
+    await revoke(installationId);
+    return { kind: 'cleared' };
+  }
+  return refreshPlain(input, live, installationId, subscription);
+}
+
+async function refreshPlain(
+  input: PushRefreshInput,
+  record: PushRecord,
+  installationId: string,
+  subscription: PushSubscriptionLike,
+): Promise<PushRefreshOutcome> {
+  const session = await checkSession(identityOf(input.config));
+  if (session.kind === 'mismatch') return suspendChangedSession(session.current.subscriber_ref);
+  if (session.kind !== 'match') return { kind: 'none' };
+  await withAbortTimeout(
+    (signal) =>
+      pushCalls.register(
+        {
+          installation_id: installationId,
+          vapid_key_id: input.config.vapid_key_id,
+          delivery_token: record.token,
+          subscription: pushSubscriptionBody(subscription),
+          locale: input.locale,
+        },
+        signal,
+      ),
+    API_TIMEOUT_MS,
+  );
+  return { kind: 'refreshed' };
+}
+
+/**
+ * التدوير: تبديل اشتراك المتصفح بالمفتاح الجديد وتسجيله عند الـ API (ADR-0052 §7).
+ */
 async function rotate(
   input: PushRefreshInput,
   record: PushRecord,
   installationId: string,
   generation: number,
 ): Promise<PushRefreshOutcome> {
+  // قبل تبديل اشتراك المتصفح: تغيير هنا بيمسح اشتراك المتصفح من غير ما حد يطلبه.
+  const blocked = await checkBeforeMutation(input.config);
+  if (blocked !== null) return blocked;
   // المتصفح ما بيقولش المفتاح اللي اتعمل بيه الاشتراك، فالتسجيل القديم بيتشال والتسجيل
   // الجديد بيتعمل بالمفتاح الجديد — وده مش متعلق بالسطر عند الـ API (ADR-0052 §2).
   const existing = await currentSubscription();
@@ -137,6 +194,20 @@ async function rotate(
     return { kind: 'cleared' };
   }
   const token = crypto.randomUUID();
+  const session = await checkSession(identityOf(input.config));
+  if (session.kind === 'mismatch') {
+    // التعليق قبل الإلغاء: طول ما الإلغاء معلّق، السجل القديم بيفضل مفتوح ونص صاحبه
+    // يقدر يظهر (ADR-0052 §7).
+    const aborted = await suspendChangedSession(session.current.subscriber_ref);
+    await dropSubscription();
+    return aborted;
+  }
+  if (session.kind !== 'match') {
+    // القراءة المجروفة أو شركة تانية: بنشيل الاشتراك اللي اتعمل دلوقتي بس ومفيش PUT،
+    // والتحديث الجاي يدور تاني.
+    await dropSubscription();
+    return { kind: 'none' };
+  }
   try {
     await registerRotated(input, subscription, installationId, token);
   } catch {
@@ -156,7 +227,7 @@ async function rotate(
     return { kind: 'cleared' };
   }
   notifyPushRecordChanged();
-  return { kind: 'rotated', token };
+  return { kind: 'rotated', token, vapid_key_id: input.config.vapid_key_id };
 }
 
 /** تسجيل الاشتراك الجديد عند الـ API بالمفتاح الجديد. */
@@ -215,22 +286,4 @@ async function writeRotatedRecord(
 async function abortRotation(installationId: string): Promise<void> {
   await dropSubscription();
   await revoke(installationId);
-}
-
-/** الاشتراك الجديد بيتشال: المتصفح مينفعش يفضل مسجل من غير حد يطلبه. */
-async function dropSubscription(): Promise<void> {
-  await unsubscribePush().catch(() => undefined);
-}
-
-async function removeRecord(): Promise<void> {
-  await pushRecordStore.remove().catch(() => undefined);
-  notifyPushRecordChanged();
-}
-
-async function revoke(installationId: string): Promise<void> {
-  try {
-    await withAbortTimeout((signal) => pushCalls.revoke(installationId, signal), REVOKE_TIMEOUT_MS);
-  } catch {
-    // المراجعة على السيرفر أفضل effort: السجل المحلي اتمسح والزر بيعرض مقفول.
-  }
 }

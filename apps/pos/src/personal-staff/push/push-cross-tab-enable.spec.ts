@@ -38,6 +38,7 @@ const CONFIG = {
   vapid_public_key: 'public-key',
   vapid_key_id: '0123456789abcdef',
   subscriber_ref: 'subscriber-ref',
+  company_id: COMPANY,
 };
 
 const RECORD: PushRecord = {
@@ -159,10 +160,18 @@ it('serializes two enables with the cross tab lock', async () => {
 });
 
 it('lets the second person of the same company take the record', async () => {
-  // الإجابة الأولى للـ config تخص التبويب الأول، والتانية تخص التبويب التاني.
+  // تلات إجابات لكل تبويب: الإعدادات، وتأكيد قبل تبديل الاشتراك، وتأكيد قبل الـ PUT.
+  const asPerson = (ref: string) => ({
+    kind: 'ready' as const,
+    config: { ...CONFIG, subscriber_ref: ref },
+  });
   vi.mocked(pushCalls.config)
-    .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: PERSON_A } })
-    .mockResolvedValueOnce({ kind: 'ready', config: { ...CONFIG, subscriber_ref: PERSON_B } });
+    .mockResolvedValueOnce(asPerson(PERSON_A))
+    .mockResolvedValueOnce(asPerson(PERSON_A))
+    .mockResolvedValueOnce(asPerson(PERSON_A))
+    .mockResolvedValueOnce(asPerson(PERSON_B))
+    .mockResolvedValueOnce(asPerson(PERSON_B))
+    .mockResolvedValueOnce(asPerson(PERSON_B));
   let personAToken = '';
   let personBToken = '';
   const personAHold = createHold(model);

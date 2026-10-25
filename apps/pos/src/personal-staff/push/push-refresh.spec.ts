@@ -36,6 +36,7 @@ const CONFIG: PushConfig = {
   vapid_public_key: 'public-key',
   vapid_key_id: '0123456789abcdef',
   subscriber_ref: 'subscriber-ref',
+  company_id: 'company',
 };
 
 vi.mock('./push-record-idb', () => ({
@@ -45,6 +46,19 @@ vi.mock('./push-record-idb', () => ({
       if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
       fakes.state.record = record;
       fakes.state.writes.push(record);
+    },
+    removeIfMatches: async (expected: { token: string | null; revision: number }) => {
+      const stored = fakes.state.record;
+      if (
+        stored === null ||
+        stored.token !== expected.token ||
+        stored.revision !== expected.revision
+      ) {
+        return false;
+      }
+      fakes.state.removed += 1;
+      fakes.state.record = null;
+      return true;
     },
     suspend: async () => {
       if (fakes.state.writeFails) throw new Error('PUSH_STORE_UNAVAILABLE');
@@ -157,6 +171,7 @@ beforeEach(() => {
   fakes.state.subscribed = true;
   fakes.state.unsubscribed = 0;
   fakes.state.subscribedWithKey = null;
+  vi.mocked(pushCalls.config).mockResolvedValue({ kind: 'ready', config: CONFIG });
   vi.mocked(pushCalls.register).mockResolvedValue(undefined);
   vi.mocked(pushCalls.revoke).mockResolvedValue(undefined);
 });
@@ -224,15 +239,19 @@ it('restores a suspended record of this company when the subscriber reference ma
   expect(fakes.state.unsubscribed).toBe(0);
 });
 
-it('removes a suspended record of this company when the subscriber reference differs', async () => {
+it('removes a suspended record of another person on a successful open', async () => {
   fakes.state.record = { ...RECORD, suspended: true };
+  vi.mocked(pushCalls.config).mockResolvedValue({
+    kind: 'ready',
+    config: { ...CONFIG, subscriber_ref: 'another-ref' },
+  });
 
   const outcome = await refreshPush(input({ ...CONFIG, subscriber_ref: 'another-ref' }));
 
   expect(outcome).toEqual({ kind: 'cleared' });
+  expect(fakes.state.record).toBeNull();
   expect(fakes.state.removed).toBe(1);
   expect(fakes.state.unsubscribed).toBe(1);
-  expect(fakes.state.record).toBeNull();
 });
 
 it('leaves a suspended record of another company untouched', async () => {
@@ -248,13 +267,17 @@ it('leaves a suspended record of another company untouched', async () => {
 
 it('removes a record of another person and sends no registration', async () => {
   fakes.state.record = { ...RECORD };
+  vi.mocked(pushCalls.config).mockResolvedValue({
+    kind: 'ready',
+    config: { ...CONFIG, subscriber_ref: 'another-ref' },
+  });
 
   const outcome = await refreshPush(input({ ...CONFIG, subscriber_ref: 'another-ref' }));
 
   expect(outcome).toEqual({ kind: 'cleared' });
+  expect(fakes.state.record).toBeNull();
   expect(fakes.state.removed).toBe(1);
   expect(fakes.state.unsubscribed).toBe(1);
-  expect(fakes.state.record).toBeNull();
   expect(pushCalls.register).not.toHaveBeenCalled();
 });
 

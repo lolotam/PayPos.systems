@@ -133,11 +133,12 @@ same device.
 Owned by the API `notifications` module (`http/`), under `/v1/staff/push`, all `@Authenticated()` routes marked
 `PERSONAL_ROUTE` like the other personal-phone routes (`staff/attendance`, `staff/leave`):
 
-- `GET  /v1/staff/push/config` → `{ vapid_public_key, vapid_key_id, subscriber_ref }`; `NOT_READY` when push is not
+- `GET  /v1/staff/push/config` → `{ vapid_public_key, vapid_key_id, subscriber_ref, company_id }`; `NOT_READY` when push is not
   configured. `subscriber_ref` is `SHA-256('pospay.push.subscriber.v1' | the caller's global user id)`, hex: **the same in
-  every company** the person works for, and not reversible to a name (the id is a random UUID). It is returned to the
-  caller about herself only, and its sole use is the shared-phone check of decision 7. This is a read: it is served by a
-  `queries/` file, not a use case (`CLAUDE.md` §6).
+  every company** the person works for, and not reversible to a name (the id is a random UUID). `company_id` is the company
+  of the caller's current session, so the client can tell a person's session in company A from the same person's session in
+  company B (`subscriber_ref` is the same in every company). It is returned to the caller about herself only, and its sole
+  use is the shared-phone check of decision 7. This is a read: it is served by a `queries/` file, not a use case (`CLAUDE.md` §6).
 - `PUT  /v1/staff/push/subscription` → upsert the caller's subscription for an `installation_id`; body `{ installation_id,
   vapid_key_id, delivery_token, subscription: { endpoint, keys: { p256dh, auth } }, locale }`; `PUSH_KEY_STALE` (409)
   when `vapid_key_id` is not the current key. The server hashes the install id (decision 3) and stores only the hash. It is naturally idempotent (upsert on the unique key), so

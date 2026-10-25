@@ -10,6 +10,7 @@ import {
 } from '../push-subscription.js';
 
 const INSTALLATION = '01920000-0000-4000-8000-0000000000a1';
+const COMPANY = '01920000-0000-4000-8000-0000000000b1';
 const P256DH = 'A'.repeat(87);
 const AUTH = 'B'.repeat(22);
 const KEY_ID = '0123456789abcdef';
@@ -283,17 +284,37 @@ describe('pushRevokeInput and pushConfig', () => {
     expect(pushRevokeInput.safeParse({}).success).toBe(false);
   });
 
-  it('the config carries the public key, its id and the subscriber reference', () => {
+  it('the config carries the public key, its id, the subscriber reference and the company', () => {
     expect(
       pushConfig.safeParse({
         vapid_public_key: 'BPublic',
         vapid_key_id: KEY_ID,
         subscriber_ref: 'c'.repeat(64),
+        company_id: COMPANY,
       }).success,
     ).toBe(true);
     expect(
       pushConfig.safeParse({
         vapid_public_key: '',
+        vapid_key_id: KEY_ID,
+        subscriber_ref: 'c'.repeat(64),
+        company_id: COMPANY,
+      }).success,
+    ).toBe(false);
+    expect(
+      pushConfig.safeParse({
+        vapid_public_key: 'BPublic',
+        vapid_key_id: KEY_ID,
+        subscriber_ref: 'C'.repeat(64),
+        company_id: COMPANY,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('the config refuses a missing or a broken company id', () => {
+    expect(
+      pushConfig.safeParse({
+        vapid_public_key: 'BPublic',
         vapid_key_id: KEY_ID,
         subscriber_ref: 'c'.repeat(64),
       }).success,
@@ -302,7 +323,8 @@ describe('pushRevokeInput and pushConfig', () => {
       pushConfig.safeParse({
         vapid_public_key: 'BPublic',
         vapid_key_id: KEY_ID,
-        subscriber_ref: 'C'.repeat(64),
+        subscriber_ref: 'c'.repeat(64),
+        company_id: 'not-a-uuid',
       }).success,
     ).toBe(false);
   });

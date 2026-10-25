@@ -30,6 +30,7 @@ const CONFIG = {
   vapid_public_key: 'public-key',
   vapid_key_id: '0123456789abcdef',
   subscriber_ref: 'subscriber-ref',
+  company_id: 'company',
 };
 
 vi.mock('../model/installation-id', () => ({
@@ -231,6 +232,34 @@ it('runs the rotation when the served key changes after enabling', async () => {
   expect(vi.mocked(pushCalls.register).mock.calls[1]?.[0]?.vapid_key_id).toBe('fedcba9876543210');
 });
 
+it('does not show the control as on after a refresh dropped the new subscription', async () => {
+  const view = mount();
+  const button = await screen.findByRole('button', { name: t('en', 'staffPush.enable') });
+  await act(async () => {
+    fireEvent.click(button);
+  });
+  expect(await screen.findByText(t('en', 'staffPush.on'))).toBeDefined();
+
+  // بعد تغيير المفتاح: الإعدادات والتحديث وفحص التدوير بيرجعوا، وتأكيد ما قبل الـ PUT مش بيكتمل.
+  const rotated = {
+    kind: 'ready' as const,
+    config: { ...CONFIG, vapid_key_id: 'fedcba9876543210' },
+  };
+  vi.mocked(pushCalls.config)
+    .mockResolvedValueOnce(rotated)
+    .mockResolvedValueOnce(rotated)
+    .mockResolvedValueOnce(rotated)
+    .mockResolvedValue({ kind: 'not-ready' });
+  vi.mocked(pushCalls.register).mockClear();
+  await act(async () => {
+    await view.cache.invalidateQueries({ queryKey: ['staff-push-config'] });
+  });
+
+  await waitFor(() => expect(fakes.state.subscribed).toBe(false));
+  expect(pushCalls.register).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.queryByText(t('en', 'staffPush.on'))).toBeNull());
+});
+
 it('reads the permission again when the window comes back', async () => {
   fakes.state.permission = 'denied';
   mount();
@@ -295,9 +324,11 @@ it('turns the notifications on over a suspended record and ends unsuspended', as
   let configCalls = 0;
   vi.mocked(pushCalls.config).mockImplementation(async () => {
     configCalls += 1;
-    return configCalls === 1
-      ? { kind: 'ready', config: { ...CONFIG, subscriber_ref: 'another-ref' } }
-      : { kind: 'ready', config: CONFIG };
+    if (configCalls === 1) {
+      return { kind: 'ready', config: { ...CONFIG, subscriber_ref: 'another-ref' } };
+    }
+    if (configCalls === 2) return { kind: 'not-ready' };
+    return { kind: 'ready', config: CONFIG };
   });
   mount();
   const button = await screen.findByRole('button', { name: t('en', 'staffPush.enable') });

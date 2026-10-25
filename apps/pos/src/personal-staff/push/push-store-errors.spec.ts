@@ -16,6 +16,7 @@ const CONFIG = {
   vapid_public_key: 'public-key',
   vapid_key_id: NEW_VAPID,
   subscriber_ref: 'subscriber-ref',
+  company_id: 'company',
 };
 
 const RECORD: PushRecord = {

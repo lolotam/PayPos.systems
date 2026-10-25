@@ -33,6 +33,7 @@ const CONFIG: PushConfig = {
   vapid_public_key: 'public-key',
   vapid_key_id: '0123456789abcdef',
   subscriber_ref: 'subscriber-ref',
+  company_id: 'company',
 };
 const NEWER = 'test-newer-c';
 

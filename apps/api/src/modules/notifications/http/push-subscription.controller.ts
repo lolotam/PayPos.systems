@@ -52,7 +52,7 @@ export class PushSubscriptionController {
   @Header('Cache-Control', 'no-store')
   async config(@Req() request: FastifyRequest): Promise<PushConfig> {
     const scope = scopeOf(request);
-    const config = pushConfigFor(this.push, scope.userId, this.subscriberRef);
+    const config = pushConfigFor(this.push, scope.userId, this.subscriberRef, scope.companyId);
     if (config === null) throw new ApiError('NOT_READY');
     return config;
   }

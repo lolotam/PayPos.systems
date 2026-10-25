@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import type { PushConfig } from '@pospay/contracts';
 import type { Locale } from '@pospay/i18n';
@@ -25,6 +25,22 @@ import { decidePushState } from './push-state';
 import { useRefreshRetry } from './use-refresh-retry';
 
 const INVITATION_KEY = 'pospay.push.invitationSeen';
+
+/** هوية فاضية: بتستخدم لما الإعدادات لسه ما وصلتش، فالتوقيع يفضل معروف. */
+const EMPTY_IDENTITY = { vapid_key_id: '', subscriber_ref: '', company_id: '' };
+
+/**
+ * توقيع التحديث: السجل واللغة والمفتاح وهوية الجلسة. هوية تانية (شخص تاني أو شركة تانية)
+ * توقيع تاني، فالتحديث الجديد مش تكرار للتحديث اللي خلص (ADR-0052 §7).
+ */
+function refreshSignature(
+  token: string,
+  locale: Locale,
+  identity: Pick<PushConfig, 'vapid_key_id' | 'subscriber_ref' | 'company_id'>,
+): string {
+  const { vapid_key_id, subscriber_ref, company_id } = identity;
+  return `${token}|${locale}|${vapid_key_id}|${subscriber_ref}|${company_id}`;
+}
 
 interface LocalSnapshot {
   record: PushRecord | null;
@@ -163,6 +179,7 @@ function usePushRefresh(input: {
   local: PushLocalState;
   registered: RefObject<string | null>;
 }) {
+  const queryClient = useQueryClient();
   const refreshed = useRef('');
   const inFlight = useRef('');
   const failed = useRef('');
@@ -172,8 +189,9 @@ function usePushRefresh(input: {
   const reload = local.reload;
   useEffect(() => {
     if (config === null || record === null || installationId === null) return;
-    // المفتاح الجديد كمان جزء من التوقيع: تغيير المفتاح وهو فاتح الشاشة لازم يصلّح الاشتراك.
-    const signature = `${record.token}|${locale}|${config.vapid_key_id}`;
+    // المفتاح الجديد وهوية الجلسة كمان جزء من التوقيع: تغيير المفتاح وهو فاتح الشاشة
+    // لازم يصلّح الاشتراك، وجلسة تانية لازم ماترجعش تسجّل في مكان حد تاني.
+    const signature = refreshSignature(record.token, locale, config);
     // السجل ده اتسجل دلوقتي: التسجيل نفسه عمل الـ PUT، فالتحديث التاني هيبقى تكرار.
     if (signature === registered.current) return;
     // التحديث شغال أو خلص أو فشل: ما نعيدش نفس الطلب في نفس اللحظة (ADR-0052 §7).
@@ -183,16 +201,31 @@ function usePushRefresh(input: {
     void refreshPush({ companyId, locale, config, installationId })
       .then((outcome) => {
         inFlight.current = '';
+        if (outcome.kind === 'session-changed') {
+          // التعليق أو التدوير المتوقف غيّر العالم: اللقطة المحلية لازم تتقرا تاني،
+          // والتوقيع اتعلّم عشان متحاولش نفس الجلسة القديمة تاني (ADR-0052 §7).
+          failed.current = signature;
+          void queryClient.invalidateQueries({ queryKey: ['staff-push-config'] });
+          void reload();
+          return;
+        }
         // نتيجة "ولا حاجة" (صلاحية ناقصة أو معرف تثبيت ناقص) بتتعلّم كمحاولة فاشلة:
         // التحديث بيتعاد بس لما المستخدم يرجع ويسمح، ومفيش إعادة قراءة دايرة (FR-019).
         if (outcome.kind === 'none') {
           failed.current = signature;
+          // الاشتراك الجديد ممكن يكون اتشال: اللقطة المحلية لازم تتقرا تاني عشان الزر ما
+          // يفضلش «شغال» من غير اشتراك (ADR-0052 §7).
+          void reload();
           return;
         }
-        refreshed.current =
-          outcome.kind === 'rotated'
-            ? `${outcome.token}|${locale}|${config.vapid_key_id}`
-            : signature;
+        if (outcome.kind === 'rotated') {
+          // التوقيع بعد التدوير بيتبني بالمفتاح اللي اتعمل بيه الاشتراك الجديد، مش
+          // بالمفتاح القديم اللي في الإعدادات (ADR-0052 §7).
+          const rotated = { ...config, vapid_key_id: outcome.vapid_key_id };
+          refreshed.current = refreshSignature(outcome.token, locale, rotated);
+        } else {
+          refreshed.current = signature;
+        }
         void reload();
       })
       .catch(() => {
@@ -201,7 +234,7 @@ function usePushRefresh(input: {
         inFlight.current = '';
         failed.current = signature;
       });
-  }, [companyId, config, installationId, locale, record, registered, reload]);
+  }, [companyId, config, installationId, locale, queryClient, record, registered, reload]);
   const retry = useCallback(() => {
     failed.current = '';
   }, []);
@@ -288,8 +321,9 @@ export function usePushControl({ companyId }: { companyId: string }) {
     reload: local.reload,
     markSeen: local.markSeen,
     onEnabled: (token: string) => {
-      // التوقيع المسجَّل: نفس السجل بنفس اللغة ونفس المفتاح يعني إن الـ PUT اتعمل خلاص.
-      registered.current = `${token}|${locale}|${config.config?.vapid_key_id ?? ''}`;
+      // التوقيع المسجَّل: نفس السجل بنفس اللغة ونفس المفتاح ونفس هوية الجلسة يعني إن
+      // الـ PUT اتعمل خلاص.
+      registered.current = refreshSignature(token, locale, config.config ?? EMPTY_IDENTITY);
     },
   });
   const refresh = usePushRefresh({ companyId, locale, config: config.config, local, registered });

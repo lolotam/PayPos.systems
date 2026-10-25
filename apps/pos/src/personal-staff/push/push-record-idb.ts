@@ -171,9 +171,9 @@ function removeIfMatches(expected: { token: string | null; revision: number }): 
 /**
  * بيعلّق النسخة المخزنة جوه نفس الـ transaction عشان لقطة قديمة ما ترجعش توكن اتبدل
  * أو سجل اتمسح، وبيرجع السجل المعلق مع الجيل اللي اتشاف في نفس العملية عشان الرجوع
- * المحروس يستعمل نفس الأرقام اللي اتعلّق عليها.
+ * المحروس يستعمل نفس الأرقام اللي اتعلّق عليها. سجل صاحب `unlessOwner` بيتساب زي ما هو.
  */
-function suspendRecord(): Promise<PushSuspension | null> {
+function suspendRecord(unlessOwner?: string): Promise<PushSuspension | null> {
   return openDatabase().then(
     (database) =>
       new Promise<PushSuspension | null>((resolve, reject) => {
@@ -184,6 +184,7 @@ function suspendRecord(): Promise<PushSuspension | null> {
         recordRequest.onsuccess = () => {
           const stored = recordRequest.result;
           if (stored === undefined) return;
+          if (unlessOwner !== undefined && stored.subscriber_ref === unlessOwner) return;
           // الجيل بيتقرا جوه نفس الـ transaction: طلب جديد من جوّه معالج الطلب بيخلي
           // الـ transaction لسه شغال، فالتعليق والجيل بيتافقوا على نفس اللحظة.
           const generationRequest = store.get(GENERATION_KEY) as IDBRequest<number | undefined>;
@@ -230,7 +231,7 @@ export const pushRecordStore: PushRecordStore = {
   },
   removeIfMatches: async (expected: { token: string | null; revision: number }) =>
     removeIfMatches(expected),
-  suspend: async () => suspendRecord(),
+  suspend: async (options) => suspendRecord(options?.unlessOwner),
   generation: async () => {
     const stored = await runTransaction<number | undefined>('readonly', (store) =>
       store.get(GENERATION_KEY),

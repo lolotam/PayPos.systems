@@ -16,6 +16,8 @@ import { hasCrossTabLock, runPushExclusive } from './push-lock';
 import { notifyPushRecordChanged } from './push-record-events';
 import { pushRecordStore } from './push-record-idb';
 import type { PushRecord } from './push-record';
+import { suspendChangedSession } from './push-refresh-session';
+import { checkSession, identityOf } from './push-session-binding';
 
 const API_TIMEOUT_MS = 10_000;
 const SUBSCRIBE_TIMEOUT_MS = 15_000;
@@ -137,15 +139,17 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const config = await withAbortTimeout((signal) => pushCalls.config(signal), API_TIMEOUT_MS);
       if (config.kind === 'not-ready') return { kind: 'not-ready' };
+      // الإعدادات بتاعة شركة تانية: التسجيل لازم يتم للشركة اللي الشاشة بتقولها، وإلا
+      // السطر على السيرفر بيروح في شركة تانية غير اللي الموظفة فتحت شاشة الموظف فيها.
+      if (config.config.company_id !== input.companyId) return { kind: 'failed' };
+      // التأكيد قبل أي تغيير في المتصفح: النتيجة المجهولة بتسيب كل حاجة زي ما هي.
+      if (!(await confirmBeforeSubscribe(config.config))) return { kind: 'failed' };
       const subscription = await subscribeWithConfig(config.config, previous);
       if (subscription === null) return { kind: 'failed' };
       const token = crypto.randomUUID();
       try {
-        await withAbortTimeout(
-          (signal) =>
-            pushCalls.register(registerBody(input, config.config, subscription, token), signal),
-          API_TIMEOUT_MS,
-        );
+        const registered = await confirmAndRegister(input, config.config, subscription, token);
+        if (!registered) return { kind: 'failed' };
       } catch (cause) {
         // سجل ناقص أسوأ من مفيش سجل: الاشتراك الجديد بيتشال لو التسجيل مرفوض.
         await unsubscribePush().catch(() => undefined);
@@ -172,6 +176,44 @@ export async function enablePush(input: PushEnableInput): Promise<PushEnableOutc
     }
     return { kind: 'failed' };
   });
+}
+
+/**
+ * التأكيد قبل ما المتصفح يبدّل الاشتراك: شخص تاني بيعلّق السجل القديم، وأي نتيجة تانية
+ * (قراءة ما اتأكدتش أو شركة تانية) بتوقف من غير ما تلمس الاشتراك أو السجل.
+ *
+ * @param config إعدادات الجلسة اللي هيتسجل بيها الاشتراك
+ * @returns true لما الجلسة لسه نفس الشخص ونفس الشركة
+ */
+async function confirmBeforeSubscribe(config: PushConfig): Promise<boolean> {
+  const session = await checkSession(identityOf(config));
+  if (session.kind === 'mismatch') await suspendChangedSession(session.current.subscriber_ref);
+  return session.kind === 'match';
+}
+
+/**
+ * التأكيد قبل PUT: السيرفر بيربط التسجيل بشخص الجلسة وشركتها، فأي نتيجة مش مطابقة
+ * بتوقف من غير PUT وبتشيل اشتراك هذا التبويب بس، وهو لسه ما اتسجلش في السيرفر. شخص
+ * تاني بيعلّق السجل القديم الأول (طول ما الإلغاء معلّق نص صاحبه يقدر يظهر)؛ القراءة
+ * المجهولة والشركة التانية ما بيعلّقوش حاجة.
+ */
+async function confirmAndRegister(
+  input: PushEnableInput,
+  config: PushConfig,
+  subscription: PushSubscriptionLike,
+  token: string,
+): Promise<boolean> {
+  const session = await checkSession(identityOf(config));
+  if (session.kind !== 'match') {
+    if (session.kind === 'mismatch') await suspendChangedSession(session.current.subscriber_ref);
+    await unsubscribePush().catch(() => undefined);
+    return false;
+  }
+  await withAbortTimeout(
+    (signal) => pushCalls.register(registerBody(input, config, subscription, token), signal),
+    API_TIMEOUT_MS,
+  );
+  return true;
 }
 
 async function revoke(installationId: string): Promise<void> {
