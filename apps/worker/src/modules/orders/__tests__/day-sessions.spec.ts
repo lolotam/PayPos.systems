@@ -17,9 +17,15 @@ const CUSTOMER = ORDER_IDS.customer;
 it('reads the active lines with the session recording time and the performers in ordinal order', async () => {
   const occurredAt = new Date('2026-05-05T09:00:00.000Z');
   const recordedAt = new Date('2026-05-05T09:05:00.000Z');
-  const session = await f.session({ occurredAt, recordedAt });
   const employee = await f.addEmployee();
-  await f.addPerformer(session.lineId, employee, 2, 4000);
+  const session = await f.session({
+    occurredAt,
+    recordedAt,
+    performers: [
+      { employeeId: ORDER_IDS.employee, shareBps: 6000 },
+      { employeeId: employee, shareBps: 4000 },
+    ],
+  });
   const lines = await read(f.tenant.business, CUSTOMER, occurredAt, hour(occurredAt));
   expect(lines).toHaveLength(1);
   const line = lines[0];
@@ -30,7 +36,7 @@ it('reads the active lines with the session recording time and the performers in
   expect(line?.recordedAt).toEqual(recordedAt);
   expect(line?.businessTimezone).toBe('Asia/Kuwait');
   expect(line?.performers).toEqual([
-    { employeeId: ORDER_IDS.employee, shareBps: 10000 },
+    { employeeId: ORDER_IDS.employee, shareBps: 6000 },
     { employeeId: employee, shareBps: 4000 },
   ]);
 });

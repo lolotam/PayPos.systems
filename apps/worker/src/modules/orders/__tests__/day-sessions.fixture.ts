@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import { createDatabase, type IdGenerator } from '@pospay/db';
+import { createDatabase, type Database, type IdGenerator } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createTestDatabase } from '../../../../../../packages/db/test/test-database.ts';
 import {
@@ -8,6 +8,7 @@ import {
   USER,
 } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { ORDER_IDS, seedOrders } from '../../../../../../packages/db/test/orders-fixture.ts';
+import { cancelServiceLine } from '../../../../../../packages/db/test/service-line-cancellation.ts';
 import { PROVISIONAL_PLAN_ID } from '../../../../../../packages/db/src/seed.ts';
 
 /** overrides نسخة الزيارة: كل حقل اختياري، واللي ما يتكتبش بيبقى زي البذرة. */
@@ -20,6 +21,13 @@ export interface SessionOptions {
   businessId?: string;
   businessDate?: string;
   company?: string;
+  performers?: PerformerInput[];
+}
+
+/** منفذ واحد في بند: حصته بال-basis points، ومجموع الحصة لازم يبقى عشرة آلاف. */
+export interface PerformerInput {
+  employeeId: string;
+  shareBps: number;
 }
 
 /** عقدة خطة EXPLAIN: بنحتاج نوعها واسم الفهرس بس. */
@@ -58,13 +66,14 @@ export async function daySessionsFixture() {
     tenant: TENANT.A,
     seeded: await seededRow(owner, TENANT.A.company),
     session: (options: SessionOptions = {}) => createSession(owner, ids, options),
-    addLine: (sessionId: string, status: 'ACTIVE' | 'CANCELLED' = 'ACTIVE') =>
-      addLine(owner, ids, sessionId, status),
+    addLine: (
+      sessionId: string,
+      status: 'ACTIVE' | 'CANCELLED' = 'ACTIVE',
+      performers?: PerformerInput[],
+    ) => addLine(db, owner, ids, sessionId, status, performers),
     addEmployee: () =>
       addEmployee(owner, ids, TENANT.A.company, TENANT.A.business, TENANT.A.branch),
-    addPerformer: (lineId: string, employeeId: string, ordinal: number, shareBps: number) =>
-      addPerformer(owner, ids, lineId, employeeId, ordinal, shareBps),
-    cancelLine: (lineId: string) => cancelLine(owner, lineId),
+    cancelLine: (lineId: string) => cancelLine(db, owner, ids, lineId),
     addCustomer: () => addCustomer(owner, ids),
     addBusiness: () => addBusiness(owner, ids, TENANT.A.company),
     addCompany: () => addCompany(owner, ids),
@@ -115,6 +124,7 @@ async function createSession(
   const customerId = options.customerId ?? seeded.customerId;
   const businessDate = options.businessDate ?? utcDate(occurredAt);
   const { serviceId, employeeId } = await refsOf(owner, company, businessId);
+  const performers = options.performers ?? [{ employeeId, shareBps: 10000 }];
   await owner.begin(async (tx) => {
     await tx`INSERT INTO service_sessions SELECT (jsonb_populate_record(NULL::service_sessions,
       to_jsonb(s)||jsonb_build_object('id',${sessionId}::text,'occurred_at',${occurredAt}::timestamptz,
@@ -123,14 +133,25 @@ async function createSession(
       WHERE s.company_id=${company} AND s.id=${ORDER_IDS.session}`;
     await tx`INSERT INTO service_lines SELECT (jsonb_populate_record(NULL::service_lines,
       to_jsonb(l)||jsonb_build_object('id',${lineId}::text,'session_id',${sessionId}::text,
-        'business_id',${businessId}::text,'service_id',${serviceId}::text))).* FROM service_lines l
-      WHERE l.company_id=${company} AND l.id=${ORDER_IDS.line}`;
-    await tx`INSERT INTO line_performers SELECT (jsonb_populate_record(NULL::line_performers,
-      to_jsonb(p)||jsonb_build_object('id',${ids.newId()}::text,'line_id',${lineId}::text,
-        'business_id',${businessId}::text,'employee_id',${employeeId}::text))).* FROM line_performers p
-      WHERE p.company_id=${company} AND p.id=${ORDER_IDS.performer}`;
+        'business_id',${businessId}::text,'service_id',${serviceId}::text,'status','ACTIVE'::text))).*
+      FROM service_lines l WHERE l.company_id=${company} AND l.id=${ORDER_IDS.line}`;
+    await insertPerformers(tx, ids, company, businessId, lineId, performers);
   });
   return { sessionId, lineId };
+}
+
+async function insertPerformers(
+  tx: postgres.TransactionSql,
+  ids: IdGenerator,
+  company: string,
+  businessId: string,
+  lineId: string,
+  performers: readonly PerformerInput[],
+): Promise<void> {
+  for (const [index, performer] of performers.entries()) {
+    await tx`INSERT INTO line_performers(company_id,id,business_id,line_id,employee_id,performer_ordinal,share_bps,name_en,not_clocked_in_warning,approved_leave_warning)
+      VALUES(${company},${ids.newId()},${businessId},${lineId},${performer.employeeId},${index + 1},${performer.shareBps},${`Performer ${index + 1}`},false,false)`;
+  }
 }
 
 async function branchOf(owner: postgres.Sql, company: string, businessId: string): Promise<string> {
@@ -147,39 +168,43 @@ async function refsOf(
 ): Promise<{ serviceId: string; employeeId: string }> {
   const [service] =
     await owner`SELECT id FROM services WHERE company_id=${company} AND business_id=${businessId} LIMIT 1`;
+  // الرقم الوظيفي هو المفتاح: أول موظف في النشاط هو موظف البذرة، فالبذرة ثابتة بعد إضافة موظف تاني.
   const [employee] =
-    await owner`SELECT id FROM employees WHERE company_id=${company} AND business_id=${businessId} LIMIT 1`;
+    await owner`SELECT id FROM employees WHERE company_id=${company} AND business_id=${businessId}
+    ORDER BY employee_number LIMIT 1`;
   if (service === undefined || employee === undefined) throw new Error('SESSION_REFS_MISSING');
   return { serviceId: service['id'] as string, employeeId: employee['id'] as string };
 }
 
 async function addLine(
+  db: Database,
   owner: postgres.Sql,
   ids: IdGenerator,
   sessionId: string,
   status: 'ACTIVE' | 'CANCELLED',
+  performers: PerformerInput[] | undefined,
 ): Promise<string> {
   const [session] =
     await owner`SELECT company_id, business_id FROM service_sessions WHERE id=${sessionId}`;
   if (session === undefined) throw new Error('SESSION_MISSING');
   const company = session['company_id'] as string;
   const businessId = session['business_id'] as string;
-  const { serviceId } = await refsOf(owner, company, businessId);
+  const { serviceId, employeeId } = await refsOf(owner, company, businessId);
   const [next] = await owner`SELECT coalesce(max(ordinal),0)+1 AS next FROM service_lines
     WHERE company_id=${company} AND session_id=${sessionId}`;
   const ordinal = Number(next?.['next'] ?? 1);
   const lineId = ids.newId();
+  const performersOfLine = performers ?? [{ employeeId, shareBps: 10000 }];
   await owner.begin(async (tx) => {
     await tx`INSERT INTO service_lines SELECT (jsonb_populate_record(NULL::service_lines,
-      to_jsonb(l)||jsonb_build_object('id',${lineId}::text,'session_id',${sessionId}::text,'ordinal',${ordinal},
-        'input_index',${ordinal - 1},'status',${status}::text,'business_id',${businessId}::text,
-        'service_id',${serviceId}::text))).* FROM service_lines l
-      WHERE l.company_id=${company} AND l.id=${ORDER_IDS.line}`;
-    await tx`INSERT INTO line_performers SELECT (jsonb_populate_record(NULL::line_performers,
-      to_jsonb(p)||jsonb_build_object('id',${ids.newId()}::text,'line_id',${lineId}::text,
-        'business_id',${businessId}::text))).* FROM line_performers p
-      WHERE p.company_id=${company} AND p.id=${ORDER_IDS.performer}`;
+      to_jsonb(l)||jsonb_build_object('id',${lineId}::text,'session_id',${sessionId}::text,
+        'business_id',${businessId}::text,'service_id',${serviceId}::text,'status','ACTIVE'::text,
+        'ordinal',${ordinal}::int,'input_index',${ordinal - 1}::int))).*
+      FROM service_lines l WHERE l.company_id=${company} AND l.id=${ORDER_IDS.line}`;
+    await insertPerformers(tx, ids, company, businessId, lineId, performersOfLine);
   });
+  // السطر بيتعمل نشط الأول، والإلغاء بيمشي على مساره الرسمي عشان صف الإلغاء يتكتب معاه.
+  if (status === 'CANCELLED') await cancelLine(db, owner, ids, lineId);
   return lineId;
 }
 
@@ -197,25 +222,25 @@ async function addEmployee(
   return employeeId;
 }
 
-async function addPerformer(
+async function cancelLine(
+  db: Database,
   owner: postgres.Sql,
   ids: IdGenerator,
   lineId: string,
-  employeeId: string,
-  ordinal: number,
-  shareBps: number,
 ): Promise<void> {
-  const [line] = await owner`SELECT company_id, business_id FROM service_lines WHERE id=${lineId}`;
-  if (line === undefined) throw new Error('LINE_MISSING');
-  const company = line['company_id'] as string;
-  const businessId = line['business_id'] as string;
-  await owner`INSERT INTO line_performers(company_id,id,business_id,line_id,employee_id,performer_ordinal,share_bps,name_en,not_clocked_in_warning,approved_leave_warning)
-    VALUES(${company},${ids.newId()},${businessId},${lineId},${employeeId},${ordinal},${shareBps},'Extra performer',false,false)`;
-}
-
-async function cancelLine(owner: postgres.Sql, lineId: string): Promise<void> {
-  await owner`UPDATE service_lines SET status='CANCELLED', revision=revision+1
+  const [row] = await owner`SELECT revision FROM service_lines
     WHERE company_id=${TENANT.A.company} AND id=${lineId}`;
+  if (row === undefined) throw new Error('LINE_MISSING');
+  await db.withTenant(TENANT.A.company, (tx) =>
+    cancelServiceLine(tx, {
+      companyId: TENANT.A.company,
+      lineId,
+      expectedRevision: Number(row['revision']),
+      cancelledBy: USER,
+      membershipId: ORDER_IDS.membership,
+      cancellationId: ids.newId(),
+    }),
+  );
 }
 
 async function addCustomer(owner: postgres.Sql, ids: IdGenerator): Promise<string> {
@@ -223,7 +248,7 @@ async function addCustomer(owner: postgres.Sql, ids: IdGenerator): Promise<strin
   const customerId = ids.newId();
   const phone = `+9999999${String(phoneSequence).padStart(5, '0')}`;
   await owner`INSERT INTO customers SELECT (jsonb_populate_record(NULL::customers,
-    to_jsonb(c)||jsonb_build_object('id',${customerId}::text,'phone',${phone}))).* FROM customers c
+    to_jsonb(c)||jsonb_build_object('id',${customerId}::text,'phone',${phone}::text))).* FROM customers c
     WHERE c.company_id=${TENANT.A.company} AND c.id=${ORDER_IDS.customer}`;
   return customerId;
 }

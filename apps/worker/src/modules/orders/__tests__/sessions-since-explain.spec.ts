@@ -48,17 +48,12 @@ function explain(statement: SQL) {
 // واحد صغير والـ planner يقرأه بمفتاح service_sessions.
 async function plantSessions() {
   const company = f.tenant.company;
-  for (let batch = 0; batch < 10; batch += 1) {
-    const chunk: string[] = [];
-    for (let index = 0; index < 300; index += 1) chunk.push(f.ids.newId());
-    await f.owner`INSERT INTO service_sessions SELECT (jsonb_populate_record(NULL::service_sessions,
-      to_jsonb(s)||jsonb_build_object('id', g.id::uuid::text,
-        'occurred_at', (now() - (n || ' hours')::interval),
-        'business_date', (now() - (n || ' hours')::interval)::date))).*
-      FROM service_sessions s, unnest(string_to_array(${chunk.join(',')}, ',')) AS g(id),
-        generate_series(1,300) AS h(n)
-      WHERE s.company_id=${company} AND s.id=${f.seeded.id}`;
-  }
+  await f.owner`INSERT INTO service_sessions SELECT (jsonb_populate_record(NULL::service_sessions,
+    to_jsonb(s)||jsonb_build_object('id', gen_random_uuid()::text,
+      'occurred_at', (now() - ((h.n % 200) || ' hours')::interval),
+      'business_date', (now() - ((h.n % 200) || ' hours')::interval)::date))).*
+    FROM service_sessions s CROSS JOIN generate_series(1,3000) AS h(n)
+    WHERE s.company_id=${company} AND s.id=${f.seeded.id}`;
   await f.owner`ANALYZE service_sessions`;
   await f.owner`ANALYZE service_lines`;
   await f.owner`ANALYZE line_performers`;
