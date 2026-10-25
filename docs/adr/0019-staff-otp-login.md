@@ -926,3 +926,34 @@ revoked counter device could never finish the role change.
 **Consequence.** A holder of a stolen staff cookie without the device token can now end that session and learn it was
 live. Accepted: ending a session only removes access, and the cookie is HttpOnly, host-only and never sent cross-site.
 Full matrix and tests: `docs/specs/067-auth-explicit-signout/spec.md`.
+
+## Addendum 2026-10-25 — a native origin for the staff routes (PP-62, Waleed, technical)
+
+**Context.** The staff routes that start or end a staff session on a paired device compare the request `Origin`
+with one literal, `STAFF_OTP_POS_ORIGIN` (the POS host, for example `https://pos.staging.pospay.systems`):
+`POST /v1/devices/me/staff-pin/sign-in`, the staff OTP routes, the staff sign-out, clock-by-card and the staff
+leave guard. The check is the CSRF defence for routes that set or use the staff cookie (this ADR, "Staff-cookie
+operations retain origin/CSRF checks"). The «PosPay Business» Android build serves the POS bundle from that same
+origin (ADR-0055 decision 3), so it passes. The iOS build cannot: `WKWebView` keeps `capacitor://localhost`.
+So no iOS device can sign a staff member in, and M-1c's iOS check (b) cannot even reach the cookie question
+ADR-0055 decision 3 asks.
+
+**Decision (PP-62, Waleed, 2026-10-25, «عنوان تطبيق الآيفون: نسمح بيه في دخول الموظفات على التجربة»).** The staff routes accept the request when its `Origin` equals `STAFF_OTP_POS_ORIGIN` **or** one entry of
+a new optional list, `STAFF_NATIVE_ORIGINS`.
+- The list is empty by default. The api refuses to start if any entry is not exactly `capacitor://localhost`, the one
+  native origin ADR-0055 names; a new native origin needs its own addendum.
+- The list is set on staging only, as the literal `STAFF_NATIVE_ORIGINS: capacitor://localhost` in the api service of
+  `deploy/docker-compose.staging-shared.yml` (not a Dokploy variable). Production stays unset until
+  M-1c-ii passes on a real iPhone and Waleed agrees to set it there.
+- One shared function decides "is this a staff origin", so the routes cannot drift apart. The personal-session
+  routes (ADR-0027) and the passkey relying party are **not** changed (issue #536 still applies).
+
+**Why this keeps the CSRF defence.** A browser page cannot send `Origin: capacitor://localhost`; only a native
+WebView can. Another iOS app's WebView could send it, but it has its own cookie store, so it never holds our staff
+cookie. It also lacks the paired device's `Device` token, which the staff routes that open a session or act on it require
+on top of the origin; the staff sign-out does not (addendum 2026-10-23), and all it can do is end a session. The origin check still refuses every web origin except the POS host.
+
+**Consequences.** iOS (b) can run on the simulator and record whether `WKWebView` keeps the `HttpOnly; Secure;
+SameSite=Lax` staff cookie from the api host across a restart. If it does not, ADR-0055 decision 3's fallbacks
+apply (native HTTP and cookies first, then a native token, which needs its own addendum). Production behaviour does
+not change while the list is unset.
