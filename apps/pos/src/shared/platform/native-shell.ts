@@ -11,6 +11,22 @@ export function isNativeShell(): boolean {
 }
 
 /**
+ * هل طلبات جلسة الموظف محتاجة تعدي بالشبكة الأصلية بدل شبكة الـ web view؟
+ *
+ * الـ web view على iOS بيفتح من `capacitor://localhost` فمابيبعتش كوكي مضيف الـ API،
+ * والشرط ده هنا بس عشان مفيش عميل API يقرر المنصة بنفسه (spec 065 FR-006).
+ *
+ * @returns true في بناء iOS الأصلي فقط، false في Android والويب
+ */
+export function usesNativeStaffTransport(): boolean {
+  return (
+    isNativeShell() &&
+    (globalThis as { Capacitor?: { getPlatform?: () => string } }).Capacitor?.getPlatform?.() ===
+      'ios'
+  );
+}
+
+/**
  * الـ host بتاع نسخة التطبيق الأصلي: نفس الـ host اللي مضمون في البناء.
  *
  * ده ثابت مش `location.host`: على iOS الصفحة بتفتح على `capacitor://localhost` (ADR-0055 قرار 3)،
