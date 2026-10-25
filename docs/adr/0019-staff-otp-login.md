@@ -950,8 +950,9 @@ a new optional list, `STAFF_NATIVE_ORIGINS`.
 
 **Why this keeps the CSRF defence.** A browser page cannot send `Origin: capacitor://localhost`; only a native
 WebView can. Another iOS app's WebView could send it, but it has its own cookie store, so it never holds our staff
-cookie. It also lacks the paired device's `Device` token, which the staff routes that open a session or act on it require
-on top of the origin; the staff sign-out does not (addendum 2026-10-23), and all it can do is end a session. The origin check still refuses every web origin except the POS host.
+cookie. It also lacks the paired device's `Device` token. Every staff route that opens a session or acts on one
+requires, on top of the origin, that token or our staff cookie. The staff sign-out needs only the cookie (addendum
+2026-10-23), and all it can do is end a session. The origin check still refuses every web origin except the POS host.
 
 **Consequences.** iOS (b) can run on the simulator and record whether `WKWebView` keeps the `HttpOnly; Secure;
 SameSite=Lax` staff cookie from the api host across a restart. If it does not, ADR-0055 decision 3's fallbacks
