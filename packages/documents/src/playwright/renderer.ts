@@ -24,7 +24,7 @@ export interface RendererOptions {
   readonly pdfTimeoutMs?: number;
   readonly overallTimeoutMs?: number;
   readonly browserCloseGraceMs?: number;
-  /** انتظار browser.close في الإغلاق المتعمد. بعد المهلة القفل يكمل في الخلفية. */
+  /** انتظار browser.close في الإغلاق المتعمد. بعد المهلة، أو لو close رفض أو رمى، Chromium بيتقتل ومش بيكمل قفل في الخلفية. */
   readonly closeGraceMs?: number;
   /** مهلة إطلاق Chromium. الإطلاق المعلّق بيتحسب فشل وبعده بتتأجل إعادة المحاولة. */
   readonly launchTimeoutMs?: number;
