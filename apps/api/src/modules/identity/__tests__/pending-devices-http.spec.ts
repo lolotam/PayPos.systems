@@ -101,10 +101,11 @@ describe('GET /v1/branches/{branch}/devices', () => {
     const res = await list('?status=pending');
     expect(res.status).toBe(200);
     const body = pendingDevicesResponse.parse(res.body);
-    expect(Object.keys(res.body)).toEqual(['items']);
+    expect(Object.keys(res.body)).toEqual(['items', 'next_cursor']);
     expect(body.items).toHaveLength(1);
     expect(body.items[0]).toMatchObject({ id: deviceId, label: 'Waiting till' });
     expect(Object.keys(body.items[0] ?? {}).sort()).toEqual(['created_at', 'id', 'label']);
+    expect(body.next_cursor).toBeNull();
     expect(JSON.stringify(res.body)).not.toContain('claim_hash');
   });
 
@@ -113,6 +114,11 @@ describe('GET /v1/branches/{branch}/devices', () => {
       const res = await list(query);
       expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([400, 'VALIDATION_FAILED']);
     }
+  });
+
+  it('refuses a malformed cursor', async () => {
+    const res = await list('?status=pending&cursor=not-a-real-cursor');
+    expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([400, 'VALIDATION_FAILED']);
   });
 
   it('refuses a caller without manage:devices:branch', async () => {

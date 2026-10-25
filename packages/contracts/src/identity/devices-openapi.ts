@@ -23,7 +23,7 @@ export const pendingDevicesPaths = {
     get: {
       operationId: 'listPendingDevices',
       description:
-        'The branch devices whose status is PENDING, newest first, at most fifty. Requires manage:devices:branch at the branch.',
+        'The branch devices whose status is PENDING, newest first, one page of at most a hundred. Requires manage:devices:branch at the branch.',
       parameters: [
         {
           in: 'header',
@@ -42,6 +42,18 @@ export const pendingDevicesPaths = {
           name: 'status',
           required: true,
           schema: { type: 'string', enum: ['pending'] },
+        },
+        {
+          in: 'query',
+          name: 'cursor',
+          required: false,
+          schema: { type: 'string', maxLength: 512 },
+        },
+        {
+          in: 'query',
+          name: 'limit',
+          required: false,
+          schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
         },
       ],
       responses: {
