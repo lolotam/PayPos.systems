@@ -33,14 +33,18 @@ export const STAFF_OTP_API = Symbol('STAFF_OTP_API');
 export { STAFF_SESSIONS } from '../../../shared/staff-sessions.token.ts';
 import { STAFF_SESSIONS } from '../../../shared/staff-sessions.token.ts';
 export { STAFF_POS_ORIGIN } from '../../../shared/staff-origin.token.ts';
-import { STAFF_POS_ORIGIN } from '../../../shared/staff-origin.token.ts';
+import {
+  isStaffOrigin,
+  STAFF_POS_ORIGIN,
+  type StaffOrigins,
+} from '../../../shared/staff-origin.token.ts';
 
 @Controller('devices/me')
 export class StaffOtpController {
   constructor(
     @Inject(STAFF_OTP_API) private readonly otp: StaffOtpApi | null,
     @Inject(STAFF_SESSIONS) private readonly sessions: StaffSessions | null,
-    @Inject(STAFF_POS_ORIGIN) private readonly origin: string | null,
+    @Inject(STAFF_POS_ORIGIN) private readonly origin: StaffOrigins | null,
   ) {}
 
   @Post('staff-otp/request')
@@ -128,8 +132,7 @@ export class StaffOtpController {
   }
 
   private validate(request: FastifyRequest): void {
-    if (this.origin === null || request.headers.origin !== this.origin)
-      throw new ApiError('FORBIDDEN');
+    if (!isStaffOrigin(this.origin, request.headers.origin)) throw new ApiError('FORBIDDEN');
     if (request.principal?.kind !== 'device' && request.staffSession === undefined)
       throw new ApiError('FORBIDDEN');
   }

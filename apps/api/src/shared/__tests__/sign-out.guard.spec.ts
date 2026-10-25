@@ -35,7 +35,7 @@ const personalAuthentication = {
 
 const wiringFor = (overrides: Partial<SignOutWiring> = {}): SignOutWiring => ({
   staffSessions: {} as StaffSessions,
-  staffOrigin: STAFF_ORIGIN,
+  staffOrigin: { pos: STAFF_ORIGIN, native: [] },
   personal: personalAuthentication,
   limiter: null,
   ...overrides,

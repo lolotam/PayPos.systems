@@ -66,6 +66,7 @@ export interface AppDependencies {
     api: StaffOtpApi | null;
     sessions: StaffSessions | null;
     origin: string | null;
+    nativeOrigins?: readonly string[];
   };
   readonly readiness: readonly ReadinessCheck[];
   /** Releases what main.ts opened (pools, clients). Runs on app.close() and on SIGTERM/SIGINT. */

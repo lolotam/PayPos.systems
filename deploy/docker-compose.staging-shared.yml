@@ -71,6 +71,8 @@ services:
       <<: [*app-env, *staff-otp-env]
       # PP-58.3: the staging-only operator CLI refuses to run without this literal marker.
       DEPLOY_ENV: staging
+      # PP-62: the iOS app's origin for the staff sign-in routes (ADR-0019 addendum 2026-10-25); staging only.
+      STAFF_NATIVE_ORIGINS: capacitor://localhost
       AUTH_DATABASE_URL: postgres://pospay_auth:${POSTGRES_AUTH_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}

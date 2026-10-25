@@ -116,7 +116,12 @@ export function identityProviders(
   database: TenantWrappers | undefined,
   ids: IdGenerator,
   redis?: Redis,
-  staff?: { api: StaffOtpApi | null; sessions: StaffSessions | null; origin: string | null },
+  staff?: {
+    api: StaffOtpApi | null;
+    sessions: StaffSessions | null;
+    origin: string | null;
+    nativeOrigins?: readonly string[];
+  },
 ): Provider[] {
   const reader = database === undefined ? null : createAccessReader(database);
   const names: WorkspaceNames | null = database === undefined ? null : createWorkspaceNames();
@@ -137,7 +142,12 @@ export function identityProviders(
     },
     { provide: STAFF_OTP_API, useValue: staff?.api ?? null },
     { provide: STAFF_SESSIONS, useValue: staff?.sessions ?? null },
-    { provide: STAFF_POS_ORIGIN, useValue: staff?.origin ?? null },
+    {
+      provide: STAFF_POS_ORIGIN,
+      useValue: staff?.origin
+        ? { pos: staff.origin, native: staff.nativeOrigins ?? [] }
+        : null,
+    },
     {
       provide: STAFF_PIN_USE_CASES,
       useValue:

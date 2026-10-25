@@ -16,7 +16,11 @@ import { Authenticated } from '../../../shared/access.decorators.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { Idempotency, type IdempotencyInput } from '../../../shared/idempotency.ts';
 import { STAFF_ROUTE } from '../../../shared/staff-authentication.ts';
-import { STAFF_POS_ORIGIN } from '../../../shared/staff-origin.token.ts';
+import {
+  isStaffOrigin,
+  STAFF_POS_ORIGIN,
+  type StaffOrigins,
+} from '../../../shared/staff-origin.token.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import {
   AttendanceError,
@@ -29,7 +33,7 @@ import {
 export class ClockByCardController {
   constructor(
     @Inject(ClockByCard) private readonly clock: ClockByCard | null,
-    @Inject(STAFF_POS_ORIGIN) private readonly origin: string | null,
+    @Inject(STAFF_POS_ORIGIN) private readonly origin: StaffOrigins | null,
   ) {}
   @Post('clock-by-card')
   @Authenticated()
@@ -42,8 +46,7 @@ export class ClockByCardController {
     @Res({ passthrough: true }) reply: FastifyReply,
     @Idempotency() idem: IdempotencyInput,
   ): Promise<ClockAttendanceResult> {
-    if (this.origin === null || request.headers.origin !== this.origin)
-      throw new ApiError('FORBIDDEN');
+    if (!isStaffOrigin(this.origin, request.headers.origin)) throw new ApiError('FORBIDDEN');
     const scope = cardScope(request);
     if (scope === null) throw new ApiError('UNAUTHENTICATED');
     if (this.clock === null) throw new ApiError('NOT_READY');
