@@ -234,3 +234,8 @@ definer, and a column on the current line row would not cover older events or th
 events. A reader without event ids (C) can build a correct projection but cannot discharge the ids, so the rows stay
 pending forever. The gate stays fail closed: approval does not open until the replay's counts and coverage are proven
 (spec 059 CM-24, the runbook count of 50-3).
+
+**Open for 50-3.** Two points are not designed here and are listed as must-handle items in the 50-3 row of spec 059: every
+worker replica runs the `commissions.project-inputs` consumer, or the old dispatchers are drained, before the replay's upper
+bound is captured; and line coverage is proven against orders' saved state (ADR-0041 §6, the 35b-2 runbook precedent), with
+approval staying closed when a retained event is missing.

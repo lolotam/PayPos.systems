@@ -1,5 +1,9 @@
 <!--
 Sync Impact Report
+- 3.1.0 (2026-10-25, MINOR): Principle I raises the in-flight limit from three slices to five or six (six at most), a replacement opens as
+  soon as one merges, and only one migration lane runs at a time (Waleed, PP-59, `docs/owner-decisions.ar.md` item 28, to save Claude
+  quota). Rationale: the disjoint-paths, green-on-own-head and merge-time numbering rules are unchanged, so the principle keeps
+  its meaning and only its numeric limit moves (MINOR, not the MAJOR of 3.0.0). `.claude/skills/pospay-pipeline/SKILL.md` §2 carries the same limit.
 - 3.0.1 (2026-10-17, PATCH): Principle I names the slice spec path `docs/specs/NNN-<module>-<use-case>/spec.md`, as `CLAUDE.md` §1 does; the
   old `docs/specs/<module>/<use-case>.md` is gone from the constitution and `docs/PRD.md` (issue #7).
 - 3.0.0 (2026-10-07, MAJOR — Principle I redefined): Principle I allows up to three slices in flight at once when their file paths are
@@ -61,9 +65,9 @@ spec at `docs/specs/NNN-<module>-<use-case>/spec.md` covering requirements, busi
 acceptance criteria, schema changes, API contract, permissions and tests. Implementation MUST
 follow this order: Zod contract → migration + RLS policy → domain functions + unit tests →
 use case → adapters (persistence, http) → integration tests → UI. A slice MUST NOT touch
-modules outside its scope without stating why. At most three slices may be in flight at once,
-and only when their file paths are disjoint; each merges only when it is green on its own head, and migration
-and ADR numbers are assigned at merge (Waleed, 2026-10-07). Every architectural decision MUST be recorded as
+modules outside its scope without stating why. Five or six slices (six at most) are kept in flight at once, a replacement opening as soon as one merges,
+and only when their file paths are disjoint and only one of them is a migration lane; each merges only when it is green on its own head, and migration
+and ADR numbers are assigned at merge (Waleed, 2026-10-07; limit raised by PP-59, 2026-10-25). Every architectural decision MUST be recorded as
 `docs/adr/NNNN-title.md`. A slice is done only when the checklist in
 `CLAUDE.architecture.md` §15 passes and `pnpm check` is green. Unknown business rules are
 marked `TODO(spec)` and work stops there; guessing is forbidden.
@@ -439,7 +443,7 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 3.0.1 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-17
+**Version**: 3.1.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-25
 
 ## PR 6 amendment — ADR-0019, 2026-10-02
 

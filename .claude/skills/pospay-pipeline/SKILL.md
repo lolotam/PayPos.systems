@@ -37,7 +37,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 There is no separate model check before the first dispatch. Any `opencode` command started outside §4's guarded setup
 loads plugins and config before `check-opencode.cjs` has vetted them, and a bare `opencode run` would also run the model
 under opencode's default, unrestricted permissions. The first guarded run is the check: a missing model id, or an auth
-or quota failure, shows as a nonzero exit (§4 rule 8). Then stop and ask the owner. Never substitute a provider outside these two (PP-55.1), and never switch a task between them without the owner's yes. On a quota stop, hold and resume the same session after
+or quota failure, shows as a nonzero exit (§4 rule 8). Then stop and ask the owner. Never substitute a provider outside these two (PP-55.1), and never switch a task between them without the owner's yes. **A Kimi usage limit is the exception, and the procedure is the owner's PP-60 yes already given:** do not stop and ask; switch that task to MiniMax in a new session (§4) and return to Kimi after the renewal. For any other quota stop (MiniMax's, or a failure that is not a usage limit), hold and resume the same session after
 the renewal.
 
 ---
@@ -49,7 +49,7 @@ the renewal.
   - **P0 / P1** (security, money, tenant isolation, data loss, correctness): both design advisors propose a fix, the
     implementer applies it, and the PR **stays blocked** until it is fixed and confirmed. The cap never lowers the bar.
   - **P2 / P3**: open a GitHub issue per finding, linked from its review thread, then merge.
-- **Parallel work: keep 5 to 6 tasks running at all times, 6 at most** (Waleed, PP-59, 2026-10-25, `docs/owner-decisions.ar.md` item 28; it replaces the old cap of 3). When a task merges, open a replacement at once. Pick tasks whose file paths are **disjoint**, and run **one migration lane at a time**. Implementation runs on Kimi/MiniMax and Codex gives advice and review, to save Claude quota. Two tasks that touch the
+- **Parallel work: keep 5 to 6 tasks running at all times, 6 at most** (Waleed, PP-59, 2026-10-25, `docs/owner-decisions.ar.md` item 28; it replaces the old cap of 3, and `.specify/memory/constitution.md` Principle I carries the same limit since version 3.1.0). When a task merges, open a replacement at once. Pick tasks whose file paths are **disjoint**, and run **one migration lane at a time**. Implementation runs on Kimi/MiniMax and Codex gives advice and review, to save Claude quota. Two tasks that touch the
   same file wait for each other. Each task has its own branch, worktree (`F:\Dev\Worktrees\PosPay\<branch>`) and PR.
   Migration and ADR numbers are assigned **at merge time**: renumber the later PR after the earlier one lands. Each
   slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
@@ -103,7 +103,7 @@ backend and data slices use **`minimax-coding-plan/MiniMax-M3.1-Flash`**, on Wal
 offers no `#high` variant and runs at its default (PP-55.1). **When Kimi hits its usage limit** (a 5-hour window), switch that task to MiniMax in a **new session** briefed on what is done and what is left, and go back to Kimi once its quota renews (Waleed, PP-60, 2026-10-25, `docs/owner-decisions.ar.md` item 29). Everything below applies to both; only `-m` differs. The `opencode-delegate` skill holds the run and relay mechanics. This section
 pins the PosPay rules on top of it.
 
-1. **One session per task.** Give the first run a session id with `-s`, and record it in the task's notes
+1. **One session per task, and only one session works on it at a time.** The one exception to a single session id is PP-60: a Kimi usage limit moves the task to a new MiniMax session, which replaces the Kimi session while the limit lasts (the Kimi session stays idle, never running beside it), and the task goes back to a Kimi session after the renewal. Give the first run a session id with `-s`, and record it in the task's notes
    (`F:\Dev\Worktrees\PosPay\briefs\<task>\sid.txt`). The installed opencode CLI (v2.1.4, as v2.0.32 before it) documents `-s` as
    "Session ID to continue, or to create if it does not exist". It refuses an id that does not start with `ses`
    (`Expected a string starting with "ses"`, 2026-10-20), so a plain UUID fails before the model runs. Use opencode's
