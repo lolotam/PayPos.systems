@@ -57,9 +57,6 @@ describe('rating comment links and markup refused', () => {
     ['an HTML tag with attributes', '<img src=x onerror=alert(1)>'],
     ['an HTML tag', '<b>bold</b>'],
     ['a self-closing HTML tag', 'line<br/>break'],
-    ['a bare domain', 'visit example.com'],
-    ['an upper-case bare domain', 'Visit EXAMPLE.COM'],
-    ['a domain with a country TLD', 'shop.sa/path'],
     ['an ftp URL', 'ftp://example.com/file'],
     ['a mailto link', 'mailto:user@example.com'],
     ['an email address', 'contact me at a@mail.example.com'],
@@ -67,23 +64,53 @@ describe('rating comment links and markup refused', () => {
     ['a file URL', 'file:///etc/passwd'],
     ['an opaque data URL', 'data:text/plain,hello'],
     ['a telephone link', 'tel:123'],
-    ['a domain with a travel TLD', 'example.travel'],
-    ['a domain with a news TLD', 'see example.news/today'],
     ['an SMS link', 'sms:+96550000000'],
     ['a WhatsApp link', 'WhatsApp:me'],
+  ])('refuses a comment with %s', (_label, comment) => {
+    expect(ratingComment.safeParse(comment).success).toBe(false);
+  });
+});
+
+describe('rating comment bare domains refused', () => {
+  it.each([
+    ['a bare domain', 'visit example.com'],
+    ['an upper-case bare domain', 'Visit EXAMPLE.COM'],
     ['a lowercase bare domain', 'example.com'],
     ['a mixed-case domain', 'Example.COM'],
     ['a fully upper-case domain', 'EXAMPLE.COM'],
     ['a service domain', 'service.me'],
+    ['a travel domain', 'visit example.travel'],
+    ['a bare travel domain', 'example.travel'],
+    ['a news domain with a path', 'see example.news/today'],
+    ['a domain with a path', 'shop.sa/path'],
+    ['a domain with a path after it', 'see example.org/x'],
+    ['an address with a domain', 'call me at me@mail.test'],
     ['a capitalised technical TLD in an address', 'user@example.Com'],
     ['a capitalised travel TLD in an address', 'user@example.Travel'],
+    ['a capitalised technical TLD', 'example.Com'],
+    ['a capitalised net TLD', 'example.Net'],
+    ['a capitalised org TLD', 'example.Org'],
+    ['a capitalised country TLD', 'example.Kw'],
     ['a domain with a country TLD', 'mysalon.com.au'],
     ['a domain with two word TLDs', 'mysalon.co.za'],
     ['a domain before a capitalised word', 'mysalon.com.Thanks'],
     ['a domain with a hyphen', 'mysalon.com-thanks'],
     ['a hyphenated domain', 'my-salon.com'],
-    ['a path after a domain', 'see example.org/x'],
-    ['an address with a domain', 'call me at me@mail.test'],
+  ])('refuses a comment with %s', (_label, comment) => {
+    expect(ratingComment.safeParse(comment).success).toBe(false);
+  });
+});
+
+describe('rating comment hosts with separators refused', () => {
+  it.each([
+    ['a port after a domain', 'example.com:443/x'],
+    ['a port after a domain', 'example.com:8080'],
+    ['a colon after a domain', 'Visit example.com:'],
+    ['a domain after a path', 'IG/mysalon.com'],
+    ['a domain after a double slash', 'x//mysalon.com'],
+    ['a domain inside brackets', 'see (//example.com/x)'],
+    ['an IPv4 address with a path', '192.168.1.1/x'],
+    ['an IPv4 address with a port', '10.0.0.1:8080'],
   ])('refuses a comment with %s', (_label, comment) => {
     expect(ratingComment.safeParse(comment).success).toBe(false);
   });
@@ -112,16 +139,18 @@ describe('rating comment links and markup accepted', () => {
     ['a sentence break before a pronoun', 'Thank you.Us girls'],
     ['a sentence break after a full stop', 'Great service.It was perfect'],
     ['a sentence break after a thanks', 'Thanks.My hair looks great'],
+    ['a version with a letter', 'v1.2.3'],
+    ['a sentence of capitalised words', 'Good.Service.Thanks'],
     ['an acronym', 'U.S.A'],
     ['a fraction with a path', '4.5/5 stars'],
     ['a version number', '1.2.3'],
+    ['an IPv4 address alone', '192.168.1.1'],
   ])('accepts a comment with %s', (_label, comment) => {
     expect(ratingComment.safeParse(comment).success).toBe(true);
   });
 
-  it('accepts a title-cased TLD as a documented residual', () => {
+  it('accepts a title-cased word-like TLD as a documented residual', () => {
     expect(ratingComment.safeParse('example.Shop').success).toBe(true);
-    expect(ratingComment.safeParse('example.Com').success).toBe(true);
   });
 });
 
@@ -160,6 +189,14 @@ describe('rating comment cost', () => {
 
   it('refuses a 1000-code-point body that ends in a domain and stays fast', () => {
     const body = `${'x.'.repeat(498)}.com`;
+    const started = clock();
+    const result = ratingComment.safeParse(body);
+    expect(clock() - started).toBeLessThan(200);
+    expect(result.success).toBe(false);
+  });
+
+  it('refuses a 2000-character dotted pattern quickly', () => {
+    const body = 'a.a/'.repeat(500);
     const started = clock();
     const result = ratingComment.safeParse(body);
     expect(clock() - started).toBeLessThan(200);
