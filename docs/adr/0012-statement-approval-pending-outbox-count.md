@@ -235,7 +235,10 @@ events. A reader without event ids (C) can build a correct projection but cannot
 pending forever. The gate stays fail closed: approval does not open until the replay's counts and coverage are proven
 (spec 059 CM-24, the runbook count of 50-3).
 
-**Open for 50-3.** Two points are not designed here and are listed as must-handle items in the 50-3 row of spec 059: every
+**Open for 50-3.** Four points are not designed here and are listed as must-handle items in the 50-3 row of spec 059: (a) every
 worker replica runs the `commissions.project-inputs` consumer, or the old dispatchers are drained, before the replay's upper
-bound is captured; and line coverage is proven against orders' saved state (ADR-0041 §6, the 35b-2 runbook precedent), with
-approval staying closed when a retained event is missing.
+bound is captured; (b) line coverage is proven against orders' saved state (ADR-0041 §6, the 35b-2 runbook precedent), with
+approval staying closed when a retained event is missing; (c) salary coverage is proven against the authoritative salary
+history rows, with approval closed on any mismatch; (d) after 50-3 has run, a worker rollback to a release without the
+consumer re-runs the replay with a new upper bound before approval reopens, or the rollback is blocked. (b), (c) and (d) are
+`TODO(spec)`.
