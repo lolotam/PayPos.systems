@@ -34,7 +34,9 @@ import {
   createPerformersChangeNoticeConsumer,
   createPriceEditNoticeConsumer,
   createDiscountApprovalNoticeConsumer,
+  daySessionsReader,
 } from './modules/orders/index.ts';
+import { createRatingSchedulingConsumer } from './modules/customers/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 import {
   beginDocumentRendering,
@@ -134,6 +136,11 @@ const businessDeliver = createDeliverer(
     createLineCancelNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
     createPerformersChangeNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
     createDiscountApprovalNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
+    createRatingSchedulingConsumer({
+      ids: systemUuidV7(),
+      clock: { now: () => new Date() },
+      daySessions: daySessionsReader,
+    }),
   ],
   logger,
   { knownEventTypes: knownEventTypes(staff, notifications, inApp) },

@@ -33,7 +33,7 @@ it('returns a branch timezone and its stored opening hours', async () => {
   const hours = [{ weekday: 1, intervals: [{ opens: '18:00', closes: '02:00' }] }];
   await owner`UPDATE businesses SET timezone='Asia/Riyadh'
     WHERE company_id=${TENANT.A.company} AND id=${TENANT.A.business}`;
-  await owner`UPDATE branches SET timezone='Asia/Dubai', opening_hours=${JSON.stringify(hours)}::jsonb
+  await owner`UPDATE branches SET timezone='Asia/Dubai', opening_hours=${owner.json(hours)}
     WHERE company_id=${TENANT.A.company} AND id=${TENANT.A.branch}`;
   expect(await read(TENANT.A.company, TENANT.A.branch)).toEqual({
     openingHours: hours,
@@ -45,7 +45,7 @@ it('falls back to the business timezone when the branch timezone is null', async
   const hours = [{ weekday: 2, intervals: [{ opens: '10:00', closes: '22:00' }] }];
   await owner`UPDATE businesses SET timezone='Asia/Dubai'
     WHERE company_id=${TENANT.A.company} AND id=${TENANT.A.business}`;
-  await owner`UPDATE branches SET timezone=NULL, opening_hours=${JSON.stringify(hours)}::jsonb
+  await owner`UPDATE branches SET timezone=NULL, opening_hours=${owner.json(hours)}
     WHERE company_id=${TENANT.A.company} AND id=${TENANT.A.branch}`;
   expect(await read(TENANT.A.company, TENANT.A.branch)).toEqual({
     openingHours: hours,

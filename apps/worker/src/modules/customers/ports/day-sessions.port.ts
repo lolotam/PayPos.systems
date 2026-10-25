@@ -19,7 +19,17 @@ export interface BootstrapSession {
 
 /** حالة الزيارات الموجودة في orders، وتصل بحقن callback حتى لا يستوردها customers. */
 export interface DaySessionsPort {
-  /** يرجع البنود النشطة ومنفذيها في نافذة اليوم لإعادة حساب الجدولة والإسناد من المصدر. */
+  /**
+   * يرجع البنود النشطة ومنفذيها في نافذة اليوم لإعادة حساب الجدولة والإسناد من المصدر.
+   *
+   * @param tx معاملة المستأجر
+   * @param companyId الشركة المالكة للزيارات
+   * @param businessId النشاط المطلوب
+   * @param customerId العميل صاحب الزيارات
+   * @param fromInstant بداية النافذة الشاملة
+   * @param toInstant نهاية النافذة غير الشاملة
+   * @returns البنود النشطة داخل النافذة
+   */
   activeLines(
     tx: Tx,
     companyId: string,
@@ -28,7 +38,16 @@ export interface DaySessionsPort {
     fromInstant: Date,
     toInstant: Date,
   ): Promise<readonly ActiveLine[]>;
-  /** يرجع صفحة keyset من الزيارات النشطة ضمن النطاق المجمد لاستكمال الـ bootstrap. */
+  /**
+   * يرجع صفحة keyset من الزيارات النشطة ضمن النطاق المجمد لاستكمال الـ bootstrap.
+   *
+   * @param tx معاملة المستأجر
+   * @param companyId الشركة المالكة للزيارات
+   * @param range النطاق المجمد للقراءة
+   * @param afterSessionId آخر معرف في الصفحة السابقة أو null للبداية
+   * @param limit الحد الأقصى لعدد الصفوف
+   * @returns صفحة الزيارات المختصرة
+   */
   sessionsSince(
     tx: Tx,
     companyId: string,
@@ -36,6 +55,13 @@ export interface DaySessionsPort {
     afterSessionId: string | null,
     limit: number,
   ): Promise<readonly BootstrapSession[]>;
-  /** يرجع عدد الزيارات المشمولة بالنطاق للتحقق من تغطية الـ bootstrap. */
+  /**
+   * يرجع عدد الزيارات المشمولة بالنطاق للتحقق من تغطية الـ bootstrap.
+   *
+   * @param tx معاملة المستأجر
+   * @param companyId الشركة المالكة للزيارات
+   * @param range النطاق المجمد للقراءة
+   * @returns عدد الزيارات المشمولة
+   */
   countSince(tx: Tx, companyId: string, range: BootstrapRange): Promise<number>;
 }
