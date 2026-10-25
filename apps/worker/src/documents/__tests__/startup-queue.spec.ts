@@ -7,7 +7,7 @@ import { expect, it } from 'vitest';
 
 import { WORKER_LOG_EVENTS } from '../../shared/log-events.ts';
 import { beginDocumentRendering, type DocumentRendering } from '../start-documents.ts';
-import { FakeRenderer, redisUrl } from './render-harness.ts';
+import { FakeRenderer, redisUrl, whenRedisReady } from './render-harness.ts';
 
 interface SeenQueue {
   worker: Worker;
@@ -47,25 +47,6 @@ function hangRedis(): Promise<{ url: string; stop: () => Promise<void> }> {
   });
 }
 
-function whenReady(redis: Redis): Promise<void> {
-  if (redis.status === 'ready') return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => finish(new Error('redis ready timed out')), 5_000);
-    function finish(error?: Error): void {
-      clearTimeout(timer);
-      redis.off('ready', onReady);
-      redis.off('error', onError);
-      if (error === undefined) resolve();
-      else reject(error);
-    }
-    const onReady = (): void => finish();
-    const onError = (error: Error): void => finish(error);
-    redis.once('ready', onReady);
-    redis.once('error', onError);
-    if (redis.status === 'ready') finish();
-  });
-}
-
 async function until(ready: () => boolean): Promise<void> {
   const started = Date.now();
   while (!ready()) {
@@ -80,7 +61,7 @@ it('closes the first queue when Redis never becomes ready', async () => {
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false });
   let handle: DocumentRendering | undefined;
   try {
-    await whenReady(redis);
+    await whenRedisReady(redis);
     handle = beginDocumentRendering({
       redis,
       redisUrl: hang.url,
