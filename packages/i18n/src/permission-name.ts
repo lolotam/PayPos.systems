@@ -39,6 +39,7 @@ const keys: Readonly<Record<string, MessageKey>> = {
   'manage:business-identity:business': 'permissionCodes.manageBusinessIdentityBusiness',
   'manage:alert-rules:business': 'permissionCodes.manageAlertRulesBusiness',
   'manage:staff-app-columns:business': 'permissionCodes.manageStaffAppColumnsBusiness',
+  'manage:commission-plans:business': 'permissionCodes.manageCommissionPlansBusiness',
   'manage:employee-number:company': 'permissionCodes.manageEmployeeNumberCompany',
   'view:notifications:business': 'permissionCodes.viewNotificationsBusiness',
   'manage:files:business': 'permissionCodes.manageFilesBusiness',

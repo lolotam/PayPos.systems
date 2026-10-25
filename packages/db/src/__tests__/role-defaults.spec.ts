@@ -78,7 +78,12 @@ const expectations: Record<string, readonly string[]> = {
     'read:schedules:business',
     'manage:schedules:business',
   ],
-  accountant: ['read:businesses:company', 'read:branches:branch', 'read:attendance:branch'],
+  accountant: [
+    'read:businesses:company',
+    'read:branches:branch',
+    'read:attendance:branch',
+    'manage:commission-plans:business',
+  ],
   branch_manager: [
     'approve:discounts:branch',
     'edit:service-line-prices:branch',
@@ -131,6 +136,17 @@ for (const role of SYSTEM_ROLES) {
     expect(actual.includes(role.code)).toBe(leaveDefault);
   });
 }
+
+it('CS-Q27 manage:commission-plans:business defaults to owner and accountant, the owner alone grants it, and a device never holds it', () => {
+  const code = 'manage:commission-plans:business';
+  expect(ROLE_DEFAULTS[code]).toEqual(['owner', 'accountant']);
+  expect(OWNER_GRANTED_PERMISSIONS).toContain(code);
+  for (const role of SYSTEM_ROLES) {
+    expect(systemRolePolicy(role.id, 'global')?.permissions.includes(code)).toBe(
+      role.code !== 'device',
+    );
+  }
+});
 
 it('schedule settings default to owner and are eligible for humans only', () => {
   expect(ROLE_DEFAULTS['manage:schedule-settings:business']).toEqual(['owner']);

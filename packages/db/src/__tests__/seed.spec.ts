@@ -1,8 +1,11 @@
+import { readFile } from 'node:fs/promises';
+
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import templates from '../../seed/vertical-templates.json' with { type: 'json' };
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
+import { seedTwoTenants, TENANT, USER } from '../../test/tenancy-fixtures.ts';
 import { PERMISSIONS, PLATFORM_ROLES, SYSTEM_ROLES } from '../access-catalog.ts';
 import { ROLE_DEFAULTS } from '../role-defaults.ts';
 import { FEATURE_FLAGS, seedReferenceData } from '../seed.ts';
@@ -35,6 +38,17 @@ it('migrations install card-clock reception defaults before any seed runs', asyn
     { code: 'shift_supervisor', permission_code: 'clock:attendance:branch' },
   ]);
 });
+it('migrations install commission plan defaults globally before any seed runs', async () => {
+  const grants = await owner`SELECT r.code,rp.permission_code FROM role_permissions rp
+    JOIN roles r ON r.id=rp.role_id AND r.owner_key=rp.role_owner_key
+    WHERE r.company_id IS NULL AND rp.permission_code='manage:commission-plans:business'
+    ORDER BY r.code`;
+  expect(grants).toEqual([
+    { code: 'accountant', permission_code: 'manage:commission-plans:business' },
+    { code: 'owner', permission_code: 'manage:commission-plans:business' },
+  ]);
+});
+
 // توقع مستقل لحزم PR 16؛ بقية المرجع يغطيه اختبار المصفوفة الكاملة.
 function expectedScheduleGrants() {
   return SYSTEM_ROLES.flatMap((r) => {
@@ -116,6 +130,43 @@ describe('seedReferenceData', () => {
     const [row] = await owner`SELECT count(*)::int AS n FROM companies`;
     expect(row).toEqual({ n: 0 });
   });
+});
+
+it('CS-Q27 an accountant of a company created before the permission migration holds manage:commission-plans:business', async () => {
+  await seedTwoTenants(testDb.ownerUrl);
+  const membershipId = '01920000-0000-7000-8000-000000000487';
+  const accountantRole = SYSTEM_ROLES.find((role) => role.code === 'accountant')?.id as string;
+  await owner`INSERT INTO "user"(id,name,email)
+    VALUES(${USER},'Commission accountant','commission-accountant@example.test')`;
+  await owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+    VALUES(${TENANT.A.company},${membershipId},${USER},${accountantRole},'global','BUSINESS',${TENANT.A.business})`;
+  await owner`DELETE FROM role_permissions WHERE permission_code='manage:commission-plans:business'`;
+  await owner`DELETE FROM permissions WHERE code='manage:commission-plans:business'`;
+
+  const migration = await readFile(
+    new URL('../../migrations/0187_2026-10-25_commission-plans-permission.sql', import.meta.url),
+    'utf8',
+  );
+  for (const statement of migration.split('--> statement-breakpoint')) {
+    const sql = statement.trim();
+    if (sql.length > 0) await owner.unsafe(sql);
+  }
+
+  const granted = await owner<{ code: string; permission_code: string }[]>`
+    SELECT r.code,rp.permission_code FROM memberships m
+    JOIN roles r ON r.id=m.role_id AND r.owner_key=m.role_owner_key
+    JOIN role_permissions rp ON rp.role_id=m.role_id AND rp.role_owner_key=m.role_owner_key
+      AND rp.permission_code='manage:commission-plans:business'
+    WHERE m.company_id=${TENANT.A.company} AND m.id=${membershipId}`;
+  expect(granted).toEqual([
+    { code: 'accountant', permission_code: 'manage:commission-plans:business' },
+  ]);
+  const forbidden = await owner<{ code: string }[]>`
+    SELECT r.code FROM roles r
+    JOIN role_permissions rp ON rp.role_id=r.id AND rp.role_owner_key=r.owner_key
+      AND rp.permission_code='manage:commission-plans:business'
+    WHERE r.company_id IS NULL AND r.code IN ('general_manager','device')`;
+  expect(forbidden).toEqual([]);
 });
 
 describe('vertical templates (PRD §7.1)', () => {

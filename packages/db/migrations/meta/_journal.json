@@ -1289,6 +1289,20 @@
       "when": 1792901688122,
       "tag": "0185_2026-10-25_rating-storage",
       "breakpoints": true
+    },
+    {
+      "idx": 186,
+      "version": "7",
+      "when": 1792924178140,
+      "tag": "0186_2026-10-25_commission-plan-versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 187,
+      "version": "7",
+      "when": 1792924191090,
+      "tag": "0187_2026-10-25_commission-plans-permission",
+      "breakpoints": true
     }
   ]
 }

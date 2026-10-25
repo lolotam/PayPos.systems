@@ -798,6 +798,202 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/employees/{employeeId}/commission-plan-versions": {
+      "post": {
+        "operationId": "createCommissionPlanVersion",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommissionPlanVersionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stored plan version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionPlanVersion"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform 403 refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "COMMISSION_PERIOD_NOT_DRAFT or COMMISSION_PERIOD_CLOSED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "COMMISSION_PLAN_INVALID with details.code, or COMMISSION_EFFECTIVE_FROM_PAST when effective_from is before today.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CommissionPlanInvalidError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommissionEffectiveFromPastError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listCommissionPlanVersions",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plan versions, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionPlanVersionList"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform 403 refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/document-types": {
       "get": {
         "operationId": "listDocumentTypes",
@@ -14997,6 +15193,477 @@
           "items",
           "next_cursor"
         ]
+      },
+      "CommissionPlanCalc": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "PCT"
+                ]
+              },
+              "bps": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              }
+            },
+            "required": [
+              "kind",
+              "bps"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "FIXED"
+                ]
+              },
+              "amount": {
+                "type": "string",
+                "pattern": "^(0|[1-9]\\d{0,10})\\.\\d{3}$"
+              }
+            },
+            "required": [
+              "kind",
+              "amount"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "CommissionPlanComponent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              },
+              "calc": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CommissionPlanCalc"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "enabled"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "calc": {
+                "$ref": "#/components/schemas/CommissionPlanCalc"
+              }
+            },
+            "required": [
+              "enabled",
+              "calc"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "CommissionPlanThreshold": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "AMOUNT"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "pattern": "^(0|[1-9]\\d{0,10})\\.\\d{3}$"
+              }
+            },
+            "required": [
+              "kind",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "SESSIONS"
+                ]
+              },
+              "value": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "kind",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "SALARY_MULTIPLE"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "pattern": "^(0|[1-9]\\d{0,3})\\.\\d{2}$"
+              }
+            },
+            "required": [
+              "kind",
+              "value"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "CommissionPlanTierStep": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "$ref": "#/components/schemas/CommissionPlanThreshold"
+          },
+          "calc": {
+            "$ref": "#/components/schemas/CommissionPlanCalc"
+          }
+        },
+        "required": [
+          "from",
+          "calc"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionPlanTiers": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "MARGINAL",
+                  "WHOLE"
+                ]
+              },
+              "accumulator": {
+                "type": "string",
+                "enum": [
+                  "AMOUNT",
+                  "SESSIONS"
+                ]
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CommissionPlanTierStep"
+                }
+              }
+            },
+            "required": [
+              "enabled"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "MARGINAL",
+                  "WHOLE"
+                ]
+              },
+              "accumulator": {
+                "type": "string",
+                "enum": [
+                  "AMOUNT",
+                  "SESSIONS"
+                ]
+              },
+              "steps": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CommissionPlanTierStep"
+                }
+              }
+            },
+            "required": [
+              "enabled",
+              "mode",
+              "accumulator",
+              "steps"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "CommissionPlanDate": {
+        "type": "string",
+        "allOf": [
+          {
+            "type": "string",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          {
+            "type": "string",
+            "pattern": "^(?!0000)"
+          }
+        ]
+      },
+      "CommissionRepairPeriod": {
+        "type": "string",
+        "pattern": "^(?!0000-)[0-9]{4}-(0[1-9]|1[0-2])$"
+      },
+      "CreateCommissionPlanVersionInput": {
+        "type": "object",
+        "properties": {
+          "effective_from": {
+            "$ref": "#/components/schemas/CommissionPlanDate"
+          },
+          "whole_period": {
+            "type": "boolean"
+          },
+          "base": {
+            "$ref": "#/components/schemas/CommissionPlanComponent"
+          },
+          "tiers": {
+            "$ref": "#/components/schemas/CommissionPlanTiers"
+          },
+          "package_sale": {
+            "$ref": "#/components/schemas/CommissionPlanComponent"
+          }
+        },
+        "required": [
+          "effective_from",
+          "whole_period",
+          "base",
+          "tiers",
+          "package_sale"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionPlanVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "effective_from": {
+            "$ref": "#/components/schemas/CommissionPlanDate"
+          },
+          "whole_period": {
+            "type": "boolean"
+          },
+          "repair_period": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionRepairPeriod"
+              }
+            ]
+          },
+          "base": {
+            "$ref": "#/components/schemas/CommissionPlanComponent"
+          },
+          "tiers": {
+            "$ref": "#/components/schemas/CommissionPlanTiers"
+          },
+          "package_sale": {
+            "$ref": "#/components/schemas/CommissionPlanComponent"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "id",
+          "employee_id",
+          "version",
+          "effective_from",
+          "whole_period",
+          "repair_period",
+          "base",
+          "tiers",
+          "package_sale",
+          "created_at",
+          "created_by"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionPlanVersionList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionPlanVersion"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "CommissionPlanVersionListQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "CommissionPlanInvalidError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "COMMISSION_PLAN_INVALID"
+            ]
+          },
+          "message_ar": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message_en": {
+            "type": "string",
+            "minLength": 1
+          },
+          "details": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INVALID_COMBINATION",
+                  "MIXED_THRESHOLDS",
+                  "STEPS_NOT_ASCENDING",
+                  "NO_STEPS",
+                  "INVALID_CALC",
+                  "INVALID_THRESHOLD",
+                  "INVALID_PLAN"
+                ]
+              }
+            },
+            "required": [
+              "code"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "code",
+          "message_ar",
+          "message_en",
+          "details"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionEffectiveFromPastError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "COMMISSION_EFFECTIVE_FROM_PAST"
+            ]
+          },
+          "message_ar": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message_en": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "code",
+          "message_ar",
+          "message_en"
+        ],
+        "additionalProperties": false
       },
       "EmployeeDocumentStatus": {
         "type": "string",

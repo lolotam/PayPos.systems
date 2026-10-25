@@ -35,7 +35,7 @@ export const OWNER_DERIVED_PERMISSIONS = [
   'manage:salaries:business',
 ] as const satisfies readonly Permission[];
 
-/** صلاحيات الوثائق والدوام ولوحة الحضور وطلبات تعديله وهوية النشاط والرقم الوظيفي متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
+/** صلاحيات الوثائق والدوام ولوحة الحضور وطلبات تعديله وهوية النشاط والرقم الوظيفي وخطط العمولة متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
 export const OWNER_GRANTED_PERMISSIONS = [
   'read:attendance:branch',
   'read:files:business',
@@ -47,6 +47,7 @@ export const OWNER_GRANTED_PERMISSIONS = [
   'manage:employee-hours:business',
   'manage:business-identity:business',
   'manage:employee-number:company',
+  'manage:commission-plans:business',
 ] as const satisfies readonly Permission[];
 
 /** التفويض الشخصي للجدول والقوالب يخص الأدوار البشرية؛ دور الجهاز محظور في كل خانة. */
@@ -117,6 +118,8 @@ export const ROLE_DEFAULTS = {
   'manage:alert-rules:business': managers,
   // قرار المالك MY-Q5 بتاريخ 2026-10-22: أعمدة تطبيق الموظفين للمالك والمدير العام ومدير النشاط افتراضياً، وتفويضها لأي دور بشري.
   'manage:staff-app-columns:business': managers,
+  // قرارا CS-Q1 وCS-Q27 (أبو سالم): إدارة الخطط للمالك والمحاسب افتراضياً، والمالك وحده يمنحها أو يسحبها.
+  'manage:commission-plans:business': ['owner', 'accountant'],
   'view:notifications:business': managers,
   'manage:employees:business': managers,
   'read:services:business': managers,

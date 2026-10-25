@@ -230,6 +230,22 @@ const expectedSchemas = [
   'ServiceLinePerformerChangesPage',
 ].sort();
 
+const commissionPlanSchemaNames = [
+  'CommissionPlanCalc',
+  'CommissionPlanComponent',
+  'CommissionPlanThreshold',
+  'CommissionPlanTierStep',
+  'CommissionPlanTiers',
+  'CommissionPlanDate',
+  'CommissionRepairPeriod',
+  'CreateCommissionPlanVersionInput',
+  'CommissionPlanVersion',
+  'CommissionPlanVersionList',
+  'CommissionPlanVersionListQuery',
+  'CommissionPlanInvalidError',
+  'CommissionEffectiveFromPastError',
+];
+
 describe('openapi/openapi.json', () => {
   it('matches the contracts — run `pnpm contracts:openapi` after changing a schema', () => {
     expect(buildOpenApiDocument()).toEqual(committed);
@@ -240,7 +256,7 @@ describe('openapi/openapi.json', () => {
       .schemas;
     expect(Object.keys(schemas).sort()).toEqual(
       [
-        ...expectedSchemas,
+        ...expectedSchemas.concat(commissionPlanSchemaNames),
         'ServiceSessionDayQuery',
         'ServiceSessionDayPerformer',
         'ServiceSessionDayLine',
