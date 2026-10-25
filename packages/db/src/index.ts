@@ -55,6 +55,15 @@ export {
   type StoredResponse,
 } from './idempotency.ts';
 export { appendOutboxEvent, appendOutboxEvents, type OutboxEvent } from './outbox.ts';
+export {
+  assertStatementPeriodsOpen,
+  lockStatementPeriods,
+  StatementPeriodClosedError,
+  StatementPeriodFormatError,
+  type LockedStatementPeriod,
+  type LockStatementPeriodsInput,
+  type StatementStatus,
+} from './statement-periods.ts';
 export type { IdGenerator, TenantOptions, TenantWrappers, Tx } from './with-tenant.ts';
 export { OWNER_DERIVED_PERMISSIONS, OWNER_GRANTED_PERMISSIONS } from './role-defaults.ts';
 export { FEATURE_FLAGS, PROVISIONAL_PLAN_ID, type FeatureFlag } from './seed.ts';
