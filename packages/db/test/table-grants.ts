@@ -2,6 +2,7 @@ import { ATTENDANCE_TABLE_GRANTS } from './attendance-grants.ts';
 import { DISCOUNT_PROPOSAL_TABLE_GRANTS } from './discount-proposal-grants.ts';
 import { COMMISSION_STATEMENT_TABLE_GRANTS } from './commission-statement-grants.ts';
 import { SCHEDULE_TABLE_GRANTS } from './schedule-grants.ts';
+import { RATING_TABLE_GRANTS } from './rating-grants.ts';
 
 // منح الجداول المراجَع (plan v4 T5، closes #16): أي صلاحية جدول جديدة من هجرة لازم تُكتب هنا، وإلا فشل الاختبار.
 export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
@@ -109,6 +110,7 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'push_attempts:SELECT',
     'push_subscriptions:INSERT',
     'push_subscriptions:SELECT',
+    ...RATING_TABLE_GRANTS,
     'role_permissions:DELETE',
     'role_permissions:INSERT',
     'role_permissions:SELECT',
