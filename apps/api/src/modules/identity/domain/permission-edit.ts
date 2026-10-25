@@ -13,12 +13,14 @@ export const OWNER_GRANTED_PERMISSIONS: readonly string[] = [
   'manage:employee-hours:business',
   'manage:business-identity:business',
   'manage:employee-number:company',
+  'manage:commission-plans:business',
 ];
 
-/** صلاحيات طلبات تعديل الحضور: المالك وحده يمنحها أو يمنعها أو يسحبها (ACR-Q1، ACR-Q4)، لأن سحبها يغيّر مين يقدر يطلب أو يوافق. */
+/** المالك وحده يمنح أو يمنع أو يسحب صلاحيات طلبات تعديل الحضور (ACR-Q1، ACR-Q4) وخطط العمولة (CS-Q27)، لأن سحبها يغيّر مين يقدر يطلب أو يوافق أو يعدّل الخطة. */
 export const OWNER_ONLY_EDIT_PERMISSIONS: readonly string[] = [
   'request:attendance-change:branch',
   'decide:attendance-change:company',
+  'manage:commission-plans:business',
 ];
 /** العضوية المستهدفة، بدون أي بيانات دخول حساسة. */
 export interface EditableMembership {
@@ -133,7 +135,7 @@ export function permissionPossessionFailure(
 
 /**
  * بيتحقق من السلطة والنطاق والمدة؛ تفويض كودي إدارة النشاط لمديره لا يتجاوز نشاط عضويته.
- * منح ALLOW للصلاحيات المحمية محصور في المالك؛ صلاحية قرار الحضور تحتاجه أيضاً عند المنع والسحب.
+ * منح ALLOW للصلاحيات المحمية محصور في المالك؛ قرارات الحضور وخطط العمولة تحتاجه أيضاً عند المنع والسحب.
  *
  * @param terms بيانات الاستثناء المطلوبة
  * @param context العضوية والصلاحيات والهدف الموثوق والوقت المحقون

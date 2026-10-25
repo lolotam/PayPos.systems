@@ -4,6 +4,7 @@ export const TENANT_TABLES = [
   'commission_statements',
   'commission_statement_lines',
   'commission_statement_attachments',
+  'commission_plan_versions',
   'late_service_session_notices',
   'service_sessions',
   'service_session_recoveries',

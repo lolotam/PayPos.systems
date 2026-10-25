@@ -98,6 +98,7 @@ it.each([
   'approve:discounts:branch',
   'manage:alert-rules:business',
   'manage:staff-app-columns:business',
+  'manage:commission-plans:business',
 ])('Device cannot acquire spec 009 forbidden %s', (permission) => {
   expect(
     systemRolePolicy(role('device'), 'global')?.permissions.some((code) => code === permission),
@@ -148,6 +149,12 @@ for (const entry of SYSTEM_ROLES) {
     },
   );
 }
+
+it('FR-010 the device policy excludes commission plan management', () => {
+  expect(systemRolePolicy(role('device'), 'global')?.permissions).not.toContain(
+    'manage:commission-plans:business',
+  );
+});
 
 it('schedule settings are eligible for humans only', () => {
   for (const entry of SYSTEM_ROLES)

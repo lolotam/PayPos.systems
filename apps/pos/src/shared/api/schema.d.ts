@@ -107,6 +107,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/employees/{employeeId}/commission-plan-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listCommissionPlanVersions"];
+        put?: never;
+        post: operations["createCommissionPlanVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/document-types": {
         parameters: {
             query?: never;
@@ -2535,6 +2551,109 @@ export interface components {
         EmployeeIbanHistoryPage: {
             items: components["schemas"]["EmployeeIbanHistoryEntry"][];
             next_cursor: number | null;
+        };
+        CommissionPlanCalc: {
+            /** @enum {string} */
+            kind: "PCT";
+            bps: number;
+        } | {
+            /** @enum {string} */
+            kind: "FIXED";
+            amount: string;
+        };
+        CommissionPlanComponent: {
+            /** @enum {boolean} */
+            enabled: false;
+            calc?: components["schemas"]["CommissionPlanCalc"];
+        } | {
+            /** @enum {boolean} */
+            enabled: true;
+            calc: components["schemas"]["CommissionPlanCalc"];
+        };
+        CommissionPlanThreshold: {
+            /** @enum {string} */
+            kind: "AMOUNT";
+            value: string;
+        } | {
+            /** @enum {string} */
+            kind: "SESSIONS";
+            value: number;
+        } | {
+            /** @enum {string} */
+            kind: "SALARY_MULTIPLE";
+            value: string;
+        };
+        CommissionPlanTierStep: {
+            from: components["schemas"]["CommissionPlanThreshold"];
+            calc: components["schemas"]["CommissionPlanCalc"];
+        };
+        CommissionPlanTiers: {
+            /** @enum {boolean} */
+            enabled: false;
+            /** @enum {string} */
+            mode?: "MARGINAL" | "WHOLE";
+            /** @enum {string} */
+            accumulator?: "AMOUNT" | "SESSIONS";
+            steps?: components["schemas"]["CommissionPlanTierStep"][];
+        } | {
+            /** @enum {boolean} */
+            enabled: true;
+            /** @enum {string} */
+            mode: "MARGINAL" | "WHOLE";
+            /** @enum {string} */
+            accumulator: "AMOUNT" | "SESSIONS";
+            steps: components["schemas"]["CommissionPlanTierStep"][];
+        };
+        CommissionPlanDate: string & (string);
+        CommissionRepairPeriod: string;
+        CreateCommissionPlanVersionInput: {
+            effective_from: components["schemas"]["CommissionPlanDate"];
+            whole_period: boolean;
+            base: components["schemas"]["CommissionPlanComponent"];
+            tiers: components["schemas"]["CommissionPlanTiers"];
+            package_sale: components["schemas"]["CommissionPlanComponent"];
+        };
+        CommissionPlanVersion: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            version: number;
+            effective_from: components["schemas"]["CommissionPlanDate"];
+            whole_period: boolean;
+            repair_period: components["schemas"]["CommissionRepairPeriod"] | null;
+            base: components["schemas"]["CommissionPlanComponent"];
+            tiers: components["schemas"]["CommissionPlanTiers"];
+            package_sale: components["schemas"]["CommissionPlanComponent"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            created_by: string;
+        };
+        CommissionPlanVersionList: {
+            items: components["schemas"]["CommissionPlanVersion"][];
+            next_cursor: number | null;
+        };
+        CommissionPlanVersionListQuery: {
+            cursor?: number;
+            /** @default 20 */
+            limit: number;
+        };
+        CommissionPlanInvalidError: {
+            /** @enum {string} */
+            code: "COMMISSION_PLAN_INVALID";
+            message_ar: string;
+            message_en: string;
+            details: {
+                /** @enum {string} */
+                code: "INVALID_COMBINATION" | "MIXED_THRESHOLDS" | "STEPS_NOT_ASCENDING" | "NO_STEPS" | "INVALID_CALC" | "INVALID_THRESHOLD" | "INVALID_PLAN";
+            };
+        };
+        CommissionEffectiveFromPastError: {
+            /** @enum {string} */
+            code: "COMMISSION_EFFECTIVE_FROM_PAST";
+            message_ar: string;
+            message_en: string;
         };
         /** @enum {string} */
         EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";
@@ -7319,6 +7438,118 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCommissionPlanVersions: {
+        parameters: {
+            query?: {
+                cursor?: number;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plan versions, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionPlanVersionList"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createCommissionPlanVersion: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCommissionPlanVersionInput"];
+            };
+        };
+        responses: {
+            /** @description Stored plan version */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionPlanVersion"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_PERIOD_NOT_DRAFT or COMMISSION_PERIOD_CLOSED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_PLAN_INVALID with details.code, or COMMISSION_EFFECTIVE_FROM_PAST when effective_from is before today. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionPlanInvalidError"] | components["schemas"]["CommissionEffectiveFromPastError"];
+                };
+            };
+            /** @description Bilingual refusal */
             default: {
                 headers: {
                     [name: string]: unknown;

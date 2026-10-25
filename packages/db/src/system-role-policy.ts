@@ -38,6 +38,8 @@ const deviceForbidden = [
   'manage:alert-rules:business',
   // الجهاز لا يعدّل أعمدة تطبيق الموظفين أبداً.
   'manage:staff-app-columns:business',
+  // الجهاز لا يحمل صلاحية خطط العمولة أبداً؛ الإدارة لتسجيل دخول إداري فردي (FR-010).
+  'manage:commission-plans:business',
   'manage:employee-number:company',
   'view:notifications:business',
   'create:companies:platform',

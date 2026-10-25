@@ -27,6 +27,7 @@ it.each(['ar', 'en'] as const)(
       'manage:settings:business',
       'manage:business-identity:business',
       'manage:alert-rules:business',
+      'manage:commission-plans:business',
       'manage:employee-number:company',
       'read:package-types:business',
       'manage:package-types:business',
@@ -55,6 +56,8 @@ it.each(['ar', 'en'] as const)(
     );
     expect(permissionName('ar', 'manage:alert-rules:business')).toBe('إدارة التنبيهات');
     expect(permissionName('en', 'manage:alert-rules:business')).toBe('Manage alerts');
+    expect(permissionName('ar', 'manage:commission-plans:business')).toBe('إدارة خطط العمولة');
+    expect(permissionName('en', 'manage:commission-plans:business')).toBe('Manage commission plans');
     expect(permissionName('ar', 'manage:employee-number:company')).toBe('إدارة الرقم الوظيفي');
     expect(permissionName('en', 'manage:employee-number:company')).toBe('Manage employee numbers');
     expect(permissionName(locale, 'read:future:business')).toBe('read:future:business');
