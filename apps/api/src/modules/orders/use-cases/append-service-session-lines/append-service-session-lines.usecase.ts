@@ -10,7 +10,7 @@ import type { SessionRecord } from '../../domain/session-types.ts';
 import type { SessionRecoveryPort } from '../../ports/session-recovery.port.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 import { sessionDrafts } from '../../domain/session-drafts.ts';
-import { approvalDecisions, commitDiscountApprovals, lockApprovalProposals } from '../consume-discount-approval/consume-discount-approvals.ts';
+import { approvalDecisions, commitDiscountApprovals, consumptionActor, lockApprovalProposals } from '../consume-discount-approval/consume-discount-approvals.ts';
 
 type AppendContext = SessionWriteContext & { sessionId: string; input: AppendServiceSessionLinesInput };
 /** يضيف المصحح أو الخدمة الجديدة لنفس الزيارة دون تغيير أي بند محفوظ. */
@@ -61,7 +61,7 @@ export class AppendServiceSessionLinesUseCase {
     const services = await tx.catalog.read(serviceIds);
     const employees = await tx.performers.read(employeeIds, original.occurred_at);
     const prepared = prepareSessionLines(sessionDrafts(context.input.lines), services, employees, context.userId);
-    const decisions = approvalDecisions(tx, { prepared, limit, terms: this.terms(context, original, membershipId), actor: this.actor(context, membershipId) }, locked, at);
+    const decisions = approvalDecisions(tx, { prepared, limit, terms: this.terms(context, original, membershipId), actor: consumptionActor(context, membershipId) }, locked, at);
     const plan = planSessionWrite(prepared, limit, original.lines, tx.discountMessages, decisions);
     const lines = plan.accepted.map((line, i) => recordedSessionLine(line,
       { id: this.ids.newId(), session_id: original.id, ordinal: plan.ordinals[i] as number, performer_ids: line.performers.map(() => this.ids.newId()) },
@@ -78,9 +78,5 @@ export class AppendServiceSessionLinesUseCase {
     return { company_id: context.companyId, business_id: context.businessId, branch_id: context.branchId,
       customer_id: original.customer.id, session_id: original.id, requested_by: context.userId,
       requested_by_membership_id: membershipId, occurred_business_date: original.business_date };
-  }
-  /** من يستهلك الموافقة: الفرع والمستخدم والعضوية التي سجّلت. */
-  private actor(context: AppendContext, membershipId: string) {
-    return { branch_id: context.branchId, user_id: context.userId, membership_id: membershipId };
   }
 }

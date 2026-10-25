@@ -10,7 +10,7 @@ import { sessionSnapshot } from '../../domain/session-snapshot.ts';
 import type { SessionRecord } from '../../domain/session-types.ts';
 import type { SessionRecoveryPort } from '../../ports/session-recovery.port.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
-import { approvalDecisions, commitDiscountApprovals, lockApprovalProposals } from '../consume-discount-approval/consume-discount-approvals.ts';
+import { approvalDecisions, commitDiscountApprovals, consumptionActor, lockApprovalProposals } from '../consume-discount-approval/consume-discount-approvals.ts';
 export { SessionError } from '../../domain/session-error.ts';
 
 type RecordContext = SessionWriteContext & { input: RecordServiceSessionInput };
@@ -54,7 +54,7 @@ export class RecordServiceSessionUseCase {
     const employees = await tx.performers.read(employeeIds, time.occurred_at);
     const drafts = sessionDrafts(context.input.lines);
     const prepared = prepareSessionLines(drafts, services, employees, context.userId);
-    const decisions = approvalDecisions(tx, { prepared, limit, terms: this.terms(context, membershipId, time.business_date), actor: this.actor(context, membershipId) }, locked, at);
+    const decisions = approvalDecisions(tx, { prepared, limit, terms: this.terms(context, membershipId, time.business_date), actor: consumptionActor(context, membershipId) }, locked, at);
     const plan = planSessionWrite(prepared, limit, [], tx.discountMessages, decisions);
     const sessionId = this.ids.newId();
     const lines = plan.accepted.map((line, i) => recordedSessionLine(line,
@@ -74,9 +74,5 @@ export class RecordServiceSessionUseCase {
     return { company_id: context.companyId, business_id: context.businessId, branch_id: context.branchId,
       customer_id: context.input.customer_id, session_id: null, requested_by: context.userId,
       requested_by_membership_id: membershipId, occurred_business_date: businessDate };
-  }
-  /** من يستهلك الموافقة: الفرع والمستخدم والعضوية التي سجّلت. */
-  private actor(context: SessionWriteContext, membershipId: string) {
-    return { branch_id: context.branchId, user_id: context.userId, membership_id: membershipId };
   }
 }

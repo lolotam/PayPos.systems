@@ -37,7 +37,7 @@ export async function rejectedProposal(
   return id;
 }
 
-/** يطلب الموافقة本身 ويعيد معرّف الطلب المقترح. */
+/** يطلب الموافقة على سطر واحد ويعيد معرّف الطلب المقترح. */
 export async function requestedProposal(
   f: DiscountRequestFixture,
   extra: { session_id?: string; occurred_at?: string } = { occurred_at: OCCURRED_AT },

@@ -16,6 +16,11 @@ export interface ApprovalDecisionFacts {
   actor: ConsumptionActor;
 }
 
+/** من يستهلك الموافقة: الفرع والمستخدم والعضوية التي سجّلت. */
+export function consumptionActor(context: { branchId: string; userId: string }, membershipId: string): ConsumptionActor {
+  return { branch_id: context.branchId, user_id: context.userId, membership_id: membershipId };
+}
+
 /**
  * يقفل طلبات الموافقة التي سمّت بها بنود الطلب، قبل أي لحظة تُقرأ فيها حدود أو نوافذ.
  * القاعدة: الطلب بلا معرّف موافقة لا يلمس جدول الطلبات ولا يكلّف شيئاً (FR-019).
