@@ -97,6 +97,12 @@ describe('rating comment links and markup', () => {
     ['an email address', 'contact me at a@mail.example.com'],
     ['a protocol-relative URL', '//example.com/x'],
     ['a file URL', 'file:///etc/passwd'],
+    ['an opaque data URL', 'data:text/plain,hello'],
+    ['a telephone link', 'tel:123'],
+    ['a domain with a travel TLD', 'example.travel'],
+    ['a domain with a news TLD', 'see example.news/today'],
+    ['an SMS link', 'sms:+96550000000'],
+    ['a WhatsApp link', 'WhatsApp:me'],
   ])('refuses a comment with %s', (_label, comment) => {
     expect(ratingComment.safeParse(comment).success).toBe(false);
   });
@@ -112,6 +118,13 @@ describe('rating comment links and markup', () => {
     ['a decimal number', '4.5 stars'],
     ['a sentence ending in a word', 'great service.thanks'],
     ['Arabic with a full stop', 'ممتاز جداً.شكراً'],
+    ['an Arabic time', 'الساعة 5.30'],
+    ['an abbreviated name', 'Dr. Sara'],
+    ['trailing dots', 'ok...'],
+    ['a scheme word with a space', 'data: 5'],
+    ['a telephone word with a space', 'tel: 123 please'],
+    ['a short abbreviation', 'e.g. nice'],
+    ['a time without a space', '5.30pm'],
   ])('accepts a comment with %s', (_label, comment) => {
     expect(ratingComment.safeParse(comment).success).toBe(true);
   });
