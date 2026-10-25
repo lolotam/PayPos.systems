@@ -47,6 +47,13 @@ const nextPeriod = (): string => {
   return `${year}-${String(month).padStart(2, '0')}`;
 };
 
+// شهر بالرقم: من شهر الكشف بنزح شهور، عشان نختبر الشهر المساوي واللي بعده واللي قبله.
+const shiftMonth = (period: string, offset: number): string => {
+  const [year, month] = period.split('-');
+  const shifted = new Date(Number(year), Number(month) - 1 + offset, 1);
+  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}`;
+};
+
 it('the reviewer and the membership have to be the same person', async () => {
   const period = nextPeriod();
   await db.withTenant(A.company, (tx) =>
@@ -73,46 +80,46 @@ it('the reviewer and the membership of the same person are accepted', async () =
   ]);
 });
 
-it('a correction or carry cannot claim a source month that is not before the statement month', async () => {
-  const samePeriod = nextPeriod();
-  await expectPgError(
-    walkCommissionStatement(db, {
-      tenant: A,
-      period: samePeriod,
-      ids,
-      afterApproved: async (tx, id) =>
-        insertCommissionLine(tx, A, id, ids, { kind: 'CORRECTION', sourcePeriod: samePeriod }),
-    }),
-    '23514',
-    'commission_statement_lines_source_before_statement',
-  );
-  const laterPeriod = nextPeriod();
-  await expectPgError(
-    walkCommissionStatement(db, {
-      tenant: A,
-      period: laterPeriod,
-      ids,
-      afterApproved: async (tx, id) =>
-        insertCommissionLine(tx, A, id, ids, {
-          kind: 'CARRY_COMMISSION',
-          sourcePeriod: laterPeriod,
-        }),
-    }),
-    '23514',
-    'commission_statement_lines_source_before_statement',
-  );
-});
+// شهر المصدر لازم يكون قبل شهر الكشف بس: المساوي أو اللي بعده مرفوض، واللي قبله مقبول.
+const SOURCE_MONTH_REFUSALS = [
+  { kind: 'CORRECTION', relation: 'equal' },
+  { kind: 'CORRECTION', relation: 'later' },
+  { kind: 'CARRY_COMMISSION', relation: 'equal' },
+  { kind: 'CARRY_COMMISSION', relation: 'later' },
+];
 
-it('a correction from an earlier month is frozen with its statement', async () => {
-  const period = nextPeriod();
-  const statementId = await walkCommissionStatement(db, {
-    tenant: A,
-    period,
-    ids,
-    afterApproved: async (tx, id) =>
-      insertCommissionLine(tx, A, id, ids, { kind: 'CORRECTION', sourcePeriod: '2026-09' }),
-  });
-  expect(
-    await asA(sql`SELECT id FROM commission_statement_lines WHERE statement_id=${statementId}`),
-  ).toHaveLength(1);
-});
+it.each(SOURCE_MONTH_REFUSALS)(
+  'a $kind line whose source month is $relation to the statement month is refused',
+  async ({ kind, relation }) => {
+    const period = nextPeriod();
+    const sourcePeriod = relation === 'equal' ? period : shiftMonth(period, 1);
+    await expectPgError(
+      walkCommissionStatement(db, {
+        tenant: A,
+        period,
+        ids,
+        afterApproved: async (tx, id) =>
+          insertCommissionLine(tx, A, id, ids, { kind, sourcePeriod }),
+      }),
+      '23514',
+      'commission_statement_lines_source_before_statement',
+    );
+  },
+);
+
+it.each(['CORRECTION', 'CARRY_COMMISSION'])(
+  'a %s line from an earlier month is frozen with its statement',
+  async (kind) => {
+    const period = nextPeriod();
+    const statementId = await walkCommissionStatement(db, {
+      tenant: A,
+      period,
+      ids,
+      afterApproved: async (tx, id) =>
+        insertCommissionLine(tx, A, id, ids, { kind, sourcePeriod: shiftMonth(period, -1) }),
+    });
+    expect(
+      await asA(sql`SELECT id FROM commission_statement_lines WHERE statement_id=${statementId}`),
+    ).toHaveLength(1);
+  },
+);
