@@ -226,11 +226,12 @@ async function sweepAndPair(deps, config, controller, runtime, summary) {
   } catch {}
 }
 
-/** آخر تنظيف: مراجعة الجهاز، إنهاء جلسة الـ owner، وطباعة سطور النتيجة. */
+/** آخر تنظيف: مرور أخير محدود لمراجعة الجهاز لو لسه ما اتلغاش، إنهاء جلسة الـ owner، وطباعة سطور النتيجة. */
 async function finalize(deps, config, runtime, summary, startRevoke, stop) {
   await startRevoke();
-  if (runtime.deviceId === null && runtime.label !== '') {
-    // الجهاز ممكن يكون اتسجّل بعد ما الإلغاء وصل: بحث جديد بالاسم بعد ما الطفل يخلص.
+  if (summary.revoke !== 'done' && runtime.label !== '') {
+    // مرور أخير: الجهاز ممكن يتسجّل بعد ما المراجعة بدأت، أو تفشل محاولاتها كلها
+    // فيبقى ACTIVE على الستينج. البحث بالاسم لو الـ id مش معروف، ومراجعته لو معروف.
     await revokeDevice(deps, config, runtime, summary);
   }
   summary.signOut = runtime.cookie === '' ? 'skipped' : await signOutOwner(deps.fetch, runtime.cookie);
