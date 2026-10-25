@@ -293,7 +293,7 @@ jobs:
       matrix:
         flavour: [staging, production]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
@@ -306,9 +306,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node apps/business/scripts/macos-guard.mjs accept
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -372,7 +372,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$app" "out/${FLAVOUR}-App.zip"
 
       - name: Upload the simulator build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ios-${{ matrix.flavour }}-app
           path: apps/business/out/${{ matrix.flavour }}-App.zip
@@ -385,6 +385,8 @@ jobs:
       # اختبار الاقتران والـ PIN بس بيقرأ بيئة staging-ui-test، وسياسة فروعها main بس (ملحق ADR-0055 2026-10-25 (c)).
       # نتيجة CounterAuth.xcresult والـ private log ممنوع يترفعوا لأنهم بيسجّلوا القيم الحساسة المكتوبة.
       # الخطوات بعد رفع البناء عشان لو اختبار الـ UI فشل، نسخة المحاكي تفضل متاحة للتحميل.
+      # إعادة التثبيت واختبار الاقتران بيشتغلوا بـ !cancelled(): لو اختبار شاشة البداية فشل،
+      # اختبار الاقتران لسه مفروض يتشغّل عشان نتيجة M-1c تبقى واضحة.
       - name: Boot a simulator for the UI test
         if: inputs.spike == true && matrix.flavour == 'staging'
         working-directory: apps/business
@@ -420,7 +422,7 @@ jobs:
 
       - name: Upload the UI test result
         if: always() && inputs.spike == true && matrix.flavour == 'staging'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ios-spike-xcresult
           path: ${{ runner.temp }}/spike/SpikeUITests.xcresult
@@ -428,7 +430,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Reinstall the app
-        if: inputs.spike == true && matrix.flavour == 'staging'
+        if: ${{ !cancelled() && inputs.spike == true && matrix.flavour == 'staging' }}
         run: |
           set -euo pipefail
           app="$(ls -td ~/Library/Developer/Xcode/DerivedData/*/Build/Products/Debug-iphonesimulator/App.app | sed -n '1p')"
@@ -436,8 +438,11 @@ jobs:
           xcrun simctl install "$SPIKE_UDID" "$app"
 
       - name: Run the counter pairing and staff PIN test
-        if: inputs.spike == true && matrix.flavour == 'staging'
+        if: ${{ !cancelled() && inputs.spike == true && matrix.flavour == 'staging' }}
+        timeout-minutes: 25
         env:
+          # أي NODE_OPTIONS كتبته خطوة قبلها في GITHUB_ENV ما يحملش كود في الخطوة اللي فيها الأسرار.
+          NODE_OPTIONS: ''
           STAGING_UI_OWNER_EMAIL: ${{ secrets.STAGING_UI_OWNER_EMAIL }}
           STAGING_UI_OWNER_PASSWORD: ${{ secrets.STAGING_UI_OWNER_PASSWORD }}
           STAGING_UI_STAFF_PHONE: ${{ secrets.STAGING_UI_STAFF_PHONE }}

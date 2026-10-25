@@ -18,6 +18,8 @@ final class CounterAuthUITests: XCTestCase {
     app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", label)).firstMatch
   }
 
+  // The buttons are looked up by their exact label: a "contains" match hits the heading
+  // «Pair this device» or the field «Pairing code» before it reaches the button itself.
   private func button(_ app: XCUIApplication, _ label: String) -> XCUIElement {
     let predicate = NSPredicate(format: "label == %@", label)
     let webButton = app.webViews.buttons.matching(predicate).firstMatch
@@ -36,11 +38,28 @@ final class CounterAuthUITests: XCTestCase {
     XCTAssertEqual(XCTWaiter().wait(for: [expectation], timeout: 30), .completed, message)
   }
 
-  private func tap(_ app: XCUIApplication, _ label: String, _ message: String) {
-    let target = element(app, labelled: label)
+  // The keyboard can cover a button after typing, so the button stays not hittable until the
+  // keyboard goes. XCUITest scrolls the element into view itself, so waiting for its existence
+  // is enough and the hittable gate would only fail on a covered button.
+  private func tapButton(_ app: XCUIApplication, _ label: String, _ message: String) {
+    let target = button(app, label)
     XCTAssertTrue(target.waitForExistence(timeout: 60), message)
-    assertHittable(target, message)
     target.tap()
+  }
+
+  // The software keyboard may stay up after typing and cover the next button. The Return key
+  // of the keyboard submits the form, so the heading of the page is tapped instead: it is text
+  // and not a control, so it only hides the keyboard and sends nothing.
+  private func dismissKeyboard(_ app: XCUIApplication, under heading: String) {
+    guard app.keyboards.count > 0 else { return }
+    let title = app.webViews.staticTexts[heading]
+    if title.exists {
+      title.tap()
+      return
+    }
+    let page = app.webViews.firstMatch
+    guard page.exists else { return }
+    page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)).tap()
   }
 
   private func type(_ value: String, into field: XCUIElement, _ message: String) {
@@ -64,7 +83,10 @@ final class CounterAuthUITests: XCTestCase {
     guard let values = environment() else { return }
     var app = launchApp()
 
-    tap(app, "Counter device", "The counter-device choice should be tappable")
+    // The start screen is the native shell: waiting for its heading makes sure the web view
+    // has rendered before the first button is looked up.
+    assertVisible(app, "How do you use this device?", timeout: 60, "The start screen should be visible")
+    tapButton(app, "Counter device", "The counter-device choice should be tappable")
     type(
       values["SPIKE_PAIRING_CODE"]!,
       into: app.webViews.textFields["Pairing code"],
@@ -75,7 +97,8 @@ final class CounterAuthUITests: XCTestCase {
       into: app.webViews.textFields["Device name"],
       "The device-name field should be ready"
     )
-    tap(app, "Pair", "The pairing button should be tappable")
+    dismissKeyboard(app, under: "Pair this device")
+    tapButton(app, "Pair", "The pairing button should be tappable")
     assertVisible(app, "Waiting for approval", timeout: 60, "The approval wait should be visible")
 
     assertVisible(app, "Staff sign-in", timeout: 180, "Staff sign-in should follow device approval")
@@ -85,7 +108,7 @@ final class CounterAuthUITests: XCTestCase {
     assertVisible(app, "Staff sign-in", timeout: 60, "Staff sign-in should survive the restart")
     XCTAssertFalse(element(app, labelled: "Pair this device").exists, "Pairing should not restart")
 
-    tap(app, "Use my cashier PIN", "The PIN choice should be tappable")
+    tapButton(app, "Use my cashier PIN", "The PIN choice should be tappable")
     type(
       values["SPIKE_STAFF_PHONE"]!,
       into: app.webViews.textFields["International phone number"],
@@ -96,14 +119,15 @@ final class CounterAuthUITests: XCTestCase {
       into: app.webViews.secureTextFields["Your own four-digit cashier PIN"],
       "The PIN field should be ready"
     )
-    tap(app, "Sign in with my PIN", "The PIN sign-in button should be tappable")
+    dismissKeyboard(app, under: "Staff sign-in")
+    tapButton(app, "Sign in with my PIN", "The PIN sign-in button should be tappable")
     assertVisible(app, "Staff signed in", timeout: 60, "Staff sign-in should succeed")
 
     app.terminate()
     app = launchApp()
     assertVisible(app, "Staff signed in", timeout: 60, "The staff session should survive the restart")
 
-    tap(app, "Sign out", "The sign-out button should be tappable")
+    tapButton(app, "Sign out", "The sign-out button should be tappable")
     assertVisible(app, "Staff sign-in", timeout: 60, "Sign-out should show staff sign-in")
   }
 }
