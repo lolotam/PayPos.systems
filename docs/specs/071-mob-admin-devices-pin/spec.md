@@ -19,7 +19,7 @@ and `POST /v1/staff-pins/reset`. No screen in `apps/admin` calls any of them.
 those changes are needed whatever the owners answer: a new code invalidates the previous one, there is a check code
 for approval, and there is a PIN eligibility read. Others apply only for one answer: DV-Q2 «the code is enough» means
 auto-approval on register, DV-Q3 means an `active` filter, and DV-Q5 means a branch-scoped PIN reset. Out of scope:
-the staff OTP sign-in (PP-58.1), and the employee's own PIN change unless the DV-Q8 answer needs one (a sub-PR of its own, written with DV-Q8).
+the staff OTP sign-in (PP-58.1), and the employee's own PIN change unless the DV-Q8 answer needs one (then 071-4, written with DV-Q8, which 071-3 never ships to staff without).
 
 ## Facts that shape the questions
 
@@ -81,7 +81,9 @@ the staff OTP sign-in (PP-58.1), and the employee's own PIN change unless the DV
       path, and it also fails while staff OTP is postponed (PP-58.1);
     - any option that waits for staff OTP blocks the whole PIN action until WhatsApp goes live.
 
-    071-3 does not start before DV-Q8 is answered.
+    071-3 does not start before DV-Q8 is answered, and its PIN action does not reach staff before the safeguard DV-Q8
+    picks has shipped. If that safeguard needs a sub-PR of its own, it is added to the list below as 071-4 with DV-Q8, and
+    071-3 ships to staff only with it.
   - The list needs a guarded read, the **PIN eligibility read** (071-3). For each employee it returns the linked
     `user_id` (or none) and one boolean: whether a PIN would let that person sign in on the chosen branch's devices. That is `staffEligible`
     (`apps/api/src/modules/identity/domain/staff-eligibility.ts`: a membership covering that branch and the effective
