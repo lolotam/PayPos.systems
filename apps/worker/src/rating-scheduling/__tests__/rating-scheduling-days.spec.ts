@@ -190,6 +190,19 @@ it('RT-01b the same two visits in the opposite order give the same two requests'
   expect(rows.map((row) => row['branch_id'])).toEqual([kuwait, dubai]);
 });
 
+it('RT-Q15 a visit on a closed weekday of a branch with opening hours creates no request', async () => {
+  const hours = everyDay([{ opens: '10:00', closes: '22:00' }]).filter((day) => day.weekday !== 5);
+  const branchId = await f.branch({ timezone: KUWAIT, openingHours: hours });
+  const customer = await f.customer();
+  const session = await f.session({
+    customerId: customer,
+    branchId,
+    occurredAt: new Date('2026-06-19T09:00:00.000Z'),
+  });
+  await f.deliver(await f.event(session.sessionId, 'ServiceSessionRecorded'));
+  expect(await f.requests(customer)).toHaveLength(0);
+});
+
 it('RT-07 a business with the switch off schedules nothing and schedules on the next event', async () => {
   const branchId = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
   const customer = await f.customer();

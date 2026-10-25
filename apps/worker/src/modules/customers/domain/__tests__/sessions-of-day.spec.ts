@@ -92,6 +92,41 @@ it('separates the two-branch midnight case using each branch timezone', () => {
   expect(onDubaiDay.map((session) => session.sessionId)).toEqual(['dubai']);
 });
 
+it('drops a session of a branch closed on that weekday and keeps the open branch session', () => {
+  const placeByBranch = new Map<string, BranchSchedule>([
+    [
+      'branch-1',
+      {
+        timeZone: 'Asia/Kuwait',
+        openingHours: [{ weekday: 1, intervals: [{ opens: '09:00', closes: '22:00' }] }],
+      },
+    ],
+    [
+      'branch-2',
+      {
+        timeZone: 'Asia/Kuwait',
+        openingHours: [{ weekday: 2, intervals: [{ opens: '09:00', closes: '22:00' }] }],
+      },
+    ],
+  ]);
+  const lines = [
+    line('open', 'open-line', '2026-10-05T10:00:00Z', 'branch-1'),
+    line('closed', 'closed-line', '2026-10-05T11:00:00Z', 'branch-2'),
+  ];
+  const result = sessionsOfDay(lines, placeByBranch, '2026-10-05');
+  expect(result.map((session) => session.sessionId)).toEqual(['open']);
+});
+
+it('keeps the sessions of a branch without opening hours', () => {
+  const lines = [line('session', 'line', '2026-10-05T10:00:00Z')];
+  const result = sessionsOfDay(
+    lines,
+    places({ openingHours: null, timeZone: 'Asia/Kuwait' }),
+    '2026-10-05',
+  );
+  expect(result.map((session) => session.sessionId)).toEqual(['session']);
+});
+
 it('throws the stable error when a branch schedule is missing', () => {
   const lines = [line('session', 'line', '2026-10-05T10:00:00Z')];
   expect(() => sessionsOfDay(lines, new Map(), '2026-10-05')).toThrowError(

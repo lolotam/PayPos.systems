@@ -88,7 +88,7 @@ it('uses visit plus one hour and no deadline with null or empty hours', () => {
   }
 });
 
-it('treats a closed weekday like no opening hours', () => {
+it('has no close time on a closed weekday, so ratingSchedule gives no deadline', () => {
   expectSchedule('2026-10-06T12:00:00Z', mondayHours, KUWAIT, '2026-10-06T13:00:00.000Z', null);
 });
 

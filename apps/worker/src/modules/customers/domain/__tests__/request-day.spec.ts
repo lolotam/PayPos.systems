@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OpeningHoursValue } from '../opening-hours.ts';
-import { dayClose, dayEnd, requestDayOf } from '../request-day.ts';
+import { dayClose, dayEnd, isClosedDay, requestDayOf } from '../request-day.ts';
 
 const KUWAIT = 'Asia/Kuwait';
 
@@ -55,6 +55,26 @@ describe('requestDayOf', () => {
     const at = new Date('2026-10-05T20:30:00Z');
     expect(requestDayOf(at, KUWAIT, null)).toBe('2026-10-05');
     expect(requestDayOf(at, KUWAIT, [])).toBe('2026-10-05');
+  });
+});
+
+describe('isClosedDay', () => {
+  it('is true for a weekday missing from non-empty hours', () => {
+    expect(isClosedDay('2026-10-06', splitDay)).toBe(true);
+  });
+
+  it('is false for a weekday present in the hours', () => {
+    expect(isClosedDay('2026-10-05', splitDay)).toBe(false);
+  });
+
+  it('is false for null and empty hours', () => {
+    expect(isClosedDay('2026-10-05', null)).toBe(false);
+    expect(isClosedDay('2026-10-05', [])).toBe(false);
+  });
+
+  it('is true for a weekday whose entry carries no intervals', () => {
+    const hours: OpeningHoursValue = [{ weekday: 1, intervals: [] }];
+    expect(isClosedDay('2026-10-05', hours)).toBe(true);
   });
 });
 
