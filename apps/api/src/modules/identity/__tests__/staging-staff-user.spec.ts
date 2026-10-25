@@ -103,9 +103,7 @@ function stagingEnv(): NodeJS.ProcessEnv {
 }
 
 function stagingEnvWithout(key: string): NodeJS.ProcessEnv {
-  const env = stagingEnv();
-  delete env[key];
-  return env;
+  return Object.fromEntries(Object.entries(stagingEnv()).filter(([name]) => name !== key));
 }
 
 function rowCounts() {
