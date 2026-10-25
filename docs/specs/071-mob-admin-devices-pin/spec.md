@@ -45,7 +45,9 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
   Lua script), so a replaced code can never be consumed. Register first **claims** the code for a client
   nonce, and only a committed registration consumes it, so a database retry with the same nonce succeeds while any
   other claimant is refused. The code's stored value also keeps the **issuing user's id**, which is the actor of an
-  automatic approval (071-1).
+  automatic approval (071-1). The open protocol details (replacement during an in-flight registration, nonce
+  strength, commit-unknown retries, the issuer recheck, concurrent check-code clashes) are settled in the 071-1
+  sub-spec: https://github.com/lolotam/PayPos.systems/issues/679.
 - **FR-002** The same screen lists the branch's pending devices, with «موافقة» and «رفض»; refuse uses revoke. Each row
   shows the device's name, its time, and a **check code**: four symbols of the pairing-code alphabet (no look-alike characters), taken from a hash of the
   whole device id (the id is UUID v7, so its time-ordered prefix must never be used). The server keeps it unique among
@@ -86,7 +88,8 @@ the staff OTP sign-in (PP-58.1) and the employee's own PIN change.
     gains a branch the setter does not manage **or** the setter loses her authority over the target (role, scope,
     grant or DENY);
   - the PIN sign-in fails closed while that clearing is pending.
-  If those cannot be met simply, 071-3 falls back to the owner only, and the owners are told before it ships.
+  If those cannot be met, 071-3 stops (`TODO(spec)`) and a follow-up owner question is published, with owner-only
+  as the recommended option; the owners' DV-Q5 answer is never overridden (`CLAUDE.md` §1 5b).
 - **FR-007** All strings come from `packages/i18n`, the screens are RTL, and every UI test asserts what the user sees
   (`CLAUDE.md` §7, §9).
 
