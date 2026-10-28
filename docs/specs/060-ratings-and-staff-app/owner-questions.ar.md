@@ -754,9 +754,16 @@ amendment (§8).
 
 **النوع:** تقني لوليد فقط، لا يُنشر على صفحة قرارات الشريك.
 
-**الخلفية:** PP-70.1 اعتمد التقسيم وبدء 58-2a فقط، والتقسيم بيقول إن 58-2b محتاجة خطة مراجَعة لوحدها قبل الكود (`plan-58-2-split.md`). الخطة اتكتبت في `plan-58-2b.md` وراجعها المنسّق مرة واحدة: migration واحدة بتضيف بس (رقم محجوز `0189`) فيها صلاحية تعديل على عمودين `opted_out_at` و`updated_at` في `customers`، وpolicy تعديل مربوطة بالشركة، وحارس `customers_opt_out_guard()` بيمنع رجوع الإيقاف (RT-Q10)، مع قائمة الصلاحيات والاختبارات السلبية؛ خمس ملفات للمنفّذ.
+**الخلفية:** PP-70.1 اعتمد التقسيم وبدء 58-2a فقط، والتقسيم بيقول إن 58-2b محتاجة خطة مراجَعة لوحدها قبل الكود (`plan-58-2-split.md`). الخطة اتكتبت في `plan-58-2b.md` وراجعها المنسّق مرة واحدة: migration واحدة بتضيف بس (رقمها النهائي `0188`، اتولّد من `main`؛ الكارت كان كاتب `0189`) فيها صلاحية تعديل على عمودين `opted_out_at` و`updated_at` في `customers`، وpolicy تعديل مربوطة بالشركة، وحارس `customers_opt_out_guard()` بيمنع رجوع الإيقاف (RT-Q10)، مع قائمة الصلاحيات والاختبارات السلبية؛ خمس ملفات للمنفّذ.
 
-**السؤال بالنص:** «PP-74.1 (technical, for you only) — The 58-2b plan is ready. It lets the system record a customer's 'stop rating messages' choice in the database and blocks undoing it (Abu Salem's RT-Q10 answer). It is one database change on the customers table plus its tests, with no screen or link yet. Start implementing it?»
+**السؤال بالعربي:** «PP-74.1 (تقني ليك بس) — خطة 58-2b جاهزة. بتخلّي النظام يسجّل اختيار العميل «وقّف رسائل التقييم» في قاعدة البيانات، وبتمنع الرجوع فيه (إجابة أبو سالم في RT-Q10). هي تعديل واحد في قاعدة البيانات على جدول العملاء مع اختباراته، من غير شاشة ولا رابط لسه. نبدأ التنفيذ؟»
+
+- ⭐ **اعتماد 58-2b لوحدها (المقترح):** ننفّذ النطاق المكتوب بالظبط (5 ملفات + الـ migration). مفيش أثر ظاهر لحد ما 58-2c تضيف الرابط العام.
+- **تأجيلها:** نحتفظ بالخطة ومانبدأش أي حاجة في 58-2 دلوقتي.
+- **دمجها مع 58-2c في PR واحد:** مش مقترح، لأنه بيلغي التقسيم اللي وافقت عليه، اللي بيفصل صلاحيات القاعدة عن المسار العام.
+
+نص الكارت زي ما اتبعت بالظبط (كان بالإنجليزي، فبينحفظ حرفيًا):
+> «PP-74.1 (technical, for you only) — The 58-2b plan is ready. It lets the system record a customer's 'stop rating messages' choice in the database and blocks undoing it (Abu Salem's RT-Q10 answer). It is one database change on the customers table plus its tests, with no screen or link yet. Start implementing it?»
 
 - ⭐ **Approve 58-2b alone (Recommended).** «Implement exactly the planned scope (5 files + migration 0189). No visible effect until 58-2c adds the public link.»
 - **Postpone it.** «Keep the plan and start nothing on 58-2 for now.»
