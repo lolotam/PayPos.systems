@@ -45,8 +45,12 @@ only `x-request-id`. FR-007 makes the name deterministic, so the client builds
 | status `FAILED` | `STATEMENT_EMPTY` | `attendanceStatementRenderErrors` |
 | status `FAILED` | `DOCUMENT_TOO_LARGE`, `DOCUMENT_RENDER_TIMEOUT`, `DOCUMENT_RENDER_FAILED`, `DOCUMENT_KIND_UNKNOWN` | **new** screen keys (one per code) |
 | status `EXPIRED`; status 404 (hash TTL gone) | — | «الكشف انتهى، اطلبي واحد جديد» |
-| any route | 401, 403, `FEATURE_DISABLED`, `NOT_FOUND` | the `attendanceReportError` shape (session expired, no access, feature off) |
+| request, shifts probe | 401, 403, `FEATURE_DISABLED`, `NOT_FOUND` | the `attendanceReportError` shape (session expired, no access, feature off) |
 | other | — | `admin.unexpected` |
+
+**404 depends on the route.** On request and the shifts probe, 401/403/404/`FEATURE_DISABLED` mean lost access
+(`boardAccessLost`). On status and collect, a 404 means an unknown or expired render (ADR-0049 §1.5): show «الكشف انتهى»
+and keep the form; never pass these errors to `boardAccessLost`, which treats 404 as lost access.
 
 ## 3. Permission and visibility
 
@@ -88,7 +92,7 @@ apps/admin/src/staff/api/attendance-statement.fixture.ts                  new (t
 apps/admin/src/staff/model/attendance-statement-display.ts                new (code → key, file name, default period)
 apps/admin/src/staff/model/attendance-statement-display.spec.ts           new
 packages/i18n/src/attendance-statement-screen-catalog.ts                  new, en + ar (Record<keyof en>)
-packages/i18n/src/en.ts, packages/i18n/src/ar.ts                          edit: one section line each
+packages/i18n/src/en.ts, packages/i18n/src/ar.ts                          edit: one import + one section entry each
 ```
 
 **i18n trap.** Do not add screen keys to `attendanceStatementEn/Ar`: that is the PDF label catalog, and
@@ -105,7 +109,8 @@ until an employee is chosen; the shift options from FR-001a appear and reset aft
 waiting text shows and the form is locked; the download button is enabled only on `READY`; after one collect it is
 disabled and «طلب كشف جديد» shows; each refusal code of §2 shows its message text (one parametrised case per code,
 request and collect); `FAILED / STATEMENT_EMPTY` shows its message; the poll stops at 60 s with its message and the
-manual check polls once; a 403 on the probe shows the no-access message and no form. A mock-call assertion may sit
+manual check polls once; a 403 on the probe shows the no-access message and no form; a 404 on the status poll shows
+the expired message and keeps the form. A mock-call assertion may sit
 beside a visible one (the POST body has `shift` only on `BRANCH`, the file name of FR-007), never alone.
 
 ## 7. Gates, out of scope, risks
