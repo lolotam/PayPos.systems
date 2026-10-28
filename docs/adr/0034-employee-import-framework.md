@@ -217,3 +217,111 @@ Commit uses branch ids: they must still exist in the business. Rename is allowed
 are allowed exactly like create-employee (`employeeWorkplace` has no `is_active` predicate).
 Injected Clock supplies the same instant for employee creation, summary event and preview consumption.
 Identity access and files fact-reader edits outside staff are declared in spec 030.
+
+## Addendum — services import (spec 072, 2026-10-29)
+
+### 1. Scope and owner decisions
+
+Services are the second importer on this framework. Plan row 32b, spec
+`docs/specs/072-catalog-services-import/spec.md`. The employee import keeps its behaviour; this addendum
+records what the services import adds to the framework and what it leaves alone.
+
+SI-T1 (`PP-64.6`, Waleed, technical, final) chose catalog-owned ports bound outside the module, so there is
+no `catalog → files` import arrow. A technical question does not go to the decisions page, and his answer
+is final.
+
+SI-Q6 to SI-Q10, the duration and the category, are pending owner questions. They stay preconditions of
+the sub-PRs that depend on them — `32b-pre-1`, `32b-pre-2`, `32b-1` and `32b-2` — and not of this
+addendum. No decision below waits on one of them.
+
+### 2. Table reuse (D-1)
+
+The preview is stored in the existing `import_previews` table with `entity = 'services'`. No migration, no
+second table, no new RLS policy and no new negative isolation test. `entity` is free text under a check,
+`rows` and `errors` are `jsonb`, and the status, count and expiry checks, the policies and the grants never
+look at it.
+
+The entity split is the application's job. Every catalog read, lock and update of a preview filters
+`entity = 'services'`, the stand-alone failure updates included. Staff's worker `fail` path in
+`apps/worker/src/modules/staff/persistence/employee-import.transactions.ts` does not filter `entity`, so
+it is not copied as it is.
+
+### 3. Shared vs per-entity pieces (D-2)
+
+Only the entity-agnostic pieces move to `apps/api/src/shared/import/`: the xlsx workbook reader, the
+object-bytes reader wrapper, the generic cell-tagging step, a generic header-row read, and any
+template-building helper without employee meaning. Staff re-imports them from the new place with identical
+behaviour, and its own tests run unchanged.
+
+The workbook reader becomes bound by the caller. The caller passes its limits and translates the reader's
+errors. Staff keeps its header count + 2 and its own error type; services pass their own header count and
+the same 2-column margin, so an unlabelled data column is still reported. `readSheet`, `ImportCell` and
+the zip and XML guard algorithms do not change, but their column bound is the caller's too: 8 for staff,
+10 for the eight services headers. The numbers derived from it in "Review hardening" are restated for
+services in 32b-1: the other-sheet row ceiling is the 65,536 budget over the column bound (6,553 rows at
+10 columns), and the budget must still exceed six times the services data grid (502×10) plus its own
+reference sheet. If that margin does not hold, 32b-1 stops and reports instead of raising the budget.
+
+The employee template stays in staff. It carries employee meaning, and the services template is its own
+workbook with its own reference sheet.
+
+### 4. File ports and authorization (D-3, D-4)
+
+Catalog owns two ports, `ImportFileFactsPort` and `ObjectBytesReader`. They are bound at
+`apps/api/src/app.ts`, the composition root, so `apps/api/src/modules/catalog/catalog.module.ts` never
+imports `files` or `@pospay/storage`. Catalog may import `tenancy` only. This is the pattern of spec 059
+D-16 and the answer of SI-T1.
+
+All five routes — template, preview, rows, commit and status — carry
+`@Require('manage:services:business', { business: 'businessId' })` and `@RequiresFeature('catalog')`.
+There is no identity read inside the use-case transaction. As in IM-08, authorization is checked at
+acceptance only: a manager revoked afterwards still gets the accepted commit, and the worker does not
+recheck the feature flag.
+
+### 5. Rows, money and validation (D-8, D-9)
+
+The stored `rows` are the normalized preview rows, and money never becomes a number past the reader
+boundary. `price` is a 3-decimal KWD string. A `FIXED` commission value is a 3-decimal string too, so
+`"0.500"` is 500 fils. A `PCT` value is basis points as an integer. `commission_value` equals
+`commission_rule.value` for `PCT` and `FIXED` only; `FOLLOW_PLAN` and `ZERO` carry no value.
+
+The row plug-in runs every field validator separately and collects each field's error, so one row with
+several bad cells reports all of them. A row with no error then goes through `serviceTerms` as the final
+check, so the import can never disagree with create-service. `validateServiceDraft` stays the composed
+single source of truth.
+
+The worker consumes the stored rows as immutable validated rows. `commission_rule` is a logical shape that
+persistence splits into `commission_rule_kind`, `commission_pct_bps` and `commission_fixed_amount`, as
+create-service does.
+
+### 6. Event, worker and rollout (D-5, D-6)
+
+One new event, `ServiceImportCommitRequested`, id-only `{ preview_id }` with the company in the outbox
+envelope. There is no per-service event and no summary event.
+
+The worker registers the type the way staff does, through `knownEventTypes(...)` from the new worker
+`catalog` module, not as a constant in `KNOWN_EVENT_TYPES`. The type is added in 32b-3, together with the
+transport that consumes it, never earlier. The transport takes the event before
+`apps/worker/src/outbox/deliver.ts` could acknowledge a known event that has no consumer.
+
+The module `apps/worker/src/modules/catalog` owns two jobs, `service-import-commit` and
+`service-import-recovery`. The recovery sweep uses the tenant discovery and scheduler protocol of PR 24 /
+ADR-0022 and is registered before the transport acknowledges an event, so a request is never enqueued
+without its sweep. It reads only `entity = 'services'`, and staff's sweep reads only
+`entity = 'employees'`.
+
+Rollout order: 32b-3 and 32b-4 must be deployed, not only merged, before 32b-5 ships the producer. A
+rolling deployment then never emits an event whose consumer or sweep is missing.
+
+### 7. The 200 ms bounds (D-7)
+
+The API acceptance transaction stays under 200 ms warm, asserted in an integration test as this ADR did
+for the employee import. The commit of up to 500 inserts and 500 audit rows runs in the worker.
+
+The synchronous preview of a 500-row workbook is measured in 32b-2 with one warm-up and five runs, median
+under 200 ms, the method of "Stage A evidence" above. If it is not, 32b-2 stops and reports instead of
+weakening a bound. The services tests assert the bound and time the whole call — file read, parse,
+validation and save — not the parse alone. Staff's preview benchmark only logs its median, so it is prior
+evidence for staff and not for services.
+
+Spec 072 holds the detail; this addendum records the decision.
