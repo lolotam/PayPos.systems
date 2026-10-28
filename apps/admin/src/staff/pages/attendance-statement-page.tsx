@@ -33,17 +33,24 @@ type Props = {
   onBranch: (branchId: string) => void;
 };
 
-function checkStatementAgain(
+async function checkStatementAgain(
   download: ReturnType<typeof useAttendanceStatementDownload>,
   status: ReturnType<typeof useAttendanceStatementStatus>,
+  setCheckingAgain: (checking: boolean) => void,
 ) {
+  setCheckingAgain(true);
   download.reset();
-  void status.refetch();
+  try {
+    await status.refetch();
+  } finally {
+    setCheckingAgain(false);
+  }
 }
 
 export function AttendanceStatementPage(props: Props) {
   const locale = useLocale();
   const [draft, setDraft] = useState(() => statementInitialDraft(props.timezone, locale));
+  const [checkingAgain, setCheckingAgain] = useState(false);
   const request = useAttendanceStatementRequest(props.scope);
   const acceptedDraft = request.data ? request.variables?.draft : undefined;
   const renderId = request.data?.render_id;
@@ -62,6 +69,7 @@ export function AttendanceStatementPage(props: Props) {
     setDraft(statementInitialDraft(props.timezone, locale));
   };
   const renderFailure = status.error ?? download.error;
+  const expired = statementExpired(status.error) || statementExpired(download.error);
   if (statementFormAccessLost(shifts.error ?? employees.error, renderFailure, request.error)) {
     return <p role="alert">{t(locale, 'attendanceStatementScreen.noAccess')}</p>;
   }
@@ -83,17 +91,17 @@ export function AttendanceStatementPage(props: Props) {
         onSubmit={submit}
       />
       <AttendanceStatementProgress
-        state={status.data?.state}
+        state={checkingAgain ? undefined : status.data?.state}
         errorCode={status.data?.error_code}
         error={request.error ?? download.error ?? status.error}
         errorRoute={request.error ? 'request' : 'render'}
         waiting={renderId !== undefined}
-        showCheckAgain={status.timedOut || statementNotReady(download.error)}
+        showCheckAgain={!expired && (status.timedOut || statementNotReady(download.error))}
         collected={download.isSuccess}
         downloading={download.isPending}
-        showNewRequest={statementExpired(status.error) || statementExpired(download.error)}
+        showNewRequest={expired}
         onDownload={() => download.mutate()}
-        onCheckAgain={() => checkStatementAgain(download, status)}
+        onCheckAgain={() => void checkStatementAgain(download, status, setCheckingAgain)}
         onNewRequest={reset}
       />
     </section>

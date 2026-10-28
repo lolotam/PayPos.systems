@@ -1,113 +1,22 @@
 import { attendanceStatementErrorsEn, t } from '@pospay/i18n';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { boardBranches, boardId } from '../api/attendance-board.fixture';
-import {
-  statementRenderId,
-  statementReport,
-  statementScope,
-  statementShifts,
-} from '../api/attendance-statement.fixture';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { expect, it, vi } from 'vitest';
+import { boardId } from '../api/attendance-board.fixture';
+import { statementRenderId } from '../api/attendance-statement.fixture';
 import { STATEMENT_POLL_DEADLINE_MS } from '../api/use-attendance-statement-status';
-import { AttendanceStatementPage } from './attendance-statement-page';
+import {
+  api,
+  DOWNLOAD,
+  setup,
+  state,
+  statusChecks,
+  statusResponse,
+  SUBMIT,
+  submitButton,
+} from './attendance-statement-page.fixture';
 
-const state = vi.hoisted(() => ({
-  locale: 'en' as 'en' | 'ar',
-  status: 'QUEUED' as string,
-  errorCode: '' as string,
-  shiftsError: undefined as { code: string; status: number } | undefined,
-  statusError: undefined as { code: string; status: number } | undefined,
-}));
-const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
-
-const SUBMIT = 'attendanceStatementScreen.submit';
-const DOWNLOAD = 'attendanceStatementScreen.download';
-
-function shiftsResponse() {
-  if (state.shiftsError) {
-    return {
-      error: { code: state.shiftsError.code },
-      response: { status: state.shiftsError.status },
-    };
-  }
-  return { data: statementShifts };
-}
-
-function statusResponse() {
-  if (state.statusError) {
-    return {
-      error: { code: state.statusError.code },
-      response: { status: state.statusError.status },
-    };
-  }
-  const data = state.errorCode
-    ? { state: state.status, error_code: state.errorCode }
-    : { state: state.status };
-  return { data };
-}
-
-beforeEach(() => {
-  state.locale = 'en';
-  state.status = 'QUEUED';
-  state.errorCode = '';
-  state.shiftsError = undefined;
-  state.statusError = undefined;
-  vi.useFakeTimers({ toFake: ['Date'] });
-  vi.setSystemTime(new Date('2026-09-30T22:00:00Z'));
-  api.GET.mockReset();
-  api.POST.mockReset();
-  api.GET.mockImplementation((path: string) => {
-    if (path.includes('attendance-statement-shifts')) return shiftsResponse();
-    if (path.includes('attendance-report')) return { data: statementReport };
-    return statusResponse();
-  });
-  api.POST.mockImplementation((path: string) =>
-    path.endsWith('/download')
-      ? { data: new Blob(['synthetic pdf']), response: { status: 200 } }
-      : { data: { render_id: statementRenderId }, response: { status: 202 } },
-  );
-  Object.defineProperty(URL, 'createObjectURL', {
-    configurable: true,
-    value: vi.fn(() => 'blob:synthetic'),
-  });
-  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
-  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-});
-
-afterEach(() => {
-  vi.restoreAllMocks();
-  vi.useRealTimers();
-});
-
-function setup() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const onBranch = vi.fn();
-  const view = render(
-    <QueryClientProvider client={client}>
-      <AttendanceStatementPage
-        scope={statementScope}
-        branches={boardBranches}
-        timezone="Asia/Kuwait"
-        onBranch={onBranch}
-      />
-    </QueryClientProvider>,
-  );
-  return {
-    client,
-    onBranch,
-    close: () => {
-      view.unmount();
-      client.clear();
-    },
-  };
-}
-
-function submitButton() {
-  return screen.getByRole('button', { name: t('en', SUBMIT) }) as HTMLButtonElement;
-}
 
 it.each(['ar', 'en'] as const)('renders every field of the screen in %s', async (locale) => {
   state.locale = locale;
@@ -255,54 +164,90 @@ it.each([
   view.close();
 });
 
-function statusChecks() {
-  return api.GET.mock.calls.filter(
-    ([, init]) =>
-      (init as { params?: { path?: { renderId?: string } } } | undefined)?.params?.path
-        ?.renderId === statementRenderId,
-  ).length;
-}
+it.each([
+  { freshStatus: 'READY', canDownload: true },
+  { freshStatus: 'QUEUED', canDownload: false },
+])(
+  'hides the stale download during a re-check that resolves $freshStatus',
+  async ({ freshStatus, canDownload }) => {
+    state.status = 'READY';
+    api.POST.mockImplementation((path: string) =>
+      path.endsWith('/download')
+        ? { error: { code: 'DOCUMENT_NOT_READY' }, response: { status: 409 } }
+        : { data: { render_id: statementRenderId }, response: { status: 202 } },
+    );
+    const view = setup();
+    await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
+    fireEvent.click(submitButton());
+    fireEvent.click(await screen.findByRole('button', { name: t('en', DOWNLOAD) }));
+    await screen.findByText(attendanceStatementErrorsEn.DOCUMENT_NOT_READY);
+    const checksBefore = statusChecks();
+    let resolveStatus: ((result: ReturnType<typeof statusResponse>) => void) | undefined;
+    api.GET.mockImplementation((path: string) => {
+      if (path.includes('/attendance-statements/')) {
+        return new Promise<ReturnType<typeof statusResponse>>((resolve) => {
+          resolveStatus = resolve;
+        });
+      }
+      return statusResponse();
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: t('en', 'attendanceStatementScreen.checkAgain') }),
+    );
+    await screen.findByText(t('en', 'attendanceStatementScreen.waiting'));
+    expect(screen.queryByRole('button', { name: t('en', DOWNLOAD) })).toBeNull();
+    expect(statusChecks()).toBeGreaterThan(checksBefore);
+    await act(async () => {
+      state.status = freshStatus;
+      resolveStatus?.(statusResponse());
+      await Promise.resolve();
+    });
+    if (canDownload) {
+      const download = await screen.findByRole('button', { name: t('en', DOWNLOAD) });
+      expect((download as HTMLButtonElement).disabled).toBe(false);
+    } else {
+      await screen.findByText(t('en', 'attendanceStatementScreen.waiting'));
+      expect(screen.queryByRole('button', { name: t('en', DOWNLOAD) })).toBeNull();
+    }
+    expect(api.POST).toHaveBeenCalledTimes(2);
+    view.close();
+  },
+);
 
-it('recovers from a not-ready collect by checking the same render again', async () => {
-  state.status = 'READY';
-  api.POST.mockImplementation((path: string) =>
-    path.endsWith('/download')
-      ? { error: { code: 'DOCUMENT_NOT_READY' }, response: { status: 409 } }
-      : { data: { render_id: statementRenderId }, response: { status: 202 } },
-  );
-  const view = setup();
-  await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
-  fireEvent.click(submitButton());
-  fireEvent.click(await screen.findByRole('button', { name: t('en', DOWNLOAD) }));
-  await screen.findByText(attendanceStatementErrorsEn.DOCUMENT_NOT_READY);
-  const checksBefore = statusChecks();
-  fireEvent.click(
-    screen.getByRole('button', { name: t('en', 'attendanceStatementScreen.checkAgain') }),
-  );
-  const download = await screen.findByRole('button', { name: t('en', DOWNLOAD) });
-  expect((download as HTMLButtonElement).disabled).toBe(false);
-  expect(statusChecks()).toBeGreaterThan(checksBefore);
-  expect(api.POST).toHaveBeenCalledTimes(2);
-  view.close();
-});
-
-it('shows the expired collect refusal', async () => {
-  state.status = 'READY';
-  api.POST.mockImplementation((path: string) =>
-    path.endsWith('/download')
-      ? { error: { code: 'DOCUMENT_EXPIRED' }, response: { status: 410 } }
-      : { data: { render_id: statementRenderId }, response: { status: 202 } },
-  );
-  const view = setup();
-  await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
-  fireEvent.click(submitButton());
-  fireEvent.click(await screen.findByRole('button', { name: t('en', DOWNLOAD) }));
-  await screen.findByText(attendanceStatementErrorsEn.DOCUMENT_EXPIRED);
-  expect(
-    screen.getByRole('button', { name: t('en', 'attendanceStatementScreen.newRequest') }),
-  ).toBeTruthy();
-  view.close();
-});
+it.each([
+  {
+    code: 'DOCUMENT_EXPIRED',
+    status: 410,
+    message: attendanceStatementErrorsEn.DOCUMENT_EXPIRED,
+  },
+  {
+    code: 'NOT_FOUND',
+    status: 404,
+    message: t('en', 'attendanceStatementScreen.expired'),
+  },
+])(
+  'shows the terminal collect refusal $code without check-again',
+  async ({ code, status, message }) => {
+    state.status = 'READY';
+    api.POST.mockImplementation((path: string) =>
+      path.endsWith('/download')
+        ? { error: { code }, response: { status } }
+        : { data: { render_id: statementRenderId }, response: { status: 202 } },
+    );
+    const view = setup();
+    await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
+    fireEvent.click(submitButton());
+    fireEvent.click(await screen.findByRole('button', { name: t('en', DOWNLOAD) }));
+    await screen.findByText(message);
+    expect(
+      screen.getByRole('button', { name: t('en', 'attendanceStatementScreen.newRequest') }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: t('en', 'attendanceStatementScreen.checkAgain') }),
+    ).toBeNull();
+    view.close();
+  },
+);
 
 it('shows the empty statement failure and resets the locked form', async () => {
   state.status = 'FAILED';
@@ -378,7 +323,7 @@ it('hides the form when the create request loses access', async () => {
   view.close();
 });
 
-it('stops polling and resets after an unknown render on the status poll', async () => {
+it('keeps an unknown render terminal after the polling deadline', async () => {
   state.statusError = { code: 'NOT_FOUND', status: 404 };
   const view = setup();
   await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
@@ -392,11 +337,17 @@ it('stops polling and resets after an unknown render on the status poll', async 
     path.includes('/attendance-statements/'),
   ).length;
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(5000);
+    await vi.advanceTimersByTimeAsync(STATEMENT_POLL_DEADLINE_MS);
   });
   expect(
     api.GET.mock.calls.filter(([path]) => path.includes('/attendance-statements/')),
   ).toHaveLength(statusCalls);
+  expect(
+    screen.getByRole('button', { name: t('en', 'attendanceStatementScreen.newRequest') }),
+  ).toBeTruthy();
+  expect(
+    screen.queryByRole('button', { name: t('en', 'attendanceStatementScreen.checkAgain') }),
+  ).toBeNull();
   fireEvent.click(
     screen.getByRole('button', { name: t('en', 'attendanceStatementScreen.newRequest') }),
   );
