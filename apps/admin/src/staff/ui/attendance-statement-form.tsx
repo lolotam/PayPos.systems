@@ -35,6 +35,9 @@ type Props = {
   shifts: StatementShift[];
   employees: StatementEmployee[];
   employeesLoading: boolean;
+  employeesLoaded: boolean;
+  employeesError: unknown;
+  onEmployeesRetry: () => void;
   periodValid: boolean;
   locked: boolean;
   submitting: boolean;
@@ -72,6 +75,15 @@ function radioField<T extends string>(
   );
 }
 
+function statementCanSubmit(props: Props) {
+  const employeePending = Boolean(props.draft.employeeId) && !props.employeesLoaded;
+  return (
+    props.periodValid &&
+    !employeePending &&
+    (props.draft.form !== 'EMPLOYEE' || Boolean(props.draft.employeeId))
+  );
+}
+
 /** نموذج طلب الكشف: الفرع، النوع، الفترة، الموظفة، الشيفت، اللغة، وزر الطلب. */
 export function AttendanceStatementForm(props: Props) {
   const locale = useLocale();
@@ -80,7 +92,7 @@ export function AttendanceStatementForm(props: Props) {
   const langLegend = t(locale, 'attendanceStatementScreen.language');
   const pickForm = (form: StatementForm) => props.onChange({ form });
   const pickLanguage = (language: StatementLanguage) => props.onChange({ language });
-  const canSubmit = props.periodValid && (draft.form !== 'EMPLOYEE' || Boolean(draft.employeeId));
+  const canSubmit = statementCanSubmit(props);
   return (
     <fieldset disabled={props.locked || props.submitting} className="flex flex-col gap-4">
       <div className="grid gap-1">
@@ -107,6 +119,8 @@ export function AttendanceStatementForm(props: Props) {
         draft={draft}
         employees={employees}
         loading={props.employeesLoading}
+        error={props.employeesError}
+        onRetry={props.onEmployeesRetry}
         onChange={props.onChange}
       />
       {draft.form === 'BRANCH' && shifts.length > 0 ? (

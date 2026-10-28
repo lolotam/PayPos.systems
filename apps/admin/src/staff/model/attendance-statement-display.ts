@@ -225,15 +225,15 @@ export function statementRequestBody(draft: StatementDraft, period: StatementPer
   };
 }
 
-/** رفض التحصيل لأن الملف لسه مش جاهز بيستدعي فحص يدوي لنفس التجهيز. */
-export function statementNotReady(error: unknown): boolean {
-  return errorCode(error) === 'DOCUMENT_NOT_READY';
-}
-
 /** هل الرفض معناه إن الكشف خلص ومينفعش ينتحم تاني؟ */
 export function statementExpired(error: unknown): boolean {
   const code = errorCode(error);
   return code === 'DOCUMENT_EXPIRED' || errorStatus(error) === 404 || errorStatus(error) === 410;
+}
+
+/** فشل التحصيل العابر يسمح بفحص نفس التجهيز أو بطلب جديد؛ انتهاء الكشف وفقد الوصول لهم مسارهم. */
+export function statementCollectCanRecover(error: unknown): boolean {
+  return Boolean(error) && !statementExpired(error) && !statementRenderAccessLost(error);
 }
 
 /**

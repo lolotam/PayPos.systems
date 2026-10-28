@@ -2,10 +2,10 @@
 import type { WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { PageHeader } from '@pospay/ui';
-import { useState } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useAttendanceStatementDownload } from '../api/use-attendance-statement-download';
-import { useAttendanceStatementEmployees } from '../api/use-attendance-statement-employees';
+import { useAttendanceStatementEmployeeSelection } from '../api/use-attendance-statement-employee-selection';
 import {
   useAttendanceStatementRequest,
   type AttendanceStatementScope,
@@ -14,14 +14,16 @@ import { useAttendanceStatementShifts } from '../api/use-attendance-statement-sh
 import { useAttendanceStatementStatus } from '../api/use-attendance-statement-status';
 import {
   statementApplyPatch,
+  statementCollectCanRecover,
   statementExpired,
   statementFormAccessLost,
   statementInitialDraft,
-  statementNotReady,
   statementPeriod,
   statementPeriodIsValid,
   statementRequestBody,
+  type StatementDraft,
   type StatementDraftPatch,
+  type StatementLanguage,
 } from '../model/attendance-statement-display';
 import { AttendanceStatementForm } from '../ui/attendance-statement-form';
 import { AttendanceStatementProgress } from '../ui/attendance-statement-progress';
@@ -47,6 +49,18 @@ async function checkStatementAgain(
   }
 }
 
+type ResetStatementInput = {
+  request: ReturnType<typeof useAttendanceStatementRequest>;
+  download: ReturnType<typeof useAttendanceStatementDownload>;
+  setDraft: Dispatch<SetStateAction<StatementDraft>>;
+};
+
+function resetStatement(input: ResetStatementInput, timezone: string, locale: StatementLanguage) {
+  input.request.reset();
+  input.download.reset();
+  input.setDraft(statementInitialDraft(timezone, locale));
+}
+
 export function AttendanceStatementPage(props: Props) {
   const locale = useLocale();
   const [draft, setDraft] = useState(() => statementInitialDraft(props.timezone, locale));
@@ -57,19 +71,16 @@ export function AttendanceStatementPage(props: Props) {
   const period = statementPeriod(draft);
   const periodValid = statementPeriodIsValid(period, props.timezone);
   const shifts = useAttendanceStatementShifts(props.scope, period, periodValid);
-  const employees = useAttendanceStatementEmployees(props.scope, period, periodValid);
+  const employees = useAttendanceStatementEmployeeSelection(draft, setDraft, props);
   const status = useAttendanceStatementStatus(props.scope, renderId);
   const download = useAttendanceStatementDownload(props.scope, renderId, acceptedDraft);
   const change = (patch: StatementDraftPatch) =>
     setDraft((current) => statementApplyPatch(current, patch));
   const submit = () => request.mutate({ body: statementRequestBody(draft, period), draft });
-  const reset = () => {
-    request.reset();
-    download.reset();
-    setDraft(statementInitialDraft(props.timezone, locale));
-  };
+  const reset = () => resetStatement({ request, download, setDraft }, props.timezone, locale);
   const renderFailure = status.error ?? download.error;
   const expired = statementExpired(status.error) || statementExpired(download.error);
+  const collectRecovery = statementCollectCanRecover(download.error ?? status.error);
   if (statementFormAccessLost(shifts.error ?? employees.error, renderFailure, request.error)) {
     return <p role="alert">{t(locale, 'attendanceStatementScreen.noAccess')}</p>;
   }
@@ -83,6 +94,9 @@ export function AttendanceStatementPage(props: Props) {
         shifts={shifts.data?.shifts ?? []}
         employees={employees.data ?? []}
         employeesLoading={employees.isLoading}
+        employeesLoaded={employees.data !== undefined}
+        employeesError={employees.error}
+        onEmployeesRetry={() => void employees.refetch()}
         periodValid={periodValid}
         locked={renderId !== undefined}
         submitting={request.isPending}
@@ -96,10 +110,10 @@ export function AttendanceStatementPage(props: Props) {
         error={request.error ?? download.error ?? status.error}
         errorRoute={request.error ? 'request' : 'render'}
         waiting={renderId !== undefined}
-        showCheckAgain={!expired && (status.timedOut || statementNotReady(download.error))}
+        showCheckAgain={!expired && (collectRecovery || status.timedOut)}
         collected={download.isSuccess}
         downloading={download.isPending}
-        showNewRequest={expired}
+        showNewRequest={expired || collectRecovery}
         onDownload={() => download.mutate()}
         onCheckAgain={() => void checkStatementAgain(download, status, setCheckingAgain)}
         onNewRequest={reset}
