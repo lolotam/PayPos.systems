@@ -60,7 +60,7 @@ would be skipped silently on staging.
 | `scope` | text NOT NULL | CHECK `IN ('BUSINESS','BRANCHES')` |
 | `branch_ids` | uuid[] NULL | the reader's whole _R_; no FK on array elements (in the spec) |
 | `employee_ids` | uuid[] NULL | from the frozen `EMPLOYEE` rows overlapping _R_; may be empty |
-| `language` | text NOT NULL, CHECK `IN ('ar','en')` | CS-Q33 option 1, Waleed's card pick (2026-10-28, batch 79); Abu Salem's pick still pending (§12) |
+| `language` | text NOT NULL, CHECK `IN ('ar','en')` | CS-Q33 option 1, decided (Waleed and Abu Salem, 2026-10-28, batch 79) |
 | `requested_at` | timestamptz NOT NULL | no default; the use case passes `Clock` (0182) |
 | `collected_at` | timestamptz NULL | the only column the app may update |
 
@@ -171,8 +171,7 @@ node scripts/test-db/lane.mjs down <lane>
 
 - 58-2b and 56-1a both add a migration; whichever merges second rebases its number (§13). They touch different tables
   and files, except `_journal.json` and the `test/` inventories, which merge cleanly as separate lines.
-- 56-1a ships the `language` column on Waleed's CS-Q33 pick. If Abu Salem later picks option 2 or 3, his pick binds
-  and a follow-up expand/contract migration drops or relaxes the column.
+- None from the owner questions: CS-Q33 and CS-Q34 are decided (batch 79).
 - The guard reads `commission_statements`, so a future change of statement statuses must update both triggers.
 
 ## 11. Out of scope
@@ -183,8 +182,8 @@ file name and audit (56-1c); the screen button (53-3); customer erasure (D-21, d
 ## 12. Open questions
 
 Both are recorded in `owner-questions.ar.md` (### 33, ### 34) and published on the decisions page as batch 79.
-Waleed picked the recommended option of each by card on 2026-10-28; work proceeds on his picks until Abu Salem answers,
-and Abu Salem's pick binds on a difference (CLAUDE.md §1 5b).
+Both owners picked the recommended option of each on 2026-10-28 (Waleed by card, Abu Salem on the page), so both
+are final.
 
 - **CS-Q33 — workbook language (BUSINESS: product behaviour).** FR-051 (spec.md:910) lists columns and no language. The
   frozen rows hold `employee_name_ar`/`_en` and `service_name_ar`/`_en`. Precedents were owner questions: ST-Q4 (spec
