@@ -24,11 +24,11 @@ or behaviour change: the grant stays inert until 58-2c writes through it.
 | The write target is `customers.opted_out_at` (`timestamptz`, nullable); no `updated_at` auto-bump exists | `0034_2026-10-02_customers.sql:7`; `schema/customers.ts:19` |
 | No production code writes `opted_out_at`; only owner-role fixtures set it from `NULL` | `apps/api/.../customers.spec.ts:235` |
 
-**Numbering:** 58-2b reserves **`0189`**, expected to merge after 57-3b (PP-69.9, constitution 3.2.0 Principle I).
+**Numbering:** the lead scaffolded **`0188`** from `main` (the generator takes the next free number on the base). 57-3b's `0188` is local and unmerged; whichever task merges second regenerates its scaffold on the refreshed base and keeps its SQL body unchanged (PP-69.9, constitution 3.2.0 Principle I).
 The number is final at merge: if 57-3b has not merged or was dropped, the lead regenerates the scaffold on the
 refreshed base and the SQL body moves unchanged.
 
-## The migration — `0189_<date>_customers-opt-out-guard.sql` (custom, expand-only)
+## The migration — `0188_2026-10-28_customers-opt-out-guard.sql` (custom, expand-only)
 
 1. **Grant, column-scoped:** `GRANT UPDATE (opted_out_at, updated_at) ON customers TO pospay_app;` — the
    `rating_requests` precedent (`0185:158–159`). `updated_at` is included because the app stamps it from the injected
@@ -91,15 +91,15 @@ assertions stay as they are.
 
 The lead first scaffolds in the task worktree: `pnpm --filter @pospay/db db:generate customers-opt-out-guard --custom`
 (`packages/db/scripts/generate-migration.ts`), commits the empty
-skeleton (SQL, `meta/0189_snapshot.json`, `_journal.json`). The implementer never forges a snapshot or journal entry.
+skeleton (SQL, `meta/0188_snapshot.json`, `_journal.json`). The implementer never forges a snapshot or journal entry.
 
-1. `packages/db/migrations/0189_<date>_customers-opt-out-guard.sql` — fill the body below the scaffold header only
+1. `packages/db/migrations/0188_2026-10-28_customers-opt-out-guard.sql` — fill the body below the scaffold header only
 2. `packages/db/test/customer-grants.ts` — new
 3. `packages/db/test/function-inventory.ts`
 4. `packages/db/src/__tests__/privileges.spec.ts`
 5. `packages/db/src/__tests__/rls-customers.spec.ts`
 
-The generated `meta/0189_snapshot.json` and `meta/_journal.json` belong to the lead's scaffold. No shell, tests,
+The generated `meta/0188_snapshot.json` and `meta/_journal.json` belong to the lead's scaffold. No shell, tests,
 installs, Git writes or database operations by the implementer; it returns changed paths, reasoning and limits.
 
 ## Out of scope

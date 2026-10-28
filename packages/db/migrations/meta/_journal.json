@@ -1303,6 +1303,13 @@
       "when": 1792924191090,
       "tag": "0187_2026-10-25_commission-plans-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 188,
+      "version": "7",
+      "when": 1793214209361,
+      "tag": "0188_2026-10-28_customers-opt-out-guard",
+      "breakpoints": true
     }
   ]
 }
