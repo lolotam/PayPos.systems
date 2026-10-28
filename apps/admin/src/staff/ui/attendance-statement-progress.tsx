@@ -59,16 +59,16 @@ function terminalMessage(
   );
 }
 
-/** حالة التجهيز: الانتظار، الجاهز للتنزيل، الرفض، أو خلوص الوقت. */
-export function AttendanceStatementProgress(props: Props) {
-  const locale = useLocale();
-  const { state, error, collected, downloading } = props;
-  const message = refusalMessage(error, props.errorRoute, locale);
+function statementActions(props: Props, locale: Locale) {
   const downloadButton = (
-    <Button onClick={props.onDownload} disabled={downloading || collected} aria-busy={downloading}>
+    <Button
+      onClick={props.onDownload}
+      disabled={props.downloading || props.collected}
+      aria-busy={props.downloading}
+    >
       {t(
         locale,
-        downloading
+        props.downloading
           ? 'attendanceStatementScreen.downloading'
           : 'attendanceStatementScreen.download',
       )}
@@ -84,6 +84,15 @@ export function AttendanceStatementProgress(props: Props) {
       {t(locale, 'attendanceStatementScreen.checkAgain')}
     </Button>
   );
+  return { downloadButton, newRequest, checkAgain };
+}
+
+/** حالة التجهيز: الانتظار، الجاهز للتنزيل، الرفض، أو خلوص الوقت. */
+export function AttendanceStatementProgress(props: Props) {
+  const locale = useLocale();
+  const { state, error, collected } = props;
+  const message = refusalMessage(error, props.errorRoute, locale);
+  const { downloadButton, newRequest, checkAgain } = statementActions(props, locale);
   if (message !== undefined) {
     return noticeRow(
       'alert',
