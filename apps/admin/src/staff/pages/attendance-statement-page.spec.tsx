@@ -8,23 +8,27 @@ import {
   api,
   changeStatementMonth,
   checkAgainButton,
+  clearStatementCustomPeriod,
   DOWNLOAD,
-  employeeField,
   expectNewRequestOnly,
   expectRecoveryActions,
+  expectStatementNoAccess,
   mockEmployeeReport,
   newRequestButton,
   openStatement,
+  openStatementWithEmployee,
   reportRow,
   requestFailedCollect,
   requestReadyStatement,
   requestStatement,
+  requestStatementRefusal,
   setup,
   state,
   statusChecks,
   statusResponse,
   SUBMIT,
   submitButton,
+  unconfirmedEmployeeOption,
 } from './attendance-statement-page.fixture';
 
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
@@ -66,11 +70,8 @@ it('hides the shift filter and blocks the request until an employee is chosen', 
 });
 
 it('clears an employee who has no coverage in the new period', async () => {
-  const view = await openStatement();
-  const employee = await employeeField();
-  fireEvent.change(employee, { target: { value: boardId } });
-  mockEmployeeReport({ ...statementReport, rows: statementReport.rows.slice(1) });
-  changeStatementMonth('2026-09');
+  const { view, employee } = await openStatementWithEmployee(boardId);
+  mockEmployeeReport({ ...statementReport, rows: statementReport.rows.slice(1) }, '2026-09');
   expect(submitButton().disabled).toBe(true);
   await waitFor(() => expect(submitButton().disabled).toBe(false));
   expect(employee.value).toBe('');
@@ -86,9 +87,7 @@ it('clears an employee who has no coverage in the new period', async () => {
 });
 
 it('keeps an employee who still has coverage in the new period', async () => {
-  const view = await openStatement();
-  const employee = await employeeField();
-  fireEvent.change(employee, { target: { value: boardId } });
+  const { view, employee } = await openStatementWithEmployee(boardId);
   mockEmployeeReport({
     ...statementReport,
     rows: [{ ...reportRow(0), name_en: 'September employee' }, reportRow(1)],
@@ -110,13 +109,22 @@ it('offers a retry when the employee list fails instead of showing it as empty',
   view.close();
 });
 
-it('keeps submit disabled when a selected employee cannot be confirmed after a failure', async () => {
-  const view = await openStatement();
-  const employee = await employeeField();
-  fireEvent.change(employee, { target: { value: boardId } });
+it('shows an unconfirmed selected employee after a failure and allows clearing her', async () => {
+  const { view, employee } = await openStatementWithEmployee(boardId);
   state.employeesError = { code: 'UPSTREAM_FAILED', status: 500 };
   changeStatementMonth('2026-09');
   await screen.findByText(t('en', 'attendanceStatementScreen.employeesFailed'));
+  await unconfirmedEmployeeOption();
+  expect(submitButton().disabled).toBe(true);
+  fireEvent.change(employee, { target: { value: '' } });
+  await waitFor(() => expect(submitButton().disabled).toBe(false));
+  view.close();
+});
+
+it('rejects a custom period with both dates cleared', async () => {
+  const view = await openStatement();
+  clearStatementCustomPeriod();
+  await screen.findByText(t('en', 'attendanceStatementScreen.periodInvalid'));
   expect(submitButton().disabled).toBe(true);
   view.close();
 });
@@ -234,13 +242,7 @@ it.each([
   { code: 'ATTENDANCE_STATEMENT_SHIFT_FILTER_INVALID', status: 422 },
   { code: 'RENDERER_UNAVAILABLE', status: 503 },
 ])('shows the request refusal $code', async ({ code, status }) => {
-  api.POST.mockResolvedValue({ error: { code }, response: { status } });
-  const view = await requestStatement();
-  await screen.findByText(
-    attendanceStatementErrorsEn[code as keyof typeof attendanceStatementErrorsEn],
-  );
-  expect(screen.getByRole('button', { name: t('en', SUBMIT) })).toBeTruthy();
-  view.close();
+  await requestStatementRefusal(code, status);
 });
 
 it.each([
@@ -353,16 +355,14 @@ it('stops the poll after a minute and checks again only on demand', async () => 
 it('hides the form when the access probe is refused', async () => {
   state.shiftsError = { code: 'FORBIDDEN', status: 403 };
   const view = setup();
-  await screen.findByText(t('en', 'attendanceStatementScreen.noAccess'));
-  expect(screen.queryByRole('button', { name: t('en', SUBMIT) })).toBeNull();
+  await expectStatementNoAccess();
   view.close();
 });
 
 it('hides the form when the create request loses access', async () => {
   api.POST.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
   const view = await requestStatement();
-  await screen.findByText(t('en', 'attendanceStatementScreen.noAccess'));
-  expect(screen.queryByRole('button', { name: t('en', SUBMIT) })).toBeNull();
+  await expectStatementNoAccess();
   view.close();
 });
 

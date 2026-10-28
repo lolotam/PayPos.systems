@@ -101,6 +101,10 @@ describe('period validity', () => {
       );
     });
   });
+
+  it('refuses an empty custom period', () => {
+    expect(statementPeriodIsValid({ from: '', to: '' }, 'Asia/Kuwait')).toBe(false);
+  });
 });
 
 describe('months', () => {

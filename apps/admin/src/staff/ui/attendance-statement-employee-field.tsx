@@ -20,6 +20,9 @@ export function AttendanceStatementEmployeeField(props: {
 }) {
   const locale = useLocale();
   const { draft, employees } = props;
+  const employeeUnconfirmed =
+    Boolean(draft.employeeId) &&
+    !employees.some((employee) => employee.employee_id === draft.employeeId);
   return (
     <div className="grid gap-1">
       <Label htmlFor="statement-employee">
@@ -36,6 +39,11 @@ export function AttendanceStatementEmployeeField(props: {
         onChange={(event) => props.onChange({ employeeId: event.target.value })}
       >
         <option value="">{t(locale, 'attendanceStatementScreen.chooseEmployee')}</option>
+        {employeeUnconfirmed ? (
+          <option value={draft.employeeId}>
+            {t(locale, 'attendanceStatementScreen.employeeUnconfirmed')}
+          </option>
+        ) : null}
         {employees.map((employee) => (
           <option key={employee.employee_id} value={employee.employee_id}>
             {employee.employee_number} — {statementEmployeeName(employee, locale)}

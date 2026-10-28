@@ -94,7 +94,6 @@ export function AttendanceStatementPage(props: Props) {
         shifts={shifts.data?.shifts ?? []}
         employees={employees.data ?? []}
         employeesLoading={employees.isLoading}
-        employeesLoaded={employees.data !== undefined}
         employeesError={employees.error}
         onEmployeesRetry={() => void employees.refetch()}
         periodValid={periodValid}

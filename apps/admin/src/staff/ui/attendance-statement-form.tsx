@@ -35,7 +35,6 @@ type Props = {
   shifts: StatementShift[];
   employees: StatementEmployee[];
   employeesLoading: boolean;
-  employeesLoaded: boolean;
   employeesError: unknown;
   onEmployeesRetry: () => void;
   periodValid: boolean;
@@ -76,10 +75,12 @@ function radioField<T extends string>(
 }
 
 function statementCanSubmit(props: Props) {
-  const employeePending = Boolean(props.draft.employeeId) && !props.employeesLoaded;
+  const employeeConfirmed =
+    !props.draft.employeeId ||
+    props.employees.some((employee) => employee.employee_id === props.draft.employeeId);
   return (
     props.periodValid &&
-    !employeePending &&
+    employeeConfirmed &&
     (props.draft.form !== 'EMPLOYEE' || Boolean(props.draft.employeeId))
   );
 }

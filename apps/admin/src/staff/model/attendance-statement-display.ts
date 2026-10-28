@@ -1,4 +1,8 @@
-import { attendanceStatementShiftPeriodIsValid, type WorkspaceBranch } from '@pospay/contracts';
+import {
+  attendanceStatementShiftPeriodIsValid,
+  attendanceStatementShiftsQuery,
+  type WorkspaceBranch,
+} from '@pospay/contracts';
 import {
   attendanceStatementErrorsAr,
   attendanceStatementErrorsEn,
@@ -132,6 +136,7 @@ export function statementCurrentMonthEnd(timezone: string): string {
 
 /** فحص مبدئي للفترة في المتصفح؛ الخادم هو المرجع النهائي. */
 export function statementPeriodIsValid(period: StatementPeriod, timezone: string): boolean {
+  if (!attendanceStatementShiftsQuery.safeParse(period).success) return false;
   if (!attendanceStatementShiftPeriodIsValid(period)) return false;
   return period.to <= statementCurrentMonthEnd(timezone);
 }

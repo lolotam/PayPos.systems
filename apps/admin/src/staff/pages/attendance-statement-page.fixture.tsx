@@ -10,7 +10,7 @@ export const state = {
 };
 export const api = { GET: vi.fn(), POST: vi.fn() };
 
-import { t } from '@pospay/i18n';
+import { attendanceStatementErrorsEn, t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { boardBranches } from '../api/attendance-board.fixture';
@@ -64,10 +64,11 @@ function defaultGet(path: string) {
   return statusResponse();
 }
 
-export function mockEmployeeReport(report: typeof statementReport) {
+export function mockEmployeeReport(report: typeof statementReport, month?: string) {
   api.GET.mockImplementation((path: string) =>
     path.includes('attendance-report') ? { data: report } : defaultGet(path),
   );
+  if (month) changeStatementMonth(month);
 }
 
 beforeEach(() => {
@@ -135,6 +136,16 @@ export async function requestStatement() {
   return view;
 }
 
+export async function requestStatementRefusal(code: string, status: number) {
+  api.POST.mockResolvedValue({ error: { code }, response: { status } });
+  const view = await requestStatement();
+  await screen.findByText(
+    attendanceStatementErrorsEn[code as keyof typeof attendanceStatementErrorsEn],
+  );
+  expect(screen.getByRole('button', { name: t('en', SUBMIT) })).toBeTruthy();
+  view.close();
+}
+
 export async function requestReadyStatement() {
   state.status = 'READY';
   return requestStatement();
@@ -145,6 +156,28 @@ export async function employeeField() {
   const field = (await screen.findByLabelText(t('en', key))) as HTMLSelectElement;
   await within(field).findByRole('option', { name: /Synthetic employee/ });
   return field;
+}
+
+export async function openStatementWithEmployee(employeeId: string) {
+  const view = await openStatement();
+  const employee = await employeeField();
+  fireEvent.change(employee, { target: { value: employeeId } });
+  return { view, employee };
+}
+
+export function unconfirmedEmployeeOption() {
+  return screen.findByRole('option', {
+    name: t('en', 'attendanceStatementScreen.employeeUnconfirmed'),
+  });
+}
+
+export function clearStatementCustomPeriod() {
+  fireEvent.click(screen.getByLabelText(t('en', 'attendanceStatementScreen.periodCustom')));
+  for (const key of ['from', 'to'] as const) {
+    fireEvent.change(screen.getByLabelText(t('en', `attendanceStatementScreen.${key}`)), {
+      target: { value: '' },
+    });
+  }
 }
 
 export function changeStatementMonth(month: string) {
@@ -190,6 +223,11 @@ export function expectNewRequestOnly() {
   expect(
     screen.queryByRole('button', { name: t('en', 'attendanceStatementScreen.checkAgain') }),
   ).toBeNull();
+}
+
+export async function expectStatementNoAccess() {
+  await screen.findByText(t('en', 'attendanceStatementScreen.noAccess'));
+  expect(screen.queryByRole('button', { name: t('en', SUBMIT) })).toBeNull();
 }
 
 export function statusChecks() {
