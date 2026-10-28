@@ -1,12 +1,12 @@
 /**
- * Kind of the commission statement Excel export. It is a bytes kind, so the API admits it
- * without Chromium and the worker hands back the workbook it built.
+ * نوع تصدير كشف العمولات بصيغة Excel. النوع ده bytes، عشان كده الـ API بيقبله من غير Chromium،
+ * والـ worker بيرجّع الـ workbook اللي جهّزه.
  */
 export const COMMISSION_STATEMENT_EXPORT_DOCUMENT_KIND = 'commission-statement-xlsx';
 
 /**
- * The scope an export request may carry: the whole business, or the branches the reader is
- * allowed to see. The scope decides whether the request carries branch and employee arrays.
+ * نطاق طلب التصدير: البيزنس كله (`BUSINESS`)، أو الفروع اللي القارئ مسموح له يشوفها
+ * (`BRANCHES`). النطاق بيحدد إذا كان الطلب هيشيل مصفوفتَي الفروع والموظفين ولا لأ.
  */
 export const commissionStatementExportScopes = ['BUSINESS', 'BRANCHES'] as const;
 
