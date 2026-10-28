@@ -24,26 +24,13 @@ this docs commit. If the orchestrator accepts the split, the docs PR adds a one-
 
 ## 2. Migration number
 
-Queue checked 2026-10-28: `_journal.json` ends at idx 187 (`0187_2026-10-25_commission-plans-permission`), and
-`gh pr list --state open` returns `[]`. 58-2b keeps its historical **0188** (plan-58-2-split.md:84). 56-1a reserves
-**0189**, after 58-2b in the expected merge order (agent-delivery-pipeline.md §13). Numbers become final at merge. 58-2b
-still needs its own plan. File: `packages/db/migrations/0189_<UTC date>_commission-statement-exports.sql`, then the
-RLS, grant and guard SQL appended by hand in the same file (the 0182/0183 shape).
-
-How the number is produced. drizzle-kit numbers from the journal, so `pnpm db:generate commission-statement-exports`
-on today's main emits `0188_…`, `meta/0188_snapshot.json` and journal entry idx 188. Rename both files to `0189` and set
-the entry's `idx` and `tag` to match. The runtime migrator reads files by journal `tag`
-(`readMigrationFiles`, `packages/db/src/concurrent-migrations.ts:352`), so the gap at 188 should be harmless.
-**Verify** this on the lane: a fresh `migrateDatabase` applies 0189, and `pnpm db:generate` reports no drift.
-Final at merge (§13):
-- If 58-2b merges first, 56-1a deletes its generated SQL and snapshot, rebases, re-runs `pnpm db:generate` (the
-  snapshot's `prevId` then points at 0188) and re-appends the hand-written SQL.
-- If 56-1a merges first, it is renumbered to **0188** the same way before merge, so main never carries a gap. 58-2b then
-  generates 0189.
-
-Either way the second migration to merge must be regenerated after rebasing, never just renamed. The migrator applies
-only entries whose `when` is newer than the last applied one (`concurrent-migrations.ts:336`), so an older `when`
-would be skipped silently on staging.
+58-2b merged first (PR #704, `2f1e63bd`, 2026-10-29) as **0188**, so 56-1a is generated on that base as **0189**
+directly: `pnpm --filter @pospay/db db:generate commission-statement-exports` emits
+`0189_<UTC date>_commission-statement-exports.sql`, `meta/0189_snapshot.json` (its `prevId` points at 0188) and journal
+idx 189, with no rename. The RLS, grant and guard SQL is then appended by hand in the same file (the 0182/0183 shape).
+The number is final at merge: if another migration lands on `main` first, the generated files are deleted, the branch
+rebased and the scaffold regenerated (never renamed: the migrator skips an entry whose `when` is older than the last
+applied one, `concurrent-migrations.ts:336`).
 
 ## 3. Table `commission_statement_exports` (CM-R10)
 
@@ -67,13 +54,17 @@ would be skipped silently on staging.
 - FK `(company_id, business_id, period, statement_id)` → `commission_statements(company_id, business_id, period, id)`
   (the existing `commission_statements_period_id_key`), so `period` can never disagree with the statement.
   FK `(company_id, business_id)` → `businesses`.
-- CHECKs: `(scope = 'BRANCHES') = (branch_ids IS NOT NULL AND employee_ids IS NOT NULL)`;
-  `branch_ids IS NULL OR cardinality(branch_ids) > 0`; `array_position(branch_ids, NULL) IS NULL` and the same for
-  `employee_ids` (no NULL element).
+- CHECKs (Astra P2, 2026-10-29: an equality form let `BUSINESS` keep one array):
+  `(scope = 'BUSINESS' AND branch_ids IS NULL AND employee_ids IS NULL) OR (scope = 'BRANCHES' AND branch_ids IS NOT
+  NULL AND employee_ids IS NOT NULL AND cardinality(branch_ids) > 0)`; `array_position(branch_ids, NULL) IS NULL` and
+  the same for `employee_ids` (no NULL element). `employee_ids` may be empty on `BRANCHES` (an authorised branch can
+  have no matching employee in the frozen statement).
 - **Two guards** (T2, PP-74.4), each `SECURITY INVOKER`, `search_path = pg_catalog, public`, FOR EACH ROW:
   `commission_statement_exports_insert_guard()` BEFORE INSERT: the referenced statement's `status IN ('APPROVED','PAID')`
-  (CS-Q10 backstop) and `collected_at IS NULL`; `commission_statement_exports_update_guard()` BEFORE UPDATE: only
-  `collected_at` changes, only NULL → non-NULL (collect once, CM-55e). Each raises `23514` with its own named
+  (CS-Q10 backstop) and `collected_at IS NULL`; `commission_statement_exports_update_guard()` BEFORE UPDATE: every
+  column other than `collected_at` compared with `IS DISTINCT FROM`, and `OLD.collected_at IS NULL AND
+  NEW.collected_at IS NOT NULL` required (collect once, CM-55e). The insert guard's status read needs no lock: 0183's
+  update guard only lets `APPROVED` move to `PAID` and freezes `PAID`. Each raises `23514` with its own named
   constraint, in the 0183 style. The use case checks the status first and throws a typed error, so the
   trigger is only the backstop for a broken invariant (CLAUDE.md §5, PP-7.2).
 - RLS: `ENABLE` + `FORCE`; policies `_select`, `_insert` (WITH CHECK) and `_update` (USING + WITH CHECK), all
@@ -122,16 +113,19 @@ Edit:
 - `packages/contracts/src/documents-render.ts` (key by the constant) and `packages/contracts/src/index.ts`
 
 Nothing else. No `git stash`, no commits or pushes, no reformatting of other files, no scratch databases, no edits in
-`apps/`. One-line Arabic doc comments on the schema columns that are not self-evident (`id` = render id, `scope`,
+`apps/`. One-line Arabic doc comments on the schema columns that are not self-evident (`id` = the row id, not the render id;
 `render_id`, `scope`, `branch_ids`, `employee_ids`), on the grants file and on each guard, commenting the why (CLAUDE.md §3.1).
 
 ## 7. Tests (all against a real Postgres, ADR-0006)
 
 - `rls-commission-statement-exports.spec.ts` (CM-R10): company B reads 0 of A's rows; an insert with A's `company_id`
   under B fails; B's UPDATE of A's `collected_at` touches 0 rows; `relforcerowsecurity` is true.
-- `commission-statement-export-constraints.spec.ts`: a bad `scope`; `BRANCHES` without arrays; `BUSINESS` with arrays;
+- `commission-statement-export-constraints.spec.ts`: a bad `scope`; a bad `language`; `BRANCHES` without arrays and
+  with each array alone; `BUSINESS` with both arrays and with each array alone; `BRANCHES` with an empty
+  `employee_ids` passes;
   an empty `branch_ids`; a NULL element; a `period` that differs from the statement's (FK violation); a statement of
-  another business; a membership of another user; an insert for a DRAFT or REVIEWED statement fails, for APPROVED and
+  another business; a membership of another user; references to another tenant's statement or membership under the local `company_id`
+  fail; two concurrent `collected_at` updates of one row, exactly one succeeds; an insert for a DRAFT or REVIEWED statement fails, for APPROVED and
   PAID it passes; a second row with the same `(company_id, render_id)` fails (`23505`), the same `render_id` in
   another company passes; an insert with `collected_at` set fails; `collected_at` set twice or back to NULL fails; an UPDATE of any
   other column is denied by privilege (`42501`).
