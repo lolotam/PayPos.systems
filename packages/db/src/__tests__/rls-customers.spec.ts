@@ -17,6 +17,15 @@ const RESTORED_OPT_OUT = { id: '01920000-0000-7000-8000-000000000ac3', phone: '+
 const REPLACED_OPT_OUT = { id: '01920000-0000-7000-8000-000000000ac4', phone: '+12025550134' };
 const STAMPED_OPT_OUT = { id: '01920000-0000-7000-8000-000000000ac5', phone: '+12025550135' };
 const OTHER_TENANT = { id: '01920000-0000-7000-8000-000000000ac6', phone: '+12025550136' };
+const NO_CONTEXT_OPT_OUT = { id: '01920000-0000-7000-8000-000000000ac7', phone: '+12025550137' };
+const OWNER_RESTORED_OPT_OUT = {
+  id: '01920000-0000-7000-8000-000000000ac8',
+  phone: '+12025550138',
+};
+const OWNER_REPLACED_OPT_OUT = {
+  id: '01920000-0000-7000-8000-000000000ac9',
+  phone: '+12025550139',
+};
 const OPT_OUT_AT = '2026-10-01T00:00:00.000Z';
 const OTHER_OPT_OUT_AT = '2026-10-02T00:00:00.000Z';
 let testDb: TestDatabase;
@@ -61,6 +70,9 @@ const ensureOptOutRows = async (): Promise<void> => {
            (${A.company}, ${RESTORED_OPT_OUT.id}, 'Restored opt out', ${RESTORED_OPT_OUT.phone}, 'ar', now(), now()),
            (${A.company}, ${REPLACED_OPT_OUT.id}, 'Replaced opt out', ${REPLACED_OPT_OUT.phone}, 'ar', now(), now()),
            (${A.company}, ${STAMPED_OPT_OUT.id}, 'Stamped opt out', ${STAMPED_OPT_OUT.phone}, 'ar', now(), now()),
+           (${A.company}, ${NO_CONTEXT_OPT_OUT.id}, 'No context opt out', ${NO_CONTEXT_OPT_OUT.phone}, 'ar', now(), now()),
+           (${A.company}, ${OWNER_RESTORED_OPT_OUT.id}, 'Owner restored opt out', ${OWNER_RESTORED_OPT_OUT.phone}, 'ar', now(), now()),
+           (${A.company}, ${OWNER_REPLACED_OPT_OUT.id}, 'Owner replaced opt out', ${OWNER_REPLACED_OPT_OUT.phone}, 'ar', now(), now()),
            (${B.company}, ${OTHER_TENANT.id}, 'Other tenant opt out', ${OTHER_TENANT.phone}, 'en', now(), now())
     ON CONFLICT DO NOTHING`;
 };
@@ -189,8 +201,7 @@ describe('customers — the granted opt-out columns', () => {
   });
 
   it('the update policy reads the tenant on both sides', async () => {
-    const [policy] =
-      await owner<{ cmd: string; qual: string | null; with_check: string | null }[]>`
+    const [policy] = await owner<{ cmd: string; qual: string | null; with_check: string | null }[]>`
       SELECT cmd, qual, with_check FROM pg_policies
       WHERE tablename = 'customers' AND policyname = 'customers_update'`;
     expect(policy?.cmd).toBe('UPDATE');
@@ -228,31 +239,24 @@ describe('customers — the granted opt-out columns', () => {
 });
 
 describe('customers — the one-way opt-out guard', () => {
-  it('refuses to restore the opt-out and keeps the first instant', async () => {
-    await ensureOptOutRows();
-    await optOut(RESTORED_OPT_OUT.id, OPT_OUT_AT);
-    await expectPgError(
-      asA(sql`UPDATE customers SET opted_out_at = NULL
-        WHERE company_id = ${A.company} AND id = ${RESTORED_OPT_OUT.id}`),
-      '23514',
-      'customers_opt_out_one_way',
-    );
-    const after = await readOptOut(A.company, RESTORED_OPT_OUT.id);
-    expect(isoOf(after[0]?.opted_out_at)).toBe(OPT_OUT_AT);
-  });
-
-  it('refuses to replace the opt-out instant', async () => {
-    await ensureOptOutRows();
-    await optOut(REPLACED_OPT_OUT.id, OPT_OUT_AT);
-    await expectPgError(
-      asA(sql`UPDATE customers SET opted_out_at = ${OTHER_OPT_OUT_AT}::timestamptz
-        WHERE company_id = ${A.company} AND id = ${REPLACED_OPT_OUT.id}`),
-      '23514',
-      'customers_opt_out_one_way',
-    );
-    const after = await readOptOut(A.company, REPLACED_OPT_OUT.id);
-    expect(isoOf(after[0]?.opted_out_at)).toBe(OPT_OUT_AT);
-  });
+  it.each([
+    ['restore', RESTORED_OPT_OUT, null],
+    ['replace', REPLACED_OPT_OUT, OTHER_OPT_OUT_AT],
+  ] as const)(
+    'refuses to %s the opt-out and keeps the first instant',
+    async (_action, row, target) => {
+      await ensureOptOutRows();
+      await optOut(row.id, OPT_OUT_AT);
+      await expectPgError(
+        asA(sql`UPDATE customers SET opted_out_at = ${target}::timestamptz
+          WHERE company_id = ${A.company} AND id = ${row.id}`),
+        '23514',
+        'customers_opt_out_one_way',
+      );
+      const after = await readOptOut(A.company, row.id);
+      expect(isoOf(after[0]?.opted_out_at)).toBe(OPT_OUT_AT);
+    },
+  );
 
   it('updates updated_at alone on an opted-out row', async () => {
     await ensureOptOutRows();
@@ -266,19 +270,25 @@ describe('customers — the one-way opt-out guard', () => {
   it('the owner connection cannot restore or replace the opt-out either', async () => {
     await ensureOptOutRows();
     await owner`UPDATE customers SET opted_out_at = ${OPT_OUT_AT}::timestamptz
-      WHERE company_id = ${A.company} AND id = ${RESTORED_OPT_OUT.id}`;
+      WHERE company_id = ${A.company} AND id = ${OWNER_RESTORED_OPT_OUT.id}`;
+    await owner`UPDATE customers SET opted_out_at = ${OPT_OUT_AT}::timestamptz
+      WHERE company_id = ${A.company} AND id = ${OWNER_REPLACED_OPT_OUT.id}`;
     await expectPgError(
-      owner.unsafe(`UPDATE customers SET opted_out_at = NULL WHERE id = '${RESTORED_OPT_OUT.id}'`),
+      owner`UPDATE customers SET opted_out_at = NULL
+        WHERE company_id = ${A.company} AND id = ${OWNER_RESTORED_OPT_OUT.id}`,
       '23514',
       'customers_opt_out_one_way',
     );
     await expectPgError(
-      owner.unsafe(
-        `UPDATE customers SET opted_out_at = '${OTHER_OPT_OUT_AT}' WHERE id = '${REPLACED_OPT_OUT.id}'`,
-      ),
+      owner`UPDATE customers SET opted_out_at = ${OTHER_OPT_OUT_AT}::timestamptz
+        WHERE company_id = ${A.company} AND id = ${OWNER_REPLACED_OPT_OUT.id}`,
       '23514',
       'customers_opt_out_one_way',
     );
+    const restored = await readOptOut(A.company, OWNER_RESTORED_OPT_OUT.id);
+    expect(isoOf(restored[0]?.opted_out_at)).toBe(OPT_OUT_AT);
+    const replaced = await readOptOut(A.company, OWNER_REPLACED_OPT_OUT.id);
+    expect(isoOf(replaced[0]?.opted_out_at)).toBe(OPT_OUT_AT);
   });
 });
 
@@ -329,9 +339,11 @@ describe('customers — what the runtime still cannot do', () => {
     await ensureOptOutRows();
     const rows = await db.withUser(USER, (tx) =>
       tx.execute(sql`UPDATE customers SET opted_out_at = ${OPT_OUT_AT}::timestamptz
-        WHERE id = ${FIRST_OPT_OUT.id}`),
+        WHERE id = ${NO_CONTEXT_OPT_OUT.id} RETURNING id`),
     );
     expect(Array.from(rows)).toEqual([]);
+    const after = await readOptOut(A.company, NO_CONTEXT_OPT_OUT.id);
+    expect(after[0]?.opted_out_at).toBeNull();
   });
 });
 
@@ -348,15 +360,16 @@ describe('customers — the row lock and the guard ACL', () => {
 
   it('cannot lock another tenant row', async () => {
     await ensureOptOutRows();
-    const locked = await asA(sql`SELECT id FROM customers WHERE id = ${OTHER_TENANT.id} FOR UPDATE`);
+    const locked = await asA(
+      sql`SELECT id FROM customers WHERE id = ${OTHER_TENANT.id} FOR UPDATE`,
+    );
     expect(Array.from(locked)).toEqual([]);
   });
 
   it('only the application role may execute the guard', async () => {
-    const rows =
-      await owner<
-        { app: boolean; auth: boolean; dispatcher: boolean; notifications: boolean }[]
-      >`
+    const rows = await owner<
+      { app: boolean; auth: boolean; dispatcher: boolean; notifications: boolean }[]
+    >`
       SELECT has_function_privilege('pospay_app', p.oid, 'EXECUTE') AS app,
         has_function_privilege('pospay_auth', p.oid, 'EXECUTE') AS auth,
         has_function_privilege('pospay_dispatcher', p.oid, 'EXECUTE') AS dispatcher,
