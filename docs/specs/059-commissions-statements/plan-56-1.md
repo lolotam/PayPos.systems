@@ -50,7 +50,8 @@ would be skipped silently on staging.
 | Column | Type | Note |
 | --- | --- | --- |
 | `company_id` | uuid NOT NULL | FK `companies(id)` |
-| `id` | uuid NOT NULL | **the render id** (0182 precedent; ADR-0049 job `{ company_id, render_id, kind }`). PK `(company_id, id)` gives the spec's `UNIQUE (company_id, render_id)` (T1) |
+| `id` | uuid NOT NULL | the row id; PK `(company_id, id)` (ADR-0007) |
+| `render_id` | uuid NOT NULL | the ADR-0049 job's `render_id` (`{ company_id, render_id, kind }`); `UNIQUE (company_id, render_id)` as the spec's §6 row states (T1, PP-74.4) |
 | `business_id` | uuid NOT NULL | not in the §6 row; needed for the composite FK below |
 | `statement_id` | uuid NOT NULL | |
 | `period` | char(7) NOT NULL | same CHECK as `commission_statements_period` |
@@ -59,7 +60,7 @@ would be skipped silently on staging.
 | `scope` | text NOT NULL | CHECK `IN ('BUSINESS','BRANCHES')` |
 | `branch_ids` | uuid[] NULL | the reader's whole _R_; no FK on array elements (in the spec) |
 | `employee_ids` | uuid[] NULL | from the frozen `EMPLOYEE` rows overlapping _R_; may be empty |
-| `language` | text NOT NULL, CHECK `IN ('ar','en')` | **only if CS-Q33 = option 1** (§12); otherwise omitted |
+| `language` | text NOT NULL, CHECK `IN ('ar','en')` | CS-Q33 option 1, Waleed's card pick (2026-10-28, batch 79); Abu Salem's pick still pending (§12) |
 | `requested_at` | timestamptz NOT NULL | no default; the use case passes `Clock` (0182) |
 | `collected_at` | timestamptz NULL | the only column the app may update |
 
@@ -69,19 +70,20 @@ would be skipped silently on staging.
 - CHECKs: `(scope = 'BRANCHES') = (branch_ids IS NOT NULL AND employee_ids IS NOT NULL)`;
   `branch_ids IS NULL OR cardinality(branch_ids) > 0`; `array_position(branch_ids, NULL) IS NULL` and the same for
   `employee_ids` (no NULL element).
-- **Guard** `commission_statement_exports_guard()`, `SECURITY INVOKER`, `search_path = pg_catalog, public`, BEFORE INSERT
-  OR UPDATE (T2). INSERT: the referenced statement's `status IN ('APPROVED','PAID')` (CS-Q10 backstop) and
-  `collected_at IS NULL`. UPDATE: only `collected_at`, only NULL → non-NULL (collect once, CM-55e). It raises `23514`
-  with a named constraint, in the 0183 style. The use case checks the status first and throws a typed error, so the
+- **Two guards** (T2, PP-74.4), each `SECURITY INVOKER`, `search_path = pg_catalog, public`, FOR EACH ROW:
+  `commission_statement_exports_insert_guard()` BEFORE INSERT: the referenced statement's `status IN ('APPROVED','PAID')`
+  (CS-Q10 backstop) and `collected_at IS NULL`; `commission_statement_exports_update_guard()` BEFORE UPDATE: only
+  `collected_at` changes, only NULL → non-NULL (collect once, CM-55e). Each raises `23514` with its own named
+  constraint, in the 0183 style. The use case checks the status first and throws a typed error, so the
   trigger is only the backstop for a broken invariant (CLAUDE.md §5, PP-7.2).
 - RLS: `ENABLE` + `FORCE`; policies `_select`, `_insert` (WITH CHECK) and `_update` (USING + WITH CHECK), all
   `company_id = app_company_id()`, `TO pospay_app`.
 - Grants: `REVOKE ALL … FROM PUBLIC, pospay_app, pospay_auth, pospay_dispatcher`; `GRANT SELECT, INSERT` and
-  `GRANT UPDATE (collected_at)` to `pospay_app`; `REVOKE ALL ON FUNCTION … FROM PUBLIC` and `GRANT EXECUTE` to
-  `pospay_app`. No DELETE: the request row is the record of who exported which scope.
+  `GRANT UPDATE (collected_at)` to `pospay_app`; for each guard, `REVOKE ALL ON FUNCTION … FROM PUBLIC` and
+  `GRANT EXECUTE` to `pospay_app`. No DELETE: the request row is the record of who exported which scope.
 - Indexes (every FK and the known reads): `(company_id, business_id, period, statement_id)`;
   `(company_id, requested_by, requested_at)`; `(company_id, requested_by, requested_membership_id)`; `(requested_by)`.
-  The worker reads by the PK. No GIN index: nothing filters on this table's arrays.
+  The worker reads by the `(company_id, render_id)` unique index. No GIN index: nothing filters on this table's arrays.
 
 ## 4. Contracts (56-1a part only)
 
@@ -115,13 +117,13 @@ Edit:
 - `packages/db/test/commission-statement-grants.ts` (add `commission_statement_exports:INSERT`, `:SELECT` to the table
   list and `commission_statement_exports.collected_at:pospay_app:UPDATE` to the column list)
 - `packages/db/test/tenant-table-inventory.ts` (one entry)
-- `packages/db/test/function-inventory.ts` (the guard function)
+- `packages/db/test/function-inventory.ts` (the two guard functions)
 - `packages/db/test/commission-statement-fixtures.ts`, only if a helper that inserts an export row is needed
 - `packages/contracts/src/documents-render.ts` (key by the constant) and `packages/contracts/src/index.ts`
 
 Nothing else. No `git stash`, no commits or pushes, no reformatting of other files, no scratch databases, no edits in
 `apps/`. One-line Arabic doc comments on the schema columns that are not self-evident (`id` = render id, `scope`,
-`branch_ids`, `employee_ids`), on the grants file and on the guard, commenting the why (CLAUDE.md §3.1).
+`render_id`, `scope`, `branch_ids`, `employee_ids`), on the grants file and on each guard, commenting the why (CLAUDE.md §3.1).
 
 ## 7. Tests (all against a real Postgres, ADR-0006)
 
@@ -130,7 +132,8 @@ Nothing else. No `git stash`, no commits or pushes, no reformatting of other fil
 - `commission-statement-export-constraints.spec.ts`: a bad `scope`; `BRANCHES` without arrays; `BUSINESS` with arrays;
   an empty `branch_ids`; a NULL element; a `period` that differs from the statement's (FK violation); a statement of
   another business; a membership of another user; an insert for a DRAFT or REVIEWED statement fails, for APPROVED and
-  PAID it passes; an insert with `collected_at` set fails; `collected_at` set twice or back to NULL fails; an UPDATE of any
+  PAID it passes; a second row with the same `(company_id, render_id)` fails (`23505`), the same `render_id` in
+  another company passes; an insert with `collected_at` set fails; `collected_at` set twice or back to NULL fails; an UPDATE of any
   other column is denied by privilege (`42501`).
 - `privileges.spec.ts` and `function-inventory.spec.ts` pass with the new allowlist entries, and fail without them.
 - Contracts: the kind is a bytes kind with the xlsx MIME type and `documentKindNeedsRenderer` is false.
@@ -155,9 +158,10 @@ node scripts/test-db/lane.mjs down <lane>
 
 ## 9. Points for Astra's read-only design advice
 
-1. T1: `id` used as the render id, instead of the §6 row's separate `render_id` column.
-2. T2: the one guard function covering INSERT (statement APPROVED or PAID, `collected_at` NULL) and UPDATE (only
-   `collected_at`, once). Is the status read inside the guard safe without a lock? An approved statement never returns to
+1. T1 (decided, PP-74.4: as the spec states): a separate `render_id` column with `UNIQUE (company_id, render_id)`.
+2. T2 (decided, PP-74.4: as the spec states): two guard functions, one for INSERT (statement APPROVED or PAID,
+   `collected_at` NULL) and one for UPDATE (only `collected_at`, once). Is the status read inside the insert guard safe
+   without a lock? An approved statement never returns to
    DRAFT or REVIEWED (`commission_statements_update_guard`), so it should be.
 3. Whether `employee_ids` should also refuse being empty when `scope = 'BRANCHES'` (the spec only limits `branch_ids`).
 4. The index set: is `(company_id, requested_by, requested_membership_id)` worth keeping beside
@@ -167,8 +171,8 @@ node scripts/test-db/lane.mjs down <lane>
 
 - 58-2b and 56-1a both add a migration; whichever merges second rebases its number (§13). They touch different tables
   and files, except `_journal.json` and the `test/` inventories, which merge cleanly as separate lines.
-- If CS-Q33 is answered after 56-1a merges, adding the `language` column costs a second expand-only migration. So
-  56-1a waits on CS-Q33 for that one column.
+- 56-1a ships the `language` column on Waleed's CS-Q33 pick. If Abu Salem later picks option 2 or 3, his pick binds
+  and a follow-up expand/contract migration drops or relaxes the column.
 - The guard reads `commission_statements`, so a future change of statement statuses must update both triggers.
 
 ## 11. Out of scope
@@ -178,8 +182,9 @@ file name and audit (56-1c); the screen button (53-3); customer erasure (D-21, d
 
 ## 12. Open questions
 
-Both are recorded `PENDING` in `owner-questions.ar.md` (### 33, ### 34). The orchestrator publishes them on the decisions
-page and sends them to Waleed as cards (CLAUDE.md §1 5b).
+Both are recorded in `owner-questions.ar.md` (### 33, ### 34) and published on the decisions page as batch 79.
+Waleed picked the recommended option of each by card on 2026-10-28; work proceeds on his picks until Abu Salem answers,
+and Abu Salem's pick binds on a difference (CLAUDE.md §1 5b).
 
 - **CS-Q33 — workbook language (BUSINESS: product behaviour).** FR-051 (spec.md:910) lists columns and no language. The
   frozen rows hold `employee_name_ar`/`_en` and `service_name_ar`/`_en`. Precedents were owner questions: ST-Q4 (spec
@@ -191,5 +196,5 @@ page and sends them to Waleed as cards (CLAUDE.md §1 5b).
   cash" column with the rounded amount when paid in cash ⭐; (2) exact only; (3) the rounded figure replaces the net.
   Blocks 56-1b only.
 
-T1 and T2 (§9) are technical. This plan sets their defaults, and they are Waleed's to overrule, never the decisions
-page's.
+T1 and T2 (§9) are technical and went to Waleed only. He chose the spec's literal shape over this plan's first
+defaults (PP-74.4, 2026-10-28); §3 follows his answer.
