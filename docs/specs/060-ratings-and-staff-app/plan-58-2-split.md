@@ -1,7 +1,7 @@
 # 58-2 split proposal — first pipeline trial
 
-Date: 2026-10-28. Status: **OWNER-ADMITTED: 58-2a implementation only**.
-Owner answer verbatim in T3 Code: «اعتماد التقسيم وبدء 58-2a فقط (الموصى به)».
+Date: 2026-10-28. Status: **OWNER-ADMITTED: 58-2a implementation only (PP-70.1)**.
+Owner answer verbatim in T3 Code (PP-70.1): «اعتماد التقسيم وبدء 58-2a فقط (الموصى به)».
 This document is a planning artifact, not an implementation instruction or a budget reset.
 The historical untracked `plan-58-2.md` remains in the original 58-2 worktree;
 it is not part of this branch. Historical exhausted attempts remain untouched.
@@ -45,7 +45,7 @@ Allowed implementation paths only:
 2. `apps/api/src/shared/ports/rate-limiter.port.ts`
 3. `apps/api/src/shared/__tests__/redis-rate-limiter.spec.ts`
 
-Owner-approved test-only scope extension (28 October, verbatim answer in the audit):
+Owner-approved test-only scope extension (PP-70.2; 28 October, verbatim answer in the audit):
 «إضافة ملف المحاكي وتصحيحه (الموصى به)».
 The fourth path is `apps/api/src/modules/notifications/http/__tests__/push-subscription.fixture.ts`.
 Correct only its fake Redis pipeline: `EXPIRE NX` must contribute a command result,
