@@ -11,7 +11,7 @@ was split the same way: 27g-3 worker (#684), then 27g-4 API (#697).
 | Sub-PR | Result | Blocked on |
 | --- | --- | --- |
 | **56-1a** | `commission_statement_exports`: migration, RLS, grants, guard, negative tests, the kind constant. No behaviour | no unmerged PR (48a-2 #650, 56-0 #651 merged); CS-Q33 decides one column (§12) |
-| 56-1b | Worker source (loads the row by render id, filters every frozen row by the saved `branch_ids`, FR-050) and the `exceljs` workbook builder in `packages/documents` (FR-051, CM-55, CM-55b, CM-55f, CM-56) | 56-1a; CS-Q33, CS-Q34 (§12) |
+| 56-1b | Worker source (loads the row by render id; `BRANCHES` keeps the frozen rows of the saved `branch_ids` and `employee_ids`, `BUSINESS` keeps every row, since a business-wide reader with a branch `DENY` is saved as `BRANCHES` (spec §6 schema table), FR-050) and the `exceljs` workbook builder in `packages/documents` (FR-051, CM-55, CM-55b, CM-55f, CM-56) | 56-1a; CS-Q33, CS-Q34 (§12) |
 | 56-1c | Request, poll and collect use cases, HTTP, collect re-check, audit `commission_statement.exported` (FR-050, FR-052, CM-55d, CM-55e, the export part of CM-23d…h) | 56-1b; **50-5** (`read:commissions:business` and the effective-branch-set reader _R_, D-16) and **53-2** (approval) |
 
 Evidence that 56-1b/c cannot start now: `git log` on main has 48a-1, 48a-2, 48-1, 50-0, 50-a and 56-0, but not 50-5,
@@ -64,8 +64,8 @@ applied one, `concurrent-migrations.ts:336`).
   (CS-Q10 backstop) and `collected_at IS NULL`; `commission_statement_exports_update_guard()` BEFORE UPDATE: every
   column other than `collected_at` compared with `IS DISTINCT FROM`, and `OLD.collected_at IS NULL AND
   NEW.collected_at IS NOT NULL` required (collect once, CM-55e). The insert guard's status read needs no lock: 0183's
-  update guard only lets `APPROVED` move to `PAID` and freezes `PAID`. Each raises `23514` with its own named
-  constraint, in the 0183 style. The use case checks the status first and throws a typed error, so the
+  update guard only lets `APPROVED` move to `PAID` and freezes `PAID`. Each raises with its own named constraint, in the 0183 style: `23503` when the statement does not exist
+  (`commission_statement_exports_statement_fk`), and `23514` for every status, collection and immutability breach. The use case checks the status first and throws a typed error, so the
   trigger is only the backstop for a broken invariant (CLAUDE.md §5, PP-7.2).
 - RLS: `ENABLE` + `FORCE`; policies `_select`, `_insert` (WITH CHECK) and `_update` (USING + WITH CHECK), all
   `company_id = app_company_id()`, `TO pospay_app`.
