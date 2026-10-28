@@ -1,6 +1,6 @@
 # 58-2b plan — one-way opt-out database permissions and guard
 
-Date: 2026-10-28. Status: **PLAN — awaiting Waleed's admission (technical question, below)**. Planner lane, docs only.
+Date: 2026-10-28. Status: **PLAN — admitted by Waleed (PP-74.1, 2026-10-28)**. Planner lane, docs only.
 Parent: [`plan-58-2-split.md`](plan-58-2-split.md) §58-2b. Base: `main` `46a0e462`. No code, test or migration exists yet.
 
 ## Scope

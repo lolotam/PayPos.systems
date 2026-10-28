@@ -749,3 +749,18 @@ amendment (§8).
 
 **الإجابة حرفيًا (وليد، رد على بطاقة داخل شات المنسق في T3 Code، 28 أكتوبر 2026):** «إضافة ملف المحاكي وتصحيحه (الموصى به)».
 **الحالة:** التوسيع الضيق معتمد لملف المحاكي وحده؛ لا تغيير لتوقعات الاختبارات أو كود التنبيهات أو التحقق الأمني. الملفات الثلاثة الأصلية مراجَعة من Astra، والقبول النهائي ما زال متوقفًا على إعادة الفحوص ومراجعة النسخة النهائية.
+
+### اعتماد تنفيذ 58-2b: صلاحيات إيقاف رسائل التقييم في قاعدة البيانات — PP-74.1 (28 أكتوبر 2026)
+
+**النوع:** تقني لوليد فقط، لا يُنشر على صفحة قرارات الشريك.
+
+**الخلفية:** PP-70.1 اعتمد التقسيم وبدء 58-2a فقط، والتقسيم بيقول إن 58-2b محتاجة خطة مراجَعة لوحدها قبل الكود (`plan-58-2-split.md`). الخطة اتكتبت في `plan-58-2b.md` وراجعها المنسّق مرة واحدة: migration واحدة بتضيف بس (رقم محجوز `0189`) فيها صلاحية تعديل على عمودين `opted_out_at` و`updated_at` في `customers`، وpolicy تعديل مربوطة بالشركة، وحارس `customers_opt_out_guard()` بيمنع رجوع الإيقاف (RT-Q10)، مع قائمة الصلاحيات والاختبارات السلبية؛ خمس ملفات للمنفّذ.
+
+**السؤال بالنص:** «PP-74.1 (technical, for you only) — The 58-2b plan is ready. It lets the system record a customer's 'stop rating messages' choice in the database and blocks undoing it (Abu Salem's RT-Q10 answer). It is one database change on the customers table plus its tests, with no screen or link yet. Start implementing it?»
+
+- ⭐ **Approve 58-2b alone (Recommended).** «Implement exactly the planned scope (5 files + migration 0189). No visible effect until 58-2c adds the public link.»
+- **Postpone it.** «Keep the plan and start nothing on 58-2 for now.»
+- **Merge it with 58-2c in one PR.** «Not recommended: it undoes the split you approved, which keeps database permissions apart from the public route.»
+
+**الإجابة حرفيًا (وليد، رد على بطاقة داخل شات المنسق في T3 Code، 28 أكتوبر 2026):** «Approve 58-2b alone (Recommended)».
+**الحالة:** تنفيذ 58-2b معتمد بالنطاق المكتوب في `plan-58-2b.md` وحده؛ 58-2c لسه محتاجة خطة لوحدها. لا إشعار مرسل.
