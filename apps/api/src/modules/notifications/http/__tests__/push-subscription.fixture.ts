@@ -104,8 +104,11 @@ type FakeChain = {
 
 // Redis وهمي للاختبار: عدّاد نافذة ثابتة في الذاكرة. تسجيل الدفع محتاج حدّ يعدّ، وفي اختبار الـ API
 // مفيش Redis حقيقي، فبلا عدّاد كل تسجيل بيرد NOT_READY وما بيفحصش ولا مفتاح.
+// كل أمر بيتسجّل بنتيجته: Redis الحقيقي بيرجّع نتيجة لكل أمر في EXEC، والحدّ بيتحقق من نتيجتين مش واحدة.
 function fakeRedis(): Redis {
   const store = new Map<string, string>();
+  // المفاتيح اللي اتربط لها وقت انتهاء: EXPIRE NX بيرجّع 1 أول مرة و0 لو الوقت موجود أصلاً.
+  const expiring = new Set<string>();
   const multi = (): FakeChain => {
     const commands: (() => number)[] = [];
     const chain: FakeChain = {
@@ -117,7 +120,16 @@ function fakeRedis(): Redis {
         });
         return chain;
       },
-      expire: () => chain,
+      expire: (name: string) => {
+        // القرار بيتاخد وقت التنفيذ مش وقت البناء: الأوامر بتتنفذ بالترتيب، فالعدّ بيبقى اتعمل قبل ما نشوف حالة المفتاح.
+        commands.push(() => {
+          if (!store.has(name)) return 0;
+          if (expiring.has(name)) return 0;
+          expiring.add(name);
+          return 1;
+        });
+        return chain;
+      },
       exec: async () => commands.map((run) => [null, run()] as [Error | null, number]),
     };
     return chain;

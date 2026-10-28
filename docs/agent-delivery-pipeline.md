@@ -105,11 +105,11 @@
 
 - The owner has generally authorized **reviewed PR → merge → staging, for the delivery queue only**. A change outside that queue — this file's own save, for example — is not published without a fresh instruction.
 - **A merge to `main` deploys automatically to staging (`pospay-staging`) through Dokploy** (PP-69.11), so a merge is itself the staging release and no manual deploy follows it. The general authorization above covers it. Dokploy takes no backup before that deploy, so the orchestrator runs the backup with the tool in `deploy/backup/` **before every merge** and verifies it (PP-69.12).
-- If the Dokploy authentication fails, **prepare the reviewed PRs but do not merge**. Never use SSH to work around that restriction.
+- If Dokploy authentication fails, **prepare the reviewed PRs but do not merge** unless Waleed explicitly authorizes an alternative release path. **For PR #701 only**, Waleed authorized `ssh-abdulaziz-mcp` on 2026-10-28 (PP-71.1, `docs/owner-decisions.ar.md` item 33). The orchestrator may use SSH to inspect and operate the existing staging deployment, with exact-head CI/reviews, verified pre-merge backup/restore and release/rollback checks still required. This does not authorize a second stack, a manual database change or a credential change.
 - Staging is deployed only through the controlled existing Dokploy compose service. No second stack beside the live one, and no manual database change.
 - The release order is fixed: green CI and the SHA images → backup and restore verification → the pinned SHA and its migration step → readiness, the live SHA and a smoke test → the required rollback proof → forward to the new SHA.
 - No production change, no server change, no new credential and no new cost without a specific owner consent.
-- SSH and the Dokploy tools are useful for **read-only** checks. Never print a secret.
+- SSH and the Dokploy tools are useful for **read-only** checks; SSH release operations require the explicit authorization above. Never print a secret.
 
 ## 11. Status, roadmap and communication
 
