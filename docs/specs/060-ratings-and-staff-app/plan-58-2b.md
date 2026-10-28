@@ -43,8 +43,10 @@ refreshed base and the SQL body moves unchanged.
 
 Semantics: `NULL → instant` allowed (first opt-out); the same instant again allowed (ADR-0011 §3 keeps the first
 time on retries); `instant → NULL` (restore) and `instant → other instant` refused. The guard reads `opted_out_at`
-only; the column grant, not the guard, stops writes to identity and profile columns. The trigger binds every role,
-the database owner included, so a future restore (58-3) needs its own migration — RT-Q10 by construction. A refusal
+only; the column grant, not the guard, stops writes to identity and profile columns. The trigger fires on every ordinary
+update by any role, the database owner included, while it stays enabled (the owner could still disable or replace it
+with DDL, which only a reviewed migration may do), so a future restore (58-3) needs its own migration — RT-Q10 by
+construction. A refusal
 is a broken invariant (the app never attempts it), so it surfaces as a 500, not a typed error (`CLAUDE.md` §5).
 
 **Also unlocks the row lock.** Postgres requires `UPDATE` on at least one column, and the `UPDATE` policy's `USING`,
@@ -83,6 +85,8 @@ Extend the existing file (one DB clone per spec file, ADR-0006). Assert guard er
 | `updated_at` alone on an opted-out row | succeeds |
 | `SELECT … FOR UPDATE` and `FOR NO KEY UPDATE` on A's row under `withTenant(A)` | succeeds; B's row returns 0 rows |
 | No tenant context (`withUser`) | `UPDATE` affects 0 rows |
+| Owner connection (guard enabled): `t1 → NULL` and `t1 → t2` | `23514` `customers_opt_out_one_way` (Astra P3) |
+| Function ACL: `PUBLIC` has no `EXECUTE` on `customers_opt_out_guard()`; `has_function_privilege` true for `pospay_app` only among runtime roles (`pospay_auth`, `pospay_dispatcher`, `pospay_notifications` false) | as stated (Astra P2) |
 
 Retitle the existing «runtime cannot update, reassign or delete any customer» test to the column-scoped truth; its
 assertions stay as they are.
@@ -125,7 +129,8 @@ Full `pnpm check` runs on CI at the exact merge head (PP-69.7).
 
 ## Review route
 
-Lead reads the diff → `clean-code-guard` / `test-guard` → **Astra** (`gpt-6-astra`, high) read-only database and
+Astra design advice (2026-10-28): READY WITH CHANGES, the P2 (function ACL test) and P3 (owner-guard wording + owner
+test) are folded in above. Lead reads the diff → `clean-code-guard` / `test-guard` → **Astra** (`gpt-6-astra`, high) read-only database and
 security review from fresh context (diff, this plan, ADR-0011, `CLAUDE.md` §5) → corrections on Kimi K3.1 Pro
 (thinking `max`, database work) → five GitHub reviewers and CI on the exact head; backup before merge (§10).
 
