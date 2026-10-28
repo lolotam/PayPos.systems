@@ -256,7 +256,11 @@ behaviour, and its own tests run unchanged.
 The workbook reader becomes bound by the caller. The caller passes its limits and translates the reader's
 errors. Staff keeps its header count + 2 and its own error type; services pass their own header count and
 the same 2-column margin, so an unlabelled data column is still reported. `readSheet`, `ImportCell` and
-the zip and XML guards do not change.
+the zip and XML guard algorithms do not change, but their column bound is the caller's too: 8 for staff,
+10 for the eight services headers. The numbers derived from it in "Review hardening" are restated for
+services in 32b-1: the other-sheet row ceiling is the 65,536 budget over the column bound (6,553 rows at
+10 columns), and the budget must still exceed six times the services data grid (502×10) plus its own
+reference sheet. If that margin does not hold, 32b-1 stops and reports instead of raising the budget.
 
 The employee template stays in staff. It carries employee meaning, and the services template is its own
 workbook with its own reference sheet.
