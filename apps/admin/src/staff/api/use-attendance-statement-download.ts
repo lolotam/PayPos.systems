@@ -31,10 +31,12 @@ async function blobError(error: unknown, status: number) {
 export function useAttendanceStatementDownload(
   scope: AttendanceStatementScope,
   renderId: string | undefined,
-  draft: StatementDraft,
+  acceptedDraft: StatementDraft | undefined,
 ) {
   const { companyId, businessId, branchId, userId } = scope;
-  const fileName = statementFileName(draft.form, statementPeriod(draft));
+  const fileName = acceptedDraft
+    ? statementFileName(acceptedDraft.form, statementPeriod(acceptedDraft))
+    : undefined;
   const controller = useRef<AbortController | null>(null);
   const downloads = useRef(new Set<() => void>());
   const download = useMutation({
@@ -49,7 +51,9 @@ export function useAttendanceStatementDownload(
     gcTime: 0,
     retry: false,
     mutationFn: async () => {
-      if (renderId === undefined) throw new Error('ATTENDANCE_STATEMENT_RENDER_MISSING');
+      if (renderId === undefined || fileName === undefined) {
+        throw new Error('ATTENDANCE_STATEMENT_RENDER_MISSING');
+      }
       controller.current?.abort();
       const request = new AbortController();
       controller.current = request;

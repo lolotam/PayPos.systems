@@ -96,7 +96,8 @@ export function statementRenderCodeMessage(code: string | undefined, locale: Loc
     const render = attendanceStatementRenderErrors.STATEMENT_EMPTY;
     return locale === 'ar' ? render.message_ar : render.message_en;
   }
-  if (code === 'DOCUMENT_TOO_LARGE') return t(locale, 'attendanceStatementScreen.DOCUMENT_TOO_LARGE');
+  if (code === 'DOCUMENT_TOO_LARGE')
+    return t(locale, 'attendanceStatementScreen.DOCUMENT_TOO_LARGE');
   if (code === 'DOCUMENT_RENDER_TIMEOUT')
     return t(locale, 'attendanceStatementScreen.DOCUMENT_RENDER_TIMEOUT');
   if (code === 'DOCUMENT_RENDER_FAILED')
@@ -173,10 +174,7 @@ export function statementPeriod(draft: StatementDraft): StatementPeriod {
 }
 
 /** المسودة الأولى: كشف الفرع للشهر الحالي بلغة الواجهة. */
-export function statementInitialDraft(
-  timezone: string,
-  locale: StatementLanguage,
-): StatementDraft {
+export function statementInitialDraft(timezone: string, locale: StatementLanguage): StatementDraft {
   const period = statementDefaultPeriod(timezone);
   return {
     form: 'BRANCH',
@@ -208,8 +206,9 @@ export function statementApplyPatch(
     employeeId: patch.employeeId ?? draft.employeeId,
     shift: 'shift' in patch ? patch.shift : draft.shift,
   };
-  const periodChanged =
-    patch.month !== undefined || patch.from !== undefined || patch.to !== undefined;
+  const before = statementPeriod(draft);
+  const after = statementPeriod(next);
+  const periodChanged = before.from !== after.from || before.to !== after.to;
   if (periodChanged || patch.form === 'EMPLOYEE') next.shift = undefined;
   return next;
 }
@@ -226,17 +225,27 @@ export function statementRequestBody(draft: StatementDraft, period: StatementPer
   };
 }
 
+/** رفض التحصيل لأن الملف لسه مش جاهز بيستدعي فحص يدوي لنفس التجهيز. */
+export function statementNotReady(error: unknown): boolean {
+  return errorCode(error) === 'DOCUMENT_NOT_READY';
+}
+
 /** هل الرفض معناه إن الكشف خلص ومينفعش ينتحم تاني؟ */
 export function statementExpired(error: unknown): boolean {
   const code = errorCode(error);
-  return code === 'DOCUMENT_EXPIRED' || errorStatus(error) === 410;
+  return code === 'DOCUMENT_EXPIRED' || errorStatus(error) === 404 || errorStatus(error) === 410;
 }
 
 /**
  * هل الشاشة لازم تقفل النموذج؟
- * فحص الوصول (القراءة وفحص الشيفتات) بيخسر الوصول؛ رفض المسار بس بيقول إن الـ render-id مش معروف.
+ * فحص الوصول وطلب الإنشاء بيخسروا الوصول؛ رفض المسار بس بيقول إن الـ render-id مش معروف.
  */
-export function statementFormAccessLost(probe: unknown, render: unknown): boolean {
+export function statementFormAccessLost(
+  probe: unknown,
+  render: unknown,
+  request?: unknown,
+): boolean {
+  if (request && statementAccessLost(request)) return true;
   if (probe && statementAccessLost(probe)) return true;
   return Boolean(render && statementRenderAccessLost(render));
 }

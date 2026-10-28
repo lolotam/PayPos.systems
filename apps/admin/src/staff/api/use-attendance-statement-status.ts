@@ -39,6 +39,8 @@ export function useAttendanceStatementStatus(
     refetchOnWindowFocus: false,
     refetchInterval: (current) => {
       const state = current.state.data?.state;
+      const error = current.state.error as { status?: unknown } | null;
+      if (error?.status === 404) return false;
       if (expired) return false;
       if (state !== undefined && TERMINAL_STATES.includes(state)) return false;
       return STATEMENT_POLL_INTERVAL_MS;

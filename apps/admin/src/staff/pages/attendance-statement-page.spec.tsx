@@ -28,14 +28,20 @@ const DOWNLOAD = 'attendanceStatementScreen.download';
 
 function shiftsResponse() {
   if (state.shiftsError) {
-    return { error: { code: state.shiftsError.code }, response: { status: state.shiftsError.status } };
+    return {
+      error: { code: state.shiftsError.code },
+      response: { status: state.shiftsError.status },
+    };
   }
   return { data: statementShifts };
 }
 
 function statusResponse() {
   if (state.statusError) {
-    return { error: { code: state.statusError.code }, response: { status: state.statusError.status } };
+    return {
+      error: { code: state.statusError.code },
+      response: { status: state.statusError.status },
+    };
   }
   const data = state.errorCode
     ? { state: state.status, error_code: state.errorCode }
@@ -112,9 +118,13 @@ it.each(['ar', 'en'] as const)('renders every field of the screen in %s', async 
   expect(screen.getByLabelText(t(locale, 'attendanceStatementScreen.periodMonth'))).toBeTruthy();
   expect(screen.getByLabelText(t(locale, 'attendanceStatementScreen.periodCustom'))).toBeTruthy();
   expect(screen.getByLabelText(t(locale, 'attendanceStatementScreen.month'))).toBeTruthy();
-  expect(screen.getByLabelText(t(locale, 'attendanceStatementScreen.employeeOptional'))).toBeTruthy();
+  expect(
+    screen.getByLabelText(t(locale, 'attendanceStatementScreen.employeeOptional')),
+  ).toBeTruthy();
   expect(screen.getByLabelText(t(locale, 'attendanceStatementScreen.languageArabic'))).toBeTruthy();
-  expect(screen.getByLabelText(t(locale, 'attendanceStatementScreen.languageEnglish'))).toBeTruthy();
+  expect(
+    screen.getByLabelText(t(locale, 'attendanceStatementScreen.languageEnglish')),
+  ).toBeTruthy();
   expect(screen.getByRole('button', { name: t(locale, SUBMIT) })).toBeTruthy();
   view.close();
 });
@@ -124,7 +134,9 @@ it('hides the shift filter and blocks the request until an employee is chosen', 
   await screen.findByLabelText(t('en', 'attendanceStatementScreen.shift'));
   fireEvent.click(screen.getByLabelText(t('en', 'attendanceStatementScreen.formEmployee')));
   expect(screen.queryByLabelText(t('en', 'attendanceStatementScreen.shift'))).toBeNull();
-  const employee = await screen.findByLabelText(t('en', 'attendanceStatementScreen.employeeRequired'));
+  const employee = await screen.findByLabelText(
+    t('en', 'attendanceStatementScreen.employeeRequired'),
+  );
   await waitFor(() => expect(within(employee).getAllByRole('option')).toHaveLength(3));
   expect(submitButton().disabled).toBe(true);
   fireEvent.change(employee, { target: { value: boardId } });
@@ -135,15 +147,13 @@ it('hides the shift filter and blocks the request until an employee is chosen', 
 it('lists the shift pairs of the period and clears the chosen pair when the period changes', async () => {
   const view = setup();
   const shift = await screen.findByLabelText(t('en', 'attendanceStatementScreen.shift'));
-  expect(within(shift).getAllByRole('option').map((option) => option.textContent)).toEqual([
-    t('en', 'attendanceStatementScreen.shiftAll'),
-    '09:00 — 20:00',
-    '08:00 — 16:00',
-  ]);
+  expect(
+    within(shift)
+      .getAllByRole('option')
+      .map((option) => option.textContent),
+  ).toEqual([t('en', 'attendanceStatementScreen.shiftAll'), '09:00 — 20:00', '08:00 — 16:00']);
   fireEvent.change(shift, { target: { value: '09:00|20:00' } });
-  await waitFor(() =>
-    expect((shift as HTMLSelectElement).value).toBe('09:00|20:00'),
-  );
+  await waitFor(() => expect((shift as HTMLSelectElement).value).toBe('09:00|20:00'));
   fireEvent.change(screen.getByLabelText(t('en', 'attendanceStatementScreen.month')), {
     target: { value: '2026-09' },
   });
@@ -162,6 +172,32 @@ it('shows the waiting state and locks the form once the request is accepted', as
   fireEvent.click(submitButton());
   await screen.findByText(t('en', 'attendanceStatementScreen.waiting'));
   expect(submitButton().disabled).toBe(true);
+  view.close();
+});
+
+it('locks the fields and ignores a second click while the request is pending', async () => {
+  let accept: (() => void) | undefined;
+  api.POST.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        accept = () =>
+          resolve({ data: { render_id: statementRenderId }, response: { status: 202 } });
+      }),
+  );
+  const view = setup();
+  await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
+  fireEvent.click(submitButton());
+  const pending = (await screen.findByRole('button', {
+    name: t('en', 'attendanceStatementScreen.submitting'),
+  })) as HTMLButtonElement;
+  expect(pending.disabled).toBe(true);
+  expect(
+    screen.getByLabelText(t('en', 'attendanceStatementScreen.month')).matches(':disabled'),
+  ).toBe(true);
+  fireEvent.click(pending);
+  expect(api.POST).toHaveBeenCalledTimes(1);
+  await act(async () => accept?.());
+  await screen.findByText(t('en', 'attendanceStatementScreen.waiting'));
   view.close();
 });
 
@@ -188,13 +224,14 @@ it('collects the statement once and then asks for a new one', async () => {
   const download = await screen.findByRole('button', { name: t('en', DOWNLOAD) });
   fireEvent.click(download);
   await screen.findByText(t('en', 'attendanceStatementScreen.downloaded'));
-  expect((screen.getByRole('button', { name: t('en', DOWNLOAD) }) as HTMLButtonElement).disabled).toBe(
-    true,
-  );
-  expect(screen.getByRole('button', { name: t('en', 'attendanceStatementScreen.newRequest') })).toBeTruthy();
+  expect(
+    (screen.getByRole('button', { name: t('en', DOWNLOAD) }) as HTMLButtonElement).disabled,
+  ).toBe(true);
+  expect(
+    screen.getByRole('button', { name: t('en', 'attendanceStatementScreen.newRequest') }),
+  ).toBeTruthy();
   const anchor = vi.mocked(HTMLAnchorElement.prototype.click).mock.instances.at(-1) as
-    | HTMLAnchorElement
-    | undefined;
+    HTMLAnchorElement | undefined;
   expect(anchor?.download).toBe('attendance-statement-branch-2026-10-01_2026-10-31.pdf');
   view.close();
 });
@@ -211,37 +248,85 @@ it.each([
   const view = setup();
   await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
   fireEvent.click(submitButton());
-  await screen.findByText(attendanceStatementErrorsEn[code as keyof typeof attendanceStatementErrorsEn]);
+  await screen.findByText(
+    attendanceStatementErrorsEn[code as keyof typeof attendanceStatementErrorsEn],
+  );
   expect(screen.getByRole('button', { name: t('en', SUBMIT) })).toBeTruthy();
   view.close();
 });
 
-it.each([
-  { code: 'DOCUMENT_NOT_READY', status: 409 },
-  { code: 'DOCUMENT_EXPIRED', status: 410 },
-])('shows the collect refusal $code', async ({ code, status }) => {
+function statusChecks() {
+  return api.GET.mock.calls.filter(
+    ([, init]) =>
+      (init as { params?: { path?: { renderId?: string } } } | undefined)?.params?.path
+        ?.renderId === statementRenderId,
+  ).length;
+}
+
+it('recovers from a not-ready collect by checking the same render again', async () => {
   state.status = 'READY';
   api.POST.mockImplementation((path: string) =>
     path.endsWith('/download')
-      ? { error: { code }, response: { status } }
+      ? { error: { code: 'DOCUMENT_NOT_READY' }, response: { status: 409 } }
       : { data: { render_id: statementRenderId }, response: { status: 202 } },
   );
   const view = setup();
   await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
   fireEvent.click(submitButton());
+  fireEvent.click(await screen.findByRole('button', { name: t('en', DOWNLOAD) }));
+  await screen.findByText(attendanceStatementErrorsEn.DOCUMENT_NOT_READY);
+  const checksBefore = statusChecks();
+  fireEvent.click(
+    screen.getByRole('button', { name: t('en', 'attendanceStatementScreen.checkAgain') }),
+  );
   const download = await screen.findByRole('button', { name: t('en', DOWNLOAD) });
-  fireEvent.click(download);
-  await screen.findByText(attendanceStatementErrorsEn[code as keyof typeof attendanceStatementErrorsEn]);
+  expect((download as HTMLButtonElement).disabled).toBe(false);
+  expect(statusChecks()).toBeGreaterThan(checksBefore);
+  expect(api.POST).toHaveBeenCalledTimes(2);
   view.close();
 });
 
-it('shows the empty statement failure with its own message', async () => {
+it('shows the expired collect refusal', async () => {
+  state.status = 'READY';
+  api.POST.mockImplementation((path: string) =>
+    path.endsWith('/download')
+      ? { error: { code: 'DOCUMENT_EXPIRED' }, response: { status: 410 } }
+      : { data: { render_id: statementRenderId }, response: { status: 202 } },
+  );
+  const view = setup();
+  await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
+  fireEvent.click(submitButton());
+  fireEvent.click(await screen.findByRole('button', { name: t('en', DOWNLOAD) }));
+  await screen.findByText(attendanceStatementErrorsEn.DOCUMENT_EXPIRED);
+  expect(
+    screen.getByRole('button', { name: t('en', 'attendanceStatementScreen.newRequest') }),
+  ).toBeTruthy();
+  view.close();
+});
+
+it('shows the empty statement failure and resets the locked form', async () => {
   state.status = 'FAILED';
   state.errorCode = 'STATEMENT_EMPTY';
   const view = setup();
   await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
   fireEvent.click(submitButton());
   await screen.findByText('There is no attendance data in this period.');
+  fireEvent.click(
+    screen.getByRole('button', { name: t('en', 'attendanceStatementScreen.newRequest') }),
+  );
+  expect(submitButton().disabled).toBe(false);
+  view.close();
+});
+
+it('treats a consumed statement as terminal and offers a new request', async () => {
+  state.status = 'CONSUMED';
+  const view = setup();
+  await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
+  fireEvent.click(submitButton());
+  await screen.findByText(t('en', 'attendanceStatementScreen.consumed'));
+  expect(
+    screen.getByRole('button', { name: t('en', 'attendanceStatementScreen.newRequest') }),
+  ).toBeTruthy();
   view.close();
 });
 
@@ -283,12 +368,38 @@ it('hides the form when the access probe is refused', async () => {
   view.close();
 });
 
-it('reads an unknown render on the status poll as an expired statement', async () => {
-  state.statusError = { code: 'NOT_FOUND', status: 404 };
+it('hides the form when the create request loses access', async () => {
+  api.POST.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
   const view = setup();
   await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
   fireEvent.click(submitButton());
-  await screen.findByText(t('en', 'attendanceStatementScreen.expired'));
-  expect(screen.getByRole('button', { name: t('en', SUBMIT) })).toBeTruthy();
+  await screen.findByText(t('en', 'attendanceStatementScreen.noAccess'));
+  expect(screen.queryByRole('button', { name: t('en', SUBMIT) })).toBeNull();
+  view.close();
+});
+
+it('stops polling and resets after an unknown render on the status poll', async () => {
+  state.statusError = { code: 'NOT_FOUND', status: 404 };
+  const view = setup();
+  await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
+  vi.useFakeTimers();
+  fireEvent.click(submitButton());
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10);
+  });
+  expect(screen.getByText(t('en', 'attendanceStatementScreen.expired'))).toBeTruthy();
+  const statusCalls = api.GET.mock.calls.filter(([path]) =>
+    path.includes('/attendance-statements/'),
+  ).length;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5000);
+  });
+  expect(
+    api.GET.mock.calls.filter(([path]) => path.includes('/attendance-statements/')),
+  ).toHaveLength(statusCalls);
+  fireEvent.click(
+    screen.getByRole('button', { name: t('en', 'attendanceStatementScreen.newRequest') }),
+  );
+  expect(submitButton().disabled).toBe(false);
   view.close();
 });

@@ -82,7 +82,7 @@ export function AttendanceStatementForm(props: Props) {
   const pickLanguage = (language: StatementLanguage) => props.onChange({ language });
   const canSubmit = props.periodValid && (draft.form !== 'EMPLOYEE' || Boolean(draft.employeeId));
   return (
-    <fieldset disabled={props.locked} className="flex flex-col gap-4">
+    <fieldset disabled={props.locked || props.submitting} className="flex flex-col gap-4">
       <div className="grid gap-1">
         <Label htmlFor="statement-branch">{t(locale, 'attendanceStatementScreen.branch')}</Label>
         <NativeSelect
@@ -91,7 +91,9 @@ export function AttendanceStatementForm(props: Props) {
           onChange={(event) => props.onBranch(event.target.value)}
         >
           {branches.map((branch) => (
-            <option key={branch.id} value={branch.id}>{statementBranchName(branch, locale)}</option>
+            <option key={branch.id} value={branch.id}>
+              {statementBranchName(branch, locale)}
+            </option>
           ))}
         </NativeSelect>
       </div>
@@ -113,13 +115,15 @@ export function AttendanceStatementForm(props: Props) {
       {radioField(langLegend, 'language', LANGUAGE_OPTIONS, draft.language, pickLanguage, locale)}
       <Button
         type="submit"
-        disabled={props.locked || !canSubmit}
+        disabled={props.locked || props.submitting || !canSubmit}
         aria-busy={props.submitting}
         onClick={props.onSubmit}
       >
         {t(
           locale,
-          props.submitting ? 'attendanceStatementScreen.submitting' : 'attendanceStatementScreen.submit',
+          props.submitting
+            ? 'attendanceStatementScreen.submitting'
+            : 'attendanceStatementScreen.submit',
         )}
       </Button>
     </fieldset>

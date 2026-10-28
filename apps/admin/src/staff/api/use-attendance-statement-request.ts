@@ -2,6 +2,7 @@
 import { attendanceStatementAccepted, attendanceStatementRequest } from '@pospay/contracts';
 import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
+import type { StatementDraft } from '../model/attendance-statement-display';
 
 export type AttendanceStatementScope = {
   companyId: string;
@@ -17,7 +18,7 @@ export function useAttendanceStatementRequest(scope: AttendanceStatementScope) {
     mutationKey: ['attendance-statement-request', companyId, businessId, userId, branchId],
     gcTime: 0,
     retry: false,
-    mutationFn: async (body: unknown) => {
+    mutationFn: async ({ body }: { body: unknown; draft: StatementDraft }) => {
       const payload = attendanceStatementRequest.parse(body);
       const { employee_id, shift, ...required } = payload;
       const result = await apiClient().POST(

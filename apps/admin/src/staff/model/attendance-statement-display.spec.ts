@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   statementAccessLost,
+  statementApplyPatch,
   statementBranchName,
   statementCurrentMonthEnd,
   statementDefaultPeriod,
   statementEmployeeName,
   statementErrorMessage,
   statementFileName,
+  statementInitialDraft,
   statementMonthRange,
   statementMonthsInPeriod,
   statementPeriodIsValid,
@@ -15,6 +17,31 @@ import {
   statementRenderCodeMessage,
   statementRenderErrorMessage,
 } from './attendance-statement-display';
+
+describe('draft period changes', () => {
+  it('clears the shift when switching modes changes the effective period', () => {
+    const draft = {
+      ...statementInitialDraft('Asia/Kuwait', 'en'),
+      month: '2026-10',
+      from: '2026-09-01',
+      to: '2026-09-30',
+      shift: { start: '09:00', end: '20:00' },
+    };
+    expect(statementApplyPatch(draft, { periodMode: 'custom' }).shift).toBeUndefined();
+  });
+
+  it('keeps the shift when a patch leaves the effective period equal', () => {
+    const draft = {
+      ...statementInitialDraft('Asia/Kuwait', 'en'),
+      month: '2026-10',
+      from: '2026-10-01',
+      to: '2026-10-31',
+      shift: { start: '09:00', end: '20:00' },
+    };
+    expect(statementApplyPatch(draft, { periodMode: 'custom' }).shift).toEqual(draft.shift);
+    expect(statementApplyPatch(draft, { language: 'ar' }).shift).toEqual(draft.shift);
+  });
+});
 
 // 2026-09-30T22:00Z هو 2026-10-01 01:00 في الكويت و 2026-09-30 18:00 في نيويورك.
 function withClock<T>(run: () => T): T {
@@ -63,15 +90,15 @@ describe('period validity', () => {
       const end = statementCurrentMonthEnd('Asia/Kuwait');
       expect(end).toBe('2026-10-31');
       expect(statementPeriodIsValid({ from: '2026-01-01', to: end }, 'Asia/Kuwait')).toBe(true);
-      expect(
-        statementPeriodIsValid({ from: '2026-01-01', to: '2026-12-31' }, 'Asia/Kuwait'),
-      ).toBe(false);
-      expect(
-        statementPeriodIsValid({ from: '2026-03-01', to: '2026-02-01' }, 'Asia/Kuwait'),
-      ).toBe(false);
-      expect(
-        statementPeriodIsValid({ from: '2024-01-01', to: '2026-01-01' }, 'Asia/Kuwait'),
-      ).toBe(false);
+      expect(statementPeriodIsValid({ from: '2026-01-01', to: '2026-12-31' }, 'Asia/Kuwait')).toBe(
+        false,
+      );
+      expect(statementPeriodIsValid({ from: '2026-03-01', to: '2026-02-01' }, 'Asia/Kuwait')).toBe(
+        false,
+      );
+      expect(statementPeriodIsValid({ from: '2024-01-01', to: '2026-01-01' }, 'Asia/Kuwait')).toBe(
+        false,
+      );
     });
   });
 });
@@ -96,9 +123,9 @@ describe('refusal codes', () => {
     expect(
       statementErrorMessage({ code: 'ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND', status: 404 }, 'ar'),
     ).toBe('الموظفة مش موجودة أو مفيش ليها بيانات حضور في الفترة دي.');
-    expect(statementErrorMessage({ code: 'ATTENDANCE_STATEMENT_RATE_LIMITED', status: 429 }, 'en')).toBe(
-      'Too many statement requests. Try again later.',
-    );
+    expect(
+      statementErrorMessage({ code: 'ATTENDANCE_STATEMENT_RATE_LIMITED', status: 429 }, 'en'),
+    ).toBe('Too many statement requests. Try again later.');
     expect(statementErrorMessage({ code: 'RENDERER_UNAVAILABLE', status: 503 }, 'en')).toBe(
       'Document rendering is temporarily unavailable. Try again later.',
     );
@@ -120,9 +147,9 @@ describe('refusal codes', () => {
   });
 
   it('keeps a statement refusal away from the lost-access path', () => {
-    expect(statementAccessLost({ code: 'ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND', status: 404 })).toBe(
-      false,
-    );
+    expect(
+      statementAccessLost({ code: 'ATTENDANCE_STATEMENT_EMPLOYEE_NOT_FOUND', status: 404 }),
+    ).toBe(false);
     expect(statementAccessLost({ code: 'NOT_FOUND', status: 404 })).toBe(true);
     expect(statementAccessLost({ status: 403 })).toBe(true);
     expect(statementAccessLost({ code: 'FEATURE_DISABLED', status: 403 })).toBe(true);

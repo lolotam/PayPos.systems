@@ -17,6 +17,7 @@ import {
   statementExpired,
   statementFormAccessLost,
   statementInitialDraft,
+  statementNotReady,
   statementPeriod,
   statementPeriodIsValid,
   statementRequestBody,
@@ -32,27 +33,36 @@ type Props = {
   onBranch: (branchId: string) => void;
 };
 
+function checkStatementAgain(
+  download: ReturnType<typeof useAttendanceStatementDownload>,
+  status: ReturnType<typeof useAttendanceStatementStatus>,
+) {
+  download.reset();
+  void status.refetch();
+}
+
 export function AttendanceStatementPage(props: Props) {
   const locale = useLocale();
   const [draft, setDraft] = useState(() => statementInitialDraft(props.timezone, locale));
   const request = useAttendanceStatementRequest(props.scope);
+  const acceptedDraft = request.data ? request.variables?.draft : undefined;
   const renderId = request.data?.render_id;
   const period = statementPeriod(draft);
   const periodValid = statementPeriodIsValid(period, props.timezone);
   const shifts = useAttendanceStatementShifts(props.scope, period, periodValid);
   const employees = useAttendanceStatementEmployees(props.scope, period, periodValid);
   const status = useAttendanceStatementStatus(props.scope, renderId);
-  const download = useAttendanceStatementDownload(props.scope, renderId, draft);
+  const download = useAttendanceStatementDownload(props.scope, renderId, acceptedDraft);
   const change = (patch: StatementDraftPatch) =>
     setDraft((current) => statementApplyPatch(current, patch));
-  const submit = () => request.mutate(statementRequestBody(draft, period));
+  const submit = () => request.mutate({ body: statementRequestBody(draft, period), draft });
   const reset = () => {
     request.reset();
     download.reset();
     setDraft(statementInitialDraft(props.timezone, locale));
   };
   const renderFailure = status.error ?? download.error;
-  if (statementFormAccessLost(shifts.error ?? employees.error, renderFailure)) {
+  if (statementFormAccessLost(shifts.error ?? employees.error, renderFailure, request.error)) {
     return <p role="alert">{t(locale, 'attendanceStatementScreen.noAccess')}</p>;
   }
   return (
@@ -78,12 +88,12 @@ export function AttendanceStatementPage(props: Props) {
         error={request.error ?? download.error ?? status.error}
         errorRoute={request.error ? 'request' : 'render'}
         waiting={renderId !== undefined}
-        timedOut={status.timedOut}
+        showCheckAgain={status.timedOut || statementNotReady(download.error)}
         collected={download.isSuccess}
         downloading={download.isPending}
-        showNewRequest={statementExpired(request.error) || statementExpired(download.error)}
+        showNewRequest={statementExpired(status.error) || statementExpired(download.error)}
         onDownload={() => download.mutate()}
-        onCheckAgain={() => void status.refetch()}
+        onCheckAgain={() => checkStatementAgain(download, status)}
         onNewRequest={reset}
       />
     </section>
