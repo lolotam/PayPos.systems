@@ -45,6 +45,16 @@ Allowed implementation paths only:
 2. `apps/api/src/shared/ports/rate-limiter.port.ts`
 3. `apps/api/src/shared/__tests__/redis-rate-limiter.spec.ts`
 
+Owner-approved test-only scope extension (28 October, verbatim answer in the audit):
+«إضافة ملف المحاكي وتصحيحه (الموصى به)».
+The fourth path is `apps/api/src/modules/notifications/http/__tests__/push-subscription.fixture.ts`.
+Correct only its fake Redis pipeline: `EXPIRE NX` must contribute a command result,
+returning 1 when attaching an expiry and 0 if it is already attached. Keep the
+endpoint test expectations and all notification production code unchanged.
+Evidence: the first nine-file consumer run passed 100 tests and failed 6 because
+this fake returned only one EXEC result. The isolated baseline/candidate probe
+confirmed the missing command result; the production validator must remain strict.
+
 Add a typed infrastructure-unavailable error following the existing port-error
 precedent, with Arabic JSDoc. Validate the EXEC envelope and both command results.
 Reject missing/malformed results, either command error, invalid/non-positive/unsafe
@@ -58,7 +68,9 @@ null/invalid envelope and command tuples, command errors, invalid counts and exp
 results, and original network-error identity. No consumer, timeout, dependency,
 configuration, key naming or limit-policy changes.
 
-The implementer receives read/edit authority on these three files only. It does not
+Initial implementation was limited to the first three paths. The approved correction
+may edit only the fourth fixture; the lead preserves the three reviewed code paths.
+The implementer does not
 run shell commands, tests, package installations, Git writes or database operations.
 It returns paths changed, reasoning and limitations; the lead reviews before execution.
 
