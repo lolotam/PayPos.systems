@@ -122,3 +122,33 @@ The owner admitted this explicit split and 58-2a only as the first trial while
 preserving old exhausted attempts. See `owner-questions.ar.md` for the verbatim answer.
 58-2b and 58-2c still need their own scoped plans before implementation. Publication
 retains every standing review, test, backup and deployment gate.
+
+## Owner-required CI correction before merge (PP-72.1)
+
+Waleed rejected a one-PR exception and answered verbatim in T3 Code on 28 October:
+«إصلاح CI قبل الدمج». The full question and answer are in the central owner audit,
+`docs/owner-decisions.ar.md` item 34. Earlier CI passed on `eae70cd4`, but its split
+jobs did not invoke `pnpm check` itself and omitted the two generated-client checks.
+Both client checks passed locally; that is not the required CI receipt.
+
+The additional implementation path is `.github/workflows/ci.yml` only. Preserve
+the existing checks, four API shards, build/image jobs and lighter docs-only path.
+Add a full-workspace job after the existing `check` job for code changes, using
+the same Node/pnpm, temporary runner-local compose infrastructure and required
+headless-shell setup. Build API, worker and their dependencies first because the
+API production smoke test starts both built applications. Run the unmodified
+literal `pnpm check` on the PR head (or
+push SHA), with a 120-minute upper bound for its unsharded suite. Keep this job
+independent of the API shard jobs; each runner owns its temporary infrastructure.
+
+Make `ci-gate` depend on that job: code changes require its success; docs-only
+changes require its expected skip. Unknown change classification or any failed,
+cancelled, missing or unexpectedly skipped full check must fail the gate. Do not
+alter root check semantics, test selection, application code, dependencies,
+secrets, workflow permissions, publication rules or deployment infrastructure.
+
+The lead reviews the workflow before execution, checks formatting/YAML and the
+actual gate shell against success/failure/skip cases, and obtains Astra review
+before pushing. Then rerun exact-head CI and the five GitHub reviews. The existing
+backup receipt and deployed SHA remain preflight evidence; release readiness and
+backup freshness must be rechecked before any merge or staging operation.
