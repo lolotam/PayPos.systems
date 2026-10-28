@@ -10,6 +10,8 @@ Read these files fully, in this order, before any task or any review:
 5. [`.specify/memory/constitution.md`](./.specify/memory/constitution.md) — the project constitution
 6. [`docs/PRD.md`](./docs/PRD.md) — product scope and phases
 
+Before every new task, also read [the owner-confirmed delivery pipeline](docs/agent-delivery-pipeline.md).
+
 The names say "CLAUDE", but the rules apply to every agent equally.
 
 **Owner questions.** An owner question is never guessed (`CLAUDE.md` §1 step 5b, §11). Every question and its answer
