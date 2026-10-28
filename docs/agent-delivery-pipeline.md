@@ -7,6 +7,8 @@
 > **What this does not override.** Every technical, architectural, database, security and testing rule stays exactly as written in `CLAUDE.md`, `CLAUDE.architecture.md`, `docs/06_Tech_Stack_Architecture_EN.md`, `docs/module-map.md`, `.specify/memory/constitution.md` and `docs/PRD.md`. If this file and a governing document disagree about a technical or security rule, the governing document wins and the conflict is reported to the owner.
 >
 > Read it together with the six documents listed in `AGENTS.md`, and with `docs/decisions-site.md` for the decisions page.
+>
+> **Session and worktree lifecycle confirmed on 2026-10-28:** §1.1 records the owner's approval in `docs/owner-decisions.ar.md` item 32.
 
 ## 0. One transport rule for every delegated role
 
@@ -35,6 +37,17 @@
 - One use case per PR (`CLAUDE.md` §1). A task needing two use cases is two PRs.
 - Each task runs on its own branch and in its own worktree, so unrelated local work in the main checkout is preserved untouched and never swept into a diff.
 - Never treat a task as ready because it looks ready: verify it against the live page and the repository.
+
+### 1.1 Management session, task sessions and worktree lifecycle
+
+- Keep a persistent **project-management session** for priorities, milestones, decisions, provider usage and coordination. Keep its status tied to repository, task and review evidence.
+- Give each **independent delivery ending in a PR** its own task session, branch and worktree. The unit is a deliverable, not each implementation, test or correction step. Existing in-progress work stays attached to its current task and worktree.
+- Keep implementation, related tests and corrections attached to that same task. Delegated stages still follow §§0 and 5–8; a new session or worktree never resets the task's logical correction budget or changes implementer ownership.
+- Give the reviewer fresh, independent context. A read-only reviewer may inspect the task's existing worktree; a separate checkout is needed only when the assigned work requires one. Preserve the declared write scopes and concurrency limit in §13.
+- A new session needs a short, current handoff: task and approved scope, branch/worktree and HEAD, decisions, completed work, actual check/review receipts, remaining work, blockers, correction-budget usage and any live worker or process it must account for. Do not assume session history transfers automatically; do not include secrets.
+- **Closing a session is distinct from stopping its workers or processes and from removing its worktree.** Before closing it, account for delegated work, tests, owned database containers and any other live process; finish, transfer or explicitly stop that work rather than leaving its ownership unclear.
+- Remove a task worktree only after its PR is merged and delivery verification is complete, with important work and audit evidence preserved. Check tracked changes, untracked files and valuable ignored files; `git status` alone is insufficient. Account for live workers, processes and owned containers before removal. Never force removal past these checks or sweep another task's files into cleanup.
+- This policy does not itself create or close sessions, remove existing worktrees or schedule automatic cleanup. Dependent tasks and the existing review, backup and staging gates remain governed by §§8–10 and 13.
 
 ## 2. Every new task starts with the grilling round
 
