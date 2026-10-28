@@ -12,8 +12,8 @@ period, employee, shift and language, request the PDF, wait, download it once. *
 change in `apps/api`, `apps/worker`, `packages/db` or `packages/contracts`.** The four 27g-4 operations are already in
 the generated `apps/admin/src/shared/api/schema.d.ts` (`requestAttendanceStatement`, `attendanceStatementStatus`,
 `downloadAttendanceStatement`, `attendanceStatementShifts`). The admin has no generated hooks: every feature writes its
-own `use-*.ts` over the typed `apiClient()`, so no hook is missing and the scope does not change. One open question
-(§8 Q1) decides where the employee list comes from; its recommended answer keeps this scope.
+own `use-*.ts` over the typed `apiClient()`, so no hook is missing and the scope does not change. §8 Q1 (decided, PP-74.2: the
+monthly report rows) keeps this scope.
 
 ## 2. Screen states
 
@@ -125,7 +125,9 @@ Risks: (1) the 120 s bytes TTL: a user away from the tab misses it and gets 410 
 programmatic download after an async collect, as the CSV already does, so it follows the click gesture; (3) the
 20-per-hour limit if the screen retried by itself, so it never does; (4) the picker gap of §8 Q1.
 
-## 8. Open question (TECHNICAL, Waleed only)
+## 8. Decided question (TECHNICAL, Waleed only)
+
+**Decided 2026-10-28 (PP-74.2): option (أ)**, the monthly report rows; the scheduled-only gap becomes a follow-up issue.
 
 **Q1 — where the employee list comes from.** The only employee lists are `/attendance-employees`
 (`request:attendance-change:branch`, `attendance-employees.controller.ts:28`) and `/employees`
