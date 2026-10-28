@@ -19,11 +19,16 @@ export function useAttendanceStatementRequest(scope: AttendanceStatementScope) {
     retry: false,
     mutationFn: async (body: unknown) => {
       const payload = attendanceStatementRequest.parse(body);
+      const { employee_id, shift, ...required } = payload;
       const result = await apiClient().POST(
         '/v1/businesses/{businessId}/branches/{branchId}/attendance-statements',
         {
           params: { header: { 'x-company-id': companyId }, path: { businessId, branchId } },
-          body: payload,
+          body: {
+            ...required,
+            ...(employee_id !== undefined ? { employee_id } : {}),
+            ...(shift !== undefined ? { shift } : {}),
+          },
         },
       );
       if (result.error) throw { ...result.error, status: result.response.status };

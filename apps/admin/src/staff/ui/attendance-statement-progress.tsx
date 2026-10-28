@@ -63,6 +63,9 @@ export function AttendanceStatementProgress(props: Props) {
       {t(locale, 'attendanceStatementScreen.newRequest')}
     </Button>
   );
+  if (message !== undefined) {
+    return noticeRow('alert', message, props.showNewRequest ? newRequest : null);
+  }
   if (collected || state === 'READY') {
     return noticeRow(
       'status',
@@ -76,9 +79,6 @@ export function AttendanceStatementProgress(props: Props) {
         downloadButton
       ),
     );
-  }
-  if (message !== undefined) {
-    return noticeRow('alert', message, props.showNewRequest ? newRequest : null);
   }
   if (state === 'FAILED' || state === 'EXPIRED') {
     const failure =

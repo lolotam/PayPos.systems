@@ -1,5 +1,9 @@
 'use client';
-import { attendanceStatementStatus, type DocumentRenderState } from '@pospay/contracts';
+import {
+  attendanceStatementStatus,
+  type AttendanceStatementStatus,
+  type DocumentRenderState,
+} from '@pospay/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
@@ -28,7 +32,7 @@ export function useAttendanceStatementStatus(
     const timer = setTimeout(() => setDeadlineScope(key), STATEMENT_POLL_DEADLINE_MS);
     return () => clearTimeout(timer);
   }, [key, renderId]);
-  const query = useQuery({
+  const query = useQuery<AttendanceStatementStatus>({
     queryKey: ['attendance-statement-status', companyId, businessId, userId, branchId, renderId],
     enabled: enabled && renderId !== undefined,
     retry: false,

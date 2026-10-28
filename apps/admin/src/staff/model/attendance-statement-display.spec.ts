@@ -27,7 +27,7 @@ function withClock<T>(run: () => T): T {
   }
 }
 
-describe('attendance statement display', () => {
+describe('file names', () => {
   it('builds the file name of FR-007 for both forms', () => {
     const period = { from: '2026-10-01', to: '2026-10-31' };
     expect(statementFileName('BRANCH', period)).toBe(
@@ -37,7 +37,9 @@ describe('attendance statement display', () => {
       'attendance-statement-employee-2026-10-01_2026-10-31.pdf',
     );
   });
+});
 
+describe('default period', () => {
   it('reads the period from the branch timezone, not the device one', () => {
     withClock(() => {
       expect(statementDefaultPeriod('Asia/Kuwait')).toEqual({
@@ -53,7 +55,9 @@ describe('attendance statement display', () => {
     expect(statementMonthRange('2026-02')).toEqual({ from: '2026-02-01', to: '2026-02-28' });
     expect(statementMonthRange('2024-02')).toEqual({ from: '2024-02-01', to: '2024-02-29' });
   });
+});
 
+describe('period validity', () => {
   it('refuses a period after the current month or longer than a year', () => {
     withClock(() => {
       const end = statementCurrentMonthEnd('Asia/Kuwait');
@@ -70,7 +74,9 @@ describe('attendance statement display', () => {
       ).toBe(false);
     });
   });
+});
 
+describe('months', () => {
   it('lists every month the period touches', () => {
     expect(statementMonthsInPeriod({ from: '2026-10-01', to: '2026-10-31' })).toEqual(['2026-10']);
     expect(statementMonthsInPeriod({ from: '2026-09-15', to: '2026-11-03' })).toEqual([
@@ -80,7 +86,9 @@ describe('attendance statement display', () => {
     ]);
     expect(statementMonthsInPeriod({ from: '2026-11-03', to: '2026-09-15' })).toEqual([]);
   });
+});
 
+describe('refusal codes', () => {
   it('maps every refusal code of the slice to its message', () => {
     expect(
       statementErrorMessage({ code: 'ATTENDANCE_STATEMENT_PERIOD_INVALID', status: 422 }, 'en'),
@@ -121,7 +129,9 @@ describe('attendance statement display', () => {
     expect(statementRenderAccessLost({ code: 'NOT_FOUND', status: 404 })).toBe(false);
     expect(statementRenderAccessLost({ status: 403 })).toBe(true);
   });
+});
 
+describe('render failures', () => {
   it('reads a 404 on the render route as an expired statement', () => {
     expect(statementRenderErrorMessage({ code: 'NOT_FOUND', status: 404 }, 'en')).toBe(
       'The statement expired. Request a new one.',
@@ -149,7 +159,9 @@ describe('attendance statement display', () => {
     );
     expect(statementRenderCodeMessage(undefined, 'en')).toBe('Something went wrong. Try again.');
   });
+});
 
+describe('names', () => {
   it('prefers the Arabic employee and branch names in Arabic', () => {
     const employee = {
       employee_id: '01920000-0000-7000-8000-0000000000c2',

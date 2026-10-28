@@ -22,7 +22,6 @@ import { employeeIbanEn, employeeIbanErrorsEn } from './employee-iban-catalog.js
 import { scheduleShellEn } from './schedule-shell-catalog.js'; import { employeeDefaultHoursEn } from './employee-default-hours-catalog.js'; import { employeeNumberErrorsEn } from './employee-number-catalog.js';
 import { employeeNumberAdminEn } from './employee-number-admin-catalog.js';
 import { staffScreensEn } from './staff-screens-catalog.js';
-import { attendanceStatementScreenEn } from './attendance-statement-screen-catalog.js';
 import { businessIdentityEn } from './business-identity-catalog.js';
 import { roleNamesEn } from './role-names-catalog.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
@@ -397,6 +396,5 @@ export const en = {
     networkError: 'The server could not be reached. Try again.',
   },
   ...staffScreensEn,
-  attendanceStatementScreen: attendanceStatementScreenEn,
   businessIdentity: businessIdentityEn,
 } as const;

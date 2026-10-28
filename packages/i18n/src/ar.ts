@@ -25,7 +25,6 @@ import { employeeDefaultHoursAr } from './employee-default-hours-catalog.js';
 import { employeeNumberErrorsAr } from './employee-number-catalog.js';
 import { employeeNumberAdminAr } from './employee-number-admin-catalog.js';
 import { staffScreensAr } from './staff-screens-catalog.js';
-import { attendanceStatementScreenAr } from './attendance-statement-screen-catalog.js';
 import { businessIdentityAr } from './business-identity-catalog.js';
 import { roleNamesAr } from './role-names-catalog.js';
 
@@ -389,6 +388,5 @@ export const ar: Catalog = {
     networkError: 'تعذّر الوصول إلى الخادم. حاول مرة أخرى.',
   },
   ...staffScreensAr,
-  attendanceStatementScreen: attendanceStatementScreenAr,
   businessIdentity: businessIdentityAr,
 };
