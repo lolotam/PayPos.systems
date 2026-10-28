@@ -163,6 +163,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | worker `staff` | `AlertRulesPort` | worker `settings` | the effective alert rule for the not-clocked-in, break-not-returned and break-returned-at-another-branch alerts, read on the detector's locked employee transaction; its delay, roles and on/off drive the decision and the `suppressed_at` ledger row, and the kind's fixed employee push recipient is sent as its own PUSH request event when the linked user's personal access is current (28b-5) (ADR-0010 addendum 2026-10-21, spec 060 D-B14/D-B15, 62-2); also the `SHIFT_ENDS_SOON` rule for the shift-ending reminder, whose lead (not a delay), on/off and fixed employee push recipient drive that detector's decision and ledger row (ADR-0053 decisions 2 and 8, 064-3); also the `ATTENDANCE_EXCEPTION` and `DOCUMENT_EXPIRING` rules for the missed-out and document-expiry jobs (62-2d) |
 | worker `customers` | `BranchScheduleHoursPort` | worker `tenancy` | the branch's opening hours and effective timezone through `branchScheduleHours` on the caller's transaction, for the rating request day and closing time; adapter bound at the customers composition root, not an injected callback (ADR-0010 addendum 2026-10-21, spec 060 D-B3, 59-1) |
 | worker `customers` | `DaySessionsPort` | worker `orders` | bound by an injected callback at the worker composition root; customers does not import orders (ADR-0041, spec 060 D-B2, FR-B06, 59-1) |
+| `catalog` | `ImportFileFactsPort`, `ObjectBytesReader` | `files` | verified import-file facts on the caller's tenant transaction and bounded object bytes through the files runtime; catalog-owned ports bound at `apps/api/src/app.ts`, no catalog-to-files import arrow (ADR-0034 services-import addendum, spec 072 D-4, SI-T1) |
 
 ### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
 
@@ -228,6 +229,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `EmployeeDocumentRecorded` | `staff` | No business consumer. Worker `staff` registers the company's document-expiry schedule on delivery (PR 15, ADR-0032 pattern); the job reads `expires_on` and `alert_days` from the tables (ADR-0031) |
 | `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `EmployeeImportCommitRequested` | `staff` | `staff` worker registers per-company employee-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports employee-import-commit after outbox claim commits (ADR-0034, ADR-0018) |
+| `ServiceImportCommitRequested` | `catalog` | `catalog` worker registers the per-company service-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports service-import-commit after the outbox claim commits; id-only `{ preview_id }`, company in the envelope (ADR-0034 services-import addendum, ADR-0018) |
 | `ImportCommitted` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `BusinessLogoChanged` | `settings` (`set-business-logo`, 27h-4) | worker `files` retire consumer (27h-3, ADR-0046) |
 | `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031, and registers the not-clocked-in schedule, ADR-0037) |
@@ -254,6 +256,8 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `DocumentExpiring`                                                          | `staff`         | `notifications` (in-app holders of `read:files:business` by the `DOCUMENT_EXPIRING` rule, once per notice when its recipients are attached, 62-2d) |
 | `StatementAwaitingReview`                                                   | `commissions`   | `notifications`                                                                                   |
 | `StatementAwaitingApproval`                                                 | `commissions`   | `notifications`                                                                                   |
+
+The worker `catalog` module lives at `apps/worker/src/modules/catalog`, owns the `service-import-commit` and `service-import-recovery` jobs, and is wired at `apps/worker/src/main.ts`. Its imports follow the existing `catalog: [tenancy]` entry for both applications. No code registers `ServiceImportCommitRequested` before sub-PR 32b-3.
 
 **Two consumers by default.** Every event has its business handler **and** the `realtime` publisher (`06` §5.10). That is what guarantees a screen never shows something that didn't actually commit.
 
