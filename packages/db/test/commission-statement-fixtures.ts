@@ -180,14 +180,15 @@ export interface FrozenLineOverrides {
 /**
  * بيبني مصفوفة uuid كقيمة SQL مكتوبة مش كمعامل مربوط: الدريزل بيوسّع أي مصفوفة جوه sql
  * لعناصر مفصولة بفاصلة، فالمصفوفة الفاضية بتبقى استدعاء مش صالح.
+ * العنصر الـ null بيفضل null جوّه المصفوفة، عشان اختبار القيد يجرّب مصفوفة فيها عنصر فاضي.
  *
- * @param list المعرفات المرتبة
+ * @param list المعرفات المرتبة، وnull يعني عنصر فاضي جوه المصفوفة
  * @returns تعبير SQL من نوع uuid[]
  */
-function uuidArraySql(list: readonly string[]) {
+function uuidArraySql(list: readonly (string | null)[]) {
   if (list.length === 0) return sql`'{}'::uuid[]`;
   return sql`ARRAY[${sql.join(
-    list.map((id) => sql`${id}::uuid`),
+    list.map((id) => (id === null ? sql`NULL::uuid` : sql`${id}::uuid`)),
     sql`, `,
   )}]::uuid[]`;
 }
@@ -289,6 +290,62 @@ export async function insertCommissionAttachment(
     VALUES (${value('companyId', tenant.company)},${ids.newId()},${value('businessId', tenant.business)},${statementId},
       ${value('employeeId', tenant.employee)},${value('branchId', tenant.branch)},
       ${value('attachedFrom', month.attachedFrom)},${value('attachedTo', month.attachedTo)})`);
+}
+
+export interface StatementExportTarget {
+  readonly tenant: CommissionTenant;
+  readonly statementId: string;
+  readonly period: string;
+  readonly ids: IdGenerator;
+}
+
+export interface StatementExportOverrides {
+  readonly id?: string;
+  readonly renderId?: string;
+  readonly scope?: string;
+  readonly branchIds?: readonly (string | null)[] | null;
+  readonly employeeIds?: readonly (string | null)[] | null;
+  readonly language?: string;
+  readonly collectedAt?: string | null;
+  readonly requestedBy?: string;
+  readonly requestedMembershipId?: string;
+  readonly businessId?: string;
+  readonly companyId?: string;
+}
+
+/**
+ * بيكتب صف طلب تصدير واحد؛ الافتراضي طلب نطاق النشاط بلا مصفوفات، والصف بيتجمّع مرة واحدة بس.
+ *
+ * @param tx        المعاملة الجارية — لازم تكون معاملة الشركة بتاعت الصف
+ * @param target    الشريحة وكشف الشهر اللي بيتبنى عليه الطلب
+ * @param overrides قيم تتجاوز الافتراضي (المعرّفات والنطاق واللغة ووقت التحميل)
+ * @returns معرّف الصف اللي اتكتب
+ */
+export async function insertStatementExport(
+  tx: Tx,
+  target: StatementExportTarget,
+  overrides: StatementExportOverrides = {},
+): Promise<string> {
+  const { tenant, statementId, period, ids } = target;
+  const id = overrides.id ?? ids.newId();
+  const renderId = overrides.renderId ?? ids.newId();
+  const scope = overrides.scope ?? 'BUSINESS';
+  const branchIds = overrides.branchIds ?? null;
+  const employeeIds = overrides.employeeIds ?? null;
+  const language = overrides.language ?? 'ar';
+  const collectedAt = overrides.collectedAt ?? null;
+  const requestedBy = overrides.requestedBy ?? USER;
+  const requestedMembershipId = overrides.requestedMembershipId ?? tenant.membership;
+  const businessId = overrides.businessId ?? tenant.business;
+  const companyId = overrides.companyId ?? tenant.company;
+  await tx.execute(sql`INSERT INTO commission_statement_exports(
+    company_id,id,render_id,business_id,statement_id,period,requested_by,requested_membership_id,
+    scope,branch_ids,employee_ids,language,requested_at,collected_at)
+    VALUES(${companyId},${id},${renderId},${businessId},${statementId},${period},${requestedBy},
+      ${requestedMembershipId},${scope},${branchIds === null ? sql`NULL::uuid[]` : uuidArraySql(branchIds)},
+      ${employeeIds === null ? sql`NULL::uuid[]` : uuidArraySql(employeeIds)},
+      ${language},'2026-11-01T08:00:00Z',${collectedAt})`);
+  return id;
 }
 
 /**
