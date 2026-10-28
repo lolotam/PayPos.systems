@@ -1310,6 +1310,13 @@
       "when": 1793214209361,
       "tag": "0188_2026-10-28_customers-opt-out-guard",
       "breakpoints": true
+    },
+    {
+      "idx": 189,
+      "version": "7",
+      "when": 1793222689777,
+      "tag": "0189_2026-10-28_commission-statement-exports",
+      "breakpoints": true
     }
   ]
 }
