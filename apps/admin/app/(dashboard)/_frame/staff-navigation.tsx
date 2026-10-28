@@ -7,6 +7,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { AttendanceBoardNavItem } from './attendance-board-nav-item';
 import { AttendanceActionsNavItem } from './attendance-actions-nav-item';
 import { AttendanceReportNavItem } from './attendance-report-nav-item';
+import { AttendanceStatementNavItem } from './attendance-statement-nav-item';
 import { CompanyEmployeeNumbersNavItem } from './company-employee-numbers-nav-item';
 import { EmployeeAppLinkNavItem } from './employee-app-link-nav-item';
 
@@ -43,6 +44,7 @@ export function StaffNavigation() {
       <AttendanceActionsNavItem kind="exceptions" />
       <AttendanceActionsNavItem kind="requests" />
       <AttendanceReportNavItem />
+      <AttendanceStatementNavItem />
     </>
   );
 }
