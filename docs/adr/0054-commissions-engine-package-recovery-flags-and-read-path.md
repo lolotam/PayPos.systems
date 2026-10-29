@@ -191,6 +191,7 @@ provider-owned reader and bound at the composition root, the way the root-bound 
 | the employee's business and dated branch attachments (FR-018b, FR-033) | `staff` |
 | customer full names (D-20) | `customers` |
 | tips and package sales for the bootstrap (ADR-0041 §6) | `orders` |
+| the names of the branches where the work was done, for the statement export (CM-55f, `CommissionBranchNamesReader`, added by 56-1b; read live by id until CS-Q35 settles the freeze, #718) | `tenancy` |
 
 **Lines and salaries are not a binding.** Spec 059 D-15 (decided 2026-10-25) replays the retained `ServiceSessionRecorded`,
 `ServiceSessionLinesAdded`, `ServiceLineChanged` and `SalaryChanged` events from the outbox through a typed replay facade

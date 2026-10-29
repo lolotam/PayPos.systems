@@ -6,7 +6,9 @@ No request/poll/collect use cases, HTTP, audit, schema, migration or UI (56-1a/5
 ## 1. Files
 
 - `packages/documents/src/excel/commission-statement.ts`: pure ExcelJS workbook builder and input types.
-- `packages/documents/src/excel/commission-statement-rows.ts`: frozen-row grouping and totals, using `Money`/`sumMoney` only.
+- `packages/documents/src/excel/commission-statement-rows.ts`: the workbook row and total types only.
+- `apps/worker/src/modules/commissions/domain/commission-statement-totals.ts`: per-employee totals and net payable, using `Money`/`sumMoney` only.
+- `apps/worker/src/modules/commissions/ports/commission-branch-names.port.ts` and `apps/worker/src/modules/tenancy/persistence/branch-names.ts`: the branch names where the work was done, bound in `apps/worker/src/main.ts` (ADR-0054 §4).
 - `packages/documents/src/__tests__/commission-statement.spec.ts`: open the bytes with ExcelJS and assert the real cells.
 - `packages/documents/src/index.ts`, `packages/documents/package.json`: export the builder; add `exceljs` 4.4.0 (the version already in the lockfile).
 - `packages/i18n/src/commission-statement-catalog.ts`, `packages/i18n/src/index.ts`: ar/en labels in one catalog file.
@@ -21,7 +23,7 @@ No request/poll/collect use cases, HTTP, audit, schema, migration or UI (56-1a/5
 
 ## 2. Reader and row filter
 
-The reader opens one `withTenant(companyId, …)` transaction, performs only SELECT statements, and loads the export request by `(company_id, render_id)`. A missing/cross-tenant request throws the typed missing-request error and reads no statement rows. It then reads only `commission_statement_lines` for the request's `statement_id`, ordered deterministically; it never reads projection, employee, customer or other live tables.
+The reader opens one `withTenant(companyId, …)` transaction, performs only SELECT statements, and loads the export request by `(company_id, render_id)`. A missing/cross-tenant request throws the typed missing-request error and reads no statement rows. It then reads only `commission_statement_lines` for the request's `statement_id`, ordered deterministically; it never reads projection, employee or customer tables. The one live read is the branch names, through the `CommissionBranchNamesReader` port on the same transaction (CS-Q35 is pending; the freeze is #718).
 
 - `BUSINESS`: keep every frozen row, including rows whose `attached_branch_ids` is empty.
 - `BRANCHES`: keep a row only when its `employee_id` is in saved `employee_ids` **and** its frozen `attached_branch_ids` overlaps saved `branch_ids`.
@@ -30,9 +32,9 @@ The reader opens one `withTenant(companyId, …)` transaction, performs only SEL
 
 ## 3. Workbook columns
 
-Summary sheet, one row per employee: employee number, localized frozen employee name, commission (`COMMISSION`), sales commission (`SALE`), corrections received (`CORRECTION` plus `CARRY_COMMISSION`), card tips (`TIP_CARD`, its corrections and carry), cash tips for information (`TIP_CASH` and its corrections), and net payable. Net payable follows spec §9: `max(0, commission + sales + commission-side corrections) + max(0, card-tip side)`, all in `bigint` mills. Cash tips never enter payable.
+Summary sheet, one row per employee: employee number, localized frozen employee name, commission (`COMMISSION`), sales commission (`SALE`), corrections received (`CORRECTION` plus `CARRY_COMMISSION`), card tips (`TIP_CARD`, its corrections and carry), cash tips for information (`TIP_CASH` and its corrections), and net payable, plus a «Partial» column in `BRANCHES` scope. Net payable follows spec §9: `max(0, commission + sales + commission-side corrections) + max(0, card-tip side)`, all in `bigint` mills. Cash tips never enter payable.
 
-Detail sheet, one row per non-`EMPLOYEE` frozen source row: employee number, localized employee name, localized entry kind, business date, localized frozen service name, frozen full customer name, source period, previous amount, new amount and amount. Service/customer labels come only from the frozen row; no phone or live name is read. Empty fields stay empty.
+Detail sheet, one row per non-`EMPLOYEE` frozen source row: employee number, localized employee name, localized entry kind, business date, localized branch where the work was done (performed at), localized frozen service name, frozen full customer name, source period, previous amount, new amount and amount. Service/customer labels come only from the frozen row; no phone or live name is read. Empty fields stay empty.
 
 All money cells are strings with exactly three decimals (`41.003` remains `41.003`). Arabic sheets use `rightToLeft: true`; English sheets use LTR. The cash-paid case adds summary column «اتصرف كاش» / "Paid cash" with the stored rounded per-employee amount (`41.005`), while net payable stays exact.
 
