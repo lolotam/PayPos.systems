@@ -11,6 +11,8 @@ import { seedRatingLink } from '../../../../test/rating-link.fixture.ts';
 const ENDPOINT = '/v1/ratings/opt-out';
 const OVERSIZED_BODY = 'x'.repeat(1_100_000);
 const FORGED_FORWARD = '203.0.113.9';
+// The seeded link is claimed on 2026-06-01 and lives seven days.
+const BEFORE_EXPIRY = new Date('2026-06-02T00:00:00Z');
 
 let h: Harness;
 let proxied: Harness;
@@ -18,6 +20,7 @@ const logLines: string[] = [];
 
 beforeAll(async () => {
   h = await startHarness({
+    customersClock: { now: () => BEFORE_EXPIRY },
     logs: {
       write: (chunk: string) => {
         logLines.push(chunk);
@@ -25,7 +28,10 @@ beforeAll(async () => {
     },
   });
   await seedRatingTenants(h.ownerUrl);
-  proxied = await startHarness({ trustedProxy: ['127.0.0.1'] });
+  proxied = await startHarness({
+    trustedProxy: ['127.0.0.1'],
+    customersClock: { now: () => BEFORE_EXPIRY },
+  });
   await seedRatingTenants(proxied.ownerUrl);
 });
 afterAll(async () => {
