@@ -71,6 +71,12 @@ export function mockEmployeeReport(report: typeof statementReport, month?: strin
   if (month) changeStatementMonth(month);
 }
 
+export function mockStatementShifts(shifts: typeof statementShifts) {
+  api.GET.mockImplementation((path: string) =>
+    path.includes('attendance-statement-shifts') ? { data: shifts } : defaultGet(path),
+  );
+}
+
 beforeEach(() => {
   state.locale = 'en';
   state.status = 'QUEUED';

@@ -61,6 +61,14 @@ function resetStatement(input: ResetStatementInput, timezone: string, locale: St
   input.setDraft(statementInitialDraft(timezone, locale));
 }
 
+function statementShiftProps(shifts: ReturnType<typeof useAttendanceStatementShifts>) {
+  return {
+    shifts: shifts.data?.shifts ?? [],
+    shiftsLoadFailed: Boolean(shifts.error),
+    onRetryShifts: () => void shifts.refetch(),
+  };
+}
+
 export function AttendanceStatementPage(props: Props) {
   const locale = useLocale();
   const [draft, setDraft] = useState(() => statementInitialDraft(props.timezone, locale));
@@ -91,7 +99,7 @@ export function AttendanceStatementPage(props: Props) {
         branches={props.branches}
         branchId={props.scope.branchId}
         draft={draft}
-        shifts={shifts.data?.shifts ?? []}
+        {...statementShiftProps(shifts)}
         employees={employees.data ?? []}
         employeesLoading={employees.isLoading}
         employeesError={employees.error}

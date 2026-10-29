@@ -33,6 +33,8 @@ type Props = {
   branchId: string;
   draft: StatementDraft;
   shifts: StatementShift[];
+  shiftsLoadFailed: boolean;
+  onRetryShifts: () => void;
   employees: StatementEmployee[];
   employeesLoading: boolean;
   employeesError: unknown;
@@ -78,17 +80,33 @@ function statementCanSubmit(props: Props) {
   const employeeConfirmed =
     !props.draft.employeeId ||
     props.employees.some((employee) => employee.employee_id === props.draft.employeeId);
+  const shiftsConfirmed = props.draft.form !== 'BRANCH' || !props.shiftsLoadFailed;
   return (
     props.periodValid &&
     employeeConfirmed &&
+    shiftsConfirmed &&
     (props.draft.form !== 'EMPLOYEE' || Boolean(props.draft.employeeId))
+  );
+}
+
+function shiftField(props: Props) {
+  if (props.draft.form !== 'BRANCH') return null;
+  if (!props.shiftsLoadFailed && props.shifts.length === 0) return null;
+  return (
+    <AttendanceStatementShiftField
+      draft={props.draft}
+      shifts={props.shifts}
+      loadFailed={props.shiftsLoadFailed}
+      onRetry={props.onRetryShifts}
+      onChange={props.onChange}
+    />
   );
 }
 
 /** نموذج طلب الكشف: الفرع، النوع، الفترة، الموظفة، الشيفت، اللغة، وزر الطلب. */
 export function AttendanceStatementForm(props: Props) {
   const locale = useLocale();
-  const { branches, draft, shifts, employees } = props;
+  const { branches, draft, employees } = props;
   const formLegend = t(locale, 'attendanceStatementScreen.form');
   const langLegend = t(locale, 'attendanceStatementScreen.language');
   const pickForm = (form: StatementForm) => props.onChange({ form });
@@ -124,9 +142,7 @@ export function AttendanceStatementForm(props: Props) {
         onRetry={props.onEmployeesRetry}
         onChange={props.onChange}
       />
-      {draft.form === 'BRANCH' && shifts.length > 0 ? (
-        <AttendanceStatementShiftField draft={draft} shifts={shifts} onChange={props.onChange} />
-      ) : null}
+      {shiftField(props)}
       {radioField(langLegend, 'language', LANGUAGE_OPTIONS, draft.language, pickLanguage, locale)}
       <Button
         type="submit"
