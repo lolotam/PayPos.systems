@@ -1,10 +1,11 @@
 import { Writable } from 'node:stream';
 import { UnrecoverableError, type Job } from 'bullmq';
-import { documentBytesKey, documentStatusKey } from '@pospay/contracts';
+import { documentBytesKey, documentStatusKey, DOCUMENT_XLSX_MIME_TYPE } from '@pospay/contracts';
 import type { Redis } from 'ioredis';
 import { createLogger } from '@pospay/observability';
 import { expect, it } from 'vitest';
 
+import { CommissionStatementUnavailableError } from '../commission-statement-unavailable-error.ts';
 import { processDocumentJob, recordExternalJobFailure } from '../process-job.ts';
 import { DocumentSourceRegistry } from '../source-registry.ts';
 import { storeReady } from '../status-store.ts';
@@ -209,6 +210,45 @@ it('ends an empty statement as a final failure with no retry and no PDF', async 
     expect(await opened.redis.exists(documentBytesKey(companyId, id))).toBe(0);
   });
 });
+
+it.each(['REQUEST_MISSING', 'PAYMENT_DATA_UNAVAILABLE'] as const)(
+  'ends a commission statement without its data (%s) as a final failure with no retry and no file',
+  async (reason) => {
+    await useRender(async (opened) => {
+      const companyId = renderId();
+      const id = renderId();
+      let loads = 0;
+      opened.registry.register('commission-statement-xlsx', {
+        output: 'bytes',
+        mimeType: DOCUMENT_XLSX_MIME_TYPE,
+        load: async () => {
+          loads += 1;
+          throw new CommissionStatementUnavailableError(reason);
+        },
+      });
+      await seedQueued(opened, companyId, id);
+      const started = Date.now();
+      const failure = await processDocumentJob(
+        asJob(job(companyId, id, 'commission-statement-xlsx'), { attemptsMade: 0 }),
+        {
+          redis: opened.redis,
+          registry: opened.registry,
+          renderer: opened.renderer,
+          clock: { now: () => started },
+          logger: opened.logger,
+        },
+      ).catch((error: unknown) => error);
+      // الفشل دائم، فBullMQ مش هيعيد الوظيفة.
+      expect(failure).toBeInstanceOf(UnrecoverableError);
+      expect((failure as Error).message).toBe('STATEMENT_EMPTY');
+      expect(loads).toBe(1);
+      const status = await statusOf(opened, companyId, id);
+      expect(status['state']).toBe('FAILED');
+      expect(status['error_code']).toBe('STATEMENT_EMPTY');
+      expect(await opened.redis.exists(documentBytesKey(companyId, id))).toBe(0);
+    });
+  },
+);
 
 it('maps any other source failure to DOCUMENT_RENDER_FAILED', async () => {
   await useRender(async (opened) => {

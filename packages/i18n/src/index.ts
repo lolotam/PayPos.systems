@@ -9,6 +9,7 @@ export {
 export { formatDate, formatTime, isTimeZone, localDate, type CalendarSystem } from './dates.js';
 // قسم عناوين بيان الحضور: مصدر الـ worker بيقارن مفاتيحه بمفاتيح العقد، فمحتاج الوصول للقسم.
 export { attendanceStatementAr, attendanceStatementEn } from './attendance-statement-catalog.js';
+export { commissionStatementAr, commissionStatementEn } from './commission-statement-catalog.js';
 export { formatKwd } from './format-kwd.js';
 export { normalizeKwdInput } from './kwd-input.js';
 export { formatInstant } from './format-instant.js';

@@ -1,5 +1,8 @@
 import { createDatabase, createOutboxDispatcherDatabase } from '@pospay/db';
-import { ATTENDANCE_STATEMENT_DOCUMENT_KIND } from '@pospay/contracts';
+import {
+  ATTENDANCE_STATEMENT_DOCUMENT_KIND,
+  COMMISSION_STATEMENT_EXPORT_DOCUMENT_KIND,
+} from '@pospay/contracts';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
@@ -45,6 +48,9 @@ import {
 } from './documents/start-documents.ts';
 import { DocumentSourceRegistry } from './documents/source-registry.ts';
 import { createAttendanceStatementSource } from './documents/sources/attendance-statement.source.ts';
+import { createCommissionStatementSource } from './documents/sources/commission-statement.source.ts';
+import { createCommissionStatementExportReader } from './modules/commissions/index.ts';
+import { branchNames } from './modules/tenancy/index.ts';
 import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
 
 const config = readConfig(process.env);
@@ -251,6 +257,15 @@ try {
           readStatement: createAttendanceStatementReader(app),
           readLogo: files.readStatementLogo,
           clock: { now: () => new Date() },
+        }),
+      );
+      registry.register(
+        COMMISSION_STATEMENT_EXPORT_DOCUMENT_KIND,
+        createCommissionStatementSource({
+          readExport: createCommissionStatementExportReader(app, {
+            names: (tx, companyId, businessId, branchIds) =>
+              branchNames(tx, companyId, businessId, branchIds),
+          }),
         }),
       );
       return beginDocumentRendering({
