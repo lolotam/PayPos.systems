@@ -80,17 +80,20 @@ module-map changes (no new arrow).
    `after: { opted_out_at }`, no phone, token or hash (FR-B10, `CLAUDE.md` §8). **Bounded (MergePilot, PR #728):**
    the transaction runs with `withTenant`'s `timeoutMs`, `customersTransactionTimeoutMs?` in `AppDependencies`
    (default 1000, so the lock tests can pass a generous value and the bounded test a short one;
-   `with-tenant.ts:29,141–145` sets the statement and idle-in-transaction timeouts). The adapter's first statement
-   also sets `lock_timeout` to the same bound (`set_config(..., true)`, as `idempotency.ts:88–89` does), so the
-   lock wait ends on the server at the bound. **What the bound does and does not promise (MergePilot, PR #728):**
+   `with-tenant.ts:29,141–145` sets the statement and idle-in-transaction timeouts). No separate `lock_timeout` is
+   set: `statement_timeout` already ends a blocked `SELECT … FOR UPDATE` on the server at the bound with `57014`,
+   and a `lock_timeout` equal to it would never fire first (MergePilot, PR #728). **What the bound does and does not promise (MergePilot, PR #728):**
    `withDeadline` answers at the bound but does not cancel the work (`with-tenant.ts:87–135`), so the connection
    comes back only when the server-side timeouts end the statement, at most about one more bound after the 503
-   (longer only for a `CommitOutcomeUnknownError`, which waits on the socket). The 30-per-IP admission caps how
+   (longer only for a `CommitOutcomeUnknownError`, which waits on the socket). The 503 itself comes at the bound,
+   except when the timer fires while COMMIT is in flight: `withDeadline` then waits up to one more bound for the
+   COMMIT reply before it raises `CommitOutcomeUnknownError` (`with-tenant.ts:107–109`), so that answer can take up to
+   about two bounds (MergePilot, PR #728). The 30-per-IP admission caps how
    many of these one client can start; that residual is accepted and named in Risks. `withTenant` raises plain errors named `TimeoutError` and `CommitOutcomeUnknownError`
    (`with-tenant.ts:62–70`), and PostgreSQL's statement timeout raises SQLSTATE `57014`; the exception filter would
    map them to 500 (`exception.filter.ts:43`). The Drizzle adapter therefore translates exactly those three into a
    typed `RatingOptOutBusyError` (customers module), and the controller maps it to 503 `NOT_READY`. Drizzle wraps
-   the PostgreSQL error in `cause`, so `57014` (and `55P03`, the `lock_timeout` code) is found by walking the
+   the PostgreSQL error in `cause`, so `57014` is found by walking the
    `cause` chain with cycle protection, as `isRetryableTransactionConflict` does (`exception.filter.ts:46–57`).
 6. **Uniform answers:** valid token → **204**, first or repeated (first time kept, ADR-0011 §3). Missing header,
    malformed, unknown, foreign-prefix or expired → **404 `RATING_LINK_UNAVAILABLE`** (new in `errors.ts` and i18n;
@@ -164,7 +167,7 @@ database operations; it returns changed paths, reasoning and limits.
 | Fail-closed | `omitRedis` harness: 503 `NOT_READY`, no database call; hook unit: `RateLimiterUnavailableError` and a rejected `hit` or `remaining` → 503, use case never called; adapter unit: `-3` and a non-integer `TTL` reply throw `RateLimiterUnavailableError`, `-1`/`-2` → 0 |
 | Admission before parsing (MergePilot, PR #728) | malformed JSON and a body over `bodyLimit` are counted like empty bodies: the 31st of any mix → 429, each answer carries `no-store`/`no-referrer` |
 | Bounded transaction (MergePilot, PR #728) | a held `FOR NO KEY UPDATE` on the customer past the bound → 503 `NOT_READY`, no update, no audit; within two bounds of the 503, `pg_stat_activity` shows no backend of that request still waiting or idle in transaction, and a following request succeeds |
-| Error mapping (MergePilot, PR #728) | an unknown `/v1/...` route still answers `NOT_FOUND`, never `RATING_LINK_UNAVAILABLE`; adapter unit: `TimeoutError`, `CommitOutcomeUnknownError`, `57014` and `55P03` become `RatingOptOutBusyError`, also when wrapped as `{ cause: { code: '57014' } }`; a cyclic `cause` and any other error pass through unchanged |
+| Error mapping (MergePilot, PR #728) | an unknown `/v1/...` route still answers `NOT_FOUND`, never `RATING_LINK_UNAVAILABLE`; adapter unit: `TimeoutError`, `CommitOutcomeUnknownError` and `57014` become `RatingOptOutBusyError`, also when wrapped as `{ cause: { code: '57014' } }`; a cyclic `cause` and any other error pass through unchanged |
 | Route selection (MergePilot, PR #728) | a non-canonical spelling that the router still sends to opt-out (if any is accepted) is counted; a malformed `/v1/ratings/%ZZ` answer carries `no-store`/`no-referrer` |
 | Proxy (Codex P1) | with a trusted proxy CIDR, two clients with different forwarded addresses get separate buckets (the 31st of one → 429, the other still 204/404); a spoofed `X-Forwarded-For` chain from an untrusted peer shares the peer's bucket; production with empty `TRUSTED_PROXY_CIDRS` → 503 `NOT_READY`, no limiter hit, no database call |
 | Request id (Codex P2) | a token sent as `x-request-id` never appears in the response `x-request-id` header or in captured logs; the route gets a generated id |
@@ -205,7 +208,8 @@ with `sha256(knownToken)`) and `rating-concurrency-fixtures.ts` by relative path
   also allow the `x-rating-token` request header, with a preflight test, since a custom header forces a preflight. This is the first production writer of
   `opted_out_at`, which any `pospay_app` path can write (58-2b risk).
 - The one-second transaction bound (item 5) can refuse a valid opt-out with 503 while a claim holds the customer
-  lock; the visitor can retry, and claims are short. After a 503 the pool connection can stay busy for up to about
+  lock; the visitor can retry, and claims are short. A 503 raised while COMMIT is in flight can take up to about two
+  bounds. After a 503 the pool connection can stay busy for up to about
   one more bound (longer after a `CommitOutcomeUnknownError`), because `withDeadline` does not cancel; a drained,
   owned-connection primitive (`boundedTenant`) exists but is capped at 100 ms for OTP, so it is not reused here.
 
