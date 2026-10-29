@@ -440,9 +440,12 @@ both owners' picks on SI-Q14 to SI-Q16 (2026-10-29).
   `manage:services:business` so that a custom role can be given the close without the edit; the branch manager holds
   neither. The close and reopen routes need `close:services:business` **and** `read:services:business`,
   so every caller that closes a service can find it and its revision through the services reads. `32b-cat-2` adds
-  `@RequireAll([...])` to `apps/api/src/shared/access.decorators.ts`, beside `@RequireAny`: the same permission guard
-  checks every listed permission (same scope, same target validation) in its one transaction and refuses with the
-  uniform 403 when one is missing. The check stays in the guard, so the catalog use case reads no membership and
+  `@RequireAll([...], { business: 'businessId' })` to `apps/api/src/shared/access.decorators.ts`, beside `@RequireAny`.
+  `RequiredAccess` gains `mode: 'any' | 'all'` (default `'any'`, so every existing route keeps its meaning);
+  `@RequireAll` sets `'all'` under the same `REQUIRE_ACCESS` key, so route coverage (`route-coverage.ts`) counts it
+  unchanged and the same scope and target validation applies. `AccessGuard` forwards the mode, and `AuthorizeRequest`
+  in `'all'` mode grants only when every listed permission has a grant covering the target with no DENY covering it,
+  in its one transaction, and otherwise refuses with the uniform 403. `32b-cat-2` unit-tests both modes. The check stays in the guard, so the catalog use case reads no membership and
   `catalog` gains no import arrow (D-3, D-4), and no second transaction opens (the connection budget, CLAUDE.md §6). Reopening a service whose category is closed is refused with
   `SERVICE_CATEGORY_CLOSED`, and reopening a service clears its marker.
   - **The services reads are unchanged.** They stay behind `read:services:business` alone and return their full
@@ -482,7 +485,8 @@ both owners' picks on SI-Q14 to SI-Q16 (2026-10-29).
     category does not advance the category's revision, so the use case recounts under the category lock and refuses a
     different count with `SERVICE_CATEGORY_COUNT_CHANGED` (409), and the screen reloads the count and asks again. The
     revision and both counts come from the category detail read, so these routes are guarded by
-    `@RequireAll(['manage:service-categories:business', 'read:service-categories:business'])` the same way, and
+    `@RequireAll(['manage:service-categories:business', 'read:service-categories:business'], { business: 'businessId' })`
+    the same way, and
     `32b-cat-2` tests that a role holding only the manage permission is refused.
   - `POST /v1/businesses/{businessId}/services/{serviceId}/close` and `…/reopen` `{ expected_revision }` → 200 the
     service (`32b-cat-2`), in the same shape as the service detail read.
