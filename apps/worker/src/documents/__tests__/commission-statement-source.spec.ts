@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs';
 import { expect, it } from 'vitest';
 
 import type { CommissionStatementExportData } from '../../modules/commissions/index.ts';
-import { createCommissionStatementSource } from '../commission-statement.source.ts';
+import { createCommissionStatementSource } from '../sources/commission-statement.source.ts';
 
 const COMPANY = '01920000-0000-7000-8000-0000000000a0';
 const RENDER = '01920000-0000-7000-8000-0000000000e1';
@@ -50,7 +50,7 @@ it('builds real xlsx bytes with the saved language and never needs HTML', async 
   expect(source.mimeType).toBe(DOCUMENT_XLSX_MIME_TYPE);
   const bytes = await source.load(COMPANY, RENDER);
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(bytes as ArrayBuffer);
+  await workbook.xlsx.load(bytes.slice().buffer);
   const summary = workbook.getWorksheet('الملخص');
   expect(summary?.getCell('C2').value).toBe('41.003');
   expect(summary?.views[0]?.rightToLeft).toBe(true);
@@ -61,7 +61,7 @@ it('uses English labels and frozen English names for an English request', async 
   const source = createCommissionStatementSource({ readExport: async () => data('en') });
   const bytes = await source.load(COMPANY, RENDER);
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(bytes as ArrayBuffer);
+  await workbook.xlsx.load(bytes.slice().buffer);
   const summary = workbook.getWorksheet('Summary');
   expect(summary?.getCell('B2').value).toBe('Sara');
   expect(summary?.views[0]?.rightToLeft).toBe(false);

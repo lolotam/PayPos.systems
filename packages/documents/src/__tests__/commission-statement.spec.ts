@@ -131,8 +131,12 @@ function input(language: 'ar' | 'en'): CommissionStatementWorkbookInput {
 
 async function open(bytes: Uint8Array): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(bytes as ArrayBuffer);
+  await workbook.xlsx.load(bytes.slice().buffer);
   return workbook;
+}
+
+function cells(sheet: ExcelJS.Worksheet | undefined, row: number): ExcelJS.CellValue[] {
+  return (sheet?.getRow(row).values as ExcelJS.CellValue[] | undefined)?.slice(1) ?? [];
 }
 
 it('writes Arabic headers and exact frozen amounts, names and payable totals', async () => {
@@ -141,7 +145,7 @@ it('writes Arabic headers and exact frozen amounts, names and payable totals', a
   const summary = workbook.getWorksheet('الملخص');
   const detail = workbook.getWorksheet('التفاصيل');
   expect(summary?.views[0]?.rightToLeft).toBe(true);
-  expect(summary?.getRow(1).values).toEqual([
+  expect(cells(summary, 1)).toEqual([
     'الرقم الوظيفي',
     'اسم الموظفة',
     'العمولة',
@@ -151,7 +155,7 @@ it('writes Arabic headers and exact frozen amounts, names and payable totals', a
     'بقشيش كاش (للعلم)',
     'الصافي اللي يتصرف',
   ]);
-  expect(summary?.getRow(2).values).toEqual([
+  expect(cells(summary, 2)).toEqual([
     7,
     'سارة',
     '41.003',
@@ -177,7 +181,7 @@ it('writes English headers and keeps the sheet left-to-right', async () => {
   const workbook = await open(await buildCommissionStatementWorkbook(input('en')));
   const summary = workbook.getWorksheet('Summary');
   expect(summary?.views[0]?.rightToLeft).toBe(false);
-  expect(summary?.getRow(1).values).toEqual([
+  expect(cells(summary, 1)).toEqual([
     'Employee number',
     'Employee name',
     'Commission',
@@ -219,7 +223,7 @@ it('pays zero for negative sides without netting cash tips or the other side', a
     ],
   });
   const summary = (await open(bytes)).getWorksheet('Summary');
-  expect(summary?.getRow(2).values).toEqual([
+  expect(cells(summary, 2)).toEqual([
     7,
     'Sara',
     '-25.000',

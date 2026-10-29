@@ -1,16 +1,25 @@
 import { DOCUMENT_XLSX_MIME_TYPE } from '@pospay/contracts';
-import { buildCommissionStatementWorkbook } from '@pospay/documents';
+import {
+  buildCommissionStatementWorkbook,
+  type CommissionStatementWorkbookInput,
+} from '@pospay/documents';
 
-import type { CommissionStatementExportData } from '../../modules/commissions/index.ts';
 import type { BytesDocumentSource } from '../source-registry.ts';
 import { commissionStatementLabels } from './commission-statement-labels.ts';
+
+/** شكل بيانات التصدير اللي المصدر بيحتاجه من القارئ، من غير أي ربط بموديول commissions. */
+export interface CommissionStatementSourceData {
+  readonly request: { readonly language: CommissionStatementWorkbookInput['language'] };
+  readonly rows: CommissionStatementWorkbookInput['rows'];
+  readonly paidCash: Exclude<CommissionStatementWorkbookInput['paidCash'], undefined>;
+}
 
 export interface CommissionStatementSourceDeps {
   readonly readExport: (
     companyId: string,
     renderId: string,
     signal?: AbortSignal,
-  ) => Promise<CommissionStatementExportData>;
+  ) => Promise<CommissionStatementSourceData>;
 }
 
 /**

@@ -589,6 +589,9 @@ importers:
       eslint:
         specifier: 10.11.0
         version: 10.11.0(jiti@2.7.0)(supports-color@7.2.0)
+      exceljs:
+        specifier: 4.4.0
+        version: 4.4.0
       postgres:
         specifier: 3.4.9
         version: 3.4.9(patch_hash=8d9701312739097739235b63e6efd6d6a76d73801da8959087d23f809e992a50)

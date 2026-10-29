@@ -203,8 +203,8 @@ it('BRANCHES applies both saved sets to every row, including the transferred emp
   const early = result.rows.find((row) => row.sourceRef === 'line:early');
   expect(early?.sourceBranchId).toBe(hawally);
   expect(early?.amount).toBe(10_000n);
-  expect(JSON.stringify(result.rows)).not.toContain('Late customer');
-  expect(JSON.stringify(result.rows)).not.toContain(otherEmployee);
+  expect(result.rows.some((row) => row.customerName === 'Late customer')).toBe(false);
+  expect(result.rows.some((row) => row.employeeId === otherEmployee)).toBe(false);
 });
 
 it('a missing render id and another tenant render id both find no request', async () => {
@@ -256,7 +256,20 @@ it('the request and frozen-row reads use their indexes and keep their result sha
   });
   const requestNodes = planNodes(plans.requestPlan);
   expect(
-    requestNodes.some((node) => node['Index Name'] === 'commission_statement_exports_render_key'),
+    requestNodes.some(
+      (node) =>
+        node['Relation Name'] === 'commission_statement_exports' &&
+        node['Node Type'] === 'Seq Scan',
+    ),
+  ).toBe(false);
+  expect(
+    requestNodes.some(
+      (node) =>
+        node['Relation Name'] === 'commission_statement_exports' &&
+        ['Index Scan', 'Index Only Scan', 'Bitmap Index Scan', 'Bitmap Heap Scan'].includes(
+          String(node['Node Type']),
+        ),
+    ),
   ).toBe(true);
   const rowNodes = planNodes(plans.rowsPlan);
   expect(
