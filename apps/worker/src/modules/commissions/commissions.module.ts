@@ -1,7 +1,6 @@
 import type { TenantWrappers } from '@pospay/db';
 
 import { commissionStatementExportTransactions } from './persistence/commission-statement-export.transactions.ts';
-import type { CommissionBranchNamesReader } from './ports/commission-branch-names.port.ts';
 import type { CommissionStatementExportData } from './ports/commission-statement-export.port.ts';
 import {
   commissionStatementExportRequestStatement,
@@ -12,17 +11,12 @@ import { ReadCommissionStatementExport } from './use-cases/read-commission-state
 /** قارئ تصدير كشف العمولة في الـ worker؛ مصنع مستقل عن طوابير وظائف العمولات. */
 export function createCommissionStatementExportReader(
   database: Pick<TenantWrappers, 'withTenant'>,
-  branchNames: CommissionBranchNamesReader,
 ) {
   const useCase = new ReadCommissionStatementExport(
-    commissionStatementExportTransactions(
-      database,
-      {
-        request: commissionStatementExportRequestStatement,
-        rows: commissionStatementFrozenRowsStatement,
-      },
-      branchNames,
-    ),
+    commissionStatementExportTransactions(database, {
+      request: commissionStatementExportRequestStatement,
+      rows: commissionStatementFrozenRowsStatement,
+    }),
   );
   return (
     companyId: string,

@@ -227,6 +227,53 @@ it('the line checks refuse a source row without its branch, a carry with branche
   );
 });
 
+it('the source branch name check refuses a missing English name and names on rows without a source', async () => {
+  await expectPgError(
+    withApproved((tx, statementId) =>
+      insertCommissionLine(tx, A, statementId, ids, {
+        kind: 'COMMISSION',
+        sourceBranchNameEn: null,
+      }),
+    ),
+    '23514',
+    'commission_statement_lines_source_branch_name',
+  );
+  await expectPgError(
+    withApproved((tx, statementId) =>
+      insertCommissionLine(tx, A, statementId, ids, {
+        kind: 'EMPLOYEE',
+        sourceBranchNameEn: 'Unexpected branch',
+      }),
+    ),
+    '23514',
+    'commission_statement_lines_source_branch_name',
+  );
+  await expectPgError(
+    withApproved((tx, statementId) =>
+      insertCommissionLine(tx, A, statementId, ids, {
+        kind: 'CARRY_COMMISSION',
+        sourceBranchNameAr: 'فرع غير متوقع',
+      }),
+    ),
+    '23514',
+    'commission_statement_lines_source_branch_name',
+  );
+});
+
+it('a source row with only its frozen English branch name is accepted', async () => {
+  const accepted = await withApproved((tx, statementId) =>
+    insertCommissionLine(tx, A, statementId, ids, {
+      kind: 'COMMISSION',
+      sourceBranchNameEn: 'Hawally at approval',
+      sourceBranchNameAr: null,
+    }),
+  );
+  expect(
+    await asA(sql`SELECT source_branch_name_ar, source_branch_name_en
+      FROM commission_statement_lines WHERE statement_id=${accepted}`),
+  ).toEqual([{ source_branch_name_ar: null, source_branch_name_en: 'Hawally at approval' }]);
+});
+
 it('the line checks refuse a detail on a row that has none and a commission row without its visit', async () => {
   await expectPgError(
     withApproved((tx, statementId) =>

@@ -8,10 +8,6 @@ export type {
   CommissionStatementRowKind,
 } from './domain/commission-statement-totals.ts';
 export type {
-  CommissionBranchName,
-  CommissionBranchNamesReader,
-} from './ports/commission-branch-names.port.ts';
-export type {
   CommissionStatementExportData,
   CommissionStatementExportLanguage,
   CommissionStatementExportReaderData,

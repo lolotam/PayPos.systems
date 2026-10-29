@@ -23,8 +23,6 @@ import {
   CommissionStatementExportRequestMissing,
   CommissionStatementPaymentDataUnavailable,
   createCommissionStatementExportReader,
-  type CommissionBranchName,
-  type CommissionBranchNamesReader,
 } from '../index.ts';
 import {
   commissionStatementExportRequestStatement,
@@ -38,27 +36,12 @@ let reader: ReturnType<typeof createCommissionStatementExportReader>;
 const ids = systemUuidV7();
 const { A, B } = COMMISSION_TENANT;
 
-// بورت وهمي: بيحل الفروع المسجّلة بس، عشان نعرف فرع مفقود من القراءة.
-const knownBranchNames = new Map<string, CommissionBranchName>();
-const branchNameCalls: { businessId: string; branchIds: readonly string[] }[] = [];
-const branchNamesReader: CommissionBranchNamesReader = {
-  names: async (_tx, _companyId, businessId, branchIds) => {
-    branchNameCalls.push({ businessId, branchIds: [...branchIds] });
-    const found: [string, CommissionBranchName][] = [];
-    for (const id of branchIds) {
-      const name = knownBranchNames.get(id);
-      if (name !== undefined) found.push([id, name]);
-    }
-    return new Map(found);
-  },
-};
-
 beforeAll(async () => {
   testDb = await createTestDatabase();
   await seedCommissionStatementTenants(testDb.ownerUrl);
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   db = createDatabase({ url: testDb.appUrl, ids });
-  reader = createCommissionStatementExportReader(db, branchNamesReader);
+  reader = createCommissionStatementExportReader(db);
 });
 
 afterAll(async () => {
@@ -190,7 +173,6 @@ interface TransferredStatement {
 
 async function transferredStatement(period: string): Promise<TransferredStatement> {
   const hawally = await addBranch(A);
-  knownBranchNames.set(hawally, { nameAr: null, nameEn: 'Hawally' });
   const otherEmployee = await addEmployee(A, A.branch);
   const statementId = await statement(A, period, [
     { sourceRef: 'employee:sara', attachedBranchIds: [A.branch, hawally] },
@@ -199,6 +181,8 @@ async function transferredStatement(period: string): Promise<TransferredStatemen
       kind: 'COMMISSION',
       amount: '10.000',
       sourceBranchId: hawally,
+      sourceBranchNameAr: 'حولي وقت الاعتماد',
+      sourceBranchNameEn: 'Hawally at approval',
       sourceBusinessDate: '2026-10-10',
       attachedBranchIds: [A.branch],
       customerName: 'Early customer',
@@ -218,6 +202,8 @@ async function transferredStatement(period: string): Promise<TransferredStatemen
       amount: '5.000',
       previousAmount: '10.000',
       newAmount: '15.000',
+      sourceBranchNameAr: 'السالمية وقت الاعتماد',
+      sourceBranchNameEn: 'Salmiya at approval',
       attachedBranchIds: [A.branch],
     },
     {
@@ -238,7 +224,6 @@ it('BRANCHES applies both saved sets to every row, including the transferred emp
     branchIds: [A.branch],
     employeeIds: [A.employee, otherEmployee],
   });
-  branchNameCalls.length = 0;
   const result = await reader(A.company, renderId);
   expect(result.rows.map((row) => row.sourceRef).sort()).toEqual([
     'correction:early',
@@ -249,21 +234,15 @@ it('BRANCHES applies both saved sets to every row, including the transferred emp
   expect(result.rows.every((row) => row.attachedBranchIds.includes(A.branch))).toBe(true);
   const early = result.rows.find((row) => row.sourceRef === 'line:early');
   expect(early?.sourceBranchId).toBe(hawally);
-  expect(early?.sourceBranchNameEn).toBe('Hawally');
-  expect(early?.sourceBranchNameAr).toBeNull();
+  expect(early?.sourceBranchNameEn).toBe('Hawally at approval');
+  expect(early?.sourceBranchNameEn).not.toBe('Hawally');
+  expect(early?.sourceBranchNameAr).toBe('حولي وقت الاعتماد');
   expect(early?.amount).toBe(10_000n);
   expect(early?.partial).toBe(true);
-  // التصحيح ماشي على فرع المشغّل والقراءة ما رجعتش اسمه: الاسم فضا والصف لسه متصدّر.
   const correction = result.rows.find((row) => row.sourceRef === 'correction:early');
-  expect(correction?.sourceBranchNameEn).toBeNull();
-  expect(correction?.sourceBranchNameAr).toBeNull();
+  expect(correction?.sourceBranchNameEn).toBe('Salmiya at approval');
+  expect(correction?.sourceBranchNameAr).toBe('السالمية وقت الاعتماد');
   expect(correction?.amount).toBe(5_000n);
-  // البورت اتنادى مرة واحدة، بنفس نشاط الطلب، وبمعرّفات الفروع من غير تكرار.
-  expect(branchNameCalls).toHaveLength(1);
-  expect(branchNameCalls[0]?.businessId).toBe(A.business);
-  expect(branchNameCalls[0]?.branchIds).toHaveLength(2);
-  expect(branchNameCalls[0]?.branchIds).toContain(A.branch);
-  expect(branchNameCalls[0]?.branchIds).toContain(hawally);
   // صف الموظفة مالوش فرع تنفيذ، فالخانة فاضية.
   expect(
     result.rows.find((row) => row.sourceRef === 'employee:other')?.sourceBranchNameEn,
