@@ -341,8 +341,9 @@ Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's p
     the same business; `state text NOT NULL CHECK (state IN ('ENABLED', 'HIDDEN'))`, `updated_at` and `revision`. RLS
     `company_id = app_company_id()`, a negative isolation test and a grants test. `pospay_app` gets SELECT, INSERT and
     column UPDATE on `state`, `updated_at` and `revision`, and no DELETE. A category is **in use** in a branch when it
-    is open and is either `BUSINESS` with no `HIDDEN` row for that branch, owned by that branch, or has an `ENABLED`
-    row for that branch. Any branch may enable another branch's private category without asking (Waleed's pick). Only
+    is open, has no `HIDDEN` row for that branch, and is either `BUSINESS`, owned by that branch, or has an `ENABLED`
+    row for that branch. A `HIDDEN` row therefore wins over ownership: a branch that created a shared category and
+    then hid it no longer has it in use. Any branch may enable another branch's private category without asking (Waleed's pick). Only
     the owner branch renames it.
   - **A category only groups (SI-Q21).** Whether a category is in use in a branch changes what that branch's lists
     and filters show, never what it can sell: a service under a category not in use in a branch is still offered and
@@ -366,10 +367,12 @@ Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's p
     branch may enable (other branches' private ones and the shared ones it hid), each with `owner_branch_id`. A
     result-shape test and an `EXPLAIN ANALYZE` assertion, as for the business list.
   - **Writes added.** `POST …/branches/{branchId}/service-categories` `{ name_en, name_ar, visibility }` → 201
-    (`32b-cat-1`). The branch `PATCH` on a category owned by that branch accepts `visibility` too (`32b-cat-1`).
+    (`32b-cat-1`). The branch `PATCH` on a category owned by that branch accepts `visibility` too (`32b-cat-1`), so
+    the `pospay_app` column UPDATE grant on `service_categories` adds `visibility` (never `owner_branch_id`, which
+    is fixed at creation), and the grants test covers it.
     `PUT …/branches/{branchId}/service-categories/{categoryId}/state` `{ state, expected_revision }` → 200
-    (`32b-cat-1b`); hiding a branch's own private category is refused with `SERVICE_CATEGORY_OWNED_BY_BRANCH` (it is
-    renamed, made shared or closed instead). Every write is audited.
+    (`32b-cat-1b`); hiding a branch's own private (`BRANCH`) category is refused with `SERVICE_CATEGORY_OWNED_BY_BRANCH` (it is
+    renamed, made shared or closed instead); hiding its own shared category is allowed. Every write is audited.
   - **Still open for `32b-cat-2`:** closing a single service stays business-wide (SI-Q17), so how a branch manager
     holds `close:services:business` is still checked by the design advisors before `32b-cat-2`, as written below.
 - **One lock order for every category write** (`32b-cat-1`, `32b-pre-1`, `32b-cat-2`, `32b-3`): a transaction that
