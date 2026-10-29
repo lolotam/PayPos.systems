@@ -337,7 +337,7 @@ Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's p
     `BRANCH` (private to the owner branch). A `BRANCH` category always has an owner branch (CHECK). The name key stays
     business-wide (`service_categories_business_name_uq` is unchanged): two branches cannot each create their own
     «صبغة»; the second is offered the existing category to enable instead.
-  - **Sharing goes one way.** A private category can be made shared (`BRANCH` → `BUSINESS`); a shared category is never
+  - **Sharing goes one way (SI-Q23).** A private category can be made shared (`BRANCH` → `BUSINESS`); a shared category is never
     made private again, through any route. Making a shared category private would take it out of every other branch
     that uses it, which is exactly what SI-Q22's pick refuses («فرع واحد مايوقفش شغل الفروع التانية»). For the same
     reason the owner branch renames only its own private categories; a shared category, whoever created it, is renamed
@@ -662,8 +662,10 @@ and SI-Q18 were answered by Waleed by card on 2026-10-29 and are published as th
 | SI-Q20 | feature | Enabling another branch's private category | Waleed (recommended): without asking. Abu Salem: PENDING | `32b-cat-1b` |
 | SI-Q21 | feature | A service under a category not in use in a branch | Waleed (recommended): the category only groups; the service sells everywhere. Abu Salem: PENDING | Branch-level categories |
 | SI-Q22 | feature | A branch manager closing a shared category | Waleed (recommended): hidden in their branch only; the business-wide close stays with owner, general manager and business manager (replaces his SI-Q15 pick for that close). Abu Salem: PENDING | `32b-cat-1b`, `32b-cat-2` |
+| SI-Q23 | feature | Can a shared category become private again, or be renamed by its branch | Waleed (recommended): no, shared stays shared; renamed at business level only. Abu Salem: PENDING | «Sharing goes one way», `32b-cat-1` |
+| SI-Q24 | feature | Can a branch hide its own private category | Waleed (recommended): yes, in its own branch only. Abu Salem: PENDING | «Enabling another branch's category», `32b-cat-1b` |
 
-If Abu Salem's pick on SI-Q14 to SI-Q22 differs from Waleed's, his pick replaces it: this spec and
+If Abu Salem's pick on SI-Q14 to SI-Q24 differs from Waleed's, his pick replaces it: this spec and
 `owner-questions.ar.md` are amended (the old answer kept as history), and `32b-cat-1`, `32b-cat-1b` and `32b-cat-2`
 follow the new rule, through a follow-up if they have already merged. Such a follow-up is expand-only: a column or
 table his pick makes unnecessary (`owner_branch_id`, `visibility`, `service_category_branch_settings`) stays in place
