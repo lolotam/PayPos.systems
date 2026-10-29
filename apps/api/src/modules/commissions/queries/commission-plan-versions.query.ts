@@ -21,8 +21,24 @@ type PlanVersionRow = {
   readonly created_by: string;
 };
 
+export class CommissionPlanVersionEmployeeNotFoundError extends Error {}
+
 function cursorClause(cursor: number | undefined) {
   return cursor === undefined ? sql`` : sql`AND version < ${cursor}`;
+}
+
+/** شاشة منشئ الخطة ترفض سجل موظفة غير موجودة في النشاط بدلاً من صفحة فارغة. */
+async function assertEmployeeInBusiness(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  employeeId: string,
+): Promise<void> {
+  const rows = await tx.execute<{ employee_id: string }>(sql`
+    SELECT id AS employee_id FROM employees
+    WHERE company_id=${companyId} AND business_id=${businessId} AND id=${employeeId}
+      AND deleted_at IS NULL LIMIT 1`);
+  if (rows.length === 0) throw new CommissionPlanVersionEmployeeNotFoundError();
 }
 
 /** شاشة منشئ الخطة تقرأ سجل الموظفة من الأحدث للأقدم بمؤشر رقم الإصدار. */
@@ -48,6 +64,7 @@ export async function listCommissionPlanVersions(
   employeeId: string,
   query: CommissionPlanVersionListQuery,
 ): Promise<CommissionPlanVersionList> {
+  await assertEmployeeInBusiness(tx, companyId, businessId, employeeId);
   const rows = await tx.execute<PlanVersionRow>(
     listCommissionPlanVersionsStatement(companyId, businessId, employeeId, query),
   );

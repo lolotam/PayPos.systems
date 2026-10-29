@@ -125,6 +125,8 @@ export interface WalkStatementOptions {
   readonly period: string;
   readonly ids: IdGenerator;
   readonly to?: Exclude<StatementStatus, 'DRAFT'>;
+  // الـ API harness بينشئ المستخدمين عن طريق sign-up، فالـ USER المزروع مش موجود في قاعدته.
+  readonly reviewer?: string;
   // بصمة المدخلات المجمّدة عند الاعتماد؛ الافتراضي بصمة المراجعة نفسها، وما تتغيّرش إلا في حالة الرفض.
   readonly inputFingerprint?: string;
   readonly afterReviewed?: (tx: Tx, statementId: string) => Promise<void>;
@@ -144,6 +146,7 @@ export async function walkCommissionStatement(
   options: WalkStatementOptions,
 ): Promise<string> {
   const { tenant, period, ids } = options;
+  const reviewer = options.reviewer ?? USER;
   let statementId = '';
   await db.withTenant(tenant.company, async (tx) => {
     const [statement] = await lockStatementPeriods(tx, {
@@ -155,11 +158,11 @@ export async function walkCommissionStatement(
     statementId = statement.statementId;
     await tx.execute(sql`UPDATE commission_statements SET status='REVIEWED',
       reviewed_fingerprint=${FINGERPRINTS.reviewed}, reviewed_statement_fingerprint=${FINGERPRINTS.statement},
-      reviewed_by=${USER}, reviewed_membership_id=${tenant.membership}, reviewed_at='2026-11-01T08:00:00Z'
+      reviewed_by=${reviewer}, reviewed_membership_id=${tenant.membership}, reviewed_at='2026-11-01T08:00:00Z'
       WHERE company_id=${tenant.company} AND id=${statementId}`);
     await options.afterReviewed?.(tx, statementId);
     if (options.to === 'REVIEWED') return;
-    await tx.execute(sql`UPDATE commission_statements SET status='APPROVED', approved_by=${USER},
+    await tx.execute(sql`UPDATE commission_statements SET status='APPROVED', approved_by=${reviewer},
       approved_at='2026-11-02T08:00:00Z', input_fingerprint=${options.inputFingerprint ?? FINGERPRINTS.input},
       statement_fingerprint=${FINGERPRINTS.statement}
       WHERE company_id=${tenant.company} AND id=${statementId}`);

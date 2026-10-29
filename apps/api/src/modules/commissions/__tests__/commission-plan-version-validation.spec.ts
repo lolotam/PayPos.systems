@@ -68,7 +68,7 @@ const cases: readonly [string, string, () => CreateCommissionPlanVersionInput][]
     'cm-06-no-steps',
     () => ({
       ...commissionPlanInput(),
-      tiers: { ...commissionPlanInput().tiers, enabled: true, steps: [] },
+      tiers: { enabled: true, mode: 'MARGINAL', accumulator: 'AMOUNT', steps: [] },
     }),
   ],
   [

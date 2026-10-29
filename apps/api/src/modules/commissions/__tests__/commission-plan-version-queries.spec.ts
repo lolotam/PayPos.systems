@@ -2,7 +2,7 @@ import { commissionPlanVersionList } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
-import { businessTimeZone } from '../../tenancy/index.ts';
+import { businessTimeZone } from '../../../../test/harness.ts';
 import { listCommissionPlanVersionsStatement } from '../queries/commission-plan-versions.query.ts';
 import {
   closeCommissionFixture,
@@ -36,7 +36,9 @@ it('the GET query returns the exact DTO shape newest first with stable cursor pa
     repair_period: null,
     created_by: f.userId,
   });
-  const second = await f.list({ limit: 2, cursor: first.next_cursor ?? undefined });
+  const second = await f.list(
+    first.next_cursor === null ? { limit: 2 } : { limit: 2, cursor: first.next_cursor },
+  );
   expect(second.items.map(({ version }) => version)).toEqual([1]);
   expect(second.next_cursor).toBeNull();
   const http = await f.get('?limit=2');
@@ -62,4 +64,9 @@ it('the root-bound business timezone reader returns the zone or null for an unkn
     missing: await businessTimeZone(tx, f.company, ids.newId()),
   }));
   expect(result).toEqual({ known: 'Asia/Kuwait', missing: null });
+});
+
+it('GET returns EMPLOYEE_NOT_FOUND for an employee outside the business', async () => {
+  const response = await f.get('', ids.newId());
+  expect([response.status, response.body['code']]).toEqual([404, 'EMPLOYEE_NOT_FOUND']);
 });

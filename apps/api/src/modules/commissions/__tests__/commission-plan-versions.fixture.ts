@@ -7,11 +7,13 @@ import {
 import { systemUuidV7 } from '@pospay/ids';
 import type { CreateCommissionPlanVersionInput } from '@pospay/contracts';
 
-import { startHarness } from '../../../../test/harness.ts';
-import { walkCommissionStatement } from '../../../../../packages/db/test/commission-statement-fixtures.ts';
-import { readCommissionPlanAccess } from '../../identity/index.ts';
-import { lockEmployeeForUpdate } from '../../staff/index.ts';
-import { businessTimeZone } from '../../tenancy/index.ts';
+import {
+  businessTimeZone,
+  lockEmployeeForUpdate,
+  readCommissionPlanAccess,
+  startHarness,
+} from '../../../../test/harness.ts';
+import { walkCommissionStatement } from '../../../../../../packages/db/test/commission-statement-fixtures.ts';
 import { listCommissionPlanVersions } from '../queries/commission-plan-versions.query.ts';
 
 export const COMMISSION_NOW = new Date('2026-10-30T12:00:00.000Z');
@@ -118,6 +120,7 @@ export async function setCommissionStatement(
   }
   await walkCommissionStatement(f.db, {
     tenant: { ...f.tenant, membership: await ownerMembership(f) },
+    reviewer: f.userId,
     period,
     ids,
     to: status,

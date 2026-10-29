@@ -11,6 +11,12 @@ export class CommissionPlanVersionError extends Error {
   readonly code: CommissionPlanVersionErrorCode;
   readonly details: unknown;
 
+  /**
+   * يحتفظ بكود الرفض وتفاصيله حتى تترجمه طبقة HTTP دون أن يعرف الـ domain بها.
+   *
+   * @param code كود رفض إصدار الخطة
+   * @param details تفاصيل اختيارية مثل كود رفض محرك العمولة
+   */
   constructor(code: CommissionPlanVersionErrorCode, details?: unknown) {
     super(code);
     this.name = 'CommissionPlanVersionError';

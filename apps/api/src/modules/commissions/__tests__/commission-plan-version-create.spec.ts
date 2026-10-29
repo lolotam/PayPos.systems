@@ -26,7 +26,7 @@ it('CM-05 stores the next version, one safe audit row, and echoes the stored row
   expect(created.version).toBe(2);
   expect(created.employee_id).toBe(f.employee);
   expect(created.created_by).toBe(f.userId);
-  const [stored] = await f.h.owner`SELECT employee_id,version,effective_from,whole_period,
+  const [stored] = await f.h.owner`SELECT employee_id,version,to_char(effective_from,'YYYY-MM-DD') AS effective_from,whole_period,
     repair_period,plan,created_by FROM commission_plan_versions WHERE id=${created.id}`;
   expect(stored).toMatchObject({
     employee_id: f.employee,
@@ -71,7 +71,7 @@ it('a reused key with another body is refused and writes nothing new', async () 
   const changed = { ...commissionPlanInput('2026-10-31'), whole_period: true };
   const replay = await f.post(changed, 'cm-key-reused');
   expect([replay.status, replay.body['code']]).toEqual([422, 'IDEMPOTENCY_KEY_REUSED']);
-  expect(await versionAndAuditCounts(f)).toEqual([before[0]! + 1, before[1]! + 1]);
+  expect(await versionAndAuditCounts(f)).toEqual(before.map((count) => count + 1));
 });
 
 it('a missing employee is 404 and no plan or audit is written', async () => {

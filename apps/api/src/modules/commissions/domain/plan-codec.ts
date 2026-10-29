@@ -8,7 +8,7 @@ interface WireCalc {
 
 interface WireComponent {
   readonly enabled: boolean;
-  readonly calc?: WireCalc;
+  readonly calc?: WireCalc | undefined;
 }
 
 interface WireThreshold {
@@ -23,9 +23,9 @@ interface WireStep {
 
 interface WireTiers {
   readonly enabled: boolean;
-  readonly mode?: 'MARGINAL' | 'WHOLE';
-  readonly accumulator?: 'AMOUNT' | 'SESSIONS';
-  readonly steps?: readonly WireStep[];
+  readonly mode?: 'MARGINAL' | 'WHOLE' | undefined;
+  readonly accumulator?: 'AMOUNT' | 'SESSIONS' | undefined;
+  readonly steps?: readonly WireStep[] | undefined;
 }
 
 export interface CommissionPlanWire {

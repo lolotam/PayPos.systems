@@ -47,6 +47,10 @@ export function commissionPlanMonthsToLock(effectiveFrom: string, today: string)
  * يجب أن يكون DRAFT، والشهر المغلق يمنع الكتابة، وكل REVIEWED لاحق يعود إلى DRAFT.
  *
  * @param input تاريخ السريان ونوع الإصدار وتاريخ النشاط والشهور المقفولة
+ * @param input.effectiveFrom تاريخ سريان الإصدار بصيغة YYYY-MM-DD
+ * @param input.wholePeriod هل يغطي الإصدار شهر سريانه بالكامل
+ * @param input.today تاريخ اليوم في منطقة النشاط بصيغة YYYY-MM-DD
+ * @param input.locked حالات الشهور بعد أخذ أقفالها
  * @returns الشهور اللاحقة التي يجب إرجاعها إلى DRAFT في المعاملة نفسها
  */
 export function assertCommissionPlanEffectiveFrom(input: {

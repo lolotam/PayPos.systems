@@ -40,14 +40,14 @@ describe('commissionPlanMonthsToLock', () => {
   });
 });
 
-describe('assertCommissionPlanEffectiveFrom', () => {
-  const input = {
-    effectiveFrom: '2026-10-30',
-    wholePeriod: false,
-    today: '2026-10-30',
-    locked: [locked('2026-10', 'DRAFT')],
-  };
+const input = {
+  effectiveFrom: '2026-10-30',
+  wholePeriod: false,
+  today: '2026-10-30',
+  locked: [locked('2026-10', 'DRAFT')],
+};
 
+describe('assertCommissionPlanEffectiveFrom effective date and own month', () => {
   it('accepts today itself and yesterday is the ordinary past boundary', () => {
     expect(assertCommissionPlanEffectiveFrom(input)).toEqual([]);
     expect(() =>
@@ -83,7 +83,9 @@ describe('assertCommissionPlanEffectiveFrom', () => {
       }),
     ).toThrowError(expect.objectContaining({ code: 'COMMISSION_PERIOD_CLOSED' }));
   });
+});
 
+describe('assertCommissionPlanEffectiveFrom later months', () => {
   it.each(['APPROVED', 'PAID'] as const)('rejects a %s later month as closed', (status) => {
     expect(() =>
       assertCommissionPlanEffectiveFrom({

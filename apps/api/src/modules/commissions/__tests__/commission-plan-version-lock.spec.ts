@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
-import { expectLockBeforeFirstWrite } from '../../../../../packages/db/test/statement-lock-order.ts';
+import { expectLockBeforeFirstWrite } from '../../../../../../packages/db/test/statement-lock-order.ts';
 import { createCommissionPlanVersionScope } from '../persistence/commission-plan-version-scope.ts';
 import { writeCommissionPlanVersion } from '../use-cases/create-commission-plan-version/create-commission-plan-version.usecase.ts';
 import {

@@ -22,7 +22,10 @@ import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { Idempotency, type IdempotencyInput } from '../../../shared/idempotency.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
-import { listCommissionPlanVersions } from '../queries/commission-plan-versions.query.ts';
+import {
+  CommissionPlanVersionEmployeeNotFoundError,
+  listCommissionPlanVersions,
+} from '../queries/commission-plan-versions.query.ts';
 import {
   CommissionPlanVersionError,
   CreateCommissionPlanVersionUseCase,
@@ -39,6 +42,13 @@ function mapWriteError(error: unknown): never {
   }
   if (error instanceof IdempotencyKeyReusedError) throw new ApiError('IDEMPOTENCY_KEY_REUSED');
   if (error instanceof IdempotencyKeyBusyError) throw new ApiError('IDEMPOTENCY_KEY_IN_PROGRESS');
+  throw error;
+}
+
+function mapReadError(error: unknown): never {
+  if (error instanceof CommissionPlanVersionEmployeeNotFoundError) {
+    throw new ApiError('EMPLOYEE_NOT_FOUND');
+  }
   throw error;
 }
 
@@ -82,10 +92,14 @@ export class CommissionPlanVersionsController {
   ): Promise<CommissionPlanVersionList> {
     if (this.database === null) throw new ApiError('NOT_READY');
     const actor = actorOf(request);
-    return this.database.withTenant(
-      actor.companyId,
-      (tx) => listCommissionPlanVersions(tx, actor.companyId, businessId, employeeId, query),
-      { userId: actor.userId },
-    );
+    try {
+      return await this.database.withTenant(
+        actor.companyId,
+        (tx) => listCommissionPlanVersions(tx, actor.companyId, businessId, employeeId, query),
+        { userId: actor.userId },
+      );
+    } catch (error) {
+      return mapReadError(error);
+    }
   }
 }

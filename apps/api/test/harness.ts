@@ -31,6 +31,10 @@ import { createApp } from '../src/app.ts';
 import { API_LOG_EVENTS } from '../src/shared/log-events.ts';
 import type { FilesRuntime } from '../src/modules/files/index.ts';
 
+export { readCommissionPlanAccess } from '../src/modules/identity/index.ts';
+export { lockEmployeeForUpdate } from '../src/modules/staff/index.ts';
+export { businessTimeZone } from '../src/modules/tenancy/index.ts';
+
 // A real API over a cloned database with real Better Auth sessions. Users are made the way an operator makes them,
 // and every company goes through POST /v1/companies — the production path, never a raw insert.
 const BASE = 'http://api.test';
