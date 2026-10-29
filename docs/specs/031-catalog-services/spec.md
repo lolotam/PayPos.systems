@@ -117,7 +117,10 @@ number" and keeps the future `CatalogReaderPort` adapter trivial.
 New `manage:services:business` and `read:services:business`. Defaults (TODO(spec) SV-Q1): both → owner,
 general_manager, business_manager. Other system roles, including Branch Manager and Device, are forbidden by the PR 7 matrix;
 a `:business` permission is never covered by a branch-scoped membership. A custom human role may receive
-a scoped personal ALLOW under the existing PR 7 policy. The SPEC does not name the catalog permission; the
+a scoped personal ALLOW under the existing PR 7 policy. **Amended by spec 072 SI-Q26 (`PP-81.1`, sub-PR `32b-cat-1p`):** both
+codes become eligible for a personal ALLOW to every human system role (a cashier or a staff role included), never a
+device; the grant carries the scope the granter picks, so a business-wide grant covers these routes for a
+branch-scoped member, while the role defaults above stay as they are. The SPEC does not name the catalog permission; the
 choice follows `manage:employees:business`.
 
 ### Events
