@@ -40,7 +40,19 @@ module-map changes (no new arrow).
    (`app.ts:240`), so untrusted forwarded headers are ignored. The token header is read after the hit, never in a
    pipe, so malformed tokens count. Over the limit: 429 `TOO_MANY_REQUESTS`, `retry-after` from `remaining(key)`, at
    least 1 (`clock-by-card.controller.ts:80`). **Fail-closed:** a `null` limiter, `RateLimiterUnavailableError` or a
-   Redis rejection → 503 `NOT_READY`, before parsing or any database access (`devices.controller.ts:69–74`).
+   Redis rejection from `hit` **or** `remaining` → 503 `NOT_READY`, before parsing or any database access
+   (`devices.controller.ts:69–74`). `remaining()` in `shared/adapters/redis-rate-limiter.ts:78` today trusts the
+   `TTL` reply; it gains the same check as `count()`: a reply that is not an integer throws
+   `RateLimiterUnavailableError` (`-1`/`-2` still mean 0).
+1b. **Per-client limit behind the proxy (Codex P1):** `trustProxy` defaults to `[]` (`app.ts:297`) and
+   `deploy/staging.env.example:53` leaves `TRUSTED_PROXY_CIDRS` empty, so behind Traefik every visitor would share
+   the proxy's address and one bucket. Mirroring the WhatsApp intake (`main.ts:108`): when `NODE_ENV=production`
+   and `TRUSTED_PROXY_CIDRS` is empty, `main.ts` marks the rating-links capability unavailable, logs it once as a
+   capability state, and the rating routes answer 503 `NOT_READY` before admission. `/ready` itself is unchanged, so
+   the rest of the API keeps serving. Setting the real CIDR on staging is a server change and waits on Waleed's yes.
+1c. **No token in the request id (Codex P2):** `genReqId` accepts a client `x-request-id` (`app.ts:236–237`), so a
+   client could send the token there and it would reach logs and the response header. `/v1/ratings/` joins the
+   paths that always get our own id (`app.ts:227`).
 2. **Token transport:** header `x-rating-token` (`RATING_TOKEN_HEADER` in contracts; D-B10, ADR-0011 §4), redacted
    by the logger's `token` suffix (`packages/observability/src/redaction.ts:8–11`); never URL, query or body. Body and
    query are ignored, so no client-supplied id is read (ADR-0011 §1).
@@ -99,7 +111,9 @@ New (N) or edited (E). Contracts: (E) `packages/contracts/src/customers/ratings.
    `persistence/rating-token-hash.adapter.ts`.
 3. Use case (N): `use-cases/opt-out-of-ratings/opt-out-of-ratings.usecase.ts` and its `.usecase.spec.ts`;
    HTTP (N): `http/rating-opt-out.controller.ts`, `http/__tests__/rating-opt-out.controller.spec.ts`.
-4. Wiring (E): `customers.module.ts`, `apps/api/src/app.ts` (`customersClock?`); harness: (E)
+4. Wiring (E): `customers.module.ts`, `apps/api/src/app.ts` (`customersClock?`, the request-id path, the
+   capability flag), `apps/api/src/main.ts` (the proxy capability check), (E)
+   `apps/api/src/shared/adapters/redis-rate-limiter.ts` and its spec (`remaining()` reply check); harness: (E)
    `apps/api/test/harness.ts` (`omitRedis?`, `customersClock?`), (N) `apps/api/test/rating-link.fixture.ts`.
 5. Integration: (N) `__tests__/rating-opt-out.spec.ts`, (N) `__tests__/rating-opt-out-locks.spec.ts`,
    (N) `__tests__/rating-admission.spec.ts`, (N) `__tests__/rating-opt-out-no-redis.spec.ts`.
@@ -119,7 +133,10 @@ database operations; it returns changed paths, reasoning and limits.
 | RT-19 | before and after rating; duplicate POST at a later clock keeps the first time and one audit row; one customer via two businesses' links → one company-wide row; `platform_whatsapp_suppressions` unchanged; nothing writes `NULL` |
 | ADR-0011 §6 Tampered / Cross-tenant (opt-out side) | altered random byte, altered prefix, B's prefix on A's random part, missing header → 404, no change on A or B, no audit; another company's signed-in cookie changes nothing |
 | RT-20 limits | 30 hits/IP/minute across valid, malformed and foreign-prefix tokens; the 31st → bilingual 429 + `retry-after`, no `withTenant` call (`calls.tenant`); two forged `X-Forwarded-For` values share one bucket; `no-store`/`no-referrer` on 204, 404, 429; the token never appears in captured logs |
-| Fail-closed | `omitRedis` harness: 503 `NOT_READY`, no database call; controller unit: `RateLimiterUnavailableError` and a rejected `hit` → 503, use case never called |
+| Fail-closed | `omitRedis` harness: 503 `NOT_READY`, no database call; controller unit: `RateLimiterUnavailableError` and a rejected `hit` or `remaining` → 503, use case never called; adapter unit: a non-integer `TTL` reply throws `RateLimiterUnavailableError` |
+| Proxy (Codex P1) | with a trusted proxy CIDR, two clients with different forwarded addresses get separate buckets (the 31st of one → 429, the other still 204/404); a spoofed `X-Forwarded-For` chain from an untrusted peer shares the peer's bucket; production with empty `TRUSTED_PROXY_CIDRS` → 503 `NOT_READY`, no limiter hit, no database call |
+| Request id (Codex P2) | a token sent as `x-request-id` never appears in the response `x-request-id` header or in captured logs; the route gets a generated id |
+| Expiry under the lock (Codex P2) | the token expires while another connection holds the customer lock (`createGate`); when the lock is released → 404, no update, no audit; the same for an already opted-out customer |
 | Locks | opt-out completes while another connection holds `FOR KEY SHARE` on the customer and `FOR UPDATE` on the request; it blocks behind a held `FOR NO KEY UPDATE` (`waitForBlockedAppSession`, `createGate`), then keeps the committed first time |
 | Contracts / coverage | OpenAPI publishes the path, header and responses; route-access coverage passes with `@Public()` |
 
@@ -142,7 +159,9 @@ with `sha256(knownToken)`) and `rating-concurrency-fixtures.ts` by relative path
 ## Size, lane, implementer, review
 
 - **Size (low confidence):** ~330–450 production lines, ~600–800 test lines, ~26 files; above the spec's 58-2 row.
-- **Lane:** no migration → a normal lane. **Implementer:** Kimi k3.1-pro#high via opencode; corrections stay on Kimi.
+- **Lane:** no migration → a normal lane. **Implementer (PP-69, PP-84.1):** MiniMax implements first and Kimi K3.1
+  Pro fixes (thinking `high`), both dispatched through T3 `delegate_task` (T3's OpenCode provider); Claude Code is the
+  fallback. Never a shell `opencode run`.
 - **Design advisors: yes, before implementation.** Spec §B.5 names them only for 58-1 and 59b-1, but this is the first
   unauthenticated tenant write and fixes the lock mode 59b-2 inherits; Astra's findings are folded in first.
 - **After:** lead diff → `clean-code-guard`/`test-guard` → Astra security review → five GitHub reviewers and CI on
