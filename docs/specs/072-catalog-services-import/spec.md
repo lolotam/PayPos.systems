@@ -345,10 +345,10 @@ Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's p
     through the business route. A branch that no longer wants a shared category hides it (SI-Q22).
   - **Enabling another branch's category (SI-Q20).** A new tenant table `service_category_branch_settings`
     (`32b-cat-1b`): `id uuid` (UUID v7) with the primary key `(company_id, id)` (ADR-0007) and the unique business key
-    `service_category_branch_settings_branch_category_uq` on `(company_id, branch_id, category_id)`, which also serves
-    the composite foreign key `(company_id, business_id, branch_id)` → `branches (company_id, business_id, id)` (`branches_company_business_id_key`)
-    through its leading columns; the
-    composite foreign key `(company_id, business_id, category_id)` → `service_categories (company_id, business_id, id)`
+    `service_category_branch_settings_branch_category_uq` on `(company_id, branch_id, category_id)`; the composite
+    foreign key `(company_id, business_id, branch_id)` → `branches (company_id, business_id, id)`
+    (`branches_company_business_id_key`) has its own index `service_category_branch_settings_branch_idx` on
+    `(company_id, business_id, branch_id)`, since the unique key's column order cannot serve it; the composite foreign key `(company_id, business_id, category_id)` → `service_categories (company_id, business_id, id)`
     has its own index `service_category_branch_settings_category_idx` on `(company_id, business_id, category_id)`.
     Carrying `business_id` keeps the branch and the category in the same business. `state text NOT NULL CHECK (state IN
     ('ENABLED', 'HIDDEN'))`, `updated_at` and `revision`. RLS `company_id = app_company_id()`, a negative isolation
