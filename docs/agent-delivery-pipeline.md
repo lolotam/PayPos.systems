@@ -84,7 +84,7 @@
 
 ## 5. The initial implementation lane
 
-- The initial implementation runs on the **built-in delegation facility of the agent runtime**, on the user-enabled **MiniMax-M3.1-Flash** lane, T3's OpenCode provider (PP-69.1, PP-84.1), under the transport rule of §0.
+- The initial implementation runs on the **built-in delegation facility of the agent runtime**, on the user-enabled **MiniMax-M3.1-Flash** lane, T3's OpenCode provider (PP-69.1, PP-84.1). The approved `thinking` variant is not offered for `minimax-coding-plan/MiniMax-M3.1-Flash` in T3's OpenCode catalog (2026-10-30), so it runs at its default there; Waleed decides whether another catalog entry should carry it, under the transport rule of §0.
 - The owner confirmed this directly: *«sorry you dot need to delegate open code minimax 3.1 you have already the delegation tool here and i already login fore minimmax provider so the delgation model will be minimax m3.1 flash»*.
 - **No external process** stands in for that lane (see §0), no new login, no new API keys, no invented model id or variant.
 - The implementer authors the code, tests, contracts, migrations and RLS policies inside a **bounded, declared scope**. It does not publish anything, does not touch the server, and does not read secrets.
