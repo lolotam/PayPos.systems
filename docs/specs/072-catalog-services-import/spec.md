@@ -393,7 +393,9 @@ Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's p
     category does not advance the category's revision, so the use case recounts under the category lock and refuses a
     different count with `SERVICE_CATEGORY_COUNT_CHANGED` (409), and the screen reloads the count and asks again.
   - `POST /v1/businesses/{businessId}/services/{serviceId}/close` and `…/reopen` `{ expected_revision }` → 200 the
-    service (`32b-cat-2`).
+    service (`32b-cat-2`); for a caller that holds `close:services:business` but not `read:services:business`, the
+    response carries the same limited fields as the reads (id, names, category, closed state, revision), never the
+    price, duration or commission fields, and `32b-cat-2` tests that response for a default branch manager.
   - Errors: `SERVICE_CATEGORY_NAME_INVALID` (422), `SERVICE_CATEGORY_NAME_TAKEN` (409, the category key is in use, open
     or closed), `SERVICE_CATEGORY_NOT_FOUND` (404, also for another business or tenant), `SERVICE_CATEGORY_ALREADY_CLOSED`
     and `SERVICE_CATEGORY_NOT_CLOSED` (409), `SERVICE_ALREADY_CLOSED` and `SERVICE_NOT_CLOSED` (409),
