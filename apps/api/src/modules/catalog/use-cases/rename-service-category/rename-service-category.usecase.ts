@@ -32,7 +32,8 @@ export interface RenameBranchServiceCategoryCommand extends ServiceCategoryActor
 
 /** طلب التعديل من أي من المسارين. */
 export type RenameServiceCategoryRequest =
-  RenameServiceCategoryCommand | RenameBranchServiceCategoryCommand;
+  | RenameServiceCategoryCommand
+  | RenameBranchServiceCategoryCommand;
 
 /** يعدّل تصنيف خدمة: الأسماء والمشاركة، بقفل الصف أولاً، وكل تغيير يرفع النسخة ويسجل في التدقيق. */
 export class RenameServiceCategoryUseCase {

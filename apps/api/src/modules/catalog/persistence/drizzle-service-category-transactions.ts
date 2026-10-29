@@ -31,8 +31,7 @@ async function load(
   businessId: string,
   categoryId: string,
 ): Promise<ServiceCategoryRecord | null> {
-  const [row] =
-    await tx.execute<Row>(sql`SELECT id,business_id,name_en,name_ar,owner_branch_id,visibility,
+  const [row] = await tx.execute<Row>(sql`SELECT id,business_id,name_en,name_ar,owner_branch_id,visibility,
     closed_at,revision,created_at,updated_at FROM service_categories
     WHERE company_id=${companyId} AND business_id=${businessId} AND id=${categoryId} FOR UPDATE`);
   if (row === undefined) return null;
@@ -50,7 +49,11 @@ async function load(
   };
 }
 
-async function branchBusiness(tx: Tx, companyId: string, branchId: string): Promise<string | null> {
+async function branchBusiness(
+  tx: Tx,
+  companyId: string,
+  branchId: string,
+): Promise<string | null> {
   const [row] = await tx.execute<{ business_id: string }>(sql`
     SELECT business_id FROM branches WHERE company_id=${companyId} AND id=${branchId}`);
   return row?.business_id ?? null;

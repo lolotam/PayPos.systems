@@ -38,7 +38,8 @@ export interface CreateBranchServiceCategoryCommand extends ServiceCategoryActor
 
 /** طلب الإنشاء من أي من المسارين. */
 export type CreateServiceCategoryRequest =
-  CreateServiceCategoryCommand | CreateBranchServiceCategoryCommand;
+  | CreateServiceCategoryCommand
+  | CreateBranchServiceCategoryCommand;
 
 /** ينشئ تصنيف خدمة على مستوى النشاط أو من فرع، ويسجله بالتدقيق؛ بلا أثر مالي وبلا حدث. */
 export class CreateServiceCategoryUseCase {
@@ -84,11 +85,6 @@ export class CreateServiceCategoryUseCase {
         this.clock.now(),
       );
     }
-    return newBusinessServiceCategory(
-      names,
-      this.ids.newId(),
-      command.businessId,
-      this.clock.now(),
-    );
+    return newBusinessServiceCategory(names, this.ids.newId(), command.businessId, this.clock.now());
   }
 }

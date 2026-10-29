@@ -208,14 +208,13 @@ it('cancel:service-lines:branch defaults to the four managers and a device canno
   const staff = SYSTEM_ROLES.find((role) => role.code === 'staff');
   const staffPolicy = systemRolePolicy(staff?.id ?? '', 'global')?.permissions ?? [];
   expect(staffPolicy.includes('cancel:service-lines:branch')).toBe(true);
-  expect(
-    (ROLE_DEFAULTS['read:service-sessions:branch'] as readonly string[]).includes('staff'),
-  ).toBe(false);
-  expect(
-    staffPolicy.filter(
-      (code) => code === 'cancel:service-lines:branch' || code === 'read:service-sessions:branch',
-    ),
-  ).toEqual(['read:service-sessions:branch', 'cancel:service-lines:branch']);
+  expect((ROLE_DEFAULTS['read:service-sessions:branch'] as readonly string[]).includes('staff')).toBe(
+    false,
+  );
+  expect(staffPolicy.filter((code) => code === 'cancel:service-lines:branch' || code === 'read:service-sessions:branch')).toEqual([
+    'read:service-sessions:branch',
+    'cancel:service-lines:branch',
+  ]);
 });
 
 it('change:service-line-performers:branch defaults to the four managers and devices cannot hold it', () => {
@@ -265,9 +264,7 @@ it('AL-Q1 manage:alert-rules:business defaults to the three managers, is delegab
   const defaults = ['owner', 'general_manager', 'business_manager'];
   const holders: readonly string[] = ROLE_DEFAULTS['manage:alert-rules:business'];
   expect(holders).toEqual(defaults);
-  expect(OWNER_GRANTED_PERMISSIONS as readonly string[]).not.toContain(
-    'manage:alert-rules:business',
-  );
+  expect(OWNER_GRANTED_PERMISSIONS as readonly string[]).not.toContain('manage:alert-rules:business');
   for (const role of SYSTEM_ROLES) {
     expect(
       systemRolePolicy(role.id, 'global')?.permissions.includes('manage:alert-rules:business'),

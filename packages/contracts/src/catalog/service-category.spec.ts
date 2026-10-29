@@ -11,10 +11,9 @@ import {
 const id = '01920000-0000-7000-8000-000000000001';
 
 it('requires both names, trims their edges, and bounds them at 100 characters', () => {
-  expect(createServiceCategoryInput.parse({ name_en: '  Hair  ', name_ar: '  صبغة  ' })).toEqual({
-    name_en: 'Hair',
-    name_ar: 'صبغة',
-  });
+  expect(
+    createServiceCategoryInput.parse({ name_en: '  Hair  ', name_ar: '  صبغة  ' }),
+  ).toEqual({ name_en: 'Hair', name_ar: 'صبغة' });
   for (const field of ['name_en', 'name_ar'] as const) {
     expect(
       createServiceCategoryInput.safeParse({
@@ -57,9 +56,9 @@ it('requires visibility only on branch create and expected_revision on rename', 
       visibility: 'BRANCH',
     }).visibility,
   ).toBe('BRANCH');
-  expect(renameServiceCategoryInput.safeParse({ name_en: 'Hair', name_ar: 'صبغة' }).success).toBe(
-    false,
-  );
+  expect(
+    renameServiceCategoryInput.safeParse({ name_en: 'Hair', name_ar: 'صبغة' }).success,
+  ).toBe(false);
 });
 
 it('defaults the list to open, validates its cursor and limits, and parses its page', () => {

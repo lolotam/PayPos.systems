@@ -129,19 +129,13 @@ export function systemRoleGrantAllowedSql(memberAlias: string, grantAlias: strin
 }
 
 /** يستبعد ALLOW المحظور للدور العالمي بما فيه الجهاز؛ يحفظ DENY والتاريخ ويقيد تفويض مدير النشاط بنطاقه. تحديد permissionCode يقلص المنح المقروءة إلى كود واحد ويحصر SQL فيه أيضاً دون تغيير سياسة الأدوار. */
-export function systemRoleOverrideAllowedSql(
-  memberAlias: string,
-  overrideAlias: string,
-  permissionCode?: Permission,
-): SQL {
+export function systemRoleOverrideAllowedSql(memberAlias: string, overrideAlias: string, permissionCode?: Permission): SQL {
   const m = sql.identifier(memberAlias),
     o = sql.identifier(overrideAlias);
   const human = SYSTEM_ROLES.filter((r) => r.code !== 'device');
   const device = SYSTEM_ROLES.find((r) => r.code === 'device');
   const cells = human.map((role) => {
-    const codes = (systemRolePolicy(role.id, 'global')?.permissions ?? []).filter(
-      (code) => permissionCode === undefined || code === permissionCode,
-    );
+    const codes = (systemRolePolicy(role.id, 'global')?.permissions ?? []).filter((code) => permissionCode === undefined || code === permissionCode);
     return sql`(${m}.role_id = ${role.id}::uuid AND ${
       codes.length === 0
         ? sql`false`

@@ -60,10 +60,7 @@ export interface ServiceCategoryRenamePlan {
  * @returns الاسم المطبّع
  */
 export function normalizeServiceCategoryName(name: string): string {
-  return name
-    .replace(/[ \t\n\v\f\r]+/g, ' ')
-    .replace(/^ +/, '')
-    .replace(/ +$/, '');
+  return name.replace(/[ \t\n\v\f\r]+/g, ' ').replace(/^ +/, '').replace(/ +$/, '');
 }
 
 /**

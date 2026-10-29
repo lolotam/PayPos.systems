@@ -47,12 +47,15 @@ export function catalogProviders(
     },
     {
       provide: UpdateServiceUseCase,
-      useValue: transactions === null ? null : new UpdateServiceUseCase(transactions, systemClock),
+      useValue:
+        transactions === null ? null : new UpdateServiceUseCase(transactions, systemClock),
     },
     {
       provide: CreateServiceCategoryUseCase,
       useValue:
-        categories === null ? null : new CreateServiceCategoryUseCase(categories, ids, systemClock),
+        categories === null
+          ? null
+          : new CreateServiceCategoryUseCase(categories, ids, systemClock),
     },
     {
       provide: RenameServiceCategoryUseCase,

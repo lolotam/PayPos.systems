@@ -37,13 +37,7 @@ const branchRequest = (
 ): ServiceCategoryRenameRequest =>
   visibility === undefined
     ? { names: namesInput, expected_revision: 1, scope: 'BRANCH', branch_id: ownBranch }
-    : {
-        names: namesInput,
-        visibility,
-        expected_revision: 1,
-        scope: 'BRANCH',
-        branch_id: ownBranch,
-      };
+    : { names: namesInput, visibility, expected_revision: 1, scope: 'BRANCH', branch_id: ownBranch };
 
 function record(overrides: Partial<ServiceCategoryRecord> = {}): ServiceCategoryRecord {
   return {
@@ -150,9 +144,9 @@ describe('creating a category', () => {
 
 describe('renaming a category at the business scope', () => {
   it('refuses a stale revision', () => {
-    expect(() => planServiceCategoryRename(record({ revision: 2 }), businessRequest(), at)).toThrow(
-      'SERVICE_CATEGORY_REVISION_CONFLICT',
-    );
+    expect(() =>
+      planServiceCategoryRename(record({ revision: 2 }), businessRequest(), at),
+    ).toThrow('SERVICE_CATEGORY_REVISION_CONFLICT');
   });
 
   it('advances the revision and the timestamp on a rename', () => {
@@ -187,9 +181,9 @@ describe('renaming a category at the business scope', () => {
   });
 
   it('never makes a shared category private again', () => {
-    expect(() => planServiceCategoryRename(record(), businessRequest(names, 'BRANCH'), at)).toThrow(
-      'SERVICE_CATEGORY_VISIBILITY_FIXED',
-    );
+    expect(() =>
+      planServiceCategoryRename(record(), businessRequest(names, 'BRANCH'), at),
+    ).toThrow('SERVICE_CATEGORY_VISIBILITY_FIXED');
   });
 });
 

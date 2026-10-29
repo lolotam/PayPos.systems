@@ -89,6 +89,7 @@ export async function listServiceCategories(
   const last = rows[query.limit - 1];
   return serviceCategoryPage.parse({
     items,
-    next_cursor: rows.length > query.limit && last !== undefined ? encodeCursor(last) : null,
+    next_cursor:
+      rows.length > query.limit && last !== undefined ? encodeCursor(last) : null,
   });
 }

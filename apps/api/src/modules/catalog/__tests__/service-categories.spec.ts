@@ -37,11 +37,11 @@ const branchPost = (body: object, branch = f.branch) =>
     body,
   });
 const branchPatch = (id: string, body: object, branch = f.branch) =>
-  f.h.send('PATCH', `/v1/businesses/${f.business}/branches/${branch}/service-categories/${id}`, {
-    cookie: f.cookie,
-    company: f.company,
-    body,
-  });
+  f.h.send(
+    'PATCH',
+    `/v1/businesses/${f.business}/branches/${branch}/service-categories/${id}`,
+    { cookie: f.cookie, company: f.company, body },
+  );
 
 it('SC-01 needs a session and the permission before anything is written', async () => {
   expect(
@@ -117,9 +117,9 @@ it('SC-05 refuses a stale revision and writes nothing', async () => {
   const stale = await patch(created.id, { ...namesFor('Stale revision v3'), expected_revision: 1 });
   expect(stale.status).toBe(409);
   expect(stale.body).toMatchObject({ code: 'SERVICE_CATEGORY_REVISION_CONFLICT' });
-  expect(await f.h.owner`SELECT name_en FROM service_categories WHERE id=${created.id}`).toEqual([
-    { name_en: 'Stale revision v2' },
-  ]);
+  expect(
+    await f.h.owner`SELECT name_en FROM service_categories WHERE id=${created.id}`,
+  ).toEqual([{ name_en: 'Stale revision v2' }]);
 });
 
 it('SC-06 shares a private category and never makes a shared one private again', async () => {
@@ -165,10 +165,7 @@ it('SC-07 a branch creates a category that records it as the owner', async () =>
     owner_branch_id: f.branch,
     revision: 1,
   });
-  const shared = await branchPost({
-    ...namesFor('Branch shared category'),
-    visibility: 'BUSINESS',
-  });
+  const shared = await branchPost({ ...namesFor('Branch shared category'), visibility: 'BUSINESS' });
   expect(shared.status).toBe(201);
   expect(serviceCategory.parse(shared.body)).toMatchObject({
     visibility: 'BUSINESS',
@@ -198,9 +195,9 @@ it('SC-08 a branch renames its own private category and refuses a shared one', a
   });
   expect(refused.status).toBe(409);
   expect(refused.body).toMatchObject({ code: 'SERVICE_CATEGORY_VISIBILITY_FIXED' });
-  expect(await f.h.owner`SELECT name_en FROM service_categories WHERE id=${shared.id}`).toEqual([
-    { name_en: 'Branch shared target' },
-  ]);
+  expect(
+    await f.h.owner`SELECT name_en FROM service_categories WHERE id=${shared.id}`,
+  ).toEqual([{ name_en: 'Branch shared target' }]);
 });
 
 it('SC-09 a branch does not rename a private category of another branch (SI-Q25)', async () => {
@@ -219,9 +216,9 @@ it('SC-09 a branch does not rename a private category of another branch (SI-Q25)
   });
   expect(refused.status).toBe(409);
   expect(refused.body).toMatchObject({ code: 'SERVICE_CATEGORY_VISIBILITY_FIXED' });
-  expect(await f.h.owner`SELECT name_en FROM service_categories WHERE id=${other.id}`).toEqual([
-    { name_en: 'Other branch category' },
-  ]);
+  expect(
+    await f.h.owner`SELECT name_en FROM service_categories WHERE id=${other.id}`,
+  ).toEqual([{ name_en: 'Other branch category' }]);
 });
 
 it('SC-10 a category of another business or another tenant is not found', async () => {
@@ -245,9 +242,9 @@ it('SC-10 a category of another business or another tenant is not found', async 
       input,
     }),
   ).rejects.toThrow('SERVICE_CATEGORY_NOT_FOUND');
-  expect(await f.h.owner`SELECT name_en FROM service_categories WHERE id=${created.id}`).toEqual([
-    { name_en: 'Isolation category' },
-  ]);
+  expect(
+    await f.h.owner`SELECT name_en FROM service_categories WHERE id=${created.id}`,
+  ).toEqual([{ name_en: 'Isolation category' }]);
 });
 
 it('SC-11 the branch route reads the branch business from the database, not the client', async () => {
