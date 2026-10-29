@@ -191,7 +191,7 @@ provider-owned reader and bound at the composition root, the way the root-bound 
 | the employee's business and dated branch attachments (FR-018b, FR-033) | `staff` |
 | customer full names (D-20) | `customers` |
 | tips and package sales for the bootstrap (ADR-0041 §6) | `orders` |
-| the names of the branches where the work was done, for the statement export (CM-55f, `CommissionBranchNamesReader`, added by 56-1b; read live by id until CS-Q35 settles the freeze, #718) | `tenancy` |
+| the names of the branches where the work was done, read once at approval and frozen in the statement lines (CS-Q35 settled: freeze; 56-1b-fz removed 56-1b's live `CommissionBranchNamesReader`, #718; the approval writer 53-2 names the port) | `tenancy` |
 
 **Lines and salaries are not a binding.** Spec 059 D-15 (decided 2026-10-25) replays the retained `ServiceSessionRecorded`,
 `ServiceSessionLinesAdded`, `ServiceLineChanged` and `SalaryChanged` events from the outbox through a typed replay facade
@@ -232,7 +232,7 @@ CLAUDE.md §6 and CLAUDE.architecture.md §7 get a one-line pointer to this sect
 **Addendum (2026-10-29, sub-PR 56-1b): a third read use case.** `apps/worker/src/modules/commissions/use-cases/read-commission-statement-export/`
 is the third name. It is the worker's document source for the statement export (FR-050, CM-55), not an HTTP read endpoint,
 and it computes the per-employee totals through `domain/commission-statement-totals.ts`, so it cannot live in `queries/`.
-It follows every rule above: it depends on reader ports only (the export reader and `CommissionBranchNamesReader`), it
+It follows every rule above: it depends on reader ports only (the export reader; 56-1b also bound `CommissionBranchNamesReader`, which 56-1b-fz removed when CS-Q35 froze the branch name in the rows), it
 runs SELECT statements only in one `withTenant` transaction, and it writes no row, audit or outbox entry. It adopts the
 `{ readOnly: true }` option when 50-5 adds it, like the other two.
 
