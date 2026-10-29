@@ -19,3 +19,13 @@ export const PACKAGE_TYPE_COLUMN_GRANTS = [
   'package_types.updated_at:pospay_app:UPDATE',
   'package_types.validity_days:pospay_app:UPDATE',
 ];
+
+// الهوية والنشاط وفرع الإنشاء ثابتة؛ المشاركة والإغلاق والاسمان والنسخة فقط قابلة للتحديث.
+export const SERVICE_CATEGORY_COLUMN_GRANTS = [
+  'service_categories.closed_at:pospay_app:UPDATE',
+  'service_categories.name_ar:pospay_app:UPDATE',
+  'service_categories.name_en:pospay_app:UPDATE',
+  'service_categories.revision:pospay_app:UPDATE',
+  'service_categories.updated_at:pospay_app:UPDATE',
+  'service_categories.visibility:pospay_app:UPDATE',
+];

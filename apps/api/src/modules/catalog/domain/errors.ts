@@ -51,3 +51,24 @@ export class ServiceError extends Error {
     this.name = 'ServiceError';
   }
 }
+
+/** رفض آمن لإنشاء تصنيف خدمة أو تعديله؛ الكود وحده يعبر لطبقة الـ HTTP. */
+export class ServiceCategoryError extends Error {
+  /**
+   * يثبت سبب الرفض دون تسريب صف قاعدة البيانات أو خطأ السائق.
+   *
+   * @param code سبب الرفض المسمّى
+   */
+  constructor(
+    readonly code:
+      | 'SERVICE_CATEGORY_NAME_INVALID'
+      | 'SERVICE_CATEGORY_NAME_TAKEN'
+      | 'SERVICE_CATEGORY_NOT_FOUND'
+      | 'SERVICE_CATEGORY_VISIBILITY_FIXED'
+      | 'SERVICE_CATEGORY_REVISION_CONFLICT'
+      | 'TRANSACTION_RETRY_REQUIRED',
+  ) {
+    super(code);
+    this.name = 'ServiceCategoryError';
+  }
+}

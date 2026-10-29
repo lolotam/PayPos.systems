@@ -230,6 +230,19 @@ const expectedSchemas = [
   'ServiceLinePerformerChangesPage',
 ].sort();
 
+const serviceCategorySchemaNames = [
+  'ServiceCategoryVisibility',
+  'CreateServiceCategoryInput',
+  'CreateBranchServiceCategoryInput',
+  'RenameServiceCategoryInput',
+  'ServiceCategory',
+  'ServiceCategoryListItem',
+  'ServiceCategoryCursorData',
+  'ServiceCategoryCursor',
+  'ServiceCategoryPage',
+  'ServiceCategoryListQuery',
+];
+
 const commissionPlanSchemaNames = [
   'CommissionPlanCalc',
   'CommissionPlanComponent',
@@ -256,7 +269,7 @@ describe('openapi/openapi.json', () => {
       .schemas;
     expect(Object.keys(schemas).sort()).toEqual(
       [
-        ...expectedSchemas.concat(commissionPlanSchemaNames),
+        ...expectedSchemas.concat(commissionPlanSchemaNames, serviceCategorySchemaNames),
         'ServiceSessionDayQuery',
         'ServiceSessionDayPerformer',
         'ServiceSessionDayLine',

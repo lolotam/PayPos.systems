@@ -1,9 +1,11 @@
 import { packageTypeSchemas } from './package-type.js';
 import { packageServiceOptionSchemas } from './package-service-option.js';
+import { serviceCategorySchemas } from './service-category.js';
 import { serviceSchemas } from './service.js';
 
 export const catalogSchemas = [
   ...serviceSchemas,
+  ...serviceCategorySchemas,
   ...packageTypeSchemas,
   ...packageServiceOptionSchemas,
 ];
@@ -27,9 +29,98 @@ const serviceId = {
   schema: { type: 'string', format: 'uuid' },
 };
 const packageTypeId = { ...serviceId, name: 'packageTypeId' };
+const categoryId = { ...serviceId, name: 'categoryId' };
+const branchId = { ...serviceId, name: 'branchId' };
 const errors = { description: 'Bilingual refusal', content: json('ErrorEnvelope') };
 
 export const catalogPaths = {
+  '/v1/businesses/{businessId}/service-categories': {
+    get: {
+      operationId: 'listServiceCategories',
+      description:
+        'Cursor-paginated categories in normalized English-name order. status is open, closed or all (default open). Requires read:service-categories:business and the catalog feature.',
+      parameters: [
+        ...parameters,
+        {
+          in: 'query',
+          name: 'status',
+          schema: { type: 'string', enum: ['open', 'closed', 'all'], default: 'open' },
+        },
+        { in: 'query', name: 'cursor', schema: { type: 'string', maxLength: 2048 } },
+        {
+          in: 'query',
+          name: 'limit',
+          schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+        },
+      ],
+      responses: {
+        '200': { description: 'Service category page', content: json('ServiceCategoryPage') },
+        default: errors,
+      },
+    },
+    post: {
+      operationId: 'createServiceCategory',
+      description:
+        'Creates a BUSINESS category with no owner branch. Both names are required. Requires manage:service-categories:business and the catalog feature. Duplicate normalized English names return SERVICE_CATEGORY_NAME_TAKEN (409).',
+      parameters,
+      requestBody: { required: true, content: json('CreateServiceCategoryInput') },
+      responses: {
+        '201': { description: 'Created category', content: json('ServiceCategory') },
+        '404': errors,
+        '409': errors,
+        '422': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/service-categories/{categoryId}': {
+    patch: {
+      operationId: 'renameServiceCategory',
+      description:
+        'Renames any category of the business, including a closed one, against expected_revision. visibility may only change BRANCH to BUSINESS. Requires manage:service-categories:business and the catalog feature.',
+      parameters: [...parameters, categoryId],
+      requestBody: { required: true, content: json('RenameServiceCategoryInput') },
+      responses: {
+        '200': { description: 'Renamed or shared category', content: json('ServiceCategory') },
+        '404': errors,
+        '409': errors,
+        '422': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/branches/{branchId}/service-categories': {
+    post: {
+      operationId: 'createBranchServiceCategory',
+      description:
+        'Creates a category owned by the route branch, shared BUSINESS or private BRANCH. The guard and persistence resolve the branch business from the database, never from the client. Requires manage:service-categories:branch and the catalog feature.',
+      parameters: [...parameters, branchId],
+      requestBody: { required: true, content: json('CreateBranchServiceCategoryInput') },
+      responses: {
+        '201': { description: 'Created branch-owned category', content: json('ServiceCategory') },
+        '404': errors,
+        '409': errors,
+        '422': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/branches/{branchId}/service-categories/{categoryId}': {
+    patch: {
+      operationId: 'renameBranchServiceCategory',
+      description:
+        'Renames only a private category owned by the route branch, or shares it by changing visibility to BUSINESS. A shared category or any other visibility change returns SERVICE_CATEGORY_VISIBILITY_FIXED (409). Requires manage:service-categories:branch and the catalog feature.',
+      parameters: [...parameters, branchId, categoryId],
+      requestBody: { required: true, content: json('RenameServiceCategoryInput') },
+      responses: {
+        '200': { description: 'Renamed or shared category', content: json('ServiceCategory') },
+        '404': errors,
+        '409': errors,
+        '422': errors,
+        default: errors,
+      },
+    },
+  },
   '/v1/businesses/{businessId}/services': {
     get: {
       operationId: 'listServices',

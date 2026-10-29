@@ -391,8 +391,8 @@ both owners' picks on SI-Q14 to SI-Q16 (2026-10-29).
   - **Writes added.** `POST …/branches/{branchId}/service-categories` `{ name_en, name_ar, visibility }` → 201
     (`32b-cat-1`). The branch `PATCH` on a private category owned by that branch accepts `{ name_en, name_ar,
     visibility, expected_revision }`, where `visibility` may only become `BUSINESS` (`32b-cat-1`); the business `PATCH`
-    accepts the same `visibility` change on any private category. Any other visibility change, and a branch rename of a
-    shared category, is refused with `SERVICE_CATEGORY_VISIBILITY_FIXED` (409). So the `pospay_app` column UPDATE grant
+    accepts the same `visibility` change on any private category. Any other visibility change, a branch rename of a
+    shared category, and a branch rename of another branch's private category (SI-Q25, PP-79.1), is refused with `SERVICE_CATEGORY_VISIBILITY_FIXED` (409). So the `pospay_app` column UPDATE grant
     on `service_categories` adds `visibility` (never `owner_branch_id`, which is fixed at creation), and the grants
     test covers it. `PUT …/branches/{branchId}/service-categories/{categoryId}/state` `{ state, expected_revision }`
     → 200 (`32b-cat-1b`): `expected_revision` is `null` when the branch has no settings row yet (the first write

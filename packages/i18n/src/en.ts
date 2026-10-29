@@ -17,7 +17,7 @@ import { enPasskeyAdmin } from './passkey-admin.js';
 import { personalStaffEn } from './personal-staff-catalog.js';
 import { salaryEn } from './salary-catalog.js';
 import { staffLoginEn } from './staff-login-catalog.js';
-import { catalogServicesEn, serviceErrorsEn } from './catalog-services.js';
+import { catalogServicesEn, catalogServiceErrorsEn } from './catalog-services.js';
 import { employeeIbanEn, employeeIbanErrorsEn } from './employee-iban-catalog.js';
 import { scheduleShellEn } from './schedule-shell-catalog.js'; import { employeeDefaultHoursEn } from './employee-default-hours-catalog.js'; import { employeeNumberErrorsEn } from './employee-number-catalog.js';
 import { employeeNumberAdminEn } from './employee-number-admin-catalog.js';
@@ -216,7 +216,7 @@ export const en = {
     ...employeeNumberErrorsEn,
     EMPLOYEE_CARD_CODE_UNAVAILABLE: "This card code can't be used. Choose another code.",
     ...employeeImportErrorsEn,
-    ...serviceErrorsEn,
+    ...catalogServiceErrorsEn,
     ALERT_RULE_INVALID: 'A value is outside what this alert kind allows (minutes, roles or channels).',
     ...packageTypeErrorsEn,
     ...discountApprovalErrorsEn,

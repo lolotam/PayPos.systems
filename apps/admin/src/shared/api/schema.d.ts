@@ -1666,6 +1666,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/service-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Cursor-paginated categories in normalized English-name order. status is open, closed or all (default open). Requires read:service-categories:business and the catalog feature. */
+        get: operations["listServiceCategories"];
+        put?: never;
+        /** @description Creates a BUSINESS category with no owner branch. Both names are required. Requires manage:service-categories:business and the catalog feature. Duplicate normalized English names return SERVICE_CATEGORY_NAME_TAKEN (409). */
+        post: operations["createServiceCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/service-categories/{categoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Renames any category of the business, including a closed one, against expected_revision. visibility may only change BRANCH to BUSINESS. Requires manage:service-categories:business and the catalog feature. */
+        patch: operations["renameServiceCategory"];
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Creates a category owned by the route branch, shared BUSINESS or private BRANCH. The guard and persistence resolve the branch business from the database, never from the client. Requires manage:service-categories:branch and the catalog feature. */
+        post: operations["createBranchServiceCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-categories/{categoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Renames only a private category owned by the route branch, or shares it by changing visibility to BUSINESS. A shared category or any other visibility change returns SERVICE_CATEGORY_VISIBILITY_FIXED (409). Requires manage:service-categories:branch and the catalog feature. */
+        patch: operations["renameBranchServiceCategory"];
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/services": {
         parameters: {
             query?: never;
@@ -4201,6 +4270,63 @@ export interface components {
         ServiceListQuery: {
             /** Format: uuid */
             cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        /** @enum {string} */
+        ServiceCategoryVisibility: "BUSINESS" | "BRANCH";
+        CreateServiceCategoryInput: {
+            name_en: string;
+            name_ar: string;
+        };
+        CreateBranchServiceCategoryInput: {
+            name_en: string;
+            name_ar: string;
+            visibility: components["schemas"]["ServiceCategoryVisibility"];
+        };
+        RenameServiceCategoryInput: {
+            name_en: string;
+            name_ar: string;
+            visibility?: components["schemas"]["ServiceCategoryVisibility"];
+            expected_revision: number;
+        };
+        ServiceCategory: {
+            /** Format: uuid */
+            id: string;
+            name_en: string;
+            name_ar: string;
+            visibility: components["schemas"]["ServiceCategoryVisibility"];
+            /** Format: uuid */
+            owner_branch_id: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            revision: number;
+        };
+        ServiceCategoryListItem: {
+            /** Format: uuid */
+            id: string;
+            name_en: string;
+            name_ar: string;
+            visibility: components["schemas"]["ServiceCategoryVisibility"];
+            /** Format: uuid */
+            owner_branch_id: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            revision: number;
+        };
+        ServiceCategoryCursorData: (string)[];
+        ServiceCategoryCursor: string;
+        ServiceCategoryPage: {
+            items: components["schemas"]["ServiceCategoryListItem"][];
+            next_cursor: components["schemas"]["ServiceCategoryCursor"] | null;
+        };
+        ServiceCategoryListQuery: {
+            /**
+             * @default open
+             * @enum {string}
+             */
+            status: "open" | "closed" | "all";
+            cursor?: components["schemas"]["ServiceCategoryCursor"];
             /** @default 20 */
             limit: number;
         };
@@ -12788,6 +12914,303 @@ export interface operations {
                 };
             };
             /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listServiceCategories: {
+        parameters: {
+            query?: {
+                status?: "open" | "closed" | "all";
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service category page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategoryPage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createServiceCategory: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateServiceCategoryInput"];
+            };
+        };
+        responses: {
+            /** @description Created category */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategory"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    renameServiceCategory: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameServiceCategoryInput"];
+            };
+        };
+        responses: {
+            /** @description Renamed or shared category */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategory"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createBranchServiceCategory: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBranchServiceCategoryInput"];
+            };
+        };
+        responses: {
+            /** @description Created branch-owned category */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategory"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    renameBranchServiceCategory: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameServiceCategoryInput"];
+            };
+        };
+        responses: {
+            /** @description Renamed or shared category */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategory"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
             default: {
                 headers: {
                     [name: string]: unknown;

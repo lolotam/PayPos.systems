@@ -18,7 +18,7 @@ import { personalStaffAr } from './personal-staff-catalog.js';
 import { salaryAr } from './salary-catalog.js';
 import { staffLoginAr } from './staff-login-catalog.js';
 import { permissionCodesAr } from './permission-codes-catalog.js';
-import { catalogServicesAr, serviceErrorsAr } from './catalog-services.js';
+import { catalogServicesAr, catalogServiceErrorsAr } from './catalog-services.js';
 import { employeeIbanAr, employeeIbanErrorsAr } from './employee-iban-catalog.js';
 import { scheduleShellAr } from './schedule-shell-catalog.js';
 import { employeeDefaultHoursAr } from './employee-default-hours-catalog.js';
@@ -214,7 +214,7 @@ export const ar: Catalog = {
     ...employeeNumberErrorsAr,
     EMPLOYEE_CARD_CODE_UNAVAILABLE: 'لا يمكن استخدام كود الكارت هذا. اختر كودًا آخر.',
     ...employeeImportErrorsAr,
-    ...serviceErrorsAr,
+    ...catalogServiceErrorsAr,
     ALERT_RULE_INVALID: 'قيمة القاعدة برّه المسموح لنوع التنبيه ده (المدة أو الأدوار أو القنوات).',
     ALERT_RULE_REVISION_CONFLICT: 'عدّل مدير آخر قاعدة التنبيه. أعد التحميل قبل الحفظ.',
     ...packageTypeErrorsAr,

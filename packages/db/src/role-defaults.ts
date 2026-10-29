@@ -125,6 +125,12 @@ export const ROLE_DEFAULTS = {
   'read:services:business': managers,
   'read:package-types:business': managers,
   'manage:package-types:business': managers,
+  // قرار المالك SI-Q11 المعدّل بـ SI-Q22 (spec 072): إدارة التصنيفات على مستوى النشاط للمديرين الثلاثة،
+  // وإدارة فروعها للمديرين الثلاثة ومدير الفرع (SI-Q19 إلى SI-Q23).
+  'read:service-categories:business': managers,
+  'manage:service-categories:business': managers,
+  'read:service-categories:branch': [...managers, 'branch_manager'],
+  'manage:service-categories:branch': [...managers, 'branch_manager'],
   // TODO(spec) SV-Q1: SPEC لا يسمّي صلاحية الكتالوج؛ القرار المؤقت مطابق لـ manage:employees:business.
   'manage:services:business': managers,
   // قرار المالك 2026-10-09 (DOC-Q2 + S014-GRANTS، spec 039): الوثائق للمالك افتراضياً والمنح الشخصية بقراره فقط.

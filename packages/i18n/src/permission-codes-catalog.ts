@@ -46,6 +46,10 @@ export const permissionCodesEn = {
   createCompaniesPlatform: 'Create companies on the platform',
   readServicesBusiness: 'Read business services',
   manageServicesBusiness: 'Manage business services',
+  readServiceCategoriesBusiness: 'Read business service categories',
+  manageServiceCategoriesBusiness: 'Manage business service categories',
+  readServiceCategoriesBranch: 'Read branch service categories',
+  manageServiceCategoriesBranch: 'Manage branch service categories',
 };
 export const permissionCodesAr: Record<keyof typeof permissionCodesEn, string> = {
   recordServiceSessionsBranch: 'تسجيل جلسات خدمات الفرع',
@@ -95,4 +99,8 @@ export const permissionCodesAr: Record<keyof typeof permissionCodesEn, string> =
   createCompaniesPlatform: 'إنشاء شركات على المنصة',
   readServicesBusiness: 'عرض خدمات النشاط',
   manageServicesBusiness: 'إدارة خدمات النشاط',
+  readServiceCategoriesBusiness: 'عرض تصنيفات خدمات النشاط',
+  manageServiceCategoriesBusiness: 'إدارة تصنيفات خدمات النشاط',
+  readServiceCategoriesBranch: 'عرض تصنيفات خدمات الفرع',
+  manageServiceCategoriesBranch: 'إدارة تصنيفات خدمات الفرع',
 };
