@@ -203,24 +203,24 @@ describe('renaming a category at the branch scope', () => {
     ).toThrow('SERVICE_CATEGORY_VISIBILITY_FIXED');
   });
 
-  it('refuses a branch rename of another branch private category', () => {
+  it('refuses a branch rename of another branch private category (SI-Q25)', () => {
     expect(() =>
       planServiceCategoryRename(
         record({ visibility: 'BRANCH', owner_branch_id: otherBranch }),
         branchRequest(),
         at,
       ),
-    ).toThrow('SERVICE_CATEGORY_NOT_FOUND');
+    ).toThrow('SERVICE_CATEGORY_VISIBILITY_FIXED');
   });
 
-  it('hides another branch category behind the missing check even with a stale revision', () => {
+  it('refuses another branch private category even with a stale revision (SI-Q25)', () => {
     expect(() =>
       planServiceCategoryRename(
         record({ visibility: 'BRANCH', owner_branch_id: otherBranch, revision: 3 }),
         branchRequest(),
         at,
       ),
-    ).toThrow('SERVICE_CATEGORY_NOT_FOUND');
+    ).toThrow('SERVICE_CATEGORY_VISIBILITY_FIXED');
   });
 
   it('refuses a branch that tries to make a shared category private', () => {

@@ -162,13 +162,13 @@ export function newBranchServiceCategory(
 /**
  * يقرر تعديل التصنيف: المشاركة في اتجاه واحد (خاص يصير مشتركاً، والمشترك لا يعود خاصاً)،
  * والفرع يعدّل تصنيفاته الخاصة به وحدها، وكل تغيير يرفع النسخة.
- * حدود النطاق تُفحص قبل النسخة: من لا يملك التصنيف يُرفض بغيابه لا بنسخة زايدة.
+ * حدود النطاق تُفحص قبل النسخة: رفض «مش مسموح» على النطاق يسبق رفض النسخة الزايدة.
  *
  * @param current السجل المقفول الحالي
  * @param request الطلب: الاسمان، والمشاركة المطلوبة، والنسخة المتوقعة، والنطاق
  * @param at وقت التعديل المحقون
  * @returns السجل التالي وهل تغيّر شيء يستحق الحفظ والتدقيق
- * @throws ServiceCategoryError بنسخة قديمة أو مشاركة مرفوضة أو تصنيف لا يملكه الفرع
+ * @throws ServiceCategoryError برفض «مش مسموح» على النطاق أو المشاركة (SI-Q25)، أو بنسخة قديمة
  */
 export function planServiceCategoryRename(
   current: ServiceCategoryRecord,
@@ -179,12 +179,12 @@ export function planServiceCategoryRename(
     // التصنيف المشترك يُعدَّل من مستوى النشاط أيّاً كان صاحبه.
     if (current.visibility === 'BUSINESS')
       throw new ServiceCategoryError('SERVICE_CATEGORY_VISIBILITY_FIXED');
-    // TODO(spec): الكود الذي يرفض به فرع تعديل تصنيف خاص بفرع آخر غير مكتوب في المواصفة؛
-    // رفضه كغياب يمنع كشف تصنيف فرع آخر من غير تغيير وصوله.
+    // التصنيف الخاص بفرع آخر: رفض «مش مسموح» زي رفض تصنيف مشترك (SI-Q25)،
+    // وهو ظاهر للفرع في قائمة المتاح تفعيله فردّه مش بيكشف حاجة.
     if (current.owner_branch_id !== request.branch_id)
-      throw new ServiceCategoryError('SERVICE_CATEGORY_NOT_FOUND');
+      throw new ServiceCategoryError('SERVICE_CATEGORY_VISIBILITY_FIXED');
   }
-  // فحص النسخة بعد حدود النطاق: من لا يملك التصنيف يُرفض بغيابه لا بنسخة زايدة.
+  // فحص النسخة بعد حدود النطاق: رفض «مش مسموح» على النطاق يسبق رفض النسخة الزايدة.
   if (request.expected_revision !== current.revision)
     throw new ServiceCategoryError('SERVICE_CATEGORY_REVISION_CONFLICT');
   const visibility = request.visibility ?? current.visibility;

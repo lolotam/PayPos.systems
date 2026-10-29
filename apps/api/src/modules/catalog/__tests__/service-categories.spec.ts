@@ -200,7 +200,7 @@ it('SC-08 a branch renames its own private category and refuses a shared one', a
   ).toEqual([{ name_en: 'Branch shared target' }]);
 });
 
-it('SC-09 a branch does not rename a private category of another branch', async () => {
+it('SC-09 a branch does not rename a private category of another branch (SI-Q25)', async () => {
   await grantBranchCategories(f, f.otherBranch);
   const other = serviceCategory.parse(
     (
@@ -214,8 +214,11 @@ it('SC-09 a branch does not rename a private category of another branch', async 
     ...namesFor('Other branch category v2'),
     expected_revision: 1,
   });
-  expect(refused.status).toBe(404);
-  expect(refused.body).toMatchObject({ code: 'SERVICE_CATEGORY_NOT_FOUND' });
+  expect(refused.status).toBe(409);
+  expect(refused.body).toMatchObject({ code: 'SERVICE_CATEGORY_VISIBILITY_FIXED' });
+  expect(
+    await f.h.owner`SELECT name_en FROM service_categories WHERE id=${other.id}`,
+  ).toEqual([{ name_en: 'Other branch category' }]);
 });
 
 it('SC-10 a category of another business or another tenant is not found', async () => {
@@ -269,4 +272,11 @@ it('SC-11 the branch route reads the branch business from the database, not the 
     owner_branch_id: f.otherBranch,
     visibility: 'BRANCH',
   });
+});
+
+it('SC-12 refuses a blank name with the named code and writes nothing', async () => {
+  const refused = await post({ name_en: '   ', name_ar: 'تصنيف تجريبي' });
+  expect(refused.status).toBe(422);
+  expect(refused.body).toMatchObject({ code: 'SERVICE_CATEGORY_NAME_INVALID' });
+  expect(await f.h.owner`SELECT 1 FROM service_categories WHERE name_en=''`).toHaveLength(0);
 });

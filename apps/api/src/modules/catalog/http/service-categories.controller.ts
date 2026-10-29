@@ -30,6 +30,7 @@ import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { listServiceCategories } from '../queries/service-categories.query.ts';
+import { ServiceCategoryValidationPipe } from './service-category-validation.pipe.ts';
 import {
   CreateServiceCategoryUseCase,
   ServiceCategoryError,
@@ -52,7 +53,8 @@ export class ServiceCategoriesController {
   @RequiresFeature('catalog')
   async create(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
-    @Body(new ZodValidationPipe(createServiceCategoryInput)) input: CreateServiceCategoryInput,
+    @Body(new ServiceCategoryValidationPipe(createServiceCategoryInput))
+    input: CreateServiceCategoryInput,
     @Req() request: FastifyRequest,
   ): Promise<ServiceCategory> {
     if (this.createCategory === null) throw new ApiError('NOT_READY');
@@ -87,7 +89,8 @@ export class ServiceCategoriesController {
   async rename(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Param('categoryId', new ZodValidationPipe(id)) categoryId: string,
-    @Body(new ZodValidationPipe(renameServiceCategoryInput)) input: RenameServiceCategoryInput,
+    @Body(new ServiceCategoryValidationPipe(renameServiceCategoryInput))
+    input: RenameServiceCategoryInput,
     @Req() request: FastifyRequest,
   ): Promise<ServiceCategory> {
     if (this.renameCategory === null) throw new ApiError('NOT_READY');
