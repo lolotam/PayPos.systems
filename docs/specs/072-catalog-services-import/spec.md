@@ -654,7 +654,7 @@ and SI-Q18 were answered by Waleed by card on 2026-10-29 and are published as th
 | SI-Q12 | feature | What a category close does to its services | Replaced by SI-Q14 (Abu Salem's pick and comment disagreed) | — |
 | SI-Q13 | feature | Is the Arabic name required too | The owners differed; Abu Salem's pick binds: both names required | Schema changes, `32b-cat-1` |
 | SI-Q14 | feature | Do the services close with their category | Waleed: yes. Abu Salem: PENDING; work proceeds on Waleed's pick (his directive, 2026-10-29) | Schema changes (closing), `32b-cat-2` |
-| SI-Q15 | feature | Who can close a category that has open services | Waleed: the branch manager too, any category. Abu Salem: PENDING | Schema changes (closing), `32b-cat-2` |
+| SI-Q15 | feature | Who can close a category that has open services | Waleed: the branch manager too, any category; for the business-wide close this is replaced by his SI-Q22 pick (owner, general manager and business manager; a branch manager hides in their branch only). Abu Salem: PENDING | Schema changes (closing), `32b-cat-2` |
 | SI-Q16 | feature | What reopening a category does | Waleed: it reopens the services closed with it; those closed before stay closed. Abu Salem: PENDING | Schema changes (reopening), `32b-cat-2` |
 | SI-Q17 | feature | Who can close and reopen a single service | Waleed, against the recommendation: the branch manager too (`close:services:business`). Abu Salem: PENDING | Schema changes (closing a single service), `32b-cat-2` |
 | SI-Q18 | feature | What a closed service means for selling | Waleed (recommended): not offered for a new order line and refused at record time; past order lines untouched. Abu Salem: PENDING | Schema changes (what closed means), `32b-cat-2` |
