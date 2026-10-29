@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { COMMISSION_STATEMENT_EXPORT_DOCUMENT_KIND } from './commissions/statement-exports.js';
+
 /** BullMQ queue the worker consumes. Producers (27g) enqueue; this slice only names it. */
 export const DOCUMENTS_RENDER_QUEUE = 'documents-render';
 
@@ -33,7 +35,7 @@ export const DOCUMENT_BYTES_MAX_BYTES = DOCUMENT_PDF_MAX_BYTES;
 
 /** Kinds whose sources return bytes directly; every other kind uses the PDF renderer. */
 export const documentBytesKinds = {
-  'commission-statement-xlsx': { mimeType: DOCUMENT_XLSX_MIME_TYPE },
+  [COMMISSION_STATEMENT_EXPORT_DOCUMENT_KIND]: { mimeType: DOCUMENT_XLSX_MIME_TYPE },
 } as const satisfies Readonly<Record<string, { readonly mimeType: string }>>;
 
 export type DocumentBytesKinds = Readonly<Record<string, { readonly mimeType: string }>>;

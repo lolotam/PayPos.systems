@@ -41,6 +41,7 @@ export { employeeNumberSequences } from './staff-employee-numbers.ts';
 export * from './orders.ts';
 export * from './orders-discount-proposals.ts';
 export * from './commissions-statements.ts';
+export * from './commissions-statement-exports.ts';
 export * from './commissions-plan-versions.ts';
 export * from './ratings.ts';
 export * from './ratings-attributions.ts';
