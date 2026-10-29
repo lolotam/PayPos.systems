@@ -95,9 +95,8 @@ async function addEmployee(tenant: CommissionTenant, primaryBranchId: string): P
   return employeeId;
 }
 
-it('BUSINESS returns every frozen row and its exact result shape', async () => {
-  const period = '2026-10';
-  const statementId = await statement(A, period, [
+async function businessStatement(period: string): Promise<string> {
+  return statement(A, period, [
     { sourceRef: 'employee:a', attachedBranchIds: [A.branch] },
     {
       sourceRef: 'line:business',
@@ -115,6 +114,11 @@ it('BUSINESS returns every frozen row and its exact result shape', async () => {
       attachedBranchIds: [],
     },
   ]);
+}
+
+it('BUSINESS returns every frozen row and its exact result shape', async () => {
+  const period = '2026-10';
+  const statementId = await businessStatement(period);
   const renderId = await exportRequest(A, statementId, period, { language: 'en' });
   const result = await reader(A.company, renderId);
   expect(result.request).toEqual({
@@ -161,8 +165,13 @@ it('BUSINESS returns every frozen row and its exact result shape', async () => {
   });
 });
 
-it('BRANCHES applies both saved sets to every row, including the transferred employee', async () => {
-  const period = '2026-11';
+interface TransferredStatement {
+  readonly statementId: string;
+  readonly hawally: string;
+  readonly otherEmployee: string;
+}
+
+async function transferredStatement(period: string): Promise<TransferredStatement> {
   const hawally = await addBranch(A);
   const otherEmployee = await addEmployee(A, A.branch);
   const statementId = await statement(A, period, [
@@ -200,6 +209,12 @@ it('BRANCHES applies both saved sets to every row, including the transferred emp
       attachedBranchIds: [A.branch],
     },
   ]);
+  return { statementId, hawally, otherEmployee };
+}
+
+it('BRANCHES applies both saved sets to every row, including the transferred employee', async () => {
+  const period = '2026-11';
+  const { statementId, hawally, otherEmployee } = await transferredStatement(period);
   const renderId = await exportRequest(A, statementId, period, {
     scope: 'BRANCHES',
     branchIds: [A.branch],

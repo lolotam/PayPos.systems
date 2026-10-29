@@ -52,12 +52,22 @@ interface MutableEmployee {
   cashTips: Money[];
 }
 
-/** الجانب السالب بيتقفل عند صفر؛ الصافي ما بياخدش سالب (CS-Q7). */
+/**
+ * الجانب السالب بيتقفل عند صفر؛ الصافي ما بياخدش سالب (CS-Q7).
+ *
+ * @param value المبلغ بالفلوس
+ * @returns المبلغ نفسه لو كان صفر أو أكتر، وصفر لو كان سالب
+ */
 function nonNegative(value: Money): Money {
   return value < 0n ? 0n : value;
 }
 
-/** كل بند بيروح في إجماليه: التصحيح والرصيد المرحّل على جانب العمولة، والكاش للعلم بس. */
+/**
+ * كل بند بيروح في إجماليه: التصحيح والرصيد المرحّل على جانب العمولة، والكاش للعلم بس.
+ *
+ * @param employee إجمالي الموظفة اللي بيتجمّع فيها
+ * @param row الصف المجمّد ونوعه ومبلغه
+ */
 function collect(employee: MutableEmployee, row: CommissionStatementSummaryRow): void {
   if (row.kind === 'COMMISSION') employee.commission.push(row.amount);
   if (row.kind === 'SALE') employee.sales.push(row.amount);
@@ -76,7 +86,12 @@ function collect(employee: MutableEmployee, row: CommissionStatementSummaryRow):
   }
 }
 
-/** يبني إجمالي الموظفة: جانب العمولة ود جانب بقشيش الكارت ما بيتخصموش من بعض، والكاش مش داخل الصافي. */
+/**
+ * يبني إجمالي الموظفة: جانب العمولة و جانب بقشيش الكارت ما بيتخصموش من بعض، والكاش مش داخل الصافي.
+ *
+ * @param employee مجاميع بنود الموظفة اللي اتجمّعت
+ * @returns إجمالي الموظفة جاهز للعرض
+ */
 function total(employee: MutableEmployee): CommissionStatementEmployeeTotal {
   const commission = sumMoney(employee.commission);
   const salesCommission = sumMoney(employee.sales);
