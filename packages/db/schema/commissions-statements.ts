@@ -161,6 +161,9 @@ const commissionStatementLinesColumns = {
   newAmount: numeric('new_amount', { precision: 14, scale: 3 }),
   sourcePeriod: char('source_period', { length: 7 }),
   sourceBranchId: uuid('source_branch_id'),
+  // اسم الفرع متجمّد وقت الاعتماد، فتغييره لاحقاً ما يغيّرش الكشف أو تصديره (CS-Q35).
+  sourceBranchNameAr: text('source_branch_name_ar'),
+  sourceBranchNameEn: text('source_branch_name_en'),
   sourceBusinessDate: date('source_business_date'),
   // مفتاح ترشيح الفروع بعد التجميد؛ لا يُعاد حسابه من ارتباطات الموظف الحية.
   attachedBranchIds: uuid('attached_branch_ids')
@@ -240,6 +243,11 @@ const lineChecks = (t: LineSelf) => [
     'commission_statement_lines_source_fields',
     sql`(${t.sourceBranchId} IS NULL) = (${t.kind} IN ('EMPLOYEE','CARRY_COMMISSION','CARRY_TIP_CARD'))
         AND (${t.sourceBusinessDate} IS NULL) = (${t.kind} IN ('EMPLOYEE','CARRY_COMMISSION','CARRY_TIP_CARD'))`,
+  ),
+  check(
+    'commission_statement_lines_source_branch_name',
+    sql`(${t.sourceBranchNameEn} IS NOT NULL) = (${t.sourceBranchId} IS NOT NULL)
+        AND (${t.sourceBranchId} IS NOT NULL OR ${t.sourceBranchNameAr} IS NULL)`,
   ),
   check(
     'commission_statement_lines_carry_branches',

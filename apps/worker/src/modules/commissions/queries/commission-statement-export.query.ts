@@ -31,8 +31,8 @@ export function commissionStatementExportRequestStatement(companyId: string, ren
 /**
  * صفوف الكشف المجمّد لملف التصدير؛ الفلتر على لقطة الفروع والموظفين المحفوظة،
  * فلا يخرج مبلغ أو اسم عميل من جزء غير مسموح حتى لو الموظفة داخلة في employee_ids.
- * العلامة الجزئية بتتحسب مرة واحدة لكل موظفة في CTE، واسم مكان التنفيذ بيقرأ
- * وقت التصدير عن طريق بورت التينانسي مش من جدول الفروع.
+ * العلامة الجزئية بتتحسب مرة واحدة لكل موظفة في CTE، واسم مكان التنفيذ متجمّد
+ * في الصف منذ الاعتماد، فتغيير اسم الفرع لاحقاً ما يغيّرش التصدير (CS-Q35).
  */
 export function commissionStatementFrozenRowsStatement(filter: CommissionStatementRowsFilter) {
   const branchIds = uuidArray(filter.branchIds ?? []);
@@ -50,6 +50,7 @@ export function commissionStatementFrozenRowsStatement(filter: CommissionStateme
     SELECT lines.employee_id, lines.employee_number, lines.employee_name_ar, lines.employee_name_en,
       lines.source_ref, lines.kind, lines.amount::text AS amount, lines.previous_amount::text AS previous_amount,
       lines.new_amount::text AS new_amount, lines.source_period::text AS source_period, lines.source_branch_id,
+      lines.source_branch_name_ar, lines.source_branch_name_en,
       lines.attached_branch_ids, COALESCE(lines.business_date, lines.source_business_date)::text AS business_date,
       lines.service_name_ar, lines.service_name_en, lines.customer_name,
       CASE WHEN ${filter.scope} = 'BUSINESS' THEN false

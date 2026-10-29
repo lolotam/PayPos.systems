@@ -217,17 +217,20 @@ export async function insertCommissionLine(
   const value = (key: string, fallback: unknown) => (key in row ? row[key] : fallback);
   // شهر المصدر مطلوب في التصحيحات والcarry بس، والصفوف التانية مالهاش شهر مصدر.
   const defaultSourcePeriod = correction || carry ? '2026-09' : null;
+  const sourceBranchId = value('sourceBranchId', noSource ? null : tenant.branch) as string | null;
   const attachedBranchIds = value('attachedBranchIds', []) as readonly string[];
   await tx.execute(sql`INSERT INTO commission_statement_lines(
     company_id,id,business_id,statement_id,employee_id,employee_number,employee_name_ar,employee_name_en,
-    source_ref,kind,amount,previous_amount,new_amount,source_period,source_branch_id,source_business_date,
-    attached_branch_ids,line_id,session_id,service_id,service_name_ar,service_name_en,customer_id,customer_name,business_date)
+    source_ref,kind,amount,previous_amount,new_amount,source_period,source_branch_id,source_branch_name_ar,
+    source_branch_name_en,source_business_date,attached_branch_ids,line_id,session_id,service_id,service_name_ar,
+    service_name_en,customer_id,customer_name,business_date)
     VALUES (${value('companyId', tenant.company)},${ids.newId()},${value('businessId', tenant.business)},${statementId},
       ${value('employeeId', tenant.employee)},${value('employeeNumber', 1)},${value('employeeNameAr', null)},
       ${value('employeeNameEn', 'Frozen employee')},${value('sourceRef', `employee:${tenant.employee}`)},${kind},
       ${value('amount', kind === 'EMPLOYEE' ? '0.000' : correction ? '5.000' : '10.000')},
       ${value('previousAmount', correction ? '10.000' : null)},${value('newAmount', correction ? '15.000' : null)},
-      ${value('sourcePeriod', defaultSourcePeriod)},${value('sourceBranchId', noSource ? null : tenant.branch)},
+      ${value('sourcePeriod', defaultSourcePeriod)},${sourceBranchId},${value('sourceBranchNameAr', null)},
+      ${value('sourceBranchNameEn', sourceBranchId === null ? null : 'Frozen branch')},
       ${value('sourceBusinessDate', noSource ? null : '2026-10-15')},${uuidArraySql(attachedBranchIds)},
       ${value('lineId', kind === 'COMMISSION' ? OTHER_COMMISSION_IDS.line : null)},
       ${value('sessionId', kind === 'COMMISSION' ? OTHER_COMMISSION_IDS.session : null)},

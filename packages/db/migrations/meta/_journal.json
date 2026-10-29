@@ -1324,6 +1324,13 @@
       "when": 1793260800000,
       "tag": "0190_2026-10-29_service-categories",
       "breakpoints": true
+    },
+    {
+      "idx": 191,
+      "version": "7",
+      "when": 1793264400000,
+      "tag": "0191_2026-10-29_commission-statement-branch-names",
+      "breakpoints": true
     }
   ]
 }
