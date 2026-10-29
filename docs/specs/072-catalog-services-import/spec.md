@@ -331,11 +331,16 @@ Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's p
   assignment therefore run one after the other, never interleaved, so no open service can land under a category that
   closed in between. Create-service and update-service lock the category rows they touch (the current and the new category, ascending
   `id`, `FOR SHARE`) **before** they load the service row `FOR UPDATE`, so an edit inside a category and a close of
-  that category take their locks in the same order and cannot deadlock; `32b-pre-1` adds a concurrent
-  edit-in-category and close-category test. Reopening a single service (`32b-cat-2`) follows the same order: it locks the service's category row
+  that category take their locks in the same order and cannot deadlock; `32b-cat-2`, where close-category
+  exists, adds a concurrent edit-in-category and close-category test. Closing and reopening a single service
+  (`32b-cat-2`) follow the same order, because both change the category's `open_service_count`: each locks the service's category row
   `FOR SHARE`, then the service row `FOR UPDATE`, and checks under both locks that the service still has that
-  category and that the category is open; if the category changed in between, it starts over. So a service reopen and
-  a category close never interleave either, and the category is always locked before its services.
+  category (and, for a reopen, that the category is open); if the category changed in between, it starts over. A
+  service with no category locks only its own row. So a single-service close or reopen and a category close never
+  interleave, the count a manager confirmed stays exact, and the category is always locked before its services.
+  The category cascade locks its service rows explicitly (`SELECT … ORDER BY id FOR UPDATE`) before its set-based
+  `UPDATE`, so it takes them in ascending `id` order, the same order an order recording takes them `FOR SHARE`; a
+  cascade and a recording therefore wait for each other instead of deadlocking.
 - **Every state change advances the revision**: closing, reopening and renaming a category, and every service that a
   close or reopen touches, set `updated_at` and increment `revision`, so a client holding an older revision gets the
   stale-revision conflict.
@@ -465,8 +470,10 @@ audit rows runs in the worker. The synchronous preview is measured in 32b-2 (D-7
 
 The category close and reopen cascades (`32b-cat-2`) stay synchronous only while they fit the budget: each is one
 set-based `UPDATE` of the matching services plus one `INSERT … SELECT` of their audit rows, never a row-by-row loop.
-`32b-cat-2` measures a warm close and reopen of a category holding 1,000 services against 200 ms. If they do not fit,
-the design advisors move the cascade to the worker (a durable command with status and retries, like the import
+`32b-cat-2` measures a warm close and reopen of a category holding 1,000 services against 200 ms. No maximum number
+of services per category exists today, so a measured 1,000 does not by itself bound the work: before `32b-cat-2`
+the design advisors pick either the worker for every cascade or a synchronous path for categories up to the measured
+size with the worker above it, and if they do not fit at all, the design advisors move the cascade to the worker (a durable command with status and retries, like the import
 commit), and `32b-cat-2` stops and asks Waleed before it goes on (a technical question, never on the decisions page).
 
 ### Test plan
