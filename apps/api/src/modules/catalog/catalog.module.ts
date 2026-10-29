@@ -7,6 +7,7 @@ import { CreatePackageTypeUseCase } from './use-cases/create-package-type/create
 import { UpdatePackageTypeUseCase } from './use-cases/update-package-type/update-package-type.usecase.ts';
 import { CreateServiceCategoryUseCase } from './use-cases/create-service-category/create-service-category.usecase.ts';
 import { RenameServiceCategoryUseCase } from './use-cases/rename-service-category/rename-service-category.usecase.ts';
+import { SetServiceCategoryBranchStateUseCase } from './use-cases/set-service-category-branch-state/set-service-category-branch-state.usecase.ts';
 import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 
@@ -61,6 +62,13 @@ export function catalogProviders(
       provide: RenameServiceCategoryUseCase,
       useValue:
         categories === null ? null : new RenameServiceCategoryUseCase(categories, systemClock),
+    },
+    {
+      provide: SetServiceCategoryBranchStateUseCase,
+      useValue:
+        categories === null
+          ? null
+          : new SetServiceCategoryBranchStateUseCase(categories, ids, systemClock),
     },
   ];
 }

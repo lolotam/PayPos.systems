@@ -74,6 +74,41 @@ export const serviceCategoryListQuery = z
   })
   .meta({ id: 'ServiceCategoryListQuery' });
 
+export const serviceCategoryBranchView = z
+  .enum(['in_use', 'available'])
+  .meta({ id: 'ServiceCategoryBranchView' });
+export const serviceCategoryBranchSettingState = z
+  .enum(['ENABLED', 'HIDDEN'])
+  .meta({ id: 'ServiceCategoryBranchSettingState' });
+export const setServiceCategoryBranchStateInput = z
+  .strictObject({
+    state: serviceCategoryBranchSettingState,
+    expected_revision: revision.nullable(),
+  })
+  .meta({ id: 'SetServiceCategoryBranchStateInput' });
+
+const branchCategoryFields = {
+  ...categoryFields,
+  setting_state: serviceCategoryBranchSettingState.nullable(),
+  setting_revision: revision.nullable(),
+};
+export const serviceCategoryBranchListItem = responseObject(branchCategoryFields).meta({
+  id: 'ServiceCategoryBranchListItem',
+});
+export const serviceCategoryBranchStateResult = responseObject(branchCategoryFields).meta({
+  id: 'ServiceCategoryBranchStateResult',
+});
+export const serviceCategoryBranchPage = page(serviceCategoryBranchListItem)
+  .extend({ next_cursor: serviceCategoryCursor.nullable() })
+  .meta({ id: 'ServiceCategoryBranchPage' });
+export const serviceCategoryBranchListQuery = z
+  .strictObject({
+    view: serviceCategoryBranchView,
+    cursor: serviceCategoryCursor.optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .meta({ id: 'ServiceCategoryBranchListQuery' });
+
 export const serviceCategorySchemas = [
   serviceCategoryVisibility,
   createServiceCategoryInput,
@@ -85,6 +120,13 @@ export const serviceCategorySchemas = [
   serviceCategoryCursor,
   serviceCategoryPage,
   serviceCategoryListQuery,
+  serviceCategoryBranchView,
+  serviceCategoryBranchSettingState,
+  setServiceCategoryBranchStateInput,
+  serviceCategoryBranchListItem,
+  serviceCategoryBranchStateResult,
+  serviceCategoryBranchPage,
+  serviceCategoryBranchListQuery,
 ];
 
 export type ServiceCategoryVisibility = z.infer<typeof serviceCategoryVisibility>;
@@ -96,3 +138,18 @@ export type ServiceCategoryListItem = z.infer<typeof serviceCategoryListItem>;
 export type ServiceCategoryCursorData = z.infer<typeof serviceCategoryCursorData>;
 export type ServiceCategoryPage = z.infer<typeof serviceCategoryPage>;
 export type ServiceCategoryListQuery = z.infer<typeof serviceCategoryListQuery>;
+export type ServiceCategoryBranchView = z.infer<typeof serviceCategoryBranchView>;
+export type ServiceCategoryBranchSettingState = z.infer<
+  typeof serviceCategoryBranchSettingState
+>;
+export type SetServiceCategoryBranchStateInput = z.infer<
+  typeof setServiceCategoryBranchStateInput
+>;
+export type ServiceCategoryBranchListItem = z.infer<typeof serviceCategoryBranchListItem>;
+export type ServiceCategoryBranchStateResult = z.infer<
+  typeof serviceCategoryBranchStateResult
+>;
+export type ServiceCategoryBranchPage = z.infer<typeof serviceCategoryBranchPage>;
+export type ServiceCategoryBranchListQuery = z.infer<
+  typeof serviceCategoryBranchListQuery
+>;

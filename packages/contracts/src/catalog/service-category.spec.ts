@@ -4,8 +4,12 @@ import {
   createBranchServiceCategoryInput,
   createServiceCategoryInput,
   renameServiceCategoryInput,
+  serviceCategoryBranchListQuery,
+  serviceCategoryBranchPage,
+  serviceCategoryBranchStateResult,
   serviceCategoryListQuery,
   serviceCategoryPage,
+  setServiceCategoryBranchStateInput,
 } from './service-category.js';
 
 const id = '01920000-0000-7000-8000-000000000001';
@@ -84,4 +88,35 @@ it('defaults the list to open, validates its cursor and limits, and parses its p
       next_cursor: cursor,
     }).next_cursor,
   ).toBe(cursor);
+});
+
+it('validates the branch view and the nullable setting revision on state writes and responses', () => {
+  expect(serviceCategoryBranchListQuery.parse({ view: 'available' })).toEqual({
+    view: 'available',
+    limit: 20,
+  });
+  expect(serviceCategoryBranchListQuery.safeParse({ view: 'closed' }).success).toBe(false);
+  expect(setServiceCategoryBranchStateInput.parse({ state: 'HIDDEN', expected_revision: null })).toEqual({
+    state: 'HIDDEN',
+    expected_revision: null,
+  });
+  expect(
+    setServiceCategoryBranchStateInput.safeParse({ state: 'ENABLED', expected_revision: 0 }).success,
+  ).toBe(false);
+  const item = {
+    id,
+    name_en: 'Hair',
+    name_ar: 'صبغة',
+    visibility: 'BRANCH',
+    owner_branch_id: id,
+    closed_at: null,
+    revision: 2,
+    setting_state: 'ENABLED',
+    setting_revision: 1,
+  };
+  expect(serviceCategoryBranchStateResult.parse(item)).toEqual(item);
+  expect(serviceCategoryBranchPage.parse({ items: [item], next_cursor: null }).items).toEqual([item]);
+  expect(
+    serviceCategoryBranchStateResult.parse({ ...item, setting_state: null, setting_revision: null }),
+  ).toMatchObject({ setting_state: null, setting_revision: null });
 });

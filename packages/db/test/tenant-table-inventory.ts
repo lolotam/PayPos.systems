@@ -33,6 +33,7 @@ export const TENANT_TABLES = [
   'import_previews',
   'services',
   'service_categories',
+  'service_category_branch_settings',
   'package_types',
   'package_type_components',
   'employees',

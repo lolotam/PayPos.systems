@@ -1,3 +1,4 @@
+import type { ServiceCategoryBranchSettingRecord } from '../domain/service-category-branch.ts';
 import type { ServiceCategoryRecord } from '../domain/service-category.ts';
 
 /** معاملة تصنيف الخدمة تضم الكتابة والتدقيق في معاملة واحدة. */
@@ -17,6 +18,27 @@ export interface ServiceCategoryScope {
    * @returns السجل المقفول أو غيابه
    */
   load(businessId: string, categoryId: string): Promise<ServiceCategoryRecord | null>;
+  /**
+   * يحمل التصنيف بقفل مشاركة قبل تغيير حالته في فرع، بترتيب القفل الموحّد مع كتابات الخدمات.
+   *
+   * @param businessId النشاط المالك
+   * @param categoryId التصنيف المطلوب
+   * @returns السجل المقفول للمشاركة أو غيابه
+   */
+  loadForShare(businessId: string, categoryId: string): Promise<ServiceCategoryRecord | null>;
+  /**
+   * يحمل إعداد الفرع والتصنيف بقفل تحديث بعد قفل التصنيف، لفحص النسخة والكتابة المتسقة.
+   *
+   * @param businessId نشاط الفرع والتصنيف
+   * @param branchId الفرع صاحب الإعداد
+   * @param categoryId التصنيف صاحب الإعداد
+   * @returns صف الإعداد المقفول أو غيابه
+   */
+  loadBranchSetting(
+    businessId: string,
+    branchId: string,
+    categoryId: string,
+  ): Promise<ServiceCategoryBranchSettingRecord | null>;
   /**
    * يقرأ نشاط الفرع من قاعدة البيانات، لأن العميل لا يحدد نشاط الفرع.
    *
@@ -40,6 +62,35 @@ export interface ServiceCategoryScope {
    * @returns اكتمال التدقيق
    */
   audit(before: ServiceCategoryRecord | null, after: ServiceCategoryRecord): Promise<void>;
+  /**
+   * يدرج أول إعداد لتصنيف في فرع؛ تعارض المفتاح الفريد يتحول إلى نفس رفض النسخة القديمة.
+   *
+   * @param record إعداد النسخة الأولى
+   * @returns اكتمال الإدخال
+   */
+  insertBranchSetting(record: ServiceCategoryBranchSettingRecord): Promise<void>;
+  /**
+   * يحفظ إعداد الفرع على نسخته المقفولة فقط، فلا تكتب حالة قديمة فوق حالة أحدث.
+   *
+   * @param before الصف المقفول السابق
+   * @param after الحالة والنسخة التاليتان
+   * @returns اكتمال الحفظ الذري
+   */
+  saveBranchSetting(
+    before: ServiceCategoryBranchSettingRecord,
+    after: ServiceCategoryBranchSettingRecord,
+  ): Promise<void>;
+  /**
+   * يسجل قبل وبعد إعداد الفرع في التدقيق داخل معاملة الحالة نفسها.
+   *
+   * @param before الإعداد السابق أو غيابه عند أول كتابة
+   * @param after الإعداد المحفوظ
+   * @returns اكتمال التدقيق
+   */
+  auditBranchSetting(
+    before: ServiceCategoryBranchSettingRecord | null,
+    after: ServiceCategoryBranchSettingRecord,
+  ): Promise<void>;
 }
 
 /** هوية بشرية متحققة من الحارس قبل معاملة التصنيف. */

@@ -250,3 +250,55 @@ export const serviceCategories = pgTable(
     check('service_categories_revision_positive', sql`${t.revision} > 0`),
   ],
 );
+
+// حالة التصنيف داخل فرع واحد: التفعيل أو الإخفاء المحلي، بلا أي أثر على الخدمات أو الفروع الأخرى.
+export const serviceCategoryBranchSettings = pgTable(
+  'service_category_branch_settings',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    branchId: uuid('branch_id').notNull(),
+    categoryId: uuid('category_id').notNull(),
+    state: text('state').notNull(),
+    revision: integer('revision').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: 'service_category_branch_settings_pkey', columns: [t.companyId, t.id] }),
+    foreignKey({
+      name: 'service_category_branch_settings_branch_fk',
+      columns: [t.companyId, t.businessId, t.branchId],
+      foreignColumns: [branches.companyId, branches.businessId, branches.id],
+    }),
+    foreignKey({
+      name: 'service_category_branch_settings_category_fk',
+      columns: [t.companyId, t.businessId, t.categoryId],
+      foreignColumns: [
+        serviceCategories.companyId,
+        serviceCategories.businessId,
+        serviceCategories.id,
+      ],
+    }),
+    uniqueIndex('service_category_branch_settings_branch_category_uq').on(
+      t.companyId,
+      t.branchId,
+      t.categoryId,
+    ),
+    index('service_category_branch_settings_branch_idx').on(
+      t.companyId,
+      t.businessId,
+      t.branchId,
+    ),
+    index('service_category_branch_settings_category_idx').on(
+      t.companyId,
+      t.businessId,
+      t.categoryId,
+    ),
+    check('service_category_branch_settings_state', sql`${t.state} IN ('ENABLED','HIDDEN')`),
+    check('service_category_branch_settings_revision_positive', sql`${t.revision} > 0`),
+  ],
+);

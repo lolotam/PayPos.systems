@@ -90,6 +90,35 @@ export const catalogPaths = {
     },
   },
   '/v1/businesses/{businessId}/branches/{branchId}/service-categories': {
+    get: {
+      operationId: 'listBranchServiceCategories',
+      description:
+        'Cursor-paginated branch category view in normalized English-name order. in_use lists open categories used by the branch; available lists other open categories it may enable. Each item carries the branch setting state and revision. Requires read:service-categories:branch and the catalog feature.',
+      parameters: [
+        ...parameters,
+        branchId,
+        {
+          in: 'query',
+          name: 'view',
+          required: true,
+          schema: { type: 'string', enum: ['in_use', 'available'] },
+        },
+        { in: 'query', name: 'cursor', schema: { type: 'string', maxLength: 2048 } },
+        {
+          in: 'query',
+          name: 'limit',
+          schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'Branch service category page',
+          content: json('ServiceCategoryBranchPage'),
+        },
+        '404': errors,
+        default: errors,
+      },
+    },
     post: {
       operationId: 'createBranchServiceCategory',
       description:
@@ -101,6 +130,24 @@ export const catalogPaths = {
         '404': errors,
         '409': errors,
         '422': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/branches/{branchId}/service-categories/{categoryId}/state': {
+    put: {
+      operationId: 'setServiceCategoryBranchState',
+      description:
+        'Enables or hides a category in one branch against the branch setting revision. A first write requires null and stores revision 1; later writes require the current revision. A hidden row wins over ownership and never changes services. Requires manage:service-categories:branch and the catalog feature.',
+      parameters: [...parameters, branchId, categoryId],
+      requestBody: { required: true, content: json('SetServiceCategoryBranchStateInput') },
+      responses: {
+        '200': {
+          description: 'Category with its saved branch setting',
+          content: json('ServiceCategoryBranchStateResult'),
+        },
+        '404': errors,
+        '409': errors,
         default: errors,
       },
     },
