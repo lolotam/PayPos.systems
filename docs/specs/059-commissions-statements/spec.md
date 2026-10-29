@@ -349,8 +349,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   correction and سارة's two branches; `statement_fingerprint = reviewed_statement_fingerprint`. A unit test proves the
   builder's round trip: the rows it builds and the same rows read back from `commission_statement_lines` and
   `commission_statement_attachments` (ids, `statement_id` and timestamps aside) give the same statement fingerprint. After
-  review, an edit that changes a frozen column without an input event (سارة's branch link, CM-32b, or a customer's or
-  service's name) → the view shows it changed since review (`STATEMENT`), approval is refused with 409
+  review, an edit that changes a frozen column without an input event (سارة's branch link, CM-32b, a customer's or
+  service's name, or the name of a branch where the work was done, حولي renamed between review and approval, D-20) → the view shows it changed since review (`STATEMENT`), approval is refused with 409
   `COMMISSION_FINGERPRINT_STALE` (`changed = STATEMENT`, `return_required`) before anything is frozen, and after the return
   to DRAFT (FR-031) and a new review it approves. A review request whose `expected_statement_fingerprint` predates a
   rename is refused with the same 409.
@@ -1007,7 +1007,8 @@ fingerprints differ, the cause reported is `INPUTS`.
 
 **The statement fingerprint** (`reviewed_statement_fingerprint`, `statement_fingerprint`). The canonical form of the rows
 approval freezes, built from the same columns on both sides: every statement row sorted by `(employee_id, source_ref)`
-with `kind`, `amount`, `previous_amount`, `new_amount`, `source_period`, `source_branch_id`, `source_business_date`,
+with `kind`, `amount`, `previous_amount`, `new_amount`, `source_period`, `source_branch_id`, `source_branch_name_ar`,
+`source_branch_name_en` (both null when `source_branch_id` is, D-20), `source_business_date`,
 `attached_branch_ids` (sorted), the employee label (`employee_number`, `employee_name_ar`, `employee_name_en`) and, on a
 line source, `line_id`, `session_id`, `service_id`, `service_name_ar`, `service_name_en`, `customer_id`, `customer_name`,
 `business_date`; then every attachment row sorted by `(employee_id, branch_id, attached_from)` with `attached_to`. Row
