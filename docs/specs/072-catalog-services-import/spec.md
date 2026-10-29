@@ -438,11 +438,12 @@ both owners' picks on SI-Q14 to SI-Q16 (2026-10-29).
   general manager and business manager (SI-Q17: the owners differed, and Abu Salem's pick, the recommended option,
   replaces Waleed's «the branch manager too»), seeded by the `32b-cat-2` migration. It is separate from
   `manage:services:business` so that a custom role can be given the close without the edit; the branch manager holds
-  neither. The close and reopen routes are guarded by `@Require('close:services:business')` (one
-  permission per method, CLAUDE.md §6), and the use case also checks `read:services:business` for the caller inside
-  its own `withTenant` transaction, before it locks the service, refusing with the uniform 403 when it is missing. So
-  every caller that closes a service can find it and its revision through the services reads, and the check opens no
-  second transaction (the connection budget, CLAUDE.md §6). Reopening a service whose category is closed is refused with
+  neither. The close and reopen routes need `close:services:business` **and** `read:services:business`,
+  so every caller that closes a service can find it and its revision through the services reads. `32b-cat-2` adds
+  `@RequireAll([...])` to `apps/api/src/shared/access.decorators.ts`, beside `@RequireAny`: the same permission guard
+  checks every listed permission (same scope, same target validation) in its one transaction and refuses with the
+  uniform 403 when one is missing. The check stays in the guard, so the catalog use case reads no membership and
+  `catalog` gains no import arrow (D-3, D-4), and no second transaction opens (the connection budget, CLAUDE.md §6). Reopening a service whose category is closed is refused with
   `SERVICE_CATEGORY_CLOSED`, and reopening a service clears its marker.
   - **The services reads are unchanged.** They stay behind `read:services:business` alone and return their full
     shape. `32b-cat-2` adds an integration test in which a default branch manager is refused the close and the reopen
@@ -480,10 +481,9 @@ both owners' picks on SI-Q14 to SI-Q16 (2026-10-29).
     `open_service_count` (close) or `marked_service_count` (reopen) the manager confirmed; assigning a service to a
     category does not advance the category's revision, so the use case recounts under the category lock and refuses a
     different count with `SERVICE_CATEGORY_COUNT_CHANGED` (409), and the screen reloads the count and asks again. The
-    revision and both counts come from the category detail read, so these routes, guarded by
-    `@Require('manage:service-categories:business')`, also check `read:service-categories:business` inside the use
-    case's own transaction the same way, and `32b-cat-2` tests that a role holding only the manage permission is
-    refused.
+    revision and both counts come from the category detail read, so these routes are guarded by
+    `@RequireAll(['manage:service-categories:business', 'read:service-categories:business'])` the same way, and
+    `32b-cat-2` tests that a role holding only the manage permission is refused.
   - `POST /v1/businesses/{businessId}/services/{serviceId}/close` and `…/reopen` `{ expected_revision }` → 200 the
     service (`32b-cat-2`), in the same shape as the service detail read.
   - Errors: `SERVICE_CATEGORY_NAME_INVALID` (422), `SERVICE_CATEGORY_NAME_TAKEN` (409, the category key is in use, open
