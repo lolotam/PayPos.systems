@@ -60,7 +60,13 @@ export interface Harness {
   send(
     method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
     url: string,
-    options: { cookie: string; company?: string; key?: string; body?: object },
+    options: {
+      cookie: string;
+      company?: string;
+      key?: string;
+      body?: object;
+      headers?: Record<string, string>;
+    },
   ): Promise<{
     status: number;
     body: Record<string, unknown>;
@@ -129,6 +135,7 @@ function sender(app: NestFastifyApplication): Harness['send'] {
         cookie: options.cookie,
         ...(options.company === undefined ? {} : { 'x-company-id': options.company }),
         ...(options.key === undefined ? {} : { 'idempotency-key': options.key }),
+        ...(options.headers ?? {}),
       },
       ...(options.body === undefined ? {} : { payload: options.body }),
     });
@@ -182,6 +189,16 @@ interface HarnessOptions {
   staffNativeOrigins?: readonly string[];
   clock?: { now(): Date };
   ordersClock?: { now(): Date };
+  /** ساعة موديول العملاء — قرار رفض التقييم بيقاس بيها. */
+  customersClock?: { now(): Date };
+  /** أقصى عمر لمعاملة رفض التقييم. */
+  customersTransactionTimeoutMs?: number;
+  /** هل قدرة روابط التقييم متاحة؟ false بتجيب NOT_READY قبل أي حدّ. */
+  ratingLinksAvailable?: boolean;
+  /** الـ proxies الموثوقين؛ من غيرهم كل الزوار بيشاركوا عنوان الـ proxy. */
+  trustedProxy?: readonly string[];
+  /** من غير Redis مفيش حدّ على المسارات العامة، فبترد NOT_READY. */
+  omitRedis?: boolean;
   staffOtpFactory?: (
     auth: AuthService,
     authUrl: string,
@@ -238,10 +255,20 @@ async function prepareHarness(
         employeeCardKey: deriveEmployeeCardKey('test-secret-that-is-long-enough-for-hmac'),
         database: wrappers,
         ...(options.ordersClock === undefined ? {} : { ordersClock: options.ordersClock }),
+        ...(options.customersClock === undefined
+          ? {}
+          : { customersClock: options.customersClock }),
+        ...(options.customersTransactionTimeoutMs === undefined
+          ? {}
+          : { customersTransactionTimeoutMs: options.customersTransactionTimeoutMs }),
+        ...(options.ratingLinksAvailable === undefined
+          ? {}
+          : { ratingLinksAvailable: options.ratingLinksAvailable }),
+        ...(options.trustedProxy === undefined ? {} : { trustedProxy: options.trustedProxy }),
         ...(options.files === undefined ? {} : { files: options.files }),
         ...staffWiring(options, staffOtp, auth),
         ids,
-        redis,
+        ...(options.omitRedis === true ? {} : { redis }),
       },
       {
         logger: harnessLogger(options),

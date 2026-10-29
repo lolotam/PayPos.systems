@@ -39,3 +39,9 @@ export type RatingView = z.infer<typeof ratingView>;
 
 /** سبعة أيام من لحظة المطالبة، وهي نفس المدة التي يفرضها قيد قاعدة البيانات. */
 export const RATING_TOKEN_LIFETIME_HOURS = 168;
+
+/**
+ * التوكن بيسافر في الهيدر ده، مش في المسار ولا في الـ query ولا في الـ body (D-B10، ADR-0011 §4):
+ * التوكن في المسار بيتسجّل في سجل المتصفح وفي الـ referrer وسجلات الوصول.
+ */
+export const RATING_TOKEN_HEADER = 'x-rating-token';

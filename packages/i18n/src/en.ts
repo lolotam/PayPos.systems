@@ -267,6 +267,7 @@ export const en = {
       'A request with this Idempotency-Key is still in progress — retry shortly',
     IDEMPOTENCY_KEY_REUSED: 'This Idempotency-Key was already used with a different request',
     NOT_READY: 'The service is not ready',
+    RATING_LINK_UNAVAILABLE: 'This rating link is not available',
     SESSION_RECOVERY_UNAVAILABLE: 'Saving is temporarily unavailable. Retry the same attempt.',
     INTERNAL_ERROR: 'An unexpected error occurred',
   },

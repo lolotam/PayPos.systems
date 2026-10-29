@@ -37,6 +37,10 @@ import { notificationsControllers, notificationsProviders } from './modules/noti
 import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notifications/index.ts';
 import { tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
 import { customersControllers, customersProviders } from './modules/customers/index.ts';
+import {
+  RATING_ROUTE,
+  ratingAdmissionHook,
+} from './modules/customers/http/rating-admission.hook.ts';
 import { catalogControllers, catalogProviders } from './modules/catalog/index.ts';
 import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
 import { staffControllers, staffProviders } from './modules/staff/index.ts';
@@ -51,6 +55,7 @@ import { HealthController } from './shared/health.controller.ts';
 import { API_LOG_EVENTS } from './shared/log-events.ts';
 import { PinoNestLogger } from './shared/nest-logger.ts';
 import { READINESS_CHECKS, singleFlight, type ReadinessCheck } from './shared/readiness.ts';
+import type { RateLimiter } from './shared/ports/rate-limiter.port.ts';
 import {
   PERSONAL_AUTHENTICATION,
   type PersonalAuthentication,
@@ -59,6 +64,15 @@ import { AUTH_SERVICE, SessionGuard } from './shared/session.guard.ts';
 
 export interface AppDependencies {
   readonly ordersClock?: { now(): Date };
+  /** ساعة موديول العملاء — قرار رفض التقييم بيقاس بيها، عشان الاختبار يثبّت الوقت. */
+  readonly customersClock?: { now(): Date };
+  /** أقصى عمر لمعاملة رفض التقييم؛ القفل ما يعلّقش الطلب على زائر. */
+  readonly customersTransactionTimeoutMs?: number;
+  /**
+   * هل قدرة روابط التقييم العامة متاحة؟ false من غير proxy موثوق — المسارات العامة بترد NOT_READY
+   * قبل أي حدّ أو قاعدة بيانات (ADR-0011 §4).
+   */
+  readonly ratingLinksAvailable?: boolean;
   readonly employeeCardKey?: Buffer;
   readonly personal?: PersonalAuthentication | null;
   readonly files?: FilesRuntime | null;
@@ -124,6 +138,7 @@ class AppModule {
     deps: AppDependencies,
     controllers: readonly Type<unknown>[],
     logger: Logger,
+    limiter: RateLimiter | null,
   ): DynamicModule {
     return {
       module: AppModule,
@@ -140,11 +155,16 @@ class AppModule {
         ...identityProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis, deps.staff),
         {
           provide: RATE_LIMITER,
-          useValue: deps.redis === undefined ? null : createRedisRateLimiter(deps.redis),
+          useValue: limiter,
         },
         { provide: DATABASE, useValue: deps.database ?? null },
         ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),
-        ...customersProviders(deps.database, deps.ids ?? systemUuidV7()),
+        ...customersProviders(
+          deps.database,
+          deps.ids ?? systemUuidV7(),
+          deps.customersClock === undefined ? undefined : deps.customersClock,
+          deps.customersTransactionTimeoutMs,
+        ),
         ...catalogProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...ordersProviders(deps.database, deps.ids ?? systemUuidV7(), deps.ordersClock),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
@@ -221,13 +241,13 @@ function buildAdapter(
       headers: Record<string, string | string[] | undefined>;
       url?: string | undefined;
     }) => {
+      const path = (request.url ?? '').split('?')[0] ?? '';
+      // The rating routes carry a credential in a header. A client that sends it as the request id must not
+      // see it echoed back in the response header or in the log lines, so those routes always get a fresh id.
+      if (RATING_ROUTE.test(path)) return ids.newId();
       // Provider request headers can carry phone-bearing message ids too; generate our own diagnostic id.
       try {
-        if (
-          /^\/v1\/(webhooks\/|devices\/me\/staff-|staff\/)/.test(
-            decodeURIComponent((request.url ?? '').split('?')[0] ?? ''),
-          )
-        )
+        if (/^\/v1\/(webhooks\/|devices\/me\/staff-|staff\/)/.test(decodeURIComponent(path)))
           return ids.newId();
       } catch {
         return ids.newId();
@@ -254,6 +274,9 @@ function buildAdapter(
       const context = enterRequestContext(request.id);
       contexts.set(request, context);
       void reply.header('x-request-id', request.id);
+      // المسارات العامة للتقييم بترد من غير hook، فالترويسات بتتحط هنا كمان عشان كل رد يطلع منها.
+      void reply.header('cache-control', 'no-store');
+      void reply.header('referrer-policy', 'no-referrer');
       // Fastify's own error logging is off, so a framework-side failure is logged here (type/code only).
       if (apiError.code === 'INTERNAL_ERROR') request.log.error({ err: error }, 'unhandled error');
       void reply.code(apiError.status).send(apiError.toEnvelope());
@@ -294,11 +317,19 @@ export async function createApp(
   const controllers = [...API_CONTROLLERS, ...(options.controllers ?? [])];
   assertEveryRouteGuarded(controllers);
   assertAuthenticatedWritesDeclared(controllers, AUTHENTICATED_WRITES);
+  const limiter = deps.redis === undefined ? null : createRedisRateLimiter(deps.redis);
   const adapter = buildAdapter(logger, deps.ids ?? systemUuidV7(), deps.trustedProxy ?? []);
   mountWhatsappSecurity(adapter, deps.whatsapp, deps.redis);
   adapter.getInstance().addHook('onRoute', (route) => {
     if (/^\/v1\/devices\/me\/staff-(otp\/(request|verify)|pin\/sign-in)$/.test(route.url))
       route.bodyLimit = 1024;
+    // المسارات العامة للتقييم: الحد والترويسات بتتحط قبل أي handler، عشان كل رد يطلع من المسار ده
+    // يحملها — حتى الردود اللي بتترفض قبل ما يوصل المسار.
+    if (RATING_ROUTE.test(route.url))
+      route.onRequest = ratingAdmissionHook({
+        limiter,
+        available: deps.ratingLinksAvailable ?? true,
+      });
   });
   if (deps.auth !== undefined) {
     mountAuthRoutes(adapter.getInstance(), deps.auth.service, {
@@ -317,7 +348,7 @@ export async function createApp(
     logCompleted(request, reply);
   });
   const app = await NestFactory.create<NestFastifyApplication>(
-    AppModule.forRoot(deps, controllers, logger),
+    AppModule.forRoot(deps, controllers, logger, limiter),
     adapter,
     // abortOnError: false — an initialisation error is thrown to the caller (main.ts releases resources
     // and exits) instead of Nest exiting the process itself.

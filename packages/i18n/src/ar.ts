@@ -260,6 +260,7 @@ export const ar: Catalog = {
     IDEMPOTENCY_KEY_IN_PROGRESS: 'طلب بنفس المفتاح ما زال قيد التنفيذ، أعد المحاولة بعد قليل',
     IDEMPOTENCY_KEY_REUSED: 'تم استخدام مفتاح Idempotency-Key مع طلب مختلف',
     NOT_READY: 'الخدمة غير جاهزة حالياً',
+    RATING_LINK_UNAVAILABLE: 'رابط التقييم غير متاح',
     SESSION_RECOVERY_UNAVAILABLE: 'الحفظ غير متاح مؤقتاً. أعد نفس المحاولة.',
     INTERNAL_ERROR: 'حدث خطأ غير متوقع',
   },

@@ -1,3 +1,5 @@
+import { RATING_TOKEN_HEADER } from './customers/ratings.js';
+
 const json = (schema: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
 });
@@ -29,6 +31,29 @@ export const customerPaths = {
     'business',
   ),
   '/v1/branches/{branchId}/customers/find-or-create': scopedCustomerPath('branchId', 'branch'),
+  // مسار رفض التقييم من غير جلسة: التوكن في الهيدر هو الاعتماد كله (D-B10، ADR-0011 §4).
+  '/v1/ratings/opt-out': {
+    post: {
+      operationId: 'optOutOfRatings',
+      description:
+        'Stops the rating messages for the customer holding this link. No session is needed: the token in the header is the only credential, and an unknown, foreign or expired token is refused.',
+      parameters: [
+        {
+          in: 'header',
+          name: RATING_TOKEN_HEADER,
+          required: true,
+          schema: { type: 'string', minLength: 1, maxLength: 128 },
+        },
+      ],
+      responses: {
+        '204': { description: 'The customer stopped the rating messages' },
+        '404': { description: 'The link is not available', content: json('ErrorEnvelope') },
+        '429': { description: 'Too many requests from this address', content: json('ErrorEnvelope') },
+        '503': { description: 'The service is not ready', content: json('ErrorEnvelope') },
+        default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+      },
+    },
+  },
 };
 
 function scopedCustomerPath(parameter: string, scope: string) {

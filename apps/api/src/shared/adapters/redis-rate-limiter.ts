@@ -52,6 +52,18 @@ function readWindowCount(reply: unknown): number {
 }
 
 /**
+ * يقرأ الثواني الباقية من ردّ TTL. Redis بيرجّع عدداً غير سالب، أو -1 لمفتاح من غير انتهاء، أو -2 لمفتاح
+ * مش موجود — والاتنين يعنيان إن مفيش حاجة باقية. أي ردّ تاني مش مقروء، وهو مرفوض زي الردّ اللي مش
+ * بنعرف نعدّه: الحدّ الغلط أحسن من إننا نفتح الباب.
+ */
+function readRemaining(ttl: unknown): number {
+  if (typeof ttl !== 'number' || !Number.isInteger(ttl)) throw new RateLimiterUnavailableError();
+  if (ttl >= 0) return ttl;
+  if (ttl === -1 || ttl === -2) return 0;
+  throw new RateLimiterUnavailableError();
+}
+
+/**
  * @param redis the API's Redis client
  * @returns a fixed-window limiter: INCR, and the window's expiry set on its first hit
  */
@@ -77,7 +89,7 @@ export function createRedisRateLimiter(redis: Redis): RateLimiter {
     },
     remaining: async (key) => {
       const ttl = await redis.ttl(rateName('count', key));
-      return ttl > 0 ? ttl : 0;
+      return readRemaining(ttl);
     },
   };
 }

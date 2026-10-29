@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { customer, findOrCreateCustomerInput } from '../customers.js';
+import { RATING_TOKEN_HEADER } from '../customers/ratings.js';
 import { buildOpenApiDocument } from '../openapi.js';
 
 const input = {
@@ -93,5 +94,33 @@ describe('customer contracts', () => {
         },
       },
     });
+  });
+});
+
+describe('the rating opt-out contract', () => {
+  const paths = buildOpenApiDocument()['paths'] as Record<
+    string,
+    { post: Record<string, unknown> }
+  >;
+
+  it('publishes the session-less path with the token in a header and no body', () => {
+    expect(paths['/v1/ratings/opt-out']?.post).toMatchObject({
+      operationId: 'optOutOfRatings',
+      parameters: [{ name: RATING_TOKEN_HEADER, in: 'header', required: true }],
+    });
+    expect(paths['/v1/ratings/opt-out']?.post['requestBody']).toBeUndefined();
+  });
+
+  it('answers 204 with no content and keeps the refusals on the error envelope', () => {
+    const responses = paths['/v1/ratings/opt-out']?.post['responses'] as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(responses['204']).toEqual({ description: 'The customer stopped the rating messages' });
+    for (const status of ['404', '429', '503']) {
+      expect(responses[status]?.['content']).toEqual({
+        'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+      });
+    }
   });
 });
