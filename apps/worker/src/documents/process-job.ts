@@ -63,9 +63,7 @@ function errorCode(error: unknown): DocumentRenderErrorCode {
 
 function failsAtOnce(code: DocumentRenderErrorCode): boolean {
   return (
-    code === 'DOCUMENT_KIND_UNKNOWN' ||
-    code === 'DOCUMENT_TOO_LARGE' ||
-    code === 'STATEMENT_EMPTY'
+    code === 'DOCUMENT_KIND_UNKNOWN' || code === 'DOCUMENT_TOO_LARGE' || code === 'STATEMENT_EMPTY'
   );
 }
 

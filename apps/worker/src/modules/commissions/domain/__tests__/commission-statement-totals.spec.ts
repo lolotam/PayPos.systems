@@ -30,13 +30,7 @@ function only(rows: readonly SummaryRow[]): CommissionStatementEmployeeTotal {
   return employee;
 }
 
-const TOTALS = [
-  'commission',
-  'salesCommission',
-  'corrections',
-  'cardTips',
-  'cashTips',
-] as const;
+const TOTALS = ['commission', 'salesCommission', 'corrections', 'cardTips', 'cashTips'] as const;
 
 const KIND_TARGETS: readonly {
   readonly kind: CommissionStatementRowKind;
