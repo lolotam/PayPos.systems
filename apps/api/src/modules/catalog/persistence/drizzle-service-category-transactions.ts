@@ -71,8 +71,9 @@ async function branchBusiness(
   companyId: string,
   branchId: string,
 ): Promise<string | null> {
+  // قفل المشاركة يمنع حذف الفرع أو تغيير مفاتيحه حتى نهاية المعاملة، فلا تسقط الكتابة بخطأ مفتاح أجنبي.
   const [row] = await tx.execute<{ business_id: string }>(sql`
-    SELECT business_id FROM branches WHERE company_id=${companyId} AND id=${branchId}`);
+    SELECT business_id FROM branches WHERE company_id=${companyId} AND id=${branchId} FOR KEY SHARE`);
   return row?.business_id ?? null;
 }
 

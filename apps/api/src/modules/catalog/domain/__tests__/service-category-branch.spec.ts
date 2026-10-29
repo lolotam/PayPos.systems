@@ -50,6 +50,7 @@ function input(expected_revision: number | null, state: 'ENABLED' | 'HIDDEN' = '
     branch_id: branch,
     category_id: category().id,
     state,
+    category_closed: false,
     expected_revision,
   };
 }
@@ -86,6 +87,33 @@ describe('the branch setting revision and next state', () => {
   it('creates revision 1 on a first write with a null expectation', () => {
     expect(planServiceCategoryBranchState(null, input(null), at)).toEqual({
       ...setting({ revision: 1, created_at: at.toISOString(), updated_at: at.toISOString() }),
+    });
+  });
+
+  it('refuses to enable a closed category before checking a stale revision', () => {
+    expect(() =>
+      planServiceCategoryBranchState(
+        setting(),
+        { ...input(3), category_closed: true },
+        at,
+      ),
+    ).toThrow('SERVICE_CATEGORY_CLOSED');
+  });
+
+  it('allows hiding a closed category on a first write', () => {
+    expect(
+      planServiceCategoryBranchState(
+        null,
+        { ...input(null, 'HIDDEN'), category_closed: true },
+        at,
+      ),
+    ).toEqual({
+      ...setting({
+        state: 'HIDDEN',
+        revision: 1,
+        created_at: at.toISOString(),
+        updated_at: at.toISOString(),
+      }),
     });
   });
 

@@ -29,6 +29,7 @@ export interface ServiceCategoryBranchStatePlanInput {
   readonly branch_id: string;
   readonly category_id: string;
   readonly state: ServiceCategoryBranchState;
+  readonly category_closed: boolean;
   readonly expected_revision: number | null;
 }
 
@@ -55,20 +56,25 @@ export function isServiceCategoryInUse(
 }
 
 /**
- * يبني حالة الفرع التالية مع حماية الكتابة المتفائلة: أول كتابة تتطلب expected_revision=null
- * وتبدأ عند ١، وكل كتابة لاحقة تطابق النسخة الحالية ثم تزيدها ١. أي اختلاف رفض قديم.
+ * يبني حالة الفرع التالية: التصنيف المغلق لا يُفعّل، بينما يبقى إخفاؤه مسموحاً.
+ * تحمي الكتابة المتفائلة أول كتابة بـ expected_revision=null وتبدأ عند ١، وكل كتابة لاحقة
+ * تطابق النسخة الحالية ثم تزيدها ١. أي اختلاف رفض قديم.
  *
  * @param current صف الإعداد المقفول أو غيابه
- * @param input الحالة الجديدة والنسخة المتوقعة وهويات الصف
+ * @param input الحالة الجديدة وإغلاق التصنيف والنسخة المتوقعة وهويات الصف
  * @param at وقت الكتابة المحقون
  * @returns سجل الإعداد الذي يجب إدخاله أو تحديثه
  * @throws ServiceCategoryError باسم SERVICE_CATEGORY_REVISION_CONFLICT عند نسخة قديمة
+ * @throws ServiceCategoryError باسم SERVICE_CATEGORY_CLOSED عند تفعيل تصنيف مغلق
  */
 export function planServiceCategoryBranchState(
   current: ServiceCategoryBranchSettingRecord | null,
   input: ServiceCategoryBranchStatePlanInput,
   at: Date,
 ): ServiceCategoryBranchSettingRecord {
+  // يُرفض تفعيل التصنيف المغلق وفق SI-Q14 لأن إغلاقه يغلق خدماته ويمنع اختياره لخدمة جديدة.
+  if (input.category_closed && input.state === 'ENABLED')
+    throw new ServiceCategoryError('SERVICE_CATEGORY_CLOSED');
   if (
     (current === null && input.expected_revision !== null) ||
     (current !== null && input.expected_revision !== current.revision)

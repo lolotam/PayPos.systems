@@ -40,7 +40,7 @@ export interface ServiceCategoryScope {
     categoryId: string,
   ): Promise<ServiceCategoryBranchSettingRecord | null>;
   /**
-   * يقرأ نشاط الفرع من قاعدة البيانات، لأن العميل لا يحدد نشاط الفرع.
+   * يقرأ نشاط الفرع ويقفل صفه ضد الحذف أو تغيير المفاتيح حتى نهاية المعاملة، لأن العميل لا يحدد نشاط الفرع.
    *
    * @param branchId الفرع المطلوب
    * @returns نشاط الفرع أو غيابه
