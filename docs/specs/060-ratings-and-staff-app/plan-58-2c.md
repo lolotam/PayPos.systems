@@ -42,8 +42,8 @@ module-map changes (no new arrow).
    least 1 (`clock-by-card.controller.ts:80`). **Fail-closed:** a `null` limiter, `RateLimiterUnavailableError` or a
    Redis rejection from `hit` **or** `remaining` → 503 `NOT_READY`, before parsing or any database access
    (`devices.controller.ts:69–74`). `remaining()` in `shared/adapters/redis-rate-limiter.ts:78` today trusts the
-   `TTL` reply; it gains the same check as `count()`: a reply that is not an integer throws
-   `RateLimiterUnavailableError` (`-1`/`-2` still mean 0).
+   `TTL` reply; it gains an explicit check: a reply that is not a safe integer throws
+   `RateLimiterUnavailableError` (not the plain `Error` that `count()` throws today); `-1`/`-2` still mean 0.
 1b. **Per-client limit behind the proxy (Codex P1):** `trustProxy` defaults to `[]` (`app.ts:297`) and
    `deploy/staging.env.example:53` leaves `TRUSTED_PROXY_CIDRS` empty, so behind Traefik every visitor would share
    the proxy's address and one bucket. Mirroring the WhatsApp intake (`main.ts:108`): when `NODE_ENV=production`
