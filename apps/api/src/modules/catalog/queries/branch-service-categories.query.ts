@@ -27,7 +27,7 @@ export type BranchServiceCategoryListRow = {
 function viewClause(view: ServiceCategoryBranchView, branchId: string) {
   if (view === 'available')
     return sql`AND c.closed_at IS NULL AND
-      (s.state = 'HIDDEN' OR (c.visibility = 'BRANCH' AND c.owner_branch_id <> ${branchId}))`;
+      (s.state = 'HIDDEN' OR (c.visibility = 'BRANCH' AND c.owner_branch_id <> ${branchId} AND coalesce(s.state, '') <> 'ENABLED'))`;
   return sql`AND c.closed_at IS NULL AND coalesce(s.state, '') <> 'HIDDEN' AND
     (c.visibility = 'BUSINESS' OR c.owner_branch_id = ${branchId} OR s.state = 'ENABLED')`;
 }

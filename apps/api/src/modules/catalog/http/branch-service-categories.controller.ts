@@ -73,6 +73,8 @@ export class BranchServiceCategoriesController {
         { userId: actor.userId },
       );
     } catch (error) {
+      if (error instanceof RangeError && error.message === 'SERVICE_CATEGORY_CURSOR_INVALID')
+        throw new ApiError('VALIDATION_FAILED');
       if (error instanceof RangeError && error.message === 'SERVICE_CATEGORY_NOT_FOUND')
         throw new ApiError('SERVICE_CATEGORY_NOT_FOUND');
       throw error;

@@ -180,9 +180,20 @@ it('BCS-08 a state change writes before and after audit snapshots in the same st
   expect([enabled.setting_revision, hidden.setting_revision]).toEqual([1, 2]);
   expect(await stored(category.id, f.branch)).toEqual([{ state: 'HIDDEN', revision: 2 }]);
   const audits = await f.h.owner`SELECT action,before,after FROM audit_log
-    WHERE entity='service_category_branch_setting' AND entity_id=${hidden.id} ORDER BY created_at,id`;
+    WHERE entity='service_category_branch_setting' AND entity_id=(
+      SELECT id FROM service_category_branch_settings
+      WHERE company_id=${f.company} AND branch_id=${f.branch} AND category_id=${category.id})
+    ORDER BY at,id`;
   expect(audits).toHaveLength(2);
   expect(audits[1]).toMatchObject({ action: 'updated' });
   expect(audits[1]?.['before']).toMatchObject({ state: 'ENABLED', revision: 1 });
   expect(audits[1]?.['after']).toMatchObject({ state: 'HIDDEN', revision: 2 });
+});
+
+it('an invalid cursor returns 400 VALIDATION_FAILED', async () => {
+  const response = await f.h.send('GET', `${path(f.branch)}?view=in_use&cursor=not-a-cursor`, {
+    cookie: f.cookie, company: f.company,
+  });
+  expect(response.status).toBe(400);
+  expect(response.body).toMatchObject({ code: 'VALIDATION_FAILED' });
 });

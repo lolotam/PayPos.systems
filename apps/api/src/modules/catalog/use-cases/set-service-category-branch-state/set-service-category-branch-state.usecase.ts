@@ -41,7 +41,7 @@ export class SetServiceCategoryBranchStateUseCase {
       const category = await scope.loadForShare(businessId, command.categoryId);
       if (category === null) throw new ServiceCategoryError('SERVICE_CATEGORY_NOT_FOUND');
       if (category.closed_at !== null && command.input.state === 'ENABLED') {
-        // TODO(spec): enabling a closed category
+        // يُرفض تفعيل التصنيف المغلق وفق SI-Q14 لأن إغلاقه يغلق خدماته ويمنع اختياره لخدمة جديدة.
         throw new ServiceCategoryError('SERVICE_CATEGORY_CLOSED');
       }
       const current = await scope.loadBranchSetting(
