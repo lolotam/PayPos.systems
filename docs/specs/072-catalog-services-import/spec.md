@@ -329,7 +329,10 @@ Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's p
   `category_id` on a service (create-service, update-service, the import commit) locks the referenced category rows
   `FOR SHARE`, in ascending `id` order, before it checks that they are open, and then writes the service. A close and an
   assignment therefore run one after the other, never interleaved, so no open service can land under a category that
-  closed in between.
+  closed in between. Reopening a single service (`32b-cat-2`) follows the same order: it locks the service's category row
+  `FOR SHARE`, then the service row `FOR UPDATE`, and checks under both locks that the service still has that
+  category and that the category is open; if the category changed in between, it starts over. So a service reopen and
+  a category close never interleave either, and the category is always locked before its services.
 - **Every state change advances the revision**: closing, reopening and renaming a category, and every service that a
   close or reopen touches, set `updated_at` and increment `revision`, so a client holding an older revision gets the
   stale-revision conflict.
