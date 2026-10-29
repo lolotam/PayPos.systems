@@ -229,6 +229,13 @@ database assertion of CM-28b ("`GET` of a month that was never generated returns
 
 CLAUDE.md §6 and CLAUDE.architecture.md §7 get a one-line pointer to this section in the same PR.
 
+**Addendum (2026-10-29, sub-PR 56-1b): a third read use case.** `apps/worker/src/modules/commissions/use-cases/read-commission-statement-export/`
+is the third name. It is the worker's document source for the statement export (FR-050, CM-55), not an HTTP read endpoint,
+and it computes the per-employee totals through `domain/commission-statement-totals.ts`, so it cannot live in `queries/`.
+It follows every rule above: it depends on reader ports only (the export reader and `CommissionBranchNamesReader`), it
+runs SELECT statements only in one `withTenant` transaction, and it writes no row, audit or outbox entry. It adopts the
+`{ readOnly: true }` option when 50-5 adds it, like the other two.
+
 ### 6. The two fingerprints (D-5, D-6)
 
 **Where the builders live.** Both are pure functions in `packages/commissions-engine`: a commissions `domain/` folder
