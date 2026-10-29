@@ -44,11 +44,11 @@ export interface CommissionPlanVersionScope {
    */
   reopenReviewed(periods: readonly string[]): Promise<void>;
   /**
-   * بيعيد فحص صلاحية إدارة الخطط بعد انتظار أقفال الشهور.
+   * بيعيد فحص صلاحية إدارة الخطط وميزة العمولات بعد انتظار أقفال الشهور.
    *
-   * @returns FORBIDDEN عند سحب الصلاحية، أو null عند استمرارها
+   * @returns FORBIDDEN عند سحب الصلاحية، أو FEATURE_DISABLED عند تعطيل الميزة، أو null عند السماح
    */
-  recheckAccess(): Promise<'FORBIDDEN' | null>;
+  recheckAccess(): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null>;
   /**
    * بيقرأ أعلى رقم إصدار للموظفة بعد قفل صفها.
    *

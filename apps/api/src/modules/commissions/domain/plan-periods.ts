@@ -43,15 +43,16 @@ export function commissionPlanMonthsToLock(effectiveFrom: string, today: string)
 }
 
 /**
- * يطبق قاعدة FR-007 بعد قفل الشهور: التاريخ العادي لا يكون في الماضي، وشهر whole_period
- * يجب أن يكون DRAFT، والشهر المغلق يمنع الكتابة، وكل REVIEWED لاحق يعود إلى DRAFT.
+ * يطبق قاعدة FR-007 بعد قفل الشهور: التاريخ العادي لا يكون في الماضي، والشهر المغلق
+ * يمنع النوعين، وشهر whole_period يجب أن يكون DRAFT، وكل REVIEWED لاحق يعود إلى DRAFT.
+ * شهر REVIEWED الخاص بالإصدار العادي يعود أيضاً إلى DRAFT.
  *
  * @param input تاريخ السريان ونوع الإصدار وتاريخ النشاط والشهور المقفولة
  * @param input.effectiveFrom تاريخ سريان الإصدار بصيغة YYYY-MM-DD
  * @param input.wholePeriod هل يغطي الإصدار شهر سريانه بالكامل
  * @param input.today تاريخ اليوم في منطقة النشاط بصيغة YYYY-MM-DD
  * @param input.locked حالات الشهور بعد أخذ أقفالها
- * @returns الشهور اللاحقة التي يجب إرجاعها إلى DRAFT في المعاملة نفسها
+ * @returns شهور REVIEWED المطلوب إرجاعها إلى DRAFT، بما فيها شهر الإصدار العادي، تصاعدياً
  */
 export function assertCommissionPlanEffectiveFrom(input: {
   readonly effectiveFrom: string;
@@ -64,17 +65,18 @@ export function assertCommissionPlanEffectiveFrom(input: {
   }
   const ownMonth = input.effectiveFrom.slice(0, 7);
   const own = input.locked.find(({ period }) => period === ownMonth);
+  if (own?.status === 'APPROVED' || own?.status === 'PAID') {
+    throw new CommissionPlanVersionError('COMMISSION_PERIOD_CLOSED');
+  }
   if (input.wholePeriod && own?.status === 'REVIEWED') {
     throw new CommissionPlanVersionError('COMMISSION_PERIOD_NOT_DRAFT');
-  }
-  if (input.wholePeriod && (own?.status === 'APPROVED' || own?.status === 'PAID')) {
-    throw new CommissionPlanVersionError('COMMISSION_PERIOD_CLOSED');
   }
   const later = input.locked.filter(({ period }) => period > ownMonth);
   if (later.some(({ status }) => status === 'APPROVED' || status === 'PAID')) {
     throw new CommissionPlanVersionError('COMMISSION_PERIOD_CLOSED');
   }
-  return later.filter(({ status }) => status === 'REVIEWED').map(({ period }) => period);
+  const reviewed = later.filter(({ status }) => status === 'REVIEWED').map(({ period }) => period);
+  return !input.wholePeriod && own?.status === 'REVIEWED' ? [ownMonth, ...reviewed] : reviewed;
 }
 
 /**

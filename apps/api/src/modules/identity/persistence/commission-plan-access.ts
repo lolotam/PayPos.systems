@@ -3,16 +3,17 @@ import { sql } from 'drizzle-orm';
 
 import { evaluateAccess } from '../domain/access.ts';
 import { readAccessTransaction } from './access-reader.ts';
+import { readFeatureEnabled } from './feature-reader.ts';
 
 const PERMISSION = 'manage:commission-plans:business';
 
-/** يعيد قرار صلاحية الخطة داخل معاملة الكاتب بعد أقفالها، بلا فتح معاملة ثانية. */
+/** يعيد قرار صلاحية الخطة وميزة العمولات داخل معاملة الكاتب بعد أقفالها، بلا معاملة ثانية. */
 export async function readCommissionPlanAccess(
   tx: Tx,
   companyId: string,
   userId: string,
   businessId: string,
-): Promise<'FORBIDDEN' | null> {
+): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null> {
   const [business] = await tx.execute(sql`SELECT id FROM businesses
     WHERE company_id=${companyId} AND id=${businessId}
       AND EXISTS (SELECT 1 FROM companies WHERE id=${companyId} AND deleted_at IS NULL)`);
@@ -20,5 +21,8 @@ export async function readCommissionPlanAccess(
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
   if (time === undefined) return 'FORBIDDEN';
   const access = await readAccessTransaction(tx, companyId, userId, new Date(time.at));
-  return evaluateAccess(access.grants, PERMISSION, { companyId, businessId }) ? null : 'FORBIDDEN';
+  if (!evaluateAccess(access.grants, PERMISSION, { companyId, businessId })) return 'FORBIDDEN';
+  return (await readFeatureEnabled(tx, companyId, 'commissions', new Date(time.at)))
+    ? null
+    : 'FEATURE_DISABLED';
 }

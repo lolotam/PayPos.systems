@@ -54,15 +54,17 @@ export async function writeCommissionPlanVersion(
   const today = localDate(now, timeZone);
   const periods = commissionPlanMonthsToLock(command.input.effective_from, today);
   const locked = await scope.lockPeriods(periods);
+  const decidedAt = clock.now();
   const reopen = assertCommissionPlanEffectiveFrom({
     effectiveFrom: command.input.effective_from,
     wholePeriod: command.input.whole_period,
-    today,
+    today: localDate(decidedAt, timeZone),
     locked,
   });
   await scope.reopenReviewed(reopen);
-  if ((await scope.recheckAccess()) !== null) {
-    throw new CommissionPlanVersionError('FORBIDDEN');
+  const accessFailure = await scope.recheckAccess();
+  if (accessFailure !== null) {
+    throw new CommissionPlanVersionError(accessFailure);
   }
   const version = nextCommissionPlanVersion(await scope.latestVersion());
   const stored = await scope.insert({
@@ -75,7 +77,7 @@ export async function writeCommissionPlanVersion(
     base: command.input.base,
     tiers: command.input.tiers,
     package_sale: command.input.package_sale,
-    created_at: now.toISOString(),
+    created_at: decidedAt.toISOString(),
     created_by: command.userId,
   });
   await scope.audit(stored);

@@ -24,8 +24,9 @@ export function createCommissionPlanVersionTransactions(
         command.companyId,
         async (tx) => {
           const scope = createCommissionPlanVersionScope(tx, command, ids, readers);
-          if ((await scope.recheckAccess()) !== null) {
-            throw new CommissionPlanVersionError('FORBIDDEN');
+          const accessFailure = await scope.recheckAccess();
+          if (accessFailure !== null) {
+            throw new CommissionPlanVersionError(accessFailure);
           }
           const result = await runIdempotent(
             tx,

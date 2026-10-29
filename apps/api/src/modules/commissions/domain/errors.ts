@@ -1,5 +1,6 @@
 export type CommissionPlanVersionErrorCode =
   | 'FORBIDDEN'
+  | 'FEATURE_DISABLED'
   | 'EMPLOYEE_NOT_FOUND'
   | 'COMMISSION_PLAN_INVALID'
   | 'COMMISSION_EFFECTIVE_FROM_PAST'

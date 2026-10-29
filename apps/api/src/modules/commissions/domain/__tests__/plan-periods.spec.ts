@@ -73,15 +73,28 @@ describe('assertCommissionPlanEffectiveFrom effective date and own month', () =>
     ).toThrowError(expect.objectContaining({ code: 'COMMISSION_PERIOD_NOT_DRAFT' }));
   });
 
-  it.each(['APPROVED', 'PAID'] as const)('rejects a %s own month as closed', (status) => {
+  it.each([
+    ['APPROVED', true],
+    ['APPROVED', false],
+    ['PAID', true],
+    ['PAID', false],
+  ] as const)('rejects a %s own month as closed (wholePeriod=%s)', (status, wholePeriod) => {
     expect(() =>
       assertCommissionPlanEffectiveFrom({
         ...input,
-        effectiveFrom: '2026-09-01',
-        wholePeriod: true,
-        locked: [locked('2026-09', status)],
+        wholePeriod,
+        locked: [locked('2026-10', status)],
       }),
     ).toThrowError(expect.objectContaining({ code: 'COMMISSION_PERIOD_CLOSED' }));
+  });
+
+  it('returns an ordinary own REVIEWED month before a later REVIEWED month', () => {
+    expect(
+      assertCommissionPlanEffectiveFrom({
+        ...input,
+        locked: [locked('2026-10', 'REVIEWED'), locked('2026-11', 'REVIEWED')],
+      }),
+    ).toEqual(['2026-10', '2026-11']);
   });
 });
 
