@@ -147,6 +147,18 @@ it('BUSINESS returns every frozen row and its exact result shape', async () => {
     customerName: 'نورة محمد',
   });
   expect(result.paidCash).toBeNull();
+  expect(result.employees).toHaveLength(1);
+  expect(result.employees[0]).toMatchObject({
+    employeeId: A.employee,
+    employeeNumber: 1,
+    commission: 41_003n,
+    salesCommission: 0n,
+    corrections: -3_000n,
+    cardTips: 0n,
+    cashTips: 0n,
+    netPayable: 38_003n,
+    partial: false,
+  });
 });
 
 it('BRANCHES applies both saved sets to every row, including the transferred employee', async () => {
@@ -203,8 +215,14 @@ it('BRANCHES applies both saved sets to every row, including the transferred emp
   expect(result.rows.every((row) => row.attachedBranchIds.includes(A.branch))).toBe(true);
   const early = result.rows.find((row) => row.sourceRef === 'line:early');
   expect(early?.sourceBranchId).toBe(hawally);
+  expect(early?.sourceBranchNameEn).toBe('Hawally');
+  expect(early?.sourceBranchNameAr).toBeNull();
   expect(early?.amount).toBe(10_000n);
   expect(early?.partial).toBe(true);
+  // صف الموظفة مالوش فرع تنفيذ، فالخانة فاضية.
+  expect(
+    result.rows.find((row) => row.sourceRef === 'employee:other')?.sourceBranchNameEn,
+  ).toBeNull();
   expect(result.rows.find((row) => row.sourceRef === 'employee:other')?.partial).toBe(false);
   expect(result.rows.some((row) => row.customerName === 'Late customer')).toBe(false);
 });
@@ -306,6 +324,8 @@ it('the request and frozen-row reads use their indexes and keep their result sha
   ).toBe(true);
   expectLinesIndexScan(plans.rowsPlan);
   expectLinesIndexScan(plans.branchRowsPlan);
+  expectBranchesIndexScan(plans.rowsPlan);
+  expectBranchesIndexScan(plans.branchRowsPlan);
 });
 
 function expectLinesIndexScan(plan: unknown): void {
@@ -321,6 +341,14 @@ function expectLinesIndexScan(plan: unknown): void {
       String(node['Index Name'] ?? '').startsWith('commission_statement_lines_'),
     ),
   ).toBe(true);
+}
+
+function expectBranchesIndexScan(plan: unknown): void {
+  const nodes = planNodes(plan);
+  expect(
+    nodes.some((node) => node['Relation Name'] === 'branches' && node['Node Type'] === 'Seq Scan'),
+  ).toBe(false);
+  expect(nodes.some((node) => String(node['Index Name'] ?? '').startsWith('branches_'))).toBe(true);
 }
 
 function planNodes(value: unknown): Record<string, unknown>[] {

@@ -31,29 +31,36 @@ export function commissionStatementExportRequestStatement(companyId: string, ren
 /**
  * صفوف الكشف المجمّد لملف التصدير؛ الفلتر على لقطة الفروع والموظفين المحفوظة،
  * فلا يخرج مبلغ أو اسم عميل من جزء غير مسموح حتى لو الموظفة داخلة في employee_ids.
+ * العلامة الجزئية بتتحسب مرة واحدة لكل موظفة في CTE، والاسم يجي من فرع التنفيذ وقت التجميد.
  */
 export function commissionStatementFrozenRowsStatement(filter: CommissionStatementRowsFilter) {
   const branchIds = uuidArray(filter.branchIds ?? []);
   const employeeIds = uuidArray(filter.employeeIds ?? []);
-  return sql`SELECT employee_id, employee_number, employee_name_ar, employee_name_en,
-      source_ref, kind, amount::text AS amount, previous_amount::text AS previous_amount,
-      new_amount::text AS new_amount, source_period::text AS source_period, source_branch_id,
-      attached_branch_ids, COALESCE(business_date, source_business_date)::text AS business_date,
-      service_name_ar, service_name_en, customer_name,
-      CASE WHEN ${filter.scope} = 'BUSINESS' THEN false ELSE COALESCE((
-        SELECT bool_or(NOT (outside.attached_branch_ids && ${branchIds}))
-        FROM commission_statement_lines outside
-        WHERE outside.company_id = commission_statement_lines.company_id
-          AND outside.company_id = app_company_id()
-          AND outside.business_id = commission_statement_lines.business_id
-          AND outside.statement_id = commission_statement_lines.statement_id
-          AND outside.employee_id = commission_statement_lines.employee_id
-          AND outside.kind <> 'EMPLOYEE'
-      ), false) END AS partial
-    FROM commission_statement_lines
-    WHERE company_id = ${filter.companyId} AND company_id = app_company_id()
-      AND business_id = ${filter.businessId}::uuid AND statement_id = ${filter.statementId}::uuid
+  return sql`WITH employee_partials AS MATERIALIZED (
+      SELECT lines.employee_id, bool_or(NOT (lines.attached_branch_ids && ${branchIds})) AS partial
+      FROM commission_statement_lines lines
+      WHERE lines.company_id = ${filter.companyId} AND lines.company_id = app_company_id()
+        AND lines.business_id = ${filter.businessId}::uuid
+        AND lines.statement_id = ${filter.statementId}::uuid
+        AND lines.kind <> 'EMPLOYEE'
+        AND ${filter.scope} = 'BRANCHES'
+      GROUP BY lines.employee_id
+    )
+    SELECT lines.employee_id, lines.employee_number, lines.employee_name_ar, lines.employee_name_en,
+      lines.source_ref, lines.kind, lines.amount::text AS amount, lines.previous_amount::text AS previous_amount,
+      lines.new_amount::text AS new_amount, lines.source_period::text AS source_period, lines.source_branch_id,
+      branches.name_ar AS source_branch_name_ar, branches.name_en AS source_branch_name_en,
+      lines.attached_branch_ids, COALESCE(lines.business_date, lines.source_business_date)::text AS business_date,
+      lines.service_name_ar, lines.service_name_en, lines.customer_name,
+      CASE WHEN ${filter.scope} = 'BUSINESS' THEN false
+        ELSE COALESCE(employee_partials.partial, false) END AS partial
+    FROM commission_statement_lines lines
+    LEFT JOIN branches ON branches.company_id = app_company_id()
+      AND branches.company_id = lines.company_id AND branches.id = lines.source_branch_id
+    LEFT JOIN employee_partials ON employee_partials.employee_id = lines.employee_id
+    WHERE lines.company_id = ${filter.companyId} AND lines.company_id = app_company_id()
+      AND lines.business_id = ${filter.businessId}::uuid AND lines.statement_id = ${filter.statementId}::uuid
       AND (${filter.scope} = 'BUSINESS'
-        OR (employee_id = ANY(${employeeIds}) AND attached_branch_ids && ${branchIds}))
-    ORDER BY employee_number, employee_id, source_ref, id`;
+        OR (lines.employee_id = ANY(${employeeIds}) AND lines.attached_branch_ids && ${branchIds}))
+    ORDER BY lines.employee_number, lines.employee_id, lines.source_ref, lines.id`;
 }

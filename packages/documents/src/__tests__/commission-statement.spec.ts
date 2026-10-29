@@ -6,7 +6,10 @@ import {
   type CommissionStatementLabels,
   type CommissionStatementWorkbookInput,
 } from '../excel/commission-statement.ts';
-import type { CommissionStatementWorkbookRow } from '../excel/commission-statement-rows.ts';
+import type {
+  CommissionStatementEmployeeTotal,
+  CommissionStatementWorkbookRow,
+} from '../excel/commission-statement-rows.ts';
 
 const EN: CommissionStatementLabels = {
   summarySheet: 'Summary',
@@ -23,6 +26,7 @@ const EN: CommissionStatementLabels = {
   paidCash: 'Paid cash',
   entryKind: 'Entry type',
   businessDate: 'Business date',
+  performedAt: 'Performed at',
   serviceName: 'Service',
   customerName: 'Customer name',
   sourcePeriod: 'Source month',
@@ -59,6 +63,7 @@ const AR: CommissionStatementLabels = {
   paidCash: 'اتصرف كاش',
   entryKind: 'نوع البند',
   businessDate: 'تاريخ العمل',
+  performedAt: 'مكان التنفيذ',
   serviceName: 'الخدمة',
   customerName: 'اسم العميلة',
   sourcePeriod: 'الشهر الأصلي',
@@ -83,6 +88,8 @@ function row(overrides: Partial<CommissionStatementWorkbookRow>): CommissionStat
     serviceNameAr: null,
     serviceNameEn: null,
     customerName: null,
+    sourceBranchNameAr: null,
+    sourceBranchNameEn: null,
     partial: false,
     ...overrides,
   };
@@ -97,8 +104,14 @@ function frozenRows(): CommissionStatementWorkbookRow[] {
   };
   return [
     row({}),
-    row({ kind: 'COMMISSION', amount: 41_003n, ...service }),
-    row({ kind: 'SALE', amount: 10_000n }),
+    row({
+      kind: 'COMMISSION',
+      amount: 41_003n,
+      sourceBranchNameAr: 'حولي',
+      sourceBranchNameEn: 'Hawally',
+      ...service,
+    }),
+    row({ kind: 'SALE', amount: 10_000n, sourceBranchNameEn: 'Hawally' }),
     row({
       kind: 'CORRECTION',
       amount: -2_000n,
@@ -128,8 +141,28 @@ function frozenRows(): CommissionStatementWorkbookRow[] {
   ];
 }
 
+const EMPLOYEE_TOTAL: CommissionStatementEmployeeTotal = {
+  employeeId: 'employee-1',
+  employeeNumber: 7,
+  employeeNameAr: 'سارة',
+  employeeNameEn: 'Sara',
+  commission: 41_003n,
+  salesCommission: 10_000n,
+  corrections: -5_000n,
+  cardTips: 7_000n,
+  cashTips: 4_500n,
+  netPayable: 53_003n,
+  partial: false,
+};
+
 function input(language: 'ar' | 'en'): CommissionStatementWorkbookInput {
-  return { language, scope: 'BUSINESS', labels: language === 'ar' ? AR : EN, rows: frozenRows() };
+  return {
+    language,
+    scope: 'BUSINESS',
+    labels: language === 'ar' ? AR : EN,
+    rows: frozenRows(),
+    employees: [EMPLOYEE_TOTAL],
+  };
 }
 
 async function open(bytes: Uint8Array): Promise<ExcelJS.Workbook> {
@@ -170,14 +203,14 @@ it('writes Arabic headers and exact frozen amounts, names and payable totals', a
   ]);
   expect(summary?.getCell('C2').numFmt).toBe('@');
   expect(detail?.getCell('B2').value).toBe('سارة');
-  expect(detail?.getCell('E2').value).toBe('قص شعر');
-  expect(detail?.getCell('F2').value).toBe('نورة محمد');
-  expect(detail?.getCell('J2').value).toBe('41.003');
-  expect(detail?.getCell('J2').numFmt).toBe('@');
-  expect(detail?.getCell('G4').value).toBe('2026-09');
-  expect(detail?.getCell('H4').value).toBe('12.000');
-  expect(detail?.getCell('I4').value).toBe('10.000');
-  expect(detail?.getCell('J4').value).toBe('-2.000');
+  expect(detail?.getCell('F2').value).toBe('قص شعر');
+  expect(detail?.getCell('G2').value).toBe('نورة محمد');
+  expect(detail?.getCell('K2').value).toBe('41.003');
+  expect(detail?.getCell('K2').numFmt).toBe('@');
+  expect(detail?.getCell('H4').value).toBe('2026-09');
+  expect(detail?.getCell('I4').value).toBe('12.000');
+  expect(detail?.getCell('J4').value).toBe('10.000');
+  expect(detail?.getCell('K4').value).toBe('-2.000');
 });
 
 it('writes English headers and keeps the sheet left-to-right', async () => {
@@ -195,7 +228,24 @@ it('writes English headers and keeps the sheet left-to-right', async () => {
     'Net payable',
   ]);
   expect(summary?.getCell('B2').value).toBe('Sara');
-  expect(workbook.getWorksheet('Details')?.getCell('E2').value).toBe('Haircut');
+  expect(workbook.getWorksheet('Details')?.getCell('F2').value).toBe('Haircut');
+});
+
+it('shows where the work was done in the details sheet', async () => {
+  const arabic = await open(await buildCommissionStatementWorkbook(input('ar')));
+  const arabicDetail = arabic.getWorksheet('التفاصيل');
+  expect(cells(arabicDetail, 1)[4]).toBe('مكان التنفيذ');
+  expect(arabicDetail?.getCell('E2').value).toBe('حولي');
+  // الاسم العربي ناقص في الفرع، فالملف بيرجع بالاسم الإنجليزي.
+  expect(arabicDetail?.getCell('E3').value).toBe('Hawally');
+  // الرصيد المرحّل مالوش فرع تنفيذ، فالخانة فاضية.
+  expect(arabicDetail?.getCell('E9').value).toBe('');
+
+  const english = await open(await buildCommissionStatementWorkbook(input('en')));
+  const englishDetail = english.getWorksheet('Details');
+  expect(cells(englishDetail, 1)[4]).toBe('Performed at');
+  expect(englishDetail?.getCell('E2').value).toBe('Hawally');
+  expect(englishDetail?.getCell('E9').value).toBe('');
 });
 
 it('labels a partial employee only in a branch-scoped workbook', async () => {
@@ -203,7 +253,7 @@ it('labels a partial employee only in a branch-scoped workbook', async () => {
     await buildCommissionStatementWorkbook({
       ...input('ar'),
       scope: 'BRANCHES',
-      rows: frozenRows().map((row) => ({ ...row, partial: true })),
+      employees: [{ ...EMPLOYEE_TOTAL, partial: true }],
     }),
   );
   const branchSummary = branch.getWorksheet('الملخص');
@@ -239,6 +289,16 @@ it('adds the rounded paid-cash column only when cash payment data is present', a
     await buildCommissionStatementWorkbook({
       ...input('ar'),
       rows: frozenRows().filter((row) => row.kind === 'EMPLOYEE' || row.kind === 'COMMISSION'),
+      employees: [
+        {
+          ...EMPLOYEE_TOTAL,
+          salesCommission: 0n,
+          corrections: 0n,
+          cardTips: 0n,
+          cashTips: 0n,
+          netPayable: 41_003n,
+        },
+      ],
       paidCash: [{ employeeId: 'employee-1', amount: 41_005n }],
     }),
   );
@@ -260,6 +320,17 @@ it('pays zero for negative sides without netting cash tips or the other side', a
       row({ kind: 'COMMISSION', amount: -25_000n }),
       row({ kind: 'TIP_CARD', amount: 6_000n }),
       row({ kind: 'TIP_CASH', amount: 4_000n }),
+    ],
+    employees: [
+      {
+        ...EMPLOYEE_TOTAL,
+        commission: -25_000n,
+        salesCommission: 0n,
+        corrections: 0n,
+        cardTips: 6_000n,
+        cashTips: 4_000n,
+        netPayable: 6_000n,
+      },
     ],
   });
   const summary = (await open(bytes)).getWorksheet('Summary');

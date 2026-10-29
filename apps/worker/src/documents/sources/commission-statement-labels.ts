@@ -28,6 +28,7 @@ export function commissionStatementLabels(language: Locale): CommissionStatement
     paidCash: label(language, 'paidCash'),
     entryKind: label(language, 'entryKind'),
     businessDate: label(language, 'businessDate'),
+    performedAt: label(language, 'performedAt'),
     serviceName: label(language, 'serviceName'),
     customerName: label(language, 'customerName'),
     sourcePeriod: label(language, 'sourcePeriod'),

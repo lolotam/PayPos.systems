@@ -13,6 +13,7 @@ import {
 import type { Logger } from '@pospay/observability';
 import type { Redis } from 'ioredis';
 
+import { CommissionStatementUnavailableError } from './commission-statement-unavailable-error.ts';
 import { DocumentKindUnknownError } from './kind-error.ts';
 import { produceDocument } from './produce-document.ts';
 import type { DocumentSourceRegistry } from './source-registry.ts';
@@ -55,6 +56,8 @@ function errorCode(error: unknown): DocumentRenderErrorCode {
   if (error instanceof DocumentTooLargeError) return 'DOCUMENT_TOO_LARGE';
   if (error instanceof DocumentRenderTimeoutError) return 'DOCUMENT_RENDER_TIMEOUT';
   if (error instanceof AttendanceStatementEmptyError) return 'STATEMENT_EMPTY';
+  // كشف العمولة من غير طلب أو من غير بيانات صرف: الفشل نهائي، بس مفيش كود مخصوص في العقد.
+  if (error instanceof CommissionStatementUnavailableError) return 'STATEMENT_EMPTY';
   return 'DOCUMENT_RENDER_FAILED';
 }
 

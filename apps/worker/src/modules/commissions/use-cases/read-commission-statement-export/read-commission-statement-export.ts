@@ -1,3 +1,4 @@
+import { summarizeCommissionStatement } from '../../domain/commission-statement-totals.ts';
 import type {
   CommissionStatementExportData,
   CommissionStatementExportReader,
@@ -35,6 +36,6 @@ export class ReadCommissionStatementExport {
     if (data.request.statementStatus === 'PAID') {
       throw new CommissionStatementPaymentDataUnavailable();
     }
-    return data;
+    return { ...data, employees: summarizeCommissionStatement(data.rows) };
   }
 }

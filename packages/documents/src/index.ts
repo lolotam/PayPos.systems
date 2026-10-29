@@ -26,6 +26,7 @@ export {
 } from './excel/commission-statement.ts';
 export {
   COMMISSION_STATEMENT_ROW_KINDS,
+  type CommissionStatementEmployeeTotal,
   type CommissionStatementRowKind,
   type CommissionStatementWorkbookRow,
 } from './excel/commission-statement-rows.ts';

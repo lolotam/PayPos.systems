@@ -1,18 +1,13 @@
 import type { Money } from '@pospay/domain';
 
+import type {
+  CommissionStatementEmployeeTotal,
+  CommissionStatementRowKind,
+} from '../domain/commission-statement-totals.ts';
+
 export type CommissionStatementExportLanguage = 'ar' | 'en';
 export type CommissionStatementExportScope = 'BUSINESS' | 'BRANCHES';
-export type CommissionStatementFrozenKind =
-  | 'COMMISSION'
-  | 'SALE'
-  | 'TIP_CARD'
-  | 'TIP_CASH'
-  | 'CORRECTION'
-  | 'CORRECTION_TIP_CARD'
-  | 'CORRECTION_TIP_CASH'
-  | 'CARRY_COMMISSION'
-  | 'CARRY_TIP_CARD'
-  | 'EMPLOYEE';
+export type CommissionStatementFrozenKind = CommissionStatementRowKind;
 
 export interface CommissionStatementExportRequest {
   readonly statementId: string;
@@ -37,6 +32,9 @@ export interface CommissionStatementFrozenRow {
   readonly newAmount: Money | null;
   readonly sourcePeriod: string | null;
   readonly sourceBranchId: string | null;
+  /** اسم الفرع اللي اتنفذت فيه الشغلة وقت التجميد؛ عرض بس ومش مفتاح ترشيح (CM-55f). */
+  readonly sourceBranchNameAr: string | null;
+  readonly sourceBranchNameEn: string | null;
   readonly attachedBranchIds: readonly string[];
   /** true لما أي صف من شهر الموظفة برّه فروع الطلب؛ الأرقام الظاهرة يبقى مجموع جزئي. */
   readonly partial: boolean;
@@ -51,10 +49,16 @@ export interface CommissionStatementPaidCash {
   readonly amount: Money;
 }
 
-export interface CommissionStatementExportData {
+/** الطلب والصفوف المجمّدة كما اتقراها من الداتابيز، من غير أي إجماليات محسوبة. */
+export interface CommissionStatementExportReaderData {
   readonly request: CommissionStatementExportRequest;
   readonly rows: readonly CommissionStatementFrozenRow[];
   readonly paidCash: readonly CommissionStatementPaidCash[] | null;
+}
+
+/** الطلب والصفوف وإجماليات كل موظفة؛ الإجماليات محسوبة في domain/مش في الملف. */
+export interface CommissionStatementExportData extends CommissionStatementExportReaderData {
+  readonly employees: readonly CommissionStatementEmployeeTotal[];
 }
 
 /** قارئ طلب التصدير وصفوفه المجمّدة؛ بيحتاجه مصدر الملف عشان يبني نفس الكشف من غير بيانات حيّة. */
@@ -71,5 +75,5 @@ export interface CommissionStatementExportReader {
     companyId: string,
     renderId: string,
     signal?: AbortSignal,
-  ): Promise<CommissionStatementExportData | null>;
+  ): Promise<CommissionStatementExportReaderData | null>;
 }

@@ -3,9 +3,10 @@ import type { TenantWrappers, Tx } from '@pospay/db';
 import type { SQL } from 'drizzle-orm';
 
 import type {
-  CommissionStatementExportData,
   CommissionStatementExportReader,
+  CommissionStatementExportReaderData,
   CommissionStatementExportRequest,
+  CommissionStatementExportScope,
   CommissionStatementFrozenKind,
 } from '../ports/commission-statement-export.port.ts';
 
@@ -34,6 +35,8 @@ type FrozenRow = {
   new_amount: string | null;
   source_period: string | null;
   source_branch_id: string | null;
+  source_branch_name_ar: string | null;
+  source_branch_name_en: string | null;
   attached_branch_ids: string[];
   partial: boolean;
   business_date: string | null;
@@ -56,6 +59,19 @@ export interface CommissionStatementExportStatements {
   readonly rows: (filter: CommissionStatementRowsFilter) => SQL;
 }
 
+/**
+ * نطاق التصدير المحفوظ: BUSINESS أو BRANCHES بس. أي قيمة تانية كسر في الثوابت
+ * (CHECK في الداتابيز بيمنعها)، فبنقفل بدل ما نصدّر كشف شركة كاملة بالغلط.
+ *
+ * @param value النطاق المحفوظ في صف طلب التصدير
+ * @returns النطاق بعد تحقق الثابت
+ */
+export function commissionStatementExportScope(value: string): CommissionStatementExportScope {
+  if (value === 'BUSINESS') return 'BUSINESS';
+  if (value === 'BRANCHES') return 'BRANCHES';
+  throw new Error('commission_statement_exports.scope must be BUSINESS or BRANCHES');
+}
+
 function request(row: RequestRow): CommissionStatementExportRequest {
   return {
     statementId: row.statement_id,
@@ -63,13 +79,13 @@ function request(row: RequestRow): CommissionStatementExportRequest {
     period: row.period,
     statementStatus: row.statement_status,
     language: row.language === 'en' ? 'en' : 'ar',
-    scope: row.scope === 'BRANCHES' ? 'BRANCHES' : 'BUSINESS',
+    scope: commissionStatementExportScope(row.scope),
     branchIds: row.branch_ids,
     employeeIds: row.employee_ids,
   };
 }
 
-function rows(records: FrozenRow[]): CommissionStatementExportData['rows'] {
+function rows(records: FrozenRow[]): CommissionStatementExportReaderData['rows'] {
   return records.map((row) => ({
     employeeId: row.employee_id,
     employeeNumber: row.employee_number,
@@ -82,6 +98,8 @@ function rows(records: FrozenRow[]): CommissionStatementExportData['rows'] {
     newAmount: row.new_amount === null ? null : parseMoney(row.new_amount),
     sourcePeriod: row.source_period,
     sourceBranchId: row.source_branch_id,
+    sourceBranchNameAr: row.source_branch_name_ar,
+    sourceBranchNameEn: row.source_branch_name_en,
     attachedBranchIds: row.attached_branch_ids,
     partial: row.partial,
     businessDate: row.business_date,

@@ -1,11 +1,10 @@
 import { moneyToString, type Money } from '@pospay/domain';
 import ExcelJS from 'exceljs';
 
-import {
-  summarizeCommissionStatement,
-  type CommissionStatementEmployeeTotal,
-  type CommissionStatementRowKind,
-  type CommissionStatementWorkbookRow,
+import type {
+  CommissionStatementEmployeeTotal,
+  CommissionStatementRowKind,
+  CommissionStatementWorkbookRow,
 } from './commission-statement-rows.ts';
 
 export type CommissionStatementLanguage = 'ar' | 'en';
@@ -25,6 +24,7 @@ export interface CommissionStatementLabels {
   readonly paidCash: string;
   readonly entryKind: string;
   readonly businessDate: string;
+  readonly performedAt: string;
   readonly serviceName: string;
   readonly customerName: string;
   readonly sourcePeriod: string;
@@ -44,6 +44,8 @@ export interface CommissionStatementWorkbookInput {
   readonly scope: 'BUSINESS' | 'BRANCHES';
   readonly labels: CommissionStatementLabels;
   readonly rows: readonly CommissionStatementWorkbookRow[];
+  /** إجمالي كل موظفة محسوب قبل الملف؛ الـ builder بيرسمه من غير تجميع ولا حساب. */
+  readonly employees: readonly CommissionStatementEmployeeTotal[];
   readonly paidCash?: readonly CommissionStatementPaidCash[] | null;
 }
 
@@ -103,7 +105,7 @@ function addSummarySheet(
     views: [{ rightToLeft: input.language === 'ar' }],
   });
   header(sheet, summaryHeaders(input));
-  for (const employee of summarizeCommissionStatement(input.rows)) {
+  for (const employee of input.employees) {
     sheet.addRow(summaryRow(employee, input));
   }
   for (let column = 3; column <= sheet.columnCount; column += 1) {
@@ -117,6 +119,7 @@ function detailHeaders(labels: CommissionStatementLabels): string[] {
     labels.employeeName,
     labels.entryKind,
     labels.businessDate,
+    labels.performedAt,
     labels.serviceName,
     labels.customerName,
     labels.sourcePeriod,
@@ -135,6 +138,7 @@ function detailRow(
     localized(row.employeeNameAr, row.employeeNameEn, input.language),
     input.labels.kinds[row.kind],
     row.businessDate ?? '',
+    localized(row.sourceBranchNameAr, row.sourceBranchNameEn, input.language),
     localized(row.serviceNameAr, row.serviceNameEn, input.language),
     row.customerName ?? '',
     row.sourcePeriod ?? '',
@@ -152,7 +156,7 @@ function addDetailSheet(workbook: ExcelJS.Workbook, input: CommissionStatementWo
   for (const row of input.rows) {
     if (row.kind !== 'EMPLOYEE') sheet.addRow(detailRow(row, input));
   }
-  for (let column = 8; column <= 10; column += 1) {
+  for (let column = 9; column <= 11; column += 1) {
     sheet.getColumn(column).numFmt = '@';
   }
 }
@@ -161,7 +165,7 @@ function addDetailSheet(workbook: ExcelJS.Workbook, input: CommissionStatementWo
  * يبني ملف Excel من الصفوف المجمّدة بعد ترشيحها؛ المبالغ خلايا نصية بثلاث خانات
  * عشان قيمة الكشف ما تتغيّرش بتحويلها لرقم عشري، والعناوين والأسماء بلغة التنزيل.
  *
- * @param input اللغة والعناوين والصفوف المجمّدة والمبالغ المتقرّبة عند الصرف كاش
+ * @param input اللغة والعناوين والصفوف المجمّدة وإجماليات الموظفات والمبالغ المتقرّبة عند الصرف كاش
  * @returns بايتات ملف xlsx
  */
 export async function buildCommissionStatementWorkbook(
