@@ -84,7 +84,7 @@
 
 ## 5. The initial implementation lane
 
-- The initial implementation runs on the **built-in delegation facility of the agent runtime**, on the user-enabled **MiniMax-M3.1-Flash · thinking** lane (PP-69.1), under the transport rule of §0.
+- The initial implementation runs on the **built-in delegation facility of the agent runtime**, on the user-enabled **MiniMax-M3.1-Flash** lane, T3's OpenCode provider (PP-69.1, PP-84.1), under the transport rule of §0.
 - The owner confirmed this directly: *«sorry you dot need to delegate open code minimax 3.1 you have already the delegation tool here and i already login fore minimmax provider so the delgation model will be minimax m3.1 flash»*.
 - **No external process** stands in for that lane (see §0), no new login, no new API keys, no invented model id or variant.
 - The implementer authors the code, tests, contracts, migrations and RLS policies inside a **bounded, declared scope**. It does not publish anything, does not touch the server, and does not read secrets.
@@ -102,7 +102,7 @@
 ## 7. Handoff: when the work moves from one implementer to another
 
 - The **initial implementer keeps its own failed attempt** until the required checks and the review are complete and ownership is handed back. A tool that resumes the original worker cannot move failed work to another model to get past a failure, and a failing delivery is never marked complete to force a handoff.
-- Only after a **clean initial handoff** does a **new, bounded Kimi `K3.1 Pro` task** take the subsequent review, PR and CI findings (`grok-4.7` when Kimi falls back under §0). The same worker is reused for its own correction rounds, dispatched through the built-in delegation of §0.
+- Only after a **clean initial handoff** does a **new, bounded Kimi `K3.1 Pro` task** take the subsequent review, PR and CI findings (Claude Code `claude-opus-5-5` when Kimi falls back under §0, except while the PP-84.2 wait applies). The same worker is reused for its own correction rounds, dispatched through the built-in delegation of §0.
 - The correction already settled in the `feat/p1-057-3b-self-approval-notice` worktree is Kimi's own work and legitimately stays with Kimi.
 
 ## 8. Independent reviews
