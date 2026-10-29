@@ -83,7 +83,11 @@ function append(rows: MutableEmployeeRows, row: CommissionStatementWorkbookRow):
   if (row.kind === 'CORRECTION' || row.kind === 'CARRY_COMMISSION') {
     rows.corrections.push(row.amount);
   }
-  if (row.kind === 'TIP_CARD' || row.kind === 'CORRECTION_TIP_CARD' || row.kind === 'CARRY_TIP_CARD') {
+  if (
+    row.kind === 'TIP_CARD' ||
+    row.kind === 'CORRECTION_TIP_CARD' ||
+    row.kind === 'CARRY_TIP_CARD'
+  ) {
     rows.cardTips.push(row.amount);
   }
   if (row.kind === 'TIP_CASH' || row.kind === 'CORRECTION_TIP_CASH') {
@@ -118,6 +122,7 @@ export function summarizeCommissionStatement(
     .map(total)
     .sort(
       (left, right) =>
-        left.employeeNumber - right.employeeNumber || left.employeeId.localeCompare(right.employeeId),
+        left.employeeNumber - right.employeeNumber ||
+        left.employeeId.localeCompare(right.employeeId),
     );
 }

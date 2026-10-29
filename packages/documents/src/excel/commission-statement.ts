@@ -91,7 +91,10 @@ function summaryRow(
   ];
 }
 
-function addSummarySheet(workbook: ExcelJS.Workbook, input: CommissionStatementWorkbookInput): void {
+function addSummarySheet(
+  workbook: ExcelJS.Workbook,
+  input: CommissionStatementWorkbookInput,
+): void {
   const sheet = workbook.addWorksheet(input.labels.summarySheet, {
     views: [{ rightToLeft: input.language === 'ar' }],
   });

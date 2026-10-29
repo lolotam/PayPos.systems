@@ -256,9 +256,7 @@ it('the request and frozen-row reads use their indexes and keep their result sha
   });
   const requestNodes = planNodes(plans.requestPlan);
   expect(
-    requestNodes.some(
-      (node) => node['Index Name'] === 'commission_statement_exports_render_key',
-    ),
+    requestNodes.some((node) => node['Index Name'] === 'commission_statement_exports_render_key'),
   ).toBe(true);
   const rowNodes = planNodes(plans.rowsPlan);
   expect(
@@ -268,7 +266,9 @@ it('the request and frozen-row reads use their indexes and keep their result sha
     ),
   ).toBe(false);
   expect(
-    rowNodes.some((node) => String(node['Index Name'] ?? '').startsWith('commission_statement_lines_')),
+    rowNodes.some((node) =>
+      String(node['Index Name'] ?? '').startsWith('commission_statement_lines_'),
+    ),
   ).toBe(true);
 });
 
