@@ -190,8 +190,8 @@ it('BCS-08 a state change writes before and after audit snapshots in the same st
   expect(audits[1]?.['after']).toMatchObject({ state: 'HIDDEN', revision: 2 });
 });
 
-it('an invalid cursor returns 400 VALIDATION_FAILED', async () => {
-  const response = await f.h.send('GET', `${path(f.branch)}?view=in_use&cursor=not-a-cursor`, {
+it.each(['not-a-cursor', JSON.stringify(['\u0000', '01920000-0000-7000-8000-000000000001'])])('an invalid cursor %j returns 400 VALIDATION_FAILED', async (cursor) => {
+  const response = await f.h.send('GET', `${path(f.branch)}?view=in_use&cursor=${encodeURIComponent(cursor)}`, {
     cookie: f.cookie, company: f.company,
   });
   expect(response.status).toBe(400);

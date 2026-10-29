@@ -70,6 +70,7 @@ it('defaults the list to open, validates its cursor and limits, and parses its p
   expect(serviceCategoryListQuery.safeParse({ status: 'unknown' }).success).toBe(false);
   expect(serviceCategoryListQuery.safeParse({ limit: 101 }).success).toBe(false);
   expect(serviceCategoryListQuery.safeParse({ cursor: 'not-json' }).success).toBe(false);
+  expect(serviceCategoryListQuery.safeParse({ cursor: JSON.stringify(['\u0000', id]) }).success).toBe(false);
   const cursor = JSON.stringify(['hair', id]);
   expect(serviceCategoryListQuery.parse({ cursor, status: 'all' }).cursor).toBe(cursor);
   expect(

@@ -50,7 +50,7 @@ export const serviceCategoryListItem = responseObject(categoryFields).meta({
   id: 'ServiceCategoryListItem',
 });
 export const serviceCategoryCursorData = z
-  .tuple([z.string().min(1).max(100), id])
+  .tuple([z.string().regex(/^\P{Cc}*$/u).min(1).max(100), id])
   .meta({ id: 'ServiceCategoryCursorData' });
 export const serviceCategoryCursor = z
   .string()
