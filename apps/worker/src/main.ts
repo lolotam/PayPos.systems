@@ -50,6 +50,7 @@ import { DocumentSourceRegistry } from './documents/source-registry.ts';
 import { createAttendanceStatementSource } from './documents/sources/attendance-statement.source.ts';
 import { createCommissionStatementSource } from './documents/sources/commission-statement.source.ts';
 import { createCommissionStatementExportReader } from './modules/commissions/index.ts';
+import { branchNames } from './modules/tenancy/index.ts';
 import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
 
 const config = readConfig(process.env);
@@ -261,7 +262,10 @@ try {
       registry.register(
         COMMISSION_STATEMENT_EXPORT_DOCUMENT_KIND,
         createCommissionStatementSource({
-          readExport: createCommissionStatementExportReader(app),
+          readExport: createCommissionStatementExportReader(app, {
+            names: (tx, companyId, businessId, branchIds) =>
+              branchNames(tx, companyId, businessId, branchIds),
+          }),
         }),
       );
       return beginDocumentRendering({

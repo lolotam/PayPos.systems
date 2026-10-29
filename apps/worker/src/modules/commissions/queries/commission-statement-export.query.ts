@@ -31,7 +31,8 @@ export function commissionStatementExportRequestStatement(companyId: string, ren
 /**
  * صفوف الكشف المجمّد لملف التصدير؛ الفلتر على لقطة الفروع والموظفين المحفوظة،
  * فلا يخرج مبلغ أو اسم عميل من جزء غير مسموح حتى لو الموظفة داخلة في employee_ids.
- * العلامة الجزئية بتتحسب مرة واحدة لكل موظفة في CTE، والاسم يجي من فرع التنفيذ وقت التجميد.
+ * العلامة الجزئية بتتحسب مرة واحدة لكل موظفة في CTE، واسم مكان التنفيذ بيقرأ
+ * وقت التصدير عن طريق بورت التينانسي مش من جدول الفروع.
  */
 export function commissionStatementFrozenRowsStatement(filter: CommissionStatementRowsFilter) {
   const branchIds = uuidArray(filter.branchIds ?? []);
@@ -49,14 +50,11 @@ export function commissionStatementFrozenRowsStatement(filter: CommissionStateme
     SELECT lines.employee_id, lines.employee_number, lines.employee_name_ar, lines.employee_name_en,
       lines.source_ref, lines.kind, lines.amount::text AS amount, lines.previous_amount::text AS previous_amount,
       lines.new_amount::text AS new_amount, lines.source_period::text AS source_period, lines.source_branch_id,
-      branches.name_ar AS source_branch_name_ar, branches.name_en AS source_branch_name_en,
       lines.attached_branch_ids, COALESCE(lines.business_date, lines.source_business_date)::text AS business_date,
       lines.service_name_ar, lines.service_name_en, lines.customer_name,
       CASE WHEN ${filter.scope} = 'BUSINESS' THEN false
         ELSE COALESCE(employee_partials.partial, false) END AS partial
     FROM commission_statement_lines lines
-    LEFT JOIN branches ON branches.company_id = app_company_id()
-      AND branches.company_id = lines.company_id AND branches.id = lines.source_branch_id
     LEFT JOIN employee_partials ON employee_partials.employee_id = lines.employee_id
     WHERE lines.company_id = ${filter.companyId} AND lines.company_id = app_company_id()
       AND lines.business_id = ${filter.businessId}::uuid AND lines.statement_id = ${filter.statementId}::uuid

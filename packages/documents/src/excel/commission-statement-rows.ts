@@ -29,7 +29,7 @@ export interface CommissionStatementWorkbookRow {
   readonly serviceNameAr: string | null;
   readonly serviceNameEn: string | null;
   readonly customerName: string | null;
-  /** اسم فرع التنفيذ وقت التجميد؛ بيتعرض في ورقة التفاصيل وما بيشتغلش كفلتر (CM-55f). */
+  /** الفرع اللي اتنفذت فيه الشغلة واسمه بيقرأ وقت التصدير؛ بيتعرض في ورقة التفاصيل وما بيشتغلش كفلتر (CM-55f). */
   readonly sourceBranchNameAr: string | null;
   readonly sourceBranchNameEn: string | null;
   readonly partial: boolean;

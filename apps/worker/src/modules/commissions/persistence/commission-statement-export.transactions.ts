@@ -3,6 +3,10 @@ import type { TenantWrappers, Tx } from '@pospay/db';
 import type { SQL } from 'drizzle-orm';
 
 import type {
+  CommissionBranchName,
+  CommissionBranchNamesReader,
+} from '../ports/commission-branch-names.port.ts';
+import type {
   CommissionStatementExportReader,
   CommissionStatementExportReaderData,
   CommissionStatementExportRequest,
@@ -35,8 +39,6 @@ type FrozenRow = {
   new_amount: string | null;
   source_period: string | null;
   source_branch_id: string | null;
-  source_branch_name_ar: string | null;
-  source_branch_name_en: string | null;
   attached_branch_ids: string[];
   partial: boolean;
   business_date: string | null;
@@ -98,8 +100,8 @@ function rows(records: FrozenRow[]): CommissionStatementExportReaderData['rows']
     newAmount: row.new_amount === null ? null : parseMoney(row.new_amount),
     sourcePeriod: row.source_period,
     sourceBranchId: row.source_branch_id,
-    sourceBranchNameAr: row.source_branch_name_ar,
-    sourceBranchNameEn: row.source_branch_name_en,
+    sourceBranchNameAr: null,
+    sourceBranchNameEn: null,
     attachedBranchIds: row.attached_branch_ids,
     partial: row.partial,
     businessDate: row.business_date,
@@ -107,6 +109,62 @@ function rows(records: FrozenRow[]): CommissionStatementExportReaderData['rows']
     serviceNameEn: row.service_name_en,
     customerName: row.customer_name,
   }));
+}
+
+/**
+ * معرّفات الفروع المختلفة في صفوف الكشف، عشان نقرا الأسماء مرة واحدة بس.
+ *
+ * @param rows صفوف الكشف المجمّدة
+ * @returns معرّفات الفروع من غير تكرار
+ */
+function branchIdsOf(rows: CommissionStatementExportReaderData['rows']): string[] {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (row.sourceBranchId !== null) ids.add(row.sourceBranchId);
+  }
+  return [...ids];
+}
+
+/**
+ * يملأ اسم مكان التنفيذ من قراءة التينانسي؛ الفرع اللي مش موجود بيفضل من غير اسم
+ * والصف ما بيضيعش، لأن معرّف الفرع مش شرط في الفلتر أصلاً.
+ *
+ * @param rows صفوف الكشف المجمّدة
+ * @param names الأسماء المقروءة عن طريق البورت
+ * @returns الصفوف نفسها وأسماء مكان التنفيذ مملوءة
+ */
+export function withBranchNames(
+  rows: CommissionStatementExportReaderData['rows'],
+  names: ReadonlyMap<string, CommissionBranchName>,
+): CommissionStatementExportReaderData['rows'] {
+  return rows.map((row) => {
+    const name = row.sourceBranchId === null ? undefined : names.get(row.sourceBranchId);
+    return {
+      ...row,
+      sourceBranchNameAr: name?.nameAr ?? null,
+      sourceBranchNameEn: name?.nameEn ?? null,
+    };
+  });
+}
+
+/**
+ * يقرأ أسماء الفروع مرة واحدة على معاملة المستدعي.
+ *
+ * @param reader بورت أسماء الفروع
+ * @param tx معاملة المستأجر
+ * @param companyId الشركة
+ * @param businessId النشاط
+ * @param rows صفوف الكشف المجمّدة
+ * @returns خريطة من معرّف الفرع إلى اسمه
+ */
+export async function readBranchNames(
+  reader: CommissionBranchNamesReader,
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  rows: CommissionStatementExportReaderData['rows'],
+): Promise<ReadonlyMap<string, CommissionBranchName>> {
+  return reader.names(tx, companyId, businessId, branchIdsOf(rows));
 }
 
 async function readRequest(
@@ -120,10 +178,11 @@ async function readRequest(
   return row === undefined ? null : request(row);
 }
 
-/** قارئ التصدير: معاملة قراءة واحدة للطلب وصفوفه المجمّدة، ثم تُقفل قبل بناء الملف. */
+/** قارئ التصدير: معاملة قراءة واحدة للطلب وصفوفه المجمّدة وأسماء فروعها، ثم تُقفل قبل بناء الملف. */
 export function commissionStatementExportTransactions(
   database: Pick<TenantWrappers, 'withTenant'>,
   statements: CommissionStatementExportStatements,
+  branchNames: CommissionBranchNamesReader,
 ): CommissionStatementExportReader {
   return {
     read: (companyId, renderId, signal) => {
@@ -138,7 +197,16 @@ export function commissionStatementExportTransactions(
           statements.rows({ companyId, ...exportRequest }),
         );
         signal?.throwIfAborted();
-        return { request: exportRequest, rows: rows(records), paidCash: null };
+        const frozen = rows(records);
+        const names = await readBranchNames(
+          branchNames,
+          tx,
+          companyId,
+          exportRequest.businessId,
+          frozen,
+        );
+        signal?.throwIfAborted();
+        return { request: exportRequest, rows: withBranchNames(frozen, names), paidCash: null };
       });
     },
   };

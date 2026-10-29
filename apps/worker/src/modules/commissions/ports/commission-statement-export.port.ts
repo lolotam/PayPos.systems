@@ -32,7 +32,7 @@ export interface CommissionStatementFrozenRow {
   readonly newAmount: Money | null;
   readonly sourcePeriod: string | null;
   readonly sourceBranchId: string | null;
-  /** اسم الفرع اللي اتنفذت فيه الشغلة وقت التجميد؛ عرض بس ومش مفتاح ترشيح (CM-55f). */
+  /** الفرع اللي اتنفذت فيه الشغلة، واسمه بيقرأ وقت التصدير؛ عرض بس ومش مفتاح ترشيح (CM-55f). */
   readonly sourceBranchNameAr: string | null;
   readonly sourceBranchNameEn: string | null;
   readonly attachedBranchIds: readonly string[];
