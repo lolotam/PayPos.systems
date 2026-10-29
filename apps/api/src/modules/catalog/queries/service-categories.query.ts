@@ -48,7 +48,7 @@ function encodeCursor(row: ServiceCategoryListRow): string {
   return JSON.stringify([row.category_key, row.id]);
 }
 
-/** شاشة قائمة التصنيفات تقرأ كل النشاطات بالترتيب، والفهرس الفريد على المفتاح هو ترتيب القراءة. */
+/** شاشة قائمة التصنيفات في الإدارة ومنتقي التصنيف في نموذج الخدمة يقرآن التصنيفات مرتبة بمفتاح التصنيف. */
 export function listServiceCategoriesStatement(
   companyId: string,
   businessId: string,

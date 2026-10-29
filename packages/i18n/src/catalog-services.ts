@@ -1,4 +1,6 @@
 // خدمات الكتالوج — شاشات الإدارة ورسائل الرفض المسمّاة، بالعربي والإنجليزي.
+import { serviceCategoryErrorsAr, serviceCategoryErrorsEn } from './catalog-service-categories.js';
+
 export const catalogServicesEn = {
   listTitle: 'Services',
   listLead: 'The business menu: price, commission rule and whether the service counts toward tiers.',
@@ -77,3 +79,7 @@ export const serviceErrorsAr = {
   SERVICE_NAME_INVALID: 'الاسم الإنجليزي مطلوب (1–255 حرفاً)، والاسم العربي اختياري.',
   SERVICE_REVISION_CONFLICT: 'عدّل مدير آخر هذه الخدمة. أعد تحميل أحدث سجل قبل الحفظ.',
 };
+
+// أخطاء الكتالوج كله: الخدمات وتصنيفاتها، في مجموعة واحدة عشان السطر الواحد في en/ar يكفي.
+export const catalogServiceErrorsEn = { ...serviceErrorsEn, ...serviceCategoryErrorsEn };
+export const catalogServiceErrorsAr = { ...serviceErrorsAr, ...serviceCategoryErrorsAr };

@@ -25,7 +25,7 @@ export interface ServiceCategoryScope {
    */
   branchBusiness(branchId: string): Promise<string | null>;
   /**
-   * يحفظ التعديل بعد التحقق من النسخة المقفولة، ويرفض الكتابة لو تغيّرت النسخة في其间.
+   * يحفظ التعديل بعد التحقق من النسخة المقفولة، ويرفض الكتابة لو تغيّرت النسخة أثناء ذلك.
    *
    * @param before النسخة المقفولة
    * @param after السجل البديل

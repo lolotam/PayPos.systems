@@ -9,7 +9,7 @@ export interface ServiceCategoryNames {
   readonly name_ar: string;
 }
 
-/** سجل التصنيف كما يُحفظ ويُقرأ؛ النسخة تنحسر مع كل تغيير. */
+/** سجل التصنيف كما يُحفظ ويُقرأ؛ النسخة ترتفع مع كل تغيير. */
 export interface ServiceCategoryRecord {
   readonly id: string;
   readonly business_id: string;
@@ -160,8 +160,9 @@ export function newBranchServiceCategory(
 }
 
 /**
- * يقرر تعديل التصنيف: المشاركة في اتجاه واحد (خاص يصير مشتركاً، والمشير لا يعود خاصاً)،
+ * يقرر تعديل التصنيف: المشاركة في اتجاه واحد (خاص يصير مشتركاً، والمشترك لا يعود خاصاً)،
  * والفرع يعدّل تصنيفاته الخاصة به وحدها، وكل تغيير يرفع النسخة.
+ * حدود النطاق تُفحص قبل النسخة: من لا يملك التصنيف يُرفض بغيابه لا بنسخة زايدة.
  *
  * @param current السجل المقفول الحالي
  * @param request الطلب: الاسمان، والمشاركة المطلوبة، والنسخة المتوقعة، والنطاق
@@ -174,8 +175,6 @@ export function planServiceCategoryRename(
   request: ServiceCategoryRenameRequest,
   at: Date,
 ): ServiceCategoryRenamePlan {
-  if (request.expected_revision !== current.revision)
-    throw new ServiceCategoryError('SERVICE_CATEGORY_REVISION_CONFLICT');
   if (request.scope === 'BRANCH') {
     // التصنيف المشترك يُعدَّل من مستوى النشاط أيّاً كان صاحبه.
     if (current.visibility === 'BUSINESS')
@@ -185,6 +184,9 @@ export function planServiceCategoryRename(
     if (current.owner_branch_id !== request.branch_id)
       throw new ServiceCategoryError('SERVICE_CATEGORY_NOT_FOUND');
   }
+  // فحص النسخة بعد حدود النطاق: من لا يملك التصنيف يُرفض بغيابه لا بنسخة زايدة.
+  if (request.expected_revision !== current.revision)
+    throw new ServiceCategoryError('SERVICE_CATEGORY_REVISION_CONFLICT');
   const visibility = request.visibility ?? current.visibility;
   if (current.visibility === 'BUSINESS' && visibility === 'BRANCH')
     throw new ServiceCategoryError('SERVICE_CATEGORY_VISIBILITY_FIXED');

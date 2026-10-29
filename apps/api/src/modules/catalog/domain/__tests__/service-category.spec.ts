@@ -9,12 +9,35 @@ import {
   serviceCategorySnapshot,
   serviceCategoryView,
   validateServiceCategoryNames,
+  type ServiceCategoryNames,
   type ServiceCategoryRecord,
+  type ServiceCategoryRenameRequest,
+  type ServiceCategoryVisibility,
 } from '../service-category.ts';
 
 const at = new Date('2026-10-29T10:00:00Z');
 // محرف تحكم صغير: الاسم به لا يصلح، والاسم العربي به كذلك.
 const control = String.fromCharCode(1);
+// الاسمان الجديدان في اختبارات التعديل، وفرعا الاختبار: فرع يملك التصنيف وفرع آخر.
+const names = { name_en: 'Nails', name_ar: 'أظافر' };
+const ownBranch = '01920000-0000-7000-8000-000000000005';
+const otherBranch = '01920000-0000-7000-8000-000000000006';
+
+// طلبا التعديل الأساسيين: على مستوى النشاط، وعلى مستوى الفرع الذي يملك التصنيف.
+const businessRequest = (
+  namesInput: ServiceCategoryNames = names,
+  visibility?: ServiceCategoryVisibility,
+): ServiceCategoryRenameRequest =>
+  visibility === undefined
+    ? { names: namesInput, expected_revision: 1, scope: 'BUSINESS', branch_id: null }
+    : { names: namesInput, visibility, expected_revision: 1, scope: 'BUSINESS', branch_id: null };
+const branchRequest = (
+  namesInput: ServiceCategoryNames = names,
+  visibility?: ServiceCategoryVisibility,
+): ServiceCategoryRenameRequest =>
+  visibility === undefined
+    ? { names: namesInput, expected_revision: 1, scope: 'BRANCH', branch_id: ownBranch }
+    : { names: namesInput, visibility, expected_revision: 1, scope: 'BRANCH', branch_id: ownBranch };
 
 function record(overrides: Partial<ServiceCategoryRecord> = {}): ServiceCategoryRecord {
   return {
@@ -119,25 +142,15 @@ describe('creating a category', () => {
   );
 });
 
-describe('renaming a category', () => {
-  const names = { name_en: 'Nails', name_ar: 'أظافر' };
-
+describe('renaming a category at the business scope', () => {
   it('refuses a stale revision', () => {
     expect(() =>
-      planServiceCategoryRename(
-        record({ revision: 2 }),
-        { names, expected_revision: 1, scope: 'BUSINESS', branch_id: null },
-        at,
-      ),
+      planServiceCategoryRename(record({ revision: 2 }), businessRequest(), at),
     ).toThrow('SERVICE_CATEGORY_REVISION_CONFLICT');
   });
 
   it('advances the revision and the timestamp on a rename', () => {
-    const plan = planServiceCategoryRename(
-      record(),
-      { names, expected_revision: 1, scope: 'BUSINESS', branch_id: null },
-      at,
-    );
+    const plan = planServiceCategoryRename(record(), businessRequest(), at);
     expect(plan.changed).toBe(true);
     expect(plan.after).toMatchObject({
       name_en: 'Nails',
@@ -151,12 +164,7 @@ describe('renaming a category', () => {
     const current = record();
     const plan = planServiceCategoryRename(
       current,
-      {
-        names: { name_en: current.name_en, name_ar: current.name_ar },
-        expected_revision: 1,
-        scope: 'BUSINESS',
-        branch_id: null,
-      },
+      businessRequest({ name_en: current.name_en, name_ar: current.name_ar }),
       at,
     );
     expect(plan.changed).toBe(false);
@@ -165,8 +173,8 @@ describe('renaming a category', () => {
 
   it('shares a private category and advances the revision', () => {
     const plan = planServiceCategoryRename(
-      record({ visibility: 'BRANCH', owner_branch_id: '01920000-0000-7000-8000-000000000005' }),
-      { names, visibility: 'BUSINESS', expected_revision: 1, scope: 'BUSINESS', branch_id: null },
+      record({ visibility: 'BRANCH', owner_branch_id: ownBranch }),
+      businessRequest(names, 'BUSINESS'),
       at,
     );
     expect(plan.after).toMatchObject({ visibility: 'BUSINESS', revision: 2 });
@@ -174,24 +182,16 @@ describe('renaming a category', () => {
 
   it('never makes a shared category private again', () => {
     expect(() =>
-      planServiceCategoryRename(
-        record(),
-        { names, visibility: 'BRANCH', expected_revision: 1, scope: 'BUSINESS', branch_id: null },
-        at,
-      ),
+      planServiceCategoryRename(record(), businessRequest(names, 'BRANCH'), at),
     ).toThrow('SERVICE_CATEGORY_VISIBILITY_FIXED');
   });
+});
 
+describe('renaming a category at the branch scope', () => {
   it('lets a branch rename and share its own private category', () => {
     const plan = planServiceCategoryRename(
-      record({ visibility: 'BRANCH', owner_branch_id: '01920000-0000-7000-8000-000000000005' }),
-      {
-        names,
-        visibility: 'BUSINESS',
-        expected_revision: 1,
-        scope: 'BRANCH',
-        branch_id: '01920000-0000-7000-8000-000000000005',
-      },
+      record({ visibility: 'BRANCH', owner_branch_id: ownBranch }),
+      branchRequest(names, 'BUSINESS'),
       at,
     );
     expect(plan.after).toMatchObject({ visibility: 'BUSINESS', revision: 2 });
@@ -199,29 +199,25 @@ describe('renaming a category', () => {
 
   it('refuses a branch rename of a shared category', () => {
     expect(() =>
-      planServiceCategoryRename(
-        record({ owner_branch_id: '01920000-0000-7000-8000-000000000005' }),
-        {
-          names,
-          expected_revision: 1,
-          scope: 'BRANCH',
-          branch_id: '01920000-0000-7000-8000-000000000005',
-        },
-        at,
-      ),
+      planServiceCategoryRename(record({ owner_branch_id: ownBranch }), branchRequest(), at),
     ).toThrow('SERVICE_CATEGORY_VISIBILITY_FIXED');
   });
 
   it('refuses a branch rename of another branch private category', () => {
     expect(() =>
       planServiceCategoryRename(
-        record({ visibility: 'BRANCH', owner_branch_id: '01920000-0000-7000-8000-000000000006' }),
-        {
-          names,
-          expected_revision: 1,
-          scope: 'BRANCH',
-          branch_id: '01920000-0000-7000-8000-000000000005',
-        },
+        record({ visibility: 'BRANCH', owner_branch_id: otherBranch }),
+        branchRequest(),
+        at,
+      ),
+    ).toThrow('SERVICE_CATEGORY_NOT_FOUND');
+  });
+
+  it('hides another branch category behind the missing check even with a stale revision', () => {
+    expect(() =>
+      planServiceCategoryRename(
+        record({ visibility: 'BRANCH', owner_branch_id: otherBranch, revision: 3 }),
+        branchRequest(),
         at,
       ),
     ).toThrow('SERVICE_CATEGORY_NOT_FOUND');
@@ -230,23 +226,19 @@ describe('renaming a category', () => {
   it('refuses a branch that tries to make a shared category private', () => {
     expect(() =>
       planServiceCategoryRename(
-        record({ visibility: 'BUSINESS', owner_branch_id: '01920000-0000-7000-8000-000000000005' }),
-        {
-          names,
-          visibility: 'BRANCH',
-          expected_revision: 1,
-          scope: 'BRANCH',
-          branch_id: '01920000-0000-7000-8000-000000000005',
-        },
+        record({ visibility: 'BUSINESS', owner_branch_id: ownBranch }),
+        branchRequest(names, 'BRANCH'),
         at,
       ),
     ).toThrow('SERVICE_CATEGORY_VISIBILITY_FIXED');
   });
+});
 
+describe('renaming a closed category', () => {
   it('renames a closed category without touching its closed state', () => {
     const plan = planServiceCategoryRename(
       record({ closed_at: '2026-10-29T08:00:00.000Z' }),
-      { names, expected_revision: 1, scope: 'BUSINESS', branch_id: null },
+      businessRequest(),
       at,
     );
     expect(plan.after.closed_at).toBe('2026-10-29T08:00:00.000Z');
