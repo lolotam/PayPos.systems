@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { FastifyReply } from 'fastify';
 
 import {
   RateLimiterUnavailableError,
@@ -9,11 +10,7 @@ import { ratingAdmissionHook } from '../rating-admission.hook.ts';
 interface FakeReply {
   readonly headers: Record<string, string>;
   readonly sent: { status?: number; body?: unknown };
-  readonly reply: {
-    header: (name: string, value: string) => unknown;
-    code: (status: number) => unknown;
-    send: (body: unknown) => unknown;
-  };
+  readonly reply: FastifyReply;
 }
 
 function fakeReply(): FakeReply {
@@ -33,7 +30,7 @@ function fakeReply(): FakeReply {
       return reply;
     },
   };
-  return { headers, sent, reply };
+  return { headers, sent, reply: reply as unknown as FastifyReply };
 }
 
 const request = { ip: '203.0.113.9' } as unknown as Parameters<
@@ -51,7 +48,7 @@ function limiter(overrides: Partial<RateLimiter> = {}): RateLimiter {
   };
 }
 
-describe('the rating admission gate', () => {
+describe('passing and limiter availability', () => {
   it('lets a request through and marks the answer as uncacheable', async () => {
     const fake = fakeReply();
     await ratingAdmissionHook({ limiter: limiter(), available: true })(request, fake.reply);
@@ -84,7 +81,9 @@ describe('the rating admission gate', () => {
     expect(fake.sent.status).toBe(503);
     expect(fake.sent.body).toMatchObject({ code: 'NOT_READY' });
   });
+});
 
+describe('limiter failures', () => {
   it('refuses with NOT_READY when the limiter answers with an unusable reply', async () => {
     const fake = fakeReply();
     await ratingAdmissionHook({
@@ -127,7 +126,9 @@ describe('the rating admission gate', () => {
     expect(fake.sent.status).toBe(503);
     expect(fake.sent.body).toMatchObject({ code: 'NOT_READY' });
   });
+});
 
+describe('rate limiting and retry-after', () => {
   it('answers TOO_MANY_REQUESTS with the remaining seconds of the window', async () => {
     const fake = fakeReply();
     await ratingAdmissionHook({

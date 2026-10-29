@@ -69,7 +69,7 @@ async function customerOptOutAt(harness: Harness, customerId: string): Promise<D
 async function optOutAudits(harness: Harness, customerId: string): Promise<readonly unknown[]> {
   return harness.owner`SELECT action FROM audit_log
     WHERE company_id=${RATING_TENANT.A.company} AND entity='customer' AND entity_id=${customerId}
-      AND action='customer.opted_out'`;
+      AND action='rating_opted_out'`;
 }
 
 /**

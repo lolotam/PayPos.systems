@@ -3,8 +3,8 @@ import type { FastifyRequest } from 'fastify';
 
 import { ApiError } from '../../../../shared/errors.ts';
 import {
-  OptOutOfRatingsUseCase,
   RatingOptOutBusyError,
+  type OptOutOfRatingsUseCase,
   type OptOutOfRatingsOutcome,
 } from '../../use-cases/opt-out-of-ratings/opt-out-of-ratings.usecase.ts';
 import { RatingOptOutController } from '../rating-opt-out.controller.ts';

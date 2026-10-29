@@ -36,11 +36,12 @@ import { settingsControllers, settingsProviders } from './modules/settings/index
 import { notificationsControllers, notificationsProviders } from './modules/notifications/index.ts';
 import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notifications/index.ts';
 import { tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
-import { customersControllers, customersProviders } from './modules/customers/index.ts';
 import {
+  customersControllers,
+  customersProviders,
   RATING_ROUTE,
   ratingAdmissionHook,
-} from './modules/customers/http/rating-admission.hook.ts';
+} from './modules/customers/index.ts';
 import { catalogControllers, catalogProviders } from './modules/catalog/index.ts';
 import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
 import { staffControllers, staffProviders } from './modules/staff/index.ts';
@@ -162,7 +163,7 @@ class AppModule {
         ...customersProviders(
           deps.database,
           deps.ids ?? systemUuidV7(),
-          deps.customersClock === undefined ? undefined : deps.customersClock,
+          deps.customersClock,
           deps.customersTransactionTimeoutMs,
         ),
         ...catalogProviders(deps.database, deps.ids ?? systemUuidV7()),
@@ -247,7 +248,9 @@ function buildAdapter(
       if (RATING_ROUTE.test(path)) return ids.newId();
       // Provider request headers can carry phone-bearing message ids too; generate our own diagnostic id.
       try {
-        if (/^\/v1\/(webhooks\/|devices\/me\/staff-|staff\/)/.test(decodeURIComponent(path)))
+        const decodedPath = decodeURIComponent(path);
+        if (RATING_ROUTE.test(decodedPath)) return ids.newId();
+        if (/^\/v1\/(webhooks\/|devices\/me\/staff-|staff\/)/.test(decodedPath))
           return ids.newId();
       } catch {
         return ids.newId();
@@ -325,11 +328,15 @@ export async function createApp(
       route.bodyLimit = 1024;
     // المسارات العامة للتقييم: الحد والترويسات بتتحط قبل أي handler، عشان كل رد يطلع من المسار ده
     // يحملها — حتى الردود اللي بتترفض قبل ما يوصل المسار.
-    if (RATING_ROUTE.test(route.url))
-      route.onRequest = ratingAdmissionHook({
+    if (RATING_ROUTE.test(route.url)) {
+      const hook = ratingAdmissionHook({
         limiter,
         available: deps.ratingLinksAvailable ?? true,
       });
+      if (route.onRequest === undefined) route.onRequest = hook;
+      else if (typeof route.onRequest === 'function') route.onRequest = [route.onRequest, hook];
+      else route.onRequest = [...route.onRequest, hook];
+    }
   });
   if (deps.auth !== undefined) {
     mountAuthRoutes(adapter.getInstance(), deps.auth.service, {

@@ -8,8 +8,8 @@ import {
   type RatingRequestRef,
 } from '../ports/rating-opt-out.port.ts';
 
-type RequestRow = { customer_id: string; expires_at: Date | null };
-type CustomerRow = { opted_out_at: Date | null };
+type RequestRow = { customer_id: string; expires_at: string | null };
+type CustomerRow = { opted_out_at: string | null };
 
 // PostgreSQL: query_canceled — مهلة الـ statement أو مهلة انتظار القفل لغت الـ statement.
 const PG_QUERY_CANCELED = '57014';
@@ -41,7 +41,7 @@ async function findRequest(
     SELECT customer_id, expires_at FROM rating_requests
     WHERE company_id = ${companyId} AND token_hash = ${tokenHash}`);
   if (row === undefined || row.expires_at === null) return null;
-  return { customerId: row.customer_id, expiresAt: row.expires_at };
+  return { customerId: row.customer_id, expiresAt: new Date(row.expires_at) };
 }
 
 async function lockCustomer(
@@ -55,7 +55,7 @@ async function lockCustomer(
     WHERE company_id = ${companyId} AND id = ${customerId}
     FOR NO KEY UPDATE`);
   if (row === undefined) return null;
-  return { optedOutAt: row.opted_out_at };
+  return { optedOutAt: row.opted_out_at === null ? null : new Date(row.opted_out_at) };
 }
 
 async function markOptedOut(

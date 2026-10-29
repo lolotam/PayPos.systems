@@ -54,7 +54,7 @@ async function customerOptOutAt(companyId: string, customerId: string): Promise<
 async function optOutAudits(companyId: string, customerId: string): Promise<readonly unknown[]> {
   return h.owner`SELECT action FROM audit_log
     WHERE company_id=${companyId} AND entity='customer' AND entity_id=${customerId}
-      AND action='customer.opted_out'`;
+      AND action='rating_opted_out'`;
 }
 
 async function linkFor(companyId: string, claimedAt?: Date) {

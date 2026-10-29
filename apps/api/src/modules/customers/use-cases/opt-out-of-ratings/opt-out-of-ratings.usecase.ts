@@ -60,7 +60,7 @@ export class OptOutOfRatingsUseCase {
       await scope.audit.record({
         entity: 'customer',
         entityId: request.customerId,
-        action: 'customer.opted_out',
+        action: 'rating_opted_out',
         after: { opted_out_at: now.toISOString() },
       });
       return 'ACCEPTED';

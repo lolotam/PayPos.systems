@@ -85,7 +85,7 @@ describe('opting out of the rating messages', () => {
       {
         entity: 'customer',
         entityId: CUSTOMER,
-        action: 'customer.opted_out',
+        action: 'rating_opted_out',
         after: { opted_out_at: NOW.toISOString() },
       },
     ]);
@@ -97,7 +97,9 @@ describe('opting out of the rating messages', () => {
     expect(fake.calls.indexOf('findRequest')).toBeLessThan(fake.calls.indexOf('lockCustomer'));
     expect(fake.calls.indexOf('lockCustomer')).toBeLessThan(fake.calls.indexOf('markOptedOut'));
   });
+});
 
+describe('refusing an unusable rating link', () => {
   it('refuses a malformed token without touching the database', async () => {
     const fake = fakes();
     const outcome = await useCase(fake).execute({ token: 'not-a-token' });
@@ -133,7 +135,9 @@ describe('opting out of the rating messages', () => {
     expect(outcome).toBe('UNAVAILABLE');
     expect(fake.calls).toEqual(['findRequest', 'lockCustomer']);
   });
+});
 
+describe('not repeating the opt-out write', () => {
   it('does not write again when the customer already opted out', async () => {
     const fake = fakes({ customer: { optedOutAt: new Date('2026-06-01T00:00:00Z') } });
     const outcome = await useCase(fake).execute({ token: TOKEN });
