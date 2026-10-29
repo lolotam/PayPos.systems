@@ -2,7 +2,7 @@
 
 > **Confirmed by the owner (Waleed) on 2026-10-26 (Asia/Kuwait)**, and saved in the repository so that every agent starting a task here reads it locally. **Revised on 2026-10-27/28 (PP-69, `docs/owner-decisions.ar.md` item 31):** the lanes, the single internal reviewer, Fable's advisory role, three parallel tasks with per-worktree databases, the five GitHub reviewers and the split-on-exhaustion rule. **Revised on 2026-10-28 (PP-73, `docs/owner-decisions.ar.md` items 35–38):** the Opus 5.5 high planner lane for the spec, the plan and the `grill-me` questions; the deployment wording corrected against the PR #701 evidence; the PR #701 completion record.
 >
-> **Revised on 2026-10-30 (PP-84.1, PP-84.2, `docs/owner-decisions.ar.md` item 39):** T3 Code routes every model. MiniMax and Kimi run through T3's OpenCode provider, and Claude Code is the fallback for every delegated role. Only a shell-run `opencode` or `codex` is forbidden.
+> **Revised on 2026-10-30 (PP-84.1 to PP-84.3, `docs/owner-decisions.ar.md` item 39):** T3 Code routes every model. Kimi runs through T3's OpenCode provider, MiniMax through T3's MiniMax Code provider (for its `thinking` variant), and Claude Code is the fallback for every delegated role. Only a shell-run `opencode` or `codex` is forbidden.
 >
 > **What this overrides.** The explicit owner choices below — who writes the code, which transport carries the delegation, which reviewers must answer, how many of them, and when work moves from one implementer to another — supersede older role, tool and reviewer counts in `.claude/skills/pospay-pipeline/SKILL.md`, `docs/owner-decisions.ar.md` and older session notes. Where an older document says "four bots", "opencode transport" or "Kimi implements by default", the rule here wins.
 >
@@ -20,7 +20,7 @@
   | Role | Primary | Fallback |
   | --- | --- | --- |
   | Spec, plan and `grill-me` questions (documentation only) | Claude Code, `claude-opus-5-5`, effort `high` | Cursor, `claude-opus-5-5`, effort `high` — the same model on a different provider |
-  | Initial implementer | MiniMax `MiniMax-M3.1-Flash` on T3's OpenCode provider (`minimax-coding-plan/MiniMax-M3.1-Flash`) | Claude Code, `claude-opus-5-5` |
+  | Initial implementer | MiniMax `M3.1-Flash · thinking` on T3's MiniMax Code provider (PP-84.3) | Claude Code, `claude-opus-5-5` |
   | Correction rounds | Kimi `K3.1 Pro` on T3's OpenCode provider (`kimi-code-plan-global/k3.1-pro`, variant `high`; `max` for money and database work) | Claude Code, `claude-opus-5-5` |
   | Design advice (read-only) | Codex, `gpt-6-astra`, effort `high` | Claude Code, `claude-opus-5-5` |
   | Code review (read-only) | Codex, `gpt-6-astra`, effort `high` | Claude Code, `claude-opus-5-5` |
@@ -28,7 +28,7 @@
 
 - A role moves to its fallback only after the primary failed **twice** on availability or rate limits (not on the quality of its work), and the PR description records the switch. For the planner, **confirmed exhausted native quota** also permits the same-model Cursor fallback without another quota probe; other availability failures follow the two-attempt rule (PP-73.3).
 - T3's **OpenCode provider** is a delegation lane T3 routes, so it is allowed (PP-84.1). Running `opencode run` or `codex exec` from a shell is not.
-- While T3 cannot reach the OpenCode server, MiniMax and Kimi dispatches wait until Waleed starts it (PP-84.2). This replaces the two-attempt fallback below for that one failure: the orchestrator does not start the service itself, and does not move the dispatch to Claude Code unless Waleed says so.
+- While T3 cannot reach the OpenCode server, Kimi dispatches wait until Waleed starts it (PP-84.2). This replaces the two-attempt fallback below for that one failure: the orchestrator does not start the service itself, and does not move the dispatch to Claude Code unless Waleed says so.
 - **No external CLI, relay or process fallback of any kind**: not a shell-run opencode, not any other launcher, not a hand-run command standing in for a delegated lane.
 - The owner confirmed it directly: *«always use you built-in your delegation tool not cli external and if the model not included ask me to add to the delegation lines»*.
 - If a role needs a model the configured fleet does not offer, **stop that dispatch and ask Waleed to add or enable the delegation lane**. Never invent a provider, a model id, a variant or an effort level, never change a provider, and never set up a new login or API key to work around it.
@@ -84,7 +84,7 @@
 
 ## 5. The initial implementation lane
 
-- The initial implementation runs on the **built-in delegation facility of the agent runtime**, on the user-enabled **MiniMax-M3.1-Flash** lane, T3's OpenCode provider (PP-69.1, PP-84.1). The approved `thinking` variant is not offered for `minimax-coding-plan/MiniMax-M3.1-Flash` in T3's OpenCode catalog (2026-10-30), so it runs at its default there; Waleed decides whether another catalog entry should carry it, under the transport rule of §0.
+- The initial implementation runs on the **built-in delegation facility of the agent runtime**, on the user-enabled **MiniMax-M3.1-Flash · thinking** lane, T3's MiniMax Code provider (PP-69.1, PP-84.3: T3's OpenCode catalog offers no `thinking` variant for the coding-plan entry, so Waleed chose MiniMax Code inside T3), under the transport rule of §0.
 - The owner confirmed this directly: *«sorry you dot need to delegate open code minimax 3.1 you have already the delegation tool here and i already login fore minimmax provider so the delgation model will be minimax m3.1 flash»*.
 - **No external process** stands in for that lane (see §0), no new login, no new API keys, no invented model id or variant.
 - The implementer authors the code, tests, contracts, migrations and RLS policies inside a **bounded, declared scope**. It does not publish anything, does not touch the server, and does not read secrets.

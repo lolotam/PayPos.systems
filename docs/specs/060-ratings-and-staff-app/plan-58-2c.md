@@ -191,9 +191,9 @@ with `sha256(knownToken)`) and `rating-concurrency-fixtures.ts` by relative path
 ## Size, lane, implementer, review
 
 - **Size (low confidence):** ~330–450 production lines, ~600–800 test lines, ~26 files; above the spec's 58-2 row.
-- **Lane:** no migration → a normal lane. **Implementer (PP-69, PP-84.1):** MiniMax implements first and Kimi K3.1
-  Pro fixes (thinking `high`), both dispatched through T3 `delegate_task` (T3's OpenCode provider); Claude Code is the
-  fallback. Never a shell `opencode run`.
+- **Lane:** no migration → a normal lane. **Implementer (PP-69, PP-84.1, PP-84.3):** MiniMax `M3.1-Flash ·
+  thinking` implements first on T3's MiniMax Code provider, and Kimi K3.1 Pro fixes (thinking `high`) on T3's OpenCode
+  provider, both through T3 `delegate_task`; Claude Code is the fallback. Never a shell `opencode run`.
 - **Design advisors: yes, before implementation.** Spec §B.5 names them only for 58-1 and 59b-1, but this is the first
   unauthenticated tenant write and fixes the lock mode 59b-2 inherits; Astra's findings are folded in first.
 - **After:** lead diff → `clean-code-guard`/`test-guard` → Astra security review → five GitHub reviewers and CI on
