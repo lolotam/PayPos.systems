@@ -69,6 +69,16 @@ const deviceForbidden = [
   'decide:attendance-change:company',
 ] as const satisfies readonly Permission[];
 
+// قرار المالك SI-Q26 (2026-10-29): صلاحيات الكتالوج الست قابلة للتفويض لأي موظف بشري من شاشة الصلاحيات؛ الجهاز ممنوع منها أبداً (deviceForbidden).
+const DELEGATABLE_CATALOG_PERMISSIONS = [
+  'read:service-categories:business',
+  'manage:service-categories:business',
+  'read:service-categories:branch',
+  'manage:service-categories:branch',
+  'manage:services:business',
+  'read:services:business',
+] as const satisfies readonly Permission[];
+
 const optional: Readonly<Record<string, readonly string[]>> = {
   business_manager: ['read:memberships:business', 'manage:memberships:business'],
   branch_manager: ['read:settings:business', 'manage:settings:business'],
@@ -84,7 +94,7 @@ const optional: Readonly<Record<string, readonly string[]>> = {
   viewer: ['create:customers:company'],
 };
 
-/** المرجع يميز الدور العالمي الثابت ويمنع تفويض خانات الجهاز المحظورة؛ اسم الدور المخصص لا يرث حمايته، وصلاحيات الوثائق قابلة للتفويض لكل البشر. */
+/** المرجع يميز الدور العالمي الثابت ويمنع تفويض خانات الجهاز المحظورة؛ اسم الدور المخصص لا يرث حمايته، وصلاحيات الوثائق وصلاحيات الكتالوج قابلة للتفويض لكل البشر. */
 export function systemRolePolicy(roleId: string, ownerKey: string) {
   const role = SYSTEM_ROLES.find((r) => r.id === roleId);
   if (ownerKey !== 'global' || role === undefined) return null;
@@ -106,6 +116,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
           code === 'approve:discounts:branch' ||
           code === 'manage:alert-rules:business' ||
           code === 'manage:staff-app-columns:business' ||
+          (DELEGATABLE_CATALOG_PERMISSIONS as readonly string[]).includes(code) ||
           optional[role.code]?.includes(code),
     ),
   };
