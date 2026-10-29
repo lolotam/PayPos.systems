@@ -18,6 +18,8 @@
   "dependencies": {
     "@fontsource/ibm-plex-sans-arabic": "5.3.0",
     "@pospay/contracts": "workspace:*",
+    "@pospay/domain": "workspace:*",
+    "exceljs": "4.4.0",
     "playwright-core": "1.63.0"
   },
   "devDependencies": {
