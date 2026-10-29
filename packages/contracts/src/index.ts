@@ -36,6 +36,27 @@ export {
   type ServiceListQuery,
   type ServiceCommissionRuleInput,
 } from './catalog/service.js';
+export {
+  serviceCategoryVisibility,
+  createServiceCategoryInput,
+  createBranchServiceCategoryInput,
+  renameServiceCategoryInput,
+  serviceCategory,
+  serviceCategoryListItem,
+  serviceCategoryCursorData,
+  serviceCategoryCursor,
+  serviceCategoryPage,
+  serviceCategoryListQuery,
+  type ServiceCategoryVisibility,
+  type CreateServiceCategoryInput,
+  type CreateBranchServiceCategoryInput,
+  type RenameServiceCategoryInput,
+  type ServiceCategory,
+  type ServiceCategoryListItem,
+  type ServiceCategoryCursorData,
+  type ServiceCategoryPage,
+  type ServiceCategoryListQuery,
+} from './catalog/service-category.js';
 export { errorEnvelope, type ErrorEnvelope } from './errors/envelope.js';
 export { page, pageQuery, type PageQuery, type PageQueryRequest } from './pagination/cursor.js';
 export { responseObject } from './response-object.js';

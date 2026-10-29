@@ -16,7 +16,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
-import { businesses, companies } from './tenancy.ts';
+import { branches, businesses, companies } from './tenancy.ts';
 
 // خدمات النشاط: الاسم والسعر وقاعدة العمولة وراية احتسابها في المجمّع.
 // الـ RLS والـ FORCE والـ grants في migration مكتوبة بإيد (drizzle-kit مبيعرفش FORCE ROW LEVEL SECURITY).
@@ -183,5 +183,70 @@ export const packageTypeComponents = pgTable(
     index('package_type_components_type_idx').on(t.companyId, t.businessId, t.packageTypeId),
     check('package_type_components_sessions', sql`${t.sessions} BETWEEN 1 AND 365`),
     check('package_type_components_position', sql`${t.position} BETWEEN 1 AND 20`),
+  ],
+);
+
+// تصنيفات الخدمات على مستوى النشاط؛ الاسمان مطلوبان ومخزّنان بعد توحيد المسافات.
+export const serviceCategories = pgTable(
+  'service_categories',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    nameEn: text('name_en').notNull(),
+    nameAr: text('name_ar').notNull(),
+    // فرع الإنشاء يبقى ثابتاً حتى بعد المشاركة؛ لا يتغير بأي مسار تعديل.
+    ownerBranchId: uuid('owner_branch_id'),
+    // BUSINESS مشترك بين الفروع، وBRANCH خاص بفرع الإنشاء؛ المشاركة اتجاه واحد فقط.
+    visibility: text('visibility').notNull(),
+    // الإغلاق يُفعّل في 32b-cat-2؛ وجود العمود الآن يحفظ عقد التخزين والقراءة.
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    revision: integer('revision').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: 'service_categories_pkey', columns: [t.companyId, t.id] }),
+    unique('service_categories_company_business_id_key').on(t.companyId, t.businessId, t.id),
+    foreignKey({
+      name: 'service_categories_business_fk',
+      columns: [t.companyId, t.businessId],
+      foreignColumns: [businesses.companyId, businesses.id],
+    }),
+    foreignKey({
+      name: 'service_categories_owner_branch_fk',
+      columns: [t.companyId, t.businessId, t.ownerBranchId],
+      foreignColumns: [branches.companyId, branches.businessId, branches.id],
+    }),
+    uniqueIndex('service_categories_business_name_uq').on(
+      t.companyId,
+      t.businessId,
+      sql`lower(${t.nameEn})`,
+    ),
+    index('service_categories_owner_branch_idx').on(
+      t.companyId,
+      t.businessId,
+      t.ownerBranchId,
+    ),
+    check('service_categories_name_en_length', sql`char_length(btrim(${t.nameEn})) BETWEEN 1 AND 100`),
+    check('service_categories_name_ar_length', sql`char_length(btrim(${t.nameAr})) BETWEEN 1 AND 100`),
+    check('service_categories_name_en_controls', sql`${t.nameEn} !~ '[[:cntrl:]]'`),
+    check('service_categories_name_ar_controls', sql`${t.nameAr} !~ '[[:cntrl:]]'`),
+    check(
+      'service_categories_name_en_normalized',
+      sql`${t.nameEn} = btrim(regexp_replace(${t.nameEn}, '[[:space:]]+', ' ', 'g'))`,
+    ),
+    check(
+      'service_categories_name_ar_normalized',
+      sql`${t.nameAr} = btrim(regexp_replace(${t.nameAr}, '[[:space:]]+', ' ', 'g'))`,
+    ),
+    check('service_categories_visibility', sql`${t.visibility} IN ('BUSINESS','BRANCH')`),
+    check(
+      'service_categories_branch_owner_required',
+      sql`${t.visibility} <> 'BRANCH' OR ${t.ownerBranchId} IS NOT NULL`,
+    ),
+    check('service_categories_revision_positive', sql`${t.revision} > 0`),
   ],
 );

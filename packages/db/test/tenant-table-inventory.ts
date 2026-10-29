@@ -32,6 +32,7 @@ export const TENANT_TABLES = [
   'file_cleanup_objects',
   'import_previews',
   'services',
+  'service_categories',
   'package_types',
   'package_type_components',
   'employees',

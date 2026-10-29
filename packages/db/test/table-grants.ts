@@ -143,6 +143,8 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'service_sessions:SELECT',
     'services:INSERT',
     'services:SELECT',
+    'service_categories:INSERT',
+    'service_categories:SELECT',
     'session_tip_revisions:INSERT',
     'session_tip_revisions:SELECT',
     'session_tips:INSERT',

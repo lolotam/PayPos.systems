@@ -13,7 +13,11 @@ import { LEAVE_COLUMN_GRANTS } from '../../test/leave-grants.ts';
 import { DOCUMENT_COLUMN_GRANTS } from '../../test/document-grants.ts';
 import { IMPORT_COLUMN_GRANTS } from '../../test/import-grants.ts';
 import { CARD_COLUMN_GRANTS } from '../../test/card-grants.ts';
-import { SERVICE_COLUMN_GRANTS, PACKAGE_TYPE_COLUMN_GRANTS } from '../../test/catalog-grants.ts';
+import {
+  SERVICE_COLUMN_GRANTS,
+  PACKAGE_TYPE_COLUMN_GRANTS,
+  SERVICE_CATEGORY_COLUMN_GRANTS,
+} from '../../test/catalog-grants.ts';
 import { SERVICE_LINE_EDIT_COLUMN_GRANTS } from '../../test/service-line-edit-grants.ts';
 import { SERVICE_LINE_CANCEL_COLUMN_GRANTS } from '../../test/service-line-cancel-grants.ts';
 import { SERVICE_LINE_PERFORMER_COLUMN_GRANTS } from '../../test/service-line-performer-grants.ts';
@@ -128,6 +132,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...CARD_COLUMN_GRANTS,
         ...SERVICE_COLUMN_GRANTS,
         ...PACKAGE_TYPE_COLUMN_GRANTS,
+        ...SERVICE_CATEGORY_COLUMN_GRANTS,
         ...SERVICE_LINE_EDIT_COLUMN_GRANTS,
         ...SERVICE_LINE_PERFORMER_COLUMN_GRANTS,
         ...SERVICE_LINE_CANCEL_COLUMN_GRANTS,
