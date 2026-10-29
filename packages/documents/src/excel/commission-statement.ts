@@ -21,6 +21,7 @@ export interface CommissionStatementLabels {
   readonly cardTips: string;
   readonly cashTips: string;
   readonly netPayable: string;
+  readonly partial: string;
   readonly paidCash: string;
   readonly entryKind: string;
   readonly businessDate: string;
@@ -40,6 +41,7 @@ export interface CommissionStatementPaidCash {
 
 export interface CommissionStatementWorkbookInput {
   readonly language: CommissionStatementLanguage;
+  readonly scope: 'BUSINESS' | 'BRANCHES';
   readonly labels: CommissionStatementLabels;
   readonly rows: readonly CommissionStatementWorkbookRow[];
   readonly paidCash?: readonly CommissionStatementPaidCash[] | null;
@@ -69,6 +71,7 @@ function summaryHeaders(input: CommissionStatementWorkbookInput): string[] {
     labels.cardTips,
     labels.cashTips,
     labels.netPayable,
+    ...(input.scope === 'BRANCHES' ? [labels.partial] : []),
     ...(input.paidCash == null ? [] : [labels.paidCash]),
   ];
 }
@@ -87,6 +90,7 @@ function summaryRow(
     moneyCell(employee.cardTips),
     moneyCell(employee.cashTips),
     moneyCell(employee.netPayable),
+    ...(input.scope === 'BRANCHES' ? [employee.partial ? input.labels.partial : ''] : []),
     ...(input.paidCash == null ? [] : [moneyCell(rounded?.amount ?? null)]),
   ];
 }

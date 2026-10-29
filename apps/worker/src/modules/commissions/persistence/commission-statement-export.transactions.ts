@@ -35,6 +35,7 @@ type FrozenRow = {
   source_period: string | null;
   source_branch_id: string | null;
   attached_branch_ids: string[];
+  partial: boolean;
   business_date: string | null;
   service_name_ar: string | null;
   service_name_en: string | null;
@@ -82,6 +83,7 @@ function rows(records: FrozenRow[]): CommissionStatementExportData['rows'] {
     sourcePeriod: row.source_period,
     sourceBranchId: row.source_branch_id,
     attachedBranchIds: row.attached_branch_ids,
+    partial: row.partial,
     businessDate: row.business_date,
     serviceNameAr: row.service_name_ar,
     serviceNameEn: row.service_name_en,

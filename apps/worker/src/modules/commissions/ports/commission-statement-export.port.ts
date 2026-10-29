@@ -38,6 +38,8 @@ export interface CommissionStatementFrozenRow {
   readonly sourcePeriod: string | null;
   readonly sourceBranchId: string | null;
   readonly attachedBranchIds: readonly string[];
+  /** true لما أي صف من شهر الموظفة برّه فروع الطلب؛ الأرقام الظاهرة يبقى مجموع جزئي. */
+  readonly partial: boolean;
   readonly businessDate: string | null;
   readonly serviceNameAr: string | null;
   readonly serviceNameEn: string | null;

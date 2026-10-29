@@ -29,6 +29,7 @@ export interface CommissionStatementWorkbookRow {
   readonly serviceNameAr: string | null;
   readonly serviceNameEn: string | null;
   readonly customerName: string | null;
+  readonly partial: boolean;
 }
 
 export interface CommissionStatementEmployeeTotal {
@@ -42,6 +43,7 @@ export interface CommissionStatementEmployeeTotal {
   readonly cardTips: Money;
   readonly cashTips: Money;
   readonly netPayable: Money;
+  readonly partial: boolean;
 }
 
 interface MutableEmployeeRows {
@@ -74,6 +76,7 @@ function total(rows: MutableEmployeeRows): CommissionStatementEmployeeTotal {
     cardTips,
     cashTips: sumMoney(rows.cashTips),
     netPayable: sumMoney([nonNegative(commissionSide), nonNegative(cardTips)]),
+    partial: rows.row.partial,
   };
 }
 

@@ -19,6 +19,7 @@ const EN: CommissionStatementLabels = {
   cardTips: 'Card tips',
   cashTips: 'Cash tips (informational)',
   netPayable: 'Net payable',
+  partial: 'Partial',
   paidCash: 'Paid cash',
   entryKind: 'Entry type',
   businessDate: 'Business date',
@@ -54,6 +55,7 @@ const AR: CommissionStatementLabels = {
   cardTips: 'بقشيش كارت',
   cashTips: 'بقشيش كاش (للعلم)',
   netPayable: 'الصافي اللي يتصرف',
+  partial: 'جزئي',
   paidCash: 'اتصرف كاش',
   entryKind: 'نوع البند',
   businessDate: 'تاريخ العمل',
@@ -81,6 +83,7 @@ function row(overrides: Partial<CommissionStatementWorkbookRow>): CommissionStat
     serviceNameAr: null,
     serviceNameEn: null,
     customerName: null,
+    partial: false,
     ...overrides,
   };
 }
@@ -126,7 +129,7 @@ function frozenRows(): CommissionStatementWorkbookRow[] {
 }
 
 function input(language: 'ar' | 'en'): CommissionStatementWorkbookInput {
-  return { language, labels: language === 'ar' ? AR : EN, rows: frozenRows() };
+  return { language, scope: 'BUSINESS', labels: language === 'ar' ? AR : EN, rows: frozenRows() };
 }
 
 async function open(bytes: Uint8Array): Promise<ExcelJS.Workbook> {
@@ -195,6 +198,42 @@ it('writes English headers and keeps the sheet left-to-right', async () => {
   expect(workbook.getWorksheet('Details')?.getCell('E2').value).toBe('Haircut');
 });
 
+it('labels a partial employee only in a branch-scoped workbook', async () => {
+  const branch = await open(
+    await buildCommissionStatementWorkbook({
+      ...input('ar'),
+      scope: 'BRANCHES',
+      rows: frozenRows().map((row) => ({ ...row, partial: true })),
+    }),
+  );
+  const branchSummary = branch.getWorksheet('الملخص');
+  expect(cells(branchSummary, 1)).toEqual([
+    'الرقم الوظيفي',
+    'اسم الموظفة',
+    'العمولة',
+    'عمولة البيع',
+    'التصحيحات المستلمة',
+    'بقشيش كارت',
+    'بقشيش كاش (للعلم)',
+    'الصافي اللي يتصرف',
+    'جزئي',
+  ]);
+  expect(cells(branchSummary, 2)).toEqual([
+    7,
+    'سارة',
+    '41.003',
+    '10.000',
+    '-5.000',
+    '7.000',
+    '4.500',
+    '53.003',
+    'جزئي',
+  ]);
+
+  const business = await open(await buildCommissionStatementWorkbook(input('ar')));
+  expect(business.getWorksheet('الملخص')?.getCell('I1').value).toBeNull();
+});
+
 it('adds the rounded paid-cash column only when cash payment data is present', async () => {
   const cash = await open(
     await buildCommissionStatementWorkbook({
@@ -215,6 +254,7 @@ it('adds the rounded paid-cash column only when cash payment data is present', a
 it('pays zero for negative sides without netting cash tips or the other side', async () => {
   const bytes = await buildCommissionStatementWorkbook({
     language: 'en',
+    scope: 'BUSINESS',
     labels: EN,
     rows: [
       row({ kind: 'COMMISSION', amount: -25_000n }),

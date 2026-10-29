@@ -9,7 +9,10 @@ import { commissionStatementLabels } from './commission-statement-labels.ts';
 
 /** شكل بيانات التصدير اللي المصدر بيحتاجه من القارئ، من غير أي ربط بموديول commissions. */
 export interface CommissionStatementSourceData {
-  readonly request: { readonly language: CommissionStatementWorkbookInput['language'] };
+  readonly request: {
+    readonly language: CommissionStatementWorkbookInput['language'];
+    readonly scope: CommissionStatementWorkbookInput['scope'];
+  };
   readonly rows: CommissionStatementWorkbookInput['rows'];
   readonly paidCash: Exclude<CommissionStatementWorkbookInput['paidCash'], undefined>;
 }
@@ -40,6 +43,7 @@ export function createCommissionStatementSource(
       signal?.throwIfAborted();
       return buildCommissionStatementWorkbook({
         language: data.request.language,
+        scope: data.request.scope,
         labels: commissionStatementLabels(data.request.language),
         rows: data.rows,
         paidCash: data.paidCash,

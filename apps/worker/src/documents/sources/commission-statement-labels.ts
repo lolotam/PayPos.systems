@@ -24,6 +24,7 @@ export function commissionStatementLabels(language: Locale): CommissionStatement
     cardTips: label(language, 'cardTips'),
     cashTips: label(language, 'cashTips'),
     netPayable: label(language, 'netPayable'),
+    partial: label(language, 'partial'),
     paidCash: label(language, 'paidCash'),
     entryKind: label(language, 'entryKind'),
     businessDate: label(language, 'businessDate'),

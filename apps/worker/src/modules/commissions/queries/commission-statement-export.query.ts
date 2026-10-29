@@ -39,7 +39,17 @@ export function commissionStatementFrozenRowsStatement(filter: CommissionStateme
       source_ref, kind, amount::text AS amount, previous_amount::text AS previous_amount,
       new_amount::text AS new_amount, source_period::text AS source_period, source_branch_id,
       attached_branch_ids, COALESCE(business_date, source_business_date)::text AS business_date,
-      service_name_ar, service_name_en, customer_name
+      service_name_ar, service_name_en, customer_name,
+      CASE WHEN ${filter.scope} = 'BUSINESS' THEN false ELSE COALESCE((
+        SELECT bool_or(NOT (outside.attached_branch_ids && ${branchIds}))
+        FROM commission_statement_lines outside
+        WHERE outside.company_id = commission_statement_lines.company_id
+          AND outside.company_id = app_company_id()
+          AND outside.business_id = commission_statement_lines.business_id
+          AND outside.statement_id = commission_statement_lines.statement_id
+          AND outside.employee_id = commission_statement_lines.employee_id
+          AND outside.kind <> 'EMPLOYEE'
+      ), false) END AS partial
     FROM commission_statement_lines
     WHERE company_id = ${filter.companyId} AND company_id = app_company_id()
       AND business_id = ${filter.businessId}::uuid AND statement_id = ${filter.statementId}::uuid

@@ -34,6 +34,7 @@ function data(language: 'ar' | 'en'): CommissionStatementExportData {
         sourcePeriod: null,
         sourceBranchId: 'branch-1',
         attachedBranchIds: ['branch-1'],
+        partial: false,
         businessDate: '2026-10-10',
         serviceNameAr: 'قص شعر',
         serviceNameEn: 'Haircut',
