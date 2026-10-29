@@ -81,8 +81,12 @@ function statementCanSubmit(props: Props) {
   const employeeConfirmed =
     !props.draft.employeeId ||
     props.employees.some((employee) => employee.employee_id === props.draft.employeeId);
+  const selected = props.draft.shift;
+  const shiftOffered =
+    !selected ||
+    props.shifts.some((shift) => shift.start === selected.start && shift.end === selected.end);
   const shiftsConfirmed =
-    props.draft.form !== 'BRANCH' || (props.shiftsReady && !props.shiftsLoadFailed);
+    props.draft.form !== 'BRANCH' || (props.shiftsReady && !props.shiftsLoadFailed && shiftOffered);
   return (
     props.periodValid &&
     employeeConfirmed &&
