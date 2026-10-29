@@ -94,5 +94,7 @@ export function listFor(
   businessId: string,
   query: Parameters<typeof listServiceCategories>[3],
 ) {
-  return f.db.withTenant(companyId, (tx) => listServiceCategories(tx, companyId, businessId, query));
+  return f.db.withTenant(companyId, (tx) =>
+    listServiceCategories(tx, companyId, businessId, query),
+  );
 }

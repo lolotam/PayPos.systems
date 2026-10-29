@@ -9,8 +9,7 @@ export const serviceCategoryErrorsEn = {
     'Another manager changed this category. Reload the latest record before saving.',
 };
 export const serviceCategoryErrorsAr = {
-  SERVICE_CATEGORY_NAME_INVALID:
-    'الاسمان مطلوبان: كل واحد من ١ إلى ١٠٠ حرف وبلا محرف تحكم.',
+  SERVICE_CATEGORY_NAME_INVALID: 'الاسمان مطلوبان: كل واحد من ١ إلى ١٠٠ حرف وبلا محرف تحكم.',
   SERVICE_CATEGORY_NAME_TAKEN: 'يوجد تصنيف بنفس الاسم في هذا النشاط.',
   SERVICE_CATEGORY_NOT_FOUND: 'التصنيف غير موجود في هذا النشاط.',
   SERVICE_CATEGORY_VISIBILITY_FIXED:

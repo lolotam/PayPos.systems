@@ -64,7 +64,8 @@ describe('service_categories — forced tenant isolation and minimal grants', ()
     const [row] = await owner`SELECT relrowsecurity,relforcerowsecurity FROM pg_class
       WHERE oid='service_categories'::regclass`;
     expect(row).toMatchObject({ relrowsecurity: true, relforcerowsecurity: true });
-    const [role] = await owner`SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname='pospay_app'`;
+    const [role] =
+      await owner`SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname='pospay_app'`;
     expect(role).toEqual({ rolsuper: false, rolbypassrls: false });
   });
 
@@ -92,12 +93,12 @@ describe('service_categories — forced tenant isolation and minimal grants', ()
   });
 
   it('the same id in A and B is allowed without an existence oracle', async () => {
+    expect(Array.from(await asA(insert({ companyId: A.company, businessId: A.business })))).toEqual(
+      [{ id: ID }],
+    );
     expect(
-      Array.from(await asA(insert({ companyId: A.company, businessId: A.business }))),
-    ).toEqual([{ id: ID }]);
-    expect(Array.from(await asA(sql`SELECT name_en FROM service_categories WHERE id=${ID}`))).toEqual([
-      { name_en: 'Hair Care' },
-    ]);
+      Array.from(await asA(sql`SELECT name_en FROM service_categories WHERE id=${ID}`)),
+    ).toEqual([{ name_en: 'Hair Care' }]);
     expect(
       await owner`SELECT name_en FROM service_categories WHERE company_id=${B.company} AND id=${ID}`,
     ).toEqual([{ name_en: 'Sentinel B' }]);
@@ -137,7 +138,10 @@ describe('service_categories — forced tenant isolation and minimal grants', ()
       asA(sql`UPDATE service_categories SET owner_branch_id=${A.branch} WHERE id=${ID}`),
       /permission denied/,
     );
-    await rejectsWith(asA(sql`DELETE FROM service_categories WHERE company_id=${A.company}`), /permission denied/);
+    await rejectsWith(
+      asA(sql`DELETE FROM service_categories WHERE company_id=${A.company}`),
+      /permission denied/,
+    );
   });
 
   it.each(['authUrl', 'dispatcherUrl', 'notificationsUrl'] as const)(
@@ -156,29 +160,60 @@ describe('service_categories — forced tenant isolation and minimal grants', ()
 describe('service_categories — names, visibility and indexes', () => {
   it('the business-wide key collides on case and remains reserved by a closed category', async () => {
     await rejectsWith(
-      asA(insert({ companyId: A.company, businessId: A.business, id: OTHER_ID, name: 'hair care', closed: true })),
+      asA(
+        insert({
+          companyId: A.company,
+          businessId: A.business,
+          id: OTHER_ID,
+          name: 'hair care',
+          closed: true,
+        }),
+      ),
       /service_categories_business_name_uq/,
     );
   });
 
   it('requires stored normalized names, both name lengths and no controls', async () => {
     await rejectsWith(
-      asA(insert({ companyId: A.company, businessId: A.business, id: OTHER_ID, name: ' Hair  Care ' })),
+      asA(
+        insert({
+          companyId: A.company,
+          businessId: A.business,
+          id: OTHER_ID,
+          name: ' Hair  Care ',
+        }),
+      ),
       /service_categories_name_en_normalized/,
     );
     await rejectsWith(
-      asA(insert({ companyId: A.company, businessId: A.business, id: OTHER_ID, name: 'a'.repeat(101) })),
+      asA(
+        insert({
+          companyId: A.company,
+          businessId: A.business,
+          id: OTHER_ID,
+          name: 'a'.repeat(101),
+        }),
+      ),
       /service_categories_name_en_length/,
     );
     await rejectsWith(
-      asA(insert({ companyId: A.company, businessId: A.business, id: OTHER_ID, name: 'Ha\u0001ir' })),
+      asA(
+        insert({ companyId: A.company, businessId: A.business, id: OTHER_ID, name: 'Ha\u0001ir' }),
+      ),
       /service_categories_name_en_controls/,
     );
   });
 
   it('requires an owner branch only for a private category', async () => {
     await rejectsWith(
-      asA(insert({ companyId: A.company, businessId: A.business, id: OTHER_ID, visibility: 'BRANCH' })),
+      asA(
+        insert({
+          companyId: A.company,
+          businessId: A.business,
+          id: OTHER_ID,
+          visibility: 'BRANCH',
+        }),
+      ),
       /service_categories_branch_owner_required/,
     );
     expect(

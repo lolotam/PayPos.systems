@@ -57,5 +57,8 @@ export interface ServiceCategoryTransactions {
    * @param work خطوات الحفظ على المعاملة
    * @returns النتيجة بعد الالتزام
    */
-  run<T>(actor: ServiceCategoryActor, work: (scope: ServiceCategoryScope) => Promise<T>): Promise<T>;
+  run<T>(
+    actor: ServiceCategoryActor,
+    work: (scope: ServiceCategoryScope) => Promise<T>,
+  ): Promise<T>;
 }
