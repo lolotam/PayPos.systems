@@ -12,7 +12,7 @@ export const api = { GET: vi.fn(), POST: vi.fn() };
 
 import { attendanceStatementErrorsEn, t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { boardBranches } from '../api/attendance-board.fixture';
 import {
   statementRenderId,
@@ -71,6 +71,18 @@ export function mockEmployeeReport(report: typeof statementReport, month?: strin
   if (month) changeStatementMonth(month);
 }
 
+export function mockStatementShifts(shifts: typeof statementShifts) {
+  api.GET.mockImplementation((path: string) =>
+    path.includes('attendance-statement-shifts') ? { data: shifts } : defaultGet(path),
+  );
+}
+
+export function mockPendingStatementShifts() {
+  api.GET.mockImplementation((path: string) =>
+    path.includes('attendance-statement-shifts') ? new Promise(() => {}) : defaultGet(path),
+  );
+}
+
 beforeEach(() => {
   state.locale = 'en';
   state.status = 'QUEUED';
@@ -127,6 +139,7 @@ export function setup() {
 export async function openStatement() {
   const view = setup();
   await screen.findByLabelText(t('en', 'attendanceStatementScreen.branch'));
+  await waitFor(() => expect(submitButton().disabled).toBe(false));
   return view;
 }
 
