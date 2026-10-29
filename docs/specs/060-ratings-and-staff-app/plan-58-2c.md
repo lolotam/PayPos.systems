@@ -1,6 +1,6 @@
 # 58-2c plan — public rating opt-out capability
 
-Date: 2026-10-30. Status: **PLAN — awaiting Waleed's admission** (technical, cards only; never on the decisions page).
+Date: 2026-10-30. Status: **PLAN — approved (PP-83.1, PP-83.2); Astra design review READY (round 2); RT-Q16 waits on Abu Salem** (technical, cards only; never on the decisions page).
 Parent: [`plan-58-2-split.md`](plan-58-2-split.md) §58-2c. Base: `main` `d5d2f31a`. Builds on merged 58-1, 58-2a, 58-2b.
 
 ## Scope
@@ -37,13 +37,19 @@ module-map changes (no new arrow).
 1. **Headers, then admission (D-B11):** every answer, errors included, sets `Cache-Control: no-store` and
    `Referrer-Policy: no-referrer` (ADR-0011 §4, RT-20). Then one key `rating-public:<request.ip>` for all three
    rating routes and prefixes, `hit(key, 30, 60)` (ADR-0011 §4 owner value); `request.ip` comes from `trustProxy`
-   (`app.ts:240`), so untrusted forwarded headers are ignored. The token header is read after the hit, never in a
-   pipe, so malformed tokens count. Over the limit: 429 `TOO_MANY_REQUESTS`, `retry-after` from `remaining(key)`, at
+   (`app.ts:240`), so untrusted forwarded headers are ignored. **Where it runs (MergePilot, PR #728):** Fastify
+   parses the body (up to `bodyLimit` 1 MiB, `app.ts:238`) before Nest runs, so a controller-level hit would let
+   malformed or oversized bodies escape the count and the headers. The capability check (1b), the two headers and
+   the hit therefore run in a Fastify `onRequest` hook registered for `/v1/ratings/` paths only, before any content
+   parser, and every refusal there is written with the same bilingual error envelope the exception filter builds.
+   The controller does not hit again. The token header is read after the hit, never in a pipe, so malformed tokens
+   count. Over the limit: 429 `TOO_MANY_REQUESTS`, `retry-after` from `remaining(key)`, at
    least 1 (`clock-by-card.controller.ts:80`). **Fail-closed:** a `null` limiter, `RateLimiterUnavailableError` or a
    Redis rejection from `hit` **or** `remaining` → 503 `NOT_READY`, before parsing or any database access
    (`devices.controller.ts:69–74`). `remaining()` in `shared/adapters/redis-rate-limiter.ts:78` today trusts the
-   `TTL` reply; it gains an explicit check: a reply that is not a safe integer throws
-   `RateLimiterUnavailableError` (not the plain `Error` that `count()` throws today); `-1`/`-2` still mean 0.
+   `TTL` reply; it gains an explicit check: only a non-negative safe integer or exactly `-1`/`-2` (both mean 0)
+   is accepted, and every other reply (`-3`, a non-integer, a non-number) throws `RateLimiterUnavailableError` (not
+   the plain `Error` that `count()` throws today).
 1b. **Per-client limit behind the proxy (Codex P1):** `trustProxy` defaults to `[]` (`app.ts:297`) and
    `deploy/staging.env.example:53` leaves `TRUSTED_PROXY_CIDRS` empty, so behind Traefik every visitor would share
    the proxy's address and one bucket. Mirroring the WhatsApp intake (`main.ts:108`): when `NODE_ENV=production`
@@ -67,14 +73,19 @@ module-map changes (no new arrow).
    now, optedOutAt)` in `domain/rating-opt-out.ts`: `now >= expiresAt` → unavailable (equality is expired); already
    opted out → done, no write; else (e) `UPDATE customers SET opted_out_at = now, updated_at = now WHERE … AND
    opted_out_at IS NULL RETURNING id`; only when one row returns, audit `customer` / `rating_opted_out` with
-   `after: { opted_out_at }`, no phone, token or hash (FR-B10, `CLAUDE.md` §8).
+   `after: { opted_out_at }`, no phone, token or hash (FR-B10, `CLAUDE.md` §8). **Bounded (MergePilot, PR #728):**
+   the transaction runs with `withTenant`'s `timeoutMs: 1000` (`with-tenant.ts:29,141–145`, statement and
+   idle-in-transaction timeouts), so a request queued behind a held customer lock cannot hold a pool connection
+   past one second; the timeout errors `withTenant` raises map to 503 `NOT_READY`, and the connection is released.
 6. **Uniform answers:** valid token → **204**, first or repeated (first time kept, ADR-0011 §3). Missing header,
    malformed, unknown, foreign-prefix or expired → **404 `RATING_LINK_UNAVAILABLE`** (new in `errors.ts` and i18n;
-   «الرابط ده مش متاح.» / "This link is not available.", spec §B.4, RT-Q2 approved). No `Idempotency-Key`: no money
+   «الرابط ده مش متاح.» / "This link is not available.", spec §B.4, RT-Q2 approved). The code also joins
+   `RAISED_BY_THE_API_ONLY` (`shared/errors.ts:192`), or `codeForStatus()` (`errors.ts:399–400`) could answer an
+   unknown route or a framework 404 anywhere in the API with this code. No `Idempotency-Key`: no money
    or stock effect and the write is idempotent (§6). No feature mark on the route (`TODO(spec)` below).
 7. **Composition:** `customersClock?` in `AppDependencies` (mirrors `ordersClock`); a session-less
    `RatingOptOutTransactions` port and Drizzle adapter (the existing one needs a user); the controller injects the
-   shared `RATE_LIMITER`. One transaction per request, none on a refused admission or parse (§6 connection budget).
+   shared `RATE_LIMITER` only through the `onRequest` hook (item 1). One transaction per request, none on a refused admission or parse (§6 connection budget).
 
 ## Concurrency and lock analysis (fresh, as the split plan requires)
 
@@ -99,9 +110,9 @@ Opt-out holds exactly one row lock: the customer, `FOR NO KEY UPDATE`. It takes 
 ## Exact write scope (implementer)
 
 New (N) or edited (E). Contracts: (E) `packages/contracts/src/customers/ratings.ts` (`RATING_TOKEN_HEADER`);
-(E) `packages/contracts/src/customers-openapi.ts` (path, header parameter, 204/404/429/503 → `ErrorEnvelope`);
+(E) `packages/contracts/src/customers-openapi.ts` (path, header parameter; 204 with no `content`; 404/429/503 → `ErrorEnvelope`);
 (E) `packages/contracts/src/__tests__/customers.spec.ts`. Errors and copy: (E) `apps/api/src/shared/errors.ts`
-(`RATING_LINK_UNAVAILABLE: 404`); (E) `packages/i18n/src/ar.ts`; (E) `packages/i18n/src/en.ts`. Under
+(`RATING_LINK_UNAVAILABLE: 404`, also added to `RAISED_BY_THE_API_ONLY`); (E) `packages/i18n/src/ar.ts`; (E) `packages/i18n/src/en.ts`. Under
 `apps/api/src/modules/customers/`:
 
 1. Pure domain: (N) `domain/rating-token.ts`, (N) `domain/rating-opt-out.ts`, (N) their two specs under
@@ -133,12 +144,15 @@ database operations; it returns changed paths, reasoning and limits.
 | RT-19 | before and after rating; duplicate POST at a later clock keeps the first time and one audit row; one customer via two businesses' links → one company-wide row; `platform_whatsapp_suppressions` unchanged; nothing writes `NULL` |
 | ADR-0011 §6 Tampered / Cross-tenant (opt-out side) | altered random byte, altered prefix, B's prefix on A's random part, missing header → 404, no change on A or B, no audit; another company's signed-in cookie changes nothing |
 | RT-20 limits | 30 hits/IP/minute across valid, malformed and foreign-prefix tokens; the 31st → bilingual 429 + `retry-after`, no `withTenant` call (`calls.tenant`); two forged `X-Forwarded-For` values share one bucket; `no-store`/`no-referrer` on 204, 404, 429; the token never appears in captured logs |
-| Fail-closed | `omitRedis` harness: 503 `NOT_READY`, no database call; controller unit: `RateLimiterUnavailableError` and a rejected `hit` or `remaining` → 503, use case never called; adapter unit: a non-integer `TTL` reply throws `RateLimiterUnavailableError` |
+| Fail-closed | `omitRedis` harness: 503 `NOT_READY`, no database call; hook unit: `RateLimiterUnavailableError` and a rejected `hit` or `remaining` → 503, use case never called; adapter unit: `-3` and a non-integer `TTL` reply throw `RateLimiterUnavailableError`, `-1`/`-2` → 0 |
+| Admission before parsing (MergePilot, PR #728) | malformed JSON and a body over `bodyLimit` are counted like empty bodies: the 31st of any mix → 429, each answer carries `no-store`/`no-referrer` |
+| Bounded transaction (MergePilot, PR #728) | a held `FOR NO KEY UPDATE` on the customer past the bound → 503 `NOT_READY`, no update, no audit, and the connection is back in the pool (a following request succeeds) |
+| Error mapping (MergePilot, PR #728) | an unknown `/v1/...` route still answers `NOT_FOUND`, never `RATING_LINK_UNAVAILABLE` |
 | Proxy (Codex P1) | with a trusted proxy CIDR, two clients with different forwarded addresses get separate buckets (the 31st of one → 429, the other still 204/404); a spoofed `X-Forwarded-For` chain from an untrusted peer shares the peer's bucket; production with empty `TRUSTED_PROXY_CIDRS` → 503 `NOT_READY`, no limiter hit, no database call |
 | Request id (Codex P2) | a token sent as `x-request-id` never appears in the response `x-request-id` header or in captured logs; the route gets a generated id |
 | Expiry under the lock (Codex P2) | the token expires while another connection holds the customer lock (`createGate`); when the lock is released → 404, no update, no audit; the same for an already opted-out customer |
 | Locks | opt-out completes while another connection holds `FOR KEY SHARE` on the customer and `FOR UPDATE` on the request; it blocks behind a held `FOR NO KEY UPDATE` (`waitForBlockedAppSession`, `createGate`), then keeps the committed first time |
-| Contracts / coverage | OpenAPI publishes the path, header and responses; route-access coverage passes with `@Public()` |
+| Contracts / coverage | OpenAPI publishes the path, header and responses, with 204 having no response body; route-access coverage passes with `@Public()` |
 
 `CLAUDE.md` §9: no new table, so no new RLS negative test; the cross-tenant rows above and 58-2b's
 `rls-customers.spec.ts` are the isolation evidence. No `queries/` file (write path; lookup by the unique
@@ -171,7 +185,8 @@ with `sha256(knownToken)`) and `rating-concurrency-fixtures.ts` by relative path
 
 - Browsers cannot call the route until 60-2 adds the page origin (CORS). This is the first production writer of
   `opted_out_at`, which any `pospay_app` path can write (58-2b risk).
-- No transaction deadline: claims and FK inserts are short and the limiter caps attempts; no `timeoutMs` bound.
+- The one-second transaction bound (item 5) can refuse a valid opt-out with 503 while a claim holds the customer
+  lock; the visitor can retry, and claims are short.
 
 ## Open points for Waleed (technical)
 
