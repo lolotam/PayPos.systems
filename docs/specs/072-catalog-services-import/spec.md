@@ -329,7 +329,10 @@ Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's p
   `category_id` on a service (create-service, update-service, the import commit) locks the referenced category rows
   `FOR SHARE`, in ascending `id` order, before it checks that they are open, and then writes the service. A close and an
   assignment therefore run one after the other, never interleaved, so no open service can land under a category that
-  closed in between. Reopening a single service (`32b-cat-2`) follows the same order: it locks the service's category row
+  closed in between. Create-service and update-service lock the category rows they touch (the current and the new category, ascending
+  `id`, `FOR SHARE`) **before** they load the service row `FOR UPDATE`, so an edit inside a category and a close of
+  that category take their locks in the same order and cannot deadlock; `32b-pre-1` adds a concurrent
+  edit-in-category and close-category test. Reopening a single service (`32b-cat-2`) follows the same order: it locks the service's category row
   `FOR SHARE`, then the service row `FOR UPDATE`, and checks under both locks that the service still has that
   category and that the category is open; if the category changed in between, it starts over. So a service reopen and
   a category close never interleave either, and the category is always locked before its services.
@@ -384,14 +387,18 @@ Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's p
   - `POST /v1/businesses/{businessId}/service-categories` `{ name_en, name_ar }` → 201 the category (`32b-cat-1`).
   - `PATCH /v1/businesses/{businessId}/service-categories/{categoryId}` `{ name_en, name_ar, expected_revision }` → 200
     (`32b-cat-1`); a closed category can be renamed.
-  - `POST …/service-categories/{categoryId}/close` and `…/reopen` `{ expected_revision }` → 200 the category with
-    `services_closed` or `services_reopened` (`32b-cat-2`).
+  - `POST …/service-categories/{categoryId}/close` and `…/reopen` `{ expected_revision, expected_service_count }`
+    → 200 the category with `services_closed` or `services_reopened` (`32b-cat-2`). `expected_service_count` is the
+    `open_service_count` (close) or `marked_service_count` (reopen) the manager confirmed; assigning a service to a
+    category does not advance the category's revision, so the use case recounts under the category lock and refuses a
+    different count with `SERVICE_CATEGORY_COUNT_CHANGED` (409), and the screen reloads the count and asks again.
   - `POST /v1/businesses/{businessId}/services/{serviceId}/close` and `…/reopen` `{ expected_revision }` → 200 the
     service (`32b-cat-2`).
   - Errors: `SERVICE_CATEGORY_NAME_INVALID` (422), `SERVICE_CATEGORY_NAME_TAKEN` (409, the category key is in use, open
     or closed), `SERVICE_CATEGORY_NOT_FOUND` (404, also for another business or tenant), `SERVICE_CATEGORY_ALREADY_CLOSED`
     and `SERVICE_CATEGORY_NOT_CLOSED` (409), `SERVICE_ALREADY_CLOSED` and `SERVICE_NOT_CLOSED` (409),
-    `SERVICE_CATEGORY_CLOSED` (409, reopening a service under a closed category), and the standard stale-revision 409.
+    `SERVICE_CATEGORY_CLOSED` (409, reopening a service under a closed category), `SERVICE_CATEGORY_COUNT_CHANGED` (409,
+    the services under the category changed after the confirmation), and the standard stale-revision 409.
 - **Category detail read** (`32b-cat-2`): `GET …/service-categories/{categoryId}` → the category plus
   `open_service_count` (services a close would close) and `marked_service_count` (services a reopen would reopen), two
   counts on `services_business_category_idx` with an `EXPLAIN ANALYZE` assertion. The close and reopen confirmations of
@@ -453,6 +460,12 @@ does not let a branch manager import services.
 
 Acceptance is one short transaction (warm integration assertion under 200 ms). The commit of up to 500 inserts and 500
 audit rows runs in the worker. The synchronous preview is measured in 32b-2 (D-7). Template download stays synchronous.
+
+The category close and reopen cascades (`32b-cat-2`) stay synchronous only while they fit the budget: each is one
+set-based `UPDATE` of the matching services plus one `INSERT … SELECT` of their audit rows, never a row-by-row loop.
+`32b-cat-2` measures a warm close and reopen of a category holding 1,000 services against 200 ms. If they do not fit,
+the design advisors move the cascade to the worker (a durable command with status and retries, like the import
+commit), and `32b-cat-2` stops and asks Waleed before it goes on (a technical question, never on the decisions page).
 
 ### Test plan
 
