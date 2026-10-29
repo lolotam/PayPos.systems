@@ -24,6 +24,7 @@ import { employeeNumberAdminEn } from './employee-number-admin-catalog.js';
 import { staffScreensEn } from './staff-screens-catalog.js';
 import { businessIdentityEn } from './business-identity-catalog.js';
 import { roleNamesEn } from './role-names-catalog.js';
+import { commissionPlanErrorsEn } from './commission-plan-errors.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
   attendanceActions: attendanceActionsEn,
@@ -140,6 +141,7 @@ export const en = {
   staffLogin: staffLoginEn,
   inApp: inAppEn,
   errors: {
+    ...commissionPlanErrorsEn,
     ATTENDANCE_MANUAL_INVALID_TIMES:
       'Manual attendance times must end after they start, not be in the future, last at most 16 hours, and not overlap another session.',
     ATTENDANCE_MANUAL_NOT_ELIGIBLE:

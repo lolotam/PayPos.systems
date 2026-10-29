@@ -1,0 +1,87 @@
+import type { CommissionPlanVersion, CreateCommissionPlanVersionInput } from '@pospay/contracts';
+
+import type { CommissionPlanStatementPeriod } from '../domain/plan-periods.ts';
+
+export interface CommissionPlanVersionActor {
+  readonly companyId: string;
+  readonly userId: string;
+  readonly businessId: string;
+  readonly employeeId: string;
+}
+
+export interface CreateCommissionPlanVersionCommand extends CommissionPlanVersionActor {
+  readonly input: CreateCommissionPlanVersionInput;
+  readonly key: string;
+  readonly fingerprint: string;
+}
+
+/** خطوات الكتابة التي تحتاجها حالة استخدام إصدار الخطة داخل معاملة واحدة. */
+export interface CommissionPlanVersionScope {
+  /**
+   * بيقفل صف الموظفة قبل قراءة أعلى رقم إصدار.
+   *
+   * @returns true عند وجود الموظفة النشطة في النشاط
+   */
+  lockEmployee(): Promise<boolean>;
+  /**
+   * بيقرأ توقيت النشاط على المعاملة نفسها.
+   *
+   * @returns اسم IANA أو null عند غياب النشاط
+   */
+  timeZone(): Promise<string | null>;
+  /**
+   * بيقفل كل الشهور المتأثرة في نداء واحد تصاعدي.
+   *
+   * @param periods الشهور من شهر السريان حتى الشهر الحالي
+   * @returns حالات الكشوف بعد القفل
+   */
+  lockPeriods(periods: readonly string[]): Promise<CommissionPlanStatementPeriod[]>;
+  /**
+   * بيرجّع شهور REVIEWED اللاحقة إلى DRAFT ويمسح دليل مراجعتها وفق D-5.
+   *
+   * @param periods الشهور التي قررت قاعدة FR-007 إرجاعها
+   * @returns اكتمال التحديث
+   */
+  reopenReviewed(periods: readonly string[]): Promise<void>;
+  /**
+   * بيعيد فحص صلاحية إدارة الخطط بعد انتظار أقفال الشهور.
+   *
+   * @returns FORBIDDEN عند سحب الصلاحية، أو null عند استمرارها
+   */
+  recheckAccess(): Promise<'FORBIDDEN' | null>;
+  /**
+   * بيقرأ أعلى رقم إصدار للموظفة بعد قفل صفها.
+   *
+   * @returns أعلى رقم أو null لأول إصدار
+   */
+  latestVersion(): Promise<number | null>;
+  /**
+   * بيدخل الإصدار ويرجع الصف كما خزّنته قاعدة البيانات بشكل العقد.
+   *
+   * @param record الإصدار كامل المعرف والتوقيت والخطة
+   * @returns الصف المخزن
+   */
+  insert(record: CommissionPlanVersion): Promise<CommissionPlanVersion>;
+  /**
+   * بيكتب تدقيق إنشاء الإصدار بالخطة فقط، بلا راتب أو بيانات حساسة أخرى.
+   *
+   * @param record الصف المخزن الذي يوثقه الإدخال
+   * @returns اكتمال التدقيق
+   */
+  audit(record: CommissionPlanVersion): Promise<void>;
+}
+
+/** حد المعاملة الذرية وإعادة الإرسال لإنشاء إصدار خطة. */
+export interface CommissionPlanVersionTransactions {
+  /**
+   * ينفذ التحقق والأقفال والكتابة والتدقيق مع مطالبة idempotent في معاملة شركة واحدة.
+   *
+   * @param command هوية الفاعل والطلب ومفتاح إعادة الإرسال
+   * @param work خطوات حالة الاستخدام على المعاملة
+   * @returns نتيجة العمل أو جسم الرد المخزن
+   */
+  run<T>(
+    command: CreateCommissionPlanVersionCommand,
+    work: (scope: CommissionPlanVersionScope) => Promise<T>,
+  ): Promise<T>;
+}

@@ -14,6 +14,7 @@ export type {
 } from './events/published.ts';
 
 export { createPersonalEligibility } from './persistence/personal-employee.ts';
+export { lockEmployeeForUpdate } from './persistence/lock-employee.ts';
 export { employeeNamesByUser } from './persistence/employee-names.ts';
 export { createActivePasskeyBindings } from './queries/active-passkey-bindings.query.ts';
 export type { AttendanceChangeRequested, AttendanceChangeDecided } from './events/published.ts';

@@ -8,7 +8,7 @@ import { salaryAmount } from '../staff/salary.js';
 /** شكل الشبكة مستقل ويطابق حقول CommissionPlan؛ التحقق هنا للشكل فقط، وقواعد الخطة الدلالية يطبقها محرك العمولة في 48-2. */
 export const commissionPlanCalc = z
   .discriminatedUnion('kind', [
-    z.strictObject({ kind: z.literal('PCT'), bps: z.number().int().min(0).max(10000) }),
+    z.strictObject({ kind: z.literal('PCT'), bps: z.number().int() }),
     z.strictObject({ kind: z.literal('FIXED'), amount: salaryAmount }),
   ])
   .meta({ id: 'CommissionPlanCalc' });
@@ -58,7 +58,7 @@ export const commissionPlanTiers = z
       enabled: z.literal(true),
       mode: z.enum(['MARGINAL', 'WHOLE']),
       accumulator: z.enum(['AMOUNT', 'SESSIONS']),
-      steps: z.array(commissionPlanTierStep).min(1),
+      steps: z.array(commissionPlanTierStep),
     }),
   ])
   .meta({ id: 'CommissionPlanTiers' });

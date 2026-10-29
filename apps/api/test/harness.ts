@@ -182,6 +182,7 @@ interface HarnessOptions {
   staffNativeOrigins?: readonly string[];
   clock?: { now(): Date };
   ordersClock?: { now(): Date };
+  commissionsClock?: { now(): Date };
   staffOtpFactory?: (
     auth: AuthService,
     authUrl: string,
@@ -238,6 +239,9 @@ async function prepareHarness(
         employeeCardKey: deriveEmployeeCardKey('test-secret-that-is-long-enough-for-hmac'),
         database: wrappers,
         ...(options.ordersClock === undefined ? {} : { ordersClock: options.ordersClock }),
+        ...(options.commissionsClock === undefined
+          ? {}
+          : { commissionsClock: options.commissionsClock }),
         ...(options.files === undefined ? {} : { files: options.files }),
         ...staffWiring(options, staffOtp, auth),
         ids,
