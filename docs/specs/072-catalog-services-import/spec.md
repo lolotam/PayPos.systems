@@ -1,13 +1,17 @@
 # Feature Specification: Catalog services import — template, preview, all-or-nothing commit
 
 **Created**: 2026-10-25
-**Status**: Draft spec for plan row 32b, amended on 2026-10-25 with the owner answers (`owner-questions.ar.md`).
-SI-Q1 to SI-Q5 were answered by Waleed by card on 2026-10-25 (decisions-page batch 74, `PP-64.1` to `PP-64.5`) and the
-rules below follow his picks; **Abu Salem has not answered yet, and where his pick differs it binds and this spec is
-amended** (CLAUDE.md §1 5b). SI-T1 (technical, `PP-64.6`) was answered by Waleed and is final. Waleed answered SI-Q5
-against the recommendation, so a duration and a category are added to the service first (sub-PRs `32b-pre-1` and `32b-pre-2`) and the import carries them. The follow-up questions SI-Q6 to SI-Q10 are PENDING; every rule that depends on
-one follows its recommended option and is marked `TODO(spec)`. **No code starts before this spec is merged and the
-questions a sub-PR waits on are answered.**
+**Status**: Draft spec for plan row 32b, amended on 2026-10-25 and again on 2026-10-29 with the owner answers
+(`owner-questions.ar.md`). SI-Q1 to SI-Q10 are closed: Waleed answered by card and Abu Salem on the decisions page with
+the same picks (batches 74 and 76, `PP-64.1` to `PP-64.11`). SI-T1 (technical, `PP-64.6`) was answered by Waleed and is
+final. SI-Q11 and SI-Q13 are closed (batch 78, `PP-67.1` and `PP-67.3`; on SI-Q13 the owners differed and Abu Salem's
+pick binds). SI-Q12 is replaced by its confirmation SI-Q14. **SI-Q14 to SI-Q16 (batch 80, `PP-75.1` to `PP-75.3`) are
+answered by Waleed only**; on 2026-10-29 Waleed directed that the work proceeds on his picks («start working with my
+answers»), so the rules below follow them, and where Abu Salem's pick differs it replaces them and this spec is amended
+(CLAUDE.md §1 5b). Waleed answered SI-Q5 against the recommendation, so a duration and a category are added to the
+service first, and SI-Q7 (also against the recommendation) makes the category a managed list per business with its own
+close and reopen; those come in the sub-PRs `32b-cat-1`, `32b-pre-1`, `32b-cat-2`, `32b-pre-2` and `32b-cat-3` before
+the import carries them. **No code starts before this spec is merged.**
 **Input**: Phase 1 plan row 32b ("services import", size S, depends on 32); SPEC §2 "Import" and §11 acceptance
 "An import with any invalid row saves nothing"; spec 031 (SR-006, SV-02, SV-10, the 200 ms rule and SV-Q2); spec 030
 and ADR-0034 (the import framework this row reuses); `docs/journey/29-services.md`; CLAUDE.md §5/§6/§8/§9.
@@ -51,7 +55,7 @@ commit → every service created in one transaction with its audit row, and the 
 - SI-11: before committing, the manager sees every error-free row as the server resolved it (names, price, the commission rule
   that will be stored, whether it was a default, the tier flag; a clean preview therefore shows all rows), so a blank commission cell turned into `FOLLOW_PLAN`
   (SI-Q3) is never a surprise; see FR-014.
-- SI-12 (`TODO(spec)` SI-Q6 to SI-Q9): the template, the preview and the commit carry `duration_minutes` and `category` under the same rules as the manual service form (the same limits, because the import calls the same rule functions); a bad duration or category cell is a named row error in its own column, and a blank cell is "no value" (recommended SI-Q8).
+- SI-12 (SI-Q6 to SI-Q9, SI-Q13): the template, the preview and the commit carry `duration_minutes` and `category` under the same rules as the manual service form (the same limits, because the import calls the same rule functions); the `category` cell names an **open** category of the business by its English name, and the import never creates a category; a bad duration or an unknown or closed category is a named row error in its own column, and a blank cell is "no value" (SI-Q8).
 - SI-10: money never undergoes float arithmetic and is never stored or passed on as a number past the reader boundary: a price cell follows the single rule of FR-005 and becomes the contract's 3-decimal string, and a fourth decimal is a row error, not a rounding.
 
 ## Requirements
@@ -67,7 +71,11 @@ commit → every service created in one transaction with its audit row, and the 
    update, queries; `32b-pre-2`: the form and the list), and only then does the import carry them. So the template has the create-service inputs as
    they stand after those PRs, and no others, as spec 030 FR-004 did for employees. The rules of the two attributes
    (unit and limits, the shape of the category, required or optional, whether the category changes what a duplicate
-   is, and whether the list filters or groups by it) are `TODO(spec)` **SI-Q6 to SI-Q10**; the spec follows their recommended options meanwhile.
+   is, and whether the list filters by it) were asked as **SI-Q6 to SI-Q10** and are answered: whole minutes 1 to 600,
+   a **managed category list per business** (SI-Q7, against the recommendation), both optional, the name alone decides a
+   duplicate, and the services list **filters by category now** (SI-Q10, against the recommendation). The managed list
+   raised SI-Q11 to SI-Q16 (who manages it, both names required, and what closing a category does to its services);
+   see "Service categories" under Schema changes.
 2. **All-or-nothing, no partial commit** (SI-03, SPEC §11, ADR-0034). The only "partial" thing is the report.
 3. **Create-only.** The import never updates or deletes an existing service. (An "update by name" import is a
    different feature with its own revision, audit and permission questions; it is an SI-Q1 option Waleed did not pick and the
@@ -94,11 +102,16 @@ commit → every service created in one transaction with its audit row, and the 
 - `packages/i18n`: ar/en messages for the new error codes and the screen.
 - `apps/admin`: a `catalog/import` page; staff's import panel is not modified except, if the design advice for 32b-6
   says so, to share entity-agnostic pieces with it.
-- **Touched only by the attribute PRs `32b-pre-1` and `32b-pre-2`** (not by the import PRs): `packages/db` (two migrations on `services`: the
-  additive columns, then the concurrent category index), `packages/contracts/src/catalog/service.ts`, the catalog domain, the create-service and
-  update-service use cases, the service queries and a short addendum to spec 031, all in `32b-pre-1` (one PR, so a field
-  the contract accepts is always stored and returned, and the contract comes first in the order of CLAUDE.md §1.3); the
-  `apps/admin` service form and list in `32b-pre-2`.
+- **Touched only by the category and attribute PRs `32b-cat-1`, `32b-pre-1`, `32b-cat-2`, `32b-pre-2` and `32b-cat-3`**
+  (not by the import PRs): `packages/db` (the `service_categories` table with its RLS, grants and permission seed in
+  `32b-cat-1`; the attribute columns on `services` and their concurrent index in `32b-pre-1`; the closed state of
+  services in `32b-cat-2`), `packages/contracts/src/catalog/service.ts` and a new `service-category.ts`, the catalog
+  domain, the category use cases (create, rename, close, reopen), the create-service and update-service use cases, a
+  close-service and a reopen-service use case, the service and category queries, the `orders` catalog-reader adapter
+  (a closed service is refused at record time, `32b-cat-2`), and an addendum to spec 031 that supersedes SV-09 and
+  answers SV-Q3 (a service can now be closed); the `apps/admin` service form, list and filter in `32b-pre-2` and the
+  category screen in `32b-cat-3`. In each PR the contract comes first, so a field the contract accepts is always stored
+  and returned (CLAUDE.md §1.3).
 - **Not touched by the import PRs 32b-0 to 32b-6:** `packages/db` (no migration, no schema change, no grant, no
   permission seed; see Schema changes), `packages/domain`, `modules/staff` behaviour, `services` rows already stored
   (an existing service keeps no duration and no category), the `files` upload policy.
@@ -117,16 +130,16 @@ did. A decision that depends on an owner answer says so.
 | D-5 | **One new event type, `ServiceImportCommitRequested`** (id-only `{ preview_id }`, company in the outbox envelope), emitted in the acceptance transaction, as `EmployeeImportCommitRequested` is. The worker registers the type the way staff does, through `knownEventTypes(...)` from the catalog worker module, not as a constant in `KNOWN_EVENT_TYPES`, and its transport takes the event before `outbox/deliver.ts` can acknowledge a known event that has no consumer. **No per-service event and no summary event:** spec 031 SV-10 records that no consumer needs a service event, and an unconsumed outbox row is a cost with no reader. The record of what was imported is the preview row (`status = committed`, `created_count`, `committed_at`) and the audit rows. The module-map §4 row lands in 32b-0 (documentation only); the event type is added to `apps/worker/src/outbox/known-event-types.ts` in 32b-3 together with the catalog worker transport, and the API producer ships last (32b-5), after the worker consumer and the sweep are deployed everywhere, so a rolling deployment never has an event whose consumer is missing. | Reusing `ImportCommitted` (a staff event whose payload carries `employee_ids`) |
 | D-6 | **A new worker module `apps/worker/src/modules/catalog`** (today the worker has no catalog module): the BullMQ jobs `service-import-commit` and `service-import-recovery` (the per-company stale-request sweep, with the tenant discovery and scheduler protocol of PR 24 / ADR-0022, exactly as staff registers its own), wired in the worker composition root. The `catalog → tenancy` arrow already covers api and worker. The sweep reads only `entity = 'services'`, and staff's sweep, which reads only `entity = 'employees'`, never touches a services preview. | Extending staff's sweep to other entities |
 | D-7 | **Preview stays synchronous, commit moves to the worker.** Spec 031 already says the service import "is the heavy path and uses the PR 11 worker framework", and CLAUDE.md §6 sends anything over 200 ms to the worker. The API acceptance transaction must stay under 200 ms warm (asserted in an integration test, as ADR-0034 did). The services preview test asserts the bound explicitly and times the whole call (file read, parse, validation and save), not the parse alone; staff's preview benchmark only logs its median and is not the model for that assertion. The synchronous preview of a 500-row workbook is measured in 32b-2 (one warm-up and five runs, median under 200 ms, the ADR-0034 method); if it is not, 32b-2 stops and reports instead of weakening a bound. | A synchronous commit: not allowed by the 200 ms rule without a measurement that does not exist yet |
-| D-8 | **Row validation reuses the create-service rules exactly (SR-006), in four steps.** (1) The plug-in converts each cell to the wire shape of the contract (strings for money, an integer for `PCT`, `ServiceRuleWire`). (2) It converts the wire shape to the domain shape with the same conversion `serviceTerms` uses: `parseServicePrice` for the price and `toCommissionRule` for the rule (the `PCT` integer and the `FIXED` string become bigint values); `toCommissionRule` is private to `service.ts` today and `32b-pre-1` exports it, so `validateServiceCommissionRule` always receives the bigint shape it requires. (3) It runs **every field validator separately** and collects each field's error, so a row with several bad cells reports all of them: `validateServiceNameEn` and `validateServiceNameAr` (the split of `validateServiceName`, which throws one `SERVICE_NAME_INVALID` for either name; certain, and owned by `32b-pre-1` because that PR already touches the catalog domain), `parseServicePrice` and `validateServiceCommissionRule` (they throw their `ServiceError`, which the plug-in catches field by field) and, new in `32b-pre-1`, `validateServiceDuration` and `validateServiceCategory` (they return their `ServiceError` or null). (4) Only a row with no error then goes through `serviceTerms` as the final check, so the import can never disagree with create-service. Each named error (`SERVICE_NAME_INVALID`, `SERVICE_PRICE_INVALID`, `SERVICE_COMMISSION_RULE_INVALID`, `SERVICE_DURATION_INVALID`, `SERVICE_CATEGORY_INVALID`) maps to the row error of its column. `validateServiceDraft`, which `serviceTerms` calls for create and update, composes the same per-field validators and still stops at the first error: one source of truth, no second validation engine. | A parallel validator in the import code |
-| D-9 | **The stored `rows` are the normalized preview rows of FR-014:** `{ row, name_en, name_ar, price (3-decimal string), duration_minutes (integer or null), category (string or null), commission_rule, commission_value, commission_rule_defaulted, counts_toward_threshold }`, never a number for money (the shape of `duration_minutes` and `category`, and the name-only duplicate re-check below, follow the recommended options of SI-Q6 to SI-Q9 and are `TODO(spec)` until those are answered); `commission_value` is the normalized value of the rule (basis points as an integer for `PCT`, a KWD amount as a 3-decimal string for `FIXED`, such as `"0.500"` for 500 fils, null for `FOLLOW_PLAN` and `ZERO`); for `PCT` and `FIXED` it equals `commission_rule.value`, and `FOLLOW_PLAN` and `ZERO` carry no `value`. The worker consumes them as immutable validated rows and projects only the service fields into the insert (`name_en`, `name_ar`, `price`, `duration_minutes`, `category`, `commission_rule`, `counts_toward_threshold`; dropping `row`, `commission_value` and `commission_rule_defaulted`), where `commission_rule` is a logical shape that persistence splits into the `commission_rule_kind`, `commission_pct_bps` and `commission_fixed_amount` columns, as create-service does; it re-checks only what can change after the preview (that the business still exists and, SI-Q1, that no service now has the same name), as the staff worker re-checks only branches. | Re-parsing the workbook in the worker |
+| D-8 | **Row validation reuses the create-service rules exactly (SR-006), in four steps.** (1) The plug-in converts each cell to the wire shape of the contract (strings for money, an integer for `PCT`, `ServiceRuleWire`). (2) It converts the wire shape to the domain shape with the same conversion `serviceTerms` uses: `parseServicePrice` for the price and `toCommissionRule` for the rule (the `PCT` integer and the `FIXED` string become bigint values); `toCommissionRule` is private to `service.ts` today and `32b-pre-1` exports it, so `validateServiceCommissionRule` always receives the bigint shape it requires. (3) It runs **every field validator separately** and collects each field's error, so a row with several bad cells reports all of them: `validateServiceNameEn` and `validateServiceNameAr` (the split of `validateServiceName`, which throws one `SERVICE_NAME_INVALID` for either name; certain, and owned by `32b-pre-1` because that PR already touches the catalog domain), `parseServicePrice` and `validateServiceCommissionRule` (they throw their `ServiceError`, which the plug-in catches field by field) and, new in `32b-pre-1`, `validateServiceDuration` (it returns its `ServiceError` or null); the category cell is resolved against the open categories the preview reads once per business, not by a rule function. (4) Only a row with no error then goes through `serviceTerms` as the final check, so the import can never disagree with create-service. Each named error (`SERVICE_NAME_INVALID`, `SERVICE_PRICE_INVALID`, `SERVICE_COMMISSION_RULE_INVALID`, `SERVICE_DURATION_INVALID`, `SERVICE_CATEGORY_INVALID`) maps to the row error of its column. `validateServiceDraft`, which `serviceTerms` calls for create and update, composes the same per-field validators and still stops at the first error: one source of truth, no second validation engine. | A parallel validator in the import code |
+| D-9 | **The stored `rows` are the normalized preview rows of FR-014:** `{ row, name_en, name_ar, price (3-decimal string), duration_minutes (integer or null), category_id (uuid or null), category_name_en (string or null, for display), commission_rule, commission_value, commission_rule_defaulted, counts_toward_threshold }`, never a number for money (SI-Q6 to SI-Q9); `commission_value` is the normalized value of the rule (basis points as an integer for `PCT`, a KWD amount as a 3-decimal string for `FIXED`, such as `"0.500"` for 500 fils, null for `FOLLOW_PLAN` and `ZERO`); for `PCT` and `FIXED` it equals `commission_rule.value`, and `FOLLOW_PLAN` and `ZERO` carry no `value`. The worker consumes them as immutable validated rows and projects only the service fields into the insert (`name_en`, `name_ar`, `price`, `duration_minutes`, `category_id`, `commission_rule`, `counts_toward_threshold`; dropping `row`, `category_name_en`, `commission_value` and `commission_rule_defaulted`), where `commission_rule` is a logical shape that persistence splits into the `commission_rule_kind`, `commission_pct_bps` and `commission_fixed_amount` columns, as create-service does; it re-checks only what can change after the preview (that the business still exists, SI-Q1 that no service now has the same name, and that every referenced category is still open: a category closed after the preview fails the whole commit with `IMPORT_CATEGORY_NOT_FOUND` on its row), as the staff worker re-checks only branches. | Re-parsing the workbook in the worker |
 
 ### Functional requirements
 
 - FR-001: one `.xlsx` workbook, first sheet only. The English header row is authoritative; the Arabic labels are cell
   comments on the header cells and are never parsed, so the first data row is the sheet's second row. Headers must
   match the expected set exactly (no missing, extra or duplicate column) except that `duration_minutes` and `category` may
-  each be absent (`TODO(spec)` SI-Q8, recommended optional): an absent optional header reads as no value for every row,
-  so a legacy file without them keeps importing, and if SI-Q8 makes a field required its header is required too. `readSheet` stays unchanged and still demands an exact set (D-2), so the plug-in first reads the header row with a new generic `readHeaderRow` in `apps/api/src/shared/import/` (the same zip and XML guards, no new parser), builds `expected` as the required columns plus whichever of `duration_minutes` and `category` are present, then calls `readSheet(expected)` and maps cells by header name; a duplicate or unknown header still fails there. Any
+  each be absent (SI-Q8: both optional): an absent optional header reads as no value for every row,
+  so a legacy file without them keeps importing. `readSheet` stays unchanged and still demands an exact set (D-2), so the plug-in first reads the header row with a new generic `readHeaderRow` in `apps/api/src/shared/import/` (the same zip and XML guards, no new parser), builds `expected` as the required columns plus whichever of `duration_minutes` and `category` are present, then calls `readSheet(expected)` and maps cells by header name; a duplicate or unknown header still fails there. Any
   other violation refuses the whole workbook with
   `IMPORT_HEADER_INVALID`; an empty data sheet is also `IMPORT_HEADER_INVALID` (the `readSheet` contract). `exceljs` is
   already pinned in `apps/api` (ADR-0034); no new dependency.
@@ -143,15 +156,15 @@ did. A decision that depends on an owner answer says so.
   | `name_en` | yes | English name | 1 to 255 after trim, no control character (SR-001) |
   | `name_ar` | no | Arabic name | blank means no Arabic name; else 1 to 255 after trim, no control character |
   | `price` | yes | price in KWD | see FR-005; zero allowed (SV-03) |
-  | `duration_minutes` | no, `TODO(spec)` SI-Q6, SI-Q8; the header itself may be absent (FR-001) | service length in minutes | blank means no duration; else a whole number of minutes from 1 to 600 (an integer cell or the text of one); a fraction, zero, a negative, a text cell in exponent form (`"1e2"`) or a value above 600 is `IMPORT_DURATION_INVALID`, never rounded; a numeric cell entered as `1e2` reaches the plug-in as the text `100` and is accepted as 100; a numeric cell tagged `numeric-unrepresentable` (`1e21`, a 16-digit value) is `IMPORT_DURATION_INVALID` |
-  | `category` | no, `TODO(spec)` SI-Q7, SI-Q8; the header itself may be absent (FR-001) | the category of the service | blank means no category; else 1 to 100 characters after trim, no control character, stored trimmed with each run of whitespace collapsed into one space, in the case typed (free text, the recommended SI-Q7) |
+  | `duration_minutes` | no (SI-Q6, SI-Q8); the header itself may be absent (FR-001) | service length in minutes | blank means no duration; else a whole number of minutes from 1 to 600 (an integer cell or the text of one); a fraction, zero, a negative, a text cell in exponent form (`"1e2"`) or a value above 600 is `IMPORT_DURATION_INVALID`, never rounded; a numeric cell entered as `1e2` reaches the plug-in as the text `100` and is accepted as 100; a numeric cell tagged `numeric-unrepresentable` (`1e21`, a 16-digit value) is `IMPORT_DURATION_INVALID` |
+  | `category` | no (SI-Q7, SI-Q8); the header itself may be absent (FR-001) | the English name of an open category of the business | blank means no category; else the cell is matched against the business's **open** categories by the category key (trim, collapse each run of whitespace into one space, case fold: the key of the unique index of `service_categories`); no match, or a match only with a closed category, is `IMPORT_CATEGORY_NOT_FOUND`; the import never creates a category; the Arabic name is not matched (the English name is the key, as in SI-Q1) |
   | `commission_rule` | no (SI-Q3) | rule kind | `FOLLOW_PLAN`, `ZERO`, `PCT` or `FIXED`, case-insensitive; blank means `FOLLOW_PLAN` (SI-Q3, Waleed's pick) |
   | `commission_value` | by rule | value of the rule | blank for `FOLLOW_PLAN` and `ZERO`; required for `PCT` and `FIXED` (see FR-006) |
   | `counts_toward_threshold` | no | counts toward the commission tiers | blank means `true` (SR-005); else a boolean cell, or the text `true`/`false`, `yes`/`no`, `نعم`/`لا`, case-insensitive |
 
-  The duration and category columns are in the template only once `32b-pre-1` has merged (SI-Q5). A duration cell is read through the same `tagCells` text as FR-005: digits only, no float arithmetic, and a cell with a fraction (`90.5`) is refused, not rounded. Exponent form is refused only in a text cell, because `tagCells` has already normalized a numeric `1e2` to `100`.
+  The duration and category columns are in the template only once `32b-pre-2` has merged (SI-Q5), so the categories can be managed and set by hand first. A duration cell is read through the same `tagCells` text as FR-005: digits only, no float arithmetic, and a cell with a fraction (`90.5`) is refused, not rounded. Exponent form is refused only in a text cell, because `tagCells` has already normalized a numeric `1e2` to `100`.
 
-  **The category is only displayed in this work** (`TODO(spec)` SI-Q10, recommended: later): the form, the list and the import show and set it. Filtering or grouping the services list by it is a later follow-up tracked in issue #683, unless SI-Q10 asks for it now.
+  **The services list filters by category now** (SI-Q10, against the recommendation): the list read of `32b-pre-1` takes an optional `category_id` and `32b-pre-2` adds the filter to the screen; grouping was not asked for (this settles the filter note of issue #683). The template's reference sheet lists the open categories of the business (English and Arabic name) so the manager types an existing name.
 - FR-005: **money in cells (one rule, the same in SI-10 and the delivery table).** No arithmetic on money in floating point, and no JavaScript number crosses the reader boundary. **The boundary is a new generic step in `apps/api/src/shared/import/`**, for example `tagCells(matrix, formats)`, that runs after `readSheet` (`readSheet` and `ImportCell` are unchanged) and knows nothing about services. It turns each cell into one of: `{ kind: 'text', text }`, `{ kind: 'boolean', value }`, `{ kind: 'numeric', text, percentFormat }`, `{ kind: 'numeric-unrepresentable', display }`, `{ kind: 'error' }` for an Excel error cell (`#REF!`, `#DIV/0!`, a formula whose result is an error; the reader's `INVALID_CELL` sentinel), or null for a blank. An `error` cell is never null and never text, so a broken cell can never fall back to a default (`FOLLOW_PLAN`, `true`, "no Arabic name"): the plug-in turns it into `IMPORT_CELL_INVALID` on that cell's column. For a numeric cell, `text` is the shortest round-trip decimal text of the value (ECMAScript Number to String); if that text has more than 15 significant digits or uses exponent form the cell is `numeric-unrepresentable` (carrying a safe display string, never a number) instead. The sheet reader returns, beside the matrix, a parallel `formats` matrix with the same row and column indexes as `ImportMatrix` (null where a cell has no format), produced by the same ExcelJS pass, which `tagCells(matrix, formats)` reads; `readSheet` and `ImportCell` stay unchanged; there is no "services mode". The catalog plug-in does every service-specific conversion and validation on the tagged cells, and turns `numeric-unrepresentable` into the column's own row error (`IMPORT_PRICE_INVALID`, `IMPORT_COMMISSION_VALUE_INVALID`, `IMPORT_DURATION_INVALID`), so one row can still report several errors in one preview. From the text on, everything is string to bigint mills. The shortest form returns exactly what the manager typed for any value of at most 15 significant digits (a price has at most 11 + 3), even though Excel stores `0.57` in the file as `0.56999999999999995`; the raw `<v>` text is deliberately not read. The plug-in converts a price (and a `FIXED` value) to the
   contract's 3-decimal string with string handling, never with float arithmetic: `12.5` becomes `"12.500"`, `0` becomes `"0.000"`. A value with a fourth decimal, a
   negative value, an exponent form (`1e21`), a thousands separator, a non-ASCII digit, or a value at or above
@@ -171,7 +184,7 @@ did. A decision that depends on an owner answer says so.
   "type 20 for 20 percent", and FR-014 shows every resolved rule before commit, so a misread value is visible. **`percentFormat` classification** (generic, in `tagCells`): take the number format's first section (split on `;` outside quotes), drop quoted text, backslash-escaped characters and `_x` / `*x` pairs, and `percentFormat` is true when an unescaped `%` remains.
   A kind that is not one of the four is `IMPORT_COMMISSION_RULE_INVALID`. `PCT` 0 is valid and different from `ZERO` (spec 031).
 - FR-007: **duplicate names** (SI-Q1, SI-Q2: Waleed's picks). The comparison key is `name_en` after
-  trim, collapsing inner whitespace and case folding; `name_ar` is not part of the key, and neither is the category (`TODO(spec)` SI-Q9, recommended: the name alone decides).
+  trim, collapsing inner whitespace and case folding; `name_ar` is not part of the key, and neither is the category (SI-Q9: the name alone decides). An existing service counts whether it is open or closed: a closed service with the same name blocks the row, because reopening it later would leave two services with one name.
   - A row whose key equals the key of an existing service of the same business is `IMPORT_SERVICE_EXISTS` on column
     `name_en`.
   - Every row of the file that shares a key with another row of the file is `IMPORT_DUPLICATE_IN_FILE` on column
@@ -209,9 +222,9 @@ did. A decision that depends on an owner answer says so.
 - FR-014: **the preview shows what will be saved.** Besides counts and errors, the preview returns the normalized
   rows the commit will insert, in sheet order. **Only error-free rows are returned**; a row with an error appears in
   `errors` by its row number and column and is never echoed back, so there is no half-valid row to represent, and the
-  two lists align by `row`. A clean preview, the only one that can commit, returns every row. Each row is `{ row, name_en, name_ar, price, duration_minutes, category, commission_rule, commission_value,
+  two lists align by `row`. A clean preview, the only one that can commit, returns every row. Each row is `{ row, name_en, name_ar, price, duration_minutes, category_id, category_name_en, commission_rule, commission_value,
   commission_rule_defaulted, counts_toward_threshold }`, with `price` the 3-decimal string, `commission_rule` the
-  contract shape and `commission_value` the normalized value of D-9, shown beside the rule on screen (never a number for money); `duration_minutes` is an integer or null and `category` a string or null (`TODO(spec)` SI-Q6 to SI-Q8). The POST
+  contract shape and `commission_value` the normalized value of D-9, shown beside the rule on screen (never a number for money); `duration_minutes` is an integer or null, and `category_id` and `category_name_en` are the matched open category or null (SI-Q6 to SI-Q8). The POST
   response carries the first 100 rows and a `next_cursor`; `GET .../previews/{previewId}/rows?cursor&limit` (1 to
   100) pages the rest, creator-only, with the same unknown-preview refusal as the status read. The screen lists them
   in a table, marks a defaulted rule ("حسب الخطة (افتراضي)" / "Follow plan (default)"), and keeps the commit button
@@ -227,8 +240,12 @@ did. A decision that depends on an owner answer says so.
   first 500 are valid.
 - A row whose only filled cell is `name_ar` is a row with `name_en` missing: `IMPORT_REQUIRED_CELL` on `name_en`.
 - A price of `0` is valid; `0.000` and `0` give the same stored value.
-- A duration of `0`, `7.5` or `601` is `IMPORT_DURATION_INVALID`; a blank duration or category is "no value" (`TODO(spec)` SI-Q6 to SI-Q8).
-- Two rows with the same `name_en` and different categories are a duplicate (`TODO(spec)` SI-Q9, recommended).
+- A duration of `0`, `7.5` or `601` is `IMPORT_DURATION_INVALID`; a blank duration or category is "no value" (SI-Q6 to SI-Q8).
+- Two rows with the same `name_en` and different categories are a duplicate (SI-Q9).
+- A `category` cell `" hair  care "` matches the open category `Hair Care`; a cell naming a closed category, or a name
+  that exists only in Arabic, is `IMPORT_CATEGORY_NOT_FOUND`.
+- A row whose `name_en` equals a closed service of the business is `IMPORT_SERVICE_EXISTS` (FR-007).
+- A category is closed between preview and commit: the whole commit fails, nothing is saved (D-9).
 - Two cells that differ only by case or surrounding spaces in `name_en` are the same name (FR-007).
 - The business is deleted or nonexistent between preview and commit: the whole commit fails, nothing is saved.
 - The caller loses `manage:services:business` after acceptance: the accepted commit still runs (D-3, IM-08).
@@ -243,7 +260,7 @@ did. A decision that depends on an owner answer says so.
 
 ### Schema changes
 
-**None for the import itself (32b-0 to 32b-6).** The question "does a new import kind need a migration?" is answered from the code, not assumed. The migrations of this work are the two attribute migrations of `32b-pre-1`, described after the table:
+**None for the import itself (32b-0 to 32b-6).** The question "does a new import kind need a migration?" is answered from the code, not assumed. The migrations of this work belong to the category and attribute sub-PRs `32b-cat-1`, `32b-pre-1` and `32b-cat-2`, described after the table:
 
 | Item | Finding | Source |
 |---|---|---|
@@ -252,27 +269,86 @@ did. A decision that depends on an owner answer says so.
 | RLS and grants | policies are `company_id = app_company_id()` only; `pospay_app` has SELECT, INSERT and column UPDATE on the status columns; nothing mentions an entity | migrations 0078, 0079, `packages/db/test/import-grants.ts` |
 | File type | `file_objects_type` already allows the xlsx MIME | migration 0077 |
 | Services table | unchanged by the import PRs; it gets two additive nullable columns from `32b-pre-1` (below); `services` rows are written by the worker through the same columns create-service writes | `packages/db/schema/catalog.ts` |
-| Permission and feature | `manage:services:business` and the `catalog` flag exist (spec 031); no new permission, no seed migration | spec 031, `services.controller.ts` |
+| Permission and feature | `manage:services:business` and the `catalog` flag exist (spec 031); the import adds no permission and no seed migration (the category permission and its seed belong to `32b-cat-1`, below) | spec 031, `services.controller.ts` |
 
 Consequences for the import: no new table, so **no new RLS policy and no new negative isolation test for a table**. The existing
 `import_previews` isolation tests stay. The 500-row cap is a database CHECK, so raising it would need a migration;
 this spec keeps 500. If 32b-0 finds a reason this table cannot be shared (for example a grant that must differ), the
 sub-PR stops and amends this section; it does not add a table silently.
 
-**Service attributes (`32b-pre-1`, `TODO(spec)` SI-Q6 to SI-Q8, written for the recommended options):**
+**Service categories (`32b-cat-1`, `32b-cat-2`; SI-Q7, SI-Q11, SI-Q13 to SI-Q16).** The closing rules follow
+Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's pick replaces them if it differs.
 
-- `services.duration_minutes smallint NULL` with `CHECK (duration_minutes IS NULL OR duration_minutes BETWEEN 1 AND 600)`.
-- `services.category text NULL` with `CHECK (category IS NULL OR char_length(trim(category)) BETWEEN 1 AND 100)`, a
-  no-control-character check as `name_ar` has, and a check that the stored value is already normalized
-  (`category = btrim(regexp_replace(category, '\s+', ' ', 'g'))`). The domain writes the normalized value, trimmed with
-  every run of whitespace collapsed into one space, in the case typed; the comparison key is `lower(category)`. If SI-Q7 picks a managed list instead of free text, this becomes a
-  `service_categories` tenant table (key `(company_id, id)`, RLS policy, negative isolation test, soft delete) and a
-  foreign key, and that variant is written into this section before `32b-pre-1` starts.
-- Additive and nullable, so expand/contract holds: running code ignores the columns, there is no backfill, and no value
-  is invented for the services that already exist. The RLS policy and the `(company_id, id)` key already cover the
-  columns; the UPDATE grant on `services` is column-level (migration 0084), so the migration adds `GRANT UPDATE (duration_minutes, category) ON services TO pospay_app` and extends the grants test `packages/db/test/catalog-grants.ts`. One partial index, `services_business_category_idx` on `(company_id, business_id, lower(category)) WHERE category IS NOT NULL`, for the suggestions read below (`TODO(spec)` SI-Q7). It is created `CONCURRENTLY` in its own second migration file of `32b-pre-1`, whose leading statement is the `CREATE INDEX CONCURRENTLY`: the ADR-0033 pattern of migration 0068, which the runner executes outside a transaction and recovers if a build was interrupted, so no marker comment is needed. The category is display-only on the list in this work (`TODO(spec)` SI-Q10); if the owners ask for a filter or grouping now, the list read it changes belongs to `32b-pre-1`, which is why SI-Q10 gates that PR too. No new permission. The database review of pipeline §5 is mandatory for
-  this PR.
-- **Category suggestions search** (`TODO(spec)` SI-Q7, free-text option only; with a managed list this read becomes the list read): `queries/service-categories.query.ts`, `GET /v1/businesses/{businessId}/services/categories?q=<prefix>` → 200 `{ items: string[] }`. It is a bounded type-ahead search, not a paginated collection: `q` is optional (at most 100 characters), the response holds at most 20 matches by prefix on the comparison key `lower(category)`, and a capped type-ahead search needs no cursor because the user narrows it by typing. Matches are distinct by the comparison key and each shows the most recently updated spelling, so `Hair`, `hair` and ` hair  ` are one suggestion. The query is read-only, behind the same guard as the services list, and its response and query have the Zod schemas `serviceCategorySuggestions` and `serviceCategorySuggestionsQuery` in `packages/contracts/src/catalog/service.ts`, used by the route and by the generated client. The static `categories` segment is proven not to be read as a service id (a route test, as SIT-13); the query has a result-shape test, a test for the deduplication, the prefix and the cap of 20, and an `EXPLAIN ANALYZE` assertion on the index above. It belongs to `32b-pre-1`; the form in `32b-pre-2` consumes it for the suggestions.
+- **`service_categories`** (new tenant table, `32b-cat-1`): key `(company_id, id)` (ADR-0007); `business_id uuid NOT
+  NULL` with the composite foreign key `(company_id, business_id)` to `businesses`; `name_en text NOT NULL` and `name_ar
+  text NOT NULL` (SI-Q13: both names required, Abu Salem's pick), each 1 to 100 characters after trim with no control
+  character, stored normalized (trimmed, each run of whitespace collapsed into one space, in the case typed) and checked
+  so by a CHECK as `name_ar` of `services` is; `closed_at timestamptz NULL`; `created_at`, `updated_at` and `revision`.
+  - The **category key** is `lower(name_en)` of the stored, already normalized value, so trim, whitespace collapse and
+    case fold together decide sameness (issue #709 item 1). A unique index `service_categories_business_name_uq` on
+    `(company_id, business_id, lower(name_en))` covers open and closed rows: a closed category's name cannot be taken by
+    a new one, and reopening it is the way back. The same index serves the list read and the import match. `name_ar` is
+    not unique and is not a match key (issue #709 item 3; matching by the Arabic name would be a new owner question).
+  - A second unique key `(company_id, business_id, id)` exists only as the target of the services foreign key below.
+  - RLS policy `company_id = app_company_id()` and a negative isolation test (another tenant reads 0 rows; an insert or
+    update for another tenant is refused). `pospay_app` gets SELECT, INSERT and column UPDATE on `name_en`, `name_ar`,
+    `closed_at`, `updated_at` and `revision`; no DELETE: a category is closed, never deleted.
+  - The table is reachable only through `withTenant()`, like every catalog table.
+- **`services` columns:**
+  - `duration_minutes smallint NULL` with `CHECK (duration_minutes IS NULL OR duration_minutes BETWEEN 1 AND 600)`
+    (SI-Q6, SI-Q8), `32b-pre-1`.
+  - `category_id uuid NULL` (SI-Q7, SI-Q8), `32b-pre-1`, with the composite foreign key `(company_id, business_id,
+    category_id)` → `service_categories (company_id, business_id, id)`: the key is composite (ADR-0007), and carrying
+    `business_id` makes a category of another business impossible in the database, not only in the domain.
+  - `closed_at timestamptz NULL` and `closed_by_category_id uuid NULL`, `32b-cat-2`. A service is closed when
+    `closed_at` is set. `closed_by_category_id` is set only when the service was closed by closing its category, and is
+    the marker that reopening the category reads (SI-Q16); `CHECK (closed_by_category_id IS NULL OR closed_at IS NOT
+    NULL)`.
+  - One index `services_business_category_idx` on `(company_id, business_id, category_id)` for the list filter (SI-Q10),
+    the close cascade and the reopen restore. It is created `CONCURRENTLY` in its own second migration file of
+    `32b-pre-1`, whose leading statement is the `CREATE INDEX CONCURRENTLY`: the ADR-0033 pattern of migration 0068,
+    which the runner executes outside a transaction and recovers if a build was interrupted.
+  - The UPDATE grant on `services` is column-level (migration 0084), so `32b-pre-1` adds `duration_minutes` and
+    `category_id` and `32b-cat-2` adds `closed_at` and `closed_by_category_id`; the grants test
+    `packages/db/test/catalog-grants.ts` follows each.
+  - Additive and nullable, so expand/contract holds: running code ignores the columns, there is no backfill, and no
+    value is invented for the services that already exist (they stay open, with no duration and no category).
+- **Permission (new, seeded in `32b-cat-1`):** `manage:service-categories:business` for create, rename, close and
+  reopen, with the role defaults owner, general manager, business manager **and branch manager** (SI-Q11), seeded by a
+  migration as migration 0057 seeds role permissions. Reading the category list for the form and the filter needs
+  `read:services:business`. How a branch manager's branch-scoped membership satisfies a business-scoped permission is
+  checked against the PR 7 matrix by the design advisors before `32b-cat-1`; if the matrix cannot express it, the sub-PR
+  stops and asks Waleed (a technical question, never on the decisions page).
+- **Closing a category** (`32b-cat-2`, SI-Q14 and SI-Q15): any holder of `manage:service-categories:business`, the
+  branch manager included, can close any category of the business, with or without services on it. In one transaction
+  it sets the category's `closed_at` and closes every **open** service of it (`closed_at = now`,
+  `closed_by_category_id = the category`); a service already closed keeps its own `closed_at` and gets no marker. One
+  audit row for the category and one per service it closed.
+- **Reopening a category** (`32b-cat-2`, SI-Q16): clears the category's `closed_at` and reopens exactly the services
+  whose `closed_by_category_id` is this category (both columns cleared). A service closed before the category, or
+  closed on its own, stays closed. One audit row for the category and one per service it reopened.
+- **A closed category** cannot be picked for a new or edited service and is not offered by the form, the filter shows
+  it with a closed mark, and the services that keep it show its name with that mark.
+- **Closing a single service** (`32b-cat-2`): SI-Q14 needs a service closed state that spec 031 did not have (SV-09,
+  SV-Q3). Closing and reopening one service needs `manage:services:business` (owner, general manager, business manager).
+  **This holder list is derived from the premise SI-Q15 was asked on, not asked separately**; Waleed confirms or rejects
+  it in the report of the PR that merges this spec. Reopening a service whose category is closed is refused with
+  `SERVICE_CATEGORY_CLOSED`, and reopening a service clears its marker.
+- **What closed means for selling** (`32b-cat-2`): a closed service is not offered for a new order line, and the
+  catalog reader that `orders` calls refuses it at record time with `SERVICE_CLOSED`; an order line recorded before the
+  close is untouched. `CatalogReaderPort` is an `orders` port whose adapter is
+  `apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts`, so this touches the `orders` module: `32b-cat-2`
+  says so in its PR (CLAUDE.md §1.4) and lists every caller of the reader it changes.
+- **Category list read** (`32b-cat-1`; it replaces the free-text suggestions search, which SI-Q7 made unnecessary):
+  `queries/service-categories.query.ts`, `GET /v1/businesses/{businessId}/service-categories?status=open|closed|all`
+  (default `open`) → 200, cursor-paginated (CLAUDE.md §6), items `{ id, name_en, name_ar, closed_at, revision }`
+  ordered by the category key. Read-only, behind `read:services:business` and the `catalog` feature; Zod schemas in a
+  new `packages/contracts/src/catalog/service-category.ts`; a result-shape test and an `EXPLAIN ANALYZE` assertion on
+  `service_categories_business_name_uq`.
+- **The services list filter** (`32b-pre-1`, SI-Q10): the services list read takes an optional `category_id`, uses
+  `services_business_category_idx`, and gets its own `EXPLAIN ANALYZE` assertion; the list items carry `category_id`,
+  the category names, whether the category is closed, and the service's `closed_at`.
+- The database review of pipeline §5 is mandatory for `32b-cat-1`, `32b-pre-1` and `32b-cat-2`.
 
 ### API contract
 
@@ -296,7 +372,7 @@ the row error enum are the service import's own (not the employee import's).
 - Column enum: `name_en`, `name_ar`, `price`, `duration_minutes`, `category`, `commission_rule`, `commission_value`, `counts_toward_threshold`,
   `unexpected_column`.
 - Row error codes: `IMPORT_REQUIRED_CELL`, `IMPORT_NAME_INVALID`, `IMPORT_PRICE_INVALID`,
-  `IMPORT_COMMISSION_RULE_INVALID`, `IMPORT_COMMISSION_VALUE_INVALID`, `IMPORT_BOOLEAN_INVALID`, `IMPORT_DURATION_INVALID`, `IMPORT_CATEGORY_INVALID`,
+  `IMPORT_COMMISSION_RULE_INVALID`, `IMPORT_COMMISSION_VALUE_INVALID`, `IMPORT_BOOLEAN_INVALID`, `IMPORT_DURATION_INVALID`, `IMPORT_CATEGORY_NOT_FOUND`,
   `IMPORT_CELL_INVALID`, `IMPORT_COLUMN_UNEXPECTED`, `IMPORT_DUPLICATE_IN_FILE`, `IMPORT_SERVICE_EXISTS`.
 - Request-level errors, the same family as spec 030 with the same statuses: `IMPORT_FILE_NOT_FOUND` (404),
   `IMPORT_FILE_NOT_READY` (409), `IMPORT_FILE_TYPE_INVALID` (415), `IMPORT_FILE_SIZE_INVALID` (413),
@@ -308,8 +384,10 @@ the row error enum are the service import's own (not the employee import's).
 ### Permissions
 
 `manage:services:business` for all five routes (the rows read included, never `read:services:business`), defaults as spec 031 (owner, general manager, business manager);
-Branch Manager and Device are refused by the PR 7 matrix. No new permission, no role default change, no seeding
-migration. `read:services:business` is not enough to import.
+Branch Manager and Device are refused by the PR 7 matrix. The import adds no permission, no role default change and no
+seeding migration. `read:services:business` is not enough to import. The category management permission
+`manage:service-categories:business` (SI-Q11) is a separate permission of `32b-cat-1` (see Schema changes); holding it
+does not let a branch manager import services.
 
 ### Events
 
@@ -331,7 +409,8 @@ audit rows runs in the worker. The synchronous preview is measured in 32b-2 (D-7
   `12.555`, `100`, `100.01`, `0`, and percentage-formatted cells `0.07` (7%) and `0.2` (20%), tested as step (a) giving the percent text `"7"` and `"20"` and step (b) giving `700` and `2000` basis points), the mapping from each `ServiceError` code to a column and code, the duplicate-key
   function, and the plug-in over a full matrix (all valid; each error code once; many errors in one file, all
   reported).
-- **Attribute rules** (`32b-pre-1`, domain unit, no database): duration `1` and `600` valid; `0`, `601`, `-5` and `7.5` invalid; category empty and whitespace-only (no value or invalid, as SI-Q8 decides), 100 and 101 characters, a control character; the named errors `SERVICE_DURATION_INVALID` and `SERVICE_CATEGORY_INVALID`. The create and update integration tests cover setting, clearing, a stale revision, another tenant, and the audit row content. `validateServiceDuration` and `validateServiceCategory` are tested on their own (each returns its error or null), and `validateServiceDraft` is tested to compose them. The import cell converters add: duration cells `120`, `"120"`, `7.5`, `0`, `601`, a numeric `1e2` (accepted as 100), a text `"1e2"` (refused), and a numeric `1e21` and a 16-digit value (`IMPORT_DURATION_INVALID`), and category text cells; one row with a bad duration and a bad category reports both.
+- **Attribute rules** (`32b-pre-1`, domain unit, no database): duration `1` and `600` valid; `0`, `601`, `-5` and `7.5` invalid; a `category_id` that is unknown, of another business or of a closed category; the named errors `SERVICE_DURATION_INVALID`, `SERVICE_CATEGORY_NOT_FOUND` and `SERVICE_CATEGORY_CLOSED`. The create and update integration tests cover setting, clearing, a stale revision, another tenant, and the audit row content. `validateServiceDuration` is tested on its own (each returns its error or null), and `validateServiceDraft` is tested to compose them. The import cell converters add: duration cells `120`, `"120"`, `7.5`, `0`, `601`, a numeric `1e2` (accepted as 100), a text `"1e2"` (refused), and a numeric `1e21` and a 16-digit value (`IMPORT_DURATION_INVALID`), and category cells (an exact name, a name differing in case and spaces, a closed category's name, an Arabic-only name, a blank); one row with a bad duration and an unknown category reports both.
+- **Category rules and use cases** (`32b-cat-1`, `32b-cat-2`): the domain unit tests of the category names (1 and 100 characters, 101, empty after trim, a control character, the normalization); the database tests of the unique key (two names that differ only in case or spaces collide, also with a closed category), the composite foreign key (a category of another business is refused), the RLS negative test and the grants test; the integration tests of create, rename, close and reopen (a close closes only the open services of the category and marks them; a reopen reopens only the marked ones and leaves a service closed before it closed; a branch manager can close; a role without the permission is refused; the audit rows), of closing and reopening a single service (refused under a closed category), and of the catalog reader refusing a closed service at record time.
 - **Sheet adapter** (moved code): `tagCells` is tested here, in `shared/import`, without any services knowledge (an Excel error cell gives `{ kind: 'error' }`, and a `20%` cell read through the formats matrix reaches the plug-in with `percentFormat: true` and becomes 2000 basis points): `0.57` gives `"0.57"`, `2.3` gives `"2.3"`, `1e21` and a 16-digit value give `numeric-unrepresentable`, a boolean cell gives `{ kind: 'boolean' }`, and `percentFormat` is true for `0%`, `0.00%` and `0%;-0%` and false for `0.0"%"`, `0\%`, `General` and `0.000`; the domain plug-in tests receive only tagged cells, including a boolean `counts_toward_threshold` cell and a row with a 16-digit price (`IMPORT_PRICE_INVALID`) beside a second error in the same row, both reported; the existing staff adapter tests run unchanged against the moved module; new tests
   for the services header set (missing, extra, duplicate, empty; a legacy template with neither new header, a file with only `duration_minutes`, a file with only `category` and a file with both import as no value for the absent column (the header pre-selection of FR-001), while a missing required header is refused), 500 and 501 rows, a 2 MiB plus 1 byte file.
 - **Integration scenarios**, against the real Postgres of the compose stack with a cloned database per spec file
@@ -360,11 +439,11 @@ audit rows runs in the worker. The synchronous preview is measured in 32b-2 (D-7
   - SIT-15 two clean previews of the same file for one business committed at the same time: one creates the services,
     the other is refused whole and saves nothing; the audit rows of the first name the manager who requested it.
   - SIT-13 route precedence: `GET services/import/template` is not read as a service id.
-  - SIT-17 (`TODO(spec)` SI-Q6 to SI-Q9) the template carries the duration and category columns; a row with a bad duration and a bad category reports both; a clean preview shows both values; the worker inserts them; blank cells insert null; a legacy file without the two headers, and a file with only one of them, imports with null for the absent column.
+  - SIT-17 (SI-Q6 to SI-Q9) the template carries the duration and category columns and the reference sheet lists the open categories; a row with a bad duration and a bad category reports both; a clean preview shows both values; the worker inserts them; blank cells insert null; a legacy file without the two headers, and a file with only one of them, imports with null for the absent column.
 - **RLS:** no new table, so no new table-level test; the existing `import_previews` negative tests remain, and SIT-07
   adds the cross-entity and cross-business cases.
 - **Queries:** the status read and the rows read are `queries/` files, each with a result-shape test and an `EXPLAIN`
-  assertion that it uses the primary key `(company_id, id)`; the existing-names read has an `EXPLAIN` assertion on its business-scoped index; the categories read (`32b-pre-1`) has a result-shape test and an `EXPLAIN` assertion on `services_business_category_idx`.
+  assertion that it uses the primary key `(company_id, id)`; the existing-names read has an `EXPLAIN` assertion on its business-scoped index; the category list read (`32b-cat-1`) has a result-shape test and an `EXPLAIN` assertion on `service_categories_business_name_uq`, and the services list filter (`32b-pre-1`) one on `services_business_category_idx`.
 - **Performance:** the 500-row maximum-field-length preview benchmark (D-7) and the acceptance assertion.
 - **Admin UI** (asserts what the user sees, CLAUDE.md §9): template download, upload and preview with the per-row
   error table in both languages, the table of resolved rows showing a defaulted commission rule as such, commit disabled until clean, the queued state, the result count, the delayed state
@@ -404,49 +483,65 @@ audit rows runs in the worker. The synchronous preview is measured in 32b-2 (D-7
 
 ## Open questions for the owner
 
-Recorded in `owner-questions.ar.md` (Arabic, with options, a recommendation and a salon example each). SI-Q1 to SI-Q5
-were published as decisions-page batch 74 (`PP-64.1` to `PP-64.5`) and answered by Waleed by card on 2026-10-25; SI-T1
-is `PP-64.6`. Abu Salem has not answered SI-Q1 to SI-Q5, and his pick binds where it differs. SI-Q6 to SI-Q10 are
-PENDING and get their batch and `PP` numbers when the orchestrator sends them.
+Recorded in `owner-questions.ar.md` (Arabic, with options, a recommendation and a salon example each). Every feature
+question was published on the decisions page and sent to Waleed as a card; SI-T1 is technical and went to Waleed only.
 
-| Id | Kind | Question | Answer (Waleed) or recommended | Rule that waits |
+| Id | Kind | Question | Answer | Rule it settles |
 |---|---|---|---|---|
-| SI-Q1 | feature (decisions page) | An existing service with the same name | Answered: refuse the row, save nothing | FR-007, SI-09, SC-006 |
-| SI-Q2 | feature | The same name twice inside the file | Answered: refuse both rows | FR-007, SI-09 |
-| SI-Q3 | feature (money) | A blank commission rule | Answered: `FOLLOW_PLAN`, shown in the preview | FR-004 |
-| SI-Q4 | feature (money) | The unit of a percentage cell | Answered: plain percent, converted to basis points by string handling | FR-006 |
-| SI-Q5 | feature | Duration and category columns | Answered **against the recommendation**: add them to the service first, then the import | Scope decision 1, FR-004 |
-| SI-T1 | technical (Waleed only) | How catalog reads the uploaded file | Answered, final: ports wired from outside, no new import arrow | D-4 |
-| SI-Q6 | feature | Duration: unit and limits | Whole minutes, 1 to 600, any value; blank is no duration | FR-004, `32b-pre-1` |
-| SI-Q7 | feature | Category: shape | Short free text (up to 100 characters), with suggestions on the form | FR-004, `32b-pre-1`, `32b-pre-2` |
-| SI-Q8 | feature | Duration and category required or optional | Both optional; existing services unchanged | FR-004, `32b-pre-1`, `32b-pre-2` |
-| SI-Q9 | feature | Does the category change what counts as the same service | No, the name alone decides | FR-007, `32b-1`, `32b-2` |
-| SI-Q10 | feature | Filter or group the services list by category now, or later | Later: display only now | `32b-pre-1`, `32b-pre-2`, FR-004 (a filter or grouping changes the list read of `32b-pre-1`) |
+| SI-Q1 | feature (decisions page) | An existing service with the same name | Both owners: refuse the row, save nothing | FR-007, SI-09, SC-006 |
+| SI-Q2 | feature | The same name twice inside the file | Both owners: refuse both rows | FR-007, SI-09 |
+| SI-Q3 | feature (money) | A blank commission rule | Both owners: `FOLLOW_PLAN`, shown in the preview | FR-004 |
+| SI-Q4 | feature (money) | The unit of a percentage cell | Both owners: plain percent, converted to basis points by string handling | FR-006 |
+| SI-Q5 | feature | Duration and category columns | Both owners, **against the recommendation**: add them to the service first, then the import | Scope decision 1, FR-004 |
+| SI-T1 | technical (Waleed only) | How catalog reads the uploaded file | Waleed, final: ports wired from outside, no new import arrow | D-4 |
+| SI-Q6 | feature | Duration: unit and limits | Both owners: whole minutes, 1 to 600; blank is no duration | FR-004, `32b-pre-1` |
+| SI-Q7 | feature | Category: shape | Both owners, **against the recommendation**: a managed list per business | Schema changes, FR-004, `32b-cat-1` |
+| SI-Q8 | feature | Duration and category required or optional | Both owners: both optional; existing services unchanged | FR-001, FR-004 |
+| SI-Q9 | feature | Does the category change what counts as the same service | Both owners: no, the name alone decides | FR-007 |
+| SI-Q10 | feature | Filter or group the services list by category now, or later | Both owners, **against the recommendation**: filter now | FR-004, `32b-pre-1`, `32b-pre-2` |
+| SI-Q11 | feature | Who manages the category list by default | Both owners: owner, general manager, business manager and branch manager | Schema changes (permission), `32b-cat-1` |
+| SI-Q12 | feature | What a category close does to its services | Replaced by SI-Q14 (Abu Salem's pick and comment disagreed) | — |
+| SI-Q13 | feature | Is the Arabic name required too | The owners differed; Abu Salem's pick binds: both names required | Schema changes, `32b-cat-1` |
+| SI-Q14 | feature | Do the services close with their category | Waleed: yes. Abu Salem: PENDING; work proceeds on Waleed's pick (his directive, 2026-10-29) | Schema changes (closing), `32b-cat-2` |
+| SI-Q15 | feature | Who can close a category that has open services | Waleed: the branch manager too, any category. Abu Salem: PENDING | Schema changes (closing), `32b-cat-2` |
+| SI-Q16 | feature | What reopening a category does | Waleed: it reopens the services closed with it; those closed before stay closed. Abu Salem: PENDING | Schema changes (reopening), `32b-cat-2` |
+
+If Abu Salem's pick on SI-Q14, SI-Q15 or SI-Q16 differs from Waleed's, his pick replaces it: this spec and
+`owner-questions.ar.md` are amended (the old answer kept as history), and `32b-cat-2` follows the new rule, through a
+follow-up if it has already merged. If SI-Q14 becomes "the services stay", SI-Q15 and SI-Q16 are read again (issue #709
+item 4).
 
 ## Delivery: the sub-PR split
 
 Owner rule 2026-10-12: at most three subtasks per PR. The plan row is sized S; once the framework has to be split from
 staff and the worker gets a catalog module, the real work is several PRs, so the plan row's size should be updated by
-the orchestrator when this spec merges. The answer to SI-Q5 adds two PRs before the import (`32b-pre-1` and `32b-pre-2`), which the orchestrator records in the plan too. Sizes are hand-written lines including tests and copy.
+the orchestrator when this spec merges. The answers to SI-Q5 and SI-Q7 add five PRs before the import (`32b-cat-1`, `32b-pre-1`, `32b-cat-2`, `32b-pre-2` and `32b-cat-3`), which the orchestrator records in the plan too. Sizes are hand-written lines including tests and copy.
 
-Order: the service attributes (`32b-pre-1` and `32b-pre-2`) and the ADR first, then the pure rules, then the read side, then the write side, then the screen. The design
+Order: the category list and the service attributes (`32b-cat-1` to `32b-cat-3`, `32b-pre-1` and `32b-pre-2`) and the ADR first, then the pure rules, then the read side, then the write side, then the screen. The design
 advisors (Codex `gpt-6-astra` and Claude Fable 5.1, read-only) are required before 32b-0, 32b-1 (money in cells), 32b-2 (parses files and may
 approach 200 ms) and 32b-3 (worker, long work), pipeline §3 step 2.
 
 | PR | Result | Subtasks | Blocked on | Size |
 |---|---|---|---|---|
-| **32b-pre-1** | Duration and category on the service: contract, storage, rules, create/update and queries (one PR) | 1. The contract first, then the migration: `createServiceInput`, `updateServiceInput`, `service` and `serviceListItem` carry the two fields (nullable, optional on input; on update an omitted field keeps the stored value and `null` clears it, so a client that does not know the fields yet cannot wipe them by omission, which is why this differs from the full replacement of `name_ar`), OpenAPI registration, the additive migration of Schema changes (columns, CHECKs, the column-level UPDATE grant) and a second migration with the concurrent category index, the Drizzle schema, the Zod schemas of the suggestions read (`serviceCategorySuggestionsQuery` and `serviceCategorySuggestions`, registered in `serviceSchemas` and in the OpenAPI document, so the route and the generated client share them) and the addendum to spec 031. 2. The domain and the use cases: `validateServiceNameEn` and `validateServiceNameAr` (split from `validateServiceName`), `validateServiceDuration` and `validateServiceCategory`, `toCommissionRule` exported, `validateServiceDraft` composing them (D-8), with domain unit tests; create-service and update-service store the fields and the audit rows carry them. 3. The queries and the tests: the detail and list projections, the bounded categories read (`TODO(spec)` SI-Q7), the grants test `packages/db/test/catalog-grants.ts`, the CHECK bounds, integration tests (set, clear, stale revision, another tenant, audit content) and the database review. One PR, deployed as one, so the contract never accepts a field before it is stored and returned | this spec merged; SI-Q6, SI-Q7, SI-Q8, SI-Q10 answered (`TODO(spec)`); the single migration lane | 600 to 900 |
-| **32b-pre-2** | Duration and category on the service: the form and the list | 1. The create and edit forms get the two fields (the category with suggestions from the categories read, the recommended SI-Q7), through `packages/i18n` keys in ar and en. 2. The services list shows both columns (RTL-safe, display only: no filter or grouping by category, `TODO(spec)` SI-Q10) and the edit panel carries them. 3. Component tests that assert visible outcomes (field errors, the suggestions, the values in the list); the journey doc 29 update follows in its own docs PR (pipeline step 14) | 32b-pre-1; SI-Q7, SI-Q8, SI-Q10 answered | 300 to 450 |
+| **32b-cat-1** | The category list: storage, permission, create and rename, list read | 1. The contract first (`service-category.ts`: create, rename and list schemas, OpenAPI registration), then the migration: the `service_categories` table, its CHECKs, the unique key, RLS, grants, the `manage:service-categories:business` permission and its role defaults (SI-Q11), the Drizzle schema. 2. The domain (`validateServiceCategoryNames`, the category key) with unit tests, and the create and rename use cases with audit rows. 3. HTTP, the cursor-paginated list read with its `EXPLAIN` test, the RLS negative test, the grants test, the integration tests, and the database review | this spec merged; the single migration lane; design advisors (the permission scope) | 550 to 800 |
+| **32b-pre-1** | Duration and category on the service: contract, storage, rules, create/update and queries (one PR) | 1. The contract first, then the migrations: `createServiceInput`, `updateServiceInput`, `service` and `serviceListItem` carry `duration_minutes` and `category_id` (nullable, optional on input; on update an omitted field keeps the stored value and `null` clears it, so a client that does not know the fields yet cannot wipe them by omission, which is why this differs from the full replacement of `name_ar`), the list query's `category_id` filter, OpenAPI registration, the additive migration of Schema changes (columns, CHECK, the composite foreign key, the column-level UPDATE grant), a second migration with the concurrent index, the Drizzle schema. 2. The domain and the use cases: `validateServiceNameEn` and `validateServiceNameAr` (split from `validateServiceName`), `validateServiceDuration`, the category reference check (exists, same business, open), `toCommissionRule` exported, `validateServiceDraft` composing them (D-8), with domain unit tests; create-service and update-service store the fields and the audit rows carry them. 3. The queries and the tests: the detail and list projections with the category names and closed marks, the filter and its `EXPLAIN` test, the grants test `packages/db/test/catalog-grants.ts`, the CHECK bounds, integration tests (set, clear, a closed or foreign category refused, stale revision, another tenant, audit content) and the database review. One PR, deployed as one, so the contract never accepts a field before it is stored and returned | 32b-cat-1; the single migration lane | 600 to 900 |
+| **32b-cat-2** | Closing and reopening: categories and single services | 1. The migration adding `closed_at` and `closed_by_category_id` to `services` (CHECK, column grants), the contract (close and reopen routes for a category and a service; `closed_at` on the service shapes) and the addendum to spec 031 (SV-09 superseded, SV-Q3 answered). 2. The close-category and reopen-category use cases (the cascade and the marker restore, SI-Q14 to SI-Q16), the close-service and reopen-service use cases, with audit rows. 3. The `orders` catalog-reader adapter refusing a closed service at record time (`SERVICE_CLOSED`), the integration tests and the database review | 32b-cat-1 and 32b-pre-1; the single migration lane | 550 to 800 |
+| **32b-pre-2** | Duration and category on the service: the form, the list and the filter | 1. The create and edit forms get the duration and a category picker that offers only open categories (from the category list read), through `packages/i18n` keys in ar and en. 2. The services list shows both columns (RTL-safe), a closed mark for a closed service or category, and the filter by category (SI-Q10). 3. Component tests that assert visible outcomes (field errors, the picker offering open categories only, the filtered list); the journey doc 29 update follows in its own docs PR (pipeline step 14) | 32b-pre-1 | 350 to 500 |
+| **32b-cat-3** | The category screen | 1. The `catalog/categories` page: the list (open, closed, all), create and rename forms with both names required, through `packages/i18n` keys in ar and en. 2. Close and reopen with a confirmation that names how many open services will close (or reopen), and the close and reopen of a single service on the service panel. 3. Component tests that assert visible outcomes (the closed mark, the confirmation count, a refused reopen) | 32b-cat-2 and 32b-pre-2 | 350 to 500 |
 | **32b-0** | ADR and map, no behaviour | 1. ADR-0034 addendum (or a new ADR, numbered at merge) recording D-1 to D-9, the `catalog` worker module, the new event and the rollout order, and the answer to SI-T1 (ports, `PP-64.6`). 2. `docs/module-map.md`: the §3 Port row (SI-T1 settled ports, so no arrow), the `ServiceImportCommitRequested` §4 event row with a note on the worker `catalog` module beside it (no code registers the event yet). `docs/module-map.yaml` does not change: its checker reads only `imports`, `packages_restricted`, `composition_roots`, `sync_writes` and `reads`, and none of these grows (as spec 059 D-29). 3. The design advisors' findings written back into this spec in the same PR | this spec merged; design advisors | 100 to 200 |
-| **32b-1** | Contracts, moved adapters, pure rules | 1. `service-import.ts` contracts (including the normalized row and the rows page), OpenAPI registration and the i18n error messages (ar and en). 2. Move the entity-agnostic import adapters to `apps/api/src/shared/import/` with staff re-importing them (staff tests unchanged), and add the generic `readHeaderRow` (FR-001) and the generic `tagCells` step (FR-005, FR-006) that turns every cell into tagged text with `percentFormat`, so no JavaScript number leaves the reader boundary; `readSheet` and `ImportCell` stay as they are. 3. The domain plug-in: cell converters (duration and category cells included), row mapper that runs the per-field validators and calls `serviceTerms` only for an error-free row (D-8), duplicate-key function and in-file duplicates, with the domain unit tests | 32b-0; 32b-pre-2 merged, which means 32b-pre-1 too (the rules the plug-in calls and the form that sets them); SI-Q2, SI-Q3, SI-Q4 answered by Waleed; SI-Q6 to SI-Q9 answered (they fix the new cells and the duplicate key); design advisors | 500 to 700 |
-| **32b-2** | Template, preview, rows, status | 1. Template use case and workbook (headers including duration and category, comments, reference sheet). 2. Preview use case: file facts and bytes ports, sheet read, normalized rows, existing-names read, save with `entity = 'services'`. 3. HTTP (preview with first rows page, rows page, status) with their `EXPLAIN` tests, SIT-01, SIT-02, SIT-06, SIT-07, SIT-08, SIT-10, SIT-13, SIT-14 and the preview timing | 32b-1; SI-Q1 answered by Waleed; SI-Q7 answered (the category cell); SI-Q9 answered (the duplicate key); design advisors | 500 to 700 |
-| **32b-3** | Worker commit | 1. The worker `catalog` module: processor, the transport of the request event, and the registration of the event type in `known-event-types.ts`. 2. The commit transaction: per-business advisory lock, name re-check, inserts (including `duration_minutes` and `category`), audit rows with the requesting manager as actor, status. 3. SIT-03, SIT-04, SIT-11, SIT-15, driven by a seeded `commit_requested` preview and event (no API route yet) | 32b-1; 32b-pre-1 merged (the columns exist); SI-Q1 answered by Waleed; design advisors | 450 to 650 |
+| **32b-1** | Contracts, moved adapters, pure rules | 1. `service-import.ts` contracts (including the normalized row and the rows page), OpenAPI registration and the i18n error messages (ar and en). 2. Move the entity-agnostic import adapters to `apps/api/src/shared/import/` with staff re-importing them (staff tests unchanged), and add the generic `readHeaderRow` (FR-001) and the generic `tagCells` step (FR-005, FR-006) that turns every cell into tagged text with `percentFormat`, so no JavaScript number leaves the reader boundary; `readSheet` and `ImportCell` stay as they are. 3. The domain plug-in: cell converters (duration and category cells included), row mapper that runs the per-field validators and calls `serviceTerms` only for an error-free row (D-8), duplicate-key function and in-file duplicates, with the domain unit tests | 32b-0; 32b-pre-2 merged, which means 32b-cat-1 and 32b-pre-1 too (the rules the plug-in calls and the form that sets them); design advisors | 500 to 700 |
+| **32b-2** | Template, preview, rows, status | 1. Template use case and workbook (headers including duration and category, comments, reference sheet). 2. Preview use case: file facts and bytes ports, sheet read, normalized rows, existing-names read (open and closed services), open-categories read, save with `entity = 'services'`. 3. HTTP (preview with first rows page, rows page, status) with their `EXPLAIN` tests, SIT-01, SIT-02, SIT-06, SIT-07, SIT-08, SIT-10, SIT-13, SIT-14 and the preview timing | 32b-1; 32b-cat-2 merged (a closed service still blocks a name, FR-007); design advisors | 500 to 700 |
+| **32b-3** | Worker commit | 1. The worker `catalog` module: processor, the transport of the request event, and the registration of the event type in `known-event-types.ts`. 2. The commit transaction: per-business advisory lock, name re-check, inserts (including `duration_minutes` and `category_id`), the re-check that every referenced category is still open, audit rows with the requesting manager as actor, status. 3. SIT-03, SIT-04, SIT-11, SIT-15, driven by a seeded `commit_requested` preview and event (no API route yet) | 32b-1; 32b-cat-2 merged (the columns and the closed state exist); design advisors | 450 to 650 |
 | **32b-4** | Stale-request sweep | 1. Per-company sweep registration (ADR-0022 protocol) in the catalog worker, done before the transport acknowledges an event. 2. The recovery use case and transactions. 3. SIT-12 | 32b-3 | 200 to 320 |
 | **32b-5** | Commit request (the producer) | 1. Commit-request use case and route (202, idempotency, the id-only event). 2. Wiring and rollout note: ships only after 32b-3 and 32b-4 are deployed to the environment, so no event is emitted without its consumer and sweep. 3. SIT-05, SIT-09 and the acceptance timing | 32b-2, 32b-3, 32b-4 | 250 to 400 |
 | **32b-6** | The screen | 1. The `catalog/import` page and panel, with the polling hook and the stored request id. 2. The table of resolved rows with the defaulted-rule marker, the link on the services list and the ar/en keys. 3. Component tests that assert visible outcomes; the journey doc `docs/journey/NN-services-import.md` follows in its own docs PR (pipeline step 14) | 32b-5 | 350 to 500 |
 
-The graph is: the attribute PRs 32b-pre-1 then 32b-pre-2 (a serial chain; 32b-pre-1 carries the migration, so it takes the single migration lane, and it ships the contract together with the storage behind it), running beside 32b-0; then 32b-1 after both 32b-0 and 32b-pre-2; then 32b-2 and 32b-3 in parallel (the API catalog files and the worker catalog
-files are disjoint paths; 32b-3 is tested with a seeded preview, so it does not wait for 32b-2), then 32b-4 after
-32b-3, then 32b-5 after 32b-2, 32b-3 and 32b-4, then 32b-6 after 32b-5. The screen cannot reach users before the
-sweep exists. Only 32b-pre-1 adds migrations (two files); if any other PR finds that one is needed, it stops and amends the Schema
-changes section first.
+The graph is: the category and attribute PRs run as one serial chain, because three of them carry migrations and take
+the single migration lane: 32b-cat-1, then 32b-pre-1, then 32b-cat-2. 32b-pre-2 starts after 32b-pre-1, beside
+32b-cat-2 (disjoint files: the admin service form and list against the API and database), and 32b-cat-3 after both
+32b-cat-2 and 32b-pre-2. 32b-0 runs beside the chain. Then 32b-1 after both 32b-0 and 32b-pre-2; then 32b-2 and 32b-3
+in parallel once 32b-cat-2 has merged (the API catalog files and the worker catalog files are disjoint paths; 32b-3 is
+tested with a seeded preview, so it does not wait for 32b-2), then 32b-4 after 32b-3, then 32b-5 after 32b-2, 32b-3 and
+32b-4, then 32b-6 after 32b-5. The screen cannot reach users before the sweep exists. Only 32b-cat-1, 32b-pre-1 and
+32b-cat-2 add migrations; if any other PR finds that one is needed, it stops and amends the Schema changes section
+first.
