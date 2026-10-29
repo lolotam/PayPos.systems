@@ -185,7 +185,9 @@ provider-owned reader and bound at the composition root, the way the root-bound 
 
 | What it reads | Provider |
 | --- | --- |
-| the business timezone | `tenancy` |
+| the business timezone (`BusinessTimeZonePort`, 48-2) | `tenancy` |
+| the in-transaction recheck of `manage:commission-plans:business` and the `commissions` feature, under `FOR SHARE` on the company and its memberships (`CommissionPlanAccessPort`, 48-2, FR-010) | `identity` |
+| the `FOR NO KEY UPDATE` lock on the employee row that orders version numbers (`EmployeeRowLockPort`, 48-2, FR-008) | `staff` |
 | service names | `catalog` |
 | notification recipients | `identity` |
 | the employee's business and dated branch attachments (FR-018b, FR-033) | `staff` |
