@@ -5,10 +5,10 @@
 (`owner-questions.ar.md`). SI-Q1 to SI-Q10 are closed: Waleed answered by card and Abu Salem on the decisions page with
 the same picks (batches 74 and 76, `PP-64.1` to `PP-64.11`). SI-T1 (technical, `PP-64.6`) was answered by Waleed and is
 final. SI-Q11 and SI-Q13 are closed (batch 78, `PP-67.1` and `PP-67.3`; on SI-Q13 the owners differed and Abu Salem's
-pick binds). SI-Q12 is replaced by its confirmation SI-Q14. **SI-Q14 to SI-Q16 (batch 80, `PP-75.1` to `PP-75.3`) are
-answered by Waleed only**; on 2026-10-29 Waleed directed that the work proceeds on his picks («start working with my
-answers»), so the rules below follow them, and where Abu Salem's pick differs it replaces them and this spec is amended
-(CLAUDE.md §1 5b). Waleed answered SI-Q5 against the recommendation, so a duration and a category are added to the
+pick binds). SI-Q12 is replaced by its confirmation SI-Q14. **SI-Q14 to SI-Q24 are closed** (batches 80 to 83,
+`PP-75` to `PP-78`): Abu Salem answered on the decisions page on 2026-10-29 with Waleed's picks on every one but SI-Q17,
+where the owners differed and his pick binds (the owner, general manager and business manager only, the recommended
+option; CLAUDE.md §1 5b). Waleed answered SI-Q5 against the recommendation, so a duration and a category are added to the
 service first, and SI-Q7 (also against the recommendation) makes the category a managed list per business with its own
 close and reopen; those come in the sub-PRs `32b-cat-1`, `32b-pre-1`, `32b-cat-2`, `32b-pre-2` and `32b-cat-3` before
 the import carries them. **No code starts before this spec is merged.**
@@ -277,7 +277,7 @@ this spec keeps 500. If 32b-0 finds a reason this table cannot be shared (for ex
 sub-PR stops and amends this section; it does not add a table silently.
 
 **Service categories (`32b-cat-1`, `32b-cat-1b`, `32b-cat-2`; SI-Q7, SI-Q11, SI-Q13 to SI-Q16, SI-Q19 to SI-Q22).** The closing rules follow
-Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's pick replaces them if it differs.
+both owners' picks on SI-Q14 to SI-Q16 (2026-10-29).
 
 - **`service_categories`** (new tenant table, `32b-cat-1`): key `(company_id, id)` (ADR-0007); `business_id uuid NOT
   NULL` with the composite foreign key `(company_id, business_id)` to `businesses`; `name_en text NOT NULL` and `name_ar
@@ -323,7 +323,7 @@ Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's p
   manager, whose branch-scoped membership cannot satisfy a `:business` permission in the PR 7 matrix (spec 031), reads
   categories through `read:service-categories:branch` and the branch view instead (see «Branch-level categories»
   below), so the check this bullet once asked of the design advisors is settled.
-- **Branch-level categories (SI-Q19 to SI-Q22, Waleed's picks of 2026-10-29; Abu Salem PENDING).** They amend the
+- **Branch-level categories (SI-Q19 to SI-Q22, both owners' picks of 2026-10-29).** They amend the
   permission bullet above and the closing rules below, and resolve the branch-manager check that bullet asked for: a
   branch manager now acts on categories only inside their own branch, through `:branch` permissions the PR 7 matrix
   already expresses (a `BRANCH` grant covers a target that carries that branch).
@@ -400,8 +400,8 @@ Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's p
     as a stale revision), and the row's `setting_revision` afterwards. The state write locks the category row first
     (`FOR SHARE`, the lock order below), so it never interleaves with a close or a visibility change. Every write is
     audited.
-  - **Still open for `32b-cat-2`:** closing a single service stays business-wide (SI-Q17), so how a branch manager
-    holds `close:services:business` is still checked by the design advisors before `32b-cat-2`, as written below.
+  - **Settled for `32b-cat-2`:** closing a single service stays with the owner, general manager and business manager
+    (SI-Q17, Abu Salem's pick), so no branch-scoped membership needs a `:business` permission there.
 - **One lock order for every category write** (`32b-cat-1`, `32b-pre-1`, `32b-cat-2`, `32b-3`): a transaction that
   closes, reopens or renames a category locks its row first (`SELECT … FOR UPDATE`); a transaction that sets a
   `category_id` on a service (create-service, update-service, the import commit) locks the referenced category rows
@@ -435,29 +435,36 @@ Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's p
   it with a closed mark, and the services that keep it show its name with that mark.
 - **Closing a single service** (`32b-cat-2`): SI-Q14 needs a service closed state that spec 031 did not have (SV-09,
   SV-Q3). Closing and reopening one service needs a new permission, `close:services:business`, defaulted to the owner,
-  general manager, business manager **and branch manager** (SI-Q17, Waleed's pick against the recommendation; Abu
-  Salem PENDING), seeded by the `32b-cat-2` migration. It is separate from `manage:services:business`, which a branch
-  manager still does not hold. Reopening a service whose category is closed is refused with
+  general manager and business manager (SI-Q17: the owners differed, and Abu Salem's pick, the recommended option,
+  replaces Waleed's «the branch manager too»), seeded by the `32b-cat-2` migration. It is separate from
+  `manage:services:business` so that a custom role can be given the close without the edit; the branch manager holds
+  neither. The close and reopen routes need `close:services:business` **and** `read:services:business`,
+  so every caller that closes a service can find it and its revision through the services reads. `32b-cat-2` adds
+  `@RequireAll([...], { business: 'businessId' })` to `apps/api/src/shared/access.decorators.ts`, beside `@RequireAny`.
+  `RequiredAccess` gains `mode: 'any' | 'all'` (default `'any'`, so every existing route keeps its meaning);
+  `@RequireAll` sets `'all'` under the same `REQUIRE_ACCESS` key, so route coverage (`route-coverage.ts`) counts it
+  unchanged and the same scope and target validation applies. `AccessGuard` forwards the mode, and `AuthorizeRequest`
+  in `'all'` mode grants only when every listed permission has a grant covering the target with no DENY covering it,
+  in its one transaction, and otherwise refuses with the uniform 403. `32b-cat-2` unit-tests both modes. The check stays in the guard, so the catalog use case reads no membership and
+  `catalog` gains no import arrow (D-3, D-4), and no second transaction opens (the connection budget, CLAUDE.md §6). Reopening a service whose category is closed is refused with
   `SERVICE_CATEGORY_CLOSED`, and reopening a service clears its marker.
-  - **How a branch manager reaches it.** Spec 031 refuses Branch Manager on `read:services:business` and says a
-    `:business` permission is never covered by a branch-scoped membership (PR 7 matrix). So, as for the category
-    permissions, the design advisors check before `32b-cat-2` how a branch-scoped membership satisfies
-    `close:services:business`; if the matrix cannot express it, `32b-cat-2` stops and asks Waleed (a technical
-    question, never on the decisions page). The branch manager finds a service and its revision through the services
-    list and detail reads, which `32b-cat-2` lets `close:services:business` call as well as `read:services:business`.
-    For a caller that holds only `close:services:business`, those reads return only the id, the two names, the
-    category, the closed state and the revision, never the price, duration or commission fields. `32b-cat-2` adds an
-    integration test in which a default branch manager lists the services, closes one and reopens it.
+  - **The services reads are unchanged.** They stay behind `read:services:business` alone and return their full
+    shape. `32b-cat-2` adds an integration test in which a default branch manager is refused the close and the reopen
+    with the uniform 403, and one in which a role holding `close:services:business` without `read:services:business`
+    is refused the same way.
   - **No order line after the close.** The catalog reader locks the requested service rows `FOR SHARE`, in ascending
     `id` order, inside the order-recording transaction before it checks `closed_at`; close-service, reopen-service and
     the category cascade lock the service rows `FOR UPDATE`. A close and a recording therefore serialize: the
     recording either commits first (its line stands, like any line recorded before the close) or sees the service
     closed and is refused with `SERVICE_CLOSED`. `32b-cat-2` adds a test for each order.
-- **What closed means for selling** (`32b-cat-2`, SI-Q18, Waleed's pick, the recommended option; Abu Salem PENDING): a
+- **What closed means for selling** (`32b-cat-2`, SI-Q18, both owners' pick, the recommended option): a
   closed service is not offered for a new order line (the session-service-options query
   `apps/api/src/modules/catalog/queries/session-service-options.query.ts` leaves it out), and the catalog reader that
   `orders` calls refuses it at record time with `SERVICE_CLOSED`; an order line recorded before the close is
-  untouched. `CatalogReaderPort` is an `orders` port whose adapter is
+  untouched. Abu Salem's note on SI-Q18 extends this to self-service: no self-service or public menu catalog exists
+  yet (`apps/menu` is not built), and the first query that offers services there must leave closed services out too;
+  `32b-cat-2` lists every query that offers services for sale at the time it merges, and the dashboard lists keep
+  showing a closed service with its closed mark. `CatalogReaderPort` is an `orders` port whose adapter is
   `apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts`, so this touches the `orders` module: `32b-cat-2`
   says so in its PR (CLAUDE.md §1.4) and lists every caller of the reader it changes.
 - **Category list read** (`32b-cat-1`; it replaces the free-text suggestions search, which SI-Q7 made unnecessary):
@@ -476,11 +483,13 @@ Waleed's picks on SI-Q14 to SI-Q16 by his directive of 2026-10-29; Abu Salem's p
     → 200 the category with `services_closed` or `services_reopened` (`32b-cat-2`). `expected_service_count` is the
     `open_service_count` (close) or `marked_service_count` (reopen) the manager confirmed; assigning a service to a
     category does not advance the category's revision, so the use case recounts under the category lock and refuses a
-    different count with `SERVICE_CATEGORY_COUNT_CHANGED` (409), and the screen reloads the count and asks again.
+    different count with `SERVICE_CATEGORY_COUNT_CHANGED` (409), and the screen reloads the count and asks again. The
+    revision and both counts come from the category detail read, so these routes are guarded by
+    `@RequireAll(['manage:service-categories:business', 'read:service-categories:business'], { business: 'businessId' })`
+    the same way, and
+    `32b-cat-2` tests that a role holding only the manage permission is refused.
   - `POST /v1/businesses/{businessId}/services/{serviceId}/close` and `…/reopen` `{ expected_revision }` → 200 the
-    service (`32b-cat-2`); for a caller that holds `close:services:business` but not `read:services:business`, the
-    response carries the same limited fields as the reads (id, names, category, closed state, revision), never the
-    price, duration or commission fields, and `32b-cat-2` tests that response for a default branch manager.
+    service (`32b-cat-2`), in the same shape as the service detail read.
   - Errors: `SERVICE_CATEGORY_NAME_INVALID` (422), `SERVICE_CATEGORY_NAME_TAKEN` (409, the category key is in use, open
     or closed), `SERVICE_CATEGORY_NOT_FOUND` (404, also for another business or tenant), `SERVICE_CATEGORY_ALREADY_CLOSED`
     and `SERVICE_CATEGORY_NOT_CLOSED` (409), `SERVICE_ALREADY_CLOSED` and `SERVICE_NOT_CLOSED` (409),
@@ -564,7 +573,7 @@ commit), and `32b-cat-2` stops and asks Waleed before it goes on (a technical qu
   function, and the plug-in over a full matrix (all valid; each error code once; many errors in one file, all
   reported).
 - **Attribute rules** (`32b-pre-1`, domain unit, no database): duration `1` and `600` valid; `0`, `601`, `-5` and `7.5` invalid; a `category_id` that is unknown, of another business or of a closed category; the named errors `SERVICE_DURATION_INVALID`, `SERVICE_CATEGORY_NOT_FOUND` and `SERVICE_CATEGORY_CLOSED`. The create and update integration tests cover setting, clearing, a stale revision, another tenant, and the audit row content. `validateServiceDuration` is tested on its own (each returns its error or null), and `validateServiceDraft` is tested to compose them. The import cell converters add: duration cells `120`, `"120"`, `7.5`, `0`, `601`, a numeric `1e2` (accepted as 100), a text `"1e2"` (refused), and a numeric `1e21` and a 16-digit value (`IMPORT_DURATION_INVALID`), and category cells (an exact name, a name differing in case and spaces, a closed category's name, an Arabic-only name, a blank); one row with a bad duration and an unknown category reports both.
-- **Category rules and use cases** (`32b-cat-1`, `32b-cat-2`): the domain unit tests of the category names (1 and 100 characters, 101, empty after trim, a control character, the normalization); the database tests of the unique key (two names that differ only in case or spaces collide, also with a closed category), the composite foreign key (a category of another business is refused), the RLS negative test and the grants test; the integration tests of create, rename, close and reopen (a close closes only the open services of the category and marks them; a reopen reopens only the marked ones and leaves a service closed before it closed; a branch manager can close; a role without the permission is refused; the audit rows), of closing and reopening a single service (refused under a closed category), of moving a closed service to another category (its marker cleared; reopening the old category leaves it closed), of the revision advancing on every close and reopen, of a concurrent close and service assignment (the assignment waits for the lock and is then refused), of the category detail counts, of the session-service-options query leaving closed services out, and of the catalog reader refusing a closed service at record time.
+- **Category rules and use cases** (`32b-cat-1`, `32b-cat-2`): the domain unit tests of the category names (1 and 100 characters, 101, empty after trim, a control character, the normalization); the database tests of the unique key (two names that differ only in case or spaces collide, also with a closed category), the composite foreign key (a category of another business is refused), the RLS negative test and the grants test; the integration tests of create, rename, close and reopen (a close closes only the open services of the category and marks them; a reopen reopens only the marked ones and leaves a service closed before it closed; a default branch manager is refused the business-wide close and reopen (403) and can only hide the category in their branch (`32b-cat-1b`); a role without the permission is refused; the audit rows), of closing and reopening a single service (refused under a closed category), of moving a closed service to another category (its marker cleared; reopening the old category leaves it closed), of the revision advancing on every close and reopen, of a concurrent close and service assignment (the assignment waits for the lock and is then refused), of the category detail counts, of the session-service-options query leaving closed services out, and of the catalog reader refusing a closed service at record time.
 - **Sheet adapter** (moved code): `tagCells` is tested here, in `shared/import`, without any services knowledge (an Excel error cell gives `{ kind: 'error' }`, and a `20%` cell read through the formats matrix reaches the plug-in with `percentFormat: true` and becomes 2000 basis points): `0.57` gives `"0.57"`, `2.3` gives `"2.3"`, `1e21` and a 16-digit value give `numeric-unrepresentable`, a boolean cell gives `{ kind: 'boolean' }`, and `percentFormat` is true for `0%`, `0.00%` and `0%;-0%` and false for `0.0"%"`, `0\%`, `General` and `0.000`; the domain plug-in tests receive only tagged cells, including a boolean `counts_toward_threshold` cell and a row with a 16-digit price (`IMPORT_PRICE_INVALID`) beside a second error in the same row, both reported; the existing staff adapter tests run unchanged against the moved module; new tests
   for the services header set (missing, extra, duplicate, empty; a legacy template with neither new header, a file with only `duration_minutes`, a file with only `category` and a file with both import as no value for the absent column (the header pre-selection of FR-001), while a missing required header is refused), 500 and 501 rows, a 2 MiB plus 1 byte file.
 - **Integration scenarios**, against the real Postgres of the compose stack with a cloned database per spec file
@@ -639,7 +648,7 @@ commit), and `32b-cat-2` stops and asks Waleed before it goes on (a technical qu
 
 Recorded in `owner-questions.ar.md` (Arabic, with options, a recommendation and a salon example each). SI-Q1 to SI-Q16
 were published on the decisions page and sent to Waleed as cards; SI-T1 is technical and went to Waleed only; SI-Q17
-and SI-Q18 were answered by Waleed by card on 2026-10-29 and are published as the next batch for Abu Salem.
+to SI-Q24 were answered by Waleed by card and by Abu Salem on the decisions page on 2026-10-29.
 
 | Id | Kind | Question | Answer | Rule it settles |
 |---|---|---|---|---|
@@ -657,19 +666,20 @@ and SI-Q18 were answered by Waleed by card on 2026-10-29 and are published as th
 | SI-Q11 | feature | Who manages the category list by default | Both owners: owner, general manager, business manager and branch manager | Schema changes (permission), `32b-cat-1` |
 | SI-Q12 | feature | What a category close does to its services | Replaced by SI-Q14 (Abu Salem's pick and comment disagreed) | — |
 | SI-Q13 | feature | Is the Arabic name required too | The owners differed; Abu Salem's pick binds: both names required | Schema changes, `32b-cat-1` |
-| SI-Q14 | feature | Do the services close with their category | Waleed: yes. Abu Salem: PENDING; work proceeds on Waleed's pick (his directive, 2026-10-29) | Schema changes (closing), `32b-cat-2` |
-| SI-Q15 | feature | Who can close a category that has open services | Waleed: the branch manager too, any category; for the business-wide close this is replaced by his SI-Q22 pick (owner, general manager and business manager; a branch manager hides in their branch only). Abu Salem: PENDING | Schema changes (closing), `32b-cat-2` |
-| SI-Q16 | feature | What reopening a category does | Waleed: it reopens the services closed with it; those closed before stay closed. Abu Salem: PENDING | Schema changes (reopening), `32b-cat-2` |
-| SI-Q17 | feature | Who can close and reopen a single service | Waleed, against the recommendation: the branch manager too (`close:services:business`). Abu Salem: PENDING | Schema changes (closing a single service), `32b-cat-2` |
-| SI-Q18 | feature | What a closed service means for selling | Waleed (recommended): not offered for a new order line and refused at record time; past order lines untouched. Abu Salem: PENDING | Schema changes (what closed means), `32b-cat-2` |
-| SI-Q19 | feature | Who a category is made for | Waleed (free text, the recommended option): created at business level or from a branch, shared or private to the branch; any branch can enable others' categories or make its own. Abu Salem: PENDING | Branch-level categories, `32b-cat-1`, `32b-cat-1b` |
-| SI-Q20 | feature | Enabling another branch's private category | Waleed (recommended): without asking. Abu Salem: PENDING | `32b-cat-1b` |
-| SI-Q21 | feature | A service under a category not in use in a branch | Waleed (recommended): the category only groups; the service sells everywhere. Abu Salem: PENDING | Branch-level categories |
-| SI-Q22 | feature | A branch manager closing a shared category | Waleed (recommended): hidden in their branch only; the business-wide close stays with owner, general manager and business manager (replaces his SI-Q15 pick for that close). Abu Salem: PENDING | `32b-cat-1b`, `32b-cat-2` |
-| SI-Q23 | feature | Can a shared category become private again, or be renamed by its branch | Waleed (recommended): no, shared stays shared; renamed at business level only. Abu Salem: PENDING | «Sharing goes one way», `32b-cat-1` |
-| SI-Q24 | feature | Can a branch hide its own private category | Waleed (recommended): yes, in its own branch only. Abu Salem: PENDING | «Enabling another branch's category», `32b-cat-1b` |
+| SI-Q14 | feature | Do the services close with their category | Both owners: yes (Abu Salem: the cashier no longer sees them) | Schema changes (closing), `32b-cat-2` |
+| SI-Q15 | feature | Who can close a category that has open services | Waleed: the branch manager too, any category; for the business-wide close this is replaced by his SI-Q22 pick (owner, general manager and business manager; a branch manager hides in their branch only). Abu Salem: the same pick | Schema changes (closing), `32b-cat-2` |
+| SI-Q16 | feature | What reopening a category does | Both owners: it reopens the services closed with it; those closed before stay closed | Schema changes (reopening), `32b-cat-2` |
+| SI-Q17 | feature | Who can close and reopen a single service | The owners differed; Abu Salem's pick binds (the recommended option): owner, general manager and business manager (`close:services:business`). Waleed had picked the branch manager too | Schema changes (closing a single service), `32b-cat-2` |
+| SI-Q18 | feature | What a closed service means for selling | Both owners (recommended): not offered for a new order line and refused at record time; past order lines untouched (Abu Salem: shown as closed in the dashboard only) | Schema changes (what closed means), `32b-cat-2` |
+| SI-Q19 | feature | Who a category is made for | Waleed (free text, the recommended option): created at business level or from a branch, shared or private to the branch; any branch can enable others' categories or make its own. Abu Salem: the same pick | Branch-level categories, `32b-cat-1`, `32b-cat-1b` |
+| SI-Q20 | feature | Enabling another branch's private category | Both owners (recommended): without asking | `32b-cat-1b` |
+| SI-Q21 | feature | A service under a category not in use in a branch | Both owners (recommended): the category only groups; the service sells everywhere | Branch-level categories |
+| SI-Q22 | feature | A branch manager closing a shared category | Waleed (recommended): hidden in their branch only; the business-wide close stays with owner, general manager and business manager (replaces his SI-Q15 pick for that close). Abu Salem: the same pick | `32b-cat-1b`, `32b-cat-2` |
+| SI-Q23 | feature | Can a shared category become private again, or be renamed by its branch | Both owners (recommended): no, shared stays shared; renamed at business level only | «Sharing goes one way», `32b-cat-1` |
+| SI-Q24 | feature | Can a branch hide its own private category | Both owners (recommended): yes, in its own branch only | «Enabling another branch's category», `32b-cat-1b` |
 
-If Abu Salem's pick on SI-Q14 to SI-Q24 differs from Waleed's, his pick replaces it: this spec and
+Abu Salem answered SI-Q14 to SI-Q24 on 2026-10-29 and differed only on SI-Q17, amended above. Had another pick
+differed, it would have replaced Waleed's the same way: this spec and
 `owner-questions.ar.md` are amended (the old answer kept as history), and `32b-cat-1`, `32b-cat-1b` and `32b-cat-2`
 follow the new rule, through a follow-up if they have already merged. Such a follow-up is expand-only: a column or
 table his pick makes unnecessary (`owner_branch_id`, `visibility`, `service_category_branch_settings`) stays in place
@@ -692,7 +702,7 @@ approach 200 ms) and 32b-3 (worker, long work), pipeline §3 step 2.
 | **32b-cat-1** | The category list: storage, permission, create and rename, list read | 1. The contract first (`service-category.ts`: create, rename and list schemas, OpenAPI registration), then the migration: the `service_categories` table with `owner_branch_id` and `visibility` (SI-Q19), its CHECKs, the unique key, RLS, grants, the `manage:service-categories:business`, `read:service-categories:business`, `manage:service-categories:branch` and `read:service-categories:branch` permissions and their role defaults (SI-Q11 as amended by SI-Q22), the Drizzle schema. 2. The domain (`validateServiceCategoryNames`, the category key) with unit tests, and the create (business and branch routes) and rename use cases with audit rows (a branch renames its own private categories and may only make them shared, `SERVICE_CATEGORY_VISIBILITY_FIXED` otherwise) (rename locks the category row, the lock order of Schema changes). 3. HTTP, the cursor-paginated list read with its `EXPLAIN` test, the RLS negative test, the grants test, the integration tests (a shared category never made private, a branch rename of a shared category refused, a stale revision after sharing refused), and the database review | this spec merged; the single migration lane (the permission-scope check is settled by SI-Q19 to SI-Q22) | 600 to 850 |
 | **32b-cat-1b** | Categories per branch: enable, hide, branch view (SI-Q19 to SI-Q22) | 1. The contract (the branch view read and the state write), then the migration: the `service_category_branch_settings` table, its CHECKs, composite foreign keys, RLS and column grants, the Drizzle schema. 2. The domain rule "in use in a branch" (a `HIDDEN` row wins over ownership) with unit tests, and the set-state use case with audit rows (the first write with `expected_revision` null, a hidden own private category, a stale or concurrent first write refused). 3. HTTP, the branch view read (`in_use`, `available`) with its `EXPLAIN` test, the RLS negative test, the grants test, the integration tests (enable another branch's private category, hide a shared one, a branch manager of another branch refused, services still sold in a branch that hid their category) and the database review | 32b-cat-1; the single migration lane | 450 to 650 |
 | **32b-pre-1** | Duration and category on the service: contract, storage, rules, create/update and queries (one PR) | 1. The contract first, then the migrations: `createServiceInput`, `updateServiceInput`, `service` and `serviceListItem` carry `duration_minutes` and `category_id` (nullable, optional on input; on update an omitted field keeps the stored value and `null` clears it, so a client that does not know the fields yet cannot wipe them by omission, which is why this differs from the full replacement of `name_ar`), the list query's `category_id` filter, OpenAPI registration, the additive migration of Schema changes (columns, CHECK, the composite foreign key, the column-level UPDATE grant), a second migration with the concurrent index, the Drizzle schema. 2. The domain and the use cases: `validateServiceNameEn` and `validateServiceNameAr` (split from `validateServiceName`), `validateServiceDuration`, the category reference check (exists, same business, open, after a `FOR SHARE` lock on the category row), `toCommissionRule` exported, `validateServiceDraft` composing them (D-8), with domain unit tests; create-service and update-service store the fields and the audit rows carry them. 3. The queries and the tests: the detail and list projections with the category names and the category's closed mark, the filter and its `EXPLAIN` test, the grants test `packages/db/test/catalog-grants.ts`, the CHECK bounds, integration tests (set, clear, a closed or foreign category refused, stale revision, another tenant, audit content) and the database review. One PR, deployed as one, so the contract never accepts a field before it is stored and returned | 32b-cat-1; the single migration lane | 600 to 900 |
-| **32b-cat-2** | Closing and reopening: categories and single services | 1. The migration adding `closed_at` and `closed_by_category_id` to `services` (CHECKs, column grants) and seeding `close:services:business` (SI-Q17), the contract (close and reopen routes for a category and a service; `closed_at` on the service shapes) and the addendum to spec 031 (SV-09 superseded, SV-Q3 answered). 2. The close-category and reopen-category use cases (the cascade and the marker restore, SI-Q14 to SI-Q16), the close-service and reopen-service use cases, with audit rows, the revision rule and the lock order. 3. The category detail read with its two counts, the service's `closed_at` in the detail and list projections, the session-service-options query leaving closed services out, the `orders` catalog-reader adapter refusing a closed service at record time (`SERVICE_CLOSED`), the integration tests and the database review | 32b-cat-1 and 32b-pre-1; the single migration lane; design advisors (how a branch manager holds `close:services:business`) | 600 to 850 |
+| **32b-cat-2** | Closing and reopening: categories and single services | 1. First an ADR (numbered at merge, an addendum to ADR-0003's authorization model) recording `@RequireAll`: the `mode: 'any' \| 'all'` field on `RequiredAccess`, its `'any'` default for every existing route, the same `REQUIRE_ACCESS` key and route coverage, and the all-of rule (every listed permission covered, no DENY on any of them, one transaction); 32b-0 is already merged, so this ADR lands with the guard code. Then the migration adding `closed_at` and `closed_by_category_id` to `services` (CHECKs, column grants) and seeding `close:services:business` (SI-Q17), the contract (close and reopen routes for a category and a service; `closed_at` on the service shapes) and the addendum to spec 031 (SV-09 superseded, SV-Q3 answered). 2. The close-category and reopen-category use cases (the cascade and the marker restore, SI-Q14 to SI-Q16), the close-service and reopen-service use cases, with audit rows, the revision rule and the lock order. 3. The category detail read with its two counts, the service's `closed_at` in the detail and list projections, the session-service-options query leaving closed services out, the `orders` catalog-reader adapter refusing a closed service at record time (`SERVICE_CLOSED`), the integration tests and the database review | 32b-cat-1 and 32b-pre-1; the single migration lane; design advisors (the cascade execution path, the 200 ms rule) | 600 to 850 |
 | **32b-pre-2** | Duration and category on the service: the form, the list and the filter | 1. The create and edit forms get the duration and a category picker that offers only open categories (from the category list read), through `packages/i18n` keys in ar and en. 2. The services list shows both columns (RTL-safe), a closed mark for a closed category, and the filter by category (SI-Q10). 3. Component tests that assert visible outcomes (field errors, the picker offering open categories only, the filtered list); the journey doc 29 update follows in its own docs PR (pipeline step 14) | 32b-pre-1 | 350 to 500 |
 | **32b-cat-3** | The category screen | 1. The `catalog/categories` page: the list (open, closed, all), create and rename forms with both names required, through `packages/i18n` keys in ar and en. 2. Close and reopen with a confirmation that names how many open services will close (or reopen), the close and reopen of a single service on the service panel, and the closed mark of a closed service on the services list. 3. The branch context (SI-Q19 to SI-Q22): for a branch the user manages, the `in_use` and `available` views, create with the shared or private choice, make shared, enable and hide. 4. Component tests that assert visible outcomes (the closed mark, the confirmation count, a refused reopen, a branch manager who sees only the branch views and the enable and hide actions) | 32b-cat-2, 32b-cat-1b and 32b-pre-2 | 400 to 600 |
 | **32b-0** | ADR and map, no behaviour | 1. ADR-0034 addendum (or a new ADR, numbered at merge) recording D-1 to D-9, the `catalog` worker module, the new event and the rollout order, and the answer to SI-T1 (ports, `PP-64.6`). 2. `docs/module-map.md`: the §3 Port row (SI-T1 settled ports, so no arrow), the `ServiceImportCommitRequested` §4 event row with a note on the worker `catalog` module beside it (no code registers the event yet). `docs/module-map.yaml` does not change: its checker reads only `imports`, `packages_restricted`, `composition_roots`, `sync_writes` and `reads`, and none of these grows (as spec 059 D-29). 3. The design advisors' findings written back into this spec in the same PR | this spec merged; design advisors | 100 to 200 |
