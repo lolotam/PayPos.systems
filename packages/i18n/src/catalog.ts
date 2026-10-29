@@ -1,5 +1,6 @@
 import { alertRulesAr, alertRulesEn } from './alert-rules-catalog.js';
 import { ar } from './ar.js';
+import { commissionStatementAr, commissionStatementEn } from './commission-statement-catalog.js';
 import { en } from './en.js';
 import { nativeShellAr, nativeShellEn } from './native-shell-catalog.js';
 import { sessionTipsAr, sessionTipsEn } from './session-tips-catalog.js';
@@ -21,6 +22,7 @@ export type Catalog = { readonly [S in keyof typeof en]: Record<keyof (typeof en
 
 type RegisteredCatalog = Catalog & {
   readonly alertRules: Record<keyof typeof alertRulesEn, string>;
+  readonly commissionStatement: Record<keyof typeof commissionStatementEn, string>;
   readonly serviceSessions: Record<keyof typeof serviceSessionsEn, string>;
   readonly serviceLineEdit: Record<keyof typeof serviceLineEditEn, string>;
   readonly serviceLineCancel: Record<keyof typeof serviceLineCancelEn, string>;
@@ -43,6 +45,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
   ar: {
     ...ar,
     alertRules: alertRulesAr,
+    commissionStatement: commissionStatementAr,
     serviceSessions: serviceSessionsAr,
     serviceLineEdit: serviceLineEditAr,
     serviceLineCancel: serviceLineCancelAr,
@@ -55,6 +58,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
   en: {
     ...en,
     alertRules: alertRulesEn,
+    commissionStatement: commissionStatementEn,
     serviceSessions: serviceSessionsEn,
     serviceLineEdit: serviceLineEditEn,
     serviceLineCancel: serviceLineCancelEn,
