@@ -51,16 +51,16 @@ const shape = (record: (typeof records)[number] | undefined) => {
   };
 };
 
-it('SC-12 lists the exact DTO shape ordered by the key with stable cursor pages', async () => {
+it('SC-13 lists the exact DTO shape ordered by the key with stable cursor pages', async () => {
   const first = await list(2);
   expect(first.items).toEqual([shape(records[0]), shape(records[1])]);
-  expect(first.next_cursor).toBe(JSON.stringify(['alpha', records[1]?.id]));
+  expect(first.next_cursor).toBe(JSON.stringify(['bravo', records[1]?.id]));
   const second = await list(2, first.next_cursor ?? undefined);
   expect(second.items).toEqual([shape(records[2])]);
   expect(second.next_cursor).toBeNull();
 });
 
-it('SC-13 isolates another company and another business', async () => {
+it('SC-14 isolates another company and another business', async () => {
   expect(await list(20, undefined, f.otherCompany)).toEqual({ items: [], next_cursor: null });
   expect(await list(20, undefined, f.company, f.secondBusiness)).toEqual({
     items: [],
@@ -68,7 +68,7 @@ it('SC-13 isolates another company and another business', async () => {
   });
 });
 
-it('SC-14 the status filter picks open, closed or all', async () => {
+it('SC-15 the status filter picks open, closed or all', async () => {
   await f.h.owner`UPDATE service_categories SET closed_at=now() WHERE name_en='Charlie'`;
   expect((await list(20)).items.map((item) => item.name_en)).toEqual(['Alpha', 'Bravo']);
   expect((await list(20, undefined, f.company, f.business, 'closed')).items).toEqual([
@@ -77,7 +77,7 @@ it('SC-14 the status filter picks open, closed or all', async () => {
   expect((await list(20, undefined, f.company, f.business, 'all')).items).toHaveLength(3);
 });
 
-it('SC-15 the list plan uses the business-wide name index', async () => {
+it('SC-16 the list plan uses the business-wide name index', async () => {
   const plan = await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     return tx.execute(

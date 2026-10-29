@@ -9,6 +9,8 @@ import { createDatabase, type Database } from '../index.ts';
 const { A, B } = TENANT;
 const ID = '01920000-0000-7000-8000-0000000005e2';
 const OTHER_ID = '01920000-0000-7000-8000-0000000005e3';
+// وقت الإغلاق نص بترميز ISO: مشغّل postgres بيقبل النصوص، وما بيقبلش Date كمعامل خام.
+const CLOSED_AT = '2026-10-29T00:00:00.000Z';
 let testDb: TestDatabase;
 let db: Database;
 let owner: postgres.Sql;
@@ -28,7 +30,7 @@ function insert(input: CategoryInput) {
   return sql`INSERT INTO service_categories
     (company_id,id,business_id,name_en,name_ar,owner_branch_id,visibility,closed_at)
     VALUES (${input.companyId},${input.id ?? ID},${input.businessId},${input.name ?? 'Hair Care'},'صبغة',
-      ${input.branchId ?? null},${visibility},${input.closed === true ? new Date() : null})
+      ${input.branchId ?? null},${visibility},${input.closed === true ? CLOSED_AT : null})
     RETURNING id`;
 }
 
@@ -59,7 +61,7 @@ async function rejectsWith(work: Promise<unknown>, expected: RegExp): Promise<vo
   expect(cause instanceof Error ? cause.message : (error as Error).message).toMatch(expected);
 }
 
-describe('service_categories — forced tenant isolation and minimal grants', () => {
+describe('service_categories — forced tenant isolation', () => {
   it('enables and forces RLS, and the application role cannot bypass it', async () => {
     const [row] = await owner`SELECT relrowsecurity,relforcerowsecurity FROM pg_class
       WHERE oid='service_categories'::regclass`;
@@ -103,7 +105,9 @@ describe('service_categories — forced tenant isolation and minimal grants', ()
       await owner`SELECT name_en FROM service_categories WHERE company_id=${B.company} AND id=${ID}`,
     ).toEqual([{ name_en: 'Sentinel B' }]);
   });
+});
 
+describe('service_categories — minimal grants', () => {
   it('cross-tenant update and upsert cannot move or expose a row; outside a tenant sees nothing', async () => {
     expect(
       Array.from(
