@@ -33,6 +33,7 @@ type Props = {
   branchId: string;
   draft: StatementDraft;
   shifts: StatementShift[];
+  shiftsReady: boolean;
   shiftsLoadFailed: boolean;
   onRetryShifts: () => void;
   employees: StatementEmployee[];
@@ -80,7 +81,8 @@ function statementCanSubmit(props: Props) {
   const employeeConfirmed =
     !props.draft.employeeId ||
     props.employees.some((employee) => employee.employee_id === props.draft.employeeId);
-  const shiftsConfirmed = props.draft.form !== 'BRANCH' || !props.shiftsLoadFailed;
+  const shiftsConfirmed =
+    props.draft.form !== 'BRANCH' || (props.shiftsReady && !props.shiftsLoadFailed);
   return (
     props.periodValid &&
     employeeConfirmed &&

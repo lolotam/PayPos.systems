@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import {
   api,
+  mockPendingStatementShifts,
   mockStatementShifts,
   setup,
   state,
@@ -48,5 +49,42 @@ it('does not show the failure message for a successful empty shift list', async 
   ).toBeNull();
   expect(screen.queryByLabelText(t('en', 'attendanceStatementScreen.shift'))).toBeNull();
   expect(submitButton().disabled).toBe(false);
+  view.close();
+});
+
+it('keeps the failure and disabled submit visible while a retry is pending', async () => {
+  state.shiftsError = { code: 'UPSTREAM_FAILED', status: 500 };
+  const view = setup();
+  const retry = await screen.findByRole('button', {
+    name: t('en', 'attendanceStatementScreen.shiftsRetry'),
+  });
+  state.shiftsError = undefined;
+  mockPendingStatementShifts();
+  fireEvent.click(retry);
+  expect(screen.getByText(t('en', 'attendanceStatementScreen.shiftsLoadFailed'))).toBeTruthy();
+  expect(screen.queryByLabelText(t('en', 'attendanceStatementScreen.shift'))).toBeNull();
+  expect(submitButton().disabled).toBe(true);
+  view.close();
+});
+
+it('clears a selected shift that is missing from a successful reload', async () => {
+  const view = setup();
+  const select = (await screen.findByLabelText(
+    t('en', 'attendanceStatementScreen.shift'),
+  )) as HTMLSelectElement;
+  fireEvent.change(select, { target: { value: '09:00|20:00' } });
+  expect(select.value).toBe('09:00|20:00');
+  mockStatementShifts({ shifts: [{ start: '10:00', end: '18:00' }] });
+  await view.client.refetchQueries({ queryKey: ['attendance-statement-shifts'] });
+  await waitFor(() => {
+    const current = screen.getByLabelText(
+      t('en', 'attendanceStatementScreen.shift'),
+    ) as HTMLSelectElement;
+    expect(current.value).toBe('');
+  });
+  const all = screen.getByRole('option', {
+    name: t('en', 'attendanceStatementScreen.shiftAll'),
+  }) as HTMLOptionElement;
+  expect(all.selected).toBe(true);
   view.close();
 });

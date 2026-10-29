@@ -2,7 +2,7 @@
 import type { WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { PageHeader } from '@pospay/ui';
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useAttendanceStatementDownload } from '../api/use-attendance-statement-download';
 import { useAttendanceStatementEmployeeSelection } from '../api/use-attendance-statement-employee-selection';
@@ -24,6 +24,7 @@ import {
   type StatementDraft,
   type StatementDraftPatch,
   type StatementLanguage,
+  type StatementPeriod,
 } from '../model/attendance-statement-display';
 import { AttendanceStatementForm } from '../ui/attendance-statement-form';
 import { AttendanceStatementProgress } from '../ui/attendance-statement-progress';
@@ -61,12 +62,47 @@ function resetStatement(input: ResetStatementInput, timezone: string, locale: St
   input.setDraft(statementInitialDraft(timezone, locale));
 }
 
-function statementShiftProps(shifts: ReturnType<typeof useAttendanceStatementShifts>) {
+function statementShiftProps(
+  shifts: ReturnType<typeof useAttendanceStatementShifts>,
+  retrying: boolean,
+  setRetrying: Dispatch<SetStateAction<boolean>>,
+) {
   return {
     shifts: shifts.data?.shifts ?? [],
-    shiftsLoadFailed: Boolean(shifts.error),
-    onRetryShifts: () => void shifts.refetch(),
+    shiftsReady: shifts.isSuccess,
+    shiftsLoadFailed: Boolean(shifts.error) || retrying,
+    onRetryShifts: () => {
+      setRetrying(true);
+      void shifts.refetch().finally(() => setRetrying(false));
+    },
   };
+}
+
+type StatementShiftInput = {
+  scope: AttendanceStatementScope;
+  period: StatementPeriod;
+  periodValid: boolean;
+  draft: StatementDraft;
+  setDraft: Dispatch<SetStateAction<StatementDraft>>;
+};
+
+function useShiftProps(input: StatementShiftInput) {
+  const [retrying, setRetrying] = useState(false);
+  const shifts = useAttendanceStatementShifts(input.scope, input.period, input.periodValid);
+  const { setDraft } = input;
+  const selected = input.draft.shift;
+  useEffect(() => {
+    if (!shifts.isSuccess || !selected) return;
+    const available = shifts.data.shifts.some(
+      (shift) => shift.start === selected.start && shift.end === selected.end,
+    );
+    if (!available) {
+      setDraft((current) =>
+        current.shift === selected ? statementApplyPatch(current, { shift: undefined }) : current,
+      );
+    }
+  }, [selected, setDraft, shifts.data, shifts.isSuccess]);
+  return { error: shifts.error, formProps: statementShiftProps(shifts, retrying, setRetrying) };
 }
 
 export function AttendanceStatementPage(props: Props) {
@@ -78,7 +114,7 @@ export function AttendanceStatementPage(props: Props) {
   const renderId = request.data?.render_id;
   const period = statementPeriod(draft);
   const periodValid = statementPeriodIsValid(period, props.timezone);
-  const shifts = useAttendanceStatementShifts(props.scope, period, periodValid);
+  const shiftProps = useShiftProps({ scope: props.scope, period, periodValid, draft, setDraft });
   const employees = useAttendanceStatementEmployeeSelection(draft, setDraft, props);
   const status = useAttendanceStatementStatus(props.scope, renderId);
   const download = useAttendanceStatementDownload(props.scope, renderId, acceptedDraft);
@@ -89,7 +125,7 @@ export function AttendanceStatementPage(props: Props) {
   const renderFailure = status.error ?? download.error;
   const expired = statementExpired(status.error) || statementExpired(download.error);
   const collectRecovery = statementCollectCanRecover(download.error ?? status.error);
-  if (statementFormAccessLost(shifts.error ?? employees.error, renderFailure, request.error)) {
+  if (statementFormAccessLost(shiftProps.error ?? employees.error, renderFailure, request.error)) {
     return <p role="alert">{t(locale, 'attendanceStatementScreen.noAccess')}</p>;
   }
   return (
@@ -99,7 +135,7 @@ export function AttendanceStatementPage(props: Props) {
         branches={props.branches}
         branchId={props.scope.branchId}
         draft={draft}
-        {...statementShiftProps(shifts)}
+        {...shiftProps.formProps}
         employees={employees.data ?? []}
         employeesLoading={employees.isLoading}
         employeesError={employees.error}

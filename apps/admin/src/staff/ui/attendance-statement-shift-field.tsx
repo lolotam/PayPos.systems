@@ -20,7 +20,6 @@ export function AttendanceStatementShiftField(props: {
   const { draft, shifts } = props;
   return (
     <div className="grid gap-1">
-      <Label htmlFor="statement-shift">{t(locale, 'attendanceStatementScreen.shift')}</Label>
       {props.loadFailed ? (
         <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
           <p>{t(locale, 'attendanceStatementScreen.shiftsLoadFailed')}</p>
@@ -29,21 +28,24 @@ export function AttendanceStatementShiftField(props: {
           </Button>
         </div>
       ) : (
-        <NativeSelect
-          id="statement-shift"
-          value={draft.shift ? `${draft.shift.start}|${draft.shift.end}` : ''}
-          onChange={(event) => {
-            const [start, end] = event.target.value.split('|');
-            props.onChange({ shift: start && end ? { start, end } : undefined });
-          }}
-        >
-          <option value="">{t(locale, 'attendanceStatementScreen.shiftAll')}</option>
-          {shifts.map((shift) => (
-            <option key={`${shift.start}|${shift.end}`} value={`${shift.start}|${shift.end}`}>
-              {shift.start} — {shift.end}
-            </option>
-          ))}
-        </NativeSelect>
+        <>
+          <Label htmlFor="statement-shift">{t(locale, 'attendanceStatementScreen.shift')}</Label>
+          <NativeSelect
+            id="statement-shift"
+            value={draft.shift ? `${draft.shift.start}|${draft.shift.end}` : ''}
+            onChange={(event) => {
+              const [start, end] = event.target.value.split('|');
+              props.onChange({ shift: start && end ? { start, end } : undefined });
+            }}
+          >
+            <option value="">{t(locale, 'attendanceStatementScreen.shiftAll')}</option>
+            {shifts.map((shift) => (
+              <option key={`${shift.start}|${shift.end}`} value={`${shift.start}|${shift.end}`}>
+                {shift.start} — {shift.end}
+              </option>
+            ))}
+          </NativeSelect>
+        </>
       )}
     </div>
   );
