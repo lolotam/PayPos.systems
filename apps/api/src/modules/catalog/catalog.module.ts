@@ -1,7 +1,12 @@
 import { PackageTypesController } from './http/package-types.controller.ts';
+import { BranchServiceCategoriesController } from './http/branch-service-categories.controller.ts';
+import { ServiceCategoriesController } from './http/service-categories.controller.ts';
 import { createPackageTypeTransactions } from './persistence/drizzle-package-type-transactions.ts';
+import { createServiceCategoryTransactions } from './persistence/drizzle-service-category-transactions.ts';
 import { CreatePackageTypeUseCase } from './use-cases/create-package-type/create-package-type.usecase.ts';
 import { UpdatePackageTypeUseCase } from './use-cases/update-package-type/update-package-type.usecase.ts';
+import { CreateServiceCategoryUseCase } from './use-cases/create-service-category/create-service-category.usecase.ts';
+import { RenameServiceCategoryUseCase } from './use-cases/rename-service-category/rename-service-category.usecase.ts';
 import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 
@@ -11,7 +16,12 @@ import { createServiceTransactions } from './persistence/drizzle-service-transac
 import { CreateServiceUseCase } from './use-cases/create-service/create-service.usecase.ts';
 import { UpdateServiceUseCase } from './use-cases/update-service/update-service.usecase.ts';
 
-export const catalogControllers = [ServicesController, PackageTypesController];
+export const catalogControllers = [
+  ServicesController,
+  PackageTypesController,
+  ServiceCategoriesController,
+  BranchServiceCategoriesController,
+];
 
 export function catalogProviders(
   database: TenantWrappers | undefined,
@@ -19,6 +29,8 @@ export function catalogProviders(
 ): Provider[] {
   const transactions = database === undefined ? null : createServiceTransactions(database, ids);
   const packages = database === undefined ? null : createPackageTypeTransactions(database, ids);
+  const categories =
+    database === undefined ? null : createServiceCategoryTransactions(database, ids);
   return [
     {
       provide: CreatePackageTypeUseCase,
@@ -35,7 +47,20 @@ export function catalogProviders(
     },
     {
       provide: UpdateServiceUseCase,
-      useValue: transactions === null ? null : new UpdateServiceUseCase(transactions, systemClock),
+      useValue:
+        transactions === null ? null : new UpdateServiceUseCase(transactions, systemClock),
+    },
+    {
+      provide: CreateServiceCategoryUseCase,
+      useValue:
+        categories === null
+          ? null
+          : new CreateServiceCategoryUseCase(categories, ids, systemClock),
+    },
+    {
+      provide: RenameServiceCategoryUseCase,
+      useValue:
+        categories === null ? null : new RenameServiceCategoryUseCase(categories, systemClock),
     },
   ];
 }

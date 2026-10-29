@@ -3,6 +3,7 @@ import { staffDuplicateNameAr } from './staff-duplicate-name-catalog.js';
 import { attendanceChangeAr } from './attendance-change.js';
 import { inAppAr } from './in-app-catalog.js';
 import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
+import { serviceCategoryErrorsAr } from './catalog-service-categories.js';
 import { discountApprovalErrorsAr } from './discount-approval-errors.js';
 import { staffErrorsAr } from './staff-errors.js';
 import { attendanceAr } from './attendance-ar.js';
@@ -218,6 +219,7 @@ export const ar: Catalog = {
     ALERT_RULE_INVALID: 'قيمة القاعدة برّه المسموح لنوع التنبيه ده (المدة أو الأدوار أو القنوات).',
     ALERT_RULE_REVISION_CONFLICT: 'عدّل مدير آخر قاعدة التنبيه. أعد التحميل قبل الحفظ.',
     ...packageTypeErrorsAr,
+    ...serviceCategoryErrorsAr,
     ...discountApprovalErrorsAr,
     ...staffErrorsAr,
     PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',
