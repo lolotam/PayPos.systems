@@ -11,6 +11,7 @@ it.each([
   '/staff/attendance-exceptions',
   '/staff/attendance-requests',
   '/staff/attendance-report',
+  '/staff/attendance-statement',
 ])('keeps attendance entries adjacent and highlights only %s', (path) => {
   state.path = path;
   render(<StaffNavigation />);
@@ -22,6 +23,7 @@ it.each([
     '/staff/attendance-exceptions',
     '/staff/attendance-requests',
     '/staff/attendance-report',
+    '/staff/attendance-statement',
   ]);
   expect(
     screen.getByRole('link', { name: t('en', 'staff.listTitle') }).getAttribute('aria-current'),
