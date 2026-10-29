@@ -16065,8 +16065,8 @@
               },
               "bps": {
                 "type": "integer",
-                "minimum": 0,
-                "maximum": 10000
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               }
             },
             "required": [
@@ -16284,7 +16284,6 @@
                 ]
               },
               "steps": {
-                "minItems": 1,
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/CommissionPlanTierStep"
