@@ -66,6 +66,16 @@ describe('the category names', () => {
     expect(normalizeServiceCategoryName(input)).toBe(expected);
   });
 
+  // المسافات غير اللاتينية (NBSP وغيرها) يطابقها قيد القاعدة بـ [[:space:]]، فتبقى مسافة واحدة.
+  it.each([
+    ['Hair\u00A0Care', 'Hair Care'],
+    ['Hair\u2003Care', 'Hair Care'],
+    ['Hair\u3000Care', 'Hair Care'],
+    ['\u00A0Hair Care\u00A0', 'Hair Care'],
+  ])('normalizes the Unicode space in %j to %j', (input, expected) => {
+    expect(normalizeServiceCategoryName(input)).toBe(expected);
+  });
+
   it.each([1, 100])('accepts a name of %i characters', (length) => {
     expect(() =>
       validateServiceCategoryNames({ name_en: 'a'.repeat(length), name_ar: 'ب' }),
@@ -96,12 +106,17 @@ describe('the business-wide category key', () => {
     ['  Hair   Care ', 'hair care'],
     ['HAIR CARE', 'hair care'],
     ['Hair\tCare', 'hair care'],
+    ['Hair\u00A0Care', 'hair care'],
   ])('keys %j to %j', (input, expected) => {
     expect(serviceCategoryKey(input)).toBe(expected);
   });
 
   it('makes the trimmed, collapsed and case-folded names the same key', () => {
     expect(serviceCategoryKey(' Hair  Care ')).toBe(serviceCategoryKey('hair care'));
+  });
+
+  it('gives a name with a Unicode space the same key as the name with an ASCII space', () => {
+    expect(serviceCategoryKey('Hair\u00A0Care')).toBe(serviceCategoryKey('hair care'));
   });
 });
 

@@ -1,7 +1,10 @@
+import { randomUUID } from 'node:crypto';
+
 import { serviceCategory } from '@pospay/contracts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import {
+  branchOnlyMember,
   grantBranchCategories,
   grantCategories,
   namesFor,
@@ -279,4 +282,68 @@ it('SC-12 refuses a blank name with the named code and writes nothing', async ()
   expect(refused.status).toBe(422);
   expect(refused.body).toMatchObject({ code: 'SERVICE_CATEGORY_NAME_INVALID' });
   expect(await f.h.owner`SELECT 1 FROM service_categories WHERE name_en=''`).toHaveLength(0);
+});
+
+it('SC-17 a Unicode space inside the name is the same name, not a server error', async () => {
+  await post(namesFor('Hair Care'));
+  const response = await post(namesFor('Hair\u00A0Care'));
+  expect(response.status).toBe(409);
+  expect(response.body).toMatchObject({ code: 'SERVICE_CATEGORY_NAME_TAKEN' });
+  expect(
+    await f.h.owner`SELECT 1 FROM service_categories WHERE name_en='Hair Care'`,
+  ).toHaveLength(1);
+});
+
+it('SC-18 the list route needs the read permission', async () => {
+  const url = `/v1/businesses/${f.business}/service-categories`;
+  const refused = await f.h.send('GET', url, { cookie: f.cookie, company: f.company });
+  expect(refused.status).toBe(403);
+  await grantCategories(f, f.business, 'read:service-categories:business');
+  const allowed = await f.h.send('GET', url, { cookie: f.cookie, company: f.company });
+  expect(allowed.status).toBe(200);
+  expect(allowed.body['items']).toEqual(expect.any(Array));
+});
+
+it('SC-19 a branch grant does not open the route of another branch', async () => {
+  const member = await branchOnlyMember(f, f.branch);
+  const url = `/v1/businesses/${f.business}/branches/${f.otherBranch}/service-categories`;
+  const refused = await f.h.send('POST', url, {
+    cookie: member.cookie,
+    company: f.company,
+    body: { ...namesFor('Refused branch category'), visibility: 'BRANCH' },
+  });
+  expect(refused.status).toBe(403);
+  expect(
+    await f.h.owner`SELECT 1 FROM service_categories WHERE name_en='Refused branch category'`,
+  ).toHaveLength(0);
+});
+
+it('SC-20 a branch grant does not open the business routes', async () => {
+  const member = await branchOnlyMember(f, f.branch);
+  const created = serviceCategory.parse((await post(namesFor('Business route category'))).body);
+  const url = `/v1/businesses/${f.business}/service-categories`;
+  const refusedCreate = await f.h.send('POST', url, {
+    cookie: member.cookie,
+    company: f.company,
+    body: namesFor('Refused business category'),
+  });
+  expect(refusedCreate.status).toBe(403);
+  const refusedRename = await f.h.send('PATCH', `${url}/${created.id}`, {
+    cookie: member.cookie,
+    company: f.company,
+    body: { ...namesFor('Refused business category v2'), expected_revision: 1 },
+  });
+  expect(refusedRename.status).toBe(403);
+});
+
+it('SC-21 a branch rename of a category that does not exist is not found', async () => {
+  const member = await branchOnlyMember(f, f.branch);
+  const url = `/v1/businesses/${f.business}/branches/${f.branch}/service-categories`;
+  const refused = await f.h.send('PATCH', `${url}/${randomUUID()}`, {
+    cookie: member.cookie,
+    company: f.company,
+    body: { ...namesFor('Missing branch category'), expected_revision: 1 },
+  });
+  expect(refused.status).toBe(404);
+  expect(refused.body).toMatchObject({ code: 'SERVICE_CATEGORY_NOT_FOUND' });
 });

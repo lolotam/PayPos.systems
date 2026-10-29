@@ -50,6 +50,7 @@ export async function serviceCategoriesFixture() {
     otherCompany,
     userId,
     memberId,
+    role,
     business,
     secondBusiness,
     foreignBusiness,
@@ -85,6 +86,36 @@ export async function grantBranchCategories(f: ServiceCategoryFixture, branchId:
   await f.h
     .owner`INSERT INTO permission_overrides (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
     VALUES (${f.company},${ids.newId()},${f.memberId},'manage:service-categories:branch','ALLOW','BRANCH',${branchId},'Synthetic grant',${f.userId})`;
+}
+
+/** صلاحية فرع واحدة: تُمنح على فرع بعينه، فلا تفتح مسار فرع آخر ولا مسار النشاط. */
+export type BranchCategoryPermission =
+  | 'read:service-categories:branch'
+  | 'manage:service-categories:branch';
+
+/**
+ * عضو جديد بصلاحية فرع فقط: عضوية بدور بلا صلاحيات، ومنح فرع واحد بالاستثناء.
+ * العضوية القائمة في الاختبار لديها صلاحية النشاط، فالعضو الجديد لازم يكون مستقل عنها.
+ */
+export async function branchOnlyMember(
+  f: ServiceCategoryFixture,
+  branchId: string,
+  permissions: readonly BranchCategoryPermission[] = ['manage:service-categories:branch'],
+) {
+  const email = `category-branch-only-${ids.newId()}@example.test`;
+  const cookie = await f.h.signedInOperator(email);
+  const [holder] = await f.h.owner`SELECT id FROM "user" WHERE email=${email}`;
+  const userId = holder?.['id'] as string;
+  const memberId = ids.newId();
+  await f.h
+    .owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+    VALUES (${f.company},${memberId},${userId},${f.role},${f.company},'COMPANY',${f.company})`;
+  for (const permission of permissions) {
+    await f.h
+      .owner`INSERT INTO permission_overrides (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+      VALUES (${f.company},${ids.newId()},${memberId},${permission},'ALLOW','BRANCH',${branchId},'Synthetic grant',${f.userId})`;
+  }
+  return { cookie, userId, memberId };
 }
 
 /** يحمل التصنيفات عبر مسار القراءة كما تفعل الشاشة، لفحص العزل والنطاق. */
