@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { OWNER_ROLE_ID, SYSTEM_ROLES } from '../access-catalog.ts';
+import { OWNER_ROLE_ID, SYSTEM_ROLES, type Permission } from '../access-catalog.ts';
 import { systemRolePolicy } from '../system-role-policy.ts';
 
 const role = (code: string) => SYSTEM_ROLES.find((r) => r.code === code)?.id ?? '';
@@ -201,4 +201,22 @@ it('staff-app columns management is grantable to every human role and never a de
         'manage:staff-app-columns:business',
       ),
     ).toBe(entry.code !== 'device');
+});
+
+// قرار المالك SI-Q26: أكواد الكتالوج الستة قابلة للتفويض لكل دور بشري، والجهاز لا يكتسبها أبداً.
+const CATALOG_DELEGATION_PERMISSIONS = [
+  'read:service-categories:business',
+  'manage:service-categories:business',
+  'read:service-categories:branch',
+  'manage:service-categories:branch',
+  'manage:services:business',
+  'read:services:business',
+] as const satisfies readonly Permission[];
+
+it('SI-Q26 the six catalog permissions are grantable to every human role and never a device', () => {
+  for (const permission of CATALOG_DELEGATION_PERMISSIONS)
+    for (const entry of SYSTEM_ROLES)
+      expect(systemRolePolicy(entry.id, 'global')?.permissions.includes(permission)).toBe(
+        entry.code !== 'device',
+      );
 });
