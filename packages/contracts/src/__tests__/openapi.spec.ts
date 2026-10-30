@@ -241,6 +241,13 @@ const serviceCategorySchemaNames = [
   'ServiceCategoryCursor',
   'ServiceCategoryPage',
   'ServiceCategoryListQuery',
+  'ServiceCategoryBranchView',
+  'ServiceCategoryBranchSettingState',
+  'SetServiceCategoryBranchStateInput',
+  'ServiceCategoryBranchListItem',
+  'ServiceCategoryBranchStateResult',
+  'ServiceCategoryBranchPage',
+  'ServiceCategoryBranchListQuery',
 ];
 
 const commissionPlanSchemaNames = [

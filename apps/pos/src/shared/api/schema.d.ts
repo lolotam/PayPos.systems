@@ -1725,10 +1725,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** @description Cursor-paginated branch category view in normalized English-name order. in_use lists open categories used by the branch; available lists other open categories it may enable. Each item carries the branch setting state and revision. Requires read:service-categories:branch and the catalog feature. */
+        get: operations["listBranchServiceCategories"];
         put?: never;
         /** @description Creates a category owned by the route branch, shared BUSINESS or private BRANCH. The guard and persistence resolve the branch business from the database, never from the client. Requires manage:service-categories:branch and the catalog feature. */
         post: operations["createBranchServiceCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-categories/{categoryId}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Enables or hides a category in one branch against the branch setting revision. A first write requires null and stores revision 1; later writes require the current revision. A hidden row wins over ownership and never changes services. Requires manage:service-categories:branch and the catalog feature. */
+        put: operations["setServiceCategoryBranchState"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4343,6 +4361,52 @@ export interface components {
              * @enum {string}
              */
             status: "open" | "closed" | "all";
+            cursor?: components["schemas"]["ServiceCategoryCursor"];
+            /** @default 20 */
+            limit: number;
+        };
+        /** @enum {string} */
+        ServiceCategoryBranchView: "in_use" | "available";
+        /** @enum {string} */
+        ServiceCategoryBranchSettingState: "ENABLED" | "HIDDEN";
+        SetServiceCategoryBranchStateInput: {
+            state: components["schemas"]["ServiceCategoryBranchSettingState"];
+            expected_revision: number | null;
+        };
+        ServiceCategoryBranchListItem: {
+            /** Format: uuid */
+            id: string;
+            name_en: string;
+            name_ar: string;
+            visibility: components["schemas"]["ServiceCategoryVisibility"];
+            /** Format: uuid */
+            owner_branch_id: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            revision: number;
+            setting_state: components["schemas"]["ServiceCategoryBranchSettingState"] | null;
+            setting_revision: number | null;
+        };
+        ServiceCategoryBranchStateResult: {
+            /** Format: uuid */
+            id: string;
+            name_en: string;
+            name_ar: string;
+            visibility: components["schemas"]["ServiceCategoryVisibility"];
+            /** Format: uuid */
+            owner_branch_id: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            revision: number;
+            setting_state: components["schemas"]["ServiceCategoryBranchSettingState"] | null;
+            setting_revision: number | null;
+        };
+        ServiceCategoryBranchPage: {
+            items: components["schemas"]["ServiceCategoryBranchListItem"][];
+            next_cursor: components["schemas"]["ServiceCategoryCursor"] | null;
+        };
+        ServiceCategoryBranchListQuery: {
+            view: components["schemas"]["ServiceCategoryBranchView"];
             cursor?: components["schemas"]["ServiceCategoryCursor"];
             /** @default 20 */
             limit: number;
@@ -13163,6 +13227,53 @@ export interface operations {
             };
         };
     };
+    listBranchServiceCategories: {
+        parameters: {
+            query: {
+                view: "in_use" | "available";
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Branch service category page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategoryBranchPage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     createBranchServiceCategory: {
         parameters: {
             query?: never;
@@ -13210,6 +13321,63 @@ export interface operations {
             };
             /** @description Bilingual refusal */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setServiceCategoryBranchState: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetServiceCategoryBranchStateInput"];
+            };
+        };
+        responses: {
+            /** @description Category with its saved branch setting */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategoryBranchStateResult"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

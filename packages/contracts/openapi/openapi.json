@@ -10551,6 +10551,101 @@
       }
     },
     "/v1/businesses/{businessId}/branches/{branchId}/service-categories": {
+      "get": {
+        "operationId": "listBranchServiceCategories",
+        "description": "Cursor-paginated branch category view in normalized English-name order. in_use lists open categories used by the branch; available lists other open categories it may enable. Each item carries the branch setting state and revision. Requires read:service-categories:branch and the catalog feature.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "in_use",
+                "available"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string",
+              "maxLength": 2048
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Branch service category page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceCategoryBranchPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "operationId": "createBranchServiceCategory",
         "description": "Creates a category owned by the route branch, shared BUSINESS or private BRANCH. The guard and persistence resolve the branch business from the database, never from the client. Requires manage:service-categories:branch and the catalog feature.",
@@ -10625,6 +10720,102 @@
             }
           },
           "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/branches/{branchId}/service-categories/{categoryId}/state": {
+      "put": {
+        "operationId": "setServiceCategoryBranchState",
+        "description": "Enables or hides a category in one branch against the branch setting revision. A first write requires null and stores revision 1; later writes require the current revision. A hidden row wins over ownership and never changes services. Requires manage:service-categories:branch and the catalog feature.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "categoryId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetServiceCategoryBranchStateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Category with its saved branch setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceCategoryBranchStateResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "Bilingual refusal",
             "content": {
               "application/json": {
@@ -23034,7 +23225,8 @@
             {
               "type": "string",
               "minLength": 1,
-              "maxLength": 100
+              "maxLength": 100,
+              "pattern": "^\\P{Cc}*$"
             },
             {
               "type": "string",
@@ -23099,6 +23291,221 @@
             "maximum": 100
           }
         },
+        "additionalProperties": false
+      },
+      "ServiceCategoryBranchView": {
+        "type": "string",
+        "enum": [
+          "in_use",
+          "available"
+        ]
+      },
+      "ServiceCategoryBranchSettingState": {
+        "type": "string",
+        "enum": [
+          "ENABLED",
+          "HIDDEN"
+        ]
+      },
+      "SetServiceCategoryBranchStateInput": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/ServiceCategoryBranchSettingState"
+          },
+          "expected_revision": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          }
+        },
+        "required": [
+          "state",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceCategoryBranchListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "name_ar": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/ServiceCategoryVisibility"
+          },
+          "owner_branch_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "closed_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "setting_state": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceCategoryBranchSettingState"
+              }
+            ]
+          },
+          "setting_revision": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          }
+        },
+        "required": [
+          "id",
+          "name_en",
+          "name_ar",
+          "visibility",
+          "owner_branch_id",
+          "closed_at",
+          "revision",
+          "setting_state",
+          "setting_revision"
+        ]
+      },
+      "ServiceCategoryBranchStateResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "name_ar": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/ServiceCategoryVisibility"
+          },
+          "owner_branch_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "closed_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "setting_state": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceCategoryBranchSettingState"
+              }
+            ]
+          },
+          "setting_revision": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          }
+        },
+        "required": [
+          "id",
+          "name_en",
+          "name_ar",
+          "visibility",
+          "owner_branch_id",
+          "closed_at",
+          "revision",
+          "setting_state",
+          "setting_revision"
+        ]
+      },
+      "ServiceCategoryBranchPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceCategoryBranchListItem"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceCategoryCursor"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "ServiceCategoryBranchListQuery": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "$ref": "#/components/schemas/ServiceCategoryBranchView"
+          },
+          "cursor": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceCategoryCursor"
+              }
+            ]
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "view"
+        ],
         "additionalProperties": false
       },
       "PackageTypeComponentInput": {
