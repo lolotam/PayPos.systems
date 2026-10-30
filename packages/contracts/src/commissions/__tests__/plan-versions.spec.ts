@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 
 import {
   commissionEffectiveFromPastError,
+  commissionPlanIdempotencyKeyReusedError,
   commissionPeriodBeforeBusinessError,
   commissionPlanVersion,
   commissionPlanVersionListQuery,
@@ -146,6 +147,25 @@ it('refuses another code in the before-business envelope', () => {
       code: 'COMMISSION_EFFECTIVE_FROM_PAST',
       message_ar: 'تاريخ البداية لازم يكون النهارده أو بعده.',
       message_en: 'The start date must be today or later.',
+    }).success,
+  ).toBe(false);
+});
+
+it('publishes the reused-key refusal with its own code', () => {
+  const refusal = {
+    code: 'IDEMPOTENCY_KEY_REUSED',
+    message_ar: 'تم استخدام مفتاح Idempotency-Key مع طلب مختلف',
+    message_en: 'This Idempotency-Key was already used with a different request',
+  };
+  expect(commissionPlanIdempotencyKeyReusedError.parse(refusal)).toEqual(refusal);
+});
+
+it('refuses another code in the reused-key envelope', () => {
+  expect(
+    commissionPlanIdempotencyKeyReusedError.safeParse({
+      code: 'COMMISSION_PERIOD_BEFORE_BUSINESS',
+      message_ar: 'الشهر ده قبل ما النشاط يبدأ على PosPay، اختار شهر بعد بداية النشاط.',
+      message_en: 'This month is before the business started on PosPay; choose a later month.',
     }).success,
   ).toBe(false);
 });

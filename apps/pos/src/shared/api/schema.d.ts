@@ -2798,6 +2798,12 @@ export interface components {
             message_ar: string;
             message_en: string;
         };
+        CommissionPlanIdempotencyKeyReusedError: {
+            /** @enum {string} */
+            code: "IDEMPOTENCY_KEY_REUSED";
+            message_ar: string;
+            message_en: string;
+        };
         /** @enum {string} */
         EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";
         CreateDocumentTypeInput: {
@@ -7913,13 +7919,13 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_PLAN_INVALID with details.code, COMMISSION_EFFECTIVE_FROM_PAST when effective_from is before today, or COMMISSION_PERIOD_BEFORE_BUSINESS when a whole_period month precedes the business. */
+            /** @description COMMISSION_PLAN_INVALID with details.code, COMMISSION_EFFECTIVE_FROM_PAST when effective_from is before today, or COMMISSION_PERIOD_BEFORE_BUSINESS when a whole_period month precedes the business, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CommissionPlanInvalidError"] | components["schemas"]["CommissionEffectiveFromPastError"] | components["schemas"]["CommissionPeriodBeforeBusinessError"];
+                    "application/json": components["schemas"]["CommissionPlanInvalidError"] | components["schemas"]["CommissionEffectiveFromPastError"] | components["schemas"]["CommissionPeriodBeforeBusinessError"] | components["schemas"]["CommissionPlanIdempotencyKeyReusedError"];
                 };
             };
             /** @description Bilingual refusal */

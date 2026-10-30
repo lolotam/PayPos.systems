@@ -153,6 +153,18 @@ export const commissionPeriodBeforeBusinessError = z
   })
   .meta({ id: 'CommissionPeriodBeforeBusinessError' });
 
+/**
+ * إعادة نفس Idempotency-Key مع جسم طلب مختلف: الرفض ده 422 على المسار ده، فبيدخل نفس
+ * الاتحاد، من غير details.
+ */
+export const commissionPlanIdempotencyKeyReusedError = z
+  .strictObject({
+    code: z.literal('IDEMPOTENCY_KEY_REUSED'),
+    message_ar: z.string().min(1),
+    message_en: z.string().min(1),
+  })
+  .meta({ id: 'CommissionPlanIdempotencyKeyReusedError' });
+
 export const commissionPlanVersionSchemas = [
   commissionPlanCalc,
   commissionPlanComponent,
@@ -168,6 +180,7 @@ export const commissionPlanVersionSchemas = [
   commissionPlanInvalidError,
   commissionEffectiveFromPastError,
   commissionPeriodBeforeBusinessError,
+  commissionPlanIdempotencyKeyReusedError,
 ];
 
 export type CommissionPlanCalc = z.infer<typeof commissionPlanCalc>;
@@ -182,4 +195,7 @@ export type CommissionPlanVersionListQuery = z.infer<typeof commissionPlanVersio
 export type CommissionEffectiveFromPastError = z.infer<typeof commissionEffectiveFromPastError>;
 export type CommissionPeriodBeforeBusinessError = z.infer<
   typeof commissionPeriodBeforeBusinessError
+>;
+export type CommissionPlanIdempotencyKeyReusedError = z.infer<
+  typeof commissionPlanIdempotencyKeyReusedError
 >;
