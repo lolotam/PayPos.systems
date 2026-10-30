@@ -30,6 +30,12 @@ export interface CommissionPlanVersionScope {
    */
   timeZone(): Promise<string | null>;
   /**
+   * بيرجّع أول شهر كشف للنشاط بصيغة YYYY-MM أو null بلا كشوف، لرفض whole_period لشهر غير متتبع.
+   *
+   * @returns أول شهر كشف موجود، أو null عندما لا يملك النشاط أي كشف
+   */
+  firstStatementPeriod(): Promise<string | null>;
+  /**
    * بيقفل كل الشهور المتأثرة في نداء واحد تصاعدي.
    *
    * @param periods الشهور من شهر السريان حتى الشهر الحالي

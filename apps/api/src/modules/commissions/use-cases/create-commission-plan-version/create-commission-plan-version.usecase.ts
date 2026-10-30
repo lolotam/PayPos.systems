@@ -8,8 +8,11 @@ import { toEngineCommissionPlan } from '../../domain/plan-codec.ts';
 import { CommissionPlanVersionError } from '../../domain/errors.ts';
 import {
   assertCommissionPlanEffectiveFrom,
+  assertWholePeriodMonthTracked,
+  commissionPlanMonthsStillToLock,
   commissionPlanMonthsToLock,
   nextCommissionPlanVersion,
+  type CommissionPlanStatementPeriod,
 } from '../../domain/plan-periods.ts';
 import type {
   CommissionPlanVersionScope,
@@ -34,6 +37,35 @@ export class CreateCommissionPlanVersionUseCase {
   }
 }
 
+async function lockThroughDecision(
+  scope: CommissionPlanVersionScope,
+  command: CreateCommissionPlanVersionCommand,
+  timeZone: string,
+  clock: Clock,
+): Promise<{ locked: CommissionPlanStatementPeriod[]; decidedAt: Date }> {
+  const today = localDate(clock.now(), timeZone);
+  assertWholePeriodMonthTracked({
+    effectiveFrom: command.input.effective_from,
+    wholePeriod: command.input.whole_period,
+    today,
+    firstStatementPeriod: await scope.firstStatementPeriod(),
+  });
+  const locked = await scope.lockPeriods(
+    commissionPlanMonthsToLock(command.input.effective_from, today),
+  );
+  let decidedAt = clock.now();
+  while (true) {
+    const missing = commissionPlanMonthsStillToLock(
+      command.input.effective_from,
+      localDate(decidedAt, timeZone),
+      locked.map(({ period }) => period),
+    );
+    if (missing.length === 0) return { locked, decidedAt };
+    locked.push(...(await scope.lockPeriods(missing)));
+    decidedAt = clock.now();
+  }
+}
+
 /** الخطوات الداخلية المشتركة بين مسار HTTP واختبار ترتيب قفل الشهور. */
 export async function writeCommissionPlanVersion(
   scope: CommissionPlanVersionScope,
@@ -50,11 +82,7 @@ export async function writeCommissionPlanVersion(
   }
   const timeZone = await scope.timeZone();
   if (timeZone === null) throw new Error('The employee business has no timezone');
-  const now = clock.now();
-  const today = localDate(now, timeZone);
-  const periods = commissionPlanMonthsToLock(command.input.effective_from, today);
-  const locked = await scope.lockPeriods(periods);
-  const decidedAt = clock.now();
+  const { locked, decidedAt } = await lockThroughDecision(scope, command, timeZone, clock);
   const reopen = assertCommissionPlanEffectiveFrom({
     effectiveFrom: command.input.effective_from,
     wholePeriod: command.input.whole_period,

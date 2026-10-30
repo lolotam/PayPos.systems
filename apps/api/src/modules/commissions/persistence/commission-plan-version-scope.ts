@@ -26,7 +26,10 @@ async function reopenReviewed(
     reviewed_fingerprint=NULL,reviewed_statement_fingerprint=NULL,reviewed_by=NULL,
     reviewed_membership_id=NULL,reviewed_at=NULL
     WHERE company_id=${actor.companyId} AND business_id=${actor.businessId}
-      AND status='REVIEWED' AND period IN (${sql.join(periods.map((period) => sql`${period}`), sql`, `)})`);
+      AND status='REVIEWED' AND period IN (${sql.join(
+        periods.map((period) => sql`${period}`),
+        sql`, `,
+      )})`);
 }
 
 export function createCommissionPlanVersionScope(
@@ -39,7 +42,14 @@ export function createCommissionPlanVersionScope(
     lockEmployee: () =>
       readers.employeeLock(tx, actor.companyId, actor.businessId, actor.employeeId),
     timeZone: () => readers.businessTimeZone(tx, actor.companyId, actor.businessId),
-    lockPeriods: (periods) => lockStatementPeriods(tx, { businessId: actor.businessId, periods, ids }),
+    firstStatementPeriod: async () => {
+      const [row] = await tx.execute<{ period: string | null }>(sql`
+        SELECT min(period) AS period FROM commission_statements
+        WHERE company_id=${actor.companyId} AND business_id=${actor.businessId}`);
+      return row?.period ?? null;
+    },
+    lockPeriods: (periods) =>
+      lockStatementPeriods(tx, { businessId: actor.businessId, periods, ids }),
     reopenReviewed: (periods) => reopenReviewed(tx, actor, periods),
     recheckAccess: () => readers.access(tx, actor.companyId, actor.userId, actor.businessId),
     latestVersion: async () => {

@@ -43,6 +43,51 @@ export function commissionPlanMonthsToLock(effectiveFrom: string, today: string)
 }
 
 /**
+ * يحسب الشهور التي لم تُقفل بعد عند تغير شهر النشاط أثناء انتظار الأقفال.
+ * الشهور المطلوبة الجديدة تلي الأقفال السابقة، فيظل ترتيب القفل تصاعدياً وفق D-3.
+ *
+ * @param effectiveFrom تاريخ سريان الإصدار بصيغة YYYY-MM-DD
+ * @param today تاريخ النشاط بعد آخر عينة من الساعة بصيغة YYYY-MM-DD
+ * @param locked الشهور التي أخذ الكاتب أقفالها بالفعل
+ * @returns الشهور الناقصة فقط بصيغة YYYY-MM مرتبة تصاعدياً، وقد تكون فارغة
+ */
+export function commissionPlanMonthsStillToLock(
+  effectiveFrom: string,
+  today: string,
+  locked: readonly string[],
+): string[] {
+  const alreadyLocked = new Set(locked);
+  return commissionPlanMonthsToLock(effectiveFrom, today).filter(
+    (period) => !alreadyLocked.has(period),
+  );
+}
+
+/**
+ * يتأكد أن شهر whole_period الماضي يقع ضمن الشهور التي بدأ النشاط تتبعها.
+ * الفحص يسبق قفل الشهور حتى لا تُنشئ الكتابة كشوف DRAFT دائمة لشهور سابقة لأول كشف.
+ *
+ * @param input تاريخ السريان ونوع الإصدار وتاريخ النشاط وأول شهر كشف موجود
+ * @param input.effectiveFrom تاريخ سريان الإصدار بصيغة YYYY-MM-DD
+ * @param input.wholePeriod هل يغطي الإصدار شهر سريانه بالكامل
+ * @param input.today تاريخ اليوم في منطقة النشاط بصيغة YYYY-MM-DD
+ * @param input.firstStatementPeriod أول شهر كشف بصيغة YYYY-MM أو null عند غياب الكشوف
+ * @returns لا شيء؛ يرمي COMMISSION_PERIOD_NOT_DRAFT إذا لم يكن الشهر الماضي متتبعاً
+ */
+export function assertWholePeriodMonthTracked(input: {
+  readonly effectiveFrom: string;
+  readonly wholePeriod: boolean;
+  readonly today: string;
+  readonly firstStatementPeriod: string | null;
+}): void {
+  if (!input.wholePeriod) return;
+  const ownMonth = input.effectiveFrom.slice(0, 7);
+  if (ownMonth >= input.today.slice(0, 7)) return;
+  if (input.firstStatementPeriod === null || ownMonth < input.firstStatementPeriod) {
+    throw new CommissionPlanVersionError('COMMISSION_PERIOD_NOT_DRAFT');
+  }
+}
+
+/**
  * يطبق قاعدة FR-007 بعد قفل الشهور: التاريخ العادي لا يكون في الماضي، والشهر المغلق
  * يمنع النوعين، وشهر whole_period يجب أن يكون DRAFT، وكل REVIEWED لاحق يعود إلى DRAFT.
  * شهر REVIEWED الخاص بالإصدار العادي يعود أيضاً إلى DRAFT.

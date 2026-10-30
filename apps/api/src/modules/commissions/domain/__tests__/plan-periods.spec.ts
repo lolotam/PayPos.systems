@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   assertCommissionPlanEffectiveFrom,
+  assertWholePeriodMonthTracked,
+  commissionPlanMonthsStillToLock,
   commissionPlanMonthsToLock,
   nextCommissionPlanVersion,
   type CommissionPlanStatementPeriod,
@@ -23,10 +25,7 @@ describe('commissionPlanMonthsToLock', () => {
   });
 
   it('crosses December into January without skipping a month', () => {
-    expect(commissionPlanMonthsToLock('2026-12-01', '2027-01-31')).toEqual([
-      '2026-12',
-      '2027-01',
-    ]);
+    expect(commissionPlanMonthsToLock('2026-12-01', '2027-01-31')).toEqual(['2026-12', '2027-01']);
   });
 
   it('returns the current month once and no months for a future version', () => {
@@ -52,9 +51,7 @@ describe('assertCommissionPlanEffectiveFrom effective date and own month', () =>
     expect(assertCommissionPlanEffectiveFrom(input)).toEqual([]);
     expect(() =>
       assertCommissionPlanEffectiveFrom({ ...input, effectiveFrom: '2026-10-29' }),
-    ).toThrowError(
-      expect.objectContaining({ code: 'COMMISSION_EFFECTIVE_FROM_PAST' }),
-    );
+    ).toThrowError(expect.objectContaining({ code: 'COMMISSION_EFFECTIVE_FROM_PAST' }));
   });
 
   it('accepts a DRAFT whole_period month and rejects its REVIEWED month', () => {
@@ -123,6 +120,75 @@ describe('assertCommissionPlanEffectiveFrom later months', () => {
         ],
       }),
     ).toEqual(['2026-10', '2026-11']);
+  });
+});
+
+describe('assertWholePeriodMonthTracked', () => {
+  it('refuses a past whole_period month before the first tracked statement', () => {
+    expect(() =>
+      assertWholePeriodMonthTracked({
+        effectiveFrom: '2026-08-01',
+        wholePeriod: true,
+        today: '2026-10-30',
+        firstStatementPeriod: '2026-09',
+      }),
+    ).toThrowError(expect.objectContaining({ code: 'COMMISSION_PERIOD_NOT_DRAFT' }));
+  });
+
+  it('refuses a past whole_period month when the business has no statements', () => {
+    expect(() =>
+      assertWholePeriodMonthTracked({
+        effectiveFrom: '2026-09-01',
+        wholePeriod: true,
+        today: '2026-10-30',
+        firstStatementPeriod: null,
+      }),
+    ).toThrowError(expect.objectContaining({ code: 'COMMISSION_PERIOD_NOT_DRAFT' }));
+  });
+
+  it('accepts the first tracked month for a past whole_period version', () => {
+    expect(() =>
+      assertWholePeriodMonthTracked({
+        effectiveFrom: '2026-09-01',
+        wholePeriod: true,
+        today: '2026-10-30',
+        firstStatementPeriod: '2026-09',
+      }),
+    ).not.toThrow();
+  });
+
+  it('accepts a current whole_period month when no statement exists yet', () => {
+    expect(() =>
+      assertWholePeriodMonthTracked({
+        effectiveFrom: '2026-10-01',
+        wholePeriod: true,
+        today: '2026-10-30',
+        firstStatementPeriod: null,
+      }),
+    ).not.toThrow();
+  });
+
+  it('does not refuse an ordinary version before the first tracked month', () => {
+    expect(() =>
+      assertWholePeriodMonthTracked({
+        effectiveFrom: '2001-01-01',
+        wholePeriod: false,
+        today: '2026-10-30',
+        firstStatementPeriod: null,
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe('commissionPlanMonthsStillToLock', () => {
+  it('returns nothing when every required month is already locked', () => {
+    expect(commissionPlanMonthsStillToLock('2026-10-01', '2026-10-30', ['2026-10'])).toEqual([]);
+  });
+
+  it('returns only the new current month after a local-month rollover', () => {
+    expect(commissionPlanMonthsStillToLock('2026-10-01', '2026-11-01', ['2026-10'])).toEqual([
+      '2026-11',
+    ]);
   });
 });
 

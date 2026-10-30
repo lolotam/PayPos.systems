@@ -35,6 +35,22 @@ it('CM-07 a whole_period version whose own month is REVIEWED is 409', async () =
   expect(await versionAndAuditCounts(f)).toEqual(before);
 });
 
+it('CM-07 a whole_period month before tracked statements is 409 with no writes', async () => {
+  const count2001Statements = () => f.h.owner`SELECT count(*)::int AS count
+    FROM commission_statements WHERE company_id=${f.company} AND business_id=${f.business}
+      AND period LIKE '2001-%'`;
+  const [beforeStatements] = await count2001Statements();
+  const beforeWrites = await versionAndAuditCounts(f);
+  const response = await f.post(
+    { ...commissionPlanInput('2001-01-01'), whole_period: true },
+    'cm-07-untracked-month',
+  );
+  expect([response.status, response.body['code']]).toEqual([409, 'COMMISSION_PERIOD_NOT_DRAFT']);
+  const [afterStatements] = await count2001Statements();
+  expect(afterStatements?.['count']).toBe(beforeStatements?.['count']);
+  expect(await versionAndAuditCounts(f)).toEqual(beforeWrites);
+});
+
 it.each(['APPROVED', 'PAID'] as const)(
   'CM-07 a whole_period version whose own month is %s is closed',
   async (status) => {
