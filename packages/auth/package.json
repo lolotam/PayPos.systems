@@ -13,6 +13,10 @@
       "types": "./dist/client.d.ts",
       "import": "./dist/client.js"
     },
+    "./rating-token": {
+      "types": "./dist/rating-token/index.d.ts",
+      "import": "./dist/rating-token/index.js"
+    },
     "./operator/staging-staff": {
       "types": "./dist/operator/staging-staff-identity.d.ts",
       "import": "./dist/operator/staging-staff-identity.js"

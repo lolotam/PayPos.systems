@@ -26,6 +26,7 @@ import {
   startOptionalCapabilities,
   type OptionalCapabilities,
 } from './start-optional-capabilities.ts';
+import { reportRatingTokenCapability } from './rating-token-capability.ts';
 import {
   createAttendanceStatementReader,
   createStaffDocumentDefaults,
@@ -201,6 +202,7 @@ async function startWorkerCore(): Promise<void> {
     redis,
     stopping: () => stopping,
   });
+  reportRatingTokenCapability(process.env, logger);
   maintenance = started.maintenance;
   queue = started.queue;
   globalDatabase = started.database;

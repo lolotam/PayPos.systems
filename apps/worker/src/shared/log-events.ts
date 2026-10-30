@@ -2,6 +2,7 @@
 export const WORKER_LOG_EVENTS = [
   'email disabled',
   'staff OTP capability',
+  'rating token capability',
   'staff OTP execution outcome',
   'staff OTP retention unavailable',
   'worker failed to start',

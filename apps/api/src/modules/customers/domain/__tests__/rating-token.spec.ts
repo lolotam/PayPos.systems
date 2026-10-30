@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
 import { parseRatingToken } from '../rating-token.ts';
@@ -35,5 +36,16 @@ describe('the rating token parser', () => {
     for (const last of 'AEIMQUYcgkosw048') {
       expect(parseRatingToken(`${COMPANY}.${'A'.repeat(42)}${last}`)).not.toBeNull();
     }
+  });
+
+  it('accepts the 59b-1 codec output and hashes its unchanged canonical form', () => {
+    const token =
+      '01920000-0000-7000-8000-000000000aa1.0vTCG98_ToLWpgP2Io1UPqhPnhupQiM1NPT_jzG3ZtM';
+    const parsed = parseRatingToken(token);
+    expect(parsed).toEqual({ companyId: COMPANY, canonical: token });
+    if (parsed === null) throw new Error('59b-1 codec output rejected');
+    expect(createHash('sha256').update(parsed.canonical, 'utf8').digest('hex')).toBe(
+      'c5e494144058c381fe035fcf464738a744baf69bc6a3caafddfba1bea58e4bdd',
+    );
   });
 });

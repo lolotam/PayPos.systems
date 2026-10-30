@@ -114,6 +114,10 @@ services:
       AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-https://${ADMIN_STAGING_HOST:?},https://${POS_STAGING_HOST:?}}
 
       DISPATCHER_DATABASE_URL: postgres://pospay_dispatcher:${POSTGRES_DISPATCHER_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
+      # Rating token key (ADR-0057): worker only; empty = capability DISABLED.
+      RATING_TOKEN_DERIVATION_KEY: ${RATING_TOKEN_DERIVATION_KEY:-}
+      RATING_TOKEN_DERIVATION_KEY_VERSION: ${RATING_TOKEN_DERIVATION_KEY_VERSION:-}
+      RATING_TOKEN_DERIVATION_RETIRED_KEYS: ${RATING_TOKEN_DERIVATION_RETIRED_KEYS:-}
       # ADR-0019: OTP activation independent; tenant outbound remains separately closed.
       PLATFORM_NOTIFICATIONS_DATABASE_URL: ${PLATFORM_NOTIFICATIONS_DATABASE_URL:-}
       # Staff push (ADR-0052): production refuses fake mode, so an empty value is the default here; only `live` (staff OTP) or empty keep push enabled.

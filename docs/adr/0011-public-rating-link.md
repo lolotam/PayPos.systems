@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-02
 - **Amended:** 2026-10-21 (§8, comment visibility)
+- **Amended:** 2026-10-30 (§1, ADR-0057)
 - **Slice:** Phase 1 · G3 · before PRs 58–60
 
 ## Context
@@ -192,3 +193,4 @@ in scope; a caller without it, the staff app, the public page and another tenant
    with no notifications contact read or customer write port. Approve whether this meets the required random
    token policy and settle key lifetime/rotation; until then **do not enable rating sends or add plaintext or
    encrypted bearer-token storage silently**. This proposal does not relax the CSPRNG issuance contract above.
+   Resolved by ADR-0057 (RT-Q1): the CSPRNG requirement above now applies to the derivation key; the token itself is derived.
