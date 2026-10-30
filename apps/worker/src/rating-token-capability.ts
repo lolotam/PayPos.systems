@@ -10,16 +10,15 @@ import type { Logger } from '@pospay/observability';
  */
 export function reportRatingTokenCapability(env: NodeJS.ProcessEnv, logger: Logger): void {
   const configuration = readRatingTokenConfiguration(env);
-  logger.info(
-    {
-      capability: {
-        name: 'RATING_TOKENS',
-        state: configuration.state,
-        ...(configuration.state === 'READY'
-          ? { fingerprint: configuration.fingerprint }
-          : { reason: configuration.reason }),
-      },
+  const payload = {
+    capability: {
+      name: 'RATING_TOKENS',
+      state: configuration.state,
+      ...(configuration.state === 'READY'
+        ? { fingerprint: configuration.fingerprint }
+        : { reason: configuration.reason }),
     },
-    'rating token capability',
-  );
+  };
+  if (configuration.state === 'UNAVAILABLE') logger.warn(payload, 'rating token capability');
+  else logger.info(payload, 'rating token capability');
 }

@@ -8,6 +8,7 @@ it.each([
   {
     name: 'reports DISABLED when rating tokens are not configured',
     env: {},
+    expectedLevel: 'info',
     expected: {
       capability: { name: 'RATING_TOKENS', state: 'DISABLED', reason: 'NOT_CONFIGURED' },
     },
@@ -15,6 +16,7 @@ it.each([
   {
     name: 'reports UNAVAILABLE when the key has no version',
     env: { RATING_TOKEN_DERIVATION_KEY: K1 },
+    expectedLevel: 'warn',
     expected: {
       capability: { name: 'RATING_TOKENS', state: 'UNAVAILABLE', reason: 'CONFIGURATION_INVALID' },
     },
@@ -22,6 +24,7 @@ it.each([
   {
     name: 'reports READY with the keyed fingerprint',
     env: { RATING_TOKEN_DERIVATION_KEY: K1, RATING_TOKEN_DERIVATION_KEY_VERSION: '1' },
+    expectedLevel: 'info',
     expected: {
       capability: {
         name: 'RATING_TOKENS',
@@ -30,11 +33,16 @@ it.each([
       },
     },
   },
-])('$name', ({ env, expected }) => {
+])('$name', ({ env, expected, expectedLevel }) => {
   const info = vi.fn();
-  const logger = { info } as unknown as Logger;
+  const warn = vi.fn();
+  const logger = { info, warn } as unknown as Logger;
   reportRatingTokenCapability(env, logger);
-  expect(info).toHaveBeenCalledWith(expected, 'rating token capability');
-  expect(info).toHaveBeenCalledTimes(1);
+  const expectedMock = expectedLevel === 'info' ? info : warn;
+  const otherMock = expectedLevel === 'info' ? warn : info;
+  expect(expectedMock).toHaveBeenCalledWith(expected, 'rating token capability');
+  expect(expectedMock).toHaveBeenCalledTimes(1);
+  expect(otherMock).not.toHaveBeenCalled();
   expect(JSON.stringify(info.mock.calls)).not.toContain(K1);
+  expect(JSON.stringify(warn.mock.calls)).not.toContain(K1);
 });
