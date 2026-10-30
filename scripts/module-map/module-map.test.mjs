@@ -344,6 +344,84 @@ describe('the module-map gate — what it blocks', () => {
     it(label, () => assert.match(problems(files), expected));
   }
 
+  it('the rating token codec outside its declared worker root', () => {
+    const wiringMap = {
+      ...MAP,
+      compositionRoots: {
+        ...MAP.compositionRoots,
+        'rating-token': ['apps/worker/src/rating-token-capability.ts'],
+      },
+    };
+    const code =
+      "import { readRatingTokenConfiguration } from '@pospay/auth/rating-token';\nvoid readRatingTokenConfiguration;\n";
+    assert.match(
+      checkModules(repo({ 'apps/api/src/app.ts': code }), wiringMap).join('\n'),
+      /the rating token codec is wired only by the worker/,
+    );
+    assert.match(
+      checkModules(repo({ 'apps/api/scripts/tool.ts': code }), wiringMap).join('\n'),
+      /the rating token codec is wired only by the worker/,
+    );
+    assert.match(
+      checkModules(repo({ 'apps/api/scripts/tool.mjs': code }), wiringMap).join('\n'),
+      /the rating token codec is wired only by the worker/,
+    );
+    assert.match(
+      checkModules(
+        repo({
+          'apps/api/scripts/tool.ts':
+            'const name = "@pospay/auth/rating-token";\nawait import(name);\n',
+        }),
+        wiringMap,
+      ).join('\n'),
+      /dynamic import with a computed specifier/,
+    );
+    assert.equal(
+      checkModules(
+        repo({
+          'apps/worker/package.json': '{"name":"@pospay/worker","dependencies":{}}',
+          'apps/worker/src/rating-token-capability.ts': code,
+        }),
+        wiringMap,
+      ).join('\n'),
+      '',
+    );
+  });
+
+  it('resolves rating token paths and permits codec-internal siblings', () => {
+    const wiringMap = {
+      ...MAP,
+      compositionRoots: {
+        ...MAP.compositionRoots,
+        'rating-token': ['apps/worker/src/rating-token-capability.ts'],
+      },
+    };
+    assert.match(
+      checkModules(
+        repo({
+          'packages/auth/package.json': '{"name":"@pospay/auth","dependencies":{}}',
+          'packages/auth/src/rating-token/index.ts': 'export {};\n',
+          'apps/api/src/app.ts': "import '../../../packages/auth/src/rating-token/index.ts';\n",
+        }),
+        wiringMap,
+      ).join('\n'),
+      /the rating token codec is wired only by the worker/,
+    );
+    assert.equal(
+      checkModules(
+        repo({
+          'packages/auth/package.json': '{"name":"@pospay/auth","dependencies":{}}',
+          'packages/auth/src/rating-token/index.ts':
+            "import { createRatingTokenCodecs } from './codec.ts';\nvoid createRatingTokenCodecs;\n",
+          'packages/auth/src/rating-token/codec.ts':
+            'export const createRatingTokenCodecs = () => 1;\n',
+        }),
+        wiringMap,
+      ).join('\n'),
+      '',
+    );
+  });
+
   it('a cycle in the declared arrows', () => {
     const cyclic = { ...MAP, imports: { tenancy: ['identity'], identity: ['tenancy'] } };
     assert.match(checkModules(repo({}), cyclic).join('\n'), /module cycle/);

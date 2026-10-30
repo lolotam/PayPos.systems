@@ -1,7 +1,7 @@
 // The module-map gate (plan v4 T12b, docs/module-map.md §6). Imports are read with the TypeScript compiler — every
 // form (import, export … from, import(), require, side-effect imports, type-only, import types) — and resolved with
 // each project's own tsconfig, so an alias or a `.js` specifier is judged by the file it really reaches.
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
 import ts from 'typescript';
@@ -100,15 +100,20 @@ export function renderYaml(map) {
   ].join('\n');
 }
 
-const isTest = (path) => /[\\/]__tests__[\\/]/.test(path) || /\.(spec|test)\.ts$/.test(path);
+const isTest = (path) =>
+  /[\\/]__tests__[\\/]/.test(path) || /\.(spec|test)\.[cm]?[jt]s$/.test(path);
 
-function walk(dir) {
+function walk(dir, extensions = ['.ts']) {
   const files = [];
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) {
-      if (name !== 'node_modules' && name !== 'dist') files.push(...walk(path));
-    } else if (name.endsWith('.ts') && !name.endsWith('.d.ts') && !isTest(path)) {
+      if (name !== 'node_modules' && name !== 'dist') files.push(...walk(path, extensions));
+    } else if (
+      extensions.some((extension) => name.endsWith(extension)) &&
+      !name.endsWith('.d.ts') &&
+      !isTest(path)
+    ) {
       files.push(path);
     }
   }
@@ -368,6 +373,53 @@ function packageCycles(root) {
   return cyclesOf(graph, 'package');
 }
 
+const SCRIPT_EXTENSIONS = ['.ts', '.mts', '.cts', '.js', '.mjs', '.cjs'];
+
+function isRatingTokenCode(root, target) {
+  const rel = relative(root, target).split(sep).join('/');
+  return (
+    rel.startsWith('packages/auth/src/rating-token/') ||
+    rel.startsWith('packages/auth/dist/rating-token/')
+  );
+}
+
+function checkRatingTokenScriptDirectory(root, directory, options, problems) {
+  if (!existsSync(directory)) return;
+  for (const file of walk(directory, SCRIPT_EXTENSIONS)) {
+    const rel = relative(root, file).split(sep).join('/');
+    for (const dep of dependenciesOf(file)) {
+      if (dep.spec === null) continue;
+      const target = resolveTo(dep.spec, file, options);
+      if (
+        dep.spec === '@pospay/auth/rating-token' ||
+        (target !== null && isRatingTokenCode(root, target))
+      )
+        problems.push(
+          `${rel}: the rating token codec is wired only by the worker (PP-86.2, ADR-0057)`,
+        );
+    }
+  }
+}
+
+function checkComputedRatingTokenSpecifiers(root, directory, problems) {
+  if (!existsSync(directory)) return;
+  for (const file of walk(directory, SCRIPT_EXTENSIONS)) {
+    const rel = relative(root, file).split(sep).join('/');
+    for (const dep of dependenciesOf(file)) {
+      if (dep.spec === null)
+        problems.push(
+          `${rel}: ${dep.kind} import with a computed specifier — use a string literal`,
+        );
+    }
+  }
+}
+
+function checkRatingTokenScripts(root, project, options, problems) {
+  const scripts = join(project, 'scripts');
+  checkRatingTokenScriptDirectory(root, scripts, options, problems);
+  checkComputedRatingTokenSpecifiers(root, scripts, problems);
+}
+
 /**
  * Checks every source file of every app and package against the map. Returns the violations; empty passes.
  *
@@ -380,8 +432,10 @@ export function checkModules(root, map) {
   const moduleGraph = new Map();
   const fileGraph = new Map();
   const allowed = [...map.syncWrites, ...map.reads];
+  checkRatingTokenScriptDirectory(root, join(root, 'scripts'), compilerOptions(root), problems);
   for (const project of projects(root)) {
     const options = compilerOptions(project);
+    checkRatingTokenScripts(root, project, options, problems);
     let program;
     for (const file of walk(join(project, 'src'))) {
       const rel = relative(root, file).split(sep).join('/');
@@ -418,6 +472,16 @@ export function checkModules(root, map) {
         ) {
           problems.push(
             `${rel}: global messaging DB facade is wired only by declared API/worker roots (ADR-0013)`,
+          );
+        }
+        if (
+          (dep.spec === '@pospay/auth/rating-token' ||
+            (target !== null && isRatingTokenCode(root, target))) &&
+          !(map.compositionRoots['rating-token'] ?? []).includes(rel) &&
+          !rel.startsWith('packages/auth/src/rating-token/')
+        ) {
+          problems.push(
+            `${rel}: the rating token codec is wired only by the worker (PP-86.2, ADR-0057)`,
           );
         }
         const owners = pkg === undefined ? undefined : map.packagesRestricted[pkg];

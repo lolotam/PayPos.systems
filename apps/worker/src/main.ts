@@ -26,6 +26,7 @@ import {
   startOptionalCapabilities,
   type OptionalCapabilities,
 } from './start-optional-capabilities.ts';
+import { reportRatingTokenCapability } from './rating-token-capability.ts';
 import {
   createAttendanceStatementReader,
   createStaffDocumentDefaults,
@@ -191,6 +192,7 @@ const release = async (): Promise<void> => {
 };
 
 async function startWorkerCore(): Promise<void> {
+  reportRatingTokenCapability(process.env, logger);
   const started = await startOptionalCapabilities({
     env: process.env,
     logger,
