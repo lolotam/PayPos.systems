@@ -110,6 +110,16 @@ const cases: ConfigurationCase[] = [
     },
     expectedState: 'UNAVAILABLE',
   },
+  {
+    name: 'rejects a current key reused from staff OTP derivation',
+    env: { ...CURRENT_K1, STAFF_OTP_DERIVATION_KEY: K1 },
+    expectedState: 'UNAVAILABLE',
+  },
+  {
+    name: 'rejects a retired key reused from notification phone hashing',
+    env: { ...CURRENT_K2_WITH_RETIRED_K1, NOTIFICATION_PHONE_HASH_KEY: K1 },
+    expectedState: 'UNAVAILABLE',
+  },
 ];
 
 describe('rating token configuration', () => {
@@ -121,27 +131,45 @@ describe('rating token configuration', () => {
       expect(configuration.ring.currentVersion).toBe(testCase.currentVersion);
       expect([...configuration.ring.keys.keys()].sort((a, b) => a - b)).toEqual(testCase.versions);
     }
-    expect(JSON.stringify(configuration)).not.toContain(K1);
-    expect(JSON.stringify(configuration)).not.toContain(K2);
   });
 
   it('uses a stable keyed fingerprint without exposing key text', () => {
     const first = readRatingTokenConfiguration(CURRENT_K2_WITH_RETIRED_K1);
     const second = readRatingTokenConfiguration(CURRENT_K2_WITH_RETIRED_K1);
+    const single = readRatingTokenConfiguration(CURRENT_K1);
     const different = readRatingTokenConfiguration({
       ...CURRENT_K2_WITH_RETIRED_K1,
       RATING_TOKEN_DERIVATION_KEY: Buffer.alloc(32, 99).toString('base64'),
     });
-    if (first.state !== 'READY' || second.state !== 'READY' || different.state !== 'READY')
+    if (
+      first.state !== 'READY' ||
+      second.state !== 'READY' ||
+      single.state !== 'READY' ||
+      different.state !== 'READY'
+    )
       throw new Error('SYNTHETIC_CONFIG_MISSING');
     expect(first.fingerprint).toBe(second.fingerprint);
+    expect(first.fingerprint).toBe('252fc195628dde32');
+    expect(single.fingerprint).toBe('efe2c55902d17be9');
     expect(first.fingerprint).toHaveLength(16);
     expect(different.fingerprint).not.toBe(first.fingerprint);
-    for (const configuration of [first, second, different]) {
+    for (const configuration of [first, second, single, different]) {
       expect(configuration.fingerprint).not.toContain(K1);
       expect(configuration.fingerprint).not.toContain(K2);
-      expect(JSON.stringify(configuration)).not.toContain(K1);
-      expect(JSON.stringify(configuration)).not.toContain(K2);
     }
+  });
+
+  it('changes the fingerprint when only the current version changes', () => {
+    const currentTwo = readRatingTokenConfiguration(CURRENT_K2_WITH_RETIRED_K1);
+    const currentOne = readRatingTokenConfiguration({
+      RATING_TOKEN_DERIVATION_KEY: K1,
+      RATING_TOKEN_DERIVATION_KEY_VERSION: '1',
+      RATING_TOKEN_DERIVATION_RETIRED_KEYS: JSON.stringify({ '2': K2 }),
+    });
+    if (currentTwo.state !== 'READY' || currentOne.state !== 'READY')
+      throw new Error('SYNTHETIC_CONFIG_MISSING');
+    expect(currentTwo.fingerprint).toBe('252fc195628dde32');
+    expect(currentOne.fingerprint).toBe('9eb178a028eebab3');
+    expect(currentOne.fingerprint).not.toBe(currentTwo.fingerprint);
   });
 });

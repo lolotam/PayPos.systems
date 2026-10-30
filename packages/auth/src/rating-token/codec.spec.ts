@@ -118,5 +118,6 @@ describe('rating token identity validation and capability split', () => {
     const codecs = createRatingTokenCodecs(SINGLE_KEY_RING);
     expect(codecs.claim).not.toHaveProperty('token');
     expect(codecs.claim).not.toBe(codecs.sender);
+    expect(Object.keys(codecs.claim.claim(IDENTITY)).sort()).toEqual(['keyVersion', 'tokenHash']);
   });
 });

@@ -34,6 +34,7 @@ export function readRatingTokenConfiguration(env: NodeJS.ProcessEnv): RatingToke
       throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
     const keys = new Map<number, Uint8Array>();
     const keyIdentities = new Set<string>();
+    const ratingKeyTexts = [currentKeyText];
     const addKey = (version: number, text: string): void => {
       if (keys.has(version)) throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
       const key = decodeKey(text);
@@ -45,9 +46,12 @@ export function readRatingTokenConfiguration(env: NodeJS.ProcessEnv): RatingToke
     addKey(currentVersion, currentKeyText);
     for (const [version, key] of Object.entries(retired)) {
       if (typeof key !== 'string') throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
+      ratingKeyTexts.push(key);
       addKey(parseVersion(version), key);
     }
     const ring = { currentVersion, keys };
+    if (hasReusedRatingKey(env, ratingKeyTexts))
+      throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
     return { state: 'READY', ring, fingerprint: configurationFingerprint(ring) };
   } catch {
     return { state: 'UNAVAILABLE', reason: 'CONFIGURATION_INVALID' };
@@ -57,6 +61,20 @@ export function readRatingTokenConfiguration(env: NodeJS.ProcessEnv): RatingToke
 function hasDuplicatePropertyNames(raw: string, parsed: object): boolean {
   const propertyNames = raw.match(/"(?:[^"\\]|\\.)*"\s*:/g) ?? [];
   return propertyNames.length !== Object.keys(parsed).length;
+}
+
+function hasReusedRatingKey(env: NodeJS.ProcessEnv, ratingKeyTexts: readonly string[]): boolean {
+  const otherFeatureKeys = [
+    env['STAFF_OTP_DERIVATION_KEY'],
+    env['STAFF_OTP_VERIFICATION_KEY'],
+    env['NOTIFICATION_PHONE_HASH_KEY'],
+    env['NOTIFICATION_MESSAGE_ID_HASH_KEY'],
+  ];
+  return ratingKeyTexts.some((ratingKey) =>
+    otherFeatureKeys.some(
+      (otherKey) => otherKey !== undefined && otherKey !== '' && otherKey === ratingKey,
+    ),
+  );
 }
 
 function parseVersion(text: string): number {
@@ -75,14 +93,14 @@ function decodeKey(text: string): Buffer {
 }
 
 function configurationFingerprint(ring: RatingTokenKeyRing): string {
-  const payload = [...ring.keys.entries()]
+  const lines = [...ring.keys.entries()]
     .sort(([left], [right]) => left - right)
     .map(
       ([version, key]) =>
         `${version}:${createHmac('sha256', key)
           .update('pospay:rating-token:fingerprint:v1')
           .digest('hex')}`,
-    )
-    .join('\n');
+    );
+  const payload = [`current:${ring.currentVersion}`, ...lines].join('\n');
   return createHash('sha256').update(payload, 'utf8').digest('hex').slice(0, 16);
 }

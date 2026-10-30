@@ -420,6 +420,14 @@ export function checkModules(root, map) {
             `${rel}: global messaging DB facade is wired only by declared API/worker roots (ADR-0013)`,
           );
         }
+        if (
+          dep.spec === '@pospay/auth/rating-token' &&
+          !(map.compositionRoots['rating-token'] ?? []).includes(rel)
+        ) {
+          problems.push(
+            `${rel}: the rating token codec is wired only by the worker (PP-86.2, ADR-0057)`,
+          );
+        }
         const owners = pkg === undefined ? undefined : map.packagesRestricted[pkg];
         if (from.module !== null && owners !== undefined && !owners.includes(from.module)) {
           problems.push(`${rel}: @pospay/${pkg} may be imported only by ${owners.join(', ')}`);

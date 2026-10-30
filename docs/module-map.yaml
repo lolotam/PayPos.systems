@@ -33,6 +33,7 @@ composition_roots:
   documents: [apps/worker/src/main.ts]
   notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/api/scripts/staging-staff-user.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
   platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
+  rating-token: [apps/worker/src/rating-token-capability.ts]
   staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts, packages/auth/src/operator/staging-staff-identity.ts]
 sync_writes:
   - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
