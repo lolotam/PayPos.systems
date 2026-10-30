@@ -54,6 +54,53 @@ export const customerPaths = {
       },
     },
   },
+  // صفحة التقييم من غير جلسة: التوكن في الهيدر هو الاعتماد كله (D-B10، ADR-0011 §4).
+  '/v1/ratings/view': {
+    get: {
+      operationId: 'viewRating',
+      description:
+        'The business name in the customer language and the state of the link. No session is needed: the token in the header is the only credential, and an unknown, foreign or expired token is refused.',
+      parameters: [
+        {
+          in: 'header',
+          name: RATING_TOKEN_HEADER,
+          required: true,
+          schema: { type: 'string', minLength: 1, maxLength: 128 },
+        },
+      ],
+      responses: {
+        '200': { description: 'The rating page', content: json('RatingView') },
+        '404': { description: 'The link is not available', content: json('ErrorEnvelope') },
+        '429': { description: 'Too many requests from this address', content: json('ErrorEnvelope') },
+        '503': { description: 'The service is not ready', content: json('ErrorEnvelope') },
+        default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+      },
+    },
+  },
+  '/v1/ratings/submit': {
+    post: {
+      operationId: 'submitRating',
+      description:
+        'Stores the rating of the customer holding this link. No session is needed: the token in the header is the only credential. The link is consumed once, and an invalid body is refused before the token is looked up.',
+      parameters: [
+        {
+          in: 'header',
+          name: RATING_TOKEN_HEADER,
+          required: true,
+          schema: { type: 'string', minLength: 1, maxLength: 128 },
+        },
+      ],
+      requestBody: { required: true, content: json('SubmitRatingInput') },
+      responses: {
+        '204': { description: 'The rating was stored' },
+        '400': { description: 'The stars or the note are not valid', content: json('ErrorEnvelope') },
+        '404': { description: 'The link is not available', content: json('ErrorEnvelope') },
+        '429': { description: 'Too many requests from this address', content: json('ErrorEnvelope') },
+        '503': { description: 'The service is not ready', content: json('ErrorEnvelope') },
+        default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+      },
+    },
+  },
 };
 
 function scopedCustomerPath(parameter: string, scope: string) {
