@@ -24,6 +24,18 @@ it('CM-07 an ordinary version before the business today is 422 with no writes', 
   expect(await versionAndAuditCounts(f)).toEqual(before);
 });
 
+it('CM-07 an ordinary year-one date is 422 without locking any month', async () => {
+  const countStatements = () => f.h.owner`SELECT count(*)::int AS count
+    FROM commission_statements WHERE company_id=${f.company} AND business_id=${f.business}`;
+  const [beforeStatements] = await countStatements();
+  const beforeWrites = await versionAndAuditCounts(f);
+  const response = await f.post(commissionPlanInput('0001-01-01'), 'cm-07-ordinary-year-one');
+  expect([response.status, response.body['code']]).toEqual([422, 'COMMISSION_EFFECTIVE_FROM_PAST']);
+  const [afterStatements] = await countStatements();
+  expect(afterStatements?.['count']).toBe(beforeStatements?.['count']);
+  expect(await versionAndAuditCounts(f)).toEqual(beforeWrites);
+});
+
 it('CM-07 a whole_period version whose own month is REVIEWED is 409', async () => {
   await setCommissionStatement(f, '2026-09', 'REVIEWED');
   const before = await versionAndAuditCounts(f);
@@ -35,7 +47,7 @@ it('CM-07 a whole_period version whose own month is REVIEWED is 409', async () =
   expect(await versionAndAuditCounts(f)).toEqual(before);
 });
 
-it('CM-07 a whole_period month before tracked statements is 409 with no writes', async () => {
+it('CM-07 a whole_period month before the business is 422 with no writes', async () => {
   const count2001Statements = () => f.h.owner`SELECT count(*)::int AS count
     FROM commission_statements WHERE company_id=${f.company} AND business_id=${f.business}
       AND period LIKE '2001-%'`;
@@ -43,12 +55,29 @@ it('CM-07 a whole_period month before tracked statements is 409 with no writes',
   const beforeWrites = await versionAndAuditCounts(f);
   const response = await f.post(
     { ...commissionPlanInput('2001-01-01'), whole_period: true },
-    'cm-07-untracked-month',
+    'cm-07-before-business',
   );
-  expect([response.status, response.body['code']]).toEqual([409, 'COMMISSION_PERIOD_NOT_DRAFT']);
+  expect([response.status, response.body['code']]).toEqual([
+    422,
+    'COMMISSION_PERIOD_BEFORE_BUSINESS',
+  ]);
   const [afterStatements] = await count2001Statements();
   expect(afterStatements?.['count']).toBe(beforeStatements?.['count']);
   expect(await versionAndAuditCounts(f)).toEqual(beforeWrites);
+});
+
+it('CM-07b a whole_period previous month without earlier statements is created', async () => {
+  f.setNow(new Date('2026-11-02T12:00:00.000Z'));
+  await f.h.owner`UPDATE businesses SET created_at='2026-09-30T00:00:00.000Z'
+    WHERE company_id=${f.company} AND id=${f.business}`;
+  const response = await f.post(
+    { ...commissionPlanInput('2026-10-01'), whole_period: true },
+    'cm-07b-previous-month',
+  );
+  expect(response.status).toBe(201);
+  const statements = await f.h.owner`SELECT period,status FROM commission_statements
+    WHERE company_id=${f.company} AND business_id=${f.business} AND period='2026-10'`;
+  expect(statements).toEqual([expect.objectContaining({ period: '2026-10', status: 'DRAFT' })]);
 });
 
 it.each(['APPROVED', 'PAID'] as const)(

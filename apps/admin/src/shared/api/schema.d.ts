@@ -7907,7 +7907,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_PLAN_INVALID with details.code, or COMMISSION_EFFECTIVE_FROM_PAST when effective_from is before today. */
+            /** @description COMMISSION_PLAN_INVALID with details.code, COMMISSION_EFFECTIVE_FROM_PAST when effective_from is before today, or COMMISSION_PERIOD_BEFORE_BUSINESS when a whole_period month precedes the business. */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -28,6 +28,7 @@ interface WireTiers {
   readonly steps?: readonly WireStep[] | undefined;
 }
 
+/** شكل الخطة كما يصل من العقد قبل ترجمته إلى الصيغة التي يفهمها المحرك، وهو حد الفصل بين ما يُحفظ وما يُحسب. */
 export interface CommissionPlanWire {
   readonly base: WireComponent;
   readonly tiers: WireTiers;

@@ -7,8 +7,8 @@ import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts'
 import { toEngineCommissionPlan } from '../../domain/plan-codec.ts';
 import { CommissionPlanVersionError } from '../../domain/errors.ts';
 import {
+  assertCommissionPlanDateBeforeLocks,
   assertCommissionPlanEffectiveFrom,
-  assertWholePeriodMonthTracked,
   commissionPlanMonthsStillToLock,
   commissionPlanMonthsToLock,
   nextCommissionPlanVersion,
@@ -40,15 +40,15 @@ export class CreateCommissionPlanVersionUseCase {
 async function lockThroughDecision(
   scope: CommissionPlanVersionScope,
   command: CreateCommissionPlanVersionCommand,
-  timeZone: string,
+  calendar: { readonly timeZone: string; readonly createdAt: Date },
   clock: Clock,
 ): Promise<{ locked: CommissionPlanStatementPeriod[]; decidedAt: Date }> {
-  const today = localDate(clock.now(), timeZone);
-  assertWholePeriodMonthTracked({
+  const today = localDate(clock.now(), calendar.timeZone);
+  assertCommissionPlanDateBeforeLocks({
     effectiveFrom: command.input.effective_from,
     wholePeriod: command.input.whole_period,
     today,
-    firstStatementPeriod: await scope.firstStatementPeriod(),
+    businessStartMonth: localDate(calendar.createdAt, calendar.timeZone).slice(0, 7),
   });
   const locked = await scope.lockPeriods(
     commissionPlanMonthsToLock(command.input.effective_from, today),
@@ -57,7 +57,7 @@ async function lockThroughDecision(
   while (true) {
     const missing = commissionPlanMonthsStillToLock(
       command.input.effective_from,
-      localDate(decidedAt, timeZone),
+      localDate(decidedAt, calendar.timeZone),
       locked.map(({ period }) => period),
     );
     if (missing.length === 0) return { locked, decidedAt };
@@ -80,13 +80,13 @@ export async function writeCommissionPlanVersion(
   if (!(await scope.lockEmployee())) {
     throw new CommissionPlanVersionError('EMPLOYEE_NOT_FOUND');
   }
-  const timeZone = await scope.timeZone();
-  if (timeZone === null) throw new Error('The employee business has no timezone');
-  const { locked, decidedAt } = await lockThroughDecision(scope, command, timeZone, clock);
+  const calendar = await scope.calendar();
+  if (calendar === null) throw new Error('The employee business has no timezone');
+  const { locked, decidedAt } = await lockThroughDecision(scope, command, calendar, clock);
   const reopen = assertCommissionPlanEffectiveFrom({
     effectiveFrom: command.input.effective_from,
     wholePeriod: command.input.whole_period,
-    today: localDate(decidedAt, timeZone),
+    today: localDate(decidedAt, calendar.timeZone),
     locked,
   });
   await scope.reopenReviewed(reopen);

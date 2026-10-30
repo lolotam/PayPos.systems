@@ -1,14 +1,10 @@
 import { employeeNameMatchKey } from '@pospay/domain';
-import {
-  createDatabase,
-  lockStatementPeriods,
-  type StatementStatus,
-} from '@pospay/db';
+import { createDatabase, lockStatementPeriods, type StatementStatus } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import type { CreateCommissionPlanVersionInput } from '@pospay/contracts';
 
 import {
-  businessTimeZone,
+  businessCalendar,
   lockEmployeeForUpdate,
   readCommissionPlanAccess,
   startHarness,
@@ -41,10 +37,9 @@ export function commissionPlanInput(
   };
 }
 
-export async function commissionPlanVersionsFixture() {
-  const h = await startHarness({ commissionsClock: { now: () => COMMISSION_NOW } });
-  const cookie = await h.signedInOperator('commission-plan-owner@example.test');
-  const company = await h.onboard(cookie, 'Commission plan employer');
+type CommissionHarness = Awaited<ReturnType<typeof startHarness>>;
+
+async function seedCommissionBusiness(h: CommissionHarness, cookie: string, company: string) {
   const businessResponse = await h.send('POST', '/v1/businesses', {
     cookie,
     company,
@@ -52,14 +47,25 @@ export async function commissionPlanVersionsFixture() {
     body: { vertical_type: 'salon', name_en: 'Commission salon', timezone: 'Asia/Kuwait' },
   });
   const business = businessResponse.body['id'] as string;
+  await h.owner`UPDATE businesses SET created_at='2026-01-01T00:00:00.000Z'
+    WHERE company_id=${company} AND id=${business}`;
   const branchResponse = await h.send('POST', `/v1/businesses/${business}/branches`, {
     cookie,
     company,
     key: 'commission-plan-branch',
     body: { name_en: 'Commission branch' },
   });
-  const branch = branchResponse.body['id'] as string;
-  const [owner] = await h.owner`SELECT id FROM "user" WHERE email='commission-plan-owner@example.test'`;
+  return { business, branch: branchResponse.body['id'] as string };
+}
+
+export async function commissionPlanVersionsFixture() {
+  let now = COMMISSION_NOW;
+  const h = await startHarness({ commissionsClock: { now: () => now } });
+  const cookie = await h.signedInOperator('commission-plan-owner@example.test');
+  const company = await h.onboard(cookie, 'Commission plan employer');
+  const { business, branch } = await seedCommissionBusiness(h, cookie, company);
+  const [owner] =
+    await h.owner`SELECT id FROM "user" WHERE email='commission-plan-owner@example.test'`;
   const userId = owner?.['id'] as string;
   const employee = ids.newId();
   await h.owner`INSERT INTO employees(
@@ -67,7 +73,7 @@ export async function commissionPlanVersionsFixture() {
     VALUES (${company},${employee},${business},${branch},${userId},'Sarah',${employeeNameMatchKey('Sarah')},'staff','2026-01-01',1)`;
   const db = createDatabase({ url: h.urls.app, ids });
   const readers = {
-    businessTimeZone,
+    businessCalendar,
     employeeLock: lockEmployeeForUpdate,
     access: readCommissionPlanAccess,
   };
@@ -80,6 +86,9 @@ export async function commissionPlanVersionsFixture() {
     branch,
     employee,
     userId,
+    setNow: (value: Date) => {
+      now = value;
+    },
     readers,
     tenant: { company, business, branch, employee, membership: '' },
     post: (body: object, key: string, employeeId = employee, actor = cookie) =>
@@ -151,7 +160,8 @@ export async function memberWithoutPlanPermission(
   const membershipId = ids.newId();
   await f.h.owner`INSERT INTO roles(id,company_id,code,name_en)
     VALUES (${role},${f.company},'commission_plan_reader','Commission plan reader')`;
-  await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+  await f.h
+    .owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
     VALUES (${f.company},${membershipId},${userId},${role},${f.company},'BUSINESS',${f.business})`;
   return { cookie, userId, membershipId };
 }

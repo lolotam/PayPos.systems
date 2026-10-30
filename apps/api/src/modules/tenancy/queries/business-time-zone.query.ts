@@ -16,3 +16,16 @@ export async function businessTimeZone(
   );
   return row?.timezone ?? null;
 }
+
+// إنشاء إصدار خطة العمولة يقرأ توقيت النشاط وتاريخ إنشائه معاً قبل قفل شهوره.
+export async function businessCalendar(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+): Promise<{ readonly timeZone: string; readonly createdAt: Date } | null> {
+  const [row] = await tx.execute<{ timezone: string; created_at: string }>(
+    sql`SELECT timezone,created_at FROM businesses WHERE company_id=${companyId} AND id=${businessId}`,
+  );
+  if (row === undefined) return null;
+  return { timeZone: row.timezone, createdAt: new Date(row.created_at) };
+}

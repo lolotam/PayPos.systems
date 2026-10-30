@@ -1,9 +1,11 @@
+/** أسباب رفض إصدار الخطة على مستوى القاعدة، ويمسكها الـ domain بدل رموز HTTP حتى تبقى الترجمة في طبقة HTTP. */
 export type CommissionPlanVersionErrorCode =
   | 'FORBIDDEN'
   | 'FEATURE_DISABLED'
   | 'EMPLOYEE_NOT_FOUND'
   | 'COMMISSION_PLAN_INVALID'
   | 'COMMISSION_EFFECTIVE_FROM_PAST'
+  | 'COMMISSION_PERIOD_BEFORE_BUSINESS'
   | 'COMMISSION_PERIOD_NOT_DRAFT'
   | 'COMMISSION_PERIOD_CLOSED';
 

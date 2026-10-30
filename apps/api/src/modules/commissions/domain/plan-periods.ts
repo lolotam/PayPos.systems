@@ -1,7 +1,9 @@
 import { CommissionPlanVersionError } from './errors.ts';
 
+/** حالة كشف العمولة الشهري، وتحدّد هل ما زال الشهر قابلاً للتعديل أم صار مغلقاً مالياً. */
 export type CommissionStatementStatus = 'DRAFT' | 'REVIEWED' | 'APPROVED' | 'PAID';
 
+/** يربط شهر النشاط بكشفه وحالته، لأن قرار الإصدار يُتخذ على أساس كل شهر على حدة. */
 export interface CommissionPlanStatementPeriod {
   readonly period: string;
   readonly statementId: string;
@@ -62,28 +64,40 @@ export function commissionPlanMonthsStillToLock(
   );
 }
 
-/**
- * يتأكد أن شهر whole_period الماضي يقع ضمن الشهور التي بدأ النشاط تتبعها.
- * الفحص يسبق قفل الشهور حتى لا تُنشئ الكتابة كشوف DRAFT دائمة لشهور سابقة لأول كشف.
- *
- * @param input تاريخ السريان ونوع الإصدار وتاريخ النشاط وأول شهر كشف موجود
- * @param input.effectiveFrom تاريخ سريان الإصدار بصيغة YYYY-MM-DD
- * @param input.wholePeriod هل يغطي الإصدار شهر سريانه بالكامل
- * @param input.today تاريخ اليوم في منطقة النشاط بصيغة YYYY-MM-DD
- * @param input.firstStatementPeriod أول شهر كشف بصيغة YYYY-MM أو null عند غياب الكشوف
- * @returns لا شيء؛ يرمي COMMISSION_PERIOD_NOT_DRAFT إذا لم يكن الشهر الماضي متتبعاً
- */
-export function assertWholePeriodMonthTracked(input: {
+function assertOrdinaryEffectiveFromNotPast(input: {
   readonly effectiveFrom: string;
   readonly wholePeriod: boolean;
   readonly today: string;
-  readonly firstStatementPeriod: string | null;
 }): void {
-  if (!input.wholePeriod) return;
-  const ownMonth = input.effectiveFrom.slice(0, 7);
-  if (ownMonth >= input.today.slice(0, 7)) return;
-  if (input.firstStatementPeriod === null || ownMonth < input.firstStatementPeriod) {
-    throw new CommissionPlanVersionError('COMMISSION_PERIOD_NOT_DRAFT');
+  if (!input.wholePeriod && input.effectiveFrom < input.today) {
+    throw new CommissionPlanVersionError('COMMISSION_EFFECTIVE_FROM_PAST');
+  }
+}
+
+/**
+ * يرفض التاريخ العادي الماضي، ويرفض شهر whole_period الأقدم من شهر إنشاء النشاط
+ * لأن ما قبل وجود النشاط لا يحتوي مبيعات يمكن للإصدار تصحيحها.
+ * يعمل الفحص قبل lockPeriods لأن القفل ينشئ كشف DRAFT لكل شهر في النطاق؛ والتاريخ العادي
+ * الماضي يظل ماضياً بعد الانتظار لأن الوقت يتحرك للأمام فقط.
+ * قاعدة بداية النشاط لا تحتاج إعادة فحص بعد انتظار الأقفال لأن تاريخ إنشاء النشاط ثابت،
+ * والمقارنة لا تعتمد على اليوم أو على شهر قد يتغير أثناء الانتظار.
+ *
+ * @param input تاريخ السريان ونوع الإصدار وتاريخ النشاط وشهر إنشائه
+ * @param input.effectiveFrom تاريخ سريان الإصدار بصيغة YYYY-MM-DD
+ * @param input.wholePeriod هل يغطي الإصدار شهر سريانه بالكامل
+ * @param input.today تاريخ اليوم في منطقة النشاط بصيغة YYYY-MM-DD
+ * @param input.businessStartMonth شهر إنشاء النشاط في منطقته الزمنية بصيغة YYYY-MM
+ * @returns لا شيء؛ يرمي COMMISSION_EFFECTIVE_FROM_PAST أو COMMISSION_PERIOD_BEFORE_BUSINESS عند الرفض
+ */
+export function assertCommissionPlanDateBeforeLocks(input: {
+  readonly effectiveFrom: string;
+  readonly wholePeriod: boolean;
+  readonly today: string;
+  readonly businessStartMonth: string;
+}): void {
+  assertOrdinaryEffectiveFromNotPast(input);
+  if (input.wholePeriod && input.effectiveFrom.slice(0, 7) < input.businessStartMonth) {
+    throw new CommissionPlanVersionError('COMMISSION_PERIOD_BEFORE_BUSINESS');
   }
 }
 
@@ -105,9 +119,7 @@ export function assertCommissionPlanEffectiveFrom(input: {
   readonly today: string;
   readonly locked: readonly CommissionPlanStatementPeriod[];
 }): string[] {
-  if (!input.wholePeriod && input.effectiveFrom < input.today) {
-    throw new CommissionPlanVersionError('COMMISSION_EFFECTIVE_FROM_PAST');
-  }
+  assertOrdinaryEffectiveFromNotPast(input);
   const ownMonth = input.effectiveFrom.slice(0, 7);
   const own = input.locked.find(({ period }) => period === ownMonth);
   if (own?.status === 'APPROVED' || own?.status === 'PAID') {

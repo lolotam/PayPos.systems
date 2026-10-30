@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertCommissionPlanDateBeforeLocks,
   assertCommissionPlanEffectiveFrom,
-  assertWholePeriodMonthTracked,
   commissionPlanMonthsStillToLock,
   commissionPlanMonthsToLock,
   nextCommissionPlanVersion,
@@ -123,60 +123,60 @@ describe('assertCommissionPlanEffectiveFrom later months', () => {
   });
 });
 
-describe('assertWholePeriodMonthTracked', () => {
-  it('refuses a past whole_period month before the first tracked statement', () => {
+describe('assertCommissionPlanDateBeforeLocks', () => {
+  it('refuses an ordinary year-one date before any month is locked', () => {
     expect(() =>
-      assertWholePeriodMonthTracked({
-        effectiveFrom: '2026-08-01',
-        wholePeriod: true,
-        today: '2026-10-30',
-        firstStatementPeriod: '2026-09',
+      assertCommissionPlanDateBeforeLocks({
+        effectiveFrom: '0001-01-01',
+        wholePeriod: false,
+        today: '2026-11-02',
+        businessStartMonth: '2026-10',
       }),
-    ).toThrowError(expect.objectContaining({ code: 'COMMISSION_PERIOD_NOT_DRAFT' }));
+    ).toThrowError(expect.objectContaining({ code: 'COMMISSION_EFFECTIVE_FROM_PAST' }));
   });
 
-  it('refuses a past whole_period month when the business has no statements', () => {
+  it('accepts an ordinary version dated today', () => {
     expect(() =>
-      assertWholePeriodMonthTracked({
-        effectiveFrom: '2026-09-01',
-        wholePeriod: true,
-        today: '2026-10-30',
-        firstStatementPeriod: null,
-      }),
-    ).toThrowError(expect.objectContaining({ code: 'COMMISSION_PERIOD_NOT_DRAFT' }));
-  });
-
-  it('accepts the first tracked month for a past whole_period version', () => {
-    expect(() =>
-      assertWholePeriodMonthTracked({
-        effectiveFrom: '2026-09-01',
-        wholePeriod: true,
-        today: '2026-10-30',
-        firstStatementPeriod: '2026-09',
+      assertCommissionPlanDateBeforeLocks({
+        effectiveFrom: '2026-11-02',
+        wholePeriod: false,
+        today: '2026-11-02',
+        businessStartMonth: '2026-10',
       }),
     ).not.toThrow();
   });
 
-  it('accepts a current whole_period month when no statement exists yet', () => {
+  it('CM-07b accepts the business start month without an existing statement', () => {
     expect(() =>
-      assertWholePeriodMonthTracked({
+      assertCommissionPlanDateBeforeLocks({
         effectiveFrom: '2026-10-01',
         wholePeriod: true,
-        today: '2026-10-30',
-        firstStatementPeriod: null,
+        today: '2026-11-02',
+        businessStartMonth: '2026-10',
       }),
     ).not.toThrow();
   });
 
-  it('does not refuse an ordinary version before the first tracked month', () => {
+  it('refuses a whole_period month before the business start month', () => {
     expect(() =>
-      assertWholePeriodMonthTracked({
-        effectiveFrom: '2001-01-01',
-        wholePeriod: false,
-        today: '2026-10-30',
-        firstStatementPeriod: null,
+      assertCommissionPlanDateBeforeLocks({
+        effectiveFrom: '2026-09-01',
+        wholePeriod: true,
+        today: '2026-11-02',
+        businessStartMonth: '2026-10',
       }),
-    ).not.toThrow();
+    ).toThrowError(expect.objectContaining({ code: 'COMMISSION_PERIOD_BEFORE_BUSINESS' }));
+  });
+
+  it('refuses a whole_period date from 2001 before the business existed', () => {
+    expect(() =>
+      assertCommissionPlanDateBeforeLocks({
+        effectiveFrom: '2001-01-01',
+        wholePeriod: true,
+        today: '2026-11-02',
+        businessStartMonth: '2026-10',
+      }),
+    ).toThrowError(expect.objectContaining({ code: 'COMMISSION_PERIOD_BEFORE_BUSINESS' }));
   });
 });
 

@@ -36,7 +36,7 @@ import {
 import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
 import { notificationsControllers, notificationsProviders } from './modules/notifications/index.ts';
 import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notifications/index.ts';
-import { businessTimeZone, tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
+import { businessCalendar, tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
 import { customersControllers, customersProviders } from './modules/customers/index.ts';
 import { catalogControllers, catalogProviders } from './modules/catalog/index.ts';
 import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
@@ -154,7 +154,7 @@ class AppModule {
           deps.database,
           deps.ids ?? systemUuidV7(),
           {
-            businessTimeZone,
+            businessCalendar,
             employeeLock: lockEmployeeForUpdate,
             access: readCommissionPlanAccess,
           },

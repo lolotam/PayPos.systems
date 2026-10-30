@@ -1,7 +1,7 @@
 import { lockStatementPeriods, type IdGenerator, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-import type { BusinessTimeZonePort } from '../ports/business-time-zone.port.ts';
+import type { BusinessCalendarPort } from '../ports/business-calendar.port.ts';
 import type { CommissionPlanAccessPort } from '../ports/commission-plan-access.port.ts';
 import type {
   CommissionPlanVersionActor,
@@ -11,7 +11,7 @@ import type { EmployeeRowLockPort } from '../ports/employee-row-lock.port.ts';
 import { auditPlanVersion, insertPlanVersion } from './commission-plan-version-writer.ts';
 
 export interface CommissionPlanVersionReaders {
-  readonly businessTimeZone: BusinessTimeZonePort['read'];
+  readonly businessCalendar: BusinessCalendarPort['read'];
   readonly employeeLock: EmployeeRowLockPort['lock'];
   readonly access: CommissionPlanAccessPort['recheck'];
 }
@@ -41,13 +41,7 @@ export function createCommissionPlanVersionScope(
   return {
     lockEmployee: () =>
       readers.employeeLock(tx, actor.companyId, actor.businessId, actor.employeeId),
-    timeZone: () => readers.businessTimeZone(tx, actor.companyId, actor.businessId),
-    firstStatementPeriod: async () => {
-      const [row] = await tx.execute<{ period: string | null }>(sql`
-        SELECT min(period) AS period FROM commission_statements
-        WHERE company_id=${actor.companyId} AND business_id=${actor.businessId}`);
-      return row?.period ?? null;
-    },
+    calendar: () => readers.businessCalendar(tx, actor.companyId, actor.businessId),
     lockPeriods: (periods) =>
       lockStatementPeriods(tx, { businessId: actor.businessId, periods, ids }),
     reopenReviewed: (periods) => reopenReviewed(tx, actor, periods),

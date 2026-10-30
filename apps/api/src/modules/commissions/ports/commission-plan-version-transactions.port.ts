@@ -2,6 +2,7 @@ import type { CommissionPlanVersion, CreateCommissionPlanVersionInput } from '@p
 
 import type { CommissionPlanStatementPeriod } from '../domain/plan-periods.ts';
 
+/** هوية من يُنشئ الإصدار: المستأجر والنشاط والموظفة المستهدفة، لأن الإصدار يخص موظفة داخل نشاط ويقيَّد بصلاحية المستخدم. */
 export interface CommissionPlanVersionActor {
   readonly companyId: string;
   readonly userId: string;
@@ -9,6 +10,7 @@ export interface CommissionPlanVersionActor {
   readonly employeeId: string;
 }
 
+/** طلب إنشاء إصدار خطة بهوية الفاعل والمفتاح والبصمة، لأن إعادة الإرسال يجب أن تُميَّز بين الطلب نفسه وطلب مختلف يحمل المفتاح نفسه. */
 export interface CreateCommissionPlanVersionCommand extends CommissionPlanVersionActor {
   readonly input: CreateCommissionPlanVersionInput;
   readonly key: string;
@@ -23,18 +25,8 @@ export interface CommissionPlanVersionScope {
    * @returns true عند وجود الموظفة النشطة في النشاط
    */
   lockEmployee(): Promise<boolean>;
-  /**
-   * بيقرأ توقيت النشاط على المعاملة نفسها.
-   *
-   * @returns اسم IANA أو null عند غياب النشاط
-   */
-  timeZone(): Promise<string | null>;
-  /**
-   * بيرجّع أول شهر كشف للنشاط بصيغة YYYY-MM أو null بلا كشوف، لرفض whole_period لشهر غير متتبع.
-   *
-   * @returns أول شهر كشف موجود، أو null عندما لا يملك النشاط أي كشف
-   */
-  firstStatementPeriod(): Promise<string | null>;
+  /** بيرجّع توقيت النشاط وتاريخ إنشائه لتحديد اليوم المحلي وأول شهر يسمح به الإصدار. */
+  calendar(): Promise<{ readonly timeZone: string; readonly createdAt: Date } | null>;
   /**
    * بيقفل كل الشهور المتأثرة في نداء واحد تصاعدي.
    *
