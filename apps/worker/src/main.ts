@@ -192,6 +192,7 @@ const release = async (): Promise<void> => {
 };
 
 async function startWorkerCore(): Promise<void> {
+  reportRatingTokenCapability(process.env, logger);
   const started = await startOptionalCapabilities({
     env: process.env,
     logger,
@@ -202,7 +203,6 @@ async function startWorkerCore(): Promise<void> {
     redis,
     stopping: () => stopping,
   });
-  reportRatingTokenCapability(process.env, logger);
   maintenance = started.maintenance;
   queue = started.queue;
   globalDatabase = started.database;
