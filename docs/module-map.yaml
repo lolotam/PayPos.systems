@@ -29,7 +29,7 @@ packages_restricted:
   payments: [payments]
   storage: [files]
 composition_roots:
-  auth: [apps/api/src/app.ts, apps/api/src/main.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
+  auth: [apps/api/src/app.ts, apps/api/src/main.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts, apps/worker/src/rating-token-capability.ts]
   documents: [apps/worker/src/main.ts]
   notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/api/scripts/staging-staff-user.ts, apps/worker/src/worker.ts, apps/worker/src/start-optional-capabilities.ts]
   platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/start-optional-capabilities.ts]
