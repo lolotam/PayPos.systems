@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 
 import {
   commissionEffectiveFromPastError,
+  commissionPeriodBeforeBusinessError,
   commissionPlanVersion,
   commissionPlanVersionListQuery,
   createCommissionPlanVersionInput,
@@ -126,6 +127,25 @@ it('refuses another code in the past effective date envelope', () => {
       code: 'COMMISSION_PLAN_INVALID',
       message_ar: 'الخطة غير صالحة.',
       message_en: 'The plan is invalid.',
+    }).success,
+  ).toBe(false);
+});
+
+it('publishes the before-business refusal with its own code', () => {
+  const refusal = {
+    code: 'COMMISSION_PERIOD_BEFORE_BUSINESS',
+    message_ar: 'الشهر ده قبل ما النشاط يبدأ على PosPay، اختار شهر بعد بداية النشاط.',
+    message_en: 'This month is before the business started on PosPay; choose a later month.',
+  };
+  expect(commissionPeriodBeforeBusinessError.parse(refusal)).toEqual(refusal);
+});
+
+it('refuses another code in the before-business envelope', () => {
+  expect(
+    commissionPeriodBeforeBusinessError.safeParse({
+      code: 'COMMISSION_EFFECTIVE_FROM_PAST',
+      message_ar: 'تاريخ البداية لازم يكون النهارده أو بعده.',
+      message_en: 'The start date must be today or later.',
     }).success,
   ).toBe(false);
 });

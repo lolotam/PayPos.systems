@@ -2792,6 +2792,12 @@ export interface components {
             message_ar: string;
             message_en: string;
         };
+        CommissionPeriodBeforeBusinessError: {
+            /** @enum {string} */
+            code: "COMMISSION_PERIOD_BEFORE_BUSINESS";
+            message_ar: string;
+            message_en: string;
+        };
         /** @enum {string} */
         EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";
         CreateDocumentTypeInput: {
@@ -7913,7 +7919,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CommissionPlanInvalidError"] | components["schemas"]["CommissionEffectiveFromPastError"];
+                    "application/json": components["schemas"]["CommissionPlanInvalidError"] | components["schemas"]["CommissionEffectiveFromPastError"] | components["schemas"]["CommissionPeriodBeforeBusinessError"];
                 };
             };
             /** @description Bilingual refusal */

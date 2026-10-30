@@ -141,6 +141,18 @@ export const commissionEffectiveFromPastError = z
   })
   .meta({ id: 'CommissionEffectiveFromPastError' });
 
+/**
+ * رفض شهر whole_period قبل الشهر اللي النشاط بدأ فيه على PosPay: نفس غلاف الخطأ التاني، من غير
+ * details لأن الكود ده ما عندوش تفاصيل غير الشهر المطلوب نفسه.
+ */
+export const commissionPeriodBeforeBusinessError = z
+  .strictObject({
+    code: z.literal('COMMISSION_PERIOD_BEFORE_BUSINESS'),
+    message_ar: z.string().min(1),
+    message_en: z.string().min(1),
+  })
+  .meta({ id: 'CommissionPeriodBeforeBusinessError' });
+
 export const commissionPlanVersionSchemas = [
   commissionPlanCalc,
   commissionPlanComponent,
@@ -155,6 +167,7 @@ export const commissionPlanVersionSchemas = [
   commissionPlanVersionListQuery,
   commissionPlanInvalidError,
   commissionEffectiveFromPastError,
+  commissionPeriodBeforeBusinessError,
 ];
 
 export type CommissionPlanCalc = z.infer<typeof commissionPlanCalc>;
@@ -167,3 +180,6 @@ export type CommissionPlanVersion = z.infer<typeof commissionPlanVersion>;
 export type CommissionPlanVersionList = z.infer<typeof commissionPlanVersionList>;
 export type CommissionPlanVersionListQuery = z.infer<typeof commissionPlanVersionListQuery>;
 export type CommissionEffectiveFromPastError = z.infer<typeof commissionEffectiveFromPastError>;
+export type CommissionPeriodBeforeBusinessError = z.infer<
+  typeof commissionPeriodBeforeBusinessError
+>;

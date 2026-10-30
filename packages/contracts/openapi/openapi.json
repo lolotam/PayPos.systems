@@ -1285,6 +1285,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/CommissionEffectiveFromPastError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommissionPeriodBeforeBusinessError"
                     }
                   ]
                 }
@@ -16504,6 +16507,31 @@
             "type": "string",
             "enum": [
               "COMMISSION_EFFECTIVE_FROM_PAST"
+            ]
+          },
+          "message_ar": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message_en": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "code",
+          "message_ar",
+          "message_en"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionPeriodBeforeBusinessError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "COMMISSION_PERIOD_BEFORE_BUSINESS"
             ]
           },
           "message_ar": {

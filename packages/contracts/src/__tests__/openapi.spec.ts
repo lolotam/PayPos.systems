@@ -257,6 +257,7 @@ const commissionPlanSchemaNames = [
   'CommissionPlanVersionListQuery',
   'CommissionPlanInvalidError',
   'CommissionEffectiveFromPastError',
+  'CommissionPeriodBeforeBusinessError',
 ];
 
 describe('openapi/openapi.json', () => {
