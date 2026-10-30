@@ -16,9 +16,7 @@ export type RatingTokenConfiguration =
  * @param env متغيرات بيئة الـ worker التي تحمل المفاتيح وإصداراتها
  * @returns حالة القدرة، وحلقة مفاتيح مملوكة للقارئ وبصمتها عند الجاهزية
  */
-export function readRatingTokenConfiguration(
-  env: NodeJS.ProcessEnv,
-): RatingTokenConfiguration {
+export function readRatingTokenConfiguration(env: NodeJS.ProcessEnv): RatingTokenConfiguration {
   const currentKeyText = env['RATING_TOKEN_DERIVATION_KEY'] ?? '';
   const currentVersionText = env['RATING_TOKEN_DERIVATION_KEY_VERSION'] ?? '';
   const retiredText = env['RATING_TOKEN_DERIVATION_RETIRED_KEYS'] ?? '';
@@ -27,7 +25,12 @@ export function readRatingTokenConfiguration(
   try {
     const currentVersion = parseVersion(currentVersionText);
     const retired: unknown = JSON.parse(retiredText || '{}');
-    if (retired === null || typeof retired !== 'object' || Array.isArray(retired))
+    if (
+      retired === null ||
+      typeof retired !== 'object' ||
+      Array.isArray(retired) ||
+      hasDuplicatePropertyNames(retiredText, retired)
+    )
       throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
     const keys = new Map<number, Uint8Array>();
     const keyIdentities = new Set<string>();
@@ -51,6 +54,11 @@ export function readRatingTokenConfiguration(
   }
 }
 
+function hasDuplicatePropertyNames(raw: string, parsed: object): boolean {
+  const propertyNames = raw.match(/"(?:[^"\\]|\\.)*"\s*:/g) ?? [];
+  return propertyNames.length !== Object.keys(parsed).length;
+}
+
 function parseVersion(text: string): number {
   if (!/^[1-9]\d{0,4}$/.test(text)) throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
   const version = Number(text);
@@ -59,8 +67,7 @@ function parseVersion(text: string): number {
 }
 
 function decodeKey(text: string): Buffer {
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(text))
-    throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(text)) throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
   const decoded = Buffer.from(text, 'base64');
   if (decoded.length < 32 || decoded.toString('base64') !== text)
     throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');

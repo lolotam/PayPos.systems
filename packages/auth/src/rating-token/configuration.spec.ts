@@ -102,6 +102,14 @@ const cases: ConfigurationCase[] = [
     },
     expectedState: 'UNAVAILABLE',
   },
+  {
+    name: 'rejects a duplicated retired version',
+    env: {
+      ...CURRENT_K1,
+      RATING_TOKEN_DERIVATION_RETIRED_KEYS: `{"2":"${K2}","2":"${Buffer.alloc(32, 7).toString('base64')}"}`,
+    },
+    expectedState: 'UNAVAILABLE',
+  },
 ];
 
 describe('rating token configuration', () => {

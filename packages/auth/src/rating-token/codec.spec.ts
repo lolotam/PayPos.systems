@@ -6,11 +6,9 @@ import { RatingTokenIdentityError, type RatingTokenIdentity } from './identity.t
 
 const K1 = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
 const K2 = '//79/Pv6+fj39vX08/Lx8O/u7ezr6uno5+bl5OPi4eA=';
-const V1_TOKEN =
-  '01920000-0000-7000-8000-000000000aa1.0vTCG98_ToLWpgP2Io1UPqhPnhupQiM1NPT_jzG3ZtM';
+const V1_TOKEN = '01920000-0000-7000-8000-000000000aa1.0vTCG98_ToLWpgP2Io1UPqhPnhupQiM1NPT_jzG3ZtM';
 const V1_HASH = 'c5e494144058c381fe035fcf464738a744baf69bc6a3caafddfba1bea58e4bdd';
-const V2_TOKEN =
-  '01920000-0000-7000-8000-000000000aa1._YIkvhHVZXZWxMByacjd0IHxAfk4UsLh29UpZnIE_eM';
+const V2_TOKEN = '01920000-0000-7000-8000-000000000aa1._YIkvhHVZXZWxMByacjd0IHxAfk4UsLh29UpZnIE_eM';
 const V2_HASH = '450f7f567a362077a9ebbd078bfde06e25d9c94ff43b8c167f24c8604747799b';
 const IDENTITY: RatingTokenIdentity = {
   companyId: '01920000-0000-7000-8000-000000000aa1',
@@ -28,7 +26,7 @@ const ROTATED_KEY_RING: RatingTokenKeyRing = {
   ]),
 };
 
-describe('rating token codec', () => {
+describe('rating token derivation vectors', () => {
   it('matches the independently pinned v1 token and claim hash', () => {
     const codecs = createRatingTokenCodecs(SINGLE_KEY_RING);
     const token = codecs.sender.token(IDENTITY, 1);
@@ -60,7 +58,9 @@ describe('rating token codec', () => {
     );
     expect(swapped).not.toBe(V1_TOKEN);
   });
+});
 
+describe('rating token key versions', () => {
   it('derives the pinned v2 token for the same identity under K2', () => {
     const v2 = createRatingTokenCodecs({
       currentVersion: 2,
@@ -80,7 +80,9 @@ describe('rating token codec', () => {
   it.each([3, 0, 32768])('returns null for unavailable or invalid key version %s', (version) => {
     expect(createRatingTokenCodecs(ROTATED_KEY_RING).sender.token(IDENTITY, version)).toBeNull();
   });
+});
 
+describe('rating token identity validation and capability split', () => {
   it.each([
     ['an uppercase company id', { ...IDENTITY, companyId: IDENTITY.companyId.toUpperCase() }],
     ['a braced company id', { ...IDENTITY, companyId: `{${IDENTITY.companyId}}` }],
@@ -96,10 +98,7 @@ describe('rating token codec', () => {
     ['an empty rating request id', { ...IDENTITY, ratingRequestId: '' }],
   ])('rejects %s on both codec sides without echoing either id', (_scenario, identity) => {
     const codecs = createRatingTokenCodecs(SINGLE_KEY_RING);
-    const attempts = [
-      () => codecs.claim.claim(identity),
-      () => codecs.sender.token(identity, 1),
-    ];
+    const attempts = [() => codecs.claim.claim(identity), () => codecs.sender.token(identity, 1)];
     for (const attempt of attempts) {
       let thrown: unknown;
       try {
@@ -111,8 +110,7 @@ describe('rating token codec', () => {
       expect(thrown).toMatchObject({ code: 'RATING_TOKEN_IDENTITY_INVALID' });
       const message = (thrown as Error).message;
       if (identity.companyId !== '') expect(message).not.toContain(identity.companyId);
-      if (identity.ratingRequestId !== '')
-        expect(message).not.toContain(identity.ratingRequestId);
+      if (identity.ratingRequestId !== '') expect(message).not.toContain(identity.ratingRequestId);
     }
   });
 
