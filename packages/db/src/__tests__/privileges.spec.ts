@@ -17,6 +17,7 @@ import {
   SERVICE_COLUMN_GRANTS,
   PACKAGE_TYPE_COLUMN_GRANTS,
   SERVICE_CATEGORY_COLUMN_GRANTS,
+  SERVICE_CATEGORY_BRANCH_SETTING_COLUMN_GRANTS,
 } from '../../test/catalog-grants.ts';
 import { SERVICE_LINE_EDIT_COLUMN_GRANTS } from '../../test/service-line-edit-grants.ts';
 import { SERVICE_LINE_CANCEL_COLUMN_GRANTS } from '../../test/service-line-cancel-grants.ts';
@@ -51,6 +52,37 @@ const OUTBOX_COLUMN_GRANTS = [
   'outbox.next_attempt_at:pospay_dispatcher:UPDATE',
   'outbox.parked_at:pospay_dispatcher:UPDATE',
   'outbox.published_at:pospay_dispatcher:UPDATE',
+];
+const REVIEWED_COLUMN_GRANTS = [
+  ...OTP_COLUMN_GRANTS,
+  ...ATTENDANCE_CHANGE_COLUMN_GRANTS,
+  ...BREAK_LEDGER_COLUMN_GRANTS,
+  ...LEAVE_COLUMN_GRANTS,
+  ...FILE_COLUMN_GRANTS,
+  ...OUTBOX_COLUMN_GRANTS,
+  ...RECOVERY_COLUMN_GRANTS,
+  ...EMPLOYEE_COLUMN_GRANTS,
+  'employees.name_en_key:pospay_app:UPDATE',
+  'employees.name_ar_key:pospay_app:UPDATE',
+  ...SCHEDULE_COLUMN_GRANTS,
+  ...PASSKEY_COLUMN_GRANTS,
+  ...DOCUMENT_COLUMN_GRANTS,
+  ...IMPORT_COLUMN_GRANTS,
+  ...CARD_COLUMN_GRANTS,
+  ...SERVICE_COLUMN_GRANTS,
+  ...PACKAGE_TYPE_COLUMN_GRANTS,
+  ...SERVICE_CATEGORY_COLUMN_GRANTS,
+  ...SERVICE_CATEGORY_BRANCH_SETTING_COLUMN_GRANTS,
+  ...SERVICE_LINE_EDIT_COLUMN_GRANTS,
+  ...SERVICE_LINE_PERFORMER_COLUMN_GRANTS,
+  ...SERVICE_LINE_CANCEL_COLUMN_GRANTS,
+  ...ALERT_RULE_COLUMN_GRANTS,
+  ...PUSH_SUBSCRIPTION_COLUMN_GRANTS,
+  ...PUSH_ATTEMPT_COLUMN_GRANTS,
+  ...DISCOUNT_PROPOSAL_COLUMN_GRANTS,
+  ...COMMISSION_STATEMENT_COLUMN_GRANTS,
+  ...RATING_REQUEST_COLUMN_GRANTS,
+  ...CUSTOMER_COLUMN_GRANTS,
 ];
 
 const APP_ROLES = ['pospay_app', 'pospay_auth', 'pospay_dispatcher'];
@@ -113,38 +145,7 @@ describe('direct privileges match the reviewed allowlist', () => {
       ORDER BY 1`;
     expect(
       rows.filter((r) => !r.grant.startsWith('platform_whatsapp_')).map((r) => r.grant),
-    ).toEqual(
-      [
-        ...OTP_COLUMN_GRANTS,
-        ...ATTENDANCE_CHANGE_COLUMN_GRANTS,
-        ...BREAK_LEDGER_COLUMN_GRANTS,
-        ...LEAVE_COLUMN_GRANTS,
-        ...FILE_COLUMN_GRANTS,
-        ...OUTBOX_COLUMN_GRANTS,
-        ...RECOVERY_COLUMN_GRANTS,
-        ...EMPLOYEE_COLUMN_GRANTS,
-        'employees.name_en_key:pospay_app:UPDATE',
-        'employees.name_ar_key:pospay_app:UPDATE',
-        ...SCHEDULE_COLUMN_GRANTS,
-        ...PASSKEY_COLUMN_GRANTS,
-        ...DOCUMENT_COLUMN_GRANTS,
-        ...IMPORT_COLUMN_GRANTS,
-        ...CARD_COLUMN_GRANTS,
-        ...SERVICE_COLUMN_GRANTS,
-        ...PACKAGE_TYPE_COLUMN_GRANTS,
-        ...SERVICE_CATEGORY_COLUMN_GRANTS,
-        ...SERVICE_LINE_EDIT_COLUMN_GRANTS,
-        ...SERVICE_LINE_PERFORMER_COLUMN_GRANTS,
-        ...SERVICE_LINE_CANCEL_COLUMN_GRANTS,
-        ...ALERT_RULE_COLUMN_GRANTS,
-        ...PUSH_SUBSCRIPTION_COLUMN_GRANTS,
-        ...PUSH_ATTEMPT_COLUMN_GRANTS,
-        ...DISCOUNT_PROPOSAL_COLUMN_GRANTS,
-        ...COMMISSION_STATEMENT_COLUMN_GRANTS,
-        ...RATING_REQUEST_COLUMN_GRANTS,
-        ...CUSTOMER_COLUMN_GRANTS,
-      ].sort(),
-    );
+    ).toEqual([...REVIEWED_COLUMN_GRANTS].sort());
   });
 
   it.each(APP_ROLES)(

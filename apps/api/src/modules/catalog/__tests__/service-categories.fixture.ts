@@ -6,6 +6,7 @@ import { listServiceCategories } from '../queries/service-categories.query.ts';
 import { createServiceCategoryTransactions } from '../persistence/drizzle-service-category-transactions.ts';
 import { CreateServiceCategoryUseCase } from '../use-cases/create-service-category/create-service-category.usecase.ts';
 import { RenameServiceCategoryUseCase } from '../use-cases/rename-service-category/rename-service-category.usecase.ts';
+import { SetServiceCategoryBranchStateUseCase } from '../use-cases/set-service-category-branch-state/set-service-category-branch-state.usecase.ts';
 
 const ids = systemUuidV7();
 const AT = new Date('2026-10-29T10:00:00Z');
@@ -60,6 +61,7 @@ export async function serviceCategoriesFixture() {
     transactions,
     create: new CreateServiceCategoryUseCase(transactions, ids, clock),
     rename: new RenameServiceCategoryUseCase(transactions, clock),
+    setState: new SetServiceCategoryBranchStateUseCase(transactions, ids, clock),
   };
 }
 
@@ -82,10 +84,14 @@ export async function grantCategories(
     VALUES (${f.company},${ids.newId()},${f.memberId},${permission},'ALLOW','BUSINESS',${business},'Synthetic grant',${f.userId})`;
 }
 
-export async function grantBranchCategories(f: ServiceCategoryFixture, branchId: string) {
+export async function grantBranchCategories(
+  f: ServiceCategoryFixture,
+  branchId: string,
+  permission: BranchCategoryPermission = 'manage:service-categories:branch',
+) {
   await f.h
     .owner`INSERT INTO permission_overrides (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
-    VALUES (${f.company},${ids.newId()},${f.memberId},'manage:service-categories:branch','ALLOW','BRANCH',${branchId},'Synthetic grant',${f.userId})`;
+    VALUES (${f.company},${ids.newId()},${f.memberId},${permission},'ALLOW','BRANCH',${branchId},'Synthetic grant',${f.userId})`;
 }
 
 /** صلاحية فرع واحدة: تُمنح على فرع بعينه، فلا تفتح مسار فرع آخر ولا مسار النشاط. */

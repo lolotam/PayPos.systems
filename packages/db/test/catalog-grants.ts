@@ -29,3 +29,10 @@ export const SERVICE_CATEGORY_COLUMN_GRANTS = [
   'service_categories.updated_at:pospay_app:UPDATE',
   'service_categories.visibility:pospay_app:UPDATE',
 ];
+
+// حالة الفرع ووقتها ونسختها فقط تتغير؛ الهوية والنشاط والفرع والتصنيف ثابتة ولا DELETE.
+export const SERVICE_CATEGORY_BRANCH_SETTING_COLUMN_GRANTS = [
+  'service_category_branch_settings.revision:pospay_app:UPDATE',
+  'service_category_branch_settings.state:pospay_app:UPDATE',
+  'service_category_branch_settings.updated_at:pospay_app:UPDATE',
+];

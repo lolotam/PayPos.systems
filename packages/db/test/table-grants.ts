@@ -123,6 +123,8 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'roles:UPDATE',
     'service_categories:INSERT',
     'service_categories:SELECT',
+    'service_category_branch_settings:INSERT',
+    'service_category_branch_settings:SELECT',
     'service_line_cancel_notices:INSERT',
     'service_line_cancel_notices:SELECT',
     'service_line_cancellations:INSERT',
