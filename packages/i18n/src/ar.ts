@@ -27,6 +27,8 @@ import { employeeNumberAdminAr } from './employee-number-admin-catalog.js';
 import { staffScreensAr } from './staff-screens-catalog.js';
 import { businessIdentityAr } from './business-identity-catalog.js';
 import { roleNamesAr } from './role-names-catalog.js';
+import { commissionPlanErrorsAr } from './commission-plan-errors.js';
+import { idempotencyErrorsAr } from './idempotency-errors.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
@@ -145,6 +147,7 @@ export const ar: Catalog = {
   staffLogin: staffLoginAr,
   inApp: inAppAr,
   errors: {
+    ...commissionPlanErrorsAr,
     ATTENDANCE_MANUAL_INVALID_TIMES: 'أوقات اليوم اليدوي مش صحيحة: الخروج لازم بعد الدخول، مش في المستقبل، ١٦ ساعة بالكتير، ومن غير تداخل مع حضور تاني',
     ATTENDANCE_MANUAL_NOT_ELIGIBLE: 'الموظفة مش مرتبطة بالفرع ده في اليوم ده أو اليوم برّه عقدها',
     ATTENDANCE_MANUAL_TIMEZONE_CHANGED: 'المنطقة الزمنية للفرع اتغيرت بعد تقديم الطلب. ارفض الطلب وقدّم اليوم من جديد',
@@ -256,9 +259,7 @@ export const ar: Catalog = {
     URI_TOO_LONG: 'الرابط طويل جداً',
     UNSUPPORTED_MEDIA_TYPE: 'نوع المحتوى غير مدعوم',
     TOO_MANY_REQUESTS: 'طلبات كثيرة، حاول بعد قليل',
-    IDEMPOTENCY_KEY_REQUIRED: 'رأس Idempotency-Key مطلوب ويجب أن يكون من 1 إلى 255 حرفاً مرئياً',
-    IDEMPOTENCY_KEY_IN_PROGRESS: 'طلب بنفس المفتاح ما زال قيد التنفيذ، أعد المحاولة بعد قليل',
-    IDEMPOTENCY_KEY_REUSED: 'تم استخدام مفتاح Idempotency-Key مع طلب مختلف',
+    ...idempotencyErrorsAr,
     NOT_READY: 'الخدمة غير جاهزة حالياً',
     SESSION_RECOVERY_UNAVAILABLE: 'الحفظ غير متاح مؤقتاً. أعد نفس المحاولة.',
     INTERNAL_ERROR: 'حدث خطأ غير متوقع',

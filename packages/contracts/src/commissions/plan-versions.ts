@@ -8,7 +8,7 @@ import { salaryAmount } from '../staff/salary.js';
 /** شكل الشبكة مستقل ويطابق حقول CommissionPlan؛ التحقق هنا للشكل فقط، وقواعد الخطة الدلالية يطبقها محرك العمولة في 48-2. */
 export const commissionPlanCalc = z
   .discriminatedUnion('kind', [
-    z.strictObject({ kind: z.literal('PCT'), bps: z.number().int().min(0).max(10000) }),
+    z.strictObject({ kind: z.literal('PCT'), bps: z.number().int() }),
     z.strictObject({ kind: z.literal('FIXED'), amount: salaryAmount }),
   ])
   .meta({ id: 'CommissionPlanCalc' });
@@ -58,7 +58,7 @@ export const commissionPlanTiers = z
       enabled: z.literal(true),
       mode: z.enum(['MARGINAL', 'WHOLE']),
       accumulator: z.enum(['AMOUNT', 'SESSIONS']),
-      steps: z.array(commissionPlanTierStep).min(1),
+      steps: z.array(commissionPlanTierStep),
     }),
   ])
   .meta({ id: 'CommissionPlanTiers' });
@@ -141,6 +141,30 @@ export const commissionEffectiveFromPastError = z
   })
   .meta({ id: 'CommissionEffectiveFromPastError' });
 
+/**
+ * رفض شهر whole_period قبل الشهر اللي النشاط بدأ فيه على PosPay: نفس غلاف الخطأ التاني، من غير
+ * details لأن الكود ده ما عندوش تفاصيل غير الشهر المطلوب نفسه.
+ */
+export const commissionPeriodBeforeBusinessError = z
+  .strictObject({
+    code: z.literal('COMMISSION_PERIOD_BEFORE_BUSINESS'),
+    message_ar: z.string().min(1),
+    message_en: z.string().min(1),
+  })
+  .meta({ id: 'CommissionPeriodBeforeBusinessError' });
+
+/**
+ * إعادة نفس Idempotency-Key مع جسم طلب مختلف: الرفض ده 422 على المسار ده، فبيدخل نفس
+ * الاتحاد، من غير details.
+ */
+export const commissionPlanIdempotencyKeyReusedError = z
+  .strictObject({
+    code: z.literal('IDEMPOTENCY_KEY_REUSED'),
+    message_ar: z.string().min(1),
+    message_en: z.string().min(1),
+  })
+  .meta({ id: 'CommissionPlanIdempotencyKeyReusedError' });
+
 export const commissionPlanVersionSchemas = [
   commissionPlanCalc,
   commissionPlanComponent,
@@ -155,6 +179,8 @@ export const commissionPlanVersionSchemas = [
   commissionPlanVersionListQuery,
   commissionPlanInvalidError,
   commissionEffectiveFromPastError,
+  commissionPeriodBeforeBusinessError,
+  commissionPlanIdempotencyKeyReusedError,
 ];
 
 export type CommissionPlanCalc = z.infer<typeof commissionPlanCalc>;
@@ -167,3 +193,9 @@ export type CommissionPlanVersion = z.infer<typeof commissionPlanVersion>;
 export type CommissionPlanVersionList = z.infer<typeof commissionPlanVersionList>;
 export type CommissionPlanVersionListQuery = z.infer<typeof commissionPlanVersionListQuery>;
 export type CommissionEffectiveFromPastError = z.infer<typeof commissionEffectiveFromPastError>;
+export type CommissionPeriodBeforeBusinessError = z.infer<
+  typeof commissionPeriodBeforeBusinessError
+>;
+export type CommissionPlanIdempotencyKeyReusedError = z.infer<
+  typeof commissionPlanIdempotencyKeyReusedError
+>;

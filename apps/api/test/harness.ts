@@ -31,6 +31,10 @@ import { createApp } from '../src/app.ts';
 import { API_LOG_EVENTS } from '../src/shared/log-events.ts';
 import type { FilesRuntime } from '../src/modules/files/index.ts';
 
+export { readCommissionPlanAccess } from '../src/modules/identity/index.ts';
+export { lockEmployeeForUpdate } from '../src/modules/staff/index.ts';
+export { businessCalendar, businessTimeZone } from '../src/modules/tenancy/index.ts';
+
 // A real API over a cloned database with real Better Auth sessions. Users are made the way an operator makes them,
 // and every company goes through POST /v1/companies — the production path, never a raw insert.
 const BASE = 'http://api.test';
@@ -182,6 +186,7 @@ interface HarnessOptions {
   staffNativeOrigins?: readonly string[];
   clock?: { now(): Date };
   ordersClock?: { now(): Date };
+  commissionsClock?: { now(): Date };
   staffOtpFactory?: (
     auth: AuthService,
     authUrl: string,
@@ -238,6 +243,9 @@ async function prepareHarness(
         employeeCardKey: deriveEmployeeCardKey('test-secret-that-is-long-enough-for-hmac'),
         database: wrappers,
         ...(options.ordersClock === undefined ? {} : { ordersClock: options.ordersClock }),
+        ...(options.commissionsClock === undefined
+          ? {}
+          : { commissionsClock: options.commissionsClock }),
         ...(options.files === undefined ? {} : { files: options.files }),
         ...staffWiring(options, staffOtp, auth),
         ids,

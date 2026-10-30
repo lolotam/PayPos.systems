@@ -1275,7 +1275,7 @@
             }
           },
           "422": {
-            "description": "COMMISSION_PLAN_INVALID with details.code, or COMMISSION_EFFECTIVE_FROM_PAST when effective_from is before today.",
+            "description": "COMMISSION_PLAN_INVALID with details.code, COMMISSION_EFFECTIVE_FROM_PAST when effective_from is before today, or COMMISSION_PERIOD_BEFORE_BUSINESS when a whole_period month precedes the business, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1285,6 +1285,12 @@
                     },
                     {
                       "$ref": "#/components/schemas/CommissionEffectiveFromPastError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommissionPeriodBeforeBusinessError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommissionPlanIdempotencyKeyReusedError"
                     }
                   ]
                 }
@@ -16256,8 +16262,8 @@
               },
               "bps": {
                 "type": "integer",
-                "minimum": 0,
-                "maximum": 10000
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               }
             },
             "required": [
@@ -16475,7 +16481,6 @@
                 ]
               },
               "steps": {
-                "minItems": 1,
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/CommissionPlanTierStep"
@@ -16696,6 +16701,56 @@
             "type": "string",
             "enum": [
               "COMMISSION_EFFECTIVE_FROM_PAST"
+            ]
+          },
+          "message_ar": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message_en": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "code",
+          "message_ar",
+          "message_en"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionPeriodBeforeBusinessError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "COMMISSION_PERIOD_BEFORE_BUSINESS"
+            ]
+          },
+          "message_ar": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message_en": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "code",
+          "message_ar",
+          "message_en"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionPlanIdempotencyKeyReusedError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "IDEMPOTENCY_KEY_REUSED"
             ]
           },
           "message_ar": {

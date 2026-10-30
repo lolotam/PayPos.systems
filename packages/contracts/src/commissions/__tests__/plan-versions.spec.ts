@@ -2,6 +2,8 @@ import { expect, it } from 'vitest';
 
 import {
   commissionEffectiveFromPastError,
+  commissionPlanIdempotencyKeyReusedError,
+  commissionPeriodBeforeBusinessError,
   commissionPlanVersion,
   commissionPlanVersionListQuery,
   createCommissionPlanVersionInput,
@@ -50,12 +52,18 @@ it('refuses unknown keys', () => {
   );
 });
 
-it.each([10001, 1.5])('refuses invalid PCT bps %s', (bps) => {
+it('refuses fractional PCT bps while leaving the range to the engine', () => {
   const value = {
     ...cm05,
-    base: { enabled: true, calc: { kind: 'PCT', bps } },
+    base: { enabled: true, calc: { kind: 'PCT', bps: 1.5 } },
   };
   expect(createCommissionPlanVersionInput.safeParse(value).success).toBe(false);
+  expect(
+    createCommissionPlanVersionInput.safeParse({
+      ...cm05,
+      base: { enabled: true, calc: { kind: 'PCT', bps: 10001 } },
+    }).success,
+  ).toBe(true);
 });
 
 it.each(['1.5', '-1.000'])('refuses invalid FIXED amount %s', (amount) => {
@@ -78,9 +86,9 @@ it('refuses a year-0000 effective date', () => {
   ).toBe(false);
 });
 
-it('refuses an empty steps array on enabled tiers', () => {
+it('leaves an empty enabled steps array to the engine validation', () => {
   const value = { ...cm05, tiers: { ...cm05.tiers, steps: [] } };
-  expect(createCommissionPlanVersionInput.safeParse(value).success).toBe(false);
+  expect(createCommissionPlanVersionInput.safeParse(value).success).toBe(true);
 });
 
 it('accepts 25 enabled steps', () => {
@@ -120,6 +128,44 @@ it('refuses another code in the past effective date envelope', () => {
       code: 'COMMISSION_PLAN_INVALID',
       message_ar: 'الخطة غير صالحة.',
       message_en: 'The plan is invalid.',
+    }).success,
+  ).toBe(false);
+});
+
+it('publishes the before-business refusal with its own code', () => {
+  const refusal = {
+    code: 'COMMISSION_PERIOD_BEFORE_BUSINESS',
+    message_ar: 'الشهر ده قبل ما النشاط يبدأ على PosPay، اختار شهر بعد بداية النشاط.',
+    message_en: 'This month is before the business started on PosPay; choose a later month.',
+  };
+  expect(commissionPeriodBeforeBusinessError.parse(refusal)).toEqual(refusal);
+});
+
+it('refuses another code in the before-business envelope', () => {
+  expect(
+    commissionPeriodBeforeBusinessError.safeParse({
+      code: 'COMMISSION_EFFECTIVE_FROM_PAST',
+      message_ar: 'تاريخ البداية لازم يكون النهارده أو بعده.',
+      message_en: 'The start date must be today or later.',
+    }).success,
+  ).toBe(false);
+});
+
+it('publishes the reused-key refusal with its own code', () => {
+  const refusal = {
+    code: 'IDEMPOTENCY_KEY_REUSED',
+    message_ar: 'تم استخدام مفتاح Idempotency-Key مع طلب مختلف',
+    message_en: 'This Idempotency-Key was already used with a different request',
+  };
+  expect(commissionPlanIdempotencyKeyReusedError.parse(refusal)).toEqual(refusal);
+});
+
+it('refuses another code in the reused-key envelope', () => {
+  expect(
+    commissionPlanIdempotencyKeyReusedError.safeParse({
+      code: 'COMMISSION_PERIOD_BEFORE_BUSINESS',
+      message_ar: 'الشهر ده قبل ما النشاط يبدأ على PosPay، اختار شهر بعد بداية النشاط.',
+      message_en: 'This month is before the business started on PosPay; choose a later month.',
     }).success,
   ).toBe(false);
 });

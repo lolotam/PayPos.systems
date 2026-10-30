@@ -81,3 +81,4 @@ export {
   readServiceSessionPerformersAccess,
 } from './persistence/service-session-edit-access.ts';
 export { lockAlertRulesAccess, readAlertRulesAccess } from './persistence/alert-rules-access.ts';
+export { readCommissionPlanAccess } from './persistence/commission-plan-access.ts';

@@ -45,8 +45,13 @@ export const commissionPlanVersionPaths = {
         },
         '422': {
           description:
-            'COMMISSION_PLAN_INVALID with details.code, or COMMISSION_EFFECTIVE_FROM_PAST when effective_from is before today.',
-          content: oneOfJson('CommissionPlanInvalidError', 'CommissionEffectiveFromPastError'),
+            'COMMISSION_PLAN_INVALID with details.code, COMMISSION_EFFECTIVE_FROM_PAST when effective_from is before today, or COMMISSION_PERIOD_BEFORE_BUSINESS when a whole_period month precedes the business, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body.',
+          content: oneOfJson(
+            'CommissionPlanInvalidError',
+            'CommissionEffectiveFromPastError',
+            'CommissionPeriodBeforeBusinessError',
+            'CommissionPlanIdempotencyKeyReusedError',
+          ),
         },
         default: errors,
       },

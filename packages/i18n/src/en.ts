@@ -24,6 +24,8 @@ import { employeeNumberAdminEn } from './employee-number-admin-catalog.js';
 import { staffScreensEn } from './staff-screens-catalog.js';
 import { businessIdentityEn } from './business-identity-catalog.js';
 import { roleNamesEn } from './role-names-catalog.js';
+import { commissionPlanErrorsEn } from './commission-plan-errors.js';
+import { idempotencyErrorsEn } from './idempotency-errors.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
   attendanceActions: attendanceActionsEn,
@@ -140,6 +142,7 @@ export const en = {
   staffLogin: staffLoginEn,
   inApp: inAppEn,
   errors: {
+    ...commissionPlanErrorsEn,
     ATTENDANCE_MANUAL_INVALID_TIMES:
       'Manual attendance times must end after they start, not be in the future, last at most 16 hours, and not overlap another session.',
     ATTENDANCE_MANUAL_NOT_ELIGIBLE:
@@ -261,11 +264,7 @@ export const en = {
     URI_TOO_LONG: 'URI too long',
     UNSUPPORTED_MEDIA_TYPE: 'Unsupported media type',
     TOO_MANY_REQUESTS: 'Too many requests — try again shortly',
-    IDEMPOTENCY_KEY_REQUIRED:
-      'An Idempotency-Key header of 1–255 visible ASCII characters is required',
-    IDEMPOTENCY_KEY_IN_PROGRESS:
-      'A request with this Idempotency-Key is still in progress — retry shortly',
-    IDEMPOTENCY_KEY_REUSED: 'This Idempotency-Key was already used with a different request',
+    ...idempotencyErrorsEn,
     NOT_READY: 'The service is not ready',
     SESSION_RECOVERY_UNAVAILABLE: 'Saving is temporarily unavailable. Retry the same attempt.',
     INTERNAL_ERROR: 'An unexpected error occurred',

@@ -31,15 +31,17 @@ import {
   assertEveryRouteGuarded,
   identityControllers,
   identityProviders,
+  readCommissionPlanAccess,
 } from './modules/identity/index.ts';
 import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
 import { notificationsControllers, notificationsProviders } from './modules/notifications/index.ts';
 import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notifications/index.ts';
-import { tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
+import { businessCalendar, tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
 import { customersControllers, customersProviders } from './modules/customers/index.ts';
 import { catalogControllers, catalogProviders } from './modules/catalog/index.ts';
 import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
-import { staffControllers, staffProviders } from './modules/staff/index.ts';
+import { lockEmployeeForUpdate, staffControllers, staffProviders } from './modules/staff/index.ts';
+import { commissionsControllers, commissionsProviders } from './modules/commissions/index.ts';
 import { filesControllers, filesProviders, type FilesRuntime } from './modules/files/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { DATABASE } from './shared/database.token.ts';
@@ -59,6 +61,7 @@ import { AUTH_SERVICE, SessionGuard } from './shared/session.guard.ts';
 
 export interface AppDependencies {
   readonly ordersClock?: { now(): Date };
+  readonly commissionsClock?: { now(): Date };
   readonly employeeCardKey?: Buffer;
   readonly personal?: PersonalAuthentication | null;
   readonly files?: FilesRuntime | null;
@@ -147,6 +150,16 @@ class AppModule {
         ...customersProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...catalogProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...ordersProviders(deps.database, deps.ids ?? systemUuidV7(), deps.ordersClock),
+        ...commissionsProviders(
+          deps.database,
+          deps.ids ?? systemUuidV7(),
+          {
+            businessCalendar,
+            employeeLock: lockEmployeeForUpdate,
+            access: readCommissionPlanAccess,
+          },
+          deps.commissionsClock,
+        ),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
         ...notificationsProviders(deps.database, deps.whatsapp, deps.push),
         ...staffProviders(
@@ -271,6 +284,7 @@ export const API_CONTROLLERS: readonly Type<unknown>[] = [
   ...customersControllers,
   ...catalogControllers,
   ...ordersControllers,
+  ...commissionsControllers,
   ...settingsControllers,
   ...notificationsControllers,
   ...staffControllers,
