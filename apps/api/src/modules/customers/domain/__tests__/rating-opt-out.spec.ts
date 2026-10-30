@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ratingOptOutDecision } from '../rating-opt-out.ts';
+import { isRatingLinkExpired, ratingOptOutDecision } from '../rating-opt-out.ts';
 
 const EXPIRES_AT = new Date('2026-06-08T00:00:00Z');
 
@@ -31,5 +31,21 @@ describe('the rating opt-out decision', () => {
     expect(ratingOptOutDecision(EXPIRES_AT, now, new Date('2026-06-01T00:00:00Z'))).toBe(
       'ALREADY_OPTED_OUT',
     );
+  });
+});
+
+describe('the rating link expiry check', () => {
+  it('accepts one millisecond before the expiry', () => {
+    const now = new Date(EXPIRES_AT.getTime() - 1);
+    expect(isRatingLinkExpired(EXPIRES_AT, now)).toBe(false);
+  });
+
+  it('refuses exactly at the expiry', () => {
+    expect(isRatingLinkExpired(EXPIRES_AT, EXPIRES_AT)).toBe(true);
+  });
+
+  it('refuses one millisecond after the expiry', () => {
+    const now = new Date(EXPIRES_AT.getTime() + 1);
+    expect(isRatingLinkExpired(EXPIRES_AT, now)).toBe(true);
   });
 });

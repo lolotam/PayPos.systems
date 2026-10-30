@@ -57,7 +57,8 @@ function readWindowCount(reply: unknown): number {
  * بنعرف نعدّه: الحدّ الغلط أحسن من إننا نفتح الباب.
  */
 function readRemaining(ttl: unknown): number {
-  if (typeof ttl !== 'number' || !Number.isInteger(ttl)) throw new RateLimiterUnavailableError();
+  if (typeof ttl !== 'number' || !Number.isSafeInteger(ttl))
+    throw new RateLimiterUnavailableError();
   if (ttl >= 0) return ttl;
   if (ttl === -1 || ttl === -2) return 0;
   throw new RateLimiterUnavailableError();

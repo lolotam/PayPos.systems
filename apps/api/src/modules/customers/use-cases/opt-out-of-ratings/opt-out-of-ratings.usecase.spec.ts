@@ -38,7 +38,9 @@ function fakes(
       ? options.request
       : ({ customerId: CUSTOMER, expiresAt: EXPIRES_AT } satisfies RatingRequestRef);
   const customer =
-    'customer' in options ? options.customer : ({ optedOutAt: null } as { optedOutAt: Date | null });
+    'customer' in options
+      ? options.customer
+      : ({ optedOutAt: null } as { optedOutAt: Date | null });
   const scope: RatingOptOutScope = {
     audit: {
       record: async (entry) => {
@@ -65,14 +67,18 @@ function fakes(
   return { calls, audits, hashed, transactions };
 }
 
-function useCase(fake: Fakes, now: Date = NOW): OptOutOfRatingsUseCase {
+function useCase(fake: Fakes, ...times: readonly Date[]): OptOutOfRatingsUseCase {
   const hash: RatingTokenHash = {
     sha256: (token) => {
       fake.hashed.push(token);
       return Buffer.from(token, 'utf8');
     },
   };
-  return new OptOutOfRatingsUseCase(fake.transactions, hash, { now: () => now });
+  let clockCalls = 0;
+  const samples = times.length === 0 ? [NOW] : times;
+  return new OptOutOfRatingsUseCase(fake.transactions, hash, {
+    now: () => samples[Math.min(clockCalls++, samples.length - 1)] ?? NOW,
+  });
 }
 
 describe('opting out of the rating messages', () => {
@@ -122,16 +128,19 @@ describe('refusing an unusable rating link', () => {
     expect(fake.calls).toEqual(['findRequest', 'lockCustomer']);
   });
 
-  it('refuses a link that expired before the decision', async () => {
+  it('refuses an expired link without waiting for the customer lock', async () => {
     const fake = fakes();
-    const outcome = await useCase(fake, new Date(EXPIRES_AT.getTime())).execute({ token: TOKEN });
+    const outcome = await useCase(fake, EXPIRES_AT).execute({ token: TOKEN });
     expect(outcome).toBe('UNAVAILABLE');
-    expect(fake.calls).toEqual(['findRequest', 'lockCustomer']);
+    expect(fake.calls).toEqual(['findRequest']);
+    expect(fake.calls).not.toContain('lockCustomer');
   });
 
   it('refuses a link that expired after the lock was taken', async () => {
     const fake = fakes();
-    const outcome = await useCase(fake, new Date(EXPIRES_AT.getTime() + 1)).execute({ token: TOKEN });
+    const outcome = await useCase(fake, NOW, new Date(EXPIRES_AT.getTime() + 1)).execute({
+      token: TOKEN,
+    });
     expect(outcome).toBe('UNAVAILABLE');
     expect(fake.calls).toEqual(['findRequest', 'lockCustomer']);
   });

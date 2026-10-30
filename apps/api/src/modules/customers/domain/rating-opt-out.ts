@@ -7,6 +7,18 @@
 export type RatingOptOutDecision = 'LINK_UNAVAILABLE' | 'ALREADY_OPTED_OUT' | 'OPTED_OUT';
 
 /**
+ * بيحدد هل رابط التقييم انتهت صلاحيته عند اللحظة الممررة.
+ * قاعدة العمل: الوصول للحظة `expires_at` نفسها يعني إن الرابط خلص، عشان قرار الصلاحية يفضل في مكان واحد.
+ *
+ * @param expiresAt لحظة انتهاء صلاحية رابط التقييم
+ * @param now       اللحظة الحالية وقت فحص الصلاحية
+ * @returns `true` لو `now` تساوي أو تتجاوز `expiresAt`، و`false` قبلها
+ */
+export function isRatingLinkExpired(expiresAt: Date, now: Date): boolean {
+  return now.getTime() >= expiresAt.getTime();
+}
+
+/**
  * يقرر هل العميل بيرفض التقييم دلوقتي، بناءً على وقت انتهاء الرابط وحالة رفضه.
  * قاعدة العمل: الصلاحية بتتأكد الأول — لو الرابط خلص، يبقى مش متاح حتى لو العميل رفض قبل كده.
  * والوقت بالظبط عند الانتهاء يعني خلص (نهاية الشبكة الصالحة)، لأن `expires_at` هو الحد الأقصوى.
@@ -21,7 +33,7 @@ export function ratingOptOutDecision(
   now: Date,
   optedOutAt: Date | null,
 ): RatingOptOutDecision {
-  if (now.getTime() >= expiresAt.getTime()) return 'LINK_UNAVAILABLE';
+  if (isRatingLinkExpired(expiresAt, now)) return 'LINK_UNAVAILABLE';
   if (optedOutAt !== null) return 'ALREADY_OPTED_OUT';
   return 'OPTED_OUT';
 }

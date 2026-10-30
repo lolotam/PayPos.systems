@@ -284,6 +284,7 @@ const INVALID_TTL_CASES: [string, unknown][] = [
   ['a null TTL', null],
   ['a missing TTL', undefined],
   ['a TTL that is not finite', Number.POSITIVE_INFINITY],
+  ['a TTL that is not a safe integer', 1e21],
 ];
 
 describe('the shared Redis rate limiter reads the remaining seconds only from a reply it trusts', () => {

@@ -1,5 +1,5 @@
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
-import { ratingOptOutDecision } from '../../domain/rating-opt-out.ts';
+import { isRatingLinkExpired, ratingOptOutDecision } from '../../domain/rating-opt-out.ts';
 import { parseRatingToken } from '../../domain/rating-token.ts';
 import type { RatingOptOutTransactions } from '../../ports/rating-opt-out.port.ts';
 import type { RatingTokenHash } from '../../ports/rating-token-hash.port.ts';
@@ -18,7 +18,7 @@ export interface OptOutOfRatingsInput {
 /**
  * يوقف رسائل التقييم عن العميل صاحب رابط التقييم.
  * الخطوة: يقرأ التوكن، يتحقق من صيغته، يحسب بصمته، ويفتح معاملة واحدة على الشركة المختارة من بادئة الرابط.
- * جوه المعاملة: يقرأ الطلب من غير قفل، يقفل صف العميل، وبعدها بس يقرأ الساعة — فالوقت بيتقاس بعد القفل
+ * جوه المعاملة: يقرأ الطلب من غير قفل، ويرفض الرابط المنتهي قبل قفل العميل، وبعد القفل يقرأ الساعة تاني
  * عشان رابط خلص صلاحيته أثناء الانتظار يترفض. الرفض كتابة واحدة بس، وسجل التدقيق بيتم معاها.
  */
 export class OptOutOfRatingsUseCase {
@@ -26,11 +26,7 @@ export class OptOutOfRatingsUseCase {
   readonly #hash: RatingTokenHash;
   readonly #clock: Clock;
 
-  constructor(
-    transactions: RatingOptOutTransactions,
-    hash: RatingTokenHash,
-    clock: Clock,
-  ) {
+  constructor(transactions: RatingOptOutTransactions, hash: RatingTokenHash, clock: Clock) {
     this.#transactions = transactions;
     this.#hash = hash;
     this.#clock = clock;
@@ -47,6 +43,8 @@ export class OptOutOfRatingsUseCase {
     return this.#transactions.run(parsed.companyId, async (scope) => {
       const request = await scope.findRequest(tokenHash);
       if (request === null) return 'UNAVAILABLE';
+      // الرابط المنتهي مش بيستنى قفل العميل، عشان ميردّش بشكل مختلف عن الرابط المجهول ولا يزوّد الانتظار.
+      if (isRatingLinkExpired(request.expiresAt, this.#clock.now())) return 'UNAVAILABLE';
       const customer = await scope.lockCustomer(request.customerId);
       if (customer === null) return 'UNAVAILABLE';
       // الساعة بعد القفل: رابط خلص صلاحيته أثناء الانتظار على القفل لازم يترفض، مش يتقبل بتأخير.
