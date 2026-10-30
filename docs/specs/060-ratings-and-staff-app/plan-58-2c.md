@@ -1,6 +1,6 @@
 # 58-2c plan — public rating opt-out capability
 
-Date: 2026-10-30. Status: **PLAN — approved (PP-83.1, PP-83.2); Astra design review READY (round 2)** (PP-83.1/PP-83.2 are technical: cards only, never on the decisions page). RT-Q16 is a feature question, pending on the decisions page; Abu Salem's pick binds (see the end of this plan).
+Date: 2026-10-30. Status: **PLAN — approved (PP-83.1, PP-83.2); Astra design review READY (round 2)** (PP-83.1/PP-83.2 are technical: cards only, never on the decisions page). RT-Q16 is a feature question, answered on the decisions page by Waleed and Abu Salem with the same pick (see the end of this plan).
 Parent: [`plan-58-2-split.md`](plan-58-2-split.md) §58-2c. Base: `main` `d5d2f31a`. Builds on merged 58-1, 58-2a, 58-2b.
 
 ## Scope
@@ -100,7 +100,7 @@ module-map changes (no new arrow).
    «الرابط ده مش متاح.» / "This link is not available.", spec §B.4, RT-Q2 approved). The code also joins
    `RAISED_BY_THE_API_ONLY` (`shared/errors.ts:192`), or `codeForStatus()` (`errors.ts:399–400`) could answer an
    unknown route or a framework 404 anywhere in the API with this code. No `Idempotency-Key`: no money
-   or stock effect and the write is idempotent (§6). No feature mark on the route (`TODO(spec)` below).
+   or stock effect and the write is idempotent (§6). No feature mark on the route (RT-Q16, below).
 7. **Composition:** `customersClock?` in `AppDependencies` (mirrors `ordersClock`); a session-less
    `RatingOptOutTransactions` port and Drizzle adapter (the existing one needs a user); the controller injects the
    shared `RATE_LIMITER` only through the `onRequest` hook (item 1); `app.ts` registers that hook with
@@ -226,8 +226,8 @@ implementation (`owner-questions.ar.md`, section «اعتماد خطة 58-2c»).
 4. **Audit on a repeated opt-out:** none. Recommended. Alternative: one row per valid POST.
 5. **Design-advisor pass before implementation:** yes (Astra). Recommended.
 
-`TODO(spec)`, a feature question (not technical): spec §B.4 reuses `FEATURE_DISABLED (feature customers)` without
+RT-Q16, a feature question (not technical), now answered: spec §B.4 reuses `FEATURE_DISABLED (feature customers)` without
 naming routes, and `FeatureGuard` refuses a marked route that has no principal (`access.guard.ts:125–131`). Should
 opt-out work when the company's `customers` feature is off? Recommended: yes, always (a stop request is never
 refused; the flag would reveal tenant state to a link holder). Waleed answered yes (2026-10-30, PP-83.3); it is
-RT-Q16 on the decisions page, and Abu Salem's pick binds if it differs. Until he answers: no feature mark.
+RT-Q16 on the decisions page, and Abu Salem picked the same option there (2026-10-30). Decision: no feature mark.
