@@ -266,6 +266,7 @@ export const en = {
     TOO_MANY_REQUESTS: 'Too many requests — try again shortly',
     ...idempotencyErrorsEn,
     NOT_READY: 'The service is not ready',
+    RATING_LINK_UNAVAILABLE: 'This link is not available.',
     SESSION_RECOVERY_UNAVAILABLE: 'Saving is temporarily unavailable. Retry the same attempt.',
     INTERNAL_ERROR: 'An unexpected error occurred',
   },

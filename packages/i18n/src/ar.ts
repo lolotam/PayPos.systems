@@ -261,6 +261,7 @@ export const ar: Catalog = {
     TOO_MANY_REQUESTS: 'طلبات كثيرة، حاول بعد قليل',
     ...idempotencyErrorsAr,
     NOT_READY: 'الخدمة غير جاهزة حالياً',
+    RATING_LINK_UNAVAILABLE: 'الرابط ده مش متاح.',
     SESSION_RECOVERY_UNAVAILABLE: 'الحفظ غير متاح مؤقتاً. أعد نفس المحاولة.',
     INTERNAL_ERROR: 'حدث خطأ غير متوقع',
   },

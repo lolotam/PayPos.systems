@@ -297,6 +297,16 @@ try {
     },
     'staff OTP capability',
   );
+  // بلا proxy موثوق كل زائر بيشارك عنوان الـ proxy، والحدّ على عنوان واحد هيبقى دلو واحدة.
+  // زي بوابة الواتساب بالظبط: في الإنتاج من غير TRUSTED_PROXY_CIDRS القدرة ماتتكونش موجودة.
+  const ratingLinksAvailable =
+    !(process.env['NODE_ENV'] === 'production' && config.TRUSTED_PROXY_CIDRS.length === 0);
+  if (!ratingLinksAvailable) {
+    logger.warn(
+      { capability: { name: 'RATING_LINKS', state: 'UNAVAILABLE', reason: 'NO_TRUSTED_PROXY' } },
+      'rating links capability',
+    );
+  }
   const app = await createApp(
     {
       readiness: [
@@ -333,6 +343,7 @@ try {
       redis,
       corsOrigins: config.AUTH_TRUSTED_ORIGINS,
       push: readPushApiConfiguration(process.env),
+      ratingLinksAvailable,
       ...(whatsapp === undefined ? {} : { whatsapp }),
       trustedProxy: config.TRUSTED_PROXY_CIDRS,
     },

@@ -3,6 +3,7 @@
 export const API_LOG_EVENTS = [
   'email disabled',
   'staff OTP capability',
+  'rating links capability',
   'staff OTP preparation outcome',
   'api failed to start',
   'auth library event',

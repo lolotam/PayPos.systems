@@ -275,3 +275,31 @@ describe('the other limiter methods keep their behaviour', () => {
     await expect(limiter.remaining('counter')).resolves.toBe(30);
   });
 });
+
+const INVALID_TTL_CASES: [string, unknown][] = [
+  ['a TTL of -3', -3],
+  ['a TTL of -4', -4],
+  ['a fractional TTL', 1.5],
+  ['a TTL that is a string', '30'],
+  ['a null TTL', null],
+  ['a missing TTL', undefined],
+  ['a TTL that is not finite', Number.POSITIVE_INFINITY],
+  ['a TTL that is not a safe integer', 1e21],
+];
+
+describe('the shared Redis rate limiter reads the remaining seconds only from a reply it trusts', () => {
+  it.each(INVALID_TTL_CASES)('rejects %s', async (_name: string, ttl: unknown) => {
+    const limiter = createRedisRateLimiter(fakeStore({}, [], () => ttl as number));
+    await expect(limiter.remaining('counter')).rejects.toBeInstanceOf(RateLimiterUnavailableError);
+  });
+
+  it.each([
+    ['a key with no expiry left', -1, 0],
+    ['a key that is gone', -2, 0],
+    ['a live key', 30, 30],
+    ['a key about to expire', 1, 1],
+  ] as const)('reads %s as %s', async (_name: string, ttl: number, expected: number) => {
+    const limiter = createRedisRateLimiter(fakeStore({}, [], () => ttl));
+    await expect(limiter.remaining('counter')).resolves.toBe(expected);
+  });
+});
