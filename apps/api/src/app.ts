@@ -31,11 +31,12 @@ import {
   assertEveryRouteGuarded,
   identityControllers,
   identityProviders,
+  readCommissionPlanAccess,
 } from './modules/identity/index.ts';
 import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
 import { notificationsControllers, notificationsProviders } from './modules/notifications/index.ts';
 import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notifications/index.ts';
-import { tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
+import { businessCalendar, tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
 import {
   customersControllers,
   customersProviders,
@@ -44,7 +45,8 @@ import {
 } from './modules/customers/index.ts';
 import { catalogControllers, catalogProviders } from './modules/catalog/index.ts';
 import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
-import { staffControllers, staffProviders } from './modules/staff/index.ts';
+import { lockEmployeeForUpdate, staffControllers, staffProviders } from './modules/staff/index.ts';
+import { commissionsControllers, commissionsProviders } from './modules/commissions/index.ts';
 import { filesControllers, filesProviders, type FilesRuntime } from './modules/files/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { DATABASE } from './shared/database.token.ts';
@@ -74,6 +76,7 @@ export interface AppDependencies {
    * قبل أي حدّ أو قاعدة بيانات (ADR-0011 §4).
    */
   readonly ratingLinksAvailable?: boolean;
+  readonly commissionsClock?: { now(): Date };
   readonly employeeCardKey?: Buffer;
   readonly personal?: PersonalAuthentication | null;
   readonly files?: FilesRuntime | null;
@@ -168,6 +171,16 @@ class AppModule {
         ),
         ...catalogProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...ordersProviders(deps.database, deps.ids ?? systemUuidV7(), deps.ordersClock),
+        ...commissionsProviders(
+          deps.database,
+          deps.ids ?? systemUuidV7(),
+          {
+            businessCalendar,
+            employeeLock: lockEmployeeForUpdate,
+            access: readCommissionPlanAccess,
+          },
+          deps.commissionsClock,
+        ),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
         ...notificationsProviders(deps.database, deps.whatsapp, deps.push),
         ...staffProviders(
@@ -250,8 +263,7 @@ function buildAdapter(
       try {
         const decodedPath = decodeURIComponent(path);
         if (RATING_ROUTE.test(decodedPath)) return ids.newId();
-        if (/^\/v1\/(webhooks\/|devices\/me\/staff-|staff\/)/.test(decodedPath))
-          return ids.newId();
+        if (/^\/v1\/(webhooks\/|devices\/me\/staff-|staff\/)/.test(decodedPath)) return ids.newId();
       } catch {
         return ids.newId();
       }
@@ -297,6 +309,7 @@ export const API_CONTROLLERS: readonly Type<unknown>[] = [
   ...customersControllers,
   ...catalogControllers,
   ...ordersControllers,
+  ...commissionsControllers,
   ...settingsControllers,
   ...notificationsControllers,
   ...staffControllers,
