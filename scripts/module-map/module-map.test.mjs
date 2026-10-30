@@ -358,6 +358,10 @@ describe('the module-map gate — what it blocks', () => {
       checkModules(repo({ 'apps/api/src/app.ts': code }), wiringMap).join('\n'),
       /the rating token codec is wired only by the worker/,
     );
+    assert.match(
+      checkModules(repo({ 'apps/api/scripts/tool.ts': code }), wiringMap).join('\n'),
+      /the rating token codec is wired only by the worker/,
+    );
     assert.equal(
       checkModules(
         repo({

@@ -3,6 +3,8 @@ import { readRatingTokenConfiguration } from './configuration.ts';
 
 const K1 = 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
 const K2 = '//79/Pv6+fj39vX08/Lx8O/u7ezr6uno5+bl5OPi4eA=';
+const ASCII_SECRET = 'abcdefghijklmnopqrstuvwxyz012345';
+const ASCII_SECRET_B64 = Buffer.from(ASCII_SECRET, 'utf8').toString('base64');
 const CURRENT_K1 = {
   RATING_TOKEN_DERIVATION_KEY: K1,
   RATING_TOKEN_DERIVATION_KEY_VERSION: '1',
@@ -118,6 +120,51 @@ const cases: ConfigurationCase[] = [
   {
     name: 'rejects a retired key reused from notification phone hashing',
     env: { ...CURRENT_K2_WITH_RETIRED_K1, NOTIFICATION_PHONE_HASH_KEY: K1 },
+    expectedState: 'UNAVAILABLE',
+  },
+  {
+    name: 'rejects a current key reused from retired staff OTP derivation keys',
+    env: {
+      ...CURRENT_K1,
+      STAFF_OTP_DERIVATION_RETIRED_KEYS: JSON.stringify({ old: K1 }),
+    },
+    expectedState: 'UNAVAILABLE',
+  },
+  {
+    name: 'rejects a retired rating key reused from retired staff OTP verification keys',
+    env: {
+      ...CURRENT_K2_WITH_RETIRED_K1,
+      STAFF_OTP_VERIFICATION_RETIRED_KEYS: JSON.stringify({ old: K1 }),
+    },
+    expectedState: 'UNAVAILABLE',
+  },
+  {
+    name: 'rejects a current key reused from notification email hashing',
+    env: { ...CURRENT_K1, NOTIFICATION_EMAIL_HASH_KEY: K1 },
+    expectedState: 'UNAVAILABLE',
+  },
+  {
+    name: 'rejects malformed retired staff OTP derivation keys',
+    env: { ...CURRENT_K1, STAFF_OTP_DERIVATION_RETIRED_KEYS: 'not json' },
+    expectedState: 'UNAVAILABLE',
+  },
+  {
+    name: 'allows an unrelated retired staff OTP derivation key',
+    env: {
+      ...CURRENT_K1,
+      STAFF_OTP_DERIVATION_RETIRED_KEYS: JSON.stringify({ old: K2 }),
+    },
+    expectedState: 'READY',
+    currentVersion: 1,
+    versions: [1],
+  },
+  {
+    name: 'rejects rating key bytes reused as raw notification text',
+    env: {
+      RATING_TOKEN_DERIVATION_KEY: ASCII_SECRET_B64,
+      RATING_TOKEN_DERIVATION_KEY_VERSION: '1',
+      NOTIFICATION_MESSAGE_ID_HASH_KEY: ASCII_SECRET,
+    },
     expectedState: 'UNAVAILABLE',
   },
 ];

@@ -34,7 +34,6 @@ export function readRatingTokenConfiguration(env: NodeJS.ProcessEnv): RatingToke
       throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
     const keys = new Map<number, Uint8Array>();
     const keyIdentities = new Set<string>();
-    const ratingKeyTexts = [currentKeyText];
     const addKey = (version: number, text: string): void => {
       if (keys.has(version)) throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
       const key = decodeKey(text);
@@ -46,12 +45,10 @@ export function readRatingTokenConfiguration(env: NodeJS.ProcessEnv): RatingToke
     addKey(currentVersion, currentKeyText);
     for (const [version, key] of Object.entries(retired)) {
       if (typeof key !== 'string') throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
-      ratingKeyTexts.push(key);
       addKey(parseVersion(version), key);
     }
     const ring = { currentVersion, keys };
-    if (hasReusedRatingKey(env, ratingKeyTexts))
-      throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
+    if (hasReusedRatingKey(env, ring)) throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
     return { state: 'READY', ring, fingerprint: configurationFingerprint(ring) };
   } catch {
     return { state: 'UNAVAILABLE', reason: 'CONFIGURATION_INVALID' };
@@ -63,17 +60,44 @@ function hasDuplicatePropertyNames(raw: string, parsed: object): boolean {
   return propertyNames.length !== Object.keys(parsed).length;
 }
 
-function hasReusedRatingKey(env: NodeJS.ProcessEnv, ratingKeyTexts: readonly string[]): boolean {
+function hasReusedRatingKey(env: NodeJS.ProcessEnv, ring: RatingTokenKeyRing): boolean {
   const otherFeatureKeys = [
     env['STAFF_OTP_DERIVATION_KEY'],
     env['STAFF_OTP_VERIFICATION_KEY'],
     env['NOTIFICATION_PHONE_HASH_KEY'],
     env['NOTIFICATION_MESSAGE_ID_HASH_KEY'],
+    env['NOTIFICATION_EMAIL_HASH_KEY'],
+    ...readRetiredOtpKeys(env['STAFF_OTP_DERIVATION_RETIRED_KEYS']),
+    ...readRetiredOtpKeys(env['STAFF_OTP_VERIFICATION_RETIRED_KEYS']),
   ];
-  return ratingKeyTexts.some((ratingKey) =>
-    otherFeatureKeys.some(
-      (otherKey) => otherKey !== undefined && otherKey !== '' && otherKey === ratingKey,
-    ),
+  const ratingKeys = [...ring.keys.values()];
+  return otherFeatureKeys.some(
+    (otherKey) =>
+      otherKey !== undefined &&
+      otherKey !== '' &&
+      ratingKeys.some((ratingKey) => ratingKeyUsesOtherText(ratingKey, otherKey)),
+  );
+}
+
+function readRetiredOtpKeys(text: string | undefined): string[] {
+  if (text === undefined || text === '') return [];
+  const retired: unknown = JSON.parse(text);
+  if (
+    retired === null ||
+    typeof retired !== 'object' ||
+    Array.isArray(retired) ||
+    Object.values(retired).some((key) => typeof key !== 'string')
+  )
+    throw new Error('RATING_TOKEN_CONFIGURATION_INVALID');
+  return Object.values(retired);
+}
+
+function ratingKeyUsesOtherText(ratingKey: Uint8Array, otherText: string): boolean {
+  const ratingBytes = Buffer.from(ratingKey);
+  return (
+    otherText === ratingBytes.toString('base64') ||
+    ratingBytes.equals(Buffer.from(otherText, 'utf8')) ||
+    ratingBytes.equals(Buffer.from(otherText, 'base64'))
   );
 }
 

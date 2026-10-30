@@ -1,7 +1,7 @@
 // The module-map gate (plan v4 T12b, docs/module-map.md §6). Imports are read with the TypeScript compiler — every
 // form (import, export … from, import(), require, side-effect imports, type-only, import types) — and resolved with
 // each project's own tsconfig, so an alias or a `.js` specifier is judged by the file it really reaches.
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
 import ts from 'typescript';
@@ -368,6 +368,20 @@ function packageCycles(root) {
   return cyclesOf(graph, 'package');
 }
 
+function checkRatingTokenScripts(root, project, problems) {
+  const scripts = join(project, 'scripts');
+  if (!existsSync(scripts)) return;
+  for (const file of walk(scripts)) {
+    const rel = relative(root, file).split(sep).join('/');
+    for (const dep of dependenciesOf(file)) {
+      if (dep.spec === '@pospay/auth/rating-token')
+        problems.push(
+          `${rel}: the rating token codec is wired only by the worker (PP-86.2, ADR-0057)`,
+        );
+    }
+  }
+}
+
 /**
  * Checks every source file of every app and package against the map. Returns the violations; empty passes.
  *
@@ -382,6 +396,7 @@ export function checkModules(root, map) {
   const allowed = [...map.syncWrites, ...map.reads];
   for (const project of projects(root)) {
     const options = compilerOptions(project);
+    checkRatingTokenScripts(root, project, problems);
     let program;
     for (const file of walk(join(project, 'src'))) {
       const rel = relative(root, file).split(sep).join('/');
