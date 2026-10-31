@@ -209,7 +209,7 @@ lists by name, not for the adapters that implement them. The `StaffColumnsPort` 
 - **Not in this addendum:** customers' `RatingAlertRecipientsPort` (docs PR A-1, postponed with the rating track), and
   the `NotificationDelivered` ⇒ `customers` event row (spec 060 D-B8, in 59b-3).
 
-## Addendum 2026-10-31 — 59b-2 worker-customer claim reads and recovery
+## Addendum 2026-10-31 — 59b-2 worker-customer claim reads and the dormant claim core
 
 ### 5. Worker `customers → staff` is one bounded public read
 
@@ -229,35 +229,25 @@ The compile-time arrow is `customers → staff`, confined to that persistence ad
 `customers -> staff.readEmployeeDisplayNames` `reads` row). This records the existing technical
 adapter boundary; it is not a new owner or business decision.
 
-### 6. Bounded claim continuation and the 0194 rollout recovery
+### 6. The claim core of 59b-2a merges dormant, and the rest is a later slice
 
-A claim run processes at most the existing 100-request page. Its scheduler template keeps the
-keyset `(due_at, id)` continuation, including after isolated request failures, so a failed or
-rescheduled first page cannot starve later candidates. The processor writes that continuation to
-`job.data` before updating the scheduler template, because BullMQ creates the next iteration and
-retries from the current job data. A trigger creates a missing scheduler but does not rewrite an
-existing one, so its earlier `getJobScheduler` result cannot restore a stale cursor. Per-request
-diagnostics follow ADR-0037 §9: safe error type/code and immediate cause type/code only, while the
-other requests continue.
+Sub-PR 59b-2a ships only the claim core: the single-request `ClaimRatingRequest` use case with its
+domain decisions and its ports, the `RatingRequestReady` event and its contracts. It merges
+**dormant**: no runtime call site, no scheduler, no queue, no migration and no data step, so nothing
+in a running system claims a request yet.
 
-The ADR-0038 `rating-claims-discovery` step is idempotent under crash retry and concurrent reruns.
-Each company has a deterministic UUID v7 for its one discovery event. The step uses the ordinary
-company-aggregate lock and `INSERT … ON CONFLICT DO NOTHING RETURNING 1` on the
-real outbox row; it does not read `outbox` as `pospay_app`, write a fake consumed-event marker, or
-add a schema object or grant.
+The following parts of the 59b-2 design are **not** in this slice and land with the later sub-PRs
+59b-2b/59b-2c:
 
-A rolling deploy has two distinct recovery cases. An older worker can acknowledge and publish a
-late visit before the new worker starts, so that visit never produces a discovery event; a company
-with no request at data-step time has no discovery event either. Independently, an older worker can
-retry `RatingClaimsDiscoveryRequested` as unknown and park it. **After every replica runs the new
-worker**, the operator must therefore follow `docs/runbook.md` §«59b-2: recover rating-claim
-discovery» with a complete onboarding/release company inventory, not an emitted-event-ID log.
+- the per-company BullMQ claim scheduler `rating-claims-<companyId>` and its one-minute cadence;
+- the keyset `(due_at, id)` continuation across pages of at most 100 due requests, written to
+  `job.data` through `job.updateData` so a failed or rescheduled first page cannot starve later
+  candidates, and a trigger that creates a missing scheduler without rewriting an existing one;
+- the ADR-0038 discovery data step of migration 0194, which emits one discovery event per company
+  that already has unclaimed requests;
+- the dispatcher-read-only recovery of a parked discovery or of a late visit an older worker already
+  acknowledged, and its `docs/runbook.md` entry.
 
-The procedure follows the dispatcher-read-only replay pattern of 35b-2.
-`ratingClaimsVisitReplayPage` replays retained `ServiceSessionRecorded`,
-`ServiceSessionLinesAdded` and `ServiceLineChanged` rows through the existing partial replay index;
-`ratingClaimsDiscoveryReplay` reads the original discovery row by its deterministic outbox primary
-key. Published and parked inputs are included. Effects run through the new worker with the usual
-consumer dedupe, while attempts, `parked_at`, `published_at` and all other outbox metadata stay
-unchanged. No application-role outbox read, startup cross-tenant read, runtime `BYPASSRLS`, manual
-database edit, fabricated event or scheduler deletion is introduced.
+The decisions above stay as they are: the scheduler that drives them calls the claim core merged
+here, unchanged, and per-request diagnostics follow ADR-0037 §9 (safe error type/code and immediate
+cause type/code only) once that scheduler lands.

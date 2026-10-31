@@ -38,6 +38,14 @@ async function customerLockWaiter(): Promise<void> {
   );
 }
 
+/** معرّف طلب التقييم رقم ترتيبه من طلبات العميل مرتبة بيوم الطلب. */
+async function requestId(customer: string, index = 0): Promise<string> {
+  const ids = await f.requestIds(customer);
+  const id = ids[index];
+  if (id === undefined) throw new Error('RATING_REQUEST_MISSING');
+  return id;
+}
+
 async function visit(options: { customerId: string; branchId: string; at?: Date }) {
   const session = await f.session({
     customerId: options.customerId,
@@ -53,7 +61,8 @@ it('RT-09 two workers claim the request once and publish one ready event', async
   const customer = await f.customer();
   await visit({ customerId: customer, branchId });
   f.clock.at = new Date('2026-06-01T13:30:00.000Z');
-  await Promise.all([f.claimAll(), f.claimAll()]);
+  const request = await requestId(customer);
+  await Promise.all([f.claimOne(request), f.claimOne(request)]);
   const row = await f.request(customer);
   expect(row?.['status']).toBe('SENDING');
   expect(row?.['token_hash']).not.toBeNull();
@@ -69,7 +78,7 @@ it('RT-10 the attribution is the performers read at the claim', async () => {
   const second = await visit({ customerId: customer, branchId, at: LATER_VISIT });
   await f.setPerformer(second.lineId, other);
   f.clock.at = new Date('2026-06-01T14:30:00.000Z');
-  await f.claimAll();
+  await f.claimOne(await requestId(customer));
   const row = await f.request(customer);
   expect(row?.['status']).toBe('SENDING');
   const snapshot = await f.performers(String(row?.['id']));
@@ -86,7 +95,7 @@ it('RT-10 a cancellation before the claim removes a performer from the attributi
   await f.setPerformer(second.lineId, other);
   await f.cancelLine(first.lineId);
   f.clock.at = new Date('2026-06-01T14:30:00.000Z');
-  await f.claimAll();
+  await f.claimOne(await requestId(customer));
   const row = await f.request(customer);
   expect(row?.['status']).toBe('SENDING');
   const snapshot = await f.performers(String(row?.['id']));
@@ -102,7 +111,7 @@ it('RT-10 a cancellation after the claim does not remove the performer', async (
   const second = await visit({ customerId: customer, branchId, at: LATER_VISIT });
   await f.setPerformer(second.lineId, other);
   f.clock.at = new Date('2026-06-01T14:30:00.000Z');
-  await f.claimAll();
+  await f.claimOne(await requestId(customer));
   const row = await f.request(customer);
   const before = await f.performers(String(row?.['id']));
   await f.cancelLine(first.lineId);
@@ -116,7 +125,7 @@ it('RT-11 a cancellation no projection has seen still blocks the send', async ()
   const session = await visit({ customerId: customer, branchId });
   await f.cancelLine(session.lineId);
   f.clock.at = new Date('2026-06-01T13:30:00.000Z');
-  await f.claimAll();
+  await f.claimOne(await requestId(customer));
   const row = await f.request(customer);
   expect(row?.['status']).toBe('CANCELLED');
   expect(row?.['cancel_reason']).toBe('NO_ACTIVE_LINE');
@@ -128,7 +137,7 @@ it('RT-12 and RT-14 the phone travels only in the event and no token is stored a
   const customer = await f.customer();
   await visit({ customerId: customer, branchId });
   f.clock.at = new Date('2026-06-01T13:30:00.000Z');
-  await f.claimAll();
+  await f.claimOne(await requestId(customer));
   const row = await f.request(customer);
   const events = await f.readyEvents();
   expect(events).toHaveLength(1);
@@ -174,7 +183,7 @@ it('RT-13 the opt-out committed first cancels the request', async () => {
   await visit({ customerId: customer, branchId });
   await f.optOut(customer);
   f.clock.at = new Date('2026-06-01T13:30:00.000Z');
-  await f.claimAll();
+  await f.claimOne(await requestId(customer));
   const row = await f.request(customer);
   expect(row?.['status']).toBe('CANCELLED');
   expect(row?.['cancel_reason']).toBe('OPTED_OUT');
@@ -186,7 +195,7 @@ it('RT-13 the claim committed first still delivers that one request', async () =
   const customer = await f.customer();
   await visit({ customerId: customer, branchId });
   f.clock.at = new Date('2026-06-01T13:30:00.000Z');
-  await f.claimAll();
+  await f.claimOne(await requestId(customer));
   await f.optOut(customer);
   const row = await f.request(customer);
   expect(row?.['status']).toBe('SENDING');
@@ -198,12 +207,13 @@ it('RT-13 the opt-out that holds the customer lock first wins and the claim wait
   const customer = await f.customer();
   await visit({ customerId: customer, branchId });
   f.clock.at = new Date('2026-06-01T13:30:00.000Z');
+  const request = await requestId(customer);
 
   const optOut = f.optOutTransaction(customer);
-  let claim: ReturnType<typeof f.claimAll> | undefined;
+  let claim: ReturnType<typeof f.claimOne> | undefined;
   try {
     await optOut.locked;
-    claim = f.claimAll();
+    claim = f.claimOne(request);
     await customerLockWaiter();
     expect((await f.request(customer))?.['status']).toBe('SCHEDULED');
   } finally {
@@ -224,8 +234,9 @@ it('RT-13 the claim that holds the customer lock first wins and the opt-out wait
   const customer = await f.customer();
   await visit({ customerId: customer, branchId });
   f.clock.at = new Date('2026-06-01T13:30:00.000Z');
+  const request = await requestId(customer);
 
-  const claim = f.claimHoldingCustomerLock();
+  const claim = f.claimHoldingCustomerLock(request);
   let optOut: ReturnType<typeof f.optOutTransaction> | undefined;
   try {
     await claim.locked;
@@ -253,13 +264,13 @@ it('RT-14b a rotated key stores the new version and the first request keeps the 
   const firstCustomer = await f.customer();
   await visit({ customerId: firstCustomer, branchId });
   f.clock.at = new Date('2026-06-01T13:30:00.000Z');
-  await f.claimAll();
+  await f.claimOne(await requestId(firstCustomer));
   const first = await f.request(firstCustomer);
   expect(first?.['token_key_version']).toBe(1);
   f.token.version = 2;
   const secondCustomer = await f.customer();
   await visit({ customerId: secondCustomer, branchId });
-  await f.claimAll();
+  await f.claimOne(await requestId(secondCustomer));
   const second = await f.request(secondCustomer);
   expect(second?.['token_key_version']).toBe(2);
   expect(first?.['token_key_version']).toBe(1);
@@ -283,24 +294,21 @@ it('RT-01b every request snapshots only the performers of its own day', async ()
   });
   await f.schedule(secondDay.sessionId);
   await f.setPerformer(secondDay.lineId, other);
+  const ids = await f.requestIds(customer);
+  expect(ids).toHaveLength(2);
+  const firstRequest = await requestId(customer, 0);
+  const secondRequest = await requestId(customer, 1);
   f.clock.at = new Date('2026-06-01T13:30:00.000Z');
-  await f.claimAll();
-  const rows = await f.owner`SELECT id, business_date::text AS day FROM rating_requests
-    WHERE company_id = ${f.company} AND customer_id = ${customer} ORDER BY business_date`;
-  expect(rows).toHaveLength(2);
-  const firstDay = rows[0];
-  if (firstDay === undefined) throw new Error('REQUESTS_MISSING');
-  const firstSnapshot = await f.performers(String(firstDay['id']));
+  await f.claimOne(firstRequest);
+  const firstSnapshot = await f.performers(firstRequest);
   expect(firstSnapshot).toHaveLength(1);
   expect(firstSnapshot[0]?.['employee_id']).not.toBe(other);
   f.clock.at = new Date('2026-06-02T13:30:00.000Z');
-  await f.claimAll();
-  const secondDayRow = rows[1];
-  if (secondDayRow === undefined) throw new Error('REQUESTS_MISSING');
-  const secondSnapshot = await f.performers(String(secondDayRow['id']));
+  await f.claimOne(secondRequest);
+  const secondSnapshot = await f.performers(secondRequest);
   expect(secondSnapshot).toHaveLength(1);
   expect(secondSnapshot[0]?.['employee_id']).toBe(other);
-  expect(await f.performers(String(firstDay['id']))).toEqual(firstSnapshot);
+  expect(await f.performers(firstRequest)).toEqual(firstSnapshot);
   expect(first.sessionId).not.toBe(secondDay.sessionId);
 });
 
@@ -310,23 +318,12 @@ it('RT-07 the switch turned off after the scheduling cancels the request', async
   await visit({ customerId: customer, branchId });
   f.enabled.on = false;
   f.clock.at = new Date('2026-06-01T13:30:00.000Z');
-  await f.claimAll();
+  await f.claimOne(await requestId(customer));
   f.enabled.on = true;
   const row = await f.request(customer);
   expect(row?.['status']).toBe('CANCELLED');
   expect(row?.['cancel_reason']).toBe('REQUESTS_OFF');
   expect(await f.readyEvents()).toHaveLength(0);
-});
-
-it('a request scheduled before the deploy is claimed with no new visit event', async () => {
-  const branchId = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
-  const customer = await f.customer();
-  await visit({ customerId: customer, branchId });
-  f.clock.at = new Date('2026-06-01T13:30:00.000Z');
-  await f.claimAll();
-  const row = await f.request(customer);
-  expect(row?.['status']).toBe('SENDING');
-  expect(await f.readyEvents()).toHaveLength(1);
 });
 
 it('a newer visit moves the due time and the claim reschedules instead of claiming', async () => {
@@ -338,14 +335,15 @@ it('a newer visit moves the due time and the claim reschedules instead of claimi
     branchId,
     occurredAt: new Date('2026-06-01T13:40:00.000Z'),
   });
+  const request = await requestId(customer);
   f.clock.at = new Date('2026-06-01T13:45:00.000Z');
-  await f.claimAll();
+  await f.claimOne(request);
   const row = await f.request(customer);
   expect(row?.['status']).toBe('SCHEDULED');
   expect(row?.['due_at']).toEqual(new Date('2026-06-01T14:40:00.000Z'));
   expect(await f.readyEvents()).toHaveLength(0);
   f.clock.at = new Date('2026-06-01T14:50:00.000Z');
-  await f.claimAll();
+  await f.claimOne(request);
   const claimed = await f.request(customer);
   expect(claimed?.['status']).toBe('SENDING');
   expect(await f.readyEvents()).toHaveLength(1);

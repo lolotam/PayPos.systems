@@ -251,7 +251,6 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `PackageSaleChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `SessionTipsChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `RatingRequestReady`                                                        | `customers`     | `notifications`                                                                                   |
-| `RatingClaimsDiscoveryRequested` | `customers` (the 0194 data step) | worker `customers` (the per-company claim scheduler registers itself on delivery, D-B4; the event carries the company identity only) |
 | `LowRatingReceived`                                                         | `customers`     | `notifications`                                                                                   |
 | `AttendanceExceptionRaised`                                                 | `staff` (worker missed-out job, ADR-0032) | `notifications` (in-app managers by the `ATTENDANCE_EXCEPTION` rule; no row when it resolves to nobody, 62-2d) |
 | `ShiftNotClockedIn` | `staff` (worker not-clocked-in job, ADR-0037) | `notifications` (in-app managers by the interim rule; PR 62 replaces the rule) |

@@ -1,8 +1,6 @@
-import type { ClaimedEvent, DeliveryOutcome, TenantWrappers, Tx } from '@pospay/db';
+import type { Tx } from '@pospay/db';
 import { ratingBusinessName, ratingNamesLabel, ratingTeamLabel } from '@pospay/i18n';
-import type { Logger } from '@pospay/observability';
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
-import { ratingClaimsDiscoveryConsumer } from './events/handlers/on-rating-claims-discovery.handler.ts';
 import { onServiceSessionEvent } from './events/handlers/on-service-session-event.handler.ts';
 import {
   runRatingBootstrap,
@@ -10,16 +8,10 @@ import {
   type BootstrapParams,
   type BootstrapResult,
 } from './jobs/bootstrap-rating-requests.ts';
-import {
-  startRatingClaimsProcessor,
-  type RatingClaimDetector,
-} from './jobs/rating-claims.processor.ts';
 import { branchScheduleHoursAdapter } from './persistence/branch-schedule-hours.adapter.ts';
 import { businessNames } from './persistence/business-names.adapter.ts';
 import { performerNameAdapter } from './persistence/performer-name.adapter.ts';
-import { ratingClaimDiagnostics } from './persistence/rating-claim-diagnostics.ts';
 import { ratingClaimRepository } from './persistence/rating-claim.repository.ts';
-import { ratingClaimTransactions } from './persistence/rating-claim.transactions.ts';
 import { ratingOutbox } from './persistence/rating-outbox.adapter.ts';
 import { ratingRequestRepository } from './persistence/rating-request.repository.ts';
 import { ratingRequestsSwitch } from './persistence/rating-requests-switch.adapter.ts';
@@ -30,7 +22,6 @@ import type { PerformerLabelPort } from './ports/performer-label.port.ts';
 import type { RatingTokenDeriver } from './ports/rating-token.port.ts';
 import type { RatingRequestsSwitchPort } from './ports/rating-requests-switch.port.ts';
 import { ClaimRatingRequest } from './use-cases/claim-rating-request/claim-rating-request.ts';
-import { ClaimRatingRequests } from './use-cases/claim-rating-requests/claim-rating-requests.ts';
 import { ScheduleRatingRequest } from './use-cases/schedule-rating-request/schedule-rating-request.ts';
 
 interface RatingScheduleDeps {
@@ -85,37 +76,25 @@ export function createRatingBootstrap(
     );
 }
 
-/** مدخلات مشغّل مطالبة طلبات التقييم: الجدولة لكل شركة والمطالبة نفسها. */
-export interface RatingClaimsWorkerDeps {
-  database: Pick<TenantWrappers, 'withTenant'>;
+/** مدخلات مطالبة الطلب الواحد: نفس المنافذ اللي بتتربط في جذر الـ worker. */
+export interface RatingClaimDeps {
   ids: IdGenerator;
   clock: Clock;
-  daySessions: DaySessionsPort;
-  redisUrl: string;
-  logger: Logger;
-  prefix?: string;
+  daySessions: DaySessionsPort<Tx>;
   /** كود اشتقاق البصمة من جذر الـ worker، أو null لما القدرة غير جاهزة. */
   deriver: RatingTokenDeriver | null;
 }
 
-/** مشغّل مطالبة طلبات التقييم: يسجّل جدولة كل شركة ويطالب بطلباتها المستحقة. */
-export interface RatingClaimsWorker {
-  eventTypes: readonly string[];
-  deliver(
-    event: ClaimedEvent,
-    next: (event: ClaimedEvent) => Promise<DeliveryOutcome>,
-  ): Promise<DeliveryOutcome>;
-  ready(): Promise<void>;
-  close(): Promise<void>;
-  consumer: OutboxConsumer;
-}
-
 /**
- * يشغّل مطالبة طلبات التقييم: الجدولة لكل شركة بتتسجل مع أول حدث جدولة، والمهمة بتطالب
- * بالطلبات المستحقة بمعاملة لكل طلب.
+ * يبني مطالبة الطلب الواحد بكل منافذها مربوطة.
+ * السلايس 59b-2a بينزّل النواة ساكتة: مفيش متصل تشغيل، ولا طابور، ولا جدولة، ومفيش
+ * migration؛ السلايس الجاية (59b-2b/59b-2c) هي اللي هتندادي المصنع ده.
+ *
+ * @param deps المولّد والساعة وقارئ اليوم وكود اشتقاق البصمة
+ * @returns use case المطالبة على طلب واحد
  */
-export function startRatingClaimsWorker(deps: RatingClaimsWorkerDeps): RatingClaimsWorker {
-  const claim = new ClaimRatingRequest<Tx>(
+export function createClaimRatingRequest(deps: RatingClaimDeps): ClaimRatingRequest<Tx> {
+  return new ClaimRatingRequest<Tx>(
     {
       switch: ratingRequestsSwitch,
       hours: branchScheduleHoursAdapter,
@@ -130,21 +109,6 @@ export function startRatingClaimsWorker(deps: RatingClaimsWorkerDeps): RatingCla
     deps.ids,
     deps.clock,
   );
-  const detector: RatingClaimDetector = new ClaimRatingRequests(
-    ratingClaimTransactions(deps.database),
-    claim,
-    deps.clock,
-    ratingClaimDiagnostics(deps.logger),
-  );
-  const processor = startRatingClaimsProcessor(detector, deps.redisUrl, deps.prefix);
-  const consumer = ratingClaimsDiscoveryConsumer();
-  return {
-    eventTypes: consumer.eventTypes,
-    deliver: processor.deliver,
-    ready: processor.ready,
-    close: processor.close,
-    consumer,
-  };
 }
 
 // منافذ حالة الجدولة بتتربط في مكان واحد، فالمستهلك الحي والـ bootstrap بيبانوا زي بعض.

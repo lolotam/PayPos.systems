@@ -17,13 +17,17 @@ import { branchScheduleHoursAdapter } from '../../modules/customers/persistence/
 import { businessNames } from '../../modules/customers/persistence/business-names.adapter.ts';
 import { performerNameAdapter } from '../../modules/customers/persistence/performer-name.adapter.ts';
 import { ratingClaimRepository } from '../../modules/customers/persistence/rating-claim.repository.ts';
-import { ratingClaimTransactions } from '../../modules/customers/persistence/rating-claim.transactions.ts';
 import { ratingOutbox } from '../../modules/customers/persistence/rating-outbox.adapter.ts';
 import { ratingTokenPort } from '../../modules/customers/persistence/rating-token.adapter.ts';
-import type { RatingClaimRepository } from '../../modules/customers/ports/rating-claim.repository.ts';
+import type {
+  DueRatingRequest,
+  RatingClaimRepository,
+} from '../../modules/customers/ports/rating-claim.repository.ts';
 import type { RatingRequestsSwitchPort } from '../../modules/customers/ports/rating-requests-switch.port.ts';
-import { ClaimRatingRequest } from '../../modules/customers/use-cases/claim-rating-request/claim-rating-request.ts';
-import { ClaimRatingRequests } from '../../modules/customers/use-cases/claim-rating-requests/claim-rating-requests.ts';
+import {
+  ClaimRatingRequest,
+  type ClaimOutcome,
+} from '../../modules/customers/use-cases/claim-rating-request/claim-rating-request.ts';
 import { schedulingData } from '../../rating-scheduling/__tests__/rating-scheduling-data.ts';
 
 export { everyDay } from '../../rating-scheduling/__tests__/rating-scheduling-data.ts';
@@ -103,6 +107,7 @@ interface ClaimsWorld {
   readonly ids: IdGenerator;
   readonly clock: { at: Date; now(): Date };
   readonly token: TokenFake;
+  readonly enabled: SwitchFake;
 }
 
 async function claimsWorld(): Promise<ClaimsWorld> {
@@ -118,28 +123,32 @@ async function claimsWorld(): Promise<ClaimsWorld> {
       return this.at;
     },
   };
-  return { testDb, owner, db, ids, clock, token: { version: 1 } };
+  const enabled: SwitchFake = { on: true, enabled: async () => enabled.on };
+  return { testDb, owner, db, ids, clock, token: { version: 1 }, enabled };
 }
 
-/** مشغّل المطالبة على نفس قواعد بيانات 59-1. */
-function claimTools(world: ClaimsWorld, claims: RatingClaimRepository<Tx> = ratingClaimRepository) {
-  const enabled: SwitchFake = {
-    on: true,
-    enabled: async () => enabled.on,
-  };
+/** جدولة الطلب في الاختبار: نفس المستهلك الحي، فحدث الزيارة بيمشي زي الإنتاج. */
+function schedulingTools(world: ClaimsWorld) {
   const scheduling = createRatingSchedulingConsumer({
     ids: world.ids,
     clock: world.clock,
     daySessions: daySessionsReader,
-    ratingSwitch: enabled,
+    ratingSwitch: world.enabled,
   });
   const deliver = createDeliverer(world.db, [scheduling], createLogger('silent'), {
     knownEventTypes: scheduling.eventTypes,
   });
-  const token = world.token;
-  const claim = new ClaimRatingRequest<Tx>(
+  return { deliver };
+}
+
+/** use case المطالبة على طلب واحد، بنفس منافذ الإنتاج. */
+function claimUseCase(
+  world: ClaimsWorld,
+  claims: RatingClaimRepository<Tx> = ratingClaimRepository,
+): ClaimRatingRequest<Tx> {
+  return new ClaimRatingRequest<Tx>(
     {
-      switch: enabled,
+      switch: world.enabled,
       hours: branchScheduleHoursAdapter,
       names: businessNames,
       daySessions: daySessionsReader,
@@ -149,7 +158,7 @@ function claimTools(world: ClaimsWorld, claims: RatingClaimRepository<Tx> = rati
       token: ratingTokenPort({
         claim: (identity) => ({
           tokenHash: testTokenHash(identity.ratingRequestId),
-          keyVersion: token.version,
+          keyVersion: world.token.version,
         }),
       }),
       outbox: ratingOutbox,
@@ -157,10 +166,6 @@ function claimTools(world: ClaimsWorld, claims: RatingClaimRepository<Tx> = rati
     world.ids,
     world.clock,
   );
-  const pass = new ClaimRatingRequests(ratingClaimTransactions(world.db), claim, world.clock, {
-    failed: () => undefined,
-  });
-  return { enabled, token, deliver, pass };
 }
 
 /**
@@ -191,6 +196,64 @@ function gatedClaims(): { port: RatingClaimRepository<Tx>; arm(): Gate } {
   };
 }
 
+/** صف الطلب كما يحتاجه قرار المطالبة: نفس أعمدة مخزن المستأجر. */
+type StoredRequest = {
+  readonly id: string;
+  readonly business_id: string;
+  readonly customer_id: string;
+  readonly business_date: string;
+  readonly branch_id: string;
+  readonly due_at: Date | string;
+  readonly send_deadline: Date | string | null;
+  readonly status: DueRatingRequest['status'];
+};
+
+const instant = (value: Date | string): Date =>
+  new Date(value instanceof Date ? value.getTime() : value);
+
+/**
+ * يقرأ صف طلب التقييم من غير قفل.
+ * القفل على الصف هو شغل المطالبة نفسها،فلو القراءة هنا كانت مقفولة كانت المطالبة
+ * المتوازية هتشوف صف تاني أو ما تشوفش صف.
+ */
+async function dueRequest(tx: Tx, companyId: string, requestId: string): Promise<DueRatingRequest> {
+  const rows = await tx.execute<StoredRequest>(sql`
+    SELECT id, business_id, customer_id, business_date::text AS business_date,
+      branch_id, due_at, send_deadline, status
+      FROM rating_requests WHERE company_id = ${companyId} AND id = ${requestId}`);
+  const row = rows[0];
+  if (row === undefined) throw new Error('RATING_REQUEST_MISSING');
+  return {
+    id: row.id,
+    businessId: row.business_id,
+    customerId: row.customer_id,
+    businessDate: row.business_date,
+    branchId: row.branch_id,
+    dueAt: instant(row.due_at),
+    sendDeadline: row.send_deadline === null ? null : instant(row.send_deadline),
+    status: row.status,
+  };
+}
+
+/**
+ * يطالب بطلب واحد في معاملة المستأجر: الصف بيتقفل جوّه use case المطالبة نفسه.
+ *
+ * @param db داتابيز المستأجر
+ * @param claim use case المطالبة، وبوابة القفل الاختيارية بتتحط فين
+ * @param id معرّف طلب التقييم المطلوب المطالبة بيه
+ * @returns نتيجة المطالبة
+ */
+function claimRequest(
+  db: Database,
+  claim: ClaimRatingRequest<Tx>,
+  id: string,
+): Promise<ClaimOutcome> {
+  return db.withTenant(TENANT.A.company, async (tx) => {
+    const request = await dueRequest(tx, TENANT.A.company, id);
+    return claim.execute(tx, { companyId: TENANT.A.company, request });
+  });
+}
+
 /** قراءات حالة الطلب والأحداث في الاختبار. */
 function requestReaders(owner: postgres.Sql, company: string) {
   return {
@@ -200,6 +263,12 @@ function requestReaders(owner: postgres.Sql, company: string) {
           token_hash, token_key_version, claimed_at, expires_at, ready_event_id
         FROM rating_requests WHERE company_id = ${company} AND customer_id = ${customerId}`;
       return rows[0];
+    },
+    /** معرّفات طلبات العميل مرتبة بيوم الطلب، عشان الاختبار يختار الطلب المطالَب بيه. */
+    requestIds: async (customerId: string) => {
+      const rows = await owner`SELECT id FROM rating_requests
+        WHERE company_id = ${company} AND customer_id = ${customerId} ORDER BY business_date`;
+      return rows.map((row) => String(row['id']));
     },
     /** أحداث الجاهزية المنشورة للشركة. */
     readyEvents: async () =>
@@ -244,9 +313,10 @@ function requestWriters(owner: postgres.Sql, company: string, ids: IdGenerator) 
 export async function ratingClaimsFixture() {
   const world = await claimsWorld();
   const { testDb, owner, db, ids, clock } = world;
-  const tools = claimTools(world);
+  const { deliver } = schedulingTools(world);
+  const claim = claimUseCase(world);
   const gated = gatedClaims();
-  const gatedPass = claimTools(world, gated.port).pass;
+  const gatedClaim = claimUseCase(world, gated.port);
   const data = schedulingData({ owner, db, ids });
   const readers = requestReaders(owner, TENANT.A.company);
   const writers = requestWriters(owner, TENANT.A.company, ids);
@@ -256,8 +326,8 @@ export async function ratingClaimsFixture() {
     db,
     ids,
     clock,
-    enabled: tools.enabled,
-    token: tools.token,
+    enabled: world.enabled,
+    token: world.token,
     company: TENANT.A.company,
     tenant: TENANT.A,
     branch: data.branch,
@@ -268,16 +338,16 @@ export async function ratingClaimsFixture() {
     otherBusiness: data.otherBusiness,
     /** جدولة الطلب من حدث الزيارة، زي ما بيعمل العامل في الإنتاج. */
     schedule: async (sessionId: string) =>
-      tools.deliver(await data.event(sessionId, 'ServiceSessionRecorded')),
-    /** جولة مطالبة واحدة للشركة. */
-    claimAll: async () => tools.pass.execute(TENANT.A.company),
+      deliver(await data.event(sessionId, 'ServiceSessionRecorded')),
+    /** مطالبة بطلب واحد في معاملة مستأجر. */
+    claimOne: (requestId: string) => claimRequest(db, claim, requestId),
     /**
-     * جولة مطالبة بتقف بعد ما تقفل صف العميل، فالقفل يبقى ماسك لحد ما الاختبار يفتح البوابة.
+     * مطالبة بتقف بعد ما تقفل صف العميل، فالقفل يبقى ماسك لحد ما الاختبار يفتح البوابة.
      * ده اللي يخلي التعارض مع رفض التقييم متاح في الاتجاهين.
      */
-    claimHoldingCustomerLock: () => {
+    claimHoldingCustomerLock: (requestId: string) => {
       const gate = gated.arm();
-      const done = gatedPass.execute(TENANT.A.company);
+      const done = claimRequest(db, gatedClaim, requestId);
       return { locked: gate.acquired, release: gate.release, done };
     },
     /**

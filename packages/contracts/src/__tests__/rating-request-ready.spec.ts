@@ -5,7 +5,6 @@ import {
   RATING_REQUEST_TEMPLATE_REVISION,
   ratingRequestReady,
 } from '../customers/rating-request-ready.js';
-import { ratingClaimsDiscoveryRequested, ratingClaimsJob } from '../customers/rating-claims.js';
 import { notificationRequest } from '../notifications.js';
 
 const eventId = '01920000-0000-7000-8000-0000000000a1';
@@ -81,41 +80,5 @@ describe('rating request ready contract', () => {
 
   it('refuses a key version that is not positive', () => {
     expect(ratingRequestReady.safeParse({ ...payload, token_key_version: 0 }).success).toBe(false);
-  });
-});
-
-describe('rating claims discovery contract', () => {
-  it('carries the company identity only', () => {
-    expect(ratingClaimsDiscoveryRequested.parse({ company_id: companyId })).toEqual({
-      company_id: companyId,
-    });
-  });
-
-  it('refuses a payload with anything else', () => {
-    expect(
-      ratingClaimsDiscoveryRequested.safeParse({ company_id: companyId, id: requestId }).success,
-    ).toBe(false);
-  });
-});
-
-describe('rating claims job contract', () => {
-  it('carries the company identity only', () => {
-    expect(ratingClaimsJob.parse({ companyId })).toEqual({ companyId });
-  });
-
-  it('carries a bounded continuation cursor when a full page was processed', () => {
-    const after = { dueAt: '2026-10-31T12:00:00.000Z', id: requestId };
-    expect(ratingClaimsJob.parse({ companyId, after })).toEqual({ companyId, after });
-  });
-
-  it('refuses a malformed continuation cursor', () => {
-    expect(
-      ratingClaimsJob.safeParse({ companyId, after: { dueAt: 'not-a-date', id: requestId } })
-        .success,
-    ).toBe(false);
-  });
-
-  it('refuses a job with anything else', () => {
-    expect(ratingClaimsJob.safeParse({ companyId, requestId }).success).toBe(false);
   });
 });
