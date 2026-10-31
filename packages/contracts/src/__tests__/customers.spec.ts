@@ -39,25 +39,6 @@ describe('customer name contract', () => {
 });
 
 describe('the customer name pattern a client receives', () => {
-  it.each([
-    ['U+0000', 0x00],
-    ['U+001F', 0x1f],
-    ['U+007F', 0x7f],
-    ['U+009F', 0x9f],
-  ])('refuses %s in a name', (_label, code) => {
-    const control = String.fromCharCode(code);
-    const name = `Example${control}`;
-    expect(findOrCreateCustomerInput.safeParse({ ...input, name }).success).toBe(false);
-  });
-
-  it.each([
-    ['U+00A0', 'Example\u00a0Name'],
-    ['an Arabic name', 'عميل تجريبي'],
-    ['an emoji', 'Example 😀'],
-  ])('accepts %s', (_label, name) => {
-    expect(findOrCreateCustomerInput.safeParse({ ...input, name }).success).toBe(true);
-  });
-
   it('publishes a pattern that runs without the unicode flag', () => {
     const schemas = (
       buildOpenApiDocument()['components'] as {

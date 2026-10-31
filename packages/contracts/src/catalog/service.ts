@@ -5,10 +5,11 @@ import { nameAr, nameEn } from '../bilingual/names.js';
 
 import { page } from '../pagination/cursor.js';
 import { id } from '../scalars/id.js';
+import { noControlChars } from '../scalars/no-control-chars.js';
 import { timestamp } from '../scalars/timestamp.js';
 
-const serviceNameEn = nameEn.regex(/^\P{Cc}*$/u);
-const serviceNameAr = nameAr.regex(/^\P{Cc}*$/u);
+const serviceNameEn = nameEn.regex(noControlChars);
+const serviceNameAr = nameAr.regex(noControlChars);
 
 // المال بيتنقل كنص بـ 3 خانات عشرية دايماً؛ رقم JS كان بيضيّع فلوس (CLAUDE.md §5).
 // نفس حد salaryAmount: numeric(14,3) يعني 11 خانة صحيحة على الأكثر.
