@@ -7,15 +7,19 @@ import {
   ratingView,
   submitRatingInput,
 } from '../customers/ratings.js';
+import { RATING_REQUESTS_DEFAULT_ENABLED, ratingSettings } from '../customers/rating-settings.js';
 
 describe('rating request contracts', () => {
   it.each(['SCHEDULED', 'SENDING', 'SENT', 'CANCELLED'])('accepts status %s', (status) => {
     expect(ratingRequestStatus.parse(status)).toBe(status);
   });
 
-  it.each(['NO_ACTIVE_LINE', 'PAST_DEADLINE', 'OPTED_OUT'])('accepts reason %s', (reason) => {
-    expect(ratingCancelReason.parse(reason)).toBe(reason);
-  });
+  it.each(['NO_ACTIVE_LINE', 'PAST_DEADLINE', 'OPTED_OUT', 'REQUESTS_OFF'])(
+    'accepts reason %s',
+    (reason) => {
+      expect(ratingCancelReason.parse(reason)).toBe(reason);
+    },
+  );
 
   it.each(['REQUESTS_OFF', 'scheduled', 'SENT ', 'UNKNOWN'])(
     'refuses foreign status %s',
@@ -24,7 +28,7 @@ describe('rating request contracts', () => {
     },
   );
 
-  it.each(['REQUESTS_OFF', 'opted_out', 'NO_LINE'])('refuses foreign reason %s', (value) => {
+  it.each(['opted_out', 'NO_LINE', 'REQUESTS_OFF '])('refuses foreign reason %s', (value) => {
     expect(ratingCancelReason.safeParse(value).success).toBe(false);
   });
 });
@@ -76,5 +80,25 @@ describe('public rating view allowlist', () => {
     expect(ratingView.safeParse({ business_name: '😀'.repeat(256), state: 'open' }).success).toBe(
       false,
     );
+  });
+});
+
+describe('rating requests switch', () => {
+  it('carries the switch value and nothing else', () => {
+    expect(ratingSettings.parse({ requests_enabled: true })).toEqual({ requests_enabled: true });
+    expect(ratingSettings.parse({ requests_enabled: false })).toEqual({ requests_enabled: false });
+    expect(Object.keys(ratingSettings.shape)).toEqual(['requests_enabled']);
+  });
+
+  it('refuses a missing value, a string and a foreign key', () => {
+    expect(ratingSettings.safeParse({}).success).toBe(false);
+    expect(ratingSettings.safeParse({ requests_enabled: 'true' }).success).toBe(false);
+    expect(ratingSettings.safeParse({ requests_enabled: true, alerts_enabled: true }).success).toBe(
+      false,
+    );
+  });
+
+  it('is off by default, the same constant the worker reads', () => {
+    expect(RATING_REQUESTS_DEFAULT_ENABLED).toBe(false);
   });
 });

@@ -76,10 +76,26 @@ it('accepts a complete valid claimed, sent and consumed row', async () => {
   expect(rows).toEqual([{ status: 'SENT' }]);
 });
 
+it('accepts a cancelled request because the activity turned rating requests off', async () => {
+  const id = ids.newId();
+  await withoutGuards((tx) =>
+    insertRequest(tx, {
+      tenant: A,
+      id,
+      // يوم مالهوش صف تاني: مفتاح (company, business, customer, day) فريد.
+      date: '2026-06-15',
+      status: 'CANCELLED',
+      cancelReason: 'REQUESTS_OFF',
+    }),
+  );
+  const rows = await owner`SELECT cancel_reason FROM rating_requests WHERE id=${id}`;
+  expect(rows).toEqual([{ cancel_reason: 'REQUESTS_OFF' }]);
+});
+
 it.each([
   { options: { status: 'VOID' }, constraint: 'rating_requests_status' },
   {
-    options: { status: 'CANCELLED', cancelReason: 'REQUESTS_OFF' },
+    options: { status: 'CANCELLED', cancelReason: 'SWITCHED_OFF' },
     constraint: 'rating_requests_cancel_reason',
   },
   {

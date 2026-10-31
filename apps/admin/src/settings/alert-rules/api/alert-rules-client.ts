@@ -2,6 +2,8 @@ import {
   alertRules,
   type AlertKindCode,
   type AlertRules,
+  ratingSettingsResponse,
+  type RatingSettingsResponse,
   type ResetBranchAlertRuleQuery,
   type SetAlertRulesInput,
 } from '@pospay/contracts';
@@ -11,6 +13,7 @@ const businessPath = '/v1/businesses/{businessId}/alert-rules';
 const masterPath = '/v1/businesses/{businessId}/alert-rules/master';
 const branchPath = '/v1/businesses/{businessId}/branches/{branchId}/alert-rules';
 const resetPath = '/v1/businesses/{businessId}/branches/{branchId}/alert-rules/{kind}';
+const ratingSettingsPath = '/v1/businesses/{businessId}/rating-settings';
 
 export function alertRulesBusinessKey(companyId: string, userId: string, businessId: string) {
   return ['alert-rules', companyId, userId, businessId] as const;
@@ -96,4 +99,34 @@ export async function resetBranchAlertRule(
     },
   });
   if (response.error) throw { ...response.error, status: response.response.status };
+}
+
+export function ratingSettingsKey(companyId: string, userId: string, businessId: string) {
+  return ['rating-settings', companyId, userId, businessId] as const;
+}
+
+export async function readRatingSettings(
+  companyId: string,
+  businessId: string,
+  signal: AbortSignal,
+): Promise<RatingSettingsResponse> {
+  const response = await apiClient().GET(ratingSettingsPath, {
+    params: { header: { 'x-company-id': companyId }, path: { businessId } },
+    signal,
+  });
+  if (response.error) throw { ...response.error, status: response.response.status };
+  return ratingSettingsResponse.parse(response.data);
+}
+
+export async function setRatingRequests(
+  companyId: string,
+  businessId: string,
+  enabled: boolean,
+): Promise<RatingSettingsResponse> {
+  const response = await apiClient().PUT(ratingSettingsPath, {
+    params: { header: { 'x-company-id': companyId }, path: { businessId } },
+    body: { requests_enabled: enabled },
+  });
+  if (response.error) throw { ...response.error, status: response.response.status };
+  return ratingSettingsResponse.parse(response.data);
 }

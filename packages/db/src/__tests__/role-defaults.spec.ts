@@ -272,6 +272,17 @@ it('AL-Q1 manage:alert-rules:business defaults to the three managers, is delegab
   }
 });
 
+it('RT-Q13 manage:rating-requests:business defaults to the owner, is delegable to humans and never the device', () => {
+  const code = 'manage:rating-requests:business';
+  expect(ROLE_DEFAULTS[code]).toEqual(['owner']);
+  expect(OWNER_GRANTED_PERMISSIONS as readonly string[]).not.toContain(code);
+  for (const role of SYSTEM_ROLES) {
+    expect(systemRolePolicy(role.id, 'global')?.permissions.includes(code)).toBe(
+      role.code !== 'device',
+    );
+  }
+});
+
 it('MY-Q5 manage:staff-app-columns:business defaults to the three managers, is delegable to humans and never the device', () => {
   const defaults = ['owner', 'general_manager', 'business_manager'];
   const holders: readonly string[] = ROLE_DEFAULTS['manage:staff-app-columns:business'];

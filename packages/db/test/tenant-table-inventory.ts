@@ -57,6 +57,7 @@ export const TENANT_TABLES = [
   'rating_performers',
   'ratings',
   'rating_attributions',
+  'rating_settings',
   'companies',
   'businesses',
   'branches',

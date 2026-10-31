@@ -11,9 +11,8 @@ export const ratingRequestStatus = z
   .meta({ id: 'RatingRequestStatus' });
 export type RatingRequestStatus = z.infer<typeof ratingRequestStatus>;
 
-// REQUESTS_OFF بييجي مع صف 59-2؛ القيم الحالية مقصودة علشان التوسعة تبقى migration مستقلة.
 export const ratingCancelReason = z
-  .enum(['NO_ACTIVE_LINE', 'PAST_DEADLINE', 'OPTED_OUT'])
+  .enum(['NO_ACTIVE_LINE', 'PAST_DEADLINE', 'OPTED_OUT', 'REQUESTS_OFF'])
   .meta({ id: 'RatingCancelReason' });
 export type RatingCancelReason = z.infer<typeof ratingCancelReason>;
 

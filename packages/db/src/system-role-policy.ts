@@ -36,6 +36,8 @@ const deviceForbidden = [
   'manage:business-identity:business',
   // الجهاز لا يعدّل قواعد التنبيهات أبداً.
   'manage:alert-rules:business',
+  // الجهاز لا يعدّل مفتاح طلبات التقييم أبداً؛ ده دعوة للعميل مش تنبيه للفريق.
+  'manage:rating-requests:business',
   // الجهاز لا يعدّل أعمدة تطبيق الموظفين أبداً.
   'manage:staff-app-columns:business',
   // الجهاز لا يحمل صلاحية خطط العمولة أبداً؛ الإدارة لتسجيل دخول إداري فردي (FR-010).
@@ -115,6 +117,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
           code === 'cancel:service-lines:branch' ||
           code === 'approve:discounts:branch' ||
           code === 'manage:alert-rules:business' ||
+          code === 'manage:rating-requests:business' ||
           code === 'manage:staff-app-columns:business' ||
           (DELEGATABLE_CATALOG_PERMISSIONS as readonly string[]).includes(code) ||
           optional[role.code]?.includes(code),

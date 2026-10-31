@@ -402,3 +402,4 @@ export * from './documents-render.js';
 export * from './orders/discount-approval.js';
 export * from './orders/discount-approval-events.js';
 export * from './customers/ratings.js';
+export * from './customers/rating-settings.js';

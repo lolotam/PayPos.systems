@@ -1963,6 +1963,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/rating-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Whether the business sends rating requests to its customers. Requires manage:rating-requests:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. A business with no stored switch reads as off. Never writes. */
+        get: operations["getBusinessRatingSettings"];
+        /** @description Turns the rating requests of the business on or off. Requires manage:rating-requests:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. The switch is independent of the team alerts master switch. Every write is audited with before and after. */
+        put: operations["setBusinessRatingSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions": {
         parameters: {
             query?: never;
@@ -4600,6 +4618,12 @@ export interface components {
             /** Format: uuid */
             expected_rule_id: string;
             expected_revision: number;
+        };
+        RatingSettings: {
+            requests_enabled: boolean;
+        };
+        RatingSettingsResponse: {
+            requests_enabled: boolean;
         };
         SessionMoney: string;
         SessionPerformerInput: {
@@ -14307,6 +14331,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getBusinessRatingSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rating requests switch of the business */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatingSettingsResponse"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setBusinessRatingSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RatingSettings"];
+            };
+        };
+        responses: {
+            /** @description The rating requests switch of the business */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatingSettingsResponse"];
                 };
             };
             /** @description The API error envelope */

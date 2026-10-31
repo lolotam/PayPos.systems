@@ -15,6 +15,14 @@ export const RATING_REQUEST_COLUMN_GRANTS = [
   'updated_at',
 ].map((column) => `rating_requests.${column}:pospay_app:UPDATE`);
 
+// مفتاح طلبات التقييم: التطبيق يبدّل القيمة ومن نفّذ التغيير ولحظة التغيير ورقم المراجعة بس؛ الحذف ممنوع.
+export const RATING_SETTINGS_COLUMN_GRANTS = [
+  'requests_enabled',
+  'updated_by',
+  'updated_at',
+  'revision',
+].map((column) => `rating_settings.${column}:pospay_app:UPDATE`);
+
 // لقطات المنفذين والتقييم والنسب إدخال فقط؛ لا UPDATE أو DELETE أو TRUNCATE لأي جدول.
 export const RATING_TABLE_GRANTS = [
   'rating_attributions:INSERT',
@@ -23,6 +31,8 @@ export const RATING_TABLE_GRANTS = [
   'rating_performers:SELECT',
   'rating_requests:INSERT',
   'rating_requests:SELECT',
+  'rating_settings:INSERT',
+  'rating_settings:SELECT',
   'ratings:INSERT',
   'ratings:SELECT',
 ];

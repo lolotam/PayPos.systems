@@ -82,6 +82,8 @@ const expectedSchemas = [
   'AlertRuleInput',
   'AlertRuleView',
   'AlertRules',
+  'RatingSettings',
+  'RatingSettingsResponse',
   'AttendanceQrBranch',
   'AttendanceQrIssue',
   'AttendanceQrToken',
