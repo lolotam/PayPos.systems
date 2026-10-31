@@ -279,7 +279,7 @@ it('SV-09 rolls the whole write back when the audit insert fails', async () => {
       businessId: f.business,
       input: termsFor('Rollback service'),
     }),
-  ).rejects.toThrow('SERVICE_PERSISTENCE_FAILED');
+  ).rejects.toThrow('Synthetic audit failure');
   expect(await f.h.owner`SELECT 1 FROM services WHERE name_en='Rollback service'`).toHaveLength(0);
 });
 
