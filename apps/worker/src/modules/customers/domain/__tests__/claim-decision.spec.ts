@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { decideClaim, type ClaimDecisionInput, type StoredClaimSchedule } from '../claim-decision.ts';
+import {
+  decideClaim,
+  decideClaimBeforeDayState,
+  decideClaimOptOut,
+  type ClaimDecisionInput,
+  type StoredClaimSchedule,
+} from '../claim-decision.ts';
 import { ratingSchedule } from '../rating-schedule.ts';
 import type { ActiveLine, BranchSchedule, DaySession } from '../sessions-of-day.ts';
 
@@ -63,6 +69,34 @@ function decide(overrides: Partial<ClaimDecisionInput> = {}) {
     ...overrides,
   });
 }
+
+describe('claim decision staged reads', () => {
+  it('requests the switch only when the customer has not opted out', () => {
+    expect(decideClaimOptOut(null)).toEqual({ kind: 'READ_SWITCH' });
+    expect(decideClaimOptOut(new Date('2026-10-05T13:00:00Z'))).toEqual({ kind: 'OPTED_OUT' });
+  });
+
+  it('settles the switch and stored deadline before requesting day state', () => {
+    const input = {
+      now: new Date('2026-10-05T13:30:00Z'),
+      optedOutAt: null,
+      stored,
+    };
+    expect(decideClaimBeforeDayState({ ...input, switchEnabled: true })).toEqual({
+      kind: 'READ_DAY_STATE',
+    });
+    expect(decideClaimBeforeDayState({ ...input, switchEnabled: false })).toEqual({
+      kind: 'REQUESTS_OFF',
+    });
+    expect(
+      decideClaimBeforeDayState({
+        ...input,
+        now: new Date('2026-10-05T19:30:01Z'),
+        switchEnabled: true,
+      }),
+    ).toEqual({ kind: 'PAST_DEADLINE' });
+  });
+});
 
 describe('claim decision recheck order', () => {
   it('cancels the request when the customer opted out', () => {
@@ -143,7 +177,10 @@ describe('claim decision when the day moved', () => {
   it('reschedules the request when a newer session moved its due time', () => {
     const later = '2026-10-05T13:40:00Z';
     const newer = session('two', later, [line('line-two', 'two', later, ['employee-2'])]);
-    const decision = decide({ now: new Date('2026-10-05T13:45:00Z'), sessions: [daySession, newer] });
+    const decision = decide({
+      now: new Date('2026-10-05T13:45:00Z'),
+      sessions: [daySession, newer],
+    });
     expect(decision.kind).toBe('RESCHEDULED');
     const moved = decision.kind === 'RESCHEDULED' ? decision.schedule : stored;
     expect(moved.dueAt.toISOString()).toBe('2026-10-05T14:40:00.000Z');

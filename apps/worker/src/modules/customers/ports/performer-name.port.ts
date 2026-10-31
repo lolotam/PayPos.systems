@@ -1,5 +1,3 @@
-import type { Tx } from '@pospay/db';
-
 /** اسم المنفذ بلغتي العرض؛ null لما لا اسم آمن للعرض في اللغة (ADR-0037 §4). */
 export interface PerformerDisplayName {
   readonly employeeId: string;
@@ -8,7 +6,7 @@ export interface PerformerDisplayName {
 }
 
 /** قراءة أسماء منفذي الخدمة من staff، لأن customers لا يستورد جداوله (ADR-0010). */
-export interface PerformerNamePort {
+export interface PerformerNamePort<Transaction = unknown> {
   /**
    * يرجع الاسم الأول الآمن للعرض لكل موظف مطلوب، وباللغتين لأن رسالة التقييم بلغة العميل.
    *
@@ -18,7 +16,7 @@ export interface PerformerNamePort {
    * @returns أسماء المنفذين؛ الموظف بلا اسم آمن يظهر باسمين فارغين
    */
   firstNames(
-    tx: Tx,
+    tx: Transaction,
     companyId: string,
     employeeIds: readonly string[],
   ): Promise<readonly PerformerDisplayName[]>;

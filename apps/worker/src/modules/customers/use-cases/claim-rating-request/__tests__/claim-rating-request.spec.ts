@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Tx } from '@pospay/db';
+import { ratingBusinessName } from '@pospay/i18n';
+import type { RatingRequestReady } from '@pospay/contracts';
 
 import type { ActiveLine } from '../../../domain/sessions-of-day.ts';
 import type { BranchScheduleHoursPort } from '../../../ports/branch-schedule-hours.port.ts';
@@ -16,10 +18,7 @@ import type {
 import type { RatingOutboxPort } from '../../../ports/rating-outbox.port.ts';
 import type { RatingTokenPort } from '../../../ports/rating-token.port.ts';
 import type { RatingRequestsSwitchPort } from '../../../ports/rating-requests-switch.port.ts';
-import {
-  ClaimRatingRequest,
-  type ClaimRatingRequestPorts,
-} from '../claim-rating-request.ts';
+import { ClaimRatingRequest, type ClaimRatingRequestPorts } from '../claim-rating-request.ts';
 
 const tx = {} as Tx;
 const now = new Date('2026-10-05T13:30:00Z');
@@ -95,6 +94,7 @@ function ports(overrides: Partial<ClaimRatingRequestPorts> = {}): ClaimRatingReq
   };
   const label: PerformerLabelPort = {
     format: (choice) => (choice.kind === 'TEAM' ? 'TEAM' : choice.names.join('|')),
+    businessName: ratingBusinessName,
   };
   const claims: RatingClaimRepository = {
     due: async () => [],
@@ -230,6 +230,65 @@ describe('claim rating request order', () => {
   });
 });
 
+describe('claim rating request terminal read order', () => {
+  function unreadableDayState(base: ClaimRatingRequestPorts) {
+    return {
+      hours: {
+        hours: async () => {
+          throw new Error('DAY_STATE_READ_MUST_NOT_RUN');
+        },
+      },
+      daySessions: {
+        ...base.daySessions,
+        activeLines: async () => {
+          throw new Error('DAY_STATE_READ_MUST_NOT_RUN');
+        },
+      },
+    };
+  }
+
+  it('commits opt-out before reading the switch or day state', async () => {
+    const base = ports();
+    const claim = useCase({
+      ...unreadableDayState(base),
+      switch: {
+        enabled: async () => {
+          throw new Error('SWITCH_READ_MUST_NOT_RUN');
+        },
+      },
+      claims: {
+        ...base.claims,
+        lockCustomer: async () => ({ ...customer, optedOutAt: new Date('2026-10-05T12:00:00Z') }),
+      },
+    });
+    await expect(claim.execute(tx, { companyId, request: stored })).resolves.toBe('OPTED_OUT');
+  });
+
+  it('commits a switched-off request before reading day state', async () => {
+    const base = ports();
+    const claim = useCase({
+      ...unreadableDayState(base),
+      switch: { enabled: async () => false },
+    });
+    await expect(claim.execute(tx, { companyId, request: stored })).resolves.toBe('REQUESTS_OFF');
+  });
+
+  it('commits a stored-deadline cancellation before reading day state', async () => {
+    const base = ports();
+    const claim = useCase({
+      ...unreadableDayState(base),
+      claims: {
+        ...base.claims,
+        lockRequest: async () => ({
+          ...stored,
+          sendDeadline: new Date('2026-10-05T13:29:59Z'),
+        }),
+      },
+    });
+    await expect(claim.execute(tx, { companyId, request: stored })).resolves.toBe('PAST_DEADLINE');
+  });
+});
+
 describe('claim rating request schedule', () => {
   it('claims with the recomputed schedule when the moved due time already passed', async () => {
     const claims: { branchId: string; dueAt: Date; sendDeadline: Date | null }[] = [];
@@ -261,5 +320,53 @@ describe('claim rating request schedule', () => {
     };
     expect(payload.branch_id).toBe(branchId);
     expect(payload.notification_recipients[0]?.send_deadline).toBe('2026-10-05T19:30:00.000Z');
+  });
+});
+
+describe('claim rating request business-name contract', () => {
+  const supplementary = '😀'.repeat(128);
+  const expected = `${'😀'.repeat(127)}…`;
+
+  it.each([
+    {
+      scenario: 'arabic localized name',
+      locale: 'ar' as const,
+      names: { name_ar: supplementary, name_en: 'Sea Restaurant' },
+    },
+    {
+      scenario: 'english localized name',
+      locale: 'en' as const,
+      names: { name_ar: 'مطعم البحر', name_en: supplementary },
+    },
+    {
+      scenario: 'arabic fallback to english',
+      locale: 'ar' as const,
+      names: { name_ar: null, name_en: supplementary },
+    },
+  ])('keeps the $scenario within the notification contract', async ({ locale, names }) => {
+    let ready: RatingRequestReady | undefined;
+    const claim = useCase({
+      names: { names: async () => names },
+      claims: {
+        ...ports().claims,
+        lockCustomer: async () => ({ ...customer, locale }),
+      },
+      outbox: {
+        append: async (_tx, _id, event) => {
+          ready = event.payload as RatingRequestReady;
+        },
+      },
+    });
+
+    await expect(claim.execute(tx, { companyId, request: stored })).resolves.toBe('CLAIMED');
+    const parameter = ready?.notification_recipients[0]?.safe_parameters.find(
+      (candidate) => candidate.name === 'business_name',
+    );
+    if (parameter?.type !== 'text' || typeof parameter.value !== 'string') {
+      throw new Error('BUSINESS_NAME_PARAMETER_MISSING');
+    }
+    expect(parameter.value).toBe(expected);
+    expect(parameter.value).toHaveLength(255);
+    expect(ready).toBeDefined();
   });
 });

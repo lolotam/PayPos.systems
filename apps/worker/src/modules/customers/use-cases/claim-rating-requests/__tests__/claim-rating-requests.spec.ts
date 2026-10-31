@@ -9,13 +9,14 @@ import type {
 } from '../../../ports/rating-claim.repository.ts';
 import type { RatingClaimTransactions } from '../../../ports/rating-claim-transactions.port.ts';
 import { ClaimRatingRequest } from '../../claim-rating-request/claim-rating-request.ts';
-import { ClaimRatingRequests } from '../claim-rating-requests.ts';
+import { ClaimRatingRequests, RatingClaimsFailedError } from '../claim-rating-requests.ts';
 
 const tx = {} as Tx;
 const now = new Date('2026-10-05T13:30:00Z');
 const companyId = '01920000-0000-7000-8000-0000000000b2';
 const ids: IdGenerator = { newId: () => '01920000-0000-7000-8000-0000000000ff' };
 const clock: Clock = { now: () => now };
+const silentDiagnostics = { failed: () => undefined };
 
 function identifier(prefix: number, index: number): string {
   return `01920000-0000-7000-8000-${String(prefix + index).padStart(12, '0')}`;
@@ -50,13 +51,13 @@ function fakeTransactions(pages: readonly (readonly DueRatingRequest[])[]) {
 }
 
 /** مطالبة بطلب واحد: بتوقف عند قفل العميل، فقرارات المطالبة نفسها مش جزء من اختبار الجولة. */
-function fakeClaim(failing: readonly string[]) {
+function fakeClaim(failing: readonly string[], failureMessage = 'RATING_BRANCH_NOT_FOUND') {
   const attempted: string[] = [];
   const claims: RatingClaimRepository = {
     due: async () => [],
     lockCustomer: async (_tx, _companyId, customerId) => {
       attempted.push(customerId);
-      if (failing.includes(customerId)) throw new Error('RATING_BRANCH_NOT_FOUND');
+      if (failing.includes(customerId)) throw new Error(failureMessage);
       return null;
     },
     lockRequest: async () => null,
@@ -77,7 +78,7 @@ function fakeClaim(failing: readonly string[]) {
         watermark: async () => null,
       },
       performers: { firstNames: async () => [] },
-      label: { format: () => 'LABEL' },
+      label: { format: () => 'LABEL', businessName: (name) => name },
       claims,
       token: { claim: () => null },
       outbox: { append: async () => undefined },
@@ -88,47 +89,90 @@ function fakeClaim(failing: readonly string[]) {
   return { useCase, attempted };
 }
 
-describe('claim rating requests paging', () => {
-  it('walks the pages by the key of the page before', async () => {
+describe('claim rating requests bounded continuation', () => {
+  it('processes at most one hundred requests and resumes later candidates on the next run', async () => {
     const first = Array.from({ length: 100 }, (_, index) => dueRequest(index));
     const second = [dueRequest(100), dueRequest(101)];
     const pages = fakeTransactions([first, second]);
-    const batch = new ClaimRatingRequests(pages.transactions, fakeClaim([]).useCase, clock);
-    await batch.execute(companyId);
-    expect(pages.cursors).toHaveLength(2);
-    expect(pages.cursors[0]).toBeNull();
-    expect(pages.cursors[1]).toEqual({ dueAt: first[99]?.dueAt, id: first[99]?.id });
+    const claim = fakeClaim([]);
+    const batch = new ClaimRatingRequests(
+      pages.transactions,
+      claim.useCase,
+      clock,
+      silentDiagnostics,
+    );
+
+    const continuation = await batch.execute(companyId);
+    expect(continuation).toEqual({ dueAt: first[99]?.dueAt, id: first[99]?.id });
+    expect(claim.attempted).toHaveLength(100);
+    expect(pages.cursors).toEqual([null]);
+
+    await expect(batch.execute(companyId, continuation)).resolves.toBeNull();
+    expect(pages.cursors).toEqual([null, continuation]);
+    expect(claim.attempted).toHaveLength(102);
+    expect(claim.attempted.slice(-2)).toEqual(second.map((request) => request.customerId));
   });
 
-  it('stops on the page that comes back short', async () => {
-    const pages = fakeTransactions([[dueRequest(0), dueRequest(1)]]);
-    const batch = new ClaimRatingRequests(pages.transactions, fakeClaim([]).useCase, clock);
-    await batch.execute(companyId);
-    expect(pages.cursors).toHaveLength(1);
+  it('lets later candidates run after a failed first page without hiding the failure', async () => {
+    const first = Array.from({ length: 100 }, (_, index) => dueRequest(index));
+    const second = [dueRequest(100), dueRequest(101)];
+    const failing = first.map((request) => request.customerId);
+    const pages = fakeTransactions([first, second]);
+    const claim = fakeClaim(failing);
+    const batch = new ClaimRatingRequests(
+      pages.transactions,
+      claim.useCase,
+      clock,
+      silentDiagnostics,
+    );
+
+    const failure = await batch.execute(companyId).catch((reason: unknown) => reason);
+    expect(failure).toBeInstanceOf(RatingClaimsFailedError);
+    expect((failure as Error).message).toBe('RATING_CLAIMS_FAILED_100');
+    const continuation = (failure as RatingClaimsFailedError).after;
+
+    await expect(batch.execute(companyId, continuation)).resolves.toBeNull();
+    expect(claim.attempted.slice(-2)).toEqual(second.map((request) => request.customerId));
   });
 });
 
-describe('claim rating requests failure isolation', () => {
-  it('claims the other requests when one of them fails', async () => {
+describe('claim rating requests failure isolation and diagnostics', () => {
+  it('claims the other requests and reports only safe failure diagnostics', async () => {
     const requests = [dueRequest(0), dueRequest(1), dueRequest(2)];
-    const failing = requests[1]?.customerId ?? '';
     const pages = fakeTransactions([requests]);
-    const claim = fakeClaim([failing]);
-    const batch = new ClaimRatingRequests(pages.transactions, claim.useCase, clock);
-    const error = await batch.execute(companyId).catch((reason: unknown) => reason);
-    expect(error).toBeInstanceOf(Error);
+    const claim = fakeClaim(
+      [requests[1]?.customerId ?? ''],
+      'private synthetic query +96550000000 redis:rating:1',
+    );
+    const failures: unknown[] = [];
+    const batch = new ClaimRatingRequests(pages.transactions, claim.useCase, clock, {
+      failed: (_companyId, error) => {
+        failures.push(error);
+      },
+    });
+
+    const failure = await batch.execute(companyId).catch((reason: unknown) => reason);
+    expect(failure).toBeInstanceOf(RatingClaimsFailedError);
+    expect((failure as Error).message).toBe('RATING_CLAIMS_FAILED_1');
     expect(claim.attempted).toEqual(requests.map((request) => request.customerId));
-    expect((error as Error).message).toBe('RATING_CLAIMS_FAILED_1');
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toBeInstanceOf(Error);
   });
 
   it('names only the count of the failed requests', async () => {
     const requests = [dueRequest(0), dueRequest(1)];
-    const failing = requests.map((request) => request.customerId);
     const pages = fakeTransactions([requests]);
-    const batch = new ClaimRatingRequests(pages.transactions, fakeClaim(failing).useCase, clock);
-    const error = await batch.execute(companyId).catch((reason: unknown) => reason);
-    expect((error as Error).message).toBe('RATING_CLAIMS_FAILED_2');
-    expect((error as Error).message).not.toContain(requests[0]?.id ?? '');
-    expect((error as Error).message).not.toContain(requests[0]?.customerId ?? '');
+    const claim = fakeClaim(requests.map((request) => request.customerId));
+    const batch = new ClaimRatingRequests(
+      pages.transactions,
+      claim.useCase,
+      clock,
+      silentDiagnostics,
+    );
+
+    const failure = await batch.execute(companyId).catch((reason: unknown) => reason);
+    expect((failure as Error).message).toBe('RATING_CLAIMS_FAILED_2');
+    expect((failure as Error).message).not.toContain(requests[0]?.id ?? '');
+    expect((failure as Error).message).not.toContain(requests[0]?.customerId ?? '');
   });
 });

@@ -87,6 +87,22 @@ vi.mock('../modules/staff/index.ts', async (original) => ({
     close: vi.fn(async () => undefined),
   }),
 }));
+// معالج مطالبات التقييم يفتح Redis مثل باقي العمال؛ عزله يحافظ على اختبار جاهزية OTP نفسها.
+// لا نستورد الرسم الحقيقي هنا: الاختبار يحتاج صادرات حدود startup فقط، لا دورة تحميل customers الباردة.
+vi.mock('../modules/customers/index.ts', () => ({
+  createRatingSchedulingConsumer: () => ({
+    id: 'customers.rating-scheduling-v1',
+    eventTypes: [],
+    handle: vi.fn(),
+  }),
+  startRatingClaimsWorker: () => ({
+    eventTypes: [],
+    consumer: { id: 'customers.rating-claims-discovery-v1', eventTypes: [], handle: vi.fn() },
+    deliver: vi.fn(),
+    ready: vi.fn(),
+    close: vi.fn(async () => undefined),
+  }),
+}));
 vi.mock('@pospay/notifications', async (original) => ({
   ...(await original<typeof Notifications>()),
   readWhatsappWebhookConfiguration: vi.fn(),

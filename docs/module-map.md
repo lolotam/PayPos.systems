@@ -34,7 +34,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `files`         | `tenancy`             | Storage keys are `{companyId}/{businessId}/…`.                                 |
 | `platform`      | `tenancy`             | Super-admin over tenants.                                                      |
 | `catalog`       | `tenancy`             |                                                                                |
-| `customers`     | `tenancy`, `settings`, `staff` | `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). The rating message reads the performer's first name from staff's public reader (ADR-0037 §4, spec 060 FR-B07). |
+| `customers`     | `tenancy`, `settings`, `staff` | `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). The rating message reads the performer's first name from staff's public reader (ADR-0010 addendum 2026-10-31; ADR-0037 §4, spec 060 FR-B07). |
 | `expenses`      | `tenancy`             |                                                                                |
 | `inventory`     | `tenancy`             |                                                                                |
 | `staff`         | `tenancy`, `identity`, `files`, `settings` | An employee may be linked to a user; a document binds a verified file (ADR-0031). `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader, and the staff `AlertRulesPort.roleHolders` adapter reads identity's scoped role holders (ADR-0010 addendum 2026-10-21; ADR-0040 addendum, 62-2b). |
@@ -340,7 +340,8 @@ composition_roots:
 # adapters), 62-2, 62-2b, 62-2c, 62-3 and 61-1 (AlertRulesPort adapters); 62-1 adds the storage and reader only.
 # 59-1 adds customers -> tenancy.branchScheduleHours with worker customers' BranchScheduleHoursPort adapter.
 # 59b-2 adds customers -> staff.readEmployeeDisplayNames (the performer's first name for the rating message) and
-# customers -> tenancy.businessNames (the business name in the same message) with worker customers' adapters.
+# customers -> tenancy.businessNames (the business name in the same message) with worker customers' adapters
+# (ADR-0010 addendum 2026-10-31).
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:

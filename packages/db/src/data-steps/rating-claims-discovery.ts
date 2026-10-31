@@ -1,9 +1,9 @@
-import { systemUuidV7, type IdGenerator } from '@pospay/ids';
 import { sql } from 'drizzle-orm';
 import type postgres from 'postgres';
 
 import type { Database } from '../client.ts';
-import { appendOutboxEvent } from '../outbox.ts';
+import { appendOutboxEventOnce } from '../outbox.ts';
+import { ratingClaimsDiscoveryEventId } from '../rating-claims-discovery-id.ts';
 import type { Tx } from '../with-tenant.ts';
 
 /**
@@ -41,13 +41,10 @@ export async function discoverRatingClaims(
   const [role] = await owner<{ bypass: boolean }[]>`
     SELECT rolsuper OR rolbypassrls AS bypass FROM pg_roles WHERE rolname = current_user`;
   if (role?.bypass !== true) throw new RatingClaimsDiscoveryRoleRefusedError();
-  const ids = systemUuidV7();
   const companies = await owner<{ id: string }[]>`SELECT id FROM companies ORDER BY id`;
   let discovered = 0;
   for (const { id: companyId } of companies) {
-    const emitted = await app.withTenant(companyId, (tx) =>
-      discoverOneCompany(tx, companyId, ids),
-    );
+    const emitted = await app.withTenant(companyId, (tx) => discoverOneCompany(tx, companyId));
     if (emitted) discovered += 1;
   }
   return { companies: companies.length, discovered };
@@ -59,25 +56,19 @@ export async function discoverRatingClaims(
  *
  * @param tx معاملة الشركة
  * @param companyId الشركة الجارية
- * @param ids مولّد معرّفات الجولة، فكل رسالة اكتشاف ليها معرّف فريد
  * @returns هل اتبعتت رسالة اكتشاف
  */
-async function discoverOneCompany(
-  tx: Tx,
-  companyId: string,
-  ids: IdGenerator,
-): Promise<boolean> {
+async function discoverOneCompany(tx: Tx, companyId: string): Promise<boolean> {
   const rows = await tx.execute<{ id: string }>(sql`
     SELECT id FROM rating_requests
      WHERE company_id = ${companyId} AND status = 'SCHEDULED'
      ORDER BY due_at, id
      LIMIT 1`);
   if (rows.length === 0) return false;
-  await appendOutboxEvent(tx, ids.newId(), {
+  return appendOutboxEventOnce(tx, ratingClaimsDiscoveryEventId(companyId), {
     aggregateType: 'company',
     aggregateId: companyId,
     eventType: 'RatingClaimsDiscoveryRequested',
     payload: { company_id: companyId },
   });
-  return true;
 }

@@ -1,7 +1,7 @@
 // مُنشئ الاختبار: نفس قواعد بيانات 59-1 مع المطالبة نفسها، عشان الحالة تطلع من المصدر الحقيقي.
 import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
-import { createDatabase, type Database } from '@pospay/db';
+import { createDatabase, type Database, type Tx } from '@pospay/db';
 import { systemUuidV7, type IdGenerator } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import { createTestDatabase } from '../../../../../packages/db/test/test-database.ts';
@@ -33,7 +33,7 @@ export type {
 } from '../../rating-scheduling/__tests__/rating-scheduling-data.ts';
 
 /** المفتاح اللي بيتقفل عليه الطلب: النشاط والعميل ويوم الطلب. */
-export interface SwitchFake extends RatingRequestsSwitchPort {
+export interface SwitchFake extends RatingRequestsSwitchPort<Tx> {
   on: boolean;
 }
 
@@ -122,7 +122,7 @@ async function claimsWorld(): Promise<ClaimsWorld> {
 }
 
 /** مشغّل المطالبة على نفس قواعد بيانات 59-1. */
-function claimTools(world: ClaimsWorld, claims: RatingClaimRepository = ratingClaimRepository) {
+function claimTools(world: ClaimsWorld, claims: RatingClaimRepository<Tx> = ratingClaimRepository) {
   const enabled: SwitchFake = {
     on: true,
     enabled: async () => enabled.on,
@@ -137,7 +137,7 @@ function claimTools(world: ClaimsWorld, claims: RatingClaimRepository = ratingCl
     knownEventTypes: scheduling.eventTypes,
   });
   const token = world.token;
-  const claim = new ClaimRatingRequest(
+  const claim = new ClaimRatingRequest<Tx>(
     {
       switch: enabled,
       hours: branchScheduleHoursAdapter,
@@ -157,7 +157,9 @@ function claimTools(world: ClaimsWorld, claims: RatingClaimRepository = ratingCl
     world.ids,
     world.clock,
   );
-  const pass = new ClaimRatingRequests(ratingClaimTransactions(world.db), claim, world.clock);
+  const pass = new ClaimRatingRequests(ratingClaimTransactions(world.db), claim, world.clock, {
+    failed: () => undefined,
+  });
   return { enabled, token, deliver, pass };
 }
 
@@ -165,9 +167,9 @@ function claimTools(world: ClaimsWorld, claims: RatingClaimRepository = ratingCl
  * منفذ مطالبات بيقفل صف العميل وبيستنى البوابة قبل ما يكمّل.
  * القفل نفسه حقيقي من القاعدة؛ البوابة بس بتوقف المعاملة بعد ما القفل يبقى ماسك.
  */
-function gatedClaims(): { port: RatingClaimRepository; arm(): Gate } {
+function gatedClaims(): { port: RatingClaimRepository<Tx>; arm(): Gate } {
   let gate: Gate | null = null;
-  const port: RatingClaimRepository = {
+  const port: RatingClaimRepository<Tx> = {
     ...ratingClaimRepository,
     lockCustomer: async (tx, companyId, customerId) => {
       const customer = await ratingClaimRepository.lockCustomer(tx, companyId, customerId);
@@ -261,6 +263,7 @@ export async function ratingClaimsFixture() {
     branch: data.branch,
     customer: data.customer,
     session: data.session,
+    event: data.event,
     cancelLine: data.cancelLine,
     otherBusiness: data.otherBusiness,
     /** جدولة الطلب من حدث الزيارة، زي ما بيعمل العامل في الإنتاج. */

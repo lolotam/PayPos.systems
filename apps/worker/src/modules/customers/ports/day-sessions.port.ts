@@ -1,4 +1,3 @@
-import type { Tx } from '@pospay/db';
 import type { ActiveLine } from '../domain/sessions-of-day.ts';
 
 /** نطاق مجمد يمنع اختلاط كتابات حية جديدة بصفحات الـ bootstrap. */
@@ -18,7 +17,7 @@ export interface BootstrapSession {
 }
 
 /** حالة الزيارات الموجودة في orders، وتصل بحقن callback حتى لا يستوردها customers. */
-export interface DaySessionsPort {
+export interface DaySessionsPort<Transaction = unknown> {
   /**
    * يرجع البنود النشطة ومنفذيها في نافذة اليوم لإعادة حساب الجدولة والإسناد من المصدر.
    *
@@ -31,7 +30,7 @@ export interface DaySessionsPort {
    * @returns البنود النشطة داخل النافذة
    */
   activeLines(
-    tx: Tx,
+    tx: Transaction,
     companyId: string,
     businessId: string,
     customerId: string,
@@ -49,7 +48,7 @@ export interface DaySessionsPort {
    * @returns صفحة الزيارات المختصرة
    */
   sessionsSince(
-    tx: Tx,
+    tx: Transaction,
     companyId: string,
     range: BootstrapRange,
     afterSessionId: string | null,
@@ -63,7 +62,7 @@ export interface DaySessionsPort {
    * @param range النطاق المجمد للقراءة
    * @returns عدد الزيارات المشمولة
    */
-  countSince(tx: Tx, companyId: string, range: BootstrapRange): Promise<number>;
+  countSince(tx: Transaction, companyId: string, range: BootstrapRange): Promise<number>;
   /**
    * يرجع أعلى معرف زيارة لتجميد نطاق الـ bootstrap قبل أول صفحة.
    *
@@ -71,5 +70,5 @@ export interface DaySessionsPort {
    * @param companyId الشركة المالكة للزيارات
    * @returns أعلى session_id أو null عندما لا توجد زيارات
    */
-  watermark(tx: Tx, companyId: string): Promise<string | null>;
+  watermark(tx: Transaction, companyId: string): Promise<string | null>;
 }

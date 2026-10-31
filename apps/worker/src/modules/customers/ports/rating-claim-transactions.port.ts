@@ -1,8 +1,7 @@
-import type { Tx } from '@pospay/db';
 import type { DueRatingCursor, DueRatingRequest } from './rating-claim.repository.ts';
 
 /** فتح معاملات المستأجر لجدولة المطالبة، لأن طبقة الـ jobs ما تصلش للداتابيز مباشرة. */
-export interface RatingClaimTransactions {
+export interface RatingClaimTransactions<Transaction = unknown> {
   /**
    * يقرأ صفحة الطلبات المستحقة للشركة.
    *
@@ -25,5 +24,5 @@ export interface RatingClaimTransactions {
    * @param work الشغل على معاملة المستأجر
    * @returns اكتمال المعاملة
    */
-  claim(companyId: string, work: (tx: Tx) => Promise<void>): Promise<void>;
+  claim(companyId: string, work: (tx: Transaction) => Promise<void>): Promise<void>;
 }

@@ -69,6 +69,18 @@ function fairShareCap(names: readonly string[], separatorLength: number): number
 }
 
 /**
+ * اسم النشاط كمعامل مستقل في رسالة التقييم. الأسماء العادية تبقى كما هي، والزائد عن حدّ
+ * العقد يُقصّ على حدود code points حتى لا ينكسر حرف مكمّل أو يفشل بناء الحمولة كلها.
+ *
+ * @param businessName اسم النشاط بعد اختيار اللغة والرجوع للإنجليزية
+ * @returns الاسم الأصلي، أو مختصراً بعلامة قص داخل حدّ معامل الإشعار
+ */
+export function ratingBusinessName(businessName: string): string {
+  if (businessName.length <= RATING_LABEL_TEXT_MAX) return businessName;
+  return shorten(businessName, RATING_LABEL_TEXT_MAX);
+}
+
+/**
  * تسمية الفريق في رسالة طلب التقييم: اسم النشاط بين بادئة اللغة ولاحقتها.
  * البادئة واللاحقة في الكتالوج لأن ترتيب الكلمات حول الاسم بيختلف بين اللغات.
  * لو النص عدّى حدّ معامل الإشعار، الاسم بس هو اللي بيتقص والبادئة واللاحقة بيفضلوا زي ما هم.

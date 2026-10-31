@@ -11,4 +11,11 @@ export interface PerformerLabelPort {
    * @returns نص التسمية
    */
   format(choice: PerformerLabelChoice, locale: 'ar' | 'en', businessName: string): string;
+  /**
+   * يحفظ اسم النشاط داخل حدّ معامل الإشعار من غير كسر حرف مركّب؛ الاسم العادي لا يتغير.
+   *
+   * @param businessName اسم النشاط بعد اختيار اللغة والرجوع للإنجليزية
+   * @returns الاسم كما هو، أو مختصراً على حدود code points عند تجاوزه الحد
+   */
+  businessName(businessName: string): string;
 }

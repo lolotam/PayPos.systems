@@ -1,5 +1,6 @@
-import type { ClaimedEvent, DeliveryOutcome, TenantWrappers } from '@pospay/db';
-import { ratingNamesLabel, ratingTeamLabel } from '@pospay/i18n';
+import type { ClaimedEvent, DeliveryOutcome, TenantWrappers, Tx } from '@pospay/db';
+import { ratingBusinessName, ratingNamesLabel, ratingTeamLabel } from '@pospay/i18n';
+import type { Logger } from '@pospay/observability';
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import { ratingClaimsDiscoveryConsumer } from './events/handlers/on-rating-claims-discovery.handler.ts';
 import { onServiceSessionEvent } from './events/handlers/on-service-session-event.handler.ts';
@@ -16,6 +17,7 @@ import {
 import { branchScheduleHoursAdapter } from './persistence/branch-schedule-hours.adapter.ts';
 import { businessNames } from './persistence/business-names.adapter.ts';
 import { performerNameAdapter } from './persistence/performer-name.adapter.ts';
+import { ratingClaimDiagnostics } from './persistence/rating-claim-diagnostics.ts';
 import { ratingClaimRepository } from './persistence/rating-claim.repository.ts';
 import { ratingClaimTransactions } from './persistence/rating-claim.transactions.ts';
 import { ratingOutbox } from './persistence/rating-outbox.adapter.ts';
@@ -47,6 +49,7 @@ export const performerLabelFormatter: PerformerLabelPort = {
     choice.kind === 'TEAM'
       ? ratingTeamLabel(locale, businessName)
       : ratingNamesLabel(locale, choice.names),
+  businessName: ratingBusinessName,
 };
 
 export function createRatingSchedulingConsumer(deps: RatingScheduleDeps): OutboxConsumer {
@@ -89,6 +92,7 @@ export interface RatingClaimsWorkerDeps {
   clock: Clock;
   daySessions: DaySessionsPort;
   redisUrl: string;
+  logger: Logger;
   prefix?: string;
   /** كود اشتقاق البصمة من جذر الـ worker، أو null لما القدرة غير جاهزة. */
   deriver: RatingTokenDeriver | null;
@@ -97,7 +101,10 @@ export interface RatingClaimsWorkerDeps {
 /** مشغّل مطالبة طلبات التقييم: يسجّل جدولة كل شركة ويطالب بطلباتها المستحقة. */
 export interface RatingClaimsWorker {
   eventTypes: readonly string[];
-  deliver(event: ClaimedEvent, next: (event: ClaimedEvent) => Promise<DeliveryOutcome>): Promise<DeliveryOutcome>;
+  deliver(
+    event: ClaimedEvent,
+    next: (event: ClaimedEvent) => Promise<DeliveryOutcome>,
+  ): Promise<DeliveryOutcome>;
   ready(): Promise<void>;
   close(): Promise<void>;
   consumer: OutboxConsumer;
@@ -108,7 +115,7 @@ export interface RatingClaimsWorker {
  * بالطلبات المستحقة بمعاملة لكل طلب.
  */
 export function startRatingClaimsWorker(deps: RatingClaimsWorkerDeps): RatingClaimsWorker {
-  const claim = new ClaimRatingRequest(
+  const claim = new ClaimRatingRequest<Tx>(
     {
       switch: ratingRequestsSwitch,
       hours: branchScheduleHoursAdapter,
@@ -127,6 +134,7 @@ export function startRatingClaimsWorker(deps: RatingClaimsWorkerDeps): RatingCla
     ratingClaimTransactions(deps.database),
     claim,
     deps.clock,
+    ratingClaimDiagnostics(deps.logger),
   );
   const processor = startRatingClaimsProcessor(detector, deps.redisUrl, deps.prefix);
   const consumer = ratingClaimsDiscoveryConsumer();

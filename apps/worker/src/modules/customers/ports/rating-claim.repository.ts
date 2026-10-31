@@ -1,5 +1,3 @@
-import type { Tx } from '@pospay/db';
-
 /** صف طلب التقييم كما يحتاجه قرار المطالبة، بلا أي بيانات رابط أو إرسال. */
 export interface DueRatingRequest {
   readonly id: string;
@@ -28,7 +26,7 @@ export interface DueRatingCursor {
 }
 
 /** تخزين المطالبة وتثبيتها على معاملة المستأجر نفسها. */
-export interface RatingClaimRepository {
+export interface RatingClaimRepository<Transaction = unknown> {
   /**
    * يرجع صفحة الطلبات المستحقة للشركة، مرتبة بالأقدم استحقاقاً.
    *
@@ -40,7 +38,7 @@ export interface RatingClaimRepository {
    * @returns الطلبات المستحقة غير المطالب بها
    */
   due(
-    tx: Tx,
+    tx: Transaction,
     companyId: string,
     now: Date,
     limit: number,
@@ -54,7 +52,11 @@ export interface RatingClaimRepository {
    * @param customerId العميل المطلوب
    * @returns الصف المقفل أو null عند غيابه
    */
-  lockCustomer(tx: Tx, companyId: string, customerId: string): Promise<RatingCustomer | null>;
+  lockCustomer(
+    tx: Transaction,
+    companyId: string,
+    customerId: string,
+  ): Promise<RatingCustomer | null>;
   /**
    * يقفل صف الطلب ويقراه؛ الصف المقفل في معاملة أخرى يُتخطى بدل انتظاره.
    *
@@ -63,7 +65,11 @@ export interface RatingClaimRepository {
    * @param requestId الطلب المطلوب
    * @returns الصف المقفل أو null إذا كان صفاً مقفولاً أو غائباً
    */
-  lockRequest(tx: Tx, companyId: string, requestId: string): Promise<DueRatingRequest | null>;
+  lockRequest(
+    tx: Transaction,
+    companyId: string,
+    requestId: string,
+  ): Promise<DueRatingRequest | null>;
   /**
    * يعيد جدولة الطلب بلا تغيير حالته، لأن زيارة أحدث حرّكت موعده.
    *
@@ -78,7 +84,7 @@ export interface RatingClaimRepository {
    * @returns اكتمال التحديث
    */
   reschedule(
-    tx: Tx,
+    tx: Transaction,
     companyId: string,
     requestId: string,
     schedule: { branchId: string; dueAt: Date; sendDeadline: Date | null },
@@ -95,7 +101,7 @@ export interface RatingClaimRepository {
    * @returns اكتمال التحديث
    */
   cancel(
-    tx: Tx,
+    tx: Transaction,
     companyId: string,
     requestId: string,
     reason: 'NO_ACTIVE_LINE' | 'PAST_DEADLINE' | 'OPTED_OUT' | 'REQUESTS_OFF',
@@ -119,7 +125,7 @@ export interface RatingClaimRepository {
    * @returns اكتمال التحديث
    */
   claim(
-    tx: Tx,
+    tx: Transaction,
     companyId: string,
     requestId: string,
     claim: {
@@ -146,7 +152,7 @@ export interface RatingClaimRepository {
    * @returns اكتمال الإدخال
    */
   snapshotPerformers(
-    tx: Tx,
+    tx: Transaction,
     companyId: string,
     requestId: string,
     businessId: string,

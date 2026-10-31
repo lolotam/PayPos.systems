@@ -1,4 +1,4 @@
-import type { TenantWrappers } from '@pospay/db';
+import type { TenantWrappers, Tx } from '@pospay/db';
 import type { RatingClaimTransactions } from '../ports/rating-claim-transactions.port.ts';
 import { ratingClaimRepository } from './rating-claim.repository.ts';
 
@@ -10,7 +10,7 @@ import { ratingClaimRepository } from './rating-claim.repository.ts';
  */
 export function ratingClaimTransactions(
   database: Pick<TenantWrappers, 'withTenant'>,
-): RatingClaimTransactions {
+): RatingClaimTransactions<Tx> {
   return {
     due: (companyId, now, limit, after) =>
       database.withTenant(companyId, (tx) =>

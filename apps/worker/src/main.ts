@@ -40,7 +40,10 @@ import {
   createDiscountApprovalNoticeConsumer,
   daySessionsReader,
 } from './modules/orders/index.ts';
-import { createRatingSchedulingConsumer, startRatingClaimsWorker } from './modules/customers/index.ts';
+import {
+  createRatingSchedulingConsumer,
+  startRatingClaimsWorker,
+} from './modules/customers/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 import {
   beginDocumentRendering,
@@ -74,6 +77,7 @@ const ratingClaims = startRatingClaimsWorker({
   clock: { now: () => new Date() },
   daySessions: daySessionsReader,
   redisUrl: config.REDIS_URL,
+  logger,
   deriver: readRatingTokenDeriver(process.env),
 });
 const email = await startEmailCapability({

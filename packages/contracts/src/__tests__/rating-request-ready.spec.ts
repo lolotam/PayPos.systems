@@ -56,24 +56,27 @@ describe('rating request ready contract', () => {
   });
 
   it('refuses a payload without the key version', () => {
-    expect(
-      ratingRequestReady.safeParse({ ...payload, token_key_version: undefined }).success,
-    ).toBe(false);
+    expect(ratingRequestReady.safeParse({ ...payload, token_key_version: undefined }).success).toBe(
+      false,
+    );
   });
 
   it('refuses more than one recipient', () => {
     expect(
       ratingRequestReady.safeParse({
         ...payload,
-        notification_recipients: [...payload.notification_recipients, payload.notification_recipients[0]],
+        notification_recipients: [
+          ...payload.notification_recipients,
+          payload.notification_recipients[0],
+        ],
       }).success,
     ).toBe(false);
   });
 
   it('refuses a payload that carries the token itself', () => {
-    expect(
-      ratingRequestReady.safeParse({ ...payload, token: 'company.token' }).success,
-    ).toBe(false);
+    expect(ratingRequestReady.safeParse({ ...payload, token: 'company.token' }).success).toBe(
+      false,
+    );
   });
 
   it('refuses a key version that is not positive', () => {
@@ -89,15 +92,27 @@ describe('rating claims discovery contract', () => {
   });
 
   it('refuses a payload with anything else', () => {
-    expect(ratingClaimsDiscoveryRequested.safeParse({ company_id: companyId, id: requestId }).success).toBe(
-      false,
-    );
+    expect(
+      ratingClaimsDiscoveryRequested.safeParse({ company_id: companyId, id: requestId }).success,
+    ).toBe(false);
   });
 });
 
 describe('rating claims job contract', () => {
   it('carries the company identity only', () => {
     expect(ratingClaimsJob.parse({ companyId })).toEqual({ companyId });
+  });
+
+  it('carries a bounded continuation cursor when a full page was processed', () => {
+    const after = { dueAt: '2026-10-31T12:00:00.000Z', id: requestId };
+    expect(ratingClaimsJob.parse({ companyId, after })).toEqual({ companyId, after });
+  });
+
+  it('refuses a malformed continuation cursor', () => {
+    expect(
+      ratingClaimsJob.safeParse({ companyId, after: { dueAt: 'not-a-date', id: requestId } })
+        .success,
+    ).toBe(false);
   });
 
   it('refuses a job with anything else', () => {

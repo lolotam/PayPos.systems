@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { id } from '../scalars/id.js';
+import { timestamp } from '../scalars/timestamp.js';
 
 /**
  * حمولة حدث «اكتشف طلبات التقييم المستحقة» (D-B4).
@@ -15,6 +16,12 @@ export const ratingClaimsDiscoveryRequested = z
   .meta({ id: 'RatingClaimsDiscoveryRequested' });
 export type RatingClaimsDiscoveryRequested = z.infer<typeof ratingClaimsDiscoveryRequested>;
 
-/** بيانات مهمة المطالبة: هوية الشركة وحدها، وكل حاجة تانية بتتقري من جدول الطلبات. */
-export const ratingClaimsJob = z.strictObject({ companyId: id });
+/** موضع الصفحة التالية؛ وجوده يعني أن الصفحة السابقة بلغت حدّها الأقصى. */
+export const ratingClaimCursor = z.strictObject({ dueAt: timestamp, id });
+
+/** بيانات مهمة المطالبة: الشركة، ومؤشر محدود يمنع تكرار أول صفحة إلى الأبد. */
+export const ratingClaimsJob = z.strictObject({
+  companyId: id,
+  after: ratingClaimCursor.optional(),
+});
 export type RatingClaimsJob = z.infer<typeof ratingClaimsJob>;

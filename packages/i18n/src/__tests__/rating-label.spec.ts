@@ -1,6 +1,32 @@
 import { describe, expect, it } from 'vitest';
 
-import { RATING_LABEL_TEXT_MAX, ratingNamesLabel, ratingTeamLabel } from '../rating-label.js';
+import {
+  RATING_LABEL_TEXT_MAX,
+  ratingBusinessName,
+  ratingNamesLabel,
+  ratingTeamLabel,
+} from '../rating-label.js';
+
+describe('rating business name', () => {
+  it.each([
+    { locale: 'arabic', name: 'مطعم البحر' },
+    { locale: 'english', name: 'Sea Restaurant' },
+  ])('keeps an ordinary $locale name unchanged', ({ name }) => {
+    expect(ratingBusinessName(name)).toBe(name);
+  });
+
+  it('keeps a name at the UTF-16 contract cap unchanged', () => {
+    const name = 'ب'.repeat(RATING_LABEL_TEXT_MAX);
+    expect(ratingBusinessName(name)).toBe(name);
+  });
+
+  it('shortens only an over-limit name without splitting a surrogate pair', () => {
+    const name = '😀'.repeat(128);
+    expect(name).toHaveLength(RATING_LABEL_TEXT_MAX + 1);
+    expect(ratingBusinessName(name)).toBe(`${'😀'.repeat(127)}…`);
+    expect(ratingBusinessName(name)).toHaveLength(RATING_LABEL_TEXT_MAX);
+  });
+});
 
 describe('rating team label', () => {
   it('puts the business name inside the arabic label', () => {

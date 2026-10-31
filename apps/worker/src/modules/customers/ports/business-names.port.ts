@@ -1,5 +1,3 @@
-import type { Tx } from '@pospay/db';
-
 /** اسما النشاط: العربي (اختياري) والإنجليزي. */
 export interface BusinessNames {
   /** الاسم العربي، أو null لو مش محفوظ. */
@@ -12,7 +10,7 @@ export interface BusinessNames {
  * أسماء النشاط، بتتقري من موديول tenancy: جدول النشاطات ملكه، ورسالة التقييم بتقراها
  * من بورت على معاملة المطالبة نفسها (CLAUDE.architecture.md §6.2).
  */
-export interface BusinessNamesPort {
+export interface BusinessNamesPort<Transaction = unknown> {
   /**
    * بيرجّع اسمي النشاط بالعربي والإنجليزي.
    *
@@ -21,5 +19,5 @@ export interface BusinessNamesPort {
    * @param businessId النشاط
    * @returns الاسمين، أو null لو النشاط مش موجود
    */
-  names(tx: Tx, companyId: string, businessId: string): Promise<BusinessNames | null>;
+  names(tx: Transaction, companyId: string, businessId: string): Promise<BusinessNames | null>;
 }

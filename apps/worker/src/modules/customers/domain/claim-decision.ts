@@ -22,6 +22,12 @@ export type ClaimDecision =
       readonly schedule: StoredClaimSchedule;
     };
 
+/** قرار إلغاء نهائي يُحسم قبل قراءة حالة اليوم، فلا تتغير أولوية D-B5 بسبب قارئ لاحق. */
+export type ClaimEarlyDecision = Extract<
+  ClaimDecision,
+  { readonly kind: 'OPTED_OUT' | 'REQUESTS_OFF' | 'PAST_DEADLINE' }
+>;
+
 export interface ClaimDecisionInput {
   /** لحظة اتخاذ القرار المحقونة. */
   readonly now: Date;
@@ -38,6 +44,38 @@ export interface ClaimDecisionInput {
 }
 
 /**
+ * يفصل قرار الإيقاف عن أي قراءة لاحقة، حتى لا يفشل الإلغاء الملزم بسبب قارئ لا يحتاجه القرار.
+ *
+ * @param optedOutAt لحظة إيقاف العميل لطلبات التقييم، أو null
+ * @returns قرار الإلغاء، أو طلب قراءة مفتاح النشاط عند الحاجة
+ */
+export function decideClaimOptOut(
+  optedOutAt: Date | null,
+): Extract<ClaimDecision, { readonly kind: 'OPTED_OUT' }> | { readonly kind: 'READ_SWITCH' } {
+  return optedOutAt === null ? { kind: 'READ_SWITCH' } : { kind: 'OPTED_OUT' };
+}
+
+/**
+ * يقرر ما يمكن حسمه قبل قراءة حالة اليوم، بنفس ترتيب D-B5: الإيقاف ثم المفتاح ثم الموعد المخزن.
+ *
+ * @param input الساعة والمفتاح وتفضيل العميل والجدولة المخزنة
+ * @returns قرار إلغاء نهائي، أو طلب قراءة حالة اليوم عند الحاجة
+ */
+export function decideClaimBeforeDayState(
+  input: Pick<ClaimDecisionInput, 'now' | 'switchEnabled' | 'optedOutAt' | 'stored'>,
+): ClaimEarlyDecision | { readonly kind: 'READ_DAY_STATE' } {
+  const optedOut = decideClaimOptOut(input.optedOutAt);
+  if (optedOut.kind === 'OPTED_OUT') return optedOut;
+  if (!input.switchEnabled) return { kind: 'REQUESTS_OFF' };
+  if (
+    input.stored.sendDeadline !== null &&
+    input.stored.sendDeadline.getTime() < input.now.getTime()
+  )
+    return { kind: 'PAST_DEADLINE' };
+  return { kind: 'READ_DAY_STATE' };
+}
+
+/**
  * يقرر مصير طلب التقييم وقت المطالبة، والقرار من حالة اليوم نفسها لا من الصف المخزّن.
  *
  * ترتيب الفحص: الإيقاف، ثم المفتاح، ثم الموعد النهائي المخزّن، ثم حالة اليوم؛ وبعد ما
@@ -48,14 +86,8 @@ export interface ClaimDecisionInput {
  * @returns قرار المطالبة: إلغاء، أو إعادة جدولة، أو مطالبة بنسخة المنفذين
  */
 export function decideClaim(input: ClaimDecisionInput): ClaimDecision {
-  // ترتيب الفحص زي ما D-B5: الإيقاف قبل المفتاح قبل الموعد النهائي، وحالة اليوم آخر حاجة.
-  if (input.optedOutAt !== null) return { kind: 'OPTED_OUT' };
-  if (!input.switchEnabled) return { kind: 'REQUESTS_OFF' };
-  if (
-    input.stored.sendDeadline !== null &&
-    input.stored.sendDeadline.getTime() < input.now.getTime()
-  )
-    return { kind: 'PAST_DEADLINE' };
+  const early = decideClaimBeforeDayState(input);
+  if (early.kind !== 'READ_DAY_STATE') return early;
   const latest = input.sessions.at(-1);
   if (latest === undefined) return { kind: 'NO_ACTIVE_LINE' };
   const place = input.placeByBranch.get(latest.branchId);
@@ -63,10 +95,7 @@ export function decideClaim(input: ClaimDecisionInput): ClaimDecision {
   const recomputed = ratingSchedule(latest, place.openingHours, place.timeZone);
   // الموعد النهائي بيتفحص كمان على الجدولة المعاد حسابها: الزيارة الأخيرة ممكن تكون في
   // فرع بيقفل بدري، والطلب يتطالب بعد آخر وقت إرسال للجدولة المستعملة.
-  if (
-    recomputed.sendDeadline !== null &&
-    recomputed.sendDeadline.getTime() < input.now.getTime()
-  )
+  if (recomputed.sendDeadline !== null && recomputed.sendDeadline.getTime() < input.now.getTime())
     return { kind: 'PAST_DEADLINE' };
   const schedule: StoredClaimSchedule = {
     branchId: latest.branchId,
@@ -76,8 +105,7 @@ export function decideClaim(input: ClaimDecisionInput): ClaimDecision {
   const performers = performersOf(input.sessions);
   if (!sameSchedule(input.stored, recomputed)) {
     // الزيارة الأحدث حرّكت الموعد: إعادة جدولة لو الموعد الجديد لسه قدام، والمطالبة لو فات.
-    if (schedule.dueAt.getTime() > input.now.getTime())
-      return { kind: 'RESCHEDULED', schedule };
+    if (schedule.dueAt.getTime() > input.now.getTime()) return { kind: 'RESCHEDULED', schedule };
     return { kind: 'CLAIM', performers, schedule };
   }
   if (input.stored.dueAt.getTime() > input.now.getTime()) return { kind: 'NOT_DUE' };

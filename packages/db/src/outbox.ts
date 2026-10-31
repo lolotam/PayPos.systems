@@ -34,6 +34,40 @@ export function toJsonb(value: unknown, name: string): string {
  * @returns بيخلص لما الصف يتكتب (لسه مش committed)
  */
 export async function appendOutboxEvent(tx: Tx, id: string, event: OutboxEvent): Promise<void> {
+  const aggregateId = await lockOutboxAggregate(tx, event);
+  await tx.execute(sql`
+    INSERT INTO outbox (company_id, id, aggregate_type, aggregate_id, event_type, payload)
+    VALUES (app_company_id(), ${assertUuid(id, 'id')}, ${event.aggregateType},
+            ${aggregateId}, ${event.eventType},
+            ${toJsonb(event.payload, 'payload')}::jsonb)`);
+}
+
+/**
+ * يضيف حدثاً بمعرّف ثابت مرة واحدة بلا أي SELECT على outbox؛ التعارض على المفتاح المركب هو
+ * إثبات الإضافة السابقة، وRETURNING لثابت لا يطلب امتياز قراءة على أعمدة الجدول.
+ *
+ * @param tx transaction من withTenant أو withNewTenant
+ * @param id UUID ثابت للحدث قابل لإعادة المحاولة
+ * @param event الـ event نفسه
+ * @returns true عند الإضافة الأولى، وfalse عند وجود نفس الحدث من محاولة سابقة
+ */
+export async function appendOutboxEventOnce(
+  tx: Tx,
+  id: string,
+  event: OutboxEvent,
+): Promise<boolean> {
+  const aggregateId = await lockOutboxAggregate(tx, event);
+  const rows = await tx.execute(sql`
+    INSERT INTO outbox (company_id, id, aggregate_type, aggregate_id, event_type, payload)
+    VALUES (app_company_id(), ${assertUuid(id, 'id')}, ${event.aggregateType},
+            ${aggregateId}, ${event.eventType},
+            ${toJsonb(event.payload, 'payload')}::jsonb)
+    ON CONFLICT DO NOTHING
+    RETURNING 1 AS inserted`);
+  return rows.length === 1;
+}
+
+async function lockOutboxAggregate(tx: Tx, event: OutboxEvent): Promise<string> {
   const aggregateId = assertUuid(event.aggregateId, 'aggregateId');
   // Lock the aggregate for the rest of this transaction before its seq is taken: a second transaction emitting
   // for the same aggregate waits here until this one ends, so seq order is commit order and the dispatcher can
@@ -42,11 +76,7 @@ export async function appendOutboxEvent(tx: Tx, id: string, event: OutboxEvent):
   await tx.execute(sql`
     SELECT pg_advisory_xact_lock(hashtextextended(
       app_company_id()::text || ':' || ${event.aggregateType} || ':' || ${aggregateId}::uuid::text, 0))`);
-  await tx.execute(sql`
-    INSERT INTO outbox (company_id, id, aggregate_type, aggregate_id, event_type, payload)
-    VALUES (app_company_id(), ${assertUuid(id, 'id')}, ${event.aggregateType},
-            ${aggregateId}, ${event.eventType},
-            ${toJsonb(event.payload, 'payload')}::jsonb)`);
+  return aggregateId;
 }
 
 /**

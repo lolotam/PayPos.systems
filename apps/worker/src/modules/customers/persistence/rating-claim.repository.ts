@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import type { Tx } from '@pospay/db';
 import type { DueRatingRequest, RatingClaimRepository } from '../ports/rating-claim.repository.ts';
 
 type StoredRequest = {
@@ -40,7 +41,7 @@ function request(row: StoredRequest): DueRatingRequest {
 const REQUEST_COLUMNS = sql`id, business_id, customer_id, business_date::text AS business_date,
   branch_id, due_at, send_deadline, status`;
 
-export const ratingClaimRepository: RatingClaimRepository = {
+export const ratingClaimRepository: RatingClaimRepository<Tx> = {
   due: async (tx, companyId, now, limit, after) => {
     // الترتيب بمفتاح (due_at, id) مع cursor، فالصف اللي بيتقفل في معاملة تانية يتخطى
     // من غير ما يوقف الصفوف اللي بعده (SKIP LOCKED).
