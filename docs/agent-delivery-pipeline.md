@@ -8,6 +8,8 @@
 >
 > **What this does not override.** Every technical, architectural, database, security and testing rule stays exactly as written in `CLAUDE.md`, `CLAUDE.architecture.md`, `docs/06_Tech_Stack_Architecture_EN.md`, `docs/module-map.md`, `.specify/memory/constitution.md` and `docs/PRD.md`. If this file and a governing document disagree about a technical or security rule, the governing document wins and the conflict is reported to the owner.
 >
+> **Revised on 2026-10-31 (PP-91, PP-92, `docs/owner-decisions.ar.md` items 43–44):** GLM 5.3 Flash joins as an initial implementer for small, exactly pinned tasks, beside MiniMax. It counts toward the three-task limit (§13); a medium task (database or UI) is tried before anything bigger.
+>
 > Read it together with the six documents listed in `AGENTS.md`, and with `docs/decisions-site.md` for the decisions page.
 >
 > **Session and worktree lifecycle confirmed on 2026-10-28:** §1.1 records the owner's approval in `docs/owner-decisions.ar.md` item 32, indexed as PP-73.2 in item 36.
@@ -21,6 +23,7 @@
   | --- | --- | --- |
   | Spec, plan and `grill-me` questions (documentation only) | Claude Code, `claude-opus-5-5`, effort `high` | Cursor, `claude-opus-5-5`, effort `high` — the same model on a different provider |
   | Initial implementer | MiniMax `M3.1-Flash · thinking` on T3's MiniMax Code provider (PP-84.3) | Claude Code, `claude-opus-5-5` |
+  | Initial implementer for small, exactly pinned tasks (one error fix, a contract bound, an error-code mapping), beside MiniMax (PP-91, PP-92) | GLM `5.3 Flash` on T3's OpenCode provider (`opencode/glm-5.3-flash-free`, variant `high`); no code-area limit; the brief carries no secret or customer data | MiniMax, then Claude Code, `claude-opus-5-5` |
   | Correction rounds | Kimi `K3.1 Pro` on T3's OpenCode provider (`kimi-code-plan-global/k3.1-pro`, variant `high`; `max` for money and database work) | Claude Code, `claude-opus-5-5` |
   | Design advice (read-only) | Codex, `gpt-6-astra`, effort `high` | Claude Code, `claude-opus-5-5` |
   | Code review (read-only) | Codex, `gpt-6-astra`, effort `high` | Claude Code, `claude-opus-5-5` |
