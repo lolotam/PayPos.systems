@@ -206,7 +206,8 @@
                         "DOCUMENT_TOO_LARGE",
                         "DOCUMENT_RENDER_TIMEOUT",
                         "DOCUMENT_RENDER_FAILED",
-                        "STATEMENT_EMPTY"
+                        "STATEMENT_EMPTY",
+                        "COMMISSION_STATEMENT_UNAVAILABLE"
                       ]
                     }
                   },
@@ -1345,7 +1346,7 @@
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 9007199254740991
+              "maximum": 2147483647
             }
           },
           {
@@ -16838,7 +16839,7 @@
             "nullable": true,
             "type": "integer",
             "minimum": 1,
-            "maximum": 9007199254740991
+            "maximum": 2147483647
           }
         },
         "required": [
@@ -16852,7 +16853,7 @@
           "cursor": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 9007199254740991
+            "maximum": 2147483647
           },
           "limit": {
             "default": 20,

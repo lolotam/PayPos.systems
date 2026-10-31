@@ -100,7 +100,9 @@ function cleanError(error: unknown): never {
     if (cause.code === '23514' && constraint.startsWith('package_types_name_'))
       throw new PackageTypeError('PACKAGE_TYPE_NAME_INVALID');
   }
-  throw new Error('PACKAGE_TYPE_PERSISTENCE_FAILED');
+  // الخطأ المجهول يمرّ كما هو: خطأ السائق يفضل في السجل، وأخطاء البنية التحتية تحتفظ بترميزها
+  // اللي بيعرفه فلتر الـ API، بدل ما تتحوّل كل واحدة لخطأ عام بيزيح سببها.
+  throw error;
 }
 
 export function createPackageTypeTransactions(

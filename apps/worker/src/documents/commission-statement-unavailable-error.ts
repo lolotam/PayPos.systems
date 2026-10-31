@@ -3,15 +3,14 @@ export type CommissionStatementUnavailableReason = 'REQUEST_MISSING' | 'PAYMENT_
 
 /**
  * كشف العمولة مالوش محتوى جاهز: طلب التصدير مش موجود في المستأجر، أو سجل الصرف
- * المدفوع لسه مش متاح. الفشل نهائي من أول مرة، لأن إعادة المحاولة مش هتجيب الداتا.
- * TODO(spec): العقد مفيهوش كود خاص بفشل كشف العمولة، فبنستخدم STATEMENT_EMPTY
- * (الفشل الدائم الوحيد في العقد) لحد ما يتضاف كود مخصوص في شريحة تانية.
+ * المدفوع لسه مش متاح. الفشل نهائي من أول مرة، لأن إعادة المحاولة مش هتجيب الداتا،
+ * وبيقفل بكود مخصوص في العقد عشان شاشة العمولة ما تعرضش رسالة كشف الحضور الفاضي.
  */
 export class CommissionStatementUnavailableError extends Error {
-  readonly code = 'STATEMENT_EMPTY' as const;
+  readonly code = 'COMMISSION_STATEMENT_UNAVAILABLE' as const;
 
   constructor(readonly reason: CommissionStatementUnavailableReason) {
-    super('STATEMENT_EMPTY');
+    super('COMMISSION_STATEMENT_UNAVAILABLE');
     this.name = 'CommissionStatementUnavailableError';
   }
 }

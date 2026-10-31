@@ -98,14 +98,21 @@ export const commissionPlanVersion = responseObject({
   .strict()
   .meta({ id: 'CommissionPlanVersion' });
 
+/**
+ * رقم الإصدار عمود PostgreSQL integer، فأقصى مؤشر يخرج من الجدول هو حد int32؛ قيمة أكبر بتتسرب
+ * للـ SQL وتنتهي 500 بدل رفض موثق. الحد بيتولّد من الثابت ده في مخطط الطلب و`next_cursor` وسطر
+ * الـ OpenAPI عشان التلاتة ما ينفصلوش.
+ */
+export const COMMISSION_PLAN_VERSION_CURSOR_MAX = 2147483647;
+
 export const commissionPlanVersionList = responseObject({
   items: z.array(commissionPlanVersion),
-  next_cursor: z.number().int().min(1).nullable(),
+  next_cursor: z.number().int().min(1).max(COMMISSION_PLAN_VERSION_CURSOR_MAX).nullable(),
 }).meta({ id: 'CommissionPlanVersionList' });
 
 export const commissionPlanVersionListQuery = z
   .strictObject({
-    cursor: z.coerce.number().int().min(1).optional(),
+    cursor: z.coerce.number().int().min(1).max(COMMISSION_PLAN_VERSION_CURSOR_MAX).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
   })
   .meta({ id: 'CommissionPlanVersionListQuery' });

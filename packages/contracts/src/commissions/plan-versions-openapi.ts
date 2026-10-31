@@ -1,3 +1,5 @@
+import { COMMISSION_PLAN_VERSION_CURSOR_MAX } from './plan-versions.js';
+
 const json = (schema: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
 });
@@ -63,7 +65,7 @@ export const commissionPlanVersionPaths = {
         {
           in: 'query',
           name: 'cursor',
-          schema: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+          schema: { type: 'integer', minimum: 1, maximum: COMMISSION_PLAN_VERSION_CURSOR_MAX },
         },
         {
           in: 'query',

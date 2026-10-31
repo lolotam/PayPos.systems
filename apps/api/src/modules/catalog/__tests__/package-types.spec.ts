@@ -263,7 +263,7 @@ it('audit failure rolls back creation and restores deleted components on an edit
       businessId: f.business,
       input: packageTerms(f, 'Rollback'),
     }),
-  ).rejects.toThrow('PACKAGE_TYPE_PERSISTENCE_FAILED');
+  ).rejects.toThrow('Synthetic failure');
   expect(await f.h.owner`SELECT 1 FROM package_types WHERE name_en='Rollback'`).toHaveLength(0);
   const before = packageTypeDetail.parse((await get(made.id)).body);
   const update = new UpdatePackageTypeUseCase(transactions, { now: () => new Date() });
@@ -275,6 +275,6 @@ it('audit failure rolls back creation and restores deleted components on an edit
       packageTypeId: made.id,
       input: { ...packageTerms(f, 'Rollback edit'), expected_revision: before.revision },
     }),
-  ).rejects.toThrow('PACKAGE_TYPE_PERSISTENCE_FAILED');
+  ).rejects.toThrow('Synthetic failure');
   expect((await get(made.id)).body).toEqual(before);
 });
