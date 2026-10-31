@@ -75,6 +75,7 @@ import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
 import { mePaths } from './identity/me-openapi.js';
 import { customer, findOrCreateCustomerInput } from './customers.js';
 import { customerPaths } from './customers-openapi.js';
+import { ratingView, submitRatingInput } from './customers/ratings.js';
 import { catalogPaths, catalogSchemas } from './catalog/catalog-openapi.js';
 import { attendanceQrToken, attendanceQrBranch, attendanceQrIssue } from './staff/attendance-qr.js';
 import {
@@ -186,6 +187,8 @@ const SCHEMAS = [
   employeeImportStatus,
   customer,
   findOrCreateCustomerInput,
+  ratingView,
+  submitRatingInput,
   ...catalogSchemas,
   ...alertRuleSchemas,
   ...orderSchemas,

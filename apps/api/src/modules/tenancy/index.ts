@@ -8,5 +8,6 @@ export { tenancyControllers, tenancyProviders } from './tenancy.module.ts';
 export { employeeWorkplace } from './queries/employee-workplace.query.ts';
 export { businessDiscountScope } from './queries/business-discount-scope.query.ts';
 export { businessCalendar, businessTimeZone } from './queries/business-time-zone.query.ts';
+export { businessNames } from './queries/business-names.query.ts';
 export { activeBusinessTimeZone } from './queries/active-business-time-zone.query.ts';
 export { attendanceBranch } from './queries/attendance-branch.query.ts';

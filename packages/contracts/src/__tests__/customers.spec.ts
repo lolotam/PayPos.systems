@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { customer, findOrCreateCustomerInput } from '../customers.js';
-import { RATING_TOKEN_HEADER } from '../customers/ratings.js';
+import { RATING_TOKEN_HEADER, submitRatingInput } from '../customers/ratings.js';
 import { buildOpenApiDocument } from '../openapi.js';
 
 const input = {
@@ -122,5 +122,67 @@ describe('the rating opt-out contract', () => {
         'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
       });
     }
+  });
+});
+
+describe('the rating submission contract', () => {
+  const paths = buildOpenApiDocument()['paths'] as Record<
+    string,
+    { get?: Record<string, unknown>; post?: Record<string, unknown> }
+  >;
+
+  it('publishes the session-less view path with the token in a header and no body', () => {
+    expect(paths['/v1/ratings/view']?.get).toMatchObject({
+      operationId: 'viewRating',
+      parameters: [{ name: RATING_TOKEN_HEADER, in: 'header', required: true }],
+    });
+    expect(paths['/v1/ratings/view']?.get?.['requestBody']).toBeUndefined();
+  });
+
+  it('answers the view with the business name and the link state', () => {
+    const responses = paths['/v1/ratings/view']?.get?.['responses'] as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(responses['200']?.['content']).toEqual({
+      'application/json': { schema: { $ref: '#/components/schemas/RatingView' } },
+    });
+    for (const status of ['404', '429', '503']) {
+      expect(responses[status]?.['content']).toEqual({
+        'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+      });
+    }
+  });
+
+  it('publishes the session-less submit path with the body and the token header', () => {
+    expect(paths['/v1/ratings/submit']?.post).toMatchObject({
+      operationId: 'submitRating',
+      parameters: [{ name: RATING_TOKEN_HEADER, in: 'header', required: true }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': { schema: { $ref: '#/components/schemas/SubmitRatingInput' } },
+        },
+      },
+    });
+  });
+
+  it('answers 204 with no content and keeps the refusals on the error envelope', () => {
+    const responses = paths['/v1/ratings/submit']?.post?.['responses'] as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(responses['204']).toEqual({ description: 'The rating was stored' });
+    for (const status of ['422', '404', '429', '503']) {
+      expect(responses[status]?.['content']).toEqual({
+        'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+      });
+    }
+  });
+
+  it('refuses an unknown field in the body and a note with a link', () => {
+    expect(submitRatingInput.safeParse({ stars: 5, employee_ids: [] }).success).toBe(false);
+    expect(submitRatingInput.safeParse({ stars: 5, comment: 'example.com' }).success).toBe(false);
+    expect(submitRatingInput.safeParse({ stars: 5, comment: 'خدمة كويسة' }).success).toBe(true);
   });
 });
