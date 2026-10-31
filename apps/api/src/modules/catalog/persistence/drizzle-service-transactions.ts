@@ -79,7 +79,8 @@ function checkViolation(
   return 'SERVICE_PRICE_INVALID';
 }
 
-// أخطاء السائق ممكن تحمل قيم dbinfo/extensions؛ منعديش أي جزء منها بره طبقة الـ persistence.
+// الأكواد المعروفة بتتحوّل لـ ServiceError مسمّى، واللي مش معروف بيمرّ زي ما هو لفلتر الـ API:
+// الفلتر بيردّ INTERNAL_ERROR وما بيبعتش رسالة الخطأ للعميل — سببها بيفضل في اللوج بس.
 function cleanServiceError(error: unknown): never {
   if (error instanceof ServiceError) throw error;
   const cause = error instanceof Error && 'cause' in error ? error.cause : error;
