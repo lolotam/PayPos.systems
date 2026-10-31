@@ -7466,7 +7466,7 @@ export interface operations {
                         /** @enum {string} */
                         state: "QUEUED" | "RENDERING" | "READY" | "FAILED" | "EXPIRED" | "CONSUMED";
                         /** @enum {string} */
-                        error_code?: "DOCUMENT_KIND_UNKNOWN" | "DOCUMENT_TOO_LARGE" | "DOCUMENT_RENDER_TIMEOUT" | "DOCUMENT_RENDER_FAILED" | "STATEMENT_EMPTY";
+                        error_code?: "DOCUMENT_KIND_UNKNOWN" | "DOCUMENT_TOO_LARGE" | "DOCUMENT_RENDER_TIMEOUT" | "DOCUMENT_RENDER_FAILED" | "STATEMENT_EMPTY" | "COMMISSION_STATEMENT_UNAVAILABLE";
                     };
                 };
             };
