@@ -6,27 +6,47 @@ import type {
   SaveRatingSettingsInput,
 } from '../ports/rating-settings.port.ts';
 
+/**
+ * بيقفل صف النشاط ويقرا قيمة المفتاح المخزّنة.
+ * القفل على صف النشاط مش على صف المفتاح: صف النشاط موجود دايماً، فكتابتين على نفس
+ * النشاط بتتقفوا على بعض حتى لو مفيش صف مفتاح لسه.
+ *
+ * @param tx        معاملة الشركة
+ * @param companyId الشركة
+ * @param businessId النشاط
+ * @returns القيمة المخزّنة، أو null لو مفيش صف للمفتاح
+ */
+async function lockAndRead(tx: Tx, companyId: string, businessId: string): Promise<boolean | null> {
+  await tx.execute(
+    sql`SELECT id FROM businesses WHERE company_id=${companyId} AND id=${businessId} FOR UPDATE`,
+  );
+  const [row] = await tx.execute<{ requests_enabled: boolean | null }>(sql`SELECT requests_enabled
+    FROM rating_settings WHERE company_id=${companyId} AND business_id=${businessId}`);
+  return row?.requests_enabled ?? null;
+}
+
+/**
+ * بيكتب القيمة الجديدة: إدراج أول مرة أو تعديل، ورقم المراجعة بيتزوّد مع كل تعديل.
+ *
+ * @param tx        معاملة الشركة
+ * @param ids       مولّد الـ ids لصف المفتاح
+ * @param companyId الشركة
+ * @param input     النشاط والقيمة الجديدة ومن نفّذ التغيير ولحظة التغيير
+ * @returns بيخلص لما القيمة تتكتب
+ */
 async function upsert(
   tx: Tx,
   ids: IdGenerator,
   companyId: string,
   input: SaveRatingSettingsInput,
-): Promise<{ before: boolean | null }> {
-  // القراءة والكتابة في أمر واحد: القيمة القديمة بتتسجّل قبل ما الكتابة تشيلها.
-  // الـ CTE اللي بيعدّل بيتنفّذ دايماً حتى لو محدش قرا مخرجه.
-  const [row] = await tx.execute<{ previous_value: boolean | null }>(sql`
-    WITH previous AS (
-      SELECT requests_enabled FROM rating_settings
-      WHERE company_id = ${companyId} AND business_id = ${input.businessId}
-    ), upserted AS (
-      INSERT INTO rating_settings (company_id, id, business_id, requests_enabled, updated_by, updated_at, revision)
-      VALUES (${companyId}, ${ids.newId()}, ${input.businessId}, ${input.enabled}, ${input.actorId}, ${input.now.toISOString()}, 1)
-      ON CONFLICT (company_id, business_id) DO UPDATE SET requests_enabled = EXCLUDED.requests_enabled,
-        updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at,
-        revision = rating_settings.revision + 1
-    )
-    SELECT (SELECT requests_enabled FROM previous) AS previous_value`);
-  return { before: row?.previous_value ?? null };
+): Promise<void> {
+  await tx.execute(sql`INSERT INTO rating_settings
+    (company_id, id, business_id, requests_enabled, updated_by, updated_at, revision)
+    VALUES (${companyId}, ${ids.newId()}, ${input.businessId}, ${input.enabled},
+      ${input.actorId}, ${input.now.toISOString()}, 1)
+    ON CONFLICT (company_id, business_id) DO UPDATE SET requests_enabled = EXCLUDED.requests_enabled,
+      updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at,
+      revision = rating_settings.revision + 1`);
 }
 
 /**
@@ -48,6 +68,7 @@ export function createRatingSettingsTransactions(
         async (tx) =>
           work({
             audit: { record: (entry) => appendAuditLog(tx, ids.newId(), entry) },
+            lockAndRead: (businessId) => lockAndRead(tx, companyId, businessId),
             save: (input) => upsert(tx, ids, companyId, input),
           }),
         { userId },

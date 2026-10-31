@@ -1,4 +1,4 @@
-import type { RatingSettings } from '@pospay/contracts';
+import { RATING_REQUESTS_DEFAULT_ENABLED, type RatingSettings } from '@pospay/contracts';
 
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { RatingSettingsTransactions } from '../../ports/rating-settings.port.ts';
@@ -25,19 +25,23 @@ export class SetRatingRequests {
     enabled: boolean,
   ): Promise<RatingSettings> {
     return this.transactions.run(actor.companyId, actor.userId, async (scope) => {
-      const { before } = await scope.save({
-        businessId,
-        enabled,
-        actorId: actor.userId,
-        now: this.clock.now(),
-      });
-      await scope.audit.record({
-        entity: 'rating_settings',
-        entityId: businessId,
-        action: 'customer.rating_requests_switched',
-        before: { requests_enabled: before },
-        after: { requests_enabled: enabled },
-      });
+      const before = await scope.lockAndRead(businessId);
+      // نفس القيمة ما بتتكتبش: الطلب اللي ما غيّرش مايعملش صف ولا تدقيق، زي مفتاح التنبيهات العام.
+      if ((before ?? RATING_REQUESTS_DEFAULT_ENABLED) !== enabled) {
+        await scope.save({
+          businessId,
+          enabled,
+          actorId: actor.userId,
+          now: this.clock.now(),
+        });
+        await scope.audit.record({
+          entity: 'rating_settings',
+          entityId: businessId,
+          action: 'customer.rating_requests_switched',
+          before: { requests_enabled: before },
+          after: { requests_enabled: enabled },
+        });
+      }
       return { requests_enabled: enabled };
     });
   }

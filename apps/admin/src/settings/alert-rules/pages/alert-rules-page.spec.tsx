@@ -365,3 +365,21 @@ it('shows only the failure message when the rating requests read fails', async (
   ).toBeNull();
   expect(screen.queryByText(t('en', 'alertRules.ratingRequestsOffNote'))).toBeNull();
 });
+
+it('shows the failure message when the rating requests write fails', async () => {
+  mockGet(() => ({ data: businessView() }), { data: { requests_enabled: false } });
+  api.PUT.mockResolvedValue({
+    error: {
+      code: 'INTERNAL',
+      message_ar: 'Synthetic rating write failure',
+      message_en: 'Synthetic rating write failure',
+    },
+    response: { status: 500 },
+  });
+  renderPage();
+  const rating = await screen.findByRole('switch', {
+    name: t('en', 'alertRules.ratingRequestsLabel'),
+  });
+  fireEvent.click(rating);
+  expect(await screen.findByText('Synthetic rating write failure')).toBeTruthy();
+});

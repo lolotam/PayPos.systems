@@ -12,17 +12,24 @@ export interface SaveRatingSettingsInput {
   readonly now: Date;
 }
 
-/** حدود المعاملة: كتابة المفتاح وسجل التدقيق جوه معاملة واحدة. */
+/** حدود المعاملة: قفل النشاط وقراءة المفتاح وكتابة المفتاح وسجل التدقيق جوه معاملة واحدة. */
 export interface RatingSettingsScope {
   /** سجل التدقيق؛ تبديل المفتاح تغيير حساس فبيتسجل بنفس المعاملة (CLAUDE.md §8). */
   readonly audit: AuditTrail;
   /**
+   * بيقفل صف النشاط ويقرا قيمة المفتاح المخزّنة، عشان القرار والكتابة يبانوا على نفس اللحظة.
+   *
+   * @param businessId النشاط
+   * @returns القيمة المخزّنة، أو null لو مفيش صف للمفتاح
+   */
+  lockAndRead(businessId: string): Promise<boolean | null>;
+  /**
    * بيكتب القيمة الجديدة على صف النشاط (إدراج أول مرة أو تعديل) ويزوّد رقم المراجعة.
    *
    * @param input النشاط والقيمة الجديدة ومن نفّذ التغيير ولحظة التغيير
-   * @returns القيمة القديمة المخزّنة قبل الكتابة، أو null
+   * @returns بيخلص لما القيمة تتكتب
    */
-  save(input: SaveRatingSettingsInput): Promise<{ before: boolean | null }>;
+  save(input: SaveRatingSettingsInput): Promise<void>;
 }
 
 /** معاملة مفتاح طلبات التقييم: الكتابة والتدقيق جوه معاملة واحدة للشركة. */

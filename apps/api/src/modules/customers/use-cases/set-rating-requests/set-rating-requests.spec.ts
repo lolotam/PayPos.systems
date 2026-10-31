@@ -15,25 +15,29 @@ const NOW = new Date('2026-10-30T00:00:00Z');
 
 interface Fakes {
   readonly audits: AuditRecord[];
+  readonly locks: string[];
   readonly saved: SaveRatingSettingsInput[];
   readonly transactions: RatingSettingsTransactions;
 }
 
 function fakes(options: { stored?: boolean | null } = {}): Fakes {
   const audits: AuditRecord[] = [];
+  const locks: string[] = [];
   const saved: SaveRatingSettingsInput[] = [];
-  let stored = 'stored' in options ? options.stored : null;
+  let stored: boolean | null = 'stored' in options ? options.stored : null;
   const scope: RatingSettingsScope = {
     audit: {
       record: async (entry) => {
         audits.push(entry);
       },
     },
+    lockAndRead: async (businessId) => {
+      locks.push(businessId);
+      return stored;
+    },
     save: async (input) => {
       saved.push(input);
-      const before = stored;
       stored = input.enabled;
-      return { before: before ?? null };
     },
   };
   const transactions: RatingSettingsTransactions = {
@@ -43,7 +47,7 @@ function fakes(options: { stored?: boolean | null } = {}): Fakes {
       return work(scope);
     },
   };
-  return { audits, saved, transactions };
+  return { audits, locks, saved, transactions };
 }
 
 function useCase(fake: Fakes, now: Date = NOW): SetRatingRequests {
@@ -59,6 +63,7 @@ describe('set-rating-requests', () => {
       true,
     );
     expect(result).toEqual({ requests_enabled: true });
+    expect(fake.locks).toEqual([BUSINESS]);
     expect(fake.audits).toEqual([
       {
         entity: 'rating_settings',
@@ -83,5 +88,29 @@ describe('set-rating-requests', () => {
     const fake = fakes();
     await useCase(fake).execute({ companyId: COMPANY, userId: USER }, BUSINESS, true);
     expect(fake.saved).toEqual([{ businessId: BUSINESS, enabled: true, actorId: USER, now: NOW }]);
+  });
+
+  it('writing the value it already has writes nothing and audits nothing', async () => {
+    const fake = fakes({ stored: true });
+    const result = await useCase(fake).execute(
+      { companyId: COMPANY, userId: USER },
+      BUSINESS,
+      true,
+    );
+    expect(result).toEqual({ requests_enabled: true });
+    expect(fake.saved).toEqual([]);
+    expect(fake.audits).toEqual([]);
+  });
+
+  it('a first write of the default off writes nothing', async () => {
+    const fake = fakes();
+    const result = await useCase(fake).execute(
+      { companyId: COMPANY, userId: USER },
+      BUSINESS,
+      false,
+    );
+    expect(result).toEqual({ requests_enabled: false });
+    expect(fake.saved).toEqual([]);
+    expect(fake.audits).toEqual([]);
   });
 });
