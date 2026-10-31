@@ -42,10 +42,15 @@ describe('the customer name pattern a client receives', () => {
   it('publishes a control-character search that runs without the unicode flag', () => {
     const schemas = (
       buildOpenApiDocument()['components'] as {
-        schemas: Record<string, { properties?: Record<string, { not?: { pattern?: string } }> }>;
+        schemas: Record<
+          string,
+          { properties?: Record<string, { not?: { type?: string; pattern?: string } }> }
+        >;
       }
     ).schemas;
-    const pattern = schemas['FindOrCreateCustomerInput']?.properties?.['name']?.not?.pattern ?? '';
+    const prohibition = schemas['FindOrCreateCustomerInput']?.properties?.['name']?.not;
+    expect(prohibition?.type).toBe('string');
+    const pattern = prohibition?.pattern ?? '';
     expect(pattern).not.toContain('\\p{');
     const search = new RegExp(pattern);
     expect(search.test('Example\u0000')).toBe(true);

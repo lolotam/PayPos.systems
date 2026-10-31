@@ -89,6 +89,9 @@ const acceptedNames: [string, string][] = [
   ['an emoji', 'Example 😀'],
 ];
 
+// المنع المنشور يقول type: 'string' لأن pattern بيشتغل على النصوص بس، فبدونه الـ null بيعدّي غلط.
+const publishedProhibition = { type: 'string', pattern: controlChar.source };
+
 // مسار كل اسم في السكيما المنشورة، عشان نأكد إن المنع وصل لكل واحد فيهم.
 const publishedNamePaths: [string, string[]][] = [
   ['FindOrCreateCustomerInput', ['properties', 'name']],
@@ -141,10 +144,17 @@ describe('the shared no-control-characters rule', () => {
     const document = JSON.stringify(built);
     expect(document).not.toMatch(/\\[pP]\{/);
     expect(document).not.toContain('"pattern":"^[^\\\\x00');
-    for (const not of notPatternsIn(built)) expect(not).toEqual({ pattern: controlChar.source });
+    for (const not of notPatternsIn(built)) expect(not).toEqual(publishedProhibition);
     const schemas = (built['components'] as { schemas: Record<string, unknown> }).schemas;
     for (const [id, path] of publishedNamePaths) {
-      expect(valueAt(schemas[id], path)).toMatchObject({ not: { pattern: controlChar.source } });
+      expect(valueAt(schemas[id], path)).toMatchObject({ not: publishedProhibition });
     }
+  });
+
+  it('publishes the prohibition so a nullable name still accepts null', () => {
+    const schemas = (buildOpenApiDocument()['components'] as { schemas: Record<string, unknown> })
+      .schemas;
+    const nameAr = valueAt(schemas['CreateServiceInput'], ['properties', 'name_ar']);
+    expect(nameAr).toMatchObject({ nullable: true, not: { type: 'string' } });
   });
 });
