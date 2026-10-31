@@ -267,6 +267,7 @@ export const en = {
     ...idempotencyErrorsEn,
     NOT_READY: 'The service is not ready',
     RATING_LINK_UNAVAILABLE: 'This link is not available.',
+    RATING_INPUT_INVALID: 'The rating is not valid. Check the stars and the note.',
     SESSION_RECOVERY_UNAVAILABLE: 'Saving is temporarily unavailable. Retry the same attempt.',
     INTERNAL_ERROR: 'An unexpected error occurred',
   },

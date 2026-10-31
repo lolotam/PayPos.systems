@@ -10294,6 +10294,159 @@
         }
       }
     },
+    "/v1/ratings/view": {
+      "get": {
+        "operationId": "viewRating",
+        "description": "The business name in the customer language and the state of the link. No session is needed: the token in the header is the only credential, and an unknown, foreign or expired token is refused.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-rating-token",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rating page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The link is not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests from this address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ratings/submit": {
+      "post": {
+        "operationId": "submitRating",
+        "description": "Stores the rating of the customer holding this link. No session is needed: the token in the header is the only credential. The link is consumed once, and an invalid body is refused before the token is looked up.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-rating-token",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitRatingInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "The rating was stored"
+          },
+          "404": {
+            "description": "The link is not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The stars or the note are not valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests from this address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service is not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/service-categories": {
       "get": {
         "operationId": "listServiceCategories",
@@ -22646,6 +22799,43 @@
           "phone",
           "name",
           "locale"
+        ],
+        "additionalProperties": false
+      },
+      "RatingView": {
+        "type": "object",
+        "properties": {
+          "business_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "submitted"
+            ]
+          }
+        },
+        "required": [
+          "business_name",
+          "state"
+        ]
+      },
+      "SubmitRatingInput": {
+        "type": "object",
+        "properties": {
+          "stars": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "comment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stars"
         ],
         "additionalProperties": false
       },
