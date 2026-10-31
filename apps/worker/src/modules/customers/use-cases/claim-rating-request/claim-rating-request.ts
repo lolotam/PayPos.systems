@@ -1,3 +1,4 @@
+import { businessDisplayName } from '../../domain/business-display-name.ts';
 import {
   decideClaim,
   decideClaimBeforeDayState,
@@ -283,9 +284,7 @@ export class ClaimRatingRequest<Transaction = unknown> {
   ): Promise<string> {
     const names = await this.ports.names.names(tx, companyId, businessId);
     if (names === null) throw new Error('RATING_BUSINESS_NOT_FOUND');
-    return this.ports.label.businessName(
-      locale === 'ar' ? (names.name_ar ?? names.name_en) : names.name_en,
-    );
+    return this.ports.label.businessName(businessDisplayName(names, locale));
   }
 
   private async performersLabel(

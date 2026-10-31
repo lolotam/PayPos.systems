@@ -12,7 +12,10 @@ export interface RatingReadyParameters {
   readonly performers: string;
 }
 
-/** مدخلات بناء حمولة حدث الجاهزية. */
+/**
+ * مدخلات بناء حمولة حدث الجاهزية.
+ * الحدث بيتنشر في معاملة المطالبة نفسها، لحظة تحريك الطلب من `SCHEDULED` إلى `SENDING`.
+ */
 export interface RatingRequestReadyInput {
   readonly eventId: string;
   readonly companyId: string;
@@ -28,6 +31,7 @@ export interface RatingRequestReadyInput {
 
 /**
  * يبني حمولة «طلب التقييم جاهز»؛ اسم العميل الأول يُشطب لما مفيش اسم آمن للعرض.
+ * الحدث بيتنشر في معاملة المطالبة نفسها، لحظة تحريك الطلب من `SCHEDULED` إلى `SENDING`.
  *
  * @param input هوية الطلب والمعلمات الآمنة ورقم العميل ولغته
  * @returns الحمولة بعد تحقق العقد

@@ -28,6 +28,7 @@ export type ClaimEarlyDecision = Extract<
   { readonly kind: 'OPTED_OUT' | 'REQUESTS_OFF' | 'PAST_DEADLINE' }
 >;
 
+/** مدخلات قرار المطالبة: الساعة المحقونة والمفتاح وتفضيل العميل والجدولة المخزنة وحالة اليوم. */
 export interface ClaimDecisionInput {
   /** لحظة اتخاذ القرار المحقونة. */
   readonly now: Date;
