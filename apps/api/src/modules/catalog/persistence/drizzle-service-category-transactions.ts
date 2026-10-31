@@ -164,7 +164,9 @@ function cleanError(error: unknown): never {
     if (cause.code === '23514' && constraint === 'service_categories_branch_owner_required')
       throw new ServiceCategoryError('SERVICE_CATEGORY_VISIBILITY_FIXED');
   }
-  throw new Error('SERVICE_CATEGORY_PERSISTENCE_FAILED');
+  // الخطأ المجهول يمرّ كما هو: خطأ السائق يفضل في السجل، وأخطاء البنية التحتية تحتفظ بترميزها
+  // اللي بيعرفه فلتر الـ API، بدل ما تتحوّل كل واحدة لخطأ عام بيزيح سببها.
+  throw error;
 }
 
 export function createServiceCategoryTransactions(
