@@ -93,7 +93,9 @@ function cleanServiceError(error: unknown): never {
     // الـ FK المركّب على النشاط: مفيش نشاط بهوية دي في الشركة.
     if (code === '23503') throw new ServiceError('SERVICE_NOT_FOUND');
   }
-  throw new Error('SERVICE_PERSISTENCE_FAILED');
+  // الخطأ المجهول يمرّ كما هو: خطأ السائق يفضل في السجل، وأخطاء البنية التحتية تحتفظ بترميزها
+  // اللي بيعرفه فلتر الـ API، بدل ما تتحوّل كل واحدة لخطأ عام بيزيح سببها.
+  throw error;
 }
 
 export function createServiceTransactions(
