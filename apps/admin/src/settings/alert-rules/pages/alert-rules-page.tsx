@@ -9,6 +9,7 @@ import { useAlertRules } from '../api/use-alert-rules';
 import { alertRulesFailureMessage, isAlertRulesRefusal } from '../model/alert-rules-failure';
 import { AlertRulesForm } from '../ui/alert-rules-form';
 import { AlertsMasterSwitch } from '../ui/alerts-master-switch';
+import { RatingRequestsSwitch } from '../ui/rating-requests-switch';
 import { ScopeSelector } from '../ui/scope-selector';
 
 export function AlertRulesPage(props: {
@@ -47,6 +48,11 @@ export function AlertRulesPage(props: {
             userId={props.userId}
             businessId={props.businessId}
             server={server}
+          />
+          <RatingRequestsSwitch
+            companyId={props.companyId}
+            userId={props.userId}
+            businessId={props.businessId}
           />
           <AlertRulesForm
             key={branchId ?? 'business'}

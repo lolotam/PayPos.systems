@@ -22,6 +22,7 @@ vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => locale.value }));
 
 const businessPath = '/v1/businesses/{businessId}/alert-rules';
+const ratingPath = '/v1/businesses/{businessId}/rating-settings';
 const listedKinds = [
   'SHIFT_NOT_CLOCKED_IN',
   'SHIFT_BREAK_NOT_RETURNED',
@@ -41,6 +42,20 @@ function businessView() {
   return withAlertRule(alertRulesFixture(), 'SERVICE_LINE_CANCELLED', { enabled: false });
 }
 
+// كارت طلبات التقييم له مساره، فالـ mock بيردّ على كل مسار لوحده. الرد الافتراضي للكارت الجديد
+// رفض 403 عشان ما يزاحمش على اختبارات التنبيهات.
+function mockGet(rules: (call: number) => unknown, rating: unknown = refusal(403)) {
+  let calls = 0;
+  api.GET.mockImplementation((path: string) => {
+    if (path === ratingPath) return rating;
+    const answer = rules(calls);
+    calls += 1;
+    return answer;
+  });
+}
+
+const ruleReads = () => api.GET.mock.calls.filter(([path]) => path === businessPath).length;
+
 beforeEach(() => {
   locale.value = 'en';
   api.GET.mockReset();
@@ -49,7 +64,7 @@ beforeEach(() => {
 });
 
 it('shows only the twelve listed kinds with their server values', async () => {
-  api.GET.mockResolvedValue({ data: businessView() });
+  mockGet(() => ({ data: businessView() }));
   renderPage();
   const first = (await screen.findByRole('switch', {
     name: t('en', 'alertRules.kind_SHIFT_NOT_CLOCKED_IN'),
@@ -76,7 +91,7 @@ it('shows only the twelve listed kinds with their server values', async () => {
 
 it('shows the source badge of each rule', async () => {
   const view = withAlertRule(businessView(), 'SHIFT_NOT_CLOCKED_IN', { source: 'BUSINESS' });
-  api.GET.mockResolvedValue({ data: view });
+  mockGet(() => ({ data: view }));
   renderPage();
   await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
   expect(within(kindRow('SHIFT_NOT_CLOCKED_IN')).getByText('Business rule')).toBeTruthy();
@@ -84,7 +99,7 @@ it('shows the source badge of each rule', async () => {
 });
 
 it('shows a refusal without rows or save', async () => {
-  api.GET.mockResolvedValue(refusal(403));
+  mockGet(() => refusal(403));
   renderPage();
   expect((await screen.findByRole('alert')).textContent).toContain(t('en', 'errors.FORBIDDEN'));
   expect(screen.queryByRole('switch')).toBeNull();
@@ -92,15 +107,19 @@ it('shows a refusal without rows or save', async () => {
 });
 
 it('shows a read failure and retries it', async () => {
-  api.GET.mockResolvedValueOnce({
-    error: { code: 'INTERNAL', message_ar: 'Synthetic failure', message_en: 'Synthetic failure' },
-    response: { status: 500 },
-  }).mockResolvedValueOnce({ data: businessView() });
+  mockGet((call) =>
+    call === 0
+      ? {
+          error: { code: 'INTERNAL', message_ar: 'Synthetic failure', message_en: 'Synthetic failure' },
+          response: { status: 500 },
+        }
+      : { data: businessView() },
+  );
   renderPage();
   expect((await screen.findByRole('alert')).textContent).toContain('Synthetic failure');
   fireEvent.click(screen.getByRole('button', { name: t('en', 'pos.retry') }));
   await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
-  expect(api.GET).toHaveBeenCalledTimes(2);
+  expect(ruleReads()).toBe(2);
 });
 
 it('saves one changed rule and shows the returned state', async () => {
@@ -115,7 +134,7 @@ it('saves one changed rule and shows the returned state', async () => {
     source: 'BUSINESS',
     revision: 8,
   });
-  api.GET.mockResolvedValue({ data: initial });
+  mockGet(() => ({ data: initial }));
   api.PUT.mockResolvedValue({ data: returned });
   renderPage();
   await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
@@ -142,7 +161,7 @@ it('saves one changed rule and shows the returned state', async () => {
 });
 
 it('reports nothing changed without sending a PUT', async () => {
-  api.GET.mockResolvedValue({ data: businessView() });
+  mockGet(() => ({ data: businessView() }));
   renderPage();
   fireEvent.click(await screen.findByRole('button', { name: t('en', 'alertRules.save') }));
   expect(await screen.findByText(t('en', 'alertRules.nothingChanged'))).toBeTruthy();
@@ -155,7 +174,7 @@ it('shows a revision conflict and resyncs to the refetched values', async () => 
     rule_id: branchA.id,
   });
   const fresh = withAlertRule(initial, 'SHIFT_NOT_CLOCKED_IN', { delay_minutes: 35, revision: 8 });
-  api.GET.mockResolvedValueOnce({ data: initial }).mockResolvedValueOnce({ data: fresh });
+  mockGet((call) => ({ data: call === 0 ? initial : fresh }));
   api.PUT.mockResolvedValue({
     error: {
       code: 'ALERT_RULE_REVISION_CONFLICT',
@@ -170,14 +189,14 @@ it('shows a revision conflict and resyncs to the refetched values', async () => 
   fireEvent.click(screen.getByRole('button', { name: t('en', 'alertRules.save') }));
   expect((await screen.findByRole('alert')).textContent).toContain('Synthetic conflict');
   await waitFor(() => expect(minutesField('SHIFT_NOT_CLOCKED_IN', 'delay').value).toBe('35'));
-  expect(api.GET).toHaveBeenCalledTimes(2);
+  expect(ruleReads()).toBe(2);
   fireEvent.click(screen.getByRole('button', { name: t('en', 'alertRules.save') }));
   expect(await screen.findByText(t('en', 'alertRules.nothingChanged'))).toBeTruthy();
   expect(api.PUT).toHaveBeenCalledTimes(1);
 });
 
 it('shows an invalid-rule response and keeps the draft', async () => {
-  api.GET.mockResolvedValue({ data: businessView() });
+  mockGet(() => ({ data: businessView() }));
   api.PUT.mockResolvedValue({
     error: {
       code: 'ALERT_RULE_INVALID',
@@ -196,7 +215,7 @@ it('shows an invalid-rule response and keeps the draft', async () => {
 
 it('disables the save button and rule switches while saving', async () => {
   let release: (value: unknown) => void = () => undefined;
-  api.GET.mockResolvedValue({ data: businessView() });
+  mockGet(() => ({ data: businessView() }));
   api.PUT.mockImplementation(
     () =>
       new Promise((resolve) => {
@@ -219,7 +238,7 @@ it('disables the save button and rule switches while saving', async () => {
 });
 
 it('switches the business master and shows its off note', async () => {
-  api.GET.mockResolvedValue({ data: businessView() });
+  mockGet(() => ({ data: businessView() }));
   api.PUT.mockResolvedValue({ data: { ...businessView(), alerts_enabled: false } });
   renderPage();
   const master = await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
@@ -244,7 +263,7 @@ it('keeps the edited kind concurrency values while refreshing the other kinds', 
     'SERVICE_LINE_CANCELLED',
     { enabled: true },
   );
-  api.GET.mockResolvedValueOnce({ data: initial }).mockResolvedValueOnce({ data: fresh });
+  mockGet((call) => ({ data: call === 0 ? initial : fresh }));
   api.PUT.mockResolvedValue({
     data: withAlertRule(fresh, 'SHIFT_NOT_CLOCKED_IN', { delay_minutes: 15, revision: 9 }),
   });
@@ -272,7 +291,7 @@ it('keeps the edited kind concurrency values while refreshing the other kinds', 
 });
 
 it('refreshes the business read when the master switch is refused', async () => {
-  api.GET.mockResolvedValue({ data: businessView() });
+  mockGet(() => ({ data: businessView() }));
   api.PUT.mockResolvedValue({
     error: { code: 'FORBIDDEN', message_ar: 'Synthetic refusal', message_en: 'Synthetic refusal' },
     response: { status: 403 },
@@ -281,16 +300,43 @@ it('refreshes the business read when the master switch is refused', async () => 
   const master = await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
   fireEvent.click(master);
   expect((await screen.findByRole('alert')).textContent).toContain(t('en', 'errors.FORBIDDEN'));
-  await waitFor(() => expect(api.GET).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(ruleReads()).toBe(2));
 });
 
 it('shows the Arabic title and kind labels', async () => {
   locale.value = 'ar';
-  api.GET.mockResolvedValue({ data: businessView() });
+  mockGet(() => ({ data: businessView() }));
   renderPage();
   expect(await screen.findByText(t('ar', 'alertRules.title'))).toBeTruthy();
   const kind = await screen.findByRole('switch', {
     name: t('ar', 'alertRules.kind_SHIFT_NOT_CLOCKED_IN'),
   });
   expect(kind).toBeTruthy();
+});
+
+it('shows the rating requests switch off with its note, and turns it on', async () => {
+  mockGet(() => ({ data: businessView() }), { data: { requests_enabled: false } });
+  api.PUT.mockResolvedValue({ data: { requests_enabled: true } });
+  renderPage();
+  const rating = (await screen.findByRole('switch', {
+    name: t('en', 'alertRules.ratingRequestsLabel'),
+  })) as HTMLInputElement;
+  expect(rating.checked).toBe(false);
+  expect(await screen.findByText(t('en', 'alertRules.ratingRequestsOffNote'))).toBeTruthy();
+
+  fireEvent.click(rating);
+  await waitFor(() => expect(rating.checked).toBe(true));
+  expect(screen.queryByText(t('en', 'alertRules.ratingRequestsOffNote'))).toBeNull();
+  expect(api.PUT).toHaveBeenCalledWith(
+    ratingPath,
+    expect.objectContaining({ body: { requests_enabled: true } }),
+  );
+});
+
+it('hides the rating requests card when the API refuses it', async () => {
+  mockGet(() => ({ data: businessView() }), refusal(403));
+  renderPage();
+  await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
+  expect(screen.queryByRole('switch', { name: t('en', 'alertRules.ratingRequestsLabel') })).toBeNull();
+  expect(screen.queryByText(t('en', 'alertRules.ratingRequestsOffNote'))).toBeNull();
 });

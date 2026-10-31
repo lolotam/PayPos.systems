@@ -97,6 +97,7 @@ it.each([
   'cancel:service-lines:branch',
   'approve:discounts:branch',
   'manage:alert-rules:business',
+  'manage:rating-requests:business',
   'manage:staff-app-columns:business',
   'manage:commission-plans:business',
 ])('Device cannot acquire spec 009 forbidden %s', (permission) => {
@@ -200,6 +201,13 @@ it('staff-app columns management is grantable to every human role and never a de
       systemRolePolicy(entry.id, 'global')?.permissions.includes(
         'manage:staff-app-columns:business',
       ),
+    ).toBe(entry.code !== 'device');
+});
+
+it('rating requests management is grantable to every human role and never a device', () => {
+  for (const entry of SYSTEM_ROLES)
+    expect(
+      systemRolePolicy(entry.id, 'global')?.permissions.includes('manage:rating-requests:business'),
     ).toBe(entry.code !== 'device');
 });
 

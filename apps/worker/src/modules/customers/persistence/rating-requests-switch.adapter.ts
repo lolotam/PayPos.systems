@@ -1,8 +1,15 @@
+import { RATING_REQUESTS_DEFAULT_ENABLED } from '@pospay/contracts';
+import { sql } from 'drizzle-orm';
+
 import type { RatingRequestsSwitchPort } from '../ports/rating-requests-switch.port.ts';
 
-export const RATING_REQUESTS_DEFAULT_ENABLED = false;
+type StoredSwitch = { readonly requests_enabled: boolean | null };
 
-// جدول rating_settings يصل مع الصف 59-2؛ يُستبدل هذا المهايئ هناك بقراءة منه.
 export const ratingRequestsSwitch: RatingRequestsSwitchPort = {
-  enabled: async () => RATING_REQUESTS_DEFAULT_ENABLED,
+  enabled: async (tx, companyId, businessId) => {
+    const rows = await tx.execute<StoredSwitch>(sql`
+      SELECT requests_enabled FROM rating_settings
+      WHERE company_id = ${companyId} AND business_id = ${businessId}`);
+    return rows[0]?.requests_enabled ?? RATING_REQUESTS_DEFAULT_ENABLED;
+  },
 };

@@ -27,7 +27,7 @@ import { PUSH_SUBSCRIPTION_COLUMN_GRANTS } from '../../test/push-subscription-gr
 import { PUSH_ATTEMPT_COLUMN_GRANTS } from '../../test/push-attempt-grants.ts';
 import { DISCOUNT_PROPOSAL_COLUMN_GRANTS } from '../../test/discount-proposal-grants.ts';
 import { COMMISSION_STATEMENT_COLUMN_GRANTS } from '../../test/commission-statement-grants.ts';
-import { RATING_REQUEST_COLUMN_GRANTS } from '../../test/rating-grants.ts';
+import { RATING_REQUEST_COLUMN_GRANTS, RATING_SETTINGS_COLUMN_GRANTS } from '../../test/rating-grants.ts';
 import { CUSTOMER_COLUMN_GRANTS } from '../../test/customer-grants.ts';
 import { ALLOWED_TABLE_GRANTS } from '../../test/table-grants.ts';
 import postgres from 'postgres';
@@ -82,6 +82,7 @@ const REVIEWED_COLUMN_GRANTS = [
   ...DISCOUNT_PROPOSAL_COLUMN_GRANTS,
   ...COMMISSION_STATEMENT_COLUMN_GRANTS,
   ...RATING_REQUEST_COLUMN_GRANTS,
+  ...RATING_SETTINGS_COLUMN_GRANTS,
   ...CUSTOMER_COLUMN_GRANTS,
 ];
 

@@ -67,6 +67,8 @@ export const PERMISSIONS = [
   'manage:settings:business',
   'manage:business-identity:business',
   'manage:alert-rules:business',
+  // مفتاح طلبات التقييم للنشاط: صلاحيته الخاصة، مش صلاحية التنبيهات (RT-Q13، D-B16).
+  'manage:rating-requests:business',
   'manage:staff-app-columns:business',
   'manage:commission-plans:business',
   'view:notifications:business',

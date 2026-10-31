@@ -12015,6 +12015,110 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/rating-settings": {
+      "get": {
+        "operationId": "getBusinessRatingSettings",
+        "description": "Whether the business sends rating requests to its customers. Requires manage:rating-requests:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. A business with no stored switch reads as off. Never writes.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rating requests switch of the business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setBusinessRatingSettings",
+        "description": "Turns the rating requests of the business on or off. Requires manage:rating-requests:business on that business; a caller without it, a device, another business and an unknown business are the same 403 FORBIDDEN. The switch is independent of the team alerts master switch. Every write is audited with before and after.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RatingSettings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The rating requests switch of the business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions": {
       "get": {
         "operationId": "listBranchDayServiceSessions",
@@ -24203,6 +24307,18 @@
         "required": [
           "expected_rule_id",
           "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "RatingSettings": {
+        "type": "object",
+        "properties": {
+          "requests_enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "requests_enabled"
         ],
         "additionalProperties": false
       },

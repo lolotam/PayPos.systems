@@ -1,10 +1,12 @@
 import { sql, type BuildExtraConfigColumns } from 'drizzle-orm';
 import {
+  boolean,
   check,
   customType,
   date,
   foreignKey,
   index,
+  integer,
   pgTable,
   primaryKey,
   smallint,
@@ -16,6 +18,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { customers } from './customers.ts';
+import { user } from './identity-auth.ts';
 import { employees } from './staff.ts';
 import { branches, businesses, companies } from './tenancy.ts';
 
@@ -116,7 +119,7 @@ const requestChecks = (t: RequestSelf) => [
   check('rating_requests_status', sql`${t.status} IN ('SCHEDULED','SENDING','SENT','CANCELLED')`),
   check(
     'rating_requests_cancel_reason',
-    sql`${t.cancelReason} IS NULL OR ${t.cancelReason} IN ('NO_ACTIVE_LINE','PAST_DEADLINE','OPTED_OUT')`,
+    sql`${t.cancelReason} IS NULL OR ${t.cancelReason} IN ('NO_ACTIVE_LINE','PAST_DEADLINE','OPTED_OUT','REQUESTS_OFF')`,
   ),
   check(
     'rating_requests_cancel_pair',
@@ -228,5 +231,35 @@ export const ratings = pgTable(
     index('ratings_request_fk_idx').on(t.companyId, t.businessId, t.branchId, t.requestId),
     check('ratings_stars', sql`${t.stars} BETWEEN 1 AND 5`),
     check('ratings_comment_length', sql`${t.comment} IS NULL OR char_length(${t.comment}) <= 1000`),
+  ],
+);
+
+// مفتاح طلبات التقييم للنشاط (D-B16، RT-Q3): صف واحد لكل نشاط، وNULL يعني مقفول — الافتراضي من كود واحد.
+export const ratingSettings = pgTable(
+  'rating_settings',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    // NULL = مقفول؛ القيمة الفعّالة بتقرأها من ثابت الكود المشترك مع الـ worker.
+    requestsEnabled: boolean('requests_enabled'),
+    updatedBy: uuid('updated_by')
+      .notNull()
+      .references(() => user.id),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    revision: integer('revision').notNull().default(1),
+  },
+  (t) => [
+    primaryKey({ name: 'rating_settings_pkey', columns: [t.companyId, t.id] }),
+    unique('rating_settings_company_business_id_key').on(t.companyId, t.businessId),
+    foreignKey({
+      name: 'rating_settings_business_fk',
+      columns: [t.companyId, t.businessId],
+      foreignColumns: [businesses.companyId, businesses.id],
+    }),
+    index('rating_settings_updated_by_idx').on(t.updatedBy),
+    check('rating_settings_revision', sql`${t.revision} >= 1`),
   ],
 );
