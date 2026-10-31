@@ -151,6 +151,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `commissions` | tips and package-sales bootstrap readers (ports named by 50-3 and 50-4; lines and salaries are replayed from the outbox through a `packages/db` facade, not a port, spec 059 D-15) | `orders` | the latest revision of each input with its event ids, in paged form, for the bootstrap before approval opens; bound at the composition root, never read from commissions code (spec 059 D-15, ADR-0041 §6; no import arrow) |
 | `customers`                         | `PerformerNamePort`                                                                     | `staff`     | performer's first name, in the rating message (ADR-0010)                                                                                                             |
 | `customers`                         | `DaySessionsPort`                                                                       | `orders`    | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010)                     |
+| `customers`                         | `BusinessNamesPort`                                                                     | `tenancy`   | the business's Arabic and English name, shown on the public rating page (spec 060 D-B9, 60-1)                                                                    |
 | `staff` | `EmployeeDocumentScope.file` | `files` | a READY file uploaded by the recorder for this employee and business, read in the same tenant transaction; staff keeps the verified key only (ADR-0031) |
 | `staff` | `EmployeeDocumentReadAccess`, document-type authority | `identity`, `tenancy` | locked read/manage files and manage:document-types:company; business timezone for the expiry badge (ADR-0031) |
 | worker `staff` | `DocumentExpiryTransactions.timeZone` | worker `tenancy` | business timezone for the expiry window, reusing ADR-0031's staff-to-tenancy read; discovery stays on outbox delivery (ADR-0032) |
@@ -377,6 +378,7 @@ reads:
   - orders -> settings.readStaffColumns @ apps/api/src/modules/orders/persistence/staff-columns.adapter.ts
   - commissions -> settings.readStaffColumns @ apps/api/src/modules/commissions/persistence/staff-columns.adapter.ts
   - customers -> settings.readStaffColumns @ apps/api/src/modules/customers/persistence/staff-columns.adapter.ts
+  - customers -> tenancy.businessNames @ apps/api/src/modules/customers/persistence/business-names.adapter.ts
   - staff -> settings.readStaffColumns @ apps/api/src/modules/staff/persistence/staff-columns.adapter.ts
   - staff -> settings.readAlertRule @ apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts
   - staff -> settings.alertRule @ apps/worker/src/modules/staff/persistence/alert-rule.adapter.ts
