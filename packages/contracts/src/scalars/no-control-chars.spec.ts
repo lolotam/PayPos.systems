@@ -124,7 +124,7 @@ describe('the shared no-control-characters rule', () => {
       for (const [position, name] of [
         ['inside the name', `Example${control}Name`],
         ['at the end of the name', `Example${control}`],
-      ]) {
+      ] as const) {
         expect(schema.safeParse(payload(name)).success, `${label} ${position}`).toBe(false);
       }
     }

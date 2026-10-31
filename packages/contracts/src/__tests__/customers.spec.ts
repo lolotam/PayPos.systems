@@ -39,16 +39,18 @@ describe('customer name contract', () => {
 });
 
 describe('the customer name pattern a client receives', () => {
-  it('publishes a pattern that runs without the unicode flag', () => {
+  it('publishes a control-character search that runs without the unicode flag', () => {
     const schemas = (
       buildOpenApiDocument()['components'] as {
-        schemas: Record<string, { properties?: Record<string, { pattern?: string }> }>;
+        schemas: Record<string, { properties?: Record<string, { not?: { pattern?: string } }> }>;
       }
     ).schemas;
-    const pattern = schemas['FindOrCreateCustomerInput']?.properties?.['name']?.pattern ?? '';
+    const pattern = schemas['FindOrCreateCustomerInput']?.properties?.['name']?.not?.pattern ?? '';
     expect(pattern).not.toContain('\\p{');
-    expect(new RegExp(pattern).test('Example\u0000')).toBe(false);
-    expect(new RegExp(pattern).test('Example')).toBe(true);
+    const search = new RegExp(pattern);
+    expect(search.test('Example\u0000')).toBe(true);
+    expect(search.test('Example\u001F')).toBe(true);
+    expect(search.test('Example')).toBe(false);
   });
 });
 

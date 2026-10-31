@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import type { z } from 'zod';
 
 // حروف التحكم (Cc = U+0000–U+001F و U+007F–U+009F) ممنوعة في كل الأسماء. النمط بينزل مع
 // الـ OpenAPI، فبينكتب كبحث بسيط من غير anchor ولا lookahead: محرك RE2 (زي Go و Rust) مش
