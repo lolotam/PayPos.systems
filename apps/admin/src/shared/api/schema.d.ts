@@ -4579,6 +4579,9 @@ export interface components {
         RatingSettings: {
             requests_enabled: boolean;
         };
+        RatingSettingsResponse: {
+            requests_enabled: boolean;
+        };
         SessionMoney: string;
         SessionPerformerInput: {
             /** Format: uuid */
@@ -14190,7 +14193,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RatingSettings"];
+                    "application/json": components["schemas"]["RatingSettingsResponse"];
                 };
             };
             /** @description The API error envelope */
@@ -14227,7 +14230,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RatingSettings"];
+                    "application/json": components["schemas"]["RatingSettingsResponse"];
                 };
             };
             /** @description The API error envelope */

@@ -12045,7 +12045,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RatingSettings"
+                  "$ref": "#/components/schemas/RatingSettingsResponse"
                 }
               }
             }
@@ -12101,7 +12101,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RatingSettings"
+                  "$ref": "#/components/schemas/RatingSettingsResponse"
                 }
               }
             }
@@ -24321,6 +24321,17 @@
           "requests_enabled"
         ],
         "additionalProperties": false
+      },
+      "RatingSettingsResponse": {
+        "type": "object",
+        "properties": {
+          "requests_enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "requests_enabled"
+        ]
       },
       "SessionMoney": {
         "type": "string",
