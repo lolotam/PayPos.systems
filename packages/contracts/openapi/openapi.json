@@ -1345,7 +1345,7 @@
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 9007199254740991
+              "maximum": 2147483647
             }
           },
           {
@@ -16685,7 +16685,7 @@
             "nullable": true,
             "type": "integer",
             "minimum": 1,
-            "maximum": 9007199254740991
+            "maximum": 2147483647
           }
         },
         "required": [
@@ -16699,7 +16699,7 @@
           "cursor": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 9007199254740991
+            "maximum": 2147483647
           },
           "limit": {
             "default": 20,

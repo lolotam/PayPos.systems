@@ -179,12 +179,15 @@ it('defaults the list query limit to 20', () => {
   expect(commissionPlanVersionListQuery.parse({})).toEqual({ limit: 20 });
 });
 
-it.each([1, 2147483647])('accepts a list cursor at the PostgreSQL integer boundary %i', (cursor) => {
-  expect(commissionPlanVersionListQuery.parse({ cursor: `${cursor}` })).toEqual({
-    limit: 20,
-    cursor,
-  });
-});
+it.each([1, 2147483647])(
+  'accepts a list cursor at the PostgreSQL integer boundary %i',
+  (cursor) => {
+    expect(commissionPlanVersionListQuery.parse({ cursor: `${cursor}` })).toEqual({
+      limit: 20,
+      cursor,
+    });
+  },
+);
 
 it.each(['2147483648', '9999999999', '1.5', '0', 'abc'])(
   'refuses a list cursor the PostgreSQL integer cannot hold: %s',
