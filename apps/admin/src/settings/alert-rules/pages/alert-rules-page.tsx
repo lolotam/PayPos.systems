@@ -26,17 +26,18 @@ export function AlertRulesPage(props: {
   const rating = useRatingSettings(props.companyId, props.userId, props.businessId);
   const server = query.data;
   const refused = query.isError && isAlertRulesRefusal(query.error);
+  const businessRefused = refused && branchId === null;
   const ratingRefused = rating.isError && isAlertRulesRefusal(rating.error);
-  // رفض التنبيهات ورفض مفتاح التقييم مش بعض: رسالة التنبيهات بتتبان بس لما اترفض على الاتنين،
-  // وإلا هي مش بتاعته أصلاً (RT-Q13: صلاحية مفتاح التقييم منفصلة).
-  const alertRulesError = query.isError && (!refused || ratingRefused);
+  // رفض النطاق العام مش رفض فرع: رسالة التنبيهات بتتبان بس لما اترفض على النطاق العام وعلى
+  // مفتاح التقييم مع بعض، وإلا هي مش بتاعته أصلاً (RT-Q13: صلاحية مفتاح التقييم منفصلة).
+  const alertRulesError = query.isError && (!businessRefused || ratingRefused);
   return (
     <section className="flex min-w-0 flex-col gap-8 text-start">
       <PageHeader
         title={t(locale, 'alertRules.title')}
         description={t(locale, 'alertRules.lead')}
       />
-      {refused ? null : (
+      {businessRefused ? null : (
         <ScopeSelector branches={props.branches} value={branchId} onChange={setBranchId} />
       )}
       {query.isPending ? <p role="status">{t(locale, 'admin.loading')}</p> : null}

@@ -413,3 +413,11 @@ it('re-reads the stored switch after a failed write', async () => {
   // الكتابة وصلت فعلاً، فالخطأ اللي جاي على الكارت بقى نص ومش ظاهر.
   expect(screen.queryByRole('alert')).toBeNull();
 });
+
+it('keeps the scope selector when a branch read is refused', async () => {
+  mockGet((call) => (call === 0 ? { data: businessView() } : refusal(403)));
+  renderPage({ branches: [branchA] });
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: branchA.id } });
+  expect((await screen.findByRole('alert')).textContent).toContain(t('en', 'errors.FORBIDDEN'));
+  expect(screen.getByRole('combobox')).toBeTruthy();
+});
