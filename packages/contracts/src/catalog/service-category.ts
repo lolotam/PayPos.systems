@@ -3,11 +3,10 @@ import { responseObject } from '../response-object.js';
 
 import { page } from '../pagination/cursor.js';
 import { id } from '../scalars/id.js';
+import { withoutControlChars } from '../scalars/no-control-chars.js';
 import { timestamp } from '../scalars/timestamp.js';
 
-const categoryName = z
-  .string()
-  .regex(/^\P{Cc}*$/u)
+const categoryName = withoutControlChars(z.string())
   .trim()
   .min(1)
   .max(100);
@@ -50,7 +49,7 @@ export const serviceCategoryListItem = responseObject(categoryFields).meta({
   id: 'ServiceCategoryListItem',
 });
 export const serviceCategoryCursorData = z
-  .tuple([z.string().regex(/^\P{Cc}*$/u).min(1).max(100), id])
+  .tuple([withoutControlChars(z.string().min(1).max(100)), id])
   .meta({ id: 'ServiceCategoryCursorData' });
 export const serviceCategoryCursor = z
   .string()

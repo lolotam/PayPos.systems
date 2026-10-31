@@ -1,14 +1,15 @@
 import { z } from 'zod';
 import { responseObject } from '../response-object.js';
 
-import { nameAr, nameEn } from '../bilingual/names.js';
-
 import { page } from '../pagination/cursor.js';
 import { id } from '../scalars/id.js';
+import { withoutControlChars } from '../scalars/no-control-chars.js';
 import { timestamp } from '../scalars/timestamp.js';
 
-const serviceNameEn = nameEn.regex(/^\P{Cc}*$/u);
-const serviceNameAr = nameAr.regex(/^\P{Cc}*$/u);
+// فحص حروف التحكم لازم يشتغل على النص قبل التشذيب، زي دومين الـ API اللي بيفحص الاسم
+// كما جاء من العميل؛ فبنكتب نفس حدود nameEn/nameAr هنا بدل ما نأخذهم جاهزين.
+const serviceNameEn = withoutControlChars(z.string()).trim().min(1).max(255);
+const serviceNameAr = withoutControlChars(z.string()).trim().min(1).max(255);
 
 // المال بيتنقل كنص بـ 3 خانات عشرية دايماً؛ رقم JS كان بيضيّع فلوس (CLAUDE.md §5).
 // نفس حد salaryAmount: numeric(14,3) يعني 11 خانة صحيحة على الأكثر.
