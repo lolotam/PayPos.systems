@@ -206,7 +206,8 @@
                         "DOCUMENT_TOO_LARGE",
                         "DOCUMENT_RENDER_TIMEOUT",
                         "DOCUMENT_RENDER_FAILED",
-                        "STATEMENT_EMPTY"
+                        "STATEMENT_EMPTY",
+                        "COMMISSION_STATEMENT_UNAVAILABLE"
                       ]
                     }
                   },
