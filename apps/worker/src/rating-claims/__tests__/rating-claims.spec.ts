@@ -1,10 +1,13 @@
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { notificationParameter } from '@pospay/contracts';
+
 import {
   everyDay,
   ratingClaimsFixture,
   testTokenHash,
   type RatingClaimsFixture,
 } from './rating-claims.fixture.ts';
+import { performerLabelFormatter } from '../../modules/customers/index.ts';
 
 let f: RatingClaimsFixture;
 beforeEach(async () => {
@@ -18,6 +21,22 @@ const KUWAIT = 'Asia/Kuwait';
 const TEN_TO_TEN = everyDay([{ opens: '10:00', closes: '22:00' }]);
 const VISIT = new Date('2026-06-01T12:10:00.000Z');
 const LATER_VISIT = new Date('2026-06-01T13:00:00.000Z');
+
+/**
+ * بيدوّر على معاملة مستنية فعلاً على قفل صف العميل، ويقف عند حدّ الوقت لو القفل مش ماسك.
+ * الملاحظة من حالة القاعدة نفسها (pg_stat_activity) مش من توقيت متخمين.
+ */
+async function customerLockWaiter(): Promise<void> {
+  await vi.waitFor(
+    async () => {
+      const rows = await f.owner`SELECT pid FROM pg_stat_activity
+        WHERE datname = current_database() AND usename = 'pospay_app' AND wait_event_type = 'Lock'
+          AND query LIKE '%FROM customers%' AND query LIKE '%FOR NO KEY UPDATE%'`;
+      expect(rows).toHaveLength(1);
+    },
+    { timeout: 5_000, interval: 25 },
+  );
+}
 
 async function visit(options: { customerId: string; branchId: string; at?: Date }) {
   const session = await f.session({
@@ -114,7 +133,7 @@ it('RT-12 and RT-14 the phone travels only in the event and no token is stored a
   const events = await f.readyEvents();
   expect(events).toHaveLength(1);
   const payload = events[0]?.['payload'] as {
-    notification_recipients: { phone: string }[];
+    notification_recipients: { phone: string; safe_parameters: unknown[] }[];
     rating_request_id: string;
   };
   expect(payload.notification_recipients[0]?.phone).toMatch(/^\+9999999\d{5}$/);
@@ -124,6 +143,29 @@ it('RT-12 and RT-14 the phone travels only in the event and no token is stored a
   expect(JSON.stringify(payload)).not.toMatch(/[A-Za-z0-9_-]{43}/);
   const hash = row?.['token_hash'] as Buffer | null;
   expect(hash?.length).toBe(32);
+  // معاملات الرسالة المنشورة لازم تعدّي فحص العقد نفسه: حدّ النص ملك حزمة العقد.
+  const parameters = payload.notification_recipients[0]?.safe_parameters ?? [];
+  expect(parameters.length).toBeGreaterThan(0);
+  for (const parameter of parameters) {
+    expect(notificationParameter.safeParse(parameter).success).toBe(true);
+  }
+});
+
+it('RT-12 the label the worker builds is accepted by the notification contract', () => {
+  // حدّ العقد: النص اللي العامل بيبنيه يعدّي `notificationParameter` من packages/contracts،
+  // والعامل هو المكان اللي فيه اعتماده على i18n وعلى العقد مع بعض.
+  const names = ['أ'.repeat(128), 'ب'.repeat(128), 'ج'.repeat(128)];
+  const label = performerLabelFormatter.format({ kind: 'NAMES', names }, 'ar', 'مطعم البحر');
+  const parsed = notificationParameter.parse({ name: 'performers', type: 'text', value: label });
+  expect(parsed.value).toBe(label);
+  expect(label.length).toBeLessThanOrEqual(255);
+});
+
+it('RT-12 the notification contract still refuses a performers text over the limit', () => {
+  const over = 'x'.repeat(256);
+  expect(
+    notificationParameter.safeParse({ name: 'performers', type: 'text', value: over }).success,
+  ).toBe(false);
 });
 
 it('RT-13 the opt-out committed first cancels the request', async () => {
@@ -146,6 +188,61 @@ it('RT-13 the claim committed first still delivers that one request', async () =
   f.clock.at = new Date('2026-06-01T13:30:00.000Z');
   await f.claimAll();
   await f.optOut(customer);
+  const row = await f.request(customer);
+  expect(row?.['status']).toBe('SENDING');
+  expect(await f.readyEvents()).toHaveLength(1);
+});
+
+it('RT-13 the opt-out that holds the customer lock first wins and the claim waits for it', async () => {
+  const branchId = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
+  const customer = await f.customer();
+  await visit({ customerId: customer, branchId });
+  f.clock.at = new Date('2026-06-01T13:30:00.000Z');
+
+  const optOut = f.optOutTransaction(customer);
+  let claim: ReturnType<typeof f.claimAll> | undefined;
+  try {
+    await optOut.locked;
+    claim = f.claimAll();
+    await customerLockWaiter();
+    expect((await f.request(customer))?.['status']).toBe('SCHEDULED');
+  } finally {
+    // التنضيف بيفتح البوابة ويستنى المعاملتين، حتى لو الـ assertion فشل: القفل ما يفضلش ماسك
+    // ولا معاملة شابعة تفضل مفتوحة. allSettled عشان الرفض ما يبقاش رفض متسابه.
+    optOut.release();
+    await Promise.allSettled([optOut.done, claim]);
+  }
+
+  const row = await f.request(customer);
+  expect(row?.['status']).toBe('CANCELLED');
+  expect(row?.['cancel_reason']).toBe('OPTED_OUT');
+  expect(await f.readyEvents()).toHaveLength(0);
+});
+
+it('RT-13 the claim that holds the customer lock first wins and the opt-out waits for it', async () => {
+  const branchId = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
+  const customer = await f.customer();
+  await visit({ customerId: customer, branchId });
+  f.clock.at = new Date('2026-06-01T13:30:00.000Z');
+
+  const claim = f.claimHoldingCustomerLock();
+  let optOut: ReturnType<typeof f.optOutTransaction> | undefined;
+  try {
+    await claim.locked;
+    const started = f.optOutTransaction(customer);
+    optOut = started;
+    await customerLockWaiter();
+    claim.release();
+    await claim.done;
+    started.release();
+    await started.done;
+  } finally {
+    // نفس التنظيف: البوابة بتتفتح والمعاملتين بتستنى، فسواء الـ assertion نجح أو فشل مفيش قفل ماسك.
+    claim.release();
+    optOut?.release();
+    await Promise.allSettled([claim.done, optOut?.done]);
+  }
+
   const row = await f.request(customer);
   expect(row?.['status']).toBe('SENDING');
   expect(await f.readyEvents()).toHaveLength(1);

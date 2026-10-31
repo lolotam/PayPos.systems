@@ -1,5 +1,6 @@
 // مُنشئ الاختبار: نفس قواعد بيانات 59-1 مع المطالبة نفسها، عشان الحالة تطلع من المصدر الحقيقي.
 import postgres from 'postgres';
+import { sql } from 'drizzle-orm';
 import { createDatabase, type Database } from '@pospay/db';
 import { systemUuidV7, type IdGenerator } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
@@ -19,13 +20,17 @@ import { ratingClaimRepository } from '../../modules/customers/persistence/ratin
 import { ratingClaimTransactions } from '../../modules/customers/persistence/rating-claim.transactions.ts';
 import { ratingOutbox } from '../../modules/customers/persistence/rating-outbox.adapter.ts';
 import { ratingTokenPort } from '../../modules/customers/persistence/rating-token.adapter.ts';
+import type { RatingClaimRepository } from '../../modules/customers/ports/rating-claim.repository.ts';
 import type { RatingRequestsSwitchPort } from '../../modules/customers/ports/rating-requests-switch.port.ts';
 import { ClaimRatingRequest } from '../../modules/customers/use-cases/claim-rating-request/claim-rating-request.ts';
 import { ClaimRatingRequests } from '../../modules/customers/use-cases/claim-rating-requests/claim-rating-requests.ts';
 import { schedulingData } from '../../rating-scheduling/__tests__/rating-scheduling-data.ts';
 
 export { everyDay } from '../../rating-scheduling/__tests__/rating-scheduling-data.ts';
-export type { BranchOptions, SessionOptions } from '../../rating-scheduling/__tests__/rating-scheduling-data.ts';
+export type {
+  BranchOptions,
+  SessionOptions,
+} from '../../rating-scheduling/__tests__/rating-scheduling-data.ts';
 
 /** المفتاح اللي بيتقفل عليه الطلب: النشاط والعميل ويوم الطلب. */
 export interface SwitchFake extends RatingRequestsSwitchPort {
@@ -35,6 +40,40 @@ export interface SwitchFake extends RatingRequestsSwitchPort {
 /** اشتقاق البصمة في الاختبار: البصمة من معرّف الطلب، وإصدار المفتاح هو اللي بيتبدّل. */
 export interface TokenFake {
   version: number;
+}
+
+/**
+ * بوابة زمنية بين عمليتين: طرف بيقفل ويعلن، والطرف التاني بيستنى الفتح.
+ * البوابة فيها وعدين منفصلين: واحد للإعلان إن القفل اتقفل، وواحد للفتح.
+ * لو الاتنين كانوا وعد واحد، الانتظار بيخلص مع الإعلان، فالقفل عمره ما بيتمسك.
+ */
+export interface Gate {
+  /** بيتحل لما القفل يبقى ماسك. */
+  readonly acquired: Promise<void>;
+  /** بيعلن إن القفل بقى ماسك. */
+  markAcquired(): void;
+  /** بيفتح الحاجز: بيحلّ الانتظار بس، وما بيلمس إعلان القفل. */
+  release(): void;
+  /** بيستنى فتح الحاجز. */
+  wait(): Promise<void>;
+}
+
+/** بيبني بوابة بوعدين منفصلين: وعد للإعلان ووعد للفتح. */
+function createGate(): Gate {
+  let markAcquired!: () => void;
+  let release!: () => void;
+  const acquired = new Promise<void>((resolve) => {
+    markAcquired = resolve;
+  });
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return {
+    acquired,
+    markAcquired: () => markAcquired(),
+    release: () => release(),
+    wait: () => released,
+  };
 }
 
 /**
@@ -63,6 +102,7 @@ interface ClaimsWorld {
   readonly db: Database;
   readonly ids: IdGenerator;
   readonly clock: { at: Date; now(): Date };
+  readonly token: TokenFake;
 }
 
 async function claimsWorld(): Promise<ClaimsWorld> {
@@ -78,11 +118,11 @@ async function claimsWorld(): Promise<ClaimsWorld> {
       return this.at;
     },
   };
-  return { testDb, owner, db, ids, clock };
+  return { testDb, owner, db, ids, clock, token: { version: 1 } };
 }
 
 /** مشغّل المطالبة على نفس قواعد بيانات 59-1. */
-function claimTools(world: ClaimsWorld) {
+function claimTools(world: ClaimsWorld, claims: RatingClaimRepository = ratingClaimRepository) {
   const enabled: SwitchFake = {
     on: true,
     enabled: async () => enabled.on,
@@ -96,7 +136,7 @@ function claimTools(world: ClaimsWorld) {
   const deliver = createDeliverer(world.db, [scheduling], createLogger('silent'), {
     knownEventTypes: scheduling.eventTypes,
   });
-  const token: TokenFake = { version: 1 };
+  const token = world.token;
   const claim = new ClaimRatingRequest(
     {
       switch: enabled,
@@ -105,7 +145,7 @@ function claimTools(world: ClaimsWorld) {
       daySessions: daySessionsReader,
       performers: performerNameAdapter,
       label: performerLabelFormatter,
-      claims: ratingClaimRepository,
+      claims,
       token: ratingTokenPort({
         claim: (identity) => ({
           tokenHash: testTokenHash(identity.ratingRequestId),
@@ -119,6 +159,34 @@ function claimTools(world: ClaimsWorld) {
   );
   const pass = new ClaimRatingRequests(ratingClaimTransactions(world.db), claim, world.clock);
   return { enabled, token, deliver, pass };
+}
+
+/**
+ * منفذ مطالبات بيقفل صف العميل وبيستنى البوابة قبل ما يكمّل.
+ * القفل نفسه حقيقي من القاعدة؛ البوابة بس بتوقف المعاملة بعد ما القفل يبقى ماسك.
+ */
+function gatedClaims(): { port: RatingClaimRepository; arm(): Gate } {
+  let gate: Gate | null = null;
+  const port: RatingClaimRepository = {
+    ...ratingClaimRepository,
+    lockCustomer: async (tx, companyId, customerId) => {
+      const customer = await ratingClaimRepository.lockCustomer(tx, companyId, customerId);
+      const held = gate;
+      if (customer !== null && held !== null) {
+        // الإعلان بيقول إن القفل بقى ماسك، والانتظار بيقف المعاملة لحد ما الاختبار يفتح البوابة.
+        held.markAcquired();
+        await held.wait();
+      }
+      return customer;
+    },
+  };
+  return {
+    port,
+    arm: () => {
+      gate = createGate();
+      return gate;
+    },
+  };
 }
 
 /** قراءات حالة الطلب والأحداث في الاختبار. */
@@ -175,6 +243,8 @@ export async function ratingClaimsFixture() {
   const world = await claimsWorld();
   const { testDb, owner, db, ids, clock } = world;
   const tools = claimTools(world);
+  const gated = gatedClaims();
+  const gatedPass = claimTools(world, gated.port).pass;
   const data = schedulingData({ owner, db, ids });
   const readers = requestReaders(owner, TENANT.A.company);
   const writers = requestWriters(owner, TENANT.A.company, ids);
@@ -198,6 +268,32 @@ export async function ratingClaimsFixture() {
       tools.deliver(await data.event(sessionId, 'ServiceSessionRecorded')),
     /** جولة مطالبة واحدة للشركة. */
     claimAll: async () => tools.pass.execute(TENANT.A.company),
+    /**
+     * جولة مطالبة بتقف بعد ما تقفل صف العميل، فالقفل يبقى ماسك لحد ما الاختبار يفتح البوابة.
+     * ده اللي يخلي التعارض مع رفض التقييم متاح في الاتجاهين.
+     */
+    claimHoldingCustomerLock: () => {
+      const gate = gated.arm();
+      const done = gatedPass.execute(TENANT.A.company);
+      return { locked: gate.acquired, release: gate.release, done };
+    },
+    /**
+     * رفض تقييم في معاملة لوحدها على دور المستأجر: بيقفل صف العميل زي ما بيعمل مسار الـ API
+     * وبعدين بيستنى البوابة قبل ما يكتب، فالمطالبة اللي بتعدّي بتلاقي القفل ماسك.
+     */
+    optOutTransaction: (customerId: string) => {
+      const gate = createGate();
+      const done = db.withTenant(TENANT.A.company, async (tx) => {
+        await tx.execute(sql`SELECT id FROM customers
+          WHERE company_id = ${TENANT.A.company} AND id = ${customerId} FOR NO KEY UPDATE`);
+        // القفل بقى ماسك فعلاً، فالمطالبة اللي بتعدّي هتتلاقى قفل حقيقي من القاعدة.
+        gate.markAcquired();
+        await gate.wait();
+        await tx.execute(sql`UPDATE customers SET opted_out_at = now(), updated_at = now()
+          WHERE company_id = ${TENANT.A.company} AND id = ${customerId} AND opted_out_at IS NULL`);
+      });
+      return { locked: gate.acquired, release: gate.release, done };
+    },
     ...readers,
     ...writers,
     close: async () => {
