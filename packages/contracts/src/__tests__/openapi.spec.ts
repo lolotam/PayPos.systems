@@ -356,7 +356,8 @@ it('publishes both change kinds of a changed line', () => {
   expect(document).toContain('PERFORMERS_CHANGE');
 });
 
-// مفيش z.never في سكيما منشورة: صيغته not: {} هي اللي توليدنا بيطلعها والـ toolchain بتاع OpenAPI 3.0 مش بيعرفها (service-session.ts).
-it('publishes no "not" schema: z.never() output our OpenAPI 3.0 generator cannot represent', () => {
-  expect(JSON.stringify(buildOpenApiDocument())).not.toContain('"not":');
+// `not: {}` بتاع z.never() هو الشكل اللي الـ toolchain بتاع OpenAPI 3.0 مش بيعرفه؛ أما `not`
+// اللي فيه pattern فده OpenAPI 3.0 صالح، وopenapi-typescript بيتجاهله.
+it('publishes no empty "not" schema: the z.never() shape our OpenAPI 3.0 toolchain cannot represent', () => {
+  expect(JSON.stringify(buildOpenApiDocument())).not.toContain('"not":{}');
 });

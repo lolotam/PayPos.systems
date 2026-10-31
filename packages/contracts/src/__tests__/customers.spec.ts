@@ -38,6 +38,27 @@ describe('customer name contract', () => {
   });
 });
 
+describe('the customer name pattern a client receives', () => {
+  it('publishes a control-character search that runs without the unicode flag', () => {
+    const schemas = (
+      buildOpenApiDocument()['components'] as {
+        schemas: Record<
+          string,
+          { properties?: Record<string, { not?: { type?: string; pattern?: string } }> }
+        >;
+      }
+    ).schemas;
+    const prohibition = schemas['FindOrCreateCustomerInput']?.properties?.['name']?.not;
+    expect(prohibition?.type).toBe('string');
+    const pattern = prohibition?.pattern ?? '';
+    expect(pattern).not.toContain('\\p{');
+    const search = new RegExp(pattern);
+    expect(search.test('Example\u0000')).toBe(true);
+    expect(search.test('Example\u001F')).toBe(true);
+    expect(search.test('Example')).toBe(false);
+  });
+});
+
 describe('customer contracts', () => {
   it('requires explicit locale and strips surrounding name whitespace', () => {
     expect(findOrCreateCustomerInput.parse({ ...input, name: ' Example ' })).toEqual(input);
@@ -184,5 +205,28 @@ describe('the rating submission contract', () => {
     expect(submitRatingInput.safeParse({ stars: 5, employee_ids: [] }).success).toBe(false);
     expect(submitRatingInput.safeParse({ stars: 5, comment: 'example.com' }).success).toBe(false);
     expect(submitRatingInput.safeParse({ stars: 5, comment: 'خدمة كويسة' }).success).toBe(true);
+  });
+});
+
+describe('the published rating limits', () => {
+  it('publishes the comment and the business name limits the runtime enforces', () => {
+    const components = buildOpenApiDocument()['components'] as {
+      schemas: Record<string, { properties?: Record<string, Record<string, unknown>> }>;
+    };
+    const comment = components.schemas['SubmitRatingInput']?.properties?.['comment'];
+    const businessName = components.schemas['RatingView']?.properties?.['business_name'];
+    expect(comment?.['maxLength']).toBe(1000);
+    const description = comment?.['description'];
+    expect(typeof description).toBe('string');
+    expect(String(description).length).toBeGreaterThan(0);
+    expect(businessName?.['maxLength']).toBe(255);
+    // الحد المنشور والعدّ وقت التشغيل بوحدة الـ code points، فتعليق فلكي عند السقف يعدّي.
+    const atLimit = '😀'.repeat(1000);
+    const overLimit = '😀'.repeat(1001);
+    expect(submitRatingInput.safeParse({ stars: 5, comment: atLimit }).success).toBe(true);
+    expect(submitRatingInput.safeParse({ stars: 5, comment: overLimit }).success).toBe(false);
+    // 1001 code point و2000 unit UTF-16 بالظبط، فالسقف لازم يقع على فحص الـ code points.
+    const overCodePoints = `${'😀'.repeat(999)}aa`;
+    expect(submitRatingInput.safeParse({ stars: 5, comment: overCodePoints }).success).toBe(false);
   });
 });

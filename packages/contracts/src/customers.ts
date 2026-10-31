@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { responseObject } from './response-object.js';
 
 import { id } from './scalars/id.js';
+import { withoutControlChars } from './scalars/no-control-chars.js';
 
 export const findOrCreateCustomerInput = z
   .strictObject({
@@ -13,9 +14,7 @@ export const findOrCreateCustomerInput = z
         .max(64)
         .regex(/^[0-9]+(?![\s\S])/),
     }),
-    name: z
-      .string()
-      .regex(/^[^\p{Cc}]*(?![\s\S])/u)
+    name: withoutControlChars(z.string())
       .trim()
       .min(1)
       .max(200),

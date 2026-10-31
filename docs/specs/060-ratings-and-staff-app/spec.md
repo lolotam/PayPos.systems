@@ -668,6 +668,7 @@ customers, staff and commissions; **orders' `StaffColumnsPort`, worker orders' `
 - `RATING_LINK_UNAVAILABLE` 404 — «الرابط ده مش متاح.» / "This link is not available." — one answer for malformed,
   unknown, tampered, expired, consumed (on submit) and cross-tenant (ADR-0011 §1). Final copy per RT-Q2.
 - `RATING_INPUT_INVALID` 422 — stars or comment invalid; the token stays unconsumed.
+- A body that is not valid JSON never reaches the rating route and answers the API-wide 400 `BAD_REQUEST`; the token stays unconsumed (PP-90.1).
 - `ALERT_RULE_INVALID` 422 — a value outside the kind's allowed range, role or channel.
 - Reused: `TOO_MANY_REQUESTS` (429), `FORBIDDEN`, `FEATURE_DISABLED` (feature `customers`), `NOT_READY`.
 
