@@ -3,6 +3,11 @@ import { responseObject } from './response-object.js';
 
 import { id } from './scalars/id.js';
 
+// اسم العميل مايقبلش حروف التحكم (Cc = U+0000–U+001F و U+007F–U+009F). النمط بينزل مع الـ OpenAPI
+// كـ pattern، والـ \p{Cc} محتاج علم u اللي مفيش له مكان في JSON Schema؛ فبنكتبه بأرقام hex.
+// وقاعدة no-control-regex بترفض أكواد C0 في الـ regex literal، فالنمط مبني من قالب نصي.
+const customerNamePattern = new RegExp(`^[^\\x00-\\x1F\\x7F-\\x9F]*(?![\\s\\S])`);
+
 export const findOrCreateCustomerInput = z
   .strictObject({
     phone: z.strictObject({
@@ -15,7 +20,7 @@ export const findOrCreateCustomerInput = z
     }),
     name: z
       .string()
-      .regex(/^[^\p{Cc}]*(?![\s\S])/u)
+      .regex(customerNamePattern)
       .trim()
       .min(1)
       .max(200),
