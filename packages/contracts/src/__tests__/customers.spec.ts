@@ -186,3 +186,23 @@ describe('the rating submission contract', () => {
     expect(submitRatingInput.safeParse({ stars: 5, comment: 'خدمة كويسة' }).success).toBe(true);
   });
 });
+
+describe('the published rating limits', () => {
+  it('publishes the comment and the business name limits the runtime enforces', () => {
+    const components = buildOpenApiDocument()['components'] as {
+      schemas: Record<string, { properties?: Record<string, Record<string, unknown>> }>;
+    };
+    const comment = components.schemas['SubmitRatingInput']?.properties?.['comment'];
+    const businessName = components.schemas['RatingView']?.properties?.['business_name'];
+    expect(comment?.['maxLength']).toBe(1000);
+    const description = comment?.['description'];
+    expect(typeof description).toBe('string');
+    expect(String(description).length).toBeGreaterThan(0);
+    expect(businessName?.['maxLength']).toBe(255);
+    // الحد المنشور والعدّ وقت التشغيل بوحدة الـ code points، فتعليق فلكي عند السقف يعدّي.
+    const atLimit = '😀'.repeat(1000);
+    const overLimit = '😀'.repeat(1001);
+    expect(submitRatingInput.safeParse({ stars: 5, comment: atLimit }).success).toBe(true);
+    expect(submitRatingInput.safeParse({ stars: 5, comment: overLimit }).success).toBe(false);
+  });
+});

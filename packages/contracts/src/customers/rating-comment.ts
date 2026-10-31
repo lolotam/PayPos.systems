@@ -183,20 +183,28 @@ function containsLinkOrMarkup(value: string): boolean {
 }
 
 // الفحوصات مرتبة وكل واحدة بتوقف عند أول فشل: مدخل ضخم مابيوصلش لفحص الـ regexes أصلاً.
-export const ratingComment = z.string().superRefine((value, ctx) => {
-  if (value.length > 2000) {
-    ctx.addIssue({ code: 'custom', message: 'At most 1000 characters' });
-    return;
-  }
-  if (Array.from(value).length > 1000) {
-    ctx.addIssue({ code: 'custom', message: 'At most 1000 characters' });
-    return;
-  }
-  if (hasControlCharacter(value)) {
-    ctx.addIssue({ code: 'custom', message: 'Control characters are not allowed' });
-    return;
-  }
-  if (containsLinkOrMarkup(value)) {
-    ctx.addIssue({ code: 'custom', message: 'Links and markup are not allowed' });
-  }
-});
+// السقف جوه الـ refinement فالمخطط المنشور كان string مفتوح؛ maxLength بيعدّ code points زي الفحص.
+export const ratingComment = z
+  .string()
+  .superRefine((value, ctx) => {
+    if (value.length > 2000) {
+      ctx.addIssue({ code: 'custom', message: 'At most 1000 characters' });
+      return;
+    }
+    if (Array.from(value).length > 1000) {
+      ctx.addIssue({ code: 'custom', message: 'At most 1000 characters' });
+      return;
+    }
+    if (hasControlCharacter(value)) {
+      ctx.addIssue({ code: 'custom', message: 'Control characters are not allowed' });
+      return;
+    }
+    if (containsLinkOrMarkup(value)) {
+      ctx.addIssue({ code: 'custom', message: 'Links and markup are not allowed' });
+    }
+  })
+  .meta({
+    maxLength: 1000,
+    description:
+      'No links, URLs, domains, markup or control characters; max 1000 chars (newline, tab, CR).',
+  });

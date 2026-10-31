@@ -28,11 +28,13 @@ export const ratingViewState = z.enum(['open', 'submitted']);
 
 // الرد العام كله: أي حقل إضافي هنا يوسّع الإفصاح الممنوع في ADR-0011 §4.
 // الطول بالـ code points زي قيد قاعدة البيانات، مش بوحدات UTF-16.
+// الـ maxLength بيعلن السقف للعميل، وبيعدّ code points زي الفحص، فالمخطط المنشور يطابق العقد.
 export const ratingView = responseObject({
   business_name: z
     .string()
     .min(1)
-    .refine((value) => Array.from(value).length <= 255, { message: 'At most 255 characters' }),
+    .refine((value) => Array.from(value).length <= 255, { message: 'At most 255 characters' })
+    .meta({ maxLength: 255 }),
   state: ratingViewState,
 }).meta({ id: 'RatingView' });
 export type RatingView = z.infer<typeof ratingView>;
