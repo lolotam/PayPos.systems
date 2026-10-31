@@ -384,22 +384,6 @@ export {
   type AttendanceEmployeePage,
 } from './staff/attendance-employees.js';
 export * from './staff/attendance-capabilities.js';
-export * from './orders/service-session.js';
-export * from './orders/session-tips.js';
-export * from './orders/recording-context.js';
-export * from './orders/service-session-options.js';
-export * from './orders/service-session-day.js';
-export * from './orders/service-session-edits.js';
-export * from './orders/service-session-performer-changes.js';
-export * from './orders/service-line-cancellation.js';
-export * from './orders/service-session-capabilities.js';
-export * from './orders/service-session-recovery.js';
-export * from './orders/late-service-session-notice.js';
-export * from './orders/service-line-edit-notice.js';
-export * from './orders/service-line-cancel-notice.js';
-export * from './orders/service-line-performers-notice.js';
+export * from './orders/index.js';
 export * from './documents-render.js';
-export * from './orders/discount-approval.js';
-export * from './orders/discount-approval-events.js';
-export * from './customers/ratings.js';
-export * from './customers/rating-settings.js';
+export * from './customers/index.js';

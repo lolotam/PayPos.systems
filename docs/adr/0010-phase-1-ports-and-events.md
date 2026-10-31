@@ -208,3 +208,56 @@ lists by name, not for the adapters that implement them. The `StaffColumnsPort` 
   and 61-1 add their `AlertRulesPort` lines; 59-1 adds `customers -> tenancy.branchScheduleHours`.
 - **Not in this addendum:** customers' `RatingAlertRecipientsPort` (docs PR A-1, postponed with the rating track), and
   the `NotificationDelivered` ⇒ `customers` event row (spec 060 D-B8, in 59b-3).
+
+## Addendum 2026-10-31 — 59b-2 worker-customer claim reads and recovery
+
+### 5. Worker `customers → staff` is one bounded public read
+
+The rating claim needs the performers' current, display-safe first names while it composes
+`RatingRequestReady`; an event cannot answer that synchronous question, and a second stored name
+projection could be stale at the authoritative claim. Worker `customers` therefore keeps its
+consumer-owned `PerformerNamePort`, implemented only by
+`apps/worker/src/modules/customers/persistence/performer-name.adapter.ts`. The adapter calls
+`readEmployeeDisplayNames` from worker `staff/index.ts` on the caller's existing tenant
+transaction. The read returns names only: no staff write, lock, internal path, new role, grant or
+second connection is allowed.
+
+The compile-time arrow is `customers → staff`, confined to that persistence adapter. It is acyclic:
+`staff` imports `tenancy`, `identity`, `files` and `settings`, and none of those imports `customers`;
+`staff` does not import `customers`. The declaration is `module-map.md` §2 (`customers` may import
+`staff`), §3 (`PerformerNamePort`), and §6 (`customers: [tenancy, settings, staff]` plus the exact
+`customers -> staff.readEmployeeDisplayNames` `reads` row). This records the existing technical
+adapter boundary; it is not a new owner or business decision.
+
+### 6. Bounded claim continuation and the 0194 rollout recovery
+
+A claim run processes at most the existing 100-request page. Its scheduler template keeps the
+keyset `(due_at, id)` continuation, including after isolated request failures, so a failed or
+rescheduled first page cannot starve later candidates. The processor writes that continuation to
+`job.data` before updating the scheduler template, because BullMQ creates the next iteration and
+retries from the current job data. A trigger creates a missing scheduler but does not rewrite an
+existing one, so its earlier `getJobScheduler` result cannot restore a stale cursor. Per-request
+diagnostics follow ADR-0037 §9: safe error type/code and immediate cause type/code only, while the
+other requests continue.
+
+The ADR-0038 `rating-claims-discovery` step is idempotent under crash retry and concurrent reruns.
+Each company has a deterministic UUID v7 for its one discovery event. The step uses the ordinary
+company-aggregate lock and `INSERT … ON CONFLICT DO NOTHING RETURNING 1` on the
+real outbox row; it does not read `outbox` as `pospay_app`, write a fake consumed-event marker, or
+add a schema object or grant.
+
+A rolling deploy has two distinct recovery cases. An older worker can acknowledge and publish a
+late visit before the new worker starts, so that visit never produces a discovery event; a company
+with no request at data-step time has no discovery event either. Independently, an older worker can
+retry `RatingClaimsDiscoveryRequested` as unknown and park it. **After every replica runs the new
+worker**, the operator must therefore follow `docs/runbook.md` §«59b-2: recover rating-claim
+discovery» with a complete onboarding/release company inventory, not an emitted-event-ID log.
+
+The procedure follows the dispatcher-read-only replay pattern of 35b-2.
+`ratingClaimsVisitReplayPage` replays retained `ServiceSessionRecorded`,
+`ServiceSessionLinesAdded` and `ServiceLineChanged` rows through the existing partial replay index;
+`ratingClaimsDiscoveryReplay` reads the original discovery row by its deterministic outbox primary
+key. Published and parked inputs are included. Effects run through the new worker with the usual
+consumer dedupe, while attempts, `parked_at`, `published_at` and all other outbox metadata stay
+unchanged. No application-role outbox read, startup cross-tenant read, runtime `BYPASSRLS`, manual
+database edit, fabricated event or scheduler deletion is introduced.

@@ -1,11 +1,12 @@
 import { RATING_REQUESTS_DEFAULT_ENABLED } from '@pospay/contracts';
+import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import type { RatingRequestsSwitchPort } from '../ports/rating-requests-switch.port.ts';
 
 type StoredSwitch = { readonly requests_enabled: boolean | null };
 
-export const ratingRequestsSwitch: RatingRequestsSwitchPort = {
+export const ratingRequestsSwitch: RatingRequestsSwitchPort<Tx> = {
   enabled: async (tx, companyId, businessId) => {
     const rows = await tx.execute<StoredSwitch>(sql`
       SELECT requests_enabled FROM rating_settings
