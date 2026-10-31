@@ -213,7 +213,7 @@ const instant = (value: Date | string): Date =>
 
 /**
  * يقرأ صف طلب التقييم من غير قفل.
- * القفل على الصف هو شغل المطالبة نفسها،فلو القراءة هنا كانت مقفولة كانت المطالبة
+ * القفل على الصف هو شغل المطالبة نفسها، فلو القراءة هنا كانت مقفولة كانت المطالبة
  * المتوازية هتشوف صف تاني أو ما تشوفش صف.
  */
 async function dueRequest(tx: Tx, companyId: string, requestId: string): Promise<DueRatingRequest> {

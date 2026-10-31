@@ -30,7 +30,10 @@ export async function readEmployeeDisplayNames(
     SELECT id, name_ar, name_en
       FROM employees
      WHERE company_id = ${companyId}
-       AND id IN (${sql.join(employeeIds.map((employeeId) => sql`${employeeId}::uuid`), sql`, `)})`);
+       AND id IN (${sql.join(
+         employeeIds.map((employeeId) => sql`${employeeId}::uuid`),
+         sql`, `,
+       )})`);
   return rows.map((row) => ({
     employeeId: row.id,
     nameAr: row.name_ar,

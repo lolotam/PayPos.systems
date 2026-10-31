@@ -12,8 +12,7 @@ export const PERFORMER_LABEL_LIMIT = 3;
  * النص نفسه مش هنا — القاعدة في الـ domain والنص في الكتالوج (CLAUDE.md §7).
  */
 export type PerformerLabelChoice =
-  | { readonly kind: 'TEAM' }
-  | { readonly kind: 'NAMES'; readonly names: readonly string[] };
+  { readonly kind: 'TEAM' } | { readonly kind: 'NAMES'; readonly names: readonly string[] };
 
 /**
  * يختار تسمية المنفذين في رسالة التقييم: أسماء المنفذين لما يكونوا ثلاثة أو أقل،
