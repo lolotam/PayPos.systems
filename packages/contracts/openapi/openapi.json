@@ -22632,7 +22632,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 200,
-            "pattern": "^[^\\p{Cc}]*(?![\\s\\S])"
+            "pattern": "^[^\\x00-\\x1F\\x7F-\\x9F]*(?![\\s\\S])"
           },
           "locale": {
             "type": "string",
