@@ -90,9 +90,10 @@ const acceptedNames: [string, string][] = [
 describe('the shared no-control-characters rule', () => {
   it.each(nameCases)('refuses a control character in %s', (_label, schema, payload) => {
     for (const [label, value] of controlCharacters) {
-      expect(schema.safeParse(payload(`Example${String.fromCharCode(value)}Name`)).success, label).toBe(
-        false,
-      );
+      expect(
+        schema.safeParse(payload(`Example${String.fromCharCode(value)}Name`)).success,
+        label,
+      ).toBe(false);
     }
   });
 
