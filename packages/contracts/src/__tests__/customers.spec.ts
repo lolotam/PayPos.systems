@@ -204,5 +204,8 @@ describe('the published rating limits', () => {
     const overLimit = '😀'.repeat(1001);
     expect(submitRatingInput.safeParse({ stars: 5, comment: atLimit }).success).toBe(true);
     expect(submitRatingInput.safeParse({ stars: 5, comment: overLimit }).success).toBe(false);
+    // 1001 code point و2000 unit UTF-16 بالظبط، فالسقف لازم يقع على فحص الـ code points.
+    const overCodePoints = `${'😀'.repeat(999)}aa`;
+    expect(submitRatingInput.safeParse({ stars: 5, comment: overCodePoints }).success).toBe(false);
   });
 });
