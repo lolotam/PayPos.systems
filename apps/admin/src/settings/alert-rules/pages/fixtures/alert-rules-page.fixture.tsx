@@ -66,6 +66,31 @@ export function refusal(status: number) {
   };
 }
 
+/** مسار كارت طلبات التقييم: مسار تاني، مش جزء من مسار التنبيهات. */
+export const ratingSettingsPath = '/v1/businesses/{businessId}/rating-settings';
+
+/**
+ * كارت طلبات التقييم له مساره، فالـ mock بيردّ عليه برفض 403 افتراضياً؛ اختبارات التنبيهات
+ * ما تشوفش الكارت خالص. العدّاد بيعدّ قراءات التنبيهات بس، فترتيب القراءات ما يتغيّرش،
+ * والاختبار اللي عايز ردّ مختلف على مسار التقييم بيبعتّله ردّه.
+ *
+ * @param resolve ردّ اختبارات التنبيهات، والمعامل الثاني عدد القراءات
+ * @param rating  ردّ مسار طلبات التقييم
+ * @returns دالة الردّ للـ mock
+ */
+export function mockAlertRulesGet(
+  resolve: (path: string, call: number) => unknown,
+  rating: unknown = refusal(403),
+): (path: string) => unknown {
+  let calls = 0;
+  return (path: string) => {
+    if (path === ratingSettingsPath) return rating;
+    const answer = resolve(path, calls);
+    calls += 1;
+    return answer;
+  };
+}
+
 export function renderPage({ branches = [] }: { branches?: readonly WorkspaceBranch[] } = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

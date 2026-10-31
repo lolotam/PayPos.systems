@@ -13,6 +13,7 @@ CREATE TABLE "rating_settings" (
 	CONSTRAINT "rating_settings_revision" CHECK ("rating_settings"."revision" >= 1)
 );
 --> statement-breakpoint
+ALTER TABLE "rating_settings" ADD CONSTRAINT "rating_settings_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rating_settings" ADD CONSTRAINT "rating_settings_updated_by_user_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rating_settings" ADD CONSTRAINT "rating_settings_business_fk" FOREIGN KEY ("company_id","business_id") REFERENCES "public"."businesses"("company_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "rating_settings_updated_by_idx" ON "rating_settings" USING btree ("updated_by");

@@ -10,6 +10,8 @@ import {
   kindRow,
   kindSwitch,
   minutesField,
+  mockAlertRulesGet,
+  ratingSettingsPath,
   refusal,
   renderPage,
   userId,
@@ -22,7 +24,6 @@ vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => locale.value }));
 
 const businessPath = '/v1/businesses/{businessId}/alert-rules';
-const ratingPath = '/v1/businesses/{businessId}/rating-settings';
 const listedKinds = [
   'SHIFT_NOT_CLOCKED_IN',
   'SHIFT_BREAK_NOT_RETURNED',
@@ -42,17 +43,8 @@ function businessView() {
   return withAlertRule(alertRulesFixture(), 'SERVICE_LINE_CANCELLED', { enabled: false });
 }
 
-// كارت طلبات التقييم له مساره، فالـ mock بيردّ على كل مسار لوحده. الرد الافتراضي للكارت الجديد
-// رفض 403 عشان ما يزاحمش على اختبارات التنبيهات.
-function mockGet(rules: (call: number) => unknown, rating: unknown = refusal(403)) {
-  let calls = 0;
-  api.GET.mockImplementation((path: string) => {
-    if (path === ratingPath) return rating;
-    const answer = rules(calls);
-    calls += 1;
-    return answer;
-  });
-}
+const mockGet = (rules: (call: number) => unknown, rating?: unknown) =>
+  api.GET.mockImplementation(mockAlertRulesGet((_path, call) => rules(call), rating));
 
 const ruleReads = () => api.GET.mock.calls.filter(([path]) => path === businessPath).length;
 
@@ -110,7 +102,11 @@ it('shows a read failure and retries it', async () => {
   mockGet((call) =>
     call === 0
       ? {
-          error: { code: 'INTERNAL', message_ar: 'Synthetic failure', message_en: 'Synthetic failure' },
+          error: {
+            code: 'INTERNAL',
+            message_ar: 'Synthetic failure',
+            message_en: 'Synthetic failure',
+          },
           response: { status: 500 },
         }
       : { data: businessView() },
@@ -328,7 +324,7 @@ it('shows the rating requests switch off with its note, and turns it on', async 
   await waitFor(() => expect(rating.checked).toBe(true));
   expect(screen.queryByText(t('en', 'alertRules.ratingRequestsOffNote'))).toBeNull();
   expect(api.PUT).toHaveBeenCalledWith(
-    ratingPath,
+    ratingSettingsPath,
     expect.objectContaining({ body: { requests_enabled: true } }),
   );
 });
@@ -337,6 +333,35 @@ it('hides the rating requests card when the API refuses it', async () => {
   mockGet(() => ({ data: businessView() }), refusal(403));
   renderPage();
   await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
-  expect(screen.queryByRole('switch', { name: t('en', 'alertRules.ratingRequestsLabel') })).toBeNull();
+  expect(
+    screen.queryByRole('switch', { name: t('en', 'alertRules.ratingRequestsLabel') }),
+  ).toBeNull();
+  expect(screen.queryByText(t('en', 'alertRules.ratingRequestsOffNote'))).toBeNull();
+});
+
+it('keeps the rating requests card when the alert rules read is refused', async () => {
+  mockGet(() => refusal(403), { data: { requests_enabled: true } });
+  renderPage();
+  const rating = (await screen.findByRole('switch', {
+    name: t('en', 'alertRules.ratingRequestsLabel'),
+  })) as HTMLInputElement;
+  expect(rating.checked).toBe(true);
+  expect(screen.queryByText(t('en', 'alertRules.ratingRequestsOffNote'))).toBeNull();
+});
+
+it('shows only the failure message when the rating requests read fails', async () => {
+  mockGet(() => ({ data: businessView() }), {
+    error: {
+      code: 'INTERNAL',
+      message_ar: 'Synthetic rating read failure',
+      message_en: 'Synthetic rating read failure',
+    },
+    response: { status: 500 },
+  });
+  renderPage();
+  expect(await screen.findByText('Synthetic rating read failure')).toBeTruthy();
+  expect(
+    screen.queryByRole('switch', { name: t('en', 'alertRules.ratingRequestsLabel') }),
+  ).toBeNull();
   expect(screen.queryByText(t('en', 'alertRules.ratingRequestsOffNote'))).toBeNull();
 });

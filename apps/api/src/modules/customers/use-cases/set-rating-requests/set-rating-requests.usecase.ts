@@ -32,7 +32,7 @@ export class SetRatingRequests {
         now: this.clock.now(),
       });
       await scope.audit.record({
-        entity: 'customer',
+        entity: 'rating_settings',
         entityId: businessId,
         action: 'customer.rating_requests_switched',
         before: { requests_enabled: before },

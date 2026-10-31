@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AuditRecord } from '../../../../shared/ports/audit-trail.port.ts';
-import type { RatingSettingsScope, RatingSettingsTransactions } from '../../ports/rating-settings.port.ts';
+import type {
+  RatingSettingsScope,
+  RatingSettingsTransactions,
+  SaveRatingSettingsInput,
+} from '../../ports/rating-settings.port.ts';
 import { SetRatingRequests } from './set-rating-requests.usecase.ts';
 
 const COMPANY = '01920000-0000-7000-8000-000000000aa1';
@@ -9,22 +13,15 @@ const USER = '01920000-0000-7000-8000-000000000bb1';
 const BUSINESS = '01920000-0000-7000-8000-000000000cc1';
 const NOW = new Date('2026-10-30T00:00:00Z');
 
-interface Saved {
-  readonly businessId: string;
-  readonly enabled: boolean;
-  readonly actorId: string;
-  readonly now: Date;
-}
-
 interface Fakes {
   readonly audits: AuditRecord[];
-  readonly saved: Saved[];
+  readonly saved: SaveRatingSettingsInput[];
   readonly transactions: RatingSettingsTransactions;
 }
 
 function fakes(options: { stored?: boolean | null } = {}): Fakes {
   const audits: AuditRecord[] = [];
-  const saved: Saved[] = [];
+  const saved: SaveRatingSettingsInput[] = [];
   let stored = 'stored' in options ? options.stored : null;
   const scope: RatingSettingsScope = {
     audit: {
@@ -32,7 +29,6 @@ function fakes(options: { stored?: boolean | null } = {}): Fakes {
         audits.push(entry);
       },
     },
-    current: async () => stored,
     save: async (input) => {
       saved.push(input);
       const before = stored;
@@ -65,7 +61,7 @@ describe('set-rating-requests', () => {
     expect(result).toEqual({ requests_enabled: true });
     expect(fake.audits).toEqual([
       {
-        entity: 'customer',
+        entity: 'rating_settings',
         entityId: BUSINESS,
         action: 'customer.rating_requests_switched',
         before: { requests_enabled: null },
@@ -86,8 +82,6 @@ describe('set-rating-requests', () => {
   it('the saved row carries the actor and the injected clock', async () => {
     const fake = fakes();
     await useCase(fake).execute({ companyId: COMPANY, userId: USER }, BUSINESS, true);
-    expect(fake.saved).toEqual([
-      { businessId: BUSINESS, enabled: true, actorId: USER, now: NOW },
-    ]);
+    expect(fake.saved).toEqual([{ businessId: BUSINESS, enabled: true, actorId: USER, now: NOW }]);
   });
 });

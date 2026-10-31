@@ -10,6 +10,7 @@ import {
   companyId,
   kindSwitch,
   minutesField,
+  mockAlertRulesGet,
   renderPage,
   userId,
   withAlertRule,
@@ -36,14 +37,21 @@ it('keeps the draft and offers retry when the refetch after a save conflict fail
     revision: 1,
     rule_id: branchB.id,
   });
-  api.GET.mockResolvedValueOnce({ data: initial }).mockResolvedValue({
-    error: {
-      code: 'INTERNAL',
-      message_ar: 'Synthetic save read failure',
-      message_en: 'Synthetic save read failure',
-    },
-    response: { status: 500 },
-  });
+  let reads = 0;
+  api.GET.mockImplementation(
+    mockAlertRulesGet(() => {
+      reads += 1;
+      if (reads === 1) return Promise.resolve({ data: initial });
+      return Promise.resolve({
+        error: {
+          code: 'INTERNAL',
+          message_ar: 'Synthetic save read failure',
+          message_en: 'Synthetic save read failure',
+        },
+        response: { status: 500 },
+      });
+    }),
+  );
   api.PUT.mockResolvedValue({
     error: {
       code: 'ALERT_RULE_REVISION_CONFLICT',
@@ -69,19 +77,21 @@ it('does not announce a reset when its refetch fails', async () => {
     { source: 'BRANCH', delay_minutes: 10, revision: 7, rule_id: branchB.id },
   );
   let branchReads = 0;
-  api.GET.mockImplementation((path: string) => {
-    if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
-    branchReads += 1;
-    if (branchReads === 1) return Promise.resolve({ data: initial });
-    return Promise.resolve({
-      error: {
-        code: 'INTERNAL',
-        message_ar: 'Synthetic reset read failure',
-        message_en: 'Synthetic reset read failure',
-      },
-      response: { status: 500 },
-    });
-  });
+  api.GET.mockImplementation(
+    mockAlertRulesGet((path: string) => {
+      if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
+      branchReads += 1;
+      if (branchReads === 1) return Promise.resolve({ data: initial });
+      return Promise.resolve({
+        error: {
+          code: 'INTERNAL',
+          message_ar: 'Synthetic reset read failure',
+          message_en: 'Synthetic reset read failure',
+        },
+        response: { status: 500 },
+      });
+    }),
+  );
   api.DELETE.mockResolvedValue({ data: undefined, response: { status: 204 } });
   renderPage({ branches: [branchA, branchB] });
   fireEvent.change(await screen.findByLabelText(t('en', 'alertRules.scopeLabel')), {
@@ -98,8 +108,10 @@ it('disables every write control while a master or save write is pending', async
     'SHIFT_NOT_CLOCKED_IN',
     { source: 'BRANCH', delay_minutes: 10, revision: 7, rule_id: branchB.id },
   );
-  api.GET.mockImplementation((path: string) =>
-    Promise.resolve({ data: path === businessPath ? alertRulesFixture() : view }),
+  api.GET.mockImplementation(
+    mockAlertRulesGet((path: string) =>
+      Promise.resolve({ data: path === businessPath ? alertRulesFixture() : view }),
+    ),
   );
   let releaseMaster: (value: unknown) => void = () => undefined;
   let releaseSave: (value: unknown) => void = () => undefined;
@@ -160,11 +172,13 @@ it('treats missing reset concurrency values as a conflict and uses the override 
     rule_id: branchB.id,
   });
   let branchReads = 0;
-  api.GET.mockImplementation((path: string) => {
-    if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
-    branchReads += 1;
-    return Promise.resolve({ data: branchReads === 1 ? initial : override });
-  });
+  api.GET.mockImplementation(
+    mockAlertRulesGet((path: string) => {
+      if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
+      branchReads += 1;
+      return Promise.resolve({ data: branchReads === 1 ? initial : override });
+    }),
+  );
   api.DELETE.mockResolvedValue({
     error: {
       code: 'ALERT_RULE_REVISION_CONFLICT',

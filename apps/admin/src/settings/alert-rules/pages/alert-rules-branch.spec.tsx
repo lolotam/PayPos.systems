@@ -11,6 +11,7 @@ import {
   kindRow,
   kindSwitch,
   minutesField,
+  mockAlertRulesGet,
   renderPage,
   userId,
   withAlertRule,
@@ -39,8 +40,10 @@ beforeEach(() => {
 });
 
 it('selects a branch and hides document expiry there', async () => {
-  api.GET.mockImplementation((path: string) =>
-    Promise.resolve({ data: path === businessPath ? alertRulesFixture() : branchView() }),
+  api.GET.mockImplementation(
+    mockAlertRulesGet((path: string) =>
+      Promise.resolve({ data: path === businessPath ? alertRulesFixture() : branchView() }),
+    ),
   );
   renderPage({ branches: [branchA, branchB] });
   const selector = (await screen.findByLabelText(
@@ -75,11 +78,13 @@ it('resets only a branch override and shows the business source afterwards', asy
     rule_id: null,
   });
   let branchReads = 0;
-  api.GET.mockImplementation((path: string) => {
-    if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
-    branchReads += 1;
-    return Promise.resolve({ data: branchReads === 1 ? initial : returned });
-  });
+  api.GET.mockImplementation(
+    mockAlertRulesGet((path: string) => {
+      if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
+      branchReads += 1;
+      return Promise.resolve({ data: branchReads === 1 ? initial : returned });
+    }),
+  );
   api.DELETE.mockResolvedValue({ data: undefined, response: { status: 204 } });
   renderPage({ branches: [branchA, branchB] });
   fireEvent.change(await screen.findByLabelText(t('en', 'alertRules.scopeLabel')), {
@@ -109,8 +114,10 @@ it('resets only a branch override and shows the business source afterwards', asy
 });
 
 it('saves branch changes to the branch path', async () => {
-  api.GET.mockImplementation((path: string) =>
-    Promise.resolve({ data: path === businessPath ? alertRulesFixture() : branchView() }),
+  api.GET.mockImplementation(
+    mockAlertRulesGet((path: string) =>
+      Promise.resolve({ data: path === businessPath ? alertRulesFixture() : branchView() }),
+    ),
   );
   api.PUT.mockResolvedValue({ data: branchView() });
   renderPage({ branches: [branchA, branchB] });
@@ -136,11 +143,13 @@ it('resets with the edited form revision after a background refetch', async () =
     revision: 8,
   });
   let branchReads = 0;
-  api.GET.mockImplementation((path: string) => {
-    if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
-    branchReads += 1;
-    return Promise.resolve({ data: branchReads === 1 ? initial : fresh });
-  });
+  api.GET.mockImplementation(
+    mockAlertRulesGet((path: string) => {
+      if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
+      branchReads += 1;
+      return Promise.resolve({ data: branchReads === 1 ? initial : fresh });
+    }),
+  );
   api.DELETE.mockResolvedValue({
     error: {
       code: 'ALERT_RULE_REVISION_CONFLICT',
@@ -182,11 +191,13 @@ it('replaces the reset kind and preserves the other edited kinds', async () => {
     rule_id: null,
   });
   let branchReads = 0;
-  api.GET.mockImplementation((path: string) => {
-    if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
-    branchReads += 1;
-    return Promise.resolve({ data: branchReads === 1 ? initial : returned });
-  });
+  api.GET.mockImplementation(
+    mockAlertRulesGet((path: string) => {
+      if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
+      branchReads += 1;
+      return Promise.resolve({ data: branchReads === 1 ? initial : returned });
+    }),
+  );
   api.DELETE.mockResolvedValue({ data: undefined, response: { status: 204 } });
   api.PUT.mockResolvedValue({
     data: withAlertRule(returned, 'SERVICE_LINE_CANCELLED', { enabled: false }),
@@ -211,7 +222,9 @@ it('replaces the reset kind and preserves the other edited kinds', async () => {
 });
 
 it('hides the scope selector when there are no active branches', async () => {
-  api.GET.mockResolvedValue({ data: alertRulesFixture() });
+  api.GET.mockImplementation(
+    mockAlertRulesGet(() => Promise.resolve({ data: alertRulesFixture() })),
+  );
   renderPage();
   await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
   expect(screen.queryByLabelText(t('en', 'alertRules.scopeLabel'))).toBeNull();

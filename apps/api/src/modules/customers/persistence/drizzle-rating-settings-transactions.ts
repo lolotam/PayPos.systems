@@ -1,29 +1,20 @@
 import { appendAuditLog, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-import type { RatingSettingsTransactions } from '../ports/rating-settings.port.ts';
-
-type StoredRow = { requests_enabled: boolean | null };
-
-async function readStored(
-  tx: Tx,
-  companyId: string,
-  businessId: string,
-): Promise<boolean | null> {
-  const [row] = await tx.execute<StoredRow>(sql`
-    SELECT requests_enabled FROM rating_settings
-    WHERE company_id = ${companyId} AND business_id = ${businessId}`);
-  return row?.requests_enabled ?? null;
-}
+import type {
+  RatingSettingsTransactions,
+  SaveRatingSettingsInput,
+} from '../ports/rating-settings.port.ts';
 
 async function upsert(
   tx: Tx,
   ids: IdGenerator,
   companyId: string,
-  input: { businessId: string; enabled: boolean; actorId: string; now: Date },
+  input: SaveRatingSettingsInput,
 ): Promise<{ before: boolean | null }> {
   // القراءة والكتابة في أمر واحد: القيمة القديمة بتتسجّل قبل ما الكتابة تشيلها.
-  const [row] = await tx.execute<{ previous_value: boolean | null; next_revision: number }>(sql`
+  // الـ CTE اللي بيعدّل بيتنفّذ دايماً حتى لو محدش قرا مخرجه.
+  const [row] = await tx.execute<{ previous_value: boolean | null }>(sql`
     WITH previous AS (
       SELECT requests_enabled FROM rating_settings
       WHERE company_id = ${companyId} AND business_id = ${input.businessId}
@@ -33,15 +24,13 @@ async function upsert(
       ON CONFLICT (company_id, business_id) DO UPDATE SET requests_enabled = EXCLUDED.requests_enabled,
         updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at,
         revision = rating_settings.revision + 1
-      RETURNING revision
     )
-    SELECT (SELECT requests_enabled FROM previous) AS previous_value, (SELECT revision FROM upserted) AS next_revision`);
-  if (row === undefined) throw new Error('rating settings upsert returned no row');
-  return { before: row.previous_value ?? null };
+    SELECT (SELECT requests_enabled FROM previous) AS previous_value`);
+  return { before: row?.previous_value ?? null };
 }
 
 /**
- * مفتاح طلبات التقييم: القراءة والكتابة والتدقيق كلهم جوه معاملة واحدة للشركة.
+ * مفتاح طلبات التقييم: الكتابة والتدقيق كلهم جوه معاملة واحدة للشركة.
  * الكتابة upsert على (company_id, business_id) — صف واحد لكل نشاط بيتحدّث مكانش بينضاف.
  *
  * @param db  أغلفة الداتابيز المستأجرة
@@ -59,7 +48,6 @@ export function createRatingSettingsTransactions(
         async (tx) =>
           work({
             audit: { record: (entry) => appendAuditLog(tx, ids.newId(), entry) },
-            current: (businessId) => readStored(tx, companyId, businessId),
             save: (input) => upsert(tx, ids, companyId, input),
           }),
         { userId },

@@ -17,7 +17,10 @@ const parameters = [
 ];
 const errors = { description: 'The API error envelope', content: json('ErrorEnvelope') };
 const settings = () => ({
-  '200': { description: 'The rating requests switch of the business', content: json('RatingSettings') },
+  '200': {
+    description: 'The rating requests switch of the business',
+    content: json('RatingSettings'),
+  },
   default: errors,
 });
 

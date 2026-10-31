@@ -41,6 +41,12 @@ export function AlertRulesPage(props: {
           )}
         </div>
       ) : null}
+      {/* الكارت بره بلوك التنبيهات: صلاحية طلبات التقييم منفصلة، فلو اترفضت صلاحية التنبيهات يفضل الكارت شغال. */}
+      <RatingRequestsSwitch
+        companyId={props.companyId}
+        userId={props.userId}
+        businessId={props.businessId}
+      />
       {server && !refused ? (
         <>
           <AlertsMasterSwitch
@@ -48,11 +54,6 @@ export function AlertRulesPage(props: {
             userId={props.userId}
             businessId={props.businessId}
             server={server}
-          />
-          <RatingRequestsSwitch
-            companyId={props.companyId}
-            userId={props.userId}
-            businessId={props.businessId}
           />
           <AlertRulesForm
             key={branchId ?? 'business'}

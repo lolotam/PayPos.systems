@@ -68,12 +68,18 @@ it('tenant B cannot write a row carrying tenant A company_id', async () => {
 });
 
 it('a cross-tenant update touches no row and the row cannot be re-homed', async () => {
-  expect(await asB(sql`UPDATE rating_settings SET requests_enabled=false RETURNING id`)).toEqual([]);
-  await expectPgError(asA(sql`UPDATE rating_settings SET company_id=${B.company} RETURNING id`), '42501');
+  expect(await asB(sql`UPDATE rating_settings SET requests_enabled=false RETURNING id`)).toEqual(
+    [],
+  );
+  await expectPgError(
+    asA(sql`UPDATE rating_settings SET company_id=${B.company} RETURNING id`),
+    '42501',
+  );
 });
 
 it('tenant B writes its own row and tenant A never sees it', async () => {
-  const inserted = await asB(sql`INSERT INTO rating_settings(company_id,id,business_id,requests_enabled,updated_by,updated_at,revision)
+  const inserted =
+    await asB(sql`INSERT INTO rating_settings(company_id,id,business_id,requests_enabled,updated_by,updated_at,revision)
     VALUES(${B.company},${ids.newId()},${B.business},true,${USER_ID},${NOW},1) RETURNING id`);
   expect(inserted).toHaveLength(1);
   expect(await asA(sql`SELECT id FROM rating_settings`)).toHaveLength(1);

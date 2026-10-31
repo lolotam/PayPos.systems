@@ -22,6 +22,10 @@ export function RatingRequestsSwitch({
   // المفتاح ده مستقل عن مفتاح التنبيهات: عميل ما عندوش صلاحيته ما يشوفش الكارت خالص.
   if (query.isError && isAlertRulesRefusal(query.error)) return null;
   if (query.isPending) return null;
+  // فشل القراءة مش معناه إن الطلبات مقفولة، فبنعرض الرسالة بس من غير مفتاح ومن غير ملاحظة المقفول.
+  if (query.isError) {
+    return <p role="alert">{alertRulesFailureMessage(query.error, locale)}</p>;
+  }
   const enabled = query.data?.requests_enabled ?? false;
   return (
     <div className="flex flex-col gap-2 rounded-card border border-border p-4">
@@ -37,9 +41,6 @@ export function RatingRequestsSwitch({
         <Label htmlFor="rating-requests">{t(locale, 'alertRules.ratingRequestsLabel')}</Label>
       </div>
       {!enabled ? <p role="status">{t(locale, 'alertRules.ratingRequestsOffNote')}</p> : null}
-      {query.isError ? (
-        <p role="alert">{alertRulesFailureMessage(query.error, locale)}</p>
-      ) : null}
       {mutation.isError ? (
         <p role="alert">{alertRulesFailureMessage(mutation.error, locale)}</p>
       ) : null}

@@ -9,6 +9,7 @@ import {
   businessId,
   companyId,
   minutesField,
+  mockAlertRulesGet,
   renderPage,
   userId,
   withAlertRule,
@@ -39,10 +40,12 @@ it('replaces the draft after a save conflict even when the refetch is identical'
     revision: 2,
   });
   let reads = 0;
-  api.GET.mockImplementation(() => {
-    reads += 1;
-    return Promise.resolve({ data: reads === 1 ? initial : fresh });
-  });
+  api.GET.mockImplementation(
+    mockAlertRulesGet(() => {
+      reads += 1;
+      return Promise.resolve({ data: reads === 1 ? initial : fresh });
+    }),
+  );
   api.PUT.mockResolvedValue({
     error: {
       code: 'ALERT_RULE_REVISION_CONFLICT',
@@ -79,11 +82,13 @@ it('replaces a reset kind after a conflict even when the refetch is identical', 
     revision: 2,
   });
   let branchReads = 0;
-  api.GET.mockImplementation((path: string) => {
-    if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
-    branchReads += 1;
-    return Promise.resolve({ data: branchReads === 1 ? initial : fresh });
-  });
+  api.GET.mockImplementation(
+    mockAlertRulesGet((path: string) => {
+      if (path === businessPath) return Promise.resolve({ data: alertRulesFixture() });
+      branchReads += 1;
+      return Promise.resolve({ data: branchReads === 1 ? initial : fresh });
+    }),
+  );
   api.DELETE.mockResolvedValue({
     error: {
       code: 'ALERT_RULE_REVISION_CONFLICT',

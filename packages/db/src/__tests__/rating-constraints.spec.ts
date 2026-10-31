@@ -82,6 +82,8 @@ it('accepts a cancelled request because the activity turned rating requests off'
     insertRequest(tx, {
       tenant: A,
       id,
+      // يوم مالهوش صف تاني: مفتاح (company, business, customer, day) فريد.
+      date: '2026-06-15',
       status: 'CANCELLED',
       cancelReason: 'REQUESTS_OFF',
     }),
