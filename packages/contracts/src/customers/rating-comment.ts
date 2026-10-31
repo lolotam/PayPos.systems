@@ -206,5 +206,5 @@ export const ratingComment = z
   .meta({
     maxLength: 1000,
     description:
-      'Max 1000 chars; no URLs, HTML tags, known-TLD hosts; control chars: newline, CR, tab only.',
+      'Max 1000 chars; no URLs, HTML tags, Markdown link/image, known-TLD hosts; LF, CR, tab only.',
   });

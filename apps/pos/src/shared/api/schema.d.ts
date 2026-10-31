@@ -4266,7 +4266,7 @@ export interface components {
         };
         SubmitRatingInput: {
             stars: number;
-            /** @description Max 1000 chars; no URLs, HTML tags, known-TLD hosts; control chars: newline, CR, tab only. */
+            /** @description Max 1000 chars; no URLs, HTML tags, Markdown link/image, known-TLD hosts; LF, CR, tab only. */
             comment?: string;
         };
         ServicePrice: string;
