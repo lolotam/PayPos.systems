@@ -10,7 +10,7 @@ import { createServiceInput } from '../catalog/service.js';
 import { findOrCreateCustomerInput } from '../customers.js';
 import { buildOpenApiDocument } from '../openapi.js';
 
-import { noControlChars } from './no-control-chars.js';
+import { controlChar } from './no-control-chars.js';
 
 const uuid = '01920000-0000-7000-8000-000000000001';
 
@@ -89,13 +89,44 @@ const acceptedNames: [string, string][] = [
   ['an emoji', 'Example 😀'],
 ];
 
+// مسار كل اسم في السكيما المنشورة، عشان نأكد إن المنع وصل لكل واحد فيهم.
+const publishedNamePaths: [string, string[]][] = [
+  ['FindOrCreateCustomerInput', ['properties', 'name']],
+  ['CreateServiceCategoryInput', ['properties', 'name_en']],
+  ['CreateServiceCategoryInput', ['properties', 'name_ar']],
+  ['CreateServiceInput', ['properties', 'name_en']],
+  ['CreateServiceInput', ['properties', 'name_ar']],
+  ['CreatePackageTypeInput', ['properties', 'name_en']],
+  ['CreatePackageTypeInput', ['properties', 'name_ar']],
+  ['ServiceCategoryCursorData', ['items', 'anyOf', '0']],
+];
+
+const valueAt = (node: unknown, path: string[]): unknown =>
+  path.reduce<unknown>((value, key) => {
+    if (value && typeof value === 'object') return (value as Record<string, unknown>)[key];
+    return undefined;
+  }, node);
+
+const notPatternsIn = (node: unknown): unknown[] => {
+  if (Array.isArray(node)) return node.flatMap(notPatternsIn);
+  if (node && typeof node === 'object') {
+    return Object.entries(node).flatMap(([key, value]) =>
+      key === 'not' ? [value] : notPatternsIn(value),
+    );
+  }
+  return [];
+};
+
 describe('the shared no-control-characters rule', () => {
   it.each(nameCases)('refuses a control character in %s', (_label, schema, payload) => {
     for (const [label, value] of controlCharacters) {
-      expect(
-        schema.safeParse(payload(`Example${String.fromCharCode(value)}Name`)).success,
-        label,
-      ).toBe(false);
+      const control = String.fromCharCode(value);
+      for (const [position, name] of [
+        ['inside the name', `Example${control}Name`],
+        ['at the end of the name', `Example${control}`],
+      ]) {
+        expect(schema.safeParse(payload(name)).success, `${label} ${position}`).toBe(false);
+      }
     }
   });
 
@@ -105,11 +136,15 @@ describe('the shared no-control-characters rule', () => {
     }
   });
 
-  it('publishes a portable name pattern and no property escape', () => {
-    const document = JSON.stringify(buildOpenApiDocument());
+  it('publishes only portable patterns', () => {
+    const built = buildOpenApiDocument();
+    const document = JSON.stringify(built);
     expect(document).not.toMatch(/\\[pP]\{/);
-    // محركات RE2 (زي Go و Rust) مش بتعرف تترجم lookahead، فالنمط المنشور لازم يبقى من غير واحد.
-    // أنماط التاريخ والتليفون القديمة لسه فيها lookahead، فالفحص هنا على النمط المشترك بس.
-    expect(noControlChars.source).not.toMatch(/\(\?<?[=!]/);
+    expect(document).not.toContain('"pattern":"^[^\\\\x00');
+    for (const not of notPatternsIn(built)) expect(not).toEqual({ pattern: controlChar.source });
+    const schemas = (built['components'] as { schemas: Record<string, unknown> }).schemas;
+    for (const [id, path] of publishedNamePaths) {
+      expect(valueAt(schemas[id], path)).toMatchObject({ not: { pattern: controlChar.source } });
+    }
   });
 });

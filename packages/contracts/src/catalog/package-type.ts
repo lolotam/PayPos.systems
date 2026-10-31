@@ -3,12 +3,10 @@ import { responseObject } from '../response-object.js';
 
 import { page } from '../pagination/cursor.js';
 import { id } from '../scalars/id.js';
-import { noControlChars } from '../scalars/no-control-chars.js';
+import { withoutControlChars } from '../scalars/no-control-chars.js';
 import { timestamp } from '../scalars/timestamp.js';
 
-const packageNameEn = z
-  .string()
-  .regex(noControlChars)
+const packageNameEn = withoutControlChars(z.string())
   .trim()
   .min(1)
   .max(255);
