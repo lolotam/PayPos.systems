@@ -1,0 +1,23 @@
+import type { Tx } from '@pospay/db';
+import type { DueRatingRequest } from './rating-claim.repository.ts';
+
+/** فتح معاملات المستأجر لجدولة المطالبة، لأن طبقة الـ jobs ما تصلش للداتابيز مباشرة. */
+export interface RatingClaimTransactions {
+  /**
+   * يقرأ صفحة الطلبات المستحقة للشركة.
+   *
+   * @param companyId الشركة المالكة للطلبات
+   * @param now لحظة الجولة
+   * @param limit أقصى عدد طلبات في الصفحة
+   * @returns الطلبات المستحقة غير المطالب بها
+   */
+  due(companyId: string, now: Date, limit: number): Promise<readonly DueRatingRequest[]>;
+  /**
+   * يطالب بطلب واحد في معاملة مستقلة، ويمرّر معاملة المستأجر إلى الشغل.
+   *
+   * @param companyId الشركة المالكة للطلب
+   * @param work الشغل على معاملة المستأجر
+   * @returns اكتمال المعاملة
+   */
+  claim(companyId: string, work: (tx: Tx) => Promise<void>): Promise<void>;
+}

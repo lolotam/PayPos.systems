@@ -34,7 +34,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `files`         | `tenancy`             | Storage keys are `{companyId}/{businessId}/…`.                                 |
 | `platform`      | `tenancy`             | Super-admin over tenants.                                                      |
 | `catalog`       | `tenancy`             |                                                                                |
-| `customers`     | `tenancy`, `settings` | `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). |
+| `customers`     | `tenancy`, `settings`, `staff` | `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). The rating message reads the performer's first name from staff's public reader (ADR-0037 §4, spec 060 FR-B07). |
 | `expenses`      | `tenancy`             |                                                                                |
 | `inventory`     | `tenancy`             |                                                                                |
 | `staff`         | `tenancy`, `identity`, `files`, `settings` | An employee may be linked to a user; a document binds a verified file (ADR-0031). `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader, and the staff `AlertRulesPort.roleHolders` adapter reads identity's scoped role holders (ADR-0010 addendum 2026-10-21; ADR-0040 addendum, 62-2b). |
@@ -251,6 +251,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `PackageSaleChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `SessionTipsChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `RatingRequestReady`                                                        | `customers`     | `notifications`                                                                                   |
+| `RatingClaimsDiscoveryRequested` | `customers` (the 0194 data step) | worker `customers` (the per-company claim scheduler registers itself on delivery, D-B4; the event carries the company identity only) |
 | `LowRatingReceived`                                                         | `customers`     | `notifications`                                                                                   |
 | `AttendanceExceptionRaised`                                                 | `staff` (worker missed-out job, ADR-0032) | `notifications` (in-app managers by the `ATTENDANCE_EXCEPTION` rule; no row when it resolves to nobody, 62-2d) |
 | `ShiftNotClockedIn` | `staff` (worker not-clocked-in job, ADR-0037) | `notifications` (in-app managers by the interim rule; PR 62 replaces the rule) |
@@ -301,7 +302,7 @@ imports:
   files: [tenancy]
   platform: [tenancy]
   catalog: [tenancy]
-  customers: [tenancy, settings]
+  customers: [tenancy, settings, staff]
   expenses: [tenancy]
   inventory: [tenancy]
   orders: [tenancy, catalog, customers, staff, identity, settings]
@@ -338,6 +339,8 @@ composition_roots:
 # StaffColumnsPort/AlertRulesPort adapters; each reads line lands with its adapter: 57c-1 (all four StaffColumnsPort
 # adapters), 62-2, 62-2b, 62-2c, 62-3 and 61-1 (AlertRulesPort adapters); 62-1 adds the storage and reader only.
 # 59-1 adds customers -> tenancy.branchScheduleHours with worker customers' BranchScheduleHoursPort adapter.
+# 59b-2 adds customers -> staff.readEmployeeDisplayNames (the performer's first name for the rating message) and
+# customers -> tenancy.businessNames (the business name in the same message) with worker customers' adapters.
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
@@ -351,6 +354,8 @@ reads:
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/branch-place.adapter.ts
   - customers -> tenancy.branchScheduleHours @ apps/worker/src/modules/customers/persistence/branch-schedule-hours.adapter.ts
+  - customers -> tenancy.businessNames @ apps/worker/src/modules/customers/persistence/business-names.adapter.ts
+  - customers -> staff.readEmployeeDisplayNames @ apps/worker/src/modules/customers/persistence/performer-name.adapter.ts
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/price-edit-place.adapter.ts
