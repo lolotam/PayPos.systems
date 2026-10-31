@@ -240,11 +240,11 @@ it.each(['REQUEST_MISSING', 'PAYMENT_DATA_UNAVAILABLE'] as const)(
       ).catch((error: unknown) => error);
       // الفشل دائم، فBullMQ مش هيعيد الوظيفة.
       expect(failure).toBeInstanceOf(UnrecoverableError);
-      expect((failure as Error).message).toBe('STATEMENT_EMPTY');
+      expect((failure as Error).message).toBe('COMMISSION_STATEMENT_UNAVAILABLE');
       expect(loads).toBe(1);
       const status = await statusOf(opened, companyId, id);
       expect(status['state']).toBe('FAILED');
-      expect(status['error_code']).toBe('STATEMENT_EMPTY');
+      expect(status['error_code']).toBe('COMMISSION_STATEMENT_UNAVAILABLE');
       expect(await opened.redis.exists(documentBytesKey(companyId, id))).toBe(0);
     });
   },

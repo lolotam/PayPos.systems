@@ -56,14 +56,19 @@ function errorCode(error: unknown): DocumentRenderErrorCode {
   if (error instanceof DocumentTooLargeError) return 'DOCUMENT_TOO_LARGE';
   if (error instanceof DocumentRenderTimeoutError) return 'DOCUMENT_RENDER_TIMEOUT';
   if (error instanceof AttendanceStatementEmptyError) return 'STATEMENT_EMPTY';
-  // كشف العمولة من غير طلب أو من غير بيانات صرف: الفشل نهائي، بس مفيش كود مخصوص في العقد.
-  if (error instanceof CommissionStatementUnavailableError) return 'STATEMENT_EMPTY';
+  // كشف العمولة من غير طلب أو من غير بيانات صرف: الفشل نهائي بكود مخصوص في العقد، مش رسالة البيان الفاضي.
+  if (error instanceof CommissionStatementUnavailableError) {
+    return 'COMMISSION_STATEMENT_UNAVAILABLE';
+  }
   return 'DOCUMENT_RENDER_FAILED';
 }
 
 function failsAtOnce(code: DocumentRenderErrorCode): boolean {
   return (
-    code === 'DOCUMENT_KIND_UNKNOWN' || code === 'DOCUMENT_TOO_LARGE' || code === 'STATEMENT_EMPTY'
+    code === 'DOCUMENT_KIND_UNKNOWN' ||
+    code === 'DOCUMENT_TOO_LARGE' ||
+    code === 'STATEMENT_EMPTY' ||
+    code === 'COMMISSION_STATEMENT_UNAVAILABLE'
   );
 }
 
