@@ -18,7 +18,7 @@ type Deliver = (event: ClaimedEvent) => Promise<DeliveryOutcome>;
 
 /** كاشف المطالبة بطلبات التقييم المستحقة في شركة واحدة. */
 export interface RatingClaimDetector {
-  execute(companyId: string): Promise<unknown>;
+  execute(companyId: string): Promise<void>;
 }
 
 /**

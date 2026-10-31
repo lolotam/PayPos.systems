@@ -1,4 +1,4 @@
-import { appendOutboxEvent, type Tx } from '@pospay/db';
+import { appendOutboxEvent } from '@pospay/db';
 import type { RatingOutboxPort } from '../ports/rating-outbox.port.ts';
 
 export const ratingOutbox: RatingOutboxPort = {

@@ -1,15 +1,16 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it } from 'vitest';
 import {
   everyDay,
   ratingClaimsFixture,
+  testTokenHash,
   type RatingClaimsFixture,
 } from './rating-claims.fixture.ts';
 
 let f: RatingClaimsFixture;
-beforeAll(async () => {
+beforeEach(async () => {
   f = await ratingClaimsFixture();
 });
-afterAll(async () => {
+afterEach(async () => {
   await f?.close();
 });
 
@@ -159,14 +160,18 @@ it('RT-14b a rotated key stores the new version and the first request keeps the 
   const first = await f.request(firstCustomer);
   expect(first?.['token_key_version']).toBe(1);
   f.token.version = 2;
-  f.token.hash = new Uint8Array(32).fill(9);
   const secondCustomer = await f.customer();
   await visit({ customerId: secondCustomer, branchId });
   await f.claimAll();
   const second = await f.request(secondCustomer);
   expect(second?.['token_key_version']).toBe(2);
   expect(first?.['token_key_version']).toBe(1);
-  expect(first?.['token_hash']).not.toEqual(second?.['token_hash']);
+  expect(Buffer.from(first?.['token_hash'] as Buffer).toString('hex')).toBe(
+    Buffer.from(testTokenHash(String(first?.['id']))).toString('hex'),
+  );
+  expect(Buffer.from(second?.['token_hash'] as Buffer).toString('hex')).toBe(
+    Buffer.from(testTokenHash(String(second?.['id']))).toString('hex'),
+  );
 });
 
 it('RT-01b every request snapshots only the performers of its own day', async () => {

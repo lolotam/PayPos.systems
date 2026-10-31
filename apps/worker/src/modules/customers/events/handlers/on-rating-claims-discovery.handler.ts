@@ -1,6 +1,6 @@
 import { ratingClaimsDiscoveryRequested } from '@pospay/contracts';
 import type { ClaimedEvent, Tx } from '@pospay/db';
-import type { OutboxConsumer } from '../../../outbox/consumer.ts';
+import type { OutboxConsumer } from '../../../../outbox/consumer.ts';
 
 /**
  * يقرّ حدث «اكتشف الطلبات المستحقة» بلا شغل على الداتابيز.

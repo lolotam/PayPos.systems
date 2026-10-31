@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { decideClaim, type StoredClaimSchedule } from '../claim-decision.ts';
+import { decideClaim, type ClaimDecisionInput, type StoredClaimSchedule } from '../claim-decision.ts';
 import { ratingSchedule } from '../rating-schedule.ts';
 import type { ActiveLine, BranchSchedule, DaySession } from '../sessions-of-day.ts';
 
@@ -14,11 +14,12 @@ function line(
   sessionId: string,
   occurredAt: string,
   performers: readonly string[],
+  branchId = 'branch-1',
 ): ActiveLine {
   return {
     lineId,
     sessionId,
-    branchId: 'branch-1',
+    branchId,
     occurredAt: new Date(occurredAt),
     recordedAt: new Date(occurredAt),
     businessTimezone: 'Asia/Kuwait',
@@ -30,10 +31,11 @@ function session(
   sessionId: string,
   occurredAt: string,
   lines: readonly ActiveLine[],
+  branchId = 'branch-1',
 ): DaySession {
   return {
     sessionId,
-    branchId: 'branch-1',
+    branchId,
     occurredAt: new Date(occurredAt),
     recordedAt: new Date(occurredAt),
     lines,
@@ -50,99 +52,115 @@ const daySession = session('one', visitedAt, [line('line-one', 'one', visitedAt,
 const stored = storedOf(daySession);
 const places = new Map([['branch-1', place]]);
 
-describe('claim decision', () => {
-  it.each([
-    {
-      title: 'cancels the request when the rating switch is off',
-      switchEnabled: false,
-      optedOutAt: null,
-      stored,
-      sessions: [daySession],
-      now: new Date('2026-10-05T13:30:00Z'),
-      expected: { kind: 'REQUESTS_OFF' },
-    },
-    {
-      title: 'cancels the request when the customer opted out',
-      switchEnabled: true,
-      optedOutAt: new Date('2026-10-05T13:00:00Z'),
-      stored,
-      sessions: [daySession],
-      now: new Date('2026-10-05T13:30:00Z'),
-      expected: { kind: 'OPTED_OUT' },
-    },
-    {
-      title: 'cancels the request when its deadline passed',
-      switchEnabled: true,
-      optedOutAt: null,
-      stored,
-      sessions: [daySession],
-      now: new Date('2026-10-05T19:30:01Z'),
-      expected: { kind: 'PAST_DEADLINE' },
-    },
-    {
-      title: 'leaves the request alone before it is due',
-      switchEnabled: true,
-      optedOutAt: null,
-      stored,
-      sessions: [daySession],
-      now: new Date('2026-10-05T13:09:00Z'),
-      expected: { kind: 'NOT_DUE' },
-    },
-    {
-      title: 'cancels the request when the day has no active line',
-      switchEnabled: true,
-      optedOutAt: null,
-      stored,
-      sessions: [],
-      now: new Date('2026-10-05T13:30:00Z'),
-      expected: { kind: 'NO_ACTIVE_LINE' },
-    },
-  ])('$title', ({ switchEnabled, optedOutAt, stored: storedRow, sessions, now, expected }) => {
-    expect(
-      decideClaim({
-        now,
-        switchEnabled,
-        optedOutAt,
-        stored: storedRow,
-        sessions,
-        placeByBranch: places,
-      }),
-    ).toEqual(expected);
+function decide(overrides: Partial<ClaimDecisionInput> = {}) {
+  return decideClaim({
+    now: new Date('2026-10-05T13:30:00Z'),
+    switchEnabled: true,
+    optedOutAt: null,
+    stored,
+    sessions: [daySession],
+    placeByBranch: places,
+    ...overrides,
+  });
+}
+
+describe('claim decision recheck order', () => {
+  it('cancels the request when the customer opted out', () => {
+    const optedOut = new Date('2026-10-05T13:00:00Z');
+    expect(decide({ optedOutAt: optedOut })).toEqual({ kind: 'OPTED_OUT' });
   });
 
+  it('wins the opt-out over the switch that is off', () => {
+    const optedOut = new Date('2026-10-05T13:00:00Z');
+    const decision = decide({ optedOutAt: optedOut, switchEnabled: false });
+    expect(decision).toEqual({ kind: 'OPTED_OUT' });
+  });
+
+  it('cancels the request when the rating switch is off', () => {
+    expect(decide({ switchEnabled: false })).toEqual({ kind: 'REQUESTS_OFF' });
+  });
+});
+
+describe('claim decision deadline and due time', () => {
+  it('cancels the request when its deadline passed', () => {
+    const late = new Date('2026-10-05T19:30:01Z');
+    expect(decide({ now: late })).toEqual({ kind: 'PAST_DEADLINE' });
+  });
+
+  it('wins the deadline over the day that has no active line', () => {
+    const late = new Date('2026-10-05T19:30:01Z');
+    expect(decide({ now: late, sessions: [] })).toEqual({ kind: 'PAST_DEADLINE' });
+  });
+
+  it('leaves the request alone before it is due', () => {
+    const early = new Date('2026-10-05T13:09:00Z');
+    expect(decide({ now: early })).toEqual({ kind: 'NOT_DUE' });
+  });
+
+  it('cancels the request when the day has no active line', () => {
+    expect(decide({ sessions: [] })).toEqual({ kind: 'NO_ACTIVE_LINE' });
+  });
+
+  it('cancels the request when the schedule in use has a deadline already past', () => {
+    const earlyPlace: BranchSchedule = {
+      timeZone: 'Asia/Kuwait',
+      openingHours: [{ weekday: 1, intervals: [{ opens: '09:00', closes: '16:00' }] }],
+    };
+    const early = session(
+      'two',
+      '2026-10-05T12:45:00Z',
+      [line('line-two', 'two', '2026-10-05T12:45:00Z', ['employee-2'], 'branch-2')],
+      'branch-2',
+    );
+    const withEarly = new Map([
+      ['branch-1', place],
+      ['branch-2', earlyPlace],
+    ]);
+    const decision = decide({
+      now: new Date('2026-10-05T13:45:00Z'),
+      sessions: [daySession, early],
+      placeByBranch: withEarly,
+    });
+    expect(decision).toEqual({ kind: 'PAST_DEADLINE' });
+  });
+});
+
+describe('claim decision when the day moved', () => {
   it('claims the request with the performers of its own day', () => {
     const lines = [
       line('line-one', 'one', visitedAt, ['employee-1']),
       line('line-two', 'one', visitedAt, ['employee-2', 'employee-1']),
     ];
     const visit = session('one', visitedAt, lines);
-    expect(
-      decideClaim({
-        now: new Date('2026-10-05T13:30:00Z'),
-        switchEnabled: true,
-        optedOutAt: null,
-        stored: storedOf(visit),
-        sessions: [visit],
-        placeByBranch: places,
-      }),
-    ).toEqual({ kind: 'CLAIM', performers: ['employee-1', 'employee-2'] });
+    const decision = decide({ sessions: [visit], stored: storedOf(visit) });
+    expect(decision).toEqual({
+      kind: 'CLAIM',
+      performers: ['employee-1', 'employee-2'],
+      schedule: storedOf(visit),
+    });
   });
 
   it('reschedules the request when a newer session moved its due time', () => {
-    const newer = session('two', '2026-10-05T13:40:00Z', [
-      line('line-two', 'two', '2026-10-05T13:40:00Z', ['employee-2']),
-    ]);
-    const decision = decideClaim({
-      now: new Date('2026-10-05T13:45:00Z'),
-      switchEnabled: true,
-      optedOutAt: null,
-      stored,
-      sessions: [daySession, newer],
-      placeByBranch: places,
-    });
+    const later = '2026-10-05T13:40:00Z';
+    const newer = session('two', later, [line('line-two', 'two', later, ['employee-2'])]);
+    const decision = decide({ now: new Date('2026-10-05T13:45:00Z'), sessions: [daySession, newer] });
     expect(decision.kind).toBe('RESCHEDULED');
-    expect(decision.kind === 'RESCHEDULED' ? decision.schedule.dueAt.toISOString() : '').toBe(
-      '2026-10-05T14:40:00Z',
-    );
+    const moved = decision.kind === 'RESCHEDULED' ? decision.schedule : stored;
+    expect(moved.dueAt.toISOString()).toBe('2026-10-05T14:40:00.000Z');
+  });
+
+  it('claims with the recomputed schedule when the moved due time already passed', () => {
+    const earlier = '2026-10-05T11:00:00Z';
+    const only = session('one', earlier, [line('line-one', 'one', earlier, ['employee-1'])]);
+    const decision = decide({ now: new Date('2026-10-05T13:00:00Z'), sessions: [only] });
+    expect(decision).toEqual({
+      kind: 'CLAIM',
+      performers: ['employee-1'],
+      schedule: {
+        branchId: 'branch-1',
+        dueAt: new Date('2026-10-05T12:00:00Z'),
+        sendDeadline: new Date('2026-10-05T19:30:00Z'),
+      },
+    });
   });
 });

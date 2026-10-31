@@ -15,6 +15,7 @@ export { normalizeKwdInput } from './kwd-input.js';
 export { formatInstant } from './format-instant.js';
 export { roleName } from './role-name.js';
 export { safeDisplayName } from './display-name.js';
+export { ratingNamesLabel, ratingTeamLabel } from './rating-label.js';
 export { editorLabel, type EditorLabelSnapshot } from './editor-label.js';
 export { formatRemainingMinutes } from './remaining-minutes.js';
 export { permissionName } from './permission-name.js';

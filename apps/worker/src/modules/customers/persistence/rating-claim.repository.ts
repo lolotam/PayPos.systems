@@ -1,9 +1,5 @@
 import { sql } from 'drizzle-orm';
-import type {
-  DueRatingRequest,
-  RatingClaimRepository,
-  RatingCustomer,
-} from '../ports/rating-claim.repository.ts';
+import type { DueRatingRequest, RatingClaimRepository } from '../ports/rating-claim.repository.ts';
 
 type StoredRequest = {
   readonly id: string;
@@ -45,12 +41,19 @@ const REQUEST_COLUMNS = sql`id, business_id, customer_id, business_date::text AS
   branch_id, due_at, send_deadline, status`;
 
 export const ratingClaimRepository: RatingClaimRepository = {
-  due: async (tx, companyId, now, limit) => {
+  due: async (tx, companyId, now, limit, after) => {
+    // الترتيب بمفتاح (due_at, id) مع cursor، فالصف اللي بيتقفل في معاملة تانية يتخطى
+    // من غير ما يوقف الصفوف اللي بعده (SKIP LOCKED).
+    const cursor =
+      after === null
+        ? sql``
+        : sql`AND (due_at, id) > (${after.dueAt.toISOString()}::timestamptz, ${after.id}::uuid)`;
     const rows = await tx.execute<StoredRequest>(sql`
       SELECT ${REQUEST_COLUMNS}
         FROM rating_requests
        WHERE company_id = ${companyId} AND status = 'SCHEDULED'
          AND due_at <= ${now.toISOString()}::timestamptz
+         ${cursor}
        ORDER BY due_at, id
        LIMIT ${limit}
        FOR UPDATE SKIP LOCKED`);
@@ -102,6 +105,9 @@ export const ratingClaimRepository: RatingClaimRepository = {
         claimed_at = ${claim.claimedAt.toISOString()}::timestamptz,
         expires_at = ${claim.expiresAt.toISOString()}::timestamptz,
         ready_event_id = ${claim.readyEventId},
+        branch_id = ${claim.branchId},
+        due_at = ${claim.dueAt.toISOString()}::timestamptz,
+        send_deadline = ${claim.sendDeadline?.toISOString() ?? null}::timestamptz,
         updated_at = ${claim.claimedAt.toISOString()}::timestamptz
       WHERE company_id = ${companyId} AND id = ${requestId} AND status = 'SCHEDULED'`);
   },

@@ -1,5 +1,5 @@
 import type { Tx } from '@pospay/db';
-import { decideClaim } from '../../domain/claim-decision.ts';
+import { decideClaim, type StoredClaimSchedule } from '../../domain/claim-decision.ts';
 import { displaySafeFirstWord } from '../../domain/display-name.ts';
 import { performerLabel } from '../../domain/performer-label.ts';
 import { expiresAt } from '../../domain/rating-link-expiry.ts';
@@ -10,6 +10,7 @@ import type { BusinessNamesPort } from '../../ports/business-names.port.ts';
 import type { Clock, IdGenerator } from '../../ports/clock.port.ts';
 import type { DaySessionsPort } from '../../ports/day-sessions.port.ts';
 import type { PerformerNamePort } from '../../ports/performer-name.port.ts';
+import type { PerformerLabelPort } from '../../ports/performer-label.port.ts';
 import type {
   DueRatingRequest,
   RatingClaimRepository,
@@ -43,6 +44,7 @@ export interface ClaimRatingRequestPorts {
   readonly names: BusinessNamesPort;
   readonly daySessions: DaySessionsPort;
   readonly performers: PerformerNamePort;
+  readonly label: PerformerLabelPort;
   readonly claims: RatingClaimRepository;
   readonly token: RatingTokenPort;
   readonly outbox: RatingOutboxPort;
@@ -57,7 +59,6 @@ export class ClaimRatingRequest {
   ) {}
 
   async execute(tx: Tx, input: ClaimRatingRequestInput): Promise<ClaimOutcome> {
-    const now = this.clock.now();
     const customer = await this.ports.claims.lockCustomer(
       tx,
       input.companyId,
@@ -67,6 +68,8 @@ export class ClaimRatingRequest {
     const locked = await this.ports.claims.lockRequest(tx, input.companyId, input.request.id);
     if (locked === null) return 'SKIPPED';
     if (locked.status !== 'SCHEDULED') return 'NOT_DUE';
+    // الساعة بعد القفلين: القرار لازم يقيس الوقت وهو القفلين ماسكين الصف (D-B5).
+    const now = this.clock.now();
     const enabled = await this.ports.switch.enabled(tx, input.companyId, locked.businessId);
     const state = await this.dayState(tx, input.companyId, locked);
     const decision = decideClaim({
@@ -102,7 +105,15 @@ export class ClaimRatingRequest {
       await this.ports.claims.reschedule(tx, input.companyId, locked.id, decision.schedule, now);
       return 'RESCHEDULED';
     }
-    return this.claim(tx, input.companyId, locked, customer, decision.performers, now);
+    return this.claim(
+      tx,
+      input.companyId,
+      locked,
+      customer,
+      decision.performers,
+      decision.schedule,
+      now,
+    );
   }
 
   private async claim(
@@ -111,6 +122,7 @@ export class ClaimRatingRequest {
     request: DueRatingRequest,
     customer: { name: string; phone: string; locale: 'ar' | 'en' },
     performers: readonly string[],
+    schedule: StoredClaimSchedule,
     now: Date,
   ): Promise<ClaimOutcome> {
     const token = this.ports.token.claim({ companyId, ratingRequestId: request.id });
@@ -122,6 +134,9 @@ export class ClaimRatingRequest {
     const label = await this.performersLabel(tx, companyId, performers, businessName, customer.locale);
     const eventId = this.ids.newId();
     await this.ports.claims.claim(tx, companyId, request.id, {
+      branchId: schedule.branchId,
+      dueAt: schedule.dueAt,
+      sendDeadline: schedule.sendDeadline,
       tokenHash: token.tokenHash,
       tokenKeyVersion: token.keyVersion,
       claimedAt: now,
@@ -143,7 +158,7 @@ export class ClaimRatingRequest {
         eventId,
         companyId,
         businessId: request.businessId,
-        branchId: request.branchId,
+        branchId: schedule.branchId,
         ratingRequestId: request.id,
         tokenKeyVersion: token.keyVersion,
         phone: customer.phone,
@@ -153,7 +168,7 @@ export class ClaimRatingRequest {
           businessName,
           performers: label,
         },
-        sendDeadline: request.sendDeadline,
+        sendDeadline: schedule.sendDeadline,
       }),
     });
     return 'CLAIMED';
@@ -168,11 +183,11 @@ export class ClaimRatingRequest {
   ): Promise<string> {
     const names = await this.ports.performers.firstNames(tx, companyId, performers);
     const byEmployee = new Map(names.map((name) => [name.employeeId, name]));
-    return performerLabel(
+    const choice = performerLabel(
       performers.map((employeeId) => byEmployee.get(employeeId) ?? { nameAr: null, nameEn: null }),
-      businessName,
       locale,
     );
+    return this.ports.label.format(choice, locale, businessName);
   }
 
   private async dayState(

@@ -4,30 +4,33 @@ export interface PerformerName {
   readonly nameEn: string | null;
 }
 
-/** بعد هذا العدد من المنفذين تتغير التسمية إلى «فريق النشاط» (RT-Q12). */
+/** بعد هذا العدد من المنفذين تتغير التسمية إلى تسمية الفريق (RT-Q12). */
 export const PERFORMER_LABEL_LIMIT = 3;
 
 /**
- * يبني تسمية المنفذين في رسالة التقييم.
+ * اختيار تسمية المنفذين: إما أسماء المنفذين أو تسمية الفريق.
+ * النص نفسه مش هنا — القاعدة في الـ domain والنص في الكتالوج (CLAUDE.md §7).
+ */
+export type PerformerLabelChoice =
+  | { readonly kind: 'TEAM' }
+  | { readonly kind: 'NAMES'; readonly names: readonly string[] };
+
+/**
+ * يختار تسمية المنفذين في رسالة التقييم: أسماء المنفذين لما يكونوا ثلاثة أو أقل،
+ * وتسمية الفريق لما يزيد عددهم أو ما فيش منهم اسم آمن للعرض.
  *
  * @param names أسماء المنفذين بلغتي العرض
- * @param businessName اسم النشاط كما هو معروض
- * @param locale لغة العميل، وبها تُبنى التسمية
- * @returns الأسماء الأولى كلهم، أو تسمية «فريق النشاط» لما يزيد عددهم أو لا اسم آمن منهم
+ * @param locale لغة العميل، وبها تُختار الأسماء
+ * @returns الاختيار بين أسماء المنفذين وتسمية الفريق
  */
 export function performerLabel(
   names: readonly PerformerName[],
-  businessName: string,
   locale: 'ar' | 'en',
-): string {
-  if (names.length > PERFORMER_LABEL_LIMIT) return teamLabel(businessName, locale);
+): PerformerLabelChoice {
+  if (names.length > PERFORMER_LABEL_LIMIT) return { kind: 'TEAM' };
   const listed = names
     .map((name) => (locale === 'ar' ? (name.nameAr ?? name.nameEn) : (name.nameEn ?? name.nameAr)))
     .filter((name): name is string => name !== null && name.length > 0);
-  if (listed.length === 0) return teamLabel(businessName, locale);
-  return listed.join(locale === 'ar' ? '، ' : ', ');
-}
-
-function teamLabel(businessName: string, locale: 'ar' | 'en'): string {
-  return locale === 'ar' ? `فريق ${businessName}` : `the ${businessName} team`;
+  if (listed.length === 0) return { kind: 'TEAM' };
+  return { kind: 'NAMES', names: listed };
 }

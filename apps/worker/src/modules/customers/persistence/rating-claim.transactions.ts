@@ -12,9 +12,9 @@ export function ratingClaimTransactions(
   database: Pick<TenantWrappers, 'withTenant'>,
 ): RatingClaimTransactions {
   return {
-    due: (companyId, now, limit) =>
+    due: (companyId, now, limit, after) =>
       database.withTenant(companyId, (tx) =>
-        ratingClaimRepository.due(tx, companyId, now, limit),
+        ratingClaimRepository.due(tx, companyId, now, limit, after),
       ),
     claim: (companyId, work) => database.withTenant(companyId, work),
   };

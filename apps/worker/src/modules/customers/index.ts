@@ -1,6 +1,7 @@
 export {
   createRatingBootstrap,
   createRatingSchedulingConsumer,
+  performerLabelFormatter,
   startRatingClaimsWorker,
 } from './customers.module.ts';
 export type {

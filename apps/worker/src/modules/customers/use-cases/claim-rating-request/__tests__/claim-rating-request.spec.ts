@@ -1,20 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import type { Tx } from '@pospay/db';
 
-import type { ActiveLine } from '../../domain/sessions-of-day.ts';
-import type { BranchScheduleHoursPort } from '../../ports/branch-schedule-hours.port.ts';
-import type { BusinessNamesPort } from '../../ports/business-names.port.ts';
-import type { Clock, IdGenerator } from '../../ports/clock.port.ts';
-import type { DaySessionsPort } from '../../ports/day-sessions.port.ts';
-import type { PerformerNamePort } from '../../ports/performer-name.port.ts';
+import type { ActiveLine } from '../../../domain/sessions-of-day.ts';
+import type { BranchScheduleHoursPort } from '../../../ports/branch-schedule-hours.port.ts';
+import type { BusinessNamesPort } from '../../../ports/business-names.port.ts';
+import type { Clock, IdGenerator } from '../../../ports/clock.port.ts';
+import type { DaySessionsPort } from '../../../ports/day-sessions.port.ts';
+import type { PerformerNamePort } from '../../../ports/performer-name.port.ts';
+import type { PerformerLabelPort } from '../../../ports/performer-label.port.ts';
 import type {
   DueRatingRequest,
   RatingClaimRepository,
   RatingCustomer,
-} from '../../ports/rating-claim.repository.ts';
-import type { RatingOutboxPort } from '../../ports/rating-outbox.port.ts';
-import type { RatingTokenPort } from '../../ports/rating-token.port.ts';
-import type { RatingRequestsSwitchPort } from '../../ports/rating-requests-switch.port.ts';
+} from '../../../ports/rating-claim.repository.ts';
+import type { RatingOutboxPort } from '../../../ports/rating-outbox.port.ts';
+import type { RatingTokenPort } from '../../../ports/rating-token.port.ts';
+import type { RatingRequestsSwitchPort } from '../../../ports/rating-requests-switch.port.ts';
 import {
   ClaimRatingRequest,
   type ClaimRatingRequestPorts,
@@ -60,6 +61,18 @@ const lines: ActiveLine[] = [
   },
 ];
 
+const earlyLines: ActiveLine[] = [
+  {
+    lineId: 'line-0',
+    sessionId: 'session-0',
+    branchId,
+    occurredAt: new Date('2026-10-05T11:00:00Z'),
+    recordedAt: new Date('2026-10-05T11:00:00Z'),
+    businessTimezone: 'Asia/Kuwait',
+    performers: [{ employeeId, shareBps: 10_000 }],
+  },
+];
+
 function ports(overrides: Partial<ClaimRatingRequestPorts> = {}): ClaimRatingRequestPorts {
   const switchPort: RatingRequestsSwitchPort = { enabled: async () => true };
   const hours: BranchScheduleHoursPort = {
@@ -80,6 +93,9 @@ function ports(overrides: Partial<ClaimRatingRequestPorts> = {}): ClaimRatingReq
   const performers: PerformerNamePort = {
     firstNames: async () => [{ employeeId, nameAr: 'أحمد', nameEn: 'Ahmed' }],
   };
+  const label: PerformerLabelPort = {
+    format: (choice) => (choice.kind === 'TEAM' ? 'TEAM' : choice.names.join('|')),
+  };
   const claims: RatingClaimRepository = {
     due: async () => [],
     lockCustomer: async () => customer,
@@ -99,6 +115,7 @@ function ports(overrides: Partial<ClaimRatingRequestPorts> = {}): ClaimRatingReq
     names,
     daySessions,
     performers,
+    label,
     claims,
     token,
     outbox,
@@ -115,11 +132,14 @@ const ids: IdGenerator = {
 
 const clock: Clock = { now: () => now };
 
-function useCase(overrides: Partial<ClaimRatingRequestPorts> = {}): ClaimRatingRequest {
-  return new ClaimRatingRequest(ports(overrides), ids, clock);
+function useCase(
+  overrides: Partial<ClaimRatingRequestPorts> = {},
+  clockOverride: Clock = clock,
+): ClaimRatingRequest {
+  return new ClaimRatingRequest(ports(overrides), ids, clockOverride);
 }
 
-describe('claim rating request', () => {
+describe('claim rating request outcome', () => {
   it('claims a due request and publishes the ready event', async () => {
     const events: { id: string; event: { eventType: string; payload: unknown } }[] = [];
     const claim = useCase({
@@ -177,5 +197,69 @@ describe('claim rating request', () => {
   it('leaves the request scheduled when the token capability is not ready', async () => {
     const claim = useCase({ token: { claim: () => null } });
     expect(await claim.execute(tx, { companyId, request: stored })).toBe('TOKEN_UNAVAILABLE');
+  });
+});
+
+describe('claim rating request order', () => {
+  it('reads the clock after the customer and the request are locked', async () => {
+    const order: string[] = [];
+    const base = ports();
+    const claim = useCase(
+      {
+        claims: {
+          ...base.claims,
+          lockCustomer: async () => {
+            order.push('lockCustomer');
+            return customer;
+          },
+          lockRequest: async () => {
+            order.push('lockRequest');
+            return stored;
+          },
+        },
+      },
+      {
+        now: () => {
+          order.push('clock');
+          return now;
+        },
+      },
+    );
+    await claim.execute(tx, { companyId, request: stored });
+    expect(order).toEqual(['lockCustomer', 'lockRequest', 'clock']);
+  });
+});
+
+describe('claim rating request schedule', () => {
+  it('claims with the recomputed schedule when the moved due time already passed', async () => {
+    const claims: { branchId: string; dueAt: Date; sendDeadline: Date | null }[] = [];
+    const events: { event: { payload: unknown } }[] = [];
+    const base = ports();
+    const claim = useCase({
+      daySessions: { ...base.daySessions, activeLines: async () => earlyLines },
+      claims: {
+        ...base.claims,
+        claim: async (_tx, _companyId, _requestId, value) => {
+          claims.push(value);
+        },
+      },
+      outbox: {
+        append: async (_tx, _id, event) => {
+          events.push({ event });
+        },
+      },
+    });
+    expect(await claim.execute(tx, { companyId, request: stored })).toBe('CLAIMED');
+    expect(claims[0]).toMatchObject({
+      branchId,
+      dueAt: new Date('2026-10-05T12:00:00Z'),
+      sendDeadline: new Date('2026-10-05T19:30:00Z'),
+    });
+    const payload = events[0]?.event.payload as {
+      branch_id: string;
+      notification_recipients: { send_deadline: string | null }[];
+    };
+    expect(payload.branch_id).toBe(branchId);
+    expect(payload.notification_recipients[0]?.send_deadline).toBe('2026-10-05T19:30:00.000Z');
   });
 });

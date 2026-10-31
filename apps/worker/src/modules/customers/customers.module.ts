@@ -1,4 +1,5 @@
 import type { ClaimedEvent, DeliveryOutcome, TenantWrappers } from '@pospay/db';
+import { ratingNamesLabel, ratingTeamLabel } from '@pospay/i18n';
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import { ratingClaimsDiscoveryConsumer } from './events/handlers/on-rating-claims-discovery.handler.ts';
 import { onServiceSessionEvent } from './events/handlers/on-service-session-event.handler.ts';
@@ -23,6 +24,7 @@ import { ratingRequestsSwitch } from './persistence/rating-requests-switch.adapt
 import { ratingTokenPort } from './persistence/rating-token.adapter.ts';
 import type { Clock, IdGenerator } from './ports/clock.port.ts';
 import type { DaySessionsPort } from './ports/day-sessions.port.ts';
+import type { PerformerLabelPort } from './ports/performer-label.port.ts';
 import type { RatingTokenDeriver } from './ports/rating-token.port.ts';
 import type { RatingRequestsSwitchPort } from './ports/rating-requests-switch.port.ts';
 import { ClaimRatingRequest } from './use-cases/claim-rating-request/claim-rating-request.ts';
@@ -35,6 +37,17 @@ interface RatingScheduleDeps {
   daySessions: DaySessionsPort;
   ratingSwitch?: RatingRequestsSwitchPort;
 }
+
+/**
+ * رسم تسمية المنفذين من الكتالوج؛ الـ use case ما بيوصلش للكتالوج، والنص كله بيجي من
+ * packages/i18n (CLAUDE.md §7)، فالدالة دي مربوطة هنا في جذر الموديل.
+ */
+export const performerLabelFormatter: PerformerLabelPort = {
+  format: (choice, locale, businessName) =>
+    choice.kind === 'TEAM'
+      ? ratingTeamLabel(locale, businessName)
+      : ratingNamesLabel(locale, choice.names),
+};
 
 export function createRatingSchedulingConsumer(deps: RatingScheduleDeps): OutboxConsumer {
   const useCase = buildScheduleUseCase(deps);
@@ -102,6 +115,7 @@ export function startRatingClaimsWorker(deps: RatingClaimsWorkerDeps): RatingCla
       names: businessNames,
       daySessions: deps.daySessions,
       performers: performerNameAdapter,
+      label: performerLabelFormatter,
       claims: ratingClaimRepository,
       token: ratingTokenPort(deps.deriver),
       outbox: ratingOutbox,

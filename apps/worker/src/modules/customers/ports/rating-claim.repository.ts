@@ -21,6 +21,12 @@ export interface RatingCustomer {
   readonly optedOutAt: Date | null;
 }
 
+/** آخر موضع في صفحة الطلبات؛ الصفحة الجاية تبدأ بعده فما يتكررش صف ولا يتخطى حد. */
+export interface DueRatingCursor {
+  readonly dueAt: Date;
+  readonly id: string;
+}
+
 /** تخزين المطالبة وتثبيتها على معاملة المستأجر نفسها. */
 export interface RatingClaimRepository {
   /**
@@ -30,9 +36,16 @@ export interface RatingClaimRepository {
    * @param companyId الشركة المالكة للطلبات
    * @param now لحظة الجولة
    * @param limit أقصى عدد طلبات في الصفحة
+   * @param after آخر موضع في الصفحة اللي قبلها، أو null لأول صفحة
    * @returns الطلبات المستحقة غير المطالب بها
    */
-  due(tx: Tx, companyId: string, now: Date, limit: number): Promise<readonly DueRatingRequest[]>;
+  due(
+    tx: Tx,
+    companyId: string,
+    now: Date,
+    limit: number,
+    after: DueRatingCursor | null,
+  ): Promise<readonly DueRatingRequest[]>;
   /**
    * يقفل صف العميل ويقراه؛ القفل على العميل يسبق قفل الطلب كما في مسار إيقاف الصفحة.
    *
@@ -94,7 +107,10 @@ export interface RatingClaimRepository {
    * @param tx معاملة المستأجر
    * @param companyId الشركة المالكة للطلب
    * @param requestId الطلب المطالب به
-   * @param claim البصمة وإصدار المفتاح ووقت المطالبة ووقت الانتهاء ومعرف حدث الجاهزية
+   * @param claim الجدولة المعاد حسابها والبصمة وإصدار المفتاح ووقت المطالبة ووقت الانتهاء ومعرف حدث الجاهزية
+   * @param claim.branchId فرع آخر زيارة، وهو اللي بيتكتب في الصف
+   * @param claim.dueAt موعد الاستحقاق المعاد حسابه
+   * @param claim.sendDeadline الموعد النهائي للإرسال أو null
    * @param claim.tokenHash بصمة الرابط المشتقة
    * @param claim.tokenKeyVersion إصدار مفتاح الاشتقاق
    * @param claim.claimedAt لحظة المطالبة
@@ -107,6 +123,9 @@ export interface RatingClaimRepository {
     companyId: string,
     requestId: string,
     claim: {
+      branchId: string;
+      dueAt: Date;
+      sendDeadline: Date | null;
       tokenHash: Uint8Array;
       tokenKeyVersion: number;
       claimedAt: Date;
