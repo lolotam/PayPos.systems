@@ -27,6 +27,9 @@ export function RatingRequestsSwitch({
     return <p role="alert">{alertRulesFailureMessage(query.error, locale)}</p>;
   }
   const enabled = query.data?.requests_enabled ?? false;
+  // الكتابة ممكن تتحفظ في السيرفر والرد هو اللي يضيع؛ فلو القيمة المخزّنة بعد إعادة القراءة بقت
+  // هي اللي حاولنا نكتبها، يبقى الـ PUT وصل والخطأ ده قديم، فبنخفيه.
+  const writeLanded = mutation.variables !== undefined && enabled === mutation.variables;
   return (
     <div className="flex flex-col gap-2 rounded-card border border-border p-4">
       <div className="flex items-center gap-3">
@@ -41,7 +44,7 @@ export function RatingRequestsSwitch({
         <Label htmlFor="rating-requests">{t(locale, 'alertRules.ratingRequestsLabel')}</Label>
       </div>
       {!enabled ? <p role="status">{t(locale, 'alertRules.ratingRequestsOffNote')}</p> : null}
-      {mutation.isError ? (
+      {mutation.isError && !writeLanded ? (
         <p role="alert">{alertRulesFailureMessage(mutation.error, locale)}</p>
       ) : null}
     </div>

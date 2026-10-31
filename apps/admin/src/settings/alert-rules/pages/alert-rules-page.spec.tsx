@@ -341,12 +341,15 @@ it('hides the rating requests card when the API refuses it', async () => {
 
 it('keeps the rating requests card when the alert rules read is refused', async () => {
   mockGet(() => refusal(403), { data: { requests_enabled: true } });
-  renderPage();
+  renderPage({ branches: [branchA] });
   const rating = (await screen.findByRole('switch', {
     name: t('en', 'alertRules.ratingRequestsLabel'),
   })) as HTMLInputElement;
   expect(rating.checked).toBe(true);
   expect(screen.queryByText(t('en', 'alertRules.ratingRequestsOffNote'))).toBeNull();
+  // رفض التنبيهات مش بتاعة المستخدم ده: لا الرسالة ولا محدد الفرع.
+  expect(screen.queryByText(t('en', 'errors.FORBIDDEN'))).toBeNull();
+  expect(screen.queryByRole('combobox')).toBeNull();
 });
 
 it('shows only the failure message when the rating requests read fails', async () => {
@@ -403,9 +406,10 @@ it('re-reads the stored switch after a failed write', async () => {
   })) as HTMLInputElement;
   expect(rating.checked).toBe(false);
   fireEvent.click(rating);
-  expect(await screen.findByText('Synthetic rating write failure')).toBeTruthy();
   await waitFor(() => {
     const stored = screen.getByRole('switch', { name: t('en', 'alertRules.ratingRequestsLabel') });
     expect((stored as HTMLInputElement).checked).toBe(true);
   });
+  // الكتابة وصلت فعلاً، فالخطأ اللي جاي على الكارت بقى نص ومش ظاهر.
+  expect(screen.queryByRole('alert')).toBeNull();
 });
