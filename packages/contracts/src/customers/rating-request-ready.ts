@@ -9,6 +9,9 @@ export const RATING_REQUEST_TEMPLATE_KEY = 'rating_request';
 /** مراجعة القالب المرسلة مع الحدث؛ أي تغيير في النص بيبقى مراجعة جديدة. */
 export const RATING_REQUEST_TEMPLATE_REVISION = 1;
 
+/** رقم العميل بصيغة E.164، بنفس نمط قيد قاعدة البيانات `customers_phone_e164`. */
+const customerPhoneE164 = z.string().regex(/^\+[1-9]\d{1,14}$/);
+
 /** أسماء المعاملات الآمنة اللي المطالبة بتنتجها بالظبط (D-B6). */
 const RATING_PARAMETER_NAMES: readonly string[] = [
   'customer_first_name',
@@ -57,8 +60,16 @@ const ratingSafeParameters = z
     }
   });
 
-/** مستقبل الرسالة: نفس مستقبل الإشعارات، بس بمعاملات مقيّدة بأسماء المطالبة. */
+/**
+ * مستقبل الرسالة: نفس مستقبل الإشعارات، بس بحقول مثبّتة على اللي المطالبة بتنتجه.
+ * الهاتف بصيغة E.164 بتاع العميل (نفس نمط قيد `customers_phone_e164`)،
+ * واللغة عربية أو إنجليزية زي ما `customers.locale` بيضمنها، والقالب ومراجعته ثابتين.
+ */
 const ratingRecipient = whatsappRecipient.extend({
+  phone: customerPhoneE164,
+  locale: z.enum(['ar', 'en']),
+  template_key: z.literal(RATING_REQUEST_TEMPLATE_KEY),
+  template_revision: z.literal(RATING_REQUEST_TEMPLATE_REVISION),
   safe_parameters: ratingSafeParameters,
 });
 
@@ -70,6 +81,10 @@ const ratingRecipient = whatsappRecipient.extend({
  * الشكل هو نفسه اللي `notifications` بيقراه (`notification_recipients`)، فما فيش تعديل في
  * جانب الإشعارات: المستقبل واحد على واتساب، ورقم العميل ولغته والقالب ومراجعته والمعاملات
  * الآمنة وآخر موعد للإرسال كلهم جوه المستقبِل.
+ *
+ * بس المستقبل نفسه مثبّت على اللي المطالبة بتنتجه بالظبط: الهاتف بصيغة E.164 بتاع العميل
+ * (نفس نمط قيد `customers_phone_e164`)، واللغة `'ar'` أو `'en'` زي ما `customers.locale`
+ * بيضمنها، والقالب `rating_request` بمراجعته.
  *
  * الحقول اللي الإشعارات ما بتقراهاش موجودة فوق: هوية الطلب والحدث وإصدار مفتاح الاشتقاق،
  * عشان نتتبع الطلب من الحدث من غير ما نقرا جدول الطلبات تاني.

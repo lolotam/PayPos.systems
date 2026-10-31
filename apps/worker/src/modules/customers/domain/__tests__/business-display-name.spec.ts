@@ -14,6 +14,20 @@ describe('business display name', () => {
     expect(businessDisplayName({ name_ar: null, name_en: ENGLISH }, 'ar')).toBe(ENGLISH);
   });
 
+  it('falls back to the english name when the arabic name is empty', () => {
+    expect(businessDisplayName({ name_ar: '', name_en: ENGLISH }, 'ar')).toBe(ENGLISH);
+  });
+
+  it('falls back to the english name when the arabic name is only spaces', () => {
+    expect(businessDisplayName({ name_ar: '   ', name_en: ENGLISH }, 'ar')).toBe(ENGLISH);
+  });
+
+  it('keeps the arabic name with its surrounding spaces', () => {
+    expect(businessDisplayName({ name_ar: `  ${ARABIC}  `, name_en: ENGLISH }, 'ar')).toBe(
+      `  ${ARABIC}  `,
+    );
+  });
+
   it('picks the english name for an english customer even when an arabic name exists', () => {
     expect(businessDisplayName({ name_ar: ARABIC, name_en: ENGLISH }, 'en')).toBe(ENGLISH);
   });

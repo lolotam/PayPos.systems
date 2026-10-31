@@ -52,6 +52,12 @@ const withParameters = (names: readonly string[]) => ({
   ],
 });
 
+/** نفس الحمولة، بس بحقل واحد في المستقبل متغيّر. */
+const withRecipient = (field: Record<string, unknown>) => ({
+  ...payload,
+  notification_recipients: [{ ...recipient, ...field }],
+});
+
 describe('rating request ready contract', () => {
   it('accepts the ready payload of one whatsapp recipient', () => {
     const parsed = ratingRequestReady.parse(payload);
@@ -137,5 +143,48 @@ describe('the safe parameters of the rating request', () => {
     expect(
       ratingRequestReady.safeParse(withParameters(['business_name', 'performers'])).success,
     ).toBe(false);
+  });
+});
+
+describe('the pinned fields of the rating request recipient', () => {
+  it('refuses another template key', () => {
+    expect(
+      ratingRequestReady.safeParse(withRecipient({ template_key: 'rating_request_v2' })).success,
+    ).toBe(false);
+  });
+
+  it('refuses another template revision', () => {
+    expect(ratingRequestReady.safeParse(withRecipient({ template_revision: 2 })).success).toBe(
+      false,
+    );
+  });
+
+  it('refuses an unsupported locale', () => {
+    expect(ratingRequestReady.safeParse(withRecipient({ locale: 'fr' })).success).toBe(false);
+  });
+
+  it('refuses a null locale', () => {
+    expect(ratingRequestReady.safeParse(withRecipient({ locale: null })).success).toBe(false);
+  });
+
+  it('refuses a missing locale', () => {
+    expect(ratingRequestReady.safeParse(withRecipient({ locale: undefined })).success).toBe(false);
+  });
+
+  it('refuses a phone that is not E.164', () => {
+    expect(ratingRequestReady.safeParse(withRecipient({ phone: '96550000000' })).success).toBe(
+      false,
+    );
+    expect(ratingRequestReady.safeParse(withRecipient({ phone: '+0123' })).success).toBe(false);
+    expect(
+      ratingRequestReady.safeParse(withRecipient({ phone: '+1234567890123456' })).success,
+    ).toBe(false);
+  });
+
+  it('accepts a phone at the shortest length the database allows', () => {
+    expect(ratingRequestReady.safeParse(withRecipient({ phone: '+12' })).success).toBe(true);
+    expect(ratingRequestReady.safeParse(withRecipient({ phone: '+96550000000' })).success).toBe(
+      true,
+    );
   });
 });
