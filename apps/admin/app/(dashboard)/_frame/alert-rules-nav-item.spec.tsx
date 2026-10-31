@@ -21,9 +21,17 @@ vi.mock('next/navigation', () => ({ usePathname: () => '/' }));
 
 const id = '01920000-0000-7000-8000-0000000000a2';
 const label = t('en', 'alertRules.title');
+const ratingPath = '/v1/businesses/{businessId}/rating-settings';
 
 function rules() {
   return { business_id: id, branch_id: null, alerts_enabled: true, rules: [] };
+}
+
+// المساران مختلفين: التنبيهات ومفتاح طلبات التقييم، وكل واحد بيرد بردّه.
+function mockGet(rulesAnswer: unknown, ratingAnswer: unknown) {
+  api.GET.mockImplementation((path: string) =>
+    Promise.resolve(path === ratingPath ? ratingAnswer : rulesAnswer),
+  );
 }
 
 function renderNav() {
@@ -77,7 +85,7 @@ it.each([500, 403])('hides the entry when the business read answers %i', async (
 });
 
 it('shows the entry after a successful business read', async () => {
-  api.GET.mockResolvedValue({ data: rules() });
+  mockGet({ data: rules() }, { data: { requests_enabled: true } });
   renderNav();
   const link = await screen.findByRole('link', { name: label });
   expect(link.getAttribute('href')).toBe('/alert-rules');
@@ -90,4 +98,15 @@ it('shows the entry after a successful business read', async () => {
       }),
     }),
   );
+});
+
+it('shows the entry when only the rating settings read succeeds', async () => {
+  const refusal = {
+    error: { code: 'FORBIDDEN', message_ar: 'Synthetic refusal', message_en: 'Synthetic refusal' },
+    response: { status: 403 },
+  };
+  mockGet(refusal, { data: { requests_enabled: true } });
+  renderNav();
+  const link = await screen.findByRole('link', { name: label });
+  expect(link.getAttribute('href')).toBe('/alert-rules');
 });

@@ -1,7 +1,7 @@
-import { ratingSettings } from './rating-settings.js';
+import { ratingSettings, ratingSettingsResponse } from './rating-settings.js';
 
 // كل سكيما في rating-settings.ts بتتسجل هنا، وإلا Zod بيحطها تحت __shared بدل components.
-export const ratingSettingsSchemas = [ratingSettings];
+export const ratingSettingsSchemas = [ratingSettings, ratingSettingsResponse];
 
 const json = (schema: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
@@ -19,7 +19,7 @@ const errors = { description: 'The API error envelope', content: json('ErrorEnve
 const settings = () => ({
   '200': {
     description: 'The rating requests switch of the business',
-    content: json('RatingSettings'),
+    content: json('RatingSettingsResponse'),
   },
   default: errors,
 });

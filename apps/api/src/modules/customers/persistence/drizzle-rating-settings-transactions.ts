@@ -10,6 +10,8 @@ import type {
  * بيقفل صف النشاط ويقرا قيمة المفتاح المخزّنة.
  * القفل على صف النشاط مش على صف المفتاح: صف النشاط موجود دايماً، فكتابتين على نفس
  * النشاط بتتقفوا على بعض حتى لو مفيش صف مفتاح لسه.
+ * القفل FOR NO KEY UPDATE مش FOR UPDATE: التحقق من أي مفتاح أجنبي بياخد قفل
+ * FOR KEY SHARE على صف النشاط، وFOR UPDATE بيوقف إدخال الجلسات والفروع وطلبات التقييم.
  *
  * @param tx        معاملة الشركة
  * @param companyId الشركة
@@ -18,7 +20,7 @@ import type {
  */
 async function lockAndRead(tx: Tx, companyId: string, businessId: string): Promise<boolean | null> {
   await tx.execute(
-    sql`SELECT id FROM businesses WHERE company_id=${companyId} AND id=${businessId} FOR UPDATE`,
+    sql`SELECT id FROM businesses WHERE company_id=${companyId} AND id=${businessId} FOR NO KEY UPDATE`,
   );
   const [row] = await tx.execute<{ requests_enabled: boolean | null }>(sql`SELECT requests_enabled
     FROM rating_settings WHERE company_id=${companyId} AND business_id=${businessId}`);

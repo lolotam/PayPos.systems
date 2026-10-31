@@ -75,7 +75,7 @@ export const ratingSettingsPath = '/v1/businesses/{businessId}/rating-settings';
  * والاختبار اللي عايز ردّ مختلف على مسار التقييم بيبعتّله ردّه.
  *
  * @param resolve ردّ اختبارات التنبيهات، والمعامل الثاني عدد القراءات
- * @param rating  ردّ مسار طلبات التقييم
+ * @param rating  ردّ مسار طلبات التقييم، أو دالة بتاخد عدد قراءات المسار ده
  * @returns دالة الردّ للـ mock
  */
 export function mockAlertRulesGet(
@@ -83,12 +83,21 @@ export function mockAlertRulesGet(
   rating: unknown = refusal(403),
 ): (path: string) => unknown {
   let calls = 0;
+  let ratingCalls = 0;
   return (path: string) => {
-    if (path === ratingSettingsPath) return rating;
+    if (path === ratingSettingsPath) {
+      const answer = isRatingResolver(rating) ? rating(ratingCalls) : rating;
+      ratingCalls += 1;
+      return answer;
+    }
     const answer = resolve(path, calls);
     calls += 1;
     return answer;
   };
+}
+
+function isRatingResolver(value: unknown): value is (read: number) => unknown {
+  return typeof value === 'function';
 }
 
 export function renderPage({ branches = [] }: { branches?: readonly WorkspaceBranch[] } = {}) {

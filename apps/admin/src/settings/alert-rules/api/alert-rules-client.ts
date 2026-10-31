@@ -2,8 +2,8 @@ import {
   alertRules,
   type AlertKindCode,
   type AlertRules,
-  ratingSettings,
-  type RatingSettings,
+  ratingSettingsResponse,
+  type RatingSettingsResponse,
   type ResetBranchAlertRuleQuery,
   type SetAlertRulesInput,
 } from '@pospay/contracts';
@@ -109,24 +109,24 @@ export async function readRatingSettings(
   companyId: string,
   businessId: string,
   signal: AbortSignal,
-): Promise<RatingSettings> {
+): Promise<RatingSettingsResponse> {
   const response = await apiClient().GET(ratingSettingsPath, {
     params: { header: { 'x-company-id': companyId }, path: { businessId } },
     signal,
   });
   if (response.error) throw { ...response.error, status: response.response.status };
-  return ratingSettings.parse(response.data);
+  return ratingSettingsResponse.parse(response.data);
 }
 
 export async function setRatingRequests(
   companyId: string,
   businessId: string,
   enabled: boolean,
-): Promise<RatingSettings> {
+): Promise<RatingSettingsResponse> {
   const response = await apiClient().PUT(ratingSettingsPath, {
     params: { header: { 'x-company-id': companyId }, path: { businessId } },
     body: { requests_enabled: enabled },
   });
   if (response.error) throw { ...response.error, status: response.response.status };
-  return ratingSettings.parse(response.data);
+  return ratingSettingsResponse.parse(response.data);
 }

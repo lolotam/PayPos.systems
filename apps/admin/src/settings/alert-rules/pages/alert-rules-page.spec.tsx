@@ -383,3 +383,29 @@ it('shows the failure message when the rating requests write fails', async () =>
   fireEvent.click(rating);
   expect(await screen.findByText('Synthetic rating write failure')).toBeTruthy();
 });
+
+it('re-reads the stored switch after a failed write', async () => {
+  // أول قراءة: المفتاح مقفول المخزّن؛ بعد الفشل: القراءة الجديدة بتلاقي المفتاح مفتوح
+  // لأن الكتابة اتقبلت في السيرفر والرد ضاع.
+  const ratingAnswer = (read: number) => ({ data: { requests_enabled: read > 0 } });
+  mockGet(() => ({ data: businessView() }), ratingAnswer);
+  api.PUT.mockResolvedValue({
+    error: {
+      code: 'INTERNAL',
+      message_ar: 'Synthetic rating write failure',
+      message_en: 'Synthetic rating write failure',
+    },
+    response: { status: 500 },
+  });
+  renderPage();
+  const rating = (await screen.findByRole('switch', {
+    name: t('en', 'alertRules.ratingRequestsLabel'),
+  })) as HTMLInputElement;
+  expect(rating.checked).toBe(false);
+  fireEvent.click(rating);
+  expect(await screen.findByText('Synthetic rating write failure')).toBeTruthy();
+  await waitFor(() => {
+    const stored = screen.getByRole('switch', { name: t('en', 'alertRules.ratingRequestsLabel') });
+    expect((stored as HTMLInputElement).checked).toBe(true);
+  });
+});

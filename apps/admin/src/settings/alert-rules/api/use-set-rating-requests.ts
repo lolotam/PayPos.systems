@@ -1,7 +1,6 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { isAlertRulesRefusal } from '../model/alert-rules-failure';
 import { ratingSettingsKey, setRatingRequests } from './alert-rules-client';
 
 export function useSetRatingRequests(companyId: string, userId: string, businessId: string) {
@@ -15,8 +14,9 @@ export function useSetRatingRequests(companyId: string, userId: string, business
       await client.cancelQueries({ queryKey: key });
       client.setQueryData(key, saved);
     },
-    onError: (error) => {
-      if (!isAlertRulesRefusal(error)) return;
+    // الخطأ مش معناه إن الكتابة ما اتحفظتش: الـ PUT ممكن يتحفظ في السيرفر والرد يضيع،
+    // فنعيد القراية عشان المفتاح يبان زي المخزّن.
+    onError: () => {
       void client.invalidateQueries({ queryKey: key });
     },
   });
