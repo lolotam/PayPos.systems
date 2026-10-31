@@ -4,7 +4,7 @@ export type CommissionStatementUnavailableReason = 'REQUEST_MISSING' | 'PAYMENT_
 /**
  * كشف العمولة مالوش محتوى جاهز: طلب التصدير مش موجود في المستأجر، أو سجل الصرف
  * المدفوع لسه مش متاح. الفشل نهائي من أول مرة، لأن إعادة المحاولة مش هتجيب الداتا،
- * وبيقفل بكود مخصوص في العقد عشان شاشة العمولة ما تورّتش رسالة كشف الحضور الفاضي.
+ * وبيقفل بكود مخصوص في العقد عشان شاشة العمولة ما تعرضش رسالة كشف الحضور الفاضي.
  */
 export class CommissionStatementUnavailableError extends Error {
   readonly code = 'COMMISSION_STATEMENT_UNAVAILABLE' as const;
