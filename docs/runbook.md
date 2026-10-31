@@ -89,6 +89,121 @@ Closed companies keep their schedulers. A company with `deleted_at` set records 
 `ATTENDANCE_NOT_CLOCKED_IN_RETRY` log requires investigation even if other shifts succeeded. Logs contain safe
 error types/codes and cause types/codes, never employee names, error messages or query parameters.
 
+## 59b-2: recover rating-claim discovery
+
+Run this **only after every worker replica runs the 59b-2 release**. Migration 0194 runs before the
+new containers. An older replica can fail `RatingClaimsDiscoveryRequested` as unknown and park it;
+it can also acknowledge and publish a late visit before the new worker starts, so no discovery event
+is ever registered for that visit. A company with no request at data-step time has no discovery row
+either. Recovery must cover both the parked discovery and the old-worker-acknowledged visit.
+
+1. From the onboarding/release provisioning inventory, set `COMPANY_IDS` to the complete set of
+   companies that existed before the new-worker rollout finished, including companies that had no
+   request at data-step time. The data-step log contains counts, not emitted company/event IDs, so
+   it is not an inventory. Do not discover tenants with an application-role cross-tenant query.
+   Record the release SHA, IDs and replay outcome. A company with neither a retained visit trigger
+   nor a discovery event needs no scheduler.
+
+2. Use the built **new release** and its ordinary worker environment, including
+   `DISPATCHER_DATABASE_URL` as `pospay_dispatcher`. The command replays retained visit triggers by
+   bounded pages and reads the original discovery by its deterministic primary key. Reads use only
+   the dispatcher facade; effects and consumer dedupe still run through `pospay_app` `withTenant`.
+   Published and parked inputs are eligible. The command does not update or delete either input row,
+   fabricate an event, reset metadata or clear consumer dedupe. A later ordinary claim may append
+   its own new ready event.
+
+```sh
+node --input-type=module <<'JS'
+import { createDatabase, createOutboxDispatcherDatabase } from '@pospay/db';
+import { systemUuidV7 } from '@pospay/ids';
+import { createLogger } from '@pospay/observability';
+import { Queue } from 'bullmq';
+import { daySessionsReader } from './dist/modules/orders/index.js';
+import { startRatingClaimsWorker } from './dist/modules/customers/index.js';
+import { createDeliverer } from './dist/outbox/deliver.js';
+import { readRatingTokenDeriver } from './dist/rating-token-capability.js';
+
+const logger = createLogger('info');
+const ids = systemUuidV7();
+const companies = [...new Set((process.env.COMPANY_IDS ?? '').split(',').map(id => id.trim()).filter(Boolean))];
+if (!companies.length || companies.some(id => !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)))
+  throw new Error('COMPANY_IDS_REQUIRED');
+const database = createDatabase({ url: process.env.DATABASE_URL, ids });
+const dispatcher = createOutboxDispatcherDatabase({ url: process.env.DISPATCHER_DATABASE_URL });
+const claims = startRatingClaimsWorker({
+  database,
+  ids,
+  clock: { now: () => new Date() },
+  daySessions: daySessionsReader,
+  redisUrl: process.env.REDIS_URL,
+  logger,
+  deriver: readRatingTokenDeriver(process.env),
+});
+const next = createDeliverer(database, [claims.consumer], logger, {
+  knownEventTypes: [
+    'ServiceSessionRecorded',
+    'ServiceSessionLinesAdded',
+    'ServiceLineChanged',
+    ...claims.eventTypes,
+  ],
+});
+const queue = new Queue('rating-claims', { connection: { url: process.env.REDIS_URL } });
+let companyId = '';
+try {
+  await claims.ready();
+  for (const id of companies) {
+    companyId = id;
+    let after = null;
+    let through = null;
+    let replayed = 0;
+    for (;;) {
+      const page = await dispatcher.ratingClaimsVisitReplayPage(companyId, after, through, 100);
+      through = page.throughId;
+      for (const event of page.events) {
+        const result = await claims.deliver(event, next);
+        if (!result.delivered) throw new Error('RATING_VISIT_REPLAY_RETRY');
+        replayed++;
+      }
+      after = page.events.at(-1)?.id ?? after;
+      if (page.events.length < 100) break;
+    }
+    const discovery = await dispatcher.ratingClaimsDiscoveryReplay(companyId);
+    if (discovery !== null) {
+      const result = await claims.deliver(discovery, next);
+      if (!result.delivered) throw new Error('RATING_DISCOVERY_REPLAY_RETRY');
+      replayed++;
+    }
+    if (replayed > 0) {
+      const schedule = await queue.getJobScheduler(`rating-claims-${companyId}`);
+      if (Number(schedule?.every) !== 60000 || schedule?.template?.data?.companyId !== companyId)
+        throw new Error('RATING_SCHEDULER_VERIFICATION_FAILED');
+    }
+    logger.info({ company_id: companyId, replayed, outcome: 'RATING_REPLAY_VERIFIED' }, 'log');
+  }
+} catch {
+  logger.error({ company_id: companyId, code: 'RATING_DISCOVERY_REPLAY_FAILED' }, 'error');
+  process.exitCode = 1;
+} finally {
+  await claims.close();
+  await queue.close();
+  await dispatcher.close();
+  await database.close();
+}
+JS
+```
+
+3. For every company with a replayed trigger, confirm one `rating-claims-<companyId>` scheduler with
+   `every = 60000`. Its data contains `companyId` and may also contain the bounded `after`
+   continuation cursor. Observe a completed scheduled run and inspect failed jobs plus the safe
+   per-request diagnostics. An old-worker-acknowledged late visit must reach its ordinary claim
+   without recording another visit. If a company has unclaimed requests but neither a replayable
+   trigger nor a scheduler, stop and record missing coverage; do not fabricate a discovery event.
+4. A failed replay is safe to repeat with the same company/event identities after fixing the cause.
+   Keep the failed IDs in the operations record. Do not delete the scheduler: deletion can race new
+   visits and later continuation. Do not read `outbox` through `pospay_app`, run a startup
+   cross-tenant scan, use `BYPASSRLS`, edit the database by hand, or reset `attempts`,
+   `next_attempt_at`, `published_at` or `parked_at`.
+
 ## 35b-2: recover retained late service-session bells
 
 After every replica runs the 35b-2 consumer/template, use the new release from apps/worker with ordinary

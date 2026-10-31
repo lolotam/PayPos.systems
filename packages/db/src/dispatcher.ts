@@ -2,6 +2,8 @@ import { sql, type SQL } from 'drizzle-orm';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
+import { ratingClaimsDiscoveryEventId } from './rating-claims-discovery-id.ts';
+
 /**
  * event متاخد من الـ outbox عشان يتوصل — الـ id هو مفتاح الـ dedupe عند كل consumer.
  */
@@ -35,13 +37,37 @@ export interface OutboxDispatcherDatabase {
   ): Promise<number>;
   sweepExpiredIdempotencyKeys(batchSize: number): Promise<number>;
   /** يقرأ صفحة أحداث الجلسات الأصلية لشركة محددة لاسترداد الجرس دون تغيير النشر أو الاستهلاك. */
-  serviceSessionReplayPage(companyId: string, afterId: string | null, throughId: string | null, limit: number): Promise<{
-    throughId: string | null; events: readonly ClaimedEvent[];
+  serviceSessionReplayPage(
+    companyId: string,
+    afterId: string | null,
+    throughId: string | null,
+    limit: number,
+  ): Promise<{
+    throughId: string | null;
+    events: readonly ClaimedEvent[];
   }>;
   /** يقرأ صفحة أحداث مدخلات العمولة (السطور والرواتب) لشركة محددة؛ القراءة فقط، والتوصيل بيعمله المستهلك (50-3) بـ pospay_app داخل withTenant. */
-  commissionInputReplayPage(companyId: string, afterId: string | null, throughId: string | null, limit: number): Promise<{
-    throughId: string | null; events: readonly ClaimedEvent[];
+  commissionInputReplayPage(
+    companyId: string,
+    afterId: string | null,
+    throughId: string | null,
+    limit: number,
+  ): Promise<{
+    throughId: string | null;
+    events: readonly ClaimedEvent[];
   }>;
+  /** يقرأ أحداث الزيارات التي تسجل جدولة المطالبة، منشورة كانت أم متوقفة، لشركة محددة فقط. */
+  ratingClaimsVisitReplayPage(
+    companyId: string,
+    afterId: string | null,
+    throughId: string | null,
+    limit: number,
+  ): Promise<{
+    throughId: string | null;
+    events: readonly ClaimedEvent[];
+  }>;
+  /** يقرأ حدث الاكتشاف الأصلي بمفتاحه الثابت من دون قراءة التطبيق أو تغيير بيانات النشر. */
+  ratingClaimsDiscoveryReplay(companyId: string): Promise<ClaimedEvent | null>;
   ping(): Promise<void>;
   close(): Promise<void>;
 }
@@ -79,6 +105,8 @@ const SERVICE_SESSION_REPLAY_TYPES = sql`event_type IN ('ServiceSessionRecorded'
 // إعادة تشغيل مدخلات العمولة: السطور والرواتب المحفوظة في الأوتبوكس، بنفس النمط: شركة ومؤشر UUID
 // وحدّ أعلى ممسوك من أول نداء، والصفحات المنشورة وغير المنشورة على السواء.
 const COMMISSION_INPUT_REPLAY_TYPES = sql`event_type IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','SalaryChanged')`;
+// نفس فهرس مدخلات العمولة يغطي أنواع الزيارات الثلاثة؛ لا حاجة لفهرس أو امتياز جديد.
+const RATING_CLAIMS_VISIT_REPLAY_TYPES = sql`event_type IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged')`;
 
 // event محاولاته خلصت وحجزه انتهى من غير نتيجة: الـ worker وقع في كل مرة قبل ما يسجّل، فمحدش هيعمل له park.
 // بيقف هنا في نفس transaction الـ claim، وبيفضل ماسك الـ aggregate زي أي event parked.
@@ -165,14 +193,7 @@ export function createOutboxDispatcherDatabase(options: {
   });
   const db = drizzle(client);
 
-  const assertRole = async (runner: { execute: typeof db.execute }): Promise<void> => {
-    const [row] = await runner.execute<{ role: string; privileged: boolean }>(sql`
-      SELECT current_user AS role,
-             (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) AS privileged`);
-    if (row?.role !== 'pospay_dispatcher' || row.privileged !== false) {
-      throw new Error('The outbox dispatcher must connect as pospay_dispatcher — check its URL');
-    }
-  };
+  const assertRole = assertDispatcherRole;
 
   return {
     dispatchBatch: async (limit, deliver, dispatchOptions = {}) => {
@@ -198,14 +219,14 @@ export function createOutboxDispatcherDatabase(options: {
       if (crashed !== undefined) throw crashed.reason;
       return events.length;
     },
-    serviceSessionReplayPage: (companyId, afterId, throughId, limit) => db.transaction(async (tx) => {
-      await assertRole(tx);
-      return readReplayPage(tx, companyId, afterId, throughId, limit, SERVICE_SESSION_REPLAY_TYPES);
-    }),
-    commissionInputReplayPage: (companyId, afterId, throughId, limit) => db.transaction(async (tx) => {
-      await assertRole(tx);
-      return readReplayPage(tx, companyId, afterId, throughId, limit, COMMISSION_INPUT_REPLAY_TYPES);
-    }),
+    serviceSessionReplayPage: replayPageReader(db, assertRole, SERVICE_SESSION_REPLAY_TYPES),
+    commissionInputReplayPage: replayPageReader(db, assertRole, COMMISSION_INPUT_REPLAY_TYPES),
+    ratingClaimsVisitReplayPage: replayPageReader(db, assertRole, RATING_CLAIMS_VISIT_REPLAY_TYPES),
+    ratingClaimsDiscoveryReplay: (companyId) =>
+      db.transaction(async (tx) => {
+        await assertRole(tx);
+        return readRatingDiscovery(tx, companyId);
+      }),
     sweepExpiredIdempotencyKeys: async (batchSize) => {
       const [row] = await db.transaction(async (tx) => {
         await assertRole(tx);
@@ -221,19 +242,83 @@ export function createOutboxDispatcherDatabase(options: {
   };
 }
 
-async function readReplayPage(
-  tx: Pick<PostgresJsDatabase, 'execute'>, companyId: string, afterId: string | null,
-  throughId: string | null, limit: number, types: SQL,
-) {
+async function readRatingDiscovery(
+  tx: Pick<PostgresJsDatabase, 'execute'>,
+  companyId: string,
+): Promise<ClaimedEvent | null> {
+  assertReplayScope(companyId, null, null);
+  const rows = await tx.execute<Row>(sql`
+    SELECT company_id,id,aggregate_type,aggregate_id,event_type,payload,attempts
+    FROM outbox
+    WHERE company_id=${companyId} AND id=${ratingClaimsDiscoveryEventId(companyId.toLowerCase())}::uuid
+    LIMIT 1`);
+  const row = rows[0];
+  if (row === undefined) return null;
+  if (row.event_type !== 'RatingClaimsDiscoveryRequested') {
+    throw new Error('RATING_DISCOVERY_EVENT_REQUIRES_INVESTIGATION');
+  }
+  return { ...toEvent(row), attempt: Math.max(1, row.attempts) };
+}
+
+async function assertDispatcherRole(runner: Pick<PostgresJsDatabase, 'execute'>): Promise<void> {
+  const [row] = await runner.execute<{ role: string; privileged: boolean }>(sql`
+    SELECT current_user AS role,
+           (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) AS privileged`);
+  if (row?.role !== 'pospay_dispatcher' || row.privileged !== false) {
+    throw new Error('The outbox dispatcher must connect as pospay_dispatcher — check its URL');
+  }
+}
+
+function replayPageReader(
+  db: PostgresJsDatabase,
+  assertRole: (runner: Pick<PostgresJsDatabase, 'execute'>) => Promise<void>,
+  types: SQL,
+): OutboxDispatcherDatabase['serviceSessionReplayPage'] {
+  return (companyId, afterId, throughId, limit) =>
+    db.transaction(async (tx) => {
+      await assertRole(tx);
+      return readReplayPage(tx, companyId, afterId, throughId, limit, types);
+    });
+}
+
+function assertReplayScope(
+  companyId: string,
+  afterId: string | null,
+  throughId: string | null,
+): void {
   const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
-  if (!uuid.test(companyId) || (afterId !== null && !uuid.test(afterId)) ||
-    (throughId !== null && !uuid.test(throughId))) throw new TypeError('REPLAY_SCOPE_INVALID');
+  if (
+    !uuid.test(companyId) ||
+    (afterId !== null && !uuid.test(afterId)) ||
+    (throughId !== null && !uuid.test(throughId))
+  )
+    throw new TypeError('REPLAY_SCOPE_INVALID');
+}
+
+async function readReplayPage(
+  tx: Pick<PostgresJsDatabase, 'execute'>,
+  companyId: string,
+  afterId: string | null,
+  throughId: string | null,
+  limit: number,
+  types: SQL,
+) {
+  assertReplayScope(companyId, afterId, throughId);
   validate(limit, DEFAULT_LEASE_MS, DEFAULT_MAX_ATTEMPTS);
-  const end = throughId ?? (await tx.execute<{ id: string }>(sql`SELECT id FROM outbox
-    WHERE company_id=${companyId} AND ${types} ORDER BY id DESC LIMIT 1`))[0]?.id ?? null;
+  const end =
+    throughId ??
+    (
+      await tx.execute<{ id: string }>(sql`SELECT id FROM outbox
+    WHERE company_id=${companyId} AND ${types} ORDER BY id DESC LIMIT 1`)
+    )[0]?.id ??
+    null;
   if (end === null) return { throughId: null, events: [] };
-  const rows = await tx.execute<Row>(sql`SELECT company_id,id,aggregate_type,aggregate_id,event_type,payload,attempts
+  const rows =
+    await tx.execute<Row>(sql`SELECT company_id,id,aggregate_type,aggregate_id,event_type,payload,attempts
     FROM outbox WHERE company_id=${companyId} AND ${types} AND id<=${end}::uuid
       ${afterId === null ? sql`` : sql`AND id>${afterId}::uuid`} ORDER BY id LIMIT ${limit}`);
-  return { throughId: end, events: rows.map((row) => ({ ...toEvent(row), attempt: Math.max(1, row.attempts) })) };
+  return {
+    throughId: end,
+    events: rows.map((row) => ({ ...toEvent(row), attempt: Math.max(1, row.attempts) })),
+  };
 }

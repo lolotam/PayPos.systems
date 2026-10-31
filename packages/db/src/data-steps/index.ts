@@ -8,6 +8,10 @@ import {
   EmployeeNumbersRoleRefusedError,
 } from './employee-numbers.ts';
 import { MigrationRoleRefusedError, rekeyEmployeeNameKeys } from './employee-name-keys.ts';
+import {
+  discoverRatingClaims,
+  RatingClaimsDiscoveryRoleRefusedError,
+} from './rating-claims-discovery.ts';
 
 /**
  * يبني رابط pospay_app من رابط المالك؛ الباسورد بيتعمل له encode كامل لأن setter الـ URL
@@ -29,7 +33,8 @@ export function sanitizedStepError(step: string, error: unknown): Error {
   if (
     error instanceof MigrationRoleRefusedError ||
     error instanceof EmployeeNumbersRoleRefusedError ||
-    error instanceof EmployeeNumbersExhaustedError
+    error instanceof EmployeeNumbersExhaustedError ||
+    error instanceof RatingClaimsDiscoveryRoleRefusedError
   )
     return error;
   const codeOf = (value: unknown): unknown =>
@@ -72,6 +77,21 @@ export function migrationDataSteps(ownerUrl: string, appPassword: string) {
         console.log(`companies=${companies} read=${read} updated=${updated}`);
       } catch (error) {
         throw sanitizedStepError('employee-name-keys', error);
+      } finally {
+        await app.close();
+      }
+    },
+    'rating-claims-discovery': async (owner: postgres.Sql): Promise<void> => {
+      const app = createDatabase({
+        url: appDatabaseUrl(ownerUrl, appPassword),
+        ids: systemUuidV7(),
+        maxConnections: 1,
+      });
+      try {
+        const { companies, discovered } = await discoverRatingClaims(owner, app);
+        console.log(`companies=${companies} discovered=${discovered}`);
+      } catch (error) {
+        throw sanitizedStepError('rating-claims-discovery', error);
       } finally {
         await app.close();
       }

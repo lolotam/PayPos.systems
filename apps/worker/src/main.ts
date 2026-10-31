@@ -26,7 +26,7 @@ import {
   startOptionalCapabilities,
   type OptionalCapabilities,
 } from './start-optional-capabilities.ts';
-import { reportRatingTokenCapability } from './rating-token-capability.ts';
+import { reportRatingTokenCapability, readRatingTokenDeriver } from './rating-token-capability.ts';
 import {
   createAttendanceStatementReader,
   createStaffDocumentDefaults,
@@ -40,7 +40,10 @@ import {
   createDiscountApprovalNoticeConsumer,
   daySessionsReader,
 } from './modules/orders/index.ts';
-import { createRatingSchedulingConsumer } from './modules/customers/index.ts';
+import {
+  createRatingSchedulingConsumer,
+  startRatingClaimsWorker,
+} from './modules/customers/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 import {
   beginDocumentRendering,
@@ -66,6 +69,17 @@ redis.on('error', (error: unknown) => logger.warn({ err: error }, 'redis connect
 const production = process.env['NODE_ENV'] === 'production';
 const files = startFilesWorker(app, systemUuidV7(), config.REDIS_URL, process.env);
 const staff = startStaffWorker(app, systemUuidV7(), config.REDIS_URL, { now: () => new Date() });
+// مطالبة طلبات التقييم: الجدولة لكل شركة بتتسجل مع أول زيارة، والمهمة بتطالب بالمستحق (D-B4).
+// قدرة اشتقاق رابط التقييم جاهزة أو لأ: بلا حلقة مفاتيح ما فيش مطالبة (ADR-0057 §1).
+const ratingClaims = startRatingClaimsWorker({
+  database: app,
+  ids: systemUuidV7(),
+  clock: { now: () => new Date() },
+  daySessions: daySessionsReader,
+  redisUrl: config.REDIS_URL,
+  logger,
+  deriver: readRatingTokenDeriver(process.env),
+});
 const email = await startEmailCapability({
   env: process.env,
   production,
@@ -147,9 +161,10 @@ const businessDeliver = createDeliverer(
       clock: { now: () => new Date() },
       daySessions: daySessionsReader,
     }),
+    ratingClaims.consumer,
   ],
   logger,
-  { knownEventTypes: knownEventTypes(staff, notifications, inApp) },
+  { knownEventTypes: knownEventTypes(staff, notifications, inApp, ratingClaims) },
 );
 let queue: OptionalCapabilities['queue'];
 let documents: DocumentRendering | undefined;
@@ -159,7 +174,7 @@ const deliver: typeof businessDeliver = (event) =>
   deliverFilesEvent(event, {
     register: (claimed) => files.deliver(claimed),
     staff: (claimed, next) => staff.deliver(claimed, next),
-    core: pushTransport,
+    core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
   });
 const loop = createDispatchLoop({ dispatcher, deliver, logger });
 
@@ -169,6 +184,7 @@ const release = async (): Promise<void> => {
   // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
   await files.close();
   await staff.close();
+  await ratingClaims.close();
   // المتصفح بيتقفل بعد تصفية الطابور، مش مع إيقاف الحلقة.
   await documents?.close();
   await optionalWithin(
