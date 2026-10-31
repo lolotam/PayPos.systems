@@ -22807,7 +22807,8 @@
         "properties": {
           "business_name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 255
           },
           "state": {
             "type": "string",
@@ -22831,7 +22832,9 @@
             "maximum": 5
           },
           "comment": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 1000,
+            "description": "No links, URLs, domains, markup or control characters; max 1000 chars (newline, tab, CR)."
           }
         },
         "required": [

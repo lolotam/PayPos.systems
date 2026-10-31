@@ -4266,6 +4266,7 @@ export interface components {
         };
         SubmitRatingInput: {
             stars: number;
+            /** @description No links, URLs, domains, markup or control characters; max 1000 chars (newline, tab, CR). */
             comment?: string;
         };
         ServicePrice: string;
