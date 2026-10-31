@@ -22912,7 +22912,8 @@
         "properties": {
           "business_name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 255
           },
           "state": {
             "type": "string",
@@ -22936,7 +22937,9 @@
             "maximum": 5
           },
           "comment": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Max 1000 chars; no URLs, HTML tags, Markdown link/image, known-TLD hosts; LF, CR, tab only."
           }
         },
         "required": [
