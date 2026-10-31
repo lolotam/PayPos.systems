@@ -183,6 +183,23 @@ in scope; a caller without it, the staff app, the public page and another tenant
 - G3 records the fourth entry point and applies the rule amendment now. Token issuance, storage, routes,
   rate limiting, page and tests remain the implementation PRs; this document does not claim they exist.
 
+## Addendum 2026-10-31 — the rating view is a read-only use case (60-1, PP-87.1)
+
+`GET /v1/ratings/view` reads but applies two business rules: a link at or past `expires_at` is unavailable (the same
+boundary opt-out and submit use), and an Arabic-locale customer sees the business's Arabic name when it is saved and
+not blank, otherwise the English one. `CLAUDE.md` §6 sends reads through `queries/`, which may not import `domain/`,
+and `queries/` may not join another module's tables (`CLAUDE.architecture.md` §7.3), while the business name belongs
+to `tenancy`. Waleed chose to record the view as a second named exception to the read path (PP-87.1, «استثناء مكتوب
+(المقترح)», 2026-10-31), on the same terms as the commissions read use cases (ADR-0054 §5):
+
+- it lives in `apps/api/src/modules/customers/use-cases/view-rating/` and is the only read use case of `customers`;
+- its transaction scope exposes reader methods only (the request row by token hash, the customer's locale, and the
+  business names through a customers-owned port bound to `tenancy`'s public reader on the same transaction); it
+  takes no lock and writes nothing;
+- the expiry and name rules are pure `domain/` functions with unit tests, shared with opt-out and submit.
+
+This is not a general permission for reads in `use-cases/`. Any other read keeps the `queries/` path.
+
 ## Open questions for the owner
 
 1. **Hash-only token delivery (`TODO(spec)`, before PR 59b):** a CSPRNG token cannot be recovered from its hash by

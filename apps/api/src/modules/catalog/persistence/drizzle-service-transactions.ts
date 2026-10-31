@@ -79,7 +79,8 @@ function checkViolation(
   return 'SERVICE_PRICE_INVALID';
 }
 
-// أخطاء السائق ممكن تحمل قيم dbinfo/extensions؛ منعديش أي جزء منها بره طبقة الـ persistence.
+// الأكواد المعروفة بتتحوّل لـ ServiceError مسمّى، واللي مش معروف بيمرّ زي ما هو لفلتر الـ API:
+// الفلتر بيردّ INTERNAL_ERROR وما بيبعتش رسالة الخطأ للعميل — سببها بيفضل في اللوج بس.
 function cleanServiceError(error: unknown): never {
   if (error instanceof ServiceError) throw error;
   const cause = error instanceof Error && 'cause' in error ? error.cause : error;
@@ -93,7 +94,9 @@ function cleanServiceError(error: unknown): never {
     // الـ FK المركّب على النشاط: مفيش نشاط بهوية دي في الشركة.
     if (code === '23503') throw new ServiceError('SERVICE_NOT_FOUND');
   }
-  throw new Error('SERVICE_PERSISTENCE_FAILED');
+  // الخطأ المجهول يمرّ كما هو: خطأ السائق يفضل في السجل، وأخطاء البنية التحتية تحتفظ بترميزها
+  // اللي بيعرفه فلتر الـ API، بدل ما تتحوّل كل واحدة لخطأ عام بيزيح سببها.
+  throw error;
 }
 
 export function createServiceTransactions(

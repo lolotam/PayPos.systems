@@ -28,3 +28,4 @@ export {
   attendanceStatementErrorsAr,
   attendanceStatementRenderErrors,
 } from './attendance-statement-errors.js';
+export { commissionStatementRenderErrors } from './commission-statement-errors.js';

@@ -46,6 +46,35 @@ it('the GET query returns the exact DTO shape newest first with stable cursor pa
   expect(http.body).toEqual(first);
 });
 
+/**
+ * القائمة بتحرس الحد من غير ما توصل قاعدة البيانات (المهمة 696): رقم الإصدار عمود PostgreSQL
+ * integer، فأقصى مؤشر مقبول هو 2147483647 وبعده الصفحة ترجع عادية، وقيمة واحدة فوق الحد يرفضها
+ * التحقق قبل الـ SQL بغلاف الخطأ الموثق بدل ما توصل PostgreSQL وتنتهي 500.
+ */
+it.each([
+  [
+    'the cursor at the PostgreSQL integer maximum reads as a documented page',
+    2147483647,
+    (response: Awaited<ReturnType<CommissionPlanFixture['get']>>) => {
+      expect(response.status).toBe(200);
+      const body = commissionPlanVersionList.parse(response.body);
+      expect(body.items.map(({ version }) => version)).toEqual([3, 2, 1]);
+      expect(body.next_cursor).toBeNull();
+    },
+  ],
+  [
+    'a cursor above the PostgreSQL integer maximum is the documented refusal, never a 500',
+    2147483648,
+    (response: Awaited<ReturnType<CommissionPlanFixture['get']>>) => {
+      expect(response.status).toBe(400);
+      expect(response.body['code']).toBe('VALIDATION_FAILED');
+      expect(response.body['details']).toEqual([{ path: ['cursor'], code: expect.any(String) }]);
+    },
+  ],
+])('%s', async (_title, cursor, read) => {
+  read(await f.get(`?cursor=${cursor}`));
+});
+
 it('EXPLAIN ANALYZE uses commission_plan_versions_employee_idx and no sequential scan', async () => {
   const plan = await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);

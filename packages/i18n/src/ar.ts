@@ -262,6 +262,7 @@ export const ar: Catalog = {
     ...idempotencyErrorsAr,
     NOT_READY: 'الخدمة غير جاهزة حالياً',
     RATING_LINK_UNAVAILABLE: 'الرابط ده مش متاح.',
+    RATING_INPUT_INVALID: 'التقييم مش مظبوط. راجعي النجوم والملاحظة.',
     SESSION_RECOVERY_UNAVAILABLE: 'الحفظ غير متاح مؤقتاً. أعد نفس المحاولة.',
     INTERNAL_ERROR: 'حدث خطأ غير متوقع',
   },

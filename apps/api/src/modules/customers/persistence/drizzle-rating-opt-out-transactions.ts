@@ -8,29 +8,10 @@ import {
   type RatingRequestRef,
 } from '../ports/rating-opt-out.port.ts';
 
+import { isRatingTransactionBusy } from './rating-transaction-busy.ts';
+
 type RequestRow = { customer_id: string; expires_at: string | null };
 type CustomerRow = { opted_out_at: string | null };
-
-// PostgreSQL: query_canceled — مهلة الـ statement أو مهلة انتظار القفل لغت الـ statement.
-const PG_QUERY_CANCELED = '57014';
-
-/**
- * القفل ما اتاخدش في الوقت: مهلة المعاملة خلصت، أو نتيجة الـ commit اتلغبطت، أو PostgreSQL لغى الـ statement.
- * دي الحالات التلاتة بس — أي خطأ تاني يعدّي زي ما هو عشان الفشل الحقيقي يفضل متميّز.
- */
-function isBusy(error: unknown): boolean {
-  const seen = new Set<object>();
-  let current = error;
-  while (typeof current === 'object' && current !== null && !seen.has(current)) {
-    seen.add(current);
-    const candidate = current as { name?: unknown; code?: unknown; cause?: unknown };
-    if (candidate.name === 'TimeoutError' || candidate.name === 'CommitOutcomeUnknownError')
-      return true;
-    if (candidate.code === PG_QUERY_CANCELED) return true;
-    current = candidate.cause;
-  }
-  return false;
-}
 
 async function findRequest(
   tx: Tx,
@@ -103,7 +84,7 @@ export function createRatingOptOutTransactions(
         );
       } catch (error) {
         if (error instanceof RatingOptOutBusyError) throw error;
-        if (isBusy(error)) throw new RatingOptOutBusyError();
+        if (isRatingTransactionBusy(error)) throw new RatingOptOutBusyError();
         throw error;
       }
     },
