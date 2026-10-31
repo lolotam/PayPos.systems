@@ -110,7 +110,7 @@ async function runBounded<T>(
 
 /**
  * معاملة صفحة التقييم: قراءة بس، جوه الشركة المختارة من بادئة الرابط (ADR-0011 §1).
- * النطاق فيها قراءات بس — مفيش قفل ولا كتابة (PP-87.1).
+ * النطاق فيها قراءات بس — مفيش قفل ولا كتابة (PP-87.1) — والمعاملة نفسها READ ONLY على مستوى الداتابيز.
  *
  * @param db        أغلفة الداتابيز المستأجرة
  * @param timeoutMs أقصى عمر للمعاملة كلها
@@ -124,12 +124,15 @@ export function createRatingViewTransactions(
 ): RatingViewTransactions {
   return {
     run: async (companyId, work) =>
-      runBounded(db, companyId, timeoutMs, async (tx) =>
-        work({
+      runBounded(db, companyId, timeoutMs, async (tx) => {
+        // الاستثناء المسجّل (PP-87.1) بيطلب إن الصفحة ما تقدرش تكتب على مستوى الداتابيز كمان، مش بس بالأنواع.
+        // لما 50-5 يضيف خيار readOnly لـ withTenant، السطر ده بينتقل هناك.
+        await tx.execute(sql`SET TRANSACTION READ ONLY`);
+        return work({
           findView: (tokenHash) => findView(tx, companyId, tokenHash),
           businessNames: (businessId) => names.names(tx, companyId, businessId),
-        } satisfies RatingViewScope),
-      ),
+        } satisfies RatingViewScope);
+      }),
   };
 }
 

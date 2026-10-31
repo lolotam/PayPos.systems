@@ -1,5 +1,6 @@
 import { createDatabase, type Database } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
+import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { seedTwoTenants, TENANT } from '../../../../../../../packages/db/test/tenancy-fixtures.ts';
@@ -7,9 +8,9 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from '../../../../../../../packages/db/test/test-database.ts';
-import { businessNames } from '../business-names.query.ts';
+import { businessNames, businessNamesStatement } from '../business-names.query.ts';
 
-// CLAUDE.md §9: شكل النتيجة لقراءة أسماء النشاط التي تعرضها صفحة التقييم العامة.
+// CLAUDE.md §9: شكل النتيجة وخطة الفهرس لقراءة أسماء النشاط التي تعرضها صفحة التقييم العامة.
 let testDb: TestDatabase;
 let db: Database;
 beforeAll(async () => {
@@ -46,4 +47,15 @@ it('reads the Arabic name when the business has one', async () => {
     name_ar: 'Activity in Arabic',
     name_en: 'Business A',
   });
+});
+
+it('plans the business lookup on the tenant primary key', async () => {
+  const { A } = TENANT;
+  const plan = await db.withTenant(A.company, async (tx) => {
+    await tx.execute(sql`SET LOCAL enable_seqscan = off`);
+    return tx.execute(
+      sql`EXPLAIN (ANALYZE, FORMAT JSON) ${businessNamesStatement(A.company, A.business)}`,
+    );
+  });
+  expect(JSON.stringify(plan)).toMatch(/businesses_pkey/);
 });
