@@ -10394,8 +10394,8 @@
           "204": {
             "description": "The rating was stored"
           },
-          "400": {
-            "description": "The stars or the note are not valid",
+          "404": {
+            "description": "The link is not available",
             "content": {
               "application/json": {
                 "schema": {
@@ -10404,8 +10404,8 @@
               }
             }
           },
-          "404": {
-            "description": "The link is not available",
+          "422": {
+            "description": "The stars or the note are not valid",
             "content": {
               "application/json": {
                 "schema": {

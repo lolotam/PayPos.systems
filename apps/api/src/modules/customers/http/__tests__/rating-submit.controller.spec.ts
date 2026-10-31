@@ -50,7 +50,7 @@ describe('the rating submit endpoint', () => {
     const request = requestWith({ 'x-rating-token': 'a-token' });
     const error = await controller.submit(request, { stars: 9 }).catch((e) => e);
     expect(error).toBeInstanceOf(ApiError);
-    expect(error).toMatchObject({ code: 'RATING_INPUT_INVALID', status: 400 });
+    expect(error).toMatchObject({ code: 'RATING_INPUT_INVALID', status: 422 });
   });
 
   it('answers 404 when the link is not available', async () => {

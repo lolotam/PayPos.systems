@@ -7,9 +7,13 @@ import { CustomersController } from './http/customers.controller.ts';
 import { RatingOptOutController } from './http/rating-opt-out.controller.ts';
 import { RatingSubmitController } from './http/rating-submit.controller.ts';
 import { RatingViewController } from './http/rating-view.controller.ts';
+import { businessNames } from './persistence/business-names.adapter.ts';
 import { createCustomerTransactions } from './persistence/drizzle-customer-transactions.ts';
 import { createRatingOptOutTransactions } from './persistence/drizzle-rating-opt-out-transactions.ts';
-import { createRatingSubmissionTransactions } from './persistence/drizzle-rating-submission-transactions.ts';
+import {
+  createRatingSubmitTransactions,
+  createRatingViewTransactions,
+} from './persistence/drizzle-rating-submission-transactions.ts';
 import { ratingTokenHash } from './persistence/rating-token-hash.adapter.ts';
 import { FindOrCreateCustomerUseCase } from './use-cases/find-or-create-customer/find-or-create-customer.usecase.ts';
 import { OptOutOfRatingsUseCase } from './use-cases/opt-out-of-ratings/opt-out-of-ratings.usecase.ts';
@@ -32,11 +36,15 @@ export function customersProviders(
   clock: Clock = systemClock,
   ratingTransactionTimeoutMs: number = RATING_TRANSACTION_TIMEOUT_MS,
 ): Provider[] {
-  // معاملة واحدة بتخدم عرض الصفحة وإرسال التقييم؛ الاتنين على نفس الشركة المختارة من بادئة الرابط.
-  const submission =
+  // معاملة واحدة لكل طلب: العرض بيقرأ بس، والإرسال بيقفل ويكتب — والاتنين على نفس الشركة المختارة من بادئة الرابط.
+  const view =
     database === undefined
       ? null
-      : createRatingSubmissionTransactions(database, ids, ratingTransactionTimeoutMs);
+      : createRatingViewTransactions(database, ratingTransactionTimeoutMs, businessNames);
+  const submit =
+    database === undefined
+      ? null
+      : createRatingSubmitTransactions(database, ids, ratingTransactionTimeoutMs);
   return [
     {
       provide: FindOrCreateCustomerUseCase,
@@ -60,17 +68,11 @@ export function customersProviders(
     },
     {
       provide: ViewRatingUseCase,
-      useValue:
-        submission === null
-          ? null
-          : new ViewRatingUseCase(submission, ratingTokenHash(), clock),
+      useValue: view === null ? null : new ViewRatingUseCase(view, ratingTokenHash(), clock),
     },
     {
       provide: SubmitRatingUseCase,
-      useValue:
-        submission === null
-          ? null
-          : new SubmitRatingUseCase(submission, ratingTokenHash(), clock),
+      useValue: submit === null ? null : new SubmitRatingUseCase(submit, ratingTokenHash(), clock),
     },
   ];
 }

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import type {
   ConsumeAndRateInput,
-  RatingSubmissionScope,
-  RatingSubmissionTransactions,
+  RatingSubmitScope,
+  RatingSubmitTransactions,
 } from '../../ports/rating-submission.port.ts';
 import type { RatingTokenHash } from '../../ports/rating-token-hash.port.ts';
 import { SubmitRatingUseCase } from './submit-rating.usecase.ts';
@@ -17,7 +17,7 @@ interface Fakes {
   readonly hashed: string[];
   readonly runs: number;
   readonly consumed: ConsumeAndRateInput[];
-  readonly transactions: RatingSubmissionTransactions;
+  readonly transactions: RatingSubmitTransactions;
 }
 
 function fakes(options: { locked?: boolean; consumed?: boolean } = {}): Fakes {
@@ -25,11 +25,7 @@ function fakes(options: { locked?: boolean; consumed?: boolean } = {}): Fakes {
   const hashed: string[] = [];
   const consumed: ConsumeAndRateInput[] = [];
   let runs = 0;
-  const scope: RatingSubmissionScope = {
-    findView: async () => {
-      calls.push('findView');
-      return null;
-    },
+  const scope: RatingSubmitScope = {
     lockRequest: async () => {
       calls.push('lockRequest');
       return options.locked ?? true;
@@ -40,13 +36,21 @@ function fakes(options: { locked?: boolean; consumed?: boolean } = {}): Fakes {
       return options.consumed ?? true;
     },
   };
-  const transactions: RatingSubmissionTransactions = {
+  const transactions: RatingSubmitTransactions = {
     run: async (_companyId, work) => {
       runs += 1;
       return work(scope);
     },
   };
-  return { calls, hashed, runs, consumed, transactions };
+  return {
+    calls,
+    hashed,
+    get runs() {
+      return runs;
+    },
+    consumed,
+    transactions,
+  };
 }
 
 function useCase(fake: Fakes, now: Date = NOW): SubmitRatingUseCase {

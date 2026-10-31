@@ -13196,8 +13196,8 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The stars or the note are not valid */
-            400: {
+            /** @description The link is not available */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13205,8 +13205,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The link is not available */
-            404: {
+            /** @description The stars or the note are not valid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

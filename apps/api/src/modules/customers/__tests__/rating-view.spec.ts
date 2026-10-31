@@ -115,7 +115,7 @@ describe('the note of the customer', () => {
 
     const refused = await submitRequest(context.harness, link.token, { stars: 5, comment });
 
-    expect(refused.status).toBe(400);
+    expect(refused.status).toBe(422);
     expect(refused.body['code']).toBe('RATING_INPUT_INVALID');
     expect(await consumedAt(context.harness, link.companyId, link.requestId)).toBeNull();
     expect((await submitRequest(context.harness, link.token, { stars: 5 })).status).toBe(204);
@@ -135,6 +135,9 @@ describe('the rating page', () => {
     expect(Object.keys(response.body).sort()).toEqual(['business_name', 'state']);
     expect(response.body['business_name']).toBe('صالون النخيل');
     expect(response.body['state']).toBe('open');
+    // التوكن في الهيدر: الرد ما يتخزّنش في الكاش ولا في الـ referrer.
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.headers['referrer-policy']).toBe('no-referrer');
   });
 
   it('shows the English name to a customer whose locale is English', async () => {

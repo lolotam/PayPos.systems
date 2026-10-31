@@ -7,7 +7,7 @@ import {
   ratingViewStateOf,
 } from '../../domain/rating-submission.ts';
 import { parseRatingToken } from '../../domain/rating-token.ts';
-import type { RatingSubmissionTransactions } from '../../ports/rating-submission.port.ts';
+import type { RatingViewTransactions } from '../../ports/rating-submission.port.ts';
 import type { RatingTokenHash } from '../../ports/rating-token-hash.port.ts';
 
 export { RatingSubmissionBusyError } from '../../ports/rating-submission.port.ts';
@@ -27,11 +27,11 @@ export interface ViewRatingInput {
  * المعاملة بتقرأ بس: الصفحة ما بتقفلش صف وما بتكتبش، والرابط المنتهي بيرد بنفس رد الرابط المجهول.
  */
 export class ViewRatingUseCase {
-  readonly #transactions: RatingSubmissionTransactions;
+  readonly #transactions: RatingViewTransactions;
   readonly #hash: RatingTokenHash;
   readonly #clock: Clock;
 
-  constructor(transactions: RatingSubmissionTransactions, hash: RatingTokenHash, clock: Clock) {
+  constructor(transactions: RatingViewTransactions, hash: RatingTokenHash, clock: Clock) {
     this.#transactions = transactions;
     this.#hash = hash;
     this.#clock = clock;
@@ -49,9 +49,11 @@ export class ViewRatingUseCase {
       const row = await scope.findView(tokenHash);
       if (row === null) return 'UNAVAILABLE';
       if (!isRatingViewable(row.expiresAt, this.#clock.now())) return 'UNAVAILABLE';
+      const names = await scope.businessNames(row.businessId);
+      if (names === null) return 'UNAVAILABLE';
       // الرابط المستهلك بيفضل معروضاً بحالة «تم الإرسال» لحد ما صلاحيته تخلص (ADR-0011 §4).
       return {
-        business_name: ratingBusinessName(row.locale, row.nameAr, row.nameEn),
+        business_name: ratingBusinessName(row.locale, names.name_ar, names.name_en),
         state: ratingViewStateOf(row.consumedAt),
       };
     });

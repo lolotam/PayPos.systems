@@ -1,12 +1,15 @@
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
+import type { BusinessNamesPort } from '../ports/business-names.port.ts';
 import {
   RatingSubmissionBusyError,
   type ConsumeAndRateInput,
-  type RatingSubmissionScope,
-  type RatingSubmissionTransactions,
+  type RatingSubmitScope,
+  type RatingSubmitTransactions,
   type RatingViewRow,
+  type RatingViewScope,
+  type RatingViewTransactions,
 } from '../ports/rating-submission.port.ts';
 
 import { isRatingTransactionBusy } from './rating-transaction-busy.ts';
@@ -15,8 +18,7 @@ type ViewRow = {
   expires_at: string | null;
   consumed_at: string | null;
   locale: 'ar' | 'en';
-  name_ar: string | null;
-  name_en: string;
+  business_id: string;
 };
 type RequestRow = { id: string; business_id: string; branch_id: string };
 type PerformerRow = { employee_id: string };
@@ -26,20 +28,18 @@ async function findView(
   companyId: string,
   tokenHash: Buffer,
 ): Promise<RatingViewRow | null> {
-  // قراءة بس: الصفحة تعرّف اسم النشاط ولغة العميل من غير ما تقفل أو تكتب حاجة.
+  // قراءة بس: الصفحة تعرّف حالة الرابط من غير ما تقفل أو تكتب حاجة.
   const [row] = await tx.execute<ViewRow>(sql`
-    SELECT r.expires_at, r.consumed_at, c.locale, b.name_ar, b.name_en
+    SELECT r.expires_at, r.consumed_at, r.business_id, c.locale
     FROM rating_requests r
     JOIN customers c ON c.company_id = r.company_id AND c.id = r.customer_id
-    JOIN businesses b ON b.company_id = r.company_id AND b.id = r.business_id
     WHERE r.company_id = ${companyId} AND r.token_hash = ${tokenHash} AND r.expires_at IS NOT NULL`);
   if (row === undefined || row.expires_at === null) return null;
   return {
     expiresAt: new Date(row.expires_at),
     consumedAt: row.consumed_at === null ? null : new Date(row.consumed_at),
     locale: row.locale,
-    nameAr: row.name_ar,
-    nameEn: row.name_en,
+    businessId: row.business_id,
   };
 }
 
@@ -90,38 +90,71 @@ async function consumeAndRate(
 }
 
 /**
- * معاملة تقييم العميل: بتعمل جوه الشركة المختارة من بادئة الرابط، من غير مستخدم (ADR-0011 §1).
+ * معاملة بتعمل جوه الشركة المختارة من بادئة الرابط، من غير مستخدم (ADR-0011 §1).
+ * القفل أو الانتظار الطويل بيتحوّل لخطأ busy واحد، مش لخطأ عشوائي في الـ HTTP.
+ */
+async function runBounded<T>(
+  db: TenantWrappers,
+  companyId: string,
+  timeoutMs: number,
+  work: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  try {
+    return await db.withTenant(companyId, work, { timeoutMs });
+  } catch (error) {
+    if (error instanceof RatingSubmissionBusyError) throw error;
+    if (isRatingTransactionBusy(error)) throw new RatingSubmissionBusyError();
+    throw error;
+  }
+}
+
+/**
+ * معاملة صفحة التقييم: قراءة بس، جوه الشركة المختارة من بادئة الرابط (ADR-0011 §1).
+ * النطاق فيها قراءات بس — مفيش قفل ولا كتابة (PP-87.1).
+ *
+ * @param db        أغلفة الداتابيز المستأجرة
+ * @param timeoutMs أقصى عمر للمعاملة كلها
+ * @param names     بورت أسماء النشاط، بيقراها من tenancy على نفس المعاملة
+ * @returns معاملة صفحة التقييم
+ */
+export function createRatingViewTransactions(
+  db: TenantWrappers,
+  timeoutMs: number,
+  names: BusinessNamesPort,
+): RatingViewTransactions {
+  return {
+    run: async (companyId, work) =>
+      runBounded(db, companyId, timeoutMs, async (tx) =>
+        work({
+          findView: (tokenHash) => findView(tx, companyId, tokenHash),
+          businessNames: (businessId) => names.names(tx, companyId, businessId),
+        } satisfies RatingViewScope),
+      ),
+  };
+}
+
+/**
+ * معاملة إرسال التقييم: بتعمل جوه الشركة المختارة من بادئة الرابط (ADR-0011 §1).
  * الطلب بيتقفل `FOR UPDATE` قبل ما الوقت يتقري، وبعدين الاستهلاك والتقييم والنسب كلهم في نفس المعاملة —
  * أي فشل في النسبة بيرجّع الاستهلاك كله (ADR-0011 §2).
  *
  * @param db        أغلفة الداتابيز المستأجرة
  * @param ids       مولّد الـ ids للتقييم والنسب
  * @param timeoutMs أقصى عمر للمعاملة كلها، عشان القفل ما يعلّقش الطلب
- * @returns معاملة تقييم العميل
+ * @returns معاملة إرسال التقييم
  */
-export function createRatingSubmissionTransactions(
+export function createRatingSubmitTransactions(
   db: TenantWrappers,
   ids: IdGenerator,
   timeoutMs: number,
-): RatingSubmissionTransactions {
+): RatingSubmitTransactions {
   return {
-    run: async (companyId, work) => {
-      try {
-        return await db.withTenant(
-          companyId,
-          async (tx) =>
-            work({
-              findView: (tokenHash) => findView(tx, companyId, tokenHash),
-              lockRequest: (tokenHash) => lockRequest(tx, companyId, tokenHash),
-              consumeAndRate: (input) => consumeAndRate(tx, companyId, ids, input),
-            } satisfies RatingSubmissionScope),
-          { timeoutMs },
-        );
-      } catch (error) {
-        if (error instanceof RatingSubmissionBusyError) throw error;
-        if (isRatingTransactionBusy(error)) throw new RatingSubmissionBusyError();
-        throw error;
-      }
-    },
+    run: async (companyId, work) =>
+      runBounded(db, companyId, timeoutMs, async (tx) =>
+        work({
+          lockRequest: (tokenHash) => lockRequest(tx, companyId, tokenHash),
+          consumeAndRate: (input) => consumeAndRate(tx, companyId, ids, input),
+        } satisfies RatingSubmitScope),
+      ),
   };
 }

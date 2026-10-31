@@ -173,7 +173,7 @@ describe('the rating submission contract', () => {
       Record<string, unknown>
     >;
     expect(responses['204']).toEqual({ description: 'The rating was stored' });
-    for (const status of ['400', '404', '429', '503']) {
+    for (const status of ['422', '404', '429', '503']) {
       expect(responses[status]?.['content']).toEqual({
         'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
       });

@@ -48,7 +48,10 @@ export const customerPaths = {
       responses: {
         '204': { description: 'The customer stopped the rating messages' },
         '404': { description: 'The link is not available', content: json('ErrorEnvelope') },
-        '429': { description: 'Too many requests from this address', content: json('ErrorEnvelope') },
+        '429': {
+          description: 'Too many requests from this address',
+          content: json('ErrorEnvelope'),
+        },
         '503': { description: 'The service is not ready', content: json('ErrorEnvelope') },
         default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
       },
@@ -71,7 +74,10 @@ export const customerPaths = {
       responses: {
         '200': { description: 'The rating page', content: json('RatingView') },
         '404': { description: 'The link is not available', content: json('ErrorEnvelope') },
-        '429': { description: 'Too many requests from this address', content: json('ErrorEnvelope') },
+        '429': {
+          description: 'Too many requests from this address',
+          content: json('ErrorEnvelope'),
+        },
         '503': { description: 'The service is not ready', content: json('ErrorEnvelope') },
         default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
       },
@@ -93,9 +99,15 @@ export const customerPaths = {
       requestBody: { required: true, content: json('SubmitRatingInput') },
       responses: {
         '204': { description: 'The rating was stored' },
-        '400': { description: 'The stars or the note are not valid', content: json('ErrorEnvelope') },
+        '422': {
+          description: 'The stars or the note are not valid',
+          content: json('ErrorEnvelope'),
+        },
         '404': { description: 'The link is not available', content: json('ErrorEnvelope') },
-        '429': { description: 'Too many requests from this address', content: json('ErrorEnvelope') },
+        '429': {
+          description: 'Too many requests from this address',
+          content: json('ErrorEnvelope'),
+        },
         '503': { description: 'The service is not ready', content: json('ErrorEnvelope') },
         default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
       },

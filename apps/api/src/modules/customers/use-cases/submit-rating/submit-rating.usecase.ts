@@ -2,7 +2,7 @@ import { submitRatingInput } from '@pospay/contracts';
 
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import { parseRatingToken } from '../../domain/rating-token.ts';
-import type { RatingSubmissionTransactions } from '../../ports/rating-submission.port.ts';
+import type { RatingSubmitTransactions } from '../../ports/rating-submission.port.ts';
 import type { RatingTokenHash } from '../../ports/rating-token-hash.port.ts';
 
 export { RatingSubmissionBusyError } from '../../ports/rating-submission.port.ts';
@@ -25,11 +25,11 @@ export interface SubmitRatingInput {
  * يستهلك الطلب ويحفظ التقييم ونسبه — كل ده في نفس المعاملة، فأي فشل بيرجّع الاستهلاك (ADR-0011 §2).
  */
 export class SubmitRatingUseCase {
-  readonly #transactions: RatingSubmissionTransactions;
+  readonly #transactions: RatingSubmitTransactions;
   readonly #hash: RatingTokenHash;
   readonly #clock: Clock;
 
-  constructor(transactions: RatingSubmissionTransactions, hash: RatingTokenHash, clock: Clock) {
+  constructor(transactions: RatingSubmitTransactions, hash: RatingTokenHash, clock: Clock) {
     this.#transactions = transactions;
     this.#hash = hash;
     this.#clock = clock;
