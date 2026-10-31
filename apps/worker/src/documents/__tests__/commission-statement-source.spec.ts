@@ -119,6 +119,9 @@ it.each([
   const failure = await source.load(COMPANY, RENDER).catch((caught: unknown) => caught);
   expect(failure).toBeInstanceOf(CommissionStatementUnavailableError);
   expect((failure as CommissionStatementUnavailableError).reason).toBe(reason);
+  expect((failure as CommissionStatementUnavailableError).code).toBe(
+    'COMMISSION_STATEMENT_UNAVAILABLE',
+  );
 });
 
 it('keeps any other reader failure as it is', async () => {
