@@ -23,7 +23,7 @@
   | --- | --- | --- |
   | Spec, plan and `grill-me` questions (documentation only) | Claude Code, `claude-opus-5-5`, effort `high` | Cursor, `claude-opus-5-5`, effort `high` — the same model on a different provider |
   | Initial implementer | MiniMax `M3.1-Flash · thinking` on T3's MiniMax Code provider (PP-84.3) | Claude Code, `claude-opus-5-5` |
-  | Initial implementer for small, exactly pinned tasks (one error fix, a contract bound, an error-code mapping), beside MiniMax (PP-91, PP-92) | GLM `5.3 Flash` on T3's OpenCode provider (`opencode/glm-5.3-flash-free`, variant `high`); no code-area limit; the brief carries no secret or customer data | MiniMax, then Claude Code, `claude-opus-5-5` |
+  | Initial implementer for small, exactly pinned tasks (one error fix, a contract bound, an error-code mapping), beside MiniMax (PP-91, PP-92) | GLM `5.3 Flash` on T3's OpenCode provider (`opencode/glm-5.3-flash-free`, variant `high`); no code-area limit; the brief carries no secret or customer data, and it may not read `.env*`, `.git` or anything outside its worktree | MiniMax, then Claude Code, `claude-opus-5-5` |
   | Correction rounds | Kimi `K3.1 Pro` on T3's OpenCode provider (`kimi-code-plan-global/k3.1-pro`, variant `high`; `max` for money and database work) | Claude Code, `claude-opus-5-5` |
   | Design advice (read-only) | Codex, `gpt-6-astra`, effort `high` | Claude Code, `claude-opus-5-5` |
   | Code review (read-only) | Codex, `gpt-6-astra`, effort `high` | Claude Code, `claude-opus-5-5` |
@@ -88,6 +88,7 @@
 ## 5. The initial implementation lane
 
 - The initial implementation runs on the **built-in delegation facility of the agent runtime**, on the user-enabled **MiniMax-M3.1-Flash · thinking** lane, T3's MiniMax Code provider (PP-69.1, PP-84.3: T3's OpenCode catalog offers no `thinking` variant for the coding-plan entry, so Waleed chose MiniMax Code inside T3), under the transport rule of §0.
+- **Small, exactly pinned tasks** (one error fix, a contract bound, an error-code mapping) may run on the **GLM 5.3 Flash** lane instead, T3's OpenCode provider (`opencode/glm-5.3-flash-free`, variant `high`; PP-91, PP-92, `docs/owner-decisions.ar.md` items 43–44), in any code area. Its brief carries no secret, key, customer data or real phone number, and it may not read `.env*`, `.git` or anything outside its worktree. A medium task (database or UI) is tried on it before anything bigger; everything else stays on MiniMax.
 - The owner confirmed this directly: *«sorry you dot need to delegate open code minimax 3.1 you have already the delegation tool here and i already login fore minimmax provider so the delgation model will be minimax m3.1 flash»*.
 - **No external process** stands in for that lane (see §0), no new login, no new API keys, no invented model id or variant.
 - The implementer authors the code, tests, contracts, migrations and RLS policies inside a **bounded, declared scope**. It does not publish anything, does not touch the server, and does not read secrets.
