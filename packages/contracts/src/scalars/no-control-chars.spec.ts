@@ -10,6 +10,8 @@ import { createServiceInput } from '../catalog/service.js';
 import { findOrCreateCustomerInput } from '../customers.js';
 import { buildOpenApiDocument } from '../openapi.js';
 
+import { noControlChars } from './no-control-chars.js';
+
 const uuid = '01920000-0000-7000-8000-000000000001';
 
 // القاعدة واحدة مشتركة، فمصفوفة واحدة تختبر كل الأسماء اللي بتستخدمها بدل تكرار نفس
@@ -103,7 +105,11 @@ describe('the shared no-control-characters rule', () => {
     }
   });
 
-  it('publishes no Unicode property escape in any pattern', () => {
-    expect(JSON.stringify(buildOpenApiDocument())).not.toMatch(/\\[pP]\{/);
+  it('publishes a portable name pattern and no property escape', () => {
+    const document = JSON.stringify(buildOpenApiDocument());
+    expect(document).not.toMatch(/\\[pP]\{/);
+    // محركات RE2 (زي Go و Rust) مش بتعرف تترجم lookahead، فالنمط المنشور لازم يبقى من غير واحد.
+    // أنماط التاريخ والتليفون القديمة لسه فيها lookahead، فالفحص هنا على النمط المشترك بس.
+    expect(noControlChars.source).not.toMatch(/\(\?<?[=!]/);
   });
 });
