@@ -2,8 +2,8 @@
 
 Sub-PR of spec 073 (`docs/specs/073-customers-import/spec.md`, Delivery table row 34-pre-1). Planner draft for the
 root orchestrator; an independent design review (Astra) has been folded in, and the root reconciles both before the
-brief is dispatched. Status: **implemented and locally checked; independent Astra review and canonical migration
-finalization pending**. Initial MiniMax delivery and its first correction were reviewed by the root; the root
+brief is dispatched. Status: **implemented and locally checked; independent Astra review accepted, final migration
+0198 generated, canonical-runner checks passed; GitHub reviews and CI pending**. Initial MiniMax delivery and its first correction were reviewed by the root; the root
 resolved the remaining small type, fixture and lint findings. No push or PR has been made.
 
 Scope, exactly: the new customer scalar fields (birthday, gender, email), the per-business note, the column grants
@@ -30,10 +30,12 @@ follows those files.
 
 ## 1. Data model (placeholder migration)
 
-File: `packages/db/migrations/XXXX_34-pre-1_customer-fields.sql`. **Not** in `meta/_journal.json`, no snapshot, no
-`pnpm db:generate` by the implementer. The manager granted the lane at 19:15 Kuwait on 2026-11-01, after #762
+Final file: `packages/db/migrations/0198_2026-11-01_customer-fields.sql`. The initial `XXXX` draft was tested before
+canonical metadata generation; the implementer did not edit the journal or snapshots. The manager granted the lane at 19:15 Kuwait on 2026-11-01, after #762
 merged as `1df1f24b` (last migration 0197). After local implementation and proof, the root rebases on latest main,
-assigns final numbers starting at 0198, generates metadata, then publishes. Expand-only, no data step, no
+assigns final numbers starting at 0198, generates metadata, then publishes. The root completed the rebase on
+`f5e88520`, generated `0198_snapshot.json` and the journal entry, and retained the exact SQL body reviewed by Astra.
+Structural snapshot comparison changes only `customers` and `customer_notes`. Expand-only, no data step, no
 backfill. Statements separated by `--> statement-breakpoint` like every migration. **No `CONCURRENTLY` statement:**
 the only indexes are on the brand-new, empty `customer_notes` table, created in the same migration as 0190, 0192 and
 0193 do; no index is added to `customers` (the profile read is by primary key, the notes read by the primary-key
@@ -103,8 +105,8 @@ CI-Q14). No `updated_at` (immutable row). No `id` column: the composite key is t
 
 `packages/db/schema/customers.ts`: the five columns with matching `check(...)` entries and the new
 `customerNotes` table (same file; `schema/index.ts` already re-exports it). One-line comment on `birth_year`
-(«السنة اختيارية، فمش بنستخدم date») per CLAUDE §3.1. The schema will drift from the snapshot until `db:generate`
-runs after `lane granted`; that is expected and recorded (R-7).
+(«السنة اختيارية، فمش بنستخدم date») per CLAUDE §3.1. The final `0198_snapshot.json` was generated from this schema
+after the granted-lane rebase; the earlier draft-only snapshot drift is resolved.
 
 ## 2. Domain (`apps/api/src/modules/customers/domain/`)
 
@@ -290,7 +292,7 @@ Do not treat a handful of rows with `enable_seqscan=off` as sufficient performan
 - R-5 no INSERT trigger exists on `customers` (catalog assertion), so a NULL-gender insert can never be refused by the
   schema in this phase.
 
-## 9. Test-only application of the placeholder migration
+## 9. Initial draft-only test approach (historical)
 
 Facts from `packages/db/test/global-setup.ts`: it migrates `pospay_tpl_<runId>` from the journal, sets
 `ALLOW_CONNECTIONS false`, waits for `pg_stat_activity` to drain, then `project.provide('pg', {...env, template,
@@ -319,9 +321,9 @@ the root reviews them against the steps below before the first run. The implemen
    accepts an out-of-root config first; if it does not, fall back to a config placed in the brief directory that
    sets `root` explicitly.
 
-Not done: no change to `migrations.ts`, `concurrent-migrations.ts`, the journal, snapshots or any repo test hook.
-After `lane granted`, the file is renumbered, `db:generate` produces the snapshot, and the canonical runner test
-replaces the wrapper run.
+The draft phase changed no production migrator, canonical metadata or repo test hook. After the lane grant,
+the root numbered 0198 and ran `db:generate`. Final tests call the repository's original global setup and canonical
+migration runner, with only external private-container ownership verification; no draft SQL is injected there.
 
 ## 10. Checks the root runs (none is claimed passed by this plan or by the implementer)
 
@@ -364,8 +366,26 @@ PR completion items (root, not implementer): the `PP-102`, `PP-103`, `PP-105` in
   have NULL gender, the same as legacy rows, and nothing backfills them. Accepted by the 18:58 override.
 - **R-2** 34-pre-2 must flip enforcement in the same PR as the UI field; if the UI ships alone, new creations stay
   gender-optional.
-- **R-3** Schema/snapshot drift and the unjournaled placeholder until `lane granted`; the CI pipeline cannot run this
-  slice's DB tests before then.
+- **R-3 resolved by finalization:** the draft was unjournaled; final migration 0198 now has generated snapshot and
+  journal metadata. Canonical local and exact-head CI checks remain required before delivery.
 - **R-4** Generated clients (admin, pos) change; root regenerates and reviews them.
 - **R-5** The CHECK scan on `customers` under ACCESS EXCLUSIVE grows with the table; NOT VALID/VALIDATE is the
   mitigation if the table is large on staging/production.
+
+## 13. Independent review receipt
+
+Fresh Astra (`gpt-6-astra`, high), through T3 delegation, reviewed implementation `465093155572e31a44fb88a82595533c9e4a800d`
+against `7159a9f0189a93cdb62828e7d9e78a1e1103a2ad` on 2026-11-01: no confirmed P0–P3 findings; database/security
+accepted by static inspection. It ran no tests or database access. The reviewer explicitly distinguished the
+old-operation compatibility tests from actually running a previous container image. Canonical migration proof
+was pending at that review and is completed separately by the root. Rebase reconciliation moved the schema
+registration and expected schema names into the files already extracted on main; it preserves the reviewed
+customer schemas and all parallel owner-decision rows. Final 0198 SQL bytes equal the reviewed draft body.
+
+Final local proof after rebase on `f5e88520`: canonical bootstrap applied journaled 0198 without draft injection;
+five DB files passed 102 tests, eight selected API files passed 123 tests, contracts passed 1128 tests across 71
+files, scoped typecheck passed (21 tasks), scoped API/contracts lint and module-map/cycle checks passed, both
+generated-client checks passed, and a second `db:generate` reported no schema changes. The earlier full customer
+scope passed 342 API tests, observability passed 110, and the unchanged reception UI passed 21; exact-head full
+workspace checks remain CI's gate. Local backward compatibility proves the old SQL operations/request shape,
+not an executed previous container image; actual deployment/rollback verification remains a release gate.
