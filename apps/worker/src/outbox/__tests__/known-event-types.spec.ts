@@ -71,6 +71,7 @@ it('keeps notification transport recognition conditional on the active module', 
 it.each([
   'SalaryChanged',
   'SessionTipsChanged',
+  'PackageSaleChanged',
   'LeaveRequested',
   'LeaveCancelled',
   'LeaveApproved',

@@ -22,6 +22,7 @@ const expectedSchemas = [
   'DecideDiscountProposalsResponse', 'DiscountApprovalRequested', 'DiscountApprovalNoticeRequested', 'DiscountApprovedByPerformer',
   'DiscountSelfApprovalNoticeRequested',
   'SessionTipEntry', 'RecordSessionTipsInput', 'SessionTips', 'SessionTipsChanged',
+  'PackagePaidMethod', 'PackageServiceRevision', 'SellPackageInput', 'SoldPackageComponent', 'SoldPackageEntitlement', 'SellPackageResponse', 'PackageSaleChanged',
   'SalaryChanged',
   'CreateDocumentTypeInput',
   'DocumentType',
