@@ -18,10 +18,7 @@ export type {
   RatingClaimsTurnSummary,
 } from '../../domain/rating-claim-scheduling.ts';
 export type { RatingClaimsClaim, RatingClaimsPorts } from './rating-claims-ports.ts';
-export {
-  RatingClaimsTurnState,
-  type ClaimObservationResult,
-} from './rating-claims-turn-state.ts';
+export { RatingClaimsTurnState, type ClaimObservationResult } from './rating-claims-turn-state.ts';
 
 /** ملخص دور فاضي، للدور اللي وقف قبل ما يشتغل. */
 function emptySummary(end: RatingClaimsEndReason): RatingClaimsTurnSummary {

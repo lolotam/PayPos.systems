@@ -4,10 +4,7 @@ import {
   retryCommands,
   sweepCommands,
 } from './redis-rating-claim-state.commands.ts';
-import {
-  buildContext,
-  type RatingClaimStateOptions,
-} from './redis-rating-claim-state.context.ts';
+import { buildContext, type RatingClaimStateOptions } from './redis-rating-claim-state.context.ts';
 
 export type { RatingClaimStateOptions } from './redis-rating-claim-state.context.ts';
 
