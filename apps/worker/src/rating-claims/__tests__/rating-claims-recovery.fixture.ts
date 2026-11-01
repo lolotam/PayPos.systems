@@ -110,7 +110,9 @@ export async function readyRequestIdsByCompany(
       WHERE company_id = ${companyId} AND event_type = 'RatingRequestReady'`;
     ready.set(
       companyId,
-      rows.map((row) => String((row['payload'] as { rating_request_id: string }).rating_request_id)),
+      rows.map((row) =>
+        String((row['payload'] as { rating_request_id: string }).rating_request_id),
+      ),
     );
   }
   return ready;

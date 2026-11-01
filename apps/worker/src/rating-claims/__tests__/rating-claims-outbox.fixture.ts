@@ -62,7 +62,8 @@ export async function outboxState(
   world: RatingClaimsWorld,
   eventId: string,
 ): Promise<OutboxDeliveryState> {
-  const rows = await world.base.owner`SELECT attempts, published_at, parked_at, next_attempt_at, last_error
+  const rows = await world.base
+    .owner`SELECT attempts, published_at, parked_at, next_attempt_at, last_error
     FROM outbox WHERE id = ${eventId}`;
   const row = rows[0];
   if (row === undefined) throw new Error('RATING_OUTBOX_ROW_MISSING');
@@ -122,7 +123,8 @@ export async function claimedEventOf(
   world: RatingClaimsWorld,
   eventId: string,
 ): Promise<ClaimedEvent> {
-  const rows = await world.base.owner`SELECT company_id, id, aggregate_type, aggregate_id, event_type, payload, attempts
+  const rows = await world.base
+    .owner`SELECT company_id, id, aggregate_type, aggregate_id, event_type, payload, attempts
     FROM outbox WHERE id = ${eventId}`;
   const row = rows[0];
   if (row === undefined) throw new Error('RATING_OUTBOX_ROW_MISSING');

@@ -40,7 +40,10 @@ afterEach(async () => {
  *
  * معرّف الحدث ومعرّف الطلب مختلفين: الأول هو سطر الـ outbox، والتاني هو صف الطلب.
  */
-async function claimReadyEvent(): Promise<{ readonly eventId: string; readonly requestId: string }> {
+async function claimReadyEvent(): Promise<{
+  readonly eventId: string;
+  readonly requestId: string;
+}> {
   const current = world;
   if (current === undefined) throw new Error('RATING_CLAIM_WORLD_MISSING');
   const seeded = await current.seedDueRequests({ count: 1 });

@@ -9,7 +9,10 @@ import {
 } from '@pospay/notifications';
 import { RATING_REQUEST_TEMPLATE_KEY, RATING_REQUEST_TEMPLATE_REVISION } from '@pospay/contracts';
 
-import { createInAppNotificationModule, createNotificationModule } from '../../modules/notifications/index.ts';
+import {
+  createInAppNotificationModule,
+  createNotificationModule,
+} from '../../modules/notifications/index.ts';
 import type { RatingClaimsWorld } from './rating-claims-world.types.ts';
 
 /** إعداد موديل الإشعارات في الاختبار: وضع تجريبي ومفتاح بصمة ثابت للاختبار. */
