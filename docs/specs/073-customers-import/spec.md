@@ -5,11 +5,13 @@
 - CI-Q1 to CI-Q8 are feature questions: batch 88, `PP-102.1` to `PP-102.8`.
 - CI-T1 to CI-T5 are technical questions: `PP-103.1` to `PP-103.5`.
 - Waleed has answered CI-Q1 to CI-Q4 and CI-T1 to CI-T4. His technical answers are final.
-- CI-Q5 to CI-Q8 and CI-T5 are pending, and so is Abu Salem's pick on every feature question.
-- **Two of Waleed's picks go against the recommendation, and Abu Salem has not answered them yet:**
+- Waleed has also answered CI-Q5 to CI-Q8, on the decisions page itself (his own picks, about 11:07–11:08).
+- CI-T5 is pending, and so is Abu Salem's pick on every feature question.
+- **Three of Waleed's picks go against the recommendation, and Abu Salem has not answered them yet:**
   - CI-Q1 (`PP-102.1`): extra customer fields first.
+  - CI-Q8 (`PP-102.8`): the extra fields are birthday, notes, gender and email.
   - CI-Q4 (`PP-102.4`): branch managers and cashiers may import too.
-- Every part marked **[PP-102.1]** or **[PP-102.4]** depends on one of those two picks. Nothing in those parts is
+- Every part marked **[PP-102.1]** (which includes CI-Q8) or **[PP-102.4]** depends on one of those picks. Nothing in those parts is
   built before Abu Salem answers or the manager says to proceed. The rest of the spec holds under either answer.
 
 Every section marked `TODO(spec)` waits on an answer. **No code starts before this spec is merged.**
@@ -69,18 +71,29 @@ nothing. The commit runs in the worker, and the screen polls for the result.
 1. **All-or-nothing, create-only** (SPEC §11, ADR-0034). The import never updates or deletes a customer (CI-Q2).
 2. **Company-wide identity** (D-30). A created customer belongs to the company, whichever business or branch the
    import ran from.
-3. **Columns.** The base columns, `name` and `phone`, hold under either answer.
-   - `TODO(spec)` CI-Q6: the language default.
-   - `TODO(spec)` CI-Q7: the country code.
-   - `TODO(spec)` CI-Q5: an opt-out column.
-   - **[PP-102.1]** Waleed picked "add more fields first", so a customer-fields slice (34-pre, with a migration) comes
-     before the import. Which fields waits on CI-Q8 (`PP-102.8`). If Abu Salem picks "name, phone and language only",
-     34-pre is dropped and the import needs no migration.
+3. **Columns.** These hold under either answer to CI-Q1 (Waleed's picks; Abu Salem's pick is pending):
+
+   | Column | Rule |
+   |---|---|
+   | `name` | Required. The spec 010 name bounds and control-character rule. |
+   | `phone` | Required. Normalized with spec 010 `BR-001`, together with the country code. |
+   | `country_code` | Optional. Blank means Kuwait, `965` (CI-Q7, `PP-102.7`). |
+   | `locale` | Optional, `ar` or `en`. Blank means `ar` (CI-Q6, `PP-102.6`). |
+   | `no_rating` («لا ترسل تقييم») | Optional, «نعم» or blank. «نعم» creates the customer already opted out of rating requests; blank creates her like any new customer (CI-Q5, `PP-102.5`). `TODO(spec)` round 3: the value the commit stores and whether the opt-out is audited; what happens when the customer already exists (CIM-03 leaves her unchanged). |
+
+   **[PP-102.1]** Waleed picked "add more fields first", and CI-Q8 (`PP-102.8`) names four fields: birthday, notes,
+   gender (male / female) and email. They are added to the customer first, in a «customer fields» slice 34-pre with a
+   migration, and then to the template as optional columns. `TODO(spec)` round 3: the rules of each field (format,
+   required or optional, who sees the notes, whether the reception form shows them). If Abu Salem picks "name, phone
+   and language only", 34-pre is dropped and the import needs no migration.
 4. **Who may import.**
    - Under either answer, the business route `/v1/businesses/{businessId}/customers/import/…` (CI-T3) accepts the
      existing `create:customers:business`, which the general manager covers through `create:customers:company`.
-   - **[PP-102.4]** Waleed picked "also branch managers and cashiers", so `create:customers:branch` is accepted too, on
-     a branch route whose shape waits on CI-T5 (`PP-103.5`).
+   - **[PP-102.4]** Waleed picked "also branch managers and cashiers", so `create:customers:branch` is accepted too.
+     `TODO(spec) PP-103.5`, drafted as the recommended option and not built on: a branch route
+     `/v1/branches/{branchId}/customers/import/…` accepts any of `create:customers:{company,business,branch}` on that
+     branch. The preview stores the branch's `business_id`, the customers are created for the company, and no migration
+     is needed.
 
 ### Design decisions (settled by the files; the design advisors confirm before code)
 
