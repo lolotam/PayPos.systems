@@ -158,7 +158,9 @@ describe('دور خدمة المطالبة', () => {
     // الحد اللي وصل للحالة هو ميزانية الدور نفسه، مش ثابت من برّه.
     expect(world.state.enrollMaxEntries).toBe(1);
   });
+});
 
+describe('ميزانية الصفحة', () => {
   it('refuses a page bigger than the turn budget and claims nothing', async () => {
     const world = harness({
       rows: {

@@ -128,7 +128,9 @@ describe('معالج مطالبة طلبات التقييم', () => {
     expect(delays[9]).toBeNull();
     expect(retryDelayMs(10)).toBeNull();
   });
+});
 
+describe('تقدّم الجدولة', () => {
   it('trigger_preserves_running_progress', async () => {
     const world = await harness();
     const companyId = ids.newId();
