@@ -143,7 +143,6 @@ function cleanServiceError(error: unknown): never {
     // تصنيف الـ glibc لحروف التحكم أوسع من \P{Cc} في العقد، فاسم ممكن يعدّي Zod ويقع هنا؛ نرجّع خطأ الاسم مش السعر.
     if (code === '23514') throw new ServiceError(checkViolation(cause));
     if (code === '22003') throw new ServiceError('SERVICE_PRICE_INVALID');
-    // الـ FK على التصنيف: التصنيف مش موجود في النشاط ده.
     if (code === '23503') {
       const constraint = 'constraint_name' in cause ? String(cause.constraint_name) : '';
       if (constraint === 'services_category_fk')

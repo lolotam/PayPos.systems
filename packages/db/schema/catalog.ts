@@ -247,15 +247,13 @@ export const serviceCategories = pgTable(
       t.businessId,
       sql`lower(${t.nameEn})`,
     ),
-    index('service_categories_owner_branch_idx').on(t.companyId, t.businessId, t.ownerBranchId),
-    check(
-      'service_categories_name_en_length',
-      sql`char_length(btrim(${t.nameEn})) BETWEEN 1 AND 100`,
+    index('service_categories_owner_branch_idx').on(
+      t.companyId,
+      t.businessId,
+      t.ownerBranchId,
     ),
-    check(
-      'service_categories_name_ar_length',
-      sql`char_length(btrim(${t.nameAr})) BETWEEN 1 AND 100`,
-    ),
+    check('service_categories_name_en_length', sql`char_length(btrim(${t.nameEn})) BETWEEN 1 AND 100`),
+    check('service_categories_name_ar_length', sql`char_length(btrim(${t.nameAr})) BETWEEN 1 AND 100`),
     check('service_categories_name_en_controls', sql`${t.nameEn} !~ '[[:cntrl:]]'`),
     check('service_categories_name_ar_controls', sql`${t.nameAr} !~ '[[:cntrl:]]'`),
     check(
@@ -312,7 +310,11 @@ export const serviceCategoryBranchSettings = pgTable(
       t.branchId,
       t.categoryId,
     ),
-    index('service_category_branch_settings_branch_idx').on(t.companyId, t.businessId, t.branchId),
+    index('service_category_branch_settings_branch_idx').on(
+      t.companyId,
+      t.businessId,
+      t.branchId,
+    ),
     index('service_category_branch_settings_category_idx').on(
       t.companyId,
       t.businessId,
