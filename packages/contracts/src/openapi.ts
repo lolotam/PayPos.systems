@@ -1,276 +1,37 @@
 import { z } from 'zod';
-import { orderSchemas } from './orders/openapi-schemas.js';
 import { serviceSessionFormPaths } from './orders/service-session-form-openapi.js';
 import { serviceSessionPaths } from './orders/service-session-openapi.js';
 import { discountApprovalPaths } from './orders/discount-approval-openapi.js';
 import { serviceSessionRecoveryPaths } from './orders/service-session-recovery-openapi.js';
 import { attendanceMonthlyReportPaths } from './staff/attendance-monthly-report-openapi.js';
-import { employeeIbanSchemas } from './staff/employee-iban.js';
 import { employeeIbanPaths } from './staff/employee-iban-openapi.js';
-import { commissionPaths, commissionSchemas } from './commissions/openapi.js';
-import { unbindPasskeySchemas } from './staff/unbind-passkey.js';
+import { commissionPaths } from './commissions/openapi.js';
 import { unbindPasskeyPaths } from './staff/unbind-passkey-openapi.js';
-import { leaveSchemas } from './staff/leave.js';
-import { employeeDocumentSchemas } from './staff/employee-documents.js';
 import { employeeDocumentPaths } from './staff/employee-documents-openapi.js';
-import { leaveDecisionSchemas } from './staff/leave-decision.js';
 import { leavePaths } from './staff/leave-openapi.js';
-import { attendanceExceptionSchemas } from './staff/attendance-exception.js';
 import { attendanceExceptionPaths } from './staff/attendance-exception-openapi.js';
-import { attendanceCorrectionSchemas } from './staff/attendance-correction.js';
 import { attendanceCorrectionPaths } from './staff/attendance-correction-openapi.js';
-import { attendanceChangeSchemas } from './staff/attendance-change-request.js';
 import { attendanceChangePaths } from './staff/attendance-change-request-openapi.js';
-import { passkeySchemas } from './staff/passkeys.js';
-import { clockAttendanceSchemas } from './staff/clock-attendance.js';
 import { clockAttendancePaths } from './staff/clock-attendance-openapi.js';
-import { clockByCardSchemas } from './staff/clock-by-card.js';
 import { clockByCardPaths } from './staff/clock-by-card-openapi.js';
-import { employeeCardSchemas } from './staff/employee-cards.js';
 import { employeeCardPaths } from './staff/employee-cards-openapi.js';
 import { passkeyPaths } from './staff/passkeys-openapi.js';
-import { scheduleSchemas } from './staff/schedules.js';
-import {
-  setSalaryInput,
-  employeeSalary,
-  salaryHistoryQuery,
-  salaryHistoryPage,
-  salaryChanged,
-} from './staff/salary.js';
 import { settingsPaths } from './settings/settings-openapi.js';
-import { alertRulePaths, alertRuleSchemas } from './settings/alert-rules-openapi.js';
-import { staffColumnsPaths, staffColumnsSchemas } from './settings/staff-columns-openapi.js';
+import { alertRulePaths } from './settings/alert-rules-openapi.js';
+import { staffColumnsPaths } from './settings/staff-columns-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
-import { filePaths, fileSchemas } from './files-openapi.js';
-import {
-  employee,
-  createdEmployee,
-  createEmployeeInput,
-  employeeRoleCode,
-  employeeDate,
-} from './staff/employee.js';
-import {
-  employeeImportColumn,
-  employeeImportErrorCode,
-  employeeImportRowError,
-  employeeImportTemplate,
-  previewEmployeeImportInput,
-  employeeImportPreview,
-  commitEmployeeImportInput,
-  employeeImportCommit,
-  employeeImportCommitAccepted,
-  employeeImportStatus,
-} from './staff/employee-import.js';
+import { filePaths } from './files-openapi.js';
 import { employeeImportPaths } from './staff/employee-import-openapi.js';
 import { staffPaths } from './staff/staff-openapi.js';
-import {
-  updateEmployeeInput,
-  employeeDetailRecord,
-  employeeListItem,
-  employeePage,
-  employeeListQuery,
-} from './staff/update-employee.js';
-import { permissionPaths, permissionSchemas } from './identity/permissions-openapi.js';
-import {
-  devicePaths,
-  pendingDevicesPaths,
-  pendingDevicesSchemas,
-} from './identity/devices-openapi.js';
+import { permissionPaths } from './identity/permissions-openapi.js';
+import { devicePaths, pendingDevicesPaths } from './identity/devices-openapi.js';
 import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
 import { mePaths } from './identity/me-openapi.js';
-import { customer, findOrCreateCustomerInput } from './customers.js';
 import { customerPaths } from './customers-openapi.js';
-import { ratingSettingsPaths, ratingSettingsSchemas } from './customers/rating-settings-openapi.js';
-import { ratingView, submitRatingInput } from './customers/ratings.js';
-import { catalogPaths, catalogSchemas } from './catalog/catalog-openapi.js';
-import { attendanceQrToken, attendanceQrBranch, attendanceQrIssue } from './staff/attendance-qr.js';
-import {
-  staffOtpRequestInput,
-  staffOtpVerifyInput,
-  staffOtpAcknowledgement,
-  staffSessionContext,
-  signOutResult,
-  staffPinInput,
-  staffPinResetInput,
-} from './identity/staff-otp.js';
-
-import { errorEnvelope } from './errors/envelope.js';
-import { cashierPinVerified, verifyCashierPinInput } from './identity/cashier-pin.js';
-import { myMembership, myMembershipsResponse } from './identity/my-memberships.js';
-import {
-  myWorkspacesResponse,
-  workspaceBranch,
-  workspaceBusiness,
-  workspaceCompany,
-} from './identity/workspaces.js';
-import {
-  claimDeviceInput,
-  deviceIdentity,
-  deviceRegistration,
-  deviceToken,
-  pairingCode,
-  registerDeviceInput,
-} from './identity/devices.js';
-import { pageQuery } from './pagination/cursor.js';
-import { deliveryLogItem, deliveryLogPage, deliveryLogQuery } from './notifications.js';
-import {
-  inAppNotification,
-  inAppNotificationPage,
-  inAppNotificationQuery,
-  notificationUnreadCount,
-  notificationReadResult,
-} from './in-app-notifications.js';
-import {
-  pushConfig,
-  pushEndpoint,
-  pushRevokeInput,
-  pushSubscriptionInput,
-} from './push-subscription.js';
-import {
-  businessIdentity,
-  businessIdentityNames,
-  businessLogo,
-  businessSettings,
-  identityCapability,
-  calendar,
-  language,
-  setBusinessLogoInput,
-  taxRule,
-  updateBusinessIdentityNamesInput,
-  updateBusinessSettingsInput,
-} from './settings/business-settings.js';
-import { currency } from './reference/currency.js';
-import { timeZone } from './reference/time-zone.js';
-import { business, createBusinessInput, verticalType } from './tenancy/business.js';
-import { branch, createBranchInput, geo } from './tenancy/branch.js';
-import { company, createCompanyInput } from './tenancy/company.js';
-import { openingHours } from './tenancy/opening-hours.js';
-import { plan } from './tenancy/plan.js';
-import {
-  whatsappEnvelope,
-  whatsappHandshake,
-  whatsappWebhookAcknowledgement,
-} from './whatsapp-webhook.js';
+import { ratingSettingsPaths } from './customers/rating-settings-openapi.js';
+import { catalogPaths } from './catalog/catalog-openapi.js';
 import { json, operation } from './openapi-operation.js';
-
-const SCHEMAS = [
-  ...employeeIbanSchemas,
-  ...commissionSchemas,
-  ...employeeDocumentSchemas,
-  ...clockAttendanceSchemas,
-  ...clockByCardSchemas,
-  ...employeeCardSchemas,
-  ...leaveSchemas,
-  ...leaveDecisionSchemas,
-  ...attendanceExceptionSchemas,
-  ...attendanceCorrectionSchemas,
-  ...attendanceChangeSchemas,
-  ...passkeySchemas,
-  ...unbindPasskeySchemas,
-  ...scheduleSchemas,
-  setSalaryInput,
-  employeeSalary,
-  salaryHistoryQuery,
-  salaryHistoryPage,
-  salaryChanged,
-  updateEmployeeInput,
-  employeeDetailRecord,
-  employeeListItem,
-  employeePage,
-  employeeListQuery,
-  ...permissionSchemas,
-  ...pendingDevicesSchemas,
-  ...fileSchemas,
-  ...staffColumnsSchemas,
-  employee,
-  createdEmployee,
-  createEmployeeInput,
-  employeeRoleCode,
-  employeeDate,
-  employeeImportColumn,
-  employeeImportErrorCode,
-  employeeImportRowError,
-  employeeImportTemplate,
-  previewEmployeeImportInput,
-  employeeImportPreview,
-  commitEmployeeImportInput,
-  employeeImportCommit,
-  employeeImportCommitAccepted,
-  employeeImportStatus,
-  customer,
-  findOrCreateCustomerInput,
-  ratingView,
-  submitRatingInput,
-  ...catalogSchemas,
-  ...alertRuleSchemas,
-  ...ratingSettingsSchemas,
-  ...orderSchemas,
-  attendanceQrToken,
-  attendanceQrBranch,
-  attendanceQrIssue,
-  staffPinInput,
-  staffPinResetInput,
-  staffOtpRequestInput,
-  staffOtpVerifyInput,
-  staffOtpAcknowledgement,
-  staffSessionContext,
-  signOutResult,
-  whatsappWebhookAcknowledgement,
-  whatsappEnvelope,
-  whatsappHandshake,
-  inAppNotification,
-  inAppNotificationPage,
-  inAppNotificationQuery,
-  notificationUnreadCount,
-  notificationReadResult,
-  pushConfig,
-  pushEndpoint,
-  pushRevokeInput,
-  pushSubscriptionInput,
-  deliveryLogItem,
-  deliveryLogPage,
-  deliveryLogQuery,
-  errorEnvelope,
-  pageQuery,
-  plan,
-  company,
-  createCompanyInput,
-  business,
-  createBusinessInput,
-  branch,
-  createBranchInput,
-  pairingCode,
-  registerDeviceInput,
-  deviceRegistration,
-  claimDeviceInput,
-  deviceToken,
-  deviceIdentity,
-  verifyCashierPinInput,
-  cashierPinVerified,
-  myMembership,
-  myMembershipsResponse,
-  myWorkspacesResponse,
-  workspaceBranch,
-  workspaceBusiness,
-  workspaceCompany,
-  businessIdentity,
-  businessIdentityNames,
-  businessLogo,
-  businessSettings,
-  identityCapability,
-  setBusinessLogoInput,
-  updateBusinessIdentityNamesInput,
-  updateBusinessSettingsInput,
-  // المكوّنات المتداخلة لازم تتسجل هي كمان، وإلا Zod بيحطها تحت __shared بدل components.
-  verticalType,
-  currency,
-  timeZone,
-  geo,
-  openingHours,
-  language,
-  calendar,
-  taxRule,
-];
+import { openApiSchemas } from './openapi-schemas.js';
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
@@ -380,7 +141,7 @@ const PATHS = {
  */
 export function buildOpenApiDocument(): Record<string, unknown> {
   const registry = z.registry<{ id: string }>();
-  for (const schema of SCHEMAS) {
+  for (const schema of openApiSchemas) {
     const meta = schema.meta();
     if (typeof meta?.['id'] !== 'string') throw new Error('Every published schema needs a meta id');
     registry.add(schema, { id: meta['id'] });
