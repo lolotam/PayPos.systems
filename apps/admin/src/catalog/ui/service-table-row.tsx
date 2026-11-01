@@ -3,6 +3,7 @@ import type { ServiceListItem } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import { serviceCategoryLabel } from '../model/service-category-label';
 import { SERVICE_RULE_LABEL } from '../model/service-rule';
 
 export function ServiceTableRow({
@@ -29,18 +30,7 @@ export function ServiceTableRow({
           </>
         )}
       </td>
-      <td>
-        {item.category ? (
-          <>
-            {locale === 'ar' ? item.category.name_ar : item.category.name_en}
-            {item.category.closed_at !== null
-              ? ` (${t(locale, 'catalogServices.categoryClosed')})`
-              : ''}
-          </>
-        ) : (
-          '—'
-        )}
-      </td>
+      <td>{item.category ? serviceCategoryLabel(item.category, locale) : '—'}</td>
       <td>{t(locale, SERVICE_RULE_LABEL[item.commission_rule.kind])}</td>
       <td>
         <Button

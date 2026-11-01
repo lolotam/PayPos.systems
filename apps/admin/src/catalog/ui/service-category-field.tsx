@@ -9,6 +9,7 @@ import {
   serviceCategoryListRefused,
   type ServiceCategoriesQuery,
 } from '../api/use-service-categories';
+import { serviceCategoryLabel } from '../model/service-category-label';
 
 type ServiceCategoryFieldProps = {
   categoryQuery: ServiceCategoriesQuery;
@@ -16,16 +17,9 @@ type ServiceCategoryFieldProps = {
   currentCategory: Service['category'];
 };
 
-function categoryName(
-  category: ServiceCategoryListItem | NonNullable<Service['category']>,
-  locale: Locale,
-) {
-  return locale === 'ar' ? category.name_ar : category.name_en;
-}
-
 function currentCategoryName(currentCategory: Service['category'], locale: Locale): string {
   return currentCategory
-    ? categoryName(currentCategory, locale)
+    ? serviceCategoryLabel(currentCategory, locale)
     : t(locale, 'catalogServices.noCategory');
 }
 
@@ -47,7 +41,7 @@ export function ServiceCategoryField({
   currentCategory,
 }: ServiceCategoryFieldProps) {
   const locale = useLocale();
-  const { field } = useController<CreateServiceInput>({ name: 'category_id' });
+  const { field } = useController<CreateServiceInput, 'category_id'>({ name: 'category_id' });
   const openCategories = categoryQuery.data ?? [];
   const refused = categoryQuery.isError && serviceCategoryListRefused(categoryQuery.error);
   const showCurrent = currentCategoryMissing(currentCategoryId, currentCategory, openCategories);
@@ -73,15 +67,12 @@ export function ServiceCategoryField({
           <option value="">{t(locale, 'catalogServices.noCategory')}</option>
           {openCategories.map((category) => (
             <option key={category.id} value={category.id}>
-              {categoryName(category, locale)}
+              {serviceCategoryLabel(category, locale)}
             </option>
           ))}
           {showCurrent && currentCategory !== null && currentCategoryId !== null ? (
             <option value={currentCategoryId}>
-              {categoryName(currentCategory, locale)}
-              {currentCategory.closed_at !== null
-                ? ` (${t(locale, 'catalogServices.categoryClosed')})`
-                : ''}
+              {serviceCategoryLabel(currentCategory, locale)}
             </option>
           ) : null}
         </select>

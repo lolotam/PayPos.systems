@@ -3,6 +3,7 @@ import { t } from '@pospay/i18n';
 import { Label } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { ServiceCategoriesQuery } from '../api/use-service-categories';
+import { serviceCategoryLabel } from '../model/service-category-label';
 
 export function ServiceCategoryFilter({
   categoryQuery,
@@ -30,7 +31,7 @@ export function ServiceCategoryFilter({
         <option value="">{t(locale, 'catalogServices.allCategories')}</option>
         {(categoryQuery.data ?? []).map((category) => (
           <option key={category.id} value={category.id}>
-            {locale === 'ar' ? category.name_ar : category.name_en}
+            {serviceCategoryLabel(category, locale)}
           </option>
         ))}
       </select>
