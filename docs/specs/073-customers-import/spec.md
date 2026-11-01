@@ -3,21 +3,21 @@
 **Created**: 2026-11-01
 **Status**: Draft. The owner questions are in [owner-questions.ar.md](owner-questions.ar.md):
 - CI-Q1 to CI-Q19 are feature questions: batch 88, `PP-102.1` to `PP-102.19`.
-- CI-Q20 is a feature question: batch 90, `PP-105.1`. Waleed chose option A (`choice: 0`) on 2026-11-01, channel «كارت في شات مدير الويب», relayed by the manager's message labelled 14:04 Kuwait. The «السنة معروفة؟» Yes/No column settles file entry when the birth year is unknown. Abu Salem's answer remains pending and binds if different.
+- CI-Q20 is a feature question: batch 90, `PP-105.1`. Both owners chose option A (`choice: 0`): the «السنة معروفة؟» Yes/No column settles file entry when the birth year is unknown. Original answers, channels and timestamps remain in the audit record.
 - CI-T1 to CI-T8 are technical questions: `PP-103.1` to `PP-103.8`. Waleed also settled the 34-pre split (see Delivery).
 - Waleed has answered CI-Q1 to CI-Q4 and CI-T1 to CI-T8. The manager confirmed that the newer CI-Q17 answer supersedes CI-T7's cross-business read restriction; the original answer remains in the audit record. D-8 records the reconciled design.
 - Waleed has also answered CI-Q5 to CI-Q16, on the decisions page itself (his own picks, 11:07–11:08 and 12:10–12:13).
-- Waleed answered CI-Q17 to CI-Q19 in this task's chat on 2026-11-01. Abu Salem's pick on every feature question is still pending (live reviews checked on 2026-11-01).
-- **Seven of Waleed's picks go against the recommendation, and Abu Salem has not answered them yet:**
+- Abu Salem answered all twenty feature questions in batches 88 and 90; his live notes were verified on 2026-11-01. His answers bind. Two changes from Waleed's original answers affect the specification: CI-Q10 requires gender for every new customer, and the CI-Q7 note makes the business's country the default rather than a fixed Kuwait default.
+- **The accepted feature scope includes:**
   - CI-Q1 (`PP-102.1`): extra customer fields first.
   - CI-Q8 (`PP-102.8`): the extra fields are birthday, notes, gender and email.
   - CI-Q4 (`PP-102.4`): branch managers and cashiers may import too.
+  - CI-Q10 (`PP-102.10`): gender is required for every new customer. Waleed's earlier optional answer remains historical; the final site decision is `choice: 1`, `2026-11-01T13:03:47.246Z`.
   - CI-Q13 (`PP-102.13`): the note is kept per business, not per company.
   - CI-Q16 (`PP-102.16`): an existing customer's rating refusal is not set by the import.
   - CI-Q17 (`PP-102.17`): the restaurant cashier may see the salon's note for the same customer within the company.
   - CI-Q18 (`PP-102.18`): birthdays use normal Excel date cells.
-- Every part marked **[PP-102.1]** (which includes CI-Q8) or **[PP-102.4]** depends on one of those picks. Nothing in those parts is
-  built before Abu Salem answers or the manager says to proceed. The rest of the spec holds under either answer.
+- **[PP-102.1]** and **[PP-102.4]** identify the accepted extra-fields and branch-import scope. They no longer indicate unanswered feature questions. The migration lane, unresolved technical questions and spec/design gates still apply.
 
 Every section marked `TODO(spec)` waits on an answer. **No code starts before this spec is merged.**
 
@@ -55,7 +55,7 @@ nothing. The commit runs in the worker, and the screen polls for the result.
   - The commit never changes that customer's name, phone, language or rating opt-out, whatever the file says.
   - **[PP-102.1]** The only change allowed is filling a new field that is still empty (CI-Q15): birthday, gender and
     email on the customer, and the note of the previewed business. A field that already has a value is never
-    overwritten. Without Abu Salem's pick on CI-Q1 the row is left fully unchanged.
+    overwritten. Abu Salem approved CI-Q1 and CI-Q15, so this fill-empty behavior is part of the accepted scope.
   - The row is counted apart from the created rows.
   - Re-uploading the same file creates nobody twice and fills nothing the second time.
 - CIM-04 (CI-Q3): two or more rows of the same file with the same normalized phone are each a row error on the phone
@@ -81,6 +81,8 @@ nothing. The commit runs in the worker, and the screen polls for the result.
   - A date with «لا» retains only day and month; its year is discarded. File instructions tell staff to enter year 2000 when the year is unknown, so 29 February can be entered as 29 February 2000 without saving a made-up birth year. Any year supplied with «لا» is discarded.
   - A date with a blank flag is a row error («حدد هل سنة الميلاد معروفة»); the flag must be «نعم» or «لا» when a date is present. One invalid row prevents the entire import from saving.
   - An empty date means no birthday from this row; the flag is ignored. Existing nonempty birthday fields remain protected by CIM-03 and D-9.
+- CIM-14 **[PP-102.1]** (CI-Q10, `PP-102.10`, Abu Salem's binding answer): creating a new customer without gender is refused. The API and import creation path require a valid gender; an invalid new row prevents the entire import from saving. Existing customers are not rejected solely because their stored gender is empty; CI-Q15 still permits filling an empty field without overwriting one that is set. The creation rule is rechecked at commit, rather than trusted from the preview alone.
+- CIM-15 (CI-Q7, `PP-102.7`, Abu Salem's note): an empty `country_code` uses the country calling code configured for the import's business (for example Kuwait 965 or Saudi Arabia 966). A supplied calling code remains editable and explicit. `TODO(spec)`: the repository has no canonical business-country field or public reader; its source and delivery ownership must be resolved with the manager, without inferring it from timezone, currency or tax settings. Customer self-registration is a separate unresolved delivery scope, not an existing 34b entry point.
 
 ## Requirements
 
@@ -88,34 +90,31 @@ nothing. The commit runs in the worker, and the screen polls for the result.
 
 1. **All-or-nothing** (SPEC §11, ADR-0034). The import creates customers and never deletes one (CI-Q2). It never
    changes an existing customer's name, phone, language or rating opt-out. **[PP-102.1]** Narrowed by CI-Q15, it may
-   fill a new field that is still empty on an existing customer (see CIM-03); without Abu Salem's pick on CI-Q1 it
-   stays create-only.
+   fill a new field that is still empty on an existing customer (see CIM-03), as approved by both owners.
 2. **Company-wide identity** (D-30). A created customer belongs to the company, whichever business or branch the
    import ran from.
-3. **Columns.** These hold under either answer to CI-Q1 (Waleed's picks; Abu Salem's pick is pending):
+3. **Columns.** The feature scope below follows Abu Salem's binding answers to batches 88 and 90:
 
    | Column | Rule |
    |---|---|
    | `name` | Required. The spec 010 name bounds and control-character rule. |
    | `phone` | Required. Normalized with spec 010 `BR-001`, together with the country code. |
-   | `country_code` | Optional. Blank means Kuwait, `965` (CI-Q7, `PP-102.7`). |
+   | `country_code` | Optional. Blank means the calling code of the business's country, not a fixed `965` (CI-Q7, `PP-102.7`, Abu Salem's note). Explicit values can override it. `TODO(spec)`: resolve the canonical business-country source and delivery ownership before implementing this default. |
    | `locale` | Optional, `ar` or `en`. Blank means `ar` (CI-Q6, `PP-102.6`). |
    | `no_rating` («لا ترسل تقييم») | Optional, «نعم» or blank. «نعم» creates a NEW customer already opted out of rating requests; blank creates her like any new customer (CI-Q5, `PP-102.5`). For an existing customer the column is ignored (CI-Q16, `PP-102.16`, Waleed's pick against the recommendation). |
 
-   **[PP-102.1]** Waleed picked "add more fields first", and CI-Q8 (`PP-102.8`) names four fields. They are added
-   to the customer first, in a «customer fields» slice 34-pre with a migration, and then to the template as optional
-   columns. If Abu Salem picks "name, phone and language only", 34-pre is dropped and the import needs no migration.
+   **[PP-102.1]** Both owners picked "add more fields first", and CI-Q8 (`PP-102.8`) names four fields. They are added
+   to the customer first, in a «customer fields» slice 34-pre with a migration, and then to the template. Gender is required for new customers (CI-Q10); birthday, email and notes remain optional.
 
-   | Column | Rule (Waleed's picks, Abu Salem's pending) |
+   | Column | Rule (Abu Salem's binding answers) |
    |---|---|
    | `birthday` | Optional. Day and month; the year is optional (CI-Q9, `PP-102.9`). Normal Excel date cell (CI-Q18, `PP-102.18`), paired with «السنة معروفة؟» (CI-Q20, `PP-105.1`, option A). Instructions use year 2000 when the year is unknown; with «لا» only day and month are saved. With «نعم» the actual year is saved. An empty date supplies no birthday, regardless of the flag. |
    | «السنة معروفة؟» | Workbook column, «نعم» or «لا», required when `birthday` is filled (CI-Q20, `PP-105.1`, option A). A blank flag with a date is a row error. Ignored when the date is empty. It distinguishes a real birth year of 2000 from the example year; the flag itself is not a new customer database column. |
-   | `gender` | Optional: ذكر / أنثى / blank (CI-Q10, `PP-102.10`). |
+   | `gender` | Required for a new customer: ذكر / أنثى (CI-Q10, `PP-102.10`, final `choice: 1`). Existing legacy rows may remain empty; importing a supplied value may fill an empty field but never overwrite it (CI-Q15). Nullable storage for legacy compatibility does not make gender optional for creation. |
    | `email` | Optional. Refused only for a wrong shape (an `@` and a dot); no confirmation message; two customers may share one (CI-Q11, `PP-102.11`). Maximum 254 characters (CI-T6, `PP-103.6`, final). |
    | `notes` | Optional. One note **per business**, the business of the preview (CI-Q13, `PP-102.13`, Waleed's pick against the recommendation). Anyone who can see the customer sees the notes of all businesses within the same company (CI-Q12, CI-Q17). The card names the business that wrote each note. The field carries the hint «ماتكتبش أسرار أو بيانات حساسة» (CI-Q12, `PP-102.12`). Maximum 500 characters per note (CI-T6, `PP-103.6`, final). D-8 defines company isolation and per-business storage. |
 
-   CI-Q14 (`PP-102.14`): the four fields show on the reception registration screen (optional) and on the customer
-   card. There is no edit screen until phase 2, so a wrong value waits for the customer-management screen.
+   CI-Q14 (`PP-102.14`): the four fields show on the reception registration screen and on the customer card. Gender is required for new registrations by CI-Q10; the other new fields are optional. There is no edit screen until phase 2, so a wrong value waits for the customer-management screen.
 4. **Who may import.**
    - Under either answer, the business route `/v1/businesses/{businessId}/customers/import/…` (CI-T3) accepts the
      existing `create:customers:business`, which the general manager covers through `create:customers:company`.
@@ -124,6 +123,13 @@ nothing. The commit runs in the worker, and the screen polls for the result.
      `create:customers:{company,business,branch}` on that branch. The preview stores the branch's `business_id`, the
      customers are created for the company, and no migration is needed. The business route above stays; both routes
      share one use case.
+
+### Contract requirements for 34-pre-1 and 34b-2
+
+- The new-customer creation contract requires a valid `gender`; absence or a value outside the supported gender choices cannot create a customer. The workbook's new-customer rows follow the same requirement. Finding an existing customer remains compatible with legacy rows whose gender is not yet set, and CI-Q15's fill-empty rule remains in force. The server resolves existing identity and enforces the creation requirement; a client cannot declare a row existing to bypass it.
+- Country calling-code normalization continues to use spec 010's explicit calling-code and national-number rules. The import resolves only a blank calling code from an approved business-country source. It must not embed `965` as a universal default or reuse nullable tax-country metadata as the business's country.
+- Current implementation evidence: `packages/contracts/src/customers.ts` has only `phone`, `name` and `locale` on `FindOrCreateCustomerInput`; `packages/db/schema/customers.ts` has no gender or other 34-pre fields. This branch has documentation changes only. The executable Zod contract, generated OpenAPI/clients and runtime creation enforcement must ship together in 34-pre-1 after the spec/design gates and migration-lane authorization; adding a required input field alone would break the existing flow without implementing the accepted behavior.
+- `TODO(spec)`: the source of business country and the delivery placement of the customer's editable calling code during self-registration must be resolved technically with the manager. The current reception routes require staff permissions; they are not a customer self-registration route.
 
 ### Design decisions (settled by the files; the design advisors confirm before code)
 
@@ -147,10 +153,10 @@ Waleed's pick on the 34-pre split (manager chat, 2026-11-01, about 13:01, final)
 
 | Sub-PR | Content | Waits on |
 |---|---|---|
-| 34-pre-1 **[PP-102.1]** | Migration, contract, domain and API for birthday, notes (per business, CI-Q13), gender and email: new nullable customer columns, the per-business notes table, the column grants and the guard (D-8, D-9, D-10), and the find-or-create use case of spec 010 accepting the optional fields. | Abu Salem's pick on CI-Q1 and CI-Q13, and the migration lane (32b-pre-1 holds it, then 49-1, then this one, and only with the manager's yes). |
+| 34-pre-1 **[PP-102.1]** | Migration, contract, domain and API for birthday, notes (per business, CI-Q13), gender and email: new nullable customer columns for legacy compatibility, required gender on new creation (CI-Q10), the per-business notes table, the column grants and the guard (D-8, D-9, D-10), and the find-or-create use case of spec 010 accepting the other optional fields. | The migration lane (32b-pre-1, then 49-1, then this one, and only with the manager's yes), plus the spec/design gates. The feature answers on CI-Q1 and CI-Q13 are complete. |
 | 34-pre-2 **[PP-102.1]** | The reception registration form and the customer card (CI-Q14). | 34-pre-1. |
 | 34b-1 | Move the shared xlsx adapters to `apps/api/src/shared/import/` (CI-T1). | Nothing. |
-| 34b-2 | Contracts, template, preview and the business and branch routes (CI-T3, CI-T5), the `CustomerImportCommitRequested` event type (D-4). | 34b-1; the fields columns wait on 34-pre-1. |
+| 34b-2 | Contracts, template, preview and the business and branch routes (CI-T3, CI-T5), the `CustomerImportCommitRequested` event type (D-4). | 34b-1; the fields columns wait on 34-pre-1; the approved business-country source is unresolved. |
 | 34b-3 | The worker commit and the stale-request sweep in `apps/worker/src/modules/customers` (D-5), then the API producer last (072 D-5 rollout order). | 34b-2 and 59b-2b. |
 
 `TODO(spec)`: the 34b sub-PR boundaries above are a draft for the design advisors to confirm.
@@ -159,8 +165,6 @@ Known constraints:
 - The first 34b sub-PR moves the shared xlsx adapters to `apps/api/src/shared/import/` (CI-T1), so 34b does not wait
   on 072's 32b-1.
 - The worker sub-PR waits on 59b-2b, which owns `apps/worker/src/modules/customers/**` now.
-- **[PP-102.1]** 34-pre needs the single migration lane. It is queued after 32b-pre-1 and after 49-1 (the manager's order
-  of 2026-11-01 12:28: 49-1 is ready with its migration, 34-pre still waits on Abu Salem's CI-Q1 and the per-business
-  notes design), and it is taken only with the manager's yes.
+- **[PP-102.1]** 34-pre needs the single migration lane. It is queued after 32b-pre-1 and after 49-1, and it is taken only with the manager's yes. Abu Salem's feature answers are complete; this does not release the migration lane or authorize a push or PR.
 - **[PP-102.1]** 34-pre is larger than "add four columns", which is why it is split in two (above). The reception form
   lives in `apps/admin/src/orders` and goes through the find-or-create use case of spec 010.
