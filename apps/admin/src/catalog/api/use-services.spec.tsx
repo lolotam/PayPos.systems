@@ -117,6 +117,19 @@ it('omits category_id from the PATCH body when the terms omit it', async () => {
   expect(body.duration_minutes).toBe(45);
 });
 
+it('omits duration_minutes from the PATCH body when the terms omit it', async () => {
+  get.mockResolvedValueOnce({ data: record });
+  patch.mockResolvedValueOnce({ data: record });
+  const terms = updateTerms(id);
+  delete terms.duration_minutes;
+  const hook = renderHook(() => useServiceEdit(id, id, id, id), { wrapper });
+  await act(async () => {
+    await hook.result.current.save.mutateAsync(terms);
+  });
+  const body = patch.mock.calls[0]?.[1].body as Record<string, unknown>;
+  expect(body).not.toHaveProperty('duration_minutes');
+});
+
 it('sends category_id when listing a filtered services page', async () => {
   get.mockResolvedValueOnce({ data: { items: [], next_cursor: null } });
   const hook = renderHook(() => useServices(id, id, id, { categoryId: id }), { wrapper });

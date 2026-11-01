@@ -87,7 +87,7 @@ async function update(
       price: body.price,
       commission_rule: body.commission_rule,
       counts_toward_threshold: body.counts_toward_threshold,
-      duration_minutes: body.duration_minutes ?? null,
+      ...(body.duration_minutes === undefined ? {} : { duration_minutes: body.duration_minutes }),
       ...(body.category_id === undefined ? {} : { category_id: body.category_id }),
     },
   });
