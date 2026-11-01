@@ -19,6 +19,28 @@ export function ServiceTableRow({
     <tr className={selected ? 'bg-secondary/50' : ''}>
       <td>{locale === 'ar' ? (item.name_ar ?? item.name_en) : item.name_en}</td>
       <td dir="ltr">{item.price}</td>
+      <td>
+        {item.duration_minutes === null ? (
+          '—'
+        ) : (
+          <>
+            <span dir="ltr">{item.duration_minutes}</span>{' '}
+            {t(locale, 'catalogServices.minutesShort')}
+          </>
+        )}
+      </td>
+      <td>
+        {item.category ? (
+          <>
+            {locale === 'ar' ? item.category.name_ar : item.category.name_en}
+            {item.category.closed_at !== null
+              ? ` (${t(locale, 'catalogServices.categoryClosed')})`
+              : ''}
+          </>
+        ) : (
+          '—'
+        )}
+      </td>
       <td>{t(locale, SERVICE_RULE_LABEL[item.commission_rule.kind])}</td>
       <td>
         <Button

@@ -16,14 +16,18 @@ const key = (companyId: string, businessId: string, userId: string) =>
 async function list(
   companyId: string,
   businessId: string,
-  cursor: string | undefined,
+  options: { cursor?: string; categoryId?: string },
   signal: AbortSignal,
 ): Promise<ServicePage> {
   const result = await apiClient().GET('/v1/businesses/{businessId}/services', {
     params: {
       header: { 'x-company-id': companyId },
       path: { businessId },
-      query: { limit: 20, ...(cursor ? { cursor } : {}) },
+      query: {
+        limit: 20,
+        ...(options.cursor ? { cursor: options.cursor } : {}),
+        ...(options.categoryId ? { category_id: options.categoryId } : {}),
+      },
     },
     signal,
   });
@@ -60,6 +64,8 @@ async function create(
       ...(body.counts_toward_threshold === undefined
         ? {}
         : { counts_toward_threshold: body.counts_toward_threshold }),
+      duration_minutes: body.duration_minutes ?? null,
+      ...(body.category_id === undefined ? {} : { category_id: body.category_id }),
     },
   });
   if (response.error) throw response.error;
@@ -81,6 +87,8 @@ async function update(
       price: body.price,
       commission_rule: body.commission_rule,
       counts_toward_threshold: body.counts_toward_threshold,
+      duration_minutes: body.duration_minutes ?? null,
+      ...(body.category_id === undefined ? {} : { category_id: body.category_id }),
     },
   });
   if (response.error) throw response.error;
@@ -91,11 +99,16 @@ export function useServices(
   companyId: string,
   businessId: string,
   userId: string,
-  cursor?: string,
+  options: { cursor?: string; categoryId?: string } = {},
 ) {
   return useQuery({
-    queryKey: [...key(companyId, businessId, userId), 'list', cursor],
-    queryFn: ({ signal }) => list(companyId, businessId, cursor, signal),
+    queryKey: [
+      ...key(companyId, businessId, userId),
+      'list',
+      options.cursor,
+      options.categoryId,
+    ],
+    queryFn: ({ signal }) => list(companyId, businessId, options, signal),
     refetchInterval: 30_000,
   });
 }

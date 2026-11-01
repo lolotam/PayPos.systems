@@ -5,7 +5,9 @@ import { Button, PageHeader } from '@pospay/ui';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
+import { useOpenServiceCategories } from '../api/use-service-categories';
 import { useServices } from '../api/use-services';
+import { ServiceCategoryFilter } from '../ui/service-category-filter';
 import { ServiceEditPanel } from '../ui/service-edit-panel';
 import { ServicesListPanel } from '../ui/services-list-panel';
 
@@ -21,9 +23,19 @@ export function ServicesPage({
   const locale = useLocale();
   const [cursor, setCursor] = useState<string>();
   const [serviceId, setServiceId] = useState('');
-  const list = useServices(companyId, business.id, userId, cursor);
+  const [categoryId, setCategoryId] = useState('');
+  const categoryQuery = useOpenServiceCategories(companyId, business.id, userId);
+  const list = useServices(companyId, business.id, userId, {
+    cursor,
+    categoryId: categoryId || undefined,
+  });
   const page = (next: string | undefined) => {
     setCursor(next);
+    setServiceId('');
+  };
+  const filter = (nextCategoryId: string) => {
+    setCategoryId(nextCategoryId);
+    setCursor(undefined);
     setServiceId('');
   };
   return (
@@ -37,6 +49,14 @@ export function ServicesPage({
           </Button>
         }
       />
+      {categoryQuery.isError ? null : (
+        <ServiceCategoryFilter
+          categories={categoryQuery.data ?? []}
+          value={categoryId}
+          disabled={categoryQuery.isPending}
+          onChange={filter}
+        />
+      )}
       <ServicesListPanel
         list={list}
         selectedId={serviceId}
