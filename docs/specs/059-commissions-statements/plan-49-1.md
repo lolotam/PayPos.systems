@@ -363,3 +363,26 @@ snapshots against main, resolve any prerequisite integration changes, rerun affe
 
 The original assembled API receipt remains 125/127 followed by passing affected reruns and the extra timezone
 proof. It is not rewritten as a successful full run. No 49-1 branch push, PR, merge or server change has occurred.
+
+## 16. Manager-confirmed queue; explicit release still pending
+
+The manager's 2026-11-01 14:17 Kuwait instruction confirms 49-1 is next after 32b-pre-1 PR #757 merges;
+34-pre-1 follows 49-1. This confirms queue order only. The manager will separately send the explicit message
+«lane granted». Until that message arrives, do not push this branch, open a PR or reserve migration numbers.
+0194/0195 remain unreserved local placeholders.
+
+After the explicit release:
+
+1. Rebase onto the new main containing #757.
+2. Renumber the two placeholders after main's final migration and regenerate SQL/snapshots/journal.
+3. Resolve integration changes introduced by the prerequisite and rerun affected gates.
+4. Rerun the full assembled API suite on the final rebased head. The previously failing command must have a
+   complete successful receipt, not only passing reruns of selected files:
+   `pnpm --filter @pospay/api exec vitest run src/modules/commissions src/modules/staff/__tests__/employee-exists.spec.ts --maxWorkers=1 --no-file-parallelism`.
+   The complete API/package checks and exact-head full CI remain required by the delivery pipeline.
+5. Publish one 49-1 PR, with its final numbers and current validation receipts. All five GitHub reviews and
+   merge/backup/release gates still apply.
+
+Keep pospay-test-commission-49-1 running from this task worktree while it is needed. Tear it down from this same
+worktree when done, through the repository's lane helper and its ownership checks. No other lane is part of cleanup.
+This instruction does not grant the lane, authorize a push or waive the original 125/127 failure receipt.
