@@ -129,8 +129,8 @@ const supports = (index: IndexRow, columns: string[], nullable: Set<string>): bo
   if (index.predicate === null) return true;
   // الفهرس الجزئي بيعدّ بس لو شرطه بالظبط عمود مفتاح أجنبي nullable مش NULL.
   const match = /^\(([a-z_]+) IS NOT NULL\)$/.exec(index.predicate);
-  if (!match) return false;
-  const column = match[1];
+  const column = match?.[1];
+  if (column === undefined) return false;
   return columns.includes(column) && nullable.has(column);
 };
 
