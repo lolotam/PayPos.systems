@@ -138,6 +138,15 @@ it('SV-08e the category filter narrows the list, keeps the cursor stable and use
   const next = await list(1, page.next_cursor ?? undefined, f.company, f.business, categories.open);
   expect(next.items.map((item) => item.id)).toEqual([tagged[1]?.id]);
   expect(next.next_cursor).toBeNull();
+  // تصنيف نشاط تاني أو معرّف مش موجود: مفيش خدمات، والصفحة فاضية زي ما هي لعميل مالوش التصنيف.
+  expect(await list(20, undefined, f.company, f.business, categories.otherBusiness)).toEqual({
+    items: [],
+    next_cursor: null,
+  });
+  expect(await list(20, undefined, f.company, f.business, ids.newId())).toEqual({
+    items: [],
+    next_cursor: null,
+  });
   const plan = await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     return tx.execute(

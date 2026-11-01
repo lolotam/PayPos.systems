@@ -11107,7 +11107,7 @@
     "/v1/businesses/{businessId}/services": {
       "get": {
         "operationId": "listServices",
-        "description": "Cursor-paginated services of one business. Missing, foreign and other-business ids answer like unknown. Requires read:services:business and the catalog feature.",
+        "description": "Cursor-paginated services of one business. An optional category_id narrows the list to that category. Missing, foreign and other-business ids answer like unknown. Requires read:services:business and the catalog feature.",
         "parameters": [
           {
             "in": "header",
@@ -11130,6 +11130,14 @@
           {
             "in": "query",
             "name": "cursor",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category_id",
             "schema": {
               "type": "string",
               "format": "uuid"

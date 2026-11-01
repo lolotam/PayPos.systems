@@ -43,15 +43,17 @@ export class UpdateServiceUseCase {
       if (current.category_id !== peek.category_id)
         throw new ServiceError('SERVICE_REVISION_CONFLICT');
       const terms = serviceUpdateTerms(command.input, current);
-      // الإبقاء على نفس التصنيف مش تعيين جديد، فمش محتاج فحص الفتح؛ إغلاق التصنيف وأثره على خدماته شغل 32b-cat-2.
-      if (categoryChanged(current.category_id, terms.category_id) && terms.category_id !== null)
-        assertCategoryAssignable(locked.get(terms.category_id) ?? null, command.businessId);
+      // النسخة المتوقعة بتتقري قبل أي رفض تاني: تعديل بنسخة قديمة هو سبب الرفض الحقيقي،
+      // والرد على التصنيف المقفول هيخلّي العميل يظن إن مشكلته التصنيف.
       const plan = planServiceUpdate(
         current,
         terms,
         command.input.expected_revision,
         this.clock.now(),
       );
+      // الإبقاء على نفس التصنيف مش تعيين جديد، فمش محتاج فحص الفتح؛ إغلاق التصنيف وأثره على خدماته شغل 32b-cat-2.
+      if (categoryChanged(current.category_id, terms.category_id) && terms.category_id !== null)
+        assertCategoryAssignable(locked.get(terms.category_id) ?? null, command.businessId);
       // لا نكتب ولا نكرر التدقيق لو مفيش تغيير فعلي؛ الطلب نفسه صحيح وبيرجع نفس السجل.
       if (plan.changed) {
         await scope.save(current, plan.after);

@@ -1,7 +1,7 @@
 import { moneyToString, parseMoney } from '@pospay/domain';
 
 import { ServiceError } from './errors.ts';
-import { normalizeCategoryId } from './service-category-assignment.ts';
+import { normalizeUuid } from './service-category-assignment.ts';
 import type { ServiceCommissionRule } from './service-commission-rule.ts';
 import { validateServiceDraft } from './service-validation.ts';
 
@@ -92,7 +92,7 @@ export function serviceTerms(input: ServiceTermsInput): ServiceTerms {
     commission_rule: toCommissionRule(input.commission_rule),
     counts_toward_threshold: input.counts_toward_threshold ?? true,
     duration_minutes: input.duration_minutes ?? null,
-    category_id: normalizeCategoryId(input.category_id ?? null),
+    category_id: normalizeUuid(input.category_id ?? null),
   };
   validateServiceDraft(terms);
   return terms;

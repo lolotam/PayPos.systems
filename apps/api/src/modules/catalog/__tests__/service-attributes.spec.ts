@@ -26,16 +26,16 @@ afterAll(async () => {
   await f?.h.close();
 });
 
-const post = (body: object) =>
-  f.h.send('POST', `/v1/businesses/${f.business}/services`, {
+const post = (body: object, businessId = f.business) =>
+  f.h.send('POST', `/v1/businesses/${businessId}/services`, {
     cookie: f.cookie,
     company: f.company,
     body,
   });
-const patch = (serviceId: string, body: object) =>
+const patch = (serviceId: string, body: object, businessId = f.business) =>
   f.h.app.inject({
     method: 'PATCH',
-    url: `/v1/businesses/${f.business}/services/${serviceId}`,
+    url: `/v1/businesses/${businessId}/services/${serviceId}`,
     headers: { cookie: f.cookie, 'x-company-id': f.company },
     payload: body,
   });
@@ -182,6 +182,17 @@ it('SV-A7 a stale revision is refused before the category is touched', async () 
     await f.h
       .owner`SELECT category_id FROM services WHERE company_id=${f.company} AND id=${created.id}`,
   ).toEqual([{ category_id: categories.open }]);
+  // النسخة القديمة سبب الرفض الحقيقي، فالتصنيف المغلق ما يغطّيش التعارض.
+  const closed = await patch(
+    created.id,
+    fullBody({ name_en: 'Stale', expected_revision: 99, category_id: categories.closed }),
+  );
+  expect(closed.statusCode).toBe(409);
+  expect(closed.json()).toMatchObject({ code: 'SERVICE_REVISION_CONFLICT' });
+  expect(
+    await f.h
+      .owner`SELECT category_id FROM services WHERE company_id=${f.company} AND id=${created.id}`,
+  ).toEqual([{ category_id: categories.open }]);
 });
 
 it('SV-A8 a service of another tenant answers SERVICE_NOT_FOUND', async () => {
@@ -203,4 +214,49 @@ it('SV-A9 the contract refuses a duration outside the whole-minute range', () =>
     ).toBe(false);
   }
   expect(createServiceInput.safeParse({ ...termsFor(), duration_minutes: 120 }).success).toBe(true);
+});
+
+it('SV-A10 an upper-case business id in the route still finds the category', async () => {
+  const upper = f.business.toUpperCase();
+  const replacement = await extraOpenCategory('Uppercase replacement');
+  const created = await post(
+    { ...termsFor('Uppercase business'), category_id: categories.open },
+    upper,
+  );
+  expect(created.status).toBe(201);
+  const record = service.parse(created.body);
+  expect(record).toMatchObject({ category_id: categories.open });
+  const updated = await patch(
+    record.id,
+    fullBody({ name_en: 'Uppercase business', category_id: replacement }),
+    upper,
+  );
+  expect(updated.statusCode).toBe(200);
+  expect(service.parse(updated.json())).toMatchObject({ category_id: replacement });
+});
+
+it('SV-A11 a service keeps a category that closed after it was assigned', async () => {
+  const own = await extraOpenCategory('Closing after assignment');
+  const created = service.parse(
+    (await post({ ...termsFor('Kept closed'), category_id: own })).body,
+  );
+  await f.h.owner`UPDATE service_categories SET closed_at = now()
+    WHERE company_id=${f.company} AND id=${own}`;
+  const omitted = await patch(created.id, fullBody({ name_en: 'Kept closed renamed' }));
+  expect(omitted.statusCode).toBe(200);
+  const omittedRecord = service.parse(omitted.json());
+  expect(omittedRecord).toMatchObject({ category_id: own, revision: 2 });
+  expect(omittedRecord.category?.closed_at).not.toBeNull();
+  const same = await patch(
+    created.id,
+    fullBody({
+      name_en: 'Kept closed renamed twice',
+      expected_revision: 2,
+      category_id: own,
+    }),
+  );
+  expect(same.statusCode).toBe(200);
+  const sameRecord = service.parse(same.json());
+  expect(sameRecord).toMatchObject({ category_id: own, revision: 3 });
+  expect(sameRecord.category?.closed_at).not.toBeNull();
 });

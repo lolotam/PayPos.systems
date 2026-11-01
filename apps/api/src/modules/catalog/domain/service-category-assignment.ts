@@ -22,18 +22,18 @@ export function nextCategoryId(
   input: string | null | undefined,
   current: string | null,
 ): string | null {
-  return input === undefined ? current : normalizeCategoryId(input);
+  return input === undefined ? current : normalizeUuid(input);
 }
 
 /**
- * يوحّد معرّف التصنيف بحروف صغيرة: العقد بيقبل UUID بحروف كبيرة، وبوستجرس بترجّع `uuid` بحروف صغيرة.
- * من غير التوحيد، البحث بالتصنيف بيفوّت الصف اللي القفل قراه والمقارنة بتشوف تغيير مش موجود.
+ * يوحّد معرّف UUID بحروف صغيرة: العقد بيقبل UUID بحروف كبيرة، وبوستجرس بترجّع `uuid` بحروف صغيرة.
+ * من غير التوحيد، البحث بالمعرّف بيفوّت الصف اللي القاعدة رجّعته، والمقارنة بتشوف تغيير مش موجود.
  *
- * @param categoryId المعرّف كما وصل، أو `null`
+ * @param id المعرّف كما وصل، أو `null`
  * @returns المعرّف بحروف صغيرة، أو `null`
  */
-export function normalizeCategoryId(categoryId: string | null): string | null {
-  return categoryId === null ? null : categoryId.toLowerCase();
+export function normalizeUuid(id: string | null): string | null {
+  return id === null ? null : id.toLowerCase();
 }
 
 /**
@@ -56,6 +56,7 @@ export function categoriesToLock(
 /**
  * يتأكد إن التصنيف قابل للتعيين: لازم يكون في النشاط نفسه ومفتوح.
  * تصنيف نشاط تاني بيترد كأنه مش موجود عشان الرد ما يكشفش وجوده؛ المقفول له رد خاص بيه.
+ * مقارنة النشاط بتتم بحروف صغيرة: المسار بيوصل بحروف كبيرة والقاعدة بترجّعها صغيرة.
  *
  * @param category الصف المقفل، أو `null` لو مش موجود في النشاط
  * @param businessId النشاط المالك للخدمة
@@ -65,7 +66,7 @@ export function assertCategoryAssignable(
   category: { readonly business_id: string; readonly closed_at: string | null } | null,
   businessId: string,
 ): void {
-  if (category === null || category.business_id !== businessId)
+  if (category === null || normalizeUuid(category.business_id) !== normalizeUuid(businessId))
     throw new ServiceError('SERVICE_CATEGORY_NOT_FOUND');
   if (category.closed_at !== null) throw new ServiceError('SERVICE_CATEGORY_CLOSED');
 }

@@ -191,3 +191,12 @@ it('SV-A14 the response label carries the label fields only, not the locked row'
     closed_at: null,
   });
 });
+
+it('SV-A15 an upper-case business id still matches the locked category', () => {
+  expect(() =>
+    assertCategoryAssignable({ business_id: 'biz-1', closed_at: null }, 'BIZ-1'),
+  ).not.toThrow();
+  expect(() =>
+    assertCategoryAssignable({ business_id: 'biz-2', closed_at: null }, 'BIZ-1'),
+  ).toThrow('SERVICE_CATEGORY_NOT_FOUND');
+});

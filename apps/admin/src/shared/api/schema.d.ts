@@ -1811,7 +1811,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Cursor-paginated services of one business. Missing, foreign and other-business ids answer like unknown. Requires read:services:business and the catalog feature. */
+        /** @description Cursor-paginated services of one business. An optional category_id narrows the list to that category. Missing, foreign and other-business ids answer like unknown. Requires read:services:business and the catalog feature. */
         get: operations["listServices"];
         put?: never;
         /** @description Creates a business service with a KWD price and a commission rule. Requires manage:services:business and the catalog feature. Duplicate names are allowed; a zero price is allowed; a malformed rule or price returns a named 400. The write and its audit row commit in one transaction. */
@@ -13696,6 +13696,7 @@ export interface operations {
         parameters: {
             query?: {
                 cursor?: string;
+                category_id?: string;
                 limit?: number;
             };
             header: {

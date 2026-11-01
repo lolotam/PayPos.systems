@@ -172,10 +172,11 @@ export const catalogPaths = {
     get: {
       operationId: 'listServices',
       description:
-        'Cursor-paginated services of one business. Missing, foreign and other-business ids answer like unknown. Requires read:services:business and the catalog feature.',
+        'Cursor-paginated services of one business. An optional category_id narrows the list to that category. Missing, foreign and other-business ids answer like unknown. Requires read:services:business and the catalog feature.',
       parameters: [
         ...parameters,
         { in: 'query', name: 'cursor', schema: { type: 'string', format: 'uuid' } },
+        { in: 'query', name: 'category_id', schema: { type: 'string', format: 'uuid' } },
         {
           in: 'query',
           name: 'limit',

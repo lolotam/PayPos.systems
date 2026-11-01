@@ -87,5 +87,11 @@ describe('services — both constraints are validated', () => {
       { conname: 'services_category_fk', convalidated: true },
       { conname: 'services_duration_bounds', convalidated: true },
     ]);
+    // بناء CONCURRENTLY متوقّف بيسيب فهرس غير صالح بنفس الاسم؛ الفرق بيرجع من indisvalid.
+    const indexes = await owner`
+      SELECT c.relname AS indexname, i.indisvalid FROM pg_index i
+      JOIN pg_class c ON c.oid = i.indexrelid
+      WHERE c.relname = 'services_business_category_idx'`;
+    expect(indexes).toEqual([{ indexname: 'services_business_category_idx', indisvalid: true }]);
   });
 });
