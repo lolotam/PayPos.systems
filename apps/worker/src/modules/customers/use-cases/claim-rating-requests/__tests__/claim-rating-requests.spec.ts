@@ -4,21 +4,11 @@ import type { Clock, IdGenerator } from '../../../ports/clock.port.ts';
 import type { RatingClaimDiagnostics } from '../../../ports/rating-claim-diagnostics.port.ts';
 import type { DueRatingRequest } from '../../../ports/rating-claim.repository.ts';
 import type { RatingClaimTransactions } from '../../../ports/rating-claim-transactions.port.ts';
-import type {
-  ClaimStateCode,
-  ClaimStateFence,
-  ClaimStatePage,
-  ClaimStatePageEntry,
-  ClaimStateReservations,
-  ClaimStateResult,
-  ClaimStateSnapshot,
-  ClaimStateRetry,
-  RatingClaimState,
-} from '../../../ports/rating-claim-state.port.ts';
+import type { ClaimStateCode, ClaimStateRetry } from '../../../ports/rating-claim-state.port.ts';
 import { ClaimRatingRequests, type RatingClaimsPorts } from '../claim-rating-requests.ts';
 import type { ClaimRatingRequestInput } from '../../claim-rating-request/claim-rating-request.ts';
+import { COMPANY, FakeState } from './claim-rating-requests.fixture.ts';
 
-const COMPANY = '01920000-0000-7000-8000-0000000000b2';
 const BUSINESS = '01920000-0000-7000-8000-0000000000c3';
 const CUSTOMER = '01920000-0000-7000-8000-0000000000d4';
 const BRANCH = '01920000-0000-7000-8000-0000000000e5';
@@ -45,170 +35,6 @@ function request(id: string, status: DueRatingRequest['status'], dueAt: Date): D
   };
 }
 
-/**
- * حالة الجدولة في الذاكرة: بديل Redis في الاختبار، بتسجّل كل أمر في ترتيبه
- * وبتحتفظ بالصفحة والدورة كأنها في Redis.
- */
-class FakeState implements RatingClaimState {
-  readonly calls: string[] = [];
-  readonly settlements: { requestId: string; settlement: string }[] = [];
-  version = 1;
-  phase: 'IDLE' | 'SWEEP' = 'IDLE';
-  sweepId: string | undefined;
-  upperId: string | undefined;
-  cursorId: string | undefined;
-  page: ClaimStatePage | undefined;
-  retries: Record<string, ClaimStateRetry> = {};
-  reservations: readonly { requestId: string; workToken: string }[] = [];
-  acquireCode: ClaimStateCode = 'OK';
-  settlePageCode: ClaimStateCode = 'OK';
-
-  private snapshot(): ClaimStateSnapshot {
-    return {
-      companyId: COMPANY,
-      incarnation: 'incarnation-1',
-      version: this.version,
-      ownerToken: 'owner-1',
-      nextTicket: 1,
-      phase: this.phase,
-      ...(this.sweepId === undefined ? {} : { sweepId: this.sweepId }),
-      ...(this.upperId === undefined ? {} : { upperId: this.upperId }),
-      ...(this.cursorId === undefined ? {} : { cursorId: this.cursorId }),
-      ...(this.page === undefined ? {} : { page: this.page }),
-      retries: this.retries,
-      overflowCount: 0,
-      reconcileRequired: false,
-    };
-  }
-
-  async acquire(): Promise<ClaimStateResult<ClaimStateSnapshot>> {
-    this.calls.push('acquire');
-    if (this.acquireCode !== 'OK') return { code: this.acquireCode, version: this.version };
-    this.version += 1;
-    return { code: 'OK', version: this.version, value: this.snapshot() };
-  }
-
-  async renew(): Promise<ClaimStateResult<ClaimStateSnapshot>> {
-    this.calls.push('renew');
-    this.version += 1;
-    return { code: 'OK', version: this.version, value: this.snapshot() };
-  }
-
-  async release(): Promise<ClaimStateResult<ClaimStateSnapshot>> {
-    this.calls.push('release');
-    this.version += 1;
-    return { code: 'OK', version: this.version, value: this.snapshot() };
-  }
-
-  async begin(
-    fence: ClaimStateFence,
-    sweepId: string,
-    upperId: string | null,
-  ): Promise<ClaimStateResult<ClaimStateSnapshot>> {
-    this.calls.push('begin');
-    if (fence.companyId !== COMPANY) return { code: 'STALE', version: this.version };
-    this.phase = 'SWEEP';
-    this.sweepId = sweepId;
-    this.upperId = upperId ?? undefined;
-    this.version += 1;
-    return { code: 'OK', version: this.version, value: this.snapshot() };
-  }
-
-  async enrollPage(
-    fence: ClaimStateFence,
-    sweepId: string,
-    fromId: string | null,
-    pageId: string,
-    entries: readonly ClaimStatePageEntry[],
-    exhausted: boolean,
-    _maxEntries: number,
-  ): Promise<ClaimStateResult<ClaimStateSnapshot>> {
-    this.calls.push('enrollPage');
-    if (fence.companyId !== COMPANY) return { code: 'STALE', version: this.version };
-    const last = entries[entries.length - 1];
-    this.page = {
-      pageId,
-      sweepId,
-      exhausted,
-      entries,
-      ...(fromId === null ? {} : { fromId }),
-      ...(last === undefined ? {} : { throughId: last.requestId }),
-    };
-    if (last !== undefined) this.cursorId = last.requestId;
-    this.version += 1;
-    return { code: 'OK', version: this.version, value: this.snapshot() };
-  }
-
-  async reserveRetries(
-    fence: ClaimStateFence,
-    limit: number,
-    workTokens: readonly string[],
-  ): Promise<ClaimStateResult<ClaimStateReservations>> {
-    this.calls.push('reserveRetries');
-    if (fence.companyId !== COMPANY) return { code: 'STALE', version: this.version };
-    this.version += 1;
-    return {
-      code: 'OK',
-      version: this.version,
-      value: {
-        reservations: this.reservations.slice(0, Math.min(limit, workTokens.length)),
-      },
-    };
-  }
-
-  async settlePage(
-    fence: ClaimStateFence,
-    pageId: string,
-    workToken: string,
-    settlement: string,
-  ): Promise<ClaimStateResult<ClaimStateSnapshot>> {
-    this.calls.push('settlePage');
-    if (fence.companyId !== COMPANY) return { code: 'STALE', version: this.version };
-    if (this.settlePageCode !== 'OK') return { code: this.settlePageCode, version: this.version };
-    if (this.page !== undefined && this.page.pageId !== pageId) {
-      return { code: 'STALE', version: this.version };
-    }
-    const entry = this.page?.entries.find((item) => item.workToken === workToken);
-    if (entry !== undefined) {
-      this.settlements.push({ requestId: entry.requestId, settlement });
-      const entries = this.page?.entries.filter((item) => item.workToken !== workToken) ?? [];
-      this.page = this.page === undefined ? undefined : { ...this.page, entries };
-    }
-    this.version += 1;
-    return { code: 'OK', version: this.version, value: this.snapshot() };
-  }
-
-  async settleRetry(
-    fence: ClaimStateFence,
-    requestId: string,
-    workToken: string,
-    settlement: string,
-  ): Promise<ClaimStateResult<ClaimStateSnapshot>> {
-    this.calls.push('settleRetry');
-    if (fence.companyId !== COMPANY) return { code: 'STALE', version: this.version };
-    const reservation = this.reservations.find((item) => item.requestId === requestId);
-    if (reservation !== undefined && reservation.workToken !== workToken) {
-      return { code: 'STALE', version: this.version };
-    }
-    this.settlements.push({ requestId, settlement });
-    this.version += 1;
-    return { code: 'OK', version: this.version, value: this.snapshot() };
-  }
-
-  async finish(): Promise<ClaimStateResult<ClaimStateSnapshot>> {
-    this.calls.push('finish');
-    this.phase = 'IDLE';
-    this.page = undefined;
-    this.version += 1;
-    return { code: 'OK', version: this.version, value: this.snapshot() };
-  }
-
-  async read(): Promise<ClaimStateResult<ClaimStateSnapshot>> {
-    this.calls.push('read');
-    return { code: 'OK', version: this.version, value: this.snapshot() };
-  }
-}
-
 interface HarnessOptions {
   readonly rows?: Record<string, DueRatingRequest>;
   readonly upper?: string | null;
@@ -219,6 +45,8 @@ interface HarnessOptions {
   readonly settlePageCode?: ClaimStateCode;
   readonly claimThrows?: string;
   readonly pageIdsThrows?: boolean;
+  /** قراءة الصفحة بترجّع بنود أكتر من ميزانية الدور، زي قارئ مش ماشي صح. */
+  readonly pageIdsExceedsBudget?: boolean;
 }
 
 interface Harness {
@@ -255,6 +83,7 @@ function harness(options: HarnessOptions = {}): Harness {
     upperId: async () => options.upper ?? null,
     pageIds: async (_companyId, _after, _through, limit) => {
       if (options.pageIdsThrows === true) throw new Error('SYNTHETIC_PAGE_READ_FAILURE');
+      if (options.pageIdsExceedsBudget === true) return page;
       return page.slice(0, limit);
     },
     withRequest: async (_companyId, requestId, work) => work({}, rows.get(requestId) ?? null),
@@ -326,6 +155,30 @@ describe('دور خدمة المطالبة', () => {
     }).execute(COMPANY);
     expect(summary.retryVisits).toBe(1);
     expect(summary.forwardVisits).toBe(1);
+    // الحد اللي وصل للحالة هو ميزانية الدور نفسه، مش ثابت من برّه.
+    expect(world.state.enrollMaxEntries).toBe(1);
+  });
+
+  it('refuses a page bigger than the turn budget and claims nothing', async () => {
+    const world = harness({
+      rows: {
+        r3: request('r3', 'SCHEDULED', PAST),
+        r4: request('r4', 'SCHEDULED', PAST),
+      },
+      upper: 'r9',
+      page: ['r3', 'r4'],
+      pageIdsExceedsBudget: true,
+    });
+    const summary = await new ClaimRatingRequests(world.ports, ids, clock, {
+      forward: 1,
+      retry: 1,
+    }).execute(COMPANY);
+    // الحالة رفضت الصفحة بالسقف، والدور وقف عند حدّه من غير ما يطالب ببنود.
+    expect(world.state.enrollMaxEntries).toBe(1);
+    expect(summary.end).toBe('LIMIT_REACHED');
+    expect(summary.forwardVisits).toBe(0);
+    expect(world.claimed).toEqual([]);
+    expect(world.state.settlements).toEqual([]);
   });
 });
 

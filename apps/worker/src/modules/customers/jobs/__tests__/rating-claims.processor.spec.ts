@@ -84,6 +84,21 @@ function triggerEvent(companyId: string, attempt = 1, eventType = 'ServiceSessio
 
 const next = async (): Promise<DeliveryOutcome> => ({ delivered: true });
 
+/**
+ * ينتظر لحد ما الشرط يتحقق، بحدّ زمني وفواصل قصيرة، من غير نوم ثابت.
+ *
+ * الجدولة بتنفّذ أول دورة فورًا والتالية بتتأجل، فالقياس لازم يستنى لحد ما
+ * الدورة الأولى تشتغل والمهمة المؤجلة تظهر.
+ */
+async function waitUntil(check: () => Promise<boolean>, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await check()) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error('RATING_CLAIMS_TEST_TIMEOUT');
+}
+
 describe('معالج مطالبة طلبات التقييم', () => {
   it('registration_backoff_follows_pp97', async () => {
     const world = await harness();
@@ -119,6 +134,11 @@ describe('معالج مطالبة طلبات التقييم', () => {
     const companyId = ids.newId();
     const schedulerId = `${RATING_CLAIMS_QUEUE}-${companyId}`;
     await world.processor.deliver(triggerEvent(companyId), next);
+    // أول دورة بتنفّذ فورًا والتالية بتتأجل، فالمقارنة بتتم بعد ما يبان
+    // إن الدورة الأولى اشتغلت وإن في مهمة مؤجلة واحدة بس.
+    await waitUntil(
+      async () => world.turns.length === 1 && (await world.queue.getDelayed()).length === 1,
+    );
     const first = await world.queue.getJobScheduler(schedulerId);
     expect(first).toBeDefined();
     expect(first?.template?.data).toEqual({ companyId });
@@ -127,7 +147,7 @@ describe('معالج مطالبة طلبات التقييم', () => {
     const delayedBefore = (await world.queue.getDelayed()).map(
       (job) => `${job.id ?? ''}@${job.timestamp}`,
     );
-    expect(delayedBefore.length).toBeGreaterThan(0);
+    expect(delayedBefore).toHaveLength(1);
     const spy = vi.spyOn(Queue.prototype, 'upsertJobScheduler');
     try {
       await world.processor.deliver(triggerEvent(companyId), next);
@@ -160,8 +180,10 @@ describe('أحداث الزيارة', () => {
       await world.processor.deliver(triggerEvent(companyId, 1, trigger), counting);
     }
     expect(delegated).toBe(RATING_CLAIMS_TRIGGERS.length);
-    // الزيارة بتسجّل الجدولة بس: مفيش دور اتنفّذ من الحدث نفسه.
-    expect(world.turns).toHaveLength(0);
+    // الزيارة بتسجّل الجدولة بس: الدور بييجي من أول دورة للجدولة نفسها، ودور
+    // واحد بس مهما كان عدد أحداث الزيارة، فالدور التاني بيستنى ميعاده.
+    await waitUntil(async () => world.turns.length >= 1);
+    expect(world.turns).toEqual([companyId]);
     const schedulers = await world.queue.getJobSchedulers();
     expect(schedulers).toHaveLength(1);
     expect(schedulers[0]?.key).toBe(`${RATING_CLAIMS_QUEUE}-${companyId}`);
