@@ -15,6 +15,15 @@ const ids = systemUuidV7();
 let f: ServiceFixture;
 let createdId: string;
 
+/**
+ * سجل التدقيق بيحمل snapshot النطاق: معرّفات وقيم، من غير تسمية التصنيف. الرد بيحمل التسمية،
+ * فالمقارنة بتجاهل المفتاح ده بس.
+ */
+const auditRow = <T extends object>(value: T): T & { category: undefined } => ({
+  ...value,
+  category: undefined,
+});
+
 beforeAll(async () => {
   f = await servicesFixture();
 });
@@ -104,7 +113,7 @@ it('SV-01 creates the row and its audit in one transaction, emits no event, and 
     {
       actor_user_id: f.userId,
       action: 'created',
-      after: record,
+      after: auditRow(record),
     },
   ]);
   expect(await f.h.owner`SELECT 1 FROM outbox WHERE aggregate_id=${createdId}`).toHaveLength(0);
@@ -333,7 +342,7 @@ it('two concurrent editors cannot overwrite one revision or lose its audit', asy
   expect(
     await f.h.owner`SELECT before,after FROM audit_log WHERE company_id=${f.company}
     AND entity='service' AND entity_id=${current.id} AND action='updated'`,
-  ).toEqual([{ before: current, after: winner }]);
+  ).toEqual([{ before: auditRow(current), after: auditRow(winner) }]);
 });
 
 it('foreign tenant and business services share the unknown read/update envelope', async () => {

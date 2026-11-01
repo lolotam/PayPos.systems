@@ -61,14 +61,24 @@ it('the named mappings of the constraints it knows still answer', async () => {
     code: '23514',
     constraint_name: 'services_rule_kind',
   });
+  const durationInvalid = Object.assign(new Error('check violation'), {
+    code: '23514',
+    constraint_name: 'services_duration_bounds',
+  });
   const priceInvalid = Object.assign(new Error('numeric field overflow'), { code: '22003' });
   const missing = Object.assign(new Error('foreign key violation'), { code: '23503' });
+  const missingCategory = Object.assign(new Error('foreign key violation'), {
+    code: '23503',
+    constraint_name: 'services_category_fk',
+  });
   const deadlock = Object.assign(new Error('deadlock detected'), { code: '40P01' });
   const conflict = new ServiceError('SERVICE_REVISION_CONFLICT');
   await expect(runWith(nameInvalid)).rejects.toThrow('SERVICE_NAME_INVALID');
   await expect(runWith(ruleInvalid)).rejects.toThrow('SERVICE_COMMISSION_RULE_INVALID');
+  await expect(runWith(durationInvalid)).rejects.toThrow('SERVICE_DURATION_INVALID');
   await expect(runWith(priceInvalid)).rejects.toThrow('SERVICE_PRICE_INVALID');
   await expect(runWith(missing)).rejects.toThrow('SERVICE_NOT_FOUND');
+  await expect(runWith(missingCategory)).rejects.toThrow('SERVICE_CATEGORY_NOT_FOUND');
   await expect(runWith(deadlock)).rejects.toThrow('TRANSACTION_RETRY_REQUIRED');
   await expect(runWith(conflict)).rejects.toThrow('SERVICE_REVISION_CONFLICT');
 });

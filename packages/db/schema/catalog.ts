@@ -42,6 +42,9 @@ export const services = pgTable(
     commissionFixedAmount: numeric('commission_fixed_amount', { precision: 14, scale: 3 }),
     // افتراضي إن الخدمة بتتقدّم مجمّع الشرائح؛ المالك يقدر يستثنيها.
     countsTowardThreshold: boolean('counts_toward_threshold').notNull().default(true),
+    // مدة الخدمة بالدقائق الكاملة (SI-Q6)؛ فاضي معناه إن الخدمة مالهاش مدة معروفة.
+    durationMinutes: smallint('duration_minutes'),
+    categoryId: uuid('category_id'),
     // عداد تعديل يمنع مديرين من الكتابة فوق نفس النسخة (زي employees).
     revision: integer('revision').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -56,12 +59,31 @@ export const services = pgTable(
       columns: [t.companyId, t.businessId],
       foreignColumns: [businesses.companyId, businesses.id],
     }),
+    // المفتاح شايل النشاط كمان، فتصنيف نشاط تاني في نفس الشركة مرفوض من قاعدة البيانات نفسها.
+    // serviceCategories متعرّف تحت في الملف؛ الـ callback ده بيتنفّذ بعد تحميل الملف كله.
+    foreignKey({
+      name: 'services_category_fk',
+      columns: [t.companyId, t.businessId, t.categoryId],
+      foreignColumns: [
+        serviceCategories.companyId,
+        serviceCategories.businessId,
+        serviceCategories.id,
+      ],
+    }),
+    // فهرس جزئي: قراءة ما بتفلترش على category_id ما تقدرش تستفيد منه، فمش بيخطف خطة القراءة من المفتاح الفريد.
+    index('services_business_category_idx')
+      .on(t.companyId, t.businessId, t.categoryId, t.id)
+      .where(sql`${t.categoryId} IS NOT NULL`),
     check('services_name_en_length', sql`char_length(trim(${t.nameEn})) BETWEEN 1 AND 255`),
     check(
       'services_name_ar_length',
       sql`${t.nameAr} IS NULL OR char_length(trim(${t.nameAr})) BETWEEN 1 AND 255`,
     ),
     check('services_price_nonnegative', sql`${t.price} BETWEEN 0 AND 99999999999.999`),
+    check(
+      'services_duration_bounds',
+      sql`${t.durationMinutes} IS NULL OR ${t.durationMinutes} BETWEEN 1 AND 600`,
+    ),
     check(
       'services_rule_kind',
       sql`${t.commissionRuleKind} IN ('FOLLOW_PLAN','ZERO','PCT','FIXED')`,

@@ -1,22 +1,24 @@
 import { MONEY_MAX } from '@pospay/domain';
 import { expect, it } from 'vitest';
 
-import type { ServiceCommissionRule } from '../service-commission-rule.ts';
 import { ServiceError } from '../errors.ts';
+import type { ServiceCommissionRule } from '../service-commission-rule.ts';
+import { serviceColumnValues, serviceRecordFromRow } from '../service-row.ts';
 import {
   newService,
   parseServicePrice,
   planServiceUpdate,
-  serviceColumnValues,
-  serviceRecordFromRow,
   serviceSnapshot,
   serviceTerms,
-  validateServiceCommissionRule,
-  validateServiceDraft,
-  validateServiceName,
   type ServiceRecord,
   type ServiceTerms,
 } from '../service.ts';
+import {
+  validateServiceCommissionRule,
+  validateServiceDraft,
+  validateServiceNameAr,
+  validateServiceNameEn,
+} from '../service-validation.ts';
 
 const terms = (patch: Partial<ServiceTerms> = {}): ServiceTerms => ({
   name_en: 'Synthetic service',
@@ -24,6 +26,8 @@ const terms = (patch: Partial<ServiceTerms> = {}): ServiceTerms => ({
   price: 12_500n,
   commission_rule: { kind: 'FOLLOW_PLAN' },
   counts_toward_threshold: true,
+  duration_minutes: null,
+  category_id: null,
   ...patch,
 });
 
@@ -33,11 +37,12 @@ const record = (patch: Partial<ServiceRecord> = {}): ServiceRecord => ({
 });
 
 it('SV-D1 rejects an empty or over-long English name and an empty Arabic name', () => {
-  expect(() => validateServiceName('', null)).toThrow(ServiceError);
-  expect(() => validateServiceName('x'.repeat(256), null)).toThrow(ServiceError);
-  expect(() => validateServiceName('ok', '')).toThrow(ServiceError);
-  expect(() => validateServiceName('ok', 'x'.repeat(256))).toThrow(ServiceError);
-  expect(() => validateServiceName('ok', null)).not.toThrow();
+  expect(() => validateServiceNameEn('')).toThrow(ServiceError);
+  expect(() => validateServiceNameEn('x'.repeat(256))).toThrow(ServiceError);
+  expect(() => validateServiceNameAr('')).toThrow(ServiceError);
+  expect(() => validateServiceNameAr('x'.repeat(256))).toThrow(ServiceError);
+  expect(() => validateServiceNameEn('ok')).not.toThrow();
+  expect(() => validateServiceNameAr(null)).not.toThrow();
 });
 
 it.each([
@@ -153,6 +158,8 @@ it('SV-D9 keeps the rule columns mutually consistent in both directions', () => 
     commission_rule_kind: 'PCT',
     commission_pct_bps: 750,
     commission_fixed_amount: null,
+    duration_minutes: null,
+    category_id: null,
   });
   expect(serviceColumnValues(record({ commission_rule: { kind: 'FIXED', value: 2000n } }))).toEqual(
     {
@@ -160,6 +167,8 @@ it('SV-D9 keeps the rule columns mutually consistent in both directions', () => 
       commission_rule_kind: 'FIXED',
       commission_pct_bps: null,
       commission_fixed_amount: '2.000',
+      duration_minutes: null,
+      category_id: null,
     },
   );
 });
@@ -176,11 +185,19 @@ it('SV-D10 round-trips a stored row back to a domain record', () => {
       commission_pct_bps: 500,
       commission_fixed_amount: null,
       counts_toward_threshold: true,
+      duration_minutes: 45,
+      category_id: 'cat-1',
       revision: 2,
       created_at: '2026-10-05T10:00:00.000Z',
       updated_at: new Date('2026-10-06T10:00:00.000Z'),
     }),
-  ).toMatchObject({ price: 12_500n, commission_rule: { kind: 'PCT', value: 500n }, revision: 2 });
+  ).toMatchObject({
+    price: 12_500n,
+    commission_rule: { kind: 'PCT', value: 500n },
+    duration_minutes: 45,
+    category_id: 'cat-1',
+    revision: 2,
+  });
 });
 
 it.each([
@@ -198,9 +215,9 @@ it.each([
 });
 
 it('rejects whitespace-only names, controls and runtime number prices', () => {
-  expect(() => validateServiceName('  ', null)).toThrow('SERVICE_NAME_INVALID');
-  expect(() => validateServiceName('a\u0001b', null)).toThrow('SERVICE_NAME_INVALID');
-  expect(() => validateServiceName('valid', 'a\u007fb')).toThrow('SERVICE_NAME_INVALID');
+  expect(() => validateServiceNameEn('  ')).toThrow('SERVICE_NAME_INVALID');
+  expect(() => validateServiceNameEn('a\u0001b')).toThrow('SERVICE_NAME_INVALID');
+  expect(() => validateServiceNameAr('a\u007fb')).toThrow('SERVICE_NAME_INVALID');
   expect(() => validateServiceDraft(terms({ price: 1 as unknown as bigint }))).toThrow(
     'SERVICE_PRICE_INVALID',
   );

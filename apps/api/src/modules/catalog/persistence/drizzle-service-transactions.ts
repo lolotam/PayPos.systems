@@ -2,12 +2,9 @@ import { appendAuditLog, type IdGenerator, type TenantWrappers, type Tx } from '
 import { sql } from 'drizzle-orm';
 
 import { ServiceError } from '../domain/errors.ts';
-import {
-  serviceColumnValues,
-  serviceRecordFromRow,
-  serviceSnapshot,
-  type ServiceRecord,
-} from '../domain/service.ts';
+import type { ServiceCategoryLock } from '../domain/service-category-assignment.ts';
+import { serviceColumnValues, serviceRecordFromRow } from '../domain/service-row.ts';
+import { serviceSnapshot, type ServiceRecord } from '../domain/service.ts';
 import type { ServiceTransactions } from '../ports/service-transactions.port.ts';
 
 type ServiceRow = {
@@ -20,23 +17,35 @@ type ServiceRow = {
   commission_pct_bps: number | null;
   commission_fixed_amount: string | null;
   counts_toward_threshold: boolean;
+  duration_minutes: number | null;
+  category_id: string | null;
   revision: number;
   created_at: Date;
   updated_at: Date;
 };
 
+type CategoryRow = {
+  id: string;
+  business_id: string;
+  name_en: string;
+  name_ar: string;
+  closed_at: Date | null;
+};
+
 const SELECT_ROW = sql`id,business_id,name_en,name_ar,price,commission_rule_kind,
-  commission_pct_bps,commission_fixed_amount,counts_toward_threshold,revision,created_at,updated_at`;
+  commission_pct_bps,commission_fixed_amount,counts_toward_threshold,duration_minutes,category_id,
+  revision,created_at,updated_at`;
 
 async function insertService(tx: Tx, companyId: string, record: ServiceRecord): Promise<void> {
   const values = serviceColumnValues(record);
   await tx.execute(sql`INSERT INTO services
     (company_id,id,business_id,name_en,name_ar,price,commission_rule_kind,commission_pct_bps,
-     commission_fixed_amount,counts_toward_threshold,revision,created_at,updated_at)
+     commission_fixed_amount,counts_toward_threshold,duration_minutes,category_id,revision,
+     created_at,updated_at)
     VALUES (${companyId},${record.id},${record.business_id},${record.name_en},${record.name_ar},
       ${values.price},${values.commission_rule_kind},${values.commission_pct_bps},
-      ${values.commission_fixed_amount},${record.counts_toward_threshold},${record.revision},
-      ${record.created_at},${record.updated_at})`);
+      ${values.commission_fixed_amount},${record.counts_toward_threshold},${values.duration_minutes},
+      ${values.category_id},${record.revision},${record.created_at},${record.updated_at})`);
 }
 
 async function loadService(
@@ -51,6 +60,43 @@ async function loadService(
   return row === undefined ? null : serviceRecordFromRow(row);
 }
 
+async function peekCategoryId(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  serviceId: string,
+): Promise<{ readonly category_id: string | null } | null> {
+  const [row] = await tx.execute<{
+    category_id: string | null;
+  }>(sql`SELECT category_id FROM services
+    WHERE company_id=${companyId} AND business_id=${businessId} AND id=${serviceId}`);
+  return row ?? null;
+}
+
+async function lockCategories(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  categoryIds: readonly string[],
+): Promise<ReadonlyMap<string, ServiceCategoryLock>> {
+  const locked = new Map<string, ServiceCategoryLock>();
+  // جملة لكل معرّف: جملة واحدة بـ IN مش بتضمن ترتيب أخذ الأقفال، والترتيب التصاعدي هو اللي بيمنع الـ deadlock.
+  for (const categoryId of categoryIds) {
+    const [row] = await tx.execute<CategoryRow>(sql`SELECT id,business_id,name_en,name_ar,closed_at
+      FROM service_categories
+      WHERE company_id=${companyId} AND business_id=${businessId} AND id=${categoryId} FOR SHARE`);
+    if (row === undefined) continue;
+    locked.set(row.id, {
+      id: row.id,
+      business_id: row.business_id,
+      name_en: row.name_en,
+      name_ar: row.name_ar,
+      closed_at: row.closed_at === null ? null : new Date(row.closed_at).toISOString(),
+    });
+  }
+  return locked;
+}
+
 async function saveService(
   tx: Tx,
   companyId: string,
@@ -62,7 +108,8 @@ async function saveService(
     name_en=${after.name_en},name_ar=${after.name_ar},price=${values.price},
     commission_rule_kind=${values.commission_rule_kind},commission_pct_bps=${values.commission_pct_bps},
     commission_fixed_amount=${values.commission_fixed_amount},
-    counts_toward_threshold=${after.counts_toward_threshold},revision=${after.revision},
+    counts_toward_threshold=${after.counts_toward_threshold},duration_minutes=${values.duration_minutes},
+    category_id=${values.category_id},revision=${after.revision},
     updated_at=${after.updated_at}
     WHERE company_id=${companyId} AND business_id=${before.business_id} AND id=${before.id}
       AND revision=${before.revision} RETURNING id`);
@@ -72,10 +119,15 @@ async function saveService(
 
 function checkViolation(
   cause: object,
-): 'SERVICE_NAME_INVALID' | 'SERVICE_COMMISSION_RULE_INVALID' | 'SERVICE_PRICE_INVALID' {
+):
+  | 'SERVICE_NAME_INVALID'
+  | 'SERVICE_COMMISSION_RULE_INVALID'
+  | 'SERVICE_PRICE_INVALID'
+  | 'SERVICE_DURATION_INVALID' {
   const name = 'constraint_name' in cause ? String(cause.constraint_name) : '';
   if (name.startsWith('services_name_')) return 'SERVICE_NAME_INVALID';
   if (name.startsWith('services_rule_')) return 'SERVICE_COMMISSION_RULE_INVALID';
+  if (name.startsWith('services_duration_')) return 'SERVICE_DURATION_INVALID';
   return 'SERVICE_PRICE_INVALID';
 }
 
@@ -91,8 +143,13 @@ function cleanServiceError(error: unknown): never {
     // تصنيف الـ glibc لحروف التحكم أوسع من \P{Cc} في العقد، فاسم ممكن يعدّي Zod ويقع هنا؛ نرجّع خطأ الاسم مش السعر.
     if (code === '23514') throw new ServiceError(checkViolation(cause));
     if (code === '22003') throw new ServiceError('SERVICE_PRICE_INVALID');
-    // الـ FK المركّب على النشاط: مفيش نشاط بهوية دي في الشركة.
-    if (code === '23503') throw new ServiceError('SERVICE_NOT_FOUND');
+    if (code === '23503') {
+      const constraint = 'constraint_name' in cause ? String(cause.constraint_name) : '';
+      if (constraint === 'services_category_fk')
+        throw new ServiceError('SERVICE_CATEGORY_NOT_FOUND');
+      // الـ FK المركّب على النشاط: مفيش نشاط بهوية دي في الشركة.
+      throw new ServiceError('SERVICE_NOT_FOUND');
+    }
   }
   // الخطأ المجهول يمرّ كما هو: خطأ السائق يفضل في السجل، وأخطاء البنية التحتية تحتفظ بترميزها
   // اللي بيعرفه فلتر الـ API، بدل ما تتحوّل كل واحدة لخطأ عام بيزيح سببها.
@@ -112,6 +169,10 @@ export function createServiceTransactions(
             return await work({
               insert: (record) => insertService(tx, companyId, record),
               load: (businessId, serviceId) => loadService(tx, companyId, businessId, serviceId),
+              peekCategoryId: (businessId, serviceId) =>
+                peekCategoryId(tx, companyId, businessId, serviceId),
+              lockCategories: (businessId, categoryIds) =>
+                lockCategories(tx, companyId, businessId, categoryIds),
               save: (before, after) => saveService(tx, companyId, before, after),
               audit: (before, after) =>
                 appendAuditLog(tx, ids.newId(), {

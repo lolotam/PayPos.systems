@@ -4,13 +4,18 @@ import { sql } from 'drizzle-orm';
 
 import { toService, type ServiceDetailRow } from './service-projection.ts';
 
+// شاشة تعديل الخدمة: الانضمام LEFT JOIN عشان تسمية التصنيف وإغلاقه يوصلوا مع الخدمة نفسها.
 export function serviceDetailStatement(companyId: string, businessId: string, serviceId: string) {
   return sql`
-    SELECT id,business_id,name_en,name_ar,price,commission_rule_kind,commission_pct_bps,
-      commission_fixed_amount,counts_toward_threshold,revision,
-      to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
-      to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at
-    FROM services WHERE company_id=${companyId} AND business_id=${businessId} AND id=${serviceId}`;
+    SELECT s.id,s.business_id,s.name_en,s.name_ar,s.price,s.commission_rule_kind,s.commission_pct_bps,
+      s.commission_fixed_amount,s.counts_toward_threshold,s.duration_minutes,s.category_id,s.revision,
+      to_char(s.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
+      to_char(s.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at,
+      c.name_en AS category_name_en,c.name_ar AS category_name_ar,
+      to_char(c.closed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS category_closed_at
+    FROM services s
+    LEFT JOIN service_categories c ON c.company_id=s.company_id AND c.business_id=s.business_id AND c.id=s.category_id
+    WHERE s.company_id=${companyId} AND s.business_id=${businessId} AND s.id=${serviceId}`;
 }
 
 // الغياب ونشاط تاني نفس الرد عشان مايكشفش وجود صف شركة تانية.

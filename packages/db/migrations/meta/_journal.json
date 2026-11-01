@@ -1345,6 +1345,20 @@
       "when": 1793429419604,
       "tag": "0193_2026-10-31_rating-settings",
       "breakpoints": true
+    },
+    {
+      "idx": 194,
+      "version": "7",
+      "when": 1793520894997,
+      "tag": "0194_2026-11-01_service-duration-category",
+      "breakpoints": true
+    },
+    {
+      "idx": 195,
+      "version": "7",
+      "when": 1793520932385,
+      "tag": "0195_2026-11-01_service-category-index",
+      "breakpoints": true
     }
   ]
 }

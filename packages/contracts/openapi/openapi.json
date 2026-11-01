@@ -11107,7 +11107,7 @@
     "/v1/businesses/{businessId}/services": {
       "get": {
         "operationId": "listServices",
-        "description": "Cursor-paginated services of one business. Missing, foreign and other-business ids answer like unknown. Requires read:services:business and the catalog feature.",
+        "description": "Cursor-paginated services of one business. An optional category_id narrows the list to that category. Missing, foreign and other-business ids answer like unknown. Requires read:services:business and the catalog feature.",
         "parameters": [
           {
             "in": "header",
@@ -11130,6 +11130,14 @@
           {
             "in": "query",
             "name": "cursor",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category_id",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -22954,6 +22962,33 @@
         "type": "string",
         "pattern": "^(0|[1-9]\\d{0,10})\\.\\d{3}$"
       },
+      "ServiceDurationMinutes": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 600
+      },
+      "ServiceCategoryLabel": {
+        "type": "object",
+        "properties": {
+          "name_en": {
+            "type": "string"
+          },
+          "name_ar": {
+            "type": "string"
+          },
+          "closed_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "name_en",
+          "name_ar",
+          "closed_at"
+        ]
+      },
       "ServiceCommissionRule": {
         "oneOf": [
           {
@@ -23058,6 +23093,20 @@
           },
           "counts_toward_threshold": {
             "type": "boolean"
+          },
+          "duration_minutes": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceDurationMinutes"
+              }
+            ]
+          },
+          "category_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           }
         },
         "required": [
@@ -23102,6 +23151,20 @@
           },
           "counts_toward_threshold": {
             "type": "boolean"
+          },
+          "duration_minutes": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceDurationMinutes"
+              }
+            ]
+          },
+          "category_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           }
         },
         "required": [
@@ -23222,6 +23285,28 @@
           "counts_toward_threshold": {
             "type": "boolean"
           },
+          "duration_minutes": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceDurationMinutes"
+              }
+            ]
+          },
+          "category_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "category": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceCategoryLabel"
+              }
+            ]
+          },
           "revision": {
             "type": "integer",
             "minimum": 1,
@@ -23246,6 +23331,9 @@
           "price",
           "commission_rule",
           "counts_toward_threshold",
+          "duration_minutes",
+          "category_id",
+          "category",
           "revision",
           "created_at",
           "updated_at"
@@ -23354,6 +23442,28 @@
           "counts_toward_threshold": {
             "type": "boolean"
           },
+          "duration_minutes": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceDurationMinutes"
+              }
+            ]
+          },
+          "category_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "category": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceCategoryLabel"
+              }
+            ]
+          },
           "revision": {
             "type": "integer",
             "minimum": 1,
@@ -23367,6 +23477,9 @@
           "price",
           "commission_rule",
           "counts_toward_threshold",
+          "duration_minutes",
+          "category_id",
+          "category",
           "revision"
         ]
       },
@@ -23402,6 +23515,11 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 100
+          },
+          "category_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           }
         },
         "additionalProperties": false

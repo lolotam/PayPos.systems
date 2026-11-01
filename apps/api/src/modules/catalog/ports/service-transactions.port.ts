@@ -1,3 +1,4 @@
+import type { ServiceCategoryLock } from '../domain/service-category-assignment.ts';
 import type { ServiceRecord } from '../domain/service.ts';
 
 /** كل عمليات الخدمة جوه معاملة شركة واحدة: إدخال، تحميل بقفل، حفظ، وتدقيق. */
@@ -17,6 +18,28 @@ export interface ServiceScope {
    * @returns السجل الحالي المقفول أو غيابه
    */
   load(businessId: string, serviceId: string): Promise<ServiceRecord | null>;
+  /**
+   * يقرأ تصنيف الخدمة الحالي من غير قفل، عشان الـ use case يعرف التصنيف قبل ما يقفل.
+   *
+   * @param businessId النشاط المالك
+   * @param serviceId الخدمة المستهدفة
+   * @returns التصنيف الحالي، أو null لو الخدمة مش موجودة
+   */
+  peekCategoryId(
+    businessId: string,
+    serviceId: string,
+  ): Promise<{ readonly category_id: string | null } | null>;
+  /**
+   * يقفل صفوف التصنيفات المطلوبة `FOR SHARE` بالترتيب المعطى، عشان الإغلاق المتزامن ما يسبقش التعيين.
+   *
+   * @param businessId النشاط المالك
+   * @param categoryIds المعرّفات بالترتيب المطلوب للأقفال
+   * @returns الصفوف الموجودة في النشاط، بمفتاح المعرّف
+   */
+  lockCategories(
+    businessId: string,
+    categoryIds: readonly string[],
+  ): Promise<ReadonlyMap<string, ServiceCategoryLock>>;
   /**
    * يكتب النسخة التالية ويرفض لو حصل تعارض نسخة تحت القفل.
    *
