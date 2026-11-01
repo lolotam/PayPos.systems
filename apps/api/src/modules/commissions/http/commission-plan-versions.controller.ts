@@ -8,12 +8,7 @@ import {
   type CommissionPlanVersionListQuery,
   type CreateCommissionPlanVersionInput,
 } from '@pospay/contracts';
-import {
-  IdempotencyKeyBusyError,
-  IdempotencyKeyReusedError,
-  StatementPeriodClosedError,
-  type TenantWrappers,
-} from '@pospay/db';
+import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 
 import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
@@ -26,24 +21,10 @@ import {
   CommissionPlanVersionEmployeeNotFoundError,
   listCommissionPlanVersions,
 } from '../queries/commission-plan-versions.query.ts';
-import {
-  CommissionPlanVersionError,
-  CreateCommissionPlanVersionUseCase,
-} from '../use-cases/create-commission-plan-version/create-commission-plan-version.usecase.ts';
+import { CreateCommissionPlanVersionUseCase } from '../use-cases/create-commission-plan-version/create-commission-plan-version.usecase.ts';
+import { mapCommissionWriteError } from './commission-input-errors.ts';
 
 const pathId = id.toLowerCase();
-
-function mapWriteError(error: unknown): never {
-  if (error instanceof CommissionPlanVersionError) {
-    throw new ApiError(error.code, error.details);
-  }
-  if (error instanceof StatementPeriodClosedError) {
-    throw new ApiError('COMMISSION_PERIOD_CLOSED');
-  }
-  if (error instanceof IdempotencyKeyReusedError) throw new ApiError('IDEMPOTENCY_KEY_REUSED');
-  if (error instanceof IdempotencyKeyBusyError) throw new ApiError('IDEMPOTENCY_KEY_IN_PROGRESS');
-  throw error;
-}
 
 function mapReadError(error: unknown): never {
   if (error instanceof CommissionPlanVersionEmployeeNotFoundError) {
@@ -76,7 +57,7 @@ export class CommissionPlanVersionsController {
     try {
       return await this.create.execute({ ...actorOf(request), businessId, employeeId, input, ...idem });
     } catch (error) {
-      return mapWriteError(error);
+      return mapCommissionWriteError(error);
     }
   }
 

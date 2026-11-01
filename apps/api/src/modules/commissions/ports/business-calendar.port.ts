@@ -7,7 +7,7 @@ export interface BusinessCalendarPort {
    *
    * @param tx معاملة commissions الحالية
    * @param companyId الشركة المؤكدة
-   * @param businessId النشاط المالك للخطة
+   * @param businessId النشاط المالك لتعديل الخطة أو تجاوز الخدمة
    * @returns التوقيت وتاريخ الإنشاء، أو null عند غياب النشاط
    */
   read(

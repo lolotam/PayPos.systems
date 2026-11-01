@@ -300,3 +300,48 @@ make the Arabic comments describe service existence and the actual lock order ac
 The next bounded initial stage is [brief-49-1-http-query.md](brief-49-1-http-query.md). Production root binding,
 HTTP status/error/access proof, history/current query, staff existence reader, EXPLAIN, module-map Port rows and the
 final independent review remain outstanding. No 49-1 branch push or PR has occurred.
+
+## 14. HTTP/list-stage receipts and initial handoff
+
+MiniMax delivered the 19 scoped HTTP/query/staff paths. The lead read each file, completed the root-bound Port
+rows in module-map section 3 and the narrow read-interface wording in ADR-0054 section 4, and checked the source
+against the approved boundaries. The existing commissions -> staff arrow covers the provider. Callback-only
+bindings import no provider inside commissions, so no reads entry or generated YAML change is needed; the final
+module-map check passed. Staff owns the new unlocked employee-existence query.
+
+POST/GET are wired through the accepted contracts and existing permission/feature guards. Both input writers
+share the existing error mapping. The list uses one tenant transaction, provider-owned timezone and employee
+existence, SQL projection into the rule DTO, a cursor-independent current competitor, and raw microsecond cursor
+positions. The app's commission bindings were extracted as one group to retain the root function's size limit.
+
+Executed local receipts:
+
+- API typecheck, build and scoped ESLint passed. Documentation lint: zero errors, 28 existing warnings; module-map,
+  documentation formatting and diff whitespace checks passed. The two pre-existing boundaries deprecation
+  warnings remain. Admin and POS generated-client checks passed; contracts/artifacts were not changed in this stage.
+- The assembled commissions/staff run covered 20 files and 127 tests: 18 files / 125 tests passed, with 2 failures
+  in pagination and EXPLAIN. After fixing the causes, the four affected read specs passed: 4 files, 18 tests.
+- An additional transaction-stable timezone/effective-day proof passed with the full query spec: 1 file, 6 tests.
+  The two provider timezones span different calendar days for the same PostgreSQL transaction clock. The test
+  exercises real SQL and an uncommitted override on that transaction. The original 20-file command is not claimed
+  green; exact-head full CI remains a publication/merge gate.
+
+The lead corrected these initial defects before handoff:
+
+- Cursor validation used Date.parse, which normalizes impossible days and could allow a PostgreSQL 500. It now
+  reuses commissionPlanDate, bounds UTC time fields, rejects year zero and extra payload fields, and preserves the
+  six-digit fractional text. Public HTTP proofs cover impossible dates/times and extra fields as 400s.
+- postgres.js serializes a parameter inferred as timestamptz through Date, losing microseconds even when the
+  application's value is a string. Both the query cursor and precise test seeds now bind text and cast inside
+  PostgreSQL (`::text::timestamptz`). The off-page test reverses timestamp and id ordering, and the cursor test
+  asserts its six-digit position. Both real database proofs pass.
+- The generated index uses DESC NULLS LAST, while the first SQL order used DESC's default NULLS FIRST. The query
+  now names the same null order. EXPLAIN tests analyze their seeded table and prove the planned index, without
+  sequential scans or explicit/incremental sorts; no index or constraint was removed or added for a test.
+- Test service targets are real FK-valid catalog rows; the no-write count is captured after setup. Staff fixtures
+  no longer link multiple active employees to the same user. Wrong-cursor context is tested against an existing
+  target employee rather than conflated with a missing-employee 404. A future-reset case now stores FOLLOW_SERVICE.
+
+The initial implementation is ready for the single fresh independent Astra code/database review. The private
+Postgres container remains owned by this task. The migration lane, final numbering/rebase, branch push, PR and
+GitHub/CI/merge/release gates remain pending; no publication or server change occurred.
