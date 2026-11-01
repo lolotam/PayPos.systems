@@ -33,7 +33,7 @@ checked from `backup.env`; the redirect captures every line the container and Do
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | an R2 API token scoped to that one bucket |
 | `HEALTHCHECK_URL` | the Healthchecks.io ping URL; a missed or failed check-in alerts |
 | `BACKUP_HOST` | the snapshot series name, default `pospay-<PGDATABASE>`; retention only prunes within one series |
-| `KEEP_LAST`, `KEEP_DAILY`, `KEEP_WEEKLY`, `KEEP_MONTHLY` | retention, default 7 / 14 / 8 / 6: the 7 most recent snapshots, whatever their day (so the pre-merge backups of a busy day are not pruned down to one, PP-110.2), plus one per day, week and month; restic keeps the union |
+| `KEEP_LAST`, `KEEP_DAILY`, `KEEP_WEEKLY`, `KEEP_MONTHLY` | retention, default 7 / 14 / 8 / 6: the 7 most recent snapshots in total, whatever their day (so the pre-merge backups of a busy day are not pruned down to one, PP-110.2 and PP-110.3), plus one per day, week and month; restic keeps the union |
 
 ## Restore check
 
