@@ -48,6 +48,23 @@ it('migrations install commission plan defaults globally before any seed runs', 
     { code: 'owner', permission_code: 'manage:commission-plans:business' },
   ]);
 });
+it('migrations install the package sale permission for the five visit roles before any seed runs', async () => {
+  const grants = await owner`SELECT r.code,rp.permission_code FROM role_permissions rp
+    JOIN roles r ON r.id=rp.role_id AND r.owner_key=rp.role_owner_key
+    WHERE r.company_id IS NULL AND rp.permission_code='sell:packages:branch'
+    ORDER BY r.code`;
+  // القائمة كاملة: أي دور تاني ماسك الصلاحية بيظهر هنا ويفشل الاختبار.
+  expect(grants).toEqual([
+    { code: 'branch_manager', permission_code: 'sell:packages:branch' },
+    { code: 'business_manager', permission_code: 'sell:packages:branch' },
+    { code: 'cashier', permission_code: 'sell:packages:branch' },
+    { code: 'general_manager', permission_code: 'sell:packages:branch' },
+    { code: 'owner', permission_code: 'sell:packages:branch' },
+  ]);
+  expect(await owner`SELECT code FROM permissions WHERE code='sell:packages:branch'`).toEqual([
+    { code: 'sell:packages:branch' },
+  ]);
+});
 
 // توقع مستقل لحزم PR 16؛ بقية المرجع يغطيه اختبار المصفوفة الكاملة.
 function expectedScheduleGrants() {

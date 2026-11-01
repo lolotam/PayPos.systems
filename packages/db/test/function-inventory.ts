@@ -235,4 +235,39 @@ export const FUNCTION_INVENTORY = [
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],
   },
+  {
+    proname: 'package_components_insert_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'package_components_update_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'package_entitlement_value_conservation',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'package_entitlements_insert_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'package_entitlements_update_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'package_session_slots_insert_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'package_session_slots_update_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
 ].sort((a, b) => a.proname.localeCompare(b.proname));

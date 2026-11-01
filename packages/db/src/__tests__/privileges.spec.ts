@@ -19,6 +19,7 @@ import {
   SERVICE_CATEGORY_COLUMN_GRANTS,
   SERVICE_CATEGORY_BRANCH_SETTING_COLUMN_GRANTS,
 } from '../../test/catalog-grants.ts';
+import { PACKAGE_COLUMN_GRANTS } from '../../test/package-grants.ts';
 import { SERVICE_LINE_EDIT_COLUMN_GRANTS } from '../../test/service-line-edit-grants.ts';
 import { SERVICE_LINE_CANCEL_COLUMN_GRANTS } from '../../test/service-line-cancel-grants.ts';
 import { SERVICE_LINE_PERFORMER_COLUMN_GRANTS } from '../../test/service-line-performer-grants.ts';
@@ -73,6 +74,7 @@ const REVIEWED_COLUMN_GRANTS = [
   ...PACKAGE_TYPE_COLUMN_GRANTS,
   ...SERVICE_CATEGORY_COLUMN_GRANTS,
   ...SERVICE_CATEGORY_BRANCH_SETTING_COLUMN_GRANTS,
+  ...PACKAGE_COLUMN_GRANTS,
   ...SERVICE_LINE_EDIT_COLUMN_GRANTS,
   ...SERVICE_LINE_PERFORMER_COLUMN_GRANTS,
   ...SERVICE_LINE_CANCEL_COLUMN_GRANTS,
