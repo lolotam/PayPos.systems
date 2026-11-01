@@ -280,13 +280,12 @@ export class ClaimRatingRequests<Transaction = unknown> {
       if (!turn.halted && !turn.limitReached) await runForwardLane(turn);
     } catch (error) {
       failure = { error };
-    } finally {
-      try {
-        await turn.release();
-      } catch (releaseError) {
-        // خطأ الإفلات ما يغطيش خطأ الدور؛ خطأ الدور هو الأهم للمشغّل.
-        if (failure === undefined) throw releaseError;
-      }
+    }
+    try {
+      await turn.release();
+    } catch (releaseError) {
+      // خطأ الإفلات ما يغطيش خطأ الدور؛ خطأ الدور هو الأهم للمشغّل.
+      if (failure === undefined) throw releaseError;
     }
     if (failure !== undefined) throw failure.error;
     const summary = turn.summary();

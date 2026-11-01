@@ -12,6 +12,7 @@ import {
 } from './jobs/bootstrap-rating-requests.ts';
 import {
   RATING_CLAIMS_TRIGGERS,
+  closeRedisClient,
   startRatingClaimsProcessor,
 } from './jobs/rating-claims.processor.ts';
 import { branchScheduleHoursAdapter } from './persistence/branch-schedule-hours.adapter.ts';
@@ -220,9 +221,9 @@ export function createRatingClaimsRuntime(deps: RatingClaimsRuntimeDeps): Rating
     deliver: (event, next) => processor.deliver(event, next),
     ready: () => processor.ready(),
     close: async () => {
-      // العامل بيتصفّى الأول، وبعدين عميل الحالة؛ عميل الحالة بتاعنا احنا اللي قفلناه.
+      // العامل بيتصفّى الأول، وبعدين عميل الحالة؛ عميل الحالة اتعمل هنا، فبيتقفل هنا.
       await processor.close();
-      await redis.quit();
+      await closeRedisClient(redis);
     },
     eventTypes: RATING_CLAIMS_TRIGGERS,
   };

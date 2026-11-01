@@ -81,6 +81,24 @@ export interface RatingClaimsProcessor {
 }
 
 /**
+ * يقفل عميل Redis على حسب حالته.
+ *
+ * العميل اللي لسه متصل بيتقفل قفل نظيف، واللي خلص يقفل خلاص ما يعملش حاجة،
+ * واللي في نص الاتصال بيقطع الاتصال من غير ما ينتظر رد.
+ *
+ * @param client عميل Redis اللي بيتقفل
+ * @returns لا شيء
+ */
+export async function closeRedisClient(client: Redis): Promise<void> {
+  if (client.status === 'ready') {
+    await client.quit();
+    return;
+  }
+  if (client.status === 'end') return;
+  client.disconnect();
+}
+
+/**
  * يسجّل جدولة الشركة لو مش موجودة، من غير ما يعيد كتابة جدولة شغّالة.
  *
  * الجدولة الشغّالة معناها إن الدور بيتنفّذ كل دقيقة؛ إعادة كتابتها هتمسح التقدم
@@ -158,8 +176,8 @@ export function startRatingClaimsProcessor(
     close: async () => {
       await worker.close();
       await queue.close();
-      await producer.quit();
-      await connection.quit();
+      await closeRedisClient(producer);
+      await closeRedisClient(connection);
     },
     ensureRegistered: async (companyId) => {
       await registerCompany(queue, companyId);
