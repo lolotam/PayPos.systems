@@ -142,6 +142,7 @@ describe('services — writes and database checks', () => {
     const indexes =
       await owner`SELECT indexdef FROM pg_indexes WHERE tablename = 'services' ORDER BY indexname`;
     expect(indexes.map((r) => r['indexdef'])).toEqual([
+      'CREATE INDEX services_business_category_idx ON public.services USING btree (company_id, business_id, category_id)',
       'CREATE UNIQUE INDEX services_company_business_id_key ON public.services USING btree (company_id, business_id, id)',
       'CREATE UNIQUE INDEX services_pkey ON public.services USING btree (company_id, id)',
     ]);

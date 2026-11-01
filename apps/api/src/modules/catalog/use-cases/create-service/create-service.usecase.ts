@@ -2,7 +2,11 @@ import type { CreateServiceInput, Service } from '@pospay/contracts';
 
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
-import { newService, serviceSnapshot, serviceTerms } from '../../domain/service.ts';
+import {
+  assertCategoryAssignable,
+  categoriesToLock,
+} from '../../domain/service-category-assignment.ts';
+import { newService, serviceResponse, serviceTerms } from '../../domain/service.ts';
 import type { ServiceTransactions } from '../../ports/service-transactions.port.ts';
 
 export { ServiceError } from '../../domain/errors.ts';
@@ -22,13 +26,20 @@ export class CreateServiceUseCase {
   ) {}
 
   async execute(command: CreateServiceCommand): Promise<Service> {
-    const saved = await this.transactions.run(command, async (scope) => {
+    return this.transactions.run(command, async (scope) => {
       const terms = serviceTerms(command.input);
+      // الأقفال تسبق الفحص: لو تصنيف اتقفل بعد الفحص، التعيين ما ينفعش يقع تحت تصنيف مقفول.
+      const locked = await scope.lockCategories(
+        command.businessId,
+        categoriesToLock(null, terms.category_id),
+      );
+      if (terms.category_id !== null)
+        assertCategoryAssignable(locked.get(terms.category_id) ?? null, command.businessId);
       const record = newService(terms, this.ids.newId(), command.businessId, this.clock.now());
       await scope.insert(record);
       await scope.audit(null, record);
-      return record;
+      const category = terms.category_id === null ? null : (locked.get(terms.category_id) ?? null);
+      return serviceResponse(record, category);
     });
-    return serviceSnapshot(saved);
   }
 }

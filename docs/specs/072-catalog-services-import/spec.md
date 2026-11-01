@@ -313,7 +313,7 @@ both owners' picks on SI-Q14 to SI-Q16 (2026-10-29).
     the close cascade and the reopen restore. Because the CHECK above makes the marker equal `category_id`, the reopen
     restore filters `category_id = X AND closed_by_category_id = X` and uses this index; no second index is needed. It is created `CONCURRENTLY` in its own second migration file of
     `32b-pre-1`, whose leading statement is the `CREATE INDEX CONCURRENTLY`: the ADR-0033 pattern of migration 0068,
-    which the runner executes outside a transaction and recovers if a build was interrupted.
+    which the runner executes outside a transaction and recovers if a build was interrupted. The CHECK and the foreign key are added `NOT VALID` in the first migration and validated in the transactional tail of the second, so neither scans `services` under the lock of `ADD COLUMN` (the 0169/0170 pattern).
   - The UPDATE grant on `services` is column-level (migration 0084), so `32b-pre-1` adds `duration_minutes` and
     `category_id` and `32b-cat-2` adds `closed_at` and `closed_by_category_id`; the grants test
     `packages/db/test/catalog-grants.ts` follows each.

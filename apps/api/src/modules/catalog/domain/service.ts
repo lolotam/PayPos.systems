@@ -1,7 +1,8 @@
-import { MONEY_MAX, moneyToString, parseMoney } from '@pospay/domain';
+import { moneyToString, parseMoney } from '@pospay/domain';
 
 import { ServiceError } from './errors.ts';
 import type { ServiceCommissionRule } from './service-commission-rule.ts';
+import { validateServiceDraft } from './service-validation.ts';
 
 /** شكل قاعدة العمولة على السلك: النسبة عدد صحيح bps، والمبلغ الثابت نص KWD؛ النوع الصافي ملك نطاق catalog. */
 export type ServiceRuleWire =
@@ -17,30 +18,20 @@ export interface ServiceTerms {
   readonly price: bigint;
   readonly commission_rule: ServiceCommissionRule;
   readonly counts_toward_threshold: boolean;
+  readonly duration_minutes: number | null;
+  readonly category_id: string | null;
 }
 
-interface ServiceTermsInput {
+/** بنود الخدمة كما وصلت من العقد؛ الحقول الغائبة تعني "ما اتقالش" مش "فارغ". */
+export interface ServiceTermsInput {
   readonly name_en: string;
   readonly name_ar?: string | null | undefined;
   readonly price: string;
   readonly commission_rule: ServiceRuleWire;
   // الافتراضي الحقيقي (تُحتسب) بيتطبق في serviceTerms عشان العميل يقدر يسيبه.
   readonly counts_toward_threshold?: boolean | undefined;
-}
-
-interface ServiceRowInput {
-  readonly id: string;
-  readonly business_id: string;
-  readonly name_en: string;
-  readonly name_ar: string | null;
-  readonly price: string;
-  readonly commission_rule_kind: string;
-  readonly commission_pct_bps: number | null;
-  readonly commission_fixed_amount: string | null;
-  readonly counts_toward_threshold: boolean;
-  readonly revision: number;
-  readonly created_at: Date | string;
-  readonly updated_at: Date | string;
+  readonly duration_minutes?: number | null | undefined;
+  readonly category_id?: string | null | undefined;
 }
 
 /** سجل الخدمة المخزّن كما يقرأه النطاق؛ المال فلوس (bigint) والقاعدة نوعها الصافي. */
@@ -56,6 +47,18 @@ export interface ServiceRecord extends ServiceTerms {
 export interface ServiceView extends Omit<ServiceRecord, 'price' | 'commission_rule'> {
   readonly price: string;
   readonly commission_rule: ServiceRuleWire;
+}
+
+/** تسمية التصنيف كما ترد مع الخدمة: الاسمان ووقت الإغلاق. */
+export interface ServiceCategoryLabel {
+  readonly name_en: string;
+  readonly name_ar: string;
+  readonly closed_at: string | null;
+}
+
+/** رد الخدمة: نسخة الخدمة مع تسمية التصنيف اللي تحتها. */
+export interface ServiceResponse extends ServiceView {
+  readonly category: ServiceCategoryLabel | null;
 }
 
 /**
@@ -74,67 +77,6 @@ export function parseServicePrice(text: string): bigint {
 }
 
 /**
- * يتحقق من أسماء الخدمة: الإنجليزي إجباري والعربي اختياري، والطول من 1 إلى 255 بعد التشذيب.
- *
- * @param nameEn الاسم الإنجليزي
- * @param nameAr الاسم العربي أو غيابه
- * @returns لا شيء عند القبول، ويرفض بخطأ مسمّى
- */
-export function validateServiceName(nameEn: string, nameAr: string | null): void {
-  if (nameEn.trim().length < 1 || nameEn.length > 255 || /\p{Cc}/u.test(nameEn))
-    throw new ServiceError('SERVICE_NAME_INVALID');
-  if (
-    nameAr !== null &&
-    (nameAr.trim().length < 1 || nameAr.length > 255 || /\p{Cc}/u.test(nameAr))
-  )
-    throw new ServiceError('SERVICE_NAME_INVALID');
-}
-
-/**
- * يتحقق من قاعدة العمولة: PCT نقاط أساس 0–10000، FIXED فلوس غير سالبة داخل numeric(14,3)؛
- * FOLLOW_PLAN وZERO بلا قيمة. المعاني يحددها SPEC §5، والنوع ملك نطاق catalog.
- *
- * @param rule القاعدة الصافية
- * @returns لا شيء عند القبول، ويرفض بخطأ مسمّى
- */
-export function validateServiceCommissionRule(rule: ServiceCommissionRule): void {
-  const invalid = () => {
-    throw new ServiceError('SERVICE_COMMISSION_RULE_INVALID');
-  };
-  if (typeof rule !== 'object' || rule === null) return invalid();
-  switch (rule.kind) {
-    case 'FOLLOW_PLAN':
-    case 'ZERO':
-      if ('value' in rule) invalid();
-      return;
-    case 'PCT':
-    case 'FIXED':
-      if (
-        typeof rule.value !== 'bigint' ||
-        rule.value < 0n ||
-        rule.value > (rule.kind === 'PCT' ? 10_000n : MONEY_MAX)
-      )
-        invalid();
-      return;
-    default:
-      return invalid();
-  }
-}
-
-/**
- * يتحقق من بنود الخدمة كاملة قبل أي كتابة؛ دالة الاستيراد (32b) تنادي نفس الفحص لكل صف.
- *
- * @param terms البنود الصافية بالفلوس
- * @returns لا شيء عند القبول، ويرفض بأول خطأ مسمّى
- */
-export function validateServiceDraft(terms: ServiceTerms): void {
-  validateServiceName(terms.name_en, terms.name_ar);
-  if (typeof terms.price !== 'bigint' || terms.price < 0n || terms.price > MONEY_MAX)
-    throw new ServiceError('SERVICE_PRICE_INVALID');
-  validateServiceCommissionRule(terms.commission_rule);
-}
-
-/**
  * يبني البنود الصافية من مدخلات العقد: تشذيب الأسماء، تحويل السعر للفلوس، وتحويل القاعدة للنوع الصافي.
  *
  * @param input مدخلات الإنشاء أو التعديل كما جاءت من العقد
@@ -147,9 +89,28 @@ export function serviceTerms(input: ServiceTermsInput): ServiceTerms {
     price: parseServicePrice(input.price),
     commission_rule: toCommissionRule(input.commission_rule),
     counts_toward_threshold: input.counts_toward_threshold ?? true,
+    duration_minutes: input.duration_minutes ?? null,
+    category_id: input.category_id ?? null,
   };
   validateServiceDraft(terms);
   return terms;
+}
+
+/**
+ * يبني بنود التعديل بدمج الحقول الغائبة مع المخزّن: الغياب يعني الإبقاء و`null` يعني المسح.
+ * الدمج شغل النطاق مش الـ use case، عشان القواعد تفضل في مكان واحد ومختبَرة من غير قاعدة بيانات.
+ *
+ * @param input مدخلات التعديل كما جاءت من العقد
+ * @param current السجل الحالي المقفول
+ * @returns البنود الصافية بعد الدمج
+ */
+export function serviceUpdateTerms(input: ServiceTermsInput, current: ServiceRecord): ServiceTerms {
+  return serviceTerms({
+    ...input,
+    duration_minutes:
+      input.duration_minutes === undefined ? current.duration_minutes : input.duration_minutes,
+    category_id: input.category_id === undefined ? current.category_id : input.category_id,
+  });
 }
 
 /**
@@ -223,64 +184,30 @@ export function serviceSnapshot(record: ServiceRecord): ServiceView {
 }
 
 /**
- * يبني سجل النطاق من صف قاعدة البيانات، بحيث تفضل أعمدة السعر والقاعدة مفسّرة في مكان واحد
- * ومفيش تحويل فلوس جوه طبقة الـ persistence.
+ * يبني رد الخدمة: نسخة الخدمة مع تسمية التصنيف اللي تحتها.
+ * التدقيق بيستخدم serviceSnapshot بدل ده، فسجل التدقيق مبياخدش أسماء التصنيفات.
  *
- * @param row الصف الخام بأعمدة snake_case
- * @returns سجل النطاق بالفلوس والقاعدة الصافية
+ * @param record سجل النطاق بعد الحفظ
+ * @param category تسمية التصنيف، أو `null` لو الخدمة من غير تصنيف
+ * @returns رد الخدمة جاهز للعقد
  */
-export function serviceRecordFromRow(row: ServiceRowInput): ServiceRecord {
+export function serviceResponse(
+  record: ServiceRecord,
+  category: ServiceCategoryLabel | null,
+): ServiceResponse {
   return {
-    id: row.id,
-    business_id: row.business_id,
-    name_en: row.name_en,
-    name_ar: row.name_ar,
-    price: parseServicePrice(row.price),
-    commission_rule: rowToRule(row),
-    counts_toward_threshold: row.counts_toward_threshold,
-    revision: row.revision,
-    created_at: new Date(row.created_at).toISOString(),
-    updated_at: new Date(row.updated_at).toISOString(),
+    ...serviceSnapshot(record),
+    category: record.category_id === null ? null : category,
   };
 }
 
 /**
- * يحوّل السجل لأعمدة قاعدة البيانات البدائية: السعر نص، والقاعدة موزّعة على أعمدة متسقة.
- * الـ persistence بيكتب الناتج زي ما هو، فالتحويل المالي مكانه واحد.
+ * يحوّل قاعدة العمولة من شكل السلك للنوع الصافي: PCT نقاط أساس، وFIXED فلوس.
  *
- * @param record سجل النطاق
- * @returns قيم الأعمدة الجاهزة للإدخال أو التحديث
+ * @param rule القاعدة كما جاءت من العقد
+ * @returns القاعدة الصافية
  */
-export function serviceColumnValues(record: ServiceRecord): {
-  readonly price: string;
-  readonly commission_rule_kind: string;
-  readonly commission_pct_bps: number | null;
-  readonly commission_fixed_amount: string | null;
-} {
-  return {
-    price: moneyToString(record.price),
-    commission_rule_kind: record.commission_rule.kind,
-    commission_pct_bps:
-      record.commission_rule.kind === 'PCT' ? Number(record.commission_rule.value) : null,
-    commission_fixed_amount:
-      record.commission_rule.kind === 'FIXED' ? moneyToString(record.commission_rule.value) : null,
-  };
-}
-
-function rowToRule(row: {
-  readonly commission_rule_kind: string;
-  readonly commission_pct_bps: number | null;
-  readonly commission_fixed_amount: string | null;
-}): ServiceCommissionRule {
-  if (row.commission_rule_kind === 'PCT')
-    return { kind: 'PCT', value: BigInt(row.commission_pct_bps ?? 0) };
-  if (row.commission_rule_kind === 'FIXED')
-    return { kind: 'FIXED', value: parseServicePrice(row.commission_fixed_amount ?? '0.000') };
-  if (row.commission_rule_kind === 'ZERO') return { kind: 'ZERO' };
-  return { kind: 'FOLLOW_PLAN' };
-}
-
-function toCommissionRule(rule: ServiceRuleWire): ServiceCommissionRule {
+export function toCommissionRule(rule: ServiceRuleWire): ServiceCommissionRule {
   if (rule.kind === 'PCT') {
     if (!Number.isInteger(rule.value) || rule.value < 0 || rule.value > 10_000)
       throw new ServiceError('SERVICE_COMMISSION_RULE_INVALID');
@@ -309,6 +236,8 @@ function sameTerms(current: ServiceRecord, terms: ServiceTerms): boolean {
     current.name_ar === terms.name_ar &&
     current.price === terms.price &&
     current.counts_toward_threshold === terms.counts_toward_threshold &&
+    current.duration_minutes === terms.duration_minutes &&
+    current.category_id === terms.category_id &&
     sameRule(current.commission_rule, terms.commission_rule)
   );
 }

@@ -42,6 +42,10 @@ export const services = pgTable(
     commissionFixedAmount: numeric('commission_fixed_amount', { precision: 14, scale: 3 }),
     // افتراضي إن الخدمة بتتقدّم مجمّع الشرائح؛ المالك يقدر يستثنيها.
     countsTowardThreshold: boolean('counts_toward_threshold').notNull().default(true),
+    // مدة الخدمة بالدقائق الكاملة؛ فاضي معناها إن الخدمة مالها مدة معلومة.
+    durationMinutes: smallint('duration_minutes'),
+    // التصنيف اللي الخدمة تحته؛ فاضي معناها خدمة من غير تصنيف.
+    categoryId: uuid('category_id'),
     // عداد تعديل يمنع مديرين من الكتابة فوق نفس النسخة (زي employees).
     revision: integer('revision').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -56,12 +60,21 @@ export const services = pgTable(
       columns: [t.companyId, t.businessId],
       foreignColumns: [businesses.companyId, businesses.id],
     }),
+    // المفتاح المركّب يحمل النشاط كمان، فتصنيف نشاط تاني في نفس الشركة مستحيل في قاعدة البيانات مش في النطاق بس.
+    foreignKey({
+      name: 'services_category_fk',
+      columns: [t.companyId, t.businessId, t.categoryId],
+      foreignColumns: [serviceCategories.companyId, serviceCategories.businessId, serviceCategories.id],
+    }),
+    // فهرس تصفية قائمة الخدمات بالتصنيف؛ مبني CONCURRENTLY في هجرة لوحدها (ADR-0033).
+    index('services_business_category_idx').on(t.companyId, t.businessId, t.categoryId),
     check('services_name_en_length', sql`char_length(trim(${t.nameEn})) BETWEEN 1 AND 255`),
     check(
       'services_name_ar_length',
       sql`${t.nameAr} IS NULL OR char_length(trim(${t.nameAr})) BETWEEN 1 AND 255`,
     ),
     check('services_price_nonnegative', sql`${t.price} BETWEEN 0 AND 99999999999.999`),
+    check('services_duration_bounds', sql`${t.durationMinutes} IS NULL OR ${t.durationMinutes} BETWEEN 1 AND 600`),
     check(
       'services_rule_kind',
       sql`${t.commissionRuleKind} IN ('FOLLOW_PLAN','ZERO','PCT','FIXED')`,
@@ -85,6 +98,71 @@ export const services = pgTable(
     check('services_name_en_controls', sql`${t.nameEn} !~ '[[:cntrl:]]'`),
     check('services_name_ar_controls', sql`${t.nameAr} IS NULL OR ${t.nameAr} !~ '[[:cntrl:]]'`),
     check('services_revision_positive', sql`${t.revision} > 0`),
+  ],
+);
+
+// تصنيفات الخدمات على مستوى النشاط؛ الاسمان مطلوبان ومخزّنان بعد توحيد المسافات.
+export const serviceCategories = pgTable(
+  'service_categories',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    nameEn: text('name_en').notNull(),
+    nameAr: text('name_ar').notNull(),
+    // فرع الإنشاء يبقى ثابتاً حتى بعد المشاركة؛ لا يتغير بأي مسار تعديل.
+    ownerBranchId: uuid('owner_branch_id'),
+    // BUSINESS مشترك بين الفروع، وBRANCH خاص بفرع الإنشاء؛ المشاركة اتجاه واحد فقط.
+    visibility: text('visibility').notNull(),
+    // الإغلاق يُفعّل في 32b-cat-2؛ وجود العمود الآن يحفظ عقد التخزين والقراءة.
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    revision: integer('revision').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: 'service_categories_pkey', columns: [t.companyId, t.id] }),
+    unique('service_categories_company_business_id_key').on(t.companyId, t.businessId, t.id),
+    foreignKey({
+      name: 'service_categories_business_fk',
+      columns: [t.companyId, t.businessId],
+      foreignColumns: [businesses.companyId, businesses.id],
+    }),
+    foreignKey({
+      name: 'service_categories_owner_branch_fk',
+      columns: [t.companyId, t.businessId, t.ownerBranchId],
+      foreignColumns: [branches.companyId, branches.businessId, branches.id],
+    }),
+    uniqueIndex('service_categories_business_name_uq').on(
+      t.companyId,
+      t.businessId,
+      sql`lower(${t.nameEn})`,
+    ),
+    index('service_categories_owner_branch_idx').on(
+      t.companyId,
+      t.businessId,
+      t.ownerBranchId,
+    ),
+    check('service_categories_name_en_length', sql`char_length(btrim(${t.nameEn})) BETWEEN 1 AND 100`),
+    check('service_categories_name_ar_length', sql`char_length(btrim(${t.nameAr})) BETWEEN 1 AND 100`),
+    check('service_categories_name_en_controls', sql`${t.nameEn} !~ '[[:cntrl:]]'`),
+    check('service_categories_name_ar_controls', sql`${t.nameAr} !~ '[[:cntrl:]]'`),
+    check(
+      'service_categories_name_en_normalized',
+      sql`${t.nameEn} = btrim(regexp_replace(${t.nameEn}, '[[:space:]]+', ' ', 'g'))`,
+    ),
+    check(
+      'service_categories_name_ar_normalized',
+      sql`${t.nameAr} = btrim(regexp_replace(${t.nameAr}, '[[:space:]]+', ' ', 'g'))`,
+    ),
+    check('service_categories_visibility', sql`${t.visibility} IN ('BUSINESS','BRANCH')`),
+    check(
+      'service_categories_branch_owner_required',
+      sql`${t.visibility} <> 'BRANCH' OR ${t.ownerBranchId} IS NOT NULL`,
+    ),
+    check('service_categories_revision_positive', sql`${t.revision} > 0`),
   ],
 );
 
@@ -183,71 +261,6 @@ export const packageTypeComponents = pgTable(
     index('package_type_components_type_idx').on(t.companyId, t.businessId, t.packageTypeId),
     check('package_type_components_sessions', sql`${t.sessions} BETWEEN 1 AND 365`),
     check('package_type_components_position', sql`${t.position} BETWEEN 1 AND 20`),
-  ],
-);
-
-// تصنيفات الخدمات على مستوى النشاط؛ الاسمان مطلوبان ومخزّنان بعد توحيد المسافات.
-export const serviceCategories = pgTable(
-  'service_categories',
-  {
-    companyId: uuid('company_id')
-      .notNull()
-      .references(() => companies.id),
-    id: uuid('id').notNull(),
-    businessId: uuid('business_id').notNull(),
-    nameEn: text('name_en').notNull(),
-    nameAr: text('name_ar').notNull(),
-    // فرع الإنشاء يبقى ثابتاً حتى بعد المشاركة؛ لا يتغير بأي مسار تعديل.
-    ownerBranchId: uuid('owner_branch_id'),
-    // BUSINESS مشترك بين الفروع، وBRANCH خاص بفرع الإنشاء؛ المشاركة اتجاه واحد فقط.
-    visibility: text('visibility').notNull(),
-    // الإغلاق يُفعّل في 32b-cat-2؛ وجود العمود الآن يحفظ عقد التخزين والقراءة.
-    closedAt: timestamp('closed_at', { withTimezone: true }),
-    revision: integer('revision').notNull().default(1),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    primaryKey({ name: 'service_categories_pkey', columns: [t.companyId, t.id] }),
-    unique('service_categories_company_business_id_key').on(t.companyId, t.businessId, t.id),
-    foreignKey({
-      name: 'service_categories_business_fk',
-      columns: [t.companyId, t.businessId],
-      foreignColumns: [businesses.companyId, businesses.id],
-    }),
-    foreignKey({
-      name: 'service_categories_owner_branch_fk',
-      columns: [t.companyId, t.businessId, t.ownerBranchId],
-      foreignColumns: [branches.companyId, branches.businessId, branches.id],
-    }),
-    uniqueIndex('service_categories_business_name_uq').on(
-      t.companyId,
-      t.businessId,
-      sql`lower(${t.nameEn})`,
-    ),
-    index('service_categories_owner_branch_idx').on(
-      t.companyId,
-      t.businessId,
-      t.ownerBranchId,
-    ),
-    check('service_categories_name_en_length', sql`char_length(btrim(${t.nameEn})) BETWEEN 1 AND 100`),
-    check('service_categories_name_ar_length', sql`char_length(btrim(${t.nameAr})) BETWEEN 1 AND 100`),
-    check('service_categories_name_en_controls', sql`${t.nameEn} !~ '[[:cntrl:]]'`),
-    check('service_categories_name_ar_controls', sql`${t.nameAr} !~ '[[:cntrl:]]'`),
-    check(
-      'service_categories_name_en_normalized',
-      sql`${t.nameEn} = btrim(regexp_replace(${t.nameEn}, '[[:space:]]+', ' ', 'g'))`,
-    ),
-    check(
-      'service_categories_name_ar_normalized',
-      sql`${t.nameAr} = btrim(regexp_replace(${t.nameAr}, '[[:space:]]+', ' ', 'g'))`,
-    ),
-    check('service_categories_visibility', sql`${t.visibility} IN ('BUSINESS','BRANCH')`),
-    check(
-      'service_categories_branch_owner_required',
-      sql`${t.visibility} <> 'BRANCH' OR ${t.ownerBranchId} IS NOT NULL`,
-    ),
-    check('service_categories_revision_positive', sql`${t.revision} > 0`),
   ],
 );
 

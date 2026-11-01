@@ -39,12 +39,30 @@ export const serviceCommissionRuleView = z.discriminatedUnion('kind', [
   responseObject(fixedRule),
 ]);
 
+// مدة الخدمة بالدقائق الكاملة: من 1 إلى 600 دقيقة (SI-Q6)، والقيمة الفارغة معناها بلا مدة.
+export const serviceDurationMinutes = z
+  .number()
+  .int()
+  .min(1)
+  .max(600)
+  .meta({ id: 'ServiceDurationMinutes' });
+
+// تسمية تصنيف الخدمة كما بتظهر في القوائم: الاسمان ووقت الإغلاق وقت التصنيف مقفول.
+export const serviceCategoryLabel = responseObject({
+    name_en: z.string(),
+    name_ar: z.string(),
+    closed_at: timestamp.nullable(),
+  })
+  .meta({ id: 'ServiceCategoryLabel' });
+
 const serviceFields = {
   name_en: serviceNameEn,
   name_ar: serviceNameAr.nullable().optional(),
   price: servicePrice,
   commission_rule: serviceCommissionRule,
   counts_toward_threshold: z.boolean().optional(),
+  duration_minutes: serviceDurationMinutes.nullable().optional(),
+  category_id: id.nullable().optional(),
 };
 
 export const createServiceInput = z.strictObject(serviceFields).meta({ id: 'CreateServiceInput' });
@@ -58,6 +76,8 @@ export const updateServiceInput = z
     ...serviceFields,
     name_ar: serviceNameAr.nullable(),
     counts_toward_threshold: z.boolean(),
+    // المدة والتصنيف غير إجباريين في التعديل، والسكوت عنهما معناه الإبقاء على المخزّن و`null` معناه المسح:
+    // عميل لسه مش عارف الحقلين دول ما يقدرش يمسحهم بسكوته، فبخلاف الاسم العربي اللي استبدال كامل.
   })
   .meta({ id: 'UpdateServiceInput' });
 
@@ -69,6 +89,9 @@ export const service = responseObject({
     price: servicePrice,
     commission_rule: serviceCommissionRuleView,
     counts_toward_threshold: z.boolean(),
+    duration_minutes: serviceDurationMinutes.nullable(),
+    category_id: id.nullable(),
+    category: serviceCategoryLabel.nullable(),
     revision,
     created_at: timestamp,
     updated_at: timestamp,
@@ -83,6 +106,9 @@ export const serviceListItem = service
     price: true,
     commission_rule: true,
     counts_toward_threshold: true,
+    duration_minutes: true,
+    category_id: true,
+    category: true,
     revision: true,
   })
   .meta({ id: 'ServiceListItem' });
@@ -93,12 +119,15 @@ export const serviceListQuery = z
   .strictObject({
     cursor: id.optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
+    category_id: id.optional(),
   })
   .meta({ id: 'ServiceListQuery' });
 
 // كل مخطط منشور لازم يسجّل في OpenAPI (تشمل المكوّنات المتداخلة) عشان الـ client المولّد يلاقيه.
 export const serviceSchemas = [
   servicePrice,
+  serviceDurationMinutes,
+  serviceCategoryLabel,
   serviceCommissionRule,
   createServiceInput,
   updateServiceInput,

@@ -2,7 +2,13 @@ import type { Service, UpdateServiceInput } from '@pospay/contracts';
 
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import { ServiceError } from '../../domain/errors.ts';
-import { planServiceUpdate, serviceSnapshot, serviceTerms } from '../../domain/service.ts';
+import {
+  assertCategoryAssignable,
+  categoriesToLock,
+  categoryChanged,
+  nextCategoryId,
+} from '../../domain/service-category-assignment.ts';
+import { planServiceUpdate, serviceResponse, serviceUpdateTerms } from '../../domain/service.ts';
 import type { ServiceTransactions } from '../../ports/service-transactions.port.ts';
 
 export { ServiceError } from '../../domain/errors.ts';
@@ -14,7 +20,7 @@ export interface UpdateServiceCommand {
   readonly input: UpdateServiceInput;
 }
 
-/** يعدّل سعر الخدمة وقاعدة عمولتها مقابل النسخة المتوقعة، ويسجّل قبل/بعد في التدقيق. */
+/** يعدّل سعر الخدمة وقاعدة عمولتها ومدتها وتصنيفها مقابل النسخة المتوقعة، ويسجّل قبل/بعد في التدقيق. */
 export class UpdateServiceUseCase {
   constructor(
     private readonly transactions: ServiceTransactions,
@@ -22,10 +28,24 @@ export class UpdateServiceUseCase {
   ) {}
 
   async execute(command: UpdateServiceCommand): Promise<Service> {
-    const saved = await this.transactions.run(command, async (scope) => {
+    return this.transactions.run(command, async (scope) => {
+      const peek = await scope.peekCategoryId(command.businessId, command.serviceId);
+      if (peek === null) throw new ServiceError('SERVICE_NOT_FOUND');
+      const next = nextCategoryId(command.input.category_id, peek.category_id);
+      // أقفال التصنيفات تسبق قفل صف الخدمة: قفل الصف الأول يخلي الإغلاق المتزامن يسبق التعيين.
+      const locked = await scope.lockCategories(
+        command.businessId,
+        categoriesToLock(peek.category_id, next),
+      );
       const current = await scope.load(command.businessId, command.serviceId);
       if (current === null) throw new ServiceError('SERVICE_NOT_FOUND');
-      const terms = serviceTerms(command.input);
+      // التصنيف اتغير بين القراءة والقفل، فالتعديل ده اتعمل على نسخة أقدم من اللي العميل شافها.
+      if (current.category_id !== peek.category_id)
+        throw new ServiceError('SERVICE_REVISION_CONFLICT');
+      const terms = serviceUpdateTerms(command.input, current);
+      // التصنيف اللي بيتقفل مابقاش مفتوح بعد 32b-cat-2، فالتعيين لنفس التصنيف محتاجش فحص فتح.
+      if (categoryChanged(current.category_id, terms.category_id) && terms.category_id !== null)
+        assertCategoryAssignable(locked.get(terms.category_id) ?? null, command.businessId);
       const plan = planServiceUpdate(
         current,
         terms,
@@ -37,8 +57,9 @@ export class UpdateServiceUseCase {
         await scope.save(current, plan.after);
         await scope.audit(current, plan.after);
       }
-      return plan.after;
+      const category =
+        plan.after.category_id === null ? null : (locked.get(plan.after.category_id) ?? null);
+      return serviceResponse(plan.after, category);
     });
-    return serviceSnapshot(saved);
   }
 }

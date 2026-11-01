@@ -4,17 +4,22 @@ import { sql } from 'drizzle-orm';
 
 import { toServiceListItem, type ServiceListRow } from './service-projection.ts';
 
-// ترتيب المعرّف يطابق الفهرس ويحفظ استقرار الصفحات عند إضافة خدمات جديدة.
+// شاشة قائمة الخدمات: ترتيب المعرّف يطابق الفهرس ويحفظ استقرار الصفحات، والفلتر بالتصنيف يقرأ الفهرس الجديد.
 export function listServicesStatement(
   companyId: string,
   businessId: string,
   query: ServiceListQuery,
 ) {
-  return sql`SELECT id,name_en,name_ar,price,commission_rule_kind,commission_pct_bps,
-      commission_fixed_amount,counts_toward_threshold,revision
-    FROM services WHERE company_id=${companyId} AND business_id=${businessId}
-    ${query.cursor === undefined ? sql`` : sql`AND id > ${query.cursor}`}
-    ORDER BY id LIMIT ${query.limit + 1}`;
+  return sql`SELECT s.id,s.name_en,s.name_ar,s.price,s.commission_rule_kind,s.commission_pct_bps,
+      s.commission_fixed_amount,s.counts_toward_threshold,s.duration_minutes,s.category_id,s.revision,
+      c.name_en AS category_name_en,c.name_ar AS category_name_ar,
+      to_char(c.closed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS category_closed_at
+    FROM services s
+    LEFT JOIN service_categories c ON c.company_id=s.company_id AND c.business_id=s.business_id AND c.id=s.category_id
+    WHERE s.company_id=${companyId} AND s.business_id=${businessId}
+    ${query.cursor === undefined ? sql`` : sql`AND s.id > ${query.cursor}`}
+    ${query.category_id === undefined ? sql`` : sql`AND s.category_id = ${query.category_id}`}
+    ORDER BY s.id LIMIT ${query.limit + 1}`;
 }
 
 export async function listServices(

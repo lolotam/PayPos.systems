@@ -65,6 +65,22 @@ export const termsFor = (name = 'Synthetic service') => ({
   counts_toward_threshold: true,
 });
 
+/**
+ * تصنيفات جاهزة لاختبار تعيين الخدمة: مفتوح ومقفول في النشاط، وواحد في النشاط التاني لنفس الشركة.
+ * التصنيف المقفول بيتقفل بجدول مستقل، فالإقفال هنا حقيقي مش مجرد قيمة.
+ */
+export async function insertServiceCategories(f: ServiceFixture) {
+  const open = ids.newId();
+  const closed = ids.newId();
+  const otherBusiness = ids.newId();
+  await f.h.owner`INSERT INTO service_categories
+    (company_id,id,business_id,name_en,name_ar,visibility,closed_at)
+    VALUES (${f.company},${open},${f.business},'Open category','تصنيف مفتوح','BUSINESS',NULL),
+           (${f.company},${closed},${f.business},'Closed category','تصنيف مقفول','BUSINESS',now()),
+           (${f.company},${otherBusiness},${f.secondBusiness},'Other category','تصنيف تاني','BUSINESS',NULL)`;
+  return { open, closed, otherBusiness };
+}
+
 export async function grantServices(
   f: ServiceFixture,
   business = f.business,
