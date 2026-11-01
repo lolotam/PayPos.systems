@@ -16,7 +16,7 @@ const key = (companyId: string, businessId: string, userId: string) =>
 async function list(
   companyId: string,
   businessId: string,
-  options: { cursor?: string; categoryId?: string },
+  options: { cursor?: string | undefined; categoryId?: string | undefined },
   signal: AbortSignal,
 ): Promise<ServicePage> {
   const result = await apiClient().GET('/v1/businesses/{businessId}/services', {
@@ -99,7 +99,7 @@ export function useServices(
   companyId: string,
   businessId: string,
   userId: string,
-  options: { cursor?: string; categoryId?: string } = {},
+  options: { cursor?: string | undefined; categoryId?: string | undefined } = {},
 ) {
   return useQuery({
     queryKey: [

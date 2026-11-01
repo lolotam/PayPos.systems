@@ -18,7 +18,7 @@ export function serviceCategoryListRefused(error: unknown): boolean {
   return error.status === 403;
 }
 
-export function omitRefusedCategory<T extends { category_id?: string | null }>(
+export function omitRefusedCategory<T extends { category_id?: string | null | undefined }>(
   terms: T,
   error: unknown,
 ): T {

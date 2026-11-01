@@ -14,7 +14,7 @@ const userId = '01920000-0000-7000-8000-000000000003';
 const firstCategory: ServiceCategoryListItem = {
   id: '01920000-0000-7000-8000-0000000000c1',
   name_en: 'Hair',
-  name_ar: 'شعر',
+  name_ar: 'Hair AR',
   visibility: 'BUSINESS',
   owner_branch_id: null,
   closed_at: null,
@@ -24,7 +24,7 @@ const secondCategory: ServiceCategoryListItem = {
   ...firstCategory,
   id: '01920000-0000-7000-8000-0000000000c2',
   name_en: 'Nails',
-  name_ar: 'أظافر',
+  name_ar: 'Nails AR',
 };
 const nextCursor = JSON.stringify([firstCategory.name_en, firstCategory.id]);
 
@@ -69,7 +69,7 @@ it('joins open category pages through next_cursor', async () => {
 it('keeps a 403 refusal visible to the caller without retrying it', async () => {
   const error = {
     code: 'FORBIDDEN',
-    message_ar: 'مرفوض',
+    message_ar: 'Forbidden AR',
     message_en: 'Forbidden',
   };
   get.mockResolvedValueOnce({ error, response: { status: 403 } });

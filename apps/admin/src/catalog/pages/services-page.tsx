@@ -11,15 +11,17 @@ import { ServiceCategoryFilter } from '../ui/service-category-filter';
 import { ServiceEditPanel } from '../ui/service-edit-panel';
 import { ServicesListPanel } from '../ui/services-list-panel';
 
+type ServicesPageProps = {
+  companyId: string;
+  business: WorkspaceBusiness;
+  userId: string;
+};
+
 export function ServicesPage({
   companyId,
   business,
   userId,
-}: {
-  companyId: string;
-  business: WorkspaceBusiness;
-  userId: string;
-}) {
+}: ServicesPageProps) {
   const locale = useLocale();
   const [cursor, setCursor] = useState<string>();
   const [serviceId, setServiceId] = useState('');
@@ -49,14 +51,11 @@ export function ServicesPage({
           </Button>
         }
       />
-      {categoryQuery.isError ? null : (
-        <ServiceCategoryFilter
-          categories={categoryQuery.data ?? []}
-          value={categoryId}
-          disabled={categoryQuery.isPending}
-          onChange={filter}
-        />
-      )}
+      <ServiceCategoryFilter
+        categoryQuery={categoryQuery}
+        value={categoryId}
+        onChange={filter}
+      />
       <ServicesListPanel
         list={list}
         selectedId={serviceId}

@@ -17,7 +17,7 @@ const closedCategoryId = '01920000-0000-7000-8000-0000000000c1';
 const openCategory: ServiceCategoryListItem = {
   id: '01920000-0000-7000-8000-0000000000c2',
   name_en: 'Hair',
-  name_ar: 'شعر',
+  name_ar: 'Hair AR',
   visibility: 'BUSINESS',
   owner_branch_id: null,
   closed_at: null,
@@ -36,7 +36,7 @@ function serviceRecord(overrides: Partial<ServiceListItem> = {}): ServiceListIte
     category_id: closedCategoryId,
     category: {
       name_en: 'Legacy',
-      name_ar: 'قديم',
+      name_ar: 'Legacy AR',
       closed_at: '2026-10-05T10:00:00Z',
     },
     revision: 1,
@@ -108,11 +108,11 @@ it('renders duration and category cells with a closed mark and dashes for missin
     .toBeTruthy();
 });
 
-it('filters visible rows by category and resets the cursor to the first page', async () => {
+function mockFilteredServicePages() {
   get.mockImplementation(
     (
       path: string,
-      options: { params: { query?: { cursor?: string; category_id?: string } } },
+      options?: { params?: { query?: { cursor?: string; category_id?: string } } },
     ) => {
       if (path === '/v1/businesses/{businessId}/service-categories') {
         return Promise.resolve({
@@ -120,7 +120,17 @@ it('filters visible rows by category and resets the cursor to the first page', a
           response: { status: 200 },
         });
       }
-      const query = options.params.query;
+      if (path !== '/v1/businesses/{businessId}/services') {
+        return Promise.resolve({
+          error: {
+            code: 'UNEXPECTED_PATH',
+            message_ar: 'Unexpected AR',
+            message_en: `Unexpected path: ${path}`,
+          },
+          response: { status: 500 },
+        });
+      }
+      const query = options?.params?.query;
       if (query?.category_id === openCategory.id) {
         return Promise.resolve({
           data: { items: [filteredService], next_cursor: null },
@@ -139,6 +149,10 @@ it('filters visible rows by category and resets the cursor to the first page', a
       });
     },
   );
+}
+
+it('filters visible rows by category and resets the cursor to the first page', async () => {
+  mockFilteredServicePages();
   renderPage();
   expect(await screen.findByText('First service')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'catalogServices.next') }));
@@ -147,6 +161,7 @@ it('filters visible rows by category and resets the cursor to the first page', a
     target: { value: openCategory.id },
   });
   expect(await screen.findByText('Filtered service')).toBeTruthy();
+  expect(screen.queryByText('First service')).toBeNull();
   expect(screen.queryByText('Second service')).toBeNull();
   expect(
     (screen.getByRole('button', { name: t('en', 'catalogServices.first') }) as HTMLButtonElement)
@@ -156,7 +171,7 @@ it('filters visible rows by category and resets the cursor to the first page', a
     const serviceCalls = get.mock.calls.filter(
       ([path]) => path === '/v1/businesses/{businessId}/services',
     );
-    expect(serviceCalls.at(-1)?.[1].params.query).toEqual({
+    expect(serviceCalls.at(-1)?.[1]?.params?.query).toEqual({
       limit: 20,
       category_id: openCategory.id,
     });

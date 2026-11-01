@@ -12,7 +12,7 @@ vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale
 const firstCategory: ServiceCategoryListItem = {
   id: '01920000-0000-7000-8000-0000000000c1',
   name_en: 'Hair',
-  name_ar: 'شعر',
+  name_ar: 'Hair AR',
   visibility: 'BUSINESS',
   owner_branch_id: null,
   closed_at: null,
@@ -22,7 +22,7 @@ const secondCategory: ServiceCategoryListItem = {
   ...firstCategory,
   id: '01920000-0000-7000-8000-0000000000c2',
   name_en: 'Nails',
-  name_ar: 'أظافر',
+  name_ar: 'Nails AR',
 };
 const closedCategoryId = '01920000-0000-7000-8000-0000000000c3';
 const record: Service = {
@@ -37,7 +37,7 @@ const record: Service = {
   category_id: closedCategoryId,
   category: {
     name_en: 'Legacy',
-    name_ar: 'قديم',
+    name_ar: 'Legacy AR',
     closed_at: '2026-10-05T10:00:00Z',
   },
   revision: 2,
@@ -133,6 +133,37 @@ it('keeps a closed current category selected and visibly marked', () => {
   expect(picker.selectedOptions[0]?.textContent).toBe(
     `Legacy (${t('en', 'catalogServices.categoryClosed')})`,
   );
+});
+
+it('keeps the current open category selected after the category query loads', () => {
+  const openRecord: Service = {
+    ...record,
+    category_id: firstCategory.id,
+    category: {
+      name_en: firstCategory.name_en,
+      name_ar: firstCategory.name_ar,
+      closed_at: null,
+    },
+  };
+  const view = render(
+    <EditServiceForm
+      categoryQuery={categoryQuery({ data: undefined, isPending: true })}
+      record={openRecord}
+      pending={false}
+      onSave={vi.fn()}
+    />,
+  );
+  view.rerender(
+    <EditServiceForm
+      categoryQuery={categoryQuery()}
+      record={openRecord}
+      pending={false}
+      onSave={vi.fn()}
+    />,
+  );
+  const picker = screen.getByLabelText(t('en', 'catalogServices.category')) as HTMLSelectElement;
+  expect(picker.value).toBe(firstCategory.id);
+  expect(picker.selectedOptions[0]?.textContent).toBe(firstCategory.name_en);
 });
 
 it('shows read-only category text and omits category_id when categories are refused', async () => {
