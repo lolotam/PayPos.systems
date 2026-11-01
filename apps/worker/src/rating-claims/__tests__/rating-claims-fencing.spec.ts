@@ -56,6 +56,48 @@ function delay(ms: number): Promise<void> {
   });
 }
 
+/** صفوف الشركة التانية: نفس معرّف الطلب في الشركة الأولى، ومعاهم طلب تاني بره الأول. */
+async function seedCompanyBRows(w: RatingClaimsWorld, shared: string): Promise<string> {
+  const owner = w.base.owner;
+  const bCustomer = w.base.ids.newId();
+  await owner`INSERT INTO customers (company_id, id, name, phone, locale, created_at, updated_at)
+    VALUES (${w.otherCompany}, ${bCustomer}, 'Company B customer', '+999999899999', 'en', now(), now())`;
+  // عميل تاني للشركة التانية، لأن يوم الطلب مفروض يبقى فريد مع العميل.
+  const bSecondCustomer = w.base.ids.newId();
+  await owner`INSERT INTO customers (company_id, id, name, phone, locale, created_at, updated_at)
+    VALUES (${w.otherCompany}, ${bSecondCustomer}, 'Company B second customer', '+999999899998', 'en', now(), now())`;
+  await owner`INSERT INTO rating_requests
+      (company_id, id, business_id, customer_id, business_date, branch_id, due_at, send_deadline, status)
+    VALUES (${w.otherCompany}, ${shared}, ${w.otherBusiness}, ${bCustomer}, '2026-06-01',
+      ${'01920000-0000-7000-8000-0000000000b2'}, '2026-06-01T13:10:00.000Z', '2026-06-01T19:30:00.000Z', 'SCHEDULED')`;
+  const bOnly = w.base.ids.newId();
+  await owner`INSERT INTO rating_requests
+      (company_id, id, business_id, customer_id, business_date, branch_id, due_at, send_deadline, status)
+    VALUES (${w.otherCompany}, ${bOnly}, ${w.otherBusiness}, ${bSecondCustomer}, '2026-06-01',
+      ${'01920000-0000-7000-8000-0000000000b2'}, '2026-06-01T13:10:00.000Z', '2026-06-01T19:30:00.000Z', 'SCHEDULED')`;
+  return bOnly;
+}
+
+/** عزل المستأجر: دور الشركة الأولى ما بيقرش ولا بيكتبش صف الشركة التانية. */
+async function expectTenantIsolation(w: RatingClaimsWorld, bOnly: string): Promise<void> {
+  const seenByA = await w.base.db.withTenant(w.company, async (tx) => {
+    const rows = await tx.execute(sql`SELECT id FROM rating_requests
+      WHERE company_id = ${w.otherCompany}`);
+    return rows.length;
+  });
+  expect(seenByA).toBe(0);
+  // دور صاحب القاعدة بيشوف صف الشركة التانية، فالعزل من الـ RLS مش من الاستعلام.
+  const ownerSeen = await w.base.owner`SELECT id FROM rating_requests
+    WHERE company_id = ${w.otherCompany}`;
+  expect(ownerSeen).toHaveLength(2);
+  const writtenByA = await w.base.db.withTenant(w.company, async (tx) => {
+    const rows = await tx.execute(sql`UPDATE rating_requests SET status = 'CANCELLED'
+      WHERE company_id = ${w.otherCompany} AND id = ${bOnly} RETURNING id`);
+    return rows.length;
+  });
+  expect(writtenByA).toBe(0);
+}
+
 it('two_workers_expired_owner_cannot_regress_state', async () => {
   const w = await openWorld({ state: { leaseMs: 1000 } });
   const seeded = await w.seedDueRequests({ count: 3 });
@@ -197,20 +239,7 @@ it('tenant_isolation_covers_state_and_claims', async () => {
   const w = await openWorld({ budget: { forward: 3, retry: 2 } });
   const seeded = await w.seedDueRequests({ count: 2 });
   const shared = at(seeded.requestIds, 0);
-  const owner = w.base.owner;
-  const bCustomer = w.base.ids.newId();
-  await owner`INSERT INTO customers (company_id, id, name, phone, locale, created_at, updated_at)
-    VALUES (${w.otherCompany}, ${bCustomer}, 'Company B customer', '+999999899999', 'en', now(), now())`;
-  // نفس معرّف الطلب في الشركة التانية، ومعاهم طلب تاني بره الأول.
-  await owner`INSERT INTO rating_requests
-      (company_id, id, business_id, customer_id, business_date, branch_id, due_at, send_deadline, status)
-    VALUES (${w.otherCompany}, ${shared}, ${w.otherBusiness}, ${bCustomer}, '2026-06-01',
-      ${'01920000-0000-7000-8000-0000000000b2'}, '2026-06-01T13:10:00.000Z', '2026-06-01T19:30:00.000Z', 'SCHEDULED')`;
-  const bOnly = w.base.ids.newId();
-  await owner`INSERT INTO rating_requests
-      (company_id, id, business_id, customer_id, business_date, branch_id, due_at, send_deadline, status)
-    VALUES (${w.otherCompany}, ${bOnly}, ${w.otherBusiness}, ${bCustomer}, '2026-06-01',
-      ${'01920000-0000-7000-8000-0000000000b2'}, '2026-06-01T13:10:00.000Z', '2026-06-01T19:30:00.000Z', 'SCHEDULED')`;
+  const bOnly = await seedCompanyBRows(w, shared);
   // مفاتيح الحالة مختلفة، لأن المفتاح فيه الشركة.
   expect(stateKey(w.prefix, w.company)).not.toBe(stateKey(w.prefix, w.otherCompany));
   const ownerToken = w.base.ids.newId();
@@ -233,12 +262,7 @@ it('tenant_isolation_covers_state_and_claims', async () => {
   expect(crossed.code).toBe('STALE');
   // دور الشركة الأولى ما بيقراش ولا بيكتبش ولا يطلعش أحداث للشركة التانية.
   await w.turn();
-  const seenByA = await w.base.db.withTenant(w.company, async (tx) => {
-    const rows = await tx.execute(sql`SELECT id FROM rating_requests
-      WHERE company_id = ${w.otherCompany}`);
-    return rows.length;
-  });
-  expect(seenByA).toBe(0);
+  await expectTenantIsolation(w, bOnly);
   const bRow = await w.base.db.withTenant(w.company, async (tx) =>
     ratingClaimRepository.findRequest(tx, w.company, bOnly),
   );
@@ -247,7 +271,7 @@ it('tenant_isolation_covers_state_and_claims', async () => {
     ratingClaimRepository.findRequest(tx, w.company, shared),
   );
   expect(aRow?.customerId).toBe(at(seeded.customerIds, 0));
-  const bEvents = await owner`SELECT count(*)::int AS total FROM outbox
+  const bEvents = await w.base.owner`SELECT count(*)::int AS total FROM outbox
     WHERE company_id = ${w.otherCompany} AND event_type = 'RatingRequestReady'`;
   expect(Number(bEvents[0]?.['total'])).toBe(0);
 }, 120_000);

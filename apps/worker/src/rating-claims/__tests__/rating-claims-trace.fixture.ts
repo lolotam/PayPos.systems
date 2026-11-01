@@ -151,6 +151,7 @@ function tracedPort(real: RatingClaimState, hooks: TraceHooks): RatingClaimState
       call('settleRetry', fence, () =>
         real.settleRetry(fence, requestId, workToken, settlement, storedDueAt),
       ),
+    finish: (fence, sweepId) => call('finish', fence, () => real.finish(fence, sweepId)),
     read: (companyId) => real.read(companyId),
   };
 }

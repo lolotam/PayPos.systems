@@ -1,5 +1,4 @@
 ﻿// مُنشئ عالم القبول: القاعدة الحقيقية، وRedis الحقيقية، ومهايات المطالبة الحقيقية.
-// الاختبار بيقرا من القاعدة والـ Redis بعد كل دور، فالمحاكاة بتفضل في حدود السور بس.
 import { Redis } from 'ioredis';
 import { sql } from 'drizzle-orm';
 
@@ -9,10 +8,7 @@ import { createClaimRatingRequest } from '../../modules/customers/index.ts';
 import { daySessionsReader } from '../../modules/orders/index.ts';
 import { ratingClaimRepository } from '../../modules/customers/persistence/rating-claim.repository.ts';
 import { ratingClaimTransactions } from '../../modules/customers/persistence/rating-claim.transactions.ts';
-import {
-  redisRatingClaimState,
-  type RatingClaimStateOptions,
-} from '../../modules/customers/persistence/redis-rating-claim-state.ts';
+import { redisRatingClaimState } from '../../modules/customers/persistence/redis-rating-claim-state.ts';
 import {
   LEASE_MS,
   MAX_TURN_MS,

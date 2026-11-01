@@ -118,7 +118,7 @@ async function crashAfterEnrollment(): Promise<void> {
 
 /** ضياع رد التسجيل: التنفيذ حصل والعميل ما عرفش، فالمطابقة بصفحة الجولة بتلحق. */
 async function loseEnrollmentReply(): Promise<void> {
-  const world = await openWorld({ budget: { forward: 3, retry: 1 } });
+  const world = await openWorld({ budget: { forward: 3, retry: 1 }, state: { leaseMs: 1000 } });
   const rows = await world.seedDueRequests({ count: 3 });
   world.tokens.allow = () => true;
   world.state.loseReply('enrollPage');
@@ -127,6 +127,8 @@ async function loseEnrollmentReply(): Promise<void> {
   expect(enrolled.page?.entries).toHaveLength(3);
   expect(await world.readyRequestIds()).toHaveLength(0);
   // الدور الجاي بيرجّع اليومية المسجّلة، فكل طلب يطلع له event واحد بس.
+  // العامل الميت ما سابش الحجز (إفلاته اترفض بسور قديم)، فالدور الجاي يستنى انتهاءه.
+  await delay(1300);
   await world.turn();
   const ready = await world.readyRequestIds();
   expect(ready).toHaveLength(3);
@@ -142,7 +144,7 @@ it('crash_before_and_after_page_enrollment', async () => {
 }, 300_000);
 
 it('crash_at_db_commit_and_settlement', async () => {
-  const w = await openWorld({ budget: { forward: 4, retry: 1 } });
+  const w = await openWorld({ budget: { forward: 4, retry: 1 }, state: { leaseMs: 1000 } });
   const seeded = await w.seedDueRequests({ count: 4 });
   const rolledBack = at(seeded.requestIds, 0);
   const uncertain = at(seeded.requestIds, 1);
@@ -170,6 +172,8 @@ it('crash_at_db_commit_and_settlement', async () => {
   expect(afterLost.retries[rolledBack]).toBeDefined();
   expect(await w.readyRequestIds()).toHaveLength(3);
   // الدور اللي بعده بياخد الشغل المعلّق ويكمّله: الصف المؤكد بيتشال، والحدث ما يتضاعفش.
+  // الدور اللي فات مات وهو ماسك للحالة، فالدور الجاي يستنى انتهاء الحجز وياخدها.
+  await delay(1300);
   await w.turn();
   const finished = await w.readState();
   expect(finished.retries[uncertain]).toBeUndefined();
