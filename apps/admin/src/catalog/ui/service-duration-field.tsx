@@ -5,11 +5,12 @@ import { Input, Label } from '@pospay/ui';
 import { useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 
-function durationFromInput(value: unknown): number | null {
+function durationFromInput(value: unknown): number | string | null {
   if (typeof value === 'number') return value;
   if (typeof value !== 'string') return null;
   const text = value.trim();
-  return text === '' ? null : Number(text);
+  if (text === '') return null;
+  return /^\d+$/.test(text) ? Number(text) : text;
 }
 
 export function ServiceDurationField() {

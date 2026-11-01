@@ -26,6 +26,8 @@ export const catalogServicesEn = {
   categoryClosed: 'closed',
   categoriesUnavailable:
     'The category list is not available with your permission; the current category will be kept.',
+  categoriesUnavailableNew:
+    'The category list is not available with your permission; the service is saved without a category.',
   categoryFilter: 'Filter by category',
   allCategories: 'All categories',
   rule: 'Commission rule',
@@ -67,6 +69,7 @@ export const catalogServicesAr = {
   noCategory: 'بدون تصنيف',
   categoryClosed: 'مغلق',
   categoriesUnavailable: 'قائمة التصنيفات غير متاحة بصلاحيتك؛ سيُحتفظ بالتصنيف الحالي.',
+  categoriesUnavailableNew: 'قائمة التصنيفات غير متاحة بصلاحيتك؛ ستُحفظ الخدمة بدون تصنيف.',
   categoryFilter: 'تصفية حسب التصنيف',
   allCategories: 'كل التصنيفات',
   rule: 'قاعدة العمولة',

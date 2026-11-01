@@ -53,7 +53,14 @@ export function ServiceCategoryField({
       {refused ? (
         <>
           <p>{currentCategoryName(currentCategory, locale)}</p>
-          <p>{t(locale, 'catalogServices.categoriesUnavailable')}</p>
+          <p>
+            {t(
+              locale,
+              currentCategoryId === null
+                ? 'catalogServices.categoriesUnavailableNew'
+                : 'catalogServices.categoriesUnavailable',
+            )}
+          </p>
         </>
       ) : (
         <select

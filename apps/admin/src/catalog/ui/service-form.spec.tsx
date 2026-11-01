@@ -88,7 +88,7 @@ it.each(['ar', 'en'] as const)(
   },
 );
 
-it.each(['0', '601', '90.5', 'abc'])(
+it.each(['0', '601', '90.5', 'abc', '1e2', '0x10'])(
   'shows the duration field error instead of submitting %s',
   async (duration) => {
     const save = vi.fn();
@@ -140,6 +140,42 @@ it.each([
     expect(save.mock.calls[0]?.[0]).toMatchObject({ category_id: expectedCategoryId });
   },
 );
+
+it('re-sends the unchanged closed category and duration on edit save', async () => {
+  const save = vi.fn();
+  render(
+    <EditServiceForm
+      categoryQuery={categoryQuery()}
+      record={record}
+      pending={false}
+      onSave={save}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'catalogServices.save') }));
+  await waitFor(() => expect(save).toHaveBeenCalled());
+  expect(save.mock.calls[0]?.[0]).toMatchObject({
+    category_id: closedCategoryId,
+    duration_minutes: 45,
+  });
+});
+
+it('clears the duration visibly and submits null', async () => {
+  const save = vi.fn();
+  render(
+    <EditServiceForm
+      categoryQuery={categoryQuery()}
+      record={record}
+      pending={false}
+      onSave={save}
+    />,
+  );
+  const duration = screen.getByLabelText(t('en', 'catalogServices.duration')) as HTMLInputElement;
+  fireEvent.change(duration, { target: { value: '' } });
+  expect(duration.value).toBe('');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'catalogServices.save') }));
+  await waitFor(() => expect(save).toHaveBeenCalled());
+  expect(save.mock.calls[0]?.[0]).toMatchObject({ duration_minutes: null });
+});
 
 it('keeps a closed current category selected and visibly marked', () => {
   render(
@@ -210,6 +246,22 @@ it('shows read-only category text and omits category_id when categories are refu
   const terms = save.mock.calls[0]?.[0] as UpdateServiceInput;
   expect(terms).not.toHaveProperty('category_id');
   expect(terms.duration_minutes).toBe(45);
+});
+
+it('uses the create-specific note when categories are refused', () => {
+  render(
+    <ServiceForm
+      categoryQuery={categoryQuery({
+        data: undefined,
+        error: { status: 403 },
+        isError: true,
+      })}
+      pending={false}
+      onSave={vi.fn()}
+    />,
+  );
+  expect(screen.getByText(t('en', 'catalogServices.categoriesUnavailableNew'))).toBeTruthy();
+  expect(screen.queryByText(t('en', 'catalogServices.categoriesUnavailable'))).toBeNull();
 });
 
 it('disables submission during the pending request', () => {

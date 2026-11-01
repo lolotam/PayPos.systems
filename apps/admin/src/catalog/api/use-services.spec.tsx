@@ -105,7 +105,7 @@ it('updates through the generated client with duration and category', async () =
   });
 });
 
-it('leaves category_id absent when a refused category list kept it unknown', async () => {
+it('omits category_id from the PATCH body when the terms omit it', async () => {
   get.mockResolvedValueOnce({ data: record });
   patch.mockResolvedValueOnce({ data: record });
   const hook = renderHook(() => useServiceEdit(id, id, id, id), { wrapper });
