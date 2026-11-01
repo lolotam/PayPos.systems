@@ -399,10 +399,10 @@ no previous main migration or snapshot is changed. 34-pre-1 follows this task an
 The same message corrected CS-Q39: both owners selected zero-based choice 1, retaining only the four agreed
 kinds. Waleed's earlier choice 0 was superseded on the page at 10:58:53.996Z. Abu Salem selected 1 at
 12:05:48.706Z. Neither wrote note text or a source. At 16:07 the manager relayed Waleed's exact confirmation
-???? ?????? ???????? ???, dated 2026-11-01, channel ????? ?? ??? ???? ??????. See owner-questions.ar.md ?41
+«لأ، الأربع اختيارات بس», dated 2026-11-01, channel «كارت في شات مدير الويب». See owner-questions.ar.md §41
 for the raw API records and all earlier answers and corrections.
 
-This decision supersedes the fifth-kind instructions and historical receipts in sections 10?16. Update active
+This decision supersedes the fifth-kind instructions and historical receipts in sections 10–16. Update active
 briefs, spec and index; remove FOLLOW_SERVICE from production contracts, storage, engine and positive fixtures;
 retain negative rejection proofs. The engine returns to its unchanged four-kind implementation. Kimi K3.1 Pro
 on T3's OpenCode provider, variant max, owns the bounded correction at baseline a37f4f8a; the lead owns docs,
