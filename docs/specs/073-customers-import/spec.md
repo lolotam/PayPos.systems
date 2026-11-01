@@ -2,9 +2,15 @@
 
 **Created**: 2026-11-01
 **Status**: Draft. The owner questions are in [owner-questions.ar.md](owner-questions.ar.md):
-- CI-Q1 to CI-Q8 are feature questions: batch 88, `PP-102.1` to `PP-102.7`; CI-Q8 is not numbered yet.
-- CI-T1 to CI-T5 are technical questions: `PP-103.1` to `PP-103.4`; CI-T5 is not numbered yet.
-- Waleed has answered CI-Q1 to CI-Q4. Every other question is pending, and so is Abu Salem's pick on every feature question.
+- CI-Q1 to CI-Q8 are feature questions: batch 88, `PP-102.1` to `PP-102.8`.
+- CI-T1 to CI-T5 are technical questions: `PP-103.1` to `PP-103.5`.
+- Waleed has answered CI-Q1 to CI-Q4 and CI-T1 to CI-T4. His technical answers are final.
+- CI-Q5 to CI-Q8 and CI-T5 are pending, and so is Abu Salem's pick on every feature question.
+- **Two of Waleed's picks go against the recommendation, and Abu Salem has not answered them yet:**
+  - CI-Q1 (`PP-102.1`): extra customer fields first.
+  - CI-Q4 (`PP-102.4`): branch managers and cashiers may import too.
+- Every part marked **[PP-102.1]** or **[PP-102.4]** depends on one of those two picks. Nothing in those parts is
+  built before Abu Salem answers or the manager says to proceed. The rest of the spec holds under either answer.
 
 Every section marked `TODO(spec)` waits on an answer. **No code starts before this spec is merged.**
 
@@ -63,29 +69,35 @@ nothing. The commit runs in the worker, and the screen polls for the result.
 1. **All-or-nothing, create-only** (SPEC §11, ADR-0034). The import never updates or deletes a customer (CI-Q2).
 2. **Company-wide identity** (D-30). A created customer belongs to the company, whichever business or branch the
    import ran from.
-3. **Columns.** `TODO(spec)` CI-Q1 and CI-Q8:
-   - Waleed picked "add more fields first", so a customer-fields slice (34-pre) comes before the import.
-   - The fields wait on CI-Q8; the language default on CI-Q6; the country code on CI-Q7; an opt-out column on CI-Q5.
-   - If Abu Salem picks "name, phone and language only", 34-pre is dropped.
-4. **Who may import.** `TODO(spec)` CI-Q4 and CI-T5:
-   - Waleed picked "also branch managers and cashiers", so the branch-scope permission `create:customers:branch` is
-     accepted too.
-   - The route shape waits on CI-T5.
+3. **Columns.** The base columns, `name` and `phone`, hold under either answer.
+   - `TODO(spec)` CI-Q6: the language default.
+   - `TODO(spec)` CI-Q7: the country code.
+   - `TODO(spec)` CI-Q5: an opt-out column.
+   - **[PP-102.1]** Waleed picked "add more fields first", so a customer-fields slice (34-pre, with a migration) comes
+     before the import. Which fields waits on CI-Q8 (`PP-102.8`). If Abu Salem picks "name, phone and language only",
+     34-pre is dropped and the import needs no migration.
+4. **Who may import.**
+   - Under either answer, the business route `/v1/businesses/{businessId}/customers/import/…` (CI-T3) accepts the
+     existing `create:customers:business`, which the general manager covers through `create:customers:company`.
+   - **[PP-102.4]** Waleed picked "also branch managers and cashiers", so `create:customers:branch` is accepted too, on
+     a branch route whose shape waits on CI-T5 (`PP-103.5`).
 
 ### Design decisions (settled by the files; the design advisors confirm before code)
 
 | # | Decision |
 |---|---|
 | D-1 | The preview is stored in `import_previews` with `entity = 'customers'`. No new table. Every customers read, lock and update filters `entity = 'customers'`. |
-| D-2 | Customers own their import flow: the API use cases, a worker processor and the stale-request sweep, as catalog does in spec 072 D-2. Only entity-agnostic pieces are shared: `TODO(spec)` CI-T1. |
+| D-2 | Customers own their import flow: the API use cases, a worker processor and the stale-request sweep, as catalog does in spec 072 D-2. Only entity-agnostic pieces are shared. **CI-T1 (`PP-103.1`, final): 34b moves them to `apps/api/src/shared/import/`** (the xlsx reader with caller-passed bounds and error translation, and the object-bytes reader), with staff re-importing them and staff's tests unchanged. Spec 072's 32b-1 then reuses them; its split gets a one-line amendment in this spec's PR. |
 | D-3 | The row plug-in reuses the spec 010 domain rules unchanged: phone normalization, name bounds and masking. There is no second validator. |
 | D-4 | One new event type `CustomerImportCommitRequested` (id-only `{ preview_id }`), emitted in the acceptance transaction. No per-customer event: SPEC §3 names none for customer creation. The worker registers the type with its transport, and the API producer ships last (072 D-5 rollout order). |
-| D-5 | The commit runs in the worker (the 200 ms rule): `TODO(spec)` CI-T4. It goes in `apps/worker/src/modules/customers`, so that sub-PR waits for 59b-2b to merge. |
-| D-6 | The full E.164 phone in the preview rows: `TODO(spec)` CI-T2. |
+| D-5 | **CI-T4 (`PP-103.4`, final): the commit runs in the worker** (the 200 ms rule), in `apps/worker/src/modules/customers`, so that sub-PR waits for 59b-2b to merge. |
+| D-6 | **CI-T2 (`PP-103.2`, final): the normalized E.164 phone is stored in `import_previews.rows`**, under the table's RLS like the `customers` table, so the worker inserts from it. It is never returned. Every response, error and log carries only the masked phone. Retention follows the open IM-Q3. |
+| D-7 | **CI-T3 (`PP-103.3`, final): the routes sit under the business**, and the preview's `business_id` is that business. Customers are created for the company. No migration for the import itself. |
 
 ## Delivery: the sub-PR split
 
 `TODO(spec)`: this is drafted once CI-Q1, CI-Q4, CI-Q8 and CI-T1 to CI-T5 are answered. Known constraints:
 - The shared xlsx adapters are planned in 072's 32b-1, which waits on 32b-pre-2 and 32b-cat-2 (CI-T1).
 - The worker sub-PR waits on 59b-2b, which owns `apps/worker/src/modules/customers/**` now.
-- 34-pre needs the single migration lane, after 32b-pre-1 and only with the manager's yes.
+- **[PP-102.1]** 34-pre needs the single migration lane. It is queued after 32b-pre-1 (34-pre first, then 49-1), and
+  it is taken only with the manager's yes.
