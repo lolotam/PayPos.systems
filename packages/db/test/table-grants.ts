@@ -38,6 +38,8 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'company_feature_overrides:SELECT',
     'consumed_events:INSERT',
     'consumed_events:SELECT',
+    'customer_notes:INSERT',
+    'customer_notes:SELECT',
     'customers:INSERT',
     'customers:SELECT',
     'devices:INSERT',

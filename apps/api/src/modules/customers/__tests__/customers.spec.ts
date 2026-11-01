@@ -6,6 +6,7 @@ import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 
 import { startHarness, type Harness } from '../../../../test/harness.ts';
 import { createCustomerTransactions } from '../persistence/drizzle-customer-transactions.ts';
+import { branchBusiness } from '../persistence/workspace-names.adapter.ts';
 import { FindOrCreateCustomerUseCase } from '../use-cases/find-or-create-customer/find-or-create-customer.usecase.ts';
 
 const PATH = '/v1/customers/find-or-create';
@@ -211,7 +212,11 @@ it('CUS-06 rejects a NUL name with the named validation error before customer pe
 it('CUS-07 failed audit rolls back a new customer inside withTenant', async () => {
   const db = createDatabase({ url: h.urls.app, ids: { newId: () => idA } });
   const ids = { newId: () => '01920000-0000-7000-8000-00000000abcd' };
-  const transactions = createCustomerTransactions(db, { newId: () => 'invalid-audit-id' });
+  const transactions = createCustomerTransactions(
+    db,
+    { newId: () => 'invalid-audit-id' },
+    branchBusiness,
+  );
   const useCase = new FindOrCreateCustomerUseCase(transactions, ids, {
     now: () => new Date('2026-10-01T00:00:00Z'),
   });
@@ -220,6 +225,7 @@ it('CUS-07 failed audit rolls back a new customer inside withTenant', async () =
       useCase.execute({
         companyId: A,
         userId: userA,
+        scope: { kind: 'company' },
         input: { ...payload, phone: phoneInput('2025550125'), locale: 'ar' },
       }),
     ).rejects.toThrow();

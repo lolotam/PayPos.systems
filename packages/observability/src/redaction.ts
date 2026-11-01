@@ -92,6 +92,21 @@ const PUSH_SECRET_KEYS = new Set([
   'installationid',
   'subscriberref',
 ]);
+// حقول الملف الشخصي للعميل (D-10): أسماء كاملة مش لواحق، عشان "footnote" أو "noteCount" في مكان تاني
+// ما يتحبّش بالخطأ. التطبيع بيجمع الشكلين بالشرطة والـ camelCase ("birth_day" و"birthDay" واحد).
+const CUSTOMER_PROFILE_KEYS = new Set([
+  'birthday',
+  'birthdays',
+  'birthmonth',
+  'birthyear',
+  'birthdate',
+  'gender',
+  'genders',
+  'note',
+  'notes',
+  'customernote',
+  'customernotes',
+]);
 const normalizeKey = (key: string): string => key.toLowerCase().replace(/[^a-z0-9]/g, '');
 // A plural container ("passwords", "tokens", "hashes") holds secrets under ordinary child keys, so the key
 // is also tested with a trailing "s" or "es" removed — the container is redacted before its children.
@@ -110,6 +125,7 @@ const isSecretKey = (key: string): boolean =>
 const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);
 const isEmailKey = (key: string): boolean =>
   endsWithAny(key, ['email', 'emails', 'emailaddress', 'emailaddresses']);
+const isCustomerProfileKey = (key: string): boolean => CUSTOMER_PROFILE_KEYS.has(normalizeKey(key));
 
 // URLs are checked in every string value, because their key (DATABASE_URL, url, link) looks harmless. A URL
 // is PARSED, not pattern-matched: the parser knows that the last "@" before the host ends the userinfo (a
@@ -205,6 +221,7 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
         (normalizeKey(key) === 'code' && typeof child === 'string' && /^\d{6}$/.test(child)) ||
         (maskPhones &&
           (isEmailKey(key) ||
+            isCustomerProfileKey(key) ||
             endsWithAny(key, SALARY_SUFFIXES) ||
             ((salaryShaped || ibanShaped) && endsWithAny(key, ['reason'])) ||
             PRIVATE_PAYLOAD_KEYS.has(normalizeKey(key))))

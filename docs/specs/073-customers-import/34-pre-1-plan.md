@@ -2,7 +2,9 @@
 
 Sub-PR of spec 073 (`docs/specs/073-customers-import/spec.md`, Delivery table row 34-pre-1). Planner draft for the
 root orchestrator; an independent design review (Astra) has been folded in, and the root reconciles both before the
-brief is dispatched. Status: **root-reviewed, ready for dispatch** after the corrections below.
+brief is dispatched. Status: **implemented and locally checked; independent Astra review and canonical migration
+finalization pending**. Initial MiniMax delivery and its first correction were reviewed by the root; the root
+resolved the remaining small type, fixture and lint findings. No push or PR has been made.
 
 Scope, exactly: the new customer scalar fields (birthday, gender, email), the per-business note, the column grants
 and the overwrite guard (D-8, D-9, D-10), the spec 010 find-or-create accepting them, and one read endpoint for the

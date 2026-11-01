@@ -4,6 +4,20 @@ const json = (schema: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
 });
 
+const companyHeader = {
+  in: 'header',
+  name: 'x-company-id',
+  required: true,
+  schema: { type: 'string', format: 'uuid' },
+};
+
+const pathParameter = (name: string) => ({
+  in: 'path',
+  name,
+  required: true,
+  schema: { type: 'string', format: 'uuid' },
+});
+
 // مسار الاستقبال لموديول العملاء؛ منفصل عن openapi.ts عشان كل موديول يملك مساراته.
 export const customerPaths = {
   '/v1/customers/find-or-create': {
@@ -14,14 +28,7 @@ export const customerPaths = {
         '200': { description: 'Customer with masked phone', content: json('Customer') },
         default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
       },
-      parameters: [
-        {
-          in: 'header',
-          name: 'x-company-id',
-          required: true,
-          schema: { type: 'string', format: 'uuid' },
-        },
-      ],
+      parameters: [companyHeader],
       description:
         'Requires create:customers:company and the customers feature. Existing name and locale are preserved.',
     },
@@ -31,6 +38,43 @@ export const customerPaths = {
     'business',
   ),
   '/v1/branches/{branchId}/customers/find-or-create': scopedCustomerPath('branchId', 'branch'),
+  // بطاقة العميل للقراءة: نفس اللي بيشوف العميل يقدر يشوف ملاحظاته (CI-Q14، CI-Q17).
+  '/v1/customers/{customerId}/profile': {
+    get: {
+      operationId: 'getCustomerProfile',
+      description:
+        'Requires create:customers:company and the customers feature. The notes of every business of the company are shown; the route scope only gates the entry.',
+      responses: {
+        '200': { description: 'The customer profile', content: json('CustomerProfile') },
+        default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+      },
+      parameters: [companyHeader, pathParameter('customerId')],
+    },
+  },
+  '/v1/businesses/{businessId}/customers/{customerId}/profile': {
+    get: {
+      operationId: 'getBusinessCustomerProfile',
+      description:
+        'Requires create:customers:business at the verified context and the customers feature. The notes of every business of the company are shown; the route scope only gates the entry.',
+      responses: {
+        '200': { description: 'The customer profile', content: json('CustomerProfile') },
+        default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+      },
+      parameters: [companyHeader, pathParameter('businessId'), pathParameter('customerId')],
+    },
+  },
+  '/v1/branches/{branchId}/customers/{customerId}/profile': {
+    get: {
+      operationId: 'getBranchCustomerProfile',
+      description:
+        'Requires create:customers:branch at the verified context and the customers feature. The notes of every business of the company are shown; the route scope only gates the entry.',
+      responses: {
+        '200': { description: 'The customer profile', content: json('CustomerProfile') },
+        default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+      },
+      parameters: [companyHeader, pathParameter('branchId'), pathParameter('customerId')],
+    },
+  },
   // مسار رفض التقييم من غير جلسة: التوكن في الهيدر هو الاعتماد كله (D-B10، ADR-0011 §4).
   '/v1/ratings/opt-out': {
     post: {
@@ -121,20 +165,12 @@ function scopedCustomerPath(parameter: string, scope: string) {
       operationId:
         scope === 'business' ? 'findOrCreateBusinessCustomer' : 'findOrCreateBranchCustomer',
       description: `Requires create:customers:${scope} at the verified context and the customers feature. Customer identity remains company-scoped.`,
-      requestBody: { required: true, content: json('FindOrCreateCustomerInput') },
+      requestBody: { required: true, content: json('FindOrCreateScopedCustomerInput') },
       responses: {
         '200': { description: 'Customer with masked phone', content: json('Customer') },
         default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
       },
-      parameters: [
-        {
-          in: 'header',
-          name: 'x-company-id',
-          required: true,
-          schema: { type: 'string', format: 'uuid' },
-        },
-        { in: 'path', name: parameter, required: true, schema: { type: 'string', format: 'uuid' } },
-      ],
+      parameters: [companyHeader, pathParameter(parameter)],
     },
   };
 }

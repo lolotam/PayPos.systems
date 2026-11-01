@@ -1,5 +1,6 @@
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 import type { CustomerRecord } from '../domain/customer.ts';
+import type { CustomerBirthday } from '../domain/profile.ts';
 
 /** بيانات إنشاء العميل؛ الوقت والمعرّف يأتيان من الـ ports المحقونة. */
 export interface NewCustomer {
@@ -8,18 +9,52 @@ export interface NewCustomer {
   readonly phone: string;
   readonly locale: 'ar' | 'en';
   readonly at: Date;
+  /** النوع اختياري: لو اتساب مش بيتخزّن (S-1). */
+  readonly gender?: 'female' | 'male';
+  /** تاريخ الميلاد اختياري؛ تقويمه اتأكد في الـ domain قبل أي كتابة. */
+  readonly birthday?: CustomerBirthday;
+  /** البريد اختياري؛ شكله اتأكد في الـ domain قبل أي كتابة. */
+  readonly email?: string;
+}
+
+/** ملاحظة عميل واحدة لنشاط واحد؛ السطر ثابت (مفيش تعديل ولا حذف). */
+export interface NewCustomerNote {
+  readonly customerId: string;
+  readonly businessId: string;
+  readonly note: string;
+  readonly at: Date;
 }
 
 /** كتابة العميل وسجل إنشائه على نفس المعاملة كي لا يُحفظ تغيير بلا سجل. */
 export interface CustomerScope {
   readonly audit: AuditTrail;
   /**
-   * يعيد العميل أو ينشئه مرة واحدة؛ created تميز من يكتب سجل الإنشاء تحت التزامن.
+   * يدوّر على العميل بهاتفه.
+   *
+   * @param phone الهاتف بصيغة E.164
+   * @returns العميل الموجود، أو null لو الهاتف مش متسجّل
+   */
+  findByPhone(phone: string): Promise<CustomerRecord | null>;
+  /**
+   * ينشئ العميل مرة واحدة؛ لو حد تاني سبقه في نفس اللحظة بيرجع الصف الفائز بلا إنشاء.
    *
    * @param customer بيانات العميل المراد تعريفه
    * @returns العميل الفائز وحقيقة الإنشاء
    */
-  findOrCreate(customer: NewCustomer): Promise<{ customer: CustomerRecord; created: boolean }>;
+  create(customer: NewCustomer): Promise<{ customer: CustomerRecord; created: boolean }>;
+  /**
+   * يحفظ ملاحظة العميل لنشاط واحد.
+   *
+   * @param note الملاحظة ونشاطها والوقت
+   */
+  addNote(note: NewCustomerNote): Promise<void>;
+  /**
+   * يحوّل الفرع إلى النشاط اللي بيخدمه.
+   *
+   * @param branchId الفرع
+   * @returns معرّف النشاط
+   */
+  branchBusiness(branchId: string): Promise<string>;
 }
 
 /** حدود المعاملة لعزل الشركة ولإلغاء إنشاء العميل إذا فشل سجل التدقيق. */

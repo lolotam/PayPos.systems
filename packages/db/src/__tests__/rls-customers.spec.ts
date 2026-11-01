@@ -180,13 +180,18 @@ describe('customers — context, constraints and lookup index', () => {
 });
 
 describe('customers — the granted opt-out columns', () => {
-  it('grants UPDATE only on opted_out_at and updated_at', async () => {
+  it('grants UPDATE on the opt-out and the profile columns only', async () => {
     const rows = await owner<{ attname: string; allowed: boolean }[]>`
       SELECT a.attname, has_column_privilege('pospay_app', 'customers'::regclass, a.attname, 'UPDATE') AS allowed
       FROM pg_attribute a
       WHERE a.attrelid = 'customers'::regclass AND a.attnum > 0 AND NOT a.attisdropped
       ORDER BY a.attname`;
     expect(rows.filter((row) => row.allowed).map((row) => row.attname)).toEqual([
+      'birth_day',
+      'birth_month',
+      'birth_year',
+      'email',
+      'gender',
       'opted_out_at',
       'updated_at',
     ]);

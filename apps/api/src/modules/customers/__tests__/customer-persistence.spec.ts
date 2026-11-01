@@ -15,10 +15,15 @@ import {
 } from '../../../../../../packages/db/test/test-database.ts';
 import { InvalidCustomerPhoneError } from '../domain/errors.ts';
 import { createCustomerTransactions } from '../persistence/drizzle-customer-transactions.ts';
+import type { BranchBusinessReader } from '../persistence/workspace-names.adapter.ts';
 
 const PHONE = '+12025550126';
 const ID = '01920000-0000-7000-8000-000000000abc';
 const actor = { companyId: TENANT.A.company, userId: USER };
+// مسار الفرع مش جزء من اختبارات الأخطاء، فالمحوّل مش بيتنادى أصلاً.
+const unusedBranchBusiness: BranchBusinessReader = {
+  business: async () => TENANT.A.business,
+};
 const input = {
   id: ID,
   phone: PHONE,
@@ -65,12 +70,12 @@ it('reproduces real Postgres SQLSTATE 22021 when a NUL name bypasses the contrac
 });
 
 it('sanitizes the real 22021 error both inside the callback and outside the transaction', async () => {
-  const transactions = createCustomerTransactions(db, { newId: () => ID });
+  const transactions = createCustomerTransactions(db, { newId: () => ID }, unusedBranchBusiness);
   let innerError: unknown;
   const error = await transactions
     .run(actor, async (scope) => {
       try {
-        return await scope.findOrCreate(input);
+        return await scope.create(input);
       } catch (caught) {
         innerError = caught;
         throw caught;
@@ -82,11 +87,11 @@ it('sanitizes the real 22021 error both inside the callback and outside the tran
 });
 
 it('sanitizes a real unique-violation audit failure and rolls back the inserted customer', async () => {
-  const transactions = createCustomerTransactions(db, { newId: () => ID });
+  const transactions = createCustomerTransactions(db, { newId: () => ID }, unusedBranchBusiness);
   let innerError: unknown;
   const error = await transactions
     .run(actor, async (scope) => {
-      await scope.findOrCreate({ ...input, name: 'Synthetic name' });
+      await scope.create({ ...input, name: 'Synthetic name' });
       await scope.audit.record({
         entity: 'customer',
         entityId: ID,
@@ -127,7 +132,11 @@ it('sanitizes a real transaction-wrapper failure before the callback starts', as
         options,
       ),
   };
-  const transactions = createCustomerTransactions(wrappers, { newId: () => ID });
+  const transactions = createCustomerTransactions(
+    wrappers,
+    { newId: () => ID },
+    unusedBranchBusiness,
+  );
   const error = await transactions
     .run(actor, () => Promise.resolve('unreachable'))
     .catch((caught: unknown) => caught);
@@ -135,10 +144,10 @@ it('sanitizes a real transaction-wrapper failure before the callback starts', as
 });
 
 it('keeps a named domain error thrown inside the transaction and rolls the insert back', async () => {
-  const transactions = createCustomerTransactions(db, { newId: () => ID });
+  const transactions = createCustomerTransactions(db, { newId: () => ID }, unusedBranchBusiness);
   const error = await transactions
     .run(actor, async (scope) => {
-      await scope.findOrCreate({ ...input, name: 'Synthetic name' });
+      await scope.create({ ...input, name: 'Synthetic name' });
       throw new InvalidCustomerPhoneError();
     })
     .catch((caught: unknown) => caught);
@@ -147,4 +156,98 @@ it('keeps a named domain error thrown inside the transaction and rolls the inser
     tx.execute(sql`SELECT id FROM customers WHERE id = ${ID}`),
   );
   expect(rows).toHaveLength(0);
+});
+
+it('a rolled back creation leaves the phone free for the next writer', async () => {
+  const transactions = createCustomerTransactions(db, { newId: () => ID }, unusedBranchBusiness);
+  const rolledBack = await transactions
+    .run(actor, async (scope) => {
+      await scope.create({ ...input, name: 'Rolled back' });
+      throw new InvalidCustomerPhoneError();
+    })
+    .catch((caught: unknown) => caught);
+  expect(rolledBack).toBeInstanceOf(InvalidCustomerPhoneError);
+  await expect(
+    transactions.run(actor, async (scope) => {
+      const second = await scope.create({ ...input, name: 'Second writer' });
+      expect(second.created).toBe(true);
+      expect(second.customer.name).toBe('Second writer');
+      // الاختبار بيبرهن إعادة الإنشاء، وبيرجع صفه عشان اختبارات الفشل اللي بعده تبدأ فاضية.
+      throw new InvalidCustomerPhoneError();
+    }),
+  ).rejects.toThrow(InvalidCustomerPhoneError);
+});
+
+it('rolls the customer and its audit back when the note cannot be written', async () => {
+  const transactions = createCustomerTransactions(db, { newId: () => ID }, unusedBranchBusiness);
+  const error = await transactions
+    .run(actor, async (scope) => {
+      const created = await scope.create({ ...input, name: 'Note failure' });
+      await scope.audit.record({
+        entity: 'customer',
+        entityId: created.customer.id,
+        action: 'created',
+        after: { phone: '***126' },
+      });
+      // نشاط مش موجود: الـ foreign key بيرفض الملاحظة-after ما يبقىش فيه أثر.
+      await scope.addNote({
+        customerId: created.customer.id,
+        businessId: '01920000-0000-7000-8000-00000000d0ff',
+        note: 'A note',
+        at: input.at,
+      });
+      return 'unreachable';
+    })
+    .catch((caught: unknown) => caught);
+  expectPrivateFailure(error);
+  const customers = await db.withTenant(actor.companyId, (tx) =>
+    tx.execute(sql`SELECT id FROM customers`),
+  );
+  expect(customers).toHaveLength(0);
+  const notes = await db.withTenant(actor.companyId, (tx) =>
+    tx.execute(sql`SELECT note FROM customer_notes`),
+  );
+  expect(notes).toHaveLength(0);
+  const audits = await db.withTenant(actor.companyId, (tx) =>
+    tx.execute(sql`SELECT id FROM audit_log WHERE entity = 'customer'`),
+  );
+  expect(audits).toHaveLength(0);
+});
+
+it('rolls the note and the customer back when the audit cannot be written', async () => {
+  const transactions = createCustomerTransactions(db, { newId: () => ID }, unusedBranchBusiness);
+  const error = await transactions
+    .run(actor, async (scope) => {
+      const created = await scope.create({ ...input, name: 'Audit failure' });
+      await scope.addNote({
+        customerId: created.customer.id,
+        businessId: TENANT.A.business,
+        note: 'A note',
+        at: input.at,
+      });
+      await scope.audit.record({
+        entity: 'customer',
+        entityId: created.customer.id,
+        action: 'created',
+        after: { phone: '***126' },
+      });
+      // نفس السجل تاني: القيد الفريد بيرفضه فتترجع كل الكتابات.
+      await scope.audit.record({
+        entity: 'customer',
+        entityId: created.customer.id,
+        action: 'created',
+        after: { phone: '***126' },
+      });
+      return 'unreachable';
+    })
+    .catch((caught: unknown) => caught);
+  expectPrivateFailure(error);
+  const customers = await db.withTenant(actor.companyId, (tx) =>
+    tx.execute(sql`SELECT id FROM customers`),
+  );
+  expect(customers).toHaveLength(0);
+  const notes = await db.withTenant(actor.companyId, (tx) =>
+    tx.execute(sql`SELECT note FROM customer_notes`),
+  );
+  expect(notes).toHaveLength(0);
 });

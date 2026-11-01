@@ -387,6 +387,8 @@ reads:
   - commissions -> settings.readStaffColumns @ apps/api/src/modules/commissions/persistence/staff-columns.adapter.ts
   - customers -> settings.readStaffColumns @ apps/api/src/modules/customers/persistence/staff-columns.adapter.ts
   - customers -> tenancy.businessNames @ apps/api/src/modules/customers/persistence/business-names.adapter.ts
+  - customers -> tenancy.businessNamesByIds @ apps/api/src/modules/customers/persistence/workspace-names.adapter.ts
+  - customers -> tenancy.describeWorkspaces @ apps/api/src/modules/customers/persistence/workspace-names.adapter.ts
   - staff -> settings.readStaffColumns @ apps/api/src/modules/staff/persistence/staff-columns.adapter.ts
   - staff -> settings.readAlertRule @ apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts
   - staff -> settings.alertRule @ apps/worker/src/modules/staff/persistence/alert-rule.adapter.ts

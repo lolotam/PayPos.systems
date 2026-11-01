@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { customer, findOrCreateCustomerInput } from '../customers.js';
+import {
+  customer,
+  customerProfile,
+  findOrCreateCustomerInput,
+  findOrCreateScopedCustomerInput,
+} from '../customers.js';
 import { RATING_TOKEN_HEADER, submitRatingInput } from '../customers/ratings.js';
 import { buildOpenApiDocument } from '../openapi.js';
+import { controlChar } from '../scalars/no-control-chars.js';
 
 const input = {
   name: 'Example',
@@ -16,6 +22,13 @@ const response = {
   locale: 'ar',
   opted_out: false,
 };
+
+// مسار قيمة في السكيما المنشورة، عشان نقرا خاصية واحدة من غير ما نمس السكيما كلها.
+const valueAt = (node: unknown, path: string[]): unknown =>
+  path.reduce<unknown>((value, key) => {
+    if (value && typeof value === 'object') return (value as Record<string, unknown>)[key];
+    return undefined;
+  }, node);
 
 describe('customer name contract', () => {
   it.each(Array.from({ length: 65 }, (_, index) => (index < 32 ? index : index + 95)))(
@@ -228,5 +241,187 @@ describe('the published rating limits', () => {
     // 1001 code point و2000 unit UTF-16 بالظبط، فالسقف لازم يقع على فحص الـ code points.
     const overCodePoints = `${'😀'.repeat(999)}aa`;
     expect(submitRatingInput.safeParse({ stars: 5, comment: overCodePoints }).success).toBe(false);
+  });
+});
+
+describe('the customer profile input schemas (34-pre-1)', () => {
+  it('accepts the old body in both input schemas', () => {
+    expect(findOrCreateCustomerInput.safeParse(input).success).toBe(true);
+    expect(findOrCreateScopedCustomerInput.safeParse(input).success).toBe(true);
+  });
+
+  it('refuses a note on the company schema and accepts it on the scoped one', () => {
+    expect(
+      findOrCreateCustomerInput.safeParse({ ...input, note: 'Prefers the window seat' }).success,
+    ).toBe(false);
+    expect(
+      findOrCreateScopedCustomerInput.safeParse({ ...input, note: 'Prefers the window seat' })
+        .success,
+    ).toBe(true);
+  });
+
+  it('takes only the two stored gender codes and leaves the omission valid (S-1)', () => {
+    for (const gender of ['female', 'male']) {
+      expect(findOrCreateCustomerInput.safeParse({ ...input, gender }).success).toBe(true);
+    }
+    for (const gender of ['ذكر', 'other', '', null]) {
+      expect(findOrCreateCustomerInput.safeParse({ ...input, gender }).success).toBe(false);
+    }
+    expect(findOrCreateCustomerInput.parse(input)).not.toHaveProperty('gender');
+  });
+
+  it('carries the birthday structure only; the calendar is the domain rule', () => {
+    const birthday = { day: 5, month: 3, year: 1990 };
+    expect(findOrCreateCustomerInput.parse({ ...input, birthday }).birthday).toEqual(birthday);
+    expect(
+      findOrCreateCustomerInput.safeParse({ ...input, birthday: { day: 5, month: 3 } }).success,
+    ).toBe(true);
+    for (const broken of [
+      { day: 5 },
+      { month: 3 },
+      { day: 0, month: 3 },
+      { day: 32, month: 3 },
+      { day: 5, month: 0 },
+      { day: 5, month: 13 },
+      { day: 5, month: 3, year: 0 },
+      { day: 5, month: 3, year: 10000 },
+      { day: 5, month: 3, hour: 3 },
+    ]) {
+      expect(findOrCreateCustomerInput.safeParse({ ...input, birthday: broken }).success).toBe(
+        false,
+      );
+    }
+  });
+});
+
+describe('the customer profile email and note', () => {
+  it('stores the email trimmed, with the literal @ and dot rule and a 254 code point ceiling', () => {
+    expect(findOrCreateCustomerInput.parse({ ...input, email: ' a@b.test ' }).email).toBe(
+      'a@b.test',
+    );
+    expect(findOrCreateCustomerInput.safeParse({ ...input, email: 'a@.' }).success).toBe(true);
+    for (const broken of ['a.', 'ab.test', 'a@bt', 'a@b.test\u0000', 'a@b.test\n']) {
+      expect(findOrCreateCustomerInput.safeParse({ ...input, email: broken }).success).toBe(false);
+    }
+    expect(
+      findOrCreateCustomerInput.safeParse({ ...input, email: `${'a'.repeat(252)}@.` }).success,
+    ).toBe(true);
+    expect(
+      findOrCreateCustomerInput.safeParse({ ...input, email: `${'a'.repeat(253)}@.` }).success,
+    ).toBe(false);
+    // الرمز التعبيري نقطة واحدة وبس، فالسقف يقع على الـ code points مش على وحدات UTF-16.
+    expect(
+      findOrCreateCustomerInput.safeParse({ ...input, email: `😀${'a'.repeat(251)}@.` }).success,
+    ).toBe(true);
+  });
+
+  it('keeps the note free text: trimmed outside, multiline inside, NUL refused', () => {
+    expect(
+      findOrCreateScopedCustomerInput.parse({ ...input, note: '  Prefers the window seat  ' }).note,
+    ).toBe('Prefers the window seat');
+    expect(
+      findOrCreateScopedCustomerInput.parse({ ...input, note: 'first line\nsecond line' }).note,
+    ).toBe('first line\nsecond line');
+    expect(
+      findOrCreateScopedCustomerInput.safeParse({ ...input, note: 'x'.repeat(500) }).success,
+    ).toBe(true);
+    expect(
+      findOrCreateScopedCustomerInput.safeParse({ ...input, note: 'x'.repeat(501) }).success,
+    ).toBe(false);
+    for (const broken of ['   ', 'a\u0000b']) {
+      expect(findOrCreateScopedCustomerInput.safeParse({ ...input, note: broken }).success).toBe(
+        false,
+      );
+    }
+  });
+
+  it('publishes the email and the note limits with the rule that shapes them', () => {
+    const schemas = (buildOpenApiDocument()['components'] as { schemas: Record<string, unknown> })
+      .schemas;
+    const email = valueAt(schemas['FindOrCreateCustomerInput'], ['properties', 'email']);
+    expect(email).toMatchObject({ minLength: 3, maxLength: 254 });
+    expect(email).toMatchObject({ not: { type: 'string', pattern: controlChar.source } });
+    expect(String(valueAt(email, ['description']))).toContain('@');
+    const note = valueAt(schemas['FindOrCreateScopedCustomerInput'], ['properties', 'note']);
+    expect(note).toMatchObject({ minLength: 1, maxLength: 500 });
+    expect(String(valueAt(note, ['description']))).toContain('NUL');
+  });
+});
+
+describe('the customer profile response', () => {
+  const profile = {
+    id: '01920000-0000-7000-8000-000000000abc',
+    name: 'Example',
+    phone: '***123',
+    locale: 'ar',
+    opted_out: false,
+    birthday: { day: 5, month: 3, year: 1990 },
+    gender: 'female',
+    email: 'a@b.test',
+    notes: [
+      {
+        business_id: '01920000-0000-7000-8000-000000000abd',
+        business_name_ar: 'اسم النشاط',
+        business_name_en: 'Business name',
+        note: 'Prefers the window seat',
+        created_at: '2026-11-01T10:00:00.000Z',
+      },
+    ],
+  };
+
+  it('publishes the profile with the masked phone and the notes of every business', () => {
+    expect(customerProfile.parse(profile)).toEqual(profile);
+    expect(
+      customerProfile.safeParse({
+        ...profile,
+        birthday: null,
+        gender: null,
+        email: null,
+        notes: [],
+      }).success,
+    ).toBe(true);
+  });
+});
+
+describe('the customer profile published operations', () => {
+  it('publishes the three profile operations and the scoped body on the business and branch paths', () => {
+    const paths = buildOpenApiDocument()['paths'] as Record<string, Record<string, unknown>>;
+    expect(paths['/v1/customers/{customerId}/profile']?.['get']).toMatchObject({
+      operationId: 'getCustomerProfile',
+      responses: {
+        '200': {
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/CustomerProfile' } },
+          },
+        },
+      },
+    });
+    expect(
+      paths['/v1/businesses/{businessId}/customers/{customerId}/profile']?.['get'],
+    ).toMatchObject({
+      operationId: 'getBusinessCustomerProfile',
+    });
+    expect(paths['/v1/branches/{branchId}/customers/{customerId}/profile']?.['get']).toMatchObject({
+      operationId: 'getBranchCustomerProfile',
+    });
+    const scoped = { $ref: '#/components/schemas/FindOrCreateScopedCustomerInput' };
+    for (const path of [
+      '/v1/businesses/{businessId}/customers/find-or-create',
+      '/v1/branches/{branchId}/customers/find-or-create',
+    ]) {
+      expect(paths[path]?.['post']).toMatchObject({
+        requestBody: { required: true, content: { 'application/json': { schema: scoped } } },
+      });
+    }
+    expect(paths['/v1/customers/find-or-create']?.['post']).toMatchObject({
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/FindOrCreateCustomerInput' },
+          },
+        },
+      },
+    });
   });
 });
