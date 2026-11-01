@@ -4,7 +4,7 @@ import { afterEach, expect, it } from 'vitest';
 
 import { FORWARD_VISITS } from '../../modules/customers/domain/rating-claim-scheduling.ts';
 import { fenceOf } from './rating-claims-fencing.fixture.ts';
-import { createGate, type Gate } from './rating-claims-trace.fixture.ts';
+import { tracedState } from './rating-claims-trace.fixture.ts';
 import {
   at,
   ratingClaimsWorld,
@@ -82,31 +82,6 @@ async function addForeignRetryEntry(
 }
 
 /**
- * يقفل صف العميل في معاملة مالك الداتابيز، فمطالبة الدور بتستنى عليه.
- *
- * المطالبة بتقفل صف العميل قبل ما تكتب، فالقفل بيمنعها من ما تخلص لحد ما
- * الاختبار يفتحه، وبكده نقدر نقرّر متى يكمّل الدور شغله.
- *
- * @param w عالم القبول
- * @param customerId العميل اللي هيتقفل
- * @returns البوابة اللي بتفتح القفل ووعد انتهاء المعاملة
- */
-async function holdCustomerLock(
-  w: RatingClaimsWorld,
-  customerId: string,
-): Promise<{ gate: Gate; done: Promise<void> }> {
-  const gate = createGate();
-  const done = w.base.owner.begin(async (tx) => {
-    await tx`SELECT id FROM customers
-      WHERE company_id = ${w.company} AND id = ${customerId} FOR NO KEY UPDATE`;
-    gate.markAcquired();
-    await gate.wait();
-  });
-  await gate.acquired;
-  return { gate, done };
-}
-
-/**
  * ينتظر لحد ما الدور يستلم الحالة، ويجيب لحظة استلامه.
  *
  * السقف بيتحسب من لحظة استلام الدور هو، فمفيش فايدة نستنى على لحظة حد تانية.
@@ -154,25 +129,28 @@ it('the_turn_stops_at_its_ceiling_instead_of_losing_its_fence', async () => {
   // الحالة رجعت للغير ممسوكة، فالدور الجاي ياخدها بسقف جديد.
   await w.state.port.release({ ...fence, expectedVersion: renewed.version });
 
-  // المطالبة الأولى بتستنى قفل العميل، فالدور بيفضل واقف لحد ما وقت Redis يعدّي
-  // حدّ السقف ناقص مدة الحجز. السقف من لحظة استلام الدور نفسه: الحجز ٣ ثواني
-  // والسقف ٤، فالمطالبة بتخلص قبل ما الحجز يخلص (هامش ١٫٥ ثانية)، والتجديد
-  // بيقع بعد حدّ السقف (هامش ٠٫٥ ثانية) فيرجع LIMIT.
-  const held = await holdCustomerLock(w, at(seeded.customerIds, 0));
+  // بنوقف الدور عند تسوية البند الأول: المطالبة اتعملت وات-commitت، والتسوية
+  // مستنية. قفل العميل مش بيعمل هنا، لأن معاملة المستأجر محدودة بـ lock_timeout.
+  const state = tracedState(w.rawState);
+  const gate = state.hold('settlePage');
+  const turn = w.worker({ state: state.port });
   w.claimTrap.clockJumpMs = 31_000;
-  const turn = w.turn();
+  const pending = turn.execute(w.company);
+  await gate.acquired;
+  // السقف من لحظة استلام الدور نفسه: التسوية بتخلص بعد ١٫٥ ثانية من الاستلام،
+  // فالحجز (٣ ثواني) لسه صالح، والتجديد اللي بعدها يقع بعد حدّ السقف (٤ ثواني)
+  // فيرجع LIMIT بهامش نص ثانية.
   const turnStartedAt = await waitForTurnAcquisition(w, before.turnStartedAt ?? 0, ownerToken);
   await waitUntil(w, turnStartedAt + maxTurnMs - leaseMs + 500);
-  held.gate.release();
-  await held.done;
-  const first = await turn;
+  gate.release();
+  const first = await pending;
   expect(first.end).toBe('LIMIT_REACHED');
   // البند الأول اتطالب، والتاني ما اتطالبش: مفيش مطالبة بدأت بعد السقف.
   expect(first.forwardVisits).toBe(1);
+  expect(first.settlements['TERMINAL']).toBe(1);
   expect(w.diagnostics.fenceLosses).toHaveLength(0);
   const readyAfterFirst = await w.readyRequestIds();
-  expect(readyAfterFirst).toHaveLength(1);
-  expect(readyAfterFirst).toContain(at(seeded.requestIds, 0));
+  expect(readyAfterFirst).toEqual([at(seeded.requestIds, 0)]);
   // المجلة لسه مسجّلة، فالدور الجاي بيكملها.
   const afterFirst = await w.readState();
   expect(afterFirst.page?.entries).toHaveLength(2);

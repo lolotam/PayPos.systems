@@ -90,7 +90,10 @@ async function runTwoBullWorkers(w: RatingClaimsWorld): Promise<{
 }
 
 it('two_workers_expired_owner_cannot_regress_state', async () => {
-  const w = await openWorld({ state: { leaseMs: 1000 } });
+  // حجز ٥ ثواني: حجز A لازم يخلص قبل ما B ياخد الحالة، وB لازم يخلص دوره كله
+  // جوّه حجزه، لأن التجديد بيحتاج ٣٠ ثانية على ساعة الاختبار. الانتظار كله
+  // استطلاع على وقت Redis، فمفيش نوم ثابت بيفترض مدة الحجز.
+  const w = await openWorld({ state: { leaseMs: 5_000 } });
   const seeded = await w.seedDueRequests({ count: 3 });
   w.tokens.allow = () => true;
   // العامل A بيتوقف في تسوية الصفحة، فبيضل ماسك للحالة؛ وB يكمّل بعد انتهاء الحجز.

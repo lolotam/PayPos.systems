@@ -105,7 +105,9 @@ async function crashBeforeEnrollment(): Promise<void> {
 
 /** انهيار بعد تسجيل الصفحة وقبل المطالبة: اليومية كاملة وبيكمّلها الدور الجاي. */
 async function crashAfterEnrollment(): Promise<void> {
-  const world = await openWorld({ budget: { forward: 3, retry: 1 }, state: { leaseMs: 1000 } });
+  // حجز ٥ ثواني: الدور الجاي لازم يخلص شغله كله جوّه حجزه، لأن التجديد بيحتاج
+  // ٣٠ ثانية على ساعة الاختبار؛ والانتظار استطلاع على وقت Redis مش نوم ثابت.
+  const world = await openWorld({ budget: { forward: 3, retry: 1 }, state: { leaseMs: 5_000 } });
   const rows = await world.seedDueRequests({ count: 3 });
   world.tokens.allow = () => true;
   const ownerToken = world.base.ids.newId();
@@ -147,7 +149,7 @@ async function crashAfterEnrollment(): Promise<void> {
 
 /** ضياع رد التسجيل: التنفيذ حصل والعميل ما عرفش، فالمطابقة بصفحة الجولة بتلحق. */
 async function loseEnrollmentReply(): Promise<void> {
-  const world = await openWorld({ budget: { forward: 3, retry: 1 }, state: { leaseMs: 1000 } });
+  const world = await openWorld({ budget: { forward: 3, retry: 1 }, state: { leaseMs: 5_000 } });
   const rows = await world.seedDueRequests({ count: 3 });
   world.tokens.allow = () => true;
   world.state.loseReply('enrollPage');
@@ -182,7 +184,7 @@ it('a_lost_enrollment_reply_is_reconciled_by_the_next_turn', async () => {
 }, 300_000);
 
 it('a_rolled_back_claim_leaves_no_trace_and_the_next_turn_claims_it_once', async () => {
-  const w = await openWorld({ budget: { forward: 4, retry: 1 }, state: { leaseMs: 1000 } });
+  const w = await openWorld({ budget: { forward: 4, retry: 1 }, state: { leaseMs: 5_000 } });
   const seeded = await w.seedDueRequests({ count: 4 });
   const rolledBack = at(seeded.requestIds, 0);
   w.tokens.allow = () => true;
@@ -205,7 +207,7 @@ it('a_rolled_back_claim_leaves_no_trace_and_the_next_turn_claims_it_once', async
 }, 300_000);
 
 it('an_uncertain_commit_keeps_the_row_sending_without_a_second_claim', async () => {
-  const w = await openWorld({ budget: { forward: 4, retry: 1 }, state: { leaseMs: 1000 } });
+  const w = await openWorld({ budget: { forward: 4, retry: 1 }, state: { leaseMs: 5_000 } });
   const seeded = await w.seedDueRequests({ count: 4 });
   const uncertain = at(seeded.requestIds, 1);
   w.tokens.allow = () => true;
@@ -226,7 +228,7 @@ it('an_uncertain_commit_keeps_the_row_sending_without_a_second_claim', async () 
 }, 300_000);
 
 it('a_lost_settlement_reply_keeps_the_request_in_the_retry_map', async () => {
-  const w = await openWorld({ budget: { forward: 4, retry: 1 }, state: { leaseMs: 1000 } });
+  const w = await openWorld({ budget: { forward: 4, retry: 1 }, state: { leaseMs: 5_000 } });
   const seeded = await w.seedDueRequests({ count: 4 });
   const rolledBack = at(seeded.requestIds, 0);
   w.tokens.allow = () => true;
