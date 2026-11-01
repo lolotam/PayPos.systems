@@ -89,6 +89,15 @@ export const packageTypeErrorsEn = {
     'Use 1–255 characters for each supplied name; the English name is required.',
   PACKAGE_TYPE_REVISION_CONFLICT:
     'Another manager changed this package type. Reload before saving.',
+  // رموز بيع الباقة، spec 058 §6؛ هنا عشان en.ts وصل حد الأسطر
+  PACKAGE_TYPE_NOT_SELLABLE: 'This package is not on sale.',
+  PACKAGE_SALE_QUOTE_STALE: "The package's service prices changed; reload and confirm again.",
+  PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT: 'The discount is above your limit.',
+  PACKAGE_SELLER_NOT_ELIGIBLE: 'The seller is not active at this branch on that date.',
+  PACKAGE_SELLER_SELF_FORBIDDEN: 'You cannot name yourself as the seller.',
+  PACKAGE_SALE_TOO_OLD: 'The sale predates the first day of the previous month.',
+  PACKAGE_SALE_IN_FUTURE: 'The sale time is in the future.',
+  PACKAGE_CUSTOMER_NOT_FOUND: 'Customer not found.',
 };
 export const packageTypeErrorsAr = {
   PACKAGE_TYPE_NOT_FOUND: 'نوع الباقة غير موجود في هذا النشاط.',
@@ -102,4 +111,13 @@ export const packageTypeErrorsAr = {
   PACKAGE_TYPE_NAME_TAKEN: 'يوجد نوع باقة بنفس الاسم في هذا النشاط.',
   PACKAGE_TYPE_NAME_INVALID: 'كل اسم مدخل من ١ إلى ٢٥٥ حرفاً؛ الاسم الإنجليزي مطلوب.',
   PACKAGE_TYPE_REVISION_CONFLICT: 'عدّل مدير آخر نوع الباقة. أعد التحميل قبل الحفظ.',
+  // رموز بيع الباقة، spec 058 §6؛ هنا عشان en.ts وصل حد الأسطر
+  PACKAGE_TYPE_NOT_SELLABLE: 'الباقة دي متوقف بيعها.',
+  PACKAGE_SALE_QUOTE_STALE: 'أسعار خدمات الباقة اتغيّرت، حدّثي الشاشة وأكّدي تاني.',
+  PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT: 'الخصم أكبر من حدك.',
+  PACKAGE_SELLER_NOT_ELIGIBLE: 'البائعة مش شغالة أو مش تبع الفرع في التاريخ ده.',
+  PACKAGE_SELLER_SELF_FORBIDDEN: 'مينفعش تسجّلي نفسك بائعة.',
+  PACKAGE_SALE_TOO_OLD: 'البيع أقدم من أول الشهر السابق.',
+  PACKAGE_SALE_IN_FUTURE: 'وقت البيع في المستقبل.',
+  PACKAGE_CUSTOMER_NOT_FOUND: 'العميلة مش موجودة.',
 };
