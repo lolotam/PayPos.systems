@@ -39,7 +39,8 @@ it('close quits the state client after the processor is drained', async () => {
     (instance) => (instance as Redis).options.connectionName === 'pospay-rating-claims-state',
   );
   expect(stateClients).toHaveLength(1);
-  expect((stateClients[0] as Redis).status).toBe('end');
+  // ioredis بيحوّل الحالة لـ end مع حدث الإغلاق، بعد رد QUIT بلحظة.
+  await vi.waitFor(() => expect((stateClients[0] as Redis).status).toBe('end'));
 });
 
 it('close before connect does not throw', async () => {

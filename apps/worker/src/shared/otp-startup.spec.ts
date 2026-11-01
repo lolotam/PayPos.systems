@@ -326,8 +326,7 @@ it('runtime_stays_dormant_with_valid_token_settings', async () => {
   expect(written).not.toMatch(/rating-claims/);
   expect(resources.database.withTenant).not.toHaveBeenCalled();
   const raw = resources.deliverer.mock.calls.at(-1)?.[1] as
-    | ({ id?: string } | undefined)[]
-    | undefined;
+    ({ id?: string } | undefined)[] | undefined;
   const consumerIds = (raw ?? [])
     .map((consumer) => consumer?.id)
     .filter((id): id is string => typeof id === 'string');

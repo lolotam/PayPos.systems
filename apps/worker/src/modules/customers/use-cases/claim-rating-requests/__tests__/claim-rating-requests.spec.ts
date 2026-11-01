@@ -15,10 +15,7 @@ import type {
   ClaimStateRetry,
   RatingClaimState,
 } from '../../../ports/rating-claim-state.port.ts';
-import {
-  ClaimRatingRequests,
-  type RatingClaimsPorts,
-} from '../claim-rating-requests.ts';
+import { ClaimRatingRequests, type RatingClaimsPorts } from '../claim-rating-requests.ts';
 import type { ClaimRatingRequestInput } from '../../claim-rating-request/claim-rating-request.ts';
 
 const COMPANY = '01920000-0000-7000-8000-0000000000b2';
@@ -35,11 +32,7 @@ const ids: IdGenerator = {
 };
 const clock: Clock = { now: () => NOW };
 
-function request(
-  id: string,
-  status: DueRatingRequest['status'],
-  dueAt: Date,
-): DueRatingRequest {
+function request(id: string, status: DueRatingRequest['status'], dueAt: Date): DueRatingRequest {
   return {
     id,
     businessId: BUSINESS,
@@ -263,8 +256,7 @@ function harness(options: HarnessOptions = {}): Harness {
       if (options.pageIdsThrows === true) throw new Error('SYNTHETIC_PAGE_READ_FAILURE');
       return page.slice(0, limit);
     },
-    withRequest: async (_companyId, requestId, work) =>
-      work({}, rows.get(requestId) ?? null),
+    withRequest: async (_companyId, requestId, work) => work({}, rows.get(requestId) ?? null),
   };
   const claim = {
     execute: async (_tx: unknown, input: ClaimRatingRequestInput) => {

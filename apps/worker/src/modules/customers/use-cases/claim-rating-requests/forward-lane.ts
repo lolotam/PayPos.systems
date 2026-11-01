@@ -1,8 +1,5 @@
 import { settleClaim, type ClaimSettlement } from '../../domain/rating-claim-scheduling.ts';
-import type {
-  ClaimStatePage,
-  ClaimStatePageEntry,
-} from '../../ports/rating-claim-state.port.ts';
+import type { ClaimStatePage, ClaimStatePageEntry } from '../../ports/rating-claim-state.port.ts';
 import type { RatingClaimsTurnState } from './claim-rating-requests.ts';
 
 /**
