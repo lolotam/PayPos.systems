@@ -9,6 +9,7 @@
 
 **الحالة (1 نوفمبر 2026):**
 
+- التصحيح الساري من المدير «17:58»، 2026-11-01: 34-pre-2 يرجع لشاشات تسجيل الاستقبال وبطاقة العميلة (CI-Q14)، ودولة النشاط رمزها 34-pre-3 «دولة النشاط في إعدادات النشاط». السبب حفظ رمز وليد والسجلات القديمة. التنفيذ: 34-pre-1، ثم 34-pre-3، ثم 34-pre-2، ثم باقي 073. مسار migrations عند الحاجة: 49-1، ثم 34-pre-1، ثم 42-2، ثم 34-pre-3. صياغات 17:52 السابقة محفوظة كتاريخ؛ مفيش انتظار رمز جديد للشاشات ولا `lane granted` من التصحيح، وممنوع push.
 - تحديث المدير «17:52»، 2026-11-01، قناة شات جلسة 34b: اعتمد بند «34-pre-2 دولة النشاط في إعدادات النشاط»، تنفّذه الجلسة دي بعد 34-pre-1، مش بالتوازي، وقبل 34b-2. ترحيله إن احتاج migration أو data step ييجي بعد 42-2؛ ولو من غير migration ولا CHECK جديد ولا data step فمش محتاج دور في المسار. ممنوع backfill أو افتراضي ضمني. تحديث roadmap يحصل أول ما يبدأ البند، مش بمجرد تسجيل الاعتماد. لسه مفيش `lane granted` لـ34-pre-1.
 - الدفعة `PP-107` محجوزة للجلسة دي بتخصيص المدير «16:12 الكويت»، 2026-11-01؛ `CI-T9 = PP-107.1` و`CI-T10 = PP-107.2`. وليد جاوب في كارت بشات مدير الويب بتاريخ 2026-11-01، ووصل الرد الحرفي برسالة المدير «17:37»: PP-107.1 = (ب)، وPP-107.2 = (أ). حالة الكارتين تمت الإجابة. مسار الـ migration لسه بعد `49-1`، ومفيش `lane granted`؛ ممنوع push أو PR أو migration قبل الإذن.
 - وليد جاوب CI-Q1 … CI-Q4 كروت في شات جلسة 34b (≈10:57). **اتنين منهم عكس المقترح:** CI-Q1 (خانات زيادة على العميلة الأول) وCI-Q4 (كمان مدير الفرع والكاشير). الشغل بيمشي على اختياره لحد ما أبو سالم يجاوب على الصفحة، ولو اختلفوا اختيار أبو سالم هو اللي يمشي.
@@ -342,6 +343,8 @@
 
 ### اعتماد التقسيم — رسالة المدير «17:52»، 2026-11-01
 
+> سجل تاريخي محفوظ كما اتكتب: تسمية دولة النشاط بـ 34-pre-2 الواردة في هذا القسم اتصحّحت برسالة المدير «17:58» إلى 34-pre-3، ورمز 34-pre-2 رجع للشاشات. النطاق والشروط محفوظين، والتصحيح الساري متسجّل أدناه وفي المواصفة والفهرس.
+
 **القناة:** شات جلسة 34b. **نص الاعتماد:** «اعتمدت التقسيم اللي اقترحته.»
 
 **البند المعتمد:** «34-pre-2 دولة النشاط في إعدادات النشاط». يشمل حقلًا typed داخل `business.settings` الموجود، والعقد، والإدارة، والتحقق، والقارئ العام من `tenancy/index.ts`. الجلسة دي تنفّذه بعد 34-pre-1، مش بالتوازي، لأنه بيلمس contracts وdocs قريبة منه. هو متطلب قبل 34b-2. 34-pre-1 يفضل لحقول العملاء وقواعد إنشائهم بس.
@@ -446,3 +449,39 @@
 - بند واحد فيه كل ده.
 
 **الإجابة:** وليد (كارت في شات المدير، 1 نوفمبر 2026، ≈13:01 بتوقيت الكويت): «(أ) خطوتين: الأولى قاعدة البيانات والسيستم، والتانية الشاشات ⭐ المقترح. ينفذه في نفس الشاشة و session الذي يوجد فيه.» = الاختيار الأول، المقترح. **تقني، فالإجابة نهائية.** النتيجة: نفس الجلسة دي، في نفس الـ worktree، بتنفّذ 34-pre-1 ثم 34-pre-2 ثم 34b نفسه. مسار الـ migration ترتيبه زي ما هو: 32b-pre-1 معاه دلوقتي، وبعده 49-1، وبعده 34-pre-1، وماتاخدش غير بعد ما المدير يقول.
+
+### تصحيح الترقيم — رسالة المدير «17:58»، 2026-11-01
+
+**القناة:** شات جلسة 34b. **السبب:** رمز 34-pre-2 هو اختيار وليد القديم لشاشات تسجيل الاستقبال وبطاقة العميلة (CI-Q14)، فالمحافظة عليه تمنع تضارب الفهرس والسجلات القديمة. المدير أكد إن 34-pre-3 غير مستخدم في `roadmap.json`.
+
+**التقسيم الساري:** 34-pre-1 لحقول العملاء وقواعد إنشائهم؛ بعده 34-pre-3 «دولة النشاط في إعدادات النشاط» بنفس نطاق وشروط قرار 17:52، ثم 34-pre-2 للشاشات، ثم 34b-1 و34b-2 و34b-3 حسب ترتيب 073. دولة النشاط تفضل متطلبًا قبل 34b-2، ومفيش تنفيذ بالتوازي.
+
+**الـ migrations:** 49-1، ثم 34-pre-1، ثم 42-2، ثم 34-pre-3؛ الأخيرة لو احتاجت migration أو data step فقط. شرط عدم احتياج دور لما مفيش migration ولا CHECK جديد ولا data step محفوظ. مفيش backfill ولا افتراضي ضمني؛ الأنشطة الموجودة تتحدد دولتها صراحة. سلوك نشاط بلا دولة يفضل سؤالًا قبل brief لو احتاجته المواصفة.
+
+**أثر التصحيح:** إضافة صف `roadmap.json` عند بدء دولة النشاط بقت للرمز 34-pre-3. مفيش تحديث موقع أو بدء تنفيذ دلوقتي، وممنوع push. الإشارة القديمة لانتظار رمز بديل للشاشات اتقفلت: رمزها 34-pre-2. أسطر المواصفة وصف الفهرس السابقين محفوظين بالحرف في القسم التالي؛ نصوص السجل القديمة ما اتمسحتش. تغييرات 006e96c1 ما اتعدلتش في تاريخ git؛ التصحيح في commit محلي جديد.
+
+### النصوص السابقة من 006e96c1 قبل تصحيح 17:58
+
+النصوص التالية محفوظة بالحرف للتاريخ، بدل محوها عند تصحيح الرمز. تصحيح المدير الساعة 17:58 هو الساري: 34-pre-2 للشاشات، و34-pre-3 لدولة النشاط، للحفاظ على رمز وليد والسجلات القديمة.
+
+أسطر المواصفة السابقة:
+
+```text
+- CI-T9 (`PP-107.1`) and CI-T10 (`PP-107.2`) are answered by Waleed on 2026-11-01, channel «كارت بشات مدير الويب», relayed by the manager's message labelled 17:37 Kuwait: B for a typed field inside existing `business.settings`, A for self-registration delivery in its future slice. Both verbatim answers remain in the audit record. The manager approved the country-settings split as 34-pre-2 in the message labelled 17:52; its sequencing and conditional migration lane are recorded under Delivery. Neither technical question goes on the decisions site.
+- The manager approved country settings as the separate 34-pre-2 delivery, after 34-pre-1 and before 34b-2. `TODO(spec)`: if its spec needs behavior for a business whose country is unset, route that question to the manager before its brief. No fallback or backfill is implied. Recording this split does not start the implementation or grant the migration lane.
+والسيستم، والتانية الشاشات ⭐ المقترح». The customer-fields/UI split remains part of the scope. The manager's newer 17:52 decision assigns the identifier 34-pre-2 to country settings; the customer UI delivery retains its scope and awaits a replacement identifier from the manager. The same session implements these deliveries; country settings starts after 34-pre-1, with no parallel work between them.
+| 34-pre-2 — دولة النشاط في إعدادات النشاط | Typed country field inside existing `business.settings`, its contract, management, validation and public reader from `tenancy/index.ts`. No new table column, no backfill and no implicit default. | After 34-pre-1 in this same session, not in parallel; required before 34b-2. Conditional migration lane below. |
+| Customer reception/card UI — replacement identifier pending manager allocation **[PP-102.1]** | The reception registration form and the customer card (CI-Q14), previously labelled 34-pre-2. This accepted scope is retained. | 34-pre-1; manager allocates a replacement identifier and confirms its place in delivery order. |
+| 34b-1 | Move the shared xlsx adapters to `apps/api/src/shared/import/` (CI-T1). | Nothing. |
+| 34b-2 | Contracts, template, preview and the business and branch routes (CI-T3, CI-T5), the `CustomerImportCommitRequested` event type (D-4). | 34b-1, 34-pre-1 and 34-pre-2 (country settings). |
+- **Approved country-settings split (manager, 2026-11-01, 17:52):** 34-pre-2 is «دولة النشاط في إعدادات النشاط», owned by this session, after 34-pre-1 and not in parallel with it. It is a prerequisite for 34b-2. 34-pre-1 stays limited to customer fields and creation rules. Existing businesses get their country explicitly; no backfill or implicit default.
+- **Conditional 34-pre-2 migration lane:** if there is no migration, new CHECK or data step, this delivery needs no migration-lane slot. If it requires a migration or data step, the order is 49-1, 34-pre-1, 42-2, 34-pre-2. This queue is not a grant.
+- **Roadmap trigger:** when 34-pre-2 actually starts, add its row to plan's `roadmap.json`, after `git pull --rebase`, staging that exact path and pushing `HEAD:main`. This documentation update does not start 34-pre-2 and does not update the roadmap yet.
+- **[PP-102.1]** Customer fields and the customer UI remain separate deliveries; the latter awaits a replacement identifier because 34-pre-2 now names country settings. The reception form
+```
+
+صف الفهرس السابق:
+
+```text
+| PP-107 | 2026-11-01 | PP-107.1 (CI-T9): مصدر دولة النشاط وصاحب الحقل؛ PP-107.2 (CI-T10): مكان تسليم تعديل كود الدولة في التسجيل الذاتي. أسئلة تقنية لوليد فقط، لا موقع ولا ntfy. المدير خصّص الدفعة كلها لجلسة 34b وأكّد عرض الكارتين على وليد (شات جلسة 34b، 2026-11-01، رسالة «16:12 الكويت»). **وليد (2026-11-01، قناة «كارت بشات مدير الويب»، منقول برسالة المدير «17:37»):** PP-107.1 «107.1 ب - الاعدادات العامة للنشاط» = (ب)، حقل typed داخل `business.settings` مع إدارة وتحقق وقارئ عام، بلا عمود جديد ولا افتراضي ضمني؛ PP-107.2 «107.2 -أ - لما يجي دور صفحة التسجيل» = (أ)، التنفيذ على شريحة التسجيل الذاتي المستقبلية، وممنوع route تسجيل ذاتي في 34b. الحالة: تمت الإجابة. المدير اعتمد التقسيم (شات جلسة 34b، 2026-11-01، رسالة «17:52»): «34-pre-2 دولة النشاط في إعدادات النشاط»، تنفذه الجلسة بعد 34-pre-1، لا بالتوازي، وقبل 34b-2. بلا migration ولا CHECK جديد ولا data step: لا دور في المسار؛ لو احتاج migration أو data step: 49-1 ثم 34-pre-1 ثم 42-2 ثم 34-pre-2. لا backfill ولا افتراضي ضمني؛ صف roadmap يضاف عند البدء فقط. شاشات العميل التي حملت الرمز القديم محفوظة وتنتظر رمزًا بديلًا من المدير. لا lane granted من اعتماد التقسيم. | [سجل شريحة 073](specs/073-customers-import/owner-questions.ar.md)، CI-T9 وCI-T10 |
+```
