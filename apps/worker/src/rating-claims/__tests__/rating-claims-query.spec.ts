@@ -190,8 +190,10 @@ it('query_shape_and_explain_use_company_primary_key', async () => {
   );
   expect(missing).toBeNull();
 
-  const seen = await transactions.withRequest(TENANT.A.company, scheduled[0] ?? '', async (_tx, request) =>
-    request === null ? 'ABSENT' : request.status,
+  const seen = await transactions.withRequest(
+    TENANT.A.company,
+    scheduled[0] ?? '',
+    async (_tx, request) => (request === null ? 'ABSENT' : request.status),
   );
   expect(seen).toBe('SCHEDULED');
 

@@ -1,7 +1,4 @@
-import type {
-  PageSettlement,
-  RetrySettlement,
-} from '../domain/rating-claim-scheduling.ts';
+import type { PageSettlement, RetrySettlement } from '../domain/rating-claim-scheduling.ts';
 
 /**
  * كود نتيجة أمر على حالة الجدولة. كل كود بيقول للمجدول الخطوة الجاية: BUSY

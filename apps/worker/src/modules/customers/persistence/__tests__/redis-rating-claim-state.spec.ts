@@ -293,11 +293,9 @@ it('reserveRetries picks the oldest ticket first and a requeue goes to the tail'
   );
   expect(requeued.code).toBe('OK');
   expect(requeued.value?.retries[sweep.first]?.ticket).toBe(3);
-  const next = await world.state.reserveRetries(
-    withVersion(world.fence, requeued.version),
-    1,
-    [ids.newId()],
-  );
+  const next = await world.state.reserveRetries(withVersion(world.fence, requeued.version), 1, [
+    ids.newId(),
+  ]);
   expect(next.value?.reservations[0]?.requestId).toBe(sweep.second);
 });
 

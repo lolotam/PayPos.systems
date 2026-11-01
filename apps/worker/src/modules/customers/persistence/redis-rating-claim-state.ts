@@ -64,7 +64,10 @@ interface StateContext {
   readonly backoffMs: number;
   readonly reserveBytes: number;
   readonly serial: <T>(work: () => Promise<T>) => Promise<T>;
-  readonly fenceOf: (fence: ClaimStateFence, extra: Record<string, unknown>) => Record<string, unknown>;
+  readonly fenceOf: (
+    fence: ClaimStateFence,
+    extra: Record<string, unknown>,
+  ) => Record<string, unknown>;
   readonly call: (
     script: string,
     companyId: string,
@@ -88,7 +91,8 @@ function stateKey(prefix: string, companyId: string): string {
 }
 
 function token(value: string, name: string): string {
-  if (typeof value !== 'string' || value === '') throw new TypeError(`RATING_CLAIM_STATE_${name}_INVALID`);
+  if (typeof value !== 'string' || value === '')
+    throw new TypeError(`RATING_CLAIM_STATE_${name}_INVALID`);
   return value;
 }
 
@@ -155,8 +159,10 @@ function buildContext(options: RatingClaimStateOptions): StateContext {
       return parse(await redis.eval(script, 1, key, payload));
     }
   };
-  const fenceOf = (fence: ClaimStateFence, extra: Record<string, unknown>): Record<string, unknown> =>
-    fenceEnvelope(fence, limits, extra);
+  const fenceOf = (
+    fence: ClaimStateFence,
+    extra: Record<string, unknown>,
+  ): Record<string, unknown> => fenceEnvelope(fence, limits, extra);
   return {
     limits,
     capacity: options.capacity ?? RETRY_CAPACITY,
@@ -170,11 +176,15 @@ function buildContext(options: RatingClaimStateOptions): StateContext {
       return { code: reply.code, version: reply.version, value: decodeState(reply.value) };
     },
     reserve: async (fence, limit, workTokens) => {
-      const reply = await execute(RESERVE, fence.companyId, fenceOf(fence, {
-        action: 'reserveRetries',
-        limit,
-        workTokens: [...workTokens],
-      }));
+      const reply = await execute(
+        RESERVE,
+        fence.companyId,
+        fenceOf(fence, {
+          action: 'reserveRetries',
+          limit,
+          workTokens: [...workTokens],
+        }),
+      );
       if (reply.value === undefined) return { code: reply.code, version: reply.version };
       return { code: reply.code, version: reply.version, value: decodeReservations(reply.value) };
     },
@@ -196,9 +206,13 @@ function ownershipCommands(
       });
     },
     renew: (fence) =>
-      context.serial(() => context.call(LEASE, fence.companyId, context.fenceOf(fence, { action: 'renew' }))),
+      context.serial(() =>
+        context.call(LEASE, fence.companyId, context.fenceOf(fence, { action: 'renew' })),
+      ),
     release: (fence) =>
-      context.serial(() => context.call(LEASE, fence.companyId, context.fenceOf(fence, { action: 'release' }))),
+      context.serial(() =>
+        context.call(LEASE, fence.companyId, context.fenceOf(fence, { action: 'release' })),
+      ),
   };
 }
 
@@ -248,17 +262,21 @@ function retryCommands(
     storedDueAt: Date | null | undefined,
   ): Promise<ClaimStateResult<ClaimStateSnapshot>> =>
     context.serial(() =>
-      context.call(SETTLE, fence.companyId, context.fenceOf(fence, {
-        action,
-        ...target,
-        workToken,
-        settlement,
-        storedDueAt:
-          storedDueAt === undefined || storedDueAt === null ? undefined : storedDueAt.getTime(),
-        capacity: context.capacity,
-        backoffMs: context.backoffMs,
-        reserveBytes: context.reserveBytes,
-      })),
+      context.call(
+        SETTLE,
+        fence.companyId,
+        context.fenceOf(fence, {
+          action,
+          ...target,
+          workToken,
+          settlement,
+          storedDueAt:
+            storedDueAt === undefined || storedDueAt === null ? undefined : storedDueAt.getTime(),
+          capacity: context.capacity,
+          backoffMs: context.backoffMs,
+          reserveBytes: context.reserveBytes,
+        }),
+      ),
     );
   return {
     reserveRetries: (fence, limit, workTokens) =>
@@ -267,7 +285,8 @@ function retryCommands(
       settle('settlePage', fence, { pageId }, workToken, settlement, storedDueAt),
     settleRetry: (fence, requestId, workToken, settlement, storedDueAt) =>
       settle('settleRetry', fence, { requestId }, workToken, settlement, storedDueAt),
-    read: (companyId) => context.call(LEASE, companyId, { companyId, action: 'read', ...context.limits }),
+    read: (companyId) =>
+      context.call(LEASE, companyId, { companyId, action: 'read', ...context.limits }),
   };
 }
 

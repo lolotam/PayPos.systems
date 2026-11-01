@@ -17,11 +17,9 @@ export function ratingClaimTransactions(
 ): RatingClaimTransactions<Tx> {
   return {
     upperId: (companyId) =>
-      database.withTenant(
-        companyId,
-        (tx) => ratingClaimRepository.upperId(tx, companyId),
-        { timeoutMs: TENANT_TIMEOUT_MS },
-      ),
+      database.withTenant(companyId, (tx) => ratingClaimRepository.upperId(tx, companyId), {
+        timeoutMs: TENANT_TIMEOUT_MS,
+      }),
     pageIds: (companyId, after, through, limit) =>
       database.withTenant(
         companyId,

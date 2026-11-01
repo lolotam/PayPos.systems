@@ -11,7 +11,15 @@ export interface DecodedReply {
   readonly value?: Record<string, unknown>;
 }
 
-const CODES: readonly ClaimStateCode[] = ['OK', 'BUSY', 'STALE', 'MISSING', 'CORRUPT', 'LIMIT', 'OVERFLOW'];
+const CODES: readonly ClaimStateCode[] = [
+  'OK',
+  'BUSY',
+  'STALE',
+  'MISSING',
+  'CORRUPT',
+  'LIMIT',
+  'OVERFLOW',
+];
 
 function invalid(): Error {
   return new Error('RATING_CLAIM_STATE_REPLY_INVALID');
@@ -44,7 +52,8 @@ function asArray(value: unknown): readonly unknown[] {
 
 /** بيحوّل الحالة المخزّنة إلى لقطة، وبيصلّح المصفوفات الفاضية اللي رجعت كائنات. */
 export function decodeState(value: Record<string, unknown>): ClaimStateSnapshot {
-  if (typeof value['companyId'] !== 'string' || typeof value['version'] !== 'number') throw invalid();
+  if (typeof value['companyId'] !== 'string' || typeof value['version'] !== 'number')
+    throw invalid();
   if (value['phase'] !== 'IDLE' && value['phase'] !== 'SWEEP') throw invalid();
   if (typeof value['retries'] !== 'object' || value['retries'] === null) throw invalid();
   const page = value['page'];

@@ -42,7 +42,9 @@ describe('ميزانية الدور', () => {
   });
 
   it('total_budget_above_one_hundred_is_refused', () => {
-    expect(() => assertVisitBudget({ forward: 76, retry: 25 })).toThrow('VISIT_BUDGET_TOTAL_EXCEEDED');
+    expect(() => assertVisitBudget({ forward: 76, retry: 25 })).toThrow(
+      'VISIT_BUDGET_TOTAL_EXCEEDED',
+    );
   });
 
   it('total_budget_of_exactly_one_hundred_is_accepted', () => {
