@@ -531,6 +531,9 @@ importers:
       '@pospay/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@pospay/commissions-engine':
+        specifier: workspace:*
+        version: link:../../packages/commissions-engine
       '@pospay/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
