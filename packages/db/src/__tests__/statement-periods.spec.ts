@@ -6,6 +6,7 @@ import {
   assertStatementPeriodsOpen,
   createDatabase,
   lockStatementPeriods,
+  reopenReviewedStatementPeriods,
   StatementPeriodClosedError,
   StatementPeriodFormatError,
   type Database,
@@ -14,6 +15,7 @@ import {
 import {
   COMMISSION_TENANT,
   FINGERPRINTS,
+  OTHER_COMMISSION_IDS,
   seedCommissionStatementTenants,
   walkCommissionStatement,
 } from '../../test/commission-statement-fixtures.ts';
@@ -266,4 +268,52 @@ it('returns the status committed by the lock holder after the wait', async () =>
   release();
   await first;
   expect((await second)[0]?.status).toBe('REVIEWED');
+});
+
+it('reopens only the affected REVIEWED periods and clears every reviewed field', async () => {
+  const otherBusiness = { ...A, business: OTHER_COMMISSION_IDS.business };
+  await walkCommissionStatement(db, { tenant: A, period: '2028-01', ids, to: 'REVIEWED' });
+  await db.withTenant(A.company, (tx) =>
+    lockStatementPeriods(tx, { businessId: A.business, periods: ['2028-02'], ids }),
+  );
+  await walkCommissionStatement(db, { tenant: A, period: '2028-03', ids });
+  await walkCommissionStatement(db, { tenant: A, period: '2028-04', ids, to: 'PAID' });
+  await walkCommissionStatement(db, { tenant: otherBusiness, period: '2028-01', ids, to: 'REVIEWED' });
+  await walkCommissionStatement(db, { tenant: COMMISSION_TENANT.B, period: '2028-01', ids, to: 'REVIEWED' });
+  await db.withTenant(A.company, (tx) =>
+    reopenReviewedStatementPeriods(tx, {
+      businessId: A.business,
+      periods: ['2028-04', '2028-02', '2028-01', '2028-03'],
+    }),
+  );
+  const changed = await owner`SELECT status,reviewed_fingerprint,reviewed_statement_fingerprint,
+    reviewed_by,reviewed_membership_id,reviewed_at FROM commission_statements
+    WHERE company_id=${A.company} AND business_id=${A.business} AND period='2028-01'`;
+  expect(changed).toEqual([{
+    status: 'DRAFT', reviewed_fingerprint: null, reviewed_statement_fingerprint: null,
+    reviewed_by: null, reviewed_membership_id: null, reviewed_at: null,
+  }]);
+  expect(await owner`SELECT period,status FROM commission_statements
+    WHERE company_id=${A.company} AND business_id=${A.business} AND period LIKE '2028-%' ORDER BY period`)
+    .toEqual([
+      { period: '2028-01', status: 'DRAFT' }, { period: '2028-02', status: 'DRAFT' },
+      { period: '2028-03', status: 'APPROVED' }, { period: '2028-04', status: 'PAID' },
+    ]);
+  const untouched = await owner`SELECT business_id,status,reviewed_by FROM commission_statements
+    WHERE period='2028-01' AND (business_id=${OTHER_COMMISSION_IDS.business} OR company_id=${COMMISSION_TENANT.B.company})
+    ORDER BY business_id`;
+  expect(untouched.every((row) => row.status === 'REVIEWED' && row.reviewed_by !== null)).toBe(true);
+});
+
+it('reopen accepts an empty list as a no-op and rejects a malformed period', async () => {
+  await walkCommissionStatement(db, { tenant: A, period: '2028-05', ids, to: 'REVIEWED' });
+  await db.withTenant(A.company, (tx) =>
+    reopenReviewedStatementPeriods(tx, { businessId: A.business, periods: [] }),
+  );
+  expect(await owner`SELECT status FROM commission_statements WHERE period='2028-05'`)
+    .toEqual([{ status: 'REVIEWED' }]);
+  const work = db.withTenant(A.company, (tx) =>
+    reopenReviewedStatementPeriods(tx, { businessId: A.business, periods: ['2028-13'] }),
+  );
+  await expect(work).rejects.toBeInstanceOf(StatementPeriodFormatError);
 });

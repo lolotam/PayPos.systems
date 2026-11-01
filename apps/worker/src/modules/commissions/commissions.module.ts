@@ -1,6 +1,15 @@
-import type { TenantWrappers } from '@pospay/db';
+import type { TenantWrappers, Tx } from '@pospay/db';
 
+import type { OutboxConsumer } from '../../outbox/consumer.ts';
+import { onCommissionInputEvent } from './events/handlers/on-commission-input-event.handler.ts';
+import { createCommissionLineProjectionScope } from './persistence/commission-line-projection.scope.ts';
 import { commissionStatementExportTransactions } from './persistence/commission-statement-export.transactions.ts';
+import type {
+  BusinessTimeZoneReader,
+  Clock,
+  IdGenerator,
+} from './ports/commission-line-projection.port.ts';
+import { ProjectServiceLines } from './use-cases/project-service-lines/project-service-lines.ts';
 import type { CommissionStatementExportData } from './ports/commission-statement-export.port.ts';
 import {
   commissionStatementExportRequestStatement,
@@ -23,4 +32,27 @@ export function createCommissionStatementExportReader(
     renderId: string,
     signal?: AbortSignal,
   ): Promise<CommissionStatementExportData> => useCase.execute(companyId, renderId, signal);
+}
+
+export interface CommissionInputsConsumerDependencies {
+  readonly ids: IdGenerator;
+  readonly clock: Clock;
+  readonly businessTimeZone: BusinessTimeZoneReader;
+}
+
+/** يربط مستهلك مدخلات العمولة بقارئ المنطقة الزمنية وبالساعة والمولّد المحقونين من الجذر. */
+export function createCommissionInputsConsumer(
+  dependencies: CommissionInputsConsumerDependencies,
+): OutboxConsumer {
+  const bind = (tx: Tx) =>
+    new ProjectServiceLines(
+      createCommissionLineProjectionScope(tx, dependencies.businessTimeZone),
+      dependencies.clock,
+      dependencies.ids,
+    );
+  return {
+    id: 'commissions.project-inputs',
+    eventTypes: ['ServiceSessionRecorded', 'ServiceSessionLinesAdded', 'ServiceLineChanged'],
+    handle: (tx, event) => onCommissionInputEvent(bind(tx), event),
+  };
 }

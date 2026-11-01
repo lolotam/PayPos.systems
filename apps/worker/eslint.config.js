@@ -1,7 +1,11 @@
-import config, { allowDatabaseFacade } from '@pospay/config/eslint';
+import config, {
+  allowCommissionsEngineBackend,
+  allowDatabaseFacade,
+} from '@pospay/config/eslint';
 
 export default [
   ...config,
+  ...allowCommissionsEngineBackend(),
   allowDatabaseFacade('createOutboxDispatcherDatabase'),
   {
     files: ['src/**/__tests__/platform-harness.ts'],

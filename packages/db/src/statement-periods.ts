@@ -24,6 +24,11 @@ export interface LockStatementPeriodsInput {
   readonly ids: IdGenerator;
 }
 
+export interface ReopenReviewedStatementPeriodsInput {
+  readonly businessId: string;
+  readonly periods: readonly string[];
+}
+
 const PERIOD = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
 
 /**
@@ -119,4 +124,30 @@ export function assertStatementPeriodsOpen(locked: readonly LockedStatementPerio
     .filter(({ status }) => status === 'APPROVED' || status === 'PAID')
     .map(({ period }) => period);
   if (closed.length > 0) throw new StatementPeriodClosedError(closed);
+}
+
+/**
+ * يرجع شهور REVIEWED إلى DRAFT ويمسح دليل المراجعة لأن مدخلاتها تغيّرت.
+ * المتصل لازم يكون ماسك أقفال الشهور دي من lockStatementPeriods في المعاملة نفسها؛
+ * التقييد على REVIEWED يخلّي الشهور DRAFT والمغلقة وشهور نشاط أو شركة أخرى بلا تغيير.
+ *
+ * @param tx معاملة withTenant الحالية التي تحمل أقفال الشهور
+ * @param input النشاط والشهور المتأثرة بالتغيير
+ * @returns لا شيء؛ القائمة الفارغة لا تنفذ كتابة
+ */
+export async function reopenReviewedStatementPeriods(
+  tx: Tx,
+  input: ReopenReviewedStatementPeriodsInput,
+): Promise<void> {
+  assertUuid(input.businessId, 'businessId');
+  const periods = normalizePeriods(input.periods);
+  if (periods.length === 0) return;
+  await tx.execute(sql`UPDATE commission_statements SET status='DRAFT',
+    reviewed_fingerprint=NULL,reviewed_statement_fingerprint=NULL,reviewed_by=NULL,
+    reviewed_membership_id=NULL,reviewed_at=NULL
+    WHERE company_id=app_company_id() AND business_id=${input.businessId}::uuid
+      AND status='REVIEWED' AND period IN (${sql.join(
+        periods.map((period) => sql`${period}`),
+        sql`, `,
+      )})`);
 }
