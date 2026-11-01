@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { ServicesPage } from '../pages/services-page';
+import { ServiceCategoryFilter } from './service-category-filter';
 
 const get = vi.hoisted(() => vi.fn());
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get }) }));
@@ -128,6 +129,24 @@ it('hides the category filter after a 403 and still renders services', async () 
   renderPage();
   expect(await screen.findByText('First service')).toBeTruthy();
   expect(screen.queryByLabelText(t('en', 'catalogServices.categoryFilter'))).toBeNull();
+});
+
+it('keeps a loaded category filter visible after a background refetch fails', () => {
+  render(
+    <ServiceCategoryFilter
+      categoryQuery={{
+        data: [openCategory],
+        error: { status: 403 },
+        isError: true,
+        isPending: false,
+      }}
+      value={openCategory.id}
+      onChange={vi.fn()}
+    />,
+  );
+  const picker = screen.getByLabelText(t('en', 'catalogServices.categoryFilter')) as HTMLSelectElement;
+  expect(picker.value).toBe(openCategory.id);
+  expect(picker.selectedOptions[0]?.textContent).toBe('Hair');
 });
 
 function mockFilteredServicePages() {

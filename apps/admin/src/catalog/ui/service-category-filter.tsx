@@ -15,7 +15,7 @@ export function ServiceCategoryFilter({
   onChange: (categoryId: string) => void;
 }) {
   const locale = useLocale();
-  if (categoryQuery.isError) return null;
+  if (categoryQuery.isError && categoryQuery.data === undefined) return null;
   return (
     <div className="flex flex-col gap-2">
       <Label htmlFor="service-category-filter">
