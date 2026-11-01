@@ -55,7 +55,9 @@ it('a cursor whose payload is not a known shape is refused and leaks nothing', a
 it('a cursor from another employee or another filter is refused', async () => {
   const cursor = await firstCursor();
   const payload = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-  const foreignCursor = Buffer.from(JSON.stringify({ ...payload, e: ids.newId() })).toString('base64url');
+  const foreignCursor = Buffer.from(JSON.stringify({ ...payload, e: ids.newId() })).toString(
+    'base64url',
+  );
   const otherEmployee = await f.getOverrides(
     `?limit=1&cursor=${encodeURIComponent(foreignCursor)}`,
   );

@@ -114,6 +114,7 @@ Declare a read interface next to `queries/commission-service-overrides.query.ts`
 
 ```ts
 type OverrideListReadsFactory = (tx: Tx) => {
+  access(companyId: string, userId: string, businessId: string): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null>;
   timeZone(companyId: string, businessId: string): Promise<string | null>;
   employeeExists(companyId: string, businessId: string, employeeId: string): Promise<boolean>;
 };

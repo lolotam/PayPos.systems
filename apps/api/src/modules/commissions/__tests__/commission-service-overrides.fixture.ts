@@ -10,6 +10,7 @@ import {
   employeeExistsInBusiness,
   lockEmployeeForUpdate,
   readCommissionPlanAccess,
+  readCommissionPlanListAccess,
   readSessionServices,
 } from '../../../../test/harness.ts';
 import type { CommissionInputLockReaders } from '../persistence/commission-input-lock-scope.ts';
@@ -121,6 +122,7 @@ export async function commissionServiceOverridesFixture() {
   };
   // قراءات مسار القائمة بنفس المهايئ اللي بيربطه جذر التطبيق.
   const listReaders = createCommissionServiceOverrideListReaders({
+    access: readCommissionPlanListAccess,
     timeZone: businessTimeZone,
     employeeExists: employeeExistsInBusiness,
   });

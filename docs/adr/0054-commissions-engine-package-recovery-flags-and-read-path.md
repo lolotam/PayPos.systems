@@ -189,7 +189,7 @@ provider-owned reader and bound at the composition root, the way the root-bound 
 | the in-transaction recheck of `manage:commission-plans:business` and the `commissions` feature, under `FOR SHARE` on the company and its memberships, including before replay (`CommissionPlanAccessPort`, 48-2 and 49-1, FR-010) | `identity` |
 | the `FOR NO KEY UPDATE` lock on the employee row that orders version allocation and service-override writes (`EmployeeRowLockPort`, 48-2 and 49-1, FR-008/FR-012) | `staff` |
 | service existence in the target business, read through readSessionServices on the writer's transaction without using its live rule to price history (`CommissionServiceReaderPort`, 49-1, FR-011) | `catalog` |
-| active employee existence through employeeExistsInBusiness, and the business timezone through businessTimeZone (`CommissionServiceOverrideListReads`, 49-1, FR-013) | `staff`, `tenancy` |
+| unlocked permission/feature recheck through readCommissionPlanListAccess, active employee existence through employeeExistsInBusiness, and the business timezone through businessTimeZone (`CommissionServiceOverrideListReads`, 49-1, FR-013) | `identity`, `staff`, `tenancy` |
 | service names | `catalog` |
 | notification recipients | `identity` |
 | the employee's business and dated branch attachments (FR-018b, FR-033) | `staff` |
@@ -201,7 +201,9 @@ Write-side interfaces live in `ports/`. The service-override list's read-only in
 following the existing `EmployeeAppLinkNames` pattern, so queries do not import write ports. Its callback adapter
 captures the caller's `Tx`; app.ts supplies provider-owned reads and commissions.module.ts checks the adapter's
 shape against `CommissionServiceOverrideListReadsFactory`. PostgreSQL derives the business-local date from the
-timezone within that same transaction. No employee query is copied into commissions, no provider join or read use
+timezone within that same transaction. The list first rechecks the human actor's permission and feature through
+the unlocked identity reader; the writer reuses the same decision only after its existing company/membership locks.
+No employee query is copied into commissions, no provider join or read use
 case is introduced, and the query imports no domain or engine. This is the manager-confirmed query-local design
 of 49-1 ([plan](../specs/059-commissions-statements/plan-49-1.md), 2026-11-01).
 

@@ -17,10 +17,25 @@ import {
 } from './commission-service-override-cursor.ts';
 
 /** توكن المزود: المصنع اللي بيرجّع قراءات المسار السريع على معاملة القارئ نفسها. */
-export const COMMISSION_SERVICE_OVERRIDE_LIST_READS = Symbol('COMMISSION_SERVICE_OVERRIDE_LIST_READS');
+export const COMMISSION_SERVICE_OVERRIDE_LIST_READS = Symbol(
+  'COMMISSION_SERVICE_OVERRIDE_LIST_READS',
+);
 
-/** قراءات مسار القائمة: توقيت النشاط ووجود الموظفة، من الوحدات المالكة للبيانات. */
+/** قراءات مسار القائمة: إعادة فحص الوصول وتوقيت النشاط ووجود الموظفة، من الوحدات المالكة للبيانات. */
 export interface CommissionServiceOverrideListReads {
+  /**
+   * بيعيد فحص الصلاحية والميزة على معاملة القائمة قبل قراءة أي تجاوزات، بلا أقفال كتابة.
+   *
+   * @param companyId الشركة المطلوبة
+   * @param userId المستخدم البشري
+   * @param businessId النشاط المطلوب
+   * @returns سبب الرفض، أو null عند السماح
+   */
+  access(
+    companyId: string,
+    userId: string,
+    businessId: string,
+  ): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null>;
   /**
    * بيرجّع توقيت النشاط عشان تاريخ اليوم المحسوب في الداتابيز يطلع بتوقيت النشاط.
    *
@@ -40,13 +55,15 @@ export interface CommissionServiceOverrideListReads {
   employeeExists(companyId: string, businessId: string, employeeId: string): Promise<boolean>;
 }
 
-export type CommissionServiceOverrideListReadsFactory = (tx: Tx) => CommissionServiceOverrideListReads;
+export type CommissionServiceOverrideListReadsFactory = (
+  tx: Tx,
+) => CommissionServiceOverrideListReads;
 
 /** رفضات القراءة: خطأ معروف بيتحول لخطأ API معروف، من غير أي بيانات جوه. */
 export class CommissionServiceOverrideReadError extends Error {
-  readonly code: 'VALIDATION_FAILED' | 'EMPLOYEE_NOT_FOUND' | 'FORBIDDEN';
+  readonly code: 'VALIDATION_FAILED' | 'EMPLOYEE_NOT_FOUND' | 'FORBIDDEN' | 'FEATURE_DISABLED';
 
-  constructor(code: 'VALIDATION_FAILED' | 'EMPLOYEE_NOT_FOUND' | 'FORBIDDEN') {
+  constructor(code: 'VALIDATION_FAILED' | 'EMPLOYEE_NOT_FOUND' | 'FORBIDDEN' | 'FEATURE_DISABLED') {
     super(code);
     this.name = 'CommissionServiceOverrideReadError';
     this.code = code;
@@ -73,7 +90,9 @@ type OverrideRow = {
   readonly is_current: boolean;
 };
 
-function cursorContext(scope: CommissionServiceOverrideListScope): CommissionServiceOverrideCursorContext {
+function cursorContext(
+  scope: CommissionServiceOverrideListScope,
+): CommissionServiceOverrideCursorContext {
   return {
     companyId: scope.companyId,
     businessId: scope.businessId,
@@ -157,9 +176,11 @@ function itemOf(row: OverrideRow): CommissionServiceOverrideListItem {
 export async function listCommissionServiceOverrides(
   tx: Tx,
   reads: CommissionServiceOverrideListReads,
-  scope: CommissionServiceOverrideListScope,
+  scope: CommissionServiceOverrideListScope & { readonly userId: string },
   query: CommissionServiceOverrideListQuery,
 ): Promise<CommissionServiceOverrideList> {
+  const refused = await reads.access(scope.companyId, scope.userId, scope.businessId);
+  if (refused !== null) throw new CommissionServiceOverrideReadError(refused);
   if (!(await reads.employeeExists(scope.companyId, scope.businessId, scope.employeeId))) {
     throw new CommissionServiceOverrideReadError('EMPLOYEE_NOT_FOUND');
   }

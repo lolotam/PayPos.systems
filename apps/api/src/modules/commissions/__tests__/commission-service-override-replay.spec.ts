@@ -2,7 +2,10 @@ import { IdempotencyKeyBusyError, IdempotencyKeyReusedError } from '@pospay/db';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
-import { closeCommissionFixture, memberWithoutPlanPermission } from './commission-plan-versions.fixture.ts';
+import {
+  closeCommissionFixture,
+  memberWithoutPlanPermission,
+} from './commission-plan-versions.fixture.ts';
 import {
   commissionServiceOverridesFixture,
   idempotencyClaims,
@@ -52,9 +55,9 @@ it('a busy key is refused with the busy error and writes nothing', async () => {
       scope_type,scope_id,company_id,user_id,operation,key,request_fingerprint,expires_at)
       VALUES ('COMPANY',${f.company},${f.company},${f.userId},'create-commission-service-override',
         ${key},${fingerprint},now() + interval '24 hours')`;
-    await expect(
-      runOverride(f, overrideInput(f), key, { fingerprint }),
-    ).rejects.toBeInstanceOf(IdempotencyKeyBusyError);
+    await expect(runOverride(f, overrideInput(f), key, { fingerprint })).rejects.toBeInstanceOf(
+      IdempotencyKeyBusyError,
+    );
     expect(await overrideAndAuditCounts(f)).toEqual(before);
   } finally {
     await holder.unsafe('ROLLBACK').catch(() => undefined);

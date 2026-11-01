@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it } from 'vitest';
 
+import { listCommissionServiceOverrides } from '../queries/commission-service-overrides.query.ts';
 import {
   approvedDeviceToken,
   closeCommissionFixture,
@@ -9,6 +10,7 @@ import {
   commissionServiceOverridesFixture,
   overrideAndAuditCounts,
   overrideInput,
+  seedOverride,
   type CommissionServiceOverrideFixture,
 } from './commission-service-overrides.fixture.ts';
 
@@ -23,11 +25,57 @@ afterEach(async () => {
 it('CM-10 a member without the commission permission is refused on both routes', async () => {
   const member = await memberWithoutPlanPermission(f);
   const before = await overrideAndAuditCounts(f);
-  const created = await f.postOverride(overrideInput(f), 'cm-access-no-permission', f.employee, member.cookie);
+  const created = await f.postOverride(
+    overrideInput(f),
+    'cm-access-no-permission',
+    f.employee,
+    member.cookie,
+  );
   const listed = await f.getOverrides('', f.employee, member.cookie);
   expect([created.status, created.body['code']]).toEqual([403, 'FORBIDDEN']);
   expect([listed.status, listed.body['code']]).toEqual([403, 'FORBIDDEN']);
   expect(await overrideAndAuditCounts(f)).toEqual(before);
+});
+
+it.each([
+  { change: 'permission revoked', code: 'FORBIDDEN' },
+  { change: 'feature disabled', code: 'FEATURE_DISABLED' },
+])('the list rechecks access after the guard allowed it: $change', async ({ change, code }) => {
+  const member = await memberWithoutPlanPermission(f);
+  await f.h.owner`INSERT INTO role_permissions(role_id,role_owner_key,company_id,permission_code)
+    SELECT role_id,role_owner_key,company_id,'manage:commission-plans:business' FROM memberships
+    WHERE company_id=${f.company} AND id=${member.membershipId}`;
+  const saved = await seedOverride(f, {
+    effectiveFrom: '2026-10-01',
+    createdAt: '2026-10-01T12:00:00.000001Z',
+  });
+  const scope = {
+    companyId: f.company,
+    userId: member.userId,
+    businessId: f.business,
+    employeeId: f.employee,
+    serviceId: undefined,
+  };
+  const list = () =>
+    f.db.withTenant(f.company, (tx) =>
+      listCommissionServiceOverrides(tx, f.listReaders(tx), scope, { limit: 20 }),
+    );
+  const allowed = await f.getOverrides('', f.employee, member.cookie);
+  expect([allowed.status, allowed.body['items']]).toEqual([
+    200,
+    expect.arrayContaining([expect.objectContaining({ id: saved })]),
+  ]);
+  // السماح قبل السحب لا يكفي: التغيير ده ملتزم قبل معاملة قراءة جديدة، بعد نقطة الحارس.
+  if (change === 'permission revoked') {
+    await f.h.owner`DELETE FROM role_permissions
+      WHERE company_id=${f.company} AND permission_code='manage:commission-plans:business'
+        AND role_id=(SELECT role_id FROM memberships
+          WHERE company_id=${f.company} AND id=${member.membershipId})`;
+  } else {
+    await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
+      VALUES (${f.company},'commissions',false,'Synthetic after guard',${f.userId})`;
+  }
+  await expect(list()).rejects.toMatchObject({ code });
 });
 
 it('CM-10 a real device principal is refused on both routes', async () => {

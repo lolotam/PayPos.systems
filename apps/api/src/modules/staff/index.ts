@@ -20,7 +20,11 @@ export { employeeNamesByUser } from './persistence/employee-names.ts';
 export { createActivePasskeyBindings } from './queries/active-passkey-bindings.query.ts';
 export type { AttendanceChangeRequested, AttendanceChangeDecided } from './events/published.ts';
 import { createSessionReaders } from './persistence/session-readers.ts';
-import { sessionPerformerOptionsPage, sessionPerformerWarningColumns } from './queries/session-performer-options.query.ts';
+import {
+  sessionPerformerOptionsPage,
+  sessionPerformerWarningColumns,
+} from './queries/session-performer-options.query.ts';
 export const { readSessionPerformers, readSessionPerformerOptions } = createSessionReaders({
-  page: sessionPerformerOptionsPage, warningColumns: sessionPerformerWarningColumns,
+  page: sessionPerformerOptionsPage,
+  warningColumns: sessionPerformerWarningColumns,
 });

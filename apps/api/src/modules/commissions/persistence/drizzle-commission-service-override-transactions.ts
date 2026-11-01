@@ -1,8 +1,4 @@
-import {
-  runIdempotent,
-  type IdGenerator,
-  type TenantWrappers,
-} from '@pospay/db';
+import { runIdempotent, type IdGenerator, type TenantWrappers } from '@pospay/db';
 
 import { CommissionPlanVersionError } from '../domain/errors.ts';
 import type { CommissionServiceOverrideTransactions } from '../ports/commission-service-override-transactions.port.ts';

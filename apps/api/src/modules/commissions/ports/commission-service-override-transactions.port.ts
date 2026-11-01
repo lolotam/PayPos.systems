@@ -1,4 +1,7 @@
-import type { CommissionServiceOverride, CreateCommissionServiceOverrideInput } from '@pospay/contracts';
+import type {
+  CommissionServiceOverride,
+  CreateCommissionServiceOverrideInput,
+} from '@pospay/contracts';
 
 import type { CommissionInputLockScope } from './commission-input-lock-scope.port.ts';
 

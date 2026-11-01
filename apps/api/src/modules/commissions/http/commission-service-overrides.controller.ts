@@ -59,7 +59,13 @@ export class CommissionServiceOverridesController {
   ): Promise<CommissionServiceOverride> {
     if (this.create === null) throw new ApiError('NOT_READY');
     try {
-      return await this.create.execute({ ...actorOf(request), businessId, employeeId, input, ...idem });
+      return await this.create.execute({
+        ...actorOf(request),
+        businessId,
+        employeeId,
+        input,
+        ...idem,
+      });
     } catch (error) {
       return mapCommissionWriteError(error);
     }
@@ -86,6 +92,7 @@ export class CommissionServiceOverridesController {
             this.listReads(tx),
             {
               companyId: actor.companyId,
+              userId: actor.userId,
               businessId,
               employeeId,
               serviceId: query.service_id,

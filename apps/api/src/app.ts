@@ -32,18 +32,28 @@ import {
   identityControllers,
   identityProviders,
   readCommissionPlanAccess,
+  readCommissionPlanListAccess,
 } from './modules/identity/index.ts';
 import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
 import { notificationsControllers, notificationsProviders } from './modules/notifications/index.ts';
 import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notifications/index.ts';
-import { businessCalendar, businessTimeZone, tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
+import {
+  businessCalendar,
+  businessTimeZone,
+  tenancyControllers,
+  tenancyProviders,
+} from './modules/tenancy/index.ts';
 import {
   customersControllers,
   customersProviders,
   RATING_ROUTE,
   ratingAdmissionHook,
 } from './modules/customers/index.ts';
-import { catalogControllers, catalogProviders, readSessionServices } from './modules/catalog/index.ts';
+import {
+  catalogControllers,
+  catalogProviders,
+  readSessionServices,
+} from './modules/catalog/index.ts';
 import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
 import {
   employeeExistsInBusiness,
@@ -153,7 +163,11 @@ function commissionBindings(deps: AppDependencies) {
       serviceReader: async (tx, companyId, businessId, serviceId) =>
         (await readSessionServices(tx, companyId, businessId, [serviceId])).length > 0,
     },
-    { timeZone: businessTimeZone, employeeExists: employeeExistsInBusiness },
+    {
+      access: readCommissionPlanListAccess,
+      timeZone: businessTimeZone,
+      employeeExists: employeeExistsInBusiness,
+    },
     deps.commissionsClock,
   );
 }

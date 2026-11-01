@@ -66,10 +66,19 @@ export {
   readAttendanceChangeApprovers,
 } from './persistence/attendance-change-access.ts';
 export { readBranchRoleHolders } from './persistence/branch-role-holders.ts';
-export { lockEmployeeHoursAccess, readEmployeeHoursAccess } from './persistence/employee-hours-access.ts';
-export { lockEmployeeNumberAccess, readEmployeeNumberAccess } from './persistence/employee-number-access.ts';
+export {
+  lockEmployeeHoursAccess,
+  readEmployeeHoursAccess,
+} from './persistence/employee-hours-access.ts';
+export {
+  lockEmployeeNumberAccess,
+  readEmployeeNumberAccess,
+} from './persistence/employee-number-access.ts';
 export { readEmployeeNumberCompanyAccess } from './persistence/employee-number-access.ts';
-export { lockServiceSessionAccess, readServiceSessionAccess } from './persistence/service-session-access.ts';
+export {
+  lockServiceSessionAccess,
+  readServiceSessionAccess,
+} from './persistence/service-session-access.ts';
 export { readServiceSessionReadAccess } from './persistence/service-session-read-access.ts';
 export { readDiscountApprovalListAccess } from './persistence/discount-approval-list-access.ts';
 export {
@@ -81,4 +90,7 @@ export {
   readServiceSessionPerformersAccess,
 } from './persistence/service-session-edit-access.ts';
 export { lockAlertRulesAccess, readAlertRulesAccess } from './persistence/alert-rules-access.ts';
-export { readCommissionPlanAccess } from './persistence/commission-plan-access.ts';
+export {
+  readCommissionPlanAccess,
+  readCommissionPlanListAccess,
+} from './persistence/commission-plan-access.ts';

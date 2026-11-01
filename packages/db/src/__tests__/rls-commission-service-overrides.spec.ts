@@ -70,22 +70,27 @@ it('the table has the three indexes the list and the foreign keys need, and noth
     'commission_service_overrides_pkey',
     'commission_service_overrides_service_idx',
   ]);
-  const main = indexes.find((row) => row.indexname === 'commission_service_overrides_employee_service_idx');
+  const main = indexes.find(
+    (row) => row.indexname === 'commission_service_overrides_employee_service_idx',
+  );
   expect(main?.indexdef).toContain(
     'company_id, business_id, employee_id, service_id, created_at DESC NULLS LAST, id DESC NULLS LAST',
   );
-  expect(indexes.find((row) => row.indexname === 'commission_service_overrides_service_idx')?.indexdef).toContain(
-    'company_id, business_id, service_id',
-  );
-  expect(indexes.find((row) => row.indexname === 'commission_service_overrides_created_by_idx')?.indexdef).toContain(
-    'created_by',
-  );
+  expect(
+    indexes.find((row) => row.indexname === 'commission_service_overrides_service_idx')?.indexdef,
+  ).toContain('company_id, business_id, service_id');
+  expect(
+    indexes.find((row) => row.indexname === 'commission_service_overrides_created_by_idx')
+      ?.indexdef,
+  ).toContain('created_by');
 });
 
 it('CM-R02: company B reads no override of company A and cannot insert one for A', async () => {
   const rowId = ids.newId();
   await insert(A, { id: rowId });
-  expect(await asA(sql`SELECT id FROM commission_service_overrides WHERE id=${rowId}`)).toHaveLength(1);
+  expect(
+    await asA(sql`SELECT id FROM commission_service_overrides WHERE id=${rowId}`),
+  ).toHaveLength(1);
   expect(await asB(sql`SELECT id FROM commission_service_overrides WHERE id=${rowId}`)).toEqual([]);
   // كل صف بتاه شركة B نفسها، مش صف من شركة A.
   const visibleToB = await asB(sql`SELECT company_id FROM commission_service_overrides`);
@@ -97,18 +102,28 @@ it('CM-R02: company B reads no override of company A and cannot insert one for A
         '2026-11-01T09:00:00Z',${USER})`),
     '42501',
   );
-  expect(await asA(sql`SELECT id FROM commission_service_overrides WHERE id=${rowId}`)).toHaveLength(1);
+  expect(
+    await asA(sql`SELECT id FROM commission_service_overrides WHERE id=${rowId}`),
+  ).toHaveLength(1);
 });
 
 it('the tenant context does not leak between transactions, and one id is allowed in two companies', async () => {
   const sharedId = ids.newId();
   await insert(A, { id: sharedId });
-  expect(await asA(sql`SELECT id FROM commission_service_overrides WHERE id=${sharedId}`)).toHaveLength(1);
-  expect(await asB(sql`SELECT id FROM commission_service_overrides WHERE id=${sharedId}`)).toEqual([]);
+  expect(
+    await asA(sql`SELECT id FROM commission_service_overrides WHERE id=${sharedId}`),
+  ).toHaveLength(1);
+  expect(await asB(sql`SELECT id FROM commission_service_overrides WHERE id=${sharedId}`)).toEqual(
+    [],
+  );
   // المفتاح مركّب (الشركة، المعرّف)، فالمعرّف نفسه بيتقبل في شركتين.
   await insert(B, { id: sharedId });
-  expect(await asB(sql`SELECT id FROM commission_service_overrides WHERE id=${sharedId}`)).toHaveLength(1);
-  expect(await asA(sql`SELECT id FROM commission_service_overrides WHERE id=${sharedId}`)).toHaveLength(1);
+  expect(
+    await asB(sql`SELECT id FROM commission_service_overrides WHERE id=${sharedId}`),
+  ).toHaveLength(1);
+  expect(
+    await asA(sql`SELECT id FROM commission_service_overrides WHERE id=${sharedId}`),
+  ).toHaveLength(1);
   const app = postgres(testDb.appUrl, { max: 1, onnotice: () => undefined });
   try {
     expect(await app`SELECT id FROM commission_service_overrides`).toEqual([]);
@@ -121,17 +136,23 @@ it('the app cannot update, delete or truncate an override, and the stored row su
   const rowId = ids.newId();
   await insert(A, { id: rowId, ruleKind: 'PCT', rulePctBps: 1500 });
   await expectPgError(
-    asA(sql`UPDATE commission_service_overrides SET rule_kind='ZERO' WHERE company_id=${A.company} AND id=${rowId}`),
+    asA(
+      sql`UPDATE commission_service_overrides SET rule_kind='ZERO' WHERE company_id=${A.company} AND id=${rowId}`,
+    ),
     '42501',
   );
   await expectPgError(
-    asA(sql`DELETE FROM commission_service_overrides WHERE company_id=${A.company} AND id=${rowId}`),
+    asA(
+      sql`DELETE FROM commission_service_overrides WHERE company_id=${A.company} AND id=${rowId}`,
+    ),
     '42501',
   );
   await expectPgError(asA(sql`TRUNCATE commission_service_overrides`), '42501');
-  expect(await asA(sql`SELECT rule_kind,rule_pct_bps FROM commission_service_overrides WHERE id=${rowId}`)).toEqual([
-    { rule_kind: 'PCT', rule_pct_bps: 1500 },
-  ]);
+  expect(
+    await asA(
+      sql`SELECT rule_kind,rule_pct_bps FROM commission_service_overrides WHERE id=${rowId}`,
+    ),
+  ).toEqual([{ rule_kind: 'PCT', rule_pct_bps: 1500 }]);
 });
 
 it.each(['authUrl', 'dispatcherUrl', 'notificationsUrl'] as const)(
@@ -139,7 +160,9 @@ it.each(['authUrl', 'dispatcherUrl', 'notificationsUrl'] as const)(
   async (url) => {
     const role = postgres(testDb[url], { max: 1, onnotice: () => undefined });
     try {
-      await expect(role`SELECT id FROM commission_service_overrides`).rejects.toThrow(/permission denied/);
+      await expect(role`SELECT id FROM commission_service_overrides`).rejects.toThrow(
+        /permission denied/,
+      );
     } finally {
       await role.end();
     }

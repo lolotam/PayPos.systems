@@ -14,10 +14,5 @@ export interface CommissionServiceReaderPort {
    * @param serviceId الخدمة المطلوبة
    * @returns true عند وجود الخدمة في النشاط
    */
-  exists(
-    tx: Tx,
-    companyId: string,
-    businessId: string,
-    serviceId: string,
-  ): Promise<boolean>;
+  exists(tx: Tx, companyId: string, businessId: string, serviceId: string): Promise<boolean>;
 }

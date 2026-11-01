@@ -74,9 +74,12 @@ staff owns employeeExistsInBusiness(tx, companyId, businessId, employeeId), with
 deleted_at IS NULL, no lock. Export it from staff/index.ts; no direct employees-table query is added to commissions.
 Test real existence, deleted/missing employees, wrong business and wrong company on a cloned database.
 
-Define OverrideListReadsFactory beside the list query, supplying timeZone(companyId,businessId) and
-employeeExists(companyId,businessId,employeeId) on its captured Tx. The adapter receives provider callbacks;
-app.ts binds them to tenancy.businessTimeZone and staff.employeeExistsInBusiness. Query imports no write ports,
+Define OverrideListReadsFactory beside the list query, supplying access(companyId,userId,businessId),
+timeZone(companyId,businessId) and employeeExists(companyId,businessId,employeeId) on its captured Tx.
+Before reading employee or override data, recheck permission and feature through identity.readCommissionPlanListAccess,
+an unlocked reader sharing the writer's access evaluation while preserving the writer's existing locks.
+The adapter receives provider callbacks; app.ts binds the other reads to tenancy.businessTimeZone and
+staff.employeeExistsInBusiness. Query imports no write ports,
 domain, engine or use case. HTTP injects only the query-local factory and calls it on its existing withTenant Tx.
 If an adapter returns an inferred structural shape, the module's binding must check it against the query factory;
 do not import queries into persistence against the layer matrix to add an unnecessary annotation.

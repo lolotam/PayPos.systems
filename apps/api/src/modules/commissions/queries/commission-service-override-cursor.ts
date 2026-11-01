@@ -35,7 +35,9 @@ const cursorPayload = z.strictObject({
   e: id,
   f: id.nullable(),
   s: id,
-  t: z.string().regex(RAW_MICROSECONDS)
+  t: z
+    .string()
+    .regex(RAW_MICROSECONDS)
     .refine((value) => commissionPlanDate.safeParse(value.slice(0, 10)).success),
   i: id,
 });

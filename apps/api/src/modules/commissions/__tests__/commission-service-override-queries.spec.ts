@@ -134,6 +134,7 @@ it('current uses the provider timezone and the transaction date, including the e
     const reads = f.listReaders(tx);
     const scope = {
       companyId: f.company,
+      userId: f.userId,
       businessId: f.business,
       employeeId: f.employee,
       serviceId: undefined,

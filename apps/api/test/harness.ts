@@ -32,7 +32,10 @@ import { API_LOG_EVENTS } from '../src/shared/log-events.ts';
 import type { FilesRuntime } from '../src/modules/files/index.ts';
 
 export { readSessionServices } from '../src/modules/catalog/index.ts';
-export { readCommissionPlanAccess } from '../src/modules/identity/index.ts';
+export {
+  readCommissionPlanAccess,
+  readCommissionPlanListAccess,
+} from '../src/modules/identity/index.ts';
 export { employeeExistsInBusiness, lockEmployeeForUpdate } from '../src/modules/staff/index.ts';
 export { businessCalendar, businessTimeZone } from '../src/modules/tenancy/index.ts';
 

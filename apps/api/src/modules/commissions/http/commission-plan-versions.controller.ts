@@ -55,7 +55,13 @@ export class CommissionPlanVersionsController {
   ): Promise<CommissionPlanVersion> {
     if (this.create === null) throw new ApiError('NOT_READY');
     try {
-      return await this.create.execute({ ...actorOf(request), businessId, employeeId, input, ...idem });
+      return await this.create.execute({
+        ...actorOf(request),
+        businessId,
+        employeeId,
+        input,
+        ...idem,
+      });
     } catch (error) {
       return mapCommissionWriteError(error);
     }

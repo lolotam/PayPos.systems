@@ -28,12 +28,7 @@ export function createCommissionServiceOverrideScope(
   return {
     ...createCommissionInputLockScope(tx, command, ids, readers),
     serviceExists: () =>
-      readers.serviceReader(
-        tx,
-        command.companyId,
-        command.businessId,
-        command.input.service_id,
-      ),
+      readers.serviceReader(tx, command.companyId, command.businessId, command.input.service_id),
     insert: (record) =>
       insertCommissionServiceOverride(tx, command.companyId, command.businessId, record),
     audit: (record) => auditCommissionServiceOverride(tx, ids, record),

@@ -28,9 +28,9 @@ afterEach(async () => {
   await closeCommissionFixture(f);
 });
 
-async function statementRows(fixture: CommissionServiceOverrideFixture): Promise<
-  { readonly period: string; readonly status: string }[]
-> {
+async function statementRows(
+  fixture: CommissionServiceOverrideFixture,
+): Promise<{ readonly period: string; readonly status: string }[]> {
   return fixture.h.owner`SELECT period,status FROM commission_statements
     WHERE company_id=${fixture.company} AND business_id=${fixture.business} ORDER BY period`;
 }
@@ -71,9 +71,9 @@ it.each(['APPROVED', 'PAID'] as const)(
   async (status) => {
     await setCommissionStatement(f, '2026-10', status);
     const before = await overrideAndAuditCounts(f);
-    await expect(
-      writeOverride(f, overrideInput(f), 'cm-13-closed'),
-    ).rejects.toMatchObject({ code: 'COMMISSION_PERIOD_CLOSED' });
+    await expect(writeOverride(f, overrideInput(f), 'cm-13-closed')).rejects.toMatchObject({
+      code: 'COMMISSION_PERIOD_CLOSED',
+    });
     expect(await overrideAndAuditCounts(f)).toEqual(before);
   },
 );
@@ -115,9 +115,9 @@ it('CM-13 a forced audit failure rolls the reopen, the row and the idempotency c
   await f.h.owner`CREATE TRIGGER force_override_audit_failure BEFORE INSERT ON audit_log
     FOR EACH ROW EXECUTE FUNCTION reject_override_audit()`;
   try {
-    await expect(
-      runOverride(f, overrideInput(f), 'cm-13-audit-failure'),
-    ).rejects.toMatchObject({ cause: { code: 'P0001', message: 'forced audit failure' } });
+    await expect(runOverride(f, overrideInput(f), 'cm-13-audit-failure')).rejects.toMatchObject({
+      cause: { code: 'P0001', message: 'forced audit failure' },
+    });
     expect(await overrideAndAuditCounts(f)).toEqual([0, 0]);
     expect(await idempotencyClaims(f)).toBe(0);
     const statements = await reviewEvidence();
@@ -146,9 +146,9 @@ it('the commissions feature turned off refuses the write with FEATURE_DISABLED a
   await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
     VALUES (${f.company},'commissions',false,'Synthetic disabled',${f.userId})`;
   try {
-    await expect(
-      runOverride(f, overrideInput(f), 'cm-13-feature-disabled'),
-    ).rejects.toMatchObject({ code: 'FEATURE_DISABLED' });
+    await expect(runOverride(f, overrideInput(f), 'cm-13-feature-disabled')).rejects.toMatchObject({
+      code: 'FEATURE_DISABLED',
+    });
     expect(await overrideAndAuditCounts(f)).toEqual(before);
     expect(await idempotencyClaims(f)).toBe(0);
   } finally {
@@ -177,7 +177,8 @@ it('a boundary-controlled access decision on the final recheck rolls the reopen,
   expect(calls).toBe(2);
   expect(await overrideAndAuditCounts(f)).toEqual(before);
   expect(await idempotencyClaims(f)).toBe(0);
-  const statements = await f.h.owner`SELECT status,reviewed_by,reviewed_at FROM commission_statements
+  const statements = await f.h
+    .owner`SELECT status,reviewed_by,reviewed_at FROM commission_statements
     WHERE company_id=${f.company} AND business_id=${f.business} AND period='2026-10'`;
   // الشهر رجع REVIEWED: إعادة الفتح اللي قبل الرفض اتعملت في نفس المعاملة اللي اترمت.
   expect(statements).toEqual([
