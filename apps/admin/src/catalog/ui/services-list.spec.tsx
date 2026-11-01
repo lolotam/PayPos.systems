@@ -108,6 +108,28 @@ it('renders duration and category cells with a closed mark and dashes for missin
     .toBeTruthy();
 });
 
+it('hides the category filter after a 403 and still renders services', async () => {
+  get.mockImplementation((path: string) => {
+    if (path === '/v1/businesses/{businessId}/service-categories') {
+      return Promise.resolve({
+        error: {
+          code: 'FORBIDDEN',
+          message_ar: 'Forbidden AR',
+          message_en: 'Forbidden',
+        },
+        response: { status: 403 },
+      });
+    }
+    return Promise.resolve({
+      data: { items: [firstService], next_cursor: null },
+      response: { status: 200 },
+    });
+  });
+  renderPage();
+  expect(await screen.findByText('First service')).toBeTruthy();
+  expect(screen.queryByLabelText(t('en', 'catalogServices.categoryFilter'))).toBeNull();
+});
+
 function mockFilteredServicePages() {
   get.mockImplementation(
     (

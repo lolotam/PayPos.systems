@@ -119,6 +119,30 @@ it('offers exactly the open categories supplied to the picker', () => {
   ]);
 });
 
+it.each([
+  [secondCategory.id, secondCategory.id, secondCategory.name_en],
+  ['', null, t('en', 'catalogServices.noCategory')],
+] as const)(
+  'submits the visible category selection %s as %s',
+  async (selectedValue, expectedCategoryId, expectedLabel) => {
+    const save = vi.fn();
+    render(
+      <EditServiceForm
+        categoryQuery={categoryQuery()}
+        record={record}
+        pending={false}
+        onSave={save}
+      />,
+    );
+    const picker = screen.getByLabelText(t('en', 'catalogServices.category')) as HTMLSelectElement;
+    fireEvent.change(picker, { target: { value: selectedValue } });
+    expect(picker.selectedOptions[0]?.textContent).toBe(expectedLabel);
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'catalogServices.save') }));
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    expect(save.mock.calls[0]?.[0]).toMatchObject({ category_id: expectedCategoryId });
+  },
+);
+
 it('keeps a closed current category selected and visibly marked', () => {
   render(
     <EditServiceForm
