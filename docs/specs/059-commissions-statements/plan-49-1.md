@@ -345,3 +345,21 @@ The lead corrected these initial defects before handoff:
 The initial implementation is ready for the single fresh independent Astra code/database review. The private
 Postgres container remains owned by this task. The migration lane, final numbering/rebase, branch push, PR and
 GitHub/CI/merge/release gates remain pending; no publication or server change occurred.
+
+## 15. Independent review and remaining lane gate
+
+The single independent internal reviewer, gpt-6-astra high, reviewed the immutable range
+077d4a15b4d3eea76cd197a5e134a764fcffec9e..b123a21ec0e40055b87f487d5011dcea706ea591 from fresh context.
+It verified the actual task root and branch before reviewing production code, contracts/engine, database
+constraints/FORCE RLS/grants, atomicity/locks/replay, cursor precision and behavior tests. Verdict: no confirmed
+P0/P1/P2 findings. The reviewer ran no tests and changed no files; the lead rechecked the clean tree afterwards.
+This review covers the implementation at b123a21e; this subsequent receipt changes documentation only.
+
+A fresh read of GitHub after that implementation checkpoint shows 32b-pre-1 PR #757 still OPEN, mergedAt null.
+The manager's migration-lane release is still required. No inference of permission is made from a main fetch,
+local green checks or the review verdict. Once released, regenerate/renumber the provisional migrations and
+snapshots against main, resolve any prerequisite integration changes, rerun affected checks, then publish the one
+49-1 PR. Exact-head full CI, all five GitHub reviews, backup and authorized release gates still apply.
+
+The original assembled API receipt remains 125/127 followed by passing affected reruns and the extra timezone
+proof. It is not rewritten as a successful full run. No 49-1 branch push, PR, merge or server change has occurred.
