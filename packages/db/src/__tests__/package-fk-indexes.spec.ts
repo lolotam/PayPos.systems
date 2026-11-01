@@ -17,6 +17,7 @@ interface ExpectedForeignKey {
 
 const EXPECTED_FOREIGN_KEYS: Record<string, ExpectedForeignKey[]> = {
   package_entitlements: [
+    { name: 'package_entitlements_company_id_companies_id_fk', columns: ['company_id'] },
     { name: 'package_entitlements_customer_fk', columns: ['company_id', 'customer_id'] },
     {
       name: 'package_entitlements_package_type_fk',
@@ -38,6 +39,7 @@ const EXPECTED_FOREIGN_KEYS: Record<string, ExpectedForeignKey[]> = {
     },
   ],
   package_components: [
+    { name: 'package_components_company_id_companies_id_fk', columns: ['company_id'] },
     {
       name: 'package_components_entitlement_fk',
       columns: ['company_id', 'business_id', 'entitlement_id'],
@@ -48,6 +50,7 @@ const EXPECTED_FOREIGN_KEYS: Record<string, ExpectedForeignKey[]> = {
     },
   ],
   package_session_slots: [
+    { name: 'package_session_slots_company_id_companies_id_fk', columns: ['company_id'] },
     {
       name: 'package_session_slots_component_fk',
       columns: ['company_id', 'business_id', 'entitlement_id', 'component_id'],

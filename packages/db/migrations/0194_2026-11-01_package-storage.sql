@@ -74,6 +74,8 @@ CREATE TABLE package_entitlements (
   CONSTRAINT package_entitlements_external_ref_check CHECK (external_ref IS NULL OR char_length(external_ref) BETWEEN 1 AND 100)
 );
 --> statement-breakpoint
+ALTER TABLE package_entitlements ADD CONSTRAINT package_entitlements_company_id_companies_id_fk FOREIGN KEY (company_id) REFERENCES companies (id);
+--> statement-breakpoint
 ALTER TABLE package_entitlements ADD CONSTRAINT package_entitlements_customer_fk
   FOREIGN KEY (company_id, customer_id) REFERENCES customers (company_id, id);
 --> statement-breakpoint
@@ -144,6 +146,8 @@ CREATE TABLE package_components (
   CONSTRAINT package_components_lock_touch_check CHECK (lock_touch = 0)
 );
 --> statement-breakpoint
+ALTER TABLE package_components ADD CONSTRAINT package_components_company_id_companies_id_fk FOREIGN KEY (company_id) REFERENCES companies (id);
+--> statement-breakpoint
 ALTER TABLE package_components ADD CONSTRAINT package_components_entitlement_fk
   FOREIGN KEY (company_id, business_id, entitlement_id) REFERENCES package_entitlements (company_id, business_id, id);
 --> statement-breakpoint
@@ -174,6 +178,8 @@ CREATE TABLE package_session_slots (
   CONSTRAINT package_session_slots_state_redemption_check CHECK ((state = 'USED') = (current_redemption_id IS NOT NULL)),
   CONSTRAINT package_session_slots_unit_value_check CHECK (unit_value BETWEEN 0 AND 99999999999.999)
 );
+--> statement-breakpoint
+ALTER TABLE package_session_slots ADD CONSTRAINT package_session_slots_company_id_companies_id_fk FOREIGN KEY (company_id) REFERENCES companies (id);
 --> statement-breakpoint
 ALTER TABLE package_session_slots ADD CONSTRAINT package_session_slots_component_fk
   FOREIGN KEY (company_id, business_id, entitlement_id, component_id) REFERENCES package_components (company_id, business_id, entitlement_id, id);
@@ -378,11 +384,6 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'a session belongs to an entitlement of another transaction'
       USING ERRCODE = '23514', CONSTRAINT = 'package_session_slots_creation_seal';
-  END IF;
-  -- الجلسة الجديدة مالها استرداد؛ الاسترداد بيجي مع هجرة 43-1.
-  IF EXISTS (SELECT 1 FROM new_slots s WHERE s.current_redemption_id IS NOT NULL) THEN
-    RAISE EXCEPTION 'a new session carries no redemption'
-      USING ERRCODE = '23514', CONSTRAINT = 'package_session_slots_no_redemption';
   END IF;
   -- البيع بيبني جلسات حرة، والاستيراد بيبني حرة ومستعملة بالترتيب (FR-063).
   IF EXISTS (

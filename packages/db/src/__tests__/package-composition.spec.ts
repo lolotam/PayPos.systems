@@ -150,6 +150,8 @@ async function compose(
     await tx.execute(entitlementInsert(entitlementId, o));
     for (const component of components) {
       await tx.execute(componentInsert(component.id, entitlementId, component.options));
+    }
+    for (const component of components) {
       for (const [index, ordinal] of component.slots.entries()) {
         await tx.execute(
           slotInsert(nextId(), entitlementId, component.id, ordinal, {

@@ -307,6 +307,8 @@ it('an entitlement starts with no refunded amount and at revision one', async ()
 it('a new session starts free and carries no redemption', async () => {
   const entitlementId = nextId();
   const componentId = nextId();
+  const slot = (options: SlotOptions) =>
+    slotInsert(nextId(), entitlementId, componentId, options);
   // حالة USED من غير استرداع بتقع على قيد الجدول نفسه قبل تريغر التركيب.
   const states: [string, string][] = [
     ['REFUNDED', 'package_session_slots_initial_state'],
@@ -325,13 +327,14 @@ it('a new session starts free and carries no redemption', async () => {
     );
   }
   await rejected(
-    withSale(
-      entitlementId,
-      componentId,
-      slotInsert(nextId(), entitlementId, componentId, { redemption: nextId() }),
-    ),
+    withSale(entitlementId, componentId, slot({ redemption: nextId() })),
     '23514',
-    'package_session_slots_no_redemption',
+    'package_session_slots_state_redemption_check',
+  );
+  await rejected(
+    withSale(entitlementId, componentId, slot({ state: 'USED', redemption: nextId() })),
+    '23514',
+    'package_session_slots_initial_state',
   );
 });
 
@@ -377,16 +380,19 @@ it('the row shape follows its provenance', async () => {
 });
 
 it('a duplicate import row is refused', async () => {
+  const duplicate = (externalRef: string) =>
+    entitlementInsert({
+      id: nextId(),
+      provenance: 'IMPORTED',
+      importBatchId: PREVIEW,
+      importRow: 9,
+      externalRef,
+    });
   await rejected(
-    attempt(
-      entitlementInsert({
-        id: nextId(),
-        provenance: 'IMPORTED',
-        importBatchId: PREVIEW,
-        importRow: 9,
-        externalRef: 'EXT-DUP',
-      }),
-    ),
+    db.withTenant(A.company, async (tx) => {
+      await tx.execute(duplicate('EXT-DUP-1'));
+      await tx.execute(duplicate('EXT-DUP-2'));
+    }),
     '23505',
     'package_entitlements_import_row_key',
   );

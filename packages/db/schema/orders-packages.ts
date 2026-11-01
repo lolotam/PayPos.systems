@@ -59,7 +59,7 @@ export const packageEntitlements = pgTable(
     /** تاريخ البيع المحاسبي: كله بيتبني على يوم النشاط مش على يوم الساعة. */
     soldBusinessDate: date('sold_business_date'),
     soldTimezone: text('sold_timezone'),
-    /** البيع بعد انتهاء الصلاحية مسموح بس بيتبعت كlate. */
+    /** late بيعلّم بيع اتسجّل بعد وقوعه وsold_at راجع لتاريخ سابق داخل النافذة المسموحة، زي الزيارة (SA-07، PK-Q11). */
     late: boolean('late').notNull().default(false),
     recordedBy: uuid('recorded_by').notNull(),
     recordedByMembershipId: uuid('recorded_by_membership_id').notNull(),

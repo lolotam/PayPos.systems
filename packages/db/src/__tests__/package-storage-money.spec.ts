@@ -71,10 +71,11 @@ const entitlementInsert = (id: string, o: MoneyOptions = {}) => sql`
   INSERT INTO package_entitlements
     (company_id,id,business_id,customer_id,package_type_id,provenance,name_en,validity_days,list_price,
      price_paid,discount,discount_bps,paid_method,seller_employee_id,sold_branch_id,sold_at,
-     sold_business_date,sold_timezone,recorded_by,recorded_by_membership_id,expires_on)
+     sold_business_date,sold_timezone,recorded_by,recorded_by_membership_id,expires_on,refunded_amount)
   VALUES (${A.company},${id},${A.business},${ORDER_IDS.customer},${PACKAGE_TYPE},'SOLD','Synthetic package',30,
     ${o.listPrice ?? '30.000'},${o.pricePaid ?? '30.000'},${o.discount ?? '0.000'},0,'CASH',${ORDER_IDS.employee},
-    ${A.branch},now(),current_date,'Asia/Kuwait',${USER},${ORDER_IDS.membership},current_date + 30)`;
+    ${A.branch},now(),current_date,'Asia/Kuwait',${USER},${ORDER_IDS.membership},current_date + 30,
+    ${o.refundedAmount ?? '0.000'})`;
 
 const componentInsert = (id: string, entitlementId: string, value: string, listPrice?: string) => sql`
   INSERT INTO package_components
