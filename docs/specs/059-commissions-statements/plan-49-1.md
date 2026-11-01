@@ -21,7 +21,9 @@ No migration number is reserved. Final numbering and metadata are regenerated ag
 
 The manager approved keeping one use case and using a query-local read interface; neither needs an owner decision.
 Existing permissions follow CS-Q1 as clarified by CS-Q27: owner and accountant by default, owner-only granting and
-revoking. CS-Q1's stale final-decisions document on the site is reported to the manager, not edited by this session.
+revoking. The manager reported at 12:48 that Waleed said «صحّحه لاختيار أبو سالم» around 12:47 and the manager
+corrected the site's CS-Q1 final decision to choice 1 with If-Match and a 200 response. This session did not edit
+the site. The audit update was pushed in docs-only PR #755, head 23c0c51a; no specification or code behavior changed.
 The manager provided the exact CS-Q1 date/empty note and Abu Salem's CS-Q2b note from the API at 11:35; their audit
 repairs were pushed in documentation PR #755, head d4c60928. No permission interpretation changed.
 
@@ -211,3 +213,39 @@ before the manager's 12:28 acceptance; this record does not claim a database or 
 
 The contracts OpenAPI registration was grouped under `packages/contracts/src/commissions/openapi.ts` to preserve
 the 400-line limit of the root registration file. No dependency or lockfile change was required.
+
+## 11. Private database-stage receipts
+
+MiniMax delivered the nine scoped paths in brief-49-1-database.md. The lead read every source and SQL file before
+running it. The lead generated the schema migration with the repository wrapper and a separate custom RLS entry,
+then transferred the reviewed RLS and removed the unregistered 9999 draft. Local generated placeholders are
+0194_2026-11-01_commission-service-overrides and 0195_2026-11-01_commission-service-overrides-rls. These numbers are
+not reserved; regenerate SQL and metadata against main after the manager releases the migration lane.
+
+The private container is pospay-test-commission-49-1, owned by this worktree and listening on 127.0.0.1:55403.
+The lead verified its worktree label and published port, then pinned both test host and port in the command.
+The repository's cloned test databases and migrated template were used; no shared or staging database was accessed.
+The ignored local environment files are not part of the change. The container remains owned by this task for the
+remaining application integration tests; do not remove another lane's container.
+
+Passed after the lead's small corrections:
+
+- Dependencies built for @pospay/db, then @pospay/db build, typecheck, lint and Node export smoke check.
+- Vitest on commission-service-override-constraints.spec.ts, rls-commission-service-overrides.spec.ts and
+  privileges.spec.ts: 3 files, 65 tests passed. Repeated after the final fixture correction: 65 tests passed.
+- Documentation lint: zero errors, 28 existing warnings. Module-map check and git diff whitespace check passed.
+- Snapshot structure inspection: exactly one added table; every existing table unchanged; custom snapshot
+  structurally equivalent to its predecessor; valid snapshot-id chain. The schema SQL adds only the new table,
+  its CHECKs/FKs and its three indexes. RLS grants SELECT/INSERT only to pospay_app.
+
+Failures were not waived: the first typecheck found missing built workspace dependencies and an unknown[] SQL
+parameter type in the new NOT NULL fixture. Building dependencies and typing its string parameters fixed both.
+The first fixture fix used a forbidden non-null assertion; the lead replaced indexed access with Object.entries,
+then reran lint and typecheck successfully. The lead also corrected the index assertion to the generator's explicit
+DESC NULLS LAST output, expanded missing rule-shape cases, and corrected the fixed-amount column comment to KWD.
+An initial JSON-string comparison of snapshots reported reordered object keys as a difference; structural comparison
+confirmed equal data. No generated schema was changed to satisfy that diagnostic.
+
+This proves storage and isolation only. Engine support, the writer, HTTP/query paths, race tests, CM-11's saved-row
+calculation proof, the independent final review and exact-head CI remain outstanding. No 49-1 branch was pushed
+and no 49-1 PR was opened.
