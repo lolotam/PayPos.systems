@@ -148,17 +148,19 @@ it('shows no cached names when the date or late filter changes while denied', as
   let denied = false;
   const cachedVisit = { ...visit, id: id(13), customer: { ...visit.customer, name: 'Cached day' } };
   const cached = { data: { items: [cachedVisit], next_cursor: null }, response: { status: 200 } };
+  let otherDay = '';
   state.get.mockImplementation((path: string, init?: { params?: { query?: { date?: string } } }) => {
     if (String(path).includes('/edits')) return Promise.resolve(openHistory);
-    if (init?.params?.query?.date === '2026-11-02') return Promise.resolve(cached);
+    if (init?.params?.query?.date === otherDay) return Promise.resolve(cached);
     return Promise.resolve(denied ? denial(403, 'Denied EN') : listed);
   });
   const view = renderPage();
   await screen.findByText('Synthetic customer');
   const dateBox = () => screen.getByLabelText(t('en', 'serviceLineEdit.date')) as HTMLInputElement;
   const today = dateBox().value;
-  expect(today).not.toBe('2026-11-02');
-  fireEvent.change(dateBox(), { target: { value: '2026-11-02' } });
+  otherDay = new Date(Date.parse(`${today}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  expect(otherDay).not.toBe(today);
+  fireEvent.change(dateBox(), { target: { value: otherDay } });
   expect(await screen.findByText('Cached day')).toBeTruthy();
   fireEvent.change(dateBox(), { target: { value: today } });
   expect(await screen.findByText('Synthetic customer')).toBeTruthy();
@@ -166,9 +168,9 @@ it('shows no cached names when the date or late filter changes while denied', as
   await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
   await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Denied EN'));
   const before = reads(false);
-  fireEvent.change(dateBox(), { target: { value: '2026-11-02' } });
+  fireEvent.change(dateBox(), { target: { value: otherDay } });
   fireEvent.click(screen.getByRole('checkbox', { name: t('en', 'serviceLineEdit.lateOnly') }));
-  expect(dateBox().value).toBe('2026-11-02');
+  expect(dateBox().value).toBe(otherDay);
   expect((screen.getByRole('checkbox', { name: t('en', 'serviceLineEdit.lateOnly') }) as HTMLInputElement).checked).toBe(true);
   expect(reads(false)).toBe(before);
   expectGone('Denied EN');
