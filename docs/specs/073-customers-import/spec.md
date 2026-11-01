@@ -3,10 +3,10 @@
 **Created**: 2026-11-01
 **Status**: Draft. The owner questions are in [owner-questions.ar.md](owner-questions.ar.md):
 - CI-Q1 to CI-Q8 are feature questions: batch 88, `PP-102.1` to `PP-102.8`.
-- CI-T1 to CI-T5 are technical questions: `PP-103.1` to `PP-103.5`.
-- Waleed has answered CI-Q1 to CI-Q4 and CI-T1 to CI-T4. His technical answers are final.
+- CI-T1 to CI-T8 are technical questions: `PP-103.1` to `PP-103.8`.
+- Waleed has answered CI-Q1 to CI-Q4 and CI-T1 to CI-T6. His technical answers are final.
 - Waleed has also answered CI-Q5 to CI-Q16, on the decisions page itself (his own picks, 11:07–11:08 and 12:10–12:13).
-- CI-T5 and CI-T6 are pending, and so is Abu Salem's pick on every feature question.
+- CI-T7 and CI-T8 (round 4) are pending, and so is Abu Salem's pick on every feature question.
 - **Five of Waleed's picks go against the recommendation, and Abu Salem has not answered them yet:**
   - CI-Q1 (`PP-102.1`): extra customer fields first.
   - CI-Q8 (`PP-102.8`): the extra fields are birthday, notes, gender and email.
@@ -102,8 +102,8 @@ nothing. The commit runs in the worker, and the screen polls for the result.
    |---|---|
    | `birthday` | Optional. Day and month; the year is optional (CI-Q9, `PP-102.9`). `TODO(spec)` CI-Q18: how it is typed in the cell. |
    | `gender` | Optional: ذكر / أنثى / blank (CI-Q10, `PP-102.10`). |
-   | `email` | Optional. Refused only for a wrong shape (an `@` and a dot); no confirmation message; two customers may share one (CI-Q11, `PP-102.11`). Length bound: `TODO(spec)` CI-T6. |
-   | `notes` | Optional. One note **per business**, the business of the preview (CI-Q13, `PP-102.13`, Waleed's pick against the recommendation). Anyone who can see the customer sees the note, and the field carries the hint «ماتكتبش أسرار أو بيانات حساسة» (CI-Q12, `PP-102.12`). `TODO(spec)` CI-Q17: whether a business sees another business's note. Length bound: `TODO(spec)` CI-T6. |
+   | `email` | Optional. Refused only for a wrong shape (an `@` and a dot); no confirmation message; two customers may share one (CI-Q11, `PP-102.11`). Maximum 254 characters (CI-T6, `PP-103.6`, final). |
+   | `notes` | Optional. One note **per business**, the business of the preview (CI-Q13, `PP-102.13`, Waleed's pick against the recommendation). Anyone who can see the customer sees the note, and the field carries the hint «ماتكتبش أسرار أو بيانات حساسة» (CI-Q12, `PP-102.12`). `TODO(spec)` CI-Q17: whether a business sees another business's note. Maximum 500 characters (CI-T6, `PP-103.6`, final). |
 
    CI-Q14 (`PP-102.14`): the four fields show on the reception registration screen (optional) and on the customer
    card. There is no edit screen until phase 2, so a wrong value waits for the customer-management screen.
@@ -111,10 +111,10 @@ nothing. The commit runs in the worker, and the screen polls for the result.
    - Under either answer, the business route `/v1/businesses/{businessId}/customers/import/…` (CI-T3) accepts the
      existing `create:customers:business`, which the general manager covers through `create:customers:company`.
    - **[PP-102.4]** Waleed picked "also branch managers and cashiers", so `create:customers:branch` is accepted too.
-     `TODO(spec) PP-103.5`, drafted as the recommended option and not built on: a branch route
-     `/v1/branches/{branchId}/customers/import/…` accepts any of `create:customers:{company,business,branch}` on that
-     branch. The preview stores the branch's `business_id`, the customers are created for the company, and no migration
-     is needed.
+     **CI-T5 (`PP-103.5`, final):** a branch route `/v1/branches/{branchId}/customers/import/…` accepts any of
+     `create:customers:{company,business,branch}` on that branch. The preview stores the branch's `business_id`, the
+     customers are created for the company, and no migration is needed. The business route above stays; both routes
+     share one use case.
 
 ### Design decisions (settled by the files; the design advisors confirm before code)
 
@@ -129,6 +129,7 @@ nothing. The commit runs in the worker, and the screen polls for the result.
 | D-7 | **CI-T3 (`PP-103.3`, final): the routes sit under the business**, and the preview's `business_id` is that business. Customers are created for the company. No migration for the import itself. |
 | D-8 **[PP-102.1]** | **Design impact of CI-Q13 (per-business notes).** The customer is one row for the company (D-30), so a note per business cannot be a column on `customers`. It is a row keyed by company, customer and business, with RLS, a negative isolation test and an index on every FK, written in the same transaction as the customer. `TODO(spec)` CI-T7 (technical): the table shape. |
 | D-9 **[PP-102.1]** | **Design impact of CI-Q15 (fill empty fields).** Today `pospay_app` can only INSERT on `customers`, plus UPDATE of the opt-out columns (migration 0188). Filling birthday, gender and email on an existing customer needs a column-level UPDATE grant on exactly those columns and a database guard that refuses to change a value already set, as 0188 does for the opt-out. The worker writes with `UPDATE … WHERE column IS NULL`. `TODO(spec)` CI-T8 (technical): the column shape (birthday as month, day and optional year, because a date column cannot hold a missing year) and the guard. |
+| D-10 **[PP-102.1]** | **CI-T6 (`PP-103.6`, final): birthday, gender, email and notes are personal data.** None of them appears in a log line or an import error message; an error names the row number and the column only. The columns are nullable and expand-only, email has no unique constraint, notes are capped at 500 characters (a CHECK on the per-business notes table, D-8) and email at 254. |
 
 ## Delivery: the sub-PR split
 
