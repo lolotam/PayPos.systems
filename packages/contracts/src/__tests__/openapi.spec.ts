@@ -235,6 +235,12 @@ const expectedSchemas = [
   'ServiceLinePerformerChangePerformer',
   'ServiceLinePerformerChangeItem',
   'ServiceLinePerformerChangesPage',
+  'CommissionServiceOverrideRule',
+  'CreateCommissionServiceOverrideInput',
+  'CommissionServiceOverride',
+  'CommissionServiceOverrideListQuery',
+  'CommissionServiceOverrideListItem',
+  'CommissionServiceOverrideList',
 ].sort();
 
 const serviceCategorySchemaNames = [

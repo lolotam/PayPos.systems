@@ -7,8 +7,7 @@ import { serviceSessionRecoveryPaths } from './orders/service-session-recovery-o
 import { attendanceMonthlyReportPaths } from './staff/attendance-monthly-report-openapi.js';
 import { employeeIbanSchemas } from './staff/employee-iban.js';
 import { employeeIbanPaths } from './staff/employee-iban-openapi.js';
-import { commissionPlanVersionSchemas } from './commissions/plan-versions.js';
-import { commissionPlanVersionPaths } from './commissions/plan-versions-openapi.js';
+import { commissionPaths, commissionSchemas } from './commissions/openapi.js';
 import { unbindPasskeySchemas } from './staff/unbind-passkey.js';
 import { unbindPasskeyPaths } from './staff/unbind-passkey-openapi.js';
 import { leaveSchemas } from './staff/leave.js';
@@ -145,7 +144,7 @@ import { json, operation } from './openapi-operation.js';
 
 const SCHEMAS = [
   ...employeeIbanSchemas,
-  ...commissionPlanVersionSchemas,
+  ...commissionSchemas,
   ...employeeDocumentSchemas,
   ...clockAttendanceSchemas,
   ...clockByCardSchemas,
@@ -259,7 +258,7 @@ const SCHEMAS = [
 const PATHS = {
   ...attendanceMonthlyReportPaths,
   ...employeeIbanPaths,
-  ...commissionPlanVersionPaths,
+  ...commissionPaths,
   ...employeeDocumentPaths,
   ...employeeImportPaths,
   ...passkeyPaths,
