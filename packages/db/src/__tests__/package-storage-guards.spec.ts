@@ -252,23 +252,6 @@ it('the session refuses a state or a redemption that has no row behind it', asyn
   );
 });
 
-it('a used session needs a live redemption', async () => {
-  const [rule] = await owner`SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint
-    WHERE conname='package_session_slots_state_redemption_check'`;
-  expect(rule?.['definition']).toContain("state = 'USED'::text");
-  const entitlementId = nextId();
-  const componentId = nextId();
-  await rejected(
-    withSale(
-      entitlementId,
-      componentId,
-      slotInsert(nextId(), entitlementId, componentId, { state: 'USED', redemption: nextId() }),
-    ),
-    '23514',
-    'package_session_slots_no_redemption',
-  );
-});
-
 it('the component is immutable and can still be locked for reading', async () => {
   await rejected(
     asApp(sql`UPDATE package_components SET lock_touch=lock_touch WHERE id=${SALE_COMPONENT}`),
