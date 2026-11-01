@@ -1,5 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 
+import { FORWARD_VISITS } from '../../modules/customers/domain/rating-claim-scheduling.ts';
 import type {
   ClaimStateFence,
   ClaimStateResult,
@@ -272,6 +273,71 @@ it('retry_failures_rotate_and_preserve_forward_budget', async () => {
   const leased = (firstReservation.value?.reservations ?? []).map((entry) => entry.requestId);
   const fresh = (secondReservation.value?.reservations ?? []).map((entry) => entry.requestId);
   expect(fresh.filter((id) => leased.includes(id))).toHaveLength(0);
+}, 120_000);
+
+it('a_recovered_page_is_worked_within_the_turn_budget', async () => {
+  const w = await openWorld();
+  const seeded = await w.seedDueRequests({ count: 5 });
+  w.tokens.allow = () => true;
+  // دور سابق سجّل صفحة من خمسة بنود وما كملش، فاتسابت في المجلة.
+  const ownerToken = w.base.ids.newId();
+  const acquired = await w.state.port.acquire(w.company, w.base.ids.newId(), ownerToken);
+  expect(acquired.code).toBe('OK');
+  const fence = fenceOf(acquired, ownerToken);
+  const sweepId = w.base.ids.newId();
+  const begun = await w.state.port.begin(fence, sweepId, at(seeded.requestIds, 4));
+  expect(begun.code).toBe('OK');
+  const afterBegin = { ...fence, expectedVersion: begun.version };
+  const enrolled = await w.state.port.enrollPage(
+    afterBegin,
+    sweepId,
+    null,
+    w.base.ids.newId(),
+    seeded.requestIds.map((requestId) => ({ requestId, workToken: w.base.ids.newId() })),
+    true,
+    FORWARD_VISITS,
+  );
+  expect(enrolled.code).toBe('OK');
+  await w.state.port.release({ ...afterBegin, expectedVersion: enrolled.version });
+
+  // الدور الجاي بميزانية أصغر: بيخدم قد ما يقدر ويسيب الباقي في المجلة.
+  const limited = await w.worker({ budget: { forward: 2, retry: 25 } }).execute(w.company);
+  expect(limited.forwardVisits).toBe(2);
+  const afterFirst = await w.readState();
+  expect(afterFirst.page?.entries).toHaveLength(3);
+  // الجولة ما اتقفلتش والمجلة لسه فيها بنود.
+  expect(afterFirst.phase).toBe('SWEEP');
+
+  // الدور اللي بعده بيكمّل الصفحة ويقفل الجولة.
+  const next = await w.turn();
+  expect(next.forwardVisits).toBe(3);
+  const afterSecond = await w.readState();
+  expect(afterSecond.page).toBeUndefined();
+  expect(afterSecond.phase).toBe('IDLE');
+  expect(await w.readyRequestIds()).toHaveLength(5);
+}, 120_000);
+
+it('a_retry_entry_whose_row_became_terminal_is_settled_terminal', async () => {
+  const w = await openWorld({ budget: { forward: 4, retry: 2 } });
+  const seeded = await w.seedDueRequests({ count: 1 });
+  const requestId = at(seeded.requestIds, 0);
+  // البصمة مش متاحة، فالمطالبة تفشل والطلب يفضل مجدول ويدخل خريطة الإعادة.
+  w.tokens.allow = () => false;
+  const first = await w.turn();
+  expect(first.settlements['RETRY']).toBe(1);
+  const afterFirst = await w.readState();
+  expect(afterFirst.retries[requestId]).toBeDefined();
+  // الصف اتلغى من برّه، فالجولة الأمامية مش هتزوره تاني؛ بس نقطة القراءة في
+  // مسار الإعادة بتشوف الحالة النهائية وتسوّيه نهائي.
+  await w.base.owner`UPDATE rating_requests
+    SET status = 'CANCELLED', cancel_reason = 'REQUESTS_OFF', updated_at = now()
+    WHERE id = ${requestId}::uuid`;
+  const second = await w.turn();
+  expect(second.forwardVisits).toBe(0);
+  expect(second.retryVisits).toBe(1);
+  expect(second.settlements['TERMINAL']).toBe(1);
+  const afterSecond = await w.readState();
+  expect(afterSecond.retries[requestId]).toBeUndefined();
 }, 120_000);
 
 it('retry_saturation_uses_reported_reconciliation', async () => {

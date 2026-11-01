@@ -41,17 +41,18 @@ function request(row: StoredRequest): DueRatingRequest {
 const REQUEST_COLUMNS = sql`id, business_id, customer_id, business_date::text AS business_date,
   branch_id, due_at, send_deadline, status`;
 
-/** جملة الحد الأعلى: أكبر معرّف ظاهر للشركة، وبتترجم لفهرس المفتاح الأساسي. */
+/** جملة الحد الأعلى: أكبر معرّف طلب مجدول، وبتترجم للفهرس الجزئي للمجدول. */
 export function ratingUpperIdStatement(companyId: string): SQL {
   return sql`
     SELECT id
       FROM rating_requests
      WHERE company_id = ${companyId}::uuid
+       AND status = 'SCHEDULED'
      ORDER BY id DESC
      LIMIT 1`;
 }
 
-/** جملة صفحة الجولة: بحث بالمفتاح الأساسي من غير فلتر على الحالة أو الموعد. */
+/** جملة صفحة الجولة: بحث بالمفتاح الأساسي على الطلبات المجدولة بس. */
 export function ratingPageIdsStatement(
   companyId: string,
   after: string | null,
@@ -65,6 +66,7 @@ export function ratingPageIdsStatement(
      WHERE company_id = ${companyId}::uuid
        ${lower}
        AND id <= ${through}::uuid
+       AND status = 'SCHEDULED'
      ORDER BY id ASC
      LIMIT ${limit}`;
 }

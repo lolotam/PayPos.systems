@@ -279,11 +279,17 @@ page journal of at most F entries, and the retry map.
   The fence coordinates the scheduler only: it never cancels a running PostgreSQL transaction, and
   2a's customer and request locks and its guarded `SCHEDULED → SENDING` update remain the authority
   for at-most-once claims.
-- **Finite ID sweeps.** A sweep captures `H` — the largest visible request id for that company —
-  once, and traverses `cursor < id <= H` in ascending id order. The cursor is the id, never
-  `due_at`: ids are immutable, so the traversal is a keyset walk; a row inserted behind the
-  progress, or one that becomes due later, belongs to the next sweep. `H` is captured once per
-  sweep and is never extended by arrivals above it.
+- **Finite ID sweeps, over the scheduled rows only.** A sweep captures `H` — the largest
+  `SCHEDULED` request id for that company — once, and traverses `cursor < id <= H` in ascending id
+  order, reading **only** the `SCHEDULED` rows through the partial index
+  `rating_requests_scheduled_id_idx` (PP-109.1). `SENT` and `CANCELLED` rows are never visited:
+  they are finished, and the sweep's length is proportional to the pending requests, not to the
+  history — a company that has sent a million requests still sweeps only what it still owes. The
+  cursor is the id, never `due_at`: ids are immutable, so the traversal is a keyset walk; a row
+  inserted behind the progress, or one that becomes due later, belongs to the next sweep. `H` is
+  captured once per sweep and is never extended by arrivals above it. A row that leaves `SCHEDULED`
+  between the page read and the point read is still settled by that lane's own read; a retry
+  ticket whose row has become terminal is settled `TERMINAL` by the retry lane's point read.
 - **An independent, bounded retry lane.** Reconsiderations live in their own map keyed by request
   id, with at most `RETRY_CAPACITY = 2,048` entries. A request still `SCHEDULED` after an attempt
   gets a retry ticket with its own eligibility and a tail position; the retry lane reserves at

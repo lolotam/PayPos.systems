@@ -57,6 +57,10 @@ async function workPage<Transaction>(
   page: ClaimStatePage,
 ): Promise<void> {
   for (const entry of page.entries) {
+    // ميزانية الدور هي الحد: صفحة قديمة اتسجلت قبل ما تقلب الميزانية، فالدور
+    // بيخدم قد ما يقدر ويسيب الباقي في المجلة للدور الجاي، ومفيش إقفال جولة
+    // والمجلة لسه فيها بنود.
+    if (turn.forwardVisits >= turn.budget.forward) return;
     if (turn.limitReached) return;
     await turn.renewLease();
     // التجديد نفسه ممكن يكشف سقف الدور، فمفيش بند بيتلمس بعد السقف؛

@@ -146,6 +146,11 @@ const requestIndexes = (t: RequestSelf) => [
   index('rating_requests_due_idx')
     .on(t.companyId, t.dueAt, t.id)
     .where(sql`${t.status} = 'SCHEDULED'`),
+  // فهرس جولة المطالبة: الجولة بتزور الطلبات المجدولة بس، فالفهرس الجزئي بيخلّي
+  // طول الجولة تابع للطلبات المعلقة مش للتاريخ.
+  index('rating_requests_scheduled_id_idx')
+    .on(t.companyId, t.id)
+    .where(sql`${t.status} = 'SCHEDULED'`),
   index('rating_requests_customer_idx').on(t.companyId, t.customerId),
   index('rating_requests_branch_idx').on(t.companyId, t.businessId, t.branchId),
 ];

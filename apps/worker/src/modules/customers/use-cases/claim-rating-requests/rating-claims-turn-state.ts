@@ -89,7 +89,12 @@ export class RatingClaimsTurnState<Transaction = unknown> {
     this.halt(renewed.code);
   }
 
-  /** يوقف الدور بسبب رد حالة مش مظبوط، ويسجّل فقد السور لما الرد يكون فقد سور. */
+  /**
+   * يوقف الدور بسبب رد حالة مش مظبوط، ويسجّل فقد السور.
+   *
+   * الردود اللي بتقول إن السور مش موجود تاني (STALE وBUSY) أو إن المفتاح
+   * اختفى في نص الدور (MISSING) بتتسجّل، عشان فقد السور يبان في التشخيص.
+   */
   halt(code: ClaimStateCode): void {
     this.halted = true;
     if (code === 'CORRUPT') {
@@ -103,7 +108,7 @@ export class RatingClaimsTurnState<Transaction = unknown> {
       return;
     }
     this.end = 'FENCE_LOST';
-    if (code === 'STALE' || code === 'BUSY') {
+    if (code === 'STALE' || code === 'BUSY' || code === 'MISSING') {
       this.ports.diagnostics.fenceLost(this.companyId, code);
     }
   }

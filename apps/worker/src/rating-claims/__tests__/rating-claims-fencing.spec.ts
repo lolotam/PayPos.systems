@@ -220,6 +220,25 @@ it('locked_page_candidate_is_enrolled', async () => {
   expect((await w.requestStatuses()).get(blocked)).toBe('SENDING');
 }, 120_000);
 
+it('a_missing_state_ends_the_turn_and_records_the_fence_loss', async () => {
+  const w = await openWorld();
+  const seeded = await w.seedDueRequests({ count: 1 });
+  w.tokens.allow = () => true;
+  const state = tracedState(w.rawState);
+  const gate = state.hold('settlePage');
+  const turn = w.worker({ state: state.port });
+  const pending = turn.execute(w.company);
+  await gate.acquired;
+  // المفتاح اختفى في نص الدور، فالرد بيرجع MISSING.
+  await w.redis.del(stateKey(w));
+  gate.release();
+  const summary = await pending;
+  expect(summary.end).toBe('FENCE_LOST');
+  // فقد السور اتسجّل بنوعه: من غير كده الشكل ده بيبان كأنه ضياع رد عادي.
+  expect(w.diagnostics.fenceLosses).toEqual(['MISSING']);
+  expect(await w.readyRequestIds()).toHaveLength(1);
+}, 120_000);
+
 it('tenant_isolation_covers_state_and_claims', async () => {
   const w = await openWorld({ budget: { forward: 3, retry: 2 } });
   const seeded = await w.seedDueRequests({ count: 2 });

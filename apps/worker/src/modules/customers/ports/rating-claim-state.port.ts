@@ -67,7 +67,7 @@ export interface ClaimStatePage {
   readonly entries: readonly ClaimStatePageEntry[];
 }
 
-/** لقطة الحالة كما يراها المجدول، وبتستخدمها لما رد الأمر يضيع. */
+/** لقطة الحالة كما ترجعها أوامر المجدول: النسخة ورقمها ومالكها والجولة الجارية وخريطة الإعادة. */
 export interface ClaimStateSnapshot {
   /** الشركة المالكة للحالة. */
   readonly companyId: string;

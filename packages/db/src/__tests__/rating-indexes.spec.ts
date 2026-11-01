@@ -35,6 +35,7 @@ const EXPECTED_INDEXES = [
   'rating_requests_due_idx',
   'rating_requests_pkey',
   'rating_requests_ready_event_key',
+  'rating_requests_scheduled_id_idx',
   'rating_requests_token_hash_key',
   'rating_settings_company_business_id_key',
   'rating_settings_pkey',
@@ -142,13 +143,16 @@ it('the staff average lookup uses rating_attributions_employee_idx', async () =>
   expect(plan).toContain('rating_attributions_employee_idx');
 });
 
-it('every named index exists and the three partial predicates are exact', async () => {
+it('every named index exists and the four partial predicates are exact', async () => {
   const rows = await owner<{ indexname: string; indexdef: string }[]>`
     SELECT indexname,indexdef FROM pg_indexes
     WHERE schemaname='public' AND indexname=ANY(${EXPECTED_INDEXES}) ORDER BY indexname`;
   expect(rows.map((row) => row.indexname)).toEqual(EXPECTED_INDEXES);
   const definitions = new Map(rows.map((row) => [row.indexname, row.indexdef]));
   expect(definitions.get('rating_requests_due_idx')).toMatch(
+    /WHERE \(status = 'SCHEDULED'::text\)/,
+  );
+  expect(definitions.get('rating_requests_scheduled_id_idx')).toMatch(
     /WHERE \(status = 'SCHEDULED'::text\)/,
   );
   expect(definitions.get('rating_requests_ready_event_key')).toContain(

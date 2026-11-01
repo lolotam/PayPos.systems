@@ -122,17 +122,17 @@ async function planOf(statement: SQL): Promise<string> {
   return rows.map((row) => row['QUERY PLAN']).join('\n');
 }
 
-/** الخطط المتوقعة: بحث بالمفتاح الأساسي، من غير مسح متسلسل ولا ترتيب ولا أقفال. */
+/** الخطط المتوقعة: الفهرس الجزئي للمجدول، من غير مسح متسلسل ولا ترتيب ولا أقفال. */
 async function expectIndexPlans(cursor: string, upper: string, requestId: string): Promise<void> {
   const upperPlan = await planOf(ratingUpperIdStatement(TENANT.A.company));
-  expect(upperPlan).toContain('rating_requests_pkey');
+  expect(upperPlan).toContain('rating_requests_scheduled_id_idx');
   expect(upperPlan).toMatch(/Index (Only )?Scan/);
   expect(upperPlan).not.toMatch(/Seq Scan on rating_requests/);
   expect(upperPlan).not.toMatch(/Sort/);
   expect(upperPlan).not.toMatch(/LockRows/);
 
   const pagePlan = await planOf(ratingPageIdsStatement(TENANT.A.company, cursor, upper, 10));
-  expect(pagePlan).toContain('rating_requests_pkey');
+  expect(pagePlan).toContain('rating_requests_scheduled_id_idx');
   expect(pagePlan).toMatch(/Index (Only )?Scan/);
   expect(pagePlan).not.toMatch(/Seq Scan on rating_requests/);
   expect(pagePlan).not.toMatch(/Sort/);
@@ -145,7 +145,8 @@ async function expectIndexPlans(cursor: string, upper: string, requestId: string
   expect(pointPlan).not.toMatch(/LockRows/);
 }
 
-it('query_shape_and_explain_use_company_primary_key', async () => {
+/** يزرع شركة فيها طلبات مجدولة وأخرى مرسلة وملغاة وقيد الإرسال، متتشابكة بالمعرّف. */
+async function seedSweepRows(): Promise<string[]> {
   const branchId = await f.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
   const customer = await f.customer();
   const session = await f.session({ customerId: customer, branchId, occurredAt: VISIT });
@@ -154,31 +155,56 @@ it('query_shape_and_explain_use_company_primary_key', async () => {
   await seedTenantA(historyCustomer, branchId);
   await seedTenantB();
   await f.owner`ANALYZE rating_requests`;
+  return f.requestIds(customer);
+}
 
-  const scheduled = await f.requestIds(customer);
-  expect(scheduled).toHaveLength(1);
-  const transactions = ratingClaimTransactions(f.db);
-
+/**
+ * الجولة بتزور المجدول بس: الحد أعلى معرّف مجدول، والصفحات بالترتيب من غير تخطي.
+ *
+ * @param transactions منافذ الجولة على داتابيز المستأجر
+ * @returns المؤشر والحد الأعلى اللي اتقفلت بيهما الصفحات
+ */
+async function expectScheduledOnlyPaging(
+  transactions: ReturnType<typeof ratingClaimTransactions>,
+): Promise<{ cursor: string; upper: string }> {
+  // الحالات الأربعة موجودة ومتشابكة بالترتيب، فالجولة لازم تتجاهل التلاتة غير المجدولة.
+  const counts = await f.owner`SELECT status, count(*)::int AS total FROM rating_requests
+    WHERE company_id = ${TENANT.A.company} GROUP BY status`;
+  const byStatus = new Map(counts.map((row) => [String(row['status']), Number(row['total'])]));
+  for (const status of ['SCHEDULED', 'SENDING', 'SENT', 'CANCELLED']) {
+    expect(byStatus.get(status) ?? 0).toBeGreaterThan(0);
+  }
+  // الحد الأعلى بقى أكبر معرّف مجدول، مش أكبر معرّف في الشركة.
   const upper = await transactions.upperId(TENANT.A.company);
   const upperRows = await f.owner`SELECT id FROM rating_requests
-    WHERE company_id = ${TENANT.A.company} ORDER BY id DESC LIMIT 1`;
+    WHERE company_id = ${TENANT.A.company} AND status = 'SCHEDULED' ORDER BY id DESC LIMIT 1`;
   expect(upper).toBe(upperRows[0]?.['id']);
-
-  // ترتيب الصفحات لازم يطابق ترتيب المعرّفات بالظبط: مفيش معرّف اتخطّى بين صفحتين.
+  // ترتيب الصفحات لازم يطابق ترتيب المعرّفات المجدولة بالظبط: مفيش معرّف اتخطّى بين صفحتين.
   const ordered = await f.owner`SELECT id FROM rating_requests
-    WHERE company_id = ${TENANT.A.company} ORDER BY id LIMIT 20`;
+    WHERE company_id = ${TENANT.A.company} AND status = 'SCHEDULED' ORDER BY id`;
   const expectedIds = ordered.map((row) => String(row['id']));
-
   const firstPage = await transactions.pageIds(TENANT.A.company, null, upper ?? '', 3);
   expect(firstPage).toEqual(expectedIds.slice(0, 3));
-
   const cursor = firstPage[firstPage.length - 1] ?? '';
   const secondPage = await transactions.pageIds(TENANT.A.company, cursor, upper ?? '', 10);
   expect(secondPage).toEqual(expectedIds.slice(3, 13));
+  // مفيش معرّف مرسل أو ملغي أو قيد الإرسال في الصفحات دي.
+  const skipped = await f.owner`SELECT id FROM rating_requests
+    WHERE company_id = ${TENANT.A.company} AND status <> 'SCHEDULED' ORDER BY id LIMIT 100`;
+  const skippedIds = skipped.map((row) => String(row['id']));
+  for (const id of firstPage.concat(secondPage)) expect(skippedIds).not.toContain(id);
+  return { cursor, upper: upper ?? '' };
+}
+
+it('the_sweep_visits_only_scheduled_rows_through_the_partial_index', async () => {
+  const scheduled = await seedSweepRows();
+  expect(scheduled).toHaveLength(1);
+  const transactions = ratingClaimTransactions(f.db);
+  const { cursor, upper } = await expectScheduledOnlyPaging(transactions);
 
   const otherUpper = await transactions.upperId(TENANT.B.company);
   const otherRows = await f.owner`SELECT id FROM rating_requests
-    WHERE company_id = ${TENANT.B.company} ORDER BY id DESC LIMIT 1`;
+    WHERE company_id = ${TENANT.B.company} AND status = 'SCHEDULED' ORDER BY id DESC LIMIT 1`;
   expect(otherUpper).toBe(otherRows[0]?.['id']);
 
   const read = await f.db.withTenant(TENANT.A.company, (tx) =>
@@ -199,5 +225,5 @@ it('query_shape_and_explain_use_company_primary_key', async () => {
   );
   expect(seen).toBe('SCHEDULED');
 
-  await expectIndexPlans(cursor, upper ?? '', scheduled[0] ?? '');
+  await expectIndexPlans(cursor, upper, scheduled[0] ?? '');
 });

@@ -4,6 +4,7 @@ import { afterEach, expect, it } from 'vitest';
 
 import { FORWARD_VISITS } from '../../modules/customers/domain/rating-claim-scheduling.ts';
 import { fenceOf } from './rating-claims-fencing.fixture.ts';
+import { createGate, type Gate } from './rating-claims-trace.fixture.ts';
 import {
   at,
   ratingClaimsWorld,
@@ -80,15 +81,63 @@ async function addForeignRetryEntry(
   await w.redis.set(key, JSON.stringify(state));
 }
 
+/**
+ * يقفل صف العميل في معاملة مالك الداتابيز، فمطالبة الدور بتستنى عليه.
+ *
+ * المطالبة بتقفل صف العميل قبل ما تكتب، فالقفل بيمنعها من ما تخلص لحد ما
+ * الاختبار يفتحه، وبكده نقدر نقرّر متى يكمّل الدور شغله.
+ *
+ * @param w عالم القبول
+ * @param customerId العميل اللي هيتقفل
+ * @returns البوابة اللي بتفتح القفل ووعد انتهاء المعاملة
+ */
+async function holdCustomerLock(
+  w: RatingClaimsWorld,
+  customerId: string,
+): Promise<{ gate: Gate; done: Promise<void> }> {
+  const gate = createGate();
+  const done = w.base.owner.begin(async (tx) => {
+    await tx`SELECT id FROM customers
+      WHERE company_id = ${w.company} AND id = ${customerId} FOR NO KEY UPDATE`;
+    gate.markAcquired();
+    await gate.wait();
+  });
+  await gate.acquired;
+  return { gate, done };
+}
+
 it('the_turn_stops_at_its_ceiling_instead_of_losing_its_fence', async () => {
-  // الحجز أطول من سقف الدور، فالتجديد مش قادر يضمن حجز كامل قبل السقف، والدور
-  // لازم يوقّف نفسه بنفسه بدل ما يكمّل مطالبة من غير سور.
-  const w = await openWorld({ state: { leaseMs: 60_000, maxTurnMs: 1_000 } });
-  const seeded = await w.seedDueRequests({ count: 2 });
+  // الحجز أقصر من سقف الدور: التجديد ممكن يضمن حجز كامل قبل السقف، ولما وقت
+  // الدور يخلص التجديد بيرجع LIMIT والدور يوقّف نفسه بنفسه.
+  const leaseMs = 3_000;
+  const maxTurnMs = 4_000;
+  const w = await openWorld({ state: { leaseMs, maxTurnMs } });
+  const seeded = await w.seedDueRequests({ count: 3 });
   w.tokens.allow = () => true;
-  // الساعة بتتحرّك بعد أول مطالبة، فالتجديد اللي بعدها مستحق.
-  w.claimTrap.clockJumpMs = 60_000;
-  const first = await w.turn();
+
+  // تجديد قبل السقف: بيعدّي وبيمدّد الحجز.
+  const ownerToken = w.base.ids.newId();
+  const acquired = await w.state.port.acquire(w.company, w.base.ids.newId(), ownerToken);
+  expect(acquired.code).toBe('OK');
+  const fence = fenceOf(acquired, ownerToken);
+  const before = await w.readState();
+  const leaseBefore = before.leaseUntil ?? 0;
+  const renewed = await w.state.port.renew(fence);
+  expect(renewed.code).toBe('OK');
+  const afterRenew = await w.readState();
+  expect(afterRenew.leaseUntil ?? 0).toBeGreaterThan(leaseBefore);
+  // الحالة رجعت للغير ممسوكة، فالدور الجاي ياخدها بسقف جديد.
+  await w.state.port.release({ ...fence, expectedVersion: renewed.version });
+
+  // المطالبة الأولى بتستنى قفل العميل، فالدور بيفضل واقف لحد ما وقت Redis يعدّي
+  // حدّ السقف ناقص مدة الحجز، وهو بالظبط الوقت اللي يخلي التجديد LIMIT.
+  const held = await holdCustomerLock(w, at(seeded.customerIds, 0));
+  w.claimTrap.clockJumpMs = 31_000;
+  const turn = w.turn();
+  await waitUntil(w, (before.turnStartedAt ?? 0) + maxTurnMs - leaseMs + 500);
+  held.gate.release();
+  await held.done;
+  const first = await turn;
   expect(first.end).toBe('LIMIT_REACHED');
   // البند الأول اتطالب، والتاني ما اتطالبش: مفيش مطالبة بدأت بعد السقف.
   expect(first.forwardVisits).toBe(1);
@@ -98,13 +147,13 @@ it('the_turn_stops_at_its_ceiling_instead_of_losing_its_fence', async () => {
   expect(readyAfterFirst).toContain(at(seeded.requestIds, 0));
   // المجلة لسه مسجّلة، فالدور الجاي بيكملها.
   const afterFirst = await w.readState();
-  expect(afterFirst.page?.entries).toHaveLength(1);
+  expect(afterFirst.page?.entries).toHaveLength(2);
   const second = await w.turn();
   expect(second.end).toBe('COMPLETED');
-  expect(second.forwardVisits).toBe(1);
+  expect(second.forwardVisits).toBe(2);
   const ready = await w.readyRequestIds();
-  expect(ready).toHaveLength(2);
-  expect(new Set(ready).size).toBe(2);
+  expect(ready).toHaveLength(3);
+  expect(new Set(ready).size).toBe(3);
   for (const requestId of seeded.requestIds) expect(ready).toContain(requestId);
 }, 120_000);
 

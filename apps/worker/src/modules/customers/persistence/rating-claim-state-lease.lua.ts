@@ -9,8 +9,11 @@
  * المالك اللي حجزه انتهى مش بيقدر يجدّد ولا يسلّم، حتى لو محدش أخذ الحالة بعده.
  * والقراءة مبتعملش أي تعديل، ودي طريق المراقبة اللي بيقرأ الحالة من برّه.
  *
- * السكربت مستقل بذاته لأن Redis مفيش فيه استيراد لسكربت تاني.
+ * السكربت مستقل بذاته وقت التشغيل لأن Redis مفيش فيه استيراد لسكربت تاني؛ وفحص
+ * سلامة الحالة مشترك بين السكربتات وبتترجم جوه النص وقت البناء.
  */
+import { RATING_CLAIM_STATE_VALIDATE } from './rating-claim-state-validate.lua.ts';
+
 export const RATING_CLAIM_STATE_LEASE = `
 local SCHEMA = 1
 local MAX_SAFE = 9007199254740991
@@ -26,6 +29,7 @@ local function reply(code, version, value)
   return cjson.encode(out)
 end
 
+${RATING_CLAIM_STATE_VALIDATE}
 local function load(raw, companyId)
   if not raw then return nil, 'MISSING' end
   local ok, state = pcall(cjson.decode, raw)
@@ -34,6 +38,7 @@ local function load(raw, companyId)
   if state['companyId'] ~= companyId then return nil, 'CORRUPT' end
   if type(state['version']) ~= 'number' then return nil, 'CORRUPT' end
   if type(state['retries']) ~= 'table' then return nil, 'CORRUPT' end
+  if not validate_state(state) then return nil, 'CORRUPT' end
   return state, nil
 end
 

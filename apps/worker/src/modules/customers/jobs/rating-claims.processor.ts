@@ -1,7 +1,7 @@
 import { ratingClaimsJob } from '@pospay/contracts';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
 import type { Logger } from '@pospay/observability';
-import { Queue, Worker } from 'bullmq';
+import { Queue, UnrecoverableError, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 
 import { retryDelayMs } from '../../../outbox/retry-policy.ts';
@@ -128,6 +128,22 @@ async function registerCompany(queue: Queue, companyId: string): Promise<void> {
 }
 
 /**
+ * يقفل مورد وبيجمّع الخطأ بدل ما يوقف الباقي.
+ *
+ * @param failure الخطأ الأول اللي حصل
+ * @param close القفل نفسه
+ * @returns الخطأ الأول لو حصل
+ */
+async function closeQuietly(failure: unknown, close: () => Promise<void>): Promise<unknown> {
+  try {
+    await close();
+  } catch (error) {
+    return failure ?? error;
+  }
+  return failure;
+}
+
+/**
  * يبني معالج المطالبة: طابور وعامل على Redis، ودور المطالبة جواهم.
  *
  * بيانات المهمة هوية الشركة بس، والعامل ما بيكتبش في بيانات المهمة أبداً.
@@ -149,7 +165,8 @@ export function startRatingClaimsProcessor(
     RATING_CLAIMS_QUEUE,
     async (job) => {
       const parsed = ratingClaimsJob.safeParse(job.data);
-      if (!parsed.success) throw new TypeError('RATING_CLAIMS_JOB_INVALID');
+      // بيانات المهمة غلط مش عطل مؤقت: إعادة المحاولة مش هتنفع، فالتكرار بس بيملا الطابور.
+      if (!parsed.success) throw new UnrecoverableError('RATING_CLAIMS_JOB_INVALID');
       await options.turn.execute(parsed.data.companyId);
     },
     { connection, concurrency: 1, prefix },
@@ -176,10 +193,14 @@ export function startRatingClaimsProcessor(
       await queue.waitUntilReady();
     },
     close: async () => {
-      await worker.close();
-      await queue.close();
-      await closeRedisClient(producer);
-      await closeRedisClient(connection);
+      // العامل بيتصفّى الأول، وبعدين الطابور واتصالات Redis؛ لو عنصر فشل، الباقي
+      // بيتقفل برضه، والخطأ الأول بيت رمي في الآخر.
+      let failure: unknown;
+      failure = await closeQuietly(failure, () => worker.close());
+      failure = await closeQuietly(failure, () => queue.close());
+      failure = await closeQuietly(failure, () => closeRedisClient(producer));
+      failure = await closeQuietly(failure, () => closeRedisClient(connection));
+      if (failure !== undefined) throw failure;
     },
     ensureRegistered: async (companyId) => {
       await registerCompany(queue, companyId);

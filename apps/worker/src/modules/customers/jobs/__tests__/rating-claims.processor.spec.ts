@@ -1,6 +1,6 @@
 import { systemUuidV7 } from '@pospay/ids';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
-import { Queue, QueueEvents } from 'bullmq';
+import { Queue, QueueEvents, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -229,4 +229,53 @@ describe('بيانات المهمة', () => {
       await events.close();
     }
   });
+
+  it('an_invalid_job_fails_once_without_retries', async () => {
+    const world = await harness();
+    await world.processor.ready();
+    const events = new QueueEvents(RATING_CLAIMS_QUEUE, {
+      connection: new Redis(redisUrl, { maxRetriesPerRequest: null }),
+      prefix: world.prefix,
+    });
+    try {
+      await events.waitUntilReady();
+      const job = await world.queue.add(
+        'claim',
+        { companyId: ids.newId(), after: { dueAt: '2026-01-01T00:00:00.000Z', id: ids.newId() } },
+        { attempts: 3, backoff: { type: 'fixed', delay: 50 } },
+      );
+      await expect(job.waitUntilFinished(events)).rejects.toThrow(/RATING_CLAIMS_JOB_INVALID/);
+      // بيانات غلط مش عطل مؤقت: المهمة بتفشل مرة واحدة بس من غير إعادة محاولة.
+      const stored = await world.queue.getJob(job.id ?? '');
+      expect(stored?.attemptsMade).toBe(1);
+      expect(await stored?.getState()).toBe('failed');
+      expect(world.turns).toHaveLength(0);
+    } finally {
+      await events.close();
+    }
+  }, 60_000);
+});
+
+describe('إقفال المعالج', () => {
+  it('closes_the_queue_and_the_clients_even_when_the_worker_fails', async () => {
+    const world = await harness();
+    const workerSpy = vi
+      .spyOn(Worker.prototype, 'close')
+      .mockRejectedValue(new Error('SYNTHETIC_WORKER_CLOSE_FAILURE'));
+    const queueSpy = vi.spyOn(Queue.prototype, 'close');
+    const quitSpy = vi.spyOn(Redis.prototype, 'quit');
+    const disconnectSpy = vi.spyOn(Redis.prototype, 'disconnect');
+    try {
+      // أول خطأ بيت رمي، بس الطابور واتصالات Redis اتقفلوا قبله.
+      await expect(world.processor.close()).rejects.toThrow('SYNTHETIC_WORKER_CLOSE_FAILURE');
+      expect(queueSpy).toHaveBeenCalled();
+      const closed = new Set([...quitSpy.mock.instances, ...disconnectSpy.mock.instances]);
+      expect(closed.size).toBeGreaterThanOrEqual(2);
+    } finally {
+      workerSpy.mockRestore();
+      queueSpy.mockRestore();
+      quitSpy.mockRestore();
+      disconnectSpy.mockRestore();
+    }
+  }, 60_000);
 });

@@ -142,7 +142,23 @@ function fenceEnvelope(
 }
 
 /**
+ * خطأ إعداد منفذ الحالة: حدود متناقضة بتخلّي الدور يفقد سوره قبل ما يخلص.
+ *
+ * كل خطأ تاني في الملف ده TypeError عادي، بس ده خطأ تهيئة بيوقف التشغيل.
+ */
+export class RatingClaimStateConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RatingClaimStateConfigError';
+  }
+}
+
+/**
  * يبني سياق التنفيذ: الحدود، وطرق استدعاء السكربتات، وطابور الأوامر.
+ *
+ * الحجز لازم يكون أقصر من سقف الدور: التجديد بيمدّد الحجز، فلو الحجز أطول
+ * من السقف ما كانش فيه تجديد يقدر يرجع LIMIT، والدور كان هيفقد سوره بسبب
+ * انتهاء الحجز مش بسبب السقف.
  *
  * @param options البادئة والعميل والحدود التقنية
  * @returns سياق جاهز تبني عليه أوامر المنفذ
@@ -154,6 +170,9 @@ export function buildContext(options: RatingClaimStateOptions): StateContext {
     maxTurnMs: options.maxTurnMs ?? MAX_TURN_MS,
     maxBytes: options.maxBytes ?? STATE_MAX_BYTES,
   };
+  if (limits.leaseMs > limits.maxTurnMs) {
+    throw new RatingClaimStateConfigError('RATING_CLAIM_STATE_LEASE_EXCEEDS_TURN');
+  }
   const execute = async (
     script: string,
     companyId: string,
