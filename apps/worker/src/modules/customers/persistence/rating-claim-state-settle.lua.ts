@@ -3,9 +3,10 @@
  *
  * تسوية صفحة بتشيل البند المطابق بس. طلب فضل مجدول بعد ما اتحاول بيدخل خريطة
  * الإعادة من غير تكرار، والإعادة اللي موجودة بتخلي تذكرتها واستحقاقها زي ما
- * هم. لو الخريطة امتلأت، الفيضان بيتسجل والنداء بيرجع OVERFLOW بدل ما يوهم
- * إن الطلب اتسجّل. تسوية إعادة بتشيل الطلب أو بتعيده لآخر الطابور، والنتيجة
- * المجهولة عمر ما بتتحول لنهائية.
+ * هم. لو الخريطة امتلأت — بالعدد أو بالحجم المرمّز — الفيضان بيتسجل والنداء
+ * بيرجع OVERFLOW بدل ما يوهم إن الطلب اتسجّل؛ البند بيتشال من الجولة على أي
+ * حال عشان الجولة ما تقفش. تسوية إعادة بتشيل الطلب أو بتعيده لآخر الطابور،
+ * والنتيجة المجهولة عمر ما بتتحول لنهائية.
  *
  * السكربت مستقل بذاته لأن Redis مفيش فيه استيراد لسكربت تاني.
  */
@@ -65,6 +66,15 @@ local function count_entries(retries)
   return total
 end
 
+-- The overflow evidence: the count grows, the first moment is kept, and the
+-- sweep is marked for reconciliation until a clean sweep completes.
+local function record_overflow(state, now)
+  state['overflowCount'] = state['overflowCount'] + 1
+  if state['overflowSince'] == nil then state['overflowSince'] = now end
+  state['reconcileRequired'] = true
+  state['sweepOverflowCount'] = (state['sweepOverflowCount'] or 0) + 1
+end
+
 local ok, env = pcall(cjson.decode, ARGV[1])
 if not ok or type(env) ~= 'table' then return reply('CORRUPT', 0) end
 local companyId = env['companyId']
@@ -111,33 +121,42 @@ if env['action'] == 'settlePage' then
     end
   end
   page['entries'] = kept
+  local limit = env['maxBytes'] - env['reserveBytes']
   local overflowed = false
+  local inserted = nil
   if settlement == 'RETRY' and retries[requestId] == nil then
     if count_entries(retries) >= env['capacity'] then
       overflowed = true
     else
       local ticket = state['nextTicket']
       if type(ticket) ~= 'number' or ticket >= MAX_SAFE then return reply('LIMIT', version) end
-      retries[requestId] = {
+      inserted = {
         eligibleAt = eligible_at(now, env['storedDueAt'], env['backoffMs']),
         ticket = ticket,
         workToken = nil,
         ownerToken = nil,
         leaseUntil = nil
       }
+      retries[requestId] = inserted
       state['nextTicket'] = ticket + 1
     end
   end
-  if overflowed then
-    state['overflowCount'] = state['overflowCount'] + 1
-    if state['overflowSince'] == nil then state['overflowSince'] = now end
-    state['reconcileRequired'] = true
-    state['sweepOverflowCount'] = (state['sweepOverflowCount'] or 0) + 1
-  end
+  if overflowed then record_overflow(state, now) end
   if bump(state) == nil then return reply('LIMIT', version) end
-  local limit = env['maxBytes'] - env['reserveBytes']
+  -- A retry that does not fit the encoded state is not admitted: the item is
+  -- released to the full sweep and the overflow is recorded, so the journal can
+  -- still drain instead of staying open for ever.
+  if inserted ~= nil and #cjson.encode(state) > limit then
+    retries[requestId] = nil
+    state['nextTicket'] = inserted['ticket']
+    overflowed = true
+    record_overflow(state, now)
+  end
+  if overflowed then
+    if not store(KEYS[1], state, env['maxBytes']) then return reply('LIMIT', version) end
+    return reply('OVERFLOW', state['version'], state)
+  end
   if not store(KEYS[1], state, limit) then return reply('LIMIT', version) end
-  if overflowed then return reply('OVERFLOW', state['version'], state) end
   return reply('OK', state['version'], state)
 end
 

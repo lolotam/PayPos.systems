@@ -3,9 +3,11 @@
  *
  * البداية بتقطع الحد الأعلى مرة واحدة وبتقفل الجولة النشطة. تسجيل الصفحة بيتأكد
  * إن المعرفات فريدة ومتصاعدة و جوه (المؤشر، الحد الأعلى] وإن عددها محدود،
- * وبعدين بيخزّن الصفحة كاملة ويقدّم المؤشر في عملية كتابة واحدة. الإقفال
- * بيرجّع الحالة للـ IDLE وبيسيب خريطة الإعادة زي ما هي، وبيشيل علامة الـ
- * reconcile بس لما الجولة اللي اتقفلت ما يكونش فيها فيضان.
+ * وبعدين بيخزّن الصفحة كاملة ويقدّم المؤشر في عملية كتابة واحدة. الجولة من غير
+ * حد أعلى (سوق فاضية) ما بتقبلش صفحة فيها بنود. الإقفال بيرجّع الحالة للـ IDLE
+ * وبيسيب خريطة الإعادة زي ما هي، وبيشيل علامة الـ reconcile بس لما الجولة اللي
+ * اتقفلت ما يكونش فيها فيضان؛ وإقفال جولة زارت صفحة من غير ما تخلص زي ما هو
+ * مرفوض، عشان ما تتحسبش جولة كاملة وهي ما شافتش حاجة.
  *
  * السكربت مستقل بذاته لأن Redis مفيش فيه استيراد لسكربت تاني.
  */
@@ -106,6 +108,7 @@ if action == 'enrollPage' then
   if type(fromId) ~= 'string' then fromId = nil end
   if (fromId == nil) ~= (cursor == nil) then return reply('STALE', version) end
   if fromId ~= nil and fromId ~= cursor then return reply('STALE', version) end
+  if upper == nil and #entries > 0 then return reply('LIMIT', version) end
   local previous = nil
   for _, entry in ipairs(entries) do
     local requestId = entry['requestId']
@@ -141,8 +144,11 @@ if state['phase'] ~= 'SWEEP' or state['sweepId'] ~= env['sweepId'] then
   return reply('STALE', version)
 end
 local page = state['page']
-if type(page) == 'table' then
-  if journal_size(state) > 0 then return reply('BUSY', version) end
+local upper = state['upperId']
+if type(upper) ~= 'string' then upper = nil end
+if journal_size(state) > 0 then return reply('BUSY', version) end
+if upper ~= nil then
+  if type(page) ~= 'table' then return reply('BUSY', version) end
   if page['exhausted'] ~= true then return reply('BUSY', version) end
 end
 state['phase'] = 'IDLE'

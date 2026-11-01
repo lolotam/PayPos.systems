@@ -12,13 +12,18 @@ import {
   STATE_MAX_BYTES,
 } from '../domain/rating-claim-scheduling.ts';
 import type {
-  ClaimStateCode,
   ClaimStateFence,
   ClaimStateReservations,
   ClaimStateResult,
   ClaimStateSnapshot,
   RatingClaimState,
 } from '../ports/rating-claim-state.port.ts';
+import {
+  decodeReservations,
+  decodeState,
+  parse,
+  type DecodedReply,
+} from './redis-rating-claim-state.codec.ts';
 import { RATING_CLAIM_STATE_ACQUIRE } from './rating-claim-state-acquire.lua.ts';
 import { RATING_CLAIM_STATE_LEASE } from './rating-claim-state-lease.lua.ts';
 import { RATING_CLAIM_STATE_RESERVE } from './rating-claim-state-reserve.lua.ts';
@@ -33,7 +38,6 @@ const SWEEP = RATING_CLAIM_STATE_SWEEP;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PREFIX = /^[^\s{}]+$/;
-const CODES: readonly ClaimStateCode[] = ['OK', 'BUSY', 'STALE', 'MISSING', 'CORRUPT', 'LIMIT', 'OVERFLOW'];
 const digests = new Map<string, string>();
 
 /** إعدادات منفذ حالة الجدولة: البادئة والعميل، والحدود التقنية قابلة للتغيير للاختبار. */
@@ -71,64 +75,6 @@ interface StateContext {
     limit: number,
     workTokens: readonly string[],
   ) => Promise<ClaimStateResult<ClaimStateReservations>>;
-}
-
-function invalid(): Error {
-  return new Error('RATING_CLAIM_STATE_REPLY_INVALID');
-}
-
-function text(value: unknown): string {
-  if (typeof value !== 'string' || value === '') throw invalid();
-  return value;
-}
-
-function count(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value)) throw invalid();
-  return value;
-}
-
-function record(value: unknown): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null) throw invalid();
-  return value as Record<string, unknown>;
-}
-
-/**
- * فك ترميز الحالة: الشكل المخزّن هو نفسه شكل اللقطة، فالفحص بيقتصر على الحقول
- * اللي بيتبني عليها قرارات المجدول: الشركة والنسخة والطور وخريطة الإعادة.
- */
-function decodeState(value: Record<string, unknown>): ClaimStateSnapshot {
-  if (typeof value['companyId'] !== 'string' || typeof value['version'] !== 'number') throw invalid();
-  if (value['phase'] !== 'IDLE' && value['phase'] !== 'SWEEP') throw invalid();
-  if (typeof value['retries'] !== 'object' || value['retries'] === null) throw invalid();
-  return value as unknown as ClaimStateSnapshot;
-}
-
-function decodeReservations(value: Record<string, unknown>): ClaimStateReservations {
-  const raw = value['reservations'];
-  if (!Array.isArray(raw)) throw invalid();
-  return {
-    reservations: raw.map((item) => {
-      const entry = record(item);
-      return { requestId: text(entry['requestId']), workToken: text(entry['workToken']) };
-    }),
-  };
-}
-
-function parse(raw: unknown): { code: ClaimStateCode; version: number; value?: Record<string, unknown> } {
-  if (typeof raw !== 'string') throw invalid();
-  let decoded: unknown;
-  try {
-    decoded = JSON.parse(raw);
-  } catch {
-    throw invalid();
-  }
-  const reply = record(decoded);
-  const code = reply['code'];
-  if (typeof code !== 'string' || !CODES.includes(code as ClaimStateCode)) throw invalid();
-  const version = count(reply['version']);
-  const value = reply['value'];
-  if (value === undefined) return { code: code as ClaimStateCode, version };
-  return { code: code as ClaimStateCode, version, value: record(value) };
 }
 
 function isNoScript(error: unknown): boolean {
@@ -198,7 +144,7 @@ function buildContext(options: RatingClaimStateOptions): StateContext {
     script: string,
     companyId: string,
     envelope: Record<string, unknown>,
-  ): Promise<ReturnType<typeof parse>> => {
+  ): Promise<DecodedReply> => {
     const key = stateKey(prefix, companyId);
     const payload = JSON.stringify(envelope);
     const sha = shaOf(script);
