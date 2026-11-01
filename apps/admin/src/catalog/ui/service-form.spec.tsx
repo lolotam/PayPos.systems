@@ -151,6 +151,13 @@ it('re-sends the unchanged closed category and duration on edit save', async () 
       onSave={save}
     />,
   );
+  const duration = screen.getByLabelText(t('en', 'catalogServices.duration')) as HTMLInputElement;
+  const picker = screen.getByLabelText(t('en', 'catalogServices.category')) as HTMLSelectElement;
+  expect(duration.value).toBe('45');
+  expect(picker.value).toBe(closedCategoryId);
+  expect(picker.selectedOptions[0]?.textContent).toBe(
+    `Legacy (${t('en', 'catalogServices.categoryClosed')})`,
+  );
   fireEvent.click(screen.getByRole('button', { name: t('en', 'catalogServices.save') }));
   await waitFor(() => expect(save).toHaveBeenCalled());
   expect(save.mock.calls[0]?.[0]).toMatchObject({
