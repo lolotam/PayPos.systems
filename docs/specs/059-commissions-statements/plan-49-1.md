@@ -263,3 +263,40 @@ Passed: @pospay/commissions-engine typecheck, lint, build, Node export smoke che
 483 tests. Documentation lint has zero errors and 28 existing warnings; git diff whitespace check passed.
 The next bounded initial stage is [brief-49-1-writer.md](brief-49-1-writer.md). HTTP and listing follow that stage
 within this same delivery. The private database lane remains owned by this task and no publication gate changes.
+
+## 13. Writer-stage receipts
+
+The lead read the 22 delivered paths. The new writer follows the employee/service/calendar/month-lock sequence,
+uses the existing pure date rules, invalidates review evidence and appends the override and audit in one tenant
+transaction. The two transaction wrappers remain explicit. Common lock orchestration stays under use-cases and
+the shared concrete scope stays in persistence. No arithmetic, new event or cross-module import was introduced.
+
+Executed locally on verified private Postgres 127.0.0.1:55403, with Redis verified local on 127.0.0.1:6379:
+
+- All API workspace dependencies built successfully; final API typecheck passed.
+- ESLint on src/modules/commissions and test/harness.ts passed, including layer boundaries. The two existing
+  eslint-plugin-boundaries deprecation warnings remain. Documentation lint: zero errors, 28 existing warnings.
+- Module-map check and git diff whitespace check passed.
+- The commissions Vitest run covered 13 files / 91 tests: 11 files passed, while 4 assertions failed in 2 files.
+  After correcting those test defects, the two affected files were rerun: 21 tests passed. Existing 48-2 tests,
+  the new lock/replay tests and the scope refactor passed in the first run. This is not recorded as a green run of
+  the original full command; the assembled HTTP/query stage will rerun the relevant full commissions suite.
+
+Failures and corrections were retained in the review: TypeScript rejected a malformed it.each satisfies type,
+possibly undefined clock samples and unbounded count-array indexing. The lead fixed the test types without casts.
+The lead moved the saved-row/engine proof to persistence/commission-service-override-writer.spec.ts: the original
+module-root test path cannot import the engine, and a use-cases test cannot import module-root fixtures. The
+persistence test placement satisfies both existing rules without a lint exemption. Service-refusal test keys used
+spaces (outside the actual visible-ASCII key contract); the keys were corrected. The forced audit error is wrapped
+by Drizzle, so the test now asserts its PostgreSQL cause, code P0001 and exact message, and compares all restored
+review-evidence fields. No production rejection was weakened to pass a test.
+
+The lead strengthened two other proofs: replay now saves as a granted user, revokes that same user's real grant,
+then verifies refusal of the saved response; rollover is tested with real blocking on both October and newly
+required November, so forgetting the second month's lock fails. Concurrent contenders must either return the same
+saved id or a typed busy error. Minor source corrections derive the stored kind from the accepted contract and
+make the Arabic comments describe service existence and the actual lock order accurately.
+
+The next bounded initial stage is [brief-49-1-http-query.md](brief-49-1-http-query.md). Production root binding,
+HTTP status/error/access proof, history/current query, staff existence reader, EXPLAIN, module-map Port rows and the
+final independent review remain outstanding. No 49-1 branch push or PR has occurred.

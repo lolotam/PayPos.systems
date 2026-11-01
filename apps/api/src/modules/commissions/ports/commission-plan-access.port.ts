@@ -1,6 +1,6 @@
 import type { Tx } from '@pospay/db';
 
-/** إعادة فحص صلاحية إدارة الخطط التي توفرها identity عند جذر التركيب. */
+/** إعادة فحص صلاحية إدارة العمولات التي توفرها identity عند جذر التركيب؛ تخدم كاتبَي إصدارات الخطة وتجاوزات الخدمة. */
 export interface CommissionPlanAccessPort {
   /**
    * بيعيد قرار manage:commission-plans:business وميزة العمولات داخل معاملة الكتابة وبعد أقفالها.
