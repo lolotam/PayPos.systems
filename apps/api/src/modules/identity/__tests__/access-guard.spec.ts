@@ -78,6 +78,7 @@ const SESSIONS: Record<string, { userId: string; hint: string | null; platform?:
 const fakeAuth: AuthService = {
   personal: {} as AuthService['personal'],
   passkeys: {} as AuthService['passkeys'],
+  privateView: {} as AuthService['privateView'],
   staff: refusingStaffSessions,
   handler: async () => new Response(null, { status: 404 }),
   getSession: async (headers) => {
