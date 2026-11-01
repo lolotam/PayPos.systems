@@ -219,6 +219,30 @@ import). 59-0 adds those Port rows to `docs/module-map.md` §3 in the same PR.
 **The rule from D-16:** if a reader cannot be bound at the root, the sub-PR that needs it stops and adds an ADR and the
 module-map row first.
 
+### 4.1 Scoped layer imports for 48-2/49-1 (PP-108.1)
+
+**Accepted by Waleed, 2026-11-01, channel «كارت في شات مدير الويب».** The verbatim decision is preserved in
+[spec 059's owner record §42](../specs/059-commissions-statements/owner-questions.ar.md) and indexed as PP-108.1 in
+[the owner-decision index](../owner-decisions.ar.md). [Issue #763](https://github.com/lolotam/PayPos.systems/issues/763)
+tracks this documentation follow-up after #762. The decision keeps the existing code and records exactly the
+following uses for the plan-version and service-override input writers and lists (48-2/49-1) in the API's
+`commissions` module. These are the scoped additions to
+[CLAUDE.architecture.md §3.1](../../CLAUDE.architecture.md#31-the-import-matrix--enforced-by-eslint-not-by-memory),
+not a general package allowance for other modules or other commissions paths.
+
+| Layer | Existing use | Boundary |
+| --- | --- | --- |
+| `ports/` | DTO types from `@pospay/contracts` describe the writer command and stored response; `Tx` from `@pospay/db` types the reader's existing transaction | Type-only imports, including `commission-plan-version-transactions.port.ts`, `commission-service-override-transactions.port.ts` and `commission-service-reader.port.ts`; no database runtime access |
+| `use-cases/` | `localDate` from `@pospay/i18n` converts a supplied instant to the business-local date | The function is pure; `lock-through-decision.ts` and the two writers use the injected `Clock` and business calendar, with no direct clock access or I/O |
+| `queries/` | Zod validates inputs/cursors, as in `commission-service-override-cursor.ts` | Validation only; queries stay read-only and import neither domain nor use cases |
+| `persistence/` | The response schema from `@pospay/contracts` validates the persisted result, as in `commission-service-override-writer.ts` | Contract checking remains in the adapter; it adds no business calculation |
+| `http/` | `TenantWrappers` from `@pospay/db` types the injected database wrapper in the plan-version and service-override controllers | Type-only import; the list route opens its existing `withTenant` read transaction and passes its `Tx` to the query and root-bound readers, without direct SQL |
+
+This addendum does not change code, lint configuration, migrations or the module map. It adds no dependency to
+`domain/`, no SQL or I/O to use cases, no runtime database access to ports and no cross-module import arrow.
+The root-bound readers and transaction ownership in §4 remain unchanged; the five uses above are the complete
+scope of PP-108.1.
+
 ### 5. The read use cases (D-7) — the one read-path exception
 
 CLAUDE.architecture.md §7 and CLAUDE.md §6 say reads go through `queries/`, which may not import `domain/`. The estimate
