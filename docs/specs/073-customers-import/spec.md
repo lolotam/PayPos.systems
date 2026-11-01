@@ -5,12 +5,14 @@
 - CI-Q1 to CI-Q8 are feature questions: batch 88, `PP-102.1` to `PP-102.8`.
 - CI-T1 to CI-T5 are technical questions: `PP-103.1` to `PP-103.5`.
 - Waleed has answered CI-Q1 to CI-Q4 and CI-T1 to CI-T4. His technical answers are final.
-- Waleed has also answered CI-Q5 to CI-Q8, on the decisions page itself (his own picks, about 11:07–11:08).
-- CI-T5 is pending, and so is Abu Salem's pick on every feature question.
-- **Three of Waleed's picks go against the recommendation, and Abu Salem has not answered them yet:**
+- Waleed has also answered CI-Q5 to CI-Q16, on the decisions page itself (his own picks, 11:07–11:08 and 12:10–12:13).
+- CI-T5 and CI-T6 are pending, and so is Abu Salem's pick on every feature question.
+- **Five of Waleed's picks go against the recommendation, and Abu Salem has not answered them yet:**
   - CI-Q1 (`PP-102.1`): extra customer fields first.
   - CI-Q8 (`PP-102.8`): the extra fields are birthday, notes, gender and email.
   - CI-Q4 (`PP-102.4`): branch managers and cashiers may import too.
+  - CI-Q13 (`PP-102.13`): the note is kept per business, not per company.
+  - CI-Q16 (`PP-102.16`): an existing customer's rating refusal is not set by the import.
 - Every part marked **[PP-102.1]** (which includes CI-Q8) or **[PP-102.4]** depends on one of those picks. Nothing in those parts is
   built before Abu Salem answers or the manager says to proceed. The rest of the spec holds under either answer.
 
@@ -45,11 +47,14 @@ nothing. The commit runs in the worker, and the screen polls for the result.
   (`BR-001` normalization, name bounds and control characters). It writes no customer. It reports every bad row, not
   only the first.
 - CIM-02: the commit runs in ONE transaction, and any failure saves nothing. The only partial thing is the report.
-- CIM-03 (CI-Q2): a row whose normalized phone already belongs to a customer of the company is not an error.
+- CIM-03 (CI-Q2, narrowed by CI-Q15 and CI-Q16): a row whose normalized phone already belongs to a customer of the company is not an error.
   - The preview marks it `existing`.
-  - The commit leaves that customer unchanged: name, locale, opt-out and timestamps.
+  - The commit never changes that customer's name, phone, language or rating opt-out, whatever the file says.
+  - **[PP-102.1]** The only change allowed is filling a new field that is still empty (CI-Q15): birthday, gender and
+    email on the customer, and the note of the previewed business. A field that already has a value is never
+    overwritten. Without Abu Salem's pick on CI-Q1 the row is left fully unchanged.
   - The row is counted apart from the created rows.
-  - Re-uploading the same file creates nobody twice.
+  - Re-uploading the same file creates nobody twice and fills nothing the second time.
 - CIM-04 (CI-Q3): two or more rows of the same file with the same normalized phone are each a row error on the phone
   column, and nothing is kept silently.
 - CIM-05: a phone that another customer takes between the preview and the commit is treated like CIM-03 at commit
@@ -63,12 +68,20 @@ nothing. The commit runs in the worker, and the screen polls for the result.
   yield the same 202 acceptance and one worker effect.
 - CIM-09: a workbook over 2 MiB or over 500 data rows is refused before any write.
 - CIM-10: importing never sends a message to anyone. A rating request is still created only by a visit.
+- CIM-11 **[PP-102.1]** (CI-Q16, CI-Q5): the «لا ترسل تقييم» column only applies to a customer the import creates.
+  For an existing customer the column is ignored and her opt-out is not touched.
+  `TODO(spec)` CI-Q19: whether the preview tells the manager that the refusal will not be recorded.
+- CIM-12 **[PP-102.1]** (CI-Q11): an email is stored as typed, trimmed, only after it passes the shape check (it has
+  an `@` and a dot). It is never confirmed by a message, and two customers may share one email.
 
 ## Requirements
 
 ### Scope decisions
 
-1. **All-or-nothing, create-only** (SPEC §11, ADR-0034). The import never updates or deletes a customer (CI-Q2).
+1. **All-or-nothing** (SPEC §11, ADR-0034). The import creates customers and never deletes one (CI-Q2). It never
+   changes an existing customer's name, phone, language or rating opt-out. **[PP-102.1]** Narrowed by CI-Q15, it may
+   fill a new field that is still empty on an existing customer (see CIM-03); without Abu Salem's pick on CI-Q1 it
+   stays create-only.
 2. **Company-wide identity** (D-30). A created customer belongs to the company, whichever business or branch the
    import ran from.
 3. **Columns.** These hold under either answer to CI-Q1 (Waleed's picks; Abu Salem's pick is pending):
@@ -79,13 +92,21 @@ nothing. The commit runs in the worker, and the screen polls for the result.
    | `phone` | Required. Normalized with spec 010 `BR-001`, together with the country code. |
    | `country_code` | Optional. Blank means Kuwait, `965` (CI-Q7, `PP-102.7`). |
    | `locale` | Optional, `ar` or `en`. Blank means `ar` (CI-Q6, `PP-102.6`). |
-   | `no_rating` («لا ترسل تقييم») | Optional, «نعم» or blank. «نعم» creates the customer already opted out of rating requests; blank creates her like any new customer (CI-Q5, `PP-102.5`). `TODO(spec)` round 3: the value the commit stores and whether the opt-out is audited; what happens when the customer already exists (CIM-03 leaves her unchanged). |
+   | `no_rating` («لا ترسل تقييم») | Optional, «نعم» or blank. «نعم» creates a NEW customer already opted out of rating requests; blank creates her like any new customer (CI-Q5, `PP-102.5`). For an existing customer the column is ignored (CI-Q16, `PP-102.16`, Waleed's pick against the recommendation). |
 
-   **[PP-102.1]** Waleed picked "add more fields first", and CI-Q8 (`PP-102.8`) names four fields: birthday, notes,
-   gender (male / female) and email. They are added to the customer first, in a «customer fields» slice 34-pre with a
-   migration, and then to the template as optional columns. `TODO(spec)` round 3: the rules of each field (format,
-   required or optional, who sees the notes, whether the reception form shows them). If Abu Salem picks "name, phone
-   and language only", 34-pre is dropped and the import needs no migration.
+   **[PP-102.1]** Waleed picked "add more fields first", and CI-Q8 (`PP-102.8`) names four fields. They are added
+   to the customer first, in a «customer fields» slice 34-pre with a migration, and then to the template as optional
+   columns. If Abu Salem picks "name, phone and language only", 34-pre is dropped and the import needs no migration.
+
+   | Column | Rule (Waleed's picks, Abu Salem's pending) |
+   |---|---|
+   | `birthday` | Optional. Day and month; the year is optional (CI-Q9, `PP-102.9`). `TODO(spec)` CI-Q18: how it is typed in the cell. |
+   | `gender` | Optional: ذكر / أنثى / blank (CI-Q10, `PP-102.10`). |
+   | `email` | Optional. Refused only for a wrong shape (an `@` and a dot); no confirmation message; two customers may share one (CI-Q11, `PP-102.11`). Length bound: `TODO(spec)` CI-T6. |
+   | `notes` | Optional. One note **per business**, the business of the preview (CI-Q13, `PP-102.13`, Waleed's pick against the recommendation). Anyone who can see the customer sees the note, and the field carries the hint «ماتكتبش أسرار أو بيانات حساسة» (CI-Q12, `PP-102.12`). `TODO(spec)` CI-Q17: whether a business sees another business's note. Length bound: `TODO(spec)` CI-T6. |
+
+   CI-Q14 (`PP-102.14`): the four fields show on the reception registration screen (optional) and on the customer
+   card. There is no edit screen until phase 2, so a wrong value waits for the customer-management screen.
 4. **Who may import.**
    - Under either answer, the business route `/v1/businesses/{businessId}/customers/import/…` (CI-T3) accepts the
      existing `create:customers:business`, which the general manager covers through `create:customers:company`.
@@ -106,6 +127,8 @@ nothing. The commit runs in the worker, and the screen polls for the result.
 | D-5 | **CI-T4 (`PP-103.4`, final): the commit runs in the worker** (the 200 ms rule), in `apps/worker/src/modules/customers`, so that sub-PR waits for 59b-2b to merge. |
 | D-6 | **CI-T2 (`PP-103.2`, final): the normalized E.164 phone is stored in `import_previews.rows`**, under the table's RLS like the `customers` table, so the worker inserts from it. It is never returned. Every response, error and log carries only the masked phone. Retention follows the open IM-Q3. |
 | D-7 | **CI-T3 (`PP-103.3`, final): the routes sit under the business**, and the preview's `business_id` is that business. Customers are created for the company. No migration for the import itself. |
+| D-8 **[PP-102.1]** | **Design impact of CI-Q13 (per-business notes).** The customer is one row for the company (D-30), so a note per business cannot be a column on `customers`. It is a row keyed by company, customer and business, with RLS, a negative isolation test and an index on every FK, written in the same transaction as the customer. `TODO(spec)` CI-T7 (technical): the table shape. |
+| D-9 **[PP-102.1]** | **Design impact of CI-Q15 (fill empty fields).** Today `pospay_app` can only INSERT on `customers`, plus UPDATE of the opt-out columns (migration 0188). Filling birthday, gender and email on an existing customer needs a column-level UPDATE grant on exactly those columns and a database guard that refuses to change a value already set, as 0188 does for the opt-out. The worker writes with `UPDATE … WHERE column IS NULL`. `TODO(spec)` CI-T8 (technical): the column shape (birthday as month, day and optional year, because a date column cannot hold a missing year) and the guard. |
 
 ## Delivery: the sub-PR split
 
@@ -115,3 +138,8 @@ nothing. The commit runs in the worker, and the screen polls for the result.
 - The worker sub-PR waits on 59b-2b, which owns `apps/worker/src/modules/customers/**` now.
 - **[PP-102.1]** 34-pre needs the single migration lane. It is queued after 32b-pre-1 (34-pre first, then 49-1), and
   it is taken only with the manager's yes.
+- **[PP-102.1]** 34-pre is larger than "add four columns". With CI-Q13, CI-Q14 and CI-Q15 it covers: the migration (new
+  customer columns, the per-business note table, the column grants and the guard), the contracts, the find-or-create
+  use case of spec 010 accepting the optional fields, the reception registration screen in `apps/admin/src/orders`,
+  and the customer card. `TODO(spec)`: the manager decides whether that is one sub-PR or a migration sub-PR followed
+  by a UI sub-PR.
