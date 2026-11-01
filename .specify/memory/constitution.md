@@ -3,7 +3,8 @@ Sync Impact Report
 - 3.3.0 (2026-11-01, MINOR): Principle I sets the in-flight limit to five slices, started one after another rather than all at once; a
   slice that depends on another still waits until that one merges; shared files where each slice only adds its own line may change in parallel,
   merged in the manager's order with a rebase on `main` after each merge (Waleed, PP-111, `docs/owner-decisions.ar.md` item 48). Rationale: the
-  disjoint-paths, green-on-own-head and merge-order numbering rules are unchanged, so only the numeric limit moves (MINOR, as in 3.1.0).
+  green-on-own-head and merge-order numbering rules are unchanged; the limit moves and the disjoint-paths rule gains one narrow exception
+  for shared add-one-line files, which expands guidance without redefining the principle (MINOR).
   `docs/agent-delivery-pipeline.md` §13 and `.claude/skills/pospay-pipeline/SKILL.md` §2 carry the same limit.
 - 3.2.0 (2026-10-27, MINOR): Principle I sets the in-flight limit to three slices and allows more than one migration lane, provided no two
   slices change the same table, each tests on its own local Postgres, and migration numbers are reserved in merge order and made final at
