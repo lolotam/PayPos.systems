@@ -308,7 +308,8 @@ this ADR, spec 050 and its 35a plan; executable maps and phase-wide docs are syn
 
 35b delivers late visibility and bells, 35c the admin reception screen, 35d audited price/discount editing (SS-Q10
 option 2). Price edits do not land in 35a and need their own revision/concurrency and permission design. All owner
-questions SS-Q1b, SS-Q2–SS-Q11 are answered by Waleed, and Abu Salem agreed with every pick on 2026-10-12.
+questions SS-Q1b, SS-Q2–SS-Q11 are answered by Waleed, and Abu Salem agreed with every pick on 2026-10-12
+except SS-Q1b, which is pending his pick (addendum 2026-11-01).
 
 ## Addendum 2026-10-13 — 35c-2 own recording context
 
