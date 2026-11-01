@@ -6,6 +6,8 @@ import type * as StaffModule from '../modules/staff/index.ts';
 import type * as NotificationModule from '../modules/notifications/index.ts';
 import type * as BullMq from 'bullmq';
 // تحميل تركيب القنوات ووظائف staff خارج مهلة بدء التشغيل حتى لا يستهلك التحويل البارد مهلة العزل.
+// تحميل bullmq كمان بره الاختبارات: التحميل البارد كان بيقع جوّه أول اختبار وبياكل مهلة العزل.
+import 'bullmq';
 import '../modules/notifications/index.ts';
 import '../modules/staff/index.ts';
 
@@ -52,8 +54,11 @@ vi.mock('ioredis', () => ({
   },
 }));
 // الطابور والعامل الحقيقيين بيسجّلوا اللي اتعمل، عشان نعرف إن مجدول المطالبات ما اتفتحش.
+// الوحدة الحقيقية بتتحمّل مرة واحدة بس: بعد إعادة ضبط الموديولات مفيش تحميل بارد تاني.
+const bullmqActual = vi.hoisted(() => ({ module: undefined as typeof BullMq | undefined }));
 vi.mock('bullmq', async (original) => {
-  const actual = await original<typeof BullMq>();
+  const actual = bullmqActual.module ?? (await original<typeof BullMq>());
+  bullmqActual.module = actual;
   const record =
     (kind: string) =>
     (target: unknown, args: unknown[]): object => {

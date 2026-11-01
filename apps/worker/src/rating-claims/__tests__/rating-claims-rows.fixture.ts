@@ -84,8 +84,11 @@ export function seedPlan(target: SeedTarget, options: SeedOptions): SeedPlan {
 
 /**
  * يزرع زيارات حقيقية لكل طلب، لأن المطالبة بتلغي أي طلب مالوش بند نشط في يومه.
+ *
+ * السطور دي بتنزل جوه المعاملة اللي بتستدعيها؛ اتساق المنفذين متأخر لحد الـ commit،
+ * فسطر لوحده بيقفل من غير منفذين ويرميه القيد.
  */
-export async function seedVisits(runner: postgres.ISql, plan: SeedPlan): Promise<void> {
+export async function seedVisitRows(runner: postgres.ISql, plan: SeedPlan): Promise<void> {
   await runner`INSERT INTO customers (company_id, id, name, phone, locale, created_at, updated_at)
     SELECT ${plan.company}, x.id, 'Seeded customer',
       '+9999998' || lpad((${plan.first} + (x.ord - 1) * ${plan.stride})::text, 5, '0'), 'en', now(), now()
@@ -112,12 +115,25 @@ export async function seedVisits(runner: postgres.ISql, plan: SeedPlan): Promise
 }
 
 /** يزرع صفوف الطلبات نفسها، بحالة مجدولة وبدون أي ادعاء إرسال. */
-export async function seedRequests(runner: postgres.ISql, plan: SeedPlan): Promise<void> {
+export async function seedRequestRows(runner: postgres.ISql, plan: SeedPlan): Promise<void> {
   await runner`INSERT INTO rating_requests
       (company_id, id, business_id, customer_id, business_date, branch_id, due_at, send_deadline, status)
     SELECT ${plan.company}, x.id, ${plan.businessId}, x.customer_id, ${plan.businessDate}::date, ${plan.branchId},
       ${plan.dueAt}::timestamptz, ${plan.sendDeadline}::timestamptz, 'SCHEDULED'
     FROM unnest(${plan.requestIds}::uuid[], ${plan.customerIds}::uuid[]) AS x(id, customer_id)`;
+}
+
+/**
+ * يزرع الزيارات والطلبات في معاملة واحدة.
+ *
+ * القيدان المؤجلان بيفحصوا السطور لما المعاملة تقفل، فزرع السطر في معاملة لوحده
+ * بيقفله من غير منفذين ويرمي "Invalid performer set".
+ */
+export async function seedDueRows(runner: postgres.Sql, plan: SeedPlan): Promise<void> {
+  await runner.begin(async (tx) => {
+    await seedVisitRows(tx, plan);
+    await seedRequestRows(tx, plan);
+  });
 }
 
 /** لحظة الزيارة الثابتة؛ منها بتتحسب مواعيد الاستحقاق والإرسال. */

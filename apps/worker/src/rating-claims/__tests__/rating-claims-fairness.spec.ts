@@ -51,17 +51,25 @@ it('retained_1200_reaches_tail_without_epoch_reset', async () => {
   const tail = at(seeded.requestIds, 1199);
   let turns = 0;
   let incarnation = '';
+  let reached = false;
   while (turns < 18) {
     turns += 1;
     await w.turn();
     const snapshot = await w.readState();
     if (turns === 1) incarnation = snapshot.incarnation;
     expect(snapshot.incarnation).toBe(incarnation);
-    if (snapshot.retries[tail] !== undefined) break;
+    if (snapshot.retries[tail] !== undefined) {
+      reached = true;
+      break;
+    }
   }
   // الذيل اتوصل في ست عشرة دورة أمامية كاملة، والنسخة ما اتعملتش من جديد.
+  // لو الدورات خلصت من غير ما نوصل للذيل، الاختبار يفشل هنا مش بعدين.
+  expect(reached).toBe(true);
   expect(turns).toBeLessThanOrEqual(18);
   const retained = await w.readState();
+  // الجولة خلصت عند الحد المقطوع، فالحالة رجعت لهدوء.
+  expect(retained.phase).toBe('IDLE');
   expect(retained.incarnation).toBe(incarnation);
   expect(retryCount(retained)).toBe(1200);
   expect(retained.retries[tail]).toBeDefined();
@@ -81,6 +89,10 @@ it('retained_1200_reaches_tail_without_epoch_reset', async () => {
 }, 900_000);
 
 it('sustained_arrivals_do_not_extend_captured_sweep', async () => {
+  // N = 30 طلب مستحق، و5 وصولات: واحدة كل دور من الدور التاني لحد السادس، بمعرّفات
+  // أعلى من H. ميزانية الدور F=5 أمامي وR=2 إعادة، فالجولة الأمامية بتغطي 5 صفوف
+  // في الدور: 30 صف = 6 دور لحد الذيل. الوصولات فوق H ما بتدخلش الجولة دي، والجولة
+  // الجاية بتقطع حد جديد فيه الوصولات وبتديها حقها في دورها السابع (7 ≤ 12).
   const w = await openWorld({ budget: { forward: 5, retry: 2 } });
   const seeded = await w.seedDueRequests({ count: 30 });
   const tail = at(seeded.requestIds, 29);
@@ -99,6 +111,7 @@ it('sustained_arrivals_do_not_extend_captured_sweep', async () => {
     if (upper === undefined) upper = snapshot.upperId;
     if (turn < 6) {
       expect(snapshot.phase).toBe('SWEEP');
+      // الحد المقطوع ما بيتزحزحش مهما وصلات جديدة.
       expect(snapshot.upperId).toBe(upper);
     }
   }
@@ -205,6 +218,10 @@ it('moved_earlier_and_future_due_are_reconsidered', async () => {
 }, 120_000);
 
 it('retry_failures_rotate_and_preserve_forward_budget', async () => {
+  // N = 8 طلبات مستحقة، وميزانية الدور F=4 أمامي وR=2 إعادة.
+  // Q (خريطة الإعادة) = 8 بعد دورين: صفحتان × F=4. أقدم تذكرة (الصف اللي بيفشل دائماً)
+  // بتتعاود كل دور لأن ميزانية R بتخد oldest الأول، فحدّ Q هنا دور واحد؛
+  // والمسار الأمامي بيفضل 4 زيارات في كل دور على أي حال.
   const w = await openWorld({ budget: { forward: 4, retry: 2 } });
   const seeded = await w.seedDueRequests({ count: 8 });
   const oldest = at(seeded.requestIds, 0);
@@ -229,6 +246,8 @@ it('retry_failures_rotate_and_preserve_forward_budget', async () => {
   expect(second.forwardVisits).toBe(4);
   const afterSecond = await w.readState();
   expect(retryCount(afterSecond)).toBe(8);
+  // الفشل الدائم اتعاود دور واحد بس، والصف لسه محجوز في الخريطة.
+  expect(afterSecond.retries[oldest]).toBeDefined();
   const tickets = Object.fromEntries(
     Object.entries(afterSecond.retries).map(([id, entry]) => [id, entry.ticket]),
   );

@@ -4,10 +4,15 @@ import { sql } from 'drizzle-orm';
 
 import type { Tx } from '@pospay/db';
 import { TENANT, USER } from '../../../../../packages/db/test/tenancy-fixtures.ts';
-import { createClaimRatingRequest } from '../../modules/customers/index.ts';
+import { performerLabelFormatter } from '../../modules/customers/index.ts';
 import { daySessionsReader } from '../../modules/orders/index.ts';
+import { branchScheduleHoursAdapter } from '../../modules/customers/persistence/branch-schedule-hours.adapter.ts';
+import { businessNames } from '../../modules/customers/persistence/business-names.adapter.ts';
+import { performerNameAdapter } from '../../modules/customers/persistence/performer-name.adapter.ts';
 import { ratingClaimRepository } from '../../modules/customers/persistence/rating-claim.repository.ts';
 import { ratingClaimTransactions } from '../../modules/customers/persistence/rating-claim.transactions.ts';
+import { ratingOutbox } from '../../modules/customers/persistence/rating-outbox.adapter.ts';
+import { ratingRequestsSwitch } from '../../modules/customers/persistence/rating-requests-switch.adapter.ts';
 import { redisRatingClaimState } from '../../modules/customers/persistence/redis-rating-claim-state.ts';
 import {
   LEASE_MS,
@@ -23,14 +28,11 @@ import type {
   ClaimStateSnapshot,
   RatingClaimState,
 } from '../../modules/customers/ports/rating-claim-state.port.ts';
-import type {
-  RatingTokenClaim,
-  RatingTokenDeriver,
-} from '../../modules/customers/ports/rating-token.port.ts';
+import type { RatingTokenPort } from '../../modules/customers/ports/rating-token.port.ts';
+import { ClaimRatingRequest } from '../../modules/customers/use-cases/claim-rating-request/claim-rating-request.ts';
 import {
   ClaimRatingRequests,
   type RatingClaimsClaim,
-  type RatingClaimsTurnSummary,
 } from '../../modules/customers/use-cases/claim-rating-requests/claim-rating-requests.ts';
 import {
   everyDay,
@@ -39,9 +41,10 @@ import {
   type RatingClaimsFixture,
 } from './rating-claims.fixture.ts';
 import {
+  seedDueRows,
   seedPlan,
-  seedRequests,
-  seedVisits,
+  seedRequestRows,
+  seedVisitRows,
   type SeededRows,
   type SeedOptions,
   type SeedTarget,
@@ -53,12 +56,32 @@ import {
   type RecordingDiagnostics,
   type TracedState,
 } from './rating-claims-trace.fixture.ts';
+import type {
+  ClaimTrap,
+  HeldLock,
+  HeldSeed,
+  RatingClaimsWorld,
+  RatingClaimsWorldOptions,
+  RatingClaimStateLimits,
+  TransactionTrap,
+  WorkerOptions,
+} from './rating-claims-world.types.ts';
 
 export { BUSINESS_DATE, DUE_AT, SEND_DEADLINE, VISIT_AT } from './rating-claims-rows.fixture.ts';
 export type { SeededRows, SeedOptions };
 export type { RecordingDiagnostics };
+export type {
+  ClaimTrap,
+  HeldLock,
+  HeldSeed,
+  RatingClaimsWorld,
+  RatingClaimsWorldOptions,
+  RatingClaimStateLimits,
+  TransactionTrap,
+  WorkerOptions,
+} from './rating-claims-world.types.ts';
 
-const redisUrl =
+export const redisUrl =
   process.env['REDIS_URL'] ||
   `redis://:${process.env['REDIS_PASSWORD'] || 'pospay_dev_redis'}@127.0.0.1:6379`;
 
@@ -68,57 +91,6 @@ const TEN_TO_TEN = everyDay([{ opens: '10:00', closes: '22:00' }]);
 
 /** ساعة الاختبار: بعد الاستحقاق وقبل الموعد النهائي. */
 export const CLOCK_AT = new Date('2026-06-01T14:00:00.000Z');
-
-/** خطّاف المطالبة: الطلبات اللي تفشل قبل التنفيذ، فالمعاملة بترجع وما بتكتبش. */
-export interface ClaimTrap {
-  readonly failBefore: Set<string>;
-}
-
-/** خطّاف المعاملات: الطلبات اللي ضاع رد الـ commit بتاعها بعد ما اتنفّذ. */
-export interface TransactionTrap {
-  readonly lostReplies: Set<string>;
-}
-
-/** صف مزروع في معاملة مفتوحة: الـ commit بيتأجل لحد ما الاختبار يفتحه. */
-export interface HeldSeed {
-  readonly requestId: string;
-  /** بيتحل لما الصف يتكتب فعلاً جوّه المعاملة المفتوحة. */
-  readonly inserted: Promise<void>;
-  release(): void;
-  readonly done: Promise<unknown>;
-}
-
-/** قفل صف طلب في معاملة مفتوحة. */
-export interface HeldLock {
-  readonly locked: Promise<void>;
-  release(): void;
-  readonly done: Promise<unknown>;
-}
-
-/** خيارات عالم القبول. */
-export interface RatingClaimsWorldOptions {
-  readonly budget?: VisitBudget;
-  /** حالة البصمة في البداية: غير متاحة هي الوضع الافتراضي لاختبارات إعادة المحاولة. */
-  readonly tokens?: boolean;
-  readonly state?: Partial<RatingClaimStateLimits>;
-}
-
-/** حدود تقنية للحالة: كل القيم موجودة، عشان ما فيش undefined في خيار اختياري. */
-export interface RatingClaimStateLimits {
-  readonly capacity: number;
-  readonly leaseMs: number;
-  readonly maxTurnMs: number;
-  readonly backoffMs: number;
-  readonly maxBytes: number;
-  readonly reserveBytes: number;
-}
-
-/** خيارات الموظف: منفذ حالة تاني أو ميزانية تانية أو تشخيص تاني. */
-export interface WorkerOptions {
-  state?: RatingClaimState;
-  budget?: VisitBudget;
-  diagnostics?: RatingClaimDiagnostics;
-}
 
 /** حدود الحالة بالافتراضات بتاعت الإنتاج، مع تظليل اللي الاختبار غيّره. */
 function limitsOf(overrides?: Partial<RatingClaimStateLimits>): RatingClaimStateLimits {
@@ -138,40 +110,6 @@ export function at<T>(items: readonly T[], index: number): T {
   const item = items[index];
   if (item === undefined) throw new Error('RATING_CLAIM_FIXTURE_INDEX_OUT_OF_RANGE');
   return item;
-}
-
-/** عالم القبول: القاعدة والـ Redis والمهايات، وعلماء يقدرون يشتغلوا بالتوازي. */
-export interface RatingClaimsWorld {
-  readonly base: RatingClaimsFixture;
-  readonly company: string;
-  readonly otherCompany: string;
-  readonly otherBusiness: string;
-  readonly branchId: string;
-  readonly redis: Redis;
-  readonly prefix: string;
-  /** منفذ الحالة الحقيقي من غير خطافات، عشان كل عامل يبني خطافاته عليه. */
-  readonly rawState: RatingClaimState;
-  readonly state: TracedState;
-  readonly transactions: RatingClaimTransactions<Tx>;
-  readonly diagnostics: RecordingDiagnostics;
-  readonly tokens: { allow(requestId: string): boolean };
-  readonly claimTrap: ClaimTrap;
-  readonly txTrap: TransactionTrap;
-  readonly budget: VisitBudget;
-  /** موظف جديد لدور خدمة مستقل برمز مالك خاص بيه. */
-  worker(options?: WorkerOptions): ClaimRatingRequests<Tx>;
-  turn(worker?: ClaimRatingRequests<Tx>): Promise<RatingClaimsTurnSummary>;
-  readState(): Promise<ClaimStateSnapshot>;
-  /** حالات الطلبات من القاعدة بعد الدور، مقرونة بمعرّف كل طلب. */
-  requestStatuses(): Promise<Map<string, string>>;
-  /** معرّفات الطلبات اللي وصلها حدث جاهزية في نفس المعاملة. */
-  readyRequestIds(): Promise<string[]>;
-  seedDueRequests(options: SeedOptions): Promise<SeededRows>;
-  /** يزرع صف طلب في معاملة مفتوحة، والـ commit بيتأجل لحد ما الاختبار يفتحه. */
-  holdDueRequest(options: SeedOptions): Promise<HeldSeed>;
-  /** يقفل صف طلب في معاملة مفتوحة، عشان نجرّب طلب مقفل في معاملة تانية. */
-  holdRequestLock(requestId: string): Promise<HeldLock>;
-  close(): Promise<void>;
 }
 
 /** أجزاء العالم اللي بتتبني مع بعض قبل ما تتجمع في كائن واحد. */
@@ -212,30 +150,46 @@ function seedTarget(parts: WorldParts): SeedTarget {
   };
 }
 
-/** بصمة تتبدّل بين متاحة وغير متاحة، زي ما القدرة الحقيقية بتتبدّل. */
-function tokenDeriver(tokens: { allow(requestId: string): boolean }): RatingTokenDeriver {
+/**
+ * مزدوج البصمة: يطلع null لما البصمة مش متاحة، زي ما القدرة الحقيقية بتتأخر.
+ *
+ * البصمة null جزء من عقد القدرة نفسها (RatingTokenPort)، فمفيش أي تمثيل كاذب هنا.
+ */
+function tokenPort(tokens: { allow(requestId: string): boolean }): RatingTokenPort {
   return {
-    claim: (identity) => {
-      if (!tokens.allow(identity.ratingRequestId)) {
-        return null as unknown as RatingTokenClaim;
-      }
-      return { tokenHash: testTokenHash(identity.ratingRequestId), keyVersion: 1 };
-    },
+    claim: (identity) =>
+      tokens.allow(identity.ratingRequestId)
+        ? { tokenHash: testTokenHash(identity.ratingRequestId), keyVersion: 1 }
+        : null,
   };
 }
 
-/** مطالبة 2a الحقيقية مع خطّاف الفشل قبل التنفيذ. */
+/**
+ * مطالبة الطلب الواحد بنفس منافذ الإنتاج، مع مزدوج البصمة بدل كود الاشتقاق.
+ *
+ * المصنع في جذر الموديل بياخد كود اشتقاق دايماً، والقدرة الحقيقية بترجع null بس لما
+ * القدرة كلها مقفولة؛ الاختبار محتاج يعطّل البصمة لطلب واحد ويشبّعها لغيره.
+ */
 function buildClaim(
   base: RatingClaimsFixture,
   claimTrap: ClaimTrap,
   tokens: { allow(requestId: string): boolean },
 ): RatingClaimsClaim<Tx> {
-  const realClaim = createClaimRatingRequest({
-    ids: base.ids,
-    clock: base.clock,
-    daySessions: daySessionsReader,
-    deriver: tokenDeriver(tokens),
-  });
+  const realClaim = new ClaimRatingRequest<Tx>(
+    {
+      switch: ratingRequestsSwitch,
+      hours: branchScheduleHoursAdapter,
+      names: businessNames,
+      daySessions: daySessionsReader,
+      performers: performerNameAdapter,
+      label: performerLabelFormatter,
+      claims: ratingClaimRepository,
+      token: tokenPort(tokens),
+      outbox: ratingOutbox,
+    },
+    base.ids,
+    base.clock,
+  );
   return {
     execute: (tx, input) => {
       if (claimTrap.failBefore.has(input.request.id)) {
@@ -296,14 +250,13 @@ async function openRatingRequests(base: RatingClaimsFixture): Promise<void> {
     VALUES (${TENANT.A.company}, ${base.ids.newId()}, ${TENANT.A.business}, true, ${USER}, now(), 1)`;
 }
 
-/** يزرع دفعة طلبات مستحقة مع زياراتها. */
+/** يزرع دفعة طلبات مستحقة مع زياراتها، كلها في معاملة واحدة. */
 async function seedDueRequestsOf(
   parts: WorldParts,
   options: SeedOptions,
 ): Promise<SeededRows> {
   const plan = seedPlan(seedTarget(parts), options);
-  await seedVisits(parts.base.owner, plan);
-  await seedRequests(parts.base.owner, plan);
+  await seedDueRows(parts.base.owner, plan);
   return { requestIds: plan.requestIds, customerIds: plan.customerIds };
 }
 
@@ -312,8 +265,8 @@ async function holdDueRequestOf(parts: WorldParts, options: SeedOptions): Promis
   const plan = seedPlan(seedTarget(parts), options);
   const gate = createGate();
   const done = parts.base.owner.begin(async (tx) => {
-    await seedVisits(tx, plan);
-    await seedRequests(tx, plan);
+    await seedVisitRows(tx, plan);
+    await seedRequestRows(tx, plan);
     gate.markAcquired();
     await gate.wait();
   });
@@ -380,6 +333,33 @@ async function closeRedis(redis: Redis): Promise<void> {
   redis.disconnect();
 }
 
+/** ساعة Redis الحقيقية بالمللي ثانية، عشان نقارن بيها نهاية الحجز. */
+async function serverNowMs(redis: Redis): Promise<number> {
+  const [seconds, micros] = await redis.time();
+  return Number(seconds) * 1000 + Math.floor(Number(micros) / 1000);
+}
+
+/**
+ * يستنى انتهاء حجز الحالة بدل نوم ثابت.
+ *
+ * الحجز بيتحسب بساعة Redis نفسها، فالمقارنة لازم تكون بنفس الساعة؛ والانتظار بيقف
+ * بمهلة قصوى عشان الاختبار ما يقعدش معلّق لو الحجز ما انتهاش.
+ */
+export async function waitForLeaseExpiry(
+  world: RatingClaimsWorld,
+  timeoutMs = 15_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const read = await world.state.port.read(world.company);
+    const leaseUntil = read.value?.leaseUntil;
+    if (read.code !== 'OK' || leaseUntil === undefined) return;
+    if (leaseUntil <= (await serverNowMs(world.redis))) return;
+    if (Date.now() > deadline) throw new Error('RATING_CLAIM_LEASE_NOT_EXPIRED');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
 /** يجمع أجزاء العالم في الكائن اللي بتستخدمه الاختبارات. */
 function buildWorld(
   parts: WorldParts,
@@ -411,42 +391,50 @@ export async function ratingClaimsWorld(
   options: RatingClaimsWorldOptions = {},
 ): Promise<RatingClaimsWorld> {
   const base = await ratingClaimsFixture();
-  const redis = new Redis(redisUrl);
-  await redis.ping();
-  const prefix = `pospay-test-rating-claims-${base.ids.newId()}`;
-  const rawState = redisRatingClaimState({
-    prefix,
-    redis,
-    ...limitsOf(options.state),
-  });
-  const state = tracedState(rawState);
-  const tokens = { allow: (_requestId: string): boolean => options.tokens === true };
-  const claimTrap: ClaimTrap = { failBefore: new Set<string>() };
-  const txTrap: TransactionTrap = { lostReplies: new Set<string>() };
-  const claim = buildClaim(base, claimTrap, tokens);
-  const transactions = buildTransactions(ratingClaimTransactions(base.db), txTrap);
-  const diagnostics = recordingDiagnostics();
-  const budget = options.budget ?? { forward: 75, retry: 25 };
-  const branchId = await base.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
-  base.clock.at = CLOCK_AT;
-  await openRatingRequests(base);
-  const worker = workerFactory(base, state.port, claim, transactions, diagnostics, budget);
-  const parts: WorldParts = {
-    base,
-    company: TENANT.A.company,
-    otherCompany: TENANT.B.company,
-    otherBusiness: TENANT.B.business,
-    branchId,
-    redis,
-    prefix,
-    rawState,
-    state,
-    transactions,
-    diagnostics,
-    tokens,
-    claimTrap,
-    txTrap,
-    budget,
-  };
-  return buildWorld(parts, worker);
+  let redis: Redis | undefined;
+  try {
+    redis = new Redis(redisUrl);
+    await redis.ping();
+    const prefix = `pospay-test-rating-claims-${base.ids.newId()}`;
+    const rawState = redisRatingClaimState({
+      prefix,
+      redis,
+      ...limitsOf(options.state),
+    });
+    const state = tracedState(rawState);
+    const tokens = { allow: (): boolean => options.tokens === true };
+    const claimTrap: ClaimTrap = { failBefore: new Set<string>() };
+    const txTrap: TransactionTrap = { lostReplies: new Set<string>() };
+    const claim = buildClaim(base, claimTrap, tokens);
+    const transactions = buildTransactions(ratingClaimTransactions(base.db), txTrap);
+    const diagnostics = recordingDiagnostics();
+    const budget = options.budget ?? { forward: 75, retry: 25 };
+    const branchId = await base.branch({ timezone: KUWAIT, openingHours: TEN_TO_TEN });
+    base.clock.at = CLOCK_AT;
+    await openRatingRequests(base);
+    const worker = workerFactory(base, state.port, claim, transactions, diagnostics, budget);
+    const parts: WorldParts = {
+      base,
+      company: TENANT.A.company,
+      otherCompany: TENANT.B.company,
+      otherBusiness: TENANT.B.business,
+      branchId,
+      redis,
+      prefix,
+      rawState,
+      state,
+      transactions,
+      diagnostics,
+      tokens,
+      claimTrap,
+      txTrap,
+      budget,
+    };
+    return buildWorld(parts, worker);
+  } catch (error) {
+    // الإعداد وقع في النص: اللي اتفتح لازم يتقفل، وإلا اتصالاته بتتسرّب على الاختبارات اللي بعده.
+    if (redis !== undefined) await closeRedis(redis).catch(() => undefined);
+    await base.close().catch(() => undefined);
+    throw error;
+  }
 }

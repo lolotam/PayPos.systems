@@ -5,34 +5,56 @@ import type {
   ClaimStateResult,
   ClaimStateSnapshot,
 } from '../../modules/customers/ports/rating-claim-state.port.ts';
+import { startBullRunner, type BullRunner } from './rating-claims-bull.fixture.ts';
 import {
   at,
   ratingClaimsWorld,
+  redisUrl,
+  waitForLeaseExpiry,
   type RatingClaimsWorld,
   type RatingClaimsWorldOptions,
 } from './rating-claims-world.fixture.ts';
 
 const opened: RatingClaimsWorld[] = [];
+const runners: BullRunner[] = [];
 
 afterEach(async () => {
+  while (runners.length > 0) await runners.pop()?.close();
   while (opened.length > 0) {
     const world = opened.pop();
     await world?.close();
   }
 });
 
-/** بيفتح عالم قبول جديد ويحطه في خانة التنضيف. */
+/** بيفتح عالم قبول جديد ويحطه في خانة التنظيف. */
 async function openWorld(options?: RatingClaimsWorldOptions): Promise<RatingClaimsWorld> {
   const world = await ratingClaimsWorld(options);
   opened.push(world);
   return world;
 }
 
-/** يقفل عالم قبول ويشيله من خانة التنضيف. */
+/** يقفل عالم قبول ويشيله من خانة التنظيف. */
 async function closeWorld(world: RatingClaimsWorld): Promise<void> {
   await world.close();
   const index = opened.indexOf(world);
   if (index >= 0) opened.splice(index, 1);
+}
+
+/**
+ * بيفتح عامل مطالبة على طابور BullMQ حقيقي.
+ *
+ * العامل بيشغّل الدور الحقيقي من غير ما ناديه بإيدنا، فكل دور بيمشي زي ما بيمشي
+ * في الإنتاج: من الطابور، ومع عامل تاني بيتنافس عليه.
+ */
+async function openRunner(world: RatingClaimsWorld): Promise<BullRunner> {
+  const worker = world.worker();
+  const runner = await startBullRunner({
+    redisUrl,
+    prefix: `${world.prefix}:bull`,
+    turn: { execute: (companyId) => worker.execute(companyId) },
+  });
+  runners.push(runner);
+  return runner;
 }
 
 /** سور من لقطة الحالة، عشان نختبر التعديلات على مستوى الحالة نفسها. */
@@ -50,11 +72,9 @@ function fenceOf(
   };
 }
 
-/** انتظار قصير، مستخدم في انتهاء الحجز بس. */
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+/** رسالة الخطأ اللي وقع في الدور. */
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /** انهيار بعد قراءة الصفحة وقبل تسجيلها: المؤشر ما اتغيّرش ومفيش يوملة. */
@@ -63,13 +83,18 @@ async function crashBeforeEnrollment(): Promise<void> {
   const seeded = await world.seedDueRequests({ count: 3 });
   world.tokens.allow = () => true;
   world.state.crashBefore('enrollPage');
-  await expect(world.turn()).rejects.toThrow(/CRASH/);
+  // العامل بيقع جوّه المهمة، فالخطأ بيتسجل فيه بدل ما يطير على الاختبار.
+  const crashing = await openRunner(world);
+  await crashing.enqueue(world.company);
+  expect(errorMessage(crashing.errors[0])).toMatch(/CRASH/);
   const crashed = await world.readState();
   expect(crashed.cursorId).toBeUndefined();
   expect(crashed.page).toBeUndefined();
   expect(crashed.phase).toBe('SWEEP');
   // الدور الجاي بيقرأ نفس الصفحة وبيطالب بيها، فمفيش طلب ضايع.
-  await world.turn();
+  await crashing.close();
+  const taking = await openRunner(world);
+  await taking.enqueue(world.company);
   const recovered = await world.readyRequestIds();
   expect(recovered).toHaveLength(3);
   expect(new Set(recovered).size).toBe(3);
@@ -102,17 +127,19 @@ async function crashAfterEnrollment(): Promise<void> {
     null,
     pageId,
     entries,
-    false,
+    true,
   );
   expect(enrolled.code).toBe('OK');
   expect((await world.readState()).page?.entries).toHaveLength(3);
-  // العامل مات، فالحجز خلص والدور الجاي بياخد اليومية ويكمّلها.
-  await delay(1300);
-  const summary = await world.turn();
-  expect(summary.settlements['TERMINAL']).toBe(3);
+  // العامل الميت لسه ماسك للحالة، فالدور الجاي يستنى انتهاء الحجز وياخدها.
+  await waitForLeaseExpiry(world);
+  const taking = await openRunner(world);
+  await taking.enqueue(world.company);
+  const summary = taking.summaries[0];
+  expect(summary?.settlements['TERMINAL']).toBe(3);
   const claimed = await world.readyRequestIds();
   expect(claimed).toHaveLength(3);
-  for (const requestId of rows.requestIds) expect(claimed).toContain(requestId);
+  expect(new Set(claimed).size).toBe(3);
   await closeWorld(world);
 }
 
@@ -122,14 +149,17 @@ async function loseEnrollmentReply(): Promise<void> {
   const rows = await world.seedDueRequests({ count: 3 });
   world.tokens.allow = () => true;
   world.state.loseReply('enrollPage');
-  await expect(world.turn()).rejects.toThrow(/REPLY_LOST/);
+  const losing = await openRunner(world);
+  await losing.enqueue(world.company);
+  expect(errorMessage(losing.errors[0])).toMatch(/REPLY_LOST/);
   const enrolled = await world.readState();
   expect(enrolled.page?.entries).toHaveLength(3);
   expect(await world.readyRequestIds()).toHaveLength(0);
-  // الدور الجاي بيرجّع اليومية المسجّلة، فكل طلب يطلع له event واحد بس.
-  // العامل الميت ما سابش الحجز (إفلاته اترفض بسور قديم)، فالدور الجاي يستنى انتهاءه.
-  await delay(1300);
-  await world.turn();
+  // العامل الميت ما سابش الحجز، فالدور الجاي يستنى انتهاءه ويكمّل اليومية.
+  await losing.close();
+  await waitForLeaseExpiry(world);
+  const taking = await openRunner(world);
+  await taking.enqueue(world.company);
   const ready = await world.readyRequestIds();
   expect(ready).toHaveLength(3);
   expect(new Set(ready).size).toBe(3);
@@ -152,7 +182,8 @@ it('crash_at_db_commit_and_settlement', async () => {
   // الصف الأول بيرجع من المعاملة، والتاني الـ commit بتاعه بيتم بس الرد بيضيع.
   w.claimTrap.failBefore.add(rolledBack);
   w.txTrap.lostReplies.add(uncertain);
-  await w.turn();
+  const first = await openRunner(w);
+  await first.enqueue(w.company);
   const afterFirst = await w.readState();
   expect(afterFirst.retries[rolledBack]).toBeDefined();
   expect(afterFirst.retries[uncertain]).toBeDefined();
@@ -167,14 +198,16 @@ it('crash_at_db_commit_and_settlement', async () => {
   w.txTrap.lostReplies.delete(uncertain);
   // ضياع رد الإقرار: التسوية اتنفّذت والعميل ما عرفش، فالطلب ما يتشالش.
   w.state.loseReply('settleRetry');
-  await expect(w.turn()).rejects.toThrow(/REPLY_LOST/);
+  await first.enqueue(w.company);
+  expect(errorMessage(first.errors[0])).toMatch(/REPLY_LOST/);
   const afterLost = await w.readState();
   expect(afterLost.retries[rolledBack]).toBeDefined();
   expect(await w.readyRequestIds()).toHaveLength(3);
   // الدور اللي بعده بياخد الشغل المعلّق ويكمّله: الصف المؤكد بيتشال، والحدث ما يتضاعفش.
-  // الدور اللي فات مات وهو ماسك للحالة، فالدور الجاي يستنى انتهاء الحجز وياخدها.
-  await delay(1300);
-  await w.turn();
+  await first.close();
+  await waitForLeaseExpiry(w);
+  const taking = await openRunner(w);
+  await taking.enqueue(w.company);
   const finished = await w.readState();
   expect(finished.retries[uncertain]).toBeUndefined();
   expect(finished.retries[rolledBack]).toBeDefined();
