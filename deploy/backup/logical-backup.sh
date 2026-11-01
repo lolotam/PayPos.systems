@@ -26,6 +26,8 @@ restic cat config >/dev/null 2>&1 || restic init
 # --stdin-from-command fails the snapshot when pg_dump fails, so a truncated dump is never saved as a good one.
 restic backup --tag logical --host "$BACKUP_HOST" --stdin-filename "$PGDATABASE.dump" --stdin-from-command -- \
   pg_dump --format=custom
-restic forget --tag logical --host "$BACKUP_HOST" --prune \
+# --keep-last keeps the most recent snapshots whatever their day: --keep-daily alone keeps one per day, so each new
+# pre-merge backup made that day would drop the one before it (PP-110.2). restic keeps the union of all the policies.
+restic forget --tag logical --host "$BACKUP_HOST" --prune --keep-last "${KEEP_LAST:-7}" \
   --keep-daily "${KEEP_DAILY:-14}" --keep-weekly "${KEEP_WEEKLY:-8}" --keep-monthly "${KEEP_MONTHLY:-6}"
 checkin ''
