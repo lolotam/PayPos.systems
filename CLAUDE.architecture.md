@@ -120,7 +120,8 @@ NestJS, Drizzle, Fastify, BullMQ, React — none of these appear in a folder nam
 matrix only for the existing plan-version and service-override paths in `apps/api/src/modules/commissions/`.
 They take precedence over the corresponding package restrictions above for these uses only; they grant no
 permission to other modules or other commissions paths. [ADR-0054 §4.1](docs/adr/0054-commissions-engine-package-recovery-flags-and-read-path.md#41-scoped-layer-imports-for-48-249-1-pp-1081)
-records the uses and their boundaries, approved by Waleed in
+contains the exhaustive file-and-import list that defines the scoped paths in this table. A layer name is not
+an allowance for every file in that directory. Waleed approved these uses in
 [spec 059's owner record §42](docs/specs/059-commissions-statements/owner-questions.ar.md).
 
 | A file in the scoped paths… | additional permitted import | Boundary |
@@ -133,6 +134,11 @@ records the uses and their boundaries, approved by Waleed in
 
 These rows do not expand `domain/` dependencies, allow SQL or I/O in use cases, add a cross-module import arrow,
 or relax lint rules. All other matrix restrictions remain in force.
+
+**Enforcement limit for this addendum:** the supplemental file-and-import restrictions are **not CI-enforced**
+by the current lint configuration. They require code review against ADR-0054 §4.1's exhaustive list; passing
+CI does not authorize an import outside that list. The existing lint gates remain unchanged, and the automatic
+enforcement statement above does not claim coverage of these supplemental restrictions.
 
 `packages/commissions-engine` counts as the `commissions` module's own `domain/` in this table: only that module's
 `use-cases/`, `ports/` and `persistence/` may import it. The one other importer is `apps/admin/src/commissions/`, and
