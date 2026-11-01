@@ -66,7 +66,9 @@ async function peekCategoryId(
   businessId: string,
   serviceId: string,
 ): Promise<{ readonly category_id: string | null } | null> {
-  const [row] = await tx.execute<{ category_id: string | null }>(sql`SELECT category_id FROM services
+  const [row] = await tx.execute<{
+    category_id: string | null;
+  }>(sql`SELECT category_id FROM services
     WHERE company_id=${companyId} AND business_id=${businessId} AND id=${serviceId}`);
   return row ?? null;
 }
@@ -78,8 +80,7 @@ async function lockCategories(
   categoryIds: readonly string[],
 ): Promise<ReadonlyMap<string, ServiceCategoryLock>> {
   const locked = new Map<string, ServiceCategoryLock>();
-  // جملة لكل معرّف بالترتيب المطلوب: أقفال الصفوف بأقفال صفحات مختلفة ممكن ياخدوا ترتيب مختلف
-  // لو اتقفلوا بجملة واحدة، فالدورنين يختلفوا و يحصل تعارض.
+  // جملة لكل معرّف: جملة واحدة بـ IN مش بتضمن ترتيب أخذ الأقفال، والترتيب التصاعدي هو اللي بيمنع الـ deadlock.
   for (const categoryId of categoryIds) {
     const [row] = await tx.execute<CategoryRow>(sql`SELECT id,business_id,name_en,name_ar,closed_at
       FROM service_categories

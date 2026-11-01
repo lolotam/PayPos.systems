@@ -12,6 +12,7 @@ export interface ServiceCategoryLock {
 /**
  * يقرر التصنيف التالي بعد التعديل: الغياب يعني الإبقاء على المخزّن، و`null` يعني المسح.
  * التمييز بين الغياب والقيمة الفارغة هو الفرق بين عميل ما يعرفش الحقل وعميل طلب المسح.
+ * المعرّف بيترد بحروف صغيرة عشان يطابق الصف اللي بترجّعه قاعدة البيانات.
  *
  * @param input التصنيف المطلوب من العميل: معرّف، أو `null` للمسح، أو غيابه للإبقاء
  * @param current التصنيف المخزّن حالياً
@@ -21,7 +22,18 @@ export function nextCategoryId(
   input: string | null | undefined,
   current: string | null,
 ): string | null {
-  return input === undefined ? current : input;
+  return input === undefined ? current : normalizeCategoryId(input);
+}
+
+/**
+ * يوحّد معرّف التصنيف بحروف صغيرة: العقد بيقبل UUID بحروف كبيرة، وبوستجرس بترجّع `uuid` بحروف صغيرة.
+ * من غير التوحيد، البحث بالتصنيف بيفوّت الصف اللي القفل قراه والمقارنة بتشوف تغيير مش موجود.
+ *
+ * @param categoryId المعرّف كما وصل، أو `null`
+ * @returns المعرّف بحروف صغيرة، أو `null`
+ */
+export function normalizeCategoryId(categoryId: string | null): string | null {
+  return categoryId === null ? null : categoryId.toLowerCase();
 }
 
 /**
@@ -36,12 +48,14 @@ export function categoriesToLock(
   currentCategoryId: string | null,
   nextCategoryId: string | null,
 ): string[] {
-  return [...new Set([currentCategoryId, nextCategoryId].filter((id): id is string => id !== null))].sort();
+  return [
+    ...new Set([currentCategoryId, nextCategoryId].filter((id): id is string => id !== null)),
+  ].sort();
 }
 
 /**
  * يتأكد إن التصنيف قابل للتعيين: لازم يكون في النشاط نفسه ومفتوح.
- * التصنيف المغلق أو اللي في نشاط تاني بيتعامل كأنه مش موجود، عشان ما نكشفش حاجة عن غيرنا.
+ * تصنيف نشاط تاني بيترد كأنه مش موجود عشان الرد ما يكشفش وجوده؛ المقفول له رد خاص بيه.
  *
  * @param category الصف المقفل، أو `null` لو مش موجود في النشاط
  * @param businessId النشاط المالك للخدمة

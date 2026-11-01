@@ -1,6 +1,7 @@
 import { moneyToString, parseMoney } from '@pospay/domain';
 
 import { ServiceError } from './errors.ts';
+import { normalizeCategoryId } from './service-category-assignment.ts';
 import type { ServiceCommissionRule } from './service-commission-rule.ts';
 import { validateServiceDraft } from './service-validation.ts';
 
@@ -78,6 +79,7 @@ export function parseServicePrice(text: string): bigint {
 
 /**
  * يبني البنود الصافية من مدخلات العقد: تشذيب الأسماء، تحويل السعر للفلوس، وتحويل القاعدة للنوع الصافي.
+ * معرّف التصنيف بيتخزّن بحروف صغيرة عشان يطابق الصف اللي بترجّعه قاعدة البيانات.
  *
  * @param input مدخلات الإنشاء أو التعديل كما جاءت من العقد
  * @returns البنود الصافية المتحققة
@@ -90,7 +92,7 @@ export function serviceTerms(input: ServiceTermsInput): ServiceTerms {
     commission_rule: toCommissionRule(input.commission_rule),
     counts_toward_threshold: input.counts_toward_threshold ?? true,
     duration_minutes: input.duration_minutes ?? null,
-    category_id: input.category_id ?? null,
+    category_id: normalizeCategoryId(input.category_id ?? null),
   };
   validateServiceDraft(terms);
   return terms;
@@ -185,19 +187,28 @@ export function serviceSnapshot(record: ServiceRecord): ServiceView {
 
 /**
  * يبني رد الخدمة: نسخة الخدمة مع تسمية التصنيف اللي تحتها.
+ * التسمية بتتبني من الأسماء والإغلاق بس، فالحقول التانية في الصف المقفول (المعرّف والنشاط) ما بتوصلش للرد.
  * التدقيق بيستخدم serviceSnapshot بدل ده، فسجل التدقيق مبياخدش أسماء التصنيفات.
  *
  * @param record سجل النطاق بعد الحفظ
- * @param category تسمية التصنيف، أو `null` لو الخدمة من غير تصنيف
+ * @param category صف التصنيف المقفول، أو `null` لو الخدمة من غير تصنيف
  * @returns رد الخدمة جاهز للعقد
  */
 export function serviceResponse(
   record: ServiceRecord,
   category: ServiceCategoryLabel | null,
 ): ServiceResponse {
+  const label =
+    record.category_id === null || category === null
+      ? null
+      : {
+          name_en: category.name_en,
+          name_ar: category.name_ar,
+          closed_at: category.closed_at,
+        };
   return {
     ...serviceSnapshot(record),
-    category: record.category_id === null ? null : category,
+    category: label,
   };
 }
 

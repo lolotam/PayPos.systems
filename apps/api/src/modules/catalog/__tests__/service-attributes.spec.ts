@@ -43,7 +43,8 @@ const patch = (serviceId: string, body: object) =>
 /** تصنيف مفتوح إضافي في النشاط نفسه، عشان نقل الخدمة بين تصنيفين. */
 const extraOpenCategory = async (nameEn: string) => {
   const id = ids.newId();
-  await f.h.owner`INSERT INTO service_categories (company_id,id,business_id,name_en,name_ar,visibility)
+  await f.h
+    .owner`INSERT INTO service_categories (company_id,id,business_id,name_en,name_ar,visibility)
     VALUES (${f.company},${id},${f.business},${nameEn},'تصنيف إضافي','BUSINESS')`;
   return id;
 };
@@ -122,7 +123,8 @@ it('SV-A3 an update omitting both fields keeps them and writes no second audit r
 
 it('SV-A4 a null clears the duration and the category', async () => {
   const created = service.parse(
-    (await post({ ...termsFor('Cleared'), duration_minutes: 30, category_id: categories.open })).body,
+    (await post({ ...termsFor('Cleared'), duration_minutes: 30, category_id: categories.open }))
+      .body,
   );
   const response = await patch(
     created.id,
@@ -177,7 +179,8 @@ it('SV-A7 a stale revision is refused before the category is touched', async () 
   expect(response.statusCode).toBe(409);
   expect(response.json()).toMatchObject({ code: 'SERVICE_REVISION_CONFLICT' });
   expect(
-    await f.h.owner`SELECT category_id FROM services WHERE company_id=${f.company} AND id=${created.id}`,
+    await f.h
+      .owner`SELECT category_id FROM services WHERE company_id=${f.company} AND id=${created.id}`,
   ).toEqual([{ category_id: categories.open }]);
 });
 

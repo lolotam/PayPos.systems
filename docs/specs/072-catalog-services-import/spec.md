@@ -309,8 +309,9 @@ both owners' picks on SI-Q14 to SI-Q16 (2026-10-29).
     NOT NULL`, and `closed_by_category_id IS NULL OR closed_by_category_id = category_id`, so the marker always names the
     service's current category. **Moving a service to another category clears its marker**: a service closed with
     category A and then moved to B stays closed, now on its own, and reopening A does not reopen it.
-  - One index `services_business_category_idx` on `(company_id, business_id, category_id)` for the list filter (SI-Q10),
-    the close cascade and the reopen restore. Because the CHECK above makes the marker equal `category_id`, the reopen
+  - One index `services_business_category_idx` on `(company_id, business_id, category_id, id)` where `category_id IS NOT
+    NULL`, partial so a read that does not filter by category cannot take it over from the unique key, for the list filter
+    (SI-Q10), the close cascade and the reopen restore. Because the CHECK above makes the marker equal `category_id`, the reopen
     restore filters `category_id = X AND closed_by_category_id = X` and uses this index; no second index is needed. It is created `CONCURRENTLY` in its own second migration file of
     `32b-pre-1`, whose leading statement is the `CREATE INDEX CONCURRENTLY`: the ADR-0033 pattern of migration 0068,
     which the runner executes outside a transaction and recovers if a build was interrupted. The CHECK and the foreign key are added `NOT VALID` in the first migration and validated in the transactional tail of the second, so neither scans `services` under the lock of `ADD COLUMN` (the 0169/0170 pattern).

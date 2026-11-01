@@ -6,10 +6,13 @@ import {
   categoriesToLock,
   categoryChanged,
   nextCategoryId,
+  type ServiceCategoryLock,
 } from '../service-category-assignment.ts';
 import {
   newService,
   planServiceUpdate,
+  serviceResponse,
+  serviceTerms,
   serviceUpdateTerms,
   toCommissionRule,
   type ServiceRecord,
@@ -131,7 +134,10 @@ it('SV-A10 an unknown or foreign category is refused, a closed one is refused se
     assertCategoryAssignable({ business_id: 'biz-2', closed_at: null }, 'biz-1'),
   ).toThrow('SERVICE_CATEGORY_NOT_FOUND');
   expect(() =>
-    assertCategoryAssignable({ business_id: 'biz-1', closed_at: '2026-11-01T10:00:00.000Z' }, 'biz-1'),
+    assertCategoryAssignable(
+      { business_id: 'biz-1', closed_at: '2026-11-01T10:00:00.000Z' },
+      'biz-1',
+    ),
   ).toThrow('SERVICE_CATEGORY_CLOSED');
   expect(() =>
     assertCategoryAssignable({ business_id: 'biz-1', closed_at: null }, 'biz-1'),
@@ -148,7 +154,10 @@ it('SV-A11 the category change is reported only when the id really changed', () 
 
 it('SV-A12 the exported rule conversion keeps the wire-to-domain behaviour', () => {
   expect(toCommissionRule({ kind: 'PCT', value: 500 })).toEqual({ kind: 'PCT', value: 500n });
-  expect(toCommissionRule({ kind: 'FIXED', value: '2.000' })).toEqual({ kind: 'FIXED', value: 2000n });
+  expect(toCommissionRule({ kind: 'FIXED', value: '2.000' })).toEqual({
+    kind: 'FIXED',
+    value: 2000n,
+  });
   expect(toCommissionRule({ kind: 'ZERO' })).toEqual({ kind: 'ZERO' });
   expect(toCommissionRule({ kind: 'FOLLOW_PLAN' })).toEqual({ kind: 'FOLLOW_PLAN' });
   expect(() => toCommissionRule({ kind: 'PCT', value: 1.5 })).toThrow(
@@ -157,4 +166,28 @@ it('SV-A12 the exported rule conversion keeps the wire-to-domain behaviour', () 
   expect(() => toCommissionRule({ kind: 'ZERO', value: 1 } as never)).toThrow(
     'SERVICE_COMMISSION_RULE_INVALID',
   );
+});
+
+it('SV-A13 an upper-case category id comes out lower case, so the lock finds the row', () => {
+  const upper = '0192ABCD-0000-7000-8000-0000000005C1';
+  const lower = upper.toLowerCase();
+  expect(serviceTerms({ ...input(), category_id: upper }).category_id).toBe(lower);
+  expect(nextCategoryId(upper, lower)).toBe(lower);
+  expect(categoryChanged(lower, nextCategoryId(upper, lower))).toBe(false);
+});
+
+it('SV-A14 the response label carries the label fields only, not the locked row', () => {
+  const lock: ServiceCategoryLock = {
+    id: 'cat-1',
+    business_id: 'biz-1',
+    name_en: 'Open category',
+    name_ar: 'تصنيف مفتوح',
+    closed_at: null,
+  };
+  const response = serviceResponse(record({ category_id: 'cat-1' }), lock);
+  expect(response.category).toEqual({
+    name_en: 'Open category',
+    name_ar: 'تصنيف مفتوح',
+    closed_at: null,
+  });
 });

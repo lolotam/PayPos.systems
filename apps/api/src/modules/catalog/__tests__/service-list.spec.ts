@@ -149,7 +149,8 @@ it('SV-08e the category filter narrows the list, keeps the cursor stable and use
 
 it('the detail projection shows the category label and the closed mark of a closed category', async () => {
   const closed = ids.newId();
-  await f.h.owner`INSERT INTO service_categories (company_id,id,business_id,name_en,name_ar,visibility)
+  await f.h
+    .owner`INSERT INTO service_categories (company_id,id,business_id,name_en,name_ar,visibility)
     VALUES (${f.company},${closed},${f.business},'Closing category','تصنيف بيتقفل','BUSINESS')`;
   const tagged = await f.create.execute({
     companyId: f.company,

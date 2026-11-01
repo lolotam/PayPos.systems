@@ -39,14 +39,18 @@ export function ruleFrom(row: {
 
 /**
  * يبني تسمية التصنيف من أعمدة الانضمام؛ الـ null بالظبط معناه إن الخدمة من غير تصنيف.
- * الانضمام قفل يسار، فالتصنيف غير الموجود بيسيب الأعمدة كلها فاضية.
+ * الانضمام LEFT JOIN، فالتصنيف غير الموجود بيسيب الأعمدة كلها فاضية.
  */
 export function categoryFrom(row: {
   readonly category_id: string | null;
   readonly category_name_en: string | null;
   readonly category_name_ar: string | null;
   readonly category_closed_at: string | null;
-}): { readonly name_en: string; readonly name_ar: string; readonly closed_at: string | null } | null {
+}): {
+  readonly name_en: string;
+  readonly name_ar: string;
+  readonly closed_at: string | null;
+} | null {
   if (row.category_id === null) return null;
   return {
     name_en: row.category_name_en ?? '',

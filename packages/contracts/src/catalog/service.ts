@@ -49,11 +49,10 @@ export const serviceDurationMinutes = z
 
 // تسمية تصنيف الخدمة كما بتظهر في القوائم: الاسمان ووقت الإغلاق وقت التصنيف مقفول.
 export const serviceCategoryLabel = responseObject({
-    name_en: z.string(),
-    name_ar: z.string(),
-    closed_at: timestamp.nullable(),
-  })
-  .meta({ id: 'ServiceCategoryLabel' });
+  name_en: z.string(),
+  name_ar: z.string(),
+  closed_at: timestamp.nullable(),
+}).meta({ id: 'ServiceCategoryLabel' });
 
 const serviceFields = {
   name_en: serviceNameEn,
@@ -82,21 +81,20 @@ export const updateServiceInput = z
   .meta({ id: 'UpdateServiceInput' });
 
 export const service = responseObject({
-    id,
-    business_id: id,
-    name_en: serviceNameEn,
-    name_ar: serviceNameAr.nullable(),
-    price: servicePrice,
-    commission_rule: serviceCommissionRuleView,
-    counts_toward_threshold: z.boolean(),
-    duration_minutes: serviceDurationMinutes.nullable(),
-    category_id: id.nullable(),
-    category: serviceCategoryLabel.nullable(),
-    revision,
-    created_at: timestamp,
-    updated_at: timestamp,
-  })
-  .meta({ id: 'Service' });
+  id,
+  business_id: id,
+  name_en: serviceNameEn,
+  name_ar: serviceNameAr.nullable(),
+  price: servicePrice,
+  commission_rule: serviceCommissionRuleView,
+  counts_toward_threshold: z.boolean(),
+  duration_minutes: serviceDurationMinutes.nullable(),
+  category_id: id.nullable(),
+  category: serviceCategoryLabel.nullable(),
+  revision,
+  created_at: timestamp,
+  updated_at: timestamp,
+}).meta({ id: 'Service' });
 
 export const serviceListItem = service
   .pick({

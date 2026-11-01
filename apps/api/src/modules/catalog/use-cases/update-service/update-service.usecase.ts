@@ -32,7 +32,7 @@ export class UpdateServiceUseCase {
       const peek = await scope.peekCategoryId(command.businessId, command.serviceId);
       if (peek === null) throw new ServiceError('SERVICE_NOT_FOUND');
       const next = nextCategoryId(command.input.category_id, peek.category_id);
-      // أقفال التصنيفات تسبق قفل صف الخدمة: قفل الصف الأول يخلي الإغلاق المتزامن يسبق التعيين.
+      // أقفال التصنيفات تسبق قفل صف الخدمة، بنفس ترتيب أي كتابة على التصنيف، عشان التعديل والإغلاق ما يعملوش deadlock.
       const locked = await scope.lockCategories(
         command.businessId,
         categoriesToLock(peek.category_id, next),
@@ -43,7 +43,7 @@ export class UpdateServiceUseCase {
       if (current.category_id !== peek.category_id)
         throw new ServiceError('SERVICE_REVISION_CONFLICT');
       const terms = serviceUpdateTerms(command.input, current);
-      // التصنيف اللي بيتقفل مابقاش مفتوح بعد 32b-cat-2، فالتعيين لنفس التصنيف محتاجش فحص فتح.
+      // الإبقاء على نفس التصنيف مش تعيين جديد، فمش محتاج فحص الفتح؛ إغلاق التصنيف وأثره على خدماته شغل 32b-cat-2.
       if (categoryChanged(current.category_id, terms.category_id) && terms.category_id !== null)
         assertCategoryAssignable(locked.get(terms.category_id) ?? null, command.businessId);
       const plan = planServiceUpdate(

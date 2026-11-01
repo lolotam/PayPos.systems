@@ -4288,6 +4288,13 @@ export interface components {
             comment?: string;
         };
         ServicePrice: string;
+        ServiceDurationMinutes: number;
+        ServiceCategoryLabel: {
+            name_en: string;
+            name_ar: string;
+            /** Format: date-time */
+            closed_at: string | null;
+        };
         ServiceCommissionRule: {
             /** @enum {string} */
             kind: "FOLLOW_PLAN";
@@ -4309,6 +4316,9 @@ export interface components {
             price: components["schemas"]["ServicePrice"];
             commission_rule: components["schemas"]["ServiceCommissionRule"];
             counts_toward_threshold?: boolean;
+            duration_minutes?: components["schemas"]["ServiceDurationMinutes"] | null;
+            /** Format: uuid */
+            category_id?: string | null;
         };
         UpdateServiceInput: {
             expected_revision: number;
@@ -4317,6 +4327,9 @@ export interface components {
             price: components["schemas"]["ServicePrice"];
             commission_rule: components["schemas"]["ServiceCommissionRule"];
             counts_toward_threshold: boolean;
+            duration_minutes?: components["schemas"]["ServiceDurationMinutes"] | null;
+            /** Format: uuid */
+            category_id?: string | null;
         };
         Service: {
             /** Format: uuid */
@@ -4342,6 +4355,10 @@ export interface components {
                 value: components["schemas"]["ServicePrice"];
             };
             counts_toward_threshold: boolean;
+            duration_minutes: components["schemas"]["ServiceDurationMinutes"] | null;
+            /** Format: uuid */
+            category_id: string | null;
+            category: components["schemas"]["ServiceCategoryLabel"] | null;
             revision: number;
             /** Format: date-time */
             created_at: string;
@@ -4370,6 +4387,10 @@ export interface components {
                 value: components["schemas"]["ServicePrice"];
             };
             counts_toward_threshold: boolean;
+            duration_minutes: components["schemas"]["ServiceDurationMinutes"] | null;
+            /** Format: uuid */
+            category_id: string | null;
+            category: components["schemas"]["ServiceCategoryLabel"] | null;
             revision: number;
         };
         ServicePage: {
@@ -4381,6 +4402,8 @@ export interface components {
             cursor?: string;
             /** @default 20 */
             limit: number;
+            /** Format: uuid */
+            category_id?: string;
         };
         /** @enum {string} */
         ServiceCategoryVisibility: "BUSINESS" | "BRANCH";

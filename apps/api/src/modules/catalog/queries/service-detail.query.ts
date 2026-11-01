@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 
 import { toService, type ServiceDetailRow } from './service-projection.ts';
 
-// شاشة تعديل الخدمة: الانضمام قفل يسار عشان تسمية التصنيف وإغلاقه يوصلوا مع الخدمة نفسها.
+// شاشة تعديل الخدمة: الانضمام LEFT JOIN عشان تسمية التصنيف وإغلاقه يوصلوا مع الخدمة نفسها.
 export function serviceDetailStatement(companyId: string, businessId: string, serviceId: string) {
   return sql`
     SELECT s.id,s.business_id,s.name_en,s.name_ar,s.price,s.commission_rule_kind,s.commission_pct_bps,
