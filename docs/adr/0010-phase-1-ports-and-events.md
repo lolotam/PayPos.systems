@@ -254,3 +254,93 @@ The following parts of the 59b-2 design are **not** in this slice and land with 
 The decisions above stay as they are: the scheduler that drives them calls the claim core merged
 here, unchanged, and per-request diagnostics follow ADR-0037 §9 (safe error type/code and immediate
 cause type/code only) once that scheduler lands.
+
+## Addendum 2026-11-01 — 59b-2b: the fenced claim scheduler (PP-98 option A)
+
+### 7. The mechanism the owner chose
+
+PP-98's Q1 chose **option A** — the claim scheduler's progress lives in Redis, not in PostgreSQL. `apps/worker/src/modules/customers/persistence/redis-rating-claim-state.ts`
+implements the `RatingClaimState` port of `apps/worker/src/modules/customers/ports/rating-claim-state.port.ts`
+on **one STRING key per company**, `<prefix>:rating-claims:v1:{<companyId>}:state`, holding
+versioned JSON (`schema = 1`): a header (company, incarnation, version, owner token, lease, turn
+start, next ticket), the sweep (sweep id, captured upper bound `H`, cursor, phase), at most one
+page journal of at most F entries, and the retry map.
+
+- **Fenced state.** Every mutation carries `(companyId, incarnation, expectedVersion, ownerToken)`;
+  every accepted mutation increments the version. An expired owner can neither renew nor release,
+  and a command whose incarnation or version no longer matches is rejected as `STALE` rather than
+  silently overwriting. The fence coordinates the scheduler only: it never cancels a running
+  PostgreSQL transaction, and 2a's customer and request locks and its guarded `SCHEDULED → SENDING`
+  update remain the authority for at-most-once claims.
+- **Finite ID sweeps.** A sweep captures `H` — the largest visible request id for that company —
+  once, and traverses `cursor < id <= H` in ascending id order. The cursor is the id, never
+  `due_at`: ids are immutable, so the traversal is a keyset walk; a row inserted behind the
+  progress, or one that becomes due later, belongs to the next sweep. `H` is captured once per
+  sweep and is never extended by arrivals above it.
+- **An independent, bounded retry lane.** Reconsiderations live in their own map keyed by request
+  id, with at most `RETRY_CAPACITY = 2,048` entries. A request still `SCHEDULED` after an attempt
+  gets a retry ticket with its own eligibility and a tail position; the retry lane reserves at
+  most `RETRY_VISITS = 25` of them per turn, oldest ticket first, and never borrows from the
+  forward lane's `FORWARD_VISITS = 75`.
+- **Overflow and reconciliation reporting.** When the map is full or the encoded state would pass
+  `STATE_MAX_BYTES = 1_048_576`, the settlement records `OVERFLOW`, counts it and sets the
+  reconciliation flag instead of evicting an admitted ticket. The forward lane keeps running and
+  the refused rows are visited again by the next sweep; the cumulative evidence stays in the
+  state until a full sweep closes without overflow.
+- **Lane budgets.** F = 75 forward visits and R = 25 retry visits per service turn, with
+  `F + R ≤ 100`; neither lane borrows the other's reservation, so one turn never visits more
+  than 100 rows. The budgets live in
+  `apps/worker/src/modules/customers/domain/rating-claim-scheduling.ts`.
+
+### 8. The assumptions this mechanism rests on
+
+- **Redis coordinates, PostgreSQL decides.** The state holds ids, counters, timestamps and
+  protocol enums only — no customer id, phone, token, hash, message parameter or payload. A lost
+  or corrupt state therefore delays reconsiderations; it never grants a claim.
+- **Ids are immutable and unique.** The traversal order is the id order, so a request's place in
+  a sweep is stable. UUID order need not equal commit order, and `H` is a key bound rather than
+  an MVCC membership snapshot.
+- **The company is the unit of isolation.** The key carries the company id in its hash tag, so
+  two companies never share state, and a fence minted for one company is rejected for another.
+- **The lease is a technical bound, not an SLA.** `LEASE_MS = 120_000` and `MAX_TURN_MS = 180_000`
+  are the defaults. Ownership expires through stored timestamps and Redis `TIME`, and a lease time
+  is never compared with a business deadline.
+- **Bounded work per turn.** The JSON representation scans at most K entries to reserve retries
+  and serializes bounded state per mutation. It is O(K), not constant time; the byte cap plus the
+  page reserve `PAGE_RESERVE_BYTES = 65_536` is what keeps a page enrollment inside the budget.
+- **Nothing here can resend.** A claim that failed leaves its row `SCHEDULED` with a retry ticket;
+  a claim that succeeded is `SENDING` and terminal for the claim path. The at-most-once,
+  no-resend rule is 2a's, and this mechanism only decides *when* a row is looked at again.
+
+### 9. PP-97: the registration backoff is the outbox's backoff
+
+When a trigger event cannot register the company's scheduler, the processor's `deliver` returns
+`{ delivered: false, error: 'RATING_CLAIMS_SCHEDULE_RETRY', retryInMs: retryDelayMs(event.attempt) }`
+(`apps/worker/src/modules/customers/jobs/rating-claims.processor.ts`), using the same
+`retryDelayMs` the outbox dispatcher uses (`apps/worker/src/outbox/retry-policy.ts`): 5 s, 10 s,
+20 s … capped at one hour, and `null` on the tenth attempt, which parks the event. The stored
+event is not acknowledged on a registration failure, so a newer worker retries it. The
+registration path never touches the claim core: `ensureRegistered` upserts a missing scheduler and
+leaves a running one untouched.
+
+### 10. Dormancy: the shipped composition is closed
+
+`apps/worker/src/main.ts` installs `closedRatingClaimsLifecycle()` from
+`apps/worker/src/modules/customers/customers.module.ts`: `deliver` delegates straight to `next`,
+`ready` and `close` are no-ops, and `eventTypes` is empty. Nothing is constructed — no
+`rating-claims` Queue, no Worker, no Redis state adapter, no rating token codec. The active
+factory `createRatingClaimsRuntime` exists and the tests exercise it, but startup does not call
+it, and no environment flag opens it. The existing `createRatingSchedulingConsumer` stays
+registered: it stores `SCHEDULED` requests and never claims them. Activation is reserved for
+59b-3, whose reviewed change connects the active factory only after the sender, the template and
+the channel are ready (60-1, 60-2, 61-1 and the 2c recovery prerequisites).
+
+### 11. What stays with 2c: the Redis-loss boundary
+
+Losing Redis does not lose business state — the rows and their status stay in PostgreSQL — but it
+does lose the sweep cursor, the captured `H` and the retry map. 59b-2b invents no recovery
+policy for that. What it does provide is the mechanism a recovery needs: the state is re-created
+with a fresh incarnation, an old fence cannot touch the new state (the fencing acceptance covers
+exactly that), and `ensureRegistered` re-registers a company's scheduler from the fixture
+inventory. The production inventory of the companies that need a scheduler, the reconciliation of
+pre-activation `SENDING` rows and the runbook entry remain **59b-2c's release gate**.
