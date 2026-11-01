@@ -1,6 +1,6 @@
 <!--
 Sync Impact Report
-- 3.3.0 (2026-11-01, MINOR): Principle I sets the in-flight limit to five slices, started one after another rather than all at once; a
+- 3.3.0 (2026-11-01, MINOR): Principle I sets the limit to five task sessions (slices and other tasks together), started one after another rather than all at once; a
   slice that depends on another still waits until that one merges; shared files where each slice only adds its own line may change in parallel,
   merged in the manager's order with a rebase on `main` after each merge (Waleed, PP-111, `docs/owner-decisions.ar.md` item 48). Rationale: the
   green-on-own-head and merge-order numbering rules are unchanged; the limit moves and the disjoint-paths rule gains one narrow exception
@@ -75,7 +75,7 @@ spec at `docs/specs/NNN-<module>-<use-case>/spec.md` covering requirements, busi
 acceptance criteria, schema changes, API contract, permissions and tests. Implementation MUST
 follow this order: Zod contract → migration + RLS policy → domain functions + unit tests →
 use case → adapters (persistence, http) → integration tests → UI. A slice MUST NOT touch
-modules outside its scope without stating why. Five slices are kept in flight at all times, started one after another rather than all at once, chosen to be as unrelated as possible,
+modules outside its scope without stating why. Five task sessions (slices and other tasks together) are kept running at all times, started one after another rather than all at once, chosen to be as unrelated as possible,
 and only when their file paths are disjoint (except a shared file where each slice only adds its own line, such as the permission list, migration numbers or the
 OpenAPI contract: those merge in an order the manager sets, each later slice rebasing on `main`, PP-111.2) and no two of them change the same table; a slice that depends on another waits until that one merges.
 More than one may carry a migration, each tested on its own local Postgres; each merges only when it is green on its own head, and migration

@@ -8,7 +8,9 @@
 >
 > **What this does not override.** Every technical, architectural, database, security and testing rule stays exactly as written in `CLAUDE.md`, `CLAUDE.architecture.md`, `docs/06_Tech_Stack_Architecture_EN.md`, `docs/module-map.md`, `.specify/memory/constitution.md` and `docs/PRD.md`. If this file and a governing document disagree about a technical or security rule, the governing document wins and the conflict is reported to the owner.
 >
-> **Revised on 2026-10-31 (PP-91, PP-92, `docs/owner-decisions.ar.md` items 43–44):** GLM 5.3 Flash joins as an initial implementer for small, exactly pinned tasks, beside MiniMax. It counts toward the three-task limit (§13); a medium task (database or UI) is tried before anything bigger.
+> **Revised on 2026-10-31 (PP-91, PP-92, `docs/owner-decisions.ar.md` items 43–44):** GLM 5.3 Flash joins as an initial implementer for small, exactly pinned tasks, beside MiniMax. It counts toward the task-session limit (§13); a medium task (database or UI) is tried before anything bigger.
+>
+> **Revised on 2026-11-01 (PP-111, `docs/owner-decisions.ar.md` item 48):** five task sessions, started one after another, replace the three parallel tasks of PP-69; the manager owns the merge order, and shared add-one-line files may change in parallel (§13).
 >
 > Read it together with the six documents listed in `AGENTS.md`, and with `docs/decisions-site.md` for the decisions page.
 >
