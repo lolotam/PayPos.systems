@@ -97,6 +97,15 @@ it.each([
     'a zero service revision',
     { expected_service_revisions: [{ service_id: service, revision: 0 }] },
   ],
+  [
+    'a service quoted twice, case variants included',
+    {
+      expected_service_revisions: [
+        { service_id: service, revision: 2 },
+        { service_id: service.toUpperCase(), revision: 3 },
+      ],
+    },
+  ],
   ['an unknown key', { note: 'extra' }],
 ])('refuses a sale input with %s', (_scenario, change) => {
   expect(sellPackageInput.safeParse({ ...input, ...change }).success).toBe(false);

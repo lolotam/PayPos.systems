@@ -21,7 +21,12 @@ export const sellPackageInput = z
     customer_id: id,
     package_type_id: id,
     expected_type_revision: z.number().int().positive(),
-    expected_service_revisions: z.array(packageServiceRevision).min(1).max(20),
+    // خدمة واحدة لكل مكوّن: تكرارها يخلّي مقارنة العرض ملتبسة (أنهي نسخة تتقارن؟).
+    expected_service_revisions: z
+      .array(packageServiceRevision)
+      .min(1)
+      .max(20)
+      .refine((quote) => new Set(quote.map((entry) => entry.service_id)).size === quote.length),
     price_paid: sessionMoney,
     paid_method: packagePaidMethod,
     seller_employee_id: id,
