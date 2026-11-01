@@ -46,7 +46,9 @@ export interface RatingClaimsProcessorOptions {
 /** معالج المطالبة: يوجّه أحداث الزيارة إلى الجدولة، ويشغّل الدور من الطابور. */
 export interface RatingClaimsProcessor {
   /**
-   * يسجّل جدولة الشركة لو اتسجلت قبل، ويمرّر الحدث زي ما هو بعد كده.
+   * يسجّل جدولة الشركة لو الجدولة ناقصة، وبيسجّلها بس لأحداث الزيارة المعرّفة
+   * في RATING_CLAIMS_TRIGGERS؛ وأي حدث تاني بيمرّ على طول. ولو التسجيل فشل
+   * بيرجّع RATING_CLAIMS_SCHEDULE_RETRY عشان المرسّل يعيد المحاولة.
    *
    * @param event الحدث المسلّم من المرسِل
    * @param next المسلّم التالي للأحداث التانية
@@ -101,8 +103,8 @@ export async function closeRedisClient(client: Redis): Promise<void> {
 /**
  * يسجّل جدولة الشركة لو مش موجودة، من غير ما يعيد كتابة جدولة شغّالة.
  *
- * الجدولة الشغّالة معناها إن الدور بيتنفّذ كل دقيقة؛ إعادة كتابتها هتمسح التقدم
- * وتعيد الدور من أول حاجة.
+ * إعادة كتابة الجدولة بتعيد ضبط توقيت الدور، فالزيارة الجديدة كانت بتأجّل الدور
+ * كل مرة وبتخليه ما يوصلش لنهاية جولته.
  */
 async function registerCompany(queue: Queue, companyId: string): Promise<void> {
   const schedulerId = `${RATING_CLAIMS_QUEUE}-${companyId}`;

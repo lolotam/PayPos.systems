@@ -14,7 +14,7 @@ export const RETRY_VISITS = 25;
 /** أقصى عدد طلبات إعادة المحاولة اللي حالة الشركة الواحدة بتحملها. */
 export const RETRY_CAPACITY = 2048;
 
-/** أقل مدة بين إعادات النظر المتتالية لنفس الطلب. */
+/** أقصى مدة انتظار بين إعادات النظر المتتالية لنفس الطلب. */
 export const RETRY_BACKOFF_MS = 60_000;
 
 /** أقصى عدد زيارات الدور الواحد، عشان ما يتجاوزش 100 زيارة في دور واحد. */
@@ -168,23 +168,22 @@ export function rereadObservation(status: RatingRequestStatus): ClaimObservation
 }
 
 /**
- * وقت إعادة النظر التالي لطلب اتحاول وفضل مجدول.
+ * أقدم لحظة استحقاق في خريطة الإعادة، أو null لما الخريطة فاضية.
  *
- * الأساس هو now + 60 ثانية، لأن كل محاولة محتاجة فاصل قبل ما تتعاد. بس موعد
- * الاستحقاق المخزن لو في المستقبل بيقدّم الاستحقاق لحد اللحظة اللي الطلب بيستحق
- * فيها فعلاً، ومينفعش يبعده أكتر من السقف: موعد استحقاق بياكل المستقبل يبقى
- * مستحيل على إعادة المحاولة السريعة، والجولة الكاملة بتغطي اللي اتقدّم.
+ * الدالة بتاخد الشكل بس، مش نوع المنفذ، عشان طبقة الـ domain ما تعرفش حاجة عن
+ * ports؛ وعمرها ما بتحسب وقت، هي بتختار الأقدم من اللي اتقرا.
  *
- * @param now لحظة القرار المحقونة
- * @param storedDueAt موعد الاستحقاق المخزن في الصف، أو null لو مش متاح
- * @returns أول لحظة ينفع فيها إعادة النظر في الطلب
+ * @param retries خريطة الإعادة، مفتاحها معرّف الطلب
+ * @returns أقدم لحظة استحقاق بالمللي ثانية، أو null لما الخريطة فاضية
  */
-export function nextRetryEligibility(now: Date, storedDueAt: Date | null): Date {
-  const cap = new Date(now.getTime() + RETRY_BACKOFF_MS);
-  if (storedDueAt === null) return cap;
-  const due = storedDueAt.getTime();
-  if (due <= now.getTime()) return cap;
-  return due < cap.getTime() ? new Date(due) : cap;
+export function oldestEligibleAt(
+  retries: Readonly<Record<string, { readonly eligibleAt: number }>>,
+): number | null {
+  let oldest: number | null = null;
+  for (const retry of Object.values(retries)) {
+    if (oldest === null || retry.eligibleAt < oldest) oldest = retry.eligibleAt;
+  }
+  return oldest;
 }
 
 /** سبب انتهاء الدور: بيقول للمشغّل ليه الدور وقف. */
@@ -193,7 +192,7 @@ export type RatingClaimsEndReason =
   | 'ACQUIRE_BUSY'
   /** حالة الشركة في Redis مش صالحة، والدور ما بيعيدش تهيئة. */
   | 'STATE_CORRUPT'
-  /** السور اتغيّر في نص الدور: مالك تاني接手، أو النسخة اتغيّرت. */
+  /** السور اتغيّر في نص الدور: مالك تاني أخد الحالة، أو النسخة اتغيّرت. */
   | 'FENCE_LOST'
   /** سقف ملكية الدور اتقضى، فمفيش صف جديد بيبدأ. */
   | 'LIMIT_REACHED'
@@ -204,7 +203,7 @@ export type RatingClaimsEndReason =
  * ملخص الدور: أعداد التسويات وزيارات المسارين وسبب الانتهاء.
  *
  * الملخص مالوش أي معرّف: مفيش طلب ولا جولة ولا مفتاح، عشان يتكتب في السجل
- * без ما يسرّب بيانات المستأجر.
+ * من غير ما يسرّب بيانات المستأجر.
  */
 export interface RatingClaimsTurnSummary {
   /** عدد التسويات لكل مصير. */

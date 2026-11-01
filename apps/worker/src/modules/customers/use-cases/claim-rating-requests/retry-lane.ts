@@ -3,7 +3,7 @@ import {
   type ClaimObservation,
   type RetrySettlement,
 } from '../../domain/rating-claim-scheduling.ts';
-import type { RatingClaimsTurnState } from './claim-rating-requests.ts';
+import type { RatingClaimsTurnState } from './rating-claims-turn-state.ts';
 
 /**
  * مسار إعادة المحاولة: يحجز حتى R طلبات مستحقة، ويخدمهم واحد واحد بالتسلسل.
@@ -25,7 +25,8 @@ export async function runRetryLane<Transaction>(
   for (const reservation of reserved.value?.reservations ?? []) {
     if (turn.limitReached) return;
     await turn.renewLease();
-    if (turn.halted) return;
+    // التجديد نفسه ممكن يكشف سقف الدور، فمفيش طلب بيتلمس بعد السقف.
+    if (turn.halted || turn.limitReached) return;
     const observed = await turn.observe(reservation.requestId);
     const settlement = retrySettlement(observed.observation);
     const settled = await ports.state.settleRetry(
@@ -52,9 +53,16 @@ export async function runRetryLane<Transaction>(
  * أو اللي نتيجته مجهولة بيدخل تاني.
  */
 function retrySettlement(observation: ClaimObservation): RetrySettlement {
-  if (observation.kind === 'FUTURE_UNATTEMPTED') return 'RETRY';
   const settlement = settleClaim(observation);
-  if (settlement === 'TERMINAL' || settlement === 'ABSENT' || settlement === 'RETRY')
-    return settlement;
-  return 'RETRY';
+  switch (settlement) {
+    case 'TERMINAL':
+    case 'ABSENT':
+    case 'RETRY':
+      return settlement;
+    // الطلب المستقبلي ما ليوش تسوية هنا، والطلب اللي مسار تاني بيمرّره بيرجع
+    // للقائمة؛ مسار الإعادة هو اللي بيخدمه.
+    case 'FUTURE_UNATTEMPTED':
+    case 'DELEGATED':
+      return 'RETRY';
+  }
 }

@@ -5,13 +5,11 @@ import {
   LEASE_MS,
   MAX_VISITS_PER_TURN,
   RENEWAL_INTERVAL_MS,
-  RETRY_BACKOFF_MS,
   RETRY_CAPACITY,
   RETRY_VISITS,
   assertVisitBudget,
   isClaimable,
   leaseRenewalDue,
-  nextRetryEligibility,
   rereadObservation,
   settleClaim,
   type ClaimableRequest,
@@ -85,28 +83,6 @@ describe('تسوية مصير الطلب', () => {
 
   it('future_row_never_enters_the_retry_map', () => {
     expect(settleClaim({ kind: 'FUTURE_UNATTEMPTED' })).not.toBe('RETRY');
-  });
-});
-
-// الاستحقاق: الأساس now + 60 ثانية، وموعد الاستحقاق المخزن يقدر يقدّم إعادة
-// النظر بس ما يبعدهاش أكتر من السقف.
-describe('وقت إعادة النظر', () => {
-  it.each<[string, Date | null, number]>([
-    ['no_stored_due_at_uses_the_full_backoff', null, RETRY_BACKOFF_MS],
-    ['past_due_at_keeps_the_full_backoff', new Date(now.getTime() - 5_000), RETRY_BACKOFF_MS],
-    ['near_future_due_at_pulls_the_retry_earlier', new Date(now.getTime() + 10_000), 10_000],
-    [
-      'far_future_due_at_never_defers_past_the_cap',
-      new Date(now.getTime() + 10 * RETRY_BACKOFF_MS),
-      RETRY_BACKOFF_MS,
-    ],
-  ])('%s', (_scenario, storedDueAt, offset) => {
-    expect(nextRetryEligibility(now, storedDueAt).getTime()).toBe(now.getTime() + offset);
-  });
-
-  it('eligibility_never_precedes_the_current_moment', () => {
-    const due = new Date(now.getTime() - 60_000);
-    expect(nextRetryEligibility(now, due).getTime()).toBeGreaterThan(now.getTime());
   });
 });
 

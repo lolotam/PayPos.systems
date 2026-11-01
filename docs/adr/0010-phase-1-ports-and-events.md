@@ -261,7 +261,10 @@ cause type/code only) once that scheduler lands.
 
 PP-98's Q1 chose **option A** — the claim scheduler's progress lives in Redis, not in PostgreSQL. `apps/worker/src/modules/customers/persistence/redis-rating-claim-state.ts`
 implements the `RatingClaimState` port of `apps/worker/src/modules/customers/ports/rating-claim-state.port.ts`
-on **one STRING key per company**, `<prefix>:rating-claims:v1:{<companyId>}:state`, holding
+— the factory is in that file, the Redis transport and the technical limits are in
+`redis-rating-claim-state.context.ts`, and the command groups are in
+`redis-rating-claim-state.commands.ts` — on **one STRING key per company**,
+`<prefix>:rating-claims:v1:{<companyId>}:state`, holding
 versioned JSON (`schema = 1`): a header (company, incarnation, version, owner token, lease, turn
 start, next ticket), the sweep (sweep id, captured upper bound `H`, cursor, phase), at most one
 page journal of at most F entries, and the retry map.
@@ -269,9 +272,13 @@ page journal of at most F entries, and the retry map.
 - **Fenced state.** Every mutation carries `(companyId, incarnation, expectedVersion, ownerToken)`;
   every accepted mutation increments the version. An expired owner can neither renew nor release,
   and a command whose incarnation or version no longer matches is rejected as `STALE` rather than
-  silently overwriting. The fence coordinates the scheduler only: it never cancels a running
-  PostgreSQL transaction, and 2a's customer and request locks and its guarded `SCHEDULED → SENDING`
-  update remain the authority for at-most-once claims.
+  silently overwriting. A renewal is refused with `LIMIT` once the time left to the turn ceiling
+  cannot hold another full lease, so a renewed lease never reaches past the ceiling: the turn
+  stops claiming, ends as `LIMIT_REACHED` and leaves the journal recoverable. The retry entries the
+  same owner holds are renewed with it, so a long retry lane does not lose its fence in the middle.
+  The fence coordinates the scheduler only: it never cancels a running PostgreSQL transaction, and
+  2a's customer and request locks and its guarded `SCHEDULED → SENDING` update remain the authority
+  for at-most-once claims.
 - **Finite ID sweeps.** A sweep captures `H` — the largest visible request id for that company —
   once, and traverses `cursor < id <= H` in ascending id order. The cursor is the id, never
   `due_at`: ids are immutable, so the traversal is a keyset walk; a row inserted behind the
@@ -283,20 +290,26 @@ page journal of at most F entries, and the retry map.
   most `RETRY_VISITS = 25` of them per turn, oldest ticket first, and never borrows from the
   forward lane's `FORWARD_VISITS = 75`.
 - **Overflow and reconciliation reporting.** When the map is full or the encoded state would pass
-  `STATE_MAX_BYTES = 1_048_576`, the settlement records `OVERFLOW`, counts it and sets the
-  reconciliation flag instead of evicting an admitted ticket. The forward lane keeps running and
-  the refused rows are visited again by the next sweep; the cumulative evidence stays in the
-  state until a full sweep closes without overflow.
+  `STATE_MAX_BYTES − PAGE_RESERVE_BYTES` (1_048_576 − 65_536 bytes), the settlement records
+  `OVERFLOW`, counts it and sets the reconciliation flag instead of evicting an admitted ticket.
+  The page reserve bounds what may be **added**: a settlement that only removes an entry is stored
+  against the full `STATE_MAX_BYTES`, because a removal never grows the state. The forward lane
+  keeps running and the refused rows are visited again by the next sweep. Only `reconcileRequired`
+  is cleared by a clean full sweep — `overflowCount` and `overflowSince` stay in the state until the
+  state itself is recreated.
 - **Lane budgets.** F = 75 forward visits and R = 25 retry visits per service turn, with
   `F + R ≤ 100`; neither lane borrows the other's reservation, so one turn never visits more
   than 100 rows. The budgets live in
-  `apps/worker/src/modules/customers/domain/rating-claim-scheduling.ts`.
+  `apps/worker/src/modules/customers/domain/rating-claim-scheduling.ts`, and the turn's own forward
+  budget is the number the page enrollment is checked against, so the journal can never hold more
+  rows than the turn is allowed to visit.
 
 ### 8. The assumptions this mechanism rests on
 
 - **Redis coordinates, PostgreSQL decides.** The state holds ids, counters, timestamps and
-  protocol enums only — no customer id, phone, token, hash, message parameter or payload. A lost
-  or corrupt state therefore delays reconsiderations; it never grants a claim.
+  protocol enums only — no customer id, phone, rating token, hash, message parameter or payload.
+  The only tokens in it are the protocol's own (`ownerToken`, `workToken`). A lost or corrupt state
+  therefore delays reconsiderations; it never grants a claim.
 - **Ids are immutable and unique.** The traversal order is the id order, so a request's place in
   a sweep is stable. UUID order need not equal commit order, and `H` is a key bound rather than
   an MVCC membership snapshot.

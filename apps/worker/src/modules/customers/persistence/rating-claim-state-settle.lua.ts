@@ -50,8 +50,8 @@ local function bump(state)
   return state['version']
 end
 
--- The eligibility window: the backoff is the floor, the stored due time can only
--- pull it earlier, and the cap keeps an obsolete due time from deferring forever.
+-- نافذة الاستحقاق: السقف هو أقصى انتظار، والموعد المخزن يقدّم الاستحقاق بس
+-- ما بيقدّمه لحد ما الطلب يبقى مستحق فعلاً.
 local function eligible_at(now, dueAt, backoffMs)
   local cap = now + backoffMs
   if type(dueAt) ~= 'number' then return cap end
@@ -66,8 +66,8 @@ local function count_entries(retries)
   return total
 end
 
--- The overflow evidence: the count grows, the first moment is kept, and the
--- sweep is marked for reconciliation until a clean sweep completes.
+-- دليل الفيضان: العدّاد بيزيد، وأول لحظة بتتحفظ، والعلامة بتقول إن الجولة
+-- محتاجة مصاحة لحد ما جولة كاملة تقفل من غير فيضان.
 local function record_overflow(state, now)
   state['overflowCount'] = state['overflowCount'] + 1
   if state['overflowSince'] == nil then state['overflowSince'] = now end
@@ -143,9 +143,9 @@ if env['action'] == 'settlePage' then
   end
   if overflowed then record_overflow(state, now) end
   if bump(state) == nil then return reply('LIMIT', version) end
-  -- A retry that does not fit the encoded state is not admitted: the item is
-  -- released to the full sweep and the overflow is recorded, so the journal can
-  -- still drain instead of staying open for ever.
+  -- إعادة المحاولة اللي ما بتتسعش للحالة المرمّزة ما بتتقبلش: البند بيتسلم
+  -- للجولة الكاملة والفيضان بيتسجل، عشان المجلة تفضل تفضّ من غير ما تفضل
+  -- مفتوحة للأبد.
   if inserted ~= nil and #cjson.encode(state) > limit then
     retries[requestId] = nil
     state['nextTicket'] = inserted['ticket']
@@ -156,7 +156,10 @@ if env['action'] == 'settlePage' then
     if not store(KEYS[1], state, env['maxBytes']) then return reply('LIMIT', version) end
     return reply('OVERFLOW', state['version'], state)
   end
-  if not store(KEYS[1], state, limit) then return reply('LIMIT', version) end
+  -- التسوية اللي بتشيل بند بس ما بتكبرش الحالة، فالسقف الكامل ليها؛ والتسوية
+  -- اللي بتضيف إعادة محاولة لازم تسيب المساحة المحجوزة للصفحة الجاية.
+  local storeLimit = inserted == nil and env['maxBytes'] or limit
+  if not store(KEYS[1], state, storeLimit) then return reply('LIMIT', version) end
   return reply('OK', state['version'], state)
 end
 
@@ -183,7 +186,10 @@ else
   return reply('STALE', version)
 end
 if bump(state) == nil then return reply('LIMIT', version) end
-local limit = env['maxBytes'] - env['reserveBytes']
+-- التسوية اللي بتشيل الطلب من الخريطة ما بتكبرش الحالة، فالسقف الكامل ليها؛
+-- والتسوية اللي بترجّعه لآخر الطابور لازم تسيب المساحة المحجوزة للصفحة الجاية.
+local removal = settlement == 'TERMINAL' or settlement == 'ABSENT'
+local limit = removal and env['maxBytes'] or env['maxBytes'] - env['reserveBytes']
 if not store(KEYS[1], state, limit) then return reply('LIMIT', version) end
 return reply('OK', state['version'], state)
 `;

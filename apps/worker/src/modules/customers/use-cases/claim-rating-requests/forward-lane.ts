@@ -1,6 +1,6 @@
 import { settleClaim, type ClaimSettlement } from '../../domain/rating-claim-scheduling.ts';
 import type { ClaimStatePage, ClaimStatePageEntry } from '../../ports/rating-claim-state.port.ts';
-import type { RatingClaimsTurnState } from './claim-rating-requests.ts';
+import type { RatingClaimsTurnState } from './rating-claims-turn-state.ts';
 
 /**
  * المسار الأمامي: بيكمل صفحة مسجّلة أو بيسجّل صفحة جديدة، وبيقفل الجولة لما تخلص.
@@ -41,6 +41,7 @@ export async function runForwardLane<Transaction>(
     pageId,
     entries,
     exhausted,
+    turn.budget.forward,
   );
   turn.accept(enrolled);
   if (enrolled.code !== 'OK') {
@@ -58,7 +59,9 @@ async function workPage<Transaction>(
   for (const entry of page.entries) {
     if (turn.limitReached) return;
     await turn.renewLease();
-    if (turn.halted) return;
+    // التجديد نفسه ممكن يكشف سقف الدور، فمفيش بند بيتلمس بعد السقف؛
+    // والدور بيقف لوحده من غير مطالبة من غير سور.
+    if (turn.halted || turn.limitReached) return;
     const settlement = await settleEntry(turn, page.pageId, entry);
     if (settlement === null) return;
     turn.counts[settlement] += 1;

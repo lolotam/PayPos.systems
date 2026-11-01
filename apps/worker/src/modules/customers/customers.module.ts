@@ -58,7 +58,7 @@ export function createRatingSchedulingConsumer(deps: RatingScheduleDeps): Outbox
   const useCase = buildScheduleUseCase(deps);
   return {
     id: 'customers.rating-scheduling-v1',
-    eventTypes: ['ServiceSessionRecorded', 'ServiceSessionLinesAdded', 'ServiceLineChanged'],
+    eventTypes: RATING_CLAIMS_TRIGGERS,
     handle: (tx, event) => onServiceSessionEvent(useCase, tx, event),
   };
 }

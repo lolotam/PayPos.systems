@@ -2,9 +2,12 @@
  * سكربت Redis: تجديد حجز المالك أو تسليم الدور، وقراءة الحالة كما هي.
  *
  * التجديد بيتحسب من Redis TIME وما بيعديش سقف ملكية الدور (بداية الدور + 180
- * ثانية). التسليم بيرفع الملكية بس وبيسيب التقدّم وخريطة الإعادة زي ما هما.
+ * ثانية): لو الوقت المتبقي للسقف مش كافي لحجز كامل، التجديد بيرجع LIMIT
+ * والدور بيوقّف نفسه بدل ما يكمّل من غير سور. والحجوزات اللي المالك نفسه
+ * ماسكها بتتجدد معاه، عشان المسار الطويل للإعادة ما يقعش BUSY والسور لسه صالح.
+ * التسليم بيرفع الملكية بس وبيسيب التقدّم وخريطة الإعادة زي ما هما.
  * المالك اللي حجزه انتهى مش بيقدر يجدّد ولا يسلّم، حتى لو محدش أخذ الحالة بعده.
- * والقراءة مبتعملش أي تعديل، ودي بتستخدمها التعافي بعد ضياع رد أمر.
+ * والقراءة مبتعملش أي تعديل، ودي طريق المراقبة اللي بيقرأ الحالة من برّه.
  *
  * السكربت مستقل بذاته لأن Redis مفيش فيه استيراد لسكربت تاني.
  */
@@ -63,17 +66,31 @@ if env['action'] == 'read' then return reply('OK', version, state) end
 if state['incarnation'] ~= env['incarnation'] then return reply('STALE', version) end
 if state['version'] ~= env['version'] then return reply('STALE', version) end
 if state['ownerToken'] ~= env['ownerToken'] then return reply('BUSY', version) end
-local leaseUntil = state['leaseUntil']
-if type(leaseUntil) ~= 'number' or leaseUntil <= now then return reply('BUSY', version) end
 
+-- سقف الدور بيتحسب قبل حارس الحجز: لو الوقت خلص لازم يوصل LIMIT مش BUSY،
+-- وإلا الدور يقف بفقد سور كاذب بدل ما يوقّف نفسه وهو مالك الحالة.
 if env['action'] == 'renew' then
   local turnStartedAt = state['turnStartedAt']
   if type(turnStartedAt) ~= 'number' then return reply('STALE', version) end
   local ceiling = turnStartedAt + env['maxTurnMs']
-  if now >= ceiling then return reply('LIMIT', version) end
+  -- تجديد ما يبقاش حجز كامل معناها إن وقت الدور خلص؛ الحجز الجديد ما بيعديش
+  -- السقف، فالدور يوقّف بدل ما يكمّل مطالبة من غير سور.
+  if now + env['leaseMs'] > ceiling then return reply('LIMIT', version) end
+end
+
+local leaseUntil = state['leaseUntil']
+if type(leaseUntil) ~= 'number' or leaseUntil <= now then return reply('BUSY', version) end
+
+if env['action'] == 'renew' then
   local renewed = now + env['leaseMs']
-  if renewed > ceiling then renewed = ceiling end
   state['leaseUntil'] = renewed
+  -- حجوزات الإعادة اللي المالك ده ماسكها بتتجدد معاه، وإلا المسار الطويل
+  -- للإعادة بيقع BUSY وسط ما السور لسه صالح.
+  for _, entry in pairs(state['retries']) do
+    if entry['ownerToken'] == env['ownerToken'] then
+      entry['leaseUntil'] = renewed
+    end
+  end
   if bump(state) == nil then return reply('LIMIT', version) end
   if not store(KEYS[1], state, env['maxBytes']) then return reply('LIMIT', version) end
   return reply('OK', state['version'], state)

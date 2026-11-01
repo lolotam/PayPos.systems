@@ -97,11 +97,11 @@ export interface ClaimStateSnapshot {
   readonly retries: Readonly<Record<string, ClaimStateRetry>>;
   /** عدد مرات الفيضان بالتراكم. */
   readonly overflowCount: number;
-  /** أول لحظة حصل فيها فيضان في السلسلة الحالية. */
+  /** أول فيضان من وقت ما الحالة اتعملت؛ مش بيتصفّر غير لما الحالة تتعمل من جديد. */
   readonly overflowSince?: number;
   /** هل لازم جولة كاملة تعمل مصالحة. */
   readonly reconcileRequired: boolean;
-  /** آخر جولة كاملة نجحت من غير فيضان. */
+  /** آخر جولة كاملة اتقفلت، حتى لو اتقفلت وفيها فيضان. */
   readonly lastCompletedSweepId?: string;
 }
 
@@ -167,6 +167,8 @@ export interface RatingClaimState {
    * @param pageId معرّف الصفحة
    * @param entries طلبات الصفحة ورموز شغلها الطازجة
    * @param exhausted هل الصفحة دي آخر الجولة
+   * @param maxEntries ميزانية الدور الأمامية، وهي أقصى عدد بنود الصفحة المسموح؛
+   *   ولما ما تتحدّدش، الحد الافتراضي في الـ domain هو المرجع
    * @returns النتيجة واللقطة بعد التسجيل
    */
   enrollPage(
@@ -176,6 +178,7 @@ export interface RatingClaimState {
     pageId: string,
     entries: readonly ClaimStatePageEntry[],
     exhausted: boolean,
+    maxEntries?: number,
   ): Promise<ClaimStateResult<ClaimStateSnapshot>>;
   /**
    * يحجز إعادات المحاولة المستحقة، الأقدم تذكرة الأول. المجدول بيحتاجها عشان
@@ -237,11 +240,14 @@ export interface RatingClaimState {
    */
   finish(fence: ClaimStateFence, sweepId: string): Promise<ClaimStateResult<ClaimStateSnapshot>>;
   /**
-   * يقرأ الحالة من غير أي تعديل، عشان التعافي بعد ضياع رد أمر. المجدول بيحتاجها
-   * عشان يشوف نسخة الحالة ورموز الشغل قبل ما يعيد المحاولة.
+   * يقرأ الحالة من غير أي تعديل: بيرجّع نسخة الحالة ورقمها والجولة الجارية
+   * وخريطة الإعادة زي ما هي مخزّنة.
+   *
+   * مفيش أمر تاني في الإنتاج بيعتمد عليها؛ دي طريق المراقبة والاختبارات عشان
+   * يشوفوا حالة الشركة من برّه من غير ما يغيّروها.
    *
    * @param companyId الشركة المالكة للحالة
-   * @returns النتيجة واللقطة
+   * @returns النتيجة واللقطة، أو كود خطأ لما الحالة مش موجودة أو تالفة
    */
   read(companyId: string): Promise<ClaimStateResult<ClaimStateSnapshot>>;
 }
