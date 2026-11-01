@@ -32,7 +32,7 @@ export function createCommissionLineProjectionScope(
       if (lineIds.length === 0) return [];
       const rows = await tx.execute<HeadRow>(sql`SELECT line_id AS "lineId",revision,period
         FROM commission_line_heads
-        WHERE company_id=app_company_id() AND line_id=ANY(${lineIds}::uuid[])`);
+        WHERE company_id=app_company_id() AND line_id=ANY(ARRAY[${sql.join(lineIds.map((lineId) => sql`${lineId}`), sql`,`)}]::uuid[])`);
       return rows;
     },
     businessTimeZone: (companyId, businessId) => businessTimeZone(tx, companyId, businessId),
@@ -61,7 +61,7 @@ async function replaceLines(
   await upsertHeads(tx, replacements.map((replacement) => replacement.head));
   const lineIds = replacements.map((replacement) => replacement.head.lineId);
   await tx.execute(sql`DELETE FROM commission_lines
-    WHERE company_id=app_company_id() AND line_id=ANY(${lineIds}::uuid[])`);
+    WHERE company_id=app_company_id() AND line_id=ANY(ARRAY[${sql.join(lineIds.map((lineId) => sql`${lineId}`), sql`,`)}]::uuid[])`);
   await insertPerformerRows(tx, replacements.flatMap((replacement) => replacement.rows));
 }
 

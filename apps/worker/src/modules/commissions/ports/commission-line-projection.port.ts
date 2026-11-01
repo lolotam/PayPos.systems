@@ -72,16 +72,41 @@ export interface CommissionPeriodReopenInput {
 }
 
 export interface CommissionLineProjectionScope {
-  /** يقفل هويات البنود تصاعدياً قبل قراءة مراجعاتها حتى تتسلسل الأحداث المتسابقة. */
+  /**
+   * يقفل هويات البنود تصاعدياً قبل قراءة مراجعاتها حتى تتسلسل الأحداث المتسابقة.
+   *
+   * @param lineIds هويات البنود المطلوب قفلها
+   */
   lockLines(lineIds: readonly string[]): Promise<void>;
-  /** يرجع مراجعات وشهور الرؤوس المحفوظة بعد الأقفال لاستبعاد القديم وحساب المتأثر. */
+  /**
+   * يرجع مراجعات وشهور الرؤوس المحفوظة بعد الأقفال لاستبعاد القديم وحساب المتأثر.
+   *
+   * @param lineIds هويات البنود المطلوب قراءة رؤوسها
+   */
   readHeads(lineIds: readonly string[]): Promise<readonly HeldCommissionLineHead[]>;
-  /** يرجع منطقة النشاط لحساب الشهر الحالي، أو null عندما لا يكون النشاط موجوداً. */
+  /**
+   * يرجع منطقة النشاط لحساب الشهر الحالي، أو null عندما لا يكون النشاط موجوداً.
+   *
+   * @param companyId هوية الشركة صاحبة النشاط
+   * @param businessId هوية النشاط المطلوب قراءة منطقته الزمنية
+   */
   businessTimeZone(companyId: string, businessId: string): Promise<string | null>;
-  /** يقفل المتأثر والمرشحين مرة واحدة ويرفض المغلق من المتأثر قبل أي كتابة. */
+  /**
+   * يقفل المتأثر والمرشحين مرة واحدة ويرفض المغلق من المتأثر قبل أي كتابة.
+   *
+   * @param input الشهور المتأثرة والمرشحة ومولّد هويات الكشوف الجديدة
+   */
   lockPeriods(input: CommissionPeriodLockInput): Promise<readonly LockedStatementPeriod[]>;
-  /** يستبدل رؤوس البنود وصفوف منفّذيها دفعة واحدة داخل معاملة الحدث. */
+  /**
+   * يستبدل رؤوس البنود وصفوف منفّذيها دفعة واحدة داخل معاملة الحدث.
+   *
+   * @param replacements لقطات الرؤوس وصفوف المنفّذين الأحدث
+   */
   replaceLines(replacements: readonly CommissionLineReplacement[]): Promise<void>;
-  /** يرجع شهور REVIEWED المتأثرة فقط إلى DRAFT مع مسح دليل المراجعة. */
+  /**
+   * يرجع شهور REVIEWED المتأثرة فقط إلى DRAFT مع مسح دليل المراجعة.
+   *
+   * @param input النشاط والشهور المتأثرة المطلوب إعادة فتحها
+   */
   reopenReviewed(input: CommissionPeriodReopenInput): Promise<void>;
 }

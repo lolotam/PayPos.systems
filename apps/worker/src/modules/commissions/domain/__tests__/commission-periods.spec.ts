@@ -19,21 +19,39 @@ it('uses the supplied timezone rather than the process timezone', () => {
   expect(currentBusinessPeriod(instant, 'America/New_York')).toBe('2026-10');
 });
 
-it('expands each affected month through the current month without duplicates', () => {
-  expect(candidateCommissionPeriods(['2026-10', '2026-11'], '2026-12')).toEqual([
-    '2026-10',
-    '2026-11',
-    '2026-12',
-  ]);
+it.each([
+  {
+    affected: ['2026-11'],
+    current: '2027-02',
+    expected: ['2026-11', '2026-12', '2027-01', '2027-02'],
+  },
+  {
+    affected: ['2026-12'],
+    current: '2027-01',
+    expected: ['2026-12', '2027-01'],
+  },
+  {
+    affected: ['2027-01'],
+    current: '2027-01',
+    expected: ['2027-01'],
+  },
+  {
+    affected: ['2027-01'],
+    current: '2026-12',
+    expected: ['2027-01'],
+  },
+  {
+    affected: ['2026-12', '2026-11'],
+    current: '2027-01',
+    expected: ['2026-11', '2026-12', '2027-01'],
+  },
+])('returns the exact candidates for $affected through $current', ({ affected, current, expected }) => {
+  expect(candidateCommissionPeriods(affected, current)).toEqual(expected);
 });
 
-it('keeps a future affected month as its own only candidate', () => {
-  expect(candidateCommissionPeriods(['2027-01'], '2026-12')).toEqual(['2027-01']);
-});
-
-it('locks the affected and candidate months together but keeps their identities separate', () => {
-  expect(commissionPeriodLockPlan(['2026-11', '2026-10', '2026-11'], '2026-12')).toEqual({
-    affectedPeriods: ['2026-10', '2026-11'],
-    periodsToLock: ['2026-10', '2026-11', '2026-12'],
+it('locks the full ascending range while returning only affected months as affected', () => {
+  expect(commissionPeriodLockPlan(['2026-12', '2026-11', '2026-12'], '2027-02')).toEqual({
+    affectedPeriods: ['2026-11', '2026-12'],
+    periodsToLock: ['2026-11', '2026-12', '2027-01', '2027-02'],
   });
 });

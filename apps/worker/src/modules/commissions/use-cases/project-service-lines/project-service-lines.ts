@@ -1,4 +1,9 @@
 import { allocateLineShares } from '@pospay/commissions-engine';
+import type {
+  ServiceLineChanged,
+  ServiceSessionLinesAdded,
+  ServiceSessionRecorded,
+} from '@pospay/contracts';
 import { moneyToString, parseMoney } from '@pospay/domain';
 
 import {
@@ -13,7 +18,10 @@ import type {
   CommissionLineEventInput,
   CommissionLineSnapshot,
 } from '../../domain/commission-line-types.ts';
-import { CommissionBusinessMissingError } from '../../domain/errors.ts';
+import {
+  CommissionBusinessMissingError,
+  CommissionLineEventInvalidError,
+} from '../../domain/errors.ts';
 import type {
   Clock,
   CommissionLinePerformerWrite,
@@ -21,6 +29,19 @@ import type {
   CommissionLineReplacement,
   IdGenerator,
 } from '../../ports/commission-line-projection.port.ts';
+
+type CommissionInputEventPayload =
+  | ServiceSessionRecorded
+  | ServiceSessionLinesAdded
+  | ServiceLineChanged;
+
+interface CommissionInputEventEnvelope {
+  readonly aggregateType: string;
+  readonly aggregateId: string;
+  readonly companyId: string;
+}
+
+export { CommissionLineEventInvalidError } from '../../domain/errors.ts';
 
 /** يطبّق أحدث لقطات بنود الخدمة على إسقاط العمولة ويفتح مراجعة الشهر المتأثر عند الحاجة. */
 export class ProjectServiceLines {
@@ -54,6 +75,44 @@ export class ProjectServiceLines {
       .map((row) => row.period);
     await this.scope.reopenReviewed({ businessId: input.businessId, periods: reviewed });
   }
+}
+
+export function normalizeCommissionLineEvent(
+  event: CommissionInputEventEnvelope,
+  payload: CommissionInputEventPayload,
+): CommissionLineEventInput {
+  if (event.aggregateType !== 'service_session' || event.aggregateId !== payload.session_id) {
+    throw new CommissionLineEventInvalidError('AGGREGATE_MISMATCH');
+  }
+  const lines: readonly ServiceLineChanged[] = 'lines' in payload ? payload.lines : [payload];
+  return {
+    companyId: event.companyId,
+    businessId: payload.business_id,
+    lines: lines.map(normalizeCommissionLine),
+  };
+}
+
+function normalizeCommissionLine(line: ServiceLineChanged): CommissionLineSnapshot {
+  return {
+    lineId: line.line_id,
+    sessionId: line.session_id,
+    businessId: line.business_id,
+    branchId: line.branch_id,
+    serviceId: line.service_id,
+    customerId: line.customer_id,
+    status: line.status,
+    occurredAt: line.occurred_at,
+    recordedAt: line.recorded_at,
+    businessDate: line.business_date,
+    net: line.net,
+    performers: line.performers.map((performer) => ({
+      employeeId: performer.employee_id,
+      shareBps: performer.share_bps,
+    })),
+    ruleSnapshot: line.rule_snapshot,
+    countsSnapshot: line.counts_snapshot,
+    revision: line.revision,
+  };
 }
 
 function projectLine(line: CommissionLineSnapshot): CommissionLineReplacement {

@@ -67,8 +67,7 @@ export function commissionPeriodLockPlan(
 function nextPeriod(period: string): string {
   const year = Number(period.slice(0, 4));
   const month = Number(period.slice(5, 7));
-  const index = year * 12 + month;
-  const nextYear = Math.floor((index - 1) / 12);
-  const nextMonth = ((index - 1) % 12) + 1;
-  return `${nextYear}-${String(nextMonth).padStart(2, '0')}`;
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  return `${String(nextYear).padStart(4, '0')}-${String(nextMonth).padStart(2, '0')}`;
 }

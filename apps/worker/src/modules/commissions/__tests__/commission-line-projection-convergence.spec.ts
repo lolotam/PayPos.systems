@@ -18,7 +18,7 @@ import { createDeliverer } from '../../../outbox/deliver.ts';
 import type { OutboxConsumer } from '../../../outbox/consumer.ts';
 import { onCommissionInputEvent } from '../events/handlers/on-commission-input-event.handler.ts';
 import { createCommissionLineProjectionScope } from '../persistence/commission-line-projection.scope.ts';
-import { businessTimeZone } from '../../tenancy/index.ts';
+import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
 import { createCommissionInputsConsumer } from '../index.ts';
 import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
 
@@ -28,6 +28,7 @@ let db: Database;
 let deliver: (event: ClaimedEvent) => Promise<unknown>;
 const ids = systemUuidV7();
 const { A } = COMMISSION_LINE_TENANTS;
+const businessTimeZone = fakeBusinessTimeZone(A.business);
 const clock = { now: () => new Date('2026-12-05T09:00:00Z') };
 const eventTypes = ['ServiceSessionRecorded', 'ServiceSessionLinesAdded', 'ServiceLineChanged'];
 

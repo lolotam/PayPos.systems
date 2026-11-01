@@ -5,8 +5,8 @@ import config, {
 
 export default [
   ...config,
-  ...allowCommissionsEngineBackend(),
   allowDatabaseFacade('createOutboxDispatcherDatabase'),
+  ...allowCommissionsEngineBackend(),
   {
     files: ['src/**/__tests__/platform-harness.ts'],
     ...allowDatabaseFacade(['createOutboxDispatcherDatabase', 'createPlatformWhatsappDatabase']),

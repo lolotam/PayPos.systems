@@ -18,7 +18,7 @@ import { USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import type { OutboxConsumer } from '../../../outbox/consumer.ts';
 import { CommissionLineEventInvalidError } from '../domain/errors.ts';
-import { businessTimeZone } from '../../tenancy/index.ts';
+import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
 import { createCommissionInputsConsumer } from '../index.ts';
 
 let testDb: TestDatabase;
@@ -28,6 +28,7 @@ let consumer: OutboxConsumer;
 let deliver: (event: ClaimedEvent) => Promise<unknown>;
 const ids = systemUuidV7();
 const { A } = COMMISSION_LINE_TENANTS;
+const businessTimeZone = fakeBusinessTimeZone(A.business);
 
 beforeAll(async () => {
   testDb = await createTestDatabase();

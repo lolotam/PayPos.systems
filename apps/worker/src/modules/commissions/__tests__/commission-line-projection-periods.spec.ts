@@ -16,7 +16,7 @@ import {
 } from '../../../../../../packages/db/test/test-database.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import { CommissionBusinessMissingError } from '../domain/errors.ts';
-import { businessTimeZone } from '../../tenancy/index.ts';
+import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
 import { createCommissionInputsConsumer } from '../index.ts';
 
 let testDb: TestDatabase;
@@ -24,6 +24,7 @@ let owner: postgres.Sql;
 let db: Database;
 const ids = systemUuidV7();
 const { A } = COMMISSION_LINE_TENANTS;
+const businessTimeZone = fakeBusinessTimeZone(A.business);
 
 beforeAll(async () => {
   testDb = await createTestDatabase();

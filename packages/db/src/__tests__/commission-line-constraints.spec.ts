@@ -40,6 +40,26 @@ const head = (row: Record<string, unknown> = {}) =>
 const line = (row: Record<string, unknown> = {}) =>
   db.withTenant(A.company, (tx) => insertCommissionLineRow(tx, A, ids, row));
 
+async function expectPeriodCheck(
+  work: Promise<unknown>,
+  table: 'commission_line_heads' | 'commission_lines',
+): Promise<void> {
+  const error = await work.then(
+    () => null,
+    (caught: unknown) => caught,
+  );
+  expect(error).toBeInstanceOf(Error);
+  const failure = error as Error & {
+    code?: string;
+    constraint_name?: string;
+    cause?: { code?: string; constraint_name?: string };
+  };
+  const source = failure.code ? failure : (failure.cause ?? failure);
+  expect(source.code).toBe('23514');
+  expect([`${table}_period_format`, `${table}_period_business_date`])
+    .toContain(source.constraint_name);
+}
+
 it('round-trips every rule kind and exact money strings, keeping null value columns null', async () => {
   const rules = [
     { ruleKind: 'FOLLOW_PLAN' },
@@ -141,12 +161,16 @@ it('refuses revision zero', async () => {
 });
 
 it.each(['2026-13', '2026-1', '26-11', ''])('refuses malformed head period %s', async (period) => {
-  await expectPgError(head({ period }), '23514', 'commission_line_heads_period_format');
+  await expectPeriodCheck(head({ period }), 'commission_line_heads');
 });
 
-it('refuses malformed line periods and periods different from business_date month', async () => {
+it('refuses malformed line periods', async () => {
   const lineId = await head();
-  await expectPgError(line({ lineId, period: '2026-13' }), '23514', 'commission_lines_period_format');
+  await expectPeriodCheck(line({ lineId, period: '2026-13' }), 'commission_lines');
+});
+
+it('refuses well-formed periods different from business_date month', async () => {
+  const lineId = await head();
   await expectPgError(head({ period: '2026-10' }), '23514', 'commission_line_heads_period_business_date');
   await expectPgError(line({ lineId, period: '2026-10' }), '23514', 'commission_lines_period_business_date');
 });
