@@ -48,7 +48,7 @@ or quota failure, shows as a nonzero exit (§4 rule 8). Then stop and ask the ow
   - **P0 / P1** (security, money, tenant isolation, data loss, correctness): both design advisors propose a fix, the
     implementer applies it, and the PR **stays blocked** until it is fixed and confirmed. The cap never lowers the bar.
   - **P2 / P3**: open a GitHub issue per finding, linked from its review thread, then merge.
-- **Parallel work: keep 5 to 6 tasks running at all times, 6 at most** (Waleed, PP-59, 2026-10-25, `docs/owner-decisions.ar.md` item 28; it replaces the old cap of 3, and `.specify/memory/constitution.md` Principle I carries the same limit since version 3.1.0). When a task merges, open a replacement at once. Pick tasks whose file paths are **disjoint**, and run **one migration lane at a time**. Implementation runs on Kimi/MiniMax and Codex gives advice and review, to save Claude quota. Two tasks that touch the
+- **Parallel work: keep 5 task sessions running at all times, started one after another, never all at once** (Waleed, PP-111, 2026-11-01, `docs/owner-decisions.ar.md` item 48; it replaces PP-59's 5 to 6 and PP-69.3's 3, and `.specify/memory/constitution.md` Principle I carries the same limit since version 3.3.0). When a task merges, settle (archive) its session, delete its worktree, and open a replacement at once. A task that depends on another starts only after that one merges. Pick tasks whose file paths are **disjoint**, and run **one migration lane at a time**. Implementation runs on Kimi/MiniMax and Codex gives advice and review, to save Claude quota. Two tasks that touch the
   same file wait for each other. Each task has its own branch, worktree (`F:\Dev\Worktrees\PosPay\<branch>`) and PR.
   Migration and ADR numbers are assigned **at merge time**: renumber the later PR after the earlier one lands. Each
   slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
@@ -676,7 +676,7 @@ typing do not.
 - Never let MiniMax run any git command, read or write anything under `.git`, use any MCP tool, merge, push, or
   touch the server.
 - Never merge with a P0/P1 open, or with CI red on the head being merged.
-- Never exceed 5 review rounds without applying §2 (a docs-only PR has no cap, see the docs-only lane in §2), and never exceed 6 parallel tasks (PP-59).
+- Never exceed 5 review rounds without applying §2 (a docs-only PR has no cap, see the docs-only lane in §2), and never exceed 5 parallel tasks (PP-111).
 - Never run two tasks in parallel that touch the same file.
 - Never change the staging database by hand without the owner's explicit approval for that change.
 - Never rewrite a pushed branch's history (`--force`) without the owner's explicit approval.

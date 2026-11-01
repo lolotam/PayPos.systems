@@ -153,7 +153,7 @@ The publish API, the topics and the credential handling are in `docs/decisions-s
 
 ## 13. Concurrency and the lighter docs-only lane
 
-- Up to **three tasks** run at a time (PP-69.3), chosen to be as unrelated as possible. A task that depends on another waits until that one is merged. No two authors touch the same file, and no two open tasks change the same table.
+- **Five task sessions** are kept running at all times, started one after another (staggered), never all at once, so there is no clash, wait or delay (PP-111, replacing the three of PP-69.3). The tasks running together are as unrelated as possible: different files, different tables, and no dependency on each other. A task that depends on another starts only after that one is merged. When a task merges, its session is settled (archived), its worktree is deleted, and a replacement session opens at once from the head of the queue. No two authors touch the same file, and no two open tasks change the same table.
 - More than one task may carry a migration. Migration numbers are **reserved in the expected merge order** when the tasks start and made final at merge: a task merged after another rebases its migration on `main` before merging. Each worktree tests on its own local Postgres container (§6). `.specify/memory/constitution.md` Principle I (3.2.0) carries the same rule.
 - A **docs-only** change uses the lighter documented quality lane (the formatting check and the guards that fit it), not the unrelated application database tests. If it is actually published, the PR bots, CI and the roadmap update still apply, and it needs no application rollout (§10).
 
