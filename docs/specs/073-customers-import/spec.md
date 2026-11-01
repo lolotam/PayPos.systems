@@ -152,8 +152,5 @@ Known constraints:
 - **[PP-102.1]** 34-pre needs the single migration lane. It is queued after 32b-pre-1 and after 49-1 (the manager's order
   of 2026-11-01 12:28: 49-1 is ready with its migration, 34-pre still waits on Abu Salem's CI-Q1 and the per-business
   notes design), and it is taken only with the manager's yes.
-- **[PP-102.1]** 34-pre is larger than "add four columns". With CI-Q13, CI-Q14 and CI-Q15 it covers: the migration (new
-  customer columns, the per-business note table, the column grants and the guard), the contracts, the find-or-create
-  use case of spec 010 accepting the optional fields, the reception registration screen in `apps/admin/src/orders`,
-  and the customer card. `TODO(spec)`: the manager decides whether that is one sub-PR or a migration sub-PR followed
-  by a UI sub-PR.
+- **[PP-102.1]** 34-pre is larger than "add four columns", which is why it is split in two (above). The reception form
+  lives in `apps/admin/src/orders` and goes through the find-or-create use case of spec 010.
