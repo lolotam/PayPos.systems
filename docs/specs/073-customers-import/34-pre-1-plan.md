@@ -2,9 +2,12 @@
 
 Sub-PR of spec 073 (`docs/specs/073-customers-import/spec.md`, Delivery table row 34-pre-1). Planner draft for the
 root orchestrator; an independent design review (Astra) has been folded in, and the root reconciles both before the
-brief is dispatched. Status: **implemented and locally checked; independent Astra review accepted, final migration
-0198 generated, canonical-runner checks passed; GitHub reviews and CI pending**. Initial MiniMax delivery and its first correction were reviewed by the root; the root
-resolved the remaining small type, fixture and lint findings. No push or PR has been made.
+brief is dispatched. Status: **PR #766 is open at head `c7da397c`; the bounded correction in §1 and §14 is applied
+on top of that head; the root regenerated both snapshots and the canonical DB checks passed (§15); fresh independent
+review, GitHub reviews and CI remain pending**. History before the correction: implemented and locally checked; independent Astra review accepted, final
+migration 0198 generated, canonical-runner checks passed; GitHub reviews and CI pending. Initial MiniMax delivery and
+its first correction were reviewed by the root; the root resolved the remaining small type, fixture and lint
+findings. No test run is claimed for the correction.
 
 Scope, exactly: the new customer scalar fields (birthday, gender, email), the per-business note, the column grants
 and the overwrite guard (D-8, D-9, D-10), the spec 010 find-or-create accepting them, and one read endpoint for the
@@ -28,19 +31,39 @@ the import engine and the fill-empty writes of an existing customer (34b), any w
 34-pre-2, Delivery rows 34-pre-1 and 34-pre-2) and into `owner-questions.ar.md` («تسلسل تفعيل النوع»). This plan
 follows those files.
 
-## 1. Data model (placeholder migration)
+## 1. Data model (two migrations)
 
-Final file: `packages/db/migrations/0198_2026-11-01_customer-fields.sql`. The initial `XXXX` draft was tested before
+Final files: `packages/db/migrations/0198_2026-11-01_customer-fields.sql` and
+`packages/db/migrations/0199_2026-11-01_customer-fields-validate.sql`. The initial `XXXX` draft was tested before
 canonical metadata generation; the implementer did not edit the journal or snapshots. The manager granted the lane at 19:15 Kuwait on 2026-11-01, after #762
 merged as `1df1f24b` (last migration 0197). After local implementation and proof, the root rebases on latest main,
 assigns final numbers starting at 0198, generates metadata, then publishes. The root completed the rebase on
 `f5e88520`, generated `0198_snapshot.json` and the journal entry, and retained the exact SQL body reviewed by Astra.
 Structural snapshot comparison changes only `customers` and `customer_notes`. Expand-only, no data step, no
-backfill. Statements separated by `--> statement-breakpoint` like every migration. **No `CONCURRENTLY` statement:**
-the only indexes are on the brand-new, empty `customer_notes` table, created in the same migration as 0190, 0192 and
-0193 do; no index is added to `customers` (the profile read is by primary key, the notes read by the primary-key
-prefix). Only explicit recorded owner overrides supersede older specification text; this plan has no blanket
-precedence over the spec or governing documents.
+backfill. Statements separated by `--> statement-breakpoint` like every migration.
+
+**The correction of 2026-11-01, after the review of the exact head `c7da397c`.** The slice ships two migrations
+now, and the earlier "no `CONCURRENTLY` statement" line of this section is withdrawn. Two findings drove the split:
+
+1. **The six `customers` CHECKs were validated under ACCESS EXCLUSIVE.** `ADD CONSTRAINT … CHECK` without
+   `NOT VALID` reads existing rows of the table while holding ACCESS EXCLUSIVE, and `customers` is the live
+   table of every tenant. 0198 now adds all six constraints with `NOT VALID` — no scan, the lock is taken and
+   retained until the short schema transaction commits — and 0199 runs `VALIDATE CONSTRAINT` for the six in one `ALTER TABLE`.
+   It cannot be one file: the canonical runner commits every non-`CONCURRENTLY` statement of a migration in a
+   single transaction (`packages/db/src/concurrent-migrations.ts`), so a same-file `VALIDATE` would still run under
+   the ACCESS EXCLUSIVE lock that `ADD CONSTRAINT` took. Two files are two transactions, so the lock is released
+   before the scan starts. A `NOT VALID` check is enforced on every new `INSERT` and `UPDATE` from the moment it
+   is added, so no row is ever written unconstrained; only the proof over the pre-existing rows is deferred.
+2. **The `customer_notes` index was a plain `CREATE INDEX`.** The governing rule is that added indexes are built
+   `CONCURRENTLY`, and the earlier reasoning here — that the index sits on the brand-new, empty `customer_notes`
+   table and so a plain create is harmless, as in 0190, 0192 and 0193 — is withdrawn: the review of the head
+   refused it as a reason to depart from the rule. The index creation moved to 0199 as
+   `CREATE INDEX CONCURRENTLY`, with the same name and the same definition, because the runner executes a
+   `CONCURRENTLY` prefix outside the transaction only when it is the first statement of the file.
+
+No index is added to `customers` (the profile read is by primary key, the notes read by the primary-key prefix).
+Only explicit recorded owner overrides supersede older specification text; this plan has no blanket precedence
+over the spec or governing documents.
 
 ### 1.1 `customers` — five nullable columns
 
@@ -59,10 +82,19 @@ Plus one table-level CHECK `customers_birthday_shape`:
 - `NOT (birth_month = 2 AND birth_day = 29 AND birth_year IS NOT NULL AND NOT <leap(birth_year)>)`.
 
 Every predicate is written so that NULL columns pass (`col IS NULL OR …`), because a CHECK that evaluates to NULL
-passes silently only by accident; the tests assert each refusal explicitly (§8). Adding the CHECKs scans `customers`
-once under the ALTER's lock; every new value is NULL, so the scan cannot fail. If root prefers a shorter lock,
-`ADD CONSTRAINT … NOT VALID` then `VALIDATE CONSTRAINT` in the same file is the alternative — a root choice, not
-required for correctness.
+passes silently only by accident; the tests assert each refusal explicitly (§8).
+
+**Correction of 2026-11-01.** The earlier wording here — "adding the CHECKs scans `customers` once under the ALTER's
+lock; every new value is NULL, so the scan cannot fail. If root prefers a shorter lock, `ADD CONSTRAINT … NOT VALID`
+then `VALIDATE CONSTRAINT` in the same file is the alternative" — is withdrawn. The claim that the scan is harmless
+because every new value is NULL was wrong in the way that matters: the scan does not look only at the new values, it
+reads every existing row of `customers` under ACCESS EXCLUSIVE, and `customers` is the live table of every tenant.
+`NOT VALID` then `VALIDATE CONSTRAINT` **in the same file is not a fix**: the canonical runner commits all
+non-`CONCURRENTLY` statements of a migration in one transaction (`packages/db/src/concurrent-migrations.ts`), so the
+ACCESS EXCLUSIVE lock taken by `ADD CONSTRAINT` is still held when the validation scan starts. The shipped shape is
+`NOT VALID` in 0198 and `VALIDATE CONSTRAINT` in 0199 — two files, two transactions, so the lock is released in
+between. The `NOT VALID` check is enforced on every new `INSERT` and `UPDATE` from the moment it is added, so no
+row is ever written unconstrained; only the proof over the pre-existing rows is deferred, and 0199 settles it.
 
 Gender values are stored as the English codes `female` / `male`; ذكر / أنثى are display strings for 34-pre-2 and
 the import template (i18n), never stored.
@@ -105,8 +137,9 @@ CI-Q14). No `updated_at` (immutable row). No `id` column: the composite key is t
 
 `packages/db/schema/customers.ts`: the five columns with matching `check(...)` entries and the new
 `customerNotes` table (same file; `schema/index.ts` already re-exports it). One-line comment on `birth_year`
-(«السنة اختيارية، فمش بنستخدم date») per CLAUDE §3.1. The final `0198_snapshot.json` was generated from this schema
-after the granted-lane rebase; the earlier draft-only snapshot drift is resolved.
+(«السنة اختيارية، فمش بنستخدم date») per CLAUDE §3.1. After the correction, generated `0198_snapshot.json` models
+the intermediate shape without the notes business index; `0199_snapshot.json` models this final schema with that
+index. Both were generated in sequence from 0197; a subsequent generation reports no schema changes.
 
 ## 2. Domain (`apps/api/src/modules/customers/domain/`)
 
@@ -313,7 +346,10 @@ the root reviews them against the steps below before the first run. The implemen
    pattern, so cleanup and the leftover sweep already cover it).
 3. Connect to the clone as owner, split the placeholder SQL by `--> statement-breakpoint`, apply it in one
    `sql.begin` (valid because the file has no `CONCURRENTLY`), close, drain `pg_stat_activity`, `ALTER DATABASE …
-   ALLOW_CONNECTIONS false`.
+   ALLOW_CONNECTIONS false`. **Correction of 2026-11-01:** this step described the draft-only approach, when the
+   slice was one file. The shipped sequence is two files, and 0199 opens with a `CONCURRENTLY` statement that the
+   canonical runner executes outside the transaction; this historical step applies to the draft placeholder only and
+   is not the shape the canonical runner sees.
 4. Forward `provide('pg', { ...value, template: <clone> })` with the **same** `runId`; return the original teardown,
    and call it on any failure in steps 2–3 before rethrowing.
 5. Two external configs (plain objects, mirroring `apps/api/vitest.config.ts` and `packages/db/vitest.config.ts`) with
@@ -373,8 +409,11 @@ PR completion items (root, not implementer): the `PP-102`, `PP-103`, `PP-105` in
 - **R-3 resolved by finalization:** the draft was unjournaled; final migration 0198 now has generated snapshot and
   journal metadata. Canonical local and exact-head CI checks remain required before delivery.
 - **R-4** Generated clients (admin, pos) change; root regenerates and reviews them.
-- **R-5** The CHECK scan on `customers` under ACCESS EXCLUSIVE grows with the table; NOT VALID/VALIDATE is the
-  mitigation if the table is large on staging/production.
+- **R-5** The CHECK scan on `customers` under ACCESS EXCLUSIVE grows with the table. **Mitigated by the correction
+  of 2026-11-01**: the six CHECKs are added `NOT VALID` in 0198 and validated in 0199, so the scan runs under
+  SHARE UPDATE EXCLUSIVE, which blocks neither writes nor reads on `customers` — only other DDL and another
+  validation on the same table. What remains is the scan's own duration and I/O, the cost of proving the
+  pre-existing rows; that proof is deferred, never skipped.
 
 ## 13. Independent review receipt
 
@@ -399,3 +438,59 @@ TS2375 in `use-session-customer.ts`. The previously scoped checks had covered AP
 but omitted frontend typecheck despite generated-client changes. The root fixed the small transport mismatch
 without casts or generated-file edits and added admin/POS typecheck to the local checks; both passed, as did
 scoped ESLint and all 21 existing reception tests. Exact-head CI and all required reviewers must complete again.
+
+This receipt describes the state **before** the correction of 2026-11-01 (§1, §14). It is kept as history: none of
+the runs above covers the two-file migration sequence, and none of them is re-claimed for it.
+
+## 14. The correction of 2026-11-01 (PR #766, head `c7da397c`)
+
+Bounded correction applied on top of the exact head after the panel raised three findings. The lock/index findings
+were corrected; the primary-key finding was reconciled with the explicit owner decision. MiniMax ran no checks;
+the root's later results are recorded separately in §15.
+
+**Changed files (the whole correction):**
+
+| File | Change |
+|---|---|
+| `packages/db/migrations/0198_2026-11-01_customer-fields.sql` | The six `customers` CHECKs are added `NOT VALID`; the plain `CREATE INDEX "customer_notes_business_idx"` is removed and its purpose comment points at 0199. Expressions, names, nullable columns, grants, guard, opt-out, RLS, foreign keys and the primary key are untouched. |
+| `packages/db/migrations/0199_2026-11-01_customer-fields-validate.sql` (new) | Opens with `CREATE INDEX CONCURRENTLY "customer_notes_business_idx"` (same name, same definition), then one `ALTER TABLE "customers"` with six `VALIDATE CONSTRAINT` clauses. No `BEGIN`/`COMMIT`; the runner owns the transactions. |
+| `packages/db/src/__tests__/rls-customer-profile.spec.ts` | Two new real-DB assertions: all six CHECKs are `convalidated` after the canonical bootstrap, and the notes business index is `indisvalid` and `indisready` on `customer_notes` with the columns `company_id`, `business_id`. The existing refusal, RLS and immutability tests are kept as they were. |
+| `docs/adr/0007-tenant-scoped-primary-keys.md` | A dated addendum records the existing explicit owner decision for `customer_notes` — CI-T7 / `PP-103.7`, the manager's 13:40 reconciliation, CI-Q17 — as a table-specific exception. The generic `(company_id, id)` invariant stays for every other table, all tenant uniqueness still starts with `company_id`, and no global `id` uniqueness oracle is introduced. |
+| `docs/specs/073-customers-import/34-pre-1-plan.md` | This file: the status, §1, §1.1, §9, §12 R-5 and this section. |
+| `docs/specs/073-customers-import/spec.md` | Only the migration sequence, in the three places that state it: the local-implementation-exception paragraph, the 34-pre-1 delivery row, and the known-constraints bullet. No decision, rule or acceptance criterion is changed. |
+
+**Left to the root, unchanged by the correction:** the Drizzle schema already matches the final state, so the root
+regenerates the journal and the two snapshots for the new sequence — `0198` without the notes index and `0199` with
+it — in two phases, and then runs the canonical checks. MiniMax did not edit the metadata, schema or runner.
+The root generated both snapshots and the journal; the final Drizzle schema and production runner are unchanged.
+
+**Why one `ALTER TABLE` with six `VALIDATE CONSTRAINT` clauses in 0199:** one lock acquisition on the table and one
+catalog update instead of six, with every constraint checked against the existing rows inside the statement. The
+split that matters for the lock is the file split — two migrations are two transactions — not the number of clauses
+inside the second one. One statement per constraint uses the same lock level and matches the shape of 0195;
+neither shape here claims a measured number of heap passes.
+
+## 15. Root proof after the migration correction, 2026-11-01
+
+- The root verified the shared worktree and personally read the authored changes before execution. The SQL
+  expressions, grants, RLS, guard and approved primary key retain their behavior; only validation/index phases move.
+- Generated the 0198 intermediate snapshot without the business index, then 0199 with it, preserving the reviewed
+  SQL bodies. Structural comparison from 0197 changes only `customers` and `customer_notes`; from 0198 to 0199 it
+  changes only `customer_notes_business_idx`. The ID chain is valid and all non-table metadata is unchanged.
+  `pnpm db:generate customer-fields-drift-check` reported no schema changes.
+- On the owned private Docker lane, an external proof applied the canonical runner through 0197, inserted 5000
+  synthetic legacy customers, then applied 0198 and 0199. All six checks were initially unvalidated but refused
+  invalid new data. While 0199 waited for its validation lock, `pg_locks` showed `ShareUpdateExclusiveLock` and no
+  `AccessExclusiveLock` for the migration on `customers`; application-role reads and an insert succeeded within a
+  one-second statement timeout. All checks then validated, the concurrent index was ready/valid, and replay was
+  idempotent. This proves the transaction boundary and compatible locks, not production scan duration.
+- Canonical DB bootstrap and seven selected suites passed: **163 tests**, including customer profile/notes,
+  existing customers, privileges, function inventory, concurrent-index statement parsing and migration-runner tests.
+  DB typecheck, scoped test ESLint, documentation formatting and whitespace checks passed. `lint:docs` passed with
+  its 29 existing TODO warnings. Eight selected API/domain/query/identity suites passed: **153 tests**. All owned
+  Postgres/Redis containers were stopped and removed after the runs; fresh Astra review remains pending.
+- The manager's 21:1x/21:2x instructions are copied verbatim to `owner-questions.ar.md`. Snapshot-only panel
+  truncation is accepted only under that explicit condition; PR notes must name
+  `packages/db/migrations/meta/0198_snapshot.json` and/or `packages/db/migrations/meta/0199_snapshot.json` if affected.
+  Every other incomplete file still blocks readiness. Session 42 owns backup/restore and staging/rollback; root
+  merges only after the backup receipt and exact-head CI/five reviews.

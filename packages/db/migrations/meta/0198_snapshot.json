@@ -1,5 +1,5 @@
 {
-  "id": "984045d0-a9d0-4926-b006-88f42360158e",
+  "id": "ad28f95f-6d9c-4cda-af37-e66c57bef666",
   "prevId": "a52ea6c9-3966-4c44-946f-8b9743752cff",
   "version": "7",
   "dialect": "postgresql",
@@ -877,29 +877,7 @@
           "notNull": true
         }
       },
-      "indexes": {
-        "customer_notes_business_idx": {
-          "name": "customer_notes_business_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "customer_notes_company_id_companies_id_fk": {
           "name": "customer_notes_company_id_companies_id_fk",

@@ -1,6 +1,9 @@
 -- 34-pre-1: حقول الملف الشخصي للعميل (تاريخ الميلاد، النوع، البريد) وملاحظات لكل نشاط (D-8، D-9، D-10).
 -- توسيع بس: كل الأعمدة nullable، ومفيش backfill ولا trigger على الـ INSERT ولا قيمة افتراضية للنوع،
 -- فشاشة الاستقبال الحالية وشنطة الكود القديمة بتفضل شغالة (S-1، S-8).
+-- الملف ده بيبني الشكل بس. القيود الستة على customers بتتحط NOT VALID هنا، وفحص الصفوف القائمة
+-- بيحصل في 0199 في معاملة تانية، وفهرس customer_notes بتبني CONCURRENTLY هناك كمان. السبب في
+-- 0199 نفسه، والمنطق في packages/db/src/concurrent-migrations.ts.
 ALTER TABLE "customers" ADD COLUMN "birth_month" smallint;
 --> statement-breakpoint
 ALTER TABLE "customers" ADD COLUMN "birth_day" smallint;
@@ -12,13 +15,23 @@ ALTER TABLE "customers" ADD COLUMN "gender" text;
 ALTER TABLE "customers" ADD COLUMN "email" text;
 --> statement-breakpoint
 -- كل CHECK مكتوب صراحةً إن الـ NULL يعدّي: الـ CHECK اللي بيطلع NULL يعدّي صامت، فالمساواة صريحة.
-ALTER TABLE "customers" ADD CONSTRAINT "customers_birth_month" CHECK ("birth_month" IS NULL OR "birth_month" BETWEEN 1 AND 12);
+--
+-- والقيود الستة كلها بتتحط NOT VALID هنا، والتحقق من الصفوف الموجودة بيتأجل لهجرة 0199 في معاملة تانية.
+-- السبب: ADD CONSTRAINT ... CHECK من غير NOT VALID بيمسح جدول customers كله (فيه صفوف موجودة كتير) تحت
+-- قفل ACCESS EXCLUSIVE، وده بيمنع الكتابة والقراءة على الجدول طول وقت المسح. مع NOT VALID مفيش مسح هنا:
+-- القفل بيفضل لحد نهاية معاملة 0198 القصيرة لإضافة الشكل من غير مسح، والقيد نفسه بيفرض نفسه على كل INSERT وUPDATE
+-- جديد من غير استثناء، فالبيانات عمري ما بتفضل من غير قيد ولا لحظة.
+-- وليه مش في نفس الملف: الـ runner بيحط كل جمل الملف غير الـ CONCURRENTLY في معاملة واحدة
+-- (packages/db/src/concurrent-migrations.ts، applyOne)، فقفل ACCESS EXCLUSIVE بتاع الـ ADD CONSTRAINT
+-- بيفضل متسك لحد ما المعاملة تخلص، يعني المسح في نفس الملف هيتعمل تحت القفل نفسه. ملفين = معاملتين
+-- = القفل بيتفك في معاملة 0198 قبل ما الفحص يبدأ في 0199.
+ALTER TABLE "customers" ADD CONSTRAINT "customers_birth_month" CHECK ("birth_month" IS NULL OR "birth_month" BETWEEN 1 AND 12) NOT VALID;
 --> statement-breakpoint
-ALTER TABLE "customers" ADD CONSTRAINT "customers_birth_day" CHECK ("birth_day" IS NULL OR "birth_day" BETWEEN 1 AND 31);
+ALTER TABLE "customers" ADD CONSTRAINT "customers_birth_day" CHECK ("birth_day" IS NULL OR "birth_day" BETWEEN 1 AND 31) NOT VALID;
 --> statement-breakpoint
-ALTER TABLE "customers" ADD CONSTRAINT "customers_birth_year" CHECK ("birth_year" IS NULL OR "birth_year" BETWEEN 1 AND 9999);
+ALTER TABLE "customers" ADD CONSTRAINT "customers_birth_year" CHECK ("birth_year" IS NULL OR "birth_year" BETWEEN 1 AND 9999) NOT VALID;
 --> statement-breakpoint
-ALTER TABLE "customers" ADD CONSTRAINT "customers_gender" CHECK ("gender" IS NULL OR "gender" IN ('female', 'male'));
+ALTER TABLE "customers" ADD CONSTRAINT "customers_gender" CHECK ("gender" IS NULL OR "gender" IN ('female', 'male')) NOT VALID;
 --> statement-breakpoint
 -- الطول بالـ code points زي العقد (char_length)، والقصّ لازم يكون خلص (btrim)، وقاعدة CI-Q11 هي
 -- @ ونقطة. حروف التحكم ممنوعة؛ الـ NUL مستحيل يتخزن في text أصلاً، فالمدى يبدأ من 1.
@@ -28,7 +41,7 @@ ALTER TABLE "customers" ADD CONSTRAINT "customers_email" CHECK (
       AND char_length("email") BETWEEN 3 AND 254
       AND "email" = btrim("email")
       AND position('@' in "email") > 0
-      AND position('.' in "email") > 0));
+      AND position('.' in "email") > 0)) NOT VALID;
 --> statement-breakpoint
 -- شكل تاريخ الميلاد: يوم وشهر مع بعض، والسنة اختيارية بس مش من غير يوم وشهر؛ وفي يوم لا يوجد في الشهر.
 ALTER TABLE "customers" ADD CONSTRAINT "customers_birthday_shape" CHECK (
@@ -38,7 +51,7 @@ ALTER TABLE "customers" ADD CONSTRAINT "customers_birthday_shape" CHECK (
     AND ("birth_month" NOT IN (4, 6, 9, 11) OR "birth_day" <= 30)
     AND (NOT ("birth_month" = 2 AND "birth_day" = 29 AND "birth_year" IS NOT NULL)
          OR ("birth_year" % 4 = 0 AND ("birth_year" % 100 <> 0 OR "birth_year" % 400 = 0)))
-  )));
+  ))) NOT VALID;
 --> statement-breakpoint
 -- الكتابة المسموحة لسطر واحد بس: حقول الملف الشخصي بس، مش الهوية ولا وقت الإنشاء (D-9، CI-T8).
 -- updated_at اتمنح قبل كده في 0188، والـ customers_update policy بيغطي كل الجوانب.
@@ -91,8 +104,8 @@ ALTER TABLE "customer_notes" ADD CONSTRAINT "customer_notes_customer_fk" FOREIGN
 --> statement-breakpoint
 ALTER TABLE "customer_notes" ADD CONSTRAINT "customer_notes_business_fk" FOREIGN KEY ("company_id","business_id") REFERENCES "public"."businesses"("company_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
--- الـ primary key بيغطي قراءة الملف الشخصي (بادئة company_id, customer_id)؛ الفهرس بيغطي الـ FK بتاع النشاط.
-CREATE INDEX "customer_notes_business_idx" ON "customer_notes" USING btree ("company_id","business_id");
+-- فهرس customer_notes_business_idx اتنقل لهجرة 0199 لأنه لازم يتبني CONCURRENTLY (CLAUDE.md §5)،
+-- والـ runner بيشغّل CONCURRENTLY في بادئة الملف بس، قبل أي جملة معاملية. التعريف نفسه ما اتغيّرش.
 --> statement-breakpoint
 ALTER TABLE customer_notes ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint

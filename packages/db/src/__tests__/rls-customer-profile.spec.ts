@@ -242,3 +242,41 @@ describe('customers — the expanded schema stays backward compatible', () => {
     expect(rows.some((r) => r.event === 'INSERT')).toBe(false);
   });
 });
+
+// حالة الكتالوج بعد ما الـ bootstrap يشغّل كل الهجرات بالترتيب: القيود الستة اتضافت
+// NOT VALID في 0198 واتحقق منها في 0199، فلازم كل واحد فيهم convalidated. والفهرس اتبنى
+// CONCURRENTLY في 0199، فلازم indisvalid و indisready اتنين true (مش بس موجود في الكتالوج).
+describe('customers — the migration split left the constraints validated and the index usable', () => {
+  it('all six profile CHECKs are convalidated after the canonical bootstrap', async () => {
+    const rows = await owner<{ conname: string; convalidated: boolean }[]>`
+      SELECT conname, convalidated FROM pg_constraint
+      WHERE conrelid = 'customers'::regclass AND conname IN (
+        'customers_birth_month', 'customers_birth_day', 'customers_birth_year',
+        'customers_gender', 'customers_email', 'customers_birthday_shape')
+      ORDER BY conname`;
+    expect(rows).toEqual([
+      { conname: 'customers_birth_day', convalidated: true },
+      { conname: 'customers_birth_month', convalidated: true },
+      { conname: 'customers_birth_year', convalidated: true },
+      { conname: 'customers_birthday_shape', convalidated: true },
+      { conname: 'customers_email', convalidated: true },
+      { conname: 'customers_gender', convalidated: true },
+    ]);
+  });
+
+  it('the notes business index is valid and ready on customer_notes', async () => {
+    const rows = await owner<{ column_name: string; indisvalid: boolean; indisready: boolean }[]>`
+      SELECT pg_get_indexdef(i.indexrelid, k + 1, true) AS column_name,
+        i.indisvalid, i.indisready
+      FROM pg_index i
+      CROSS JOIN LATERAL generate_series(0, i.indnkeyatts - 1) AS g(k)
+      JOIN pg_class c ON c.oid = i.indexrelid
+      WHERE c.relname = 'customer_notes_business_idx'
+        AND i.indrelid = 'customer_notes'::regclass
+      ORDER BY k`;
+    expect(rows).toEqual([
+      { column_name: 'company_id', indisvalid: true, indisready: true },
+      { column_name: 'business_id', indisvalid: true, indisready: true },
+    ]);
+  });
+});
