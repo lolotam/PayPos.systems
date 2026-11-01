@@ -3,7 +3,7 @@
 **Created**: 2026-11-01
 **Status**: Draft. The owner questions are in [owner-questions.ar.md](owner-questions.ar.md):
 - CI-Q1 to CI-Q19 are feature questions: batch 88, `PP-102.1` to `PP-102.19`.
-- CI-Q20 is a feature question: batch 90, `PP-105.1`, pending for both owners. It settles file entry when the birth year is unknown.
+- CI-Q20 is a feature question: batch 90, `PP-105.1`. Waleed chose option A (`choice: 0`) on 2026-11-01, channel «كارت في شات مدير الويب», relayed by the manager's message labelled 14:04 Kuwait. The «السنة معروفة؟» Yes/No column settles file entry when the birth year is unknown. Abu Salem's answer remains pending and binds if different.
 - CI-T1 to CI-T8 are technical questions: `PP-103.1` to `PP-103.8`. Waleed also settled the 34-pre split (see Delivery).
 - Waleed has answered CI-Q1 to CI-Q4 and CI-T1 to CI-T8. The manager confirmed that the newer CI-Q17 answer supersedes CI-T7's cross-business read restriction; the original answer remains in the audit record. D-8 records the reconciled design.
 - Waleed has also answered CI-Q5 to CI-Q16, on the decisions page itself (his own picks, 11:07–11:08 and 12:10–12:13).
@@ -76,6 +76,11 @@ nothing. The commit runs in the worker, and the screen polls for the result.
   CI-Q19 (`PP-102.19`): the preview shows the non-blocking warning «موجودة — رفض التقييم مش هيتسجّل» beside an existing row whose file value is «نعم».
 - CIM-12 **[PP-102.1]** (CI-Q11): an email is stored as typed, trimmed, only after it passes the shape check (it has
   an `@` and a dot). It is never confirmed by a message, and two customers may share one email.
+- CIM-13 **[PP-102.1]** (CI-Q20, `PP-105.1`, option A): the workbook has a «السنة معروفة؟» column with «نعم» / «لا» beside the normal Excel birthday date.
+  - A date with «نعم» retains its actual day, month and year, including a real birth year of 2000.
+  - A date with «لا» retains only day and month; its year is discarded. File instructions tell staff to enter year 2000 when the year is unknown, so 29 February can be entered as 29 February 2000 without saving a made-up birth year. Any year supplied with «لا» is discarded.
+  - A date with a blank flag is a row error («حدد هل سنة الميلاد معروفة»); the flag must be «نعم» or «لا» when a date is present. One invalid row prevents the entire import from saving.
+  - An empty date means no birthday from this row; the flag is ignored. Existing nonempty birthday fields remain protected by CIM-03 and D-9.
 
 ## Requirements
 
@@ -103,7 +108,8 @@ nothing. The commit runs in the worker, and the screen polls for the result.
 
    | Column | Rule (Waleed's picks, Abu Salem's pending) |
    |---|---|
-   | `birthday` | Optional. Day and month; the year is optional (CI-Q9, `PP-102.9`). Normal Excel date cell (CI-Q18, `PP-102.18`). `TODO(spec)` CI-Q20 (`PP-105.1`, batch 90): file entry when the birth year is unknown. No extra column, placeholder year or missing-year convention is approved until this answer is recorded. |
+   | `birthday` | Optional. Day and month; the year is optional (CI-Q9, `PP-102.9`). Normal Excel date cell (CI-Q18, `PP-102.18`), paired with «السنة معروفة؟» (CI-Q20, `PP-105.1`, option A). Instructions use year 2000 when the year is unknown; with «لا» only day and month are saved. With «نعم» the actual year is saved. An empty date supplies no birthday, regardless of the flag. |
+   | «السنة معروفة؟» | Workbook column, «نعم» or «لا», required when `birthday` is filled (CI-Q20, `PP-105.1`, option A). A blank flag with a date is a row error. Ignored when the date is empty. It distinguishes a real birth year of 2000 from the example year; the flag itself is not a new customer database column. |
    | `gender` | Optional: ذكر / أنثى / blank (CI-Q10, `PP-102.10`). |
    | `email` | Optional. Refused only for a wrong shape (an `@` and a dot); no confirmation message; two customers may share one (CI-Q11, `PP-102.11`). Maximum 254 characters (CI-T6, `PP-103.6`, final). |
    | `notes` | Optional. One note **per business**, the business of the preview (CI-Q13, `PP-102.13`, Waleed's pick against the recommendation). Anyone who can see the customer sees the notes of all businesses within the same company (CI-Q12, CI-Q17). The card names the business that wrote each note. The field carries the hint «ماتكتبش أسرار أو بيانات حساسة» (CI-Q12, `PP-102.12`). Maximum 500 characters per note (CI-T6, `PP-103.6`, final). D-8 defines company isolation and per-business storage. |
