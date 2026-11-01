@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Clock, IdGenerator } from '../../ports/clock.port.ts';
-import type { RatingClaimDiagnostics } from '../../ports/rating-claim-diagnostics.port.ts';
-import type { DueRatingRequest } from '../../ports/rating-claim.repository.ts';
-import type { RatingClaimTransactions } from '../../ports/rating-claim-transactions.port.ts';
+import type { Clock, IdGenerator } from '../../../ports/clock.port.ts';
+import type { RatingClaimDiagnostics } from '../../../ports/rating-claim-diagnostics.port.ts';
+import type { DueRatingRequest } from '../../../ports/rating-claim.repository.ts';
+import type { RatingClaimTransactions } from '../../../ports/rating-claim-transactions.port.ts';
 import type {
   ClaimStateCode,
   ClaimStateFence,
@@ -14,7 +14,7 @@ import type {
   ClaimStateSnapshot,
   ClaimStateRetry,
   RatingClaimState,
-} from '../../ports/rating-claim-state.port.ts';
+} from '../../../ports/rating-claim-state.port.ts';
 import {
   ClaimRatingRequests,
   type RatingClaimsPorts,
@@ -88,35 +88,32 @@ class FakeState implements RatingClaimState {
     };
   }
 
-  async acquire(
-    _companyId: string,
-    _incarnation: string,
-    _ownerToken: string,
-  ): Promise<ClaimStateResult<ClaimStateSnapshot>> {
+  async acquire(): Promise<ClaimStateResult<ClaimStateSnapshot>> {
     this.calls.push('acquire');
     if (this.acquireCode !== 'OK') return { code: this.acquireCode, version: this.version };
     this.version += 1;
     return { code: 'OK', version: this.version, value: this.snapshot() };
   }
 
-  async renew(_fence: ClaimStateFence): Promise<ClaimStateResult<ClaimStateSnapshot>> {
+  async renew(): Promise<ClaimStateResult<ClaimStateSnapshot>> {
     this.calls.push('renew');
     this.version += 1;
     return { code: 'OK', version: this.version, value: this.snapshot() };
   }
 
-  async release(_fence: ClaimStateFence): Promise<ClaimStateResult<ClaimStateSnapshot>> {
+  async release(): Promise<ClaimStateResult<ClaimStateSnapshot>> {
     this.calls.push('release');
     this.version += 1;
     return { code: 'OK', version: this.version, value: this.snapshot() };
   }
 
   async begin(
-    _fence: ClaimStateFence,
+    fence: ClaimStateFence,
     sweepId: string,
     upperId: string | null,
   ): Promise<ClaimStateResult<ClaimStateSnapshot>> {
     this.calls.push('begin');
+    if (fence.companyId !== COMPANY) return { code: 'STALE', version: this.version };
     this.phase = 'SWEEP';
     this.sweepId = sweepId;
     this.upperId = upperId ?? undefined;
@@ -125,7 +122,7 @@ class FakeState implements RatingClaimState {
   }
 
   async enrollPage(
-    _fence: ClaimStateFence,
+    fence: ClaimStateFence,
     sweepId: string,
     fromId: string | null,
     pageId: string,
@@ -133,6 +130,7 @@ class FakeState implements RatingClaimState {
     exhausted: boolean,
   ): Promise<ClaimStateResult<ClaimStateSnapshot>> {
     this.calls.push('enrollPage');
+    if (fence.companyId !== COMPANY) return { code: 'STALE', version: this.version };
     const last = entries[entries.length - 1];
     this.page = {
       pageId,
@@ -148,27 +146,34 @@ class FakeState implements RatingClaimState {
   }
 
   async reserveRetries(
-    _fence: ClaimStateFence,
+    fence: ClaimStateFence,
     limit: number,
-    _workTokens: readonly string[],
+    workTokens: readonly string[],
   ): Promise<ClaimStateResult<ClaimStateReservations>> {
     this.calls.push('reserveRetries');
+    if (fence.companyId !== COMPANY) return { code: 'STALE', version: this.version };
     this.version += 1;
     return {
       code: 'OK',
       version: this.version,
-      value: { reservations: this.reservations.slice(0, limit) },
+      value: {
+        reservations: this.reservations.slice(0, Math.min(limit, workTokens.length)),
+      },
     };
   }
 
   async settlePage(
-    _fence: ClaimStateFence,
-    _pageId: string,
+    fence: ClaimStateFence,
+    pageId: string,
     workToken: string,
     settlement: string,
   ): Promise<ClaimStateResult<ClaimStateSnapshot>> {
     this.calls.push('settlePage');
+    if (fence.companyId !== COMPANY) return { code: 'STALE', version: this.version };
     if (this.settlePageCode !== 'OK') return { code: this.settlePageCode, version: this.version };
+    if (this.page !== undefined && this.page.pageId !== pageId) {
+      return { code: 'STALE', version: this.version };
+    }
     const entry = this.page?.entries.find((item) => item.workToken === workToken);
     if (entry !== undefined) {
       this.settlements.push({ requestId: entry.requestId, settlement });
@@ -180,21 +185,23 @@ class FakeState implements RatingClaimState {
   }
 
   async settleRetry(
-    _fence: ClaimStateFence,
+    fence: ClaimStateFence,
     requestId: string,
-    _workToken: string,
+    workToken: string,
     settlement: string,
   ): Promise<ClaimStateResult<ClaimStateSnapshot>> {
     this.calls.push('settleRetry');
+    if (fence.companyId !== COMPANY) return { code: 'STALE', version: this.version };
+    const reservation = this.reservations.find((item) => item.requestId === requestId);
+    if (reservation !== undefined && reservation.workToken !== workToken) {
+      return { code: 'STALE', version: this.version };
+    }
     this.settlements.push({ requestId, settlement });
     this.version += 1;
     return { code: 'OK', version: this.version, value: this.snapshot() };
   }
 
-  async finish(
-    _fence: ClaimStateFence,
-    _sweepId: string,
-  ): Promise<ClaimStateResult<ClaimStateSnapshot>> {
+  async finish(): Promise<ClaimStateResult<ClaimStateSnapshot>> {
     this.calls.push('finish');
     this.phase = 'IDLE';
     this.page = undefined;
@@ -202,7 +209,7 @@ class FakeState implements RatingClaimState {
     return { code: 'OK', version: this.version, value: this.snapshot() };
   }
 
-  async read(_companyId: string): Promise<ClaimStateResult<ClaimStateSnapshot>> {
+  async read(): Promise<ClaimStateResult<ClaimStateSnapshot>> {
     this.calls.push('read');
     return { code: 'OK', version: this.version, value: this.snapshot() };
   }
@@ -217,6 +224,7 @@ interface HarnessOptions {
   readonly acquireCode?: ClaimStateCode;
   readonly settlePageCode?: ClaimStateCode;
   readonly claimThrows?: string;
+  readonly pageIdsThrows?: boolean;
 }
 
 interface Harness {
@@ -251,7 +259,10 @@ function harness(options: HarnessOptions = {}): Harness {
   };
   const transactions: RatingClaimTransactions<unknown> = {
     upperId: async () => options.upper ?? null,
-    pageIds: async (_companyId, _after, _through, limit) => page.slice(0, limit),
+    pageIds: async (_companyId, _after, _through, limit) => {
+      if (options.pageIdsThrows === true) throw new Error('SYNTHETIC_PAGE_READ_FAILURE');
+      return page.slice(0, limit);
+    },
     withRequest: async (_companyId, requestId, work) =>
       work({}, rows.get(requestId) ?? null),
   };
@@ -323,7 +334,9 @@ describe('دور خدمة المطالبة', () => {
     expect(summary.retryVisits).toBe(1);
     expect(summary.forwardVisits).toBe(1);
   });
+});
 
+describe('تسوية الصفوف', () => {
   it('settles a request that is already in the retry map as DELEGATED', async () => {
     const world = harness({
       rows: { r2: request('r2', 'SCHEDULED', PAST) },
@@ -366,7 +379,9 @@ describe('دور خدمة المطالبة', () => {
     expect(world.failures).toHaveLength(1);
     expect(summary.forwardVisits).toBe(2);
   });
+});
 
+describe('ملكية الحالة', () => {
   it('ends the turn on a stale reply without reading a new page', async () => {
     const world = harness({
       rows: { r2: request('r2', 'SCHEDULED', PAST) },
@@ -396,5 +411,12 @@ describe('دور خدمة المطالبة', () => {
     expect(world.state.calls).toEqual(['acquire', 'reserveRetries', 'begin', 'finish', 'release']);
     expect(summary.end).toBe('COMPLETED');
     expect(summary.forwardVisits).toBe(0);
+  });
+
+  it('releases the state when the page read fails', async () => {
+    const world = harness({ upper: 'r9', pageIdsThrows: true });
+    const turn = new ClaimRatingRequests(world.ports, ids, clock);
+    await expect(turn.execute(COMPANY)).rejects.toThrow('SYNTHETIC_PAGE_READ_FAILURE');
+    expect(world.state.calls.filter((call) => call === 'release')).toHaveLength(1);
   });
 });

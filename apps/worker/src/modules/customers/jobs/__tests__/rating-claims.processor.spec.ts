@@ -78,7 +78,7 @@ function triggerEvent(companyId: string, attempt = 1, eventType = 'ServiceSessio
   } satisfies ClaimedEvent;
 }
 
-const next = async (_event: ClaimedEvent): Promise<DeliveryOutcome> => ({ delivered: true });
+const next = async (): Promise<DeliveryOutcome> => ({ delivered: true });
 
 describe('معالج مطالبة طلبات التقييم', () => {
   it('registration_backoff_follows_pp97', async () => {
@@ -97,10 +97,12 @@ describe('معالج مطالبة طلبات التقييم', () => {
       }
     }
     spy.mockRestore();
-    expect(delays.slice(0, 9)).toEqual([
+    const firstNine = delays.slice(0, 9);
+    expect(firstNine).toEqual([
       5_000, 10_000, 20_000, 40_000, 80_000, 160_000, 320_000, 640_000, 1_280_000,
     ]);
-    expect(delays.reduce((total, delay) => total + (delay ?? 0), 0)).toBe(2_555_000);
+    const numeric = firstNine.filter((delay): delay is number => delay !== null);
+    expect(numeric.reduce((total, delay) => total + delay, 0)).toBe(2_555_000);
     expect(delays[9]).toBeNull();
     expect(retryDelayMs(10)).toBeNull();
   });
@@ -119,12 +121,14 @@ describe('معالج مطالبة طلبات التقييم', () => {
     const second = await world.queue.getJobScheduler(schedulerId);
     expect(second?.template?.data).toEqual({ companyId });
   });
+});
 
+describe('أحداث الزيارة', () => {
   it('new_visit_registers_without_discovery', async () => {
     const world = await harness();
     const companyId = ids.newId();
     let delegated = 0;
-    const counting = async (_event: ClaimedEvent): Promise<DeliveryOutcome> => {
+    const counting = async (): Promise<DeliveryOutcome> => {
       delegated += 1;
       return { delivered: true };
     };
@@ -138,11 +142,26 @@ describe('معالج مطالبة طلبات التقييم', () => {
     expect(schedulers[0]?.template?.data).toEqual({ companyId });
   });
 
+  it('ensureRegistered_is_idempotent', async () => {
+    const world = await harness();
+    const companyId = ids.newId();
+    await world.processor.ensureRegistered(companyId);
+    const spy = vi.spyOn(Queue.prototype, 'upsertJobScheduler');
+    await world.processor.ensureRegistered(companyId);
+    spy.mockRestore();
+    expect(spy).not.toHaveBeenCalled();
+    const schedulers = await world.queue.getJobSchedulers();
+    expect(schedulers).toHaveLength(1);
+    expect(schedulers[0]?.template?.data).toEqual({ companyId });
+  });
+});
+
+describe('بيانات المهمة', () => {
   it('refuses a legacy job that still carries the page cursor', async () => {
     const world = await harness();
     await world.processor.ready();
     const events = new QueueEvents(RATING_CLAIMS_QUEUE, {
-      connection: new Redis(redisUrl),
+      connection: new Redis(redisUrl, { maxRetriesPerRequest: null }),
       prefix: world.prefix,
     });
     try {
@@ -156,18 +175,5 @@ describe('معالج مطالبة طلبات التقييم', () => {
     } finally {
       await events.close();
     }
-  });
-
-  it('ensureRegistered_is_idempotent', async () => {
-    const world = await harness();
-    const companyId = ids.newId();
-    await world.processor.ensureRegistered(companyId);
-    const spy = vi.spyOn(Queue.prototype, 'upsertJobScheduler');
-    await world.processor.ensureRegistered(companyId);
-    spy.mockRestore();
-    expect(spy).not.toHaveBeenCalled();
-    const schedulers = await world.queue.getJobSchedulers();
-    expect(schedulers).toHaveLength(1);
-    expect(schedulers[0]?.template?.data).toEqual({ companyId });
   });
 });

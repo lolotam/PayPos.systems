@@ -72,7 +72,7 @@ export interface ClaimObservationResult {
 /**
  * حالة الدور أثناء التنفيذ: السور واللقطة والأعداد، وبتتحدث مع كل رد.
  *
- * الحالة دي ملك الدور وحده، والنقل بين المسارات بيتم بالم نفس الكائن عشان رقم
+ * الحالة دي ملك الدور وحده، والنقل بين المسارات بيتم بنفس الكائن عشان رقم
  * النسخة ما يتغيّرش في نص الدور.
  */
 export class RatingClaimsTurnState<Transaction = unknown> {
@@ -274,9 +274,21 @@ export class ClaimRatingRequests<Transaction = unknown> {
       },
       acquired.value,
     );
-    await runRetryLane(turn);
-    if (!turn.halted && !turn.limitReached) await runForwardLane(turn);
-    await turn.release();
+    let failure: { error: unknown } | undefined;
+    try {
+      await runRetryLane(turn);
+      if (!turn.halted && !turn.limitReached) await runForwardLane(turn);
+    } catch (error) {
+      failure = { error };
+    } finally {
+      try {
+        await turn.release();
+      } catch (releaseError) {
+        // خطأ الإفلات ما يغطيش خطأ الدور؛ خطأ الدور هو الأهم للمشغّل.
+        if (failure === undefined) throw releaseError;
+      }
+    }
+    if (failure !== undefined) throw failure.error;
     const summary = turn.summary();
     this.ports.diagnostics.turnSummary(companyId, summary);
     return summary;
@@ -284,11 +296,20 @@ export class ClaimRatingRequests<Transaction = unknown> {
 
   /** الدور اللي ما اشترىش الحالة: ما فيش حاجة تتلمس، والسبب بيتسجل. */
   private refused(companyId: string, code: ClaimStateCode): RatingClaimsTurnSummary {
-    if (code === 'BUSY') return emptySummary('ACQUIRE_BUSY');
-    if (code === 'CORRUPT') {
-      this.ports.diagnostics.fenceLost(companyId, 'CORRUPT');
-      return emptySummary('STATE_CORRUPT');
+    switch (code) {
+      case 'BUSY':
+        return emptySummary('ACQUIRE_BUSY');
+      case 'CORRUPT':
+        this.ports.diagnostics.fenceLost(companyId, 'CORRUPT');
+        return emptySummary('STATE_CORRUPT');
+      case 'LIMIT':
+        return emptySummary('LIMIT_REACHED');
+      case 'OK':
+      case 'STALE':
+      case 'MISSING':
+      case 'OVERFLOW':
+        // رد ما يحملش لقطة: الحالة مش متاحة للدور، فالدور بيقف على فقد سور.
+        return emptySummary('FENCE_LOST');
     }
-    return emptySummary('LIMIT_REACHED');
   }
 }

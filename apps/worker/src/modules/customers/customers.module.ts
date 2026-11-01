@@ -185,7 +185,7 @@ export interface RatingClaimsRuntimeDeps extends RatingClaimDeps {
  * يبني المجدول الحيّ: حالة الجدولة في Redis، ودور الخدمة، ومعالج الطابور.
  *
  * المصنع ده مش بيتنادى من الإقلاع (تصميم 7)، والتركيب الفعلي بيسجّل دورة الحياة
- * المغلقة بس. منفذ حالة Redis بيتربط هنا في جذر الموديل وفي مكان تاني خالص.
+ * المغلقة بس. منفذ حالة Redis بيتربط هنا في جذر الموديل وبس، ومش في أي مكان تاني.
  *
  * @param deps منافذ المطالبة وداتابيز المستأجر ورابط Redis والبادئة والسجل
  * @returns دورة حياة المجدول الحيّ
@@ -194,6 +194,8 @@ export function createRatingClaimsRuntime(deps: RatingClaimsRuntimeDeps): Rating
   const redis = new Redis(deps.redisUrl, {
     maxRetriesPerRequest: null,
     enableOfflineQueue: false,
+    // اسم الاتصال بيميّز عميل الحالة عن عملاء BullMQ في قائمة اتصالات Redis.
+    connectionName: 'pospay-rating-claims-state',
   });
   redis.on('error', () => undefined);
   const state = redisRatingClaimState({ prefix: deps.statePrefix, redis });
@@ -217,7 +219,11 @@ export function createRatingClaimsRuntime(deps: RatingClaimsRuntimeDeps): Rating
   return {
     deliver: (event, next) => processor.deliver(event, next),
     ready: () => processor.ready(),
-    close: () => processor.close(),
+    close: async () => {
+      // العامل بيتصفّى الأول، وبعدين عميل الحالة؛ عميل الحالة بتاعنا احنا اللي قفلناه.
+      await processor.close();
+      await redis.quit();
+    },
     eventTypes: RATING_CLAIMS_TRIGGERS,
   };
 }

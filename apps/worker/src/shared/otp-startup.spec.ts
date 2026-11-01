@@ -4,6 +4,7 @@ import { HealthController } from './health.controller.ts';
 import type * as Notifications from '@pospay/notifications';
 import type * as StaffModule from '../modules/staff/index.ts';
 import type * as NotificationModule from '../modules/notifications/index.ts';
+import type * as BullMq from 'bullmq';
 // تحميل تركيب القنوات ووظائف staff خارج مهلة بدء التشغيل حتى لا يستهلك التحويل البارد مهلة العزل.
 import '../modules/notifications/index.ts';
 import '../modules/staff/index.ts';
@@ -52,7 +53,7 @@ vi.mock('ioredis', () => ({
 }));
 // الطابور والعامل الحقيقيين بيسجّلوا اللي اتعمل، عشان نعرف إن مجدول المطالبات ما اتفتحش.
 vi.mock('bullmq', async (original) => {
-  const actual = await original<typeof import('bullmq')>();
+  const actual = await original<typeof BullMq>();
   const record =
     (kind: string) =>
     (target: unknown, args: unknown[]): object => {
@@ -324,9 +325,12 @@ it('runtime_stays_dormant_with_valid_token_settings', async () => {
     .join(' ');
   expect(written).not.toMatch(/rating-claims/);
   expect(resources.database.withTenant).not.toHaveBeenCalled();
-  const consumers = resources.deliverer.mock.calls.at(-1)?.[1] as { id: string }[] | undefined;
-  expect(consumers?.some((consumer) => consumer.id === 'customers.rating-scheduling-v1')).toBe(
-    true,
+  const raw = resources.deliverer.mock.calls.at(-1)?.[1] as
+    | ({ id: string } | undefined)[]
+    | undefined;
+  const consumerIds = (raw ?? []).flatMap((consumer) =>
+    consumer === undefined ? [] : [consumer.id],
   );
-  expect(consumers?.some((consumer) => consumer.id.includes('rating-claims'))).toBe(false);
+  expect(consumerIds).toContain('customers.rating-scheduling-v1');
+  expect(consumerIds.some((id) => id.includes('rating-claims'))).toBe(false);
 });

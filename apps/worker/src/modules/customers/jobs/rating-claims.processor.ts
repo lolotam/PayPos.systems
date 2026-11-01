@@ -39,7 +39,7 @@ export interface RatingClaimsProcessorOptions {
   readonly prefix?: string;
   /** دور المطالبة اللي العامل بيناديه. */
   readonly turn: RatingClaimsTurnPort;
-  /** سجل العامل، اختياري عشانبيئات التشغيل الصامتة. */
+  /** سجل العامل، اختياري عشان بيئات التشغيل الصامتة. */
   readonly logger?: Logger;
 }
 
