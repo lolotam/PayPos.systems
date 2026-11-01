@@ -181,7 +181,9 @@ it('shows read-only category text and omits category_id when categories are refu
     />,
   );
   expect(screen.queryByLabelText(t('en', 'catalogServices.category'))).toBeNull();
-  expect(screen.getByText('Legacy')).toBeTruthy();
+  expect(
+    screen.getByText(`Legacy (${t('en', 'catalogServices.categoryClosed')})`),
+  ).toBeTruthy();
   expect(screen.getByText(t('en', 'catalogServices.categoriesUnavailable'))).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'catalogServices.save') }));
   await waitFor(() => expect(save).toHaveBeenCalled());
