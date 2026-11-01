@@ -32,6 +32,9 @@ export const LEASE_MS = 120_000;
 /** أقصى مدة ملكية الدور الواحد، وبعدها لازم دور جديد. */
 export const MAX_TURN_MS = 180_000;
 
+/** أقل مدة بين تجديد حجز المالك: ربع مدة الحجز. */
+export const RENEWAL_INTERVAL_MS = LEASE_MS / 4;
+
 /** ميزانية الدور: مسار أمامي للزيارات ومسار مستقل لإعادة المحاولة. */
 export interface VisitBudget {
   /** عدد الصفوف الأمامية اللي الدور يقدر يزورها. */
@@ -58,6 +61,20 @@ export function assertVisitBudget(budget: VisitBudget): VisitBudget {
     throw new RangeError('VISIT_BUDGET_TOTAL_EXCEEDED');
   }
   return budget;
+}
+
+/**
+ * هل لازم يجدّد الدور حجزه؟
+ *
+ * حجز المالك في Redis بيبقى 120 ثانية، والتجديد بياخد ربع المدة بس. الحساب
+ * بساعة المحقونة مش بساعة Redis، عشان القرار يبقى قابل للاختبار.
+ *
+ * @param now لحظة القرار المحقونة
+ * @param lastRenewalAt آخر لحظة تجديد
+ * @returns true لو عدّت مدة التجديد ولازم تجديد
+ */
+export function leaseRenewalDue(now: Date, lastRenewalAt: Date): boolean {
+  return now.getTime() - lastRenewalAt.getTime() >= RENEWAL_INTERVAL_MS;
 }
 
 /** مصير طلب التقييم بعد ما جولة المطالبة خلصت عليه. */
@@ -115,6 +132,41 @@ export function settleClaim(observation: ClaimObservation): ClaimSettlement {
   }
 }
 
+/** الطلب اللي بيتقاس عليه الاستحقاق: حالته وموعد استحقاقه. */
+export interface ClaimableRequest {
+  /** حالة الطلب المقروءة في المعاملة. */
+  readonly status: RatingRequestStatus;
+  /** موعد استحقاق المطالبة للطلب ده. */
+  readonly dueAt: Date;
+}
+
+/**
+ * هل الطلب قابل للمطالبة في اللحظة دي؟
+ *
+ * القاعدة: الطلب لازم يكون مجدولاً ومستحقاً. الطلب المستقبلي ما بيتلمسش في
+ * الجولة الحالية، والطلب في حالة تانية خلاص اتعالج قبل كده.
+ *
+ * @param request الطلب المقروء بحالته وموعد استحقاقه
+ * @param now لحظة القرار المحقونة
+ * @returns true لو الطلب مجدول ومستحق في اللحظة دي
+ */
+export function isClaimable(request: ClaimableRequest, now: Date): boolean {
+  return request.status === 'SCHEDULED' && request.dueAt.getTime() <= now.getTime();
+}
+
+/**
+ * بيحوّل الحالة المقروءة بعد المطالبة إلى مشاهدة.
+ *
+ * إعادة القراءة جوه نفس معاملة المطالبة، فالحالة المقروءة هي اللي بتحدد هل
+ * الطلب خلص ولا لسه محتاج إعادة محاولة.
+ *
+ * @param status الحالة المقروءة بعد المطالبة
+ * @returns مشاهدة تسوية الطلب
+ */
+export function rereadObservation(status: RatingRequestStatus): ClaimObservation {
+  return { kind: 'STATUS', status };
+}
+
 /**
  * وقت إعادة النظر التالي لطلب اتحاول وفضل مجدول.
  *
@@ -133,4 +185,34 @@ export function nextRetryEligibility(now: Date, storedDueAt: Date | null): Date 
   const due = storedDueAt.getTime();
   if (due <= now.getTime()) return cap;
   return due < cap.getTime() ? new Date(due) : cap;
+}
+
+/** سبب انتهاء الدور: بيقول للمشغّل ليه الدور وقف. */
+export type RatingClaimsEndReason =
+  /** مالك تاني شغّال على نفس الشركة، فالدور وقّف من غير ما يمس حاجة. */
+  | 'ACQUIRE_BUSY'
+  /** حالة الشركة في Redis مش صالحة، والدور ما بيعيدش تهيئة. */
+  | 'STATE_CORRUPT'
+  /** السور اتغيّر في نص الدور: مالك تاني接手، أو النسخة اتغيّرت. */
+  | 'FENCE_LOST'
+  /** سقف ملكية الدور اتقضى، فمفيش صف جديد بيبدأ. */
+  | 'LIMIT_REACHED'
+  /** الدور خلص شغله عادي. */
+  | 'COMPLETED';
+
+/**
+ * ملخص الدور: أعداد التسويات وزيارات المسارين وسبب الانتهاء.
+ *
+ * الملخص مالوش أي معرّف: مفيش طلب ولا جولة ولا مفتاح، عشان يتكتب في السجل
+ * без ما يسرّب بيانات المستأجر.
+ */
+export interface RatingClaimsTurnSummary {
+  /** عدد التسويات لكل مصير. */
+  readonly settlements: Readonly<Record<ClaimSettlement, number>>;
+  /** عدد الصفوف الأمامية اللي الدور زارها. */
+  readonly forwardVisits: number;
+  /** عدد الصفوف اللي اتخدّمت من خريطة الإعادة. */
+  readonly retryVisits: number;
+  /** سبب انتهاء الدور. */
+  readonly end: RatingClaimsEndReason;
 }

@@ -40,7 +40,10 @@ import {
   createDiscountApprovalNoticeConsumer,
   daySessionsReader,
 } from './modules/orders/index.ts';
-import { createRatingSchedulingConsumer } from './modules/customers/index.ts';
+import {
+  closedRatingClaimsLifecycle,
+  createRatingSchedulingConsumer,
+} from './modules/customers/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 import {
   beginDocumentRendering,
@@ -164,11 +167,13 @@ let queue: OptionalCapabilities['queue'];
 let documents: DocumentRendering | undefined;
 // حدث إذن الدفع بيروح للطابور بس لما الدفع جاهز؛ ولو مش جاهز التسليم يرجع زي ما هو.
 const pushTransport = push.transport((claimed) => (queue?.deliver ?? businessDeliver)(claimed));
+// تصميم 7: المجدول الحيّ ما بيشتغلش من الإقلاع، فالتركيب بيسجّل المسجّل المغلق بس.
+const ratingClaims = closedRatingClaimsLifecycle();
 const deliver: typeof businessDeliver = (event) =>
   deliverFilesEvent(event, {
     register: (claimed) => files.deliver(claimed),
     staff: (claimed, next) => staff.deliver(claimed, next),
-    core: pushTransport,
+    core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
   });
 const loop = createDispatchLoop({ dispatcher, deliver, logger });
 
@@ -178,6 +183,8 @@ const release = async (): Promise<void> => {
   // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
   await files.close();
   await staff.close();
+  // المسجّل المغلق ما عندوش موارد، بس الإغلاق بيبقى في مسار الإيقاف زي أي بقية.
+  await ratingClaims.close();
   // المتصفح بيتقفل بعد تصفية الطابور، مش مع إيقاف الحلقة.
   await documents?.close();
   await optionalWithin(

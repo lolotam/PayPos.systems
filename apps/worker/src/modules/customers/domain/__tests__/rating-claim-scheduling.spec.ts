@@ -2,13 +2,19 @@ import { describe, expect, it } from 'vitest';
 
 import {
   FORWARD_VISITS,
+  LEASE_MS,
   MAX_VISITS_PER_TURN,
+  RENEWAL_INTERVAL_MS,
   RETRY_BACKOFF_MS,
   RETRY_CAPACITY,
   RETRY_VISITS,
   assertVisitBudget,
+  isClaimable,
+  leaseRenewalDue,
   nextRetryEligibility,
+  rereadObservation,
   settleClaim,
+  type ClaimableRequest,
   type ClaimObservation,
   type ClaimSettlement,
   type VisitBudget,
@@ -101,5 +107,57 @@ describe('وقت إعادة النظر', () => {
   it('eligibility_never_precedes_the_current_moment', () => {
     const due = new Date(now.getTime() - 60_000);
     expect(nextRetryEligibility(now, due).getTime()).toBeGreaterThan(now.getTime());
+  });
+});
+
+// الاستحقاق الآن: الطلب لازم يكون مجدولاً ومستحقاً، وإلا الجولة الحالية ما
+// بتلمسهوش؛ وإعادة القراءة بتترجم الحالة إلى مشاهدة تسوية.
+describe('استحقاق الطلب الآن', () => {
+  it.each<[string, ClaimableRequest, boolean]>([
+    ['scheduled_and_due_is_claimable', { status: 'SCHEDULED', dueAt: now }, true],
+    [
+      'scheduled_and_overdue_is_claimable',
+      { status: 'SCHEDULED', dueAt: new Date(now.getTime() - 1_000) },
+      true,
+    ],
+    [
+      'scheduled_and_not_due_yet_is_not_claimable',
+      { status: 'SCHEDULED', dueAt: new Date(now.getTime() + 1_000) },
+      false,
+    ],
+    ['sending_is_not_claimable', { status: 'SENDING', dueAt: now }, false],
+    ['sent_is_not_claimable', { status: 'SENT', dueAt: now }, false],
+    ['cancelled_is_not_claimable', { status: 'CANCELLED', dueAt: now }, false],
+  ])('%s', (_scenario, request, expected) => {
+    expect(isClaimable(request, now)).toBe(expected);
+  });
+
+  it('the_reread_status_becomes_a_status_observation', () => {
+    expect(rereadObservation('SENT')).toEqual({ kind: 'STATUS', status: 'SENT' });
+  });
+
+  it('the_reread_status_settles_through_the_same_rule', () => {
+    expect(settleClaim(rereadObservation('SENT'))).toBe('TERMINAL');
+    expect(settleClaim(rereadObservation('SCHEDULED'))).toBe('RETRY');
+  });
+});
+
+// تجديد الحجز: ربع مدة الحجز بالظبط، والقرار بيتحسب بالساعة المحقونة.
+describe('تجديد حجز المالك', () => {
+  it('the_renewal_interval_is_a_quarter_of_the_lease', () => {
+    expect(RENEWAL_INTERVAL_MS).toBe(LEASE_MS / 4);
+    expect(RENEWAL_INTERVAL_MS).toBe(30_000);
+  });
+
+  it('a_lease_renewed_now_is_not_due_again', () => {
+    expect(leaseRenewalDue(now, now)).toBe(false);
+  });
+
+  it('a_lease_is_due_for_renewal_after_the_interval', () => {
+    expect(leaseRenewalDue(now, new Date(now.getTime() - RENEWAL_INTERVAL_MS))).toBe(true);
+  });
+
+  it('a_lease_before_the_interval_is_not_due', () => {
+    expect(leaseRenewalDue(now, new Date(now.getTime() - RENEWAL_INTERVAL_MS + 1))).toBe(false);
   });
 });

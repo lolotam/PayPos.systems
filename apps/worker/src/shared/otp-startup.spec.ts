@@ -9,7 +9,7 @@ import '../modules/notifications/index.ts';
 import '../modules/staff/index.ts';
 
 const resources = vi.hoisted(() => ({
-  database: { close: vi.fn(async () => undefined), ping: vi.fn() },
+  database: { close: vi.fn(async () => undefined), ping: vi.fn(), withTenant: vi.fn() },
   loop: { stop: vi.fn(), start: vi.fn() },
   listen: vi.fn(),
   workerOptions: vi.fn(),
@@ -20,6 +20,9 @@ const resources = vi.hoisted(() => ({
   execution: { readiness: vi.fn(), close: vi.fn() },
   otp: { ready: vi.fn(), stop: vi.fn(), close: vi.fn() },
   otpOptions: vi.fn(),
+  bullmq: { constructed: [] as { kind: string; name: string }[] },
+  redis: { set: vi.fn(), del: vi.fn(), get: vi.fn() },
+  deliverer: vi.fn(),
   maintenance: vi.fn((options: { databaseUrl: string }) => {
     new URL(options.databaseUrl);
     return { readiness: vi.fn(), stop: vi.fn(), close: vi.fn() };
@@ -42,10 +45,26 @@ vi.mock('ioredis', () => ({
     quit = vi.fn();
     disconnect = vi.fn();
     ping = vi.fn();
-    set = vi.fn();
-    del = vi.fn();
+    set = resources.redis.set;
+    del = resources.redis.del;
+    get = resources.redis.get;
   },
 }));
+// الطابور والعامل الحقيقيين بيسجّلوا اللي اتعمل، عشان نعرف إن مجدول المطالبات ما اتفتحش.
+vi.mock('bullmq', async (original) => {
+  const actual = await original<typeof import('bullmq')>();
+  const record =
+    (kind: string) =>
+    (target: unknown, args: unknown[]): object => {
+      resources.bullmq.constructed.push({ kind, name: String(args[0]) });
+      return Reflect.construct(target as new (...rest: unknown[]) => object, args);
+    };
+  return {
+    ...actual,
+    Queue: new Proxy(actual.Queue, { construct: record('queue') }),
+    Worker: new Proxy(actual.Worker, { construct: record('worker') }),
+  };
+});
 vi.mock('../worker.ts', () => ({
   createWorker: async (options: unknown) => {
     resources.workerOptions(options);
@@ -55,7 +74,12 @@ vi.mock('../worker.ts', () => ({
     };
   },
 }));
-vi.mock('../outbox/deliver.ts', () => ({ createDeliverer: vi.fn() }));
+vi.mock('../outbox/deliver.ts', () => ({
+  createDeliverer: vi.fn((...args: unknown[]) => {
+    resources.deliverer(...args);
+    return undefined;
+  }),
+}));
 vi.mock('../outbox/dispatch-loop.ts', () => ({ createDispatchLoop: () => resources.loop }));
 vi.mock('../modules/notifications/index.ts', async (original) => ({
   ...(await original<typeof NotificationModule>()),
@@ -103,6 +127,7 @@ vi.mock('./config.ts', () => ({
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
+  resources.bullmq.constructed.length = 0;
   vi.stubEnv('NODE_ENV', 'production');
   vi.stubEnv('AUTH_DATABASE_URL', '');
   resources.global.ping.mockRejectedValue(new Error('SYNTHETIC_INTAKE_FAILURE'));
@@ -277,4 +302,31 @@ it('a failing optional intake is diagnosed and isolated from ordinary worker rea
     },
     'staff OTP capability',
   );
+});
+
+// التصميم 7: المجدول الحيّ ما بيشتغلش من الإقلاع. مع إعدادات رموز صالحة، العامل
+// بيقلع عادي، ومفيش طابور ولا عامل ولا حالة Redis لمجدول طلبات التقييم.
+it('runtime_stays_dormant_with_valid_token_settings', async () => {
+  vi.stubEnv('RATING_TOKEN_DERIVATION_KEY', 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=');
+  vi.stubEnv('RATING_TOKEN_DERIVATION_KEY_VERSION', '1');
+  await import('../main.ts');
+  expect(resources.logger.info).toHaveBeenCalledWith(
+    expect.objectContaining({
+      capability: expect.objectContaining({ name: 'RATING_TOKENS', state: 'READY' }),
+    }),
+    'rating token capability',
+  );
+  expect(resources.bullmq.constructed.filter((entry) => entry.name === 'rating-claims')).toEqual(
+    [],
+  );
+  const written = resources.redis.set.mock.calls
+    .map((call) => call.map(String).join(' '))
+    .join(' ');
+  expect(written).not.toMatch(/rating-claims/);
+  expect(resources.database.withTenant).not.toHaveBeenCalled();
+  const consumers = resources.deliverer.mock.calls.at(-1)?.[1] as { id: string }[] | undefined;
+  expect(consumers?.some((consumer) => consumer.id === 'customers.rating-scheduling-v1')).toBe(
+    true,
+  );
+  expect(consumers?.some((consumer) => consumer.id.includes('rating-claims'))).toBe(false);
 });
