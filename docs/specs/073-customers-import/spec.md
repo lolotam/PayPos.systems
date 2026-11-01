@@ -5,7 +5,7 @@
 - CI-Q1 to CI-Q19 are feature questions: batch 88, `PP-102.1` to `PP-102.19`.
 - CI-Q20 is a feature question: batch 90, `PP-105.1`. Both owners chose option A (`choice: 0`): the «السنة معروفة؟» Yes/No column settles file entry when the birth year is unknown. Original answers, channels and timestamps remain in the audit record.
 - CI-T1 to CI-T8 are technical questions: `PP-103.1` to `PP-103.8`. Waleed also settled the 34-pre split (see Delivery).
-- CI-T9 and CI-T10 are technical follow-ups to Abu Salem's CI-Q7 note, pending Waleed's answer through the manager; PP numbers await allocation. They resolve the canonical business-country source and the delivery placement of editable calling codes in self-registration, respectively. Neither question goes on the decisions site.
+- CI-T9 (`PP-107.1`) and CI-T10 (`PP-107.2`) are technical follow-ups to Abu Salem's CI-Q7 note, pending Waleed's answer through the manager. The manager reserved all of `PP-107` for this task and confirmed both cards were presented (2026-11-01, message labelled 16:12 Kuwait). They resolve the canonical business-country source and the delivery placement of editable calling codes in self-registration, respectively. Neither question goes on the decisions site.
 - Waleed has answered CI-Q1 to CI-Q4 and CI-T1 to CI-T8. The manager confirmed that the newer CI-Q17 answer supersedes CI-T7's cross-business read restriction; the original answer remains in the audit record. D-8 records the reconciled design.
 - Waleed has also answered CI-Q5 to CI-Q16, on the decisions page itself (his own picks, 11:07–11:08 and 12:10–12:13).
 - Abu Salem answered all twenty feature questions in batches 88 and 90; his live notes were verified on 2026-11-01. His answers bind. Two changes from Waleed's original answers affect the specification: CI-Q10 requires gender for every new customer, and the CI-Q7 note makes the business's country the default rather than a fixed Kuwait default.
@@ -154,7 +154,7 @@ Waleed's pick on the 34-pre split (manager chat, 2026-11-01, about 13:01, final)
 
 | Sub-PR | Content | Waits on |
 |---|---|---|
-| 34-pre-1 **[PP-102.1]** | Migration, contract, domain and API for birthday, notes (per business, CI-Q13), gender and email: new nullable customer columns for legacy compatibility, required gender on new creation (CI-Q10), the per-business notes table, the column grants and the guard (D-8, D-9, D-10), and the find-or-create use case of spec 010 accepting the other optional fields. | The migration lane (32b-pre-1, then 49-1, then this one, and only with the manager's yes), plus the spec/design gates. The feature answers on CI-Q1 and CI-Q13 are complete. |
+| 34-pre-1 **[PP-102.1]** | Migration, contract, domain and API for birthday, notes (per business, CI-Q13), gender and email: new nullable customer columns for legacy compatibility, required gender on new creation (CI-Q10), the per-business notes table, the column grants and the guard (D-8, D-9, D-10), and the find-or-create use case of spec 010 accepting the other optional fields. | The migration lane is currently held by 49-1, then 34-pre-1 (manager update, 2026-11-01, 16:12 Kuwait); explicit `lane granted` is still required, along with the spec/design gates. The feature answers on CI-Q1 and CI-Q13 are complete. |
 | 34-pre-2 **[PP-102.1]** | The reception registration form and the customer card (CI-Q14). | 34-pre-1. |
 | 34b-1 | Move the shared xlsx adapters to `apps/api/src/shared/import/` (CI-T1). | Nothing. |
 | 34b-2 | Contracts, template, preview and the business and branch routes (CI-T3, CI-T5), the `CustomerImportCommitRequested` event type (D-4). | 34b-1; the fields columns wait on 34-pre-1; the approved business-country source is unresolved. |
@@ -166,6 +166,6 @@ Known constraints:
 - The first 34b sub-PR moves the shared xlsx adapters to `apps/api/src/shared/import/` (CI-T1), so 34b does not wait
   on 072's 32b-1.
 - The worker sub-PR waits on 59b-2b, which owns `apps/worker/src/modules/customers/**` now.
-- **[PP-102.1]** 34-pre needs the single migration lane. It is queued after 32b-pre-1 and after 49-1, and it is taken only with the manager's yes. Abu Salem's feature answers are complete; this does not release the migration lane or authorize a push or PR.
+- **[PP-102.1]** 34-pre needs the single migration lane. The manager's 2026-11-01 update labelled 16:12 Kuwait places 49-1 on the lane now, followed by 34-pre-1. Work waits for the manager's explicit `lane granted`; queue position and completed feature answers do not authorize a migration, push or PR.
 - **[PP-102.1]** 34-pre is larger than "add four columns", which is why it is split in two (above). The reception form
   lives in `apps/admin/src/orders` and goes through the find-or-create use case of spec 010.
