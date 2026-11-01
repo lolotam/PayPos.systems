@@ -155,6 +155,7 @@ Waleed's pick on the 34-pre split (manager chat, 2026-11-01, about 13:01, final)
 
 `TODO(spec)`: the 34b sub-PR boundaries above are a draft for the design advisors to confirm.
 Known constraints:
+- The 34-pre-1 PR also carries the `PP-102`, `PP-103` and `PP-105` index rows in `docs/owner-decisions.ar.md`, with the owner answers, channels and dates copied verbatim from this slice's audit record (manager instruction, 2026-11-01, message labelled 15:46 Kuwait). These rows do not get a separate PR.
 - The first 34b sub-PR moves the shared xlsx adapters to `apps/api/src/shared/import/` (CI-T1), so 34b does not wait
   on 072's 32b-1.
 - The worker sub-PR waits on 59b-2b, which owns `apps/worker/src/modules/customers/**` now.
