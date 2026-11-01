@@ -49,12 +49,26 @@ export interface SeedPlan {
   readonly requestIds: string[];
 }
 
-/** معرّفات متسلسلة ثابتة لكل جدول، عشان ترتيب الجولة يبقى متوقع في الاختبار. */
+/**
+ * معرّفات متسلسلة ثابتة لكل جدول، عشان ترتيب الجولة يبقى متوقع في الاختبار.
+ *
+ * المعرّف لازم يكون UUID v7 صالح: مجموعة النسخة بتبدأ بـ 7 ومجموعة النوع بـ 8/9/a/b،
+ * وإلا عقد `RatingRequestReady` رفض الحمولة، والمعاملة اتلغت، وكل طلب رجع إعادة.
+ * الترتيب التصاعدي بيجي من المجموعة الأولى، لأنها بتحمل الرقم نفسه.
+ *
+ * @param prefix أول أربع خانات من المعرّف، ورقم الجدول جواها
+ * @param first أول رقم في التسلسل
+ * @param count عدد المعرّفات
+ * @param stride خطوة التسلسل
+ * @returns المعرّفات بترتيب تصاعدي
+ */
 export function idsOf(prefix: string, first: number, count: number, stride: number): string[] {
   const ids: string[] = [];
   for (let index = 0; index < count; index += 1) {
     const hex = (first + index * stride).toString(16);
-    ids.push(`${prefix}${hex.padStart(4, '0')}-7000-8000-0000-${hex.padStart(12, '0')}`);
+    // الرقم لازم يبقى في أربع خانات، وإلا المجموعة الأولى خرجت أطول والمعرّف بقى مرفوض.
+    if (hex.length > 4) throw new Error('RATING_CLAIM_FIXTURE_SEQUENCE_OVERFLOW');
+    ids.push(`${prefix}${hex.padStart(4, '0')}-0000-7000-8000-${hex.padStart(12, '0')}`);
   }
   return ids;
 }

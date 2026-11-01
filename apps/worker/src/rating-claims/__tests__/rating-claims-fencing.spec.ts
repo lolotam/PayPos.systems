@@ -310,8 +310,15 @@ it('tenant_isolation_covers_state_and_claims', async () => {
     'RETRY',
   );
   expect(crossed.code).toBe('STALE');
+  // البصمة مفتوحة، عشان المطالبة تنجح فعلاً: من غير كده ما فيش أي حدث، فيبقى العزل
+  // صحيح بالفراغ مش لأن الشركة التانية اتفصلت.
+  w.tokens.allow = () => true;
   // دور الشركة الأولى ما بيقراش ولا بيكتبش ولا يطلعش أحداث للشركة التانية.
   await w.turn();
+  // أحداث الشركة الأولى اتطبع فعلاً، فصفر أحداث الشركة التانية مش نتيجة صمت.
+  const ready = await w.readyRequestIds();
+  expect(ready).toHaveLength(seeded.requestIds.length);
+  for (const requestId of seeded.requestIds) expect(ready).toContain(requestId);
   await expectTenantIsolation(w, bOnly);
   const bRow = await w.base.db.withTenant(w.company, async (tx) =>
     ratingClaimRepository.findRequest(tx, w.company, bOnly),

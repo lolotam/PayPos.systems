@@ -4,12 +4,16 @@ import { HealthController } from './health.controller.ts';
 import type * as Notifications from '@pospay/notifications';
 import type * as StaffModule from '../modules/staff/index.ts';
 import type * as NotificationModule from '../modules/notifications/index.ts';
+import type * as Customers from '../modules/customers/index.ts';
 import type * as BullMq from 'bullmq';
 // تحميل تركيب القنوات ووظائف staff خارج مهلة بدء التشغيل حتى لا يستهلك التحويل البارد مهلة العزل.
 // تحميل bullmq كمان بره الاختبارات: التحميل البارد كان بيقع جوّه أول اختبار وبياكل مهلة العزل.
 import 'bullmq';
 import '../modules/notifications/index.ts';
 import '../modules/staff/index.ts';
+// موديل العملاء بره الاختبارات: هو أتقل رسم بياني في الإقلاع، وتحميله البارد كان بيقع
+// جوّه الاختبار فياكل مهلة العزل، والاختبار اللي بعده بيلاقي بدء تشغيل شغّال معاه.
+import '../modules/customers/index.ts';
 
 const resources = vi.hoisted(() => ({
   database: { close: vi.fn(async () => undefined), ping: vi.fn(), withTenant: vi.fn() },
@@ -70,6 +74,14 @@ vi.mock('bullmq', async (original) => {
     Queue: new Proxy(actual.Queue, { construct: record('queue') }),
     Worker: new Proxy(actual.Worker, { construct: record('worker') }),
   };
+});
+// موديل العملاء بيتحمل مرة واحدة بس: بعد إعادة ضبط الموديولات مفيش تحميل بارد تاني،
+// لأن الرسم البياني بتاعه أتقل واحد في الإقلاع وبياكل مهلة عزل الاختبار.
+const customersActual = vi.hoisted(() => ({ module: undefined as typeof Customers | undefined }));
+vi.mock('../modules/customers/index.ts', async (original) => {
+  const actual = customersActual.module ?? (await original<typeof Customers>());
+  customersActual.module = actual;
+  return { ...actual };
 });
 vi.mock('../worker.ts', () => ({
   createWorker: async (options: unknown) => {
