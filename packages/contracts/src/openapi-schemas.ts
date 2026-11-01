@@ -51,7 +51,7 @@ import {
 } from './staff/update-employee.js';
 import { permissionSchemas } from './identity/permissions-openapi.js';
 import { pendingDevicesSchemas } from './identity/devices-openapi.js';
-import { customer, findOrCreateCustomerInput } from './customers.js';
+import { customerSchemas } from './customers.js';
 import { ratingSettingsSchemas } from './customers/rating-settings-openapi.js';
 import { ratingView, submitRatingInput } from './customers/ratings.js';
 import { catalogSchemas } from './catalog/catalog-openapi.js';
@@ -168,8 +168,7 @@ export const openApiSchemas = [
   employeeImportCommit,
   employeeImportCommitAccepted,
   employeeImportStatus,
-  customer,
-  findOrCreateCustomerInput,
+  ...customerSchemas,
   ratingView,
   submitRatingInput,
   ...catalogSchemas,

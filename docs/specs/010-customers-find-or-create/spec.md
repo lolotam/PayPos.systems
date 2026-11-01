@@ -5,6 +5,22 @@
 **Status**: Implementation scope settled; deferred owner questions below
 **Input**: Phase 1 plan row 34; SPEC §§2–4, §11 R1; PRD D-30/D-43; ADR-0007/0010; owner decision 2026-10-03.
 
+## 34-pre-1 expand addendum — 2026-11-01
+
+The original slice below records the initial three-field reception request and its original grants. The approved
+[spec 073](../073-customers-import/spec.md) and its [34-pre-1 implementation plan](../073-customers-import/34-pre-1-plan.md)
+extend that request with optional birthday, gender and email; the business and branch routes also accept a
+per-business note. The company route refuses notes. An existing identity receives no field, note or audit write;
+only a successful creator stores the supplied fields and note with its audit in one transaction. The five-field
+reception response and audit projection stay unchanged.
+
+34-pre-1 is the compatible expand release: missing gender stores NULL with no default or backfill. The accepted
+required-gender rule activates with the reception UI in 34-pre-2, in the same PR (`TODO(spec)`, CI-Q10). Spec 073
+owns the nullable scalar schema, column-level grants, set-once database guard, company-isolated notes and their
+cross-business visibility. Its profile GET routes use the existing scoped create-customer permission and feature
+guard; the future card UI is outside 34-pre-1. These additions supersede the original slice's narrower schema and
+"no standalone read endpoint" statement without changing its identity or masking rules.
+
 ## User Scenarios & Testing
 
 ### User Story 1 — Reception identifies a customer (Priority: P1)

@@ -16,9 +16,13 @@ export {
 } from './staff/employee.js';
 export {
   customer,
+  customerProfile,
   findOrCreateCustomerInput,
+  findOrCreateScopedCustomerInput,
   type Customer,
+  type CustomerProfile,
   type FindOrCreateCustomerInput,
+  type FindOrCreateScopedCustomerInput,
 } from './customers.js';
 export {
   createServiceInput,

@@ -1684,6 +1684,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/customers/{customerId}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires create:customers:company and the customers feature. The notes of every business of the company are shown; the route scope only gates the entry. */
+        get: operations["getCustomerProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/customers/{customerId}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires create:customers:business at the verified context and the customers feature. The notes of every business of the company are shown; the route scope only gates the entry. */
+        get: operations["getBusinessCustomerProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/branches/{branchId}/customers/{customerId}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires create:customers:branch at the verified context and the customers feature. The notes of every business of the company are shown; the route scope only gates the entry. */
+        get: operations["getBranchCustomerProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ratings/opt-out": {
         parameters: {
             query?: never;
@@ -4360,6 +4411,32 @@ export interface components {
             opted_out: boolean;
             phone: string;
         };
+        CustomerProfile: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            opted_out: boolean;
+            phone: string;
+            birthday: {
+                day: number;
+                month: number;
+                year: number | null;
+            } | null;
+            /** @enum {string|null} */
+            gender: "female" | "male" | null;
+            email: string | null;
+            notes: {
+                /** Format: uuid */
+                business_id: string;
+                business_name_ar: string | null;
+                business_name_en: string;
+                note: string;
+                /** Format: date-time */
+                created_at: string;
+            }[];
+        };
         FindOrCreateCustomerInput: {
             phone: {
                 calling_code: string;
@@ -4368,6 +4445,35 @@ export interface components {
             name: string;
             /** @enum {string} */
             locale: "ar" | "en";
+            /** @enum {string} */
+            gender?: "female" | "male";
+            birthday?: {
+                day: number;
+                month: number;
+                year?: number;
+            };
+            /** @description Between 3 and 254 code points; a literal @ and a dot are required; control characters are refused. */
+            email?: string;
+        };
+        FindOrCreateScopedCustomerInput: {
+            phone: {
+                calling_code: string;
+                national_number: string;
+            };
+            name: string;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** @enum {string} */
+            gender?: "female" | "male";
+            birthday?: {
+                day: number;
+                month: number;
+                year?: number;
+            };
+            /** @description Between 3 and 254 code points; a literal @ and a dot are required; control characters are refused. */
+            email?: string;
+            /** @description Between 1 and 500 code points; interior newlines are kept. The NUL character is refused. */
+            note?: string;
         };
         RatingView: {
             business_name: string;
@@ -13379,7 +13485,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["FindOrCreateCustomerInput"];
+                "application/json": components["schemas"]["FindOrCreateScopedCustomerInput"];
             };
         };
         responses: {
@@ -13416,7 +13522,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["FindOrCreateCustomerInput"];
+                "application/json": components["schemas"]["FindOrCreateScopedCustomerInput"];
             };
         };
         responses: {
@@ -13427,6 +13533,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Customer"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getCustomerProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                customerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The customer profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerProfile"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getBusinessCustomerProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                customerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The customer profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerProfile"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getBranchCustomerProfile: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                branchId: string;
+                customerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The customer profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerProfile"];
                 };
             };
             /** @description The API error envelope */

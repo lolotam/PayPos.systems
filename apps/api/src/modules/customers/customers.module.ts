@@ -3,6 +3,7 @@ import type { IdGenerator, TenantWrappers } from '@pospay/db';
 
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import type { Clock } from '../../shared/ports/clock.port.ts';
+import { CustomerProfileController } from './http/customer-profile.controller.ts';
 import { CustomersController } from './http/customers.controller.ts';
 import { RatingOptOutController } from './http/rating-opt-out.controller.ts';
 import { RatingSettingsController } from './http/rating-settings.controller.ts';
@@ -17,6 +18,11 @@ import {
   createRatingViewTransactions,
 } from './persistence/drizzle-rating-submission-transactions.ts';
 import { ratingTokenHash } from './persistence/rating-token-hash.adapter.ts';
+import { branchBusiness, workspaceNames } from './persistence/workspace-names.adapter.ts';
+import {
+  CUSTOMER_PROFILE_CONTEXT,
+  type CustomerProfileContext,
+} from './queries/customer-profile.query.ts';
 import { FindOrCreateCustomerUseCase } from './use-cases/find-or-create-customer/find-or-create-customer.usecase.ts';
 import { OptOutOfRatingsUseCase } from './use-cases/opt-out-of-ratings/opt-out-of-ratings.usecase.ts';
 import { SetRatingRequests } from './use-cases/set-rating-requests/set-rating-requests.usecase.ts';
@@ -25,6 +31,7 @@ import { ViewRatingUseCase } from './use-cases/view-rating/view-rating.usecase.t
 
 export const customersControllers = [
   CustomersController,
+  CustomerProfileController,
   RatingOptOutController,
   RatingSettingsController,
   RatingViewController,
@@ -33,6 +40,9 @@ export const customersControllers = [
 
 /** أقصى عمر لمعاملة رابط التقييم — رفض أو إرسال؛ القفل ما يعلّقش الطلب على زائر. */
 export const RATING_TRANSACTION_TIMEOUT_MS = 1_000;
+
+// أسماء أنشطة الملاحظات: القراءة بتاخدها بنفس شكل الـ context بتاع حد القراءة.
+const profileNames: CustomerProfileContext = workspaceNames.names;
 
 export function customersProviders(
   database: TenantWrappers | undefined,
@@ -55,9 +65,17 @@ export function customersProviders(
       useValue:
         database === undefined
           ? null
-          : new FindOrCreateCustomerUseCase(createCustomerTransactions(database, ids), ids, {
-              now: () => new Date(),
-            }),
+          : new FindOrCreateCustomerUseCase(
+              createCustomerTransactions(database, ids, branchBusiness),
+              ids,
+              {
+                now: () => new Date(),
+              },
+            ),
+    },
+    {
+      provide: CUSTOMER_PROFILE_CONTEXT,
+      useValue: profileNames,
     },
     {
       provide: OptOutOfRatingsUseCase,

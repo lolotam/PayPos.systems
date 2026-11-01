@@ -1373,6 +1373,20 @@
       "when": 1793540134794,
       "tag": "0197_2026-11-01_commission-service-overrides-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 198,
+      "version": "7",
+      "when": 1793558281735,
+      "tag": "0198_2026-11-01_customer-fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 199,
+      "version": "7",
+      "when": 1793558285658,
+      "tag": "0199_2026-11-01_customer-fields-validate",
+      "breakpoints": true
     }
   ]
 }
