@@ -136,8 +136,9 @@ nothing. The commit runs in the worker, and the screen polls for the result.
 - The first 34b sub-PR moves the shared xlsx adapters to `apps/api/src/shared/import/` (CI-T1), so 34b does not wait
   on 072's 32b-1.
 - The worker sub-PR waits on 59b-2b, which owns `apps/worker/src/modules/customers/**` now.
-- **[PP-102.1]** 34-pre needs the single migration lane. It is queued after 32b-pre-1 (34-pre first, then 49-1), and
-  it is taken only with the manager's yes.
+- **[PP-102.1]** 34-pre needs the single migration lane. It is queued after 32b-pre-1 and after 49-1 (the manager's order
+  of 2026-11-01 12:28: 49-1 is ready with its migration, 34-pre still waits on Abu Salem's CI-Q1 and the per-business
+  notes design), and it is taken only with the manager's yes.
 - **[PP-102.1]** 34-pre is larger than "add four columns". With CI-Q13, CI-Q14 and CI-Q15 it covers: the migration (new
   customer columns, the per-business note table, the column grants and the guard), the contracts, the find-or-create
   use case of spec 010 accepting the optional fields, the reception registration screen in `apps/admin/src/orders`,
