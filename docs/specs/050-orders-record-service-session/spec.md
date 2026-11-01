@@ -1,8 +1,8 @@
 # Spec 050 — Record a service session (Phase 1 row 35)
 
-> **Status:** Implemented in 35a (PR 178) · 2026-10-12 · SS-Q1…SS-Q11 **ANSWERED by Waleed, 2026-10-12**, batch 13 in
-> [owner-questions.ar.md](owner-questions.ar.md). Abu Salem agreed with every pick (2026-10-12);
-> no SS-Q rule remains pending.
+> **Status:** Implemented in 35a (PR 178) · 2026-10-12 · SS-Q1b, SS-Q2…SS-Q11 **ANSWERED by Waleed, 2026-10-12**, batch 13 in
+> [owner-questions.ar.md](owner-questions.ar.md). Abu Salem agreed with every pick (2026-10-12)
+> except SS-Q1b, which is pending his pick (note 2026-11-01 in owner-questions.ar.md).
 > **ADR:** [0041](../../adr/0041-orders-service-sessions-reads-and-events.md) · **35a plan:** [plan.md](plan.md).
 > **Phase 1 row:** 35 `record-service-session` — effective discount up to the limit only; above it refused.
 > **Depends on:** 32 services, 34 customers, 9 employees/branches, 7b/7c discount limits — all merged.
@@ -70,7 +70,7 @@ These answers replace recommendations; SS-Q5/6/10/11 chose option 2.
 
 | ID | Answer |
 |---|---|
-| SS-Q1 | 35a server write, 35b day list, 35c reception; the additional edit request is 35d |
+| SS-Q1b | 35a server write, 35b day list, 35c reception; the additional edit request is 35d |
 | SS-Q2 | Grantable new record permission, defaults owner/GM/business manager/branch manager/cashier; staff cannot record their own performance |
 | SS-Q3 | Admin on reception computer, each recorder's own account |
 | SS-Q4 | Editable pre-filled price, even above list; discount amount or percent; same-% shortcut |
