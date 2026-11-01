@@ -5,14 +5,14 @@ import type {
   CommissionLineEventInput,
   CommissionLineSnapshot,
   HeldCommissionLineHead,
-} from '../../domain/commission-line-types.ts';
+} from '../domain/commission-line-types.ts';
 import type {
   CommissionLineProjectionScope,
   CommissionLineReplacement,
   CommissionPeriodLockInput,
   CommissionPeriodReopenInput,
-} from '../../ports/commission-line-projection.port.ts';
-import { ProjectServiceLines } from './project-service-lines.ts';
+} from '../ports/commission-line-projection.port.ts';
+import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
 
 function line(overrides: Partial<CommissionLineSnapshot> = {}): CommissionLineSnapshot {
   return {
