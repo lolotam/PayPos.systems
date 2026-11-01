@@ -249,3 +249,17 @@ confirmed equal data. No generated schema was changed to satisfy that diagnostic
 This proves storage and isolation only. Engine support, the writer, HTTP/query paths, race tests, CM-11's saved-row
 calculation proof, the independent final review and exact-head CI remain outstanding. No 49-1 branch was pushed
 and no 49-1 PR was opened.
+
+## 12. Engine-stage receipts
+
+MiniMax changed only commission-types.ts, service-rule.ts and two new focused specs. The lead read all four files.
+The existing eligibility/ranking loop is unchanged; the final resolver consumes FOLLOW_SERVICE and returns the
+line's saved four-kind snapshot. No catalog type, public export, dependency, rounding or pricing implementation
+changed. The lead corrected three test weaknesses before running them: the claimed later-effective-date example
+now has that ordering; wrong-employee/service resets compete with an older explicit override so ignoring them has
+an observable result; the compile-time exclusion uses Extract instead of a non-distributive union comparison.
+
+Passed: @pospay/commissions-engine typecheck, lint, build, Node export smoke check and all 18 Vitest files,
+483 tests. Documentation lint has zero errors and 28 existing warnings; git diff whitespace check passed.
+The next bounded initial stage is [brief-49-1-writer.md](brief-49-1-writer.md). HTTP and listing follow that stage
+within this same delivery. The private database lane remains owned by this task and no publication gate changes.
