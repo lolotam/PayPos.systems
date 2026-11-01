@@ -85,6 +85,21 @@ export {
   type PlatformWhatsappDatabase,
 } from './platform-whatsapp-database.ts';
 export { createStaffOtpDatabase, type StaffOtpDatabase } from './staff-otp-database.ts';
+export {
+  checkStaffPrivateView,
+  closeStaffPrivateView,
+  deleteStaffPrivateViewRows,
+  openStaffPrivateView,
+  staffPrivateViewIdentifier,
+  staffPrivateViewSequenceIdentifier,
+  type StaffPrivateViewCheckOutcome,
+  type StaffPrivateViewCheckRequest,
+  type StaffPrivateViewCloseRequest,
+  type StaffPrivateViewOpenDecision,
+  type StaffPrivateViewOpenOutcome,
+  type StaffPrivateViewOpenRequest,
+  type StaffPrivateViewSessionRow,
+} from './staff-private-view.ts';
 export type {
   OtpChallengeRecord,
   OtpAttemptRecord,
