@@ -19,31 +19,47 @@ export interface RatingCustomer {
   readonly optedOutAt: Date | null;
 }
 
-/** آخر موضع في صفحة الطلبات؛ الصفحة الجاية تبدأ بعده فما يتكررش صف ولا يتخطى حد. */
-export interface DueRatingCursor {
-  readonly dueAt: Date;
-  readonly id: string;
-}
-
 /** تخزين المطالبة وتثبيتها على معاملة المستأجر نفسها. */
 export interface RatingClaimRepository<Transaction = unknown> {
   /**
-   * يرجع صفحة الطلبات المستحقة للشركة، مرتبة بالأقدم استحقاقاً.
+   * يقرأ أكبر معرّف ظاهر للشركة؛ ده الحد الأعلى اللي بتتحرك عليه الجولة.
    *
    * @param tx معاملة المستأجر
    * @param companyId الشركة المالكة للطلبات
-   * @param now لحظة الجولة
-   * @param limit أقصى عدد طلبات في الصفحة
-   * @param after آخر موضع في الصفحة اللي قبلها، أو null لأول صفحة
-   * @returns الطلبات المستحقة غير المطالب بها
+   * @returns أكبر معرّف ظاهر، أو null لما الشركة لسه فاضية
    */
-  due(
+  upperId(tx: Transaction, companyId: string): Promise<string | null>;
+  /**
+   * يقرأ صفحة معرّفات بترتيب تصاعدي، من غير أي فلتر على الحالة أو الموعد؛
+   * الفلتر ده كان بيبطّل الصفحة عشان يلاقي غير المستحق بس.
+   *
+   * @param tx معاملة المستأجر
+   * @param companyId الشركة المالكة للطلبات
+   * @param after آخر معرّف في الصفحة اللي قبلها، أو null لأول صفحة
+   * @param through الحد الأعلى المقطوع في بداية الجولة
+   * @param limit أقصى عدد معرّفات في الصفحة
+   * @returns معرّفات الصفحة بالترتيب التصاعدي
+   */
+  pageIds(
     tx: Transaction,
     companyId: string,
-    now: Date,
+    after: string | null,
+    through: string,
     limit: number,
-    after: DueRatingCursor | null,
-  ): Promise<readonly DueRatingRequest[]>;
+  ): Promise<readonly string[]>;
+  /**
+   * يقرأ صف طلب واحد من غير قفل؛ القفل على الصف هو شغل المطالبة نفسها.
+   *
+   * @param tx معاملة المستأجر
+   * @param companyId الشركة المالكة للطلب
+   * @param requestId الطلب المطلوب
+   * @returns صف الطلب، أو null لما مش موجود
+   */
+  findRequest(
+    tx: Transaction,
+    companyId: string,
+    requestId: string,
+  ): Promise<DueRatingRequest | null>;
   /**
    * يقفل صف العميل ويقراه؛ القفل على العميل يسبق قفل الطلب كما في مسار إيقاف الصفحة.
    *

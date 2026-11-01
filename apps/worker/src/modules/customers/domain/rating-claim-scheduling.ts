@@ -1,0 +1,136 @@
+/**
+ * سياسة مجدول طلبات التقييم: ميزانيات الدور، وتسوية المصير، ووقت إعادة النظر.
+ *
+ * كل حاجة هنا دوال صافية: الوقت بيدخل من المتصل (الساعة المحقونة في الاختبار، أو
+ * Redis TIME وقت التشغيل) والـ Redis نفسه مش موجود في الطبقة دي خالص.
+ */
+
+/** عدد الزيارات الأمامية المحجوزة لكل دور خدمة. */
+export const FORWARD_VISITS = 75;
+
+/** عدد زيارات إعادة المحاولة المحجوزة لكل دور خدمة. */
+export const RETRY_VISITS = 25;
+
+/** أقصى عدد طلبات إعادة المحاولة اللي حالة الشركة الواحدة بتحملها. */
+export const RETRY_CAPACITY = 2048;
+
+/** أقل مدة بين إعادات النظر المتتالية لنفس الطلب. */
+export const RETRY_BACKOFF_MS = 60_000;
+
+/** أقصى عدد زيارات الدور الواحد، عشان ما يتجاوزش 100 زيارة في دور واحد. */
+export const MAX_VISITS_PER_TURN = 100;
+
+/** أقصى حجم للحالة المرمّزة بالبايت، قبل ما تسجيل الصفحة يتعطّل. */
+export const STATE_MAX_BYTES = 1_048_576;
+
+/** المساحة المحجوزة في حجم الحالة عشان تسجيل الصفحة الجاية ما يتأخرش بالإعادات. */
+export const PAGE_RESERVE_BYTES = 65_536;
+
+/** مدة حجز المالك في Redis. */
+export const LEASE_MS = 120_000;
+
+/** أقصى مدة ملكية الدور الواحد، وبعدها لازم دور جديد. */
+export const MAX_TURN_MS = 180_000;
+
+/** ميزانية الدور: مسار أمامي للزيارات ومسار مستقل لإعادة المحاولة. */
+export interface VisitBudget {
+  /** عدد الصفوف الأمامية اللي الدور يقدر يزورها. */
+  readonly forward: number;
+  /** عدد إعادات المحاولة اللي الدور يقدر يخدمها. */
+  readonly retry: number;
+}
+
+/**
+ * بيتأكد إن ميزانية الدور جوه الحدود: مسارين موجبين، ومجموعهم ما يتجاوزش 100.
+ * المساران ما بيستعيروش من بعض، فالدور بيخدم الأمامي والإعادة في نفس الوقت.
+ *
+ * @param budget الميزانية المطلوبة للدور
+ * @returns نفس الميزانية بعد التحقق
+ */
+export function assertVisitBudget(budget: VisitBudget): VisitBudget {
+  if (!Number.isSafeInteger(budget.forward) || budget.forward < 1) {
+    throw new RangeError('VISIT_BUDGET_FORWARD_INVALID');
+  }
+  if (!Number.isSafeInteger(budget.retry) || budget.retry < 1) {
+    throw new RangeError('VISIT_BUDGET_RETRY_INVALID');
+  }
+  if (budget.forward + budget.retry > MAX_VISITS_PER_TURN) {
+    throw new RangeError('VISIT_BUDGET_TOTAL_EXCEEDED');
+  }
+  return budget;
+}
+
+/** مصير طلب التقييم بعد ما جولة المطالبة خلصت عليه. */
+export type ClaimSettlement =
+  /** الطلب خلص ومايلوش لازمة تانية: اتبعت أو اتلغى أو اتنقل للإرسال. */
+  | 'TERMINAL'
+  /** الطلب مش موجود، والدوام ده مؤكَّد بالـ commit. */
+  | 'ABSENT'
+  /** الطلب لسه في المستقبل فاتحالوش مطالبة؛ الجولة الجاية هتلمه. */
+  | 'FUTURE_UNATTEMPTED'
+  /** الطلب اتحاول وفضل مجدول، فمحتاج إعادة محاولة. */
+  | 'RETRY'
+  /** الطلب أصله في خريطة الإعادة، فالجولة الجاية تتركه زي ما هو. */
+  | 'DELEGATED';
+
+/** التسويات اللي صفحة الجولة الأمامية هي اللي بتقبلها. */
+export type PageSettlement = ClaimSettlement;
+
+/** التسويات اللي مسار إعادة المحاولة هو اللي بيقبلها. */
+export type RetrySettlement = Extract<ClaimSettlement, 'TERMINAL' | 'ABSENT' | 'RETRY'>;
+
+/** حالة طلب التقييم اللي بيتقاس عليها التسوية. */
+export type RatingRequestStatus = 'SCHEDULED' | 'SENDING' | 'SENT' | 'CANCELLED';
+
+/**
+ * المشاهدة بعد المطالبة: الحالة المقروءة في نفس المعاملة، أو غياب مؤكَّد، أو
+ * صف ما اتحاولش أصلاً لأنه في المستقبل، أو نتيجة مجهولة.
+ */
+export type ClaimObservation =
+  | { readonly kind: 'STATUS'; readonly status: RatingRequestStatus }
+  | { readonly kind: 'ABSENT' }
+  | { readonly kind: 'FUTURE_UNATTEMPTED' }
+  | { readonly kind: 'UNKNOWN' };
+
+/**
+ * بيحوّل مشاهدة ما بعد المطالبة إلى تسوية.
+ *
+ * القاعدة الحاكمة: أي طلب لسه SCHEDULED بعد ما اتحاول يفضل قابل لإعادة المحاولة،
+ * حتى لو سبب بقائه كان SKIPPED أو TOKEN_UNAVAILABLE أو NOT_DUE أو RESCHEDULED؛
+ * والنتيجة المجهولة (خطأ أو commit مش معلوم) مش بتتحول لنهائية أبداً.
+ *
+ * @param observation المشاهدة المقروءة بعد المطالبة
+ * @returns تسوية الطلب، وهي اللي بتحدد يتشال من الجولة ولا يدخل خريطة الإعادة
+ */
+export function settleClaim(observation: ClaimObservation): ClaimSettlement {
+  switch (observation.kind) {
+    case 'ABSENT':
+      return 'ABSENT';
+    case 'FUTURE_UNATTEMPTED':
+      return 'FUTURE_UNATTEMPTED';
+    case 'UNKNOWN':
+      return 'RETRY';
+    case 'STATUS':
+      return observation.status === 'SCHEDULED' ? 'RETRY' : 'TERMINAL';
+  }
+}
+
+/**
+ * وقت إعادة النظر التالي لطلب اتحاول وفضل مجدول.
+ *
+ * الأساس هو now + 60 ثانية، لأن كل محاولة محتاجة فاصل قبل ما تتعاد. بس موعد
+ * الاستحقاق المخزن لو في المستقبل بيقدّم الاستحقاق لحد اللحظة اللي الطلب بيستحق
+ * فيها فعلاً، ومينفعش يبعده أكتر من السقف: موعد استحقاق بياكل المستقبل يبقى
+ * مستحيل على إعادة المحاولة السريعة، والجولة الكاملة بتغطي اللي اتقدّم.
+ *
+ * @param now لحظة القرار المحقونة
+ * @param storedDueAt موعد الاستحقاق المخزن في الصف، أو null لو مش متاح
+ * @returns أول لحظة ينفع فيها إعادة النظر في الطلب
+ */
+export function nextRetryEligibility(now: Date, storedDueAt: Date | null): Date {
+  const cap = new Date(now.getTime() + RETRY_BACKOFF_MS);
+  if (storedDueAt === null) return cap;
+  const due = storedDueAt.getTime();
+  if (due <= now.getTime()) return cap;
+  return due < cap.getTime() ? new Date(due) : cap;
+}

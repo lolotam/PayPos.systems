@@ -1,28 +1,42 @@
-import type { DueRatingCursor, DueRatingRequest } from './rating-claim.repository.ts';
+import type { DueRatingRequest } from './rating-claim.repository.ts';
 
-/** فتح معاملات المستأجر لجدولة المطالبة، لأن طبقة الـ jobs ما تصلش للداتابيز مباشرة. */
+/** معاملات المستأجر لخطوات المجدول: قراءة حدود الجولة، وقراءة طلب واحد بمعاملته. */
 export interface RatingClaimTransactions<Transaction = unknown> {
   /**
-   * يقرأ صفحة الطلبات المستحقة للشركة.
+   * يقرأ الحد الأعلى للجولة في معاملة مستقلة، لأن القراءة دي بتوقف عند أول معاملة.
    *
    * @param companyId الشركة المالكة للطلبات
-   * @param now لحظة الجولة
-   * @param limit أقصى عدد طلبات في الصفحة
-   * @param after آخر موضع في الصفحة اللي قبلها، أو null لأول صفحة
-   * @returns الطلبات المستحقة غير المطالب بها
+   * @returns أكبر معرّف ظاهر للشركة، أو null لما الشركة لسه فاضية
    */
-  due(
-    companyId: string,
-    now: Date,
-    limit: number,
-    after: DueRatingCursor | null,
-  ): Promise<readonly DueRatingRequest[]>;
+  upperId(companyId: string): Promise<string | null>;
   /**
-   * يطالب بطلب واحد في معاملة مستقلة، ويمرّر معاملة المستأجر إلى الشغل.
+   * يقرأ صفحة معرّفات في معاملة مستقلة، عشان تخلص قبل أي مطالبة.
+   *
+   * @param companyId الشركة المالكة للطلبات
+   * @param after آخر معرّف في الصفحة اللي قبلها، أو null لأول صفحة
+   * @param through الحد الأعلى المقطوع في بداية الجولة
+   * @param limit أقصى عدد معرّفات في الصفحة
+   * @returns معرّفات الصفحة بالترتيب التصاعدي
+   */
+  pageIds(
+    companyId: string,
+    after: string | null,
+    through: string,
+    limit: number,
+  ): Promise<readonly string[]>;
+  /**
+   * يفتح معاملة واحدة للطلب الواحد: بيقرأ الصف، ويمرّره للشغل، وبيستنى الـ commit
+   * قبل ما يرجع. التزويد بيحصل قبل الـ commit، فما ينفعش حد يتصرف على نتيجة
+   * مرجعية قبل ما الداتابيز تقفل المعاملة.
    *
    * @param companyId الشركة المالكة للطلب
-   * @param work الشغل على معاملة المستأجر
-   * @returns اكتمال المعاملة
+   * @param requestId الطلب المطلوب
+   * @param work الشغل على معاملة المستأجر مع الصف المقروء
+   * @returns نتيجة الشغل بعد الـ commit
    */
-  claim(companyId: string, work: (tx: Transaction) => Promise<void>): Promise<void>;
+  withRequest<T>(
+    companyId: string,
+    requestId: string,
+    work: (tx: Transaction, request: DueRatingRequest | null) => Promise<T>,
+  ): Promise<T>;
 }

@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import type { Tx } from '@pospay/db';
 import type { DueRatingRequest, RatingClaimRepository } from '../ports/rating-claim.repository.ts';
 
@@ -41,24 +41,58 @@ function request(row: StoredRequest): DueRatingRequest {
 const REQUEST_COLUMNS = sql`id, business_id, customer_id, business_date::text AS business_date,
   branch_id, due_at, send_deadline, status`;
 
+/** جملة الحد الأعلى: أكبر معرّف ظاهر للشركة، وبتترجم لفهرس المفتاح الأساسي. */
+export function ratingUpperIdStatement(companyId: string): SQL {
+  return sql`
+    SELECT id
+      FROM rating_requests
+     WHERE company_id = ${companyId}::uuid
+     ORDER BY id DESC
+     LIMIT 1`;
+}
+
+/** جملة صفحة الجولة: بحث بالمفتاح الأساسي من غير فلتر على الحالة أو الموعد. */
+export function ratingPageIdsStatement(
+  companyId: string,
+  after: string | null,
+  through: string,
+  limit: number,
+): SQL {
+  const lower = after === null ? sql`` : sql`AND id > ${after}::uuid`;
+  return sql`
+    SELECT id
+      FROM rating_requests
+     WHERE company_id = ${companyId}::uuid
+       ${lower}
+       AND id <= ${through}::uuid
+     ORDER BY id ASC
+     LIMIT ${limit}`;
+}
+
+/** جملة القراءة النقطية: صف واحد بالمفتاح الأساسي، من غير قفل. */
+export function ratingRequestStatement(companyId: string, requestId: string): SQL {
+  return sql`
+    SELECT ${REQUEST_COLUMNS}
+      FROM rating_requests
+     WHERE company_id = ${companyId}::uuid
+       AND id = ${requestId}::uuid`;
+}
+
 export const ratingClaimRepository: RatingClaimRepository<Tx> = {
-  due: async (tx, companyId, now, limit, after) => {
-    // الترتيب بمفتاح (due_at, id) مع cursor، فالصف اللي بيتقفل في معاملة تانية يتخطى
-    // من غير ما يوقف الصفوف اللي بعده (SKIP LOCKED).
-    const cursor =
-      after === null
-        ? sql``
-        : sql`AND (due_at, id) > (${after.dueAt.toISOString()}::timestamptz, ${after.id}::uuid)`;
-    const rows = await tx.execute<StoredRequest>(sql`
-      SELECT ${REQUEST_COLUMNS}
-        FROM rating_requests
-       WHERE company_id = ${companyId} AND status = 'SCHEDULED'
-         AND due_at <= ${now.toISOString()}::timestamptz
-         ${cursor}
-       ORDER BY due_at, id
-       LIMIT ${limit}
-       FOR UPDATE SKIP LOCKED`);
-    return rows.map(request);
+  upperId: async (tx, companyId) => {
+    const rows = await tx.execute<{ id: string }>(ratingUpperIdStatement(companyId));
+    return rows[0]?.id ?? null;
+  },
+  pageIds: async (tx, companyId, after, through, limit) => {
+    const rows = await tx.execute<{ id: string }>(
+      ratingPageIdsStatement(companyId, after, through, limit),
+    );
+    return rows.map((row) => row.id);
+  },
+  findRequest: async (tx, companyId, requestId) => {
+    const rows = await tx.execute<StoredRequest>(ratingRequestStatement(companyId, requestId));
+    const row = rows[0];
+    return row === undefined ? null : request(row);
   },
   lockCustomer: async (tx, companyId, customerId) => {
     const rows = await tx.execute<StoredCustomer>(sql`
