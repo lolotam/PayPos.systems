@@ -4,15 +4,17 @@
 **Status**: Draft. The owner questions are in [owner-questions.ar.md](owner-questions.ar.md):
 - CI-Q1 to CI-Q19 are feature questions: batch 88, `PP-102.1` to `PP-102.19`.
 - CI-T1 to CI-T8 are technical questions: `PP-103.1` to `PP-103.8`. Waleed also settled the 34-pre split (see Delivery).
-- Waleed has answered CI-Q1 to CI-Q4 and CI-T1 to CI-T8. His technical answers are final.
+- Waleed has answered CI-Q1 to CI-Q4 and CI-T1 to CI-T8. CI-T7's cross-business read restriction needs reconciliation with his newer CI-Q17 answer; the original answer remains in the audit record.
 - Waleed has also answered CI-Q5 to CI-Q16, on the decisions page itself (his own picks, 11:07–11:08 and 12:10–12:13).
-- CI-T7 and CI-T8 are answered (final). CI-Q17 to CI-Q19 are pending, and so is Abu Salem's pick on every feature question.
-- **Five of Waleed's picks go against the recommendation, and Abu Salem has not answered them yet:**
+- Waleed answered CI-Q17 to CI-Q19 in this task's chat on 2026-11-01. Abu Salem's pick on every feature question is still pending (live reviews checked on 2026-11-01).
+- **Seven of Waleed's picks go against the recommendation, and Abu Salem has not answered them yet:**
   - CI-Q1 (`PP-102.1`): extra customer fields first.
   - CI-Q8 (`PP-102.8`): the extra fields are birthday, notes, gender and email.
   - CI-Q4 (`PP-102.4`): branch managers and cashiers may import too.
   - CI-Q13 (`PP-102.13`): the note is kept per business, not per company.
   - CI-Q16 (`PP-102.16`): an existing customer's rating refusal is not set by the import.
+  - CI-Q17 (`PP-102.17`): the restaurant cashier may see the salon's note for the same customer within the company.
+  - CI-Q18 (`PP-102.18`): birthdays use normal Excel date cells.
 - Every part marked **[PP-102.1]** (which includes CI-Q8) or **[PP-102.4]** depends on one of those picks. Nothing in those parts is
   built before Abu Salem answers or the manager says to proceed. The rest of the spec holds under either answer.
 
@@ -70,7 +72,7 @@ nothing. The commit runs in the worker, and the screen polls for the result.
 - CIM-10: importing never sends a message to anyone. A rating request is still created only by a visit.
 - CIM-11 **[PP-102.1]** (CI-Q16, CI-Q5): the «لا ترسل تقييم» column only applies to a customer the import creates.
   For an existing customer the column is ignored and her opt-out is not touched.
-  `TODO(spec)` CI-Q19 (`PP-102.19`): whether the preview tells the manager that the refusal will not be recorded.
+  CI-Q19 (`PP-102.19`): the preview shows the non-blocking warning «موجودة — رفض التقييم مش هيتسجّل» beside an existing row whose file value is «نعم».
 - CIM-12 **[PP-102.1]** (CI-Q11): an email is stored as typed, trimmed, only after it passes the shape check (it has
   an `@` and a dot). It is never confirmed by a message, and two customers may share one email.
 
@@ -100,10 +102,10 @@ nothing. The commit runs in the worker, and the screen polls for the result.
 
    | Column | Rule (Waleed's picks, Abu Salem's pending) |
    |---|---|
-   | `birthday` | Optional. Day and month; the year is optional (CI-Q9, `PP-102.9`). `TODO(spec)` CI-Q18 (`PP-102.18`): how it is typed in the cell. |
+   | `birthday` | Optional. Day and month; the year is optional (CI-Q9, `PP-102.9`). Normal Excel date cell (CI-Q18, `PP-102.18`). `TODO(spec)`: reconcile a missing birth year with a date cell that carries a year; no placeholder year or missing-year convention has been approved. |
    | `gender` | Optional: ذكر / أنثى / blank (CI-Q10, `PP-102.10`). |
    | `email` | Optional. Refused only for a wrong shape (an `@` and a dot); no confirmation message; two customers may share one (CI-Q11, `PP-102.11`). Maximum 254 characters (CI-T6, `PP-103.6`, final). |
-   | `notes` | Optional. One note **per business**, the business of the preview (CI-Q13, `PP-102.13`, Waleed's pick against the recommendation). Anyone who can see the customer sees the note, and the field carries the hint «ماتكتبش أسرار أو بيانات حساسة» (CI-Q12, `PP-102.12`). `TODO(spec)` CI-Q17 (`PP-102.17`): whether a business sees another business's note. Maximum 500 characters (CI-T6, `PP-103.6`, final). |
+   | `notes` | Optional. One note **per business**, the business of the preview (CI-Q13, `PP-102.13`, Waleed's pick against the recommendation). Anyone who can see the customer sees the note, and the field carries the hint «ماتكتبش أسرار أو بيانات حساسة» (CI-Q12, `PP-102.12`). CI-Q17 (`PP-102.17`): the restaurant cashier may see the salon's note for the same customer within the company. This changes visibility, not the per-business storage choice. `TODO(spec)`: reconcile D-8's database protection with the newer visibility answer. Maximum 500 characters (CI-T6, `PP-103.6`, final). |
 
    CI-Q14 (`PP-102.14`): the four fields show on the reception registration screen (optional) and on the customer
    card. There is no edit screen until phase 2, so a wrong value waits for the customer-management screen.
@@ -127,7 +129,7 @@ nothing. The commit runs in the worker, and the screen polls for the result.
 | D-5 | **CI-T4 (`PP-103.4`, final): the commit runs in the worker** (the 200 ms rule), in `apps/worker/src/modules/customers`, so that sub-PR waits for 59b-2b to merge. |
 | D-6 | **CI-T2 (`PP-103.2`, final): the normalized E.164 phone is stored in `import_previews.rows`**, under the table's RLS like the `customers` table, so the worker inserts from it. It is never returned. Every response, error and log carries only the masked phone. Retention follows the open IM-Q3. |
 | D-7 | **CI-T3 (`PP-103.3`, final): the routes sit under the business**, and the preview's `business_id` is that business. Customers are created for the company. No migration for the import itself. |
-| D-8 **[PP-102.1]** | **Design impact of CI-Q13 (per-business notes).** The customer is one row for the company (D-30), so a note per business cannot be a column on `customers`. It is a row keyed by company, customer and business, with RLS, a negative isolation test and an index on every FK, written in the same transaction as the customer. **CI-T7 (`PP-103.7`, final):** a new table `customer_notes`, primary key (`company_id`, `customer_id`, `business_id`), a CHECK on the length (at most 500), RLS, a negative isolation test and an index on every FK. The write happens in the same transaction as the customer save, and the read goes through `queries/`. The database itself, not the code, keeps one business from opening another business's notes. |
+| D-8 **[PP-102.1]** | **Design impact of CI-Q13 (per-business notes).** The customer is one row for the company (D-30), so a note per business cannot be a column on `customers`. It is a row keyed by company, customer and business, with RLS, a negative isolation test and an index on every FK, written in the same transaction as the customer. **CI-T7 (`PP-103.7`, original answer):** a new table `customer_notes`, primary key (`company_id`, `customer_id`, `business_id`), a CHECK on the length (at most 500), RLS, a negative isolation test and an index on every FK. The write happens in the same transaction as the customer save, and the read goes through `queries/`. **CI-Q17 (`PP-102.17`, newer answer, 2026-11-01):** the restaurant cashier may read the salon's note within the same company. The previous business-isolated read rule is therefore not ready to implement. `TODO(spec)`: reconcile the protection design with this visibility answer while retaining tenant isolation; preserve both answers in the audit record. |
 | D-9 **[PP-102.1]** | **Design impact of CI-Q15 (fill empty fields).** Today `pospay_app` can only INSERT on `customers`, plus UPDATE of the opt-out columns (migration 0188). Filling birthday, gender and email on an existing customer needs a column-level UPDATE grant on exactly those columns and a database guard that refuses to change a value already set, as 0188 does for the opt-out. The worker writes with `UPDATE … WHERE column IS NULL`. **CI-T8 (`PP-103.8`, final):** `birth_month`, `birth_day`, `birth_year` (a date column cannot hold a missing year), `gender` and `email`, all nullable. UPDATE is granted per column, and a DB trigger refuses to change any value that is not NULL, as 0188 does for the opt-out. The worker updates with `WHERE column IS NULL`. |
 | D-10 **[PP-102.1]** | **CI-T6 (`PP-103.6`, final): birthday, gender, email and notes are personal data.** None of them appears in a log line or an import error message; an error names the row number and the column only. The columns are nullable and expand-only, email has no unique constraint, notes are capped at 500 characters (a CHECK on the per-business notes table, D-8) and email at 254. |
 
