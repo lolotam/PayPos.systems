@@ -310,6 +310,13 @@ it('tenant_isolation_covers_state_and_claims', async () => {
     'RETRY',
   );
   expect(crossed.code).toBe('STALE');
+  // سور الشركة الأولى اتسلّم، عشان الدور ياخد ملكية الحالة: من غير كده الجولة بترجع
+  // تاني من غير ما تاخد الحالة، فما بتطلعش أي مطالبة.
+  const releasedA = await w.state.port.release(fence);
+  expect(releasedA.code).toBe('OK');
+  // سور الشركة التانية اتسلّم كمان، عشان التنظيف يبقى واضح: الدور بيلمس الشركة الأولى بس.
+  const releasedB = await w.state.port.release(fenceOf(otherAcquired, otherOwner));
+  expect(releasedB.code).toBe('OK');
   // البصمة مفتوحة، عشان المطالبة تنجح فعلاً: من غير كده ما فيش أي حدث، فيبقى العزل
   // صحيح بالفراغ مش لأن الشركة التانية اتفصلت.
   w.tokens.allow = () => true;
