@@ -96,8 +96,9 @@ nothing. The commit runs in the worker, and the screen polls for the result.
 
 ## Delivery: the sub-PR split
 
-`TODO(spec)`: this is drafted once CI-Q1, CI-Q4, CI-Q8 and CI-T1 to CI-T5 are answered. Known constraints:
-- The shared xlsx adapters are planned in 072's 32b-1, which waits on 32b-pre-2 and 32b-cat-2 (CI-T1).
+`TODO(spec)`: this is drafted once CI-Q1, CI-Q4 and CI-Q8 have Abu Salem's pick and CI-T5 is answered. Known constraints:
+- The first 34b sub-PR moves the shared xlsx adapters to `apps/api/src/shared/import/` (CI-T1), so 34b does not wait
+  on 072's 32b-1.
 - The worker sub-PR waits on 59b-2b, which owns `apps/worker/src/modules/customers/**` now.
 - **[PP-102.1]** 34-pre needs the single migration lane. It is queued after 32b-pre-1 (34-pre first, then 49-1), and
   it is taken only with the manager's yes.
