@@ -105,6 +105,29 @@ it('a filtered cursor accepts the same service UUID with different letter cases'
   }
 });
 
+it('filtered pagination survives a case change of the same service ID between requests', async () => {
+  await firstCursor();
+  for (const [firstFilter, nextFilter] of [
+    [f.service.toUpperCase(), f.service],
+    [f.service, f.service.toUpperCase()],
+  ]) {
+    const first = await f.getOverrides(`?limit=1&service_id=${firstFilter}`);
+    expect(first.status).toBe(200);
+    const page = commissionServiceOverrideList.parse(first.body);
+    const cursor = page.next_cursor;
+    expect(cursor).not.toBeNull();
+    const payload = JSON.parse(Buffer.from(cursor ?? '', 'base64url').toString('utf8'));
+    expect(payload.f).toBe(f.service.toLowerCase());
+    const next = await f.getOverrides(`?limit=1&service_id=${nextFilter}&cursor=${cursor}`);
+    expect(next.status).toBe(200);
+    const second = commissionServiceOverrideList.parse(next.body);
+    expect(second.items).toHaveLength(1);
+    expect(second.items[0]?.id).not.toBe(page.items[0]?.id);
+    expect(second.items[0]?.service_id).toBe(f.service);
+    expect(second.next_cursor).toBeNull();
+  }
+});
+
 it('an impossible instant or an extra payload field is refused before PostgreSQL can return 500', async () => {
   const cursor = await firstCursor();
   const payload = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));

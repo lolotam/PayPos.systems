@@ -44,6 +44,7 @@ const cursorPayload = z.strictObject({
 
 /**
  * يبني المؤشر الخام للصفحة الجاية: سياق الطلب مع موضع آخر سطر في الترتيب.
+ * فلتر UUID يُحفظ بحروف صغيرة، عشان تغيير حالة الحروف لا يغيّر الخدمة المطلوبة.
  *
  * @param context  سياق الطلب (الشركة والنشاط والموظفة والفلتر)
  * @param position موضع آخر سطر في الترتيب
@@ -58,7 +59,7 @@ export function encodeCommissionServiceOverrideCursor(
     c: context.companyId,
     b: context.businessId,
     e: context.employeeId,
-    f: context.serviceId ?? null,
+    f: context.serviceId?.toLowerCase() ?? null,
     s: position.serviceId,
     t: position.createdAt,
     i: position.id,
@@ -68,7 +69,7 @@ export function encodeCommissionServiceOverrideCursor(
 
 /**
  * يفك المؤشر ويتأكد إنهCanonical ومربوط بنفس السياق قبل ما يوصل الـ SQL.
- * المؤشر الغريب أو بتاع طلب تاني أو فلتر تاني كله رفض معروف، مش خطأ PostgreSQL.
+ * المؤشر الغريب أو بتاع طلب تاني أو فلتر تاني كله رفض معروف، مش خطأ PostgreSQL؛ اختلاف حالة حروف نفس UUID مش فلتر تاني.
  *
  * @param cursor   المؤشر الوارد من العميل
  * @param context  سياق الطلب الحالي
@@ -96,7 +97,7 @@ export function decodeCommissionServiceOverrideCursor(
     return { kind: 'invalid' };
   }
   if (record['e'] !== context.employeeId) return { kind: 'invalid' };
-  if ((record['f'] ?? undefined) !== context.serviceId) return { kind: 'invalid' };
+  if (record.f?.toLowerCase() !== context.serviceId?.toLowerCase()) return { kind: 'invalid' };
   // فلتر خدمة واحدة لا يقبل موضع خدمة أخرى؛ UUID بنفس القيمة يظل صالحاً مع اختلاف حالة الحروف.
   if (record.f !== null && record.s.toLowerCase() !== record.f.toLowerCase()) {
     return { kind: 'invalid' };
