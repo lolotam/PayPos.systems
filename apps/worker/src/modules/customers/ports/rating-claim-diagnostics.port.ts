@@ -41,9 +41,9 @@ export interface RatingClaimDiagnostics {
    * يسجل فقد السور في نص الدور: رمز الرد بس، من غير تفاصيل تانية.
    *
    * @param companyId الشركة المالكة للدور
-   * @param code رمز الرد اللي فقد السور: STALE أو BUSY أو CORRUPT
+   * @param code رمز الرد اللي فقد السور: STALE أو BUSY أو MISSING أو CORRUPT
    */
-  fenceLost(companyId: string, code: 'STALE' | 'BUSY' | 'CORRUPT'): void;
+  fenceLost(companyId: string, code: 'STALE' | 'BUSY' | 'MISSING' | 'CORRUPT'): void;
 
   /**
    * يسجل ملخص الدور: أعداد التسويات وسبب الانتهاء، من غير أي معرّف.

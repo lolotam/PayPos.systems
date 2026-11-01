@@ -106,6 +106,31 @@ async function holdCustomerLock(
   return { gate, done };
 }
 
+/**
+ * ينتظر لحد ما الدور يستلم الحالة، ويجيب لحظة استلامه.
+ *
+ * السقف بيتحسب من لحظة استلام الدور هو، فمفيش فايدة نستنى على لحظة حد تانية.
+ *
+ * @param w عالم القبول
+ * @param previousStartedAt لحظة الاستلام اللي قبل الدور
+ * @param previousOwner رمز المالك اللي قبل الدور
+ * @returns لحظة استلام الدور بالمللي ثانية
+ */
+async function waitForTurnAcquisition(
+  w: RatingClaimsWorld,
+  previousStartedAt: number,
+  previousOwner: string,
+): Promise<number> {
+  const deadline = Date.now() + 15_000;
+  for (;;) {
+    const snapshot = await w.readState();
+    const startedAt = snapshot.turnStartedAt ?? 0;
+    if (startedAt > previousStartedAt && snapshot.ownerToken !== previousOwner) return startedAt;
+    if (Date.now() > deadline) throw new Error('RATING_CLAIM_TURN_ACQUIRE_NOT_SEEN');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
 it('the_turn_stops_at_its_ceiling_instead_of_losing_its_fence', async () => {
   // الحجز أقصر من سقف الدور: التجديد ممكن يضمن حجز كامل قبل السقف، ولما وقت
   // الدور يخلص التجديد بيرجع LIMIT والدور يوقّف نفسه بنفسه.
@@ -130,11 +155,14 @@ it('the_turn_stops_at_its_ceiling_instead_of_losing_its_fence', async () => {
   await w.state.port.release({ ...fence, expectedVersion: renewed.version });
 
   // المطالبة الأولى بتستنى قفل العميل، فالدور بيفضل واقف لحد ما وقت Redis يعدّي
-  // حدّ السقف ناقص مدة الحجز، وهو بالظبط الوقت اللي يخلي التجديد LIMIT.
+  // حدّ السقف ناقص مدة الحجز. السقف من لحظة استلام الدور نفسه: الحجز ٣ ثواني
+  // والسقف ٤، فالمطالبة بتخلص قبل ما الحجز يخلص (هامش ١٫٥ ثانية)، والتجديد
+  // بيقع بعد حدّ السقف (هامش ٠٫٥ ثانية) فيرجع LIMIT.
   const held = await holdCustomerLock(w, at(seeded.customerIds, 0));
   w.claimTrap.clockJumpMs = 31_000;
   const turn = w.turn();
-  await waitUntil(w, (before.turnStartedAt ?? 0) + maxTurnMs - leaseMs + 500);
+  const turnStartedAt = await waitForTurnAcquisition(w, before.turnStartedAt ?? 0, ownerToken);
+  await waitUntil(w, turnStartedAt + maxTurnMs - leaseMs + 500);
   held.gate.release();
   await held.done;
   const first = await turn;

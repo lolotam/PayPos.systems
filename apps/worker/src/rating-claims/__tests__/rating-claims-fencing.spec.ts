@@ -230,13 +230,15 @@ it('a_missing_state_ends_the_turn_and_records_the_fence_loss', async () => {
   const pending = turn.execute(w.company);
   await gate.acquired;
   // المفتاح اختفى في نص الدور، فالرد بيرجع MISSING.
-  await w.redis.del(stateKey(w));
+  await w.redis.del(stateKey(w.prefix, w.company));
   gate.release();
   const summary = await pending;
   expect(summary.end).toBe('FENCE_LOST');
   // فقد السور اتسجّل بنوعه: من غير كده الشكل ده بيبان كأنه ضياع رد عادي.
   expect(w.diagnostics.fenceLosses).toEqual(['MISSING']);
-  expect(await w.readyRequestIds()).toHaveLength(1);
+  // المطالبة كانت اتعملت قبل ما المفتاح يختفي، فالطلب المزروع هو اللي اتجهّز.
+  const ready = await w.readyRequestIds();
+  expect(ready).toEqual([at(seeded.requestIds, 0)]);
 }, 120_000);
 
 it('tenant_isolation_covers_state_and_claims', async () => {
