@@ -1,7 +1,7 @@
 # ADR-0041 — Orders service sessions: reads and events
 
 Date: 2026-10-12. Status: Accepted technical design for spec 050, Phase 1 row 35a.
-Owner decisions: SS-Q1–SS-Q11, Waleed, 2026-10-12, batch 13; D-56 and discount enforcement, 2026-10-03.
+Owner decisions: SS-Q1b, SS-Q2–SS-Q11, Waleed, 2026-10-12, batch 13; D-56 and discount enforcement, 2026-10-03.
 Related: ADR-0010, ADR-0018, ADR-0023, ADR-0035, ADR-0037; Phase 1 SPEC §§3–6/11.
 
 ## Context
@@ -308,7 +308,7 @@ this ADR, spec 050 and its 35a plan; executable maps and phase-wide docs are syn
 
 35b delivers late visibility and bells, 35c the admin reception screen, 35d audited price/discount editing (SS-Q10
 option 2). Price edits do not land in 35a and need their own revision/concurrency and permission design. All owner
-questions SS-Q1–SS-Q11 are answered by Waleed, and Abu Salem agreed with every pick on 2026-10-12.
+questions SS-Q1b, SS-Q2–SS-Q11 are answered by Waleed, and Abu Salem agreed with every pick on 2026-10-12.
 
 ## Addendum 2026-10-13 — 35c-2 own recording context
 
@@ -380,3 +380,12 @@ The edit of a saved line's price/discount reuses `ServiceLineChanged` with an ad
 rings the branch's managers through a worker `orders` consumer and a new `ServiceLineEditNoticeRequested` event
 (ED-Q6, issue #189). The decision, the rejected alternatives and the reason the new `orders → notifications` event
 arrow is allowed are in [ADR-0044](0044-service-line-price-edit-event-and-bell.md); the plan is `plan-35d.md`.
+
+## Addendum 2026-11-01 — SS-Q1b
+
+Batch 1 (staff salary) and batch 13 (row 35, service session) both used the id SS-Q1. On 2026-11-01 Waleed
+approved renaming the batch-13 question to SS-Q1b; the decisions site was changed the same day. No pick by
+Abu Salem is recorded for SS-Q1b: his only SS-Q1 note is dated 2026-10-08 and reviews the salary question, so
+the earlier statement that he agreed with every pick on 2026-10-12 does not cover SS-Q1b. SS-Q1b is pending his
+pick. Per CLAUDE.md §1 5b, work keeps following Waleed's answer; if Abu Salem later differs, his pick binds and
+becomes a follow-up. SS-Q2–SS-Q11 are unchanged.
