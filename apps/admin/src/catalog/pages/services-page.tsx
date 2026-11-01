@@ -23,9 +23,15 @@ export function ServicesPage({ companyId, business, userId }: ServicesPageProps)
   const [serviceId, setServiceId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const categoryQuery = useOpenServiceCategories(companyId, business.id, userId);
+  // التصنيف المختار ممكن يختفي من القائمة بعد إعادة الجلب، فنبعث الطلب بدون تصنيف
+  // عشان ما يبقاش الاختيار الظاهر على الشاشة مخالف للصفوف المعروضة.
+  const activeCategoryId =
+    categoryQuery.data && !categoryQuery.data.some((category) => category.id === categoryId)
+      ? ''
+      : categoryId;
   const list = useServices(companyId, business.id, userId, {
     cursor,
-    categoryId: categoryId || undefined,
+    categoryId: activeCategoryId || undefined,
   });
   const page = (next: string | undefined) => {
     setCursor(next);
@@ -47,7 +53,11 @@ export function ServicesPage({ companyId, business, userId }: ServicesPageProps)
           </Button>
         }
       />
-      <ServiceCategoryFilter categoryQuery={categoryQuery} value={categoryId} onChange={filter} />
+      <ServiceCategoryFilter
+        categoryQuery={categoryQuery}
+        value={activeCategoryId}
+        onChange={filter}
+      />
       <ServicesListPanel
         list={list}
         selectedId={serviceId}

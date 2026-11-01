@@ -1,6 +1,6 @@
 'use client';
 import { t } from '@pospay/i18n';
-import { Label } from '@pospay/ui';
+import { Label, NativeSelect } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { ServiceCategoriesQuery } from '../api/use-service-categories';
 import { serviceCategoryLabel } from '../model/service-category-label';
@@ -19,12 +19,12 @@ export function ServiceCategoryFilter({
   return (
     <div className="flex flex-col gap-2">
       <Label htmlFor="service-category-filter">{t(locale, 'catalogServices.categoryFilter')}</Label>
-      <select
+      <NativeSelect
         id="service-category-filter"
         value={value}
         disabled={categoryQuery.isPending}
         onChange={(event) => onChange(event.target.value)}
-        className="max-w-sm rounded-xl border bg-background p-2 text-start"
+        className="max-w-sm"
       >
         <option value="">{t(locale, 'catalogServices.allCategories')}</option>
         {(categoryQuery.data ?? []).map((category) => (
@@ -32,7 +32,7 @@ export function ServiceCategoryFilter({
             {serviceCategoryLabel(category, locale)}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     </div>
   );
 }

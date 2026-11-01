@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { ServiceCategoryListItem, ServiceListItem } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { ServicesPage } from '../pages/services-page';
 import { ServiceCategoryFilter } from './service-category-filter';
@@ -61,21 +61,24 @@ const filteredService = serviceRecord({
   category: { name_en: openCategory.name_en, name_ar: openCategory.name_ar, closed_at: null },
 });
 
-function wrapper() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function createQueryClient() {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+}
+
+function wrapper(client: QueryClient) {
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
 }
 
-function renderPage() {
+function renderPage(client: QueryClient = createQueryClient()) {
   return render(
     <ServicesPage
       companyId={companyId}
       business={{ id: businessId, name_en: 'Business', name_ar: null, branches: [] }}
       userId={userId}
     />,
-    { wrapper: wrapper() },
+    { wrapper: wrapper(client) },
   );
 }
 
@@ -220,5 +223,50 @@ it('filters visible rows by category and resets the cursor to the first page', a
       limit: 20,
       category_id: openCategory.id,
     });
+  });
+});
+
+function lastServicesQuery() {
+  const serviceCalls = get.mock.calls.filter(
+    ([path]) => path === '/v1/businesses/{businessId}/services',
+  );
+  return serviceCalls.at(-1)?.[1]?.params?.query;
+}
+
+it('drops a selected category when the open category list no longer contains it', async () => {
+  const filterLabel = t('en', 'catalogServices.categoryFilter');
+  const allCategoriesLabel = t('en', 'catalogServices.allCategories');
+  let categoriesEmpty = false;
+  get.mockImplementation((path: string) => {
+    if (path === '/v1/businesses/{businessId}/service-categories') {
+      return Promise.resolve({
+        data: { items: categoriesEmpty ? [] : [openCategory], next_cursor: null },
+        response: { status: 200 },
+      });
+    }
+    return Promise.resolve({
+      data: { items: [firstService], next_cursor: null },
+      response: { status: 200 },
+    });
+  });
+  const client = createQueryClient();
+  renderPage(client);
+  await screen.findByRole('option', { name: openCategory.name_en });
+  const picker = (await screen.findByLabelText(filterLabel)) as HTMLSelectElement;
+  fireEvent.change(picker, { target: { value: openCategory.id } });
+  await waitFor(() => {
+    expect(lastServicesQuery()).toEqual({ limit: 20, category_id: openCategory.id });
+  });
+  await act(async () => {
+    categoriesEmpty = true;
+    await client.invalidateQueries({ queryKey: ['service-categories'] });
+  });
+  await waitFor(() => {
+    const current = screen.getByLabelText(filterLabel) as HTMLSelectElement;
+    expect(current.value).toBe('');
+    expect(current.selectedOptions[0]?.textContent).toBe(allCategoriesLabel);
+  });
+  await waitFor(() => {
+    expect(lastServicesQuery()).toEqual({ limit: 20 });
   });
 });

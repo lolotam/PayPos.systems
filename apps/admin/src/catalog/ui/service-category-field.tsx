@@ -1,7 +1,7 @@
 'use client';
 import type { CreateServiceInput, Service, ServiceCategoryListItem } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
-import { Label } from '@pospay/ui';
+import { Label, NativeSelect } from '@pospay/ui';
 import { useController } from 'react-hook-form';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -63,13 +63,12 @@ export function ServiceCategoryField({
           </p>
         </>
       ) : (
-        <select
+        <NativeSelect
           {...field}
           id="service-category"
           value={field.value ?? ''}
           onChange={(event) => field.onChange(event.target.value || null)}
           disabled={categoryQuery.isPending}
-          className="rounded-xl border bg-background p-2 text-start"
         >
           <option value="">{t(locale, 'catalogServices.noCategory')}</option>
           {openCategories.map((category) => (
@@ -82,7 +81,7 @@ export function ServiceCategoryField({
               {serviceCategoryLabel(currentCategory, locale)}
             </option>
           ) : null}
-        </select>
+        </NativeSelect>
       )}
       {categoryQuery.isError && !refused ? (
         <p role="alert">{envelopeMessage(categoryQuery.error, locale)}</p>
