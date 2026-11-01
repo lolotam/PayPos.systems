@@ -32,8 +32,7 @@ export const commissionServiceOverrides = pgTable(
     businessId: uuid('business_id').notNull(),
     employeeId: uuid('employee_id').notNull(),
     serviceId: uuid('service_id').notNull(),
-    // FOLLOW_PLAN | FOLLOW_SERVICE | ZERO | PCT | FIXED — القيمة المرافقة في العمود المطابق بس.
-    // FOLLOW_SERVICE نوع التجاوزات بس (CS-Q39): يرجع لقطة قاعدة الخدمة المحفوظة على سطر البيع.
+    // FOLLOW_PLAN | ZERO | PCT | FIXED — القيمة المرافقة في العمود المطابق بس.
     ruleKind: text('rule_kind').notNull(),
     // نسبة أساس نقط (0–10000)؛ بتتحط على نوع PCT بس.
     rulePctBps: integer('rule_pct_bps'),
@@ -67,7 +66,7 @@ export const commissionServiceOverrides = pgTable(
     // عمود النوع مش nullable، فمقارنة الأنواع دي ما بتطلعش UNKNOWN ومفيش شكل غلط بيمر.
     check(
       'commission_service_overrides_rule_kind',
-      sql`${t.ruleKind} IN ('FOLLOW_PLAN','FOLLOW_SERVICE','ZERO','PCT','FIXED')`,
+      sql`${t.ruleKind} IN ('FOLLOW_PLAN','ZERO','PCT','FIXED')`,
     ),
     check(
       'commission_service_overrides_rule_pct_present',

@@ -39,15 +39,22 @@ const insert = (row: Record<string, unknown> = {}) =>
 
 it('stores every valid kind and keeps the valueless kinds valueless', async () => {
   await insert({ ruleKind: 'FOLLOW_PLAN', effectiveFrom: '2026-11-02' });
-  await insert({ ruleKind: 'FOLLOW_SERVICE', effectiveFrom: '2026-11-02' });
   await insert({ ruleKind: 'ZERO', effectiveFrom: '2026-11-02' });
   await insert({ ruleKind: 'PCT', rulePctBps: 0, effectiveFrom: '2026-11-02' });
   await insert({ ruleKind: 'PCT', rulePctBps: 10_000, effectiveFrom: '2026-11-02' });
   await insert({ ruleKind: 'FIXED', ruleFixedAmount: '0.000', effectiveFrom: '2026-11-02' });
-  await insert({ ruleKind: 'FIXED', ruleFixedAmount: '99999999999.999', effectiveFrom: '2026-11-02' });
+  await insert({
+    ruleKind: 'FIXED',
+    ruleFixedAmount: '99999999999.999',
+    effectiveFrom: '2026-11-02',
+  });
   // الفلتر على تاريخ السطور دي بس، عشان ما يتأثرش الاختبار بصفوف الاختبارات التانية.
   const rows = await db.withTenant(tenant.company, (tx) =>
-    tx.execute<{ rule_kind: string; rule_pct_bps: number | null; rule_fixed_amount: string | null }>(
+    tx.execute<{
+      rule_kind: string;
+      rule_pct_bps: number | null;
+      rule_fixed_amount: string | null;
+    }>(
       sql`SELECT rule_kind,rule_pct_bps,rule_fixed_amount FROM commission_service_overrides
         WHERE effective_from='2026-11-02'
         ORDER BY rule_kind,rule_pct_bps,rule_fixed_amount`,
@@ -58,11 +65,18 @@ it('stores every valid kind and keeps the valueless kinds valueless', async () =
     { rule_kind: 'FIXED', rule_pct_bps: null, rule_fixed_amount: '0.000' },
     { rule_kind: 'FIXED', rule_pct_bps: null, rule_fixed_amount: '99999999999.999' },
     { rule_kind: 'FOLLOW_PLAN', rule_pct_bps: null, rule_fixed_amount: null },
-    { rule_kind: 'FOLLOW_SERVICE', rule_pct_bps: null, rule_fixed_amount: null },
     { rule_kind: 'PCT', rule_pct_bps: 0, rule_fixed_amount: null },
     { rule_kind: 'PCT', rule_pct_bps: 10_000, rule_fixed_amount: null },
     { rule_kind: 'ZERO', rule_pct_bps: null, rule_fixed_amount: null },
   ]);
+});
+
+it('refuses FOLLOW_SERVICE in the override rule CHECK', async () => {
+  await expectPgError(
+    insert({ ruleKind: 'FOLLOW_SERVICE' }),
+    '23514',
+    'commission_service_overrides_rule_kind',
+  );
 });
 
 it('the catalog keeps its four kinds: FOLLOW_SERVICE is refused in services', async () => {
@@ -77,7 +91,11 @@ it('the catalog keeps its four kinds: FOLLOW_SERVICE is refused in services', as
 });
 
 it('refuses an unknown kind', async () => {
-  await expectPgError(insert({ ruleKind: 'MIXED' }), '23514', 'commission_service_overrides_rule_kind');
+  await expectPgError(
+    insert({ ruleKind: 'MIXED' }),
+    '23514',
+    'commission_service_overrides_rule_kind',
+  );
 });
 
 it('refuses a null kind', async () => {
@@ -110,18 +128,8 @@ const invalidRuleShapes: {
     constraint: 'commission_service_overrides_rule_pct_present',
   },
   {
-    label: 'FOLLOW_SERVICE with a bps value',
-    row: { ruleKind: 'FOLLOW_SERVICE', rulePctBps: 10 },
-    constraint: 'commission_service_overrides_rule_pct_present',
-  },
-  {
     label: 'FIXED without an amount',
     row: { ruleKind: 'FIXED' },
-    constraint: 'commission_service_overrides_rule_fixed_present',
-  },
-  {
-    label: 'FOLLOW_SERVICE with an amount',
-    row: { ruleKind: 'FOLLOW_SERVICE', ruleFixedAmount: '1.000' },
     constraint: 'commission_service_overrides_rule_fixed_present',
   },
   {
@@ -232,13 +240,9 @@ it('refuses a creator that does not exist', async () => {
 it('refuses a business that belongs to another company', async () => {
   // النشاط الغلط بيكسر مفتاح النشاط ومفتاح الموظف ومفتاح الخدمة في نفس الوقت،
   // وPostgreSQL بيبلّغ عن واحد منهم بس حسب ترتيب التيجر.
-  await expectPgErrorAmong(
-    insert({ businessId: SERVICE_OVERRIDE_TENANTS.B.business }),
-    '23503',
-    [
-      'commission_service_overrides_business_fk',
-      'commission_service_overrides_employee_fk',
-      'commission_service_overrides_service_fk',
-    ],
-  );
+  await expectPgErrorAmong(insert({ businessId: SERVICE_OVERRIDE_TENANTS.B.business }), '23503', [
+    'commission_service_overrides_business_fk',
+    'commission_service_overrides_employee_fk',
+    'commission_service_overrides_service_fk',
+  ]);
 });

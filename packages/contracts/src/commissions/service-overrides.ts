@@ -15,29 +15,6 @@ const commissionServiceOverrideCursor = z
   .max(512)
   .regex(/^[A-Za-z0-9_-]+$/);
 
-// FOLLOW_SERVICE نوع مخصوص للتجاوزات بس: ارجع للقطة قاعدة الخدمة المحفوظة على سطر البيع نفسه.
-// مالوش value، لأن الكتالوج مفيهوش النوع ده أصلاً واللقطة المحفوظة هي مرجعه.
-const followServiceRule = { kind: z.literal('FOLLOW_SERVICE') };
-
-/**
- * قاعدة التجاوز: أنواع الكتالوج الأربعة زائد FOLLOW_SERVICE.
- * الأنواع الأربعة متأخوذة من اتحاد الكتالوج نفسه (مش مكتوبة تاني)، فأي تعديل في قواعد الكتالوج بيوصل
- * للتجاوزات من غير تكرار، والكتالوج نفسه ما بيقبلش النوع الإضافي ده.
- */
-export const commissionServiceOverrideRule = z
-  .discriminatedUnion('kind', [...serviceCommissionRule.options, z.strictObject(followServiceRule)])
-  .meta({ id: 'CommissionServiceOverrideRule' });
-
-/**
- * نسخة الرد من القاعدة: نفس الأنواع، والحقول الزيادة بتتشال بدل ما ترفض الرد (زي بقية الردود).
- * الـ FOLLOW_SERVICE بيفضل من غير value حتى لو حد بعت واحد، عشان الرد ما يبقاش فيه قيمة مش موجودة
- * في القاعدة أصلاً.
- */
-export const commissionServiceOverrideRuleView = z.discriminatedUnion('kind', [
-  ...serviceCommissionRuleView.options,
-  responseObject(followServiceRule),
-]);
-
 /**
  * جسم إنشاء تجاوز عمولة لخدمة على موظف (FR-011): الخدمة والقاعدة وتاريخ البداية بس.
  * الجسم صارم: التجاوز مالوش `whole_period` (FR-012)، فمفتاح زي ده لازم يرجع 400 بدل ما يتجاهل.
@@ -47,7 +24,7 @@ export const commissionServiceOverrideRuleView = z.discriminatedUnion('kind', [
 export const createCommissionServiceOverrideInput = z
   .strictObject({
     service_id: id,
-    rule: commissionServiceOverrideRule,
+    rule: serviceCommissionRule,
     effective_from: commissionPlanDate,
   })
   .meta({ id: 'CreateCommissionServiceOverrideInput' });
@@ -61,7 +38,7 @@ export const commissionServiceOverride = responseObject({
   id,
   employee_id: id,
   service_id: id,
-  rule: commissionServiceOverrideRuleView,
+  rule: serviceCommissionRuleView,
   effective_from: commissionPlanDate,
   created_at: timestamp,
   created_by: id,
@@ -99,10 +76,8 @@ export const commissionServiceOverrideList = responseObject({
 }).meta({ id: 'CommissionServiceOverrideList' });
 
 // السكيماات المنشورة الجديدة بس: `CommissionPlanDate` و`ServiceCommissionRule` متسجلين قبل كده
-// في التسجيل العام، وتكرارهم بنفس الـ id هيعمل مكوّنين بنفس الاسم. وقاعدة التجاوز ليها مكوّن
-// منفصل عن قاعدة الكتالوج لأن الأنواع الخمسة مش نفس الأنواع الأربعة.
+// في التسجيل العام، والتجاوز بيستخدم قاعدة الكتالوج نفسها من غير مكوّن قاعدة منفصل.
 export const commissionServiceOverrideSchemas = [
-  commissionServiceOverrideRule,
   createCommissionServiceOverrideInput,
   commissionServiceOverride,
   commissionServiceOverrideListQuery,
@@ -110,8 +85,7 @@ export const commissionServiceOverrideSchemas = [
   commissionServiceOverrideList,
 ];
 
-export type CommissionServiceOverrideRule = z.infer<typeof commissionServiceOverrideRule>;
-export type CommissionServiceOverrideRuleView = z.infer<typeof commissionServiceOverrideRuleView>;
+export type CommissionServiceOverrideRuleView = z.infer<typeof serviceCommissionRuleView>;
 export type CreateCommissionServiceOverrideInput = z.infer<
   typeof createCommissionServiceOverrideInput
 >;

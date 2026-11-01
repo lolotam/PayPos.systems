@@ -201,7 +201,7 @@ export interface paths {
         /** @description Current and historical service overrides of the employee (FR-013). is_current is the server’s own verdict on the single row the engine applies today for that service, so the client reads it and never recomputes it from the dates; every other row is history, and each row keeps the effective date it was saved with, so a future row stays visible. service_id narrows the list to one service. Requires manage:commission-plans:business and the commissions feature. Reads only. */
         get: operations["listCommissionServiceOverrides"];
         put?: never;
-        /** @description Creates one insert-only service override for the employee (FR-011). The rule is FOLLOW_PLAN, ZERO, PCT (basis points 0…10000), FIXED (a KWD amount with exactly three decimals) or FOLLOW_SERVICE (no value: from effective_from the engine returns the rule snapshot saved on the sale line itself, never the live catalog rule and never an earlier override). The service is checked in the business before anything is written. Requires manage:commission-plans:business and the commissions feature. The row and its audit entry commit in one transaction; the table is append-only, so a later override supersedes an earlier one by the engine order and never by an update. */
+        /** @description Creates one insert-only service override for the employee (FR-011). The rule is FOLLOW_PLAN, ZERO, PCT (basis points 0…10000) or FIXED (a KWD amount with exactly three decimals). FOLLOW_PLAN means the employee plan; only the absence of an eligible override falls back to the rule snapshot saved on the sale line. The service is checked in the business before anything is written. Requires manage:commission-plans:business and the commissions feature. The row and its audit entry commit in one transaction; the table is append-only, so a later override supersedes an earlier one by the engine order and never by an update. */
         post: operations["createCommissionServiceOverride"];
         delete?: never;
         options?: never;
@@ -2909,28 +2909,10 @@ export interface components {
             message_ar: string;
             message_en: string;
         };
-        CommissionServiceOverrideRule: {
-            /** @enum {string} */
-            kind: "FOLLOW_PLAN";
-        } | {
-            /** @enum {string} */
-            kind: "ZERO";
-        } | {
-            /** @enum {string} */
-            kind: "PCT";
-            value: number;
-        } | {
-            /** @enum {string} */
-            kind: "FIXED";
-            value: components["schemas"]["ServicePrice"];
-        } | {
-            /** @enum {string} */
-            kind: "FOLLOW_SERVICE";
-        };
         CreateCommissionServiceOverrideInput: {
             /** Format: uuid */
             service_id: string;
-            rule: components["schemas"]["CommissionServiceOverrideRule"];
+            rule: components["schemas"]["ServiceCommissionRule"];
             effective_from: components["schemas"]["CommissionPlanDate"];
         };
         CommissionServiceOverride: {
@@ -2954,9 +2936,6 @@ export interface components {
                 /** @enum {string} */
                 kind: "FIXED";
                 value: components["schemas"]["ServicePrice"];
-            } | {
-                /** @enum {string} */
-                kind: "FOLLOW_SERVICE";
             };
             effective_from: components["schemas"]["CommissionPlanDate"];
             /** Format: date-time */
@@ -2992,9 +2971,6 @@ export interface components {
                 /** @enum {string} */
                 kind: "FIXED";
                 value: components["schemas"]["ServicePrice"];
-            } | {
-                /** @enum {string} */
-                kind: "FOLLOW_SERVICE";
             };
             effective_from: components["schemas"]["CommissionPlanDate"];
             /** Format: date-time */

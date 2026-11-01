@@ -31,7 +31,7 @@ const stored = {
   created_by: actorId,
 };
 
-// الأنواع الخمسة المعتمدة للتجاوز: الأربعة اللي في الكتالوج زائد FOLLOW_SERVICE.
+// التجاوز يستخدم أنواع الكتالوج الأربعة نفسها من غير نوع إضافي.
 const overrideRules: { kind: string; value?: number | string }[] = [
   { kind: 'FOLLOW_PLAN' },
   { kind: 'ZERO' },
@@ -39,7 +39,6 @@ const overrideRules: { kind: string; value?: number | string }[] = [
   { kind: 'PCT', value: 10_000 },
   { kind: 'FIXED', value: '0.000' },
   { kind: 'FIXED', value: '12.500' },
-  { kind: 'FOLLOW_SERVICE' },
 ];
 
 it.each(overrideRules)('accepts the override rule %j', (rule) => {
@@ -52,6 +51,7 @@ it.each([
   { label: 'a PCT value above 10000 bps', rule: { kind: 'PCT', value: 10_001 } },
   { label: 'a fractional PCT value', rule: { kind: 'PCT', value: 1.5 } },
   { label: 'a PCT value sent as a string', rule: { kind: 'PCT', value: '1500' } },
+  { label: 'FOLLOW_SERVICE', rule: { kind: 'FOLLOW_SERVICE' } },
   { label: 'a kind the contracts do not know', rule: { kind: 'UNKNOWN', value: 0 } },
 ])('refuses $label', ({ rule }) => {
   const body_ = { ...body, rule };
@@ -74,17 +74,12 @@ it('refuses a FIXED amount wider than numeric(14,3)', () => {
   expect(createCommissionServiceOverrideInput.safeParse(body_).success).toBe(false);
 });
 
-it.each([100, '1.000'])('refuses a value payload on FOLLOW_SERVICE: %j', (value) => {
-  const body_ = { ...body, rule: { kind: 'FOLLOW_SERVICE', value } };
-  expect(createCommissionServiceOverrideInput.safeParse(body_).success).toBe(false);
-});
-
-it('round-trips a valueless FOLLOW_SERVICE from the request to the stored row', () => {
-  const rule = { kind: 'FOLLOW_SERVICE' };
-  const parsed = createCommissionServiceOverrideInput.parse({ ...body, rule });
-  expect(parsed.rule).toEqual(rule);
-  const record = { ...stored, rule };
-  expect(commissionServiceOverride.parse(record)).toEqual(record);
+it('refuses FOLLOW_SERVICE in stored and list responses', () => {
+  const record = { ...stored, rule: { kind: 'FOLLOW_SERVICE' } };
+  expect(commissionServiceOverride.safeParse(record).success).toBe(false);
+  expect(
+    commissionServiceOverrideListItem.safeParse({ ...record, is_current: false }).success,
+  ).toBe(false);
 });
 
 it('keeps FOLLOW_SERVICE out of the ordinary catalog rule', () => {
@@ -173,11 +168,6 @@ it('refuses a list item without is_current', () => {
   expect(commissionServiceOverrideListItem.safeParse(stored).success).toBe(false);
 });
 
-it('marks a FOLLOW_SERVICE row in the list like any other row', () => {
-  const item = { ...stored, rule: { kind: 'FOLLOW_SERVICE' }, is_current: false };
-  expect(commissionServiceOverrideListItem.parse(item)).toEqual(item);
-});
-
 it('bounds the page at a hundred items', () => {
   const items = Array.from({ length: 100 }, () => ({ ...stored, is_current: true }));
   const page = { items, next_cursor: null };
@@ -208,7 +198,7 @@ type Operation = {
 };
 type RuleBranch = { properties?: { kind?: { enum?: string[] } } };
 type Schema = {
-  properties?: Record<string, { enum?: string[] }>;
+  properties?: Record<string, { enum?: string[]; $ref?: string }>;
   additionalProperties?: boolean;
   oneOf?: RuleBranch[];
 };
@@ -283,7 +273,6 @@ it('publishes the bounded list query parameters', () => {
 it('publishes the new schemas as components', () => {
   expect(Object.keys(schemas)).toEqual(
     expect.arrayContaining([
-      'CommissionServiceOverrideRule',
       'CreateCommissionServiceOverrideInput',
       'CommissionServiceOverride',
       'CommissionServiceOverrideListQuery',
@@ -293,20 +282,17 @@ it('publishes the new schemas as components', () => {
   );
 });
 
-it('publishes the five override kinds and keeps the catalog rule at four', () => {
-  expect(ruleKinds(schemas['CommissionServiceOverrideRule'])).toEqual([
-    'FOLLOW_PLAN',
-    'ZERO',
-    'PCT',
-    'FIXED',
-    'FOLLOW_SERVICE',
-  ]);
+it('reuses the four-kind catalog rule without an override-rule component', () => {
+  expect(schemas['CreateCommissionServiceOverrideInput']?.properties?.['rule']?.$ref).toBe(
+    '#/components/schemas/ServiceCommissionRule',
+  );
   expect(ruleKinds(schemas['ServiceCommissionRule'])).toEqual([
     'FOLLOW_PLAN',
     'ZERO',
     'PCT',
     'FIXED',
   ]);
+  expect(schemas['CommissionServiceOverrideRule']).toBeUndefined();
 });
 
 it('publishes a strict body and an open response, like every other contract here', () => {

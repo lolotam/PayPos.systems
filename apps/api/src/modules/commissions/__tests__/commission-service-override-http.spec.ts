@@ -1,4 +1,8 @@
-import { commissionServiceOverride, commissionServiceOverrideList, type CreateCommissionServiceOverrideInput } from '@pospay/contracts';
+import {
+  commissionServiceOverride,
+  commissionServiceOverrideList,
+  type CreateCommissionServiceOverrideInput,
+} from '@pospay/contracts';
 import postgres from 'postgres';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 
@@ -24,7 +28,6 @@ afterEach(async () => {
 
 it.each([
   { label: 'FOLLOW_PLAN', rule: { kind: 'FOLLOW_PLAN' } },
-  { label: 'FOLLOW_SERVICE', rule: { kind: 'FOLLOW_SERVICE' } },
   { label: 'ZERO', rule: { kind: 'ZERO' } },
   { label: 'PCT', rule: { kind: 'PCT', value: 1500 } },
   { label: 'FIXED', rule: { kind: 'FIXED', value: '12.500' } },
@@ -49,17 +52,26 @@ it.each([
   },
 );
 
-it('POST refuses an extra body key, an unknown rule kind and a past date', async () => {
+it('POST refuses an extra body key, unapproved rule kinds and a past date', async () => {
   const extra = await f.postOverride(
     { ...overrideInput(f), whole_period: false },
     'cm-http-extra-key',
   );
   expect([extra.status, extra.body['code']]).toEqual([400, 'VALIDATION_FAILED']);
   const unknown = await f.postOverride(
-    overrideInput(f, { rule: { kind: 'NOPE' } as unknown as CreateCommissionServiceOverrideInput['rule'] }),
+    overrideInput(f, {
+      rule: { kind: 'NOPE' } as unknown as CreateCommissionServiceOverrideInput['rule'],
+    }),
     'cm-http-unknown-rule',
   );
   expect([unknown.status, unknown.body['code']]).toEqual([400, 'VALIDATION_FAILED']);
+  const followService = await f.postOverride(
+    overrideInput(f, {
+      rule: { kind: 'FOLLOW_SERVICE' } as unknown as CreateCommissionServiceOverrideInput['rule'],
+    }),
+    'cm-http-follow-service',
+  );
+  expect([followService.status, followService.body['code']]).toEqual([400, 'VALIDATION_FAILED']);
   const past = await f.postOverride(
     overrideInput(f, { effective_from: '2026-10-29' }),
     'cm-http-past',

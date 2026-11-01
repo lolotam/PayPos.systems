@@ -19,7 +19,9 @@ afterEach(async () => {
   await closeCommissionFixture(f);
 });
 
-async function page(query: string): Promise<ReturnType<typeof commissionServiceOverrideList.parse>> {
+async function page(
+  query: string,
+): Promise<ReturnType<typeof commissionServiceOverrideList.parse>> {
   const response = await f.getOverrides(query);
   expect(response.status).toBe(200);
   return commissionServiceOverrideList.parse(response.body);
@@ -84,7 +86,7 @@ it('the newest save wins even when its effective date is older', async () => {
   ]);
 });
 
-it('a future reset does not supersede the row that applies today', async () => {
+it('a future override does not supersede the row that applies today', async () => {
   const today = await businessToday(f);
   const applies = await seedOverride(f, {
     ruleKind: 'ZERO',
@@ -92,7 +94,8 @@ it('a future reset does not supersede the row that applies today', async () => {
     createdAt: `${today}T09:00:00.000001Z`,
   });
   const future = await seedOverride(f, {
-    ruleKind: 'FOLLOW_SERVICE',
+    ruleKind: 'PCT',
+    pctBps: 1500,
     effectiveFrom: shiftDate(today, 30),
     createdAt: `${today}T09:00:00.000002Z`,
   });
@@ -163,7 +166,9 @@ it('two rows inside the same millisecond stay two rows across the pages', async 
   const firstPage = await page('?limit=1');
   const cursor = JSON.parse(Buffer.from(firstPage.next_cursor ?? '', 'base64url').toString('utf8'));
   expect(cursor.t).toBe(`${today}T09:00:00.123002Z`);
-  const secondPage = await page(`?limit=1&cursor=${encodeURIComponent(firstPage.next_cursor ?? '')}`);
+  const secondPage = await page(
+    `?limit=1&cursor=${encodeURIComponent(firstPage.next_cursor ?? '')}`,
+  );
   expect(firstPage.items[0]?.created_at).toBe(`${today}T09:00:00.123Z`);
   expect(secondPage.items[0]?.created_at).toBe(`${today}T09:00:00.123Z`);
   expect([firstPage.items[0]?.id, secondPage.items[0]?.id]).toEqual([second, first]);

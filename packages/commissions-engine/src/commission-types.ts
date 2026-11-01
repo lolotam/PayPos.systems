@@ -37,18 +37,14 @@ export interface CommissionRuleLine {
   readonly ruleSnapshot: ServiceCommissionRule;
 }
 
-/**
- * اختيار التجاوز حسب تاريخ النشاط ثم createdAt بوحدات UTC microseconds وبعده id.
- * FOLLOW_SERVICE نوع للتجاوزات وحده: يرجع لقطة قاعدة الخدمة المحفوظة على سطر البيع.
- */
+/** اختيار التجاوز حسب تاريخ النشاط ثم createdAt بوحدات UTC microseconds وبعده id. */
 export interface ServiceCommissionOverride {
   readonly id: string;
   readonly employeeId: string;
   readonly serviceId: string;
   readonly effectiveFrom: string;
   readonly createdAt: bigint;
-  /** الأنواع الأربعة دي أنواع الكتالوج نفسها، وFOLLOW_SERVICE زائد للتجاوزات بس ومن غير قيمة. */
-  readonly rule: ServiceCommissionRule | { readonly kind: 'FOLLOW_SERVICE' };
+  readonly rule: ServiceCommissionRule;
 }
 
 /** حد صحيح على مقياس الخطة؛ validator يضمن ترتيب الحدود قبل حلها. */

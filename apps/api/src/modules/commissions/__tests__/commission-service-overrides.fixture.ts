@@ -1,4 +1,7 @@
-import type { CommissionServiceOverride, CreateCommissionServiceOverrideInput } from '@pospay/contracts';
+import type {
+  CommissionServiceOverride,
+  CreateCommissionServiceOverrideInput,
+} from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 
 import {
@@ -52,17 +55,25 @@ function overrideHttp(plan: CommissionPlanFixture) {
     overridePath: (businessId: string, employeeId: string) =>
       `/v1/businesses/${businessId}/employees/${employeeId}/commission-overrides`,
     postOverride: (body: object, key: string, employeeId = plan.employee, actor = plan.cookie) =>
-      h.send('POST', `/v1/businesses/${plan.business}/employees/${employeeId}/commission-overrides`, {
-        cookie: actor,
-        company: plan.company,
-        key,
-        body,
-      }),
+      h.send(
+        'POST',
+        `/v1/businesses/${plan.business}/employees/${employeeId}/commission-overrides`,
+        {
+          cookie: actor,
+          company: plan.company,
+          key,
+          body,
+        },
+      ),
     getOverrides: (query = '', employeeId = plan.employee, actor = plan.cookie) =>
-      h.send('GET', `/v1/businesses/${plan.business}/employees/${employeeId}/commission-overrides${query}`, {
-        cookie: actor,
-        company: plan.company,
-      }),
+      h.send(
+        'GET',
+        `/v1/businesses/${plan.business}/employees/${employeeId}/commission-overrides${query}`,
+        {
+          cookie: actor,
+          company: plan.company,
+        },
+      ),
   };
 }
 
@@ -88,7 +99,11 @@ export async function commissionServiceOverridesFixture() {
     cookie: plan.cookie,
     company: otherCompany,
     key: 'commission-override-other-tenant',
-    body: { vertical_type: 'salon', name_en: 'Override other tenant business', timezone: 'Asia/Kuwait' },
+    body: {
+      vertical_type: 'salon',
+      name_en: 'Override other tenant business',
+      timezone: 'Asia/Kuwait',
+    },
   });
   const otherTenantService = await seedService(
     h,
@@ -257,8 +272,8 @@ export function overrideTransactionsWithAccess(
 export async function overrideAndAuditCounts(
   f: CommissionServiceOverrideFixture,
 ): Promise<readonly [number, number]> {
-  const [overrides] =
-    await f.h.owner`SELECT count(*)::int AS count FROM commission_service_overrides
+  const [overrides] = await f.h
+    .owner`SELECT count(*)::int AS count FROM commission_service_overrides
       WHERE company_id=${f.company}`;
   const [audits] = await f.h.owner`SELECT count(*)::int AS count FROM audit_log
     WHERE company_id=${f.company} AND action='commission_override.created'`;
@@ -297,7 +312,7 @@ export function seedOverrideService(f: CommissionServiceOverrideFixture): Promis
 export interface SeededOverride {
   readonly id?: string;
   readonly serviceId?: string;
-  readonly ruleKind?: 'FOLLOW_PLAN' | 'FOLLOW_SERVICE' | 'ZERO' | 'PCT' | 'FIXED';
+  readonly ruleKind?: 'FOLLOW_PLAN' | 'ZERO' | 'PCT' | 'FIXED';
   readonly pctBps?: number | null;
   readonly fixedAmount?: string | null;
   readonly effectiveFrom: string;
@@ -334,7 +349,8 @@ export async function statementCount(f: CommissionServiceOverrideFixture): Promi
 
 /** تاريخ اليوم بتوقيت النشاط، من ساعة الداتابيز نفسها — مش من ساعة المطوّر. */
 export async function businessToday(f: CommissionServiceOverrideFixture): Promise<string> {
-  const [row] = await f.h.owner`SELECT to_char((CURRENT_TIMESTAMP AT TIME ZONE timezone)::date,'YYYY-MM-DD')
+  const [row] = await f.h
+    .owner`SELECT to_char((CURRENT_TIMESTAMP AT TIME ZONE timezone)::date,'YYYY-MM-DD')
     AS today FROM businesses WHERE company_id=${f.company} AND id=${f.business}`;
   return row?.['today'] as string;
 }

@@ -196,7 +196,7 @@ PlanVersion       employee_id · version · effective_from (date) · whole_perio
                            steps: [{ from, calc: PCT | FIXED }] }   — `from` all literal amounts, all salary multiples,
                                                                        or all session counts, never mixed
                   package_sale { enabled, calc: PCT | FIXED }
-ServiceOverride   employee_id · service_id · rule (FOLLOW_PLAN | FOLLOW_SERVICE | ZERO | PCT | FIXED) · effective_from · created_at
+ServiceOverride   employee_id · service_id · rule (FOLLOW_PLAN | ZERO | PCT | FIXED) · effective_from · created_at
 CommissionLine    (projection, one row per line × performer) line_id · revision · employee_id · service_id
                   occurred_at · recorded_at · net_share · share_bps · rule_snapshot · counts · status
 CommissionSale    (projection) sale_id · revision · seller · sold_at · price_paid · refunded_amount · status
@@ -247,8 +247,6 @@ period of its `sold_at`.
   in ascending `employee_id` order, so shares sum to `net`. A package line's `net` is its slot's `unit_value`.
 - The **rule**, first match wins: the employee's `ServiceOverride` that applies at `occurred_at` (among those with
   `effective_from ≤ occurred_at`, the latest by `created_at`, then by `id`), else the line's `rule_snapshot`. `FOLLOW_PLAN` uses the plan;
-  `FOLLOW_SERVICE`, an override-only kind (CS-Q39 = PP-104.1, Waleed's page pick 2026-11-01, Abu Salem pending),
-  returns to that line's saved `rule_snapshot` from its effective date, never an older override or the live catalog rule;
   `ZERO` pays nothing; `PCT` pays `share × bps / 10000`; `FIXED` pays `a × share_bps / 10000` — instead of the plan,
   base and tiers alike, for that line only. An absent override is not `ZERO`. **Every** rule path — plan, `PCT`,
   `FIXED`, `ZERO` — ends in exactly one `roundKwd` per line, so a half mill rounds the same way everywhere.

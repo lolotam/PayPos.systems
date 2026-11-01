@@ -1,4 +1,7 @@
-import type { CommissionServiceOverride, CreateCommissionServiceOverrideInput } from '@pospay/contracts';
+import type {
+  CommissionServiceOverride,
+  CreateCommissionServiceOverrideInput,
+} from '@pospay/contracts';
 import { computePeriod, type CommissionPeriodInput } from '@pospay/commissions-engine';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
@@ -149,7 +152,6 @@ it('CM-11 saves PCT 1500 and the saved row prices a shared line at 1.500 KWD', a
 
 it.each([
   { label: 'FOLLOW_PLAN', rule: { kind: 'FOLLOW_PLAN' } },
-  { label: 'FOLLOW_SERVICE', rule: { kind: 'FOLLOW_SERVICE' } },
   { label: 'ZERO', rule: { kind: 'ZERO' } },
   { label: 'PCT', rule: { kind: 'PCT', value: 1500 } },
   { label: 'FIXED', rule: { kind: 'FIXED', value: '12.500' } },
@@ -226,7 +228,11 @@ it.each([
   async ({ label, service }) => {
     const before = await overrideAndAuditCounts(f);
     await expect(
-      runOverride(f, overrideInput(f, { service_id: service(f) }), `cm-11-service-${label.replaceAll(' ', '-')}`),
+      runOverride(
+        f,
+        overrideInput(f, { service_id: service(f) }),
+        `cm-11-service-${label.replaceAll(' ', '-')}`,
+      ),
     ).rejects.toMatchObject({ code: 'SERVICE_NOT_FOUND' });
     expect(await overrideAndAuditCounts(f)).toEqual(before);
     expect(await idempotencyClaims(f)).toBe(0);

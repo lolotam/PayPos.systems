@@ -23,8 +23,6 @@ function storedRule(row: StoredRow): CommissionServiceOverride['rule'] {
   switch (row.rule_kind) {
     case 'FOLLOW_PLAN':
       return { kind: 'FOLLOW_PLAN' };
-    case 'FOLLOW_SERVICE':
-      return { kind: 'FOLLOW_SERVICE' };
     case 'ZERO':
       return { kind: 'ZERO' };
     case 'PCT':

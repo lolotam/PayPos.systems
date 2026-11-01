@@ -1,5 +1,3 @@
--- رقم محلي مؤقت للتجربة الخاصة؛ يتحدد الرقم النهائي مقابل main بعد إذن مسار الدمج.
--- الجدول نفسه مولّد من الـ schema في مدخل سابق، وسياسة العزل هنا في مدخل custom مستقل.
 -- عزل شركة كل تجاوز هو آخر خط دفاع، حتى لو وصل معرّف موظف أو خدمة من شركة أخرى.
 ALTER TABLE commission_service_overrides ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint

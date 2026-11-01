@@ -11,7 +11,7 @@ CREATE TABLE "commission_service_overrides" (
 	"created_at" timestamp with time zone NOT NULL,
 	"created_by" uuid NOT NULL,
 	CONSTRAINT "commission_service_overrides_pkey" PRIMARY KEY("company_id","id"),
-	CONSTRAINT "commission_service_overrides_rule_kind" CHECK ("commission_service_overrides"."rule_kind" IN ('FOLLOW_PLAN','FOLLOW_SERVICE','ZERO','PCT','FIXED')),
+	CONSTRAINT "commission_service_overrides_rule_kind" CHECK ("commission_service_overrides"."rule_kind" IN ('FOLLOW_PLAN','ZERO','PCT','FIXED')),
 	CONSTRAINT "commission_service_overrides_rule_pct_present" CHECK (("commission_service_overrides"."rule_kind" = 'PCT') = ("commission_service_overrides"."rule_pct_bps" IS NOT NULL)),
 	CONSTRAINT "commission_service_overrides_rule_pct_bounds" CHECK ("commission_service_overrides"."rule_pct_bps" IS NULL OR "commission_service_overrides"."rule_pct_bps" BETWEEN 0 AND 10000),
 	CONSTRAINT "commission_service_overrides_rule_fixed_present" CHECK (("commission_service_overrides"."rule_kind" = 'FIXED') = ("commission_service_overrides"."rule_fixed_amount" IS NOT NULL)),
