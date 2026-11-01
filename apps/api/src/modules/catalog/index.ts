@@ -1,5 +1,6 @@
 export { catalogControllers, catalogProviders } from './catalog.module.ts';
 export { readSessionServices } from './persistence/session-services.reader.ts';
+export { readPackageTypeForSale } from './persistence/package-type-sale.reader.ts';
 import { sessionServiceOptionsPage } from './queries/session-service-options.query.ts';
 import { sessionServiceCursorCodec } from './persistence/session-options.reader.ts';
 import type { SessionServiceOptionsQuery } from '@pospay/contracts';

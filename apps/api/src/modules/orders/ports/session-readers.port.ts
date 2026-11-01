@@ -1,4 +1,5 @@
 import type { SessionAccess } from '../domain/session-authority.ts';
+import type { SalePackageType } from '../domain/package-sale-types.ts';
 import type { SessionEmployee, SessionLimit, SessionRecord, SessionService } from '../domain/session-types.ts';
 
 /** قراءات محدودة على نفس معاملة المسجلة، بدون تسريب نوع المعاملة إلى الداخل. */
@@ -17,6 +18,13 @@ export interface CatalogReaderPort {
    * @returns أسعار القائمة والأسماء وقواعد العمولة والمشاركة في العتبات والنسخ بعد انتظار الأقفال
    */
   read(serviceIds: readonly string[]): Promise<SessionService[]>;
+  /**
+   * يقفل نوع الباقة FOR SHARE ثم خدمات مكوناتها FOR SHARE بترتيب الهوية، ويقرأ الكل بعد الأقفال حتى لا يتباع تعريف أو سعر غير اللي اتعرض.
+   *
+   * @param packageTypeId نوع الباقة المطلوب بيعه في النشاط الحالي
+   * @returns التعريف ومكوناته مع لقطة كل خدمة بعد الأقفال، أو null لو النوع مش في النشاط
+   */
+  readPackageTypeForSale(packageTypeId: string): Promise<SalePackageType | null>;
 }
 /** العملاء يخفون الهاتف قبل دخوله إلى orders. */
 export interface CustomerLookupPort {

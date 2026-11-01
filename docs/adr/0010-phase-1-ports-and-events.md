@@ -54,8 +54,11 @@ Each event names a stable identity and carries every field its consumers use (SP
 - `ServiceLineChanged` — `line_id`, `session_id`, `service_id`, `branch_id`, `business_id`, `customer_id`, `status`,
   `occurred_at`, `recorded_at`, `net`, `performers [{employee_id, share_bps}]`, `rule_snapshot`, `counts_snapshot`,
   `package {entitlement_id, component_id, ordinal}?`, `revision` (per line, +1 on every change).
-- `PackageSaleChanged` — `sale_id` (= the entitlement id), `business_id`, `sold_at`, `seller_employee_id`,
+- `PackageSaleChanged` — `sale_id` (= the entitlement id), `business_id`, `branch_id` (= the sale's
+  `sold_branch_id`), `sold_at`, `business_date` (= the sale's `sold_business_date`), `seller_employee_id`,
   `price_paid`, `refunded_amount`, `status`, `revision`.
+  `branch_id` and `business_date` were added by spec 058 TD-7 (42-1): the sale's branch and business date on
+  every revision, which the commission projection needs (spec 059 CM-20).
 - `SessionTipsChanged` — `session_id`, `business_id`, `occurred_at`, `tips [{employee_id, amount, method}]`,
   `revision` (per session).
 

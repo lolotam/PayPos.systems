@@ -29,6 +29,7 @@ const LABELLED_CODES = [
   'manage:employee-number:company',
   'read:package-types:business',
   'manage:package-types:business',
+  'sell:packages:branch',
   'read:service-categories:business',
   'manage:service-categories:business',
   'read:service-categories:branch',
@@ -83,4 +84,9 @@ it('MY-Q5 manage:staff-app-columns:business has an Arabic and an English name', 
     expect(permissionName(locale, 'manage:staff-app-columns:business')).not.toBe(
       'manage:staff-app-columns:business',
     );
+});
+
+it('PK-Q13 sell:packages:branch has an Arabic and an English name', () => {
+  expect(permissionName('ar', 'sell:packages:branch')).toBe('بيع الباقات');
+  expect(permissionName('en', 'sell:packages:branch')).toBe('Sell packages');
 });

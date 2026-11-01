@@ -4,6 +4,8 @@ export const KNOWN_EVENT_TYPES = [
   'ServiceLineChanged',
   // spec 053 BR-08: يُسجَّل قبل المستهلك حتى لا يُعاد محاولة حدث نُشر قبل صف 50.
   'SessionTipsChanged',
+  // spec 058 TD-7: يُسجَّل قبل المنتج (42-3) والمستهلك (50-4) حتى لا يُعاد محاولة حدث نُشر قبل صف 50.
+  'PackageSaleChanged',
   // spec 057: يُسجَّل قبل مستهلك الجرس (057-3) ومنتج الطلب (057-4b) حتى لا يُعاد محاولة حدث نُشر قبل المستهلك.
   'DiscountApprovalRequested',
   'DiscountApprovedByPerformer',

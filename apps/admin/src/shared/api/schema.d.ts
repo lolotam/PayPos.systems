@@ -5505,6 +5505,97 @@ export interface components {
             /** @enum {number} */
             schema_version: 1;
         };
+        /** @enum {string} */
+        PackagePaidMethod: "CASH" | "CARD";
+        PackageServiceRevision: {
+            /** Format: uuid */
+            service_id: string;
+            revision: number;
+        };
+        SellPackageInput: {
+            /** Format: uuid */
+            customer_id: string;
+            /** Format: uuid */
+            package_type_id: string;
+            expected_type_revision: number;
+            expected_service_revisions: components["schemas"]["PackageServiceRevision"][];
+            price_paid: components["schemas"]["SessionMoney"];
+            paid_method: components["schemas"]["PackagePaidMethod"];
+            /** Format: uuid */
+            seller_employee_id: string;
+            /** Format: date-time */
+            sold_at?: string;
+            /** Format: uuid */
+            recorder_membership_id?: string;
+        };
+        SoldPackageComponent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            service_id: string;
+            position: number;
+            name_en: string;
+            name_ar: string | null;
+            list_price_snapshot: components["schemas"]["SessionMoney"];
+            sessions_total: number;
+            component_value: components["schemas"]["SessionMoney"];
+        };
+        SoldPackageEntitlement: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            customer_id: string;
+            /** Format: uuid */
+            package_type_id: string;
+            /** Format: uuid */
+            sold_branch_id: string;
+            name_en: string;
+            name_ar: string | null;
+            validity_days: number;
+            list_price: components["schemas"]["SessionMoney"];
+            price_paid: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"];
+            discount_bps: number;
+            paid_method: components["schemas"]["PackagePaidMethod"];
+            /** Format: uuid */
+            seller_employee_id: string;
+            /** Format: date-time */
+            sold_at: string;
+            /** Format: date */
+            sold_business_date: string;
+            late: boolean;
+            /** Format: date */
+            expires_on: string;
+            refunded_amount: components["schemas"]["SessionMoney"];
+            revision: number;
+            components: components["schemas"]["SoldPackageComponent"][];
+        };
+        SellPackageResponse: {
+            entitlement: components["schemas"]["SoldPackageEntitlement"];
+        };
+        PackageSaleChanged: {
+            /** Format: uuid */
+            sale_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: date-time */
+            sold_at: string;
+            /** Format: date */
+            business_date: string;
+            /** Format: uuid */
+            seller_employee_id: string;
+            price_paid: components["schemas"]["SessionMoney"];
+            refunded_amount: components["schemas"]["SessionMoney"];
+            /** @enum {string} */
+            status: "SOLD";
+            revision: number;
+            /** @enum {number} */
+            schema_version: 1;
+        };
         ServiceSessionDayQuery: {
             cursor?: string;
             /** @default 20 */

@@ -15,6 +15,7 @@ const expectations: Record<string, readonly string[]> = {
     'cancel:service-lines:branch',
     'read:service-sessions:branch',
     'record:service-sessions:branch',
+    'sell:packages:branch',
     'read:passkeys:branch',
     'unbind:passkeys:branch',
     'create:customers:company',
@@ -55,6 +56,7 @@ const expectations: Record<string, readonly string[]> = {
     'cancel:service-lines:branch',
     'read:service-sessions:branch',
     'record:service-sessions:branch',
+    'sell:packages:branch',
     'read:passkeys:branch',
     'unbind:passkeys:branch',
     'create:customers:business',
@@ -99,6 +101,7 @@ const expectations: Record<string, readonly string[]> = {
     'cancel:service-lines:branch',
     'read:service-sessions:branch',
     'record:service-sessions:branch',
+    'sell:packages:branch',
     'read:passkeys:branch',
     'unbind:passkeys:branch',
     'create:customers:branch',
@@ -117,6 +120,7 @@ const expectations: Record<string, readonly string[]> = {
   shift_supervisor: ['read:branches:branch', 'clock:attendance:branch'],
   cashier: [
     'record:service-sessions:branch',
+    'sell:packages:branch',
     'read:branches:branch',
     'create:customers:branch',
     'clock:attendance:branch',
@@ -295,6 +299,19 @@ it('MY-Q5 manage:staff-app-columns:business defaults to the three managers, is d
       systemRolePolicy(role.id, 'global')?.permissions.includes(
         'manage:staff-app-columns:business',
       ),
+    ).toBe(role.code !== 'device');
+  }
+});
+
+it('PK-Q13 sell:packages:branch defaults to the five visit roles, is delegable to humans and never the device', () => {
+  const code = 'sell:packages:branch';
+  const defaults = ['owner', 'general_manager', 'business_manager', 'branch_manager', 'cashier'];
+  const holders: readonly string[] = ROLE_DEFAULTS[code];
+  expect(holders).toEqual(defaults);
+  expect(OWNER_GRANTED_PERMISSIONS as readonly string[]).not.toContain(code);
+  for (const role of SYSTEM_ROLES) {
+    expect(
+      systemRolePolicy(role.id, 'global')?.permissions.includes(code),
     ).toBe(role.code !== 'device');
   }
 });

@@ -56,6 +56,8 @@ const deviceForbidden = [
   'manage:service-categories:business',
   'read:service-categories:branch',
   'manage:service-categories:branch',
+  // الجهاز مبيبيعش باقة؛ البيع بدخول فردي، FR-011
+  'sell:packages:branch',
   'manage:services:business',
   'create:customers:company',
   'create:customers:business',
@@ -111,6 +113,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
           (OWNER_GRANTED_PERMISSIONS as readonly string[]).includes(code) ||
           ['decide:leave:branch', 'revoke:leave:branch', 'read:leave:branch'].includes(code) ||
           code === 'record:service-sessions:branch' ||
+          code === 'sell:packages:branch' ||
           code === 'read:service-sessions:branch' ||
           code === 'edit:service-line-prices:branch' ||
           code === 'change:service-line-performers:branch' ||

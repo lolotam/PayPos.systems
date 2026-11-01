@@ -93,7 +93,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 
 | Consumer                            | Port it defines                                                                         | Reads from  | What it needs                                                                                                                                                        |
 | ----------------------------------- | --------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `orders` | `CatalogReaderPort` | `catalog` | 35a bounded service list price, names, revision, all four commission rules and threshold flag (ADR-0041); later item/package reads remain as planned in ADR-0010 |
+| `orders` | `CatalogReaderPort` | `catalog` | 35a bounded service list price, names, revision, all four commission rules and threshold flag (ADR-0041); 42-1 the package type for a sale under `FOR SHARE` (type, then component services in ascending id, FR-018b/c; `selling_stopped_at` joins in 33b, PP-100.1); later item reads remain as planned in ADR-0010 |
 | `orders`                            | `CustomerCreditPort`                                                                    | `customers` | credit limit, current balance, block status                                                                                                                          |
 | `payments`                          | `OrderTotalsPort`                                                                       | `orders`    | order total + currency to charge                                                                                                                                     |
 | `cash`                              | `ShiftPaymentsPort`                                                                     | `payments`  | tenders belonging to a shift, incl. `PENDING_GATEWAY` ones                                                                                                           |
@@ -377,6 +377,7 @@ reads:
   - orders -> identity.lockServiceSessionPerformersAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> identity.readServiceSessionPerformersAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> catalog.readSessionServices @ apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts
+  - orders -> catalog.readPackageTypeForSale @ apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts
   - orders -> customers.readSessionCustomer @ apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts
   - orders -> staff.readSessionPerformers @ apps/api/src/modules/orders/persistence/performer-check.adapter.ts
   - orders -> settings.readEffectiveDiscountLimit @ apps/api/src/modules/orders/persistence/discount-limit.adapter.ts
